@@ -99,10 +99,18 @@ Raccourcis fournis par l'extension :
 
 Toutes les commandes du framework sont aussi regroupées dans la **palette de
 commandes** de VS Code : `Ctrl+Shift+P`, puis tapez `OWL` pour les lister
-(exécution, débogage, designers, documentation, catalogue d'icônes…), chacune
-avec son raccourci — rien à mémoriser.
+(création d'un élément, exécution, débogage, designers, documentation, catalogue
+d'icônes…), chacune avec son raccourci — rien à mémoriser.
 
 ![Commandes OWL dans la palette de VS Code](images/palette-commandes.png)
+
+**Créer sans tout taper** — la commande **OWL : Nouvel élément** (dans la palette)
+ouvre un menu de création : choisissez un modèle — fenêtre, état, classe, champ —
+et le squelette est généré puis ouvert dans l'éditeur. Pour une fenêtre, vous
+choisissez la disposition des champs ; pour un état, le format de page et
+l'orientation. (Équivalent en ligne de commande : `owl new`.)
+
+![Menu de création « Nouvel élément »](images/nouvel-element.png)
 
 **Designer de fenêtre** — une fenêtre se déclare dans son propre fichier `.owl`,
 à partir d'un squelette minimal :
@@ -134,6 +142,12 @@ et insérables directement depuis l'éditeur (ou en ligne de commande avec
 
 ![Catalogue d'icônes intégré](images/catalogue-icones.png)
 
+**Choisir la langue de l'assistance** — `Ctrl+,` ouvre les réglages ; tapez `OWL`
+et réglez **Owl: Language** (`fr` ou `en`). Toute l'assistance bascule alors dans
+la langue choisie : autocomplétion, aide au survol et diagnostics.
+
+![Réglage de la langue de l'extension OWL](images/settings-langue.png)
+
 ---
 
 ## Organisation du code
@@ -141,7 +155,8 @@ et insérables directement depuis l'éditeur (ou en ligne de commande avec
 Owl lie les fichiers `.owl` automatiquement, sans imports à déclarer. Aucun import/include à gérer. Le périmètre d'un fichier se détermine en trois niveaux :
 
 - **Script** — le mode par défaut : un ou plusieurs fichiers `.owl` à plat.
-  `owl mon_fichier.owl` exécute le fichier visé.
+  `owl mon_fichier.owl` exécute le fichier visé (et initialise ses voisins
+  du dossier). `owl mon_fichier.owl --single` l'exécute **seul**, sans les voisins.
 - **Point d'entrée** — un fichier `main.owl` contenant une procédure `main()`
   désigne, par convention, le point d'entrée d'un ensemble de fichiers ; `owl`
   sans argument le lance.

@@ -98,10 +98,19 @@ Shortcuts provided by the extension:
 | `Ctrl+Alt+i` | Open the icon catalog |
 
 All framework commands are also gathered in VS Code's **command palette**: press
-`Ctrl+Shift+P`, then type `OWL` to list them (run, debug, designers,
-documentation, icon catalog…), each with its shortcut — nothing to memorize.
+`Ctrl+Shift+P`, then type `OWL` to list them (create an element, run, debug,
+designers, documentation, icon catalog…), each with its shortcut — nothing to
+memorize.
 
 ![OWL commands in the VS Code command palette](images/palette-commandes.png)
+
+**Create without typing it all** — the **New element** command in the palette
+opens a creation menu: pick a template — window, report, class, field — and the
+skeleton is generated and opened in the editor. For a window, you choose the
+field layout; for a report, the page format and orientation. (Command-line
+equivalent: `owl new`.)
+
+![The "New element" creation menu](images/nouvel-element.png)
 
 **Window designer** — a window is declared in its own `.owl` file, starting from
 a minimal skeleton:
@@ -132,6 +141,12 @@ insertable directly from the editor (or from the command line with `owl icons`):
 
 ![Built-in icon catalog](images/catalogue-icones.png)
 
+**Choose the assistance language** — `Ctrl+,` opens the settings; type `OWL` and
+set **Owl: Language** (`fr` or `en`). The whole assistance then switches to the
+chosen language: autocompletion, hover help and diagnostics.
+
+![OWL extension language setting](images/settings-langue.png)
+
 ---
 
 ## Code organization
@@ -140,7 +155,8 @@ OWL links `.owl` files automatically, with no imports to declare. No
 import/include to manage. A file's scope is determined at three levels:
 
 - **Script** — the default mode: one or more flat `.owl` files.
-  `owl mon_fichier.owl` runs the targeted file.
+  `owl mon_fichier.owl` runs the targeted file (and initializes its folder
+  neighbors). `owl mon_fichier.owl --single` runs it **alone**, without neighbors.
 - **Entry point** — a `main.owl` file containing a `main()` procedure
   designates, by convention, the entry point of a set of files; `owl` with no
   argument runs it.
