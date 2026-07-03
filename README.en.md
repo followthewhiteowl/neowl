@@ -91,8 +91,7 @@ Shortcuts provided by the extension:
 |---|---|
 | `F9` | Run the current file |
 | `Ctrl+F9` | Run the project |
-| `Shift+F9` | Debug the current file |
-| `F5` | Debug the project |
+| `F5` or `Shift+F9` | Debug the active file (in its project context) |
 | `F11` | Open the visual designer (windows and reports) |
 | `F1` | Open the documentation for the word under the cursor |
 | `Ctrl+Alt+i` | Open the icon catalog |
@@ -146,6 +145,48 @@ set **Owl: Language** (`fr` or `en`). The whole assistance then switches to the
 chosen language: autocompletion, hover help and diagnostics.
 
 ![OWL extension language setting](images/settings-langue.png)
+
+---
+
+## Debugging
+
+NeOwl includes a debugger. It works with any **DAP**-compatible editor (Debug
+Adapter Protocol), through a dedicated binary — `owl-dap` — shipped next to
+`owl.exe` by the installer. Visual Studio Code is the client documented here, but
+the architecture is editor-agnostic: the same `owl-dap` plugs into any other DAP
+client.
+
+**Getting started in VS Code**
+
+1. Open a `.owl` file and set a breakpoint (click in the gutter, left of the line
+   number).
+2. Press **F5** (VS Code's standard shortcut) or **Shift+F9** to start debugging
+   the active file. Its sibling files from the same project are loaded with it.
+
+No `launch.json` is required: the extension provides a default configuration. VS
+Code's "create a launch.json to customize" message is optional — not a sign of an
+incomplete setup.
+
+Once paused, you get step controls (step over, into, out), inspection of local
+and global variables, the call stack, and expression evaluation (on hover, or in
+the *Watch* panel).
+
+![A debugging session paused at the breakpoint](images/debug-session.png)
+
+> **A breakpoint only stops on a line that is actually executed.** This is the
+> most common pitfall: placed on a blank line, a comment, a procedure header or an
+> event handler that never fires, it stops nothing and the program ends normally.
+> Set it on an **instruction line** within the executed flow.
+
+```owl
+sNom est une chaîne = "le monde"
+sMessage est une chaîne = "Bonjour, " + sNom   // useful breakpoint here
+Trace(sMessage)
+```
+
+If something goes wrong — a breakpoint that never triggers, say — VS Code's
+*Output* panel, channel **OWL Language Server**, logs the exchanges with the
+debugger.
 
 ---
 

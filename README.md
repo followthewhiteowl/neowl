@@ -91,8 +91,7 @@ Raccourcis fournis par l'extension :
 |---|---|
 | `F9` | GO sur le fichier courant |
 | `Ctrl+F9` | GO sur le projet |
-| `Shift+F9` | Déboguer le fichier courant |
-| `F5` | Déboguer le projet |
+| `F5` ou `Shift+F9` | Déboguer le fichier actif (dans son contexte projet) |
 | `F11` | Ouvrir le designer visuel (fenêtres et états) |
 | `F1` | Ouvrir la documentation sur le mot sous le curseur |
 | `Ctrl+Alt+i` | Ouvrir le catalogue d'icônes |
@@ -147,6 +146,50 @@ et réglez **Owl: Language** (`fr` ou `en`). Toute l'assistance bascule alors da
 la langue choisie : autocomplétion, aide au survol et diagnostics.
 
 ![Réglage de la langue de l'extension OWL](images/settings-langue.png)
+
+---
+
+## Déboguer
+
+NeOwl inclut un débogueur. Il fonctionne avec tout éditeur compatible **DAP**
+(Debug Adapter Protocol), via un binaire dédié — `owl-dap` — livré à côté de
+`owl.exe` par l'installateur. Visual Studio Code est le client documenté ici,
+mais l'architecture reste agnostique : le même `owl-dap` se branche sur n'importe
+quel autre client DAP.
+
+**Démarrer dans VS Code**
+
+1. Ouvrez un fichier `.owl` et posez un point d'arrêt (clic dans la marge, à
+   gauche du numéro de ligne).
+2. Appuyez sur **F5** (raccourci standard de VS Code) ou **Shift+F9** pour lancer
+   le débogage du fichier actif. Ses fichiers voisins du même projet sont chargés
+   avec lui.
+
+Aucun `launch.json` n'est requis : l'extension fournit une configuration par
+défaut. Le message « create a launch.json to customize » de VS Code est
+facultatif — ce n'est pas le signe d'une installation incomplète.
+
+À l'arrêt, vous disposez du pas-à-pas (entrer, sortir, pas suivant), de
+l'inspection des variables locales et globales, de la pile d'appels et de
+l'évaluation d'expressions (au survol, ou dans le panneau *Watch*).
+
+![Session de débogage en pause sur le point d'arrêt](images/debug-session.png)
+
+> **Un point d'arrêt ne s'arrête que sur une ligne réellement exécutée.** C'est le
+> piège le plus courant : placé sur une ligne vide, un commentaire, une en-tête de
+> procédure ou un gestionnaire d'événement qui ne se déclenche pas, il ne marque
+> aucune pause et le programme se termine normalement. Posez-le sur une **ligne
+> d'instruction** située dans le flux exécuté.
+
+```owl
+sNom est une chaîne = "le monde"
+sMessage est une chaîne = "Bonjour, " + sNom   // point d'arrêt utile ici
+Trace(sMessage)
+```
+
+En cas de souci — un point d'arrêt qui ne se déclenche pas, par exemple — le
+panneau *Output* de VS Code, canal **OWL Language Server**, trace les échanges
+avec le débogueur.
 
 ---
 
