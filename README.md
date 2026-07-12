@@ -4,6 +4,8 @@
 
 **Un langage de programmation orienté productivité, all inclusive.**
 
+Actualités, entraide et retours : **[Telegram](https://t.me/neowl_fr)**.
+
 L'atout de NeOwl tient autant à son langage qu'à son **framework intégré**. Des
 centaines de fonctions natives sont embarquées dans le compilateur — HTTP,
 JSON, SQL, dates, expressions régulières, fichiers, interfaces graphiques, PDF,
@@ -95,6 +97,18 @@ Raccourcis fournis par l'extension :
 | `F11` | Ouvrir le designer visuel (fenêtres et états) |
 | `F1` | Ouvrir la documentation sur le mot sous le curseur |
 | `Ctrl+Alt+i` | Ouvrir le catalogue d'icônes |
+
+**Raccourcis d'édition familiers** — en plus des commandes ci-dessus :
+
+| Touche | Action |
+|---|---|
+| `Ctrl+/` / `Ctrl+Shift+/` | Commenter / décommenter |
+| `Ctrl+D` | Dupliquer la ligne |
+| `Ctrl+-` | Supprimer la ligne |
+| `F2` | Aller à la définition |
+| `Ctrl+F2` | Revenir en arrière |
+| `Alt+S` | Tout enregistrer |
+| `F12` / `Shift+F12` | Problème suivant / précédent |
 
 Toutes les commandes du framework sont aussi regroupées dans la **palette de
 commandes** de VS Code : `Ctrl+Shift+P`, puis tapez `OWL` pour les lister
@@ -195,16 +209,17 @@ avec le débogueur.
 
 ## Organisation du code
 
-Owl lie les fichiers `.owl` automatiquement, sans imports à déclarer. Aucun import/include à gérer. Le périmètre d'un fichier se détermine en trois niveaux :
+Owl lie les fichiers `.owl` automatiquement, sans imports à déclarer. Aucun import/include à gérer. Le périmètre d'un fichier se détermine en deux niveaux :
 
 - **Script** — le mode par défaut : un ou plusieurs fichiers `.owl` à plat.
-  `owl mon_fichier.owl` exécute le fichier visé (et initialise ses voisins
-  du dossier). `owl mon_fichier.owl --single` l'exécute **seul**, sans les voisins.
-- **Point d'entrée** — un fichier `main.owl` contenant une procédure `main()`
-  désigne, par convention, le point d'entrée d'un ensemble de fichiers ; `owl`
-  sans argument le lance.
-- **Projet** — un fichier `projet.owl` ouvre une organisation plus complète,
-  avec découverte de tous les sous-dossiers.
+  `owl mon_fichier.owl` exécute le fichier visé — son code de premier niveau —
+  et initialise ses voisins du dossier. `owl mon_fichier.owl --single`
+  l'exécute **seul**, sans les voisins. Il n'y a pas de fichier privilégié :
+  le programme lancé est celui qu'on nomme.
+- **Projet** — un fichier `projet.owl` marque la frontière d'un projet et
+  active la découverte de tous les sous-dossiers. `owl` (ou `owl` sur le
+  dossier) lance alors le projet : le code de premier niveau de `projet.owl`
+  **est** le programme.
 
 ---
 

@@ -4,6 +4,8 @@
 
 **A productivity-focused programming language, batteries included.**
 
+News, help and feedback: **[Telegram](https://t.me/neowl_en)**.
+
 NeOwl's strength lies as much in its language as in its **built-in framework**.
 Hundreds of native functions are embedded in the compiler — HTTP, JSON, SQL,
 dates, regular expressions, files, graphical interfaces, PDF, testing, and many
@@ -95,6 +97,18 @@ Shortcuts provided by the extension:
 | `F11` | Open the visual designer (windows and reports) |
 | `F1` | Open the documentation for the word under the cursor |
 | `Ctrl+Alt+i` | Open the icon catalog |
+
+**Familiar editing shortcuts** — in addition to the commands above:
+
+| Key | Action |
+|---|---|
+| `Ctrl+/` / `Ctrl+Shift+/` | Comment / uncomment |
+| `Ctrl+D` | Duplicate line |
+| `Ctrl+-` | Delete line |
+| `F2` | Go to definition |
+| `Ctrl+F2` | Navigate back |
+| `Alt+S` | Save all |
+| `F12` / `Shift+F12` | Next / previous problem |
 
 All framework commands are also gathered in VS Code's **command palette**: press
 `Ctrl+Shift+P`, then type `OWL` to list them (create an element, run, debug,
@@ -193,16 +207,16 @@ debugger.
 ## Code organization
 
 OWL links `.owl` files automatically, with no imports to declare. No
-import/include to manage. A file's scope is determined at three levels:
+import/include to manage. A file's scope is determined at two levels:
 
 - **Script** — the default mode: one or more flat `.owl` files.
-  `owl mon_fichier.owl` runs the targeted file (and initializes its folder
-  neighbors). `owl mon_fichier.owl --single` runs it **alone**, without neighbors.
-- **Entry point** — a `main.owl` file containing a `main()` procedure
-  designates, by convention, the entry point of a set of files; `owl` with no
-  argument runs it.
-- **Project** — a `projet.owl` file opens a fuller organization, with discovery
-  of all subfolders.
+  `owl mon_fichier.owl` runs the targeted file — its top-level code — and
+  initializes its folder neighbors. `owl mon_fichier.owl --single` runs it
+  **alone**, without neighbors. No file is privileged: the program that runs
+  is the one you name.
+- **Project** — a `projet.owl` file marks a project boundary and enables
+  discovery of all subfolders. `owl` (or `owl` on the folder) then runs the
+  project: the top-level code of `projet.owl` **is** the program.
 
 ---
 
