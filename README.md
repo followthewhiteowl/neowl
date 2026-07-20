@@ -318,4 +318,4 @@ NeOwl découvre les fichiers `test_*.owl` et les exécute (répertoire courant, 
 
 - Canal FR : <https://t.me/neowl_fr>
 - Canal EN : <https://t.me/neowl_en>
-- Groupe de discussion : <https://t.me/+RuC4ayexheJkYTlk>
+- Groupe de discussion : <https://t.me/neowl_groupe>

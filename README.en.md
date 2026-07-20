@@ -317,4 +317,4 @@ is displayed automatically at the end.
 
 - FR channel: <https://t.me/neowl_fr>
 - EN channel: <https://t.me/neowl_en>
-- Discussion group: <https://t.me/+RuC4ayexheJkYTlk>
+- Discussion group: <https://t.me/neowl_group_en>
