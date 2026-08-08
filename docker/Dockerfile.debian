@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+#
+# NeOwl - image de base conteneur (variante Debian, compatibilite maximale).
+#
+# Meme binaire `owl` (autonome) que la variante Alpine, mais sur une base Debian
+# (glibc + apt). A preferer si tu construis un stack plus riche PAR-DESSUS
+# (`FROM ...-debian`) : tu veux `apt install` d'autres outils, ou lancer d'autres
+# binaires qui attendent une base glibc classique.
+#
+# `owl` = le binaire Linux de la release (page des releases :
+# neowl-<version>-linux-x86_64.tar.gz). Autonome, il tourne sur n'importe quelle base.
+#
+# Utilisation :
+#   docker run --rm ghcr.io/followthewhiteowl/neowl:latest-debian --version
+#   FROM ghcr.io/followthewhiteowl/neowl:latest-debian
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates fonts-dejavu-core tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY owl /usr/local/bin/owl
+RUN chmod 0755 /usr/local/bin/owl
+
+# Utilisateur non-root (bonne pratique image de base).
+RUN useradd -m -u 1000 neowl
+USER neowl
+WORKDIR /work
+
+ENTRYPOINT ["/usr/local/bin/owl"]

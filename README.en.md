@@ -23,19 +23,60 @@ That clarity makes it as readable for a human as for an AI agent.
 
 ## Installation
 
-**Requirements:** Windows 10 or later (64-bit).
-
 **Strongly recommended:** Visual Studio Code, to benefit from the OWL extension
 (syntax highlighting, autocompletion, live diagnostics, visual designers).
 
+### Windows
+
+**Requirements:** Windows 10 or later (64-bit).
+
 1. Download the latest version from the
-   [releases page](https://github.com/followthewhiteowl/neowl/releases/latest) (Windows).
+   [releases page](https://github.com/followthewhiteowl/neowl/releases/latest).
 2. Run it — per-user installation, no administrator rights.
 3. Open a new terminal and run `owl help` to check that it launches correctly.
 
 The installer places the compiler, adds it to the `PATH` and, optionally,
 installs the Visual Studio Code extension. An uninstaller is available in the
 installed-applications list.
+
+### Linux
+
+**Requirements:** a 64-bit distribution. The binary is self-contained — no
+dependency to install.
+
+**Portable archive (any distribution)**
+
+1. Download `neowl-<version>-linux-x86_64.tar.gz` from the
+   [releases page](https://github.com/followthewhiteowl/neowl/releases/latest).
+2. Extract it, then run `./install.sh` (per-user, no `sudo`;
+   `sudo ./install.sh --prefix /usr/local` for a system-wide install).
+
+The script places the compiler, adds it to the `PATH` and, optionally, installs
+the VS Code extension. Then open a new terminal and run `owl help`.
+Uninstall: `./install.sh --uninstall`.
+
+**Native package**
+
+- Debian / Ubuntu: `sudo dpkg -i neowl_<version>_amd64.deb`
+- Fedora / RHEL / openSUSE: `sudo dnf install ./neowl-<version>-1.x86_64.rpm`
+
+**Docker container**
+
+```
+docker run --rm ghcr.io/followthewhiteowl/neowl:latest --version
+docker run --rm -v "$PWD:/work" ghcr.io/followthewhiteowl/neowl:latest /work/script.owl
+```
+
+or as a base for your own image:
+
+```
+FROM ghcr.io/followthewhiteowl/neowl:latest
+```
+
+Two variants: `:latest` (Alpine, minimal) and `:latest-debian` (Debian, easier to
+build on top of). Each version is also pinned by a dedicated tag —
+`:<version>`, `:<version>-alpine`, `:<version>-debian`. The Dockerfile is public
+(the [`docker/`](docker/) folder).
 
 ---
 
@@ -290,7 +331,7 @@ key:
 ```json
 {
   "servers": {
-    "owl": { "command": "owl", "args": ["mcp"] }
+    "owl": { "type": "stdio", "command": "owl", "args": ["mcp"] }
   }
 }
 ```

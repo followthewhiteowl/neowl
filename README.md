@@ -22,19 +22,60 @@ Cette clarté le rend lisible autant par un humain que par un agent IA.
 
 ## Installation
 
-**Prérequis :** Windows 10 ou plus récent (64 bits).
-
 **Fortement recommandé :** Visual Studio Code, pour profiter de l'extension OWL
 (coloration syntaxique, autocomplétion, diagnostics en direct, designers visuels).
 
+### Windows
+
+**Prérequis :** Windows 10 ou plus récent (64 bits).
+
 1. Télécharger la dernière version depuis la
-   [page des releases](https://github.com/followthewhiteowl/neowl/releases/latest) (Windows).
+   [page des releases](https://github.com/followthewhiteowl/neowl/releases/latest).
 2. L'exécuter — installation par utilisateur, sans droits administrateur.
 3. Ouvrir un nouveau terminal et lancer `owl help` pour vérifier qu'il se lance bien.
 
 L'installateur place le compilateur, l'ajoute au `PATH` et, en option, installe
 l'extension Visual Studio Code. Un désinstalleur est disponible dans la liste
 des applications installées.
+
+### Linux
+
+**Prérequis :** une distribution 64 bits. Le binaire est autonome — aucune
+dépendance à installer.
+
+**Archive portable (toute distribution)**
+
+1. Télécharger `neowl-<version>-linux-x86_64.tar.gz` depuis la
+   [page des releases](https://github.com/followthewhiteowl/neowl/releases/latest).
+2. L'extraire, puis lancer `./install.sh` (par utilisateur, sans `sudo` ;
+   `sudo ./install.sh --prefix /usr/local` pour une installation système).
+
+Le script place le compilateur, l'ajoute au `PATH` et, en option, installe
+l'extension VS Code. Ouvrir ensuite un nouveau terminal et lancer `owl help`.
+Désinstallation : `./install.sh --uninstall`.
+
+**Paquet natif**
+
+- Debian / Ubuntu : `sudo dpkg -i neowl_<version>_amd64.deb`
+- Fedora / RHEL / openSUSE : `sudo dnf install ./neowl-<version>-1.x86_64.rpm`
+
+**Conteneur Docker**
+
+```
+docker run --rm ghcr.io/followthewhiteowl/neowl:latest --version
+docker run --rm -v "$PWD:/work" ghcr.io/followthewhiteowl/neowl:latest /work/script.owl
+```
+
+ou comme base de votre propre image :
+
+```
+FROM ghcr.io/followthewhiteowl/neowl:latest
+```
+
+Deux variantes : `:latest` (Alpine, minimale) et `:latest-debian` (Debian, plus
+simple pour construire par-dessus). Chaque version est aussi figée par un tag
+dédié — `:<version>`, `:<version>-alpine`, `:<version>-debian`. Le Dockerfile est
+public (dossier [`docker/`](docker/)).
 
 ---
 
@@ -294,7 +335,7 @@ le déclarer dans la configuration de l'agent ; celui-ci se charge de le lancer.
 ```json
 {
   "servers": {
-    "owl": { "command": "owl", "args": ["mcp"] }
+    "owl": { "type": "stdio", "command": "owl", "args": ["mcp"] }
   }
 }
 ```
