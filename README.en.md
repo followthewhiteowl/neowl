@@ -339,6 +339,10 @@ key:
 For any other MCP-compatible client: declare a `stdio`-transport server running
 the `owl mcp` command.
 
+> **Want to run the AI locally, no cloud?** A dedicated guide explains how to connect a
+> model running on *your* machine (model choice by RAM, settings, with or without VS Code):
+> **[Writing NeOwl with a local AI](LLM-LOCAL.en.md)**.
+
 ---
 
 ## Tests

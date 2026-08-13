@@ -343,6 +343,10 @@ le déclarer dans la configuration de l'agent ; celui-ci se charge de le lancer.
 Pour tout autre client compatible MCP : déclarer un serveur de transport `stdio`
 exécutant la commande `owl mcp`.
 
+> **Faire tourner l'IA en local, sans cloud ?** Un guide dédié explique comment brancher
+> un modèle qui tourne sur *votre* machine (choix du modèle selon la RAM, réglages,
+> avec ou sans VS Code) : **[Écrire du NeOwl avec une IA locale](LLM-LOCAL.md)**.
+
 ---
 
 ## Tests
