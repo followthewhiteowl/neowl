@@ -2,263 +2,283 @@
 
 [Français](LLM-LOCAL.md) · **English**
 
-Have NeOwl code written by an AI running **on your own machine** — no cloud, no API key,
-without a single line of your code leaving the computer. The AI relies on NeOwl's **MCP**
-server (`owl mcp`) to know the language *exactly* as installed, instead of guessing.
+Have NeOwl driven by an AI running **on your own machine** — no cloud, no API key. The AI
+relies on NeOwl's **MCP** server (`owl mcp`) to discover the language, write code, validate
+it with `owl_check` and run it, in a loop.
 
-> **Advice current as of August 2026.** The model and tooling landscape moves fast: the
-> models recommended below will need revisiting in a few months. The **method** stays
-> valid — only the model names will change.
+> **Advice current as of August 2026.** The ecosystem moves fast; model and tool names will
+> change. The **method** stays valid.
 
-> **What to honestly expect.** On a consumer machine (32 GB of RAM, no dedicated GPU), a
-> local AI is a capable **assistant**: it explores the language, writes a draft, validates
-> and fixes it. It doesn't yet match a cloud model for full "I describe it, it ships on its
-> own" autonomy. Tuned well, it still saves real time — and everything stays private.
+> **What to expect.** On a consumer machine without a dedicated GPU, a local AI **works** but
+> is **slow** in agent mode (response time grows with the conversation). For **fast and
+> reliable** results, the same setup accepts a **cloud model** (Claude, GPT): you plug in a
+> key instead of the local model. **The agent and the MCP are the constant; the model is the
+> privacy ↔ power dial.**
+
+---
+
+## The most important point: the right kind of model
+
+To drive tools (the MCP), a model must **emit its calls in a precise format** that the
+server recognizes and turns into an executable call. Counterintuitive consequence:
+
+> **A "Coder" model is NOT suitable for agentic use.** These models emit their tool calls in
+> a format agents can't execute → the agent executes nothing and the loop stops at step one.
+> A Coder model is still great at writing code **one-shot** (when you give it all the
+> context), but not for driving tools.
+>
+> **For agentic use, use a general "Instruct" model** (e.g. Qwen2.5-**Instruct**, not
+> Qwen2.5-**Coder**). At equivalent OWL code quality, only the general model can drive the
+> loop.
+
+---
+
+## What do you need? (hardware and model)
+
+Your **available RAM** determines which model you can run (it must fit in memory, alongside
+your system). Recommendations for **agentic** use:
+
+| Available RAM | Recommended model | Why |
+|---|---|---|
+| **≤ ~16 GB** | *(local unreliable)* → **cloud model** | Only a ≤ 7B model fits, and at that size it can't reliably drive tools (it describes what it would do instead of acting). |
+| **~24 – 32 GB** | **Qwen2.5-14B-Instruct** (general) | The sweet spot: it drives the loop **and** codes correctly. The default pick. |
+| **48 GB and up** | **Qwen2.5-32B-Instruct** (general) | More reliable at driving, better code. Any good *Instruct* model known for tool-calling works too. |
+
+- **The CPU** decides the speed (with no dedicated GPU, everything runs on it).
+- **A dedicated GPU** with enough video memory speeds things up a lot (see below). An
+  integrated GPU (Arc, laptop Radeon) shares your RAM: modest gain.
+- **Disk**: a few GB per model.
+
+> RAM guide: a 14B model in Q4 quantization uses ~10-17 GB when running.
 
 ---
 
 ## How it works
 
-Three pieces, assembled once:
+Three pieces:
 
-1. **The engine** — [`llama.cpp`](https://github.com/ggml-org/llama.cpp), which loads a
-   model and serves it locally (like a small private API).
-2. **The model** — a file of a few GB, downloaded once and for all.
-3. **The bridge to NeOwl** — the `owl mcp` server, which teaches the AI the language
-   (native functions, types, validation) with no external resource.
+1. **The server** — **Ollama**. It loads the model *and* translates its tool calls into an
+   executable format.
+2. **The agent** — **OpenCode** (terminal) or **Cline** (in VS Code): an open-source agent
+   that executes tools and drives the loop on its own.
+3. **The bridge to NeOwl** — the `owl mcp` server.
 
-Once connected, the AI **drives NeOwl on its own**: it searches for the right functions
-(`owl_search`), reads their signature (`owl_signature`), writes the code, **validates it
-with `owl_check`**, fixes the errors the compiler points out, then runs it. The MCP is the
-link that turns a rough draft into code that actually compiles.
+The AI searches for functions (`owl_search`), reads their signature (`owl_signature`),
+writes the code, **validates with `owl_check`**, fixes, runs.
 
-> **Why the MCP is essential.** "OWL" is also the name of a semantic-web standard (the
-> W3C *Web Ontology Language*). Without the MCP to anchor it, a model believes it knows OWL
-> and writes… RDF, or invented syntax. The MCP puts it back on track with the real grammar.
+> **Why the MCP is essential.** "OWL" is also the name of a W3C semantic-web standard (the
+> *Web Ontology Language*). Without the MCP to anchor it, a model writes… RDF. The MCP gives
+> it the real grammar of the NeOwl language.
 
 ---
 
-## What do you need? (hardware)
+## Step 1 — Install Ollama and get the model
 
-- **RAM decides which model you can load** — this is factor number one (see the table in
-  step 2). Count *free* RAM, once the system and apps are accounted for.
-- **The CPU decides the speed.** With no dedicated graphics card, everything runs on the
-  CPU: the more cores and memory bandwidth it has, the faster the AI replies.
-- **A GPU is not required** — everything runs on the CPU. But if you have a **dedicated
-  graphics card** with enough video memory (VRAM), the speedup is dramatic: see *Speeding
-  up with a GPU* below. An **integrated GPU** (Intel Arc, laptop Radeon) shares your
-  system RAM: a more modest gain.
-- **Disk**: a few GB per model.
+**Ollama** is the local server that runs the model. Download it from
+**<https://ollama.com/download>** (Windows installer, no admin rights; it then runs in the
+background). The latest version is fine.
 
-Bottom line: a recent developer machine with **32 GB of RAM** is the comfortable entry
-point. Below ~24 GB, a local AI is still possible but frustrating.
+Then get the **general** model (see the table above). Two methods:
 
----
-
-## Step 1 — Install the engine
-
-Download llama.cpp for Windows from its
-[releases page](https://github.com/ggml-org/llama.cpp/releases), the
-**`llama-<version>-bin-win-cpu-x64.zip`** variant (CPU only — the safe choice, it works
-everywhere). Unzip it into a folder, for example `C:\ai\llama\`.
-
-> **Version we tested: `b10405`.** All the figures below were measured with this build:
-> [direct link](https://github.com/ggml-org/llama.cpp/releases/tag/b10405), file
-> `llama-b10405-bin-win-cpu-x64.zip`. A newer version works too; if tool-calling misbehaves,
-> fall back to this one.
-
-> **GPU?** Keep this `cpu` variant to confirm everything works. If you have a dedicated
-> graphics card, then move to *Speeding up with a GPU* (below) for a whole other speed.
-
----
-
-## Step 2 — Choose and download a model
-
-A model is a large `.gguf` file. **Your RAM drives the choice** — the model must fit in
-memory alongside your system.
-
-| Your RAM | Recommended model | In a word |
-|---|---|---|
-| **≤ 16 GB** | *(none reliable)* | Too tight: only very small models fit, and they **make things up**. Prefer a cloud model, or add RAM. |
-| **24 – 32 GB** | **Qwen2.5-Coder-14B** (Q4) | Best all-rounder: cleanest code, **drives the MCP by itself**. The default pick. |
-| **32 GB, speed first** | DeepSeek-Coder-V2-Lite (Q4) | ~5× faster, but less autonomous (needs assisting, see below). |
-| **48 GB and up** | Qwen3-Coder-30B-A3B (Q4) | Fast *and* high quality, with no memory pressure. |
-
-**What we measured** (August 2026, 32 GB machine, CPU only):
-
-| Model tested | RAM used | Speed | Errors on first try\* | Drives the MCP alone? |
-|---|---|---|---|---|
-| Qwen2.5-Coder-**7B** | ~6 GB | fast | *makes it all up* | — |
-| **Qwen2.5-Coder-14B** | ~17 GB | 5.4 t/s | **2** | ✅ yes |
-| DeepSeek-Coder-V2-Lite | ~16 GB | **28 t/s** | 8 | ❌ no |
-| Qwen3-Coder-30B-A3B | ~22 GB | 8 t/s | 8 | ✅ but won't fit in 32 GB |
-| Devstral-Small-24B | ~22 GB | 3.3 t/s | 10 | inconclusive |
-
-\* Syntax errors on the first draft, which the MCP (`owl_check`) then helps fix. `t/s` =
-*tokens* per second; for reference, ~4 t/s ≈ a human's reading speed.
-
-Two takeaways: **speed** comes from the "MoE" architecture (DeepSeek, 30B) more than from
-size; and **bigger ≠ better code** (the 14B makes fewer errors than the 30B). The 14B is
-the only one that, on 32 GB, writes clean code *and* drives the MCP on its own.
-
-Grab the `.gguf` file (`Q4_K_M` format, a good size/quality trade-off) from
-[Hugging Face](https://huggingface.co). Put it in, say, `C:\ai\models\`.
-
-> **Check the downloaded file's size** (shown on the model's page). An interrupted or
-> oversized file means a corrupt model — it loads but generates gibberish.
-
----
-
-## Step 3 — Launch the model
-
-In a terminal:
+**A. Command line (simplest)** — in a terminal:
 
 ```
-C:\ai\llama\llama-server.exe -m C:\ai\models\Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf --jinja -c 16384 --host 127.0.0.1 --port 8080 -ngl 0 -t 8
+ollama pull qwen2.5:14b
 ```
 
-The two settings that truly matter:
+**B. From a browser (if a proxy blocks the command, or to pick it manually)** — download the
+`.gguf` file (`Q4_K_M` format) from the model's official Hugging Face page:
+**<https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF>** (*Files* tab). Then import it
+into Ollama with a *Modelfile* (see the next box, replacing the first line with
+`FROM C:\path\to\qwen2.5-14b-instruct-q4_k_m.gguf`).
 
-- **`--jinja`** — *essential*. Without it, the AI "thinks" about calling tools but nothing
-  runs: it loops forever without ever acting.
-- **`-ngl 0`** — everything in RAM (CPU). Putting layers on a small integrated GPU causes
-  an `out of device memory` error.
+### Enlarge the context window (recommended)
 
-`-c 16384` sets the context size, `-t 8` the number of cores. Keep the terminal open: the
-model runs as long as it's there. To check, open <http://127.0.0.1:8080> in a browser.
+An agent's prompts are large: they contain the description of **all** the tools. But Ollama
+limits context to 4096 tokens by default, which is quickly exceeded and makes the task fail.
+To enlarge that window, create a derived model:
+
+1. Create a text file named **`Modelfile`** (no extension) containing these two lines:
+
+   ```
+   FROM qwen2.5:14b
+   PARAMETER num_ctx 16384
+   ```
+
+   *Line 1 means "start from the `qwen2.5:14b` model"; line 2 sets the context window to
+   16384 tokens.*
+
+2. In the terminal, from that file's folder, run:
+
+   ```
+   ollama create qwen-owl -f Modelfile
+   ```
+
+   This creates a new model named **`qwen-owl`** — identical, but with a 16k context.
+
+3. From now on, use **`qwen-owl`** wherever you select the model.
+
+---
+
+## Step 2 — Install the agent
+
+Two options; pick by comfort.
+
+### Option A — OpenCode (terminal)
+
+OpenCode is an agent you use in the terminal. It installs with **npm**, the package manager
+bundled with **Node.js**.
+
+**Prerequisite — Node.js.** If you don't have Node.js (check with `node --version` in a
+terminal): install it from **<https://nodejs.org/>** (**LTS** button, Windows `.msi`
+installer; it also installs `npm`). The current **LTS** version is fine. Open **a new**
+terminal after installing.
+
+**Install OpenCode** — the latest version is fine:
+
+```
+npm install -g opencode-ai
+```
+
+Check: `opencode --version`.
+
+### Option B — Cline (in VS Code, no Node)
+
+If you'd rather stay in the editor and **not install Node**: install the **Cline** extension
+from the VS Code marketplace (nothing else to install). Configuration is described below
+(*VS Code option*).
+
+---
+
+## Step 3 — Connect OpenCode to Ollama + the owl MCP
+
+In your project folder, create an **`opencode.json`** file:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1", "apiKey": "ollama" },
+      "models": { "qwen-owl": { "name": "Qwen2.5 14B (owl)" } }
+    }
+  },
+  "mcp": {
+    "owl": { "type": "local", "command": ["owl", "mcp"], "enabled": true }
+  }
+}
+```
+
+Check the MCP is recognized: `opencode mcp list` should show **`owl ✓ connected`**.
+
+---
+
+## Step 4 — Run
+
+Interactive:
+
+```
+opencode
+```
+
+…or one-shot (`--auto` auto-approves tool calls):
+
+```
+opencode run "Write an OWL program in extractor.owl that ... . Use owl_search / owl_signature to find the natives, and owl_check to validate." -m ollama/qwen-owl --auto
+```
+
+OpenCode executes the owl tools and drives the loop, printing every step
+(search → write → validate → run).
+
+---
+
+## VS Code option (Cline)
+
+Same setup (Ollama + a **general** model + the owl MCP), with **Cline** as the agent:
+
+1. Install the **[Cline](https://cline.bot)** extension from the VS Code marketplace.
+2. Set the model: *API Provider* → **OpenAI Compatible** → *Base URL*
+   `http://127.0.0.1:11434/v1` → *Model* `qwen-owl` (API key: any value).
+3. Add the owl MCP in Cline's MCP settings: server `owl`, command `owl`, argument `mcp`.
+4. **Enable tool auto-approval** (the *Auto-approve* setting).
+
+> ⚠️ **Setting not to miss.** Without auto-approval, the agent **stops and waits for manual
+> confirmation at every tool call**: the loop doesn't advance on its own. Enable it for
+> autonomous operation.
+
+> **Same model rule** as with OpenCode: a **general instruct** model, never a **Coder** —
+> otherwise the tool calls come out as text and are not executed.
+
+---
+
+## Speed: what to know
+
+On **CPU only**, a 14B model in agent mode is **slow**: as the conversation accumulates tool
+results, each step takes longer (often several minutes). Fine for "launch and let it run,"
+painful interactively.
+
+Two ways to get **fast and reliable**, with the **same** agent and the **same** `owl mcp`:
+- **A cloud model**: add a provider (Anthropic, OpenAI…) with your API key and select that
+  model — fast and reliable.
+- **A dedicated GPU** (see below).
 
 ---
 
 ## Speeding up with a GPU (optional)
 
-A GPU isn't required, but if you have a **dedicated graphics card** with enough **video
-memory (VRAM)**, it makes the AI several times faster. Rule of thumb: from ~**8 GB of
-VRAM** it's worth it; count on ~**12 GB** to fully load the recommended 14B.
-
-1. Get the right llama.cpp variant (step 1): **`...-cuda-...`** for an **NVIDIA** card
-   (fastest), **`...-vulkan-...`** for **AMD or Intel** (universal).
-2. Add **`-ngl 999`** to the step 3 command to push all the model's layers onto the GPU:
-
-```
-llama-server.exe -m ...\Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf --jinja -c 16384 --host 127.0.0.1 --port 8080 -ngl 999
-```
-
-If the model doesn't fully fit in VRAM (`out of device memory` error), lower the number:
-`-ngl 20`, `-ngl 10`… until it starts. The remaining layers then run on the CPU (mixed
-mode, already faster than all-CPU).
-
-> **Integrated GPU (Arc / laptop Radeon).** Use the `vulkan` variant, but expect a modest
-> gain: the iGPU shares your RAM and has no fast dedicated VRAM. If the option exists,
-> first raise the memory allocated to the GPU in the BIOS.
+A GPU isn't required, but a **dedicated card** with enough **video memory** (~12 GB for a
+14B) speeds things up a lot; Ollama uses it automatically if recognized. An **integrated
+GPU** (Arc, laptop Radeon) shares your RAM: modest gain (Ollama disables it by default;
+`OLLAMA_IGPU_ENABLE=1` to enable it).
 
 ---
 
-## Step 4 — Connect the AI to NeOwl
+## Troubleshooting
 
-### With Visual Studio Code (the easiest)
-
-1. Install an agent extension that accepts a local model *and* MCP — for example
-   **Cline**, **Continue** or **Roo Code**.
-2. In its settings, point the model at your local server, endpoint
-   **`http://127.0.0.1:8080/v1`** (OpenAI-compatible API; the model name doesn't matter).
-3. Declare NeOwl's MCP server — a `.vscode/mcp.json` file at the project root:
-
-```json
-{
-  "servers": {
-    "owl": { "type": "stdio", "command": "owl", "args": ["mcp"] }
-  }
-}
-```
-
-4. Switch the extension to **Agent mode**, then **enable the `owl_*` tools** in its tool
-   picker. Check its logs for a message like `Discovered N tools`.
-
-> **The #1 beginner trap.** If the AI searches your files instead of querying the MCP, its
-> `owl_*` tools aren't being passed to it: check **Agent mode** and that the tools are
-> enabled. Otherwise it guesses — and gets it wrong.
-
-### Without Visual Studio Code
-
-Two options:
-
-- **A desktop MCP-capable agent** (Claude Desktop, Cursor, Windsurf…): same MCP
-  configuration as in the *Connecting an AI agent* section of the README, with the model
-  pointed at your local server.
-- **Manually, with the CLI**: open a local chat (LM Studio, Jan…) and use NeOwl's own
-  documentation commands to guide and check the AI yourself: `owl search <word>`,
-  `owl explain <function>`, `owl --check file.owl`. More hands-on, but it works with
-  nothing extra to install.
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| The AI prints the tool call as text (`{"name":...}`) then stops | The model emits the wrong format — usually a **Coder** model | Use a **general instruct** model |
+| Tools never execute, even with a good model | Server that doesn't parse the calls | Use **Ollama** (it translates calls into an executable format) |
+| The agent waits for confirmation at every step | Auto-approval disabled | Enable *Auto-approve* (Cline) or `--auto` (OpenCode) |
+| The task fails with a context-size overflow | Window too small (4096 by default) | Create the 16k model (see Step 1) |
+| `opencode mcp list` doesn't show owl | MCP misconfigured, or `owl` not on the PATH | Check `opencode.json` and the NeOwl install |
+| Endless responses | Model too big for the CPU + large context | Wait, or GPU, or cloud model |
+| The model writes RDF / `prefix` | Confusion with the *Web Ontology Language* | Force MCP usage (see the prompt below) |
 
 ---
 
 ## A starter prompt (copy-paste)
 
-Whatever you're building, give your agent this **system prompt**: it keeps it from drifting
-(RDF, invented syntax) and forces it through the MCP. Only adapt the very last line to your
-need.
-
 ```
-You write code in the NeOwl language (.owl files).
+You write code in the NeOwl language (.owl). It is a procedural PROGRAMMING LANGUAGE,
+NOT the W3C "Web Ontology Language" — never write RDF or ontology.
 
-IMPORTANT: NeOwl is a procedural PROGRAMMING LANGUAGE (typed variables, loops, native
-functions). It is NOT the W3C "Web Ontology Language" — never write RDF, triples or
-ontology prefixes.
+You do not know its syntax in advance. Proceed in this order:
+1. BASICS first: absorb the language overview and above all the COMMON PITFALLS (the user
+   can provide them via `owl primer`, `owl cheatsheet`, `owl gotchas`).
+2. FUNCTIONS via the MCP tools: owl_search / owl_list, then owl_signature / owl_explain.
+3. Write the code, VALIDATE with owl_check until ZERO errors, then run it.
+Never invent a function name: when in doubt, owl_search.
 
-You do NOT know NeOwl's syntax in advance. Proceed in this order:
-
-1. BASICS FIRST. Absorb the fundamentals BEFORE coding: the language overview, control
-   flow, the conventions, and above all the COMMON PITFALLS. (These sheets are provided
-   below by the user, or readable via the owl://public_doc/ resources — including
-   22_pieges_courants — if your client exposes them.)
-2. FUNCTIONS NEXT, via the owl_ MCP tools:
-   - owl_search <word> and owl_list: find the useful natives and types;
-   - owl_signature / owl_explain: check a function's exact form;
-   - owl_examples: see real usage.
-3. WRITE the code.
-4. VALIDATE with owl_check and fix until ZERO errors before answering.
-5. If you can, RUN the program and check the result.
-
-NEVER invent a function name or a syntax form: when in doubt, lean on the basics sheets or
-call owl_search.
-
-My request: <describe here what you want to build>
+My request: <...>
 ```
 
-> **Tip — give it the basics up front.** For a better start, paste the fundamental sheets
-> at the beginning of the conversation: `owl primer` (the 5-minute essentials),
-> `owl cheatsheet` (the syntax) and `owl gotchas` (the pitfalls you can't guess). As a
-> bonus, the key function signatures (via `owl explain <function>`). The model then starts
-> on solid ground and guesses far less — that's the "assisted" mode, the most reliable one
-> locally.
-
----
-
-## Getting the best out of it: our tips
-
-- **Give it a head start.** On a 32 GB machine, full "describe it and it ships" autonomy
-  isn't reliable yet. What actually works: let it discover the language through the MCP,
-  **and** remind it to use `owl_search` / `owl_signature` **before** writing, and
-  `owl_check` **after** (see the prompt above).
-- **Demand validation.** An effective prompt ends with: "always validate your code with
-  `owl_check` and fix it until zero errors before answering."
-- **One program per working folder.** NeOwl loads the "neighbouring project": two `.owl`
-  files side by side can mix up their errors.
-- **Don't start a big download while the AI works** — speed can drop by half (inference and
-  the download compete for memory).
-- **Small model = crutches; good model = autonomy.** If a model invents function names,
-  it's not your fault: it's too small. Move up a tier (see the table) rather than wearing
-  yourself out fixing it.
+> **Tip.** For a better start, first give the model the base sheets — the output of
+> `owl primer`, `owl cheatsheet` and `owl gotchas`: it starts on solid ground and makes far
+> fewer syntax errors.
 
 ---
 
 ## In short
 
-1. `llama.cpp` (`cpu` variant, tested build `b10405`) + a `.gguf` model that fits your RAM.
-2. `llama-server ... --jinja -ngl 0` — the `--jinja` is vital.
-3. A VS Code extension (Cline / Continue) pointed at `http://127.0.0.1:8080/v1`, **plus**
-   the `owl` MCP in Agent mode, with the starter prompt above.
-4. On 32 GB: **Qwen2.5-Coder-14B** by default. Assist the model (MCP + `owl_check`); don't
-   aim for full autonomy until you have a big machine or a cloud model.
+1. **Ollama** (`ollama pull qwen2.5:14b`, or import a `.gguf` from Hugging Face) — the server
+   that parses tools.
+2. A **general instruct** model (never Coder) — the only kind that drives an agent.
+3. **OpenCode** (terminal, via Node) or **Cline** (VS Code, no Node) — the agent, pointed at
+   Ollama + the owl MCP, with auto-approval enabled.
+4. Local = **private but slow** on CPU; **cloud** (same setup + an API key) = fast and
+   reliable. The `owl` MCP works with both.
 
 Questions, feedback? Join the **community** (links at the bottom of the [README](README.en.md)).
