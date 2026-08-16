@@ -94,10 +94,18 @@ model as a **single `.gguf` file** (`Q4_K_M` format) from a page that offers it 
 `FROM C:\path\to\qwen2.5-14b-instruct-q4_k_m.gguf`).
 
 > **If you run into several files** named `...-00001-of-00003.gguf`, `...-00002-of-00003.gguf`,
-> etc.: that's not a choice to make — it's **one model split into parts**. Simplest is to grab a
-> repo that provides it as **one file** (like the one above). Otherwise download **all** the
-> parts into the same folder and point `FROM` at the **first** one (`...-00001-of-...`): Ollama
-> reassembles the rest automatically.
+> etc.: that's not a choice to make — it's **one model split into parts**. By far the simplest is
+> to grab a repo that provides it as **one file** (like the one above). Otherwise you must
+> **merge** the parts into a single `.gguf` before importing — command `llama-gguf-split --merge
+> first-part.gguf output.gguf` (ships with llama.cpp) — because the current Ollama version
+> **cannot** reassemble the parts on its own.
+
+> ⚠️ **The nastiest GGUF-import trap.** A Modelfile reduced to `FROM …gguf` + `num_ctx`
+> **loses the tool-calling *template***: the AI then prints its tool calls as text
+> (`{ "name": … }`) instead of **executing** them, and the agent does nothing. Method A
+> (`ollama pull qwen2.5:14b`) includes it out of the box — which is why it's preferable. If you
+> really must import a GGUF, you must **also** add the model's tool `TEMPLATE` block to the
+> Modelfile.
 
 ### Enlarge the context window (recommended)
 
@@ -205,7 +213,9 @@ OpenCode executes the owl tools and drives the loop, printing every step
 
 Same setup (Ollama + a **general** model + the owl MCP), with **Cline** as the agent:
 
-1. Install the **[Cline](https://cline.bot)** extension from the VS Code marketplace.
+1. Install the **[Cline](https://cline.bot)** extension from the VS Code marketplace. ⚠️ There
+   are look-alikes: make sure to pick the one by publisher **saoudrizwan** (id
+   `saoudrizwan.claude-dev`), the most-installed one.
 2. Set the model: *API Provider* → **OpenAI Compatible** → *Base URL*
    `http://127.0.0.1:11434/v1` → *Model* `qwen-owl` (API key: any value).
 3. Add the owl MCP in Cline's MCP settings: server `owl`, command `owl`, argument `mcp`.
