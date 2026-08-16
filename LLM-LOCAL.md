@@ -88,10 +88,18 @@ ollama pull qwen2.5:14b
 ```
 
 **B. Depuis un navigateur (si un proxy bloque la commande, ou pour choisir à la main)** —
-téléchargez le fichier `.gguf` (format `Q4_K_M`) depuis la page officielle du modèle sur
-Hugging Face : **<https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF>** (onglet *Files*).
-Puis importez-le dans Ollama avec un *Modelfile* (voir l'encadré suivant, en remplaçant la
-première ligne par `FROM C:\chemin\vers\qwen2.5-14b-instruct-q4_k_m.gguf`).
+téléchargez le modèle en **un seul fichier `.gguf`** (format `Q4_K_M`) depuis une page qui le
+propose ainsi, par exemple **<https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF>**
+(onglet *Files* → `Qwen2.5-14B-Instruct-Q4_K_M.gguf`, ~9 Go). Puis importez-le dans Ollama avec
+un *Modelfile* (voir l'encadré suivant, en remplaçant la première ligne par
+`FROM C:\chemin\vers\qwen2.5-14b-instruct-q4_k_m.gguf`).
+
+> **Si vous tombez sur plusieurs fichiers** nommés `...-00001-of-00003.gguf`,
+> `...-00002-of-00003.gguf`, etc. : ce n'est pas un choix à faire — c'est **un seul modèle
+> découpé en tranches**. Le plus simple est de prendre un dépôt qui le fournit **en un seul
+> fichier** (comme celui ci-dessus). Sinon, téléchargez **toutes** les tranches dans le même
+> dossier et pointez `FROM` sur la **première** (`...-00001-of-...`) : Ollama réassemble le reste
+> tout seul.
 
 ### Agrandir la fenêtre de contexte (recommandé)
 
