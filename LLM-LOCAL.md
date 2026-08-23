@@ -6,8 +6,8 @@ Faire piloter NeOwl par une IA qui tourne **sur votre propre machine** — sans 
 clé API. L'IA s'appuie sur le serveur **MCP** de NeOwl (`owl mcp`) pour découvrir le
 langage, écrire du code, le valider avec `owl_check` et l'exécuter, en boucle.
 
-> **Conseils à jour en août 2026.** L'écosystème évolue vite ; les noms de modèles et
-> d'outils changeront. La **méthode**, elle, reste valable.
+> **Conseils à jour en 2026.** L'écosystème évolue vite ; les noms de modèles et d'outils
+> changeront. La **méthode**, elle, reste valable.
 
 > **À quoi s'attendre.** Sur une machine grand public sans carte graphique dédiée, une IA
 > locale **fonctionne** mais reste **lente** en mode agent (le temps de réponse grandit avec
@@ -17,20 +17,25 @@ langage, écrire du code, le valider avec `owl_check` et l'exécuter, en boucle.
 
 ---
 
-## Le point le plus important : le bon type de modèle
+## Comment ça marche
 
-Pour piloter des outils (le MCP), un modèle doit **émettre ses appels dans un format précis**
-que le serveur reconnaît et transforme en appel exécutable. Conséquence contre-intuitive :
+Trois briques :
 
-> **Un modèle « Coder » ne convient PAS pour l'agentique.** Ces modèles émettent leurs
-> appels d'outils dans un format que les agents ne savent pas exécuter → l'agent n'exécute
-> rien et la boucle s'arrête à la première étape. Un modèle Coder reste excellent pour
-> écrire du code **en une fois** (quand vous lui fournissez tout le contexte), mais pas pour
-> piloter des outils.
->
-> **Pour l'agentique, utilisez un modèle « Instruct » généraliste** (ex. Qwen2.5-**Instruct**,
-> pas Qwen2.5-**Coder**). À qualité de code équivalente sur NeOwl, seul le généraliste sait
-> piloter la boucle.
+1. **Le serveur** — il charge le modèle, le fait générer, et **garantit que ses appels
+   d'outils sont au bon format**. Deux choix :
+   - **Le serveur natif de NeOwl** (`owl serve-llm`) — **recommandé** : rien de plus à
+     installer, le binaire `owl` fait tout.
+   - **Ollama** — une alternative répandue, utile notamment pour exploiter un **GPU dédié**.
+2. **L'agent** — **OpenCode** (terminal) ou **Cline** (dans VS Code) : un agent open-source
+   qui exécute les outils et enchaîne la boucle tout seul.
+3. **Le pont vers NeOwl** — le serveur MCP `owl mcp`.
+
+L'IA cherche les fonctions (`owl_search`), lit leur signature (`owl_signature`), écrit le
+code, le **valide avec `owl_check`**, corrige, exécute.
+
+> **Pourquoi le MCP est indispensable.** « OWL » est aussi le nom d'un standard du web
+> sémantique (le *Web Ontology Language* du W3C). Sans le MCP pour l'ancrer, un modèle
+> écrit… du RDF. Le MCP lui donne la vraie grammaire du langage NeOwl.
 
 ---
 
@@ -46,112 +51,120 @@ mémoire, à côté de votre système). Recommandations pour l'usage **agentique
 | **48 Go et plus** | **Qwen2.5-32B-Instruct** (généraliste) | Plus fiable pour piloter, meilleur code. Tout autre bon modèle *Instruct* réputé pour l'appel d'outils convient aussi. |
 
 - **Le processeur** décide de la vitesse (sans GPU dédié, tout repose sur lui).
-- **Un GPU dédié** avec assez de mémoire vidéo accélère fortement (voir plus bas). Un GPU
-  intégré (Arc, Radeon de portable) partage la RAM : gain modeste.
+- **Un GPU dédié** avec assez de mémoire vidéo (~12 Go pour un 14B) accélère fortement. Le
+  serveur natif de NeOwl travaille aujourd'hui **sur processeur** ; pour exploiter un GPU
+  dédié en local, passez par **Ollama** (voir l'étape 2), qui l'utilise automatiquement.
 - **Disque** : quelques Go par modèle.
 
 > Repère RAM : un modèle 14B en quantification Q4 occupe ~10-17 Go en fonctionnement.
 
----
+### Quel *type* de modèle ?
 
-## Comment ça marche
+Pour l'appel d'outils, la façon dont le modèle formule ses appels compte — mais **le serveur
+s'en charge à votre place** :
 
-Trois briques :
+- Avec le **serveur natif de NeOwl**, le format des appels d'outils est **garanti par
+  construction** : n'importe quel modèle, y compris un modèle « **Coder** », produit des
+  appels exécutables.
+- Avec **Ollama**, préférez un modèle « **Instruct** » généraliste (ex. Qwen2.5-**Instruct**,
+  pas Qwen2.5-**Coder**) : un modèle Coder y émet ses appels dans un format qu'Ollama ne
+  transforme pas toujours, et l'agent n'exécute alors rien.
 
-1. **Le serveur** — **Ollama**. Il charge le modèle *et* traduit ses appels d'outils en
-   format exécutable.
-2. **L'agent** — **OpenCode** (terminal) ou **Cline** (dans VS Code) : un agent open-source
-   qui exécute les outils et enchaîne la boucle tout seul.
-3. **Le pont vers NeOwl** — le serveur MCP `owl mcp`.
-
-L'IA cherche les fonctions (`owl_search`), lit leur signature (`owl_signature`), écrit le
-code, le **valide avec `owl_check`**, corrige, exécute.
-
-> **Pourquoi le MCP est indispensable.** « OWL » est aussi le nom d'un standard du web
-> sémantique (le *Web Ontology Language* du W3C). Sans le MCP pour l'ancrer, un modèle
-> écrit… du RDF. Le MCP lui donne la vraie grammaire du langage NeOwl.
+Dans les deux cas, un modèle **généraliste** décide en général mieux **quand** appeler un
+outil ; la taille (voir le tableau) reste le premier facteur de qualité.
 
 ---
 
-## Étape 1 — Installer Ollama et récupérer le modèle
+## Étape 1 — Récupérer un modèle
 
-**Ollama** est le serveur local qui fait tourner le modèle. Téléchargez-le sur
-**<https://ollama.com/download>** (installateur Windows, sans droits administrateur ; il
-tourne ensuite en tâche de fond). La dernière version convient.
-
-Puis récupérez le modèle **généraliste** (voir le tableau ci-dessus). Deux méthodes :
-
-**A. En ligne de commande (le plus simple)** — dans un terminal :
-
-```
-ollama pull qwen2.5:14b
-```
-
-**B. Depuis un navigateur (si un proxy bloque la commande, ou pour choisir à la main)** —
-téléchargez le modèle en **un seul fichier `.gguf`** (format `Q4_K_M`) depuis une page qui le
-propose ainsi, par exemple **<https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF>**
-(onglet *Files* → `Qwen2.5-14B-Instruct-Q4_K_M.gguf`, ~9 Go). Puis importez-le dans Ollama avec
-un *Modelfile* (voir l'encadré suivant, en remplaçant la première ligne par
-`FROM C:\chemin\vers\qwen2.5-14b-instruct-q4_k_m.gguf`).
+Vous avez besoin d'un fichier de modèle au format **GGUF** (quantification `Q4_K_M` pour un
+bon compromis taille/qualité). Téléchargez-le en **un seul fichier `.gguf`** depuis une page
+qui le propose ainsi, par exemple **<https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF>**
+(onglet *Files* → `Qwen2.5-14B-Instruct-Q4_K_M.gguf`, ~9 Go).
 
 > **Si vous tombez sur plusieurs fichiers** nommés `...-00001-of-00003.gguf`,
 > `...-00002-of-00003.gguf`, etc. : ce n'est pas un choix à faire — c'est **un seul modèle
 > découpé en tranches**. Le plus simple, et de loin, est de prendre un dépôt qui le fournit
-> **en un seul fichier** (comme celui ci-dessus). Sinon, il faut **fusionner** les tranches en un
-> seul `.gguf` avant l'import — commande `llama-gguf-split --merge première-tranche.gguf
-> sortie.gguf` (fournie avec llama.cpp) — car la version actuelle d'Ollama **ne sait pas**
-> réassembler les tranches toute seule.
+> **en un seul fichier** (comme celui ci-dessus). Sinon, il faut **fusionner** les tranches
+> en un seul `.gguf` — commande `llama-gguf-split --merge première-tranche.gguf sortie.gguf`.
 
-> ⚠️ **Le piège le plus vicieux de l'import GGUF.** Un Modelfile réduit à `FROM …gguf` +
-> `num_ctx` **perd le *template* d'appel d'outils** : l'IA imprime alors ses appels en texte
-> (`{ "name": … }`) au lieu de les **exécuter**, et l'agent ne fait rien. La méthode A
-> (`ollama pull qwen2.5:14b`) l'inclut d'office — c'est pourquoi elle est préférable. Si vous
-> devez vraiment importer un GGUF, ajoutez **aussi** le bloc `TEMPLATE` d'outils du modèle au
-> Modelfile.
-
-### Agrandir la fenêtre de contexte (recommandé)
-
-Les prompts d'un agent sont volumineux : ils contiennent la description de **tous** les
-outils. Or Ollama limite le contexte à 4096 tokens par défaut, ce qui est vite dépassé et
-fait échouer la tâche. Pour agrandir cette fenêtre, créez un modèle dérivé :
-
-1. Créez un fichier texte nommé **`Modelfile`** (sans extension) contenant ces deux lignes :
-
-   ```
-   FROM qwen2.5:14b
-   PARAMETER num_ctx 16384
-   ```
-
-   *La 1ère ligne signifie « pars du modèle `qwen2.5:14b` » ; la 2e fixe la fenêtre de
-   contexte à 16384 tokens.*
-
-2. Dans le terminal, placé dans le dossier de ce fichier, lancez :
-
-   ```
-   ollama create qwen-owl -f Modelfile
-   ```
-
-   Cela crée un nouveau modèle nommé **`qwen-owl`** — identique, mais avec 16k de contexte.
-
-3. Utilisez désormais **`qwen-owl`** partout où vous choisissez le modèle.
+*(Ollama peut aussi récupérer le modèle pour vous avec `ollama pull` — voir l'option Ollama
+à l'étape 2.)*
 
 ---
 
-## Étape 2 — Installer l'agent
+## Étape 2 — Faire tourner le modèle
+
+Choisissez **une** des deux options. La première est la plus simple ; la seconde est utile
+si vous avez un GPU dédié ou utilisez déjà Ollama.
+
+### Option A — Le serveur natif de NeOwl (recommandé)
+
+Le binaire `owl` fait tourner le modèle lui-même. Une commande suffit :
+
+```
+owl serve-llm --model C:\chemin\vers\qwen2.5-14b-instruct-q4_k_m.gguf --port 11434 --ctx-size 16384
+```
+
+Cela expose une API compatible OpenAI sur `http://127.0.0.1:11434/v1`, prête pour l'agent.
+
+- `--ctx-size 16384` fixe la **fenêtre de contexte**. Les prompts d'un agent sont volumineux
+  (ils contiennent la description de tous les outils) : 16384 est un bon point de départ. Plus
+  grand = plus de mémoire utilisée.
+- Le format des appels d'outils est **garanti** : rien à configurer côté modèle, et même un
+  modèle Coder fonctionne.
+- **Processeur uniquement** pour l'instant : sur une machine sans GPU exploité, la génération
+  est lente (voir « La vitesse » plus bas). Pour de la vitesse, voyez le GPU via Ollama, ou un
+  modèle cloud.
+
+Laissez cette commande tourner dans son terminal ; l'agent s'y connecte.
+
+### Option B — Ollama (pour un GPU dédié, ou si vous l'utilisez déjà)
+
+**Ollama** est un serveur local répandu. Il **utilise automatiquement un GPU dédié** reconnu,
+ce qui accélère fortement la génération. Téléchargez-le sur **<https://ollama.com/download>**
+(installateur Windows, sans droits administrateur).
+
+Récupérez le modèle — soit `ollama pull qwen2.5:14b`, soit en important le `.gguf` de l'étape 1.
+Puis créez un modèle dérivé avec une fenêtre de contexte élargie (Ollama la limite sinon, ce
+qui fait échouer les tâches d'agent). Créez un fichier **`Modelfile`** (sans extension) :
+
+```
+FROM qwen2.5:14b
+PARAMETER num_ctx 16384
+```
+
+*(Pour un `.gguf` importé à la main, remplacez la 1ère ligne par
+`FROM C:\chemin\vers\modele.gguf`.)* Puis :
+
+```
+ollama create qwen-owl -f Modelfile
+```
+
+Cela crée le modèle **`qwen-owl`** (contexte 16k), à utiliser partout ensuite.
+
+> ⚠️ **Piège de l'import GGUF sous Ollama.** Un Modelfile réduit à `FROM …gguf` + `num_ctx`
+> peut **perdre le *template* d'appel d'outils** : l'IA imprime alors ses appels en texte
+> (`{ "name": … }`) au lieu de les exécuter. La commande `ollama pull qwen2.5:14b` l'inclut
+> d'office ; si vous importez un `.gguf`, ajoutez **aussi** le bloc `TEMPLATE` d'outils du
+> modèle au Modelfile. *(Le serveur natif de NeOwl, lui, n'a pas ce piège.)*
+
+---
+
+## Étape 3 — Installer l'agent
 
 Deux options ; choisissez selon votre confort.
 
-### Option A — OpenCode (terminal)
+### OpenCode (terminal)
 
 OpenCode est un agent qui s'utilise dans le terminal. Il s'installe avec **npm**, le
 gestionnaire de paquets fourni avec **Node.js**.
 
 **Prérequis — Node.js.** Si vous n'avez pas Node.js (vérifiez avec `node --version` dans un
 terminal) : installez-le depuis **<https://nodejs.org/>** (bouton **LTS**, installateur
-Windows `.msi` ; il installe aussi `npm`). La version **LTS** courante convient. Ouvrez
-**un nouveau** terminal après l'installation.
+Windows `.msi` ; il installe aussi `npm`). Ouvrez **un nouveau** terminal après l'installation.
 
-**Installer OpenCode** — la dernière version convient :
+**Installer OpenCode** :
 
 ```
 npm install -g opencode-ai
@@ -159,27 +172,29 @@ npm install -g opencode-ai
 
 Vérifiez : `opencode --version`.
 
-### Option B — Cline (dans VS Code, sans Node)
+### Cline (dans VS Code, sans Node)
 
 Si vous préférez rester dans l'éditeur et **ne pas installer Node** : installez l'extension
-**Cline** depuis le marketplace de VS Code (rien d'autre à installer). La configuration est
-décrite plus bas (*Option VS Code*).
+**Cline** depuis le marketplace de VS Code. ⚠️ Il existe des imitations : prenez celle de
+l'éditeur **saoudrizwan** (identifiant `saoudrizwan.claude-dev`), la plus installée. La
+configuration est décrite plus bas (*Option VS Code*).
 
 ---
 
-## Étape 3 — Brancher OpenCode sur Ollama + le MCP owl
+## Étape 4 — Brancher OpenCode sur le serveur + le MCP owl
 
-Dans le dossier de votre projet, créez un fichier **`opencode.json`** :
+Dans le dossier de votre projet, créez un fichier **`opencode.json`**. Les deux serveurs
+exposent la même adresse (`http://127.0.0.1:11434/v1`), la configuration est donc identique :
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "ollama": {
+    "local": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama",
-      "options": { "baseURL": "http://127.0.0.1:11434/v1", "apiKey": "ollama" },
-      "models": { "qwen-owl": { "name": "Qwen2.5 14B (owl)" } }
+      "name": "Modèle local",
+      "options": { "baseURL": "http://127.0.0.1:11434/v1", "apiKey": "local" },
+      "models": { "owl": { "name": "Modèle local NeOwl" } }
     }
   },
   "mcp": {
@@ -192,7 +207,7 @@ Vérifiez que le MCP est reconnu : `opencode mcp list` doit afficher **`owl ✓ 
 
 ---
 
-## Étape 4 — Lancer
+## Étape 5 — Lancer
 
 En mode interactif :
 
@@ -203,7 +218,7 @@ opencode
 …ou en une commande (`--auto` approuve automatiquement les appels d'outils) :
 
 ```
-opencode run "Ecris un programme OWL dans extractor.owl qui ... . Utilise owl_search / owl_signature pour trouver les natives, et owl_check pour valider." -m ollama/qwen-owl --auto
+opencode run "Ecris un programme OWL dans extractor.owl qui ... . Utilise owl_search / owl_signature pour trouver les natives, et owl_check pour valider." -m local/owl --auto
 ```
 
 OpenCode exécute les outils owl et enchaîne la boucle, en affichant chaque étape
@@ -213,13 +228,11 @@ OpenCode exécute les outils owl et enchaîne la boucle, en affichant chaque ét
 
 ## Option VS Code (Cline)
 
-Même montage (Ollama + modèle **généraliste** + MCP owl), avec **Cline** comme agent :
+Même montage (un serveur — natif ou Ollama — + le MCP owl), avec **Cline** comme agent :
 
-1. Installez l'extension **[Cline](https://cline.bot)** depuis le marketplace VS Code. ⚠️ Il
-   existe des imitations : prenez bien celle de l'éditeur **saoudrizwan** (identifiant
-   `saoudrizwan.claude-dev`), la plus installée.
+1. Installez l'extension **[Cline](https://cline.bot)** (éditeur **saoudrizwan**, voir Étape 3).
 2. Réglez le modèle : *API Provider* → **OpenAI Compatible** → *Base URL*
-   `http://127.0.0.1:11434/v1` → *Model* `qwen-owl` (clé API : une valeur quelconque).
+   `http://127.0.0.1:11434/v1` → *Model* votre modèle (clé API : une valeur quelconque).
 3. Ajoutez le MCP owl dans les réglages MCP de Cline : serveur `owl`, commande `owl`,
    argument `mcp`.
 4. **Activez l'auto-approbation des outils** (réglage *Auto-approve*).
@@ -227,9 +240,6 @@ Même montage (Ollama + modèle **généraliste** + MCP owl), avec **Cline** com
 > ⚠️ **Réglage à ne pas oublier.** Sans l'auto-approbation, l'agent **s'arrête et attend une
 > validation manuelle à chaque appel d'outil** : la boucle n'avance pas toute seule.
 > Activez-la pour un fonctionnement autonome.
-
-> **Même règle de modèle** qu'avec OpenCode : un **généraliste-instruct**, jamais un
-> **Coder** — sinon les appels d'outils partent en texte et ne sont pas exécutés.
 
 ---
 
@@ -240,20 +250,11 @@ conversation accumule les résultats d'outils, chaque étape prend de plus en pl
 (souvent plusieurs minutes). C'est utilisable en « lance et laisse tourner », pénible en
 interactif.
 
-Deux façons d'obtenir du **rapide et fiable**, avec le **même** agent et le **même**
-`owl mcp` :
+Trois façons d'aller plus vite, avec le **même** agent et le **même** `owl mcp` :
 - **Un modèle cloud** : ajoutez un provider (Anthropic, OpenAI…) avec votre clé API et
-  sélectionnez ce modèle — rapide et fiable.
-- **Un GPU dédié** (voir ci-dessous).
-
----
-
-## Accélérer avec un GPU (optionnel)
-
-Un GPU n'est pas obligatoire, mais une **carte dédiée** avec assez de **mémoire vidéo**
-(~12 Go pour un 14B) accélère énormément ; Ollama l'utilise automatiquement s'il est
-reconnu. Un **GPU intégré** (Arc, Radeon de portable) partage la RAM : gain modeste (Ollama
-le désactive par défaut ; `OLLAMA_IGPU_ENABLE=1` pour l'activer).
+  sélectionnez ce modèle — **rapide et fiable**, quelle que soit votre machine.
+- **Un GPU dédié**, via **Ollama** (option B) qui l'exploite automatiquement.
+- **Un modèle plus petit**, si votre tâche le permet.
 
 ---
 
@@ -261,12 +262,11 @@ le désactive par défaut ; `OLLAMA_IGPU_ENABLE=1` pour l'activer).
 
 | Symptôme | Cause probable | Correctif |
 |---|---|---|
-| L'IA affiche l'appel d'outil en texte (`{"name":...}`) puis s'arrête | Le modèle émet le mauvais format — le plus souvent un modèle **Coder** | Utiliser un **généraliste-instruct** |
-| Les outils ne s'exécutent jamais, même avec un bon modèle | Serveur qui ne parse pas les appels | Utiliser **Ollama** (il traduit les appels en format exécutable) |
+| L'IA affiche l'appel d'outil en texte (`{"name":...}`) puis s'arrête | Le serveur ne garantit pas le format — modèle **Coder** sous **Ollama** | Utiliser le **serveur natif de NeOwl** (il force le format), ou un modèle **Instruct** sous Ollama |
 | L'agent attend une validation à chaque étape | Auto-approbation désactivée | Activer *Auto-approve* (Cline) ou `--auto` (OpenCode) |
-| La tâche échoue avec un dépassement de contexte | Fenêtre trop petite (4096 par défaut) | Créer le modèle 16k (voir Étape 1) |
+| La tâche échoue avec un dépassement de contexte | Fenêtre trop petite | `--ctx-size 16384` (serveur natif) ou `PARAMETER num_ctx 16384` (Ollama) |
 | `opencode mcp list` ne montre pas owl | MCP mal déclaré ou `owl` absent du PATH | Vérifier `opencode.json` et l'installation de NeOwl |
-| Réponses interminables | Modèle trop gros pour le CPU + gros contexte | Patienter, ou GPU, ou modèle cloud |
+| Réponses interminables | Modèle trop gros pour le CPU + gros contexte | Patienter, ou GPU (Ollama), ou modèle cloud |
 | Le modèle écrit du RDF / des `prefix` | Confusion avec le *Web Ontology Language* | Imposer l'usage du MCP owl (voir le prompt ci-dessous) |
 
 ---
@@ -295,12 +295,15 @@ Ma demande : <...>
 
 ## En résumé
 
-1. **Ollama** (`ollama pull qwen2.5:14b`, ou import d'un `.gguf` de Hugging Face) — le
-   serveur qui parse les outils.
-2. Un modèle **généraliste-instruct** (jamais Coder) — le seul qui pilote un agent.
-3. **OpenCode** (terminal, via Node) ou **Cline** (VS Code, sans Node) — l'agent, pointé sur
-   Ollama + le MCP owl, avec l'auto-approbation activée.
-4. Local = **privé mais lent** sur CPU ; **cloud** (même montage + une clé API) = rapide et
-   fiable. Le MCP `owl` fonctionne avec les deux.
+1. **Un modèle** au format `.gguf` (un seul fichier, `Q4_K_M`) — choisi selon votre RAM.
+2. **Un serveur** pour le faire tourner :
+   - **`owl serve-llm --model x.gguf --ctx-size 16384`** — le serveur **natif de NeOwl**,
+     recommandé : un seul binaire, et le format des appels d'outils est garanti (même un
+     modèle Coder marche).
+   - ou **Ollama**, notamment pour exploiter un **GPU dédié**.
+3. **Un agent** — **OpenCode** (terminal, via Node) ou **Cline** (VS Code, sans Node) —
+   pointé sur le serveur + le MCP owl, avec l'auto-approbation activée.
+4. Local = **privé** ; pour **rapide et fiable** sur n'importe quelle machine, le même montage
+   accepte un **modèle cloud** (une clé API). Le MCP `owl` fonctionne avec tout.
 
 Questions, retours ? Rejoignez la **communauté** (liens en bas du [README](README.md)).
