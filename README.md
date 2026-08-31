@@ -147,6 +147,7 @@ Raccourcis fournis par l'extension :
 | `Ctrl+D` | Dupliquer la ligne |
 | `Ctrl+-` | Supprimer la ligne |
 | `F2` | Aller à la définition |
+| `Shift+F6` | Renommer un symbole et toutes ses occurrences (dans sa portée) |
 | `Ctrl+F2` | Revenir en arrière |
 | `Alt+S` | Tout enregistrer |
 | `F12` / `Shift+F12` | Problème suivant / précédent |

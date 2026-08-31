@@ -147,6 +147,7 @@ Shortcuts provided by the extension:
 | `Ctrl+D` | Duplicate line |
 | `Ctrl+-` | Delete line |
 | `F2` | Go to definition |
+| `Shift+F6` | Rename a symbol and all its occurrences (within its scope) |
 | `Ctrl+F2` | Navigate back |
 | `Alt+S` | Save all |
 | `F12` / `Shift+F12` | Next / previous problem |
