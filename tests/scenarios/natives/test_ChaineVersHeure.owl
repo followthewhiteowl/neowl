@@ -1,0 +1,147 @@
+// @sujet : ChaîneVersHeure
+// @résumé : ChaineVersHeure - parse chaine vers heure (formats multiples)
+// Scenario PUB ChaineVersHeure - parse chaine vers heure (formats multiples)
+//
+// Note pedagogique : Trace(h) affiche le format texte HHMMSSCC.
+// HeureVersEntier(h) retourne le nombre de centiemes de seconde
+// ecoules depuis 00:00:00:00.
+// Pour 14:25:30:99 : Trace = "14253099", HeureVersEntier = 5_193_099
+// (14*360000 + 25*6000 + 30*100 + 99).
+
+// =====================================================================
+// PROCEDURES PUBLIQUES (pedagogiques, scenarios documentaires)
+// =====================================================================
+
+PROCEDURE PUBLIQUE scenario_formats_acceptes()
+	// La native accepte plusieurs formats de chaine pour representer une heure
+	// Formats solides : HHMMSSCC (8), HHMMSS (6)
+	// Formats separes : HH:MM:SS:CC, HH:MM:SS, HH:MM, HH:MM:SS.CC
+
+	colon est une chaîne = Caract(58)
+	dot est une chaîne = Caract(46)
+
+	// Solide 8 digits
+	h1 est une heure = ChaîneVersHeure("14253099")
+	dbgVérifieVrai(HeureVersEntier(h1) = 5193099, `Solide 8 digits OK`)
+
+	// Solide 6 digits
+	h2 est une heure = ChaîneVersHeure("142530")
+	dbgVérifieVrai(HeureVersEntier(h2) = 5193000, `Solide 6 digits OK`)
+
+	// Separe AVEC colons ET centiemes
+	s_cc est une chaîne = "14" + colon + "25" + colon + "30" + colon + "99"
+	h3 est une heure = ChaîneVersHeure(s_cc)
+	dbgVérifieVrai(HeureVersEntier(h3) = 5193099, `Separe AVEC colons ET centiemes OK`)
+
+	// Separe sans centiemes
+	s_sec est une chaîne = "14" + colon + "25" + colon + "30"
+	h4 est une heure = ChaîneVersHeure(s_sec)
+	dbgVérifieVrai(HeureVersEntier(h4) = 5193000, `Separe sans centiemes OK`)
+
+	// Separe minutes seulement
+	s_min est une chaîne = "14" + colon + "25"
+	h5 est une heure = ChaîneVersHeure(s_min)
+	dbgVérifieVrai(HeureVersEntier(h5) = 5190000, `Separe minutes seulement OK`)
+
+	// Separe AVEC dot pour centiemes
+	s_dot est une chaîne = "14" + colon + "25" + colon + "30" + dot + "99"
+	h6 est une heure = ChaîneVersHeure(s_dot)
+	dbgVérifieVrai(HeureVersEntier(h6) = 5193099, `Separe AVEC dot centiemes OK`)
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeurs_limites()
+	// Teste les valeurs extremes : minuit, fin de journee, ET valeurs invalides
+
+	colon est une chaîne = Caract(58)
+
+	// Minuit
+	s_minuit est une chaîne = "00" + colon + "00" + colon + "00"
+	h_minuit est une heure = ChaîneVersHeure(s_minuit)
+	dbgVérifieVrai(HeureVersEntier(h_minuit) = 0, `Minuit donne 0`)
+
+	// Derniere seconde valide
+	s_max est une chaîne = "23" + colon + "59" + colon + "59"
+	h_max est une heure = ChaîneVersHeure(s_max)
+	dbgVérifieVrai(HeureVersEntier(h_max) = 8639900, `23:59:59 donne valeur Max`)
+
+	// Valeur 60 minutes (hors plage : le parser valide les minutes 0..59)
+	s_60min est une chaîne = "14" + colon + "60" + colon + "00"
+	h_60min est une heure = ChaîneVersHeure(s_60min)
+	dbgVérifieNull(h_60min, `60 minutes hors plage retourne Null`)
+
+	// Valeur 24 heures (hors plage : le parser valide les heures 0..23)
+	s_24h est une chaîne = "24" + colon + "00" + colon + "00"
+	h_24h est une heure = ChaîneVersHeure(s_24h)
+	dbgVérifieNull(h_24h, `24 heures hors plage retourne Null`)
+FIN
+
+PROCEDURE PUBLIQUE scenario_erreurs_parse()
+	// Teste les cas d'erreur : chaine vide, formats invalides, caracteres non-numeriques
+
+	// chaîne vide doit echouer
+	h_vide est une heure = ChaîneVersHeure("")
+	dbgVérifieNull(h_vide, `chaîne vide retourne Null`)
+
+	// un seul digit EST trop court
+	h_court est une heure = ChaîneVersHeure("1")
+	dbgVérifieNull(h_court, `un seul digit retourne Null`)
+
+	// Formats impairs solides doivent echouer
+	h_3d est une heure = ChaîneVersHeure("142")
+	dbgVérifieNull(h_3d, `Trois digits retourne Null`)
+
+	h_5d est une heure = ChaîneVersHeure("14253")
+	dbgVérifieNull(h_5d, `Cinq digits retourne Null`)
+
+	// Caracteres Non-numeriques doivent echouer
+	s_alpha est une chaîne = `14h25m30s`
+	h_alpha est une heure = ChaîneVersHeure(s_alpha)
+	dbgVérifieNull(h_alpha, `Caracteres Non-numeriques retournent Null`)
+
+	// Separateurs AVEC digits incomplets doivent echouer
+	colon est une chaîne = Caract(58)
+	s_incomplet est une chaîne = "1" + colon + "2"
+	h_incomplet est une heure = ChaîneVersHeure(s_incomplet)
+	dbgVérifieNull(h_incomplet, `Separateurs AVEC digits incomplets retourne Null`)
+FIN
+
+// =====================================================================
+// PROCEDURES PRIVEES (edge cases proactifs, hors matrice initiale)
+// =====================================================================
+
+PROCEDURE PRIVÉE scenario_centiemes_max()
+	// Teste les centiemes a 99 (valeur Max acceptee sans validation stricte)
+
+	colon est une chaîne = Caract(58)
+
+	// Centiemes a 99
+	h_99 est une heure = ChaîneVersHeure("14253099")
+	dbgVérifieVrai(HeureVersEntier(h_99) = 5193099, `Centiemes 99 acceptes`)
+
+	// AVEC dot pour centiemes
+	dot est une chaîne = Caract(46)
+	s_cc99 est une chaîne = "12" + colon + "34" + colon + "56" + dot + "99"
+	h_cc99 est une heure = ChaîneVersHeure(s_cc99)
+	dbgVérifieVrai(HeureVersEntier(h_cc99) = 4529699, `dot AVEC 99 centiemes parse`)
+FIN
+
+PROCEDURE PRIVÉE scenario_formats_solides_courts()
+	// Teste les formats solides courts (2 ET 4 digits)
+	// OWL accepte ces formats pour ergonomie.
+
+	// Solide 2 digits
+	h_2d est une heure = ChaîneVersHeure("14")
+	SI h_2d <> Null ALORS
+		dbgVérifieVrai(HeureVersEntier(h_2d) = 5040000, `Solide 2 digits accepte`)
+	SINON
+		dbgVérifieVrai(Vrai, `Solide 2 digits rejete`)
+	FIN
+
+	// Solide 4 digits
+	h_4d est une heure = ChaîneVersHeure("1425")
+	SI h_4d <> Null ALORS
+		dbgVérifieVrai(HeureVersEntier(h_4d) = 5190000, `Solide 4 digits accepte`)
+	SINON
+		dbgVérifieVrai(Vrai, `Solide 4 digits rejete`)
+	FIN
+FIN

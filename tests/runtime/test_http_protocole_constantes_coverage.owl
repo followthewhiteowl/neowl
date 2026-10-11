@@ -1,0 +1,96 @@
+// =====================================================================
+// Couverture des constantes HTTP/Protocole restees orphelines :
+//   httpResultEnteteBrut, httpParam* (GardeConnexion / MaxRedirection /
+//   NoProxy), httpIgnore* (RenvoiHTTP / RenvoiHTTPS),
+//   Protocole* (Defaut / TLS1_1).
+//
+// Le mock HTTP court-circuite tout le code reseau (redirections,
+// negociation TLS, bypass proxy) : ces effets ne sont donc PAS
+// observables ici. Strategie : value-check exact des constantes
+// (valeurs ancrees sur le registre) + smoke (pose sur requete/param
+// acceptee sans erreur). Seul httpResultEnteteBrut a une couverture
+// comportementale reelle (roundtrip de champ via l'accesseur).
+// =====================================================================
+
+Trace("=== HTTP / PROTOCOLE CONSTANTES COVERAGE ===")
+
+HTTPParamètre(httpParamReinitialise, 0)
+
+// =====================================================================
+// Section 1 : httpResultEnteteBrut -- couverture comportementale reelle
+// =====================================================================
+// On construit une httpReponse a la main (pas de reseau) et on lit le
+// champ EnteteBrut via l'accesseur HTTPDonneResultat + la constante.
+
+rep est un httpRéponse
+rep..EntêteBrut = "HTTP/1.1 200 OK\r\nServer: owl-test\r\nContent-Type: text/plain"
+
+brut est une chaîne = HTTPDonneRésultat(rep, httpResultEnteteBrut)
+dbgVérifieEgalité(brut, "HTTP/1.1 200 OK\r\nServer: owl-test\r\nContent-Type: text/plain",
+"httpResultEnteteBrut extrait l'entete brut exact")
+
+// La constante d'accesseur est distincte des autres champs httpResult*.
+dbgVérifieDifférence(httpResultEnteteBrut, httpResultEntete,
+"httpResultEnteteBrut != httpResultEntete (accesseurs distincts)")
+dbgVérifieDifférence(httpResultEnteteBrut, httpResultContenu,
+"httpResultEnteteBrut != httpResultContenu")
+
+// =====================================================================
+// Section 2 : Protocole* -- versions TLS (champ httpRequete..VersionSSL)
+// =====================================================================
+// Valeurs exactes : bitmask des versions TLS (registre stdlib_http).
+
+dbgVérifieEgalité(ProtocoleDefaut, 0, "ProtocoleDefaut = 0 (laisse la pile decider)")
+dbgVérifieEgalité(ProtocoleTLS1_1, 2, "ProtocoleTLS1_1 = 2 (bit TLS 1.1)")
+
+// Pose sur la requete : accepte sans erreur (smoke). L'effet reel
+// (negociation TLS) passe par le code reseau, court-circuite par le mock.
+reqTLS est un httpRequête
+reqTLS..VersionSSL = ProtocoleDefaut
+dbgVérifieEgalité(reqTLS..VersionSSL, 0, "VersionSSL = ProtocoleDefaut accepte")
+
+reqTLS..VersionSSL = ProtocoleTLS1_1
+dbgVérifieEgalité(reqTLS..VersionSSL, 2, "VersionSSL = ProtocoleTLS1_1 accepte")
+
+// Combinable (bitmask) : ProtocoleTLS1_1 + ProtocoleTLS1_2 = 6.
+reqTLS..VersionSSL = ProtocoleTLS1_1 + ProtocoleTLS1_2
+dbgVérifieEgalité(reqTLS..VersionSSL, 6, "VersionSSL combinable (TLS1_1|TLS1_2 = 6)")
+
+// =====================================================================
+// Section 3 : httpIgnore* -- flags de tolerance (champ ..IgnoreErreur)
+// =====================================================================
+// Valeurs exactes des bits (registre stdlib_http). Les deux Renvoi*
+// sont branches (block_downgrade).
+
+dbgVérifieEgalité(httpIgnoreRenvoiHTTP, 16, "httpIgnoreRenvoiHTTP = 16")
+dbgVérifieEgalité(httpIgnoreRenvoiHTTPS, 32, "httpIgnoreRenvoiHTTPS = 32")
+
+// Combinaison de flags (bitmask) posee sur la requete (smoke).
+reqIgn est un httpRequête
+reqIgn..IgnoreErreur = httpIgnoreRenvoiHTTP + httpIgnoreRenvoiHTTPS
+dbgVérifieEgalité(reqIgn..IgnoreErreur, 48,
+"IgnoreErreur = RenvoiHTTP|RenvoiHTTPS (16+32 = 48)")
+
+// =====================================================================
+// Section 4 : httpParam* -- options globales (HTTPParametre)
+// =====================================================================
+// Smoke : HTTPParametre renvoie Vrai quand le parametre est reconnu.
+// L'effet reel (proxy/redirection/keep-alive) passe par le reseau.
+
+okMaxRedir est un booléen = HTTPParamètre(httpParamMaxRedirection, 5)
+dbgVérifieEgalité(okMaxRedir, Vrai, "httpParamMaxRedirection accepte (5)")
+
+okGarde est un booléen = HTTPParamètre(httpParamGardeConnexion, Vrai)
+dbgVérifieEgalité(okGarde, Vrai, "httpParamGardeConnexion accepte (Vrai)")
+
+okNoProxy est un booléen = HTTPParamètre(httpParamNoProxy, "localhost,.interne.lan")
+dbgVérifieEgalité(okNoProxy, Vrai, "httpParamNoProxy accepte (liste exclusions)")
+
+// Les ids de parametre sont distincts entre eux.
+dbgVérifieDifférence(httpParamNoProxy, httpParamMaxRedirection,
+"httpParamNoProxy != httpParamMaxRedirection")
+
+// Reinitialisation finale (etat propre pour les tests suivants).
+HTTPParamètre(httpParamReinitialise, 0)
+
+dbgBilanTest()

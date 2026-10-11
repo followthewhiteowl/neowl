@@ -1,0 +1,53 @@
+// =====================================================================
+// REGRESSION : les constantes rangPremier/rangSuivant/rangDernier/
+// rangPrecedent ne doivent JAMAIS collisioner avec un entier ordinaire
+// passe comme rang.
+//
+// Avant le fix : rangPremier=1000, rangSuivant=1001, rangDernier=1002,
+// rangPrecedent=1003 -> ExtraitChaine(s, 1000, ";") declenchait par
+// erreur la branche traversal au lieu de "rang hors borne".
+//
+// Apres le fix : valeurs canon de référence en zone INT32_MIN, impossible a taper
+// par accident.
+// =====================================================================
+
+s est une chaîne = "a;b;c;d"
+
+// Verifie les valeurs de référence (zero divergence)
+dbgVérifieEgalité(rangPremier,-2147483648, "rangPremier   = INT32_MIN")
+dbgVérifieEgalité(rangSuivant,-2147483647, "rangSuivant   = INT32_MIN+1")
+dbgVérifieEgalité(rangPrécédent,-2147483646, "rangPrecedent = INT32_MIN+2")
+dbgVérifieEgalité(rangDernier,-2147483645, "rangDernier   = INT32_MIN+3")
+
+// Les constantes activent bien le mode magique
+dbgVérifieEgalité(ExtraitChaîne(s, rangPremier, ";"), "a",
+"rangPremier active traversal -> 'a'")
+dbgVérifieEgalité(ExtraitChaîne(s, rangSuivant, ";"), "b",
+"rangSuivant continue traversal -> 'b'")
+
+// Un entier dans l'ancienne zone de collision (1000-1003) doit etre traite
+// comme rang ordinaire HORS BORNE, donc renvoyer EOT.
+dbgVérifieEgalité(ExtraitChaîne(s, 1000, ";"), EOT,
+"rang 1000 entier ordinaire -> EOT (plus de collision avec rangPremier)")
+dbgVérifieEgalité(ExtraitChaîne(s, 1001, ";"), EOT,
+"rang 1001 entier ordinaire -> EOT (plus de collision avec rangSuivant)")
+dbgVérifieEgalité(ExtraitChaîne(s, 1002, ";"), EOT,
+"rang 1002 entier ordinaire -> EOT (plus de collision avec rangPrecedent)")
+dbgVérifieEgalité(ExtraitChaîne(s, 1003, ";"), EOT,
+"rang 1003 entier ordinaire -> EOT (plus de collision avec rangDernier)")
+
+// Pareil pour ExtraitChaineEntre
+sBalise est une chaîne = "<a>1</a><a>2</a><a>3</a>"
+dbgVérifieEgalité(ExtraitChaîneEntre(sBalise, rangDernier, "<a>", "</a>"), "3",
+"rangDernier active 'depuis la fin' -> '3'")
+dbgVérifieEgalité(ExtraitChaîneEntre(sBalise, 1002, "<a>", "</a>"), EOT,
+"rang 1002 entier ordinaire -> EOT (pas de bascule depuisFin)")
+
+// PositionOccurrence : meme protection
+sCherche est une chaîne = "ab ab ab ab"
+dbgVérifieEgalité(PositionOccurrence(sCherche, "ab", rangPremier), 1,
+"PositionOccurrence rangPremier -> 1")
+dbgVérifieEgalité(PositionOccurrence(sCherche, "ab", 1000), 0,
+"PositionOccurrence rang 1000 entier -> 0 (pas trouvee)")
+
+dbgBilanTest()

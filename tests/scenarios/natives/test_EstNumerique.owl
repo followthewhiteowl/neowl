@@ -1,0 +1,89 @@
+// @sujet : EstNumérique
+// @résumé : Teste si une valeur est numérique. Sur une chaîne, la règle est
+// stricte : après suppression des espaces de bord, toute la chaîne doit être
+// un nombre décimal valide (signe, chiffres, séparateur point).
+
+// ============================================
+// Cas pedagogiques (publics)
+// ============================================
+
+PROCEDURE PUBLIQUE scenario_entier_simple()
+	// Une chaîne d'entier est numérique.
+	dbgVérifieVrai(EstNumérique("12"), "12 est numérique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_decimal_point()
+	// Un décimal avec séparateur point est numérique.
+	dbgVérifieVrai(EstNumérique("12.5"), "12.5 est numérique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_negatif()
+	// Un signe négatif en tête est accepté.
+	dbgVérifieVrai(EstNumérique("-3"), "-3 est numérique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_zero()
+	// Le zéro est numérique.
+	dbgVérifieVrai(EstNumérique("0"), "zéro est numérique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_espaces_de_bord()
+	// Les espaces de bord sont ignorés avant validation.
+	dbgVérifieVrai(EstNumérique(" 12 "), "espaces de bord ignorés avant validation")
+FIN
+
+PROCEDURE PUBLIQUE scenario_garbage_final()
+	// Un caractère non numérique en fin invalide toute la chaîne (règle stricte).
+	dbgVérifieFaux(EstNumérique("12a"), "garbage final refusé (12a)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_prefixe_hexa()
+	// Le préfixe hexadécimal n'est pas un nombre décimal valide.
+	dbgVérifieFaux(EstNumérique("0x1F"), "préfixe hexadécimal 0x1F refusé")
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeur_numerique_directe()
+	// Une valeur déjà numérique est numérique sans conversion.
+	dbgVérifieVrai(EstNumérique(42), "un entier est numérique")
+	dbgVérifieVrai(EstNumérique(3.14), "un réel est numérique")
+FIN
+
+// ============================================
+// Cas limites (prives)
+// ============================================
+
+PROCEDURE PRIVÉE scenario_edge_vide()
+	// La chaîne vide n'est pas numérique.
+	dbgVérifieFaux(EstNumérique(""), "chaîne vide non numérique")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alpha_en_tete()
+	// Une lettre en tête invalide la chaîne.
+	dbgVérifieFaux(EstNumérique("a12"), "a12 non numérique")
+	dbgVérifieFaux(EstNumérique("abc"), "abc non numérique")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_double_point()
+	// Deux séparateurs décimaux ne forment pas un nombre valide.
+	dbgVérifieFaux(EstNumérique("12.5.6"), "12.5.6 non numérique")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_espace_interne()
+	// Un espace interne casse la validité (pas un séparateur de milliers).
+	dbgVérifieFaux(EstNumérique("1 234"), "espace interne refusé (1 234)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_virgule_decimale()
+	// Le séparateur décimal OWL est le point ; la virgule est refusée.
+	dbgVérifieFaux(EstNumérique("1,5"), "virgule décimale non reconnue (1,5)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_decimal_sans_partie_entiere()
+	// Un point suivi de chiffres, sans partie entière, reste un nombre valide.
+	dbgVérifieVrai(EstNumérique(".5"), "point puis chiffres accepté (.5)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_point_final_seul()
+	// Un point final sans chiffre après n'est pas consommé entièrement.
+	dbgVérifieFaux(EstNumérique("5."), "point final orphelin refusé (5.)")
+FIN

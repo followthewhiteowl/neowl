@@ -1,0 +1,21 @@
+//  — cas récupéré du cadrage de  : `t[1].Msg = {…}` sur un
+// tableau DIMENSIONNÉ de structures. La variante voisine passe par
+// TableauAjoute parce que le dimensionnement direct ne construisait pas ses
+// cellules ; c'est ce contournement que ce test lève.
+RubriqueDim est une Structure
+	Msg est une chaîneMultilingue
+FIN
+
+tDim est un tableau de 2 RubriqueDim
+
+dbgVérifieEgalité(tDim..Occurrence, 2, "1398/1340 : deux rubriques déclarées")
+
+tDim[1].Msg = {"fr-FR": "Premier", "en-GB": "First"}
+dbgVérifieEgalité(tDim[1].Msg[langueFrançais], "Premier", "1398/1340 : champ imbriqué dimensionné, index 1, fr-FR")
+dbgVérifieEgalité(tDim[1].Msg["en-GB"], "First", "1398/1340 : champ imbriqué dimensionné, index 1, en-GB")
+
+tDim[2].Msg = {"fr-FR": "Second", "en-GB": "Second one"}
+dbgVérifieEgalité(tDim[2].Msg[langueFrançais], "Second", "1398/1340 : champ imbriqué dimensionné, index 2, fr-FR")
+dbgVérifieEgalité(tDim[1].Msg[langueFrançais], "Premier", "1398/1340 : les deux cellules restent indépendantes")
+
+dbgBilanTest()

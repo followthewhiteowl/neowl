@@ -1,0 +1,69 @@
+// @sujet : Tenseur.MaxPooling — max pooling 2D (avant + arrière)
+// @résumé : MaxPooling(taille) découpe l'entrée en fenêtres carrées non
+// chevauchantes (pas = taille) et rend le maximum de chaque fenêtre. La
+// rétropropagation ne route le gradient QUE vers la position du maximum
+// de chaque fenêtre — toutes les autres cellules reçoivent un gradient nul.
+// Toutes les valeurs sont calculées à la main.
+
+// Entrée 1×1×4×4 :
+//    1  3  2  4
+//    5  6  8  7
+//    9 11 10 12
+//   13 14 16 15
+// Découpée en 4 fenêtres 2×2 non chevauchantes :
+//   fenêtre[1][1] = [[1,3],[5,6]]   -> max = 6  (position locale [2][2])
+//   fenêtre[1][2] = [[2,4],[8,7]]   -> max = 8  (position locale [2][1])
+//   fenêtre[2][1] = [[9,11],[13,14]] -> max = 14 (position locale [2][2])
+//   fenêtre[2][2] = [[10,12],[16,15]] -> max = 16 (position locale [2][1])
+PROCEDURE PUBLIQUE scenario_maxpooling_forward()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MaxPooling(2)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "4/2 = 2 fenêtres en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "4/2 = 2 fenêtres en largeur")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 6.0, "max([[1,3],[5,6]]) = 6")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 8.0, "max([[2,4],[8,7]]) = 8")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 14.0, "max([[9,11],[13,14]]) = 14")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 16.0, "max([[10,12],[16,15]]) = 16")
+FIN
+
+
+// Rétropropagation via q = sortie*sortie (grad de sortie non uniforme) :
+// sortie = [[6,8],[14,16]] -> grad_sortie = 2*sortie = [[12,16],[28,32]]
+// Chaque valeur de grad_sortie va UNIQUEMENT à la position du maximum
+// gagnant dans sa fenêtre d'origine (positions identifiées au forward) :
+//   grad_sortie[1][1]=12 -> entrée[2][2] (position du 6 dans la fenêtre[1][1])
+//   grad_sortie[1][2]=16 -> entrée[2][3] (position du 8 dans la fenêtre[1][2])
+//   grad_sortie[2][1]=28 -> entrée[4][2] (position du 14 dans la fenêtre[2][1])
+//   grad_sortie[2][2]=32 -> entrée[4][3] (position du 16 dans la fenêtre[2][2])
+// Toutes les autres cellules d'entrée (12 sur 16) reçoivent un gradient nul.
+PROCEDURE PUBLIQUE scenario_maxpooling_backward_route_gradient_vers_argmax()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MaxPooling(2)
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][2], 12.0, "position du max 6 dans la fenêtre[1][1] reçoit grad_sortie[1][1]=12")
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][3], 16.0, "position du max 8 dans la fenêtre[1][2] reçoit grad_sortie[1][2]=16")
+	dbgVérifieEgalité(entrée..Gradient[1][1][4][2], 28.0, "position du max 14 dans la fenêtre[2][1] reçoit grad_sortie[2][1]=28")
+	dbgVérifieEgalité(entrée..Gradient[1][1][4][3], 32.0, "position du max 16 dans la fenêtre[2][2] reçoit grad_sortie[2][2]=32")
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][1], 0.0, "cellule non-max de la fenêtre[1][1] : gradient nul")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][4], 0.0, "cellule non-max de la fenêtre[1][2] : gradient nul")
+	dbgVérifieEgalité(entrée..Gradient[1][1][4][4], 0.0, "cellule non-max de la fenêtre[2][2] : gradient nul")
+	dbgVérifieEgalité(entrée..Gradient[1][1][4][1], 0.0, "cellule non-max de la fenêtre[2][1] : gradient nul")
+FIN
+
+
+// La forme native TenseurMaxPooling(entrée, taille) doit rendre exactement
+// le même résultat que la méthode fluente.
+PROCEDURE PUBLIQUE scenario_maxpooling_forme_native_egale_methode()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+
+	sortieMéthode est un Tenseur = entrée.MaxPooling(2)
+	sortieNative est un Tenseur = TenseurMaxPooling(entrée, 2)
+
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], sortieMéthode..Valeur[1][1][1][1], "native et méthode rendent la même cellule [1][1]")
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][2][2], sortieMéthode..Valeur[1][1][2][2], "native et méthode rendent la même cellule [2][2]")
+FIN

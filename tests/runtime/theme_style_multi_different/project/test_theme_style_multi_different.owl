@@ -1,0 +1,47 @@
+// Régression : plusieurs widgets portant des styles de thème DIFFÉRENTS
+// doivent chacun conserver LEUR style distinct.
+//
+// Historiquement, plusieurs widgets avec `Style = theme.<nom>` différents
+// captaient TOUS le style du DERNIER thème déclaré (ordre d'init : styles du
+// thème enregistrés après le seed du build widgets). Ce test verrouille le
+// cas sur les deux chemins d'affectation :
+//   - BUILD   : Style posé en PROPRIETES (application à la construction).
+//   - RUNTIME : Style affecté par code (X..Style = theme.X).
+// Il vérifie aussi que la source du thème reste intacte après les
+// affectations.
+
+Trace("=== Styles thème multiples DISTINCTS par widget ===")
+
+Ouvre(FEN_MultiStyle)
+
+// -------------------------------------------------------------------
+// Chemin BUILD : deux boutons portent en PROPRIETES deux styles thème
+// DIFFÉRENTS. Chacun doit garder le sien.
+// -------------------------------------------------------------------
+dbgVérifieEgalité(BTN_A..Style..CadreExtérieur..CouleurFond, Bleu, "Build A : stylePrimaire → Bleu")
+dbgVérifieEgalité(BTN_B..Style..CadreExtérieur..CouleurFond, Rouge, "Build B : styleDanger → Rouge (pas capté par le dernier)")
+
+// -------------------------------------------------------------------
+// Chemin RUNTIME : affectation par code d'un 3e style distinct.
+// -------------------------------------------------------------------
+BTN_C..Style = theme.styleNeutre
+dbgVérifieEgalité(BTN_C..Style..CadreExtérieur..CouleurFond, Vert, "Run C : styleNeutre → Vert")
+
+// Les boutons BUILD restent inchangés après l'affectation runtime.
+dbgVérifieEgalité(BTN_A..Style..CadreExtérieur..CouleurFond, Bleu, "Build A inchangé après affectation runtime — reste Bleu")
+dbgVérifieEgalité(BTN_B..Style..CadreExtérieur..CouleurFond, Rouge, "Build B inchangé après affectation runtime — reste Rouge")
+
+// Ré-affectation runtime d'un style DIFFÉRENT sur C : bascule propre.
+BTN_C..Style = theme.styleDanger
+dbgVérifieEgalité(BTN_C..Style..CadreExtérieur..CouleurFond, Rouge, "Run C : ré-affecté styleDanger → Rouge")
+dbgVérifieEgalité(BTN_A..Style..CadreExtérieur..CouleurFond, Bleu, "Build A toujours Bleu après ré-affectation de C")
+
+// -------------------------------------------------------------------
+// La source du thème ne doit pas avoir bougé.
+// -------------------------------------------------------------------
+dbgVérifieEgalité(theme.stylePrimaire..CadreExtérieur..CouleurFond, Bleu, "Source thème stylePrimaire intacte : Bleu")
+dbgVérifieEgalité(theme.styleDanger..CadreExtérieur..CouleurFond, Rouge, "Source thème styleDanger intacte : Rouge")
+dbgVérifieEgalité(theme.styleNeutre..CadreExtérieur..CouleurFond, Vert, "Source thème styleNeutre intacte : Vert")
+
+Ferme(FEN_MultiStyle)
+dbgBilanTest()

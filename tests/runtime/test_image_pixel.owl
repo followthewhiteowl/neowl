@@ -1,0 +1,74 @@
+// ================================================================
+// Image natif — Lot I.2 : pixel access via fonctions natives
+//
+// Natives couvertes : dPixelCouleur, dPixelOpacité, dPoint.
+//
+// Coordonnées : (0,0) = coin haut gauche, conformément à la référence.
+//
+// Note : la syntaxe bracket `MaImage[x,y]` (Multimedia/Images/1000019650
+// §"Accès aux pixels") nécessite un opcode dédié et arrive en sous-lot
+// I.2.5 — pour I.2 on s'en tient aux 3 fonctions natives.
+// ================================================================
+
+// ----- Création d'une image rouge 4x3 et lecture du pixel (0,0) -----
+img est une Image = dCréeImage(4, 3, RougeClair)
+
+couleurOrigine est un entier = dPixelCouleur(img, 0, 0)
+dbgVérifieEgalité(couleurOrigine, RougeClair, "dPixelCouleur(0,0) = RougeClair")
+
+couleurMilieu est un entier = dPixelCouleur(img, 2, 1)
+dbgVérifieEgalité(couleurMilieu, RougeClair, "dPixelCouleur(2,1) = RougeClair (uniforme)")
+
+// ----- Opacité : image créée par dCréeImage est opaque (255) -----
+opacOrigine est un entier = dPixelOpacité(img, 0, 0)
+dbgVérifieEgalité(opacOrigine, 255, "dPixelOpacité = 255 (opaque par défaut)")
+
+// ----- dPoint : écriture d'un pixel coloré -----
+dPoint(img, 1, 1, BleuClair)
+dbgVérifieEgalité(dPixelCouleur(img, 1, 1), BleuClair, "dPoint pose BleuClair en (1,1)")
+
+// Les autres pixels restent à RougeClair
+dbgVérifieEgalité(dPixelCouleur(img, 0, 0), RougeClair, "Pixel (0,0) inchangé")
+dbgVérifieEgalité(dPixelCouleur(img, 3, 2), RougeClair, "Pixel (3,2) inchangé")
+
+// ----- dPoint avec opacité explicite -----
+dPoint(img, 0, 0, VertClair, 128)
+// Opacité 128 (~50%) fait un alpha-blend avec le fond RougeClair
+pixelBlend est un entier = dPixelCouleur(img, 0, 0)
+dbgVérifieVrai(pixelBlend <> RougeClair, "dPoint opacite 128 : pas rouge pur (blend applique)")
+dbgVérifieVrai(pixelBlend <> VertClair, "dPoint opacite 128 : pas vert pur (blend applique)")
+dbgVérifieEgalité(dPixelOpacité(img, 0, 0), 128, "dPixelOpacité reflète l'opacité posée")
+
+// ----- Coordonnées hors limites : silencieux (no-op) -----
+dPoint(img, 100, 100, BleuClair) // hors limites — pas de crash
+dPoint(img,-1, 0, BleuClair) // négatif — pas de crash
+dbgVérifieEgalité(dPixelCouleur(img, 100, 100), 0, "dPixelCouleur hors limites = 0")
+
+// ----- Image invalide : silencieux + retour 0 -----
+imgVide est une Image
+dbgVérifieEgalité(dPixelCouleur(imgVide, 0, 0), 0, "Image vide : dPixelCouleur = 0")
+dbgVérifieEgalité(dPixelOpacité(imgVide, 0, 0), 0, "Image vide : dPixelOpacité = 0")
+
+// ----- Roundtrip PNG : pixels préservés à la sauvegarde/relecture -----
+sChemin est une chaîne = "test_image_pixel_tmp.png"
+
+img2 est une Image = dCréeImage(2, 2, Noir)
+dPoint(img2, 0, 0, RougeClair)
+dPoint(img2, 1, 0, VertClair)
+dPoint(img2, 0, 1, BleuClair)
+dPoint(img2, 1, 1, Blanc)
+
+dSauveImagePNG(img2, sChemin)
+img3 est une Image = dChargeImage(sChemin)
+
+dbgVérifieEgalité(dPixelCouleur(img3, 0, 0), RougeClair, "Roundtrip PNG: pixel rouge")
+dbgVérifieEgalité(dPixelCouleur(img3, 1, 0), VertClair, "Roundtrip PNG: pixel vert")
+dbgVérifieEgalité(dPixelCouleur(img3, 0, 1), BleuClair, "Roundtrip PNG: pixel bleu")
+dbgVérifieEgalité(dPixelCouleur(img3, 1, 1), Blanc, "Roundtrip PNG: pixel blanc")
+
+fSupprime(sChemin)
+
+// ----- Alias EN -----
+dDot(img, 2, 2, BleuClair)
+dbgVérifieEgalité(dPixelColor(img, 2, 2), BleuClair, "Alias EN: dPixelColor + dDot")
+dbgVérifieEgalité(dPixelOpacity(img, 2, 2), 255, "Alias EN: dPixelOpacity")

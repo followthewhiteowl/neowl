@@ -1,0 +1,61 @@
+// @sujet : Arrondi
+// @résumé : Arg optionnel modeArrondi (3ᵉ param) — sélectionne la tie-rule.
+// arrondiDemiPair / roundHalfEven : demi-pair (défaut, banker's rounding).
+// arrondiDemiÉloigné / roundHalfAwayFromZero : demi-away-from-zero (comportement de portage historique).
+// Le 3ᵉ argument (mode d'arrondi) est accepté à la compilation.
+
+
+// Cas A : mode demi-pair explicite — identique au comportement par défaut.
+// Arrondi(2.5, 0, arrondiDemiPair) = 2 (pair=2). Passe en arg explicite.
+PROCEDURE PUBLIQUE scenario_mode_demi_pair_explicite()
+	res1 est un entier = Arrondi(2.5, 0, arrondiDemiPair)
+	res2 est un entier = Arrondi(0.5, 0, arrondiDemiPair)
+	res3 est un entier = Arrondi(-2.5, 0, arrondiDemiPair)
+	dbgVérifieEgalité(res1, 2, "Arrondi(2.5, 0, arrondiDemiPair) = 2")
+	dbgVérifieEgalité(res2, 0, "Arrondi(0.5, 0, arrondiDemiPair) = 0")
+	dbgVérifieEgalité(res3,-2, "Arrondi(-2.5, 0, arrondiDemiPair) = -2")
+FIN
+
+
+// Cas B : mode demi-éloigné positifs — arrondi systématique au plus loin de zéro.
+// arrondiDemiÉloigné = demi-away-from-zero (équivalent round() ISO/C99).
+// 2.5 → 3, 0.5 → 1 (arrondi vers le plus loin de zéro).
+PROCEDURE PUBLIQUE scenario_mode_demi_eloigne_positifs()
+	res1 est un entier = Arrondi(2.5, 0, arrondiDemiÉloigné)
+	res2 est un entier = Arrondi(0.5, 0, arrondiDemiÉloigné)
+	res3 est un entier = Arrondi(1.5, 0, arrondiDemiÉloigné)
+	dbgVérifieEgalité(res1, 3, "Arrondi(2.5, 0, arrondiDemiÉloigné) = 3")
+	dbgVérifieEgalité(res2, 1, "Arrondi(0.5, 0, arrondiDemiÉloigné) = 1")
+	dbgVérifieEgalité(res3, 2, "Arrondi(1.5, 0, arrondiDemiÉloigné) = 2")
+FIN
+
+
+// Cas C : mode demi-éloigné négatifs — symétrique autour de zéro.
+// -2.5 → -3, -0.5 → -1 (vers le plus loin de zéro dans les négatifs).
+PROCEDURE PUBLIQUE scenario_mode_demi_eloigne_negatifs()
+	res1 est un entier = Arrondi(-2.5, 0, arrondiDemiÉloigné)
+	res2 est un entier = Arrondi(-0.5, 0, arrondiDemiÉloigné)
+	res3 est un entier = Arrondi(-1.5, 0, arrondiDemiÉloigné)
+	dbgVérifieEgalité(res1,-3, "Arrondi(-2.5, 0, arrondiDemiÉloigné) = -3")
+	dbgVérifieEgalité(res2,-1, "Arrondi(-0.5, 0, arrondiDemiÉloigné) = -1")
+	dbgVérifieEgalité(res3,-2, "Arrondi(-1.5, 0, arrondiDemiÉloigné) = -2")
+FIN
+
+
+// Edge : formes EN bilingues — roundHalfEven et roundHalfAwayFromZero.
+PROCEDURE PRIVÉE scenario_edge_bilingue_en()
+	res1 est un entier = Round(2.5, 0, roundHalfEven)
+	res2 est un entier = Round(-2.5, 0, roundHalfAwayFromZero)
+	dbgVérifieEgalité(res1, 2, "Round(2.5, 0, roundHalfEven) = 2 (forme EN)")
+	dbgVérifieEgalité(res2,-3, "Round(-2.5, 0, roundHalfAwayFromZero) = -3 (forme EN)")
+FIN
+
+
+// Edge : mode avec décimales sur numérique — modeArrondi s'applique aussi au 2e arg.
+PROCEDURE PRIVÉE scenario_edge_mode_decimales_numerique()
+	n2125 est un numérique = 2.125
+	res1 est un numérique = Arrondi(n2125, 2, arrondiDemiPair)
+	res2 est un numérique = Arrondi(n2125, 2, arrondiDemiÉloigné)
+	dbgVérifieEgalité(res1, 0n2.12, "Arrondi(2.125n, 2, arrondiDemiPair) = 2.12")
+	dbgVérifieEgalité(res2, 0n2.13, "Arrondi(2.125n, 2, arrondiDemiÉloigné) = 2.13")
+FIN

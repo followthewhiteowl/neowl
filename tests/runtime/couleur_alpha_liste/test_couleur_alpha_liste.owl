@@ -1,0 +1,87 @@
+//  (LOT 2) — opacité sur les couleurs d'affichage de données du
+// Champ Liste : LibelléLignes (texte), LigneSélectionnée (fond + texte).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf. tests/runtime/couleur_alpha_fond : MESURER au pixel.
+// Fenêtre voisine FEN_CouleurAlphaListe.owl : 3 Champ Liste empilés,
+// détail des couleurs dans son en-tête de commentaire.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+//
+// Contrairement au Champ Table, le Champ Liste (pure QSS, sans delegate
+// custom) ne montre AUCUN dégradé "shine" Fusion sur la ligne sélectionnée :
+// mesuré flat, exact, aucune tolérance nécessaire.
+//
+// Échantillonnage : le 1er item (index 0) affiche un dégradé de rendu
+// mesuré au pixel (probablement une décoration de survol liée à la
+// position par défaut du curseur en mode réel offscreen) qui empêche un
+// échantillon fond fiable. Tous les échantillons de ce fichier portent
+// donc sur l'item 2 (non sélectionné, mesuré flat) et l'item sélectionné
+// (index 1, ListeSelectPlus(liste, 2)).
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+seuil est un entier = 5
+
+OuvreSoeur(FEN_CouleurAlphaListe)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaListe)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// ===================== LST_Temoin (Y=20, témoin opaque) ====================
+// item2 (non sélectionné) : texte vert (0,180,0) sur fond blanc déclaré.
+nbTexteTemoin est un entier = CompteCouleurZone(img, 22, 54, 100, 66, RVB(0, 180, 0))
+dbgVérifieVrai(nbTexteTemoin > seuil,
+"LST_Temoin : LibelléLignes..Couleur = RVB(0,180,0) (entier nu opaque) rendu, non-régression")
+
+// item1 (sélectionné) : fond jaune (200,200,0).
+nbSelFondTemoin est un entier = CompteCouleurZone(img, 200, 40, 430, 50, RVB(200, 200, 0))
+dbgVérifieVrai(nbSelFondTemoin > 300,
+"LST_Temoin : LigneSélectionnée..CouleurFond = RVB(200,200,0) (entier nu opaque) rendu, non-régression")
+
+// item1 (sélectionné) : texte noir (10,10,10).
+nbSelTexteTemoin est un entier = CompteCouleurZone(img, 22, 40, 100, 50, RVB(10, 10, 10))
+dbgVérifieVrai(nbSelTexteTemoin > seuil,
+"LST_Temoin : LigneSélectionnée..Couleur = RVB(10,10,10) (entier nu opaque) rendu, non-régression")
+
+// ================= LST_AlphaFond (Y=200, décalage +180) — LE BUG ==========
+mixBleuSurRouge est un entier = RVB(127, 0, 128)
+
+// item1 (sélectionné) : bleu Opacité=128 sur fond rouge CadreExtérieur -> mélange exact.
+nbSelFondAlpha est un entier = CompteCouleurZone(img, 200, 220, 430, 230, mixBleuSurRouge)
+dbgVérifieVrai(nbSelFondAlpha > 300,
+"LST_AlphaFond : LigneSélectionnée..CouleurFond = <Couleur Opacité=128> mélange avec le rouge (127,0,128), pas ignoré")
+
+// ================= LST_AlphaTexte (Y=380, décalage +360) — LE BUG ========
+mixVertSurBlanc est un entier = RVB(127, 255, 127)
+mixRougeSurBlanc est un entier = RVB(255, 127, 127)
+
+// item2 (non sélectionné) : vert Opacité=128 sur fond blanc opaque déclaré -> mélange exact.
+nbTexteAlpha est un entier = CompteCouleurZone(img, 22, 414, 100, 426, mixVertSurBlanc)
+dbgVérifieVrai(nbTexteAlpha > seuil,
+"LST_AlphaTexte : LibelléLignes..Couleur = <Couleur Opacité=128> mélange le texte avec le blanc (127,255,127), pas ignoré")
+
+// item1 (sélectionné) : rouge Opacité=128 sur fond blanc opaque déclaré -> mélange exact.
+nbSelTexteAlpha est un entier = CompteCouleurZone(img, 22, 400, 100, 410, mixRougeSurBlanc)
+dbgVérifieVrai(nbSelTexteAlpha > seuil,
+"LST_AlphaTexte : LigneSélectionnée..Couleur = <Couleur Opacité=128> mélange le texte avec le blanc (255,127,127), pas ignoré")
+
+Ferme(FEN_CouleurAlphaListe)
+dbgBilanTest()

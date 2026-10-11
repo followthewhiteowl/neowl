@@ -1,0 +1,64 @@
+// @sujet : EmailImporteMSG
+// @résumé : Importe un fichier .msg Outlook (lecture seule) et remplit une variable Email
+// (expéditeur, destinataires, sujet, corps texte/HTML, pièce jointe) à partir de son contenu
+// binaire réel. Couvre aussi les gardes-fous sur un chemin absent et sur un fichier qui n'est
+// pas un conteneur OLE2 valide.
+
+// Fixture committée : tests/scenarios/natives/fixtures/msg/echantillon.msg (contenu 100% synthétique,
+// adresses @example.org). Chemin exprimé relatif à la racine du dépôt, comme les autres
+// fixtures binaires de tests/scenarios/ (cf. tests/scenarios/natives/test_ChargeImagesAnnotéesDepuisYOLO.owl).
+
+// Cas A : import réel depuis le fichier .msg -> tous les champs attendus sont remplis.
+PROCEDURE PUBLIQUE scenario_eim_import_reel()
+	e est un Email
+	ok est un booléen = EmailImporteMSG(e, "tests/scenarios/natives/fixtures/msg/echantillon.msg")
+
+	dbgVérifieVrai(ok, "EmailImporteMSG réussit sur le fichier .msg fourni")
+
+	dbgVérifieEgalité(e..Expéditeur, "alice@example.org", "expéditeur (From affiché) lu depuis le .msg")
+
+	dbgVérifieEgalité(Taille(e..Destinataire), 1, "un seul destinataire To")
+	dbgVérifieEgalité(e..Destinataire[1], "bob@example.org", "destinataire To lu depuis le .msg")
+
+	dbgVérifieEgalité(Taille(e..Cc), 1, "un seul destinataire Cc")
+	dbgVérifieEgalité(e..Cc[1], "carol@example.org", "destinataire Cc lu depuis le .msg")
+
+	dbgVérifieEgalité(e..Sujet, "Réunion budgétaire", "sujet accentué décodé depuis le .msg")
+
+	dbgVérifieVrai(Taille(e..Message) > 0, "le corps texte n'est pas vide")
+	dbgVérifieVrai(Contient(e..Message, "réunion"), "le corps texte contient le mot connu 'réunion'")
+
+	dbgVérifieVrai(Taille(e..HTML) > 0, "le corps HTML n'est pas vide")
+
+	dbgVérifieEgalité(Taille(e..Attache), 1, "une seule pièce jointe")
+	dbgVérifieEgalité(e..Attache[1]..Nom, "exemple_facture.pdf", "nom de la pièce jointe lu depuis le .msg")
+	dbgVérifieVrai(Taille(e..Attache[1]..Contenu) > 0, "le contenu binaire de la pièce jointe n'est pas vide")
+FIN
+
+
+// Cas B : chemin inexistant -> échec propre, pas de plantage.
+PROCEDURE PUBLIQUE scenario_eim_fichier_absent()
+	e est un Email
+	ok est un booléen = EmailImporteMSG(e, fRepTemp() + "\_2087_inexistant_7q4z1.msg")
+	bErreur est un booléen = ErreurDétectée
+
+	dbgVérifieFaux(ok, "EmailImporteMSG renvoie Faux sur un chemin inexistant")
+	dbgVérifieVrai(bErreur, "une erreur est détectée sur un chemin inexistant")
+FIN
+
+
+// Cas C : fichier existant mais pas un conteneur OLE2 (mauvais magic) -> échec propre.
+PROCEDURE PUBLIQUE scenario_eim_fichier_pas_ole2()
+	chemin est une chaîne = fRepTemp() + "\_2087_pas_un_msg.msg"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "ceci n'est pas un fichier .msg, juste du texte brut")
+
+	e est un Email
+	ok est un booléen = EmailImporteMSG(e, chemin)
+	bErreur est un booléen = ErreurDétectée
+
+	dbgVérifieFaux(ok, "EmailImporteMSG renvoie Faux sur un fichier au mauvais format")
+	dbgVérifieVrai(bErreur, "une erreur est détectée sur un fichier au mauvais format")
+
+	fSupprime(chemin)
+FIN

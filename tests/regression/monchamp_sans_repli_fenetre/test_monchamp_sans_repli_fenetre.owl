@@ -1,0 +1,28 @@
+// Test régression  : MonChamp NE DOIT JAMAIS se replier sur la
+// fenêtre ou l'état, contrairement à MoiMême.
+//
+// FEN_MonChampSansRepli..FinInitialisation() (procédure de niveau
+// FENÊTRE, pas un handler de champ) tente d'utiliser MonChamp. Un champ
+// EST bien courant... non : aucun champ n'a le focus événementiel à ce
+// stade (FinInitialisation tourne hors handler de champ). Si
+// l'implémentation calquait par erreur la logique de repli de MoiMême,
+// MonChamp résoudrait silencieusement à la fenêtre -- ce test l'interdit.
+//
+// Pattern : la fenêtre voisine FEN_MonChampSansRepli.owl porte la
+// déclaration et remonte le résultat via callback_verifie (canon DSL
+// strict).
+
+TestModeHeadless(Vrai)
+
+bVuErreur est un booléen = Faux
+
+PROCEDURE callback_verifie(b est un booléen)
+	bVuErreur = b
+FIN
+
+Ouvre(FEN_MonChampSansRepli)
+
+dbgVérifieVrai(bVuErreur, "MonChamp dans FinInitialisation (hors handler de champ) doit signaler une erreur, sans repli sur la fenêtre")
+
+Ferme(FEN_MonChampSansRepli)
+dbgBilanTest()

@@ -1,0 +1,21 @@
+// @sujet : Champ CodeBarres étiré — re-rastérisation nette au resize
+// @résumé : Non-régression de la regen du Champ CodeBarres. Un
+// Champ CodeBarres sans taille déclarée, en Étire, dans un Conteneur ouvre la
+// fenêtre sans crash ; changer son Contenu au runtime régénère l'image sans
+// crash. La netteté réelle (image re-rastérisée à la taille du champ, initiale
+// et au redimensionnement) est validée visuellement.
+
+PROCEDURE PUBLIQUE scenario_codebarres_regen_resize_sans_crash()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_CBRegen)
+
+	dbgVérifieEgalité(LireContenu(), "OWL-REGEN-1",
+	"Champ CodeBarres Étire ouvert sans crash (contenu initial)")
+
+	// Changement de contenu runtime : déclenche une régénération d'image.
+	ChangeContenu("OWL-REGEN-2")
+	dbgVérifieEgalité(LireContenu(), "OWL-REGEN-2",
+	"Contenu code-barres changé au runtime sans crash")
+
+	Ferme(FEN_CBRegen)
+FIN

@@ -1,0 +1,48 @@
+// Verrou  — mot-cle LOCAL sur un parametre de methode inline.
+//
+// LOCAL est deja accepte et implemente sur une procedure/fonction top-level
+// (cf. tests/runtime/test_deep_copy.owl, "Param LOCAL : caller isole") :
+// il force une copie profonde du parametre, si bien qu'une mutation dans
+// le corps ne remonte jamais a l'appelant. Sur une methode inline de
+// classe, le meme mot-cle etait a tort rejete comme mot reserve — ce
+// fichier verrouille la parite : compilation OK + meme semantique de
+// copie profonde.
+
+oM1938 est un cMuteur1938()
+
+// ----------------------------------------------------------------------
+// 1. Parametre LOCAL sur une methode : la mutation ne remonte pas.
+// ----------------------------------------------------------------------
+arrLocal1938 est un tableau de entiers
+Ajoute(arrLocal1938, 1)
+Ajoute(arrLocal1938, 2)
+
+oM1938.MuteAvecLocal(arrLocal1938)
+dbgVérifieEgalité(arrLocal1938[1], 1, "Param LOCAL sur methode : mutation ne remonte pas au caller")
+
+// ----------------------------------------------------------------------
+// 2. Contraste : sans LOCAL, la mutation est partagee (comportement actuel).
+// ----------------------------------------------------------------------
+arrRef1938 est un tableau de entiers
+Ajoute(arrRef1938, 1)
+Ajoute(arrRef1938, 2)
+
+oM1938.MuteSansLocal(arrRef1938)
+dbgVérifieEgalité(arrRef1938[1], 999, "Param sans LOCAL sur methode : mutation partagee (contraste)")
+
+// ----------------------------------------------------------------------
+// 3. Mix LOCAL / non-LOCAL + valeurs par defaut : parse et s'execute.
+// ----------------------------------------------------------------------
+arrMixteDefaut1938 est un tableau de entiers
+Ajoute(arrMixteDefaut1938, 1)
+
+oM1938.MuteMixte(arrMixteDefaut1938)
+dbgVérifieEgalité(arrMixteDefaut1938[1], 1, "Mix LOCAL + defauts (valeurs par defaut) : toujours isole cote appelant")
+
+arrMixteOverride1938 est un tableau de entiers
+Ajoute(arrMixteOverride1938, 1)
+
+oM1938.MuteMixte(arrMixteOverride1938, 77, Faux)
+dbgVérifieEgalité(arrMixteOverride1938[1], 1, "Mix LOCAL + defauts (arguments explicites) : toujours isole cote appelant")
+
+dbgBilanTest()

@@ -1,0 +1,26 @@
+// @sujet : MQTTPublie
+// @résumé : Publie un message sur un sujet du broker MQTT et renvoie le numéro du message envoyé (0 en qualité de service au plus une fois, -1 en cas d'erreur).
+
+
+// Publier sur une session qui n'a jamais été connectée au broker échoue
+// proprement : la native renvoie -1, sans lever d'erreur ni bloquer.
+PROCEDURE scenario_publication_sans_connexion()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-01"
+
+	nRetour est un entier = MQTTPublie(sess, "capteurs/temperature", "21.5")
+	dbgVérifieEgalité(nRetour,-1)
+FIN
+
+
+// Le même échec se produit quel que soit le niveau de qualité de service
+// demandé : la native n'a pas de connexion active pour envoyer le message.
+PROCEDURE scenario_publication_sans_connexion_qualite_de_service()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-02"
+
+	nRetour est un entier = MQTTPublie(sess, "etat/porte", "verrouillee", Vrai, mqttQualitéAuMoinsUneFois)
+	dbgVérifieEgalité(nRetour,-1)
+FIN

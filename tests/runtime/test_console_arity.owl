@@ -1,0 +1,20 @@
+// Verrouille les formes d'arite discretes de la famille console migrees
+// depuis une signature variadique masquee : chaque forme valide continue
+// de compiler ET de s'executer correctement, et la sur-application est
+// desormais rejetee a la compilation (cf. tests/compile-error/console_*).
+//
+// ConsoleLit lit stdin (bloquant) : ses formes 0/1 sont verrouillees cote
+// compilation par tests/compile-error/console_lit_sur_arg. Ici on couvre
+// LigneCommande (formes 0/1/2) qui s'execute sans entree interactive.
+
+PROCEDURE PUBLIQUE test_lignecommande_formes()
+	// Aucun argument script en contexte test : formes valides mais vides.
+	// 0 arg : ligne complete (vide hors args)
+	dbgVérifieEgalité(LigneCommande(), "", "LigneCommande 0 arg : ligne complete")
+	// 1 arg entier : Neme argument, hors borne -> ""
+	dbgVérifieEgalité(LigneCommande(5), "", "LigneCommande 1 arg : indice hors borne")
+	// 2 args : option nommee absente + defaut -> defaut
+	dbgVérifieEgalité(LigneCommande("absent", "DEF"), "DEF", "LigneCommande 2 args : defaut")
+	// 1 arg chaine : option nommee absente sans defaut -> ""
+	dbgVérifieEgalité(LigneCommande("absent"), "", "LigneCommande 1 arg : option absente")
+FIN

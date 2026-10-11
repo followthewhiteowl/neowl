@@ -1,0 +1,112 @@
+//  : le pluriel est tolere en POSITION DE TYPE pour les primitifs.
+// Seuls six primitifs avaient une forme plurielle connue du langage ; les
+// autres (`dates`, `heures`, `durees`, `buffers`, `caracteres`, `uuids`,
+// `dateheures`) etaient refuses des que la resolution du type d'element est
+// devenue stricte. La tolerance vit au point de resolution, pas dans les mots
+// du langage : ces mots restent des noms de variables parfaitement valides.
+//
+// Ce test verrouille les trois faces de la regle :
+//   - le pluriel resout vers le meme type que le singulier (parite exacte)
+//   - le nom exact garde la priorite (un type utilisateur en `s` n'est pas
+//     detourne vers un primitif)
+//   - aucun mot nouveau n'est reserve : `dates`, `heures`... restent des
+//     identifiants libres
+// Les formes qui doivent RESTER refusees sont dans tests/compile-error/.
+
+Trace("=== fix/1141 : pluriel tolere en position de type ===")
+
+// --- tableau : pluriels restaures, parite avec le singulier ---
+p1141_dates est un tableau de dates
+Ajoute(p1141_dates, "20250101")
+Ajoute(p1141_dates, "20251231")
+dbgVérifieEgalité(Taille(p1141_dates), 2, "tableau de dates : 2 elements")
+dbgVérifieEgalité(p1141_dates[1], "20250101", "tableau de dates : 1re date")
+dbgVérifieEgalité(DateVersChaîne(p1141_dates[2], "DD/MM/YYYY"), "31/12/2025",
+"tableau de dates : la valeur reste une date exploitable")
+
+p1141_dateSing est un tableau de date
+Ajoute(p1141_dateSing, "20250101")
+dbgVérifieEgalité(p1141_dateSing[1], p1141_dates[1],
+"tableau de date et tableau de dates stockent la meme valeur")
+
+p1141_heures est un tableau de heures
+Ajoute(p1141_heures, "120000")
+dbgVérifieEgalité(p1141_heures[1], "120000", "tableau de heures : valeur lue")
+
+p1141_durees est un tableau de durées
+Ajoute(p1141_durees, 1000)
+dbgVérifieEgalité(p1141_durees[1], 1000, "tableau de durées : valeur lue")
+
+p1141_buffers est un tableau de buffers
+Ajoute(p1141_buffers, "abc")
+dbgVérifieEgalité(p1141_buffers[1], "abc", "tableau de buffers : valeur lue")
+
+p1141_caracteres est un tableau de caractères
+Ajoute(p1141_caracteres, "A")
+dbgVérifieEgalité(p1141_caracteres[1], "A", "tableau de caractères : valeur lue")
+
+p1141_uuids est un tableau de uuids
+Ajoute(p1141_uuids, "id-1")
+dbgVérifieEgalité(p1141_uuids[1], "id-1", "tableau de uuids : valeur lue")
+
+p1141_dateheures est un tableau de dateheures
+Ajoute(p1141_dateheures, "20250101120000")
+dbgVérifieEgalité(p1141_dateheures[1], "20250101120000", "tableau de dateheures : valeur lue")
+
+// --- tableau : pluriel EN ---
+p1141_characters is an array of characters
+Ajoute(p1141_characters, "Z")
+dbgVérifieEgalité(p1141_characters[1], "Z", "array of characters : valeur lue")
+
+// --- tableau : pluriel avec taille, crochets, elision ---
+p1141_datesTaille est un tableau de 3 dates
+dbgVérifieEgalité(Taille(p1141_datesTaille), 3, "tableau de 3 dates : taille 3")
+
+p1141_datesCrochets est un tableau[2] dates
+dbgVérifieEgalité(Taille(p1141_datesCrochets), 2, "tableau [2] dates : taille 2")
+
+p1141_datesElision est un tableau d'heures
+Ajoute(p1141_datesElision, "080000")
+dbgVérifieEgalité(p1141_datesElision[1], "080000", "tableau d'heures : valeur lue")
+
+// --- file / pile / liste ---
+p1141_fileDates est une file de dates
+Enfile(p1141_fileDates, "20250101")
+dbgVérifieEgalité(Défile(p1141_fileDates), "20250101", "file de dates : FIFO")
+
+p1141_pileHeures est une pile de heures
+Empile(p1141_pileHeures, "090000")
+dbgVérifieEgalité(Dépile(p1141_pileHeures), "090000", "pile de heures : LIFO")
+
+p1141_listeDurees est une Liste de durées
+p1141_listeDurees.Ajoute(500)
+dbgVérifieEgalité(p1141_listeDurees..Occurrence, 1, "liste de durées : 1 element")
+
+// --- tableau associatif ---
+p1141_assocDates est un tableau associatif de dates
+p1141_assocDates["debut"] = "20250101"
+dbgVérifieEgalité(p1141_assocDates["debut"], "20250101", "tableau associatif de dates : valeur lue")
+
+// La priorite du nom EXACT sur le repli au singulier est verrouillee dans
+// test_collection_element_type_pluriel_exact.owl (fichier separe : declarer
+// une structure `Dates` ici detournerait toutes les formes ci-dessus).
+
+// --- aucun mot nouveau reserve : ces noms restent des identifiants ---
+PROCEDURE p1141_nomsDeVariablesLibres()
+	dates est un entier = 3
+	heures est une chaîne = "x"
+	durées est un réel = 1.5
+	buffers est un booléen = Vrai
+	caractères est un entier = 7
+	uuids est une chaîne = "u"
+	dbgVérifieEgalité(dates, 3, "`dates` reste un nom de variable valide")
+	dbgVérifieEgalité(heures, "x", "`heures` reste un nom de variable valide")
+	dbgVérifieEgalité(durées, 1.5, "`durées` reste un nom de variable valide")
+	dbgVérifieEgalité(buffers, Vrai, "`buffers` reste un nom de variable valide")
+	dbgVérifieEgalité(caractères, 7, "`caractères` reste un nom de variable valide")
+	dbgVérifieEgalité(uuids, "u", "`uuids` reste un nom de variable valide")
+FIN
+
+p1141_nomsDeVariablesLibres()
+
+dbgBilanTest()

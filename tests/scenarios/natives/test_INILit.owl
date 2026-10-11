@@ -1,0 +1,159 @@
+// @sujet : INILit, INIEcrit
+// @résumé : Lecture et écriture section-conscientes d'un fichier .ini quelconque
+// (valeur d'une clé, liste des sections, liste des clés d'une section, création
+// et suppression de clés/sections). Le fichier cible est toujours explicite —
+// aucun fichier par défaut implicite n'est utilisé.
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Écrire une clé puis la relire restitue exactement la valeur enregistrée.
+PROCEDURE PUBLIQUE scenario_round_trip_simple()
+	chemin est une chaîne = fRepTemp() + "test_inilit_roundtrip.ini"
+
+	succes est un booléen = INIEcrit("Serveur", "Hôte", "db01", chemin)
+	valeur est une chaîne = INILit("Serveur", "Hôte", "", chemin)
+
+	dbgVérifieVrai(succes, "INIEcrit renvoie Vrai sur un succès d'écriture")
+	dbgVérifieEgalité(valeur, "db01", "la valeur relue correspond à la valeur écrite")
+FIN
+
+// Une clé absente renvoie la valeur de repli fournie en troisième argument.
+PROCEDURE PUBLIQUE scenario_cle_absente_valeur_par_defaut()
+	chemin est une chaîne = fRepTemp() + "test_inilit_absente.ini"
+	INIEcrit("Serveur", "Hôte", "db01", chemin)
+
+	valeur est une chaîne = INILit("Serveur", "JamaisEcrite", "valeur-repli", chemin)
+
+	dbgVérifieEgalité(valeur, "valeur-repli", "clé absente : valeur de repli restituée")
+FIN
+
+// Sans valeur de repli fournie, une clé absente renvoie la chaîne vide.
+PROCEDURE PUBLIQUE scenario_cle_absente_sans_defaut()
+	chemin est une chaîne = fRepTemp() + "test_inilit_absente_sansdefaut.ini"
+	INIEcrit("Serveur", "Hôte", "db01", chemin)
+
+	valeur est une chaîne = INILit("Serveur", "EncoreJamaisEcrite", "", chemin)
+
+	dbgVérifieEgalité(valeur, "", "clé absente sans repli : chaîne vide")
+FIN
+
+// INILit("", "", "", <Fichier>) renvoie la liste des sections du fichier,
+// une par ligne.
+PROCEDURE PUBLIQUE scenario_liste_sections()
+	chemin est une chaîne = fRepTemp() + "test_inilit_listesections.ini"
+	INIEcrit("Réseau", "Port", "5432", chemin)
+	INIEcrit("Affichage", "Thème", "sombre", chemin)
+
+	brut est une chaîne = INILit("", "", "", chemin)
+	sections est un tableau de chaînes = ChaîneDécoupe(brut, CRLF)
+
+	dbgVérifieEgalité(sections..Occurrence, 2, "deux sections écrites, deux sections listées")
+	dbgVérifieVrai(Contient(brut, "Réseau"), "la section Réseau apparaît dans la liste")
+	dbgVérifieVrai(Contient(brut, "Affichage"), "la section Affichage apparaît dans la liste")
+FIN
+
+// INILit(<Section>, "", "", <Fichier>) renvoie la liste des clés d'une section
+// donnée, une par ligne.
+PROCEDURE PUBLIQUE scenario_liste_cles_dune_section()
+	chemin est une chaîne = fRepTemp() + "test_inilit_listecles.ini"
+	INIEcrit("Réseau", "Hôte", "db01", chemin)
+	INIEcrit("Réseau", "Port", "5432", chemin)
+
+	brut est une chaîne = INILit("Réseau", "", "", chemin)
+	cles est un tableau de chaînes = ChaîneDécoupe(brut, CRLF)
+
+	dbgVérifieEgalité(cles..Occurrence, 2, "deux clés écrites dans la section, deux clés listées")
+	dbgVérifieVrai(Contient(brut, "Hôte"), "la clé Hôte apparaît dans la liste")
+	dbgVérifieVrai(Contient(brut, "Port"), "la clé Port apparaît dans la liste")
+FIN
+
+// Écrire dans plusieurs sections distinctes n'écrase pas les clés des autres
+// sections : chaque section conserve intégralement son propre contenu.
+PROCEDURE PUBLIQUE scenario_multi_sections_preservees()
+	chemin est une chaîne = fRepTemp() + "test_inilit_multisections.ini"
+
+	INIEcrit("Serveur", "Hôte", "db01", chemin)
+	INIEcrit("Serveur", "Port", "5432", chemin)
+	INIEcrit("Affichage", "Thème", "sombre", chemin)
+	INIEcrit("Affichage", "Langue", "fr", chemin)
+
+	dbgVérifieEgalité(INILit("Serveur", "Hôte", "", chemin), "db01", "Serveur/Hôte intact après écritures suivantes")
+	dbgVérifieEgalité(INILit("Serveur", "Port", "", chemin), "5432", "Serveur/Port intact après écritures suivantes")
+	dbgVérifieEgalité(INILit("Affichage", "Thème", "", chemin), "sombre", "Affichage/Thème intact")
+	dbgVérifieEgalité(INILit("Affichage", "Langue", "", chemin), "fr", "Affichage/Langue intact")
+FIN
+
+// Écrire une clé avec une valeur vide supprime la clé : une relecture ultérieure
+// tombe sur la valeur de repli, comme si la clé n'avait jamais existé.
+PROCEDURE PUBLIQUE scenario_ecriture_valeur_vide_supprime_la_cle()
+	chemin est une chaîne = fRepTemp() + "test_inilit_supprcle.ini"
+	INIEcrit("Serveur", "Hôte", "db01", chemin)
+	INIEcrit("Serveur", "Port", "5432", chemin)
+
+	INIEcrit("Serveur", "Hôte", "", chemin)
+
+	dbgVérifieEgalité(INILit("Serveur", "Hôte", "disparu", chemin), "disparu", "la clé supprimée retombe sur le repli")
+	dbgVérifieEgalité(INILit("Serveur", "Port", "", chemin), "5432", "la clé voisine de la même section n'est pas affectée")
+FIN
+
+// Écrire une section avec une clé vide supprime la section entière : elle
+// disparaît de la liste des sections du fichier.
+PROCEDURE PUBLIQUE scenario_ecriture_cle_vide_supprime_la_section()
+	chemin est une chaîne = fRepTemp() + "test_inilit_supprsection.ini"
+	INIEcrit("Serveur", "Hôte", "db01", chemin)
+	INIEcrit("Affichage", "Thème", "sombre", chemin)
+
+	INIEcrit("Serveur", "", "", chemin)
+
+	brut est une chaîne = INILit("", "", "", chemin)
+	dbgVérifieFaux(Contient(brut, "Serveur"), "la section supprimée n'apparaît plus dans la liste des sections")
+	dbgVérifieVrai(Contient(brut, "Affichage"), "la section voisine survit à la suppression")
+	dbgVérifieEgalité(INILit("Serveur", "Hôte", "disparu", chemin), "disparu", "une clé de la section supprimée retombe sur le repli")
+FIN
+
+// Les alias anglais INIRead / INIWrite produisent exactement les mêmes effets
+// que leurs équivalents français.
+PROCEDURE PUBLIQUE scenario_alias_anglais_equivalents()
+	chemin est une chaîne = fRepTemp() + "test_inilit_alias_en.ini"
+
+	succes est un booléen = INIWrite("Server", "Host", "db01", chemin)
+	valeur est une chaîne = INIRead("Server", "Host", "", chemin)
+
+	dbgVérifieVrai(succes, "INIWrite renvoie Vrai sur un succès d'écriture")
+	dbgVérifieEgalité(valeur, "db01", "INIRead relit la valeur écrite par INIWrite")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisible dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// La casse-insensibilité du dispatch des natives est un invariant du langage,
+// couvert au niveau C par --self-test-registry (registry_self_test.c). Un
+// scénario .owl n'est pas le bon endroit pour la tester : les fichiers de test
+// ne sont qu'exécutés, jamais formatés, donc la casse y est sans objet.
+
+// Un fichier ini écrit par INIEcrit se relit avec le contenu habituel
+// section/clé=valeur sur disque, comme le fait déjà le support ParamètreIni.
+PROCEDURE PRIVÉE scenario_edge_contenu_disque_lisible()
+	chemin est une chaîne = fRepTemp() + "test_inilit_disque.ini"
+	INIEcrit("Version", "Numéro", "3", chemin)
+
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "le fichier ini est créé sur disque")
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieVrai(Contient(contenu, "Version"), "le nom de la section apparaît dans le fichier ini")
+	dbgVérifieVrai(Contient(contenu, "Numéro"), "le nom de la clé apparaît dans le fichier ini")
+	dbgVérifieVrai(Contient(contenu, "3"), "la valeur apparaît dans le fichier ini")
+FIN
+
+// Une section absente à la lecture (fichier inexistant sur disque) retombe sur
+// la valeur de repli fournie, sans erreur bloquante.
+PROCEDURE PRIVÉE scenario_edge_fichier_absent_valeur_repli()
+	chemin est une chaîne = fRepTemp() + "test_inilit_jamais_cree.ini"
+	fSupprime(chemin)
+
+	valeur est une chaîne = INILit("Serveur", "Hôte", "repli-fichier-absent", chemin)
+
+	dbgVérifieEgalité(valeur, "repli-fichier-absent", "fichier absent : valeur de repli restituée")
+FIN

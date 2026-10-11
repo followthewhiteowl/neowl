@@ -1,0 +1,90 @@
+//  — Le styleSaisie doit PEINDRE, pas seulement
+// stocker/relire. Digue par CAPTURE + comptage pixel, la ou les tests
+// set/read-back headless passaient malgre le rendu casse.
+//
+// SAI_Flat  : CouleurFond plat -> controle POSITIF, doit
+//             deja etre VERT maintenant (prouve capture + lecture pixel).
+// SAI_Style : Style..CouleurFond declaratif -> le cas vise. ROUGE
+//             attendu maintenant (le Style ne peint rien a la
+//             construction), VERT apres .
+// SAI_Nu    : aucun style -> controle NEGATIF, ne doit contenir ni
+//             couleurA ni couleurB.
+// SAI_Combine : Style..CouleurFond + Style..Cadre..Couleur simultanes.
+//             Le trou combine : deux setStyleSheet full-replace se
+//             clobberent cote ui_qt.cpp, la bordure ecrase le fond.
+//             ROUGE attendu maintenant sur le fond (couleurD au centre),
+//             VERT deja sur la bordure (couleurE en peripherie).
+
+TestModeHeadless(Vrai)
+
+couleurA est un entier = RVB(255, 0, 255)
+couleurB est un entier = RVB(0, 255, 0)
+couleurD est un entier = RVB(255, 165, 0)
+couleurE est un entier = RVB(0, 128, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+Ouvre(FEN_StyleSaisieRendu)
+img est une Image = dCopieImageFenêtre(FEN_StyleSaisieRendu)
+
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenetre valide")
+
+// Calage encodage : la couleur posee (RVB) et la couleur lue au pixel
+// (dPixelCouleur) doivent etre le meme entier BGR sur le controle positif.
+cCentreFlat est un entier = dPixelCouleur(img, 270, 50)
+dbgVérifieEgalité(cCentreFlat, couleurA, "encodage RVB/dPixelCouleur coherent (pixel centre SAI_Flat)")
+
+// Zones inset (evite les bords/cadre du widget QLineEdit).
+nbFlat est un entier = CompteCouleurZone(img, 30, 30, 510, 70, couleurA)
+nbStyle est un entier = CompteCouleurZone(img, 30, 110, 510, 150, couleurB)
+nbNuA est un entier = CompteCouleurZone(img, 30, 190, 510, 230, couleurA)
+nbNuB est un entier = CompteCouleurZone(img, 30, 190, 510, 230, couleurB)
+
+seuil est un entier = 4800 // (510-30) * (70-30) * 0.30, arrondi
+
+// VERT maintenant : le fond plat peint deja correctement.
+dbgVérifieVrai(nbFlat > seuil, "SAI_Flat (CouleurFond plat) : fond magenta rendu (controle positif)")
+
+// ROUGE attendu maintenant : Style..CouleurFond declaratif ne peint pas
+// a la construction ( pas encore applique). Deviendra VERT
+// une fois real_ui_build_props cascade l'objet Style.
+dbgVérifieVrai(nbStyle > seuil, "SAI_Style (Style..CouleurFond declaratif) : fond vert rendu")
+
+// Temoin nu : jamais de couleurA/couleurB, avant ou apres le fix.
+dbgVérifieEgalité(nbNuA, 0, "SAI_Nu : aucun pixel magenta (pas de fuite du style voisin)")
+dbgVérifieEgalité(nbNuB, 0, "SAI_Nu : aucun pixel vert (pas de fuite du style voisin)")
+
+// SAI_Combine : fond (CouleurFond) ET cadre (Cadre..Couleur) declares
+// simultanement. Zone centrale = loin du bord (le cadre epaisseur=3 ne
+// deborde pas dedans), zone peripherique = pourtour du widget entier.
+nbCombineFond est un entier = CompteCouleurZone(img, 100, 280, 440, 300, couleurD)
+nbCombineBordure est un entier = CompteCouleurZone(img, 20, 260, 520, 320, couleurE)
+
+seuilFondCentre est un entier = 2040 // (440-100) * (300-280) * 0.30, arrondi
+seuilBordure est un entier = 100 // pourtour ~3px d'epaisseur, seuil bas et sur
+
+// ROUGE attendu maintenant : le fond du champ combine est ecrase par le
+// deuxieme setStyleSheet (celui du cadre) cote ui_qt.cpp. Deviendra VERT
+// quand les deux styles seront fusionnes dans une seule feuille.
+dbgVérifieVrai(nbCombineFond > seuilFondCentre, "SAI_Combine : fond orange rendu au centre (survit au cadre)")
+
+// VERT attendu des maintenant : le cadre, lui, peint deja correctement
+// (c'est le fond qui est la victime du clobber, pas la bordure).
+dbgVérifieVrai(nbCombineBordure > seuilBordure, "SAI_Combine : bordure bleue rendue en peripherie")
+
+Ferme(FEN_StyleSaisieRendu)
+dbgBilanTest()

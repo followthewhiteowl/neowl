@@ -1,0 +1,31 @@
+// Regression : les constantes couleur predefinies doivent etre encodees
+// en BGR (canon de référence : R + V*256 + B*65536). Bug historique : ui_qt.cpp
+// mappait les shifts a l'envers (R/B inverses) et BleuFonce s'affichait
+// en rouge pourpre. Ce test verrouille l'encodage cote runtime ; le bug
+// rendu Qt est testable manuellement (visuel).
+
+// --- BleuFonce = 0x800000 (B=128, V=0, R=0) -> HTML #000080 ---
+dbgVérifieEgalité(BleuFoncé, 8388608, "BleuFonce = 8388608")
+dbgVérifieEgalité(BleuFoncé, RVB(0, 0, 128), "BleuFonce = RVB(0,0,128)")
+dbgVérifieEgalité(RVBVersHTML(BleuFoncé), "#000080", "BleuFonce -> #000080")
+
+// --- RougeClair = 255 (R=255, V=0, B=0) -> HTML #FF0000 ---
+dbgVérifieEgalité(RougeClair, 255, "RougeClair = 255")
+dbgVérifieEgalité(RougeClair, RVB(255, 0, 0), "RougeClair = RVB(255,0,0)")
+dbgVérifieEgalité(RVBVersHTML(RougeClair), "#FF0000", "RougeClair -> #FF0000")
+
+// --- VertClair = 0xFF00 (V=255, R=0, B=0) -> HTML #00FF00 ---
+dbgVérifieEgalité(VertClair, 65280, "VertClair = 65280")
+dbgVérifieEgalité(VertClair, RVB(0, 255, 0), "VertClair = RVB(0,255,0)")
+dbgVérifieEgalité(RVBVersHTML(VertClair), "#00FF00", "VertClair -> #00FF00")
+
+// --- BleuClair = 0xFF0000 (B=255, V=0, R=0) -> HTML #0000FF ---
+dbgVérifieEgalité(BleuClair, 16711680, "BleuClair = 16711680")
+dbgVérifieEgalité(BleuClair, RVB(0, 0, 255), "BleuClair = RVB(0,0,255)")
+dbgVérifieEgalité(RVBVersHTML(BleuClair), "#0000FF", "BleuClair -> #0000FF")
+
+// --- Roundtrip RVB <-> HTML <-> RVB ---
+c1 est un entier = RVB(128, 64, 200)
+dbgVérifieEgalité(HTMLVersRVB(RVBVersHTML(c1)), c1, "RVB roundtrip preserve la valeur")
+
+dbgBilanTest()

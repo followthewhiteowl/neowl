@@ -1,0 +1,46 @@
+//  — `Style..Libellé..Couleur` peint le texte % d'un Champ Jauge
+// dans la couleur posée, et `Style..Libellé..Police..Taille` influe sur le
+// rendu (police plus grande = plus de pixels d'encre). Cf.
+// FEN_StyleJaugeElementsLibelle.owl.
+
+TestModeHeadless(Faux)
+
+couleurTexte est un entier = RVB(255, 255, 0)
+couleurTextePetitGrand est un entier = RVB(0, 255, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleJaugeElementsLibelle)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleJaugeElementsLibelle)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// --- Couleur du texte % ---
+// JAU_Couleur occupe [X=20..320, Y=20..60] : la zone couvre tout le widget,
+// le texte "50%" est centré dedans (owl_jauge_draw_text : AlignCenter sur
+// le rect entier du champ).
+nbTexteCouleur est un entier = CompteCouleurZone(img, 20, 20, 320, 60, couleurTexte)
+dbgVérifieVrai(nbTexteCouleur > 30, "JAU_Couleur : Style..Libellé..Couleur peint le texte % dans la couleur posée")
+
+// --- Effet de la police (Taille) : plus de pixels d'encre pour la grande ---
+// JAU_Petit [X=20..320, Y=90..130], JAU_Grand [X=20..320, Y=160..220].
+nbTextePetit est un entier = CompteCouleurZone(img, 20, 90, 320, 130, couleurTextePetitGrand)
+nbTexteGrand est un entier = CompteCouleurZone(img, 20, 160, 320, 220, couleurTextePetitGrand)
+dbgVérifieVrai(nbTexteGrand > nbTextePetit, "JAU_Grand (Police..Taille=32) a plus de pixels d'encre que JAU_Petit (Taille=8)")
+
+Ferme(FEN_StyleJaugeElementsLibelle)
+dbgBilanTest()

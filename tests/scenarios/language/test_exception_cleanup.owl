@@ -1,0 +1,115 @@
+// @sujet : ENFIN — cleanup garanti après QUAND EXCEPTION DANS
+// @résumé : Le bloc `ENFIN` placé entre `FAIRE` (optionnel) et `FIN` s'exécute toujours, que la zone protégée ait réussi, échoué et été rattrapée, ou laissé une exception traverser jusqu'au scope parent. C'est l'équivalent du *finally* universel : il sert au cleanup des ressources (fichiers, connexions, locks, transactions) qu'on doit fermer même si quelque chose a mal tourné. Strict par construction : `RENVOYER`, `RETOUR`, `SORTIR`, `CONTINUER`, `EXCEPTION` et `ExceptionDéclenche` sont refusés à la compilation à l'intérieur d'un `ENFIN` — le cleanup ne doit pas dérouter le flux. Ordre des clauses fixe : `DANS → FAIRE? → SINON? → ENFIN? → FIN`.
+
+
+// Cas canonique : on simule l'ouverture d'une ressource (un compteur qu'on
+// incrémente), on déclenche un calcul qui peut échouer, et on garantit que
+// la ressource est « fermée » dans tous les cas. Le pattern réel s'écrit
+// pareil avec fOuvre/fFerme ou SQLConnecte/SQLDéconnecte.
+PROCEDURE scenario_cleanup_ressource_libere_meme_sur_exception()
+	nRessourcesOuvertes est un entier = 0
+	bExceptionAttrapee est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		nRessourcesOuvertes = nRessourcesOuvertes + 1 // "ouverture"
+		ExceptionDéclenche("erreur de calcul")
+	FAIRE
+		bExceptionAttrapee = Vrai
+	ENFIN
+		nRessourcesOuvertes = nRessourcesOuvertes - 1 // "fermeture"
+	FIN
+
+	dbgVérifieVrai(bExceptionAttrapee, "L'exception a bien été attrapée par FAIRE")
+	dbgVérifieEgalité(nRessourcesOuvertes, 0, "Le ENFIN a libéré la ressource malgré l'exception")
+FIN
+
+
+// Sans exception : le ENFIN s'exécute quand même. Pas de chemin où la
+// ressource reste ouverte par oubli. C'est tout l'intérêt vs un cleanup
+// manuel placé après `FIN` — qui serait sauté en cas d'exception.
+PROCEDURE scenario_cleanup_libere_aussi_sur_succes()
+	nRessourcesOuvertes est un entier = 0
+	bSucces est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		nRessourcesOuvertes = nRessourcesOuvertes + 1
+		bSucces             = Vrai // pas d'exception
+	FAIRE
+		// non atteint sur ce chemin
+		bSucces = Faux
+	ENFIN
+		nRessourcesOuvertes = nRessourcesOuvertes - 1
+	FIN
+
+	dbgVérifieVrai(bSucces, "Chemin de succès : DANS termine sans exception")
+	dbgVérifieEgalité(nRessourcesOuvertes, 0, "Le ENFIN libère aussi sur succès")
+FIN
+
+
+// Le `ENFIN` peut s'utiliser sans `FAIRE` : on choisit de ne pas attraper
+// l'exception (elle remontera au scope parent) mais on garantit quand même
+// le nettoyage avant la remontée. Pattern idiomatique « propage mais
+// nettoie » — la zone protégée n'a pas vocation à connaître les erreurs,
+// seulement à garantir l'invariant ressource.
+PROCEDURE scenario_cleanup_sans_faire_propage_au_parent()
+	nRessourcesOuvertes est un entier = 0
+	sLog est une chaîne = ""
+
+	QUAND EXCEPTION DANS
+		QUAND EXCEPTION DANS
+			nRessourcesOuvertes = nRessourcesOuvertes + 1
+			ExceptionDéclenche("propagée")
+		ENFIN
+			nRessourcesOuvertes = nRessourcesOuvertes - 1
+			sLog                = sLog + "cleanup;"
+		FIN
+	FAIRE
+		sLog = sLog + "parent_catch;"
+	FIN
+
+	dbgVérifieEgalité(sLog, "cleanup;parent_catch;",
+	"ENFIN s'exécute avant que l'exception remonte au handler englobant")
+	dbgVérifieEgalité(nRessourcesOuvertes, 0,
+	"La ressource a été fermée malgré la propagation")
+FIN
+
+
+// Trois clauses à la fois : DANS + FAIRE + SINON + ENFIN. Sur succès,
+// SINON s'exécute pour la suite logique « tout va bien », et ENFIN ferme
+// la ressource. C'est l'écriture la plus expressive : chaque clause a son
+// rôle distinct et lisible.
+PROCEDURE scenario_dans_faire_sinon_enfin_complet()
+	sLog est une chaîne = ""
+
+	QUAND EXCEPTION DANS
+		sLog = sLog + "calcul;"
+	FAIRE
+		sLog = sLog + "erreur;"
+	SINON
+		sLog = sLog + "publication;" // suite logique du calcul réussi
+	ENFIN
+		sLog = sLog + "fermeture;" // toujours
+	FIN
+
+	dbgVérifieEgalité(sLog, "calcul;publication;fermeture;",
+	"Succès : DANS → SINON → ENFIN. FAIRE skippé.")
+FIN
+
+
+// L'alias `FINALLY` (forme EN) est strictement équivalent à `ENFIN`. Utile
+// pour qui préfère écrire en anglais, ou pour du code généré par outil.
+// Le formatter canonise vers `ENFIN` au save.
+PROCEDURE scenario_alias_en_finally()
+	sLog est une chaîne = ""
+
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche("boom")
+	FAIRE
+		sLog = sLog + "caught;"
+	FINALLY
+		sLog = sLog + "cleanup;"
+	FIN
+
+	dbgVérifieEgalité(sLog, "caught;cleanup;",
+	"FINALLY se comporte exactement comme ENFIN")
+FIN

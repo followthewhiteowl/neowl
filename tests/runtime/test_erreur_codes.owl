@@ -1,0 +1,37 @@
+// ============================================
+// TEST: Codes d'erreur stdlib non-nuls (, migre )
+// Toute erreur soft posee par une native stdlib doit exposer un errCode
+// non vide, de sorte que `ErreurInfo(errCode) <> ""` soit un pattern de
+// detection programmatique valide en complement de `ErreurInfo() <> ""`.
+//
+//  : errCode retourne desormais la chaine canonique du code
+// symbole (ex: "E_NATIVE_ARG_INVALID") au lieu d'un int. Casse net
+// assumee (cf ADR_NNNN). Les sites legacy non encore migres exposent
+// la representation string de leur ancien int sentinel (transparent).
+//
+// Nota : ErreurDétectee subit le RAZ-auto a la fin du dispatch (cf
+// test_erreur_raz_auto.owl) mais ErreurInfo() / ErreurInfo(errCode)
+// conservent les details jusqu'au prochain set_error ou ErreurRAZ().
+// ============================================
+Trace("=== ERREUR CODES STDLIB ===")
+
+// ----- T1 : ChaineVersEntier sur entree invalide -----
+ErreurRAZ()
+n est un entier = ChaîneVersEntier("abc")
+dbgVérifieVrai(ErreurInfo() <> "", "T1: errMessage non vide (ChaineVersEntier)")
+dbgVérifieVrai(ErreurInfo(errCode) <> "", "T1: errCode non vide (ChaineVersEntier)")
+
+// ----- T2 : ChaineVersJSON sur entree invalide -----
+ErreurRAZ()
+j est un JSON = ChaîneVersJSON("{ invalide json")
+dbgVérifieVrai(j = Null, "T2: JSON Null sur entree invalide")
+dbgVérifieVrai(ErreurInfo() <> "", "T2: errMessage non vide (ChaineVersJSON)")
+dbgVérifieVrai(ErreurInfo(errCode) <> "", "T2: errCode non vide (ChaineVersJSON)")
+
+// ----- T3 : fOuvre sur chemin invalide -----
+ErreurRAZ()
+h est un entier = fOuvre("////chemin/qui/n/existe/pas", foLecture)
+dbgVérifieVrai(ErreurInfo() <> "", "T3: errMessage non vide (fOuvre)")
+dbgVérifieVrai(ErreurInfo(errCode) <> "", "T3: errCode non vide (fOuvre)")
+
+dbgBilanTest()

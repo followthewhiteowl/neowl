@@ -1,0 +1,54 @@
+// FenTaille / WinSize — native de redimensionnement et deplacement de
+// fenetre par programme.
+//
+// Couvre les trois formes canoniques :
+//   Forme 1 : FenTaille(fen, largeur, hauteur) — resize seul.
+//   Forme 2 : FenTaille(fen, x, y, largeur, hauteur) — deplace + resize.
+//   Forme 3 : FenTaille(fen [, mode]) — lit ou change le mode d'affichage
+//             (TailleMaxi / TailleMini / TailleNormale).
+
+TestModeHeadless(Vrai)
+
+bFenTaillePrete est un booléen = Faux
+
+PROCEDURE cb_fen_fentaille_prete()
+	bFenTaillePrete = Vrai
+FIN
+
+PROCEDURE PUBLIQUE scenario_fentaille_formes()
+	OuvreSoeur(FEN_FenTaille)
+	dbgVérifieVrai(bFenTaillePrete, "FinInitialisation : fenetre ouverte")
+
+	// --- Forme 1 : resize uniquement ---
+	FenTaille(FEN_FenTaille, 600, 400)
+	dbgVérifieEgalité(FEN_FenTaille..Largeur, 600, "Forme 1 : Largeur = 600 apres FenTaille(fen, 600, 400)")
+	dbgVérifieEgalité(FEN_FenTaille..Hauteur, 400, "Forme 1 : Hauteur = 400 apres FenTaille(fen, 600, 400)")
+
+	// --- Forme 2 : deplacement + resize ---
+	FenTaille(FEN_FenTaille, 100, 50, 500, 350)
+	dbgVérifieEgalité(FEN_FenTaille..X, 100, "Forme 2 : X = 100 apres FenTaille(fen, 100, 50, 500, 350)")
+	dbgVérifieEgalité(FEN_FenTaille..Y, 50, "Forme 2 : Y = 50 apres FenTaille(fen, 100, 50, 500, 350)")
+	dbgVérifieEgalité(FEN_FenTaille..Largeur, 500, "Forme 2 : Largeur = 500 apres FenTaille(fen, 100, 50, 500, 350)")
+	dbgVérifieEgalité(FEN_FenTaille..Hauteur, 350, "Forme 2 : Hauteur = 350 apres FenTaille(fen, 100, 50, 500, 350)")
+
+	// --- Forme 3 : lecture du mode courant ---
+	nModeInitial est un entier = FenTaille(FEN_FenTaille)
+
+	// Passage en mode maximise (TailleMaxi en argument de native = conforme Regle 8)
+	FenTaille(FEN_FenTaille, TailleMaxi)
+	nModeMaxi est un entier = FenTaille(FEN_FenTaille)
+	dbgVérifieVrai(nModeMaxi <> nModeInitial, "Forme 3 : mode change apres FenTaille(fen, TailleMaxi)")
+
+	// Retour au mode normal
+	FenTaille(FEN_FenTaille, TailleNormale)
+	nModeNormal est un entier = FenTaille(FEN_FenTaille)
+	dbgVérifieEgalité(nModeNormal, nModeInitial, "Forme 3 : mode revient a TailleNormale apres FenTaille(fen, TailleNormale)")
+
+	// Mode iconise
+	FenTaille(FEN_FenTaille, TailleMini)
+	nModeMini est un entier = FenTaille(FEN_FenTaille)
+	dbgVérifieVrai(nModeMini <> nModeNormal, "Forme 3 : mode change apres FenTaille(fen, TailleMini)")
+	dbgVérifieVrai(nModeMini <> nModeMaxi, "Forme 3 : mode TailleMini differ de TailleMaxi")
+
+	Ferme(FEN_FenTaille)
+FIN

@@ -1,0 +1,19 @@
+// fix/couleur-texte (suite ) — verrouille le littéral couleur inline
+// `{ Rouge=…, Opacité=… }` posé sur le champ `Couleur` (texte, pas
+// `CouleurFond`) en cascade profonde SET, sur plusieurs sous-éléments
+// (Libellé du Bouton, ZoneSaisie de la Saisie, TitreColonne de la Table).
+//
+// Constat de diagnostic (test_writer, avant impl) : la forme EXACTE rapportée
+// par le designer (`MonBouton..Style..Libellé..Couleur = {...}`) compile déjà
+// SANS erreur sur le binaire courant — le mécanisme générique posé par L3.6
+// (registry_field_is_color, cf. commit 33dd2cbc) couvre tout champ dont la
+// métadonnée registry porte allowedBase="couleur", donc `Couleur` texte au
+// même titre que `CouleurFond`. Ce fichier verrouille ce comportement pour
+// éviter une régression future.
+// Snapshot attendu : {"errors":[],"warnings":[]}.
+TestModeHeadless(Vrai)
+Ouvre(FEN_ProbeCouleurTexteCascade)
+MonBouton..Style..Libellé..Couleur      = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 97}
+SAI_Champ..Style..ZoneSaisie..Couleur   = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 97}
+TAB_Champ..Style..TitreColonne..Couleur = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 97}
+Ferme(FEN_ProbeCouleurTexteCascade)

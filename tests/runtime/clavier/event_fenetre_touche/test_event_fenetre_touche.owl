@@ -1,0 +1,66 @@
+//  — Event surToucheAppuyee / surToucheRelachee au niveau Fenetre.
+// EnvoieTouche poste une frappe vers la fenetre active (ici FEN_FenetreTouche).
+// Les flèches directionnelles (tkHaut, tkBas, etc.) sont la cible principale :
+// ce sont des touches sans caractere textuel que surAChaqueModification ne
+// couvre pas. C'est la justification premiere du chantier.
+//
+// ROUGE ATTENDU : surToucheAppuyee / surToucheRelachee non cablees sur
+// Fenetre, ET EnvoieTouche inconnue, ET constantes tk* inconnues.
+// Raison du rouge : erreur compile sur EnvoieTouche et tkHaut.
+
+TestModeHeadless(Faux)
+
+bFenTouchePrete est un booléen = Faux
+nFenAppCap est un entier = 0
+nFenRelCap est un entier = 0
+nFenDerniereAppCap est un entier = -1
+nFenDerniereRelCap est un entier = -1
+
+PROCEDURE callback_fen_touche_prete()
+	bFenTouchePrete = Vrai
+FIN
+
+PROCEDURE callback_fen_appuyee(nTouche est un entier)
+	nFenAppCap += 1
+	nFenDerniereAppCap = nTouche
+FIN
+
+PROCEDURE callback_fen_relachee(nTouche est un entier)
+	nFenRelCap += 1
+	nFenDerniereRelCap = nTouche
+FIN
+
+PROCEDURE callback_lit_fen_compteurs(nA est un entier, nR est un entier, nDA est un entier, nDR est un entier)
+	nFenAppCap         = nA
+	nFenRelCap         = nR
+	nFenDerniereAppCap = nDA
+	nFenDerniereRelCap = nDR
+FIN
+
+OuvreSoeur(FEN_FenetreTouche)
+dbgVérifieVrai(bFenTouchePrete, "FinInitialisation appelee : fenetre prete")
+
+// EnvoieTouche(tkBas) : fleche bas vers la fenetre (pas de Saisie active).
+// surToucheAppuyee de la fenetre doit tirer avec code tkBas.
+EnvoieTouche(tkBas)
+
+LireFenCompteurs()
+dbgVérifieEgalité(nFenAppCap, 1, "surToucheAppuyee fenetre : 1 evenement pour tkBas")
+dbgVérifieEgalité(nFenDerniereAppCap, tkBas, "surToucheAppuyee fenetre : code = tkBas")
+
+// Flèche gauche.
+EnvoieTouche(tkGauche)
+
+LireFenCompteurs()
+dbgVérifieEgalité(nFenAppCap, 2, "surToucheAppuyee fenetre : 2 evenements apres tkGauche")
+dbgVérifieEgalité(nFenDerniereAppCap, tkGauche, "surToucheAppuyee fenetre : code = tkGauche")
+
+// Echap.
+EnvoieTouche(tkEchap)
+
+LireFenCompteurs()
+dbgVérifieEgalité(nFenAppCap, 3, "surToucheAppuyee fenetre : 3 evenements apres tkEchap")
+dbgVérifieEgalité(nFenDerniereAppCap, tkEchap, "surToucheAppuyee fenetre : code = tkEchap")
+
+Ferme(FEN_FenetreTouche)
+dbgBilanTest()

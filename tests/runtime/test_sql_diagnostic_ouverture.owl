@@ -1,0 +1,66 @@
+//  — verrouille les deux diagnostics ajoutes a SQLConnexionOuvre :
+//
+//   1. l'indice "ModeTLS" colle au detail d'erreur UNIQUEMENT quand la cible
+//      est loopback ET que ModeTLS != tlsDesactive (zero faux positif) ;
+//   2. la garde des proprietes inapplicables au Provider n'a AUCUN effet sur
+//      le comportement d'ouverture (elle n'ecrit que sur stderr, ne pose pas
+//      d'erreur, ne change ni le retour ni le message).
+//
+// Les cibles reseau sont choisies pour echouer vite et de facon deterministe :
+// port 1 sur loopback (refus immediat) et hote DNS inexistant.
+
+// --- 1. Loopback par nom d'hote + TLS exige : l'indice est present ---
+// La branche "adresse 127.*" est couverte par le scenario public
+// tests/scenarios/types/test_sqlConnexion.owl ; on ne paie pas deux fois le
+// connect loopback (~2 s par tentative sous Windows).
+cnxNom est une sqlConnexion
+cnxNom..Provider      = sqlPostgres
+cnxNom..Serveur       = "localhost:1"
+cnxNom..BaseDeDonnées = "app"
+dbgVérifieEgalité(cnxNom.Ouvre(), Faux, "localhost sans serveur : echec")
+sNom est une chaîne = ErreurInfo(errMessage)
+dbgVérifieVrai(Contient(sNom, "tlsDesactive"), "indice TLS present sur localhost")
+
+// --- 2. Loopback mais TLS deja desactive : pas d'indice (rien a suggerer) ---
+cnxClair est une sqlConnexion
+cnxClair..Provider      = sqlPostgres
+cnxClair..Serveur       = "127.0.0.1:1"
+cnxClair..BaseDeDonnées = "app"
+cnxClair..ModeTLS       = tlsDesactive
+dbgVérifieEgalité(cnxClair.Ouvre(), Faux, "loopback en clair sans serveur : echec")
+sClair est une chaîne = ErreurInfo(errMessage)
+dbgVérifieVrai(PAS Contient(sClair, "tlsDesactive"), "pas d'indice quand TLS est deja coupe")
+dbgVérifieVrai(Contient(sClair, "127.0.0.1:1"), "detail backend conserve")
+
+// --- 3. Cible distante : pas d'indice, meme avec TLS exige ---
+cnxDistant est une sqlConnexion
+cnxDistant..Provider      = sqlPostgres
+cnxDistant..Serveur       = "hote.inexistant.invalid"
+cnxDistant..BaseDeDonnées = "app"
+dbgVérifieEgalité(cnxDistant.Ouvre(), Faux, "hote DNS inexistant : echec")
+sDistant est une chaîne = ErreurInfo(errMessage)
+dbgVérifieVrai(PAS Contient(sDistant, "tlsDesactive"), "pas d'indice hors loopback")
+
+// --- 4. Garde propriete inapplicable : aucun effet fonctionnel ---
+// Source renseignee sur un provider reseau declenche un avertissement stderr,
+// mais l'ouverture suit exactement le chemin habituel (ici : Serveur absent).
+cnxSource est une sqlConnexion
+cnxSource..Provider      = sqlPostgres
+cnxSource..Source        = "127.0.0.1:5432"
+cnxSource..BaseDeDonnées = "app"
+dbgVérifieEgalité(cnxSource.Ouvre(), Faux, "Source ignoree : Serveur reste obligatoire")
+sSource est une chaîne = ErreurInfo(errMessage)
+dbgVérifieVrai(Contient(sSource, "Serveur"), "l'erreur nomme toujours la propriete manquante")
+
+// Symetrique : Serveur/Port poses sur SQLite avertissent mais n'empechent
+// rien — la base locale s'ouvre normalement.
+cnxSqlite est une sqlConnexion
+cnxSqlite..Provider = sqlSqlite
+cnxSqlite..Source   = ":memory:"
+cnxSqlite..Serveur  = "localhost"
+cnxSqlite..Port     = 5432
+dbgVérifieEgalité(cnxSqlite.Ouvre(), Vrai, "SQLite s'ouvre malgre les proprietes reseau")
+dbgVérifieEgalité(ErreurDétectée, Faux, "la garde ne pose pas d'erreur")
+dbgVérifieEgalité(cnxSqlite.Ferme(), Vrai, "fermeture ok")
+
+dbgBilanTest()

@@ -1,0 +1,25 @@
+// @sujet warning compile-time sur redeclaration de champ herite
+// @résumé valide qu'un champ deja present dans la chaine d'heritage
+//   (parent direct ou ancetre transitif) declenche un warning quand l'enfant
+//   le redeclare. Le comportement runtime reste inchange : la valeur de
+//   l'enfant gagne (override de champ, masquage assume).
+
+PROCEDURE scenario_runtime_masquage_assume()
+	// Comportement runtime : la valeur du champ de la feuille (cEnfant)
+	// gagne. Le warning compile signale juste l'intention probable d'erreur.
+	oEnfant est un cEnfant()
+	dbgVérifieEgalité(oEnfant.nValeur, 3,
+	"Apres redeclaration, l'enfant masque l'ancetre (valeur enfant gagne)")
+FIN
+
+PROCEDURE scenario_warnings_compile_time_emis()
+	// Consommation des 2 warnings compile-time attendus.
+	// 1. cBase.nValeur masque cAncetre.nValeur (parent direct).
+	// 2. cEnfant.nValeur masque cBase.nValeur (parent direct, chaine
+	//    transitive remontant aussi vers cAncetre — le lookup s'arrete
+	//    au plus proche owner, donc cBase ici).
+	__dbgAvertissementAttendu("Le champ 'nValeur' de la classe 'cBase' masque",
+	"cBase.nValeur masque cAncetre.nValeur : warning emis")
+	__dbgAvertissementAttendu("Le champ 'nValeur' de la classe 'cEnfant' masque",
+	"cEnfant.nValeur masque cBase.nValeur : warning emis (chaine transitif)")
+FIN

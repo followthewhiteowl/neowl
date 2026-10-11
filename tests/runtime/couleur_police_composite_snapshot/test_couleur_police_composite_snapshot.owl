@@ -1,0 +1,88 @@
+//  — Police..Couleur declare doit colorer le texte.
+// Aujourd'hui Police..Couleur est un no-op silencieux : le texte reste blanc.
+// ROUGE attendu avant impl : nbTxt* = 0 → assertions "glyphes colores" echouent.
+// Apres impl : les pixels de couleur pure seront presents au cœur des glyphes.
+//
+// Methode : meme approche que  (couleur_widgets_declaree_snapshot).
+// Fond sombre RVB(20,20,20), couleur texte vive pure, scan pixel exact.
+// dCopieImageChamp en headless rematerialise depuis le declaratif → valide
+// pour tester la prop declaree.
+//
+// Encoding dPixelCouleur : BGR 24-bit = R + V*256 + B*65536, identique RVB.
+//   Libelle  rouge  RVB(255,0,0)  = 255
+//   Bouton   vert   RVB(0,255,0)  = 65280    (fond Qt-defaut gris clair)
+//   Saisie   bleu   RVB(0,0,255)  = 16711680 (fond Qt-defaut blanc)
+// Fond sombre RVB(20,20,20) = 1315860 (applique uniquement sur Libelle)
+
+CONSTANTE FOND_SOMBRE_PC = 1315860 // RVB(20,20,20)
+CONSTANTE TXT_ROUGE = 255 // RVB(255,0,0)  Libelle
+CONSTANTE TXT_VERT_BTN = 65280 // RVB(0,255,0)  Bouton
+CONSTANTE TXT_BLEU_SAI = 16711680 // RVB(0,0,255)  Saisie
+
+Ouvre(FEN_CouleurPolice)
+
+// ---------- Libelle : Police..Couleur rouge declare ----------
+imgLib est une Image = dCopieImageChamp(LIB_PoliceRouge)
+dbgVérifieEgalité(imgLib..Valide, Vrai, "Libelle : capture valide")
+nbTxtLib est un entier = 0
+nbFondLib est un entier = 0
+yLib est un entier = 0
+TANTQUE yLib < imgLib..Hauteur
+	xLib est un entier = 0
+	TANTQUE xLib < imgLib..Largeur
+		cLib est un entier = dPixelCouleur(imgLib, xLib, yLib)
+		SI cLib = TXT_ROUGE ALORS
+			nbTxtLib = nbTxtLib + 1
+		FIN
+		SI cLib = FOND_SOMBRE_PC ALORS
+			nbFondLib = nbFondLib + 1
+		FIN
+		xLib = xLib + 1
+	FIN
+	yLib = yLib + 1
+FIN
+dbgVérifieVrai(nbFondLib > 100, "Libelle : CouleurFond sombre appliquee (fond present)")
+dbgVérifieVrai(nbTxtLib > 30, "Libelle : Police..Couleur rouge appliquee (glyphes rouges)")
+
+// ---------- Bouton : Police..Couleur vert declare ----------
+// Bouton n'expose pas CouleurFond -> fond Qt-defaut (gris clair). On
+// verifie uniquement la presence de pixels verts purs (glyphes).
+imgBtn est une Image = dCopieImageChamp(BTN_PoliceVert)
+dbgVérifieEgalité(imgBtn..Valide, Vrai, "Bouton : capture valide")
+nbTxtBtn est un entier = 0
+yBtn est un entier = 0
+TANTQUE yBtn < imgBtn..Hauteur
+	xBtn est un entier = 0
+	TANTQUE xBtn < imgBtn..Largeur
+		cBtn est un entier = dPixelCouleur(imgBtn, xBtn, yBtn)
+		SI cBtn = TXT_VERT_BTN ALORS
+			nbTxtBtn = nbTxtBtn + 1
+		FIN
+		xBtn = xBtn + 1
+	FIN
+	yBtn = yBtn + 1
+FIN
+dbgVérifieVrai(nbTxtBtn > 30, "Bouton : Police..Couleur vert appliquee (glyphes verts)")
+
+// ---------- Saisie : Police..Couleur bleu declare ----------
+// Saisie n'expose pas CouleurFond -> fond Qt-defaut blanc. On verifie
+// uniquement la presence de pixels bleus purs au coeur des glyphes.
+imgSai est une Image = dCopieImageChamp(SAI_PoliceBleu)
+dbgVérifieEgalité(imgSai..Valide, Vrai, "Saisie : capture valide")
+nbTxtSai est un entier = 0
+ySai est un entier = 0
+TANTQUE ySai < imgSai..Hauteur
+	xSai est un entier = 0
+	TANTQUE xSai < imgSai..Largeur
+		cSai est un entier = dPixelCouleur(imgSai, xSai, ySai)
+		SI cSai = TXT_BLEU_SAI ALORS
+			nbTxtSai = nbTxtSai + 1
+		FIN
+		xSai = xSai + 1
+	FIN
+	ySai = ySai + 1
+FIN
+dbgVérifieVrai(nbTxtSai > 30, "Saisie : Police..Couleur bleu appliquee (glyphes bleus)")
+
+Ferme(FEN_CouleurPolice)
+dbgBilanTest()

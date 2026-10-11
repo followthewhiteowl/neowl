@@ -1,0 +1,106 @@
+// Ressource fenêtre — voisine de test_table_cellule_validation_legitime.owl.
+// Non-régression pour  : la validation d'un nom de colonne sur
+// TABLE_X[ligne].<nom> / TABLE_X.<nom>[ligne] ne doit JAMAIS bloquer une
+// colonne réellement déclarée de la BONNE Table — même en présence de
+// plusieurs Tables voisines qui portent des colonnes homonymes ou non.
+
+FEN_TableLegit est une Fenêtre
+	PROPRIETES
+		Titre       = "Validation légitime"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 300
+	FIN
+
+	TABLE_Un est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 220
+			Hauteur = 200
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 100
+			FIN
+		FIN
+
+		COL_Age est une Colonne
+			PROPRIETES
+				Libellé = "Age"
+				Type    = colTypeNumerique
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	TABLE_Deux est un Champ Table
+		PROPRIETES
+			X       = 250
+			Y       = 10
+			Largeur = 220
+			Hauteur = 200
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 100
+			FIN
+		FIN
+
+		COL_Ville est une Colonne
+			PROPRIETES
+				Libellé = "Ville"
+				Type    = colTypeTexte
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Un, "Alice", 30)
+		TableAjouteLigne(TABLE_Deux, "Bob", "Nyon")
+	FIN
+
+	// Lecture ligne-first, colonnes réelles de leur propre Table.
+	PROCEDURE LireUnNom()
+		RENVOYER TABLE_Un[1].COL_Nom
+	FIN
+
+	PROCEDURE LireUnAge()
+		RENVOYER TABLE_Un[1].COL_Age
+	FIN
+
+	PROCEDURE LireDeuxNom()
+		RENVOYER TABLE_Deux[1].COL_Nom
+	FIN
+
+	PROCEDURE LireDeuxVille()
+		RENVOYER TABLE_Deux[1].COL_Ville
+	FIN
+
+	// Lecture colonne-first, mêmes colonnes.
+	PROCEDURE LireUnNomColFirst()
+		RENVOYER TABLE_Un.COL_Nom[1]
+	FIN
+
+	PROCEDURE LireDeuxVilleColFirst()
+		RENVOYER TABLE_Deux.COL_Ville[1]
+	FIN
+
+	// Écriture puis relecture, ligne-first, sur chaque Table.
+	PROCEDURE EcritEtRelitUn()
+		TABLE_Un[1].COL_Nom = "Alicia"
+		RENVOYER TABLE_Un[1].COL_Nom
+	FIN
+
+	PROCEDURE EcritEtRelitDeux()
+		TABLE_Deux[1].COL_Ville = "Genève"
+		RENVOYER TABLE_Deux[1].COL_Ville
+	FIN
+FIN

@@ -1,0 +1,46 @@
+//  — Lot 1 (digue) : `Style..Remplissage..CouleurFond` peint le
+// remplissage d'un Champ Jauge horizontale, `Style..CadreExtérieur..
+// CouleurFond` peint la piste restante. Jauge [0,100] à 60 : la portion
+// remplie occupe la gauche (~180px sur 300), la piste la droite.
+//
+// ROUGE attendu : `Style` ne compile pas encore sur Champ Jauge (le type
+// styleJauge n'existe pas). Cf. FEN_StyleJaugeElementsH.owl.
+
+TestModeHeadless(Faux)
+
+couleurRemplissage est un entier = RVB(220, 0, 0)
+couleurPiste est un entier = RVB(200, 200, 200)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleJaugeElementsH)
+
+img est une Image = dCopieImageChamp(JAU_H)
+dbgVérifieEgalité(img..Valide, Vrai, "capture JAU_H valide")
+
+// JAU_H fait 300x30, valeur 60% : portion remplie ~[0,180], piste ~[180,300].
+// Echantillons loin des bords pour éviter les artefacts d'arrondi Qt.
+nbRempl est un entier = CompteCouleurZone(img, 10, 8, 150, 22, couleurRemplissage)
+seuilRempl est un entier = 700 // (150-10) * (22-8) = 1960, ~35%, marge basse
+dbgVérifieVrai(nbRempl > seuilRempl, "JAU_H : Style..Remplissage..CouleurFond peint le remplissage")
+
+nbPiste est un entier = CompteCouleurZone(img, 220, 8, 290, 22, couleurPiste)
+seuilPiste est un entier = 350 // (290-220) * (22-8) = 980, ~35%, marge basse
+dbgVérifieVrai(nbPiste > seuilPiste, "JAU_H : Style..CadreExtérieur..CouleurFond peint la piste hors barre")
+
+Ferme(FEN_StyleJaugeElementsH)
+dbgBilanTest()

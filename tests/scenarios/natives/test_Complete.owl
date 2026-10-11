@@ -1,0 +1,94 @@
+// @sujet : Complète
+// @résumé : Complète une chaîne à une largeur cible en ajoutant des caractères à droite (padding droit).
+
+
+// Cas canonique : chaîne plus courte que la largeur cible, complétée avec des espaces.
+// Le padding par défaut est l'espace quand aucun caractère n'est fourni.
+PROCEDURE scenario_padding_simple()
+	s est une chaîne = Complète("abc", 7)
+	dbgVérifieEgalité(s, "abc    ")
+	dbgVérifieEgalité(Taille(s), 7)
+FIN
+
+
+// Forme méthode équivalente : la chaîne réceptrice fournit le premier argument.
+// Pratique pour le chaînage avec d'autres méthodes de chaîne.
+PROCEDURE scenario_forme_methode()
+	sCode est une chaîne = "X42"
+	sComplet est une chaîne = sCode.Complete(10)
+	dbgVérifieEgalité(sComplet, "X42       ")
+	dbgVérifieEgalité(Taille(sComplet), 10)
+FIN
+
+
+// Caractère de remplissage personnalisé : on spécifie le troisième argument.
+// Le caractère est répété autant de fois que nécessaire pour atteindre la largeur.
+PROCEDURE scenario_caractere_personnalise()
+	s est une chaîne = Complète("abc", 7, "-")
+	dbgVérifieEgalité(s, "abc----")
+	dbgVérifieEgalité(Taille(s), 7)
+FIN
+
+
+// Quand la chaîne source atteint déjà la largeur cible, elle est retournée telle quelle.
+// Pas de troncature, pas d'ajout.
+PROCEDURE scenario_chaine_exactement_largeur()
+	s est une chaîne = Complète("exact!", 6)
+	dbgVérifieEgalité(s, "exact!")
+	dbgVérifieEgalité(Taille(s), 6)
+FIN
+
+
+// Quand la chaîne source dépasse la largeur cible, elle est tronquée à droite.
+// Équivalent à Gauche(s, largeur) — la troncature atteint exactement la largeur cible.
+PROCEDURE scenario_chaine_plus_longue()
+	s est une chaîne = Complète("beaucoup trop long", 5)
+	dbgVérifieEgalité(s, "beauc")
+	dbgVérifieEgalité(Taille(s), 5)
+FIN
+
+
+// Cas limite défensif : largeur 0 tronque la chaîne à vide (équivalent Gauche(s, 0)).
+// Comportement cohérent avec la règle de troncature.
+PROCEDURE scenario_largeur_zero()
+	s est une chaîne = Complète("test", 0)
+	dbgVérifieEgalité(s, "")
+FIN
+
+
+// Chaîne vide complétée : la largeur est atteinte uniquement par le caractère de padding.
+// Utile pour générer une chaîne de N espaces ou de N caractères identiques.
+PROCEDURE scenario_chaine_vide()
+	s est une chaîne = Complète("", 5)
+	dbgVérifieEgalité(s, "     ")
+	dbgVérifieEgalité(Taille(s), 5)
+FIN
+
+
+// Caractère de padding multi-octets UTF-8 (flèche →).
+// La largeur cible s'applique sur la taille en octets (UTF-8).
+// L'impl actuelle peut ne pas gérer le multi-octets — vérification défensive.
+PROCEDURE PRIVÉE scenario_edge_padding_utf8()
+	s est une chaîne = Complète("ok", 8, "→")
+	dbgVérifieVrai(Taille(s) >= 2, "au minimum la chaîne source")
+	dbgVérifieVrai(Taille(s) <= 14, "largeur raisonnable (8 bytes + UTF-8 overhead)")
+FIN
+
+
+// Accent-insensible sur le nom de la fonction : Complète et Complete sont équivalents.
+// Invariant 2 du langage (accent-insensible runtime).
+PROCEDURE PRIVÉE scenario_edge_accent_insensible()
+	s1 est une chaîne = Complète("a", 3)
+	s2 est une chaîne = Complète("a", 3)
+	dbgVérifieEgalité(s1, s2)
+FIN
+
+
+// Enchaînement multiple : on peut compléter une chaîne déjà complétée.
+// Le résultat cumulatif doit rester cohérent.
+PROCEDURE PRIVÉE scenario_edge_enchainement()
+	s est une chaîne = Complète("x", 3, "-")
+	s = Complète(s, 7, "+")
+	dbgVérifieEgalité(s, "x--++++")
+	dbgVérifieEgalité(Taille(s), 7)
+FIN

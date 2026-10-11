@@ -1,0 +1,43 @@
+// Test des slots Bulle (tooltip) retypes chaineMultilingue pour les champs
+// Combo, Selecteur, Interrupteur, ZoneRepetee, Table.
+//
+// Valide :
+// - Affectation post-declaration via dict litteral inline direct
+// - Lecture indexee par constante langue
+// - Backward-compat : affectation string simple continue de marcher (coerce auto)
+//
+// La fenêtre voisine FEN_ChampsBulles.owl porte la déclaration et exerce
+// déjà le littéral inline en DSL PROPRIETES (compile + runtime côté
+// designer). Côté script test, le slot multilingue est ancré cross-fichier
+// via pre-scan voisins.
+
+PROCEDURE PUBLIQUE scenario_bulles_multilingues()
+	Ouvre(FEN_ChampsBulles)
+
+	CMB_Pays..Bulle = {langueFrançais: "Sélectionnez un pays", langueAnglais: "Select a country"}
+	dbgVérifieEgalité(CMB_Pays..Bulle[langueFrançais], "Sélectionnez un pays")
+	dbgVérifieEgalité(CMB_Pays..Bulle[langueAnglais], "Select a country")
+
+	SEL_Options..Bulle = {langueFrançais: "Choisissez une option", langueAnglais: "Choose an option"}
+	dbgVérifieEgalité(SEL_Options..Bulle[langueFrançais], "Choisissez une option")
+	dbgVérifieEgalité(SEL_Options..Bulle[langueAnglais], "Choose an option")
+
+	INT_Prefs..Bulle = {langueFrançais: "Cochez vos préférences", langueAnglais: "Check your preferences"}
+	dbgVérifieEgalité(INT_Prefs..Bulle[langueFrançais], "Cochez vos préférences")
+	dbgVérifieEgalité(INT_Prefs..Bulle[langueAnglais], "Check your preferences")
+
+	ZR_Lignes..Bulle = {langueFrançais: "Liste des lignes", langueAnglais: "List of rows"}
+	dbgVérifieEgalité(ZR_Lignes..Bulle[langueFrançais], "Liste des lignes")
+	dbgVérifieEgalité(ZR_Lignes..Bulle[langueAnglais], "List of rows")
+
+	TAB_Données..Bulle = {langueFrançais: "Table de données", langueAnglais: "Data table"}
+	dbgVérifieEgalité(TAB_Données..Bulle[langueFrançais], "Table de données")
+	dbgVérifieEgalité(TAB_Données..Bulle[langueAnglais], "Data table")
+
+	// Note : le coerce auto chaine -> chaineMultilingue post-Ouvre (sans typage
+	// compile-time visible) n'est pas exercé ici. La backward-compat string
+	// simple en DSL PROPRIETES est validée côté FEN_ChampsBulles.owl (slot
+	// Libellé / Bulle accepte string brute dans le bloc designer).
+
+	Ferme(FEN_ChampsBulles)
+FIN

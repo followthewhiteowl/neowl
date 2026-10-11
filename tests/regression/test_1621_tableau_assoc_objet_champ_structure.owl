@@ -1,0 +1,46 @@
+//  : un tableau associatif de type non-primitif (objets, ex.
+// httpRequête) porté par un champ de STRUCTURE doit auto-vivifier ses
+// entrées comme le cas direct/var/global déjà verrouillé par .
+// Comportement de référence mesuré (cf. ticket ) : identique au cas
+// direct — écriture ET lecture d'une clé absente créent l'entrée pour un
+// champ objet ; seule l'écriture crée pour un champ scalaire.
+
+stConteneur1621 est une Structure
+	reqs est un tableau associatif de httpRequête
+	libelles est un tableau associatif de chaînes
+FIN
+
+// --- Écriture d'un champ objet sur clé absente auto-vivifie ---
+s1621_a est un stConteneur1621
+s1621_a.reqs["principale"]..URL = "https://exemple.test/api"
+dbgVérifieEgalité(s1621_a.reqs["principale"]..URL, "https://exemple.test/api",
+"1621 : écriture d'un champ objet (structure) sur clé absente crée l'entrée, relecture rend la valeur")
+dbgVérifieEgalité(s1621_a.reqs..Occurrence, 1, "1621 : écriture clé absente (structure, objet) -> occurrence = 1")
+
+// --- Lecture d'un champ objet sur clé absente auto-vivifie aussi ---
+s1621_b est un stConteneur1621
+dbgVérifieEgalité(s1621_b.reqs..Occurrence, 0, "1621 : tableau vide avant toute lecture")
+s1621_urlDefaut est une chaîne = s1621_b.reqs["absente"]..URL
+dbgVérifieEgalité(s1621_urlDefaut, "", "1621 : lecture d'une clé absente (structure, objet) rend la valeur par défaut")
+dbgVérifieEgalité(s1621_b.reqs..Occurrence, 1, "1621 : lecture d'une clé absente (structure, objet) crée l'entrée (occurrence = 1)")
+
+// --- Indépendance entre instances de la structure porteuse ---
+s1621_i1 est un stConteneur1621
+s1621_i2 est un stConteneur1621
+s1621_i1.reqs["k"]..URL = "https://exemple.test/i1"
+dbgVérifieEgalité(s1621_i1.reqs["k"]..URL, "https://exemple.test/i1", "1621 : instance 1 porte sa propre valeur")
+dbgVérifieEgalité(s1621_i2.reqs..Occurrence, 0, "1621 : écrire dans l'instance 1 ne crée pas d'entrée dans l'instance 2")
+s1621_i2.reqs["k"]..URL = "https://exemple.test/i2"
+dbgVérifieEgalité(s1621_i1.reqs["k"]..URL, "https://exemple.test/i1", "1621 : écrire dans l'instance 2 ne réécrit pas l'instance 1")
+dbgVérifieEgalité(s1621_i2.reqs["k"]..URL, "https://exemple.test/i2", "1621 : instance 2 porte sa propre valeur")
+
+// --- Cohérence scalaire préservée : lecture clé absente NE crée PAS ---
+s1621_s est un stConteneur1621
+s1621_libDefaut est une chaîne = s1621_s.libelles["absente"]
+dbgVérifieEgalité(s1621_libDefaut, "", "1621 : lecture clé absente (structure, scalaire) rend le défaut")
+dbgVérifieEgalité(s1621_s.libelles..Occurrence, 0, "1621 : lecture clé absente (structure, scalaire) NE crée PAS l'entrée")
+s1621_s.libelles["nouvelle"] = "X"
+dbgVérifieEgalité(s1621_s.libelles["nouvelle"], "X", "1621 : écriture clé absente (structure, scalaire) crée l'entrée, relecture rend la valeur")
+dbgVérifieEgalité(s1621_s.libelles..Occurrence, 1, "1621 : écriture clé absente (structure, scalaire) -> occurrence = 1")
+
+dbgBilanTest()

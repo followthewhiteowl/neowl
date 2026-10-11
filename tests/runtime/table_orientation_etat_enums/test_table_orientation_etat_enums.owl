@@ -1,0 +1,33 @@
+//  — enums orientationsTable et etatsTableInitial (Lot 1 :
+// fondations backend).
+//
+// Vérifie :
+//   1. orientationsTable existe avec sa valeur Vertical, déclarable sur la
+//      propriété Orientation du Champ Table et relisible après
+//      matérialisation.
+//   2. etatsTableInitial existe avec ses 4 valeurs (EnSaisie / Grisé /
+//      Sélection / NiSaisieNiSélection), déclarable sur la propriété
+//      EtatInitial du Champ Table et relisible après matérialisation.
+//
+// ROUGE attendu : ni la propriété Orientation, ni EtatInitial, ni les enums
+// orientationsTable/etatsTableInitial n'existent encore sur le Champ Table
+// (compile-fail : propriété inconnue ou constante inconnue).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_TableEnums)
+
+dbgVérifieEgalité(TAB_Vertical..Orientation, Vertical, "orientationsTable : Orientation=Vertical déclaratif conservé")
+dbgVérifieEgalité(TAB_Vertical..EtatInitial, EnSaisie, "etatsTableInitial : EtatInitial=EnSaisie déclaratif conservé")
+
+dbgVérifieEgalité(TAB_Grise..EtatInitial, Grisé, "etatsTableInitial : EtatInitial=Grisé déclaratif conservé")
+dbgVérifieEgalité(TAB_Selection..EtatInitial, Sélection, "etatsTableInitial : EtatInitial=Sélection déclaratif conservé")
+dbgVérifieEgalité(TAB_NiSaisieNiSelection..EtatInitial, NiSaisieNiSélection, "etatsTableInitial : EtatInitial=NiSaisieNiSélection déclaratif conservé")
+
+// Réaffectation runtime + relecture (ne doit pas régresser une fois posé).
+TAB_Vertical..EtatInitial = Grisé
+dbgVérifieEgalité(TAB_Vertical..EtatInitial, Grisé, "etatsTableInitial : EtatInitial réaffecté au runtime")
+
+Ferme(FEN_TableEnums)
+
+dbgBilanTest()

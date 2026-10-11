@@ -1,0 +1,174 @@
+// @sujet : BufferVersEntier
+// @résumé : Lit nbOctets (1, 2, 4 ou 8) à partir de la position indiquée (base 1) dans un buffer et restitue la valeur entière en complément à deux (signé par défaut) ou non-signée. Le boutisme est petit-boutiste par défaut ou grand-boutiste sur demande. Tout accès hors des limites du buffer ou toute taille non dans {1, 2, 4, 8} lève une exception.
+
+
+// Cas A : round-trip 4 octets, boutisme petit (défaut).
+// EntierVersBuffer produit le buffer ; BufferVersEntier doit restituer la valeur d'origine.
+PROCEDURE PUBLIQUE scenario_bve_roundtrip_4_octets_le()
+	buf est un buffer = EntierVersBuffer(1000, 4)
+	n est un entier = BufferVersEntier(buf, 1, 4)
+	dbgVérifieEgalité(n, 1000, "round-trip 4 octets petit-boutiste : 1000 → buffer → 1000")
+FIN
+
+
+// Cas B : round-trip 1 octet.
+PROCEDURE PUBLIQUE scenario_bve_roundtrip_1_octet()
+	buf est un buffer = EntierVersBuffer(42, 1)
+	n est un entier = BufferVersEntier(buf, 1, 1)
+	dbgVérifieEgalité(n, 42, "round-trip 1 octet : 42 → buffer → 42")
+FIN
+
+
+// Cas C : round-trip 2 octets.
+PROCEDURE PUBLIQUE scenario_bve_roundtrip_2_octets()
+	buf est un buffer = EntierVersBuffer(258, 2)
+	n est un entier = BufferVersEntier(buf, 1, 2)
+	dbgVérifieEgalité(n, 258, "round-trip 2 octets : 258 → buffer → 258")
+FIN
+
+
+// Cas D : round-trip 8 octets.
+PROCEDURE PUBLIQUE scenario_bve_roundtrip_8_octets()
+	buf est un buffer = EntierVersBuffer(1000, 8)
+	n est un entier = BufferVersEntier(buf, 1, 8)
+	dbgVérifieEgalité(n, 1000, "round-trip 8 octets : 1000 → buffer → 1000")
+FIN
+
+
+// Cas E : round-trip boutismeGros 4 octets.
+// L'encodage et le décodage utilisent le même boutisme → restitution exacte.
+PROCEDURE PUBLIQUE scenario_bve_roundtrip_gros_boutiste()
+	buf est un buffer = EntierVersBuffer(1000, 4, boutismeGros)
+	n est un entier = BufferVersEntier(buf, 1, 4, boutismeGros)
+	dbgVérifieEgalité(n, 1000, "round-trip boutismeGros 4 octets : 1000 → buffer → 1000")
+FIN
+
+
+// Cas F : signé par défaut — 0xFF FF FF FF interprété en signé = -1.
+// EntierVersBuffer(-1, 4) produit quatre octets 0xFF chacun.
+PROCEDURE PUBLIQUE scenario_bve_signe_defaut()
+	buf est un buffer = EntierVersBuffer(-1, 4)
+	n est un entier = BufferVersEntier(buf, 1, 4)
+	dbgVérifieEgalité(n,-1, "0xFF FF FF FF lu en signé (défaut) = -1")
+FIN
+
+
+// Cas G : non-signé — les mêmes 0xFF FF FF FF donnent 4294967295 quand signé = Faux.
+PROCEDURE PUBLIQUE scenario_bve_non_signe()
+	buf est un buffer = EntierVersBuffer(-1, 4)
+	n est un entier = BufferVersEntier(buf, 1, 4, boutismePetit, Faux)
+	dbgVérifieEgalité(n, 4294967295, "0xFF FF FF FF lu en non-signé = 4294967295")
+FIN
+
+
+// Cas H : lecture à une position non unitaire dans un buffer composite.
+// EntierVersBuffer(7, 2) → [0x07, 0x00] (positions 1-2)
+// EntierVersBuffer(258, 2) → [0x02, 0x01] (positions 3-4)
+// BufferVersEntier à position 3 sur 2 octets LE = 0x0102 = 258.
+PROCEDURE PUBLIQUE scenario_bve_lecture_position()
+	buf est un buffer = EntierVersBuffer(7, 2) + EntierVersBuffer(258, 2)
+	n est un entier = BufferVersEntier(buf, 3, 2)
+	dbgVérifieEgalité(n, 258, "lecture à position 3 sur 2 octets dans buffer composite = 258")
+FIN
+
+
+// Cas I : hors bornes — lire 4 octets dans un buffer de 1 seul octet → exception.
+PROCEDURE PUBLIQUE scenario_bve_hors_bornes_lecture_trop_longue()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersEntier(EntierVersBuffer(1, 1), 1, 4)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "lire 4 octets dans un buffer de 1 octet lève une exception")
+FIN
+
+
+// Cas J : position 0 → exception (les positions sont en base 1).
+PROCEDURE PUBLIQUE scenario_bve_position_zero()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersEntier(EntierVersBuffer(1, 4), 0, 1)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "position 0 hors base 1 lève une exception")
+FIN
+
+
+// Cas K : position négative → exception.
+PROCEDURE PUBLIQUE scenario_bve_position_negative()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersEntier(EntierVersBuffer(1, 4),-1, 1)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "position négative lève une exception")
+FIN
+
+
+// Edge case : signé 1 octet — 0xFF = -1 interprété en complément à deux.
+PROCEDURE PRIVÉE scenario_edge_bve_signe_1_octet()
+	buf est un buffer = EntierVersBuffer(-1, 1)
+	n est un entier = BufferVersEntier(buf, 1, 1)
+	dbgVérifieEgalité(n,-1, "0xFF lu en signé 1 octet = -1")
+FIN
+
+
+// Edge case : non-signé 1 octet — 0xFF = 255.
+PROCEDURE PRIVÉE scenario_edge_bve_non_signe_1_octet()
+	buf est un buffer = EntierVersBuffer(-1, 1)
+	n est un entier = BufferVersEntier(buf, 1, 1, boutismePetit, Faux)
+	dbgVérifieEgalité(n, 255, "0xFF lu en non-signé 1 octet = 255")
+FIN
+
+
+// Edge case : lecture du dernier octet d'un buffer 4 octets (position 4, nbOctets 1).
+// EntierVersBuffer(1000, 4) LE → [0xE8, 0x03, 0x00, 0x00] ; octet 4 = 0x00.
+PROCEDURE PRIVÉE scenario_edge_bve_dernier_octet()
+	buf est un buffer = EntierVersBuffer(1000, 4)
+	n est un entier = BufferVersEntier(buf, 4, 1, boutismePetit, Faux)
+	dbgVérifieEgalité(n, 0, "4e octet de EntierVersBuffer(1000,4) LE = 0 (poids fort)")
+FIN
+
+
+// Edge case : taille invalide (3) → exception.
+PROCEDURE PRIVÉE scenario_edge_bve_taille_invalide_3()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersEntier(EntierVersBuffer(0, 4), 1, 3)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "taille 3 non dans {1,2,4,8} lève une exception")
+FIN
+
+
+// Edge case : taille invalide (0) → exception.
+PROCEDURE PRIVÉE scenario_edge_bve_taille_zero()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersEntier(EntierVersBuffer(0, 4), 1, 0)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "taille 0 lève une exception")
+FIN
+
+
+// Edge case : boutismePetit explicite — résultat identique au défaut.
+PROCEDURE PRIVÉE scenario_edge_bve_petit_boutiste_explicite()
+	buf est un buffer = EntierVersBuffer(1000, 4)
+	n est un entier = BufferVersEntier(buf, 1, 4, boutismePetit)
+	dbgVérifieEgalité(n, 1000, "boutismePetit explicite : round-trip 1000 inchangé")
+FIN
+
+
+// Edge case : mismatch boutisme — encoder en LE puis décoder en BE donne une valeur différente.
+// EntierVersBuffer(1, 4) LE → [0x01, 0x00, 0x00, 0x00] ; lu en BE = 0x01000000 = 16777216.
+PROCEDURE PRIVÉE scenario_edge_bve_mismatch_boutisme()
+	buf est un buffer = EntierVersBuffer(1, 4)
+	n est un entier = BufferVersEntier(buf, 1, 4, boutismeGros, Faux)
+	dbgVérifieEgalité(n, 16777216, "buffer LE de 1 lu en BE non-signé = 16777216 (0x01000000)")
+FIN

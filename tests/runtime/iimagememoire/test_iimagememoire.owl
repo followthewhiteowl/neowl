@@ -1,0 +1,36 @@
+// iDestination(iImageMemoire, tabPages) : rasterise l'Etat directement en
+// memoire, une Image par page. Symetrique de iDestination(iPDFGenerique,
+// "chemin.pdf") mais sans passer par le filesystem. Cf .
+//
+// La ressource Etat ETAT_DeuxPages vit dans le voisin etat_iimagememoire.owl.
+
+TestModeHeadless(Vrai)
+
+tabPages est un tableau de Image
+
+iDestination(iImageMémoire, tabPages)
+iImprimeEtat(ETAT_DeuxPages)
+iFinImprime()
+
+Trace("Taille(tabPages) = " + Taille(tabPages))
+
+// 1. L'Etat a produit exactement 2 pages.
+dbgVérifieEgalité(Taille(tabPages), 2, "tabPages contient 2 pages")
+
+// 2. Page 1 : Image valide avec dimensions A4 300dpi (210mm x 297mm).
+//    210 / 25.4 * 300 = 2480.31  ; 297 / 25.4 * 300 = 3507.87
+//    Qt arrondit ces valeurs au pixel pres : on tolere une marge +/-2px.
+dbgVérifieVrai(tabPages[1]..Valide, "tabPages[1] est une Image valide")
+dbgVérifieVrai(tabPages[1]..Largeur >= 2478 ET tabPages[1]..Largeur <= 2482,
+"tabPages[1] largeur ~= 2480 px (A4 portrait 300dpi)")
+dbgVérifieVrai(tabPages[1]..Hauteur >= 3505 ET tabPages[1]..Hauteur <= 3510,
+"tabPages[1] hauteur ~= 3508 px (A4 portrait 300dpi)")
+
+// 3. Page 2 : meme topologie que page 1 (meme format).
+dbgVérifieVrai(tabPages[2]..Valide, "tabPages[2] est une Image valide")
+dbgVérifieEgalité(tabPages[2]..Largeur, tabPages[1]..Largeur,
+"tabPages[2] meme largeur que page 1")
+dbgVérifieEgalité(tabPages[2]..Hauteur, tabPages[1]..Hauteur,
+"tabPages[2] meme hauteur que page 1")
+
+dbgBilanTest()

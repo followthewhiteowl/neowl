@@ -1,0 +1,112 @@
+% README.bsd 2025-12-17
+% Tested on FreeBSD 15.0-RELEASE (with X11 + GNOME installed), OpenBSD 7.8 (with X11) and NetBSD 10.1 (with X11)
+
+1. Prerequisites for building zint
+==================================
+
+Prerequisites are git, cmake, make, gmake, gcc (or clang) and, for PNG support, libpng, e.g. FreeBSD
+
+    su
+    pkg install git cmake gmake gcc graphics/png
+    exit
+
+or OpenBSD (make and clang should already be installed):
+
+    su
+    pkg_add git cmake gmake png
+    exit
+
+or NetBSD (make and gcc should already be installed):
+
+    su
+    pkgin install git cmake gmake png
+    exit
+
+To install the gs1encoders library, optional but needed for GS1 Syntax Engine support, clone, gmake and install:
+
+    git clone https://github.com/gs1/gs1-syntax-engine
+    cd gs1-syntax-engine/src/c-lib
+    gmake lib
+    su
+    gmake install
+    exit
+    cd ../../..
+
+(on FreeBSD and NetBSD, the ldconfig not found error can be ignored)
+
+Then clone the latest zint source
+
+    git clone https://git.code.sf.net/p/zint/code zint
+    cd zint
+
+
+2. Prerequisites for building zint-qt
+=====================================
+
+On FreeBSD:
+
+    su
+    pkg install qt5-core qt5-uitools qt5-buildtools qt5-qmake qt5-svg
+    exit
+
+On OpenBSD:
+
+    su
+    pkg_add qtbase qttools qtsvg
+    exit
+
+On NetBSD:
+
+    su
+    pkgin install qt5-qtbase qt5-qttools qt5-qtsvg
+    exit
+
+
+3. Build
+========
+
+The rest is standard CMake (allowing for absence of sudo)
+
+    cd zint
+    mkdir build
+    cd build
+    cmake ..
+    make
+    su
+    make install
+    exit
+
+except that on OpenBSD you need to use
+
+    cmake -DCMAKE_PREFIX_PATH=/usr/local/lib/qt5/cmake ..
+
+and on NetBSD
+
+    cmake -DCMAKE_PREFIX_PATH=/usr/pkg/qt5 -DCMAKE_C_FLAGS='-I /usr/local/include' ..
+
+instead.
+
+
+4. Run
+======
+
+On FreeBSD and OpenBSD, the CLI zint and GUI zint-qt should run without issue from the command line.
+
+On NetBSD you may have to set LD_LIBRARY_PATH if using the default ksh. For zint ("libzint.so" and "libpng16.so") and
+zint-qt (Qt5 libraries and "libGL.so"):
+
+    setenv LD_LIBRARY_PATH /usr/local/lib:/usr/pkg/lib:/usr/pkg/qt5/lib:/usr/X11R7/lib
+
+Place in "~/.cshrc" to make permanent.
+
+
+5. CMake options
+================
+
+See "README.linux".
+
+Note if running the test suite on FreeBSD, for Qt5 test need:
+
+   su
+   pkg install qt5-testlib
+   exit

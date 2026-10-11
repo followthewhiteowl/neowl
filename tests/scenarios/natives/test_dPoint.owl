@@ -1,0 +1,180 @@
+// @sujet : dPoint
+// @resume : Dessiner un point (pixel) coloré à position donnée dans une image
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Dessiner un point simple en passant couleur explicite en argument
+PROCEDURE PUBLIQUE scenario_point_simple_couleur_explicite()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCouleur est un entier
+
+	// Dessiner un point rouge à position (10, 10) dans image blanche
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 10, 10, couleurRouge)
+
+	pixelCouleur = dPixelCouleur(img, 10, 10)
+
+	// Le point (10, 10) doit être rouge
+	dbgVérifieEgalité(pixelCouleur, couleurRouge, "point (10,10) rouge posé")
+FIN
+
+// Dessiner un point avec opacité partielle pour obtenir transparence
+PROCEDURE PUBLIQUE scenario_point_avec_opacite()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCouleur est un entier
+
+	// Dessiner un point semi-transparent (opacité 128) → mélange avec fond
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 20, 20, couleurBleu, 128)
+
+	pixelCouleur = dPixelCouleur(img, 20, 20)
+
+	// Le pixel n'est ni blanc pur ni bleu pur (opacité 50% mélange avec blanc)
+	dbgVérifieVrai(pixelCouleur <> couleurBlanc, "point semi-transparent : modifie fond")
+	dbgVérifieVrai(pixelCouleur <> couleurBleu, "point semi-transparent : pas bleu pur")
+FIN
+
+// Dessiner un point sans couleur explicite en utilisant stylo défini par dStylo
+PROCEDURE PUBLIQUE scenario_point_avec_dStylo()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCouleur est un entier
+
+	// Dessiner un point sans couleur explicite → utilise stylo courant
+	img = dCréeImage(50, 50, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurVert, 0, 1)
+	dPoint(img, 15, 15)
+	dFinDessin()
+
+	pixelCouleur = dPixelCouleur(img, 15, 15)
+
+	// Le point doit prendre la couleur du stylo (vert)
+	dbgVérifieEgalité(pixelCouleur, couleurVert, "point sans couleur explicite : utilise dStylo")
+FIN
+
+// Dessiner plusieurs points de couleurs différentes sur une même image
+PROCEDURE PUBLIQUE scenario_plusieurs_points()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixel1 est un entier
+	pixel2 est un entier
+	pixel3 est un entier
+
+	// Dessiner plusieurs points de couleurs différentes sur la même image
+	img = dCréeImage(80, 80, couleurBlanc)
+	dPoint(img, 10, 10, couleurJaune)
+	dPoint(img, 30, 30, couleurCyan)
+	dPoint(img, 50, 50, couleurMagenta)
+
+	pixel1 = dPixelCouleur(img, 10, 10)
+	pixel2 = dPixelCouleur(img, 30, 30)
+	pixel3 = dPixelCouleur(img, 50, 50)
+
+	// Chaque point doit avoir sa couleur propre
+	dbgVérifieEgalité(pixel1, couleurJaune, "point 1 jaune")
+	dbgVérifieEgalité(pixel2, couleurCyan, "point 2 cyan")
+	dbgVérifieEgalité(pixel3, couleurMagenta, "point 3 magenta")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Vérifier tracé point à l'origine (0, 0) coin haut-gauche
+PROCEDURE PRIVÉE scenario_point_coordonnees_zero()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelCouleur est un entier
+
+	// Point à l'origine (0, 0) : coin haut-gauche de l'image
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 0, 0, couleurOrange)
+
+	pixelCouleur = dPixelCouleur(img, 0, 0)
+
+	// Le pixel (0,0) doit être orange
+	dbgVérifieEgalité(pixelCouleur, couleurOrange, "point (0,0) : origine tracée")
+FIN
+
+// Vérifier tracé point à coordonnée maximale valide (bord inférieur-droit)
+PROCEDURE PRIVÉE scenario_point_coordonnees_limite_bord()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurViolet est un entier = RVB(128, 0, 128)
+	pixelCouleur est un entier
+
+	// Point à la limite exacte (dernière coordonnée valide 49,49 pour image 50x50)
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 49, 49, couleurViolet)
+
+	pixelCouleur = dPixelCouleur(img, 49, 49)
+
+	// Le pixel limite doit être violet
+	dbgVérifieEgalité(pixelCouleur, couleurViolet, "point (49,49) : limite bord tracé")
+FIN
+
+// Vérifier que point hors dimensions image est ignoré sans erreur
+PROCEDURE PRIVÉE scenario_point_hors_image()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	pixelCouleur est un entier
+
+	// Point hors limites (x ou y hors [0..49]) → doit être ignoré silencieusement
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 100, 100, couleurNoir)
+
+	pixelCouleur = dPixelCouleur(img, 10, 10)
+
+	// Image reste intacte (pixel témoin blanc), point hors-image ignoré
+	dbgVérifieEgalité(pixelCouleur, couleurBlanc, "point hors image : image reste intacte")
+FIN
+
+// Vérifier comportement opacités extrêmes (0 transparent, 255 opaque)
+PROCEDURE PRIVÉE scenario_point_opacite_extremes()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCouleur est un entier
+
+	// Opacité 0 → point totalement transparent (image reste blanche)
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 10, 10, couleurRouge, 0)
+	pixelCouleur = dPixelCouleur(img, 10, 10)
+	dbgVérifieEgalité(pixelCouleur, couleurBlanc, "opacité 0 : pixel reste blanc (transparent)")
+
+	// Opacité 255 → point totalement opaque (couleur exacte)
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img, 10, 10, couleurRouge, 255)
+	pixelCouleur = dPixelCouleur(img, 10, 10)
+	dbgVérifieEgalité(pixelCouleur, couleurRouge, "opacité 255 : pixel rouge opaque")
+FIN
+
+// Vérifier que coordonnées négatives sont ignorées sans crash
+PROCEDURE PRIVÉE scenario_point_coordonnees_negatives()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCouleur est un entier
+
+	// Coordonnées négatives → doit être ignoré silencieusement
+	img = dCréeImage(50, 50, couleurBlanc)
+	dPoint(img,-5,-10, couleurBleu)
+
+	pixelCouleur = dPixelCouleur(img, 25, 25)
+
+	// Image reste intacte (pixel témoin blanc), coordonnées négatives ignorées
+	dbgVérifieEgalité(pixelCouleur, couleurBlanc, "coordonnées négatives : image reste intacte")
+FIN

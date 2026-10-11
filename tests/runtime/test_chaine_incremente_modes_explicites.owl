@@ -1,0 +1,43 @@
+// Runtime : ChaîneIncremente avec mode explicite DepuisDébut / DepuisFin.
+//
+// Post-unification enum optionsRechercheChaîne (DepuisDébut=0,
+// DepuisFin=4), le mode est driven par le bit DepuisFin et non plus par
+// le test "pos_mode == 0" qui conflatait heritage et DepuisDébut explicite.
+//
+// Cas critique post-fix : ChaîneIncremente(s, DepuisDébut) doit incrementer
+// la partie début de la chaîne (ou prepend "1"), sans tomber par erreur
+// dans le mode fin via le path heritage.
+
+// === Mode auto-detect (sans arg) ===
+dbgVérifieEgalité(ChaîneIncrémente("ABC001"), "ABC002",
+"Auto : ends_digit -> mode fin")
+dbgVérifieEgalité(ChaîneIncrémente("007ABC"), "008ABC",
+"Auto : starts_digit -> mode début")
+dbgVérifieEgalité(ChaîneIncrémente("ABC"), "ABC1",
+"Auto : pas de chiffre -> append 1 à la fin")
+
+// === Mode explicite DepuisFin (= bit 4) ===
+dbgVérifieEgalité(ChaîneIncrémente("ABC001", DepuisFin), "ABC002",
+"DepuisFin explicite : incrémente la fin")
+dbgVérifieEgalité(ChaîneIncrémente("ABC999", DepuisFin), "ABC1000",
+"DepuisFin explicite : carry width preservation")
+dbgVérifieEgalité(ChaîneIncrémente("ABC", DepuisFin), "ABC1",
+"DepuisFin explicite : pas de chiffre, append 1")
+
+// === Mode explicite DepuisDébut (= 0 post unification) ===
+// CRITIQUE : c'est le cas qui aurait casse avec l'ancienne logique
+// "pos_mode == 0 -> mode fin".
+dbgVérifieEgalité(ChaîneIncrémente("007ABC", DepuisDébut), "008ABC",
+"DepuisDébut explicite : incrémente le début")
+dbgVérifieEgalité(ChaîneIncrémente("999ABC", DepuisDébut), "1000ABC",
+"DepuisDébut explicite : carry width preservation")
+dbgVérifieEgalité(ChaîneIncrémente("ABC", DepuisDébut), "1ABC",
+"DepuisDébut explicite : pas de chiffre, prepend 1")
+
+// === Sanity : aliases champFin / champDebut produisent le même comportement ===
+dbgVérifieEgalité(ChaîneIncrémente("ABC001", champFin), "ABC002",
+"champFin alias -> mode fin")
+dbgVérifieEgalité(ChaîneIncrémente("007ABC", champDebut), "008ABC",
+"champDebut alias -> mode début")
+
+dbgBilanTest()

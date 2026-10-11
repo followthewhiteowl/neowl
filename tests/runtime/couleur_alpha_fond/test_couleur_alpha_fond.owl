@@ -1,0 +1,85 @@
+//  (L1+L2) — consommation de l'alpha porté par une instance Couleur
+// dans CouleurFond. La DÉCLARATION marche déjà (Phase 1) ; le trou est le
+// point d'INGESTION côté rendu : passer une instance Couleur (Opacité<255)
+// est aujourd'hui un no-op — le rendu reste opaque (`rgb(...)`) au lieu
+// d'émettre `rgba(r,g,b,a/255.0)`.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf ui-snapshot-testing + qt-owl-rendering-gotchas :
+// MESURER au pixel, pas de dbgVérifie sur un getter store.
+//
+// Fond de fenêtre ROUGE PUR opaque : RVB(255, 0, 0).
+// Couleur testée : BLANC translucide, Opacité = 128 -> { Rouge=255, Vert=255,
+// Bleu=255, Opacité=128 }.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// Choix de fg=BLANC (255,255,255) sur bg=ROUGE (255,0,0) rend le calcul
+// EXACT quel que soit l'arrondi retenu par l'implémentation (floor / round /
+// ceil) car le numérateur est un multiple exact de 255 sur chaque canal :
+//   R : fg=255, bg=255 -> résultat = 255 (canal saturé, insensible à a)
+//   V : fg=255, bg=0   -> résultat = (255*a + 0*(255-a)) / 255 = a = 128
+//   B : fg=255, bg=0   -> résultat = 128 (même calcul que V)
+// Mélange attendu : RVB(255, 128, 128). AUCUNE tolérance nécessaire (le
+// calcul tombe pile, pas d'arrondi en jeu).
+// Non-régression (opaque, Opacité=255) : mélange = (255,255,255) que la
+// couleur soit posée en entier nu OU en instance Couleur (a=255 -> résultat
+// = fg dans les deux cas).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaFond)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaFond)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Glassmorphisme via cascade de Style (theme.conteneurGlass) -------
+// CNT_Glass (X=20,Y=20,L=150,H=100) : centre = (95,70). Style thémé posé
+// avec une instance Couleur (Opacité=128) en CadreExtérieur..CouleurFond.
+// ROUGE attendu : le rendu aujourd'hui ignore l'alpha de l'instance (fond
+// blanc opaque OU no-op transparent laissant voir le rouge de la fenêtre) ;
+// dans les deux cas, PAS le mélange exact (255,128,128).
+dbgVérifieEgalité(dPixelCouleur(img, 95, 70), RVB(255, 128, 128),
+"CNT_Glass (Style via theme.conteneurGlass, Opacité=128) : centre mélangé 50/50 avec le fond rouge")
+
+// --- 2. SET direct sur contrôle (CouleurFond flat, Champ Saisie) ---------
+// SAI_Direct (X=200,Y=20,L=150,H=40) : centre = (275,40).
+blancTranslucide est une Couleur = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 128}
+SAI_Direct..CouleurFond = blancTranslucide
+img                     = dCopieImageFenêtre(FEN_CouleurAlphaFond)
+// ROUGE attendu : même trou d'ingestion que le cas 1, sur le chemin flat.
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 128, 128),
+"SAI_Direct..CouleurFond = <Couleur Opacité=128> (SET direct) : centre mélangé 50/50 avec le fond rouge")
+
+// --- 3. Non-régression opaque (CRUCIAL) : ces 2 assertions doivent être
+// VERTES avant ET après l'implémentation. L'entier nu ne doit JAMAIS
+// changer de rendu, et une instance Couleur pleinement opaque (Opacité=255)
+// doit produire le même résultat qu'un entier nu.
+SAI_Direct..CouleurFond = RVB(255, 255, 255)
+img                     = dCopieImageFenêtre(FEN_CouleurAlphaFond)
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 255, 255),
+"SAI_Direct..CouleurFond = RVB(255,255,255) (entier nu opaque) : blanc pur, non-régression")
+
+blancOpaque est une Couleur = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 255}
+SAI_Direct..CouleurFond = blancOpaque
+img                     = dCopieImageFenêtre(FEN_CouleurAlphaFond)
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 255, 255),
+"SAI_Direct..CouleurFond = <Couleur Opacité=255> (instance opaque) : blanc pur, identique à l'entier nu")
+
+// --- 4. Fenêtre : fond de fenêtre en Couleur translucide -----------------
+// HORS mesure pixel : une fenêtre top-level n'a rien de déterministe
+// "derrière" son propre fond (pas de widget parent à mélanger) — le
+// contenu du framebuffer offscreen avant le premier paint n'est pas un
+// contrat testable. On verrouille uniquement le round-trip déclaratif/
+// runtime (pas de crash, valeur relue), documenté comme substitut du
+// mélange visuel pour ce cas précis (cf. ticket : "si le montage le permet ;
+// sinon documente"). Le rendu réel fenêtre est couvert transitivement par
+// les cas 1/2 (Style de Conteneur et CouleurFond flat), qui EUX ont un fond
+// mesurable.
+vertTranslucide est une Couleur = {Rouge = 0, Vert = 255, Bleu = 0, Opacité = 128}
+FEN_CouleurAlphaFond..CouleurFond = vertTranslucide
+dbgVérifieEgalité(ErreurDétectée, Faux,
+"FEN..CouleurFond = <Couleur Opacité=128> : l'assignation d'une instance translucide ne lève pas d'erreur (pas de mesure pixel possible, cf. commentaire)")
+
+Ferme(FEN_CouleurAlphaFond)
+dbgBilanTest()

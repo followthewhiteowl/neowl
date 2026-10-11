@@ -1,0 +1,41 @@
+// Regression : POUR i = 1 A <borne_complexe> DepuisFin doit rollback
+// l'optimisation A re-eval — la borne est evaluee une seule fois (au
+// debut) et la boucle decremente jusqu'a 1. Justification : en mode
+// DepuisFin la borne sert a connaitre le point de depart inverse, pas
+// a fournir un test d'arret a chaque tour.
+//
+// Suivi N4 du QA ticket 0010 (BOUCLE N + POUR DepuisFin). La semantique
+// pragmatique fonctionne mais n'etait pas verrouillee par test.
+
+nApp_asc est un entier = 0
+PROCEDURE Borne_asc() : entier
+	nApp_asc = nApp_asc + 1
+	RENVOYER 5
+FIN
+
+trace_asc est une chaîne = ""
+POUR i = 1 À Borne_asc()
+	trace_asc = trace_asc + i + "|"
+FIN
+
+dbgVérifieEgalité(trace_asc, "1|2|3|4|5|",
+"A re-eval ascendant : 1, 2, 3, 4, 5")
+dbgVérifieEgalité(nApp_asc, 6,
+"A re-eval ascendant : borne appelee 6 fois (1 init + 5 tests)")
+
+
+nApp_desc est un entier = 0
+PROCEDURE Borne_desc() : entier
+	nApp_desc = nApp_desc + 1
+	RENVOYER 5
+FIN
+
+trace_desc est une chaîne = ""
+POUR i = 1 À Borne_desc() DepuisFin
+	trace_desc = trace_desc + i + "|"
+FIN
+
+dbgVérifieEgalité(trace_desc, "5|4|3|2|1|",
+"A + DepuisFin : sequence inverse 5..1")
+dbgVérifieEgalité(nApp_desc, 1,
+"A + DepuisFin : borne evaluee une seule fois (rollback du truncate re-eval)")

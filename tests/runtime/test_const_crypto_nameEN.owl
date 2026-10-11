@@ -1,0 +1,57 @@
+// =============================================================================
+// TEST : Resolution runtime des CONSTANTES de la famille Cryptographie
+// (, lot A4 - module stdlib_crypto).
+//
+// Les algos de hash HA_* sont des identifiants techniques universels
+// (MD5, SHA256, BLAKE2B, RIPEMD, SHA3...) : la forme EN canon est identique
+// a la forme FR (EN==FR). On pose tout de meme nameEN (= le nom lui-meme)
+// pour materialiser l'invariant bilingue n°3 dans le registre. Le re-set
+// runtime sur la meme cle/valeur est inoffensif.
+//
+// Chaque assertion pin une VALEUR EXACTE (sentinelle entiere connue) et
+// verifie qu'aucune collision n'ecrase une autre constante.
+// =============================================================================
+
+PROCEDURE scenario_const_crypto_valeurs_exactes()
+	// --- Valeurs exactes des sentinelles HA_* (zone INT32_MIN + OWL_HA_BASE) ---
+	dbgVérifieEgalité(HA_SHA_256,-2147478267,
+	"HA_SHA_256 resout vers sa sentinelle exacte")
+
+	dbgVérifieEgalité(HA_MD5_128,-2147478271,
+	"HA_MD5_128 resout vers sa sentinelle exacte")
+
+	dbgVérifieEgalité(HA_BLAKE2B_512,-2147478174,
+	"HA_BLAKE2B_512 resout vers sa sentinelle exacte")
+
+	dbgVérifieEgalité(HA_HMAC_SHA_256,-2147478203,
+	"HA_HMAC_SHA_256 resout vers sa sentinelle exacte")
+
+	dbgVérifieEgalité(HA_SHA3_256,-2147478262,
+	"HA_SHA3_256 resout vers sa sentinelle exacte")
+
+	dbgVérifieEgalité(HA_RIPEMD_160,-2147478269,
+	"HA_RIPEMD_160 resout vers sa sentinelle exacte")
+FIN
+
+PROCEDURE scenario_const_crypto_pas_de_collision()
+	// Garde-fou : la pose de nameEN (EN==FR) ne fait ecraser aucune valeur.
+	// Deux algos distincts gardent des sentinelles distinctes.
+	dbgVérifieVrai(HA_SHA_256 <> HA_SHA_512,
+	"HA_SHA_256 et HA_SHA_512 ne collisionnent pas")
+
+	dbgVérifieVrai(HA_SHA_256 <> HA_HMAC_SHA_256,
+	"forme directe et forme HMAC ne collisionnent pas")
+
+	dbgVérifieVrai(HA_BLAKE2B_256 <> HA_BLAKE2B_512,
+	"BLAKE2b 256 et 512 ne collisionnent pas")
+
+	// La forme reste utilisable en argument reel : HashChaine doit produire
+	// un hash SHA-256 hex de 64 caracteres (preuve que la valeur est honoree).
+	sHash est une chaîne = HashChaîne(HA_SHA_256, "owl")
+	dbgVérifieEgalité(Taille(sHash), 64,
+	"HA_SHA_256 produit un hash hex de 64 caracteres")
+FIN
+
+scenario_const_crypto_valeurs_exactes()
+scenario_const_crypto_pas_de_collision()
+dbgBilanTest()

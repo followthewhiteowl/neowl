@@ -1,0 +1,30 @@
+//  : rattrapage réentrant INCOMPLET. Aujourd'hui, une erreur runtime
+// levée dans une procédure rappelée en réentrant (ici le comparateur d'un
+// TableauTrie ttFonction) sous un QUAND EXCEPTION ANCÊTRE exécute bien le
+// bloc FAIRE (l'assertion ci-dessous PASS), MAIS le diagnostic « Erreur
+// d'exécution : … » fuit sur stderr et l'appel de la procédure de scénario
+// elle-même remonte en échec — la suite `owl test` classe donc ce fichier
+// en SCENARIOS FAILED malgré l'assertion interne verte. C'est exactement le
+// double-comportement mesuré : rattrapage incomplet, pas absent.
+//
+// ROUGE aujourd'hui : `owl test` sur ce fichier affiche « ✗ scenario … (1
+// pass, 0 fail) » ET catégorise le fichier FAIL, avec le diagnostic
+// « Erreur d'exécution : Division par zéro. » imprimé sur stderr.
+// VERT attendu après fix : suite OK, aucun diagnostic, aucune fuite.
+PROCEDURE cmpDiviseZero(gauche est un entier, droite est un entier)
+	diviseur est un entier = droite - droite
+	r est un entier = gauche / diviseur
+	RENVOYER r
+FIN
+
+PROCEDURE PUBLIQUE test_erreur_reentrante_rattrapee_completement()
+	données est un tableau de 3 entiers = [3, 1, 2]
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		TableauTrie(données, ttFonction, cmpDiviseZero)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "erreur levée dans un comparateur réentrant reste rattrapable par l'ancêtre")
+FIN

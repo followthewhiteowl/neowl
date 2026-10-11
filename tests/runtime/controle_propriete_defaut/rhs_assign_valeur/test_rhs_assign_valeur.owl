@@ -1,0 +1,31 @@
+//  — Nom nu en lecture résout la propriété par défaut.
+// ROUGE ATTENDU (feature non impl) : SAI_Val en RHS affectation typée
+// doit résoudre ..Valeur implicitement, comme `n est un entier = SAI_Val..Valeur`.
+//
+// Contextes couverts :
+//   1. `n est un entier = SAI_Val`    → 42 via coerce chaîne→entier
+//   2. `s est une chaîne = SAI_Val`   → "42" (valeur brute)
+//   3. `s est une chaîne = SAI_Nom`   → "Alice" (second champ)
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Saisie)
+
+// Initialiser les widgets via écriture explicite (déjà fonctionnel).
+SAI_Val..Valeur = "42"
+SAI_Nom..Valeur = "Alice"
+
+// 1. Lecture nom nu → entier (résolution defaultProperty + coerce chaîne→entier)
+nLu_rhs est un entier = SAI_Val
+dbgVérifieEgalité(nLu_rhs, 42, "SAI nom nu en RHS typee entier doit resoudre ..Valeur et coercer vers 42")
+
+// 2. Lecture nom nu → chaîne (résolution defaultProperty, valeur brute)
+sLu_rhs est une chaîne = SAI_Val
+dbgVérifieEgalité(sLu_rhs, "42", "SAI nom nu en RHS typee chaine doit resoudre ..Valeur vers chaine 42")
+
+// 3. Second widget Saisie, valeur chaîne
+sLu_nom est une chaîne = SAI_Nom
+dbgVérifieEgalité(sLu_nom, "Alice", "SAI_Nom nom nu en RHS typee chaine doit resoudre ..Valeur vers Alice")
+
+Ferme(FEN_Saisie)
+
+dbgBilanTest()

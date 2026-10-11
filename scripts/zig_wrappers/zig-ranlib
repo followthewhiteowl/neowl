@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -n "$OWL_ZIG" ]; then
+    ZIG="$OWL_ZIG"
+else
+    case "$(uname -s)" in
+        Linux*)   HOST="x86_64-linux" ;;
+        MSYS*|MINGW*|CYGWIN*) HOST="x86_64-windows" ;;
+        Darwin*)
+            if [ "$(uname -m)" = "arm64" ]; then HOST="aarch64-macos"
+            else HOST="x86_64-macos"; fi ;;
+    esac
+    ZIG="$REPO_ROOT/vendor/zig/$HOST/zig"
+    [ -f "$ZIG.exe" ] && ZIG="$ZIG.exe"
+fi
+exec "$ZIG" ranlib "$@"

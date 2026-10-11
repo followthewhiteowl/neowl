@@ -1,0 +1,31 @@
+// Compile-error : cascade "membre inconnu" fantome apres parse-error dans un corps de methode.
+//
+// Un bloc de compilation conditionnelle `< IF ... > ... < END >` (non supporte)
+// fait deriver le parser HORS du corps de methode. La methode ErrorInfoGet definie
+// juste apres ne s'enregistre alors pas, et le cross-check differe des acces `:membre`
+// declarait a tort `:ErrorInfoGet` "membre inconnu sur la classe" — un artefact de
+// cascade, pas la vraie erreur.
+//
+// Attendu : seule(s) la/les vraie(s) erreur(s) de syntaxe du bloc `< IF >` sont
+// signalees. AUCUN "membre inconnu" fantome sur ErrorInfoGet (methode bel et bien
+// definie plus bas).
+
+clEX_Error est une Classe
+PUBLIC
+	m_usErrorInfo est une chaine
+
+	PROCEDURE LastErrorDisplay()
+		s est une chaine = :ErrorInfoGet()
+		Trace(s)
+	FIN
+
+	PROCEDURE HErrorSet()
+		< IF ExecutionTarget = ApplicationWindows >
+		:m_usErrorInfo = "boom"
+		< END >
+	FIN
+
+	PROCEDURE ErrorInfoGet()
+		RENVOYER :m_usErrorInfo
+	FIN
+FIN

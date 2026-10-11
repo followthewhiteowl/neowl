@@ -1,0 +1,181 @@
+// @sujet : xlsDocument, xlsCellule, xlsLigne, xlsColonne, xlsFormatMonétaire
+// @résumé : Style des cellules, lignes et colonnes d'un classeur Excel via l'accès indexé `doc..Cellule[l,c]`, `doc..Ligne[l]`, `doc..Colonne[c]` : couleur, police, cadre, alignement, masque de format.
+
+
+// Couleur de fond et police d'une cellule se règlent puis se relisent directement sur l'objet en mémoire.
+PROCEDURE PUBLIQUE scenario_couleur_fond_et_police_cellule()
+	doc est un xlsDocument
+	doc..Cellule[1, 1]..CouleurFond = RougeClair
+	dbgVérifieEgalité(doc..Cellule[1, 1]..CouleurFond, RougeClair, "la couleur de fond relue correspond à celle posée")
+
+	doc..Cellule[1, 1]..Police..Nom    = "Arial"
+	doc..Cellule[1, 1]..Police..Gras   = Vrai
+	doc..Cellule[1, 1]..Police..Taille = 12
+	dbgVérifieEgalité(doc..Cellule[1, 1]..Police..Nom, "Arial", "le nom de police relu correspond à celui posé")
+	dbgVérifieVrai(doc..Cellule[1, 1]..Police..Gras, "le gras posé sur la police est bien relu")
+	dbgVérifieEgalité(doc..Cellule[1, 1]..Police..Taille, 12, "la taille de police relue correspond à celle posée")
+	xlsFerme(doc)
+FIN
+
+
+// Le cadre d'une cellule (couleur, trait, bords) et ses alignements horizontal/vertical se règlent et se relisent de la même façon.
+PROCEDURE PUBLIQUE scenario_cadre_alignement_multiligne_cellule()
+	doc est un xlsDocument
+	doc..Cellule[2, 2]..Cadre..Couleur = Bleu
+	doc..Cellule[2, 2]..Cadre..Trait   = TraitContinu
+	doc..Cellule[2, 2]..Cadre..Bords   = BordHaut + BordBas + BordGauche + BordDroite
+	dbgVérifieEgalité(doc..Cellule[2, 2]..Cadre..Couleur, Bleu, "la couleur de cadre relue correspond à celle posée")
+	dbgVérifieEgalité(doc..Cellule[2, 2]..Cadre..Trait, TraitContinu, "le style de trait relu correspond à celui posé")
+	dbgVérifieEgalité(doc..Cellule[2, 2]..Cadre..Bords, BordHaut + BordBas + BordGauche + BordDroite, "la combinaison de bords relue correspond à celle posée")
+
+	doc..Cellule[2, 2]..AlignementH = chCentre
+	doc..Cellule[2, 2]..AlignementV = cvMilieu
+	dbgVérifieEgalité(doc..Cellule[2, 2]..AlignementH, chCentre, "l'alignement horizontal relu correspond à celui posé")
+	dbgVérifieEgalité(doc..Cellule[2, 2]..AlignementV, cvMilieu, "l'alignement vertical relu correspond à celui posé")
+
+	doc..Cellule[2, 2]..Multiligne = Vrai
+	dbgVérifieVrai(doc..Cellule[2, 2]..Multiligne, "le retour à la ligne automatique posé est bien relu")
+	xlsFerme(doc)
+FIN
+
+
+// Le masque de format accepte soit une constante xlsFormat*, soit une chaîne de format Excel brute : les deux se relisent à l'identique.
+PROCEDURE PUBLIQUE scenario_masque_constante_et_chaine_brute()
+	doc est un xlsDocument
+	doc..Cellule[1, 1]..Masque = xlsFormatMonétaire
+	dbgVérifieEgalité(doc..Cellule[1, 1]..Masque, xlsFormatMonétaire, "le masque posé via la constante xlsFormatMonétaire est relu à l'identique")
+
+	doc..Cellule[1, 1]..Masque = "0.00 €"
+	dbgVérifieEgalité(doc..Cellule[1, 1]..Masque, "0.00 €", "le masque posé via une chaîne de format brute est relu à l'identique")
+	xlsFerme(doc)
+FIN
+
+
+// La largeur d'une colonne et la hauteur d'une ligne se règlent et se relisent indépendamment du contenu des cellules.
+PROCEDURE PUBLIQUE scenario_largeur_colonne_hauteur_ligne()
+	doc est un xlsDocument
+	doc..Colonne[2]..Largeur = 200
+	dbgVérifieEgalité(doc..Colonne[2]..Largeur, 200, "la largeur de colonne relue correspond à celle posée")
+
+	doc..Ligne[3]..Hauteur = 40
+	dbgVérifieEgalité(doc..Ligne[3]..Hauteur, 40, "la hauteur de ligne relue correspond à celle posée")
+	xlsFerme(doc)
+FIN
+
+
+// Les formes anglaises des types et propriétés de style désignent exactement les mêmes emplacements que leurs formes françaises.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_equivalentes()
+	doc est un xlsDocument
+	doc..Cell[1, 1]..BackgroundColor = VertClair
+	dbgVérifieEgalité(doc..Cellule[1, 1]..CouleurFond, VertClair, "..Cell..BackgroundColor pose la même valeur que ..Cellule..CouleurFond")
+
+	doc..Cell[1, 1]..Font..Name = "Georgia"
+	dbgVérifieEgalité(doc..Cellule[1, 1]..Police..Nom, "Georgia", "..Cell..Font..Name pose la même valeur que ..Cellule..Police..Nom")
+
+	doc..Cell[1, 1]..Border..Color = Noir
+	dbgVérifieEgalité(doc..Cellule[1, 1]..Cadre..Couleur, Noir, "..Cell..Border..Color pose la même valeur que ..Cellule..Cadre..Couleur")
+
+	doc..Cell[1, 1]..AlignmentH = chDroite
+	dbgVérifieEgalité(doc..Cellule[1, 1]..AlignementH, chDroite, "..Cell..AlignmentH pose la même valeur que ..Cellule..AlignementH")
+
+	doc..Column[4]..Width = 150
+	dbgVérifieEgalité(doc..Colonne[4]..Largeur, 150, "..Column..Width pose la même valeur que ..Colonne..Largeur")
+
+	doc..Row[5]..Height = 55
+	dbgVérifieEgalité(doc..Ligne[5]..Hauteur, 55, "..Row..Height pose la même valeur que ..Ligne..Hauteur")
+	xlsFerme(doc)
+FIN
+
+
+// Cas pédagogique : un petit tableau avec en-têtes en gras sur fond coloré, des colonnes élargies et une cellule de montant au format monétaire.
+PROCEDURE PUBLIQUE scenario_tableau_stylise()
+	doc est un xlsDocument
+	doc[1, 1] = "Article"
+	doc[1, 2] = "Montant"
+	doc..Cellule[1, 1]..Police..Gras = Vrai
+	doc..Cellule[1, 1]..CouleurFond  = GrisClair
+	doc..Cellule[1, 2]..Police..Gras = Vrai
+	doc..Cellule[1, 2]..CouleurFond  = GrisClair
+	doc..Colonne[1]..Largeur         = 180
+	doc..Colonne[2]..Largeur         = 120
+
+	doc[2, 1] = "Clavier"
+	doc[2, 2] = 39.90
+	doc..Cellule[2, 2]..Masque = xlsFormatMonétaire
+
+	dbgVérifieVrai(doc..Cellule[1, 1]..Police..Gras, "l'en-tête Article est bien en gras")
+	dbgVérifieEgalité(doc..Cellule[1, 1]..CouleurFond, GrisClair, "l'en-tête Article porte bien le fond de couleur choisi")
+	dbgVérifieEgalité(doc..Colonne[2]..Largeur, 120, "la colonne Montant a bien la largeur choisie")
+	dbgVérifieEgalité(doc..Cellule[2, 2]..Masque, xlsFormatMonétaire, "la cellule de montant porte bien le masque monétaire")
+	dbgVérifieEgalité(doc[2, 1], "Clavier", "le contenu de la cellule article n'est pas affecté par son style")
+	xlsFerme(doc)
+FIN
+
+
+// Cas limite : affecter une valeur du mauvais type à une propriété de style lève une erreur explicite au lieu d'être avalée en silence.
+PROCEDURE PRIVÉE scenario_edge_type_invalide_rejete()
+	doc est un xlsDocument
+
+	// AlignementH attend un entier : une chaîne est rejetée.
+	bAlign est un booléen = Faux
+	sMsgAlign est une chaîne = ""
+	QUAND EXCEPTION DANS
+		doc..Cellule[1, 1]..AlignementH = "x"
+	FAIRE
+		bAlign = Vrai
+		sMsgAlign = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieVrai(bAlign, "AlignementH avec une chaîne lève une erreur")
+	dbgVérifieVrai(Position(sMsgAlign, "AlignementH") > 0, "le message d'erreur nomme la propriété AlignementH")
+
+	// CouleurFond attend un entier de couleur : une chaîne est rejetée.
+	bFond est un booléen = Faux
+	QUAND EXCEPTION DANS
+		doc..Cellule[1, 1]..CouleurFond = "bleu"
+	FAIRE
+		bFond = Vrai
+	FIN
+	dbgVérifieVrai(bFond, "CouleurFond avec une chaîne lève une erreur")
+
+	// Multiligne attend un booléen : un entier est rejeté.
+	bMulti est un booléen = Faux
+	QUAND EXCEPTION DANS
+		doc..Cellule[1, 1]..Multiligne = 3
+	FAIRE
+		bMulti = Vrai
+	FIN
+	dbgVérifieVrai(bMulti, "Multiligne avec un entier lève une erreur")
+
+	// Masque attend un texte : un entier est rejeté.
+	bMasque est un booléen = Faux
+	QUAND EXCEPTION DANS
+		doc..Cellule[1, 1]..Masque = 42
+	FAIRE
+		bMasque = Vrai
+	FIN
+	dbgVérifieVrai(bMasque, "Masque avec un entier lève une erreur")
+
+	// Hauteur d'une ligne attend un nombre : une chaîne ne pose plus -1 en silence.
+	bHauteur est un booléen = Faux
+	QUAND EXCEPTION DANS
+		doc..Ligne[3]..Hauteur = "grand"
+	FAIRE
+		bHauteur = Vrai
+	FIN
+	dbgVérifieVrai(bHauteur, "Hauteur avec une chaîne lève une erreur")
+	dbgVérifieEgalité(doc..Ligne[3]..Hauteur, -1, "la hauteur reste par défaut (-1), aucun poser silencieux")
+
+	xlsFerme(doc)
+FIN
+
+
+// Cas limite : les propriétés de style d'une cellule, d'une ligne ou d'une colonne jamais touchées renvoient leurs valeurs par défaut documentées.
+PROCEDURE PRIVÉE scenario_edge_style_par_defaut()
+	doc est un xlsDocument
+	dbgVérifieEgalité(doc..Cellule[9, 9]..CouleurFond,-1, "une cellule jamais stylée n'a pas de couleur de fond (-1)")
+	dbgVérifieFaux(doc..Cellule[9, 9]..Multiligne, "une cellule jamais stylée n'a pas le retour à la ligne automatique")
+	dbgVérifieEgalité(doc..Cellule[9, 9]..Masque, "", "une cellule jamais stylée n'a pas de masque de format")
+	dbgVérifieEgalité(doc..Colonne[9]..Largeur,-1, "une colonne jamais stylée garde sa largeur par défaut (-1)")
+	dbgVérifieEgalité(doc..Ligne[9]..Hauteur,-1, "une ligne jamais stylée garde sa hauteur par défaut (-1)")
+	xlsFerme(doc)
+FIN

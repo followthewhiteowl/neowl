@@ -1,0 +1,24 @@
+//  — une CollectionDeProcédures imbriquée dans une autre est refusée
+// à la compilation, comme une Fenêtre dans une Fenêtre ou une Classe dans une
+// Classe : les blocs de premier ordre ne s'imbriquent pas.
+//
+// Avant ce rejet, la construction passait EN SILENCE tout en corrompant
+// l'indexation lexicale des membres : `Suivante`, pourtant définie par le
+// parse réel de COL_Externe, disparaissait de l'index et son appel en nom nu
+// depuis un fichier voisin échouait au RUNTIME (« Fonction ou procédure
+// inconnue »), avec un `owl --check` parfaitement propre.
+//
+// Snapshot attendu : une SEULE erreur, sur la ligne de la collection
+// imbriquée. Le corps est parsé normalement ensuite (le parse, lui, sait
+// empiler) : pas de cascade.
+COL_Externe est une CollectionDeProcédures
+	COL_Interne est une CollectionDeProcédures
+	PROCEDURE Auxiliaire()
+		RENVOYER 1
+	FIN
+FIN
+
+PROCEDURE Suivante()
+	RENVOYER 42
+FIN
+FIN

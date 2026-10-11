@@ -1,0 +1,47 @@
+//  — DonneFocus(champ_courant) quand le champ EST déjà le champ
+// courant dans le modèle logique : aucun événement ne doit être rejoué
+// (canon documentation de référence « aucun code exécuté si le champ est le champ en cours »).
+//
+// C'est le verrou côté événements de la correction du contexte clic : en GUI
+// réel, un clic sur un Bouton vole le focus clavier Qt sans que le modèle OWL
+// (focused_index) le sache ; un DonneFocus(SAI) depuis le surClic doit alors
+// REPOSER le focus Qt physique — mais SANS rejouer surSortie/surEntrée, car
+// pour OWL le champ n'a jamais logiquement quitté le focus. Ce test garantit
+// que la branche « réapplique le focus physique » reste muette côté événements.
+//
+// En headless (widget == NULL) seule la part événementielle est observable :
+// les compteurs ne bougent pas sur les DonneFocus répétés du même champ.
+
+TestModeHeadless(Vrai)
+
+nEntree_obs est un entier = 0
+nSortie_obs est un entier = 0
+
+PROCEDURE callback_reapply(nE est un entier, nS est un entier)
+	nEntree_obs = nE
+	nSortie_obs = nS
+FIN
+
+Ouvre(FEN_Reapply)
+
+// Focus initial auto sur SAI_Champ (seul champ saisissable) : surEntrée = 1.
+RemonteEntrees()
+dbgVérifieEgalité(nEntree_obs, 1, "focus initial auto : surEntree SAI_Champ = 1")
+dbgVérifieEgalité(nSortie_obs, 0, "focus initial auto : surSortie SAI_Champ = 0")
+
+// DonneFocus(SAI_Champ) alors qu'il est déjà le champ courant : réapplication
+// du focus (physique en GUI), aucun événement rejoué.
+DonneFocus(SAI_Champ)
+RemonteEntrees()
+dbgVérifieEgalité(nEntree_obs, 1, "DonneFocus(champ courant) : surEntree reste 1 (aucun code rejoue)")
+dbgVérifieEgalité(nSortie_obs, 0, "DonneFocus(champ courant) : surSortie reste 0 (aucun code rejoue)")
+
+// Deuxième réapplication consécutive : toujours muet.
+DonneFocus(SAI_Champ)
+RemonteEntrees()
+dbgVérifieEgalité(nEntree_obs, 1, "2e DonneFocus(champ courant) : surEntree reste 1")
+dbgVérifieEgalité(nSortie_obs, 0, "2e DonneFocus(champ courant) : surSortie reste 0")
+
+Ferme(FEN_Reapply)
+
+dbgBilanTest()

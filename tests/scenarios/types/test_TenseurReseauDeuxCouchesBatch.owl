@@ -1,0 +1,119 @@
+// @sujet : Tenseur — mini-réseau à deux couches, en lot (mini-batch)
+// @résumé : Assemblage de bout en bout des briques batchées (matmul
+// matrice×matrice, broadcast du biais, ReLU 2D, EntropieCroisée batchée,
+// Rétropropage, DescenteGradient) pour entraîner un petit MLP sur un lot
+// de 2 échantillons d'un coup : entrée(2×3) -> W1(3×4)+biais -> ReLU ->
+// W2(4×2)+biais -> logits(2×2) -> perte.
+
+// Calcul à la main (voir aussi le détail dans les commentaires) :
+// X = [[1,-1,2],[0,2,-1]]  (2×3, 2 échantillons)
+// W1 = [[1,0,1,-1],[0,1,1,0],[1,-1,0,1]]  (3×4)
+// h1 = X@W1 = [[3,-3,0,1],[-1,3,2,-1]]
+// b1 = [1,-1,0,2] -> h1+b1 = [[4,-4,0,3],[0,2,2,1]]
+// a1 = ReLU(h1+b1) = [[4,0,0,3],[0,2,2,1]]
+// W2 = [[1,0],[0,1],[1,1],[-1,0]]  (4×2)
+// h2 = a1@W2 = [[1,0],[1,4]]
+// b2 = [0,1] -> logits = h2+b2 = [[1,1],[1,5]]
+PROCEDURE PUBLIQUE scenario_forward_reseau_batch_deux_couches()
+	matX est une Matrice = [[1.0,-1.0, 2.0], [0.0, 2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	matW1 est une Matrice = [[1.0, 0.0, 1.0,-1.0], [0.0, 1.0, 1.0, 0.0], [1.0,-1.0, 0.0, 1.0]]
+	tW1 est un Tenseur = Tenseur(matW1)
+	tb1 est un Tenseur = Tenseur([1.0,-1.0, 0.0, 2.0])
+
+	th1 est un Tenseur = tX.ProduitMatriciel(tW1)
+	th1b est un Tenseur = th1 + tb1
+	ta1 est un Tenseur = th1b.ReLU()
+
+	matW2 est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]
+	tW2 est un Tenseur = Tenseur(matW2)
+	tb2 est un Tenseur = Tenseur([0.0, 1.0])
+
+	th2 est un Tenseur = ta1.ProduitMatriciel(tW2)
+	tlogits est un Tenseur = th2 + tb2
+
+	valH1B est une Matrice = th1b..Valeur
+	dbgVérifieEgalité(valH1B[1][1], 4.0, "h1[1][1]+b1[1] = 3+1 = 4")
+	dbgVérifieEgalité(valH1B[1][2],-4.0, "h1[1][2]+b1[2] = -3-1 = -4")
+	dbgVérifieEgalité(valH1B[2][1], 0.0, "h1[2][1]+b1[1] = -1+1 = 0")
+
+	valA1 est une Matrice = ta1..Valeur
+	dbgVérifieEgalité(valA1[1][1], 4.0, "ReLU(4) = 4")
+	dbgVérifieEgalité(valA1[1][2], 0.0, "ReLU(-4) = 0")
+	dbgVérifieEgalité(valA1[1][4], 3.0, "ReLU(3) = 3")
+	dbgVérifieEgalité(valA1[2][1], 0.0, "ReLU(0) = 0")
+	dbgVérifieEgalité(valA1[2][2], 2.0, "ReLU(2) = 2")
+
+	valLogits est une Matrice = tlogits..Valeur
+	dbgVérifieEgalité(valLogits..Lignes, 2, "logits : 2 lignes (2 échantillons)")
+	dbgVérifieEgalité(valLogits..Colonnes, 2, "logits : 2 colonnes (2 classes)")
+	dbgVérifieEgalité(valLogits[1][1], 1.0, "h2[1][1]+b2[1] = 1+0 = 1")
+	dbgVérifieEgalité(valLogits[1][2], 1.0, "h2[1][2]+b2[2] = 0+1 = 1")
+	dbgVérifieEgalité(valLogits[2][1], 1.0, "h2[2][1]+b2[1] = 1+0 = 1")
+	dbgVérifieEgalité(valLogits[2][2], 5.0, "h2[2][2]+b2[2] = 4+1 = 5")
+FIN
+
+
+// Un pas d'entraînement complet sur le lot entier : forward -> perte
+// (EntropieCroisée batchée) -> Rétropropage() -> DescenteGradient() sur
+// les deux couches de poids ET les deux biais. On vérifie les FORMES des
+// gradients (pas leurs valeurs exactes, qui dépendent de softmax) et que
+// la perte diminue après le pas (propriété de base de la descente de
+// gradient pour un taux d'apprentissage suffisamment petit).
+// Ce scénario alloue le plus de Tenseurs 2D imbriqués dans un même
+// graphe : exercice du ramasse-miettes sur des structures Matrice.
+PROCEDURE PUBLIQUE scenario_pas_entrainement_batch_perte_diminue()
+	matX est une Matrice = [[1.0,-1.0, 2.0], [0.0, 2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	matW1 est une Matrice = [[1.0, 0.0, 1.0,-1.0], [0.0, 1.0, 1.0, 0.0], [1.0,-1.0, 0.0, 1.0]]
+	tW1 est un Tenseur = Tenseur(matW1)
+	tb1 est un Tenseur = Tenseur([1.0,-1.0, 0.0, 2.0])
+
+	th1 est un Tenseur = tX.ProduitMatriciel(tW1)
+	th1b est un Tenseur = th1 + tb1
+	ta1 est un Tenseur = th1b.ReLU()
+
+	matW2 est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]
+	tW2 est un Tenseur = Tenseur(matW2)
+	tb2 est un Tenseur = Tenseur([0.0, 1.0])
+
+	th2 est un Tenseur = ta1.ProduitMatriciel(tW2)
+	tlogits est un Tenseur = th2 + tb2
+
+	matCibles est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tcibles est un Tenseur = Tenseur(matCibles)
+
+	tperteAvant est un Tenseur = tlogits.EntropieCroisée(tcibles)
+	tperteAvant.Rétropropage()
+
+	gradW1 est une Matrice = tW1..Gradient
+	dbgVérifieEgalité(gradW1..Lignes, 3, "gradW1 garde la forme de W1 : 3 lignes")
+	dbgVérifieEgalité(gradW1..Colonnes, 4, "gradW1 garde la forme de W1 : 4 colonnes")
+
+	gradW2 est une Matrice = tW2..Gradient
+	dbgVérifieEgalité(gradW2..Lignes, 4, "gradW2 garde la forme de W2 : 4 lignes")
+	dbgVérifieEgalité(gradW2..Colonnes, 2, "gradW2 garde la forme de W2 : 2 colonnes")
+
+	gradB1 est un Vecteur = tb1..Gradient
+	dbgVérifieEgalité(gradB1..Taille, 4, "gradB1 garde la taille de b1 : 4 (biais sommé sur le lot, pas dupliqué)")
+
+	gradB2 est un Vecteur = tb2..Gradient
+	dbgVérifieEgalité(gradB2..Taille, 2, "gradB2 garde la taille de b2 : 2 (biais sommé sur le lot, pas dupliqué)")
+
+	taux est un réel = 0.01
+	tW1maj est un Tenseur = tW1.DescenteGradient(taux)
+	tW2maj est un Tenseur = tW2.DescenteGradient(taux)
+	tb1maj est un Tenseur = tb1.DescenteGradient(taux)
+	tb2maj est un Tenseur = tb2.DescenteGradient(taux)
+
+	th1Apres est un Tenseur = tX.ProduitMatriciel(tW1maj)
+	th1bApres est un Tenseur = th1Apres + tb1maj
+	ta1Apres est un Tenseur = th1bApres.ReLU()
+	th2Apres est un Tenseur = ta1Apres.ProduitMatriciel(tW2maj)
+	tlogitsApres est un Tenseur = th2Apres + tb2maj
+	tperteApres est un Tenseur = tlogitsApres.EntropieCroisée(tcibles)
+
+	dbgVérifieVrai(tperteApres..Valeur[1] < tperteAvant..Valeur[1], "Un pas de descente de gradient sur tout le réseau batché fait diminuer la perte")
+FIN

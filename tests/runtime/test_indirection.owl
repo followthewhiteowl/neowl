@@ -1,0 +1,103 @@
+// ============================================
+// TEST: Indirection {...} + scope constants
+// ============================================
+Trace("=== INDIRECTION ===")
+
+// --- Read global by name ---
+score est un entier = 42
+dbgVérifieEgalité({"score"}, 42, "Read global par nom")
+dbgVérifieEgalité({"score", indVariable}, 42, "Read avec scope explicite")
+
+// --- Assign global by name ---
+{"score"} = 100
+dbgVérifieEgalité(score, 100, "Assign global par nom")
+
+{"score", indVariable} = 7
+dbgVérifieEgalité(score, 7, "Assign avec scope explicite")
+
+// --- Variable absente -> erreur runtime (canon : élément inconnu) ---
+// Un nom d'indirection qui ne résout aucun élément erre au lieu de rendre
+// Null en silence (déterminisme : pas d'échec masqué).
+captureLectureAbsente est une chaîne = ""
+QUAND EXCEPTION DANS
+	lectureAbsente est un entier = {"nexistePas"}
+	captureLectureAbsente = "pas-d-erreur"
+FAIRE
+	captureLectureAbsente = ExceptionInfo(errMessage)
+FIN
+dbgVérifieEgalité(captureLectureAbsente,
+"Indirection : « nexistePas » ne correspond à aucun élément connu (variable globale, fenêtre ou champ).",
+"Variable absente via indirection -> erreur claire")
+
+// --- Calcul du nom dynamique ---
+champ est une chaîne = "score"
+dbgVérifieEgalité({champ}, 7, "Nom via expression")
+
+champ = "nexistePas"
+captureDynAbsent est une chaîne = ""
+QUAND EXCEPTION DANS
+	lectureDyn est un entier = {champ}
+	captureDynAbsent = "pas-d-erreur"
+FAIRE
+	captureDynAbsent = "erreur"
+FIN
+dbgVérifieEgalité(captureDynAbsent, "erreur", "Nom dynamique absent via indirection -> erreur")
+
+// --- Assign global inconnu -> erreur (canon : élément inconnu) ---
+captureAssignAbsent est une chaîne = ""
+QUAND EXCEPTION DANS
+	{"absentEnEcriture"} = 5
+	captureAssignAbsent = "pas-d-erreur"
+FAIRE
+	captureAssignAbsent = "erreur"
+FIN
+dbgVérifieEgalité(captureAssignAbsent, "erreur", "Assign global inconnu via indirection -> erreur")
+
+// --- Field indirection via obj.{...} ---
+Pers est une Structure
+	nom est une chaîne
+	age est un entier
+FIN
+
+p est un Pers
+p.nom = "Roger"
+p.age = 2000
+
+dbgVérifieEgalité(p.{"nom"}, "Roger", "Read champ par nom")
+dbgVérifieEgalité(p.{"age", indVariable}, 2000, "Read champ avec scope")
+
+p.{"nom"} = "Jeff"
+dbgVérifieEgalité(p.nom, "Jeff", "Assign champ par nom")
+
+p.{"age", indVariable} = 1234
+dbgVérifieEgalité(p.age, 1234, "Assign champ avec scope")
+
+// --- Champ absent -> erreur runtime (cohérent avec le global) ---
+captureChampAbsent est une chaîne = ""
+QUAND EXCEPTION DANS
+	lectureChamp est une chaîne = p.{"inconnu"}
+	captureChampAbsent = "pas-d-erreur"
+FAIRE
+	captureChampAbsent = ExceptionInfo(errMessage)
+FIN
+dbgVérifieEgalité(captureChampAbsent,
+"Indirection : le champ « inconnu » est introuvable sur cette instance.",
+"Champ absent via indirection -> erreur claire")
+
+// --- Assign champ absent -> erreur (cohérent) ---
+captureAssignChamp est une chaîne = ""
+QUAND EXCEPTION DANS
+	p.{"inconnuEnEcriture"} = "x"
+	captureAssignChamp = "pas-d-erreur"
+FAIRE
+	captureAssignChamp = "erreur"
+FIN
+dbgVérifieEgalité(captureAssignChamp, "erreur", "Assign champ inconnu via indirection -> erreur")
+
+// --- Scope constants (indChamp reste defini pour compatibilite) ---
+// Valeurs = sentinelles INT32_MIN+offset (anti-collision), on teste les
+// invariants plutot que la valeur brute.
+dbgVérifieDifférence(indVariable, indChamp, "indVariable != indChamp")
+dbgVérifieDifférence(indVariable, 0, "indVariable != 0 (zone sentinelle)")
+
+dbgBilanTest()

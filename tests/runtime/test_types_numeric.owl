@@ -1,0 +1,66 @@
+Trace("=== TYPE NUMERIQUE (__int128, 38 chiffres) ===")
+
+// --- Declaration et defaut ---
+n est un numérique
+dbgVérifieEgalité(TypeVar(n), owlNumerique, "type numerique")
+dbgVérifieEgalité(n, 0n0, "default = 0")
+
+// --- Literal 0n avec decimales ---
+precis est un numérique = 0n10.000000000000033
+dbgVérifieEgalité(precis, 0n10.000000000000033, "precision 15 decimales")
+
+// --- Grand entier au-dela de int64 ---
+grand est un numérique = 0n12345678901234567890
+dbgVérifieEgalité(grand, 0n12345678901234567890, "entier 20 chiffres")
+
+// --- Addition de grands nombres ---
+n1 est un numérique = 0n100000000000000000
+n2 est un numérique = 0n200000000000000000
+somme est un numérique = n1 + n2
+dbgVérifieEgalité(somme, 0n300000000000000000, "addition 10^17 + 2*10^17")
+
+// --- Multiplication qui deborderait int64 ---
+gros est un numérique = 0n1000000000
+carre est un numérique = gros * gros
+dbgVérifieEgalité(carre, 0n1000000000000000000, "10^9 * 10^9 = 10^18")
+
+// --- Soustraction negative ---
+diff est un numérique = 0n1000.5 - 0n999.3
+dbgVérifieEgalité(diff, 0n1.2, "1000.5 - 999.3 = 1.2")
+
+// --- Division avec precision (scale up pour preserver decimales) ---
+tiers est un numérique = 0n100 / 3
+dbgVérifieVrai(tiers > 0n33, "100/3 > 33")
+dbgVérifieVrai(tiers < 0n34, "100/3 < 34")
+dbgVérifieVrai(tiers > 33, "numerique > entier (cross-type)")
+
+// --- Numerique + entier ---
+total est un numérique = 0n99.99 + 1
+dbgVérifieEgalité(total, 0n100.99, "numerique + entier")
+
+// --- Concatenation string ---
+msg est une chaîne = "Valeur: " + 0n42.5
+dbgVérifieEgalité(msg, "Valeur: 42.5", "concat numerique -> string")
+
+// --- Comparaisons ---
+dbgVérifieVrai(0n100 > 0n50, "numerique > numerique")
+dbgVérifieVrai(0n100 = 100, "numerique = entier via coercion")
+
+// --- Negation ---
+valAbs est un numérique = 0n123.456
+neg est un numérique = -valAbs
+// Comparaison cross-type : numeric vs real
+dbgVérifieEgalité(neg,-123.456, "negation numerique = -123.456 (cross-type)")
+// Comparaison cross-scale : numeric vs numeric (scale 3 vs scale 0)
+dbgVérifieVrai(neg < 0, "neg est negatif")
+dbgVérifieVrai(neg > -124, "neg > -124 (cross-type)")
+
+// --- Calcul factoriel 25 (deborde int64 = 10^18) ---
+fact est un numérique = 0n1
+POUR i = 1 À 25
+	fact = fact * i
+FIN
+// 25! = 15511210043330985984000000 (~1.5 * 10^25)
+dbgVérifieEgalité(fact, 0n15511210043330985984000000, "25! exact en numerique")
+
+dbgBilanTest()

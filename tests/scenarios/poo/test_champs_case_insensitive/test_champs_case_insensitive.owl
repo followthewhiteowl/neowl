@@ -1,0 +1,76 @@
+// @sujet : Champs d'instance — acces case-insensitive
+// @resume : Tout acces a un champ d'instance est insensible a la casse (un champ est reconnu independamment des MAJUSCULES/minuscules). Les variantes de casse ciblent toutes le meme slot de donnees, tant en lecture qu'en ecriture.
+
+// Cas nominal : lecture de champs en casse exacte (baseline)
+PROCEDURE scenario_champs_casse_exacte()
+	oBox est un cBox()
+	
+	// Lecture en casse exacte (doit passer)
+	dbgVérifieEgalité(oBox.nLargeur, 100, "nLargeur casse exacte OK")
+	dbgVérifieEgalité(oBox.nHauteur, 50, "nHauteur casse exacte OK")
+	dbgVérifieEgalité(oBox.sCouleur, "rouge", "sCouleur casse exacte OK")
+FIN
+
+// Variantes de casse lecture : acces case-insensitive attendu (rouges initialement)
+PROCEDURE scenario_champs_lecture_case_insensitive()
+	oBox est un cBox()
+	
+	// nLargeur variantes de casse
+	dbgVérifieEgalité(oBox.NLARGEUR, 100, "NLARGEUR majuscules doit renvoyer 100")
+	dbgVérifieEgalité(oBox.nlargeur, 100, "nlargeur minuscules doit renvoyer 100")
+	dbgVérifieEgalité(oBox.Nlargeur, 100, "Nlargeur PascalCase doit renvoyer 100")
+	dbgVérifieEgalité(oBox.nLaRgEuR, 100, "nLaRgEuR mixte doit renvoyer 100")
+	
+	// nHauteur variantes de casse
+	dbgVérifieEgalité(oBox.NHAUTEUR, 50, "NHAUTEUR majuscules doit renvoyer 50")
+	dbgVérifieEgalité(oBox.nhauteur, 50, "nhauteur minuscules doit renvoyer 50")
+	dbgVérifieEgalité(oBox.NHauteur, 50, "NHauteur mixte doit renvoyer 50")
+	
+	// sCouleur variantes de casse
+	dbgVérifieEgalité(oBox.SCOULEUR, "rouge", "SCOULEUR majuscules doit renvoyer rouge")
+	dbgVérifieEgalité(oBox.scouleur, "rouge", "scouleur minuscules doit renvoyer rouge")
+	dbgVérifieEgalité(oBox.SCouleur, "rouge", "SCouleur mixte doit renvoyer rouge")
+FIN
+
+// Variantes de casse ecriture : symetrie write path (rouges initialement)
+PROCEDURE scenario_champs_ecriture_case_insensitive()
+	oBox est un cBox()
+	
+	// Affectation via variante de casse doit cibler le meme slot
+	oBox.NLARGEUR = 200
+	dbgVérifieEgalité(oBox.nLargeur, 200, "affectation NLARGEUR cible slot nLargeur")
+	
+	oBox.nlargeur = 300
+	dbgVérifieEgalité(oBox.nLargeur, 300, "affectation nlargeur cible slot nLargeur")
+	
+	oBox.NLargeur = 400
+	dbgVérifieEgalité(oBox.nLargeur, 400, "affectation NLargeur cible slot nLargeur")
+	
+	// Verifier qu'il n'y a pas de slot duplique
+	oBox.nLargeur = 500
+	dbgVérifieEgalité(oBox.NLARGEUR, 500, "pas de slot duplique : nLargeur->NLARGEUR coherent")
+	
+	// Test avec chaine
+	oBox.SCOULEUR = "bleu"
+	dbgVérifieEgalité(oBox.sCouleur, "bleu", "affectation SCOULEUR cible slot sCouleur")
+	
+	oBox.scouleur = "vert"
+	dbgVérifieEgalité(oBox.sCouleur, "vert", "affectation scouleur cible slot sCouleur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_champs_mixte_lecture_ecriture()
+	// Edge case : lecture et ecriture mixtes en casses variees
+	oBox est un cBox()
+	
+	// Ecriture en casse A, lecture en casse B
+	oBox.NHAUTEUR = 75
+	dbgVérifieEgalité(oBox.nhauteur, 75, "ecriture NHAUTEUR lecture nhauteur coherentes")
+	
+	oBox.nhauteur = 125
+	dbgVérifieEgalité(oBox.NHAUTEUR, 125, "ecriture nhauteur lecture NHAUTEUR coherentes")
+	
+	// Modification successive via differentes casses
+	oBox.nlargeur = 10
+	oBox.NLARGEUR = oBox.NLARGEUR + 5
+	dbgVérifieEgalité(oBox.nLargeur, 15, "incrementation via casse divergente coherente")
+FIN

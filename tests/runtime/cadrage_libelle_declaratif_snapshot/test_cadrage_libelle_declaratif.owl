@@ -1,0 +1,104 @@
+//  — CadrageHorizontal declare doit aligner reellement le texte
+// d'un Libelle. Verrouille declare ET runtime via capture pixel.
+//
+// Methode : fond plein RVB(50,50,50) sur tout le cadre. Le texte rend des
+// pixels d'une autre couleur. On scanne la ligne mediane et on localise la
+// plage [minX..maxX] des pixels de texte. Selon le cadrage le texte se cale
+// d'un cote ou de l'autre du cadre.
+
+CONSTANTE COULEUR_FOND = 3289650 // RVB(50,50,50)
+
+Ouvre(FEN_Cadrage)
+
+// ---------- chDroite declare : texte cale a droite ----------
+imgD est une Image = dCopieImageChamp(LIB_Droite)
+dbgVérifieEgalité(imgD..Valide, Vrai, "chDroite : capture valide")
+
+yD est un entier = imgD..Hauteur / 2
+minXD est un entier = 99999
+maxXD est un entier = -1
+i est un entier = 0
+TANTQUE i < imgD..Largeur
+	c est un entier = dPixelCouleur(imgD, i, yD)
+	SI c <> COULEUR_FOND ALORS
+		SI i < minXD ALORS
+			minXD = i
+		FIN
+		maxXD = i
+	FIN
+	i = i + 1
+FIN
+
+// Le texte existe (au moins quelques pixels non-fond captures).
+dbgVérifieVrai(maxXD > 0, "chDroite : du texte est rendu")
+// Cale a droite : le dernier pixel de texte atteint la moitie droite du cadre.
+demiD est un entier = imgD..Largeur / 2
+dbgVérifieVrai(maxXD > demiD, "chDroite : texte cale dans la moitie droite")
+
+// ---------- chGauche declare : texte cale a gauche ----------
+imgG est une Image = dCopieImageChamp(LIB_Gauche)
+dbgVérifieEgalité(imgG..Valide, Vrai, "chGauche : capture valide")
+
+yG est un entier = imgG..Hauteur / 2
+minXG est un entier = 99999
+maxXG est un entier = -1
+j est un entier = 0
+TANTQUE j < imgG..Largeur
+	cg est un entier = dPixelCouleur(imgG, j, yG)
+	SI cg <> COULEUR_FOND ALORS
+		SI j < minXG ALORS
+			minXG = j
+		FIN
+		maxXG = j
+	FIN
+	j = j + 1
+FIN
+
+dbgVérifieVrai(maxXG > 0, "chGauche : du texte est rendu")
+demiG est un entier = imgG..Largeur / 2
+// Cale a gauche : le premier pixel de texte demarre dans la moitie gauche
+// ET le texte ne s'etend pas dans la moitie droite (memes glyphes que LIB_Droite).
+dbgVérifieVrai(minXG < demiG, "chGauche : texte demarre dans la moitie gauche")
+dbgVérifieVrai(maxXG < maxXD, "chGauche cale plus a gauche que chDroite (memes glyphes)")
+
+// ---------- cvBas declare : texte cale en bas ----------
+// Champ haut (80px), texte sur une ligne cale en bas + a gauche. On scanne
+// une colonne dans la zone gauche (ou le texte demarre) et on localise la
+// plage verticale [minY..maxY] des pixels de texte.
+imgB est une Image = dCopieImageChamp(LIB_Bas)
+dbgVérifieEgalité(imgB..Valide, Vrai, "cvBas : capture valide")
+// Colonne a 1/8 de la largeur : zone ou le texte cale a gauche est present.
+xColB est un entier = imgB..Largeur / 8
+minYB est un entier = 99999
+maxYB est un entier = -1
+m est un entier = 0
+TANTQUE m < imgB..Hauteur
+	cb est un entier = dPixelCouleur(imgB, xColB, m)
+	SI cb <> COULEUR_FOND ALORS
+		SI m < minYB ALORS
+			minYB = m
+		FIN
+		maxYB = m
+	FIN
+	m = m + 1
+FIN
+dbgVérifieVrai(maxYB > 0, "cvBas : du texte est rendu")
+demiYB est un entier = imgB..Hauteur / 2
+dbgVérifieVrai(minYB > demiYB, "cvBas : texte cale dans la moitie basse")
+
+// ---------- Runtime : lecture/ecriture de ..CadrageHorizontal ----------
+// Le contrat runtime observable est le couple getter/setter. (La capture
+// headless dCopieImageChamp re-materialise le champ depuis le declaratif,
+// donc elle ne reflete pas une mutation runtime : on verifie le setter via
+// le getter, source de verite de l'etat live.)
+dbgVérifieEgalité(LIB_Gauche..CadrageHorizontal, chGauche,
+"runtime : getter reflete le cadrage declare (chGauche)")
+LIB_Gauche..CadrageHorizontal = chDroite
+dbgVérifieEgalité(LIB_Gauche..CadrageHorizontal, chDroite,
+"runtime : setter ..CadrageHorizontal applique (getter = chDroite)")
+LIB_Gauche..CadrageVertical = cvBas
+dbgVérifieEgalité(LIB_Gauche..CadrageVertical, cvBas,
+"runtime : setter ..CadrageVertical applique (getter = cvBas)")
+
+Ferme(FEN_Cadrage)
+dbgBilanTest()

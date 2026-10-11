@@ -1,0 +1,114 @@
+// @sujet : fSauveTexte, fAjouteTexte
+// @résumé : Enregistrement de texte dans un fichier avec encodage optionnel. Sans argument d'encodage, le fichier est écrit en UTF-8, comportement inchangé. Avec un encodage explicite (encUTF8, encLatin1, encWindows1252, encUTF16LE, encUTF16BE), le texte est transcodé vers l'encodage demandé avant écriture. fAjouteTexte accepte le même argument d'encodage pour ajouter du texte en fin de fichier dans l'encodage voulu.
+
+
+// Cas A : comportement par défaut sans argument d'encodage — rétro-compatible UTF-8.
+PROCEDURE PUBLIQUE scenario_fst_utf8_defaut_retrocompatible()
+	chemin est une chaîne = "_tmp_fst_0778_A.txt"
+	fSupprime(chemin)
+	ok est un booléen = fSauveTexte(chemin, "café")
+	dbgVérifieVrai(ok, "fSauveTexte sans encodage crée le fichier")
+	sLu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(sLu, "café", "contenu relu identique — défaut UTF-8 rétro-compatible")
+	fSupprime(chemin)
+FIN
+
+
+// Cas B : encUTF8 explicite — résultat identique au défaut.
+PROCEDURE PUBLIQUE scenario_fst_utf8_explicite()
+	chemin est une chaîne = "_tmp_fst_0778_B.txt"
+	fSupprime(chemin)
+	ok est un booléen = fSauveTexte(chemin, "café", encUTF8)
+	dbgVérifieVrai(ok, "fSauveTexte avec encUTF8 retourne Vrai")
+	sLu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(sLu, "café", "encUTF8 explicite produit un contenu identique au défaut")
+	fSupprime(chemin)
+FIN
+
+
+// Cas C : round-trip encodage hérité Europe occidentale (encWindows1252) — café€.
+// Après sauvegarde et rechargement dans le même encodage, la chaîne est intacte.
+PROCEDURE PUBLIQUE scenario_fst_roundtrip_windows1252()
+	chemin est une chaîne = "_tmp_fst_0778_C.txt"
+	fSupprime(chemin)
+	ok est un booléen = fSauveTexte(chemin, "café€", encWindows1252)
+	dbgVérifieVrai(ok, "fSauveTexte café€ en encWindows1252 retourne Vrai")
+	sLu est une chaîne = fChargeTexte(chemin, encWindows1252)
+	dbgVérifieEgalité(sLu, "café€", "round-trip encWindows1252 restitue café€")
+	fSupprime(chemin)
+FIN
+
+
+// Cas D : vérification des octets réels — € en encodage hérité Europe occidentale = 1 octet valant 128.
+PROCEDURE PUBLIQUE scenario_fst_octets_windows1252_euro()
+	chemin est une chaîne = "_tmp_fst_0778_D.txt"
+	fSupprime(chemin)
+	ok est un booléen = fSauveTexte(chemin, "€", encWindows1252)
+	dbgVérifieVrai(ok, "fSauveTexte € en encWindows1252 retourne Vrai")
+	buf est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(Taille(buf), 1, "€ en encodage hérité Europe occidentale occupe 1 octet sur disque")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 128, "€ en encodage hérité Europe occidentale = octet 128")
+	fSupprime(chemin)
+FIN
+
+
+// Cas E : round-trip encodage Europe occidentale (encLatin1) — àéî représentables sur 1 octet chacun.
+// Le fichier contient 3 octets sur disque.
+PROCEDURE PUBLIQUE scenario_fst_roundtrip_latin1()
+	chemin est une chaîne = "_tmp_fst_0778_E.txt"
+	fSupprime(chemin)
+	ok est un booléen = fSauveTexte(chemin, "àéî", encLatin1)
+	dbgVérifieVrai(ok, "fSauveTexte àéî en encLatin1 retourne Vrai")
+	buf est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(Taille(buf), 3, "àéî en Latin-1 = 3 octets sur disque (1 par caractère)")
+	sLu est une chaîne = fChargeTexte(chemin, encLatin1)
+	dbgVérifieEgalité(sLu, "àéî", "round-trip encLatin1 restitue àéî")
+	fSupprime(chemin)
+FIN
+
+
+// Cas F : round-trip UTF-16 petit-boutiste (encUTF16LE) — Aé → 4 octets (41 00 E9 00).
+PROCEDURE PUBLIQUE scenario_fst_roundtrip_utf16le()
+	chemin est une chaîne = "_tmp_fst_0778_F.txt"
+	fSupprime(chemin)
+	ok est un booléen = fSauveTexte(chemin, "Aé", encUTF16LE)
+	dbgVérifieVrai(ok, "fSauveTexte Aé en encUTF16LE retourne Vrai")
+	buf est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(Taille(buf), 4, "Aé en UTF-16LE = 4 octets sur disque (2 par codepoint BMP)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "octet 1 : poids faible de A (65)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 0, "octet 2 : poids fort de A (0)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 233, "octet 3 : poids faible de é (233)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 4), 0, "octet 4 : poids fort de é (0)")
+	sLu est une chaîne = fChargeTexte(chemin, encUTF16LE)
+	dbgVérifieEgalité(sLu, "Aé", "round-trip encUTF16LE restitue Aé")
+	fSupprime(chemin)
+FIN
+
+
+// Cas G : fAjouteTexte avec encodage — créer puis ajouter en encWindows1252, vérifier la concaténation.
+PROCEDURE PUBLIQUE scenario_fat_roundtrip_windows1252()
+	chemin est une chaîne = "_tmp_fst_0778_G.txt"
+	fSupprime(chemin)
+	ok1 est un booléen = fSauveTexte(chemin, "café", encWindows1252)
+	dbgVérifieVrai(ok1, "fSauveTexte café en encWindows1252")
+	ok2 est un booléen = fAjouteTexte(chemin, "€", encWindows1252)
+	dbgVérifieVrai(ok2, "fAjouteTexte € en encWindows1252")
+	sLu est une chaîne = fChargeTexte(chemin, encWindows1252)
+	dbgVérifieEgalité(sLu, "café€", "concaténation café + € relue en encWindows1252 = café€")
+	fSupprime(chemin)
+FIN
+
+
+// Edge case : vérification que fSauveTexte sans encodage écrit bien des octets UTF-8 sur disque.
+// Utilise l'API existante (1 arg). Sert de garde anti-régression sur le défaut.
+PROCEDURE PRIVÉE scenario_fst_edge_utf8_octets_sur_disque()
+	chemin est une chaîne = "_tmp_fst_0778_Z.txt"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "é")
+	buf est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(Taille(buf), 2, "é en UTF-8 = 2 octets sur disque")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 195, "premier octet de é en UTF-8 (195 = 0xC3)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 169, "second octet de é en UTF-8 (169 = 0xA9)")
+	fSupprime(chemin)
+FIN

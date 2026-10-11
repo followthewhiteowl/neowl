@@ -1,0 +1,86 @@
+// @sujet : dPolice
+// @resume : Charge une police TTF/OTF pour le rendu de texte dans une image
+
+PROCEDURE PUBLIQUE scenario_charge_police_standard()
+	// Charge une police TTF pour le rendu texte dans une image
+	// dPolice définit la police active jusqu'au prochain appel ou dFinDessin
+
+	img est une Image = dCréeImage(400, 300)
+
+	// Police standard, taille 12 points, attributs normaux
+	bOk est un booléen = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "charge police standard DejaVuSans 12pt")
+FIN
+
+PROCEDURE PUBLIQUE scenario_attributs_combines()
+	// Combine plusieurs attributs pour styler le texte
+	// iGras, iItalique, iSouligné, iBarré sont combinables avec +
+
+	img est une Image = dCréeImage(400, 300)
+
+	// Police gras + italique
+	bOk est un booléen = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 14, iGras + iItalique, 0)
+	dbgVérifieEgalité(bOk, Vrai, "police gras italique combinés")
+
+	// Police barrée + soulignée
+	bOk = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 12, iBarré + iSouligné, 0)
+	dbgVérifieEgalité(bOk, Vrai, "police barrée soulignée combinées")
+FIN
+
+PROCEDURE PUBLIQUE scenario_tailles_variees()
+	// Teste différentes tailles de police en points
+
+	img est une Image = dCréeImage(600, 400)
+
+	// Petite taille
+	bOk est un booléen = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 8, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "police 8pt petite taille")
+
+	// Grande taille
+	bOk = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 72, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "police 72pt grande taille")
+FIN
+
+PROCEDURE PUBLIQUE scenario_echec_fichier_inexistant()
+	// Fichier de police inexistant renvoie Faux et pose une erreur
+
+	img est une Image = dCréeImage(400, 300)
+
+	bOk est un booléen = dPolice(img, "chemin/inexistant/police.ttf", 12, iNormal, 0)
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieEgalité(bOk, Faux, "police inexistante renvoie Faux")
+	dbgVérifieVrai(bErr, "erreur posée sur fichier inexistant")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_taille_zero()
+	// Taille 0 ou négative est clampée à 1 dans l'implem (ligne 1590 stdlib_image.c)
+
+	img est une Image = dCréeImage(400, 300)
+
+	bOk est un booléen = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 0, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "taille 0 clampée à 1, charge quand même")
+
+	bOk = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf",-5, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "taille négative clampée à 1")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_taille_extreme()
+	// Taille extrême (très grande) acceptée sans crash
+
+	img est une Image = dCréeImage(800, 600)
+
+	bOk est un booléen = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 500, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "taille 500pt très grande acceptée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_sans_debut_dessin()
+	// Sans dDébutDessin ni image explicite, dPolice échoue
+	// (pas de canvas cible identifiable)
+
+	bOk est un booléen = dPolice("assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieEgalité(bOk, Faux, "sans canvas cible renvoie Faux")
+	dbgVérifieVrai(bErr, "erreur E_NATIVE_IMAGE_NO_CANVAS posée")
+FIN

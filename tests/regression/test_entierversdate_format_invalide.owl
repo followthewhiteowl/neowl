@@ -1,0 +1,47 @@
+// @sujet :  — EntierVersDate format invalide
+// @résumé : Format doit être exactement 1 char parmi A/M/J (insensible casse). Tout autre cas → ErreurDétectée + "".
+
+PROCEDURE PRIVÉE regression_format_multi_char()
+	// "AB" : longueur > 1 → invalide
+	ErreurRAZ()
+	res est une chaîne = EntierVersDate(1, "AB")
+	dbgVérifieVrai(ErreurDétectée, "Format 'AB' multi-char pose ErreurDetectee")
+	dbgVérifieEgalité(res, "", "Format 'AB' → chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE regression_format_vide()
+	// "" : longueur 0 → invalide (rejet de la chaîne vide explicite)
+	ErreurRAZ()
+	res est une chaîne = EntierVersDate(1, "")
+	dbgVérifieVrai(ErreurDétectée, "Format vide pose ErreurDetectee")
+	dbgVérifieEgalité(res, "", "Format vide → chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE regression_format_inconnu()
+	// "X" : longueur 1 mais char hors A/M/J → invalide (deja gere, garde-fou)
+	ErreurRAZ()
+	res est une chaîne = EntierVersDate(1, "X")
+	dbgVérifieVrai(ErreurDétectée, "Format 'X' inconnu pose ErreurDetectee")
+	dbgVérifieEgalité(res, "", "Format 'X' → chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE regression_formats_valides()
+	// Garde-fou : A/M/J (et casse minuscule) continuent de fonctionner
+	ErreurRAZ()
+	sA est une chaîne = EntierVersDate(1, "A")
+	dbgVérifieEgalité(sA, "1800", "Format 'A' → '1800'")
+	dbgVérifieVrai(PAS ErreurDétectée, "Format 'A' valide ne pose pas d'erreur")
+
+	sM est une chaîne = EntierVersDate(1, "m")
+	dbgVérifieEgalité(sM, "01", "Format 'm' minuscule → '01'")
+
+	sJ est une chaîne = EntierVersDate(1, "J")
+	dbgVérifieEgalité(sJ, "01", "Format 'J' → '01'")
+FIN
+
+regression_format_multi_char()
+regression_format_vide()
+regression_format_inconnu()
+regression_formats_valides()
+
+dbgBilanTest()

@@ -1,0 +1,57 @@
+Trace("=== fix/1974 : httpMéthodes doit être string-valued (comme typeMime) ===")
+
+// Contexte sécurité : httpGet/httpPost/... sont aujourd'hui des constantes
+// d'enum backées par un entier sentinelle (OWL_HTTP_GET...), alors que
+// httpRequête..Méthode (client) et MoiMême..Requête..Méthode (serveur, dans
+// un handler ServiceREST) exposent/comparent une notion de méthode HTTP
+// "GET"/"POST"/... Le fix aligne httpMéthodes sur le précédent typeMime
+// (typeMimeTexteRiche = "application/rtf") : chaque constante devient la
+// chaîne canon de sa méthode. Ce fichier verrouille la comparaison directe
+// et la concaténation sur les CONSTANTES d'enum + sur le champ CLIENT
+// httpRequête..Méthode (exerçable en .owl pur, sans service HTTP réel).
+//
+// Le volet SERVEUR (MoiMême..Requête..Méthode dans un handler ServiceREST,
+// comparaison à une constante = coeur du problème sécurité du ticket) n'est
+// exerçable qu'via le harnais e2e socket (joue_e2e) de
+// src/internal_tests/http_dsl_service_test.c — hors périmètre de ce fichier
+// .owl (cf. rapport test_writer  : nécessite un ajout côté C,
+// remonté au coordinator).
+
+// --- 1. Constantes d'enum comparées à leur chaîne canon (coeur sécurité) ---
+// AUJOURD'HUI : rouge (httpGet est un entier sentinelle, jamais égal à "GET").
+// APRES FIX : vert (httpMéthodes string-valued, comme typeMime).
+dbgVérifieEgalité(httpGet, "GET", "httpGet = GET (comparaison constante, coeur sécurité fix/1974)")
+dbgVérifieEgalité(httpPost, "POST", "httpPost = POST")
+dbgVérifieEgalité(httpPut, "PUT", "httpPut = PUT")
+dbgVérifieEgalité(httpDelete, "DELETE", "httpDelete = DELETE")
+dbgVérifieEgalité(httpHead, "HEAD", "httpHead = HEAD")
+dbgVérifieEgalité(httpPatch, "PATCH", "httpPatch = PATCH")
+dbgVérifieEgalité(httpCopy, "COPY", "httpCopy = COPY")
+
+// --- 2. Concaténation/affichage propre d'une constante ---
+// AUJOURD'HUI : rouge (donne l'ordinal sentinelle, ex. -2147481343).
+// APRES FIX : vert ("m=GET").
+sConcat est une chaîne = "m=" + httpGet
+dbgVérifieEgalité(sConcat, "m=GET", "concat constante httpGet -> m=GET (pas l'ordinal)")
+
+// --- 3. httpRequête (client) : le champ ..Méthode doit rester comparable à
+// la chaîne littérale (rétro-compat) après que la constante devienne
+// string-valued. AUJOURD'HUI : rouge (le champ porte l'instance enum
+// int-valued par défaut, jamais égale à la chaîne "GET"). ---
+req est un httpRequête
+dbgVérifieEgalité(req..Méthode, "GET", "httpRequête..Méthode défaut comparable à la chaîne GET (rétro-compat)")
+
+req..Méthode = httpPost
+dbgVérifieEgalité(req..Méthode, "POST", "httpRequête..Méthode = httpPost comparable à la chaîne POST")
+
+// --- 4. Concaténation du champ client (même piège que la constante seule) ---
+sConcatChamp est une chaîne = "methode=" + req..Méthode
+dbgVérifieEgalité(sConcatChamp, "methode=POST", "concat httpRequête..Méthode -> methode=POST (pas l'ordinal)")
+
+// --- 5. Non-régression : deux constantes distinctes restent distinctes
+// (déjà couvert par tests/runtime/test_http_structures_mocked.owl ; on ne
+// duplique pas ici, cf. ce fichier pour la couverture complète).
+
+Trace("=== fin fix/1974 (volet .owl pur) ===")
+
+dbgBilanTest()

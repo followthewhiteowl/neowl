@@ -1,0 +1,73 @@
+//  — Native ToucheEnfoncee (EN: KeyPressed)
+// Polling : renvoie Vrai si la touche specifiee est physiquement enfoncee
+// au moment de l'appel. Conforme au comportement de référence.
+//
+// ROUGE ATTENDU : native inconnue au registry.
+// Raison du rouge : "'ToucheEnfoncee' : fonction/procedure inconnue"
+//
+// Apres impl :
+// - En mode headless (aucune interaction reelle), l'etat est Faux pour
+//   toute touche non simulee. C'est le comportement correct attendu :
+//   aucune touche n'est physiquement enfoncee pendant un test automatise.
+// - Accepte les codes tk* (entiers) et les constantes te* de controle
+//   (teShift, teControl, teAlt, teEchap — documentation de référence).
+// - Ne pose pas ErreurDetectee pour un code inconnu mais raisonnable
+//   (hors-borne) : retourne Faux.
+
+TestModeHeadless(Vrai)
+
+// --- Comportement de base : Faux en headless ---
+bEtat est un booléen = ToucheEnfoncée(Asc("A"))
+dbgVérifieVrai(bEtat = Faux, "touche A (code 65) : Faux en headless (non enfoncee)")
+
+// Code 0 : hors-domaine de l'enum, edge case intentionnel (pas de constante nommee)
+nCodeHorsDomaine est un entier = 0
+bEtat = ToucheEnfoncée(nCodeHorsDomaine)
+dbgVérifieVrai(bEtat = Faux, "code 0 : Faux en headless")
+
+// --- Constantes te* (documentation de référence) ---
+bEtat = ToucheEnfoncée(teShift)
+dbgVérifieVrai(bEtat = Faux, "teShift : Faux en headless")
+
+bEtat = ToucheEnfoncée(teControl)
+dbgVérifieVrai(bEtat = Faux, "teControl : Faux en headless")
+
+bEtat = ToucheEnfoncée(teAlt)
+dbgVérifieVrai(bEtat = Faux, "teAlt : Faux en headless")
+
+bEtat = ToucheEnfoncée(teEchap)
+dbgVérifieVrai(bEtat = Faux, "teEchap : Faux en headless")
+
+// --- Constantes tk* : flech directionnelles ---
+bEtat = ToucheEnfoncée(tkHaut)
+dbgVérifieVrai(bEtat = Faux, "tkHaut : Faux en headless")
+
+bEtat = ToucheEnfoncée(tkBas)
+dbgVérifieVrai(bEtat = Faux, "tkBas : Faux en headless")
+
+bEtat = ToucheEnfoncée(tkGauche)
+dbgVérifieVrai(bEtat = Faux, "tkGauche : Faux en headless")
+
+bEtat = ToucheEnfoncée(tkDroite)
+dbgVérifieVrai(bEtat = Faux, "tkDroite : Faux en headless")
+
+// --- Code entier hors-domaine : pas d'erreur, retourne Faux ---
+bEtat = ToucheEnfoncée(-1)
+bErreurDApresCodeNegatif est un booléen = ErreurDétectée
+dbgVérifieVrai(bEtat = Faux, "code -1 : retourne Faux (pas d erreur)")
+dbgVérifieVrai(bErreurDApresCodeNegatif = Faux, "code -1 : pas ErreurDetectee")
+
+// --- Forme EN (bilingue) ---
+bEtat = KeyPressed(Asc("A"))
+dbgVérifieVrai(bEtat = Faux, "KeyPressed (EN) : Faux en headless, forme EN acceptee")
+
+// --- Boutons souris (teBoutonG / teBoutonD, documentation de référence) ---
+bEtat = ToucheEnfoncée(teBoutonG)
+dbgVérifieVrai(bEtat = Faux, "teBoutonG : Faux en headless (aucun bouton enfonce)")
+
+bEtat = ToucheEnfoncée(teBoutonD)
+bErreurApresBouton est un booléen = ErreurDétectée
+dbgVérifieVrai(bEtat = Faux, "teBoutonD : Faux en headless")
+dbgVérifieVrai(bErreurApresBouton = Faux, "teBoutonG/D : pas ErreurDetectee")
+
+dbgBilanTest()

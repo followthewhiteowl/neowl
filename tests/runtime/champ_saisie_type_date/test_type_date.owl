@@ -1,0 +1,81 @@
+//  — Lot B « types de saisie » : ajout de typSaisieDate au champ
+// de saisie (suite  num/monétaire,  valeur typée Qt-first).
+//
+// Canon (documentation de référence, "TypeSaisie") : Date est l'une des 7 valeurs
+// canon de l'enum TypeSaisie. Sa Valeur programmatique est une date (pas
+// une chaîne, pas un Variant de référence) : OWL n'a pas de Variant (pilier 2), donc
+// SAI_Date..Valeur doit renvoyer un owlDate, comme SAI_Num renvoie owlRéel
+// et SAI_Monetaire renvoie owlMonétaire.
+//
+// Nature : ROUGE avant impl, y compris à la compilation — typSaisieDate
+// n'existe pas encore dans l'enum typeSaisie (5 valeurs câblées aujourd'hui :
+// Texte/MotDePasse/Multiligne/Num/Monétaire). Le compile-check échoue donc
+// pour la BONNE raison : symbole inconnu "typSaisieDate".
+//
+// Format de saisie utilisateur (TestSimuleSaisie) : "12/05/2026" (JJ/MM/AAAA)
+// est un format déjà auto-détecté par ChaîneVersDate (voir
+// tests/scenarios/natives/test_ChaineVersDate.owl). Le format d'AFFICHAGE
+// exact que le futur widget calendrier choisira par défaut reste une
+// décision d'implémentation non tranchée ici (cf. ticket , note
+// test_writer) : ce test n'assert JAMAIS le texte affiché, seulement la
+// VALEUR (owlDate) relue — donc robuste au choix de masque retenu.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TypeDate)
+
+// ===== 1. Round-trip type : TypeSaisie = typSaisieDate =====
+
+dbgVérifieEgalité(SAI_Date..TypeSaisie, typSaisieDate, "Date : ..TypeSaisie relu vaut typSaisieDate")
+
+// ===== 2. Non-régression : Texte témoin reste chaîne =====
+
+SAI_Texte..Valeur = "bonjour"
+dbgVérifieEgalité(TypeVar(SAI_Texte..Valeur), owlChaîne, "Texte témoin : ..Valeur reste une chaîne (non-régression)")
+dbgVérifieEgalité(SAI_Texte..Valeur, "bonjour", "Texte témoin : round-trip fidèle")
+
+// ===== 3. Round-trip valeur typée : owlDate fidèle =====
+//
+// Garde SI/SINON : tant que ..Valeur reste une chaîne générique (avant
+// impl), le cast implicite chaîne->chaîne ne lève rien, mais TypeVar ne
+// vaudra pas owlDate -> on isole l'assertion de fidélité pour ne pas la
+// faire dépendre d'un chemin encore non câblé.
+
+dRéférence est une date = ChaîneVersDate("20260512")
+SAI_Date..Valeur = dRéférence
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Date : ..Valeur est un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLue est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLue, "20260512", "Date : round-trip fidèle à 2026-05-12")
+SINON
+	dbgVérifieVrai(Faux, "Date : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// Cas limite calendaire : 29 février d'une année bissextile (2024).
+dBissextile est une date = ChaîneVersDate("20240229")
+SAI_Date..Valeur = dBissextile
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLueBissextile est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLueBissextile, "20240229", "Date : round-trip fidèle sur 29 février bissextile")
+SINON
+	dbgVérifieVrai(Faux, "Date (bissextile) : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 4. Édition utilisateur réelle après pré-remplissage programmatique =====
+//
+// Contrat  (Qt-first) : ..Valeur doit lire le widget VIVANT, pas un
+// store figé au dernier SET programmatique. TestSimuleSaisie poste de vrais
+// QKeyEvents (widget monté, TestModeHeadless(Faux) actif en tête de fichier).
+
+SAI_Date..Valeur = ChaîneVersDate("20260101")
+TestSimuleSaisie(SAI_Date, "12/05/2026")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Date : édition utilisateur -> ..Valeur reste un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLueEditee est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLueEditee, "20260512", "Date : édition utilisateur reflétée (12/05/2026, pas 01/01/2026 périmé)")
+SINON
+	dbgVérifieVrai(Faux, "Date : édition utilisateur ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_TypeDate)
+dbgBilanTest()

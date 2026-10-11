@@ -1,0 +1,215 @@
+// @owl-allow-multi-window — ce test valide les slots UI multilingue sur plusieurs Fenêtres dans un même fichier.
+// Champs UI avec slots texte typés chaîneMultilingue natif. Les
+// libellés, titres, infobulles, placeholders des champs UI acceptent
+// désormais plusieurs traductions via le type first-class chaîneMultilingue.
+// Le coerce auto chaîne → chaîneMultilingue à l'affectation (remplit
+// langue source uniquement) préserve backward-compat : tout code existant
+// qui assignait une string plate continue de marcher identique.
+//
+// Note : les tests ci-dessous valident la backward-compat (affectation
+// string simple dans PROPRIETES DSL). Les tests avec littéraux inline
+// multilangue ({langueFrançais: "...", langueAnglais: "..."}) nécessitent
+// un fix préalable du parser DSL (actuellement segfault) et seront ajoutés
+// post-impl par l'implementer ou en ticket séparé.
+
+
+// Backward-compat : bouton avec libellé string simple. Le coerce auto
+// chaîne → chaîneMultilingue crée un objet multilangue contenant uniquement
+// la langue source ("fr-FR" hardcodée en v1). Ce scenario valide que le
+// code existant continue de marcher identique.
+FEN_Bouton_Libelle_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "Test bouton libellé simple"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	BTN_Valider est un Champ Bouton
+		PROPRIETES
+			Libellé = "Valider"
+			X       = 10
+			Y       = 10
+			Largeur = 100
+			Hauteur = 30
+		FIN
+	FIN
+
+	BTN_Annuler est un Champ Bouton
+		PROPRIETES
+			Libellé = "Annuler"
+			X       = 120
+			Y       = 10
+			Largeur = 100
+			Hauteur = 30
+		FIN
+	FIN
+FIN
+
+
+// Backward-compat : fenêtre avec titre string simple. Le slot ..Titre
+// typé chaîneMultilingue accepte toujours une string simple via coerce auto.
+FEN_Titre_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "Paramètres"
+		Largeur     = 400
+		Hauteur     = 300
+		Disposition = dispLibre
+	FIN
+
+	LBL_Info est un Champ Libellé
+		PROPRIETES
+			Libellé = "Fenêtre de configuration"
+			X       = 10
+			Y       = 10
+			Largeur = 200
+			Hauteur = 30
+		FIN
+	FIN
+FIN
+
+
+// Backward-compat : info-bulle (tooltip) string simple. Le slot ..Bulle
+// typé chaîneMultilingue accepte une string plate.
+FEN_Bulle_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "Test infobulle"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	BTN_OK est un Champ Bouton
+		PROPRIETES
+			Libellé = "OK"
+			Bulle   = "Confirmer l'action"
+			X       = 10
+			Y       = 10
+			Largeur = 80
+			Hauteur = 30
+		FIN
+	FIN
+FIN
+
+
+// Backward-compat : champ Libellé (label) avec texte string simple.
+FEN_Libelle_Champ_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "Test label"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	LBL_Bienvenue est un Champ Libellé
+		PROPRIETES
+			Libellé = "Bienvenue dans l'application"
+			X       = 10
+			Y       = 10
+			Largeur = 250
+			Hauteur = 30
+		FIN
+	FIN
+FIN
+
+
+// Backward-compat : champ Saisie avec placeholder (..Indication) string simple.
+FEN_Saisie_Indication_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "Test saisie placeholder"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	SAI_Nom est un Champ Saisie
+		PROPRIETES
+			Indication = "Entrez votre nom"
+			X          = 10
+			Y          = 10
+			Largeur    = 200
+			Hauteur    = 30
+		FIN
+	FIN
+FIN
+
+
+// Backward-compat : combinaison de plusieurs slots UI (Libellé + Bulle)
+// avec strings simples. Indépendance totale des objets chaîneMultilingue
+// créés par coerce auto.
+FEN_Combinaison_Slots_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "Test slots combinés"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	BTN_Sauvegarder est un Champ Bouton
+		PROPRIETES
+			Libellé = "Sauvegarder"
+			Bulle   = "Enregistrer les modifications"
+			X       = 10
+			Y       = 10
+			Largeur = 120
+			Hauteur = 30
+		FIN
+	FIN
+FIN
+
+
+// Backward-compat : accent et casse dans les strings simples. Le coerce
+// auto préserve la string telle quelle dans la langue source.
+FEN_Accent_Casse_Simple est une Fenêtre
+	PROPRIETES
+		Titre       = "PRÉCÉDENT"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	BTN_Precedent est un Champ Bouton
+		PROPRIETES
+			Libellé = "Précédent"
+			X       = 10
+			Y       = 10
+			Largeur = 100
+			Hauteur = 30
+		FIN
+	FIN
+
+	BTN_Suivant est un Champ Bouton
+		PROPRIETES
+			Libellé = "SUIVANT"
+			X       = 120
+			Y       = 10
+			Largeur = 100
+			Hauteur = 30
+		FIN
+	FIN
+FIN
+
+
+// Note : les scenarios suivants (tests avec littéraux inline multilangue)
+// nécessitent que le parser DSL accepte les dict inline dans PROPRIETES
+// sans segfault. À implémenter en même temps que le retypage des slots.
+//
+// Scenarios à ajouter post-fix parser DSL :
+// - scenario_bouton_libelle_litteral_inline_multilangue()
+//   `Libellé = {langueFrançais: "Valider", langueAnglais: "Submit"}`
+// - scenario_fenetre_titre_multilangue()
+//   `Titre = {langueFrançais: "Paramètres", langueAnglais: "Settings"}`
+// - scenario_bulle_multilangue()
+//   `Bulle = {langueFrançais: "Confirmer", langueAnglais: "Confirm"}`
+// - scenario_saisie_indication_multilangue()
+//   `Indication = {langueFrançais: "Entrez nom", langueAnglais: "Enter name"}`
+// - scenario_litteral_inline_vide() (cas limite)
+//   `Libellé = {}`
+// - scenario_litteral_inline_cinq_langues()
+//   `Libellé = {langueFrançais: "...", langueAnglais: "...", langueAllemand: "...", ...}`
+//
+// Les assertions attendues post-impl :
+// - Lecture via `f.BTN_Test..Libellé` retourne la trad de la langue courante
+// - Indexation lecture `f.BTN_Test..Libellé[langueAnglais]` retourne trad EN
+// - Switch langue runtime `Langue(langueAnglais)` change le texte affiché
+// - Fallback vers langue source si trad manquante

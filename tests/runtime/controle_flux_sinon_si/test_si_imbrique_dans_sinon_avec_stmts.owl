@@ -1,0 +1,55 @@
+//  — SI imbriqué dans SINON, non seul (autres statements avant/après)
+// STATUT INITIAL : ROUGE (compile error cascade) avant fix
+// Apres fix : VERT
+
+// Instruction AVANT le SI dans le SINON
+nAvec_avantSi est un entier = 0
+SI Faux ALORS
+	nAvec_avantSi = 99
+SINON
+	nAvec_avantSi = 5
+	SI Vrai ALORS
+		nAvec_avantSi = nAvec_avantSi + 10
+	FIN
+FIN
+dbgVérifieEgalité(nAvec_avantSi, 15, "stmt avant SI dans SINON : 5+10 = 15")
+
+// Instruction APRÈS le SI dans le SINON
+nAvec_apresSi est un entier = 0
+SI Faux ALORS
+	nAvec_apresSi = 99
+SINON
+	SI Vrai ALORS
+		nAvec_apresSi = 10
+	FIN
+	nAvec_apresSi = nAvec_apresSi + 5
+FIN
+dbgVérifieEgalité(nAvec_apresSi, 15, "stmt apres SI dans SINON : 10+5 = 15")
+
+// Instructions AVANT et APRÈS le SI dans le SINON
+nAvec_avantEtApres est un entier = 0
+SI Faux ALORS
+	nAvec_avantEtApres = 99
+SINON
+	nAvec_avantEtApres = nAvec_avantEtApres + 1
+	SI Vrai ALORS
+		nAvec_avantEtApres = nAvec_avantEtApres + 10
+	FIN
+	nAvec_avantEtApres = nAvec_avantEtApres + 2
+FIN
+dbgVérifieEgalité(nAvec_avantEtApres, 13, "stmts avant+apres SI dans SINON : 1+10+2 = 13")
+
+// SI imbriqué INACTIF, les stmts autour doivent quand meme s'executer
+nAvec_siInactif est un entier = 0
+SI Faux ALORS
+	nAvec_siInactif = 99
+SINON
+	nAvec_siInactif = 5
+	SI Faux ALORS
+		nAvec_siInactif = 88
+	FIN
+	nAvec_siInactif = nAvec_siInactif + 1
+FIN
+dbgVérifieEgalité(nAvec_siInactif, 6, "SI imbriqué inactif, stmts autour : 5+1 = 6")
+
+dbgBilanTest()

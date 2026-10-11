@@ -1,0 +1,20 @@
+// @sujet : Namespace OWL. — wrapper qui délègue à la native sans récursion
+// @résumé : Le cas d'usage central du préfixe `OWL.` : une procédure qui porte le même
+// nom qu'une fonction native, enrichit son comportement, puis délègue le calcul à la
+// fonction d'origine via `OWL.<nom>`. Sans échappatoire, cette écriture rebondirait sur
+// elle-même indéfiniment (la procédure s'appelant elle-même) ; avec `OWL.`, l'appel vise
+// directement la fonction d'origine et le calcul se termine normalement.
+
+nAppelsWrapper est un entier = 0
+
+PROCEDURE Taille(x est une chaîne) : entier
+	nAppelsWrapper = nAppelsWrapper + 1
+	RENVOYER OWL.Taille(x)
+FIN
+
+PROCEDURE PUBLIQUE scenario_owl_wrapper_delegue_sans_recursion()
+	nAppelsWrapper = 0
+	n est un entier = Taille("abc")
+	dbgVérifieEgalité(n, 3, "Le wrapper délègue à OWL.Taille et renvoie la vraie longueur")
+	dbgVérifieEgalité(nAppelsWrapper, 1, "Le wrapper n'est exécuté qu'une fois : OWL.Taille ne rebondit pas sur lui")
+FIN

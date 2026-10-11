@@ -1,0 +1,39 @@
+// test_io_uuid_mock_arity.owl
+// Verrouille les formes d'arite discretes des familles UUID et
+// Mock migrees depuis une signature variadique a minimum masque : chaque
+// forme valide continue de compiler ET de s'executer correctement, et la
+// sur-application est rejetee a la compilation (cf. tests/compile-error/
+// uuid_donneuuid_sur_arg et mock_verifieappele_sur_arg).
+//
+// Note : la famille I/O (Trace / dbgSortieStandard) reste volontairement en
+// signature variadique reelle (-1) : son impl boucle sans borne sur argCount.
+// Aucune forme discrete a verrouiller cote I/O.
+
+PROCEDURE PUBLIQUE test_donneuuid_formes()
+	// 0 arg : UUID v4 aleatoire par defaut
+	u1 est un UUID = DonneUUID()
+	dbgVérifieEgalité(Taille(u1.VersChaîne()), 36, "DonneUUID 0 arg -> v4 36 chars")
+	// 1 arg : version explicite (v7 timestampe sortable)
+	u2 est un UUID = DonneUUID(uuidV7)
+	dbgVérifieEgalité(Taille(u2.VersChaîne()), 36, "DonneUUID 1 arg uuidV7 -> 36 chars")
+FIN
+
+PROCEDURE PUBLIQUE test_uuid_verschaine_formes()
+	u est un UUID = DonneUUID(uuidV4)
+	// 1 arg (receveur seul) : format standard 36 chars a tirets
+	dbgVérifieEgalité(Taille(u.VersChaîne()), 36, "VersChaine receveur seul -> standard 36")
+	// 2 args (receveur + format) : compact 32 hex pur
+	dbgVérifieEgalité(Taille(u.VersChaîne(uuidFormatCompact)), 32, "VersChaine + compact -> 32")
+	// 2 args : accolades 38 chars
+	dbgVérifieEgalité(Taille(u.VersChaîne(uuidFormatAccolades)), 38, "VersChaine + accolades -> 38")
+FIN
+
+PROCEDURE PUBLIQUE test_mockverifieappele_formes()
+	monMock est un MockNative = MockCrée("Trace")
+	// 1 arg (mock seul) : vrai si au moins un appel -> faux ici (jamais appele)
+	dbgVérifieEgalité(MockVérifieAppelé(monMock), Faux, "VerifieAppele 1 arg -> faux si jamais appele")
+	// 2 args (mock + nombre attendu) : 0 appels attendu -> vrai
+	dbgVérifieEgalité(MockVérifieAppelé(monMock, 0), Vrai, "VerifieAppele 2 args -> 0 appels")
+	// 3 args (mock + "fois" + nombre) : 0 appels via parametre nomme -> vrai
+	dbgVérifieEgalité(MockVérifieAppelé(monMock, "fois", 0), Vrai, "VerifieAppele 3 args -> 0 appels via fois")
+FIN

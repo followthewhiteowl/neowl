@@ -1,0 +1,183 @@
+// @sujet : AssocieCiblesDétection / AssignDetectionTargets
+// @résumé : Transforme un lot de boîtes annotées (format `ImageAnnotée..Boîtes`,
+// chaque boîte `[classe, cx, cy, largeur, hauteur]` normalisée 0..1) en UN
+// Tenseur cible `[H·W, 4+1+K]` aligné sur la disposition d'une tête de
+// détection par cellule (H = hauteurGrille, W = largeurGrille, K = nbClasses),
+// cellules en ordre ligne-major (index = row·W + col). Pour chaque boîte, la
+// cellule responsable est celle qui contient son centre :
+// `col = plancher(cx·W)`, `row = plancher(cy·H)` (bornés à [0,W-1]/[0,H-1]
+// pour cx/cy = 1.0). Cette cellule reçoit la boîte (canaux 0..3), un
+// objectness à 1 (canal 4, sert aussi de masque positif) et la classe en
+// one-hot (canaux 5..5+K-1). Toute autre cellule reste à 0 (fond).
+// Le centre (canaux 0..1) est stocké RELATIF à la cellule responsable :
+// `cx_rel = cx·W - col`, `cy_rel = cy·H - row` (dans [0,1[) ; largeur et
+// hauteur restent une fraction de l'image entière. Décodage :
+// `cx = (col + cx_rel)/W`, `cy = (row + cy_rel)/H`.
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Une seule boîte sur une grille 2×2 : centre cx=0.75, cy=0.25 →
+// col=plancher(0.75*2)=1, row=plancher(0.25*2)=0 → cellule responsable
+// index=row*W+col=0*2+1=1 (0-based) → 2e ligne du Tenseur (1-based). Cette
+// ligne porte la boîte, objectness=1 et la classe (1) en one-hot ; les 3
+// autres cellules restent intégralement à 0.
+PROCEDURE PUBLIQUE scenario_boite_cellule_responsable_exacte()
+	boites est un tableau = [[1.0, 0.75, 0.25, 0.4, 0.6]]
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 2)
+
+	dbgVérifieEgalité(t..Forme[1], 4, "H*W = 4 cellules")
+	dbgVérifieEgalité(t..Forme[2], 7, "4 (boîte) + 1 (objectness) + 2 (classes) = 7 canaux")
+
+	// Cellule responsable = ligne 2 (1-based). Centre relatif à la cellule :
+	// cx_rel = 0.75·2 - 1 = 0.5, cy_rel = 0.25·2 - 0 = 0.5.
+	dbgVérifieVrai(Abs(t..Valeur[2][1] - 0.5) < 0.0001, "cellule responsable : cx_rel = 0.5")
+	dbgVérifieVrai(Abs(t..Valeur[2][2] - 0.5) < 0.0001, "cellule responsable : cy_rel = 0.5")
+	dbgVérifieVrai(Abs(t..Valeur[2][3] - 0.4) < 0.0001, "cellule responsable : largeur = 0.4")
+	dbgVérifieVrai(Abs(t..Valeur[2][4] - 0.6) < 0.0001, "cellule responsable : hauteur = 0.6")
+	dbgVérifieVrai(Abs(t..Valeur[2][5] - 1.0) < 0.0001, "cellule responsable : objectness = 1")
+	dbgVérifieVrai(Abs(t..Valeur[2][6] - 0.0) < 0.0001, "cellule responsable : one-hot classe 0 = 0 (classe réelle = 1)")
+	dbgVérifieVrai(Abs(t..Valeur[2][7] - 1.0) < 0.0001, "cellule responsable : one-hot classe 1 = 1")
+
+	// Les 3 autres cellules (lignes 1, 3, 4) sont intégralement à 0 (fond).
+	POUR ligne = 1 À 4
+		SI ligne <> 2 ALORS
+			POUR canal = 1 À 7
+				dbgVérifieVrai(Abs(t..Valeur[ligne][canal] - 0.0) < 0.0001, "cellule de fond : tout canal à 0")
+			FIN
+		FIN
+	FIN
+FIN
+
+// Layout complet : grille 2×2, K=3 classes → forme [4, 8]. Une boîte de
+// classe 2 (0-based) sur la cellule (row=0, col=0) vérifie explicitement
+// l'offset de chaque groupe de canaux : 1..4 boîte, 5 objectness,
+// 6..8 one-hot (classes 0, 1, 2).
+PROCEDURE PUBLIQUE scenario_layout_complet_forme_et_offsets_canaux()
+	boites est un tableau = [[2.0, 0.1, 0.1, 0.5, 0.5]]
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 3)
+
+	dbgVérifieEgalité(t..Forme[1], 4, "H*W = 4 cellules")
+	dbgVérifieEgalité(t..Forme[2], 8, "4 (boîte) + 1 (objectness) + 3 (classes) = 8 canaux")
+
+	// col=plancher(0.1*2)=0, row=plancher(0.1*2)=0 → cellule responsable = ligne 1.
+	// Centre relatif : cx_rel = 0.1·2 - 0 = 0.2, cy_rel = 0.1·2 - 0 = 0.2.
+	dbgVérifieVrai(Abs(t..Valeur[1][1] - 0.2) < 0.0001, "canal 1 (cx_rel) = 0.2")
+	dbgVérifieVrai(Abs(t..Valeur[1][2] - 0.2) < 0.0001, "canal 2 (cy_rel) = 0.2")
+	dbgVérifieVrai(Abs(t..Valeur[1][3] - 0.5) < 0.0001, "canal 3 (largeur) = 0.5")
+	dbgVérifieVrai(Abs(t..Valeur[1][4] - 0.5) < 0.0001, "canal 4 (hauteur) = 0.5")
+	dbgVérifieVrai(Abs(t..Valeur[1][5] - 1.0) < 0.0001, "canal 5 (objectness) = 1")
+	dbgVérifieVrai(Abs(t..Valeur[1][6] - 0.0) < 0.0001, "canal 6 (one-hot classe 0) = 0")
+	dbgVérifieVrai(Abs(t..Valeur[1][7] - 0.0) < 0.0001, "canal 7 (one-hot classe 1) = 0")
+	dbgVérifieVrai(Abs(t..Valeur[1][8] - 1.0) < 0.0001, "canal 8 (one-hot classe 2, la classe réelle) = 1")
+FIN
+
+// Deux boîtes sur des cellules distinctes d'une grille 2×2 : chacune reçoit
+// sa propre cellule responsable, les 2 autres cellules restent à 0.
+PROCEDURE PUBLIQUE scenario_multi_boites_cellules_distinctes()
+	boites est un tableau = [[0.0, 0.25, 0.25, 0.3, 0.3], [1.0, 0.9, 0.9, 0.2, 0.2]]
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 2)
+
+	// Boîte 1 : col=plancher(0.5)=0, row=plancher(0.5)=0 → ligne 1.
+	// Centre relatif : cx_rel = 0.25·2 - 0 = 0.5, cy_rel = 0.25·2 - 0 = 0.5.
+	dbgVérifieVrai(Abs(t..Valeur[1][1] - 0.5) < 0.0001, "boîte 1 : cx_rel = 0.5")
+	dbgVérifieVrai(Abs(t..Valeur[1][2] - 0.5) < 0.0001, "boîte 1 : cy_rel = 0.5")
+	dbgVérifieVrai(Abs(t..Valeur[1][5] - 1.0) < 0.0001, "boîte 1 : objectness = 1")
+	dbgVérifieVrai(Abs(t..Valeur[1][6] - 1.0) < 0.0001, "boîte 1 : one-hot classe 0 = 1")
+	dbgVérifieVrai(Abs(t..Valeur[1][7] - 0.0) < 0.0001, "boîte 1 : one-hot classe 1 = 0")
+
+	// Boîte 2 : col=plancher(1.8)=1, row=plancher(1.8)=1 → index=1*2+1=3 → ligne 4.
+	// Centre relatif : cx_rel = 0.9·2 - 1 = 0.8, cy_rel = 0.9·2 - 1 = 0.8.
+	dbgVérifieVrai(Abs(t..Valeur[4][1] - 0.8) < 0.0001, "boîte 2 : cx_rel = 0.8")
+	dbgVérifieVrai(Abs(t..Valeur[4][2] - 0.8) < 0.0001, "boîte 2 : cy_rel = 0.8")
+	dbgVérifieVrai(Abs(t..Valeur[4][5] - 1.0) < 0.0001, "boîte 2 : objectness = 1")
+	dbgVérifieVrai(Abs(t..Valeur[4][6] - 0.0) < 0.0001, "boîte 2 : one-hot classe 0 = 0")
+	dbgVérifieVrai(Abs(t..Valeur[4][7] - 1.0) < 0.0001, "boîte 2 : one-hot classe 1 = 1")
+
+	// Cellules 2 et 3 (lignes 2, 3) : fond intégral.
+	POUR canal = 1 À 7
+		dbgVérifieVrai(Abs(t..Valeur[2][canal] - 0.0) < 0.0001, "cellule de fond (ligne 2) : tout canal à 0")
+		dbgVérifieVrai(Abs(t..Valeur[3][canal] - 0.0) < 0.0001, "cellule de fond (ligne 3) : tout canal à 0")
+	FIN
+FIN
+
+// Bord : cx=1.0 et cy=1.0 sont bornés à la dernière cellule (pas de
+// débordement d'indice). Grille 2×2, K=1 : col=plancher(1.0*2)=2 borné à
+// W-1=1, row=plancher(1.0*2)=2 borné à H-1=1 → index=1*2+1=3 → ligne 4.
+PROCEDURE PUBLIQUE scenario_bord_cx_cy_un_borne_derniere_cellule()
+	boites est un tableau = [[0.0, 1.0, 1.0, 0.1, 0.1]]
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 1)
+
+	dbgVérifieEgalité(t..Forme[1], 4, "H*W = 4 cellules")
+	dbgVérifieEgalité(t..Forme[2], 6, "4 (boîte) + 1 (objectness) + 1 (classe) = 6 canaux")
+
+	// Centre relatif sur cellule bornée : cx_rel = 1.0·2 - 1 = 1.0 (idem cy).
+	dbgVérifieVrai(Abs(t..Valeur[4][1] - 1.0) < 0.0001, "cellule bornée (dernière) : cx_rel = 1.0")
+	dbgVérifieVrai(Abs(t..Valeur[4][2] - 1.0) < 0.0001, "cellule bornée (dernière) : cy_rel = 1.0")
+	dbgVérifieVrai(Abs(t..Valeur[4][5] - 1.0) < 0.0001, "cellule bornée (dernière) : objectness = 1")
+	dbgVérifieVrai(Abs(t..Valeur[4][6] - 1.0) < 0.0001, "cellule bornée (dernière) : one-hot classe 0 = 1")
+
+	// Aucune autre cellule ne reçoit la boîte (pas de débordement en ligne 5+).
+	POUR ligne = 1 À 3
+		POUR canal = 1 À 6
+			dbgVérifieVrai(Abs(t..Valeur[ligne][canal] - 0.0) < 0.0001, "cellule de fond : tout canal à 0")
+		FIN
+	FIN
+FIN
+
+// Fond : aucune boîte → Tenseur cible intégralement à 0 (image de fond,
+// valide, aucune erreur).
+PROCEDURE PUBLIQUE scenario_fond_aucune_boite_tenseur_tout_zero()
+	boites est un tableau = []
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 2)
+
+	dbgVérifieEgalité(t..Forme[1], 4, "H*W = 4 cellules même sans boîte")
+	dbgVérifieEgalité(t..Forme[2], 7, "4+1+K = 7 canaux même sans boîte")
+
+	POUR ligne = 1 À 4
+		POUR canal = 1 À 7
+			dbgVérifieVrai(Abs(t..Valeur[ligne][canal] - 0.0) < 0.0001, "aucune boîte : tout canal à 0 sur toutes les cellules")
+		FIN
+	FIN
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : forme anglaise + cas limites d'erreur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Forme anglaise AssignDetectionTargets : même calcul que
+// AssocieCiblesDétection sur un cas central.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise()
+	boxes is an array = [[1.0, 0.75, 0.25, 0.4, 0.6]]
+	t is a Tensor = AssignDetectionTargets(boxes, 2, 2, 2)
+
+	dbgCheckEqual(t..Shape[1], 4, "AssignDetectionTargets: H*W = 4 cells")
+	dbgCheckEqual(t..Shape[2], 7, "AssignDetectionTargets: 4+1+K = 7 channels")
+	dbgCheckTrue(Abs(t..Value[2][5] - 1.0) < 0.0001, "AssignDetectionTargets: responsible cell has objectness 1")
+	dbgCheckTrue(Abs(t..Value[2][7] - 1.0) < 0.0001, "AssignDetectionTargets: responsible cell one-hot class 1 = 1")
+FIN
+
+// Cas limite : hauteurGrille ≤ 0 est invalide.
+PROCEDURE PRIVÉE scenario_edge_hauteur_grille_invalide()
+	boites est un tableau = []
+	ErreurRAZ()
+	t est un Tenseur = AssocieCiblesDétection(boites, 0, 2, 2)
+	dbgVérifieVrai(ErreurDétectée, "hauteurGrille=0 (invalide) doit poser ErreurDétectée")
+FIN
+
+// Cas limite : largeurGrille ≤ 0 est invalide.
+PROCEDURE PRIVÉE scenario_edge_largeur_grille_invalide()
+	boites est un tableau = []
+	ErreurRAZ()
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 0, 2)
+	dbgVérifieVrai(ErreurDétectée, "largeurGrille=0 (invalide) doit poser ErreurDétectée")
+FIN
+
+// Cas limite : nbClasses ≤ 0 est invalide.
+PROCEDURE PRIVÉE scenario_edge_nbclasses_invalide()
+	boites est un tableau = []
+	ErreurRAZ()
+	t est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 0)
+	dbgVérifieVrai(ErreurDétectée, "nbClasses=0 (invalide) doit poser ErreurDétectée")
+FIN

@@ -1,0 +1,33 @@
+//  — prop Style (type styleInterrupteur) sur le Champ Interrupteur.
+// Vérifie de bout en bout (backend headless) :
+//   1. Déclaration d'un styleInterrupteur + renseignement de ses
+//      sous-champs, read-back sur l'instance (le type compose correctement).
+//   2. Application au Champ Interrupteur via INT..Style ne casse pas.
+//   3. La prop Style typée sur Interrupteur : la cascade
+//      INT..Style..TexteOptions..Couleur matérialise un styleInterrupteur
+//      et fait un round-trip.
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore avec le type
+// styleInterrupteur (compile-fail : type styleInterrupteur inconnu).
+
+Trace("=== styleInterrupteur : type composite + application Champ Interrupteur ===")
+
+STY_Int est un styleInterrupteur
+STY_Int..CadreExtérieur..CouleurFond = JauneClair
+STY_Int..TexteOptions..Couleur       = Rouge
+
+dbgVérifieEgalité(STY_Int..CadreExtérieur..CouleurFond, JauneClair, "styleInterrupteur : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Int..TexteOptions..Couleur, Rouge, "styleInterrupteur : TexteOptions..Couleur posée")
+
+Ouvre(FEN_InterrupteurStyle)
+INT_Style..Style = STY_Int
+dbgVérifieVrai(Vrai, "styleInterrupteur appliqué à INT..Style sans crash")
+
+INT_Style..Style..TexteOptions..Couleur = RougeClair
+dbgVérifieEgalité(INT_Style..Style..TexteOptions..Couleur, RougeClair, "INT..Style..TexteOptions..Couleur round-trip")
+
+INT_Style..Style..CadreCoche..CouleurFond = Bleu
+dbgVérifieEgalité(INT_Style..Style..CadreCoche..CouleurFond, Bleu, "INT..Style..CadreCoche..CouleurFond round-trip")
+
+Ferme(FEN_InterrupteurStyle)
+dbgBilanTest()

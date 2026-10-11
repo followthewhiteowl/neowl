@@ -1,0 +1,26 @@
+//  : toute erreur runtime de niveau utilisateur doit être
+// rattrapable par QUAND EXCEPTION. Isolé dans son propre fichier : voir
+// test_1615_arith_tableau_plus_tableau.owl pour la justification de
+// l'isolation (exit 70 tuerait les voisins).
+//
+// Cohérence attendue : l'index hors-limites 1D en lecture (tab[99]) est
+// déjà rattrapable (cf. test_1615_non_regression_deja_rattrapables.owl) ;
+// l'index hors-limites 2D doit devenir cohérent avec sa forme sœur 1D.
+
+// ROUGE tant que grille[99, 1] (2D hors limites) n'est pas rattrapable.
+PROCEDURE PUBLIQUE test_index_2d_hors_limites_leve_exception()
+	grille est un tableau de 2 par 2 entiers
+	grille[1, 1] = 1
+	grille[1, 2] = 2
+	grille[2, 1] = 3
+	grille[2, 2] = 4
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un entier = grille[99, 1]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau 2D[hors limites] lève une exception récupérable")
+FIN

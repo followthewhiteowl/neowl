@@ -1,0 +1,42 @@
+// Fenêtre voisine — ressource pour test_monchamp_event_read_write.owl.
+//
+// MonChamp dans event CHAMP : lecture + ecriture propriete via MonChamp.
+// L'event surClic incrémente un compteur et écrit Libellé via MonChamp.
+
+FEN_Test est une Fenêtre
+	PROPRIETES
+		Titre       = "Test MonChamp event"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	// Bouton avec compteur de clics
+	BTN_X est un Champ Bouton
+		PROPRIETES
+			X       = 50
+			Y       = 50
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Clic 0"
+		FIN
+
+		// Variable interne au champ (scoping Lot 1b deja fait)
+		nClic est un entier = 0
+
+		PROCEDURE surClic()
+			nClic += 1
+			// Ecriture via MonChamp
+			MonChamp..Libellé = "Clic " + nClic
+			// Lecture via MonChamp (pour verifier symetrie read/write)
+			Trace(MonChamp..Libellé)
+		FIN
+	FIN
+
+	// Procedure publique appelee par le script test apres les clics simules
+	// pour remonter la valeur lue (les champs ne sont pas accessibles
+	// directement depuis un script voisin).
+	PROCEDURE LireLibelleBTN()
+		callback_verifie(BTN_X..Libellé)
+	FIN
+FIN

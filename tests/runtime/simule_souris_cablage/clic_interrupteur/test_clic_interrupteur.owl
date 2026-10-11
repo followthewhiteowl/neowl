@@ -1,0 +1,38 @@
+//  — preuve de câblage réel : surClic / surDoubleClic sur Interrupteur.
+//
+// TestSimuleSouris poste un vrai QMouseEvent quand le widget est monté
+// : le clic n'a d'effet que si le champ est réellement câblé
+// côté Qt. Aucun câblage n'existe pour Interrupteur ( lot 2) : ce
+// test rougit tant qu'il n'est pas posé.
+//
+// ROUGE ATTENDU : nIntClic_obs / nIntDoubleClic_obs restent à 0 après
+// TestSimuleSouris -- surClic/surDoubleClic déclarés mais jamais tirés.
+
+TestModeHeadless(Faux)
+
+bIntPrete est un booléen = Faux
+nIntClic_obs est un entier = -1
+nIntDoubleClic_obs est un entier = -1
+
+PROCEDURE callback_int_clic_prete()
+	bIntPrete = Vrai
+FIN
+
+PROCEDURE callback_int_clic_compteurs(nC est un entier, nD est un entier)
+	nIntClic_obs       = nC
+	nIntDoubleClic_obs = nD
+FIN
+
+OuvreSoeur(FEN_ClicInterrupteur)
+dbgVérifieVrai(bIntPrete, "FinInitialisation appelée : fenêtre prête")
+
+TestSimuleSouris(INT_Cible, ClicGauche)
+LireCompteursIntClic()
+dbgVérifieEgalité(nIntClic_obs, 1, "surClic Interrupteur : 1 tir après clic simulé réel")
+
+TestSimuleSouris(INT_Cible, DoubleClicGauche)
+LireCompteursIntClic()
+dbgVérifieEgalité(nIntDoubleClic_obs, 1, "surDoubleClic Interrupteur : 1 tir après double-clic simulé réel")
+
+Ferme(FEN_ClicInterrupteur)
+dbgBilanTest()

@@ -1,0 +1,200 @@
+// @sujet : MLGradientBoosting — ensemble séquentiel d'arbres CART (boosting de gradient)
+// @résumé : MLGradientBoosting construit `..NbArbres` arbres de régression
+// successifs, chacun corrigeant les pseudo-résidus de l'ensemble précédent
+// pondérés par `..TauxApprentissage`. En classification, softmax + un arbre
+// par classe à chaque étape (le cas multi-classes prouve le chemin K-arbres).
+// Contrairement au bagging (forêt), le boosting est déterministe : pas de
+// tirage aléatoire, deux entraînements identiques produisent des prédictions
+// strictement identiques. Les scénarios ci-dessous utilisent des cibles
+// tree-représentables (marche d'escalier, clusters séparés) pour vérifier
+// une convergence quasi exacte.
+
+
+// Régression, marche d'escalier nette (10 pour x<=4, 30 pour x>4). Cible
+// exactement tree-représentable par un unique split -> le boosting converge
+// très près de la cible après 100 étapes (taux par défaut 0.1). Contrairement
+// à la forêt (bootstrap, tolérance large), le boosting est déterministe : on
+// peut être exigeant sur le R².
+PROCEDURE PUBLIQUE scenario_regression_marche_escalier()
+	gb est un MLGradientBoosting
+	gb..Objectif = objRégression
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]
+	y est un Tenseur = Tenseur([10.0, 10.0, 10.0, 10.0, 30.0, 30.0, 30.0, 30.0])
+	gb.Entraîne(matX, y)
+
+	preds est un Tenseur = gb.Prédit(matX)
+	r2 est un réel = CoefficientDétermination(preds, y)
+	dbgVérifieVrai(r2 > 0.99, "marche d'escalier tree-représentable : boosting converge, R² > 0.99")
+	dbgVérifieVrai(Abs(preds..Valeur[1] - 10.0) < 1.0, "marche basse : prédiction proche de 10")
+	dbgVérifieVrai(Abs(preds..Valeur[8] - 30.0) < 1.0, "marche haute : prédiction proche de 30")
+FIN
+
+
+// Classification MULTI-CLASSES (3 classes) : 3 clusters bien séparés en une
+// seule variable (1-3 / 11-13 / 21-23). Prouve le chemin softmax + K arbres
+// par étape (un par classe), pas seulement le cas binaire.
+PROCEDURE PUBLIQUE scenario_classification_multiclasses_trois_clusters()
+	gb est un MLGradientBoosting
+	gb..Objectif = objClassification
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0])
+	gb.Entraîne(matX, y)
+
+	preds est un Tenseur = gb.Prédit(matX)
+	taux est un réel = Exactitude(preds, y)
+	dbgVérifieEgalité(taux, 1.0, "3 clusters bien séparés (1-3 / 11-13 / 21-23) : exactitude 1.0")
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "cluster gauche : classe 0")
+	dbgVérifieEgalité(preds..Valeur[5], 1.0, "cluster central : classe 1")
+	dbgVérifieEgalité(preds..Valeur[9], 2.0, "cluster droit : classe 2")
+FIN
+
+
+// Classification binaire : 2 clusters bien séparés, cas K=2 du chemin
+// softmax (ou chemin logistique dédié selon l'implémentation).
+PROCEDURE PUBLIQUE scenario_classification_binaire_deux_clusters()
+	gb est un MLGradientBoosting
+	gb..Objectif = objClassification
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+	gb.Entraîne(matX, y)
+
+	preds est un Tenseur = gb.Prédit(matX)
+	taux est un réel = Exactitude(preds, y)
+	dbgVérifieEgalité(taux, 1.0, "2 clusters bien séparés (1-4 vs 11-14) : exactitude 1.0")
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "cluster gauche : classe 0")
+	dbgVérifieEgalité(preds..Valeur[8], 1.0, "cluster droit : classe 1")
+FIN
+
+
+// Déterminisme : boosting = pas de graine, deux entraînements identiques
+// (mêmes données, mêmes hyperparamètres) produisent des prédictions
+// STRICTEMENT identiques ligne à ligne (pas de tolérance, à la différence
+// de la forêt qui bootstrap).
+PROCEDURE PUBLIQUE scenario_determinisme_deux_entrainements_identiques()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]
+	y est un Tenseur = Tenseur([10.0, 10.0, 10.0, 10.0, 30.0, 30.0, 30.0, 30.0])
+
+	gbA est un MLGradientBoosting
+	gbA..Objectif = objRégression
+	gbA.Entraîne(matX, y)
+	predsA est un Tenseur = gbA.Prédit(matX)
+
+	gbB est un MLGradientBoosting
+	gbB..Objectif = objRégression
+	gbB.Entraîne(matX, y)
+	predsB est un Tenseur = gbB.Prédit(matX)
+
+	dbgVérifieEgalité(predsA..Valeur[1], predsB..Valeur[1], "aucune graine : mêmes données/hyperparamètres -> prédiction identique ligne 1")
+	dbgVérifieEgalité(predsA..Valeur[4], predsB..Valeur[4], "aucune graine : prédiction identique ligne 4")
+	dbgVérifieEgalité(predsA..Valeur[5], predsB..Valeur[5], "aucune graine : prédiction identique ligne 5")
+	dbgVérifieEgalité(predsA..Valeur[8], predsB..Valeur[8], "aucune graine : prédiction identique ligne 8")
+FIN
+
+
+// ..NbArbres et ..TauxApprentissage sont actifs : régler des valeurs
+// différentes (peu d'étapes vs beaucoup) ne doit pas empêcher la
+// convergence sur un jeu séparable. Angle déterministe (pas de comparaison
+// de performance, pas de seuil flaky) : les deux configurations restent à
+// exactitude 1.0.
+PROCEDURE PUBLIQUE scenario_nbarbres_tauxapprentissage_actifs()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	gbPeu est un MLGradientBoosting
+	gbPeu..Objectif = objClassification
+	gbPeu..NbArbres = 50
+	gbPeu.Entraîne(matX, y)
+	predsPeu est un Tenseur = gbPeu.Prédit(matX)
+	dbgVérifieEgalité(Exactitude(predsPeu, y), 1.0, "NbArbres=50 : jeu séparable -> exactitude 1.0")
+
+	gbBeaucoup est un MLGradientBoosting
+	gbBeaucoup..Objectif = objClassification
+	gbBeaucoup..NbArbres = 150
+	gbBeaucoup.Entraîne(matX, y)
+	predsBeaucoup est un Tenseur = gbBeaucoup.Prédit(matX)
+	dbgVérifieEgalité(Exactitude(predsBeaucoup, y), 1.0, "NbArbres=150 : jeu séparable -> exactitude 1.0")
+FIN
+
+
+// `.Entraîne` sans `..Objectif` réglé au préalable est une erreur
+// récupérable (même convention que MLArbreDécision / MLForêtAléatoire).
+PROCEDURE PUBLIQUE scenario_objectif_obligatoire_avant_entraine()
+	ErreurRAZ()
+	gb est un MLGradientBoosting
+	matX est une Matrice = [[1.0], [2.0]]
+	y est un Tenseur = Tenseur([0.0, 1.0])
+	gb.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "Entraîne sans Objectif réglé -> ErreurDétectée")
+FIN
+
+
+// Tailles incohérentes entre X (nombre de lignes) et y (nombre
+// d'éléments) : erreur récupérable, pas de crash ni de résultat inventé.
+PROCEDURE PUBLIQUE scenario_tailles_incoherentes_x_y()
+	ErreurRAZ()
+	gb est un MLGradientBoosting
+	gb..Objectif = objClassification
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([0.0, 1.0, 1.0])
+	gb.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "4 lignes dans X mais 3 valeurs dans y -> ErreurDétectée")
+FIN
+
+
+// Formes anglaises : MLGradientBoosting (identique FR/EN) / ..Objective /
+// ..NumTrees / ..LearningRate / ..MaxDepth / .Train / .Predict.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_mlgradientboosting()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	gb est un MLGradientBoosting
+	gb..Objective    = objClassification
+	gb..NumTrees     = 100
+	gb..LearningRate = 0.1
+	gb..MaxDepth     = 3
+	gb.Train(matX, y)
+
+	preds est un Tenseur = gb.Predict(matX)
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "Train/Predict EN : cluster gauche = classe 0")
+	dbgVérifieEgalité(preds..Valeur[8], 1.0, "Train/Predict EN : cluster droit = classe 1")
+FIN
+
+
+// Edge case (initiative test_writer) : ..ProfondeurMax vaut 3 par défaut
+// (≠ 0 illimité de l'arbre/forêt) : un boosting par défaut sur un jeu
+// séparable atteint toujours l'exactitude 1.0 sans régler ProfondeurMax
+// explicitement -> prouve le défaut correct.
+PROCEDURE PRIVÉE scenario_edge_profondeurmax_defaut_suffit()
+	gb est un MLGradientBoosting
+	gb..Objectif = objClassification
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+	gb.Entraîne(matX, y)
+
+	preds est un Tenseur = gb.Prédit(matX)
+	dbgVérifieEgalité(Exactitude(preds, y), 1.0, "ProfondeurMax défaut (3) : jeu séparable -> exactitude 1.0")
+FIN
+
+
+// Edge case (initiative test_writer) : ..TauxApprentissage=1.0 (pas de
+// shrinkage) doit tout de même converger sur un jeu tree-représentable en
+// régression (chaque étape corrige l'intégralité du résidu si l'arbre est
+// assez profond pour le représenter).
+PROCEDURE PRIVÉE scenario_edge_tauxapprentissage_un_converge()
+	gb est un MLGradientBoosting
+	gb..Objectif          = objRégression
+	gb..TauxApprentissage = 1.0
+	gb..NbArbres          = 10
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]
+	y est un Tenseur = Tenseur([10.0, 10.0, 10.0, 10.0, 30.0, 30.0, 30.0, 30.0])
+	gb.Entraîne(matX, y)
+
+	preds est un Tenseur = gb.Prédit(matX)
+	r2 est un réel = CoefficientDétermination(preds, y)
+	dbgVérifieVrai(r2 > 0.99, "TauxApprentissage=1.0, NbArbres=10 : convergence immédiate sur cible tree-représentable")
+FIN

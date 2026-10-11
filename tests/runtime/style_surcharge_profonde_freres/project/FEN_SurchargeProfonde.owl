@@ -1,0 +1,81 @@
+// Fenêtre support  : surcharge PROFONDE de sous-propriété de Style
+// (`Style..CadreExtérieur..Dégradé..sous = Y`) en présence d'une affectation
+// de Style entier (thème ou littéral), où le composite intermédiaire
+// (CadreExtérieur) a PLUSIEURS frères (Cadre, Dégradé, Ombre, CouleurFond).
+// Chaque bouton isole un cas précis du ticket.
+FEN_SurchargeProfonde est une Fenêtre
+	PROPRIETES
+		Titre       = "Surcharge profonde et frères de composite"
+		Largeur     = 400
+		Hauteur     = 400
+		Disposition = dispLibre
+	FIN
+
+	// Cas 1 : Style = theme.bp PUIS surcharge profonde du sous-bloc Dégradé.
+	// Le bug  : le composite intermédiaire CadreExtérieur..Dégradé est
+	// reconstruit depuis les défauts du TYPE Dégradé (pas depuis la valeur de
+	// base) -> les frères Cadre/Ombre/CouleurFond du CadreExtérieur sont perdus.
+	BTN_ThemeDegradeProfond est un Champ Bouton
+		PROPRIETES
+			X                                            = 20
+			Y                                            = 20
+			Largeur                                      = 300
+			Hauteur                                      = 30
+			Libellé                                      = "Thème + surcharge profonde Dégradé"
+			Style                                        = theme.bp
+			Style..CadreExtérieur..Dégradé..CouleurDébut = RougeClair
+		FIN
+	FIN
+
+	// Cas 2 : surcharge d'un frère intermédiaire (Cadre..Arrondi). Le Dégradé
+	// ne doit pas être détruit par la reconstruction du CadreExtérieur.
+	BTN_ThemeCadreProfond est un Champ Bouton
+		PROPRIETES
+			X                                     = 20
+			Y                                     = 60
+			Largeur                               = 300
+			Hauteur                               = 30
+			Libellé                               = "Thème + surcharge profonde Cadre..Arrondi"
+			Style                                 = theme.bp
+			Style..CadreExtérieur..Cadre..Arrondi = 8
+		FIN
+	FIN
+
+	// Cas 3 : témoin isolation — même theme.bp, aucune surcharge. Doit rester
+	// à la valeur d'origine du thème (thème partagé non muté par les cas 1/2).
+	BTN_ThemeTemoinProfond est un Champ Bouton
+		PROPRIETES
+			X       = 20
+			Y       = 100
+			Largeur = 300
+			Hauteur = 30
+			Libellé = "Thème sans surcharge (témoin)"
+			Style   = theme.bp
+		FIN
+	FIN
+
+	// Cas 4 : Style = { littéral } (pas de thème) PUIS surcharge profonde du
+	// sous-bloc Dégradé. Vérifie que le Cadre du littéral survit lui aussi.
+	BTN_LitteralDegradeProfond est un Champ Bouton
+		PROPRIETES
+			X       = 20
+			Y       = 140
+			Largeur = 300
+			Hauteur = 30
+			Libellé = "Littéral + surcharge profonde Dégradé"
+			Style   = {
+				CadreExtérieur = {
+					Cadre = {
+						Arrondi = 12
+					}
+					Dégradé = {
+						Type         = dégradéLinéaire
+						CouleurDébut = RVB(10, 20, 30)
+						CouleurFin   = RVB(40, 50, 60)
+					}
+				}
+			}
+			Style..CadreExtérieur..Dégradé..CouleurDébut = RougeClair
+		FIN
+	FIN
+FIN

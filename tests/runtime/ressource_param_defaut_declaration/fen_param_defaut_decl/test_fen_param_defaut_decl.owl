@@ -1,0 +1,49 @@
+//  — parametre de FENETRE (declare sur `Fenetre(...)` elle-meme, pas
+// dans une PROCEDURE de son body) avec valeur par defaut litterale.
+//
+// Regression signalee via le support :  a corrige les defauts pour
+// les PROCEDURE d'une fenetre/etat, mais pas les params portes directement
+// par la declaration `NomFenetre est une Fenetre(param = defaut)`.
+//
+// Verrouille :
+//   1. Le PARSING : la fenetre compile sans erreur avec params par defaut.
+//   2. L'OPTIONALITE REELLE : Ouvre() sans l'argument applique le defaut ;
+//      Ouvre() avec l'argument utilise la valeur fournie (qui prime).
+//   3. Deux types couverts (chaine + entier) pour la couverture de
+//      parse_default_literal.
+//
+// Pattern : la fenetre voisine FEN_ParamDefautDecl.owl porte la declaration.
+
+TestModeHeadless(Vrai)
+
+sVu est une chaîne = ""
+nVu est un entier = -1
+
+PROCEDURE callback_observe_fen(s est une chaîne, n est un entier)
+	sVu = s
+	nVu = n
+FIN
+
+// Cycle 1 : les deux arguments sont fournis -> les deux priment sur le defaut.
+// (Pose un etat non-defaut pour que le cycle 2 puisse distinguer un vrai
+// retour au defaut d'une simple persistance de la valeur du cycle precedent.)
+Ouvre(FEN_ParamDefautDecl, "autre2", 99)
+dbgVérifieEgalité(sVu, "autre2", `Ouvre(FEN, "autre2", 99) : sParam fourni prime`)
+dbgVérifieEgalité(nVu, 99, `Ouvre(FEN, "autre2", 99) : nParam fourni prime`)
+Ferme(FEN_ParamDefautDecl)
+
+// Cycle 2 : aucun argument fourni -> les DEUX params reviennent a leur defaut
+// declare, PAS a la valeur laissee par le cycle precedent (autre2 / 99).
+Ouvre(FEN_ParamDefautDecl)
+dbgVérifieEgalité(sVu, "def", "Ouvre() sans argument : sParam revient au defaut def (pas autre2)")
+dbgVérifieEgalité(nVu, 7, "Ouvre() sans argument : nParam revient au defaut 7 (pas 99)")
+Ferme(FEN_ParamDefautDecl)
+
+// Cycle 3 : seul le 1er argument est fourni -> il prime, le 2e revient au
+// defaut declare (pas a une valeur d'un cycle precedent).
+Ouvre(FEN_ParamDefautDecl, "autre")
+dbgVérifieEgalité(sVu, "autre", "Ouvre() avec un seul argument : sParam fourni ecrase le defaut")
+dbgVérifieEgalité(nVu, 7, "Ouvre() avec un seul argument : nParam absent revient au defaut 7")
+Ferme(FEN_ParamDefautDecl)
+
+dbgBilanTest()

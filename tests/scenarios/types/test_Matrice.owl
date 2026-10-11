@@ -1,0 +1,157 @@
+// @sujet : Matrice
+// @résumé : Type Matrice — grille rectangulaire de réels indexée en 2 dimensions à partir de 1, construite par littéral imbriqué, indexable en lecture/écriture via m[ligne][colonne].
+
+
+// Construction par littéral imbriqué : une suite de lignes entre crochets
+// fixe aussitôt les dimensions de la matrice. Chaque élément se lit avec
+// deux index 1-based : ligne puis colonne.
+PROCEDURE PUBLIQUE scenario_construction_litterale()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	dbgVérifieEgalité(m..Lignes, 2, "Littéral à 2 lignes -> ..Lignes = 2")
+	dbgVérifieEgalité(m..Colonnes, 3, "Littéral à 3 colonnes -> ..Colonnes = 3")
+	dbgVérifieEgalité(m[1][1], 1.0, "m[1][1] = premier élément de la première ligne")
+	dbgVérifieEgalité(m[1][3], 3.0, "m[1][3] = dernier élément de la première ligne")
+	dbgVérifieEgalité(m[2][1], 4.0, "m[2][1] = premier élément de la deuxième ligne")
+	dbgVérifieEgalité(m[2][3], 6.0, "m[2][3] = dernier élément de la deuxième ligne")
+FIN
+
+
+// Un littéral à éléments entiers est accepté : chaque élément est coercé
+// en réel dès la construction, exactement comme pour le Vecteur.
+PROCEDURE PUBLIQUE scenario_coercion_entiers_vers_reel()
+	m est une Matrice = [[1, 2], [3, 4]]
+	r11 est un réel = m[1][1]
+	r22 est un réel = m[2][2]
+	dbgVérifieEgalité(r11, 1.0, "Élément issu d'un littéral entier lu comme réel")
+	dbgVérifieEgalité(r22, 4.0, "Dernier élément coercé en réel")
+FIN
+
+
+// L'écriture indexée modifie une seule position sans toucher aux autres.
+PROCEDURE PUBLIQUE scenario_ecriture_indexee()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	m[2][3] = 9.0
+	dbgVérifieEgalité(m[2][3], 9.0, "m[2][3] écrit avec la nouvelle valeur")
+	dbgVérifieEgalité(m[1][1], 1.0, "m[1][1] intact après écriture sur m[2][3]")
+	dbgVérifieEgalité(m[2][1], 4.0, "m[2][1] intact après écriture sur m[2][3]")
+	dbgVérifieEgalité(m..Lignes, 2, "..Lignes inchangé après écriture")
+	dbgVérifieEgalité(m..Colonnes, 3, "..Colonnes inchangé après écriture")
+FIN
+
+
+// ..Lignes/..Colonnes (propriétés, double point) ont leurs formes
+// anglaises ..Rows/..Columns qui désignent exactement les mêmes valeurs.
+PROCEDURE PUBLIQUE scenario_dimensions_bilingue()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+	dbgVérifieEgalité(m..Lignes, 3, "..Lignes = nombre de lignes")
+	dbgVérifieEgalité(m..Rows, 3, "..Rows = même valeur, forme anglaise")
+	dbgVérifieEgalité(m..Colonnes, 2, "..Colonnes = nombre de colonnes")
+	dbgVérifieEgalité(m..Columns, 2, "..Columns = même valeur, forme anglaise")
+FIN
+
+
+// Le type se déclare aussi en anglais : "is a Matrix" désigne le même
+// type que "est une Matrice", pas un type distinct.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_matrix()
+	mEN is a Matrix = [[1.0, 2.0], [3.0, 4.0]]
+	dbgVérifieEgalité(mEN..Rows, 2, "Matrix (EN) construite comme Matrice (FR)")
+	dbgVérifieEgalité(mEN[1][2], 2.0, "Indexation identique en forme anglaise")
+FIN
+
+
+// TypeVar distingue une Matrice d'un Vecteur, d'un tableau ou d'un de ses
+// éléments réels, et reste stable entre deux appels sur la même variable.
+PROCEDURE PUBLIQUE scenario_typevar_distinct_stable()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	v est un Vecteur = [1.0, 2.0]
+	arrTab est un tableau de réels = [1.0, 2.0]
+
+	nTagAppel1 est un entier = TypeVar(m)
+	nTagAppel2 est un entier = TypeVar(m)
+	dbgVérifieEgalité(nTagAppel1, nTagAppel2, "TypeVar(Matrice) stable entre deux appels")
+
+	nTagVecteur est un entier = TypeVar(v)
+	dbgVérifieDifférence(nTagAppel1, nTagVecteur, "TypeVar(Matrice) distinct de TypeVar(Vecteur)")
+
+	nTagTableau est un entier = TypeVar(arrTab)
+	dbgVérifieDifférence(nTagAppel1, nTagTableau, "TypeVar(Matrice) distinct de TypeVar(tableau)")
+
+	nTagReel est un entier = TypeVar(m[1][1])
+	dbgVérifieDifférence(nTagAppel1, nTagReel, "TypeVar(Matrice) distinct de TypeVar(un de ses éléments réel)")
+FIN
+
+
+// Un littéral imbriqué dont les lignes n'ont pas toutes la même longueur
+// n'est pas une matrice valide : une matrice est rectangulaire.
+PROCEDURE PRIVÉE scenario_edge_litteral_ragged_refuse()
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		m est une Matrice = [[1.0, 2.0], [3.0]]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Littéral aux lignes de longueurs différentes refusé")
+FIN
+
+
+// Un index de ligne ou de colonne hors borne est une erreur récupérable :
+// aucune valeur n'est renvoyée silencieusement et la matrice reste intacte.
+PROCEDURE PRIVÉE scenario_edge_index_hors_borne()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+
+	capturéLigne est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = m[100][1]
+		capturéLigne = "no-throw"
+	FAIRE
+		capturéLigne = "caught"
+	FIN
+	dbgVérifieEgalité(capturéLigne, "caught", "m[ligne hors borne][1] est attrapé")
+
+	capturéColonne est une chaîne = ""
+	QUAND EXCEPTION DANS
+		y est un réel = m[1][100]
+		capturéColonne = "no-throw"
+	FAIRE
+		capturéColonne = "caught"
+	FIN
+	dbgVérifieEgalité(capturéColonne, "caught", "m[1][colonne hors borne] est attrapé")
+
+	capturéZéro est une chaîne = ""
+	QUAND EXCEPTION DANS
+		z est un réel = m[0][1]
+		capturéZéro = "no-throw"
+	FAIRE
+		capturéZéro = "caught"
+	FIN
+	dbgVérifieEgalité(capturéZéro, "caught", "m[0][1] est attrapé (indexation base 1)")
+
+	// La matrice reste utilisable après les tentatives hors borne.
+	dbgVérifieEgalité(m[1][1], 1.0, "m[1][1] toujours intact après tentatives hors borne")
+	dbgVérifieEgalité(m..Lignes, 2, "..Lignes inchangé après tentatives hors borne")
+	dbgVérifieEgalité(m..Colonnes, 3, "..Colonnes inchangé après tentatives hors borne")
+FIN
+
+
+// Un littéral vide n'est pas une matrice valide : une matrice a au moins
+// une ligne et une colonne.
+PROCEDURE PRIVÉE scenario_edge_litteral_vide_refuse()
+	capturéVide est une chaîne = ""
+	QUAND EXCEPTION DANS
+		m est une Matrice = []
+		capturéVide = "no-throw"
+	FAIRE
+		capturéVide = "caught"
+	FIN
+	dbgVérifieEgalité(capturéVide, "caught", "Littéral vide [] refusé")
+
+	capturéLigneVide est une chaîne = ""
+	QUAND EXCEPTION DANS
+		m2 est une Matrice = [[]]
+		capturéLigneVide = "no-throw"
+	FAIRE
+		capturéLigneVide = "caught"
+	FIN
+	dbgVérifieEgalité(capturéLigneVide, "caught", "Littéral avec une ligne vide [[]] refusé")
+FIN

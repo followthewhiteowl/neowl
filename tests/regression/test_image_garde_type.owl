@@ -1,0 +1,122 @@
+// @sujet : famille image - garde type E_NATIVE_ARG_TYPE_MISMATCH
+// @resume : Tests régression garde type correcte (type incorrect)
+// Note  : les gardes arité-manquante (dFusionne/dIncrusteCouleur 1 arg) ont migré
+// vers des fixtures compile-error (tests/compile-error/dfusionne_un_arg.owl,
+// tests/compile-error/dincrustecouleur_un_arg.owl). Post-migration {2,3} ces
+// appels sont rejetés au compile-time, plus au runtime.
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — garde type (E_NATIVE_ARG_TYPE_MISMATCH)
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_dfusionne_type_invalide_arg1()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dFusionne avec arg1 string au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dFusionne("invalide", img)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dFusionne type invalide arg1 - erreur detectee")
+	// Message doit mentionner type mismatch (pas "manquant", pas "expected instance" générique)
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "type") > 0 OU ChaîneOccurrence(sInfo, "Image") > 0, "dFusionne type invalide arg1 - message contient type/Image")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dfusionne_type_invalide_arg2()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dFusionne avec arg2 string au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dFusionne(img, "invalide")
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dFusionne type invalide arg2 - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "type") > 0 OU ChaîneOccurrence(sInfo, "Image") > 0, "dFusionne type invalide arg2 - message contient type/Image")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dincrustecouleur_type_invalide_arg1()
+	// dIncrusteCouleur avec arg1 string au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dIncrusteCouleur("invalide", RVB(255, 0, 0))
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dIncrusteCouleur type invalide arg1 - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "type") > 0 OU ChaîneOccurrence(sInfo, "Image") > 0, "dIncrusteCouleur type invalide arg1 - message contient type/Image")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_arg_manquant()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec seulement Image et X (manque Y) → E_NATIVE_ARG_MISSING attendu
+	ErreurRAZ()
+	dPoint(img, 5)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dPoint arg manquant - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "manquant") > 0 OU ChaîneOccurrence(sInfo, "missing") > 0, "dPoint arg manquant - message contient manquant/missing")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_type_invalide_arg1()
+	// dPoint avec arg1 string au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dPoint("invalide", 5, 5, RVB(255, 0, 0))
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dPoint type invalide arg1 - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "type") > 0 OU ChaîneOccurrence(sInfo, "Image") > 0, "dPoint type invalide arg1 - message contient type/Image")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifieopacite_type_invalide_arg1()
+	// dModifieOpacité avec arg1 string au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dModifieOpacité("invalide", 50.0)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dModifieOpacite type invalide arg1 - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "type") > 0 OU ChaîneOccurrence(sInfo, "Image") > 0, "dModifieOpacite type invalide arg1 - message contient type/Image")
+FIN
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases garde type
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_dfusionne_entier_au_lieu_instance()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dFusionne avec arg2 entier au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dFusionne(img, 42)
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "dFusionne entier au lieu instance - erreur detectee")
+FIN
+
+PROCEDURE PRIVÉE scenario_dincrustecouleur_booleen_au_lieu_instance()
+	// dIncrusteCouleur avec arg1 booléen au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dIncrusteCouleur(Vrai, RVB(255, 0, 0))
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "dIncrusteCouleur booleen au lieu instance - erreur detectee")
+FIN
+
+PROCEDURE PRIVÉE scenario_dpoint_reel_au_lieu_instance()
+	// dPoint avec arg1 réel au lieu de Image → E_NATIVE_ARG_TYPE_MISMATCH attendu
+	ErreurRAZ()
+	dPoint(3.14, 5, 5, RVB(255, 0, 0))
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "dPoint reel au lieu instance - erreur detectee")
+FIN

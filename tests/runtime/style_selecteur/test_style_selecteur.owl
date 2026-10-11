@@ -1,0 +1,33 @@
+//  — prop Style (type styleSélecteur) sur le Champ Sélecteur.
+// Vérifie de bout en bout (backend headless) :
+//   1. Déclaration d'un styleSélecteur + renseignement de ses
+//      sous-champs, read-back sur l'instance (le type compose correctement).
+//   2. Application au Champ Sélecteur via SEL..Style ne casse pas.
+//   3. La prop Style typée sur Sélecteur : la cascade
+//      SEL..Style..TexteOptions..Couleur matérialise un styleSélecteur
+//      et fait un round-trip.
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore avec le type
+// styleSélecteur (compile-fail : type styleSélecteur inconnu).
+
+Trace("=== styleSélecteur : type composite + application Champ Sélecteur ===")
+
+STY_Sel est un styleSélecteur
+STY_Sel..CadreExtérieur..CouleurFond = JauneClair
+STY_Sel..TexteOptions..Couleur       = Rouge
+
+dbgVérifieEgalité(STY_Sel..CadreExtérieur..CouleurFond, JauneClair, "styleSélecteur : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Sel..TexteOptions..Couleur, Rouge, "styleSélecteur : TexteOptions..Couleur posée")
+
+Ouvre(FEN_SelecteurStyle)
+SEL_Style..Style = STY_Sel
+dbgVérifieVrai(Vrai, "styleSélecteur appliqué à SEL..Style sans crash")
+
+SEL_Style..Style..TexteOptions..Couleur = RougeClair
+dbgVérifieEgalité(SEL_Style..Style..TexteOptions..Couleur, RougeClair, "SEL..Style..TexteOptions..Couleur round-trip")
+
+SEL_Style..Style..CadrePuce..CouleurFond = Bleu
+dbgVérifieEgalité(SEL_Style..Style..CadrePuce..CouleurFond, Bleu, "SEL..Style..CadrePuce..CouleurFond round-trip")
+
+Ferme(FEN_SelecteurStyle)
+dbgBilanTest()

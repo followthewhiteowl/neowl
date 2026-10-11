@@ -1,0 +1,71 @@
+// @sujet : VecteurProduitScalaire
+// @résumé : Produit scalaire de deux Vecteur — somme des produits élément par élément, disponible en native préfixée et en méthode fluente, avec formes bilingues et refus des opérandes non conformes.
+
+
+// Le produit scalaire de deux Vecteur est la somme des produits de leurs
+// éléments correspondants : un simple réel, pas un Vecteur.
+PROCEDURE PUBLIQUE scenario_calcul_produit_scalaire()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	w est un Vecteur = [4.0, 5.0, 6.0]
+	nProduit est un réel = VecteurProduitScalaire(v, w)
+	dbgVérifieEgalité(nProduit, 32.0, "1*4 + 2*5 + 3*6 = 32")
+FIN
+
+
+// La méthode fluente .ProduitScalaire() produit exactement le même résultat
+// que la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	w est un Vecteur = [4.0, 5.0, 6.0]
+	nViaFluent est un réel = v.ProduitScalaire(w)
+	nViaNatif est un réel = VecteurProduitScalaire(v, w)
+	dbgVérifieEgalité(nViaFluent, nViaNatif, "v.ProduitScalaire(w) == VecteurProduitScalaire(v, w)")
+FIN
+
+
+// Les formes anglaises VectorDotProduct / .DotProduct désignent la même
+// opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	w est un Vecteur = [4.0, 5.0, 6.0]
+	nNatifEN est un réel = VectorDotProduct(v, w)
+	nFluentEN est un réel = v.DotProduct(w)
+	dbgVérifieEgalité(nNatifEN, 32.0, "VectorDotProduct(v, w) = 32")
+	dbgVérifieEgalité(nFluentEN, 32.0, "v.DotProduct(w) = 32")
+FIN
+
+
+// Un opérande tableau (littéral ou variable) est refusé, comme pour
+// l'arithmétique Vecteur : conversion explicite requise.
+PROCEDURE PRIVÉE scenario_edge_operande_tableau_refuse()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = VecteurProduitScalaire(v, [4.0, 5.0, 6.0])
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "VecteurProduitScalaire(v, [littéral]) refusé")
+FIN
+
+
+// Des Vecteur de tailles différentes ne peuvent pas être combinés : le
+// produit scalaire lève l'exception dédiée, pas un calcul tronqué.
+PROCEDURE PRIVÉE scenario_edge_tailles_incompatibles()
+	vCourt est un Vecteur = [1.0, 2.0]
+	vLong est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = VecteurProduitScalaire(vCourt, vLong)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg    = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Tailles différentes attrapées")
+	dbgVérifieVrai(Contient(sMsg, "incompatibles"), "message dédié tailles incompatibles")
+FIN

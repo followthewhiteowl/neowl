@@ -1,0 +1,44 @@
+// @sujet : Methodes d'instance — appel accent-insensitive (invariant 2)
+// @resume : Une methode declaree avec accent (Crédite) ou sans (Credite) doit etre appelable indifferemment via les deux formes. La forme canonique stockee est la forme ASCII strippee — le compile site decl et le call site doivent strip de maniere symetrique. Couvre les 4 combinaisons decl-vs-call et la non-regression "methode reellement inconnue".
+
+// --- Decl AVEC accent ---
+
+// Call avec la MEME forme accentuee que la decl (le bug historique :
+// le call strip mais la decl stockait verbatim -> mismatch).
+PROCEDURE scenario_decl_accent_call_accent()
+	o est un cAvecAccent()
+	dbgVérifieEgalité(o.Crédite(10), 10, "decl Crédite + call Crédite doit matcher")
+FIN
+
+// Call sans accent sur une decl avec accent. Le call strip vers 'Credite',
+// la decl doit avoir stocke 'Credite' (forme canon) pour matcher.
+PROCEDURE scenario_decl_accent_call_ascii()
+	o est un cAvecAccent()
+	dbgVérifieEgalité(o.Credite(20), 20, "decl Crédite + call Credite doit matcher")
+FIN
+
+// --- Decl SANS accent ---
+
+// Baseline historiquement verte : aucune forme accentuee, tout en ASCII.
+PROCEDURE scenario_decl_ascii_call_ascii()
+	o est un cSansAccent()
+	dbgVérifieEgalité(o.Credite(30), 30, "decl Credite + call Credite doit matcher")
+FIN
+
+// Call avec accent sur une decl ASCII. Call strip -> 'Credite' qui matche
+// la decl stockee 'Credite'. Sert de garde-fou pour ne pas casser ce sens.
+PROCEDURE scenario_decl_ascii_call_accent()
+	o est un cSansAccent()
+	dbgVérifieEgalité(o.Crédite(40), 40, "decl Credite + call Crédite doit matcher")
+FIN
+
+// Non-regression : deux methodes accentuees du meme registry doivent
+// rester distinctes apres strip. Sans ce garde-fou, un strip naif qui
+// collisionnerait Crédite/Débite passerait silencieusement. Ici Crédite
+// strippe en 'Credite' et Débite strippe en 'Debite' — bien distincts.
+PROCEDURE scenario_methodes_distinctes_pas_de_collision()
+	o est un cAvecAccent()
+	dbgVérifieEgalité(o.Crédite(100), 100, "Crédite ajoute 100")
+	dbgVérifieEgalité(o.Débite(30), 70, "Débite retire 30, solde 70")
+	dbgVérifieEgalité(o.Crédite(5), 75, "second Crédite re-additionne, solde 75")
+FIN

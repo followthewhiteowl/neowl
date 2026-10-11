@@ -1,0 +1,59 @@
+// Ressource fenêtre — voisine de test_menu_contextuel_runtime_selection.owl.
+//
+// Un menu contextuel attaché à un champ. TestSimuleMenu(fenêtre, "OPT_X")
+// déclenche par code le surSélection() d'une option de CE menu, sans clic
+// droit réel (headless), sur le même principe que le menu classique de
+// fenêtre.
+
+FEN_MenuContextuelRuntime est une Fenêtre
+	PROPRIETES
+		Titre       = "Zone éditable"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	MNU_Editeur est un MenuContextuel
+		SM_Edition est un SousMenu
+			PROPRIETES
+				Libellé = "&Édition"
+			FIN
+
+			OPT_Copier est une OptionMenu
+				PROPRIETES
+					Libellé = "&Copier"
+				FIN
+
+				PROCEDURE surSélection()
+					nCopierCount += 1
+					LBL_Statut..Libellé = "Copié"
+				FIN
+			FIN
+		FIN
+	FIN
+
+	ZS_Zone est un Champ Saisie
+		PROPRIETES
+			X              = 10
+			Y              = 10
+			Largeur        = 300
+			Hauteur        = 30
+			MenuContextuel = MNU_Editeur
+		FIN
+	FIN
+
+	LBL_Statut est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 50
+			Largeur = 300
+			Libellé = "Aucune sélection"
+		FIN
+	FIN
+
+	nCopierCount est un entier = 0
+
+	PROCEDURE RemonteEtatRuntime()
+		callback_etat_runtime(nCopierCount, LBL_Statut..Libellé)
+	FIN
+FIN

@@ -1,0 +1,114 @@
+//  — le bloc Icone colore `{icones.X, Couleur = ...}` doit compiler
+// et porter la couleur au rendu quand il est pose sur la feuille
+// Style..Image..Image, exactement comme sur la prop top-level Image
+// (, ).
+//
+// Cause connue (cf. ticket) : la branche compiler qui parse le bloc Icone
+// colore (compile_icone_brace_literal_as_fn, compiler.c ~18116) ne se
+// declenche que pour une prop de controle TOP-LEVEL (`propName`). Pour une
+// feuille Style multi-segment (`Style..Image..Image`), la branche n'est pas
+// prise -> le `,` apres `icones.X` est consomme comme scope d'indirection
+// `{expr, scope}` et `Couleur = ...` retombe sur reject_type_assignment
+// ("Affectation a un nom de type interdite.").
+//
+// ROUGE ATTENDU : le fichier voisin FEN_StyleBoutonImageBlocColore.owl
+// echoue a la compilation sur les blocs `Style..Image..Image = {icones.X,
+// Couleur = RVB(...)}` (et RGB(...)) -> erreur de compilation, la fenetre ne
+// s'ouvre pas.
+//
+// VERT APRES FIX :
+//   - BTN_TopColore et BTN_StyleColore (meme icone, meme couleur, geometries
+//     differentes -> comparees par presence/absence de rouge, pas pixel-a-
+//     pixel puisqu'ils sont a des positions differentes) rendent tous deux
+//     l'icone coloree en rouge.
+//   - BTN_StyleColore et BTN_StyleAutreCouleur (meme icone, couleurs
+//     differentes) doivent produire des captures DIFFERENTES (preuve que la
+//     couleur est bien portee au rendu, pas juste l'icone brute).
+//   - BTN_StyleRGB (alias EN RGB) doit compiler et rendre comme
+//     BTN_StyleColore (RVB).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleBoutonImageBlocColore)
+
+imgTop est une Image = CaptureTopColore()
+dbgVérifieEgalité(imgTop..Valide, Vrai, "GUI : capture BTN_TopColore valide")
+
+imgStyle est une Image = CaptureStyleColore()
+dbgVérifieEgalité(imgStyle..Valide, Vrai, "GUI : capture BTN_StyleColore valide")
+
+imgAutre est une Image = CaptureStyleAutreCouleur()
+dbgVérifieEgalité(imgAutre..Valide, Vrai, "GUI : capture BTN_StyleAutreCouleur valide")
+
+imgRGB est une Image = CaptureStyleRGB()
+dbgVérifieEgalité(imgRGB..Valide, Vrai, "GUI : capture BTN_StyleRGB valide")
+
+// --- Discrimination couleur : BTN_StyleColore (rouge) vs
+// BTN_StyleAutreCouleur (bleu), meme icone, meme geometrie relative ---
+// Les deux boutons ont la meme taille (96x96), donc comparaison pixel a
+// pixel directe sur les captures individuelles est valide.
+nbDiffCouleur est un entier = 0
+wCoul est un entier = imgStyle..Largeur
+hCoul est un entier = imgStyle..Hauteur
+yCoul est un entier = 0
+TANTQUE yCoul < hCoul
+	xCoul est un entier = 0
+	TANTQUE xCoul < wCoul
+		cStyle est un entier = dPixelCouleur(imgStyle, xCoul, yCoul)
+		cAutre est un entier = dPixelCouleur(imgAutre, xCoul, yCoul)
+		SI cStyle <> cAutre ALORS
+			nbDiffCouleur = nbDiffCouleur + 1
+		FIN
+		xCoul = xCoul + 1
+	FIN
+	yCoul = yCoul + 1
+FIN
+
+dbgVérifieVrai(nbDiffCouleur > 50,
+"BTN..Style..Image..Image = {icones.add, Couleur=rouge} et {icones.add, Couleur=bleu} rendent des captures differentes (couleur portee au rendu)")
+
+// --- Convergence : BTN_TopColore (prop top-level) et BTN_StyleColore
+// (feuille Style), meme icone, meme couleur, meme geometrie (96x96) ---
+nbDiffConvergence est un entier = 0
+wConv est un entier = imgTop..Largeur
+hConv est un entier = imgTop..Hauteur
+yConv est un entier = 0
+TANTQUE yConv < hConv
+	xConv est un entier = 0
+	TANTQUE xConv < wConv
+		cTop est un entier = dPixelCouleur(imgTop, xConv, yConv)
+		cStyleConv est un entier = dPixelCouleur(imgStyle, xConv, yConv)
+		SI cTop <> cStyleConv ALORS
+			nbDiffConvergence = nbDiffConvergence + 1
+		FIN
+		xConv = xConv + 1
+	FIN
+	yConv = yConv + 1
+FIN
+
+dbgVérifieEgalité(nbDiffConvergence, 0,
+"BTN..Image = {icones.add, Couleur=rouge} (top-level) et BTN..Style..Image..Image = {icones.add, Couleur=rouge} (feuille Style) rendent pixel-identiques")
+
+// --- Alias EN RGB : doit rendre comme la forme RVB equivalente ---
+nbDiffRGB est un entier = 0
+wRGB est un entier = imgStyle..Largeur
+hRGB est un entier = imgStyle..Hauteur
+yRGB est un entier = 0
+TANTQUE yRGB < hRGB
+	xRGB est un entier = 0
+	TANTQUE xRGB < wRGB
+		cStyleRGB est un entier = dPixelCouleur(imgStyle, xRGB, yRGB)
+		cRGB est un entier = dPixelCouleur(imgRGB, xRGB, yRGB)
+		SI cStyleRGB <> cRGB ALORS
+			nbDiffRGB = nbDiffRGB + 1
+		FIN
+		xRGB = xRGB + 1
+	FIN
+	yRGB = yRGB + 1
+FIN
+
+dbgVérifieEgalité(nbDiffRGB, 0,
+"BTN..Style..Image..Image = {icones.add, Couleur=RGB(240,15,15)} rend identique a Couleur=RVB(240,15,15) (alias EN reconnu)")
+
+Ferme(FEN_StyleBoutonImageBlocColore)
+dbgBilanTest()

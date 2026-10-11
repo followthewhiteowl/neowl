@@ -1,0 +1,42 @@
+//  — un Champ Saisie « bas » dont la ZoneSaisie porte une CouleurFond
+// pleine et un Cadre arrondi (Epaisseur=0, Arrondi>0) supérieur à la moitié de
+// sa hauteur doit rendre ses coins RÉELLEMENT arrondis (pilule), pas carrés.
+// Sans correction, le QLineEdit retombe à l'angle droit dès que le rayon dépasse
+// la demi-hauteur (le chrome cesse de clipper au-delà), comme le bouton corrigé
+// en .
+//
+// Mode GUI réel (TestModeHeadless(Faux) + OuvreSoeur) : les vrais widgets Qt
+// sont montés (offscreen). On capture la fenêtre et on lit des pixels aux coins
+// et au centre du champ.
+//
+// Le champ (fond RVB(50,50,200), hauteur naturelle serrée ~24 px) est posé à
+// (30,40) sur un fond fenêtre contrasté RVB(15,15,15). Arrondi=16 dépasse la
+// demi-hauteur : le rayon effectif est borné à la pilule. Les pixels de coin
+// (34,41) et (34,63) — à quelques px des coins haut-gauche et bas-gauche —
+// tombent HORS de la forme arrondie : ils montrent le fond de la fenêtre. Le
+// centre (110,52) montre le fond du champ.
+//
+// ROUGE (bug) : les coins montraient le fond du champ (rendu carré). VERT (fix) :
+// les coins montrent le fond de la fenêtre — les coins sont bien découpés.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_SaisieArrondi)
+
+img est une Image = dCopieImageFenêtre(FEN_SaisieArrondi)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// Contrôle : le centre du champ porte bien son fond plein.
+dbgVérifieEgalité(dPixelCouleur(img, 110, 52), RVB(50, 50, 200),
+"centre du champ = fond du champ")
+
+// Cible : coin haut-gauche HORS de la forme arrondie -> fond fenêtre.
+dbgVérifieEgalité(dPixelCouleur(img, 34, 41), RVB(15, 15, 15),
+"coin haut-gauche arrondi = fond fenêtre (coin réellement découpé)")
+
+// Cible : coin bas-gauche HORS de la forme arrondie -> fond fenêtre.
+dbgVérifieEgalité(dPixelCouleur(img, 34, 63), RVB(15, 15, 15),
+"coin bas-gauche arrondi = fond fenêtre (coin réellement découpé)")
+
+Ferme(FEN_SaisieArrondi)
+dbgBilanTest()

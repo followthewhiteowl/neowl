@@ -1,0 +1,38 @@
+// @sujet : cryptePadding
+// @résumé : Enum des modes de remplissage acceptés par CrypteStandard et DécrypteStandard en mode CBC. Deux membres : PKCS7 (cryptePaddingPKCS) et remplissage par zéros (cryptePaddingZéro). Les modes flux (CFB, CTR) et GCM opèrent sans padding.
+
+
+// cryptePaddingPKCS : remplissage PKCS7 en mode CBC (round-trip AES-256-CBC-PKCS).
+PROCEDURE PUBLIQUE scenario_padding_pkcs_cbc()
+	msg est une chaîne = "padding pkcs"
+	cle est une chaîne = "cle-padding"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC, cryptePaddingPKCS)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCBC, cryptePaddingPKCS)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256-CBC avec padding PKCS restitue le message")
+FIN
+
+
+// cryptePaddingZéro : remplissage par zéros en mode CBC (round-trip AES-256-CBC-Zero).
+PROCEDURE PUBLIQUE scenario_padding_zero_cbc()
+	msg est une chaîne = "padding zero"
+	cle est une chaîne = "cle-padding"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC, cryptePaddingZéro)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCBC, cryptePaddingZéro)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256-CBC avec padding Zéro restitue le message")
+FIN
+
+
+// Les deux modes de padding avec AES-128 produisent des résultats différents entre eux.
+PROCEDURE PRIVÉE scenario_aes128_les_deux_paddings()
+	msg est une chaîne = "aes128 padding"
+	cle est une chaîne = "k"
+	bufPkcs est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCBC, cryptePaddingPKCS)
+	clairPkcs est un buffer = DécrypteStandard(bufPkcs, cle, crypteAES128, crypteCBC, cryptePaddingPKCS)
+	dbgVérifieEgalité(clairPkcs, msg, "AES-128-CBC-PKCS round-trip")
+
+	bufZero est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCBC, cryptePaddingZéro)
+	clairZero est un buffer = DécrypteStandard(bufZero, cle, crypteAES128, crypteCBC, cryptePaddingZéro)
+	dbgVérifieEgalité(clairZero, msg, "AES-128-CBC-Zéro round-trip")
+
+	dbgVérifieVrai(bufPkcs <> bufZero, "PKCS et Zéro produisent des chiffrés distincts pour le même message")
+FIN

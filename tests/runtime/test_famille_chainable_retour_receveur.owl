@@ -1,0 +1,161 @@
+// test_famille_chainable_retour_receveur.owl
+// Verrouille la propagation du pattern / aux 9 natives
+// chainables retenues : 6 tableau (Insère, Inverse, Trie, SupprimeTout,
+// Enfile, Empile) + 3 collection (ListeAjoute, ListeInsère, ListeSupprime).
+// Toutes doivent renvoyer le receveur, forme fonction comme forme methode.
+//
+// Hors scope : Supprime (divergence canon de référence — renvoie un Entier compteur ;
+// alignement traite dans un cycle dedie a cause des tests pre-existants
+// dependants du compteur, type test_assoc_arrays / test_supprime_iter).
+//
+// On verifie la cosaisie de reference en mutant via r et en constatant
+// l'effet sur le receveur d'origine (memes valeurs, meme ..Occurrence).
+
+// ─────────────────────────────────────────────────────────────────────
+// TABLEAU
+// ─────────────────────────────────────────────────────────────────────
+
+// NB : tests sur Supprime (fonction globale et methode) volontairement absents
+// — Supprime est hors scope , traite par un ticket dedie qui doit
+// arbitrer la divergence canon de référence (Entier compteur) vs uniformisation OWL.
+
+PROCEDURE PUBLIQUE test_insere_forme_fonction_renvoie_tableau()
+	t est un tableau de chaînes = ["a", "c"]
+	r est un tableau de chaînes = Insère(t, 2, "b")
+	dbgVérifieEgalité(r..Occurrence, 3, "Insère fonction renvoie tableau de 3 elements")
+	dbgVérifieEgalité(t..Occurrence, 3, "t aussi a 3 elements")
+	dbgVérifieEgalité(t[1], "a", "ordre preserve avant")
+	dbgVérifieEgalité(t[2], "b", "element insere a la bonne position")
+	dbgVérifieEgalité(t[3], "c", "ordre preserve apres")
+	r.Insère(1, "z")
+	dbgVérifieEgalité(t..Occurrence, 4, "mutation via r affecte t")
+FIN
+
+PROCEDURE PUBLIQUE test_inverse_tableau_forme_fonction_renvoie_tableau()
+	t est un tableau d'entiers = [1, 2, 3]
+	r est un tableau d'entiers = Inverse(t)
+	dbgVérifieEgalité(r..Occurrence, 3, "Inverse(tableau) fonction renvoie tableau")
+	dbgVérifieEgalité(t[1], 3, "ordre inverse 1")
+	dbgVérifieEgalité(t[2], 2, "ordre inverse 2")
+	dbgVérifieEgalité(t[3], 1, "ordre inverse 3")
+	r.Inverse()
+	dbgVérifieEgalité(t[1], 1, "mutation via r affecte t : re-inversion")
+FIN
+
+PROCEDURE PUBLIQUE test_trie_forme_fonction_renvoie_tableau()
+	t est un tableau d'entiers = [3, 1, 2]
+	r est un tableau d'entiers = Trie(t)
+	dbgVérifieEgalité(r..Occurrence, 3, "Trie fonction renvoie tableau")
+	dbgVérifieEgalité(t[1], 1, "trie 1")
+	dbgVérifieEgalité(t[2], 2, "trie 2")
+	dbgVérifieEgalité(t[3], 3, "trie 3")
+	r.Ajoute(0)
+	dbgVérifieEgalité(t..Occurrence, 4, "mutation via r affecte t")
+FIN
+
+PROCEDURE PUBLIQUE test_supprime_tout_forme_fonction_renvoie_tableau()
+	t est un tableau d'entiers = [1, 2, 3]
+	r est un tableau d'entiers = SupprimeTout(t)
+	dbgVérifieEgalité(r..Occurrence, 0, "SupprimeTout fonction renvoie tableau vide")
+	dbgVérifieEgalité(t..Occurrence, 0, "t aussi est vide")
+	r.Ajoute(42)
+	dbgVérifieEgalité(t..Occurrence, 1, "mutation via r affecte t : 1 element ajoute")
+	dbgVérifieEgalité(t[1], 42, "valeur ajoutee visible via t")
+FIN
+
+PROCEDURE PUBLIQUE test_chainage_cross_natives_tableau()
+	t est un tableau de chaînes
+	t.Ajoute("a").Ajoute("c").Insère(2, "b").Inverse()
+	dbgVérifieEgalité(t..Occurrence, 3, "chainage 4 etapes : 3 elements")
+	dbgVérifieEgalité(t[1], "c", "Inverse final 1")
+	dbgVérifieEgalité(t[2], "b", "Inverse final 2")
+	dbgVérifieEgalité(t[3], "a", "Inverse final 3")
+FIN
+
+PROCEDURE PUBLIQUE test_chainage_trie_inverse()
+	t est un tableau d'entiers = [5, 1, 3]
+	t.Trie().Inverse()
+	dbgVérifieEgalité(t..Occurrence, 3, "apres Trie puis Inverse il reste 3 elements")
+	dbgVérifieEgalité(t[1], 5, "Trie croissant puis Inverse : plus grand en premier")
+	dbgVérifieEgalité(t[2], 3, "milieu")
+	dbgVérifieEgalité(t[3], 1, "plus petit en dernier")
+FIN
+
+// ─────────────────────────────────────────────────────────────────────
+// FILE / PILE
+// ─────────────────────────────────────────────────────────────────────
+
+PROCEDURE PUBLIQUE test_enfile_forme_fonction_renvoie_file()
+	f est une file de entiers
+	r est une file de entiers
+	r = Enfile(f, 42)
+	r.Enfile(99)
+	dbgVérifieEgalité(Défile(f), 42, "FIFO : mutation via r visible via f (premier element)")
+	dbgVérifieEgalité(Défile(f), 99, "FIFO : second element bien la (meme reference)")
+FIN
+
+PROCEDURE PUBLIQUE test_empile_forme_fonction_renvoie_pile()
+	p est une pile de entiers
+	r est une pile de entiers
+	r = Empile(p, 7)
+	r.Empile(11)
+	dbgVérifieEgalité(Dépile(p), 11, "LIFO : mutation via r visible via p (dernier element)")
+	dbgVérifieEgalité(Dépile(p), 7, "LIFO : premier element bien la (meme reference)")
+FIN
+
+PROCEDURE PUBLIQUE test_chainage_enfile_methode()
+	f est une file de entiers
+	f.Enfile(1).Enfile(2).Enfile(3)
+	dbgVérifieEgalité(Défile(f), 1, "FIFO : premier entre premier sorti (1)")
+	dbgVérifieEgalité(Défile(f), 2, "FIFO : 2")
+	dbgVérifieEgalité(Défile(f), 3, "FIFO : 3")
+FIN
+
+PROCEDURE PUBLIQUE test_chainage_empile_methode()
+	p est une pile de entiers
+	p.Empile(10).Empile(20).Empile(30)
+	dbgVérifieEgalité(Dépile(p), 30, "LIFO : dernier entre premier sorti (30)")
+	dbgVérifieEgalité(Dépile(p), 20, "LIFO : 20")
+	dbgVérifieEgalité(Dépile(p), 10, "LIFO : 10")
+FIN
+
+// ─────────────────────────────────────────────────────────────────────
+// LISTE (collection : pas de forme fonction globale — les noms ListeAjoute/
+// ListeInsère/ListeSupprime sont reserves aux champs UI, cf. stdlib_array.c
+// L1503. Le pattern receveur se valide ici uniquement cote methode.)
+// ─────────────────────────────────────────────────────────────────────
+
+PROCEDURE PUBLIQUE test_liste_ajoute_methode_renvoie_liste()
+	l est une Liste de chaînes
+	r est une Liste de chaînes
+	r = l.Ajoute("alpha")
+	r.Ajoute("beta")
+	dbgVérifieEgalité(l..Occurrence, 2, "Liste.Ajoute methode : mutation via r affecte l")
+	dbgVérifieEgalité(r..Occurrence, 2, "r aussi a 2 (meme reference)")
+FIN
+
+PROCEDURE PUBLIQUE test_liste_insere_methode_renvoie_liste()
+	l est une Liste de chaînes
+	l.Ajoute("a")
+	l.Ajoute("c")
+	r est une Liste de chaînes
+	r = l.Insère(2, "b")
+	dbgVérifieEgalité(r..Occurrence, 3, "Liste.Insère methode renvoie liste de 3")
+	dbgVérifieEgalité(l..Occurrence, 3, "l aussi a 3 (meme reference)")
+FIN
+
+PROCEDURE PUBLIQUE test_liste_supprime_methode_renvoie_liste()
+	l est une Liste de chaînes
+	l.Ajoute("x")
+	l.Ajoute("y")
+	r est une Liste de chaînes
+	r = l.Supprime(1)
+	dbgVérifieEgalité(r..Occurrence, 1, "Liste.Supprime methode renvoie liste de 1")
+	dbgVérifieEgalité(l..Occurrence, 1, "l aussi a 1")
+FIN
+
+PROCEDURE PUBLIQUE test_chainage_liste_methode()
+	l est une Liste de chaînes
+	l.Ajoute("a").Ajoute("c").Insère(2, "b")
+	dbgVérifieEgalité(l..Occurrence, 3, "chainage liste 3 etapes")
+FIN

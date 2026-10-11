@@ -1,0 +1,97 @@
+//  — Init littérale durée par composantes { } : Site A (variable)
+// Rouge attendu : { } ciblant durée non câblé → erreur compile "Litteral { ... } sans type cible".
+// Ce test sera vert après impl (owl_implementer).
+
+// --- Coercion entier→durée (DOIT rester vert — existant verrouillé) ---
+
+PROCEDURE test_coerce_entier_vers_duree()
+	d est une durée = 5000
+	n est un entier = d
+	dbgVérifieEgalité(n, 5000, "coerce entier→durée 5000ms")
+FIN
+
+PROCEDURE test_coerce_zero()
+	d est une durée = 0
+	n est un entier = d
+	dbgVérifieEgalité(n, 0, "coerce entier→durée 0ms (zéro)")
+FIN
+
+PROCEDURE test_coerce_grand()
+	d est une durée = 86400000
+	n est un entier = d
+	dbgVérifieEgalité(n, 86400000, "coerce entier→durée 86400000ms (1 jour)")
+FIN
+
+// --- Littéral { } par composantes : Site A déclaration variable ---
+// ROUGE ATTENDU jusqu'à impl 
+
+PROCEDURE test_litteral_heure_minute()
+	d est une durée = {heure = 1, Minute = 30}
+	n est un entier = d
+	dbgVérifieEgalité(n, 5400000, "{ Heure=1, Minute=30 } → 5400000 ms")
+FIN
+
+PROCEDURE test_litteral_milliseconde()
+	d est une durée = {Milliseconde = 100}
+	n est un entier = d
+	dbgVérifieEgalité(n, 100, "{ Milliseconde=100 } → 100 ms")
+FIN
+
+PROCEDURE test_litteral_seconde()
+	d est une durée = {Seconde = 5}
+	n est un entier = d
+	dbgVérifieEgalité(n, 5000, "{ Seconde=5 } → 5000 ms")
+FIN
+
+PROCEDURE test_litteral_jour()
+	d est une durée = {Jour = 1}
+	n est un entier = d
+	dbgVérifieEgalité(n, 86400000, "{ Jour=1 } → 86400000 ms")
+FIN
+
+PROCEDURE test_litteral_combine()
+	d est une durée = {Minute = 2, Seconde = 30}
+	n est un entier = d
+	dbgVérifieEgalité(n, 150000, "{ Minute=2, Seconde=30 } → 150000 ms")
+FIN
+
+PROCEDURE test_litteral_vide()
+	d est une durée = {}
+	n est un entier = d
+	dbgVérifieEgalité(n, 0, "{ } vide → 0 ms")
+FIN
+
+PROCEDURE test_litteral_toutes_composantes()
+	d est une durée = {Jour = 1, heure = 1, Minute = 1, Seconde = 1, Milliseconde = 1}
+	n est un entier = d
+	// 86400000 + 3600000 + 60000 + 1000 + 1 = 90061001
+	dbgVérifieEgalité(n, 90061001, "toutes composantes combinées → 90061001 ms")
+FIN
+
+PROCEDURE test_litteral_seconde_via_variable()
+	nVar est un entier = 7
+	d est une durée = {Seconde = nVar}
+	n est un entier = d
+	dbgVérifieEgalité(n, 7000, "{ Seconde = nVar } avec nVar=7 → 7000 ms")
+FIN
+
+PROCEDURE test_litteral_minute_expression()
+	d est une durée = {Minute = 1 + 1}
+	n est un entier = d
+	dbgVérifieEgalité(n, 120000, "{ Minute = 1+1 } → 120000 ms")
+FIN
+
+test_coerce_entier_vers_duree()
+test_coerce_zero()
+test_coerce_grand()
+test_litteral_heure_minute()
+test_litteral_milliseconde()
+test_litteral_seconde()
+test_litteral_jour()
+test_litteral_combine()
+test_litteral_vide()
+test_litteral_toutes_composantes()
+test_litteral_seconde_via_variable()
+test_litteral_minute_expression()
+
+dbgBilanTest()

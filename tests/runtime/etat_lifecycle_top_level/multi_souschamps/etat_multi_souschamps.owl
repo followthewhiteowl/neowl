@@ -1,0 +1,50 @@
+// Ressource Etat pure utilisee par test_multi_souschamps.owl.
+//
+// Verifie que plusieurs sous-champs d'Etat se manipulent mutuellement
+// par nom dans leur top-level (LIB_A pose une valeur sur LIB_B,
+// LIB_B pose une valeur sur LIB_A). Observation via callback voisin.
+
+ETAT_MultiSousChamps est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 50
+		FIN
+
+		LIB_A est un Champ Libelle
+			PROPRIETES
+				Libelle      = "A_init"
+				X            = 20
+				Y            = 10
+				Largeur      = 100
+				Hauteur      = 15
+				PoliceNom    = iPoliceLiberationSans
+				PoliceTaille = 11
+			FIN
+
+			// TOP-LEVEL SOUS-CHAMP A : manipule LIB_B (l'autre sous-champ).
+			LIB_B..Libelle = "from_A"
+			callback_observe("A_set_B:" + LIB_B..Libelle)
+		FIN
+
+		LIB_B est un Champ Libelle
+			PROPRIETES
+				Libelle      = "B_init"
+				X            = 20
+				Y            = 30
+				Largeur      = 100
+				Hauteur      = 15
+				PoliceNom    = iPoliceLiberationSans
+				PoliceTaille = 11
+			FIN
+
+			// TOP-LEVEL SOUS-CHAMP B : manipule LIB_A.
+			LIB_A..Libelle = "from_B"
+			callback_observe("|B_set_A:" + LIB_A..Libelle)
+		FIN
+	FIN
+FIN

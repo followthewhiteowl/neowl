@@ -1,0 +1,199 @@
+// @sujet : DuPressePapier
+// @résumé : Lecture du contenu texte du presse-papier système (UTF-8). Retourne "" si vide ou format non-texte.
+//
+// Tous les scénarios mockent VersPressePapier / EffacePressePapier /
+// DuPressePapier pour ne PAS toucher le presse-papier de
+// l'utilisateur durant la suite automatisée. La vérification réelle
+// du comportement Win32 est faite manuellement, hors suite.
+
+// Lecture basique — récupération d'un texte simple mis dans le presse-papier
+PROCEDURE PUBLIQUE scenario_lecture_basique()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("Bonjour").Active()
+
+	VersPressePapier("Bonjour")
+	texte est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(texte, "Bonjour", "Contenu texte simple lu correctement")
+	dbgVérifieVrai(mDu.VerifieAppele(1), "DuPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Lecture avec accents — validation UTF-8 correcte
+PROCEDURE PUBLIQUE scenario_texte_avec_accents()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("Café crème avec cœur").Active()
+
+	VersPressePapier("Café crème avec cœur")
+	texte est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(texte, "Café crème avec cœur", "Accents préservés en UTF-8")
+	dbgVérifieVrai(mVers.VerifieAppele(1), "VersPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Lecture multi-lignes — contenu avec sauts de ligne
+PROCEDURE PUBLIQUE scenario_multiligne()
+	contenu est une chaîne = `Ligne 1
+Ligne 2
+Ligne 3`
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne(contenu).Active()
+
+	VersPressePapier(contenu)
+	résultat est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(résultat, contenu, "Sauts de ligne préservés")
+	dbgVérifieVrai(mDu.VerifieAppele(1), "DuPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Lecture après effacement — doit retourner chaîne vide
+PROCEDURE PUBLIQUE scenario_clipboard_vide()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("test")
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Presse-papier vidé retourne chaîne vide")
+	dbgVérifieVrai(mEff.VerifieAppele(1), "EffacePressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Lecture enchaînée — plusieurs opérations successives
+PROCEDURE PUBLIQUE scenario_operations_successives()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	// Premier appel : simule l'état après Vers("première")
+	mDu1 est un MockNative = MockCrée(DuPressePapier)
+	mDu1.Quand().Retourne("première").Active()
+
+	VersPressePapier("première")
+	t1 est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(t1, "première", "Premier contenu lu")
+
+	mDu1.Desactive()
+
+	// Second mock : simule l'état après Vers("deuxième")
+	mDu2 est un MockNative = MockCrée(DuPressePapier)
+	mDu2.Quand().Retourne("deuxième").Active()
+
+	VersPressePapier("deuxième")
+	t2 est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(t2, "deuxième", "Deuxième contenu écrase le premier")
+	dbgVérifieVrai(mVers.VerifieAppele(2), "VersPressePapier appelé 2 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu2.Desactive()
+FIN
+
+// Caractères spéciaux — ponctuation, symboles monétaires
+PROCEDURE PRIVÉE scenario_caracteres_speciaux()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("Prix: 42€ (TTC) — remise 15%!").Active()
+
+	VersPressePapier("Prix: 42€ (TTC) — remise 15%!")
+	texte est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(texte, "Prix: 42€ (TTC) — remise 15%!", "Symboles spéciaux préservés")
+	dbgVérifieVrai(mDu.VerifieAppele(1), "DuPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Emoji et caractères multi-byte — validation UTF-8 complète
+PROCEDURE PRIVÉE scenario_emoji_multibyte()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("Test 🚀 emoji 🎉 ok").Active()
+
+	VersPressePapier("Test 🚀 emoji 🎉 ok")
+	texte est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(texte, "Test 🚀 emoji 🎉 ok", "Emoji UTF-8 préservés")
+	dbgVérifieVrai(mVers.VerifieAppele(1), "VersPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Chaîne vide explicite — setter vide puis lire
+PROCEDURE PRIVÉE scenario_chaine_vide_explicite()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("")
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Chaîne vide écrite et lue correctement")
+	dbgVérifieVrai(mDu.VerifieAppele(1), "DuPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Longue chaîne — montée en charge modérée
+PROCEDURE PRIVÉE scenario_longue_chaine()
+	// 500 caractères répétés
+	contenu est une chaîne = ""
+	POUR i = 1 _A_ 50
+		contenu += "0123456789"
+	FIN
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne(contenu).Active()
+
+	VersPressePapier(contenu)
+	résultat est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(résultat..Taille, 500, "500 caractères préservés")
+	dbgVérifieEgalité(résultat, contenu, "Contenu long identique")
+	dbgVérifieVrai(mVers.VerifieAppele(1), "VersPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN

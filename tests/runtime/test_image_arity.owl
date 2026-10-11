@@ -1,0 +1,63 @@
+// ================================================================
+// Image — formes d'arité discrètes (migration des signatures variadiques
+// à minimum masqué vers des formes {min,..,max}).
+//
+// Exerce les natives image migrées dans leurs formes valides successives
+// (avec image cible explicite). Validation : aucune erreur de compilation
+// sur les formes acceptées + résultat cohérent au runtime. Headless-safe.
+// ================================================================
+
+img est une Image = dCréeImage(20, 20, Blanc)
+
+// dStylo : couleur seule (forme 2 args image explicite) puis forme étendue.
+dStylo(img, RVB(0, 0, 0))
+dStylo(img, RVB(0, 0, 0), 0, 2, 255)
+
+// dFond : couleur seule puis forme étendue.
+dFond(img, RVB(255, 255, 255))
+dFond(img, RVB(255, 255, 255), FondPlein, 0, 255)
+
+// dLigne : 5 args (sans couleur) puis 7 args (couleur + largeur).
+dLigne(img, 0, 0, 19, 19)
+dLigne(img, 0, 19, 19, 0, RVB(0, 0, 0), 1)
+
+// dRectangle : 5 args puis 7 args.
+dRectangle(img, 1, 1, 18, 18, RVB(200, 200, 200))
+dRectangle(img, 2, 2, 17, 17, RVB(200, 200, 200), RVB(0, 0, 0))
+
+// dCercle : 6 args.
+dCercle(img, 3, 3, 16, 16, RVB(150, 150, 250), RVB(0, 0, 0))
+
+// dRemplissage : 3 args (avec couleur) puis 5 args (couleur + bordure).
+dRemplissage(img, 10, 10, RVB(10, 10, 10))
+dRemplissage(img, 0, 0, RVB(20, 20, 20), RVB(0, 0, 0))
+
+// dEfface : forme image explicite avec couleur (2 args).
+dEfface(img, RVB(255, 255, 255))
+
+// dPixelCouleur / dPixelOpacité : forme 3 args (image explicite).
+c est un entier = dPixelCouleur(img, 5, 5)
+dbgVérifieEgalité(c, RVB(255, 255, 255), "dPixelCouleur après dEfface blanc")
+
+o est un entier = dPixelOpacité(img, 5, 5)
+dbgVérifieEgalité(o, 255, "dPixelOpacité opaque")
+
+// dFlou : 1 arg (rayon défaut) puis 2 args (rayon explicite).
+dFlou(img)
+dFlou(img, 3)
+
+// dRedimensionne : 3 args puis 4 args (avec options).
+b1 est un booléen = dRedimensionne(img, 30, 30)
+dbgVérifieVrai(b1, "dRedimensionne 3 args")
+b2 est un booléen = dRedimensionne(img, 40, 40, drHomothétique)
+dbgVérifieVrai(b2, "dRedimensionne 4 args avec options")
+
+// dRotation : 2 args puis 3 args.
+b3 est un booléen = dRotation(img, 90)
+dbgVérifieVrai(b3, "dRotation 2 args")
+b4 est un booléen = dRotation(img, 45, drAdapte)
+dbgVérifieVrai(b4, "dRotation 3 args avec options")
+
+// dInverseCouleur : 1 arg (mono-forme, contrôle).
+b5 est un booléen = dInverseCouleur(img)
+dbgVérifieVrai(b5, "dInverseCouleur")

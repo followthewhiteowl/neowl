@@ -1,0 +1,109 @@
+//  — Valeur d'un champ de saisie typée selon son TypeSaisie.
+//
+// Canon (documentation de référence, section "Valeur d'un champ de saisie") :
+//   - sous-type Texte/Date/Heure -> chaîne de caractères
+//   - sous-type Numérique        -> owlRéel systématiquement (OWL n'a pas de
+//     Variant, donc pas de dynamique entier/réel selon la valeur saisie : la
+//     décision langage ratifiée pour ce ticket verrouille owlRéel uniforme,
+//     y compris pour une valeur entière comme 42 ou 0)
+//   - sous-type Monétaire        -> VAL_CURRENCY (owlMonétaire côté OWL, cf.
+//     décision ticket  : pas d'ambiguïté sur ce point)
+//
+// Nature : ROUGE avant impl. Aujourd'hui SAI_X..Valeur passe toujours par
+// owl_ui_lineedit_get_text/set_text (chemin générique real_ui_get_prop, tous
+// TypeSaisie confondus) -> chaîne systématique, y compris pour Num/Monétaire.
+// Après impl : Num/Monétaire typés, Texte/MotDePasse/Multiligne inchangés.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ValeurTypee)
+
+// ===== 1. Non-régression : Texte / MotDePasse / Multiligne restent chaîne =====
+
+SAI_Texte..Valeur = "bonjour"
+dbgVérifieEgalité(TypeVar(SAI_Texte..Valeur), owlChaîne, "Texte : ..Valeur reste une chaîne (non-régression)")
+dbgVérifieEgalité(SAI_Texte..Valeur, "bonjour", "Texte : round-trip fidèle")
+
+SAI_MotDePasse..Valeur = "secret"
+dbgVérifieEgalité(TypeVar(SAI_MotDePasse..Valeur), owlChaîne, "MotDePasse : ..Valeur reste une chaîne (non-régression)")
+dbgVérifieEgalité(SAI_MotDePasse..Valeur, "secret", "MotDePasse : round-trip fidèle")
+
+SAI_Multiligne..Valeur = "ligne1\nligne2"
+dbgVérifieEgalité(TypeVar(SAI_Multiligne..Valeur), owlChaîne, "Multiligne : ..Valeur reste une chaîne (non-régression)")
+
+// ===== 2. Numérique : round-trip fidèle, pas de chaîne =====
+//
+// Garde SI/SINON : tant que ..Valeur reste une chaîne (avant impl), une
+// soustraction chaîne - entier lève une exception runtime ("opérandes
+// doivent être des nombres") qui ferait crasher toute la suite au lieu de
+// rougir proprement assertion par assertion. Le SI isole chaque cas.
+
+SAI_Num..Valeur = 42
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Num (entier) : ..Valeur est un réel")
+SI TypeVar(SAI_Num..Valeur) <> owlChaîne ALORS
+	dbgVérifieVrai(Abs(SAI_Num..Valeur - 42) < 0.0001, "Num (entier) : round-trip fidèle à 42")
+SINON
+	dbgVérifieVrai(Faux, "Num (entier) : round-trip ignoré (Valeur encore typée chaîne)")
+FIN
+
+SAI_Num..Valeur = 0
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Num (zéro) : ..Valeur est un réel")
+SI TypeVar(SAI_Num..Valeur) <> owlChaîne ALORS
+	dbgVérifieVrai(Abs(SAI_Num..Valeur - 0) < 0.0001, "Num (zéro) : round-trip fidèle à 0")
+SINON
+	dbgVérifieVrai(Faux, "Num (zéro) : round-trip ignoré (Valeur encore typée chaîne)")
+FIN
+
+// Fractionnaire : seule une valeur réelle préserve la fidélité -> verrouille
+// owlRéel sans ambiguïté (un entier tronquerait silencieusement .25).
+SAI_Num..Valeur = 42.25
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Num (fractionnaire) : ..Valeur est un réel (seul type fidèle pour .25)")
+SI TypeVar(SAI_Num..Valeur) <> owlChaîne ALORS
+	dbgVérifieVrai(Abs(SAI_Num..Valeur - 42.25) < 0.0001, "Num (fractionnaire) : round-trip fidèle à 42.25")
+SINON
+	dbgVérifieVrai(Faux, "Num (fractionnaire) : round-trip ignoré (Valeur encore typée chaîne)")
+FIN
+
+SAI_Num..Valeur = -17.5
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Num (négatif fractionnaire) : ..Valeur est un réel")
+SI TypeVar(SAI_Num..Valeur) <> owlChaîne ALORS
+	dbgVérifieVrai(Abs(SAI_Num..Valeur - (-17.5)) < 0.0001, "Num (négatif fractionnaire) : round-trip fidèle à -17.5")
+SINON
+	dbgVérifieVrai(Faux, "Num (négatif fractionnaire) : round-trip ignoré (Valeur encore typée chaîne)")
+FIN
+
+// ===== 3. Monétaire : round-trip fidèle en VAL_CURRENCY =====
+
+SAI_Monetaire..Valeur = 0m1234.56
+dbgVérifieEgalité(TypeVar(SAI_Monetaire..Valeur), owlMonétaire, "Monétaire : ..Valeur est owlMonétaire (VAL_CURRENCY)")
+dbgVérifieEgalité(SAI_Monetaire..Valeur, 0m1234.56, "Monétaire : round-trip fidèle à 1234.56")
+
+SAI_Monetaire..Valeur = 0m0.00
+dbgVérifieEgalité(TypeVar(SAI_Monetaire..Valeur), owlMonétaire, "Monétaire (zéro) : ..Valeur reste owlMonétaire")
+dbgVérifieEgalité(SAI_Monetaire..Valeur, 0m0.00, "Monétaire (zéro) : round-trip fidèle")
+
+SAI_Monetaire..Valeur = -0m99.99
+dbgVérifieEgalité(TypeVar(SAI_Monetaire..Valeur), owlMonétaire, "Monétaire (négatif) : ..Valeur reste owlMonétaire")
+dbgVérifieEgalité(SAI_Monetaire..Valeur,-0m99.99, "Monétaire (négatif) : round-trip fidèle à -99.99")
+
+// ===== 4. Édition utilisateur réelle après pré-remplissage programmatique =====
+//
+// Régression BLOCKED (revue post-cycle 1) : `..Valeur` doit lire le widget
+// VIVANT (contrat  "Qt-first read path"), pas un store figé au
+// moment du dernier SET programmatique. TestSimuleSaisie poste de VRAIS
+// QKeyEvents (widget monté, TestModeHeadless(Faux) déjà actif en tête de
+// fichier) : le texte du QLineEdit change sans repasser par le setter
+// ..Valeur, ce qui expose un éventuel store périmé.
+
+SAI_Num..Valeur = 42
+TestSimuleSaisie(SAI_Num, "99")
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Num : édition utilisateur -> ..Valeur reste un réel")
+dbgVérifieVrai(Abs(SAI_Num..Valeur - 99) < 0.0001, "Num : édition utilisateur reflétée (99, pas 42 périmé)")
+
+SAI_Monetaire..Valeur = 0m10.00
+TestSimuleSaisie(SAI_Monetaire, "99.99")
+dbgVérifieEgalité(TypeVar(SAI_Monetaire..Valeur), owlMonétaire, "Monétaire : édition utilisateur -> ..Valeur reste owlMonétaire")
+dbgVérifieEgalité(SAI_Monetaire..Valeur, 0m99.99, "Monétaire : édition utilisateur reflétée (99.99, pas 10.00 périmé)")
+
+Ferme(FEN_ValeurTypee)
+dbgBilanTest()

@@ -1,0 +1,32 @@
+//  : les N instances créées à la dimension du tableau doivent être
+// INDÉPENDANTES. Une implémentation qui remplirait les N cellules avec une
+// seule et même instance rendrait "A" en relisant la deuxième cellule.
+// Quatre éléments : un défaut d'aliasing peut n'affecter que les cellules
+// au-delà de la première.
+ST_Ind est une Structure
+	Msg est une chaîne
+	N est un entier
+FIN
+
+tInd est un tableau de 4 ST_Ind
+
+dbgVérifieEgalité(tInd..Occurrence, 4, "1398 : quatre éléments déclarés")
+
+tInd[1].Msg = "A"
+dbgVérifieEgalité(tInd[1].Msg, "A", "1398 : la cellule écrite porte bien sa valeur")
+dbgVérifieEgalité(tInd[2].Msg, "", "1398 : écrire la cellule 1 ne touche pas la cellule 2")
+dbgVérifieEgalité(tInd[3].Msg, "", "1398 : écrire la cellule 1 ne touche pas la cellule 3")
+dbgVérifieEgalité(tInd[4].Msg, "", "1398 : écrire la cellule 1 ne touche pas la cellule 4")
+
+tInd[3].Msg = "C"
+dbgVérifieEgalité(tInd[1].Msg, "A", "1398 : écrire la cellule 3 ne réécrit pas la cellule 1")
+dbgVérifieEgalité(tInd[3].Msg, "C", "1398 : la cellule 3 porte sa propre valeur")
+dbgVérifieEgalité(tInd[4].Msg, "", "1398 : la cellule 4 reste vide après écriture de la cellule 3")
+
+tInd[2].N = 7
+dbgVérifieEgalité(tInd[2].N, 7, "1398 : champ entier écrit sur la cellule 2")
+dbgVérifieEgalité(tInd[1].N, 0, "1398 : le champ entier de la cellule 1 reste à zéro")
+dbgVérifieEgalité(tInd[4].N, 0, "1398 : le champ entier de la cellule 4 reste à zéro")
+dbgVérifieEgalité(tInd[2].Msg, "", "1398 : écrire un champ n'écrase pas les autres champs de la même cellule")
+
+dbgBilanTest()

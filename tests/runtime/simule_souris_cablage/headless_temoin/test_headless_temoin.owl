@@ -1,0 +1,28 @@
+//  — témoin de non-régression : TestSimuleSouris en mode headless.
+//
+// En headless (widget jamais monté), TestSimuleSouris doit continuer
+// d'appeler le callback OWL en direct -- seul chemin possible sans widget
+// Qt. Ce comportement ne doit PAS changer avec l'alignement de l'outil sur
+// le vrai chemin Qt ( lot 1), qui ne s'applique qu'en mode
+// graphique.
+//
+// VERT ATTENDU (avant ET après ) : Libellé n'a aucun câblage Qt
+// ( lot 2), et pourtant le callback tire bien en headless -- preuve
+// que le headless ne dépend d'aucun câblage GUI.
+
+TestModeHeadless(Vrai)
+
+nClic_obs est un entier = -1
+
+PROCEDURE callback_headless_temoin_compteur(nC est un entier)
+	nClic_obs = nC
+FIN
+
+OuvreSoeur(FEN_HeadlessTemoin)
+
+TestSimuleSouris(LIB_Cible, ClicGauche)
+LireCompteurClicHeadless()
+dbgVérifieEgalité(nClic_obs, 1, "surClic Libellé (headless) : 1 tir -- comportement actuel inchangé")
+
+Ferme(FEN_HeadlessTemoin)
+dbgBilanTest()

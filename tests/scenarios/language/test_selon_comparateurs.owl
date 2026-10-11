@@ -1,0 +1,217 @@
+// @sujet : SELON ... CAS <opérateur> <valeur> — comparateurs préfixes dans un aiguillage
+// @résumé : Un CAS peut commencer par un opérateur de comparaison suivi d'une valeur — la comparaison s'applique alors à la variable testée par le SELON. Tous les opérateurs OWL sont disponibles : numériques `> >= < <= = <>`, et chaînes souples `~= ~~ [= =] [=] [~ ~] [~] [~~ ~~] [~~]`. Le premier opérateur écrit s'applique à la variable du SELON ; la valeur écrite après est la borne. Forme particulièrement lisible pour exprimer des seuils ou des filtres textuels.
+
+
+// Cas canonique : seuils numériques décroissants. Lecture naturelle « si la
+// valeur est supérieure à 1000 alors... sinon si supérieure à 100 alors... ».
+// L'ordre des CAS importe puisque le premier match remporte — on écrit donc
+// du plus restrictif au moins restrictif.
+PROCEDURE scenario_seuils_decroissants()
+	nMontant est un entier = 1500
+	sNiveau est une chaîne = ""
+	SELON nMontant
+		CAS > 1000 : sNiveau = "très élevé"
+		CAS > 500  : sNiveau = "élevé"
+		CAS > 100  : sNiveau = "moyen"
+		AUTRE CAS  : sNiveau = "faible"
+	FIN
+	dbgVérifieEgalité(sNiveau, "très élevé", "1500 > 1000 capture en premier")
+	
+	nMontant = 600
+	SELON nMontant
+		CAS > 1000 : sNiveau = "très élevé"
+		CAS > 500  : sNiveau = "élevé"
+		CAS > 100  : sNiveau = "moyen"
+		AUTRE CAS  : sNiveau = "faible"
+	FIN
+	dbgVérifieEgalité(sNiveau, "élevé", "600 > 500 mais pas > 1000")
+	
+	nMontant = 50
+	SELON nMontant
+		CAS > 1000 : sNiveau = "très élevé"
+		CAS > 500  : sNiveau = "élevé"
+		CAS > 100  : sNiveau = "moyen"
+		AUTRE CAS  : sNiveau = "faible"
+	FIN
+	dbgVérifieEgalité(sNiveau, "faible", "Aucun seuil franchi → AUTRE CAS")
+FIN
+
+
+// Comparateurs avec et sans égalité. `>=` et `<=` incluent la borne ;
+// `>` et `<` l'excluent. Démonstration côte à côte pour clarifier le
+// comportement aux bords — c'est exactement la sémantique des opérateurs
+// du langage en expression normale.
+PROCEDURE scenario_comparateurs_aux_bords()
+	nValeur est un entier = 10
+	sResultat est une chaîne = ""
+	
+	SELON nValeur
+		CAS >= 10 : sResultat = "matché"
+		AUTRE CAS : sResultat = "ignoré"
+	FIN
+	dbgVérifieEgalité(sResultat, "matché", "10 >= 10 (borne incluse)")
+	
+	SELON nValeur
+		CAS > 10  : sResultat = "matché"
+		AUTRE CAS : sResultat = "ignoré"
+	FIN
+	dbgVérifieEgalité(sResultat, "ignoré", "10 > 10 est faux (borne exclue)")
+	
+	SELON nValeur
+		CAS <= 10 : sResultat = "matché"
+		AUTRE CAS : sResultat = "ignoré"
+	FIN
+	dbgVérifieEgalité(sResultat, "matché", "10 <= 10 (borne incluse)")
+	
+	SELON nValeur
+		CAS < 10  : sResultat = "matché"
+		AUTRE CAS : sResultat = "ignoré"
+	FIN
+	dbgVérifieEgalité(sResultat, "ignoré", "10 < 10 est faux (borne exclue)")
+FIN
+
+
+// Égalité et inégalité explicites. `CAS = 5` est strictement équivalent
+// à `CAS 5` (forme simple historique). `CAS <> 5` matche tout sauf 5 —
+// utile dans des SELON où on veut capter un cas d'exception inverse.
+PROCEDURE scenario_egalite_inegalite_explicites()
+	nVal est un entier = 5
+	sR est une chaîne = ""
+	
+	SELON nVal
+		CAS = 5   : sR = "exact"
+		AUTRE CAS : sR = "autre"
+	FIN
+	dbgVérifieEgalité(sR, "exact", "CAS = 5 ≡ CAS 5")
+	
+	nVal = 3
+	SELON nVal
+		CAS <> 5  : sR = "différent"
+		AUTRE CAS : sR = "égal"
+	FIN
+	dbgVérifieEgalité(sR, "différent", "3 <> 5 → matché")
+	
+	nVal = 5
+	SELON nVal
+		CAS <> 5  : sR = "différent"
+		AUTRE CAS : sR = "égal"
+	FIN
+	dbgVérifieEgalité(sR, "égal", "5 <> 5 est faux → AUTRE CAS")
+FIN
+
+
+// Comparateurs chaîne — égalité souple. `~=` ignore la casse, `~~` ignore
+// casse ET accents. Idiomatiques pour des entrées utilisateur où la forme
+// exacte n'est pas garantie (saisie clavier, copier-coller, recherche).
+PROCEDURE scenario_egalite_souple()
+	sSaisie est une chaîne = "BONJOUR"
+	bEgalSansCasse est un booléen = Faux
+	SELON sSaisie
+		CAS ~= "bonjour" : bEgalSansCasse = Vrai
+		AUTRE CAS        : bEgalSansCasse = Faux
+	FIN
+	dbgVérifieVrai(bEgalSansCasse, "~= ignore la casse : « BONJOUR » ≈ « bonjour »")
+	
+	sSaisie = "Café"
+	bEgalSansAccent est un booléen = Faux
+	SELON sSaisie
+		CAS ~~ "cafe"   : bEgalSansAccent = Vrai
+		AUTRE CAS       : bEgalSansAccent = Faux
+	FIN
+	dbgVérifieVrai(bEgalSansAccent, "~~ ignore casse et accents : « Café » ≈ « cafe »")
+FIN
+
+
+// Comparateurs chaîne — commence par. `[=` est l'opérateur « commence par »
+// strict ; `[~` ajoute l'insensibilité à la casse ; `[~~` ajoute aussi
+// l'insensibilité aux accents. Particulièrement utile pour router selon
+// un préfixe (codes, identifiants, en-têtes).
+PROCEDURE scenario_commence_par()
+	sUrl est une chaîne = "https://exemple.fr"
+	sProtocole est une chaîne = ""
+	SELON sUrl
+		CAS [= "https://" : sProtocole = "sécurisé"
+		CAS [= "http://"  : sProtocole = "clair"
+		AUTRE CAS         : sProtocole = "inconnu"
+	FIN
+	dbgVérifieEgalité(sProtocole, "sécurisé", "« https://exemple.fr » commence par « https:// »")
+	
+	sUrl = "HTTPS://exemple.fr"
+	SELON sUrl
+		CAS [~ "https://" : sProtocole = "sécurisé sans casse"
+		AUTRE CAS         : sProtocole = "inconnu"
+	FIN
+	dbgVérifieEgalité(sProtocole, "sécurisé sans casse", "[~ ignore la casse du préfixe")
+	
+	sUrl = "Hé"
+	SELON sUrl
+		CAS [~~ "he"      : sProtocole = "préfixe trouvé"
+		AUTRE CAS         : sProtocole = "rien"
+	FIN
+	dbgVérifieEgalité(sProtocole, "préfixe trouvé", "[~~ ignore casse ET accents")
+FIN
+
+
+// Comparateurs chaîne — finit par. Miroir de la famille `[=` : `=]` strict,
+// `~]` insensible à la casse, `~~]` insensible casse + accents. Pratique
+// pour reconnaître des suffixes : extensions de fichier, formats, langues.
+PROCEDURE scenario_finit_par()
+	sFichier est une chaîne = "rapport.PDF"
+	sFormat est une chaîne = ""
+	SELON sFichier
+		CAS =] ".pdf"  : sFormat = "PDF exact"
+		CAS ~] ".pdf"  : sFormat = "PDF insensible"
+		AUTRE CAS      : sFormat = "autre"
+	FIN
+	dbgVérifieEgalité(sFormat, "PDF insensible", "« rapport.PDF » ne finit pas par « .pdf » exact mais ~] matche")
+	
+	sFichier = "données.csv"
+	SELON sFichier
+		CAS =] ".csv"  : sFormat = "CSV"
+		AUTRE CAS      : sFormat = "autre"
+	FIN
+	dbgVérifieEgalité(sFormat, "CSV", "Match exact suffixe minuscule")
+FIN
+
+
+// Comparateurs chaîne — contient. Famille `[=]` (strict), `[~]` (sans casse),
+// `[~~]` (sans casse ni accents). Le test cherche la sous-chaîne n'importe où
+// dans la valeur. Idéal pour filtrer du texte libre ou des descriptions.
+PROCEDURE scenario_contient()
+	sCommentaire est une chaîne = "Très bonne expérience client"
+	sTon est une chaîne = ""
+	SELON sCommentaire
+		CAS [=] "bonne"   : sTon = "positif"
+		AUTRE CAS         : sTon = "autre"
+	FIN
+	dbgVérifieEgalité(sTon, "positif", "Contient « bonne » (casse exacte)")
+	
+	sCommentaire = "Service IMPECCABLE"
+	SELON sCommentaire
+		CAS [~] "impeccable" : sTon = "très positif"
+		AUTRE CAS            : sTon = "autre"
+	FIN
+	dbgVérifieEgalité(sTon, "très positif", "[~] trouve « IMPECCABLE » via match sans casse")
+	
+	sCommentaire = "Très décevant"
+	SELON sCommentaire
+		CAS [~~] "decevant"  : sTon = "négatif"
+		AUTRE CAS            : sTon = "autre"
+	FIN
+	dbgVérifieEgalité(sTon, "négatif", "[~~] trouve « décevant » sans accents")
+FIN
+
+
+// Comparateur sur chaîne par comparaison lexicographique. Les opérateurs
+// numériques `>` / `<` / `>=` / `<=` s'appliquent aussi aux chaînes selon
+// l'ordre lexicographique standard — c'est la même sémantique qu'en
+// expression normale, pas un comportement spécifique au SELON.
+PROCEDURE scenario_comparateur_lexicographique()
+	sCle est une chaîne = "monkey"
+	sZone est une chaîne = ""
+	SELON sCle
+		CAS < "m"  : sZone = "première moitié"
+		AUTRE CAS  : sZone = "seconde moitié"
+	FIN
+	dbgVérifieEgalité(sZone, "seconde moitié", "« monkey » ≥ « m » lexicographiquement")
+FIN

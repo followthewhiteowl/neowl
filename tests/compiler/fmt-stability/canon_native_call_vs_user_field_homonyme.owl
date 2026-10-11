@@ -1,0 +1,64 @@
+//  (bug b) : verrou defense en profondeur.
+//
+// Quand un champ user (Structure ou Classe) revendique un nom homonyme
+// d'une native FONCTION, un VRAI appel natif standalone `Native(...)`
+// doit RESTER canonise vers la forme native — meme si le champ user
+// declare est plus haut dans le fichier ET utilise plus haut dans le
+// scope.
+//
+// La fixture canon_builtin_legitimate_non_regression couvre deja le cas
+// Structure / native Age. Celle-ci elargit le perimetre :
+//   - Structure ET Classe en parallele
+//   - 4 natives (Val/Age/Nom/Taille) homonymes de champs declares
+//   - appel native standalone DANS une procedure (acces via :champ)
+//   - appel native standalone HORS procedure (top-level)
+//
+// Le garde  round 2 (is_call_position) + le garde  (sur
+// class_members) assurent que toute position d'appel `Ident(...)` resout
+// la native canon. Hors position d'appel, le champ user reste protege
+// (acquis 0330/0506/0509 intacts).
+
+MaStruct est une Structure
+	val est un entier
+	age est un entier
+	nom est une chaîne
+	taille est un entier
+FIN
+
+MaClasse est une Classe
+	val est un entier
+	age est un entier
+	nom est une chaîne
+	taille est un entier
+FIN
+
+PROCEDURE TestStruct()
+	oS est un MaStruct
+	oS.val = 1
+	oS.age = 2
+	oS.nom = "x"
+	oS.taille = 3
+	// Appels natifs au sein de la meme procedure : restent canon.
+	n1 est un entier = Val("123")
+	n2 est un entier = Age("1980-05-15")
+	s1 est une chaîne = Nom("X")
+	n3 est un entier = Taille("hello")
+FIN
+
+PROCEDURE TestClasse()
+	:val = 1
+	:age = 2
+	:nom = "x"
+	:taille = 3
+	// Appels natifs apres acces :champ via la meme procedure.
+	n1 est un entier = Val("123")
+	n2 est un entier = Age("1980-05-15")
+	s1 est une chaîne = Nom("X")
+	n3 est un entier = Taille("hello")
+FIN
+
+// Appels natifs HORS de toute procedure, apres declarations user.
+nTop1 est un entier = Val("42")
+nTop2 est un entier = Age("2000-01-01")
+sTop est une chaîne = Nom("Y")
+nTop3 est un entier = Taille("z")

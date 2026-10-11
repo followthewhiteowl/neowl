@@ -1,0 +1,29 @@
+//  — critère d'acceptation clé du ticket (Lot 1 : fondations
+// backend) :
+//   « Une fenêtre déclarant une Zone répétée avec
+//     Style..LigneSélectionnée..CouleurFond +
+//     Style..CadreInterne..Cadre..Épaisseur compile et se lance. »
+//
+// Ce test verrouille le compile + lancement headless et la prop Style
+// exposée sur le Champ ZoneRépétée (type styleZoneRépétée), pas encore le
+// rendu Qt par-répétition (Lot 2/3).
+//
+// ROUGE attendu : FEN_ZRStyle.owl voisin échoue au --check tant que
+// styleZoneRépétée + la prop Style sur ZoneRépétée n'existent pas
+// (compile-fail en cascade).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ZRStyle)
+
+ZR_Taches..Style..LigneSélectionnée..CouleurFond = Bleu
+dbgVérifieEgalité(ZR_Taches..Style..LigneSélectionnée..CouleurFond, Bleu, "ZoneRépétée..Style..LigneSélectionnée..CouleurFond round-trip")
+
+ZR_Taches..Style..CadreInterne..Cadre..Epaisseur = 3
+dbgVérifieEgalité(ZR_Taches..Style..CadreInterne..Cadre..Epaisseur, 3, "ZoneRépétée..Style..CadreInterne..Cadre..Épaisseur round-trip")
+
+dbgVérifieVrai(Vrai, "fenêtre ZoneRépétée stylée compile et se lance sans crash")
+
+Ferme(FEN_ZRStyle)
+
+dbgBilanTest()

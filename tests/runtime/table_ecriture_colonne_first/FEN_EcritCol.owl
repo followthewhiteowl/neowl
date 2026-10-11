@@ -1,0 +1,79 @@
+// Ressource fenêtre — voisine de test_table_ecriture_colonne_first.owl.
+// Une colonne au nom accentué (COL_Clé) et une au nom nu (COL_Nom), pour
+// vérifier que l'écriture de valeur en forme colonne d'abord atteint la même
+// cellule que l'écriture en forme ligne d'abord, dans toutes les graphies.
+
+FEN_EcritCol est une Fenêtre
+	PROPRIETES
+		Titre       = "Écriture colonne d'abord"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 300
+	FIN
+
+	TBL_E est un Champ Table
+		PROPRIETES
+			X       = 5
+			Y       = 5
+			Largeur = 300
+			Hauteur = 200
+		FIN
+
+		COL_Clé est une Colonne
+			PROPRIETES
+				Libellé = "Clé"
+				Type    = colTypeTexte
+				Largeur = 80
+			FIN
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 80
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TBL_E, "cle1", "nom1")
+		TableAjouteLigne(TBL_E, "cle2", "nom2")
+	FIN
+
+	// --- Écritures ---
+
+	// Colonne d'abord, indice littéral.
+	PROCEDURE EcritColFirstLitteral(v est une chaîne)
+		TBL_E.COL_Nom[1] = v
+	FIN
+
+	// Colonne d'abord, indice variable.
+	PROCEDURE EcritColFirstVar(i est un entier, v est une chaîne)
+		TBL_E.COL_Nom[i] = v
+	FIN
+
+	// Ligne d'abord (forme déjà câblée, sert de référence).
+	PROCEDURE EcritLigneFirst(i est un entier, v est une chaîne)
+		TBL_E[i].COL_Nom = v
+	FIN
+
+	// Colonne d'abord vers une colonne accentuée, atteinte par la graphie nue.
+	PROCEDURE EcritColAccentParNu(i est un entier, v est une chaîne)
+		TBL_E.COL_Cle[i] = v
+	FIN
+
+	// --- Lectures ---
+
+	PROCEDURE LireColFirst(i est un entier)
+		RENVOYER TBL_E.COL_Nom[i]
+	FIN
+
+	PROCEDURE LireLigneFirst(i est un entier)
+		RENVOYER TBL_E[i].COL_Nom
+	FIN
+
+	PROCEDURE LireColAccent(i est un entier)
+		RENVOYER TBL_E.COL_Clé[i]
+	FIN
+FIN

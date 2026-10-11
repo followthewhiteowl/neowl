@@ -1,0 +1,56 @@
+// Fenetre voisine — repro .
+//
+// Verifie qu'une PROCEDURE helper de niveau Fenetre est appelable depuis
+// le TOP-LEVEL de la fenetre elle-meme (niveau 0 = code d'init canon,
+// ), y compris en chaine (helper -> helper).
+//
+// Le top-level fenetre est le PREMIER code execute. Avant le fix, la
+// globale qualifiee '<window>_<proc>' valait NIL au moment de l'appel eager
+// du top-level (la liaison runtime n'intervenait qu'a l'ouverture), d'ou
+// "Seules les fonctions et procedures peuvent etre appelees".
+//
+// Les helpers n'agissent QUE sur des widgets de la fenetre (pas de globale
+// externe) : le top-level fenetre tourne aussi de maniere eager au
+// chargement du script, avant que le fichier de test ait declare ses
+// propres variables — un effet observable doit donc rester interne a la
+// fenetre. Le test lit les libelles via l'instance apres Ouvre().
+
+FEN_HelperTopLevel est une Fenêtre
+	PROPRIETES
+		Titre       = "Helper TopLevel"
+		Disposition = dispLibre
+		Largeur     = 200
+		Hauteur     = 100
+	FIN
+
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Libellé = "depart"
+		FIN
+	FIN
+
+	LIB_Y est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 40
+			Libellé = "depart"
+		FIN
+	FIN
+
+	PROCEDURE HelperA()
+		// cas direct, effet observable sur un widget (cas user originel)
+		LIB_X..Libellé = "via HelperA"
+	FIN
+
+	PROCEDURE HelperB()
+		// chaine transitive : HelperB appelle HelperA
+		LIB_Y..Libellé = "via HelperB"
+		HelperA()
+	FIN
+
+	// Appel AU TOP-LEVEL DE LA FENETRE (niveau 0). C'est le point qui
+	// crashait avant .
+	HelperB()
+FIN

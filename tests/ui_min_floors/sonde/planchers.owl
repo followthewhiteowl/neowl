@@ -1,0 +1,175 @@
+// Chemin APPLIQUÉ, indépendant du générateur : monte chaque famille de champ
+// par le chemin complet (fenêtre 1 x 1, disposition automatique, champ monté)
+// et relève ce que le moteur lui impose. run.sh confronte ces relevés à ce que
+// `owl --vscode-data` publie. Rien n'est attendu ici, ce fichier ne fait que
+// mesurer — un nombre écrit à la main dans un test finit par mentir.
+//
+// Trois familles de relevés, une ligne chacune :
+//   PLANCHER <nom EN> <L> <H>   plancher de base, champ vide/minimal.
+//   STRESSED <nom EN> <L> <H>   même famille dans une fenêtre SÉPARÉE, police
+//                               et/ou options gonflées. base == stressée dit,
+//                               par la mesure, si le plancher SUIT le contenu.
+//   FONTPT   <nom EN> <pt>      taille de police du champ, là où la DSL
+//                               l'expose. Confronte floorFontPt publié.
+//
+// La fenêtre stressée est SÉPARÉE de la base à dessein : un frère dans la même
+// fenêtre fausse le plancher de base d'un pixel.
+
+PROCEDURE Relève(famille est une chaine, l est un entier, h est un entier)
+	Trace("PLANCHER " + famille + " " + l + " " + h)
+FIN
+
+PROCEDURE RelèveStress(famille est une chaine, l est un entier, h est un entier)
+	Trace("STRESSED " + famille + " " + l + " " + h)
+FIN
+
+PROCEDURE RelèveFont(famille est une chaine, pt est un entier)
+	Trace("FONTPT " + famille + " " + pt)
+FIN
+
+
+// --- Planchers de base -----------------------------------------------------
+
+OuvreSoeur(FEN_SondeLibelle)
+Relève("Label", LIB_Sonde..Largeur, LIB_Sonde..Hauteur)
+Ferme(FEN_SondeLibelle)
+
+OuvreSoeur(FEN_SondeBouton)
+Relève("Button", BTN_Sonde..Largeur, BTN_Sonde..Hauteur)
+Ferme(FEN_SondeBouton)
+
+OuvreSoeur(FEN_SondeSaisie)
+Relève("Input", SAI_Sonde..Largeur, SAI_Sonde..Hauteur)
+Ferme(FEN_SondeSaisie)
+
+OuvreSoeur(FEN_SondeTable)
+Relève("Table", TBL_Sonde..Largeur, TBL_Sonde..Hauteur)
+Ferme(FEN_SondeTable)
+
+OuvreSoeur(FEN_SondeConteneur)
+Relève("Container", CONT_Sonde..Largeur, CONT_Sonde..Hauteur)
+Ferme(FEN_SondeConteneur)
+
+OuvreSoeur(FEN_SondeImage)
+Relève("Image", IMG_Sonde..Largeur, IMG_Sonde..Hauteur)
+Ferme(FEN_SondeImage)
+
+OuvreSoeur(FEN_SondeListe)
+Relève("List", LST_Sonde..Largeur, LST_Sonde..Hauteur)
+Ferme(FEN_SondeListe)
+
+OuvreSoeur(FEN_SondeCombo)
+Relève("ComboBox", CBO_Sonde..Largeur, CBO_Sonde..Hauteur)
+Ferme(FEN_SondeCombo)
+
+OuvreSoeur(FEN_SondeSelecteur)
+Relève("RadioGroup", SEL_Sonde..Largeur, SEL_Sonde..Hauteur)
+Ferme(FEN_SondeSelecteur)
+
+OuvreSoeur(FEN_SondeInterrupteur)
+Relève("CheckBox", INT_Sonde..Largeur, INT_Sonde..Hauteur)
+Ferme(FEN_SondeInterrupteur)
+
+OuvreSoeur(FEN_SondeZoneRepetee)
+Relève("Looper", ZR_Sonde..Largeur, ZR_Sonde..Hauteur)
+Ferme(FEN_SondeZoneRepetee)
+
+OuvreSoeur(FEN_SondeJauge)
+Relève("ProgressBar", JAU_Sonde..Largeur, JAU_Sonde..Hauteur)
+Ferme(FEN_SondeJauge)
+
+OuvreSoeur(FEN_SondeCodeBarres)
+Relève("BarCodes", CBA_Sonde..Largeur, CBA_Sonde..Hauteur)
+Ferme(FEN_SondeCodeBarres)
+
+OuvreSoeur(FEN_SondeOnglet)
+Relève("Tab", ONG_Sonde..Largeur, ONG_Sonde..Hauteur)
+Ferme(FEN_SondeOnglet)
+
+
+// --- Planchers stressés (fenêtres séparées) --------------------------------
+// Familles à plancher (base >= 1). Les familles sans plancher propre
+// (Conteneur, Image, CodeBarres) n'ont rien à stresser.
+
+OuvreSoeur(FEN_StressLibelle)
+RelèveStress("Label", LIB_Stress..Largeur, LIB_Stress..Hauteur)
+Ferme(FEN_StressLibelle)
+
+OuvreSoeur(FEN_StressBouton)
+RelèveStress("Button", BTN_Stress..Largeur, BTN_Stress..Hauteur)
+Ferme(FEN_StressBouton)
+
+OuvreSoeur(FEN_StressSaisie)
+RelèveStress("Input", SAI_Stress..Largeur, SAI_Stress..Hauteur)
+Ferme(FEN_StressSaisie)
+
+OuvreSoeur(FEN_StressCombo)
+RelèveStress("ComboBox", CBO_Stress..Largeur, CBO_Stress..Hauteur)
+Ferme(FEN_StressCombo)
+
+OuvreSoeur(FEN_StressJauge)
+RelèveStress("ProgressBar", JAU_Stress..Largeur, JAU_Stress..Hauteur)
+Ferme(FEN_StressJauge)
+
+OuvreSoeur(FEN_StressSelecteur)
+RelèveStress("RadioGroup", SEL_Stress..Largeur, SEL_Stress..Hauteur)
+Ferme(FEN_StressSelecteur)
+
+OuvreSoeur(FEN_StressInterrupteur)
+RelèveStress("CheckBox", INT_Stress..Largeur, INT_Stress..Hauteur)
+Ferme(FEN_StressInterrupteur)
+
+OuvreSoeur(FEN_StressTable)
+RelèveStress("Table", TBL_Stress..Largeur, TBL_Stress..Hauteur)
+Ferme(FEN_StressTable)
+
+OuvreSoeur(FEN_StressListe)
+RelèveStress("List", LST_Stress..Largeur, LST_Stress..Hauteur)
+Ferme(FEN_StressListe)
+
+OuvreSoeur(FEN_StressZoneRepetee)
+RelèveStress("Looper", ZR_Stress..Largeur, ZR_Stress..Hauteur)
+Ferme(FEN_StressZoneRepetee)
+
+OuvreSoeur(FEN_StressOnglet)
+RelèveStress("Tab", ONG_Stress..Largeur, ONG_Stress..Hauteur)
+Ferme(FEN_StressOnglet)
+
+
+// --- Police de mesure, là où la DSL l'expose -------------------------------
+// `..Police..Taille` n'est pas exposé sur toutes les familles (Onglet,
+// Conteneur, Image, ZoneRépétée, CodeBarres l'ignorent). On confronte
+// floorFontPt publié sur les familles qui le portent — la valeur est la même
+// partout (le défaut du modèle).
+
+OuvreSoeur(FEN_SondeLibelle)
+RelèveFont("Label", LIB_Sonde..Police..Taille)
+Ferme(FEN_SondeLibelle)
+
+OuvreSoeur(FEN_SondeBouton)
+RelèveFont("Button", BTN_Sonde..Police..Taille)
+Ferme(FEN_SondeBouton)
+
+OuvreSoeur(FEN_SondeSaisie)
+RelèveFont("Input", SAI_Sonde..Police..Taille)
+Ferme(FEN_SondeSaisie)
+
+OuvreSoeur(FEN_SondeCombo)
+RelèveFont("ComboBox", CBO_Sonde..Police..Taille)
+Ferme(FEN_SondeCombo)
+
+OuvreSoeur(FEN_SondeJauge)
+RelèveFont("ProgressBar", JAU_Sonde..Police..Taille)
+Ferme(FEN_SondeJauge)
+
+OuvreSoeur(FEN_SondeSelecteur)
+RelèveFont("RadioGroup", SEL_Sonde..Police..Taille)
+Ferme(FEN_SondeSelecteur)
+
+OuvreSoeur(FEN_SondeInterrupteur)
+RelèveFont("CheckBox", INT_Sonde..Police..Taille)
+Ferme(FEN_SondeInterrupteur)
+
+OuvreSoeur(FEN_SondeListe)
+RelèveFont("List", LST_Sonde..Police..Taille)
+Ferme(FEN_SondeListe)

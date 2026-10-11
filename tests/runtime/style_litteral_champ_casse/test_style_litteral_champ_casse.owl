@@ -1,0 +1,66 @@
+//  — la résolution du type d'un sous-champ dans un littéral de style
+// doit être casse-insensible (invariant 6.1), comme le reste d'OWL. Avant le
+// fix, un nom de champ en casse non-canon ("ligneSélectionnée" minuscule au
+// lieu de "LigneSélectionnée") fait échouer le littéral avec le message
+// trompeur "Litteral { ... } sans type cible." alors que le champ est
+// pourtant reconnu comme valide.
+
+Trace("=== littéraux de style : champs en casse non-canon ===")
+
+// --- 1. Champ composite en casse non-canon (styleListe..LigneSélectionnée) ---
+sty1 est un styleListe = {
+	ligneSélectionnée = { Couleur = 255 }
+}
+dbgVérifieEgalité(sty1..LigneSélectionnée..Couleur, 255, "styleListe : ligneSélectionnée (minuscule) round-trip via LigneSélectionnée..Couleur")
+
+// --- 2. Sous-élément d'un widget en casse mixte (styleBouton..CadreExtérieur..CouleurFond) ---
+sty2 est un styleBouton = {
+	cadreExtérieur = { couleurFond = 128 }
+}
+dbgVérifieEgalité(sty2..CadreExtérieur..CouleurFond, 128, "styleBouton : cadreExtérieur/couleurFond (mixte) round-trip via CadreExtérieur..CouleurFond")
+
+// --- 3. Champ scalaire tout minuscule (couleurfond vs CouleurFond) ---
+sty3 est un styleBouton = {
+	CadreExtérieur = { couleurfond = 77 }
+}
+dbgVérifieEgalité(sty3..CadreExtérieur..CouleurFond, 77, "styleBouton : couleurfond (tout minuscule) round-trip via CouleurFond")
+
+// --- 4. MAJUSCULE / minuscule / MixedCase du même champ, même valeur relue ---
+styMaj est un styleBouton = {
+	CADREEXTERIEUR = { COULEURFOND = 10 }
+}
+dbgVérifieEgalité(styMaj..CadreExtérieur..CouleurFond, 10, "styleBouton : CADREEXTERIEUR/COULEURFOND (MAJUSCULE) round-trip")
+
+styMin est un styleBouton = {
+	cadreexterieur = { couleurfond = 20 }
+}
+dbgVérifieEgalité(styMin..CadreExtérieur..CouleurFond, 20, "styleBouton : cadreexterieur/couleurfond (minuscule sans accent) round-trip")
+
+styMix est un styleBouton = {
+	CadreExterieur = { CouleurFond = 30 }
+}
+dbgVérifieEgalité(styMix..CadreExtérieur..CouleurFond, 30, "styleBouton : CadreExterieur/CouleurFond (MixedCase sans accent) round-trip")
+
+// --- 5. Accent + casse combinés (dégradé minuscule sans accent) ---
+sty5 est un styleBouton = {
+	CadreExtérieur = {
+		degrade = {
+			type         = dégradéLinéaire
+			couleurdebut = 99
+		}
+	}
+}
+dbgVérifieEgalité(sty5..CadreExtérieur..Dégradé..CouleurDébut, 99, "styleBouton : degrade/couleurdebut (minuscule sans accent) round-trip via Dégradé..CouleurDébut")
+
+// --- 6. Non-régression : littéraux en casse canon restent verts ---
+sty6 est un styleListe = {
+	ligneSélectionnée = { Couleur = 111 }
+}
+dbgVérifieEgalité(sty6..LigneSélectionnée..Couleur, 111, "non-régression : LigneSélectionnée (casse canon) round-trip")
+
+sty7 est un styleBouton = {
+	CadreExtérieur = { CouleurFond = 222 }
+}
+dbgVérifieEgalité(sty7..CadreExtérieur..CouleurFond, 222, "non-régression : CadreExtérieur..CouleurFond (casse canon) round-trip")
+
+dbgBilanTest()

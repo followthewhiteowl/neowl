@@ -1,0 +1,29 @@
+// @sujet sucre singleton : GLOBAL m_Inst est cClasse dans body de cClasse
+// @resume m_Inst est instance unique allouee au boot. Deux acces = meme objet.
+
+PROCEDURE scenario_singleton_non_nul()
+	// Le singleton est accessible directement sans constructeur explicite,
+	// alloue au boot via le sucre `GLOBAL m_Inst est cConfig`.
+	dbgVérifieVrai(cConfig.m_Inst <> Null, "Singleton existe et n'est pas Nul")
+FIN
+
+PROCEDURE scenario_singleton_mutation_persistante()
+	// Modification via une reference au singleton.
+	cConfig.m_Inst.sNom = "production"
+	cConfig.m_Inst.nVersion = 42
+
+	dbgVérifieEgalité(cConfig.m_Inst.sNom, "production", "Mutation singleton persiste (sNom)")
+	dbgVérifieEgalité(cConfig.m_Inst.nVersion, 42, "Mutation singleton persiste (nVersion)")
+FIN
+
+PROCEDURE scenario_singleton_meme_instance()
+	// Deux acces distincts referencent le MEME objet, pas deux copies.
+	cConfig.m_Inst.sNom = "alpha"
+
+	oRef est un cConfig = cConfig.m_Inst
+	dbgVérifieEgalité(oRef.sNom, "alpha", "Reference partage la valeur")
+
+	// Mutation via la reference visible cote singleton.
+	oRef.sNom = "beta"
+	dbgVérifieEgalité(cConfig.m_Inst.sNom, "beta", "Mutation via reference visible par le singleton")
+FIN

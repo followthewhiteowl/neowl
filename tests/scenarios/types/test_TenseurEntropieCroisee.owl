@@ -1,0 +1,74 @@
+// @sujet : Tenseur.EntropieCroisée
+// @résumé : Perte différentiable entropie croisée avec softmax fusionnée —
+// prend les scores bruts (logits) d'une prédiction, applique une softmax en
+// interne pour obtenir des probabilités, puis mesure l'écart à une cible
+// one-hot ; Rétropropage() remonte vers la prédiction un gradient fusionné
+// (probabilités moins cible), jamais vers la cible.
+
+// logits = [0.0, 0.0] (2 classes à égalité) -> softmax = [0.5, 0.5].
+// Cible one-hot = [1.0, 0.0] (classe 1 correcte).
+// perte = -log(0.5) ~= 0.6931471805599453
+PROCEDURE PUBLIQUE scenario_entropie_croisee_logits_egaux_forward()
+	tp est un Tenseur = Tenseur([0.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.6931471805599453) < 0.0000001, "-log(0.5) ~= 0.6931471805599453")
+FIN
+
+
+// Gradient fusionné : probabilités - cible = [0.5-1.0, 0.5-0.0] = [-0.5, 0.5].
+// La cible ne porte pas de gradient.
+PROCEDURE PUBLIQUE scenario_entropie_croisee_logits_egaux_backward()
+	tp est un Tenseur = Tenseur([0.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tp..Gradient[1] - (-0.5)) < 0.0000001, "probas[1] - cible[1] = 0.5 - 1.0 = -0.5")
+	dbgVérifieVrai(Abs(tp..Gradient[2] - 0.5) < 0.0000001, "probas[2] - cible[2] = 0.5 - 0.0 = 0.5")
+	dbgVérifieEgalité(tc..Gradient[1], 0.0, "La cible ne porte pas de gradient")
+	dbgVérifieEgalité(tc..Gradient[2], 0.0, "La cible ne porte pas de gradient")
+FIN
+
+
+// La forme anglaise .CrossEntropy() désigne la même perte, avec le même
+// calcul de gradient.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	tp est un Tenseur = Tenseur([0.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.CrossEntropy(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.6931471805599453) < 0.0000001, "CrossEntropy : même calcul que EntropieCroisée")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - (-0.5)) < 0.0000001, "CrossEntropy : même gradient que EntropieCroisée")
+FIN
+
+
+// Logits asymétriques : softmax([1.0, 2.0]) = [0.2689414213699951,
+// 0.7310585786300049], cible one-hot classe 2 = [0.0, 1.0].
+// perte = -log(0.7310585786300049) ~= 0.3132616875182228
+// grad = probas - cible = [0.2689414213699951, -0.2689414213699951]
+PROCEDURE PRIVÉE scenario_edge_logits_asymetriques()
+	tp est un Tenseur = Tenseur([1.0, 2.0])
+	tc est un Tenseur = Tenseur([0.0, 1.0])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.3132616875182228) < 0.0000001, "-log(0.7310585786300049) ~= 0.3132616875182228")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - 0.2689414213699951) < 0.0000001, "probas[1] - cible[1] ~= 0.2689414213699951")
+	dbgVérifieVrai(Abs(tp..Gradient[2] - (-0.2689414213699951)) < 0.0000001, "probas[2] - cible[2] ~= -0.2689414213699951")
+FIN
+
+
+// Trois classes : logits = [1.0, 0.0, 0.0], cible one-hot classe 1.
+// softmax = [0.5761168847658291, 0.21194155761708544, 0.21194155761708544].
+// perte = -log(0.5761168847658291) ~= 0.5514447139320511
+// grad = probas - cible = [-0.4238831152341709, 0.21194155761708544,
+// 0.21194155761708544]
+PROCEDURE PRIVÉE scenario_edge_trois_classes()
+	tp est un Tenseur = Tenseur([1.0, 0.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0, 0.0])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.5514447139320511) < 0.0000001, "-log(0.5761168847658291) ~= 0.5514447139320511")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - (-0.4238831152341709)) < 0.0000001, "probas[1] - cible[1] ~= -0.4238831152341709")
+	dbgVérifieVrai(Abs(tp..Gradient[2] - 0.21194155761708544) < 0.0000001, "probas[2] - cible[2] ~= 0.21194155761708544")
+	dbgVérifieVrai(Abs(tp..Gradient[3] - 0.21194155761708544) < 0.0000001, "probas[3] - cible[3] ~= 0.21194155761708544")
+FIN

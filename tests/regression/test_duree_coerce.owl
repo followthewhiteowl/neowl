@@ -1,0 +1,63 @@
+// Regression : `var est une durée = "..."` declenche __DureeCoerce qui
+// parse la chaine en ObjDuration. Avant fix : TOKEN_DUREE absent de
+// `needsCoerce` dans compiler.c -> la string restait telle quelle dans
+// la variable, `..EnMillisecondes` crashait sur "Only struct instances
+// have fields".
+//
+// Couvre 3 formats de parsing :
+//   - short form OWL : "1s", "200ms", "5mn" (cf owl_duree_parse_short_form)
+//   - canon de référence digits : "+JHHMMSSCCC" / "JHHMMSSCC" (cf parse_wl_duration_digits)
+//   - entier millisecondes (canon de référence, cf )
+//
+// Et 3 cas de coerce :
+//   - Duree -> Duree (passthrough)
+//   - Format invalide -> Duree(0) silencieuse (pattern Date/Heure)
+//   - Null/autre -> Duree(0)
+
+// === Forme courte OWL "Ns" / "Nms" / "Nmn" / "Ncs" ===
+
+d_seconde est une durée = "1s"
+dbgVérifieEgalité(d_seconde..EnMillisecondes, 1000,
+"Coerce 'Ns' -> 1 seconde = 1000 ms")
+
+d_ms est une durée = "200ms"
+dbgVérifieEgalité(d_ms..EnMillisecondes, 200,
+"Coerce 'Nms' -> N millisecondes")
+
+d_minute est une durée = "5mn"
+dbgVérifieEgalité(d_minute..EnSecondes, 300,
+"Coerce 'Nmn' -> 5*60 = 300 secondes")
+
+d_cs est une durée = "150cs"
+dbgVérifieEgalité(d_cs..EnMillisecondes, 1500,
+"Coerce 'Ncs' -> N centiemes = N*10 ms")
+
+// === Entier = millisecondes (canon de référence) ===
+
+d_int est une durée = 1000
+dbgVérifieEgalité(d_int..EnMillisecondes, 1000,
+"Coerce entier -> N millisecondes (1000 ms = 1 seconde)")
+
+// === Passthrough Durée -> Durée ===
+
+d_passthrough est une durée = d_seconde
+dbgVérifieEgalité(d_passthrough..EnMillisecondes, 1000,
+"Coerce Duree -> Duree (passthrough)")
+
+// === Format invalide (runtime dynamique) -> Duree(0) silencieuse + ErreurDétectée ===
+// Note : un littéral statique "blabla" déclenche une erreur compile (parser strict 10 digits).
+// Le fail silencieux ne s'applique qu'au runtime dynamique (chaîne variable, retour de fonction…).
+
+s_invalide est une chaîne = "blabla"
+d_invalide est une durée = s_invalide
+dbgVérifieEgalité(d_invalide..EnMillisecondes, 0,
+"Coerce format invalide (chaîne dynamique) -> Duree(0) silencieuse")
+dbgVérifieVrai(ErreurDétectée,
+"ErreurDétectée active sur fail parse runtime")
+
+// === Type primitif effectif au runtime ===
+
+dbgVérifieEgalité(TypeVar(d_seconde), 33,
+"TypeVar(d_seconde) = 33 (= duree) — bug fixe : avant retournait 16 (= chaine)")
+
+dbgBilanTest()

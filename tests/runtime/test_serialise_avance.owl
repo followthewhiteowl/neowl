@@ -1,0 +1,155 @@
+// ================================================================
+// Sérialise / Désérialise — cas tordus / extension
+// ================================================================
+
+// ----- Tableau associatif chaîne → entier -----
+ta1 est un tableau associatif de entiers
+ta1["alpha"] = 1
+ta1["beta"]  = 2
+ta1["gamma"] = 3
+
+bufA est une chaine
+Sérialise(ta1, bufA, psdJSON)
+dbgVerifieVrai(Position(bufA, "alpha") > 0, "Tab assoc: clé alpha")
+dbgVerifieVrai(Position(bufA, "beta")  > 0, "Tab assoc: clé beta")
+dbgVerifieVrai(Position(bufA, "gamma") > 0, "Tab assoc: clé gamma")
+
+ta2 est un tableau associatif de entiers
+Désérialise(ta2, bufA, psdJSON)
+dbgVerifieEgalite(ta2["alpha"], 1, "Tab assoc Désér: alpha=1")
+dbgVerifieEgalite(ta2["beta"],  2, "Tab assoc Désér: beta=2")
+dbgVerifieEgalite(ta2["gamma"], 3, "Tab assoc Désér: gamma=3")
+
+// ----- File (FIFO) -----
+file1 est une file
+Enfile(file1, "premier")
+Enfile(file1, "deuxieme")
+Enfile(file1, "troisieme")
+
+bufF est une chaine
+Sérialise(file1, bufF, psdJSON)
+dbgVerifieVrai(Position(bufF, "premier") > 0,    "File: élément 1")
+dbgVerifieVrai(Position(bufF, "deuxieme") > 0,   "File: élément 2")
+dbgVerifieVrai(Position(bufF, "troisieme") > 0,  "File: élément 3")
+dbgVerifieEgalite(Gauche(bufF, 1), "[", "File sérialisée comme tableau JSON")
+
+// ----- Pile (LIFO) -----
+pile1 est une pile
+Empile(pile1, 10)
+Empile(pile1, 20)
+Empile(pile1, 30)
+
+bufP est une chaine
+Sérialise(pile1, bufP, psdMinifie)
+dbgVerifieEgalite(bufP, "[10,20,30]", "Pile sérialisée en tableau")
+
+// ----- Liste -----
+liste1 est une liste
+liste1.Ajoute("lundi")
+liste1.Ajoute("mardi")
+
+bufL est une chaine
+Sérialise(liste1, bufL, psdMinifie)
+dbgVerifieEgalite(bufL, "[""lundi"",""mardi""]", "Liste sérialisée")
+
+// ----- Membres surnuméraires côté template (JSON incomplet) -----
+Profil est une Structure
+    pseudo est une chaine
+    age est un entier
+    bio est une chaine
+    actif est un booleen
+FIN
+
+p est un Profil
+p.pseudo = "INIT"
+p.age = 99
+p.bio = "INIT_BIO"
+p.actif = Vrai
+
+// JSON ne contient que pseudo et age — bio et actif doivent garder leurs valeurs initiales
+Désérialise(p, "{""pseudo"":""roger"",""age"":42}", psdJSON)
+dbgVerifieEgalite(p.pseudo, "roger",     "Désér: champ présent dans JSON modifié")
+dbgVerifieEgalite(p.age,    42,          "Désér: champ présent dans JSON modifié (int)")
+dbgVerifieEgalite(p.bio,    "INIT_BIO",  "Désér: champ absent du JSON conservé")
+dbgVerifieEgalite(p.actif,  Vrai,        "Désér: champ absent du JSON conservé (bool)")
+
+// ----- Membres surnuméraires côté JSON (template incomplet) -----
+Mini est une Structure
+    n est un entier
+FIN
+
+m est un Mini
+// Les champs surnuméraires côté JSON ne crashent pas — ils sont
+// silencieusement ajoutés à inst->fields mais le compilateur OWL n'autorise
+// pas leur accès via `.field` (validation compile-time anti-typo). Ils
+// restent invisibles côté lecture statique, ce qui est conforme à la référence.
+res est un booleen = Désérialise(m, "{""n"":7,""inconnu"":""ignored"",""autre"":[1,2,3]}", psdJSON)
+dbgVerifieEgalite(res, Vrai, "Désér: succès même avec champs surnuméraires")
+dbgVerifieEgalite(m.n, 7,    "Désér: champ connu lu correctement")
+
+// ----- Désérialiser un tableau dynamique sans type -----
+tabDyn est un tableau d'entiers
+Désérialise(tabDyn, "[10,20,30,40,50]", psdJSON)
+dbgVerifieEgalite(tabDyn..Occurrence, 5, "Tableau sans type: 5 éléments")
+dbgVerifieEgalite(tabDyn[3], 30,         "Tableau sans type: index 3")
+
+// ----- JSON contenant caractères spéciaux dans une chaîne -----
+Msg est une Structure
+    texte est une chaine
+FIN
+
+mw est un Msg
+mw.texte = "Quotes: \""hello\"" tab:	end\nNL"
+bufW est une chaine
+Sérialise(mw, bufW, psdMinifie)
+mr est un Msg
+Désérialise(mr, bufW, psdJSON)
+dbgVerifieEgalite(mr.texte, mw.texte, "Roundtrip chaîne avec guillemets/tab/newline")
+
+// ----- Tableau de structures avec réel -----
+Note est une Structure
+    matiere est une chaine
+    valeur est un reel
+FIN
+
+semestre1 est un tableau de Note
+n11 est une Note
+n11.matiere = "Math"
+n11.valeur  = 14.5
+Ajoute(semestre1, n11)
+n12 est une Note
+n12.matiere = "Phys"
+n12.valeur  = 12.0
+Ajoute(semestre1, n12)
+
+bufN est une chaine
+Sérialise(semestre1, bufN, psdJSON)
+sem2 est un tableau de Note
+Désérialise(sem2, bufN, psdJSON)
+dbgVerifieEgalite(sem2..Occurrence, 2,       "TabStruct: 2 éléments")
+dbgVerifieEgalite(sem2[1].matiere, "Math",  "TabStruct: matière[1]")
+dbgVerifieEgalite(sem2[2].valeur, 12.0,     "TabStruct: valeur[2]")
+
+// ----- Date / Heure / DateHeure -----
+RDV est une Structure
+    sujet est une chaine
+    debut est une dateheure
+    longueur est une heure
+    jour est une date
+FIN
+
+ev est un RDV
+ev.sujet = "Reunion"
+ev.debut = "20260512143000000"
+ev.longueur = "01300000"
+ev.jour = "20260512"
+
+bufE est une chaine
+Sérialise(ev, bufE, psdJSON)
+dbgVerifieVrai(Position(bufE, "20260512143000000") > 0, "Date/heure sérialisée")
+
+ev2 est un RDV
+Désérialise(ev2, bufE, psdJSON)
+dbgVerifieEgalite(ev2.sujet, "Reunion",   "Désér date: sujet")
+dbgVerifieEgalite(ev2.jour,  ev.jour,     "Désér date: jour")
+dbgVerifieEgalite(ev2.debut, ev.debut,    "Désér date: dateheure")

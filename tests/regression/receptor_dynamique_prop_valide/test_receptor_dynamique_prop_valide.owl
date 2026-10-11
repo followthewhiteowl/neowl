@@ -1,0 +1,31 @@
+// @sujet : validation compile-time des propriétés sur récepteur dynamique
+// @résumé : garde anti-régression  — une propriété VALIDE lue via
+// MoiMême / MonChamp / MaFenêtre (récepteurs dont le type n'est connu
+// qu'au runtime) doit continuer à compiler et remonter la bonne valeur
+// une fois la validation par union en place. Vert attendu dès aujourd'hui
+// (la lecture fonctionne déjà) — ce test verrouille le non-régression.
+
+TestModeHeadless(Vrai)
+
+libelleObs est une chaîne = ""
+nomMoiMemeObs est une chaîne = ""
+nomMonChampObs est une chaîne = ""
+titreObs est une chaîne = ""
+
+PROCEDURE callback_sonde(libSondé est une chaîne, nomMoi est une chaîne, nomChamp est une chaîne, titreFen est une chaîne)
+	libelleObs     = libSondé
+	nomMoiMemeObs  = nomMoi
+	nomMonChampObs = nomChamp
+	titreObs       = titreFen
+FIN
+
+Ouvre(FEN_ReceptorDynamiquePropValide)
+TestSimuleSouris(LIB_Sonde, ClicGauche)
+
+dbgVérifieEgalité(libelleObs, "Sonde", "MoiMême..Libellé (prop de champ) reste accepté")
+dbgVérifieEgalité(nomMoiMemeObs, "LIB_Sonde", "MoiMême..Nom (prop universelle) reste accepté")
+dbgVérifieEgalité(nomMonChampObs, "LIB_Sonde", "MonChamp..Nom (prop universelle) reste accepté")
+dbgVérifieEgalité(titreObs, "Titre fenêtre valide", "MaFenêtre..Titre (prop de Fenêtre) reste accepté")
+
+Ferme(FEN_ReceptorDynamiquePropValide)
+dbgBilanTest()

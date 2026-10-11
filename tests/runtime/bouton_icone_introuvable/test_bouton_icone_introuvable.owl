@@ -1,0 +1,63 @@
+//  — icône introuvable sur un Champ Bouton (propriété Image).
+//
+// Aligne la défensivité du Bouton sur celle du Menu : une
+// référence catalogue inconnue ("icones.<nom>" absent) ou un fichier image
+// introuvable produit un diagnostic explicite sur stderr, mais aucune icône
+// et AUCUNE erreur d'exécution OWL — une icône absente n'est pas un échec
+// du programme.
+//
+// Le diagnostic est émis sur stderr par le runtime ; il n'est pas capturable
+// depuis le harness .owl (pas de native de debug exposant l'icône de base
+// d'un Bouton, contrairement au Menu et son __DebugMenuIcone). Ce test
+// verrouille donc le contrat AUTOMATISABLE en exerçant les DEUX branches
+// défensives (fichier disque + catalogue) via des boutons déclarés :
+//   1. construire/capturer des boutons à image invalide ne lève aucune
+//      erreur runtime (ErreurDétectée reste Faux) et ne plante pas ;
+//   2. une référence catalogue valide (icones.add) rend toujours son icône
+//      (non-régression du rendu — comparaison pixel vs bouton nu).
+// L'émission réelle du diagnostic stderr est validée par le smoke manuel.
+
+ErreurRAZ()
+Ouvre(FEN_BoutonIntrouvable)
+// ErreurDétectée vérifiée avant tout autre appel : évite qu'un OP_CALL
+// intercalé ne consomme la sentinelle d'erreur fraîche (convention OWL).
+dbgVérifieEgalité(ErreurDétectée, Faux,
+"ouverture avec images Bouton invalides ne lève aucune erreur runtime")
+
+// ---- Les captures forcent la résolution d'icône des deux branches ----
+imgAbsent est une Image = dCopieImageChamp(BTN_FichierAbsent)
+dbgVérifieEgalité(imgAbsent..Valide, Vrai,
+"BTN_FichierAbsent (fichier introuvable) : capture valide, pas de plantage")
+
+imgCat est une Image = dCopieImageChamp(BTN_CatInconnu)
+dbgVérifieEgalité(imgCat..Valide, Vrai,
+"BTN_CatInconnu (catalogue inconnu) : capture valide, pas de plantage")
+
+// ---- Non-régression : référence catalogue valide rend son icône ----
+imgValide est une Image = dCopieImageChamp(BTN_Valide)
+dbgVérifieEgalité(imgValide..Valide, Vrai, "BTN_Valide : capture valide")
+
+imgRef est une Image = dCopieImageChamp(BTN_Ref)
+dbgVérifieEgalité(imgRef..Valide, Vrai, "BTN_Ref : capture valide")
+
+nbDiff est un entier = 0
+wV est un entier = imgValide..Largeur
+hV est un entier = imgValide..Hauteur
+yy est un entier = 0
+TANTQUE yy < hV
+	xx est un entier = 0
+	TANTQUE xx < wV
+		cV est un entier = dPixelCouleur(imgValide, xx, yy)
+		cRef est un entier = dPixelCouleur(imgRef, xx, yy)
+		SI cV <> cRef ALORS
+			nbDiff = nbDiff + 1
+		FIN
+		xx = xx + 1
+	FIN
+	yy = yy + 1
+FIN
+dbgVérifieVrai(nbDiff > 50,
+"BTN_Valide (icones.add) vs BTN nu : captures différentes -> icône rendue (non-régression)")
+
+Ferme(FEN_BoutonIntrouvable)
+dbgBilanTest()

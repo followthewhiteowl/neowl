@@ -1,0 +1,354 @@
+// @sujet : IAModèle — entraînement SGD (OptionsEntraînement + .Entraîne)
+// @résumé : OptionsEntraînement porte la config d'UN entraînement (époques,
+// taille de lot, taux d'apprentissage, optimiseur, perte). mon.Entraîne(X,
+// Y, opts) encapsule la boucle complète (époques × mini-lots, forward →
+// perte → Rétropropage → mise à jour SGD de tous les poids/biais du
+// modèle) et mute le modèle en place — les poids appris restent sur place,
+// pas de valeur de retour à réassigner.
+//
+// Forme des données retenue pour ce contrat : X est un
+// Tenseur 2D (N échantillons × entrées), Y est un Tenseur 2D (N × sorties)
+// — cible one-hot pour perteEntropieCroisée, valeur brute pour
+// perteErreurQuadratique. Même convention que .Infère sur un lot :
+// pas de forme 1D spéciale pour un seul échantillon, toujours 2D même pour
+// N=1 (cohérent avec l'edge case "lot de taille 1" du socle).
+//
+// SGD (seul optimiseur ici ; d'autres optimiseurs viendront) : pour chaque
+// mini-lot, forward → perte → Rétropropage() → chaque poids/biais devient
+// poids - tauxApprentissage*gradient (réutilise exactement la formule de
+// Tenseur.DescenteGradient). Le garde-fou reset-défaut du gradient
+// évite tout zero_grad manuel entre les pas.
+//
+// Le scénario "verrou SGD à 1 pas" (scenario_sgd_un_pas_...) prouve la
+// formule sans connaître les poids initiaux à l'avance : il extrait les
+// poids réels via .Poids/.Biais AVANT l'appel à .Entraîne, recalcule le
+// même pas "à la main" avec les briques Tenseur bas niveau (ProduitMatriciel,
+// ErreurQuadratique, Rétropropage, DescenteGradient), puis compare ce
+// résultat calculé indépendamment aux poids du modèle APRÈS .Entraîne.
+//
+// Les scénarios "l'entraînement apprend" utilisent des jeux de données
+// linéairement séparables/représentables exactement par un modèle
+// linéaire : la perte est convexe (régression logistique softmax pour
+// l'entropie croisée, moindres carrés pour l'erreur quadratique), donc la
+// descente de gradient complète converge quels que soient les poids
+// initiaux aléatoires — d'où des assertions en INÉGALITÉ (perte diminue
+// nettement, pas une valeur exacte).
+
+// OptionsEntraînement : chaque propriété se lit exactement comme elle a
+// été écrite. Forme française complète (Époques, TailleLot,
+// TauxApprentissage, Optimiseur=optimSGD, Perte=perteEntropieCroisée).
+PROCEDURE PUBLIQUE scenario_options_entrainement_proprietes_lecture_ecriture()
+	opts est un OptionsEntraînement
+	opts..Époques           = 10
+	opts..TailleLot         = 64
+	opts..TauxApprentissage = 0.01
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+
+	dbgVérifieEgalité(opts..Époques, 10, "Époques relu = valeur écrite")
+	dbgVérifieEgalité(opts..TailleLot, 64, "TailleLot relu = valeur écrite")
+	dbgVérifieVrai(Abs(opts..TauxApprentissage - 0.01) < 0.0000001, "TauxApprentissage relu = valeur écrite")
+	dbgVérifieEgalité(opts..Optimiseur, optimSGD, "Optimiseur relu = optimSGD écrit")
+	dbgVérifieEgalité(opts..Perte, perteEntropieCroisée, "Perte relu = perteEntropieCroisée écrite")
+FIN
+
+
+// La deuxième valeur de l'énum Perte (perteErreurQuadratique) se lit
+// correctement, distincte de perteEntropieCroisée.
+PROCEDURE PUBLIQUE scenario_options_entrainement_perte_erreur_quadratique()
+	opts est un OptionsEntraînement
+	opts..Perte = perteErreurQuadratique
+	dbgVérifieEgalité(opts..Perte, perteErreurQuadratique, "Perte relu = perteErreurQuadratique écrite")
+	dbgVérifieDifférence(opts..Perte, perteEntropieCroisée, "perteErreurQuadratique diffère de perteEntropieCroisée")
+FIN
+
+
+// Cœur du contrat, verrou de la formule SGD : sur UN pas (1 époque, 1
+// échantillon, taille de lot 1), les poids/biais après .Entraîne doivent
+// être EXACTEMENT poids - taux*gradient, gradient calculé indépendamment
+// à la main avec les mêmes poids extraits avant l'appel.
+PROCEDURE PUBLIQUE scenario_sgd_un_pas_poids_egale_poids_moins_taux_gradient()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	tWavant est un Tenseur = mon.Poids(1)
+	tbavant est un Tenseur = mon.Biais(1)
+
+	matX est une Matrice = [[1.0,-1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.5,-0.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	tWapres est un Tenseur = mon.Poids(1)
+	tbapres est un Tenseur = mon.Biais(1)
+
+	// Calcul indépendant "à la main", avec les poids EXTRAITS avant
+	// l'appel à .Entraîne (pas de valeur hardcodée : l'init est aléatoire).
+	th est un Tenseur = tX.ProduitMatriciel(tWavant)
+	thb est un Tenseur = th + tbavant
+	tperte est un Tenseur = thb.ErreurQuadratique(tY)
+	tperte.Rétropropage()
+
+	tWattendu est un Tenseur = tWavant.DescenteGradient(0.1)
+	tbattendu est un Tenseur = tbavant.DescenteGradient(0.1)
+
+	valWapres est une Matrice = tWapres..Valeur
+	valWattendu est une Matrice = tWattendu..Valeur
+	valBapres est un Vecteur = tbapres..Valeur
+	valBattendu est un Vecteur = tbattendu..Valeur
+
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 2
+			dbgVérifieVrai(Abs(valWapres[iLigne][iCol] - valWattendu[iLigne][iCol]) < 0.0000001, "Poids(1) après .Entraîne = poids - taux*gradient (calcul indépendant)")
+		FIN
+	FIN
+	dbgVérifieVrai(Abs(valBapres[1] - valBattendu[1]) < 0.0000001, "Biais(1)[1] après .Entraîne = biais - taux*gradient")
+	dbgVérifieVrai(Abs(valBapres[2] - valBattendu[2]) < 0.0000001, "Biais(1)[2] après .Entraîne = biais - taux*gradient")
+FIN
+
+
+// Problème linéairement séparable (2 classes selon le signe de la 1re
+// composante), perte entropie croisée. Après entraînement, la perte
+// diminue nettement, les poids ont changé, et le modèle classe
+// correctement les 4 points (logit de la bonne classe > logit de l'autre).
+PROCEDURE PUBLIQUE scenario_entraine_reduit_perte_entropie_croisee_et_classe_correctement()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	wAvant est un réel = mon.Poids(1)..Valeur[1][1]
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	tperteAvant est un Tenseur = sortieAvant.EntropieCroisée(tY)
+	valPerteAvant est un réel = tperteAvant..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 200
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, opts)
+
+	wApres est un réel = mon.Poids(1)..Valeur[1][1]
+	dbgVérifieDifférence(wApres, wAvant, "Le poids a changé après .Entraîne : le modèle a appris")
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	tperteApres est un Tenseur = sortieApres.EntropieCroisée(tY)
+	valPerteApres est un réel = tperteApres..Valeur[1]
+
+	dbgVérifieVrai(valPerteApres < valPerteAvant * 0.5, "La perte finale est nettement inférieure à la perte initiale")
+	dbgVérifieVrai(valPerteApres < 0.2, "Problème linéairement séparable : la perte finale est proche de 0")
+
+	valSortieApres est une Matrice = sortieApres..Valeur
+	dbgVérifieVrai(valSortieApres[1][1] > valSortieApres[1][2], "Point 1 (classe 1) : logit classe 1 > logit classe 2 après entraînement")
+	dbgVérifieVrai(valSortieApres[2][1] > valSortieApres[2][2], "Point 2 (classe 1) : logit classe 1 > logit classe 2 après entraînement")
+	dbgVérifieVrai(valSortieApres[3][2] > valSortieApres[3][1], "Point 3 (classe 2) : logit classe 2 > logit classe 1 après entraînement")
+	dbgVérifieVrai(valSortieApres[4][2] > valSortieApres[4][1], "Point 4 (classe 2) : logit classe 2 > logit classe 1 après entraînement")
+FIN
+
+
+// Régression linéaire exactement représentable par une couche dense
+// (cible = 2*x1 + 1*x2 + 0.5) — perte erreur quadratique. La perte
+// converge nettement vers une petite valeur, le modèle peut représenter
+// la cible sans résidu.
+PROCEDURE PUBLIQUE scenario_entraine_reduit_perte_erreur_quadratique_regression_lineaire()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 1)
+
+	matX est une Matrice = [[1.0, 2.0], [2.0, 1.0], [3.0, 0.0], [0.0, 3.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[4.5], [5.5], [6.5], [3.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	tperteAvant est un Tenseur = sortieAvant.ErreurQuadratique(tY)
+	valPerteAvant est un réel = tperteAvant..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 300
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.02
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	tperteApres est un Tenseur = sortieApres.ErreurQuadratique(tY)
+	valPerteApres est un réel = tperteApres..Valeur[1]
+
+	dbgVérifieVrai(valPerteApres < valPerteAvant * 0.3, "La perte finale est nettement inférieure à la perte initiale")
+	dbgVérifieVrai(valPerteApres < 0.5, "Cible exactement représentable par une couche dense : résidu final faible")
+FIN
+
+
+// Formes anglaises : TrainingOptions + .Train produisent le même
+// comportement observable (perte qui diminue) que leurs équivalents
+// français.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_options_et_entraine()
+	mon is an AIModel
+	mon.AddDenseLayer(2, 2)
+
+	matX is a Matrix = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX is a Tensor = Tensor(matX)
+	matY is a Matrix = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY is a Tensor = Tensor(matY)
+
+	outputBefore is a Tensor = mon.Infer(tX)
+	lossBefore is a Tensor = outputBefore.CrossEntropy(tY)
+	valLossBefore is a real = lossBefore..Value[1]
+
+	opts is a TrainingOptions
+	opts..Epochs       = 200
+	opts..BatchSize    = 4
+	opts..LearningRate = 0.5
+	opts..Optimizer    = optimSGD
+	opts..Loss         = perteEntropieCroisée
+
+	mon.Train(tX, tY, opts)
+
+	outputAfter is a Tensor = mon.Infer(tX)
+	lossAfter is a Tensor = outputAfter.CrossEntropy(tY)
+	valLossAfter is a real = lossAfter..Value[1]
+
+	dbgCheckTrue(valLossAfter < valLossBefore * 0.5, "AIModel.Train, English form: loss drops sharply after training")
+FIN
+
+
+// Les deux fonctions de perte ont une forme anglaise canon distincte de
+// leur forme française : lossCrossEntropy ⇄ perteEntropieCroisée et
+// lossQuadraticError ⇄ perteErreurQuadratique. Chaque paire désigne la
+// même valeur, donc le même comportement d'entraînement quelle que soit
+// la langue de la forme écrite dans opts..Loss / opts..Perte.
+PROCEDURE PUBLIQUE scenario_perte_formes_bilingues_equivalentes()
+	// Même valeur : la forme EN et la forme FR résolvent vers la même
+	// constante (une seule sentinelle sous-jacente).
+	dbgVérifieEgalité(lossCrossEntropy, perteEntropieCroisée, "lossCrossEntropy = perteEntropieCroisée (même valeur)")
+	dbgVérifieEgalité(lossQuadraticError, perteErreurQuadratique, "lossQuadraticError = perteErreurQuadratique (même valeur)")
+
+	// Les deux pertes restent distinctes l'une de l'autre.
+	dbgVérifieDifférence(lossCrossEntropy, lossQuadraticError, "les deux pertes sont distinctes (formes EN)")
+
+	// opts..Loss avec la forme EN se relit à l'identique de opts..Perte
+	// avec la forme FR : même sentinelle stockée.
+	optsEN est un OptionsEntraînement
+	optsEN..Loss = lossCrossEntropy
+	optsFR est un OptionsEntraînement
+	optsFR..Perte = perteEntropieCroisée
+	dbgVérifieEgalité(optsEN..Perte, optsFR..Perte, "..Loss=lossCrossEntropy relu = ..Perte=perteEntropieCroisée relu")
+
+	optsEN..Loss = lossQuadraticError
+	optsFR..Perte = perteErreurQuadratique
+	dbgVérifieEgalité(optsEN..Perte, optsFR..Perte, "..Loss=lossQuadraticError relu = ..Perte=perteErreurQuadratique relu")
+FIN
+
+
+// Comportement observable : un entraînement piloté par la forme anglaise
+// lossCrossEntropy fait diminuer la perte, exactement comme la forme
+// française perteEntropieCroisée du scénario de référence.
+PROCEDURE PUBLIQUE scenario_entraine_forme_anglaise_perte_diminue()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	valPerteAvant est un réel = sortieAvant.EntropieCroisée(tY)..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 200
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Loss              = lossCrossEntropy
+
+	mon.Entraîne(tX, tY, opts)
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	valPerteApres est un réel = sortieApres.EntropieCroisée(tY)..Valeur[1]
+
+	dbgVérifieVrai(valPerteApres < valPerteAvant * 0.5, "..Loss=lossCrossEntropy : la perte diminue nettement après entraînement")
+FIN
+
+
+// Cas limite : 0 époque ne fait tourner aucun pas d'entraînement, les
+// poids restent strictement identiques à ceux de la construction.
+PROCEDURE PRIVÉE scenario_edge_zero_epoque_ne_modifie_pas_les_poids()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	valWavant est une Matrice = mon.Poids(1)..Valeur
+	valBavant est un Vecteur = mon.Biais(1)..Valeur
+
+	matX est une Matrice = [[1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 0
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, opts)
+
+	valWapres est une Matrice = mon.Poids(1)..Valeur
+	valBapres est un Vecteur = mon.Biais(1)..Valeur
+
+	dbgVérifieEgalité(valWapres[1][1], valWavant[1][1], "0 époque : le poids reste strictement inchangé")
+	dbgVérifieEgalité(valWapres[2][2], valWavant[2][2], "0 époque : le poids reste strictement inchangé")
+	dbgVérifieEgalité(valBapres[1], valBavant[1], "0 époque : le biais reste strictement inchangé")
+FIN
+
+
+// Cas limite : une taille de lot supérieure au nombre d'échantillons ne
+// plante pas — tout le jeu de données tient dans un seul mini-lot, et
+// l'entraînement continue de faire diminuer la perte.
+PROCEDURE PRIVÉE scenario_edge_taille_lot_superieure_au_nombre_echantillons()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [-3.0, 1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	tperteAvant est un Tenseur = sortieAvant.EntropieCroisée(tY)
+	valPerteAvant est un réel = tperteAvant..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 100
+	opts..TailleLot         = 10
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, opts)
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	tperteApres est un Tenseur = sortieApres.EntropieCroisée(tY)
+	valPerteApres est un réel = tperteApres..Valeur[1]
+
+	dbgVérifieVrai(valPerteApres < valPerteAvant, "TailleLot > nombre d'échantillons : un seul mini-lot, la perte diminue quand même")
+FIN

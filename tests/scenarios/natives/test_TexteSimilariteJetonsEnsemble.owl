@@ -1,0 +1,135 @@
+// @sujet : TexteSimilaritéJetonsEnsemble
+// @résumé : Similarité robuste basée sur ensembles de jetons — déduplique les jetons, compare intersection et restes. Retourne le meilleur score parmi trois ratios (inter/combA, inter/combB, restA/restB). Retourne un réel entre 0 et 1. Insensible à la casse et aux accents par défaut. Utile pour comparer des textes où les mots peuvent être répétés ou en désordre (descriptions produits, tags).
+
+
+// Sous-ensemble → 1.0 : tous les jetons de "Jean Dupont" sont dans
+// "Jean Dupont Martin" → inter = setA → combA = inter → ratio(inter,combA) = 1.0.
+PROCEDURE scenario_texte_similarite_jetons_ensemble_sous_ensemble()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("Jean Dupont", "Jean Dupont Martin")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "sous-ensemble → 1.0", 0.0001)
+FIN
+
+
+// Ensemble robuste aux mots en trop : "Paris France" vs "France Paris Londres".
+// JetonsTriés donne ~0.75 (dépend de ratio global après tri).
+// JetonsEnsemble détecte inter = {Paris,France} → combA = inter → 1.0.
+// Démontre que Ensemble > Triés sur ce cas précis.
+PROCEDURE scenario_texte_similarite_jetons_ensemble_vs_tries()
+	simTriés est un réel = TexteSimilaritéJetonsTriés("Paris France", "France Paris Londres")
+	simEnsemble est un réel = TexteSimilaritéJetonsEnsemble("Paris France", "France Paris Londres")
+
+	dbgVérifieVrai(simEnsemble > simTriés, "ensemble robuste > triés sur mots en trop")
+	dbgVérifieÉgalitéRéel(simEnsemble, 1.0, "ensemble détecte sous-ensemble → 1.0", 0.0001)
+FIN
+
+
+// Insensible casse+accents par défaut : "CAFÉ Paris" et "paris café" après
+// folding → mêmes jetons uniques → inter = setA = setB → 1.0.
+PROCEDURE scenario_texte_similarite_jetons_ensemble_insensible()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("CAFÉ Paris", "paris café")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "casse+accents ignorés, ensemble identique", 0.0001)
+FIN
+
+
+// Cas limite : deux chaînes vides → 1.0 (convention identiques).
+PROCEDURE scenario_texte_similarite_jetons_ensemble_deux_vides()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → 1.0", 0.0001)
+FIN
+
+
+// Cas limite : l'une des chaînes est vide → 0.0 (convention ratio).
+PROCEDURE scenario_texte_similarite_jetons_ensemble_une_vide()
+	sim1 est un réel = TexteSimilaritéJetonsEnsemble("abc", "")
+	sim2 est un réel = TexteSimilaritéJetonsEnsemble("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → 0.0", 0.0001)
+FIN
+
+
+// Alias EN : TextSimilaritySetTokens() équivalent à TexteSimilaritéJetonsEnsemble().
+PROCEDURE scenario_text_similarity_set_tokens_alias_en()
+	simFR est un réel = TexteSimilaritéJetonsEnsemble("Jean Dupont", "Jean Dupont Martin")
+	simEN est un réel = TextSimilaritySetTokens("Jean Dupont", "Jean Dupont Martin")
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR", 0.0001)
+	dbgVérifieÉgalitéRéel(simEN, 1.0, "alias EN calcule correctement", 0.0001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Jetons dupliqués : "chat chat chien" vs "chat chien chat".
+// setA = {chat, chien} (uniques, duplication absorbée).
+// setB = {chat, chien}.
+// inter = {chat, chien} → trié "chat chien".
+// restA = restB = {} → combA = combB = "chat chien".
+// ratio("chat chien", "chat chien") = 1.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_ensemble_jetons_dupliques()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("chat chat chien", "chat chien chat")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "duplication absorbée par set, ensemble identique", 0.0001)
+FIN
+
+
+// Ponctuation non strippée : "chat!" vs "chat" (jetons distincts après split).
+// setA = {chat!}, setB = {chat}.
+// inter = {} → "".
+// restA = {chat!} → "chat!", restB = {chat} → "chat".
+// combA = trim("" + " " + "chat!") = "chat!".
+// combB = trim("" + " " + "chat") = "chat".
+// max(ratio("","chat!"), ratio("","chat"), ratio("chat!","chat")) =
+// max(0.0, 0.0, 8/9) = 8/9.
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_ensemble_ponctuation_non_strippee()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("chat!", "chat")
+	attendu est un réel = 8.0 / 9.0
+
+	dbgVérifieÉgalitéRéel(sim, attendu, "ponctuation non strippée, max ratio 8/9", 0.0001)
+FIN
+
+
+// Espaces multiples : "a  b" (2 espaces) vs "b a" (1 espace).
+// setA après tokenisation whitespace peut contenir jeton vide "".
+// setB = {a, b}.
+// Cas non trivial, juste vérifier bornes (pas de crash).
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_ensemble_espaces_multiples()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("a  b", "b a")
+
+	dbgVérifieVrai(sim >= 0.0, "similarité >= 0 (espaces multiples gérés)")
+	dbgVérifieVrai(sim <= 1.0, "similarité <= 1 (bornes respectées)")
+FIN
+
+
+// Zero jeton effectif : chaîne avec espaces uniquement "   " vs "abc".
+// setA après split sur whitespace : ["","","",""] → set {""}.
+// setB = {abc}.
+// inter = {} → "".
+// restA = {""}, restB = {abc}.
+// combA = trim("" + " " + "") = "" (après trim).
+// combB = trim("" + " " + "abc") = "abc".
+// max(ratio("",""), ratio("","abc"), ratio("","abc")) = max(1.0, 0.0, 0.0) = 1.0.
+// (car ratio("","") = 1.0 par convention).
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_ensemble_zero_jeton_effectif()
+	sim est un réel = TexteSimilaritéJetonsEnsemble("   ", "abc")
+
+	// Comportement attendu : ratio("","") = 1.0 domine le max.
+	// Mais si le split whitespace produit jetons vides, c'est un edge case
+	// de tokenisation → vérifier bornes plausibles.
+	dbgVérifieVrai(sim >= 0.0, "similarité >= 0 (jetons vides gérés)")
+	dbgVérifieVrai(sim <= 1.0, "similarité <= 1 (bornes respectées)")
+FIN
+
+
+// Symétrie : JetonsEnsemble est symétrique (inter et combA/combB sont symétriques).
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_ensemble_symetrie()
+	sim1 est un réel = TexteSimilaritéJetonsEnsemble("Paris France", "France Londres")
+	sim2 est un réel = TexteSimilaritéJetonsEnsemble("France Londres", "Paris France")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "similarité symétrique", 0.0001)
+FIN

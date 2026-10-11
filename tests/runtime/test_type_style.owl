@@ -1,0 +1,76 @@
+// =====================================================================
+// TEST: Type composé Style (Phase D.2.a — premier rocher de l'enabler Style).
+//
+// Verifie :
+//   1. Defaults canon : Couleur=0, CouleurFond=-1, marges=0, Police+Cadre
+//      avec leurs propres defauts.
+//   2. Affectation des sous-champs plats (Couleur, CouleurFond, marges).
+//   3. Acces aux sous-objets imbriques : Style..Police..Nom, Style..Cadre..Epaisseur.
+//   4. Modification des sous-objets via le double-dot chain.
+// =====================================================================
+
+Trace("=== Type Style (D.2.a) — agrégation Police + Cadre ===")
+
+// --- Defaults d'une instance ---
+sty est un Style
+dbgVérifieEgalité(sty..Couleur, 0, "Style..Couleur defaut = 0 (noir)")
+dbgVérifieEgalité(sty..CouleurFond,-1, "Style..CouleurFond defaut = -1 (transparent)")
+dbgVérifieEgalité(sty..RetraitGauche, 0, "Style..RetraitGauche defaut = 0")
+dbgVérifieEgalité(sty..RetraitDroit, 0, "Style..RetraitDroit defaut = 0")
+dbgVérifieEgalité(sty..RetraitHaut, 0, "Style..RetraitHaut defaut = 0")
+dbgVérifieEgalité(sty..RetraitBas, 0, "Style..RetraitBas defaut = 0")
+
+// --- Sous-objet Police imbriqué (defaults canon de référence) ---
+//  — la Police d'un Style est une SURCHARGE, pas un descripteur : tant
+// que rien n'y est ecrit elle ne renseigne aucune taille (0, hors du domaine
+// des tailles valides), comme son Nom ne renseigne aucune famille (chaine
+// vide). Une Police autonome (`p est une Police`), elle, decrit une police
+// complete et porte bien 11.
+dbgVérifieEgalité(sty..Police..Nom, "", "Style..Police..Nom defaut = vide")
+dbgVérifieEgalité(sty..Police..Taille, 0, "Style..Police..Taille defaut = non renseignee")
+dbgVérifieEgalité(sty..Police..Gras, Faux, "Style..Police..Gras defaut = Faux")
+dbgVérifieEgalité(sty..Police..Italique, Faux, "Style..Police..Italique defaut = Faux")
+
+// --- Sous-objet Cadre imbriqué (defaults canon de référence) ---
+dbgVérifieEgalité(sty..Cadre..Couleur, 0, "Style..Cadre..Couleur defaut = 0")
+dbgVérifieEgalité(sty..Cadre..Epaisseur, 0, "Style..Cadre..Epaisseur defaut = 0")
+dbgVérifieEgalité(sty..Cadre..Trait, TraitContinu, "Style..Cadre..Trait defaut = TraitContinu")
+dbgVérifieEgalité(sty..Cadre..Arrondi, 0, "Style..Cadre..Arrondi defaut = 0")
+dbgVérifieEgalité(sty..Cadre..Bords, BordTous, "Style..Cadre..Bords defaut = BordTous")
+
+// --- Affectations props plates ---
+sty..Couleur       = BleuFoncé
+sty..CouleurFond   = Blanc
+sty..RetraitGauche = 8
+sty..RetraitDroit  = 8
+sty..RetraitHaut   = 4
+sty..RetraitBas    = 4
+dbgVérifieEgalité(sty..Couleur, BleuFoncé, "Couleur affectee")
+dbgVérifieEgalité(sty..CouleurFond, Blanc, "CouleurFond affectee")
+dbgVérifieEgalité(sty..RetraitGauche, 8, "RetraitGauche affecte")
+dbgVérifieEgalité(sty..RetraitDroit, 8, "RetraitDroit affecte")
+dbgVérifieEgalité(sty..RetraitHaut, 4, "RetraitHaut affecte")
+dbgVérifieEgalité(sty..RetraitBas, 4, "RetraitBas affecte")
+
+// --- Modification des sous-objets via double-dot chain ---
+sty..Police..Nom      = "Arial"
+sty..Police..Taille   = 14
+sty..Police..Gras     = Vrai
+sty..Police..Italique = Faux
+dbgVérifieEgalité(sty..Police..Nom, "Arial", "Police..Nom modifie via chain")
+dbgVérifieEgalité(sty..Police..Taille, 14, "Police..Taille modifie via chain")
+dbgVérifieEgalité(sty..Police..Gras, Vrai, "Police..Gras modifie via chain")
+dbgVérifieEgalité(sty..Police..Italique, Faux, "Police..Italique inchange")
+
+sty..Cadre..Couleur   = RougeFoncé
+sty..Cadre..Epaisseur = 2
+sty..Cadre..Trait     = TraitTiret
+sty..Cadre..Arrondi   = 4
+sty..Cadre..Bords     = BordHaut + BordBas
+dbgVérifieEgalité(sty..Cadre..Couleur, RougeFoncé, "Cadre..Couleur modifie via chain")
+dbgVérifieEgalité(sty..Cadre..Epaisseur, 2, "Cadre..Epaisseur modifie via chain")
+dbgVérifieEgalité(sty..Cadre..Trait, TraitTiret, "Cadre..Trait = TraitTiret")
+dbgVérifieEgalité(sty..Cadre..Arrondi, 4, "Cadre..Arrondi modifie via chain")
+dbgVérifieEgalité(sty..Cadre..Bords, 5, "Cadre..Bords = BordHaut+BordBas = 5")
+
+dbgBilanTest()

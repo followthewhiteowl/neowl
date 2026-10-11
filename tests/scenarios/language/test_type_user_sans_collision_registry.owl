@@ -1,0 +1,57 @@
+// @sujet : Déclaration de type utilisateur — non-régression face au refus de masquage
+// @résumé : Le refus de masquage d'un type registry par un nom de Structure
+// utilisateur (ex. `Couleur est une Structure`) ne doit pas casser
+// les cas légitimes : un nom de Structure libre compile normalement, les
+// types registry (Couleur, Police) restent utilisables quand aucune
+// déclaration utilisateur ne porte leur nom, et la coexistence type/native
+// (invariant 6.5) continue de fonctionner.
+
+Boite est une Structure
+	Largeur est un entier
+	Hauteur est un entier
+FIN
+
+PROCEDURE PUBLIQUE scenario_structure_nom_libre_compile()
+	// Un nom de Structure qui ne collisionne avec aucun type registry
+	// compile et s'utilise normalement.
+	b est une Boite
+	b.Largeur = 10
+	b.Hauteur = 5
+	dbgVérifieEgalité(b.Largeur, 10, "Boite.Largeur accessible")
+	dbgVérifieEgalité(b.Hauteur, 5, "Boite.Hauteur accessible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_type_registry_couleur_intact()
+	// Sans déclaration utilisateur masquante, le type registry Couleur
+	// fonctionne toujours (propriétés Rouge/Vert/Bleu).
+	c est un Couleur
+	c..Rouge = 255
+	c..Vert  = 128
+	c..Bleu  = 0
+	dbgVérifieEgalité(c..Rouge, 255, "Couleur..Rouge accessible")
+	dbgVérifieEgalité(c..Vert, 128, "Couleur..Vert accessible")
+	dbgVérifieEgalité(c..Bleu, 0, "Couleur..Bleu accessible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_type_registry_police_intact()
+	// Sans déclaration utilisateur masquante, le type registry Police
+	// fonctionne toujours (propriété Nom).
+	p est une Police
+	p..Nom    = "Arial"
+	p..Taille = 12
+	dbgVérifieEgalité(p..Nom, "Arial", "Police..Nom accessible")
+	dbgVérifieEgalité(p..Taille, 12, "Police..Taille accessible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_double_type_native_http_intact()
+	// Invariant 6.5 : coexistence type/native. Le refus de masquage vise
+	// les DÉCLARATIONS utilisateur, pas le double registry-interne
+	// type httpRequête / native HTTPRequête(...) — les deux continuent de
+	// coexister sans conflit.
+	req est un httpRequête
+	req..URL = "http://example.org"
+	dbgVérifieVrai(Taille(req..URL) > 0, "httpRequête type toujours utilisable")
+
+	corps est une chaîne = HTTPRequête("http://example.org")
+	dbgVérifieVrai(Taille(corps) >= 0, "HTTPRequête() native toujours appelable")
+FIN

@@ -1,0 +1,65 @@
+// Régression : offset de fuseau horaire silencieux (0) pour toute date
+// locale antérieure à 1970 (mktime échoue sous Windows pour ces dates).
+// Impact : DateHeureLocaleVersUTC / DateHeureUTCVersLocale et le formatage
+// RFC-3339 (maskDateInternet / maskDateInternetUTC) appliquent un décalage
+// nul au lieu du vrai décalage saisonnier.
+//
+// Poste-agnostique : on ne compare JAMAIS un offset ou un résultat de
+// conversion à une valeur littérale. On compare le décalage appliqué à une
+// date pré-1970 à celui appliqué à une date post-1970 de MÊME mois/jour
+// (donc même saison DST) : ils doivent être identiques quel que soit le
+// fuseau du poste qui exécute le test.
+
+// 1. Cohérence saisonnière DateHeureLocaleVersUTC — été (juin).
+dhEte1965 est une dateheure = "196506151200"
+dhEte2020 est une dateheure = "202006151200"
+utcEte1965 est une dateheure = DateHeureLocaleVersUTC(dhEte1965)
+utcEte2020 est une dateheure = DateHeureLocaleVersUTC(dhEte2020)
+deltaLocaleEte1965 est un entier = DateHeureVersEpoch(dhEte1965) - DateHeureVersEpoch(utcEte1965)
+deltaLocaleEte2020 est un entier = DateHeureVersEpoch(dhEte2020) - DateHeureVersEpoch(utcEte2020)
+dbgVérifieEgalité(deltaLocaleEte1965, deltaLocaleEte2020,
+"DateHeureLocaleVersUTC applique le même décalage été 1965 et 2020 (même mois/jour)")
+
+// 2. Cohérence saisonnière DateHeureLocaleVersUTC — hiver (janvier).
+dhHiver1965 est une dateheure = "196501151200"
+dhHiver2020 est une dateheure = "202001151200"
+utcHiver1965 est une dateheure = DateHeureLocaleVersUTC(dhHiver1965)
+utcHiver2020 est une dateheure = DateHeureLocaleVersUTC(dhHiver2020)
+deltaLocaleHiver1965 est un entier = DateHeureVersEpoch(dhHiver1965) - DateHeureVersEpoch(utcHiver1965)
+deltaLocaleHiver2020 est un entier = DateHeureVersEpoch(dhHiver2020) - DateHeureVersEpoch(utcHiver2020)
+dbgVérifieEgalité(deltaLocaleHiver1965, deltaLocaleHiver2020,
+"DateHeureLocaleVersUTC applique le même décalage hiver 1965 et 2020 (même mois/jour)")
+
+// 3. Cohérence saisonnière dans l'autre sens — DateHeureUTCVersLocale, été.
+locEte1965 est une dateheure = DateHeureUTCVersLocale(dhEte1965)
+locEte2020 est une dateheure = DateHeureUTCVersLocale(dhEte2020)
+deltaUtcEte1965 est un entier = DateHeureVersEpoch(locEte1965) - DateHeureVersEpoch(dhEte1965)
+deltaUtcEte2020 est un entier = DateHeureVersEpoch(locEte2020) - DateHeureVersEpoch(dhEte2020)
+dbgVérifieEgalité(deltaUtcEte1965, deltaUtcEte2020,
+"DateHeureUTCVersLocale applique le même décalage été 1965 et 2020 (même mois/jour)")
+
+// 4. RFC-3339 (maskDateInternet) : le suffixe d'offset d'une date pré-1970
+// doit être le même que celui d'une date post-1970 de même saison.
+sMaskEte1965 est une chaîne = DateHeureVersChaîne(dhEte1965, maskDateInternet)
+sMaskEte2020 est une chaîne = DateHeureVersChaîne(dhEte2020, maskDateInternet)
+dbgVérifieEgalité(Droite(sMaskEte1965, 6), Droite(sMaskEte2020, 6),
+"maskDateInternet : suffixe d'offset identique été 1965 et 2020")
+
+sMaskHiver1965 est une chaîne = DateHeureVersChaîne(dhHiver1965, maskDateInternet)
+sMaskHiver2020 est une chaîne = DateHeureVersChaîne(dhHiver2020, maskDateInternet)
+dbgVérifieEgalité(Droite(sMaskHiver1965, 6), Droite(sMaskHiver2020, 6),
+"maskDateInternet : suffixe d'offset identique hiver 1965 et 2020")
+
+// 5. RFC-3339 UTC (maskDateInternetUTC) : le décalage horaire appliqué pour
+// convertir en UTC (mesuré en reparsant le résultat) doit être le même pour
+// 1965 et 2020, même mois/jour.
+sMaskUtc1965 est une chaîne = DateHeureVersChaîne(dhEte1965, maskDateInternetUTC)
+sMaskUtc2020 est une chaîne = DateHeureVersChaîne(dhEte2020, maskDateInternetUTC)
+rMaskUtc1965 est une dateheure = ChaîneVersDate(sMaskUtc1965, maskDateInternetUTC)
+rMaskUtc2020 est une dateheure = ChaîneVersDate(sMaskUtc2020, maskDateInternetUTC)
+deltaMaskUtc1965 est un entier = DateHeureVersEpoch(dhEte1965) - DateHeureVersEpoch(rMaskUtc1965)
+deltaMaskUtc2020 est un entier = DateHeureVersEpoch(dhEte2020) - DateHeureVersEpoch(rMaskUtc2020)
+dbgVérifieEgalité(deltaMaskUtc1965, deltaMaskUtc2020,
+"maskDateInternetUTC : décalage vers UTC identique été 1965 et 2020")
+
+dbgBilanTest()

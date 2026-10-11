@@ -1,0 +1,107 @@
+// @sujet : dPixelCouleur
+// @resume : Lit la couleur d'un pixel (x, y) et renvoie entier BGR 24-bit
+
+PROCEDURE PUBLIQUE scenario_lecture_pixel_dans_image()
+	// Une image 50x50 blanche opaque (BGR 0xFFFFFF)
+	img est une Image = dCréeImage(50, 50, 0xFFFFFF)
+
+	// Lecture pixel au centre (25, 25)
+	couleurPixel est un entier = dPixelCouleur(img, 25, 25)
+
+	// La couleur retournée est 0xFFFFFF (blanc)
+	dbgVérifieEgalité(couleurPixel, 0xFFFFFF, "pixel centre blanc")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lecture_BGR_non_RGB()
+	// La couleur retournée suit l'encoding BGR (Bleu, Vert, Rouge), pas RGB
+
+	// Créer une image rouge pur : 0x0000FF en BGR
+	img est une Image = dCréeImage(10, 10, 0x0000FF)
+
+	// Lire pixel (5, 5)
+	coul est un entier = dPixelCouleur(img, 5, 5)
+
+	// Vérifier que retour est bien 0x0000FF (rouge en BGR)
+	dbgVérifieEgalité(coul, 0x0000FF, "rouge BGR 0x0000FF")
+FIN
+
+PROCEDURE PUBLIQUE scenario_pixel_hors_limites()
+	// Lire un pixel en dehors de l'image renvoie 0
+	img est une Image = dCréeImage(30, 30, 0xFFFFFF)
+
+	// Coordonnées hors-image (100, 100 dépasse largement 30x30)
+	couleur est un entier = dPixelCouleur(img, 100, 100)
+
+	// Retour : 0 si hors limites
+	dbgVérifieEgalité(couleur, 0, "pixel hors image -> 0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_coordonnees_origine()
+	// L'origine (0, 0) désigne le coin haut-gauche
+	img est une Image = dCréeImage(20, 20, 0xFFFFFF)
+
+	// Placer un point bleu (BGR 0xFF0000) à l'origine
+	dPoint(img, 0, 0, 0xFF0000)
+
+	// Lire le pixel (0, 0)
+	coul est un entier = dPixelCouleur(img, 0, 0)
+
+	// Vérifier bleu BGR
+	dbgVérifieEgalité(coul, 0xFF0000, "origine (0,0) coin haut-gauche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1()
+	// Image minimale 1x1
+	img est une Image = dCréeImage(1, 1, 0x123456)
+
+	// Lecture pixel unique (0, 0)
+	coul est un entier = dPixelCouleur(img, 0, 0)
+
+	// La couleur créée doit être retournée identique
+	dbgVérifieEgalité(coul, 0x123456, "image 1x1 pixel unique")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_coordonnees_negatives()
+	// Coordonnées négatives (-1, -1) sont hors-image
+	img est une Image = dCréeImage(10, 10, 0xFFFFFF)
+
+	coul est un entier = dPixelCouleur(img,-1,-1)
+
+	// Retour : 0 (hors limites)
+	dbgVérifieEgalité(coul, 0, "coords négatives -> 0")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_round_trip_dPoint()
+	// Écrire un pixel avec dPoint puis le relire avec dPixelCouleur
+	img est une Image = dCréeImage(40, 40, 0x000000)
+
+	// Écrire vert BGR 0x00FF00 à (20, 30)
+	dPoint(img, 20, 30, 0x00FF00)
+
+	// Relire
+	coul est un entier = dPixelCouleur(img, 20, 30)
+
+	// Le round-trip doit préserver la valeur
+	dbgVérifieEgalité(coul, 0x00FF00, "round-trip dPoint -> dPixelCouleur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_bords_image()
+	// Pixels sur les 4 bords de l'image doivent être accessibles
+	img est une Image = dCréeImage(100, 100, 0xAAAAAA)
+
+	// Coin haut-gauche (0, 0)
+	c1 est un entier = dPixelCouleur(img, 0, 0)
+	dbgVérifieEgalité(c1, 0xAAAAAA, "coin haut-gauche (0,0)")
+
+	// Coin haut-droit (99, 0)
+	c2 est un entier = dPixelCouleur(img, 99, 0)
+	dbgVérifieEgalité(c2, 0xAAAAAA, "coin haut-droit (99,0)")
+
+	// Coin bas-gauche (0, 99)
+	c3 est un entier = dPixelCouleur(img, 0, 99)
+	dbgVérifieEgalité(c3, 0xAAAAAA, "coin bas-gauche (0,99)")
+
+	// Coin bas-droit (99, 99)
+	c4 est un entier = dPixelCouleur(img, 99, 99)
+	dbgVérifieEgalité(c4, 0xAAAAAA, "coin bas-droit (99,99)")
+FIN

@@ -1,0 +1,83 @@
+//  : le type des CHAMPS de structure (scalaire ET collection) et des
+// PARAMETRES collection de procedure est desormais valide au meme titre qu'une
+// declaration de variable. Ce test verrouille les formes qui DOIVENT rester
+// valides une fois la resolution stricte en place :
+//   - champ scalaire primitif -> valeur par defaut du type
+//   - champ scalaire type utilisateur declare (auto-init deep) + forward ref
+//   - champ collection primitif + type utilisateur (vide a l'instanciation)
+//   - parametre collection primitif + type utilisateur declare (bind + iter)
+//   - forme SANS type (champ tableau libre) reste valide
+// Les formes rejetees sont verrouillees dans tests/compile-error/.
+
+Trace("=== fix/1156 : type des champs de structure et params resolu ===")
+
+// --- Structure : champs scalaires primitifs + collection primitive/user ---
+r1156Ligne est une Structure
+	designation est une chaîne
+	quantite est un entier
+	prix est un monétaire
+	tags est un tableau de chaînes
+	avant est un tableau de r1156Futur
+FIN
+
+r1156_l est un r1156Ligne
+dbgVérifieEgalité(r1156_l.designation, "", "champ chaîne -> defaut chaine vide")
+dbgVérifieEgalité(r1156_l.quantite, 0, "champ entier -> defaut 0")
+dbgVérifieEgalité(r1156_l.prix, 0, "champ monétaire -> defaut 0")
+dbgVérifieEgalité(Taille(r1156_l.tags), 0, "champ tableau de chaînes -> vide a l'instanciation")
+dbgVérifieEgalité(Taille(r1156_l.avant), 0, "champ tableau de type utilisateur (forward ref) -> vide")
+
+// r1156Futur declare APRES son usage en champ collection ci-dessus (forward ref)
+r1156Futur est une Structure
+	v est un entier
+FIN
+
+// --- Champ scalaire type utilisateur declare (sub-struct auto-init) ---
+r1156Adresse est une Structure
+	ville est une chaîne
+FIN
+
+r1156Client est une Structure
+	nom est une chaîne
+	adr est un r1156Adresse
+FIN
+
+r1156_cli est un r1156Client
+r1156_cli.adr.ville = "Lausanne"
+dbgVérifieEgalité(r1156_cli.adr.ville, "Lausanne", "champ sub-struct auto-initialise et ecrivable")
+
+// --- Parametre collection : type utilisateur declare (bind + iteration) ---
+r1156_arr est un tableau de r1156Ligne
+r1156_x est un r1156Ligne
+r1156_x.quantite = 3
+Ajoute(r1156_arr, r1156_x)
+r1156_y est un r1156Ligne
+r1156_y.quantite = 4
+Ajoute(r1156_arr, r1156_y)
+dbgVérifieEgalité(r1156Total(r1156_arr), 7, "param tableau de type utilisateur : somme quantites")
+
+// --- Parametre collection : primitif ---
+r1156_mots est un tableau de chaînes
+Ajoute(r1156_mots, "promo")
+dbgVérifieEgalité(r1156Premier(r1156_mots), "promo", "param tableau de chaînes : lecture element")
+
+// --- Forme SANS type : champ tableau libre reste valide ---
+r1156Sac est une Structure
+	items est un tableau
+FIN
+r1156_sac est un r1156Sac
+dbgVérifieEgalité(Taille(r1156_sac.items), 0, "champ tableau sans type -> vide a l'instanciation")
+
+dbgBilanTest()
+
+PROCEDURE r1156Total(items est un tableau de r1156Ligne)
+	total est un entier = 0
+	POUR TOUT it DE items
+		total += it.quantite
+	FIN
+	RENVOYER total
+FIN
+
+PROCEDURE r1156Premier(mots est un tableau de chaînes)
+	RENVOYER mots[1]
+FIN

@@ -1,0 +1,113 @@
+Trace("=== Quirks numériques (OWL vs JS) ===")
+
+// ============================================================
+// PRECISION FLOTTANTE IEEE-754 (vérité fidèle)
+// OWL affiche les réels avec shortest-round-trippable, sans masquer
+// l'imprécision binaire (0.1 + 0.2 = 0.30000000000000004).
+// Pour la précision exacte métier, utiliser les types monétaire ou numérique.
+// ============================================================
+r1 est un réel = 0.1 + 0.2
+dbgVérifieEgalité("" + r1, "0.30000000000000004", "0.1 + 0.2 affiche IEEE-754 exact")
+
+r2 est un réel = 0.1 + 0.7
+dbgVérifieEgalité("" + r2, "0.7999999999999999", "0.1 + 0.7 affiche IEEE-754 exact")
+
+// ============================================================
+// ENTIERS 64-BIT (JS perd la precision, certaines implémentations tronquent a 32-bit)
+// ============================================================
+n1 est un entier = 9999999999999999
+dbgVérifieEgalité(n1, 9999999999999999, "Entier 64-bit preserve")
+
+n2 est un entier = 2147483647
+dbgVérifieEgalité(n2 + 1, 2147483648, "MAX_INT32 + 1 ne deborde pas")
+
+// ============================================================
+// CONVERSIONS IMPLICITES -- Bool <-> Int (comportement de référence)
+// ============================================================
+dbgVérifieEgalité(Vrai + Vrai, 2, "Vrai + Vrai = 2")
+dbgVérifieEgalité(Vrai + 1, 2, "Vrai + 1 = 2")
+dbgVérifieEgalité(Faux + 1, 1, "Faux + 1 = 1")
+dbgVérifieEgalité(Vrai - Faux, 1, "Vrai - Faux = 1")
+
+// Bool -> String = "1"/"0" (comportement de référence)
+dbgVérifieEgalité("v=" + Vrai, "v=1", "Bool Vrai -> string 1")
+dbgVérifieEgalité("v=" + Faux, "v=0", "Bool Faux -> string 0")
+
+// ============================================================
+// EGALITE CROSS-TYPE (conversions implicites de référence)
+// ============================================================
+// Sémantique OWL stricte : Null = "absence", aucune autre valeur n'est Null.
+// Seul Null = Null retourne VRAI. Pour tester "valeur égale à zéro", utiliser
+// le littéral direct (`v = 0`, `b = Faux`, etc.).
+dbgVérifieVrai(Null = Null, "Null = Null")
+dbgVérifieFaux(Null = Faux, "Null != Faux (sémantique stricte)")
+dbgVérifieFaux(Null = 0, "Null != 0 (sémantique stricte)")
+dbgVérifieVrai(Null <> Vrai, "Null <> Vrai")
+dbgVérifieVrai(Null <> 1, "Null <> 1")
+
+// Int <-> Bool
+dbgVérifieVrai(0 = Faux, "0 = Faux")
+dbgVérifieVrai(1 = Vrai, "1 = Vrai")
+dbgVérifieVrai(0 <> Vrai, "0 <> Vrai")
+
+// String <-> Int (conversion implicite)
+dbgVérifieVrai(1 = "1", "1 = str 1 (conversion implicite)")
+dbgVérifieVrai(42 = "42", "42 = str 42")
+dbgVérifieVrai(0 <> "abc", "0 <> str abc (non-numerique)")
+
+// ============================================================
+// NULL DANS LES COMPARAISONS ORDONNEES
+// Référence: erreur "Null ne peut etre utilise que dans = ou <>"
+// Null > 0, Null < 0, Null >= 0 declenchent une erreur runtime.
+// (Teste manuellement, pas dans la suite auto car le runtime error
+//  perturbe le test runner)
+// ============================================================
+
+// ============================================================
+// CONCATENATION STRING (+ est toujours concat si un operande est string)
+// ============================================================
+s1 est une chaîne = "5"
+dbgVérifieEgalité(s1 + 3, "53", "str 5 + 3 = concat 53")
+dbgVérifieEgalité("abc" + 123, "abc123", "abc + 123 = abc123")
+dbgVérifieEgalité(123 + "abc", "123abc", "123 + abc = 123abc")
+
+// ============================================================
+// COMPARAISON STRINGS (lexicographique)
+// JS et comportement de référence: "10" > "9" est faux (car "1" < "9")
+// ============================================================
+dbgVérifieVrai(PAS ("10" > "9"), "str 10 < str 9 (lexicographique)")
+dbgVérifieVrai("abc" < "abd", "abc < abd")
+
+// ============================================================
+// NEGATION BOOLEENNE
+// ============================================================
+dbgVérifieVrai(PAS Vrai = Faux, "PAS Vrai = Faux")
+dbgVérifieVrai(PAS Faux = Vrai, "PAS Faux = Vrai")
+dbgVérifieVrai(PAS 0 = Vrai, "PAS 0 = Vrai (0 est falsy)")
+dbgVérifieVrai(PAS 1 = Faux, "PAS 1 = Faux (1 est truthy)")
+
+// ============================================================
+// ARRONDIS MONETAIRES (imprecision cumulee IEEE-754)
+// Cumul de 100 x 0.01 (réel) révèle l'imprécision binaire.
+// Pour calculs monétaires exacts, utiliser le type monétaire.
+// ============================================================
+total est un réel = 0.0
+POUR i = 1 À 100
+	total = total + 0.01
+FIN
+dbgVérifieEgalité("" + total, "1.0000000000000007", "0.01 x 100 affiche IEEE-754 cumulé")
+
+// ============================================================
+// INDEX BASE 1
+// ============================================================
+monTab est un tableau de entiers
+Ajoute(monTab, 10)
+Ajoute(monTab, 20)
+Ajoute(monTab, 30)
+dbgVérifieEgalité(monTab[1], 10, "tab[1] = premier element (base 1)")
+dbgVérifieEgalité(monTab[3], 30, "tab[3] = troisieme element")
+
+// ============================================================
+// DIVISION PAR ZERO (detectee a la compilation)
+// ============================================================
+// nBoom est un entier = 15/0  // -> erreur compile: "Division by zero."

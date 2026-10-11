@@ -1,0 +1,56 @@
+// Visibilite POO : acces intra-classe a tous les modes (PUBLIC, PRIVE, PROTEGE).
+// Test dans un seul fichier (classe + scenarios) pour couvrir les acces internes.
+
+cTestVisibilite est une Classe
+PUBLIC
+	nPublic est un entier
+PRIVÉ
+	nPrive est un entier
+PROTÉGÉ
+	nProtege est un entier
+
+PUBLIC
+	PROCEDURE Constructeur(pub est un entier, priv est un entier, prot est un entier)
+		:nPublic = pub
+		:nPrive = priv
+		:nProtege = prot
+	FIN
+
+	PROCEDURE GetPublic() : entier
+		// Acces interne PUBLIC = autorise
+		RENVOYER :nPublic
+	FIN
+
+	PROCEDURE GetPrive() : entier
+		// Acces interne PRIVE = autorise
+		RENVOYER :nPrive
+	FIN
+
+	PROCEDURE GetProtege() : entier
+		// Acces interne PROTEGE = autorise
+		RENVOYER :nProtege
+	FIN
+
+	PROCEDURE ModifierTous(pub est un entier, priv est un entier, prot est un entier)
+		// Modification interne de tous les modes = autorise
+		:nPublic = pub
+		:nPrive = priv
+		:nProtege = prot
+	FIN
+FIN
+
+PROCEDURE scenario_acces_intra_classe()
+	// Instanciation
+	o est un cTestVisibilite(1, 2, 3)
+
+	// Lecture interne via methodes
+	dbgVérifieEgalité(o.GetPublic(), 1, "Lecture interne PUBLIC")
+	dbgVérifieEgalité(o.GetPrive(), 2, "Lecture interne PRIVE")
+	dbgVérifieEgalité(o.GetProtege(), 3, "Lecture interne PROTEGE")
+
+	// Modification interne via methode
+	o.ModifierTous(10, 20, 30)
+	dbgVérifieEgalité(o.GetPublic(), 10, "Modification interne PUBLIC")
+	dbgVérifieEgalité(o.GetPrive(), 20, "Modification interne PRIVE")
+	dbgVérifieEgalité(o.GetProtege(), 30, "Modification interne PROTEGE")
+FIN

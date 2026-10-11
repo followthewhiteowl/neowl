@@ -1,0 +1,42 @@
+// Test des fonctions Hasard, InitHasard, HasardSécurisé
+Trace("=== HASARD / RANDOM ===")
+
+// InitHasard : graine fixe → séquence reproductible
+InitHasard()
+s1 est un entier = Hasard(1, 100)
+s2 est un entier = Hasard(1, 100)
+InitHasard()
+s3 est un entier = Hasard(1, 100)
+s4 est un entier = Hasard(1, 100)
+dbgVérifieEgalité(s1, s3, "InitHasard() graine fixe → même séquence (premier tirage)")
+dbgVérifieEgalité(s2, s4, "InitHasard() graine fixe → même séquence (second tirage)")
+
+// InitHasard avec graine explicite
+InitHasard(12345)
+x est un entier = Hasard(1, 1000)
+InitHasard(12345)
+y est un entier = Hasard(1, 1000)
+dbgVérifieEgalité(x, y, "InitHasard(12345) → reproductible")
+
+// Hasard : plages correctes (non-déterministe après InitHasard)
+InitHasard(9999)
+n1 est un entier = Hasard(1, 10)
+dbgVérifieVrai(n1 >= 1 ET n1 <= 10, "Hasard(1,10) dans [1,10]")
+
+n2 est un entier = Hasard(50)
+dbgVérifieVrai(n2 >= 1 ET n2 <= 50, "Hasard(50) dans [1,50]")
+
+r est un réel = Hasard()
+dbgVérifieVrai(r >= 0.0 ET r < 1.0, "Hasard() réel [0,1[")
+
+// HasardSécurisé : crypto-safe, unbiased
+nS est un entier = HasardSécurisé(1, 10)
+dbgVérifieVrai(nS >= 1 ET nS <= 10, "HasardSécurisé(1,10) dans [1,10]")
+
+nS2 est un entier = HasardSécurisé(50)
+dbgVérifieVrai(nS2 >= 1 ET nS2 <= 50, "HasardSécurisé(50) dans [1,50]")
+
+rS est un réel = HasardSécurisé()
+dbgVérifieVrai(rS >= 0.0 ET rS < 1.0, "HasardSécurisé() réel [0,1[")
+
+dbgBilanTest()

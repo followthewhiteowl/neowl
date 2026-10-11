@@ -1,0 +1,65 @@
+// TableEchangeLigne / TableSwapLine — échange (permutation) de deux lignes
+// d'un Champ Table identifiées par leur numéro 1-based.
+//
+// Sémantique tranchée sur le canon : PERMUTATION stricte des deux lignes
+// (« On échange les lignes 5 et 20 »), pas un déplacement avec décalage — ce
+// dernier est porté par une fonction distincte. Preuve dans le test : après
+// un échange (1,3), les lignes 2 et 4 ne bougent pas (un move aurait décalé
+// tout l'intervalle).
+//
+// Hors plage : soft-error sur la ligne fautive (pose ErreurDetectee, échange
+// avorté, le programme continue). L'ordre reste intact après un refus.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Echange)
+
+// Ordre initial.
+dbgVérifieEgalité(Nom(1), "Alpha", "ordre initial ligne 1")
+dbgVérifieEgalité(Nom(3), "Gamma", "ordre initial ligne 3")
+dbgVérifieEgalité(Occ(), 4, "4 lignes au départ")
+
+// Échange des lignes 1 et 3 : permutation stricte.
+Echange(1, 3)
+dbgVérifieEgalité(Nom(1), "Gamma", "ligne 1 reçoit l'ancien contenu de la ligne 3")
+dbgVérifieEgalité(Nom(3), "Alpha", "ligne 3 reçoit l'ancien contenu de la ligne 1")
+dbgVérifieEgalité(Rang(1), 30, "cellule numérique suit le swap (ligne 1)")
+dbgVérifieEgalité(Rang(3), 10, "cellule numérique suit le swap (ligne 3)")
+
+// Les lignes non impliquées ne bougent pas : preuve que ce n'est pas un move.
+dbgVérifieEgalité(Nom(2), "Beta", "ligne intermédiaire inchangée")
+dbgVérifieEgalité(Nom(4), "Delta", "dernière ligne inchangée")
+
+// Le nombre de lignes ne change pas.
+dbgVérifieEgalité(Occ(), 4, "occurrence inchangée après échange")
+
+// Forme anglaise TableSwapLine : ré-échange 1 et 3 -> ordre initial restauré.
+EchangeEN(1, 3)
+dbgVérifieEgalité(Nom(1), "Alpha", "TableSwapLine restaure la ligne 1")
+dbgVérifieEgalité(Nom(3), "Gamma", "TableSwapLine restaure la ligne 3")
+
+// Échange d'une ligne avec elle-même : no-op observable.
+Echange(2, 2)
+dbgVérifieEgalité(Nom(2), "Beta", "échange d'une ligne avec elle-même = no-op")
+
+// Indice destination hors plage : soft-error, ordre inchangé.
+ErreurRAZ()
+Echange(1, 99)
+bErrDest est un booléen = ErreurDétectée
+sMsgDest est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrDest, "destination hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(sMsgDest, "Table : ligne 99 hors plage (1..4).",
+"destination hors plage : message ligne dédié")
+dbgVérifieEgalité(Nom(1), "Alpha", "échange avorté : ordre préservé (ligne 1)")
+dbgVérifieEgalité(Nom(3), "Gamma", "échange avorté : ordre préservé (ligne 3)")
+
+// Indice source hors plage (0) : idem.
+ErreurRAZ()
+Echange(0, 2)
+bErrSrc est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrSrc, "source 0 hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(Nom(2), "Beta", "échange avorté : ordre préservé (ligne 2)")
+
+Ferme(FEN_Echange)
+
+dbgBilanTest()

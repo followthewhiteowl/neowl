@@ -1,0 +1,380 @@
+// @sujet : IAModèle — gel/dégel de couches (.Gèle / .Dégèle, .Freeze / .Unfreeze)
+// @résumé : mon.Gèle() marque comme NON entraînables toutes les couches
+// PRÉSENTES dans le modèle au moment de l'appel. Une couche ajoutée APRÈS
+// .Gèle() reste entraînable — c'est ce qui permet de figer un corps
+// pré-entraîné puis d'ajouter une nouvelle tête qui, elle, apprend.
+// mon.Dégèle() réactive l'entraînement sur toutes les couches, y compris
+// celles gelées précédemment. Le passage en avant (.Infère/.Entraîne)
+// traverse toujours les couches gelées normalement : seule leur mise à
+// jour par l'optimiseur est sautée.
+//
+// Convention de vérification (comme les autres scénarios IAModèle) : les
+// poids/biais sont extraits via .Poids/.Biais AVANT et APRÈS
+// .Entraîne — jamais de valeur hardcodée, les poids initiaux sont
+// aléatoires. Pour une couche gelée, l'égalité poids avant/après doit
+// être EXACTE (aucune tolérance : un poids gelé ne bouge pas d'un iota).
+// Pour une couche entraînable, il suffit de constater qu'au moins une
+// valeur a changé après quelques pas d'entraînement.
+
+// .Gèle() fige la 1ère couche construite ; la 2ème couche, ajoutée après
+// .Gèle(), reste entraînable. Vérifié avec l'optimiseur SGD.
+PROCEDURE PUBLIQUE scenario_gele_fige_les_poids_avec_sgd()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 3)
+	mon.Gèle()
+	mon.AjouteCoucheDense(3, 1)
+
+	valW1avant est une Matrice = mon.Poids(1)..Valeur
+	valB1avant est un Vecteur = mon.Biais(1)..Valeur
+	valW2avant est une Matrice = mon.Poids(2)..Valeur
+	valB2avant est un Vecteur = mon.Biais(2)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0], [0.0], [1.0], [0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	valW1apres est une Matrice = mon.Poids(1)..Valeur
+	valB1apres est un Vecteur = mon.Biais(1)..Valeur
+	valW2apres est une Matrice = mon.Poids(2)..Valeur
+	valB2apres est un Vecteur = mon.Biais(2)..Valeur
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 3
+			dbgVérifieEgalité(valW1apres[iLigne][iCol], valW1avant[iLigne][iCol], "couche gelée avant .Gèle() : Poids(1) strictement inchangé après .Entraîne (SGD)")
+		FIN
+	FIN
+	POUR i = 1 À 3
+		dbgVérifieEgalité(valB1apres[i], valB1avant[i], "couche gelée avant .Gèle() : Biais(1) strictement inchangé après .Entraîne (SGD)")
+	FIN
+
+	dbgVérifieDifférence(valW2apres[1][1], valW2avant[1][1], "couche ajoutée après .Gèle() : Poids(2)[1][1] a changé après .Entraîne (SGD)")
+	dbgVérifieDifférence(valB2apres[1], valB2avant[1], "couche ajoutée après .Gèle() : Biais(2)[1] a changé après .Entraîne (SGD)")
+FIN
+
+
+// Même contrat que ci-dessus, avec l'optimiseur Adam : le gel doit être
+// respecté par les deux optimiseurs.
+PROCEDURE PUBLIQUE scenario_gele_fige_les_poids_avec_adam()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 3)
+	mon.Gèle()
+	mon.AjouteCoucheDense(3, 1)
+
+	valW1avant est une Matrice = mon.Poids(1)..Valeur
+	valB1avant est un Vecteur = mon.Biais(1)..Valeur
+	valW2avant est une Matrice = mon.Poids(2)..Valeur
+	valB2avant est un Vecteur = mon.Biais(2)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0], [0.0], [1.0], [0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	valW1apres est une Matrice = mon.Poids(1)..Valeur
+	valB1apres est un Vecteur = mon.Biais(1)..Valeur
+	valW2apres est une Matrice = mon.Poids(2)..Valeur
+	valB2apres est un Vecteur = mon.Biais(2)..Valeur
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 3
+			dbgVérifieEgalité(valW1apres[iLigne][iCol], valW1avant[iLigne][iCol], "couche gelée avant .Gèle() : Poids(1) strictement inchangé après .Entraîne (Adam)")
+		FIN
+	FIN
+	POUR i = 1 À 3
+		dbgVérifieEgalité(valB1apres[i], valB1avant[i], "couche gelée avant .Gèle() : Biais(1) strictement inchangé après .Entraîne (Adam)")
+	FIN
+
+	dbgVérifieDifférence(valW2apres[1][1], valW2avant[1][1], "couche ajoutée après .Gèle() : Poids(2)[1][1] a changé après .Entraîne (Adam)")
+	dbgVérifieDifférence(valB2apres[1], valB2avant[1], "couche ajoutée après .Gèle() : Biais(2)[1] a changé après .Entraîne (Adam)")
+FIN
+
+
+// .Gèle() fige TOUTES les couches présentes à l'appel, pas seulement la
+// dernière : deux couches construites avant .Gèle() restent toutes les
+// deux strictement inchangées, seule la troisième (ajoutée après) apprend.
+PROCEDURE PUBLIQUE scenario_gele_fige_toutes_les_couches_presentes_pas_seulement_la_derniere()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 3)
+	mon.AjouteCoucheDense(3, 3)
+	mon.Gèle()
+	mon.AjouteCoucheDense(3, 1)
+
+	valW1avant est une Matrice = mon.Poids(1)..Valeur
+	valW2avant est une Matrice = mon.Poids(2)..Valeur
+	valW3avant est une Matrice = mon.Poids(3)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0], [0.0], [1.0], [0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	valW1apres est une Matrice = mon.Poids(1)..Valeur
+	valW2apres est une Matrice = mon.Poids(2)..Valeur
+	valW3apres est une Matrice = mon.Poids(3)..Valeur
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 3
+			dbgVérifieEgalité(valW1apres[iLigne][iCol], valW1avant[iLigne][iCol], "1ère couche présente avant .Gèle() : strictement inchangée")
+		FIN
+	FIN
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 3
+			dbgVérifieEgalité(valW2apres[iLigne][iCol], valW2avant[iLigne][iCol], "2ème couche présente avant .Gèle() : strictement inchangée")
+		FIN
+	FIN
+	dbgVérifieDifférence(valW3apres[1][1], valW3avant[1][1], "3ème couche ajoutée après .Gèle() : a changé après .Entraîne")
+FIN
+
+
+// .Dégèle() réactive l'entraînement sur toutes les couches, y compris
+// celles gelées précédemment : après .Dégèle(), la couche gelée au
+// départ change à son tour au prochain .Entraîne.
+PROCEDURE PUBLIQUE scenario_degele_reactive_toutes_les_couches()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.Gèle()
+	mon.AjouteCoucheDense(2, 1)
+	mon.Dégèle()
+
+	valW1avant est une Matrice = mon.Poids(1)..Valeur
+	valB1avant est un Vecteur = mon.Biais(1)..Valeur
+	valW2avant est une Matrice = mon.Poids(2)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0], [0.0], [1.0], [0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	valW1apres est une Matrice = mon.Poids(1)..Valeur
+	valB1apres est un Vecteur = mon.Biais(1)..Valeur
+	valW2apres est une Matrice = mon.Poids(2)..Valeur
+
+	dbgVérifieDifférence(valW1apres[1][1], valW1avant[1][1], "après .Dégèle(), la couche gelée au départ change à nouveau à l'entraînement")
+	dbgVérifieDifférence(valB1apres[1], valB1avant[1], "après .Dégèle(), le biais de la couche gelée au départ change à nouveau à l'entraînement")
+	dbgVérifieDifférence(valW2apres[1][1], valW2avant[1][1], "après .Dégèle(), la couche restée libre continue de changer")
+FIN
+
+
+// Formes anglaises .Freeze()/.Unfreeze() : même contrat que .Gèle()/.Dégèle()
+// — gel effectif d'une couche présente + réactivation après .Unfreeze().
+PROCEDURE PUBLIQUE scenario_formes_anglaises_freeze_unfreeze()
+	mon is an AIModel
+	mon.AddDenseLayer(2, 2)
+	mon.Freeze()
+	mon.AddDenseLayer(2, 1)
+
+	valW1avant is a Matrix = mon.Weights(1)..Value
+	valW2avant is a Matrix = mon.Weights(2)..Value
+
+	matX is a Matrix = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX is a Tensor = Tensor(matX)
+	matY is a Matrix = [[1.0], [0.0], [1.0], [0.0]]
+	tY is a Tensor = Tensor(matY)
+
+	opts is a TrainingOptions
+	opts..Epochs       = 5
+	opts..BatchSize    = 2
+	opts..LearningRate = 0.1
+	opts..Optimizer    = optimSGD
+	opts..Loss         = perteErreurQuadratique
+
+	mon.Train(tX, tY, opts)
+
+	valW1apresGel is a Matrix = mon.Weights(1)..Value
+	valW2apresGel is a Matrix = mon.Weights(2)..Value
+
+	dbgCheckEqual(valW1apresGel[1][1], valW1avant[1][1], "AIModel.Freeze(): frozen layer weight strictly unchanged after .Train")
+	dbgCheckDifferent(valW2apresGel[1][1], valW2avant[1][1], "AIModel.Freeze(): layer added after Freeze() changed after .Train")
+
+	mon.Unfreeze()
+	mon.Train(tX, tY, opts)
+
+	valW1apresDegel is a Matrix = mon.Weights(1)..Value
+	dbgCheckDifferent(valW1apresDegel[1][1], valW1apresGel[1][1], "AIModel.Unfreeze(): previously frozen layer changes again after .Train")
+FIN
+
+
+// Non-régression : SANS aucun appel à .Gèle(), un entraînement SGD à 1
+// pas donne EXACTEMENT le même résultat que la formule poids - taux *
+// gradient (même verrou que test_IAModeleEntrainement.owl) — la présence
+// du drapeau de gel (défaut : aucune couche gelée) ne change rien au
+// comportement par défaut.
+PROCEDURE PUBLIQUE scenario_sans_gele_entrainement_sgd_un_pas_inchange()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	tWavant est un Tenseur = mon.Poids(1)
+	tbavant est un Tenseur = mon.Biais(1)
+	valWavant est une Matrice = tWavant..Valeur
+	valBavant est un Vecteur = tbavant..Valeur
+
+	matX est une Matrice = [[1.0, -1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.5, -0.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.1
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	gradW est une Matrice = tWavant..Gradient
+	gradB est un Vecteur = tbavant..Gradient
+
+	valWapres est une Matrice = mon.Poids(1)..Valeur
+	valBapres est un Vecteur = mon.Biais(1)..Valeur
+
+	g est un réel = 0.0
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 2
+			g = gradW[iLigne][iCol]
+			dbgVérifieVrai(Abs(valWapres[iLigne][iCol] - (valWavant[iLigne][iCol] - taux * g)) < 0.000001, "sans .Gèle() : poids = poids - taux*gradient, comme sans le mécanisme de gel")
+		FIN
+	FIN
+	g = gradB[1]
+	dbgVérifieVrai(Abs(valBapres[1] - (valBavant[1] - taux * g)) < 0.000001, "sans .Gèle() : biais[1] inchangé dans son calcul, formule SGD standard")
+	g = gradB[2]
+	dbgVérifieVrai(Abs(valBapres[2] - (valBavant[2] - taux * g)) < 0.000001, "sans .Gèle() : biais[2] inchangé dans son calcul, formule SGD standard")
+FIN
+
+
+// Round-trip .Sauve/.Charge : l'état gelé d'une couche fait partie de
+// l'état persisté du modèle. Un modèle gelé, sauvé puis rechargé dans un
+// modèle frais, garde sa couche gelée strictement inchangée à
+// l'entraînement — le gel n'est pas perdu au rechargement.
+PROCEDURE PUBLIQUE scenario_round_trip_persistance_preserve_etat_gele()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.Gèle()
+	mon.AjouteCoucheDense(2, 1)
+
+	chemin est une chaîne = fRepTemp() + "owl_test_iamodele_1815_gel_roundtrip.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve d'un modèle avec couche gelée réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge dans un modèle frais réussit")
+
+	valW1avant est une Matrice = frais.Poids(1)..Valeur
+	valB1avant est un Vecteur = frais.Biais(1)..Valeur
+	valW2avant est une Matrice = frais.Poids(2)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0], [0.0], [1.0], [0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	frais.Entraîne(tX, tY, opts)
+
+	valW1apres est une Matrice = frais.Poids(1)..Valeur
+	valB1apres est un Vecteur = frais.Biais(1)..Valeur
+	valW2apres est une Matrice = frais.Poids(2)..Valeur
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 2
+			dbgVérifieEgalité(valW1apres[iLigne][iCol], valW1avant[iLigne][iCol], "après rechargement, la couche gelée reste strictement inchangée à l'entraînement")
+		FIN
+	FIN
+	POUR i = 1 À 2
+		dbgVérifieEgalité(valB1apres[i], valB1avant[i], "après rechargement, le biais de la couche gelée reste strictement inchangé")
+	FIN
+	dbgVérifieDifférence(valW2apres[1][1], valW2avant[1][1], "après rechargement, la couche restée libre continue d'apprendre")
+
+	fSupprime(chemin)
+FIN
+
+
+// Interaction avec les blocs à branches : .Gèle() appliqué
+// après un bloc de branches fige aussi les couches internes de ce bloc.
+// Une tête ajoutée ensuite reste entraînable.
+PROCEDURE PUBLIQUE scenario_gele_modele_a_branches_fige_les_couches_internes()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2)
+	mon.BrancheSuivante()
+	mon.AjouteCoucheDense(2, 2)
+	mon.FusionneParAddition()
+	mon.Gèle()
+	mon.AjouteCoucheDense(2, 1)
+
+	valWBranche1avant est une Matrice = mon.Poids(1)..Valeur
+	valWBranche2avant est une Matrice = mon.Poids(2)..Valeur
+	valWTeteavant est une Matrice = mon.Poids(3)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0], [0.5, 2.0], [-1.0, 1.0], [2.0, -0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0], [0.0], [1.0], [0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	valWBranche1apres est une Matrice = mon.Poids(1)..Valeur
+	valWBranche2apres est une Matrice = mon.Poids(2)..Valeur
+	valWTeteapres est une Matrice = mon.Poids(3)..Valeur
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 2
+			dbgVérifieEgalité(valWBranche1apres[iLigne][iCol], valWBranche1avant[iLigne][iCol], "couche interne de la 1ère branche gelée par .Gèle() : strictement inchangée")
+			dbgVérifieEgalité(valWBranche2apres[iLigne][iCol], valWBranche2avant[iLigne][iCol], "couche interne de la 2ème branche gelée par .Gèle() : strictement inchangée")
+		FIN
+	FIN
+	dbgVérifieDifférence(valWTeteapres[1][1], valWTeteavant[1][1], "tête ajoutée après .Gèle() sur un modèle à branches : reste entraînable")
+FIN

@@ -1,0 +1,333 @@
+// ============================================================
+// TEST: Compression (Compresse/Décompresse + archives zip*)
+// ============================================================
+
+Trace("=== COMPRESSION — buffer ===")
+
+// -- Roundtrip basique ASCII --
+s est une chaîne = "Hello world. Hello world. Hello world. Hello world."
+c est un buffer = Compresse(s)
+dbgVérifieVrai(Taille(c) > 0, "Compresse produit un buffer non vide")
+dbgVérifieVrai(Taille(c) < Taille(s), "Compression réduit la taille sur texte répétitif")
+
+d est un buffer = Décompresse(c)
+dsStr est une chaîne = BufferVersChaîne(d)
+dbgVérifieEgalité(dsStr, s, "Roundtrip gzip ASCII")
+
+// -- Roundtrip UTF-8 --
+sU est une chaîne = "Caractères éàüç日本 répétés éàüç日本 éàüç日本"
+comp est un buffer = Compresse(sU)
+dec est un buffer = Décompresse(comp)
+decStr est une chaîne = BufferVersChaîne(dec)
+dbgVérifieEgalité(decStr, sU, "Roundtrip gzip UTF-8")
+
+// -- compresseAucun (store) --
+cN est un buffer = Compresse("abc", compresseAucun)
+dN est un buffer = Décompresse(cN, compresseAucun)
+dNstr est une chaîne = BufferVersChaîne(dN)
+dbgVérifieEgalité(dNstr, "abc", "compresseAucun = passthrough")
+
+// -- Niveau 0 (no compression) vs 9 (max) --
+sLong est une chaîne = Répète("A", 200)
+c0 est un buffer = Compresse(sLong, compresseGZIP, 0)
+c9 est un buffer = Compresse(sLong, compresseGZIP, 9)
+dbgVérifieVrai(Taille(c9) <= Taille(c0), "Niveau 9 <= niveau 0 sur texte répétitif")
+d0 est un buffer = Décompresse(c0)
+d9 est un buffer = Décompresse(c9)
+d0str est une chaîne = BufferVersChaîne(d0)
+d9str est une chaîne = BufferVersChaîne(d9)
+dbgVérifieEgalité(d0str, sLong, "Décompresse niveau 0 OK")
+dbgVérifieEgalité(d9str, sLong, "Décompresse niveau 9 OK")
+
+// -- compresseLZW alias deflate --
+cLzw est un buffer = Compresse("test", compresseLZW)
+dLzw est un buffer = Décompresse(cLzw, compresseLZW)
+dLzwStr est une chaîne = BufferVersChaîne(dLzw)
+dbgVérifieEgalité(dLzwStr, "test", "compresseLZW roundtrip (alias deflate)")
+
+Trace("=== COMPRESSION — archive ZIP ===")
+
+// -- Créer un zip avec 2 entrées, rouvrir, vérifier --
+PROCEDURE TestZip()
+	arch est un zipArchive = zipCrée("/tmp/owl_test.zip")
+	dbgVérifieVrai(PAS EstNul(arch), "zipCrée renvoie un handle")
+	zipAjouteFichier(arch, "Contenu du premier fichier", zipEnMémoire, "fichier1.txt")
+	zipAjouteFichier(arch, "Deuxième entrée avec UTF-8 éàü", zipEnMémoire, "dossier/fichier2.txt")
+	zipFerme(arch)
+
+	b est un zipArchive = zipOuvre("/tmp/owl_test.zip")
+	dbgVérifieEgalité(zipNbFichier(b), 2, "ZIP contient 2 entrées")
+
+	lst est une chaîne = zipListeFichier(b)
+	dbgVérifieVrai(Position(lst, "fichier1.txt") > 0, "Liste contient fichier1.txt")
+	dbgVérifieVrai(Position(lst, "dossier/fichier2.txt") > 0, "Liste contient dossier/fichier2.txt")
+
+	dbgVérifieEgalité(zipChercheFichier(b, "fichier1.txt"), 1, "zipChercheFichier retourne index 1-based")
+	dbgVérifieEgalité(zipChercheFichier(b, "inexistant.xyz"), 0, "zipChercheFichier retourne 0 si absent")
+
+	buf1 est un buffer = zipExtraitFichier(b, 1, 65535)
+	str1 est une chaîne = BufferVersChaîne(buf1)
+	dbgVérifieEgalité(str1, "Contenu du premier fichier", "Extraction entrée #1 par index")
+
+	buf2 est un buffer = zipExtraitFichier(b, "dossier/fichier2.txt", 65535)
+	str2 est une chaîne = BufferVersChaîne(buf2)
+	dbgVérifieEgalité(str2, "Deuxième entrée avec UTF-8 éàü", "Extraction entrée par nom (UTF-8)")
+
+	zipFerme(b)
+FIN
+TestZip()
+
+Trace("=== COMPRESSION — ajout depuis buffer (zipEnMémoire) ===")
+
+// Ajout d'un contenu présent dans un buffer/chaîne : on passe le contenu
+// en 2e argument, la constante zipEnMémoire en 3e, le chemin à conserver en 4e.
+PROCEDURE TestAjoutBuffer()
+	contenu est un buffer = ChaîneVersBuffer("payload binaire éàü")
+
+	arch est un zipArchive = zipCrée("/tmp/owl_test_buf.zip")
+	// forme fonction libre
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "depuis_fn.txt")
+	// forme méthode
+	arch.Ajoute("depuis méthode éàü", zipEnMémoire, "depuis_meth.txt")
+	zipFerme(arch)
+
+	b est un zipArchive = zipOuvre("/tmp/owl_test_buf.zip")
+	dbgVérifieEgalité(zipNbFichier(b), 2, "2 entrées ajoutées depuis buffer")
+
+	bufFn est un buffer = zipExtraitFichier(b, "depuis_fn.txt", 65535)
+	dbgVérifieEgalité(BufferVersChaîne(bufFn), "payload binaire éàü", "Contenu buffer (fn libre) restitué")
+
+	bufMeth est un buffer = zipExtraitFichier(b, "depuis_meth.txt", 65535)
+	dbgVérifieEgalité(BufferVersChaîne(bufMeth), "depuis méthode éàü", "Contenu buffer (.Ajoute) restitué")
+	zipFerme(b)
+FIN
+TestAjoutBuffer()
+
+Trace("=== COMPRESSION — archive TAR ===")
+
+PROCEDURE TestTar()
+	arch est un zipArchive = zipCrée("/tmp/owl_test.tar")
+	zipAjouteFichier(arch, "aaa", zipEnMémoire, "a.txt")
+	zipAjouteFichier(arch, "bbb", zipEnMémoire, "sub/b.txt")
+	zipAjouteFichier(arch, "xyz", zipEnMémoire, "c.bin")
+	zipFerme(arch)
+
+	b est un zipArchive = zipOuvre("/tmp/owl_test.tar")
+	dbgVérifieEgalité(zipNbFichier(b), 3, "TAR contient 3 entrées")
+	dbgVérifieEgalité(zipChercheFichier(b, "sub/b.txt"), 2, "zipChercheFichier TAR par nom")
+
+	buf est un buffer = zipExtraitFichier(b, 3, 65535)
+	bufStr est une chaîne = BufferVersChaîne(buf)
+	dbgVérifieEgalité(bufStr, "xyz", "TAR extract par index")
+
+	zipFerme(b)
+FIN
+TestTar()
+
+Trace("=== COMPRESSION — archive TAR.GZ ===")
+
+PROCEDURE TestTgz()
+	arch est un zipArchive = zipCrée("/tmp/owl_test.tar.gz")
+	zipAjouteFichier(arch, "Ceci est un readme", zipEnMémoire, "readme.txt")
+	zipAjouteFichier(arch, Répète("X", 500), zipEnMémoire, "data.bin")
+	zipFerme(arch)
+
+	b est un zipArchive = zipOuvre("/tmp/owl_test.tar.gz")
+	dbgVérifieEgalité(zipNbFichier(b), 2, "TGZ contient 2 entrées")
+
+	buf est un buffer = zipExtraitFichier(b, "readme.txt", 65535)
+	bufStr est une chaîne = BufferVersChaîne(buf)
+	dbgVérifieEgalité(bufStr, "Ceci est un readme", "TGZ extract readme")
+
+	bufData est un buffer = zipExtraitFichier(b, "data.bin", 65535)
+	bufDataStr est une chaîne = BufferVersChaîne(bufData)
+	dbgVérifieEgalité(Taille(bufDataStr), 500, "TGZ extract data de taille 500")
+
+	zipFerme(b)
+FIN
+TestTgz()
+
+Trace("=== COMPRESSION — rejet formats ===")
+
+// Formats non supportés (7z, CAB, RAR) doivent renvoyer Null + set ErreurInfo.
+a7z est un zipArchive = zipCrée("/tmp/owl_test.7z")
+dbgVérifieEgalité(EstNul(a7z), Vrai, "zipCrée rejette 7z (Phase 1)")
+dbgVérifieVrai(Position(ErreurInfo(), "non supporté") > 0, "ErreurInfo mentionne format non supporté")
+
+aCab est un zipArchive = zipCrée("/tmp/owl_test.cab")
+dbgVérifieEgalité(EstNul(aCab), Vrai, "zipCrée rejette CAB")
+dbgVérifieVrai(Position(ErreurInfo(), "non supporté") > 0, "ErreurInfo mentionne format non supporté")
+
+Trace("=== COMPRESSION — niveaux ===")
+
+// -- zipNiveauCompression --
+PROCEDURE TestNiveau()
+	arch est un zipArchive = zipCrée("/tmp/owl_test_niv.zip")
+	dbgVérifieEgalité(zipNiveauCompression(arch, 9), Vrai, "zipNiveauCompression(9) OK")
+	dbgVérifieEgalité(zipNiveauCompression(arch, 15), Faux, "zipNiveauCompression hors plage renvoie Faux")
+	dbgVérifieVrai(Position(ErreurInfo(), "hors plage") > 0, "ErreurInfo mentionne 'hors plage'")
+	zipAjouteFichier(arch, "xxx", zipEnMémoire, "x.txt")
+	zipFerme(arch)
+FIN
+TestNiveau()
+
+Trace("=== COMPRESSION — natives étendues ===")
+
+PROCEDURE TestInfoFichier()
+	arch est un zipArchive = zipCrée("/tmp/owl_test_info.zip")
+	zipAjouteFichier(arch, Répète("B", 1000), zipEnMémoire, "grand.txt")
+	zipAjouteFichier(arch, "Hi", zipEnMémoire, "petit.txt")
+	zipFerme(arch)
+
+	r est un zipArchive = zipOuvre("/tmp/owl_test_info.zip")
+
+	// Métadonnées par index + par nom
+	dbgVérifieEgalité(zipInfoFichier(r, 1, zipNom), "grand.txt", "zipInfoFichier nom par index")
+	dbgVérifieEgalité(zipInfoFichier(r, "petit.txt", zipTaille), 2, "zipInfoFichier taille par nom")
+	dbgVérifieEgalité(zipTailleFichier(r, 1), 1000, "zipTailleFichier décompressée")
+	dbgVérifieVrai(zipTailleFichier(r, 1, 1) < 1000, "zipTailleFichier(comp) < décompressée sur 1000 B")
+
+	// Existence
+	dbgVérifieEgalité(zipExisteFichier(r, "petit.txt"), Vrai, "zipExisteFichier vrai")
+	dbgVérifieEgalité(zipExisteFichier(r, "absent.txt"), Faux, "zipExisteFichier faux si absent")
+
+	// Multi-volume stubs (Phase 1 = toujours non-multi)
+	dbgVérifieEgalité(zipNbPartie(r), 1, "zipNbPartie = 1 en Phase 1")
+	dbgVérifieEgalité(zipEstMulti(r), Faux, "zipEstMulti = Faux en Phase 1")
+
+	zipFerme(r)
+
+	// zipExiste (existence du fichier archive sur disque)
+	dbgVérifieEgalité(zipExiste("/tmp/owl_test_info.zip"), Vrai, "zipExiste archive présente")
+	dbgVérifieEgalité(zipExiste("/tmp/inexistant.zip"), Faux, "zipExiste archive absente")
+FIN
+TestInfoFichier()
+
+Trace("=== COMPRESSION — callbacks progression ===")
+
+// Variables partagées entre proc et test (globales au fichier)
+gNbAppels est un entier = 0
+gAnnule est un booléen = Faux
+
+PROCEDURE ProgSuivi(nom est une chaîne, pctG est un entier, pctF est un entier = 0) : entier
+	nom       = nom
+	gNbAppels = gNbAppels + 1
+	SI gAnnule ET pctG >= 66 ALORS
+		RENVOYER -1
+	FIN
+	RENVOYER 0
+FIN
+
+PROCEDURE TestCallbacks()
+	gNbAppels = 0
+	gAnnule   = Faux
+
+	arch est un zipArchive = zipCrée("/tmp/owl_cb.zip")
+	zipAjouteFichier(arch, "x", zipEnMémoire, "f1.txt")
+	zipAjouteFichier(arch, "y", zipEnMémoire, "f2.txt")
+	zipAjouteFichier(arch, "z", zipEnMémoire, "f3.txt")
+	zipFerme(arch)
+
+	// Sans annulation : 3 entrées x 2 (début + fin) = 6 appels
+	r est un zipArchive = zipOuvre("/tmp/owl_cb.zip")
+	nRet est un booléen = zipExtraitTout(r, "/tmp/owl_cb_out", ProgSuivi)
+	zipFerme(r)
+	dbgVérifieEgalité(nRet, Vrai, "zipExtraitTout avec callback OK")
+	dbgVérifieEgalité(gNbAppels, 6, "6 appels de callback sur 3 entrées")
+
+	// Avec annulation à 66%
+	gNbAppels = 0
+	gAnnule   = Vrai
+	r2 est un zipArchive = zipOuvre("/tmp/owl_cb.zip")
+	rc2 est un booléen = zipExtraitTout(r2, "/tmp/owl_cb_out2", ProgSuivi)
+	// Important : capturer ErreurInfo avant zipFerme (qui clear l'erreur).
+	msgErr est une chaîne = ErreurInfo()
+	zipFerme(r2)
+	dbgVérifieEgalité(rc2, Faux, "Annulation renvoie Faux (échec partiel)")
+	dbgVérifieVrai(gNbAppels < 6, "Annulation coupe court les appels")
+	dbgVérifieVrai(Position(msgErr, "annul") > 0, "ErreurInfo mentionne annulation")
+FIN
+TestCallbacks()
+
+Trace("=== COMPRESSION — WinZip AES-2 primitives ===")
+
+// Roundtrip ASCII
+chiffre est un buffer = __AE2Encrypt("Hello", "secret")
+dbgVérifieVrai(Taille(chiffre) = 5 + 28, "AE-2 overhead = 28 bytes (salt+verif+hmac)")
+clair est un buffer = __AE2Decrypt(chiffre, "secret")
+clairStr est une chaîne = BufferVersChaîne(clair)
+dbgVérifieEgalité(clairStr, "Hello", "AE-2 roundtrip ASCII")
+
+// Roundtrip UTF-8 binaire
+original est une chaîne = "éàüç日本 secret" // 18 bytes UTF-8
+c2 est un buffer = __AE2Encrypt(original, "P4$$w0rd!")
+d2 est un buffer = __AE2Decrypt(c2, "P4$$w0rd!")
+d2str est une chaîne = BufferVersChaîne(d2)
+dbgVérifieEgalité(d2str, original, "AE-2 roundtrip UTF-8 + password complexe")
+
+// Mauvais mot de passe → NIL + erreur 21
+mauvaisPw est un buffer = __AE2Decrypt(c2, "wrong")
+dbgVérifieEgalité(EstNul(mauvaisPw), Vrai, "Mauvais password renvoie Null")
+dbgVérifieVrai(Position(ErreurInfo(), "incorrect") > 0, "Erreur mentionne 'incorrect'")
+
+// Randomness : deux chiffrements du même message diffèrent (salt aléatoire)
+c3a est un buffer = __AE2Encrypt("same", "same")
+c3b est un buffer = __AE2Encrypt("same", "same")
+// Comparaison byte-à-byte via première byte du salt
+tA est un buffer = c3a
+tB est un buffer = c3b
+dbgVérifieVrai(Taille(tA) = Taille(tB), "Même taille après chiffrement")
+// Les salts étant aléatoires, les 16 premiers bytes diffèrent presque sûrement
+
+// Altération → HMAC mismatch détecté
+// On altère un byte de données chiffrées (offset 20 = dans la ciphertext)
+// ... pas trivial à faire depuis OWL sans Buffer mutation, skip
+
+// Empty plaintext
+emptyC est un buffer = __AE2Encrypt("", "pwd")
+dbgVérifieEgalité(Taille(emptyC), 28, "Chiffrement vide = 28 bytes (overhead seul)")
+emptyD est un buffer = __AE2Decrypt(emptyC, "pwd")
+emptyDstr est une chaîne = BufferVersChaîne(emptyD)
+dbgVérifieEgalité(emptyDstr, "", "Déchiffrement vide OK")
+
+Trace("=== COMPRESSION — ZIP encrypted end-to-end (AES-256) ===")
+
+PROCEDURE TestZipAES()
+	// Write encrypted ZIP
+	arch est un zipArchive = zipCrée("/tmp/owl_aes.zip")
+	zipMotDePasse(arch, "motDePasseSecret")
+	zipAjouteFichier(arch, "Données confidentielles éàü🔐", zipEnMémoire, "secret.txt")
+	zipAjouteFichier(arch, "# Readme chiffré", zipEnMémoire, "docs/readme.md")
+	zipFerme(arch)
+
+	// Read back with correct password
+	r est un zipArchive = zipOuvre("/tmp/owl_aes.zip")
+	zipMotDePasse(r, "motDePasseSecret")
+	dbgVérifieEgalité(zipNbFichier(r), 2, "Archive chiffrée contient 2 entrées")
+
+	buf est un buffer = zipExtraitFichier(r, 1, 65535)
+	sDec est une chaîne = BufferVersChaîne(buf)
+	dbgVérifieEgalité(sDec, "Données confidentielles éàü🔐", "Déchiffrement OK avec bon mdp")
+
+	// By name
+	buf2 est un buffer = zipExtraitFichier(r, "docs/readme.md", 65535)
+	sDec2 est une chaîne = BufferVersChaîne(buf2)
+	dbgVérifieEgalité(sDec2, "# Readme chiffré", "Déchiffrement par nom OK")
+	zipFerme(r)
+
+	// Wrong password → error
+	r2 est un zipArchive = zipOuvre("/tmp/owl_aes.zip")
+	zipMotDePasse(r2, "mauvaisMdp")
+	rien est un buffer = zipExtraitFichier(r2, 1, 65535)
+	dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+	dbgVérifieVrai(Position(ErreurInfo(), "mot de passe") > 0, "Message mentionne 'mot de passe'")
+	zipFerme(r2)
+
+	// No password set → explicit error on encrypted entry
+	r3 est un zipArchive = zipOuvre("/tmp/owl_aes.zip")
+	rienPw est un buffer = zipExtraitFichier(r3, 1, 65535)
+	dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+	dbgVérifieVrai(Position(ErreurInfo(), "zipMotDePasse") > 0, "Message suggère zipMotDePasse")
+	zipFerme(r3)
+FIN
+TestZipAES()

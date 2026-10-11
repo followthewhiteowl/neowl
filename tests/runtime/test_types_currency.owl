@@ -1,0 +1,59 @@
+Trace("=== TYPE MONETAIRE ===")
+
+// --- Declaration et defaut ---
+prix est un monétaire
+dbgVérifieEgalité(TypeVar(prix), owlMonetaire, "type monetaire")
+dbgVérifieEgalité(prix, 0m0, "default = 0")
+
+// --- Literal 0m ---
+total est un monétaire = 0m19.99
+dbgVérifieEgalité(total, 0m19.99, "literal 0m19.99")
+
+// --- Precision EXACTE (test critique) ---
+// Avec reel: 0.1 + 0.2 = 0.30000000000000004 (IEEE-754)
+// Avec monetaire: 0.1 + 0.2 = 0.3 EXACT
+m1 est un monétaire = 0m0.1
+m2 est un monétaire = 0m0.2
+dbgVérifieEgalité(m1 + m2, 0m0.3, "0.1 + 0.2 = 0.3 EXACT (pas 0.30000...)")
+
+// --- Accumulation 100 fois 0.01 = 1 exact ---
+accum est un monétaire = 0m0
+POUR i = 1 À 100
+	accum += 0m0.01
+FIN
+dbgVérifieEgalité(accum, 0m1.0, "100 * 0.01 = 1.0 EXACT")
+
+// --- Arithmetique de base ---
+dbgVérifieEgalité(0m10.00 - 0m3.50, 0m6.5, "soustraction")
+dbgVérifieEgalité(0m5.00 * 3, 0m15.0, "mult par entier")
+dbgVérifieEgalité(0m100.00 / 4, 0m25.0, "div par entier")
+dbgVérifieEgalité(0m100.00 / 0m4.0, 25.0, "div currency/currency = reel")
+
+// --- Negation ---
+neg est un monétaire = -0m19.99
+dbgVérifieEgalité(neg, 0m-19.99, "negation")
+
+// --- Conversion vers string (concatenation) ---
+msg est une chaîne = "Prix: " + 0m19.99
+dbgVérifieEgalité(msg, "Prix: 19.99", "concat currency -> string")
+
+// --- Comparaisons ---
+dbgVérifieVrai(0m10.0 > 0m5.0, "currency > currency")
+dbgVérifieVrai(0m10.0 = 10, "currency = entier via coercion")
+dbgVérifieVrai(0m10.5 = 10.5, "currency = reel via coercion")
+
+// --- 6 decimales de precision ---
+precision est un monétaire = 0m0.000001
+dbgVérifieEgalité(precision, 0m0.000001, "6 decimales exactes")
+
+// --- Mixte currency + integer ---
+montant est un monétaire = 0m19.99 + 1
+dbgVérifieEgalité(montant, 0m20.99, "currency + entier = currency")
+
+// --- TVA: test realiste business ---
+ht est un monétaire = 0m100.00
+taux est un réel = 20.0
+ttc est un monétaire = ht * (1.0 + taux / 100.0)
+dbgVérifieEgalité(ttc, 0m120.0, "100 HT + 20% TVA = 120 TTC")
+
+dbgBilanTest()

@@ -1,0 +1,50 @@
+// Instance classe sans parentheses : auto-instanciation vs erreur compile-time.
+// Ticket  — couvre le bug "oFoo est un cFoo" (sans `()`) ne construit
+// pas l'instance alors que le comportement attendu est :
+//   - auto-instanciation si constructeur trivial (0 args requis)
+//   - erreur compile-time si constructeur requiert des arguments
+//
+// Ce fichier couvre : classe SANS constructeur explicite + edge cases
+// (nullable, init explicite, forme explicite avec `()`).
+
+cAnimal est une Classe
+PUBLIC
+	sNom est une chaîne = "Bouba"
+
+	PROCEDURE Crie() : chaîne
+		RENVOYER "Je suis " + :sNom
+	FIN
+FIN
+
+PROCEDURE scenario_classe_sans_constructeur()
+	// Canon : forme avec `()`
+	unChienA est un cAnimal()
+	dbgVérifieEgalité(unChienA.Crie(), "Je suis Bouba", "Forme canon cAnimal() fonctionne")
+	dbgVérifieVrai(EstNul(unChienA) = Faux, "Forme canon : instance non-Null")
+	dbgVérifieVrai(TypeVar(unChienA) <> 0, "Forme canon : TypeVar non-zero")
+
+	// Nouvelle forme : sans `()` → doit auto-instancier
+	unChienB est un cAnimal
+	dbgVérifieEgalité(unChienB.Crie(), "Je suis Bouba", "Sans () : auto-instanciation, methode callable")
+	dbgVérifieVrai(EstNul(unChienB) = Faux, "Sans () : instance non-Null")
+	dbgVérifieVrai(TypeVar(unChienB) <> 0, "Sans () : TypeVar non-zero")
+FIN
+
+PROCEDURE scenario_init_explicite_preserve()
+	// Init explicite = Null → pas d'auto-instanciation
+	oFoo est un cAnimal = Null
+	dbgVérifieVrai(EstNul(oFoo) = Vrai, "Init explicite = Null : reste Null")
+
+	// Init explicite = autre instance → pas d'auto-instanciation
+	oRefA est un cAnimal()
+	oRefB est un cAnimal = oRefA
+	dbgVérifieVrai(EstNul(oRefB) = Faux, "Init explicite = autre instance : non-Null")
+	dbgVérifieEgalité(oRefB.Crie(), "Je suis Bouba", "Init explicite = autre instance : fonctionne")
+FIN
+
+PROCEDURE scenario_nullable_pas_auto_instanciation()
+	// Nullable (`<nullable>`) → intention explicite "peut etre Null"
+	// PAS d'auto-instanciation
+	oNullable est un cAnimal < nullable >
+	dbgVérifieVrai(EstNul(oNullable) = Vrai, "Nullable sans init : reste Null (PAS d'auto-instanciation)")
+FIN

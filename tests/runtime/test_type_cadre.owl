@@ -1,0 +1,61 @@
+// =====================================================================
+// TEST: Type composé Cadre (canon de référence). Phase D.1.a.
+//
+// Verifie :
+//   1. Defaults canon (Couleur=0, Epaisseur=0, Trait=TraitContinu=0,
+//      Arrondi=0, Bords=BordTous=15).
+//   2. Affectation des sous-champs avec syntaxe descripteur composé.
+//   3. Constantes TraitCadre (5 styles directs CSS Qt6) et BordsCadre.
+//   4. Combinaison de Bords par addition (BordHaut + BordBas).
+//
+// Note divergence : OWL réduit la liste canon de référence (qui inclut variantes
+// Moyen/Epais/Mixte*) aux 5 styles supportés directement par CSS Qt6 :
+// solid / none / dashed / dotted / double. Cf src/ui_catalog.c:1182.
+// =====================================================================
+
+Trace("=== Type Cadre — premier rocher du Lot D (Style enabler) ===")
+
+// --- Defaults d'une instance ---
+c est un Cadre
+dbgVérifieEgalité(c..Couleur, 0, "Cadre..Couleur defaut = 0 (noir)")
+dbgVérifieEgalité(c..Epaisseur, 0, "Cadre..Epaisseur defaut = 0 (invisible)")
+dbgVérifieEgalité(c..Trait, TraitContinu, "Cadre..Trait defaut = TraitContinu")
+dbgVérifieEgalité(c..Arrondi, 0, "Cadre..Arrondi defaut = 0")
+dbgVérifieEgalité(c..Bords, BordTous, "Cadre..Bords defaut = BordTous = 15")
+
+// --- Affectations des sous-champs ---
+c..Couleur   = RougeFoncé
+c..Epaisseur = 2
+c..Trait     = TraitTiret
+c..Arrondi   = 4
+c..Bords     = BordHaut + BordBas
+dbgVérifieEgalité(c..Couleur, RougeFoncé, "Couleur affectee")
+dbgVérifieEgalité(c..Epaisseur, 2, "Epaisseur affectee")
+dbgVérifieEgalité(c..Trait, TraitTiret, "Trait = TraitTiret")
+dbgVérifieEgalité(c..Arrondi, 4, "Arrondi affecte")
+dbgVérifieEgalité(c..Bords, 5, "Bords = BordHaut(1) + BordBas(4) = 5")
+
+// --- Constantes TraitCadre (5 styles directs CSS Qt6) ---
+// Invariant : toutes distinctes (valeurs sentinels internes).
+dbgVérifieDifférence(TraitContinu, TraitAucun, "TraitContinu != TraitAucun")
+dbgVérifieDifférence(TraitAucun, TraitTiret, "TraitAucun != TraitTiret")
+dbgVérifieDifférence(TraitTiret, TraitPointillé, "TraitTiret != TraitPointillé")
+dbgVérifieDifférence(TraitPointillé, TraitDouble, "TraitPointillé != TraitDouble")
+
+// --- Constantes BordsCadre (combinable bitwise) ---
+dbgVérifieEgalité(BordAucun, 0, "BordAucun = 0")
+dbgVérifieEgalité(BordHaut, 1, "BordHaut = 1")
+dbgVérifieEgalité(BordDroite, 2, "BordDroite = 2")
+dbgVérifieEgalité(BordBas, 4, "BordBas = 4")
+dbgVérifieEgalité(BordGauche, 8, "BordGauche = 8")
+dbgVérifieEgalité(BordTous, 15, "BordTous = 15 = somme tous bords")
+
+// --- Combinaisons de Bords ---
+dbgVérifieEgalité(BordHaut + BordBas, 5, "Haut+Bas = 5")
+dbgVérifieEgalité(BordGauche + BordDroite, 10, "Gauche+Droite = 10")
+dbgVérifieEgalité(BordHaut + BordDroite + BordBas + BordGauche, 15, "Tous individuellement = BordTous")
+
+// --- Alias ASCII auto-generes (forme canonique accentuee) ---
+dbgVérifieEgalité(TraitPointillé, TraitPointillé, "TraitPointille (alias ASCII) = TraitPointillé")
+
+dbgBilanTest()

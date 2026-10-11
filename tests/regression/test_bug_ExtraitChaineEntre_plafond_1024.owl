@@ -1,0 +1,23 @@
+// Regression : ExtraitChaîneEntre(..., DepuisFin) au-delà de 1024 occurrences.
+//
+// La branche DepuisFin collectait les correspondances (entre bornes) dans un
+// tableau borné puis indexait depuis la fin. Au-delà du plafond, la collecte
+// s'arrêtait silencieusement et l'index depuis la fin renvoyait une mauvaise
+// correspondance.
+//
+// On construit "<x0><x1>...<x1029>" (1030 correspondances DISTINGUABLES).
+
+sBig est une chaîne = ""
+POUR i = 0 A 1029
+	sBig = sBig + "<x" + NumériqueVersChaîne(i) + ">"
+FIN
+
+// Rang 1 depuis la fin = toute dernière correspondance.
+dbgVérifieEgalité(ExtraitChaîneEntre(sBig, 1, "<", ">", DepuisFin), "x1029",
+	"ExtraitChaîneEntre rang 1 depuis la fin sur 1030 correspondances = dernière")
+
+// Rang 5 depuis la fin.
+dbgVérifieEgalité(ExtraitChaîneEntre(sBig, 5, "<", ">", DepuisFin), "x1025",
+	"ExtraitChaîneEntre rang 5 depuis la fin sur 1030 correspondances")
+
+dbgBilanTest()

@@ -1,0 +1,33 @@
+//  — l'état de style `grisé` (FR) et `grayed` (EN) désignent le MÊME
+// slot d'état. Preuve par round-trip croisé sur le store : ce qu'on écrit via
+// une forme se relit via l'autre. Couvre les 3 tables d'états de style :
+// ZoneSaisie, Libellé (bouton) et Image (bouton).
+//
+// Round-trip pur (pas de rendu pixel) → headless suffit : on teste la
+// résolution de nom d'état dans le parser/store, pas la peinture Qt.
+
+couleurFond est un entier = RVB(0, 255, 0)
+couleurCadre est un entier = RVB(0, 128, 255)
+couleurLib est un entier = RVB(255, 0, 255)
+
+OuvreSoeur(FEN_StyleEtatAliasGrayed)
+
+// --- 1. ZoneSaisie : écriture EN (grayed), relecture FR (grisé) ---
+SAI_Cible..Style..ZoneSaisie..Etats[grayed]..CouleurFond = couleurFond
+dbgVérifieEgalité(SAI_Cible..Style..ZoneSaisie..Etats[grisé]..CouleurFond, couleurFond, "Saisie : écrit via Etats[grayed] (EN), relu via Etats[grisé] (FR) — même slot")
+
+// --- 2. ZoneSaisie : écriture FR (grisé), relecture EN (grayed) ---
+SAI_Cible..Style..ZoneSaisie..Etats[grisé]..Cadre..Couleur = couleurCadre
+dbgVérifieEgalité(SAI_Cible..Style..ZoneSaisie..Etats[grayed]..Cadre..Couleur, couleurCadre, "Saisie : écrit via Etats[grisé] (FR), relu via Etats[grayed] (EN) — même slot")
+
+// --- 3. Libellé bouton (table styleZoneBouton) : EN écrit, FR relu ---
+BTN_Cible..Style..Libellé..Etats[grayed]..CouleurFond = couleurLib
+dbgVérifieEgalité(BTN_Cible..Style..Libellé..Etats[grisé]..CouleurFond, couleurLib, "Bouton libellé : écrit via Etats[grayed] (EN), relu via Etats[grisé] (FR)")
+
+// --- 4. Image bouton (table styleImageBouton) : FR écrit, EN relu ---
+BTN_Cible..Style..Image..Image               = icones.add
+BTN_Cible..Style..Image..Etats[grisé]..Image = icones.close
+dbgVérifieEgalité(BTN_Cible..Style..Image..Etats[grayed]..Image, icones.close, "Bouton image : écrit via Etats[grisé] (FR), relu via Etats[grayed] (EN)")
+
+Ferme(FEN_StyleEtatAliasGrayed)
+dbgBilanTest()

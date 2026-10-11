@@ -1,0 +1,239 @@
+// @sujet : MLArbreDécision — arbre de décision CART (classification et régression)
+// @résumé : MLArbreDécision construit un arbre de décision par split glouton
+// (réduction d'impureté). L'objectif de la tâche (`..Objectif` :
+// objClassification ou objRégression) doit être réglé avant `.Entraîne`,
+// aucune inférence implicite. `.Entraîne(X, y)` prend une Matrice
+// d'échantillons × variables et un Tenseur 1D de cibles (indices de classe
+// 0-based en classification, valeurs continues en régression).
+// `.Prédit(X)` rend un Tenseur 1D, une prédiction par ligne. Les
+// hyperparamètres `..ProfondeurMax`, `..MinÉchantillonsSéparation` et
+// `..MinÉchantillonsFeuille` bornent la croissance de l'arbre. Les
+// scénarios ci-dessous calculent à la main le petit arbre attendu (CART
+// est déterministe) et vérifient les prédictions exactes.
+
+
+// Une seule variable, split net à 2.5 : les 2 premières lignes forment une
+// feuille pure classe 0, les 2 dernières une feuille pure classe 1.
+PROCEDURE PUBLIQUE scenario_classification_split_simple()
+	arbre est un MLArbreDécision
+	arbre..Objectif = objClassification
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 1.0, 1.0])
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "ligne 1 (x=1) : feuille gauche pure, classe 0")
+	dbgVérifieEgalité(preds..Valeur[2], 0.0, "ligne 2 (x=2) : feuille gauche pure, classe 0")
+	dbgVérifieEgalité(preds..Valeur[3], 1.0, "ligne 3 (x=3) : feuille droite pure, classe 1")
+	dbgVérifieEgalité(preds..Valeur[4], 1.0, "ligne 4 (x=4) : feuille droite pure, classe 1")
+FIN
+
+
+// Deux variables, la première est constante (aucun split possible dessus) :
+// le split ne peut se faire que sur la deuxième colonne. Prouve que le
+// glouton explore bien toutes les colonnes, pas seulement la première.
+PROCEDURE PUBLIQUE scenario_classification_deux_variables()
+	arbre est un MLArbreDécision
+	arbre..Objectif = objClassification
+
+	matX est une Matrice = [[5.0, 1.0], [5.0, 2.0], [5.0, 3.0], [5.0, 4.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 1.0, 1.0])
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "1re colonne constante -> split forcé sur la 2e colonne, classe 0")
+	dbgVérifieEgalité(preds..Valeur[2], 0.0, "2e ligne : classe 0")
+	dbgVérifieEgalité(preds..Valeur[3], 1.0, "3e ligne : classe 1")
+	dbgVérifieEgalité(preds..Valeur[4], 1.0, "4e ligne : classe 1")
+FIN
+
+
+// Régression : split à 2.5, chaque feuille prédit la moyenne (ici deux
+// valeurs identiques par feuille, donc la moyenne vaut la valeur commune).
+PROCEDURE PUBLIQUE scenario_regression_split_simple()
+	arbre est un MLArbreDécision
+	arbre..Objectif = objRégression
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([10.0, 10.0, 20.0, 20.0])
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[1] - 10.0) < 0.0001, "feuille gauche : moyenne de [10,10] = 10")
+	dbgVérifieVrai(Abs(preds..Valeur[2] - 10.0) < 0.0001, "feuille gauche : moyenne de [10,10] = 10")
+	dbgVérifieVrai(Abs(preds..Valeur[3] - 20.0) < 0.0001, "feuille droite : moyenne de [20,20] = 20")
+	dbgVérifieVrai(Abs(preds..Valeur[4] - 20.0) < 0.0001, "feuille droite : moyenne de [20,20] = 20")
+FIN
+
+
+// Régression avec une feuille qui moyenne deux valeurs différentes.
+// ProfondeurMax=1 borne l'arbre à un seul split (le meilleur, à 2.5, par
+// réduction de SSE maximale) : SANS cette limite, la feuille gauche {10,12}
+// se scinderait encore en {10} et {12} (feuilles pures) et l'effet de
+// moyenne disparaîtrait. Bornée à un split, la feuille gauche moyenne
+// 10 et 12 -> 11, pas une des deux valeurs d'origine.
+PROCEDURE PUBLIQUE scenario_regression_feuille_moyenne_plusieurs_valeurs()
+	arbre est un MLArbreDécision
+	arbre..Objectif      = objRégression
+	arbre..ProfondeurMax = 1
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([10.0, 12.0, 20.0, 20.0])
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[1] - 11.0) < 0.0001, "feuille gauche : moyenne de [10,12] = 11")
+	dbgVérifieVrai(Abs(preds..Valeur[2] - 11.0) < 0.0001, "feuille gauche : moyenne de [10,12] = 11")
+	dbgVérifieVrai(Abs(preds..Valeur[3] - 20.0) < 0.0001, "feuille droite : moyenne de [20,20] = 20")
+	dbgVérifieVrai(Abs(preds..Valeur[4] - 20.0) < 0.0001, "feuille droite : moyenne de [20,20] = 20")
+FIN
+
+
+// ..ProfondeurMax borne la croissance : ce jeu a 3 classes ordonnées et
+// exige 2 splits successifs pour être parfaitement séparé (0,0,0 | 1,1 |
+// 2). Sans limite, l'arbre atteint la pureté totale. Avec ProfondeurMax=1,
+// seul le premier split (le plus rentable, à 3.5) est autorisé : la
+// feuille droite ([1,1,2]) ne peut plus se séparer et prédit sa classe
+// majoritaire (1) pour ses 3 lignes, y compris la ligne qui vaut 2.
+PROCEDURE PUBLIQUE scenario_profondeur_max_borne_purete()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+
+	arbreLibre est un MLArbreDécision
+	arbreLibre..Objectif = objClassification
+	arbreLibre.Entraîne(matX, y)
+	predsLibre est un Tenseur = arbreLibre.Prédit(matX)
+	dbgVérifieEgalité(predsLibre..Valeur[6], 2.0, "sans limite de profondeur : pureté totale, la dernière ligne vaut 2")
+
+	arbreBorne est un MLArbreDécision
+	arbreBorne..Objectif      = objClassification
+	arbreBorne..ProfondeurMax = 1
+	arbreBorne.Entraîne(matX, y)
+	predsBorne est un Tenseur = arbreBorne.Prédit(matX)
+	dbgVérifieEgalité(predsBorne..Valeur[1], 0.0, "1er split (le plus rentable) toujours autorisé : ligne 1 = classe 0")
+	dbgVérifieEgalité(predsBorne..Valeur[4], 1.0, "feuille droite non séparable plus loin : classe majoritaire 1")
+	dbgVérifieEgalité(predsBorne..Valeur[6], 1.0, "ProfondeurMax=1 empêche le 2e split : la ligne qui vaut 2 hérite de la classe majoritaire 1, pas 2")
+FIN
+
+
+// ..MinÉchantillonsFeuille empêche un split qui produirait une feuille
+// trop petite. Sur ce jeu de 3 lignes, le split naturel (à 2.5) produit
+// une feuille de taille 1, ce qui est refusé si MinÉchantillonsFeuille=2 :
+// aucun split de taille valide n'existe (2+2 > 3), le nœud racine reste
+// une feuille unique qui prédit sa classe majoritaire (0).
+PROCEDURE PUBLIQUE scenario_min_echantillons_feuille_empeche_split()
+	matX est une Matrice = [[1.0], [2.0], [3.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 1.0])
+
+	arbreLibre est un MLArbreDécision
+	arbreLibre..Objectif = objClassification
+	arbreLibre.Entraîne(matX, y)
+	predsLibre est un Tenseur = arbreLibre.Prédit(matX)
+	dbgVérifieEgalité(predsLibre..Valeur[3], 1.0, "par défaut (MinÉchantillonsFeuille=1) : split possible, ligne 3 = classe 1")
+
+	arbreContraint est un MLArbreDécision
+	arbreContraint..Objectif               = objClassification
+	arbreContraint..MinÉchantillonsFeuille = 2
+	arbreContraint.Entraîne(matX, y)
+	predsContraint est un Tenseur = arbreContraint.Prédit(matX)
+	dbgVérifieEgalité(predsContraint..Valeur[1], 0.0, "aucun split valide (feuille de taille 1 refusée) : classe majoritaire 0")
+	dbgVérifieEgalité(predsContraint..Valeur[3], 0.0, "ligne 3 hérite aussi de la classe majoritaire 0, le nœud racine reste une feuille")
+FIN
+
+
+// `.Entraîne` sans `..Objectif` réglé au préalable est une erreur
+// récupérable claire (pas de défaut silencieux qui masquerait une erreur
+// de tâche). Vérification d'`ErreurDétectée` avant toute autre
+// instruction (la sentinelle d'erreur fraîche ne survit qu'à un OP_CALL).
+PROCEDURE PUBLIQUE scenario_objectif_obligatoire_avant_entraine()
+	ErreurRAZ()
+	arbre est un MLArbreDécision
+	matX est une Matrice = [[1.0], [2.0]]
+	y est un Tenseur = Tenseur([0.0, 1.0])
+	arbre.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "Entraîne sans Objectif réglé -> ErreurDétectée")
+FIN
+
+
+// Tailles incohérentes entre X (nombre de lignes) et y (nombre
+// d'éléments) : erreur récupérable, pas de crash ni de résultat inventé.
+PROCEDURE PUBLIQUE scenario_tailles_incoherentes_x_y()
+	ErreurRAZ()
+	arbre est un MLArbreDécision
+	arbre..Objectif = objClassification
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([0.0, 1.0, 1.0])
+	arbre.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "4 lignes dans X mais 3 valeurs dans y -> ErreurDétectée")
+FIN
+
+
+// Formes anglaises : MLDecisionTree / ..Objective / ..MaxDepth / .Train /
+// .Predict. Régression complète (mêmes valeurs hand-calculées que la
+// forme FR : split à 2.5, feuilles 10 et 20).
+PROCEDURE PUBLIQUE scenario_formes_anglaises_regression()
+	arbre est un MLDecisionTree
+	arbre..Objective = objRegression
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([10.0, 10.0, 20.0, 20.0])
+	arbre.Train(matX, y)
+
+	preds est un Tenseur = arbre.Predict(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[1] - 10.0) < 0.0001, "Train/Predict EN : feuille gauche = 10")
+	dbgVérifieVrai(Abs(preds..Valeur[4] - 20.0) < 0.0001, "Train/Predict EN : feuille droite = 20")
+FIN
+
+
+// Formes anglaises : objClassification + ..MaxDepth. Même jeu et même
+// borne que scenario_profondeur_max_borne_purete, en formes EN.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_maxdepth()
+	arbre est un MLDecisionTree
+	arbre..Objective = objClassification
+	arbre..MaxDepth  = 1
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+	arbre.Train(matX, y)
+
+	preds est un Tenseur = arbre.Predict(matX)
+	dbgVérifieEgalité(preds..Valeur[6], 1.0, "MaxDepth=1 EN : même borne qu'en FR, classe majoritaire 1 hérite la dernière ligne")
+FIN
+
+
+// Edge case (initiative test_writer) : ..MinÉchantillonsSéparation borne
+// aussi la croissance, indépendamment de ..MinÉchantillonsFeuille. Avec
+// MinÉchantillonsSéparation=4 sur un nœud de 3 échantillons, aucun split
+// n'est tenté (3 < 4) : le nœud racine reste une feuille, même résultat
+// que la contrainte MinÉchantillonsFeuille=2 du scénario public.
+PROCEDURE PRIVÉE scenario_edge_min_echantillons_separation_empeche_split()
+	arbre est un MLArbreDécision
+	arbre..Objectif                  = objClassification
+	arbre..MinÉchantillonsSéparation = 4
+
+	matX est une Matrice = [[1.0], [2.0], [3.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 1.0])
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "nœud de 3 < MinÉchantillonsSéparation=4 : aucun split, classe majoritaire 0")
+	dbgVérifieEgalité(preds..Valeur[3], 0.0, "ligne 3 hérite aussi de la classe majoritaire 0")
+FIN
+
+
+// Edge case (initiative test_writer) : ..ProfondeurMax=0 réglé
+// explicitement doit se comporter comme la valeur par défaut (illimité),
+// pas comme "aucun split autorisé".
+PROCEDURE PRIVÉE scenario_edge_profondeur_max_zero_egale_illimite()
+	arbre est un MLArbreDécision
+	arbre..Objectif      = objClassification
+	arbre..ProfondeurMax = 0
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	dbgVérifieEgalité(preds..Valeur[6], 2.0, "ProfondeurMax=0 explicite = illimité, pureté totale comme le défaut")
+FIN

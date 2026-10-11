@@ -1,0 +1,122 @@
+// @sujet : TenseurPermute / TenseurTranspose (natives préfixées)
+// @résumé : Les natives préfixées TenseurPermute(t, ordre) et
+// TenseurTranspose(t, axe1, axe2) désignent exactement la même opération
+// que les formes fluentes t.Permute(ordre) et t.Transpose(axe1, axe2) :
+// même réindexation en avant, même gradient renvoyé par Rétropropage().
+// Ces scénarios prouvent la parité native ⇔ méthode, valeur et gradient.
+
+// Parité en avant sur Permute : pour un même Tenseur 3D (2x2x3), la native
+// TenseurPermute et la méthode .Permute produisent une valeur identique,
+// position par position. Valeurs calculées à la main sur le littéral
+// 1.0..12.0 : Permute([2,1,3]) échange les deux premiers axes, donc
+// p[i][j][k] = t[j][i][k].
+PROCEDURE PUBLIQUE scenario_permute_parite_forward()
+	tNat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	tMet est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+
+	pNat est un Tenseur = TenseurPermute(tNat, [2, 1, 3])
+	pMet est un Tenseur = tMet.Permute([2, 1, 3])
+
+	dbgVérifieEgalité(pNat..Forme[1], 2, "TenseurPermute([2,1,3]) : forme[1] = ancienne forme[2]")
+	dbgVérifieEgalité(pNat..Forme[2], 2, "TenseurPermute([2,1,3]) : forme[2] = ancienne forme[1]")
+	dbgVérifieEgalité(pNat..Forme[3], 3, "TenseurPermute([2,1,3]) : forme[3] inchangée")
+
+	dbgVérifieEgalité(pNat..Valeur[1][1][1], 1.0, "TenseurPermute : p[1][1][1] = t[1][1][1]")
+	dbgVérifieEgalité(pNat..Valeur[1][2][1], 7.0, "TenseurPermute : p[1][2][1] = t[2][1][1]")
+	dbgVérifieEgalité(pNat..Valeur[2][1][1], 4.0, "TenseurPermute : p[2][1][1] = t[1][2][1]")
+	dbgVérifieEgalité(pNat..Valeur[2][2][3], 12.0, "TenseurPermute : p[2][2][3] = t[2][2][3]")
+
+	// Parité stricte native ⇔ méthode, position par position.
+	dbgVérifieEgalité(pNat..Valeur[1][1][1], pMet..Valeur[1][1][1], "Parité : native == méthode en [1][1][1]")
+	dbgVérifieEgalité(pNat..Valeur[1][2][1], pMet..Valeur[1][2][1], "Parité : native == méthode en [1][2][1]")
+	dbgVérifieEgalité(pNat..Valeur[2][1][1], pMet..Valeur[2][1][1], "Parité : native == méthode en [2][1][1]")
+	dbgVérifieEgalité(pNat..Valeur[2][2][3], pMet..Valeur[2][2][3], "Parité : native == méthode en [2][2][3]")
+FIN
+
+
+// Parité du gradient sur Permute : sur q = p*p, Rétropropage() renvoie
+// chaque gradient à sa position d'origine dans t. Comme Permute est une
+// réindexation bijective, t..Gradient[i][j][k] = 2 * t..Valeur[i][j][k].
+// La native et la méthode doivent produire le même gradient.
+PROCEDURE PUBLIQUE scenario_permute_parite_backward()
+	tNat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	pNat est un Tenseur = TenseurPermute(tNat, [2, 1, 3])
+	qNat est un Tenseur = pNat * pNat
+	qNat.Rétropropage()
+
+	tMet est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	pMet est un Tenseur = tMet.Permute([2, 1, 3])
+	qMet est un Tenseur = pMet * pMet
+	qMet.Rétropropage()
+
+	dbgVérifieEgalité(tNat..Gradient[1][1][1], 2.0, "TenseurPermute backward : 2*t[1][1][1] = 2*1.0")
+	dbgVérifieEgalité(tNat..Gradient[1][2][1], 8.0, "TenseurPermute backward : 2*t[1][2][1] = 2*4.0")
+	dbgVérifieEgalité(tNat..Gradient[2][1][1], 14.0, "TenseurPermute backward : 2*t[2][1][1] = 2*7.0")
+	dbgVérifieEgalité(tNat..Gradient[2][2][3], 24.0, "TenseurPermute backward : 2*t[2][2][3] = 2*12.0")
+
+	dbgVérifieEgalité(tNat..Gradient[1][1][1], tMet..Gradient[1][1][1], "Parité gradient : native == méthode en [1][1][1]")
+	dbgVérifieEgalité(tNat..Gradient[1][2][1], tMet..Gradient[1][2][1], "Parité gradient : native == méthode en [1][2][1]")
+	dbgVérifieEgalité(tNat..Gradient[2][1][1], tMet..Gradient[2][1][1], "Parité gradient : native == méthode en [2][1][1]")
+	dbgVérifieEgalité(tNat..Gradient[2][2][3], tMet..Gradient[2][2][3], "Parité gradient : native == méthode en [2][2][3]")
+FIN
+
+
+// Parité en avant sur Transpose : TenseurTranspose(t, 2, 3) échange les
+// axes 2 et 3 d'un Tenseur 3D (2x2x3), exactement comme t.Transpose(2, 3) :
+// tt[i][j][k] = t[i][k][j], nouvelle forme (2x3x2).
+PROCEDURE PUBLIQUE scenario_transpose_parite_forward()
+	tNat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	tMet est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+
+	ttNat est un Tenseur = TenseurTranspose(tNat, 2, 3)
+	ttMet est un Tenseur = tMet.Transpose(2, 3)
+
+	dbgVérifieEgalité(ttNat..Forme[1], 2, "TenseurTranspose : axe 1 inchangé")
+	dbgVérifieEgalité(ttNat..Forme[2], 3, "TenseurTranspose : axe 2 = ancien axe 3")
+	dbgVérifieEgalité(ttNat..Forme[3], 2, "TenseurTranspose : axe 3 = ancien axe 2")
+
+	dbgVérifieEgalité(ttNat..Valeur[1][1][1], 1.0, "TenseurTranspose : tt[1][1][1] = t[1][1][1]")
+	dbgVérifieEgalité(ttNat..Valeur[1][2][1], 2.0, "TenseurTranspose : tt[1][2][1] = t[1][1][2]")
+	dbgVérifieEgalité(ttNat..Valeur[2][3][2], 12.0, "TenseurTranspose : tt[2][3][2] = t[2][2][3]")
+
+	dbgVérifieEgalité(ttNat..Valeur[1][1][1], ttMet..Valeur[1][1][1], "Parité : native == méthode en [1][1][1]")
+	dbgVérifieEgalité(ttNat..Valeur[1][2][1], ttMet..Valeur[1][2][1], "Parité : native == méthode en [1][2][1]")
+	dbgVérifieEgalité(ttNat..Valeur[2][3][2], ttMet..Valeur[2][3][2], "Parité : native == méthode en [2][3][2]")
+FIN
+
+
+// Parité du gradient sur Transpose : sur q = tt*tt, Rétropropage() renvoie
+// chaque gradient à sa position d'origine. La native et la méthode doivent
+// produire le même gradient.
+PROCEDURE PUBLIQUE scenario_transpose_parite_backward()
+	tNat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	ttNat est un Tenseur = TenseurTranspose(tNat, 2, 3)
+	qNat est un Tenseur = ttNat * ttNat
+	qNat.Rétropropage()
+
+	tMet est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	ttMet est un Tenseur = tMet.Transpose(2, 3)
+	qMet est un Tenseur = ttMet * ttMet
+	qMet.Rétropropage()
+
+	dbgVérifieEgalité(tNat..Gradient[1][1][1], 2.0, "TenseurTranspose backward : 2*t[1][1][1] = 2*1.0")
+	dbgVérifieEgalité(tNat..Gradient[2][2][3], 24.0, "TenseurTranspose backward : 2*t[2][2][3] = 2*12.0")
+
+	dbgVérifieEgalité(tNat..Gradient[1][1][1], tMet..Gradient[1][1][1], "Parité gradient : native == méthode en [1][1][1]")
+	dbgVérifieEgalité(tNat..Gradient[2][2][3], tMet..Gradient[2][2][3], "Parité gradient : native == méthode en [2][2][3]")
+FIN
+
+
+// Formes anglaises : TensorPermute / TensorTranspose désignent les mêmes
+// opérations que TenseurPermute / TenseurTranspose.
+PROCEDURE PRIVÉE scenario_edge_formes_anglaises()
+	tp is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Reshape([2, 2, 3])
+	p is a Tensor = TensorPermute(tp, [2, 1, 3])
+	dbgVérifieEgalité(p..Shape[1], 2, "TensorPermute : Shape[1] = 2")
+	dbgVérifieEgalité(p..Value[1][2][1], 7.0, "TensorPermute : p[1][2][1] = t[2][1][1]")
+
+	tt is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Reshape([2, 2, 3])
+	tr is a Tensor = TensorTranspose(tt, 2, 3)
+	dbgVérifieEgalité(tr..Shape[2], 3, "TensorTranspose : Shape[2] = ancien axe 3")
+	dbgVérifieEgalité(tr..Value[2][3][2], 12.0, "TensorTranspose : tr[2][3][2] = t[2][2][3]")
+FIN

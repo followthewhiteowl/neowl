@@ -1,0 +1,89 @@
+// Poser un style ne change pas la taille du texte tant que ce style ne parle
+// pas de police.
+//
+// Une brique de style n'est pas un descripteur de police : c'est une
+// surcharge. Tant que l'utilisateur n'a rien écrit dans sa police, le champ
+// garde celle de son thème — donc sa taille naturelle, donc sa place.
+//
+// Les comparaisons sont faites entre deux champs de la même fenêtre plutôt
+// que contre des nombres écrits ici : la taille naturelle d'un texte dépend
+// de la police du système, l'écart entre deux champs n'en dépend pas.
+//
+// Widgets réellement montés (mode non-headless) : la géométrie lue est celle
+// que le champ occupe à l'écran, seule mesure capable de voir le défaut.
+
+TestModeHeadless(Faux)
+
+// --- 1. Les deux formes de police, avant tout affichage.
+// Une Police autonome décrit une police complète : elle porte une taille.
+POL_Autonome est une Police
+dbgVérifieEgalité(POL_Autonome..Taille, 11,
+"Une Police déclarée seule est un descripteur : elle porte une taille (11)")
+
+// Une Police imbriquée dans une brique de style est une surcharge : tant que
+// rien n'y est écrit, elle ne renseigne aucune taille. 0 est hors du domaine
+// des tailles valides, donc jamais confondable avec un choix utilisateur.
+STY_Vierge est un styleLibellé
+dbgVérifieEgalité(STY_Vierge..Libellé..Police..Taille, 0,
+"Dans une brique de style, la police ne renseigne aucune taille tant que rien n'y est écrit (0)")
+dbgVérifieEgalité(STY_Vierge..Libellé..Police..Nom, "",
+"Dans une brique de style, la police ne renseigne aucun nom tant que rien n'y est écrit")
+
+// Écrire une taille dans la brique la rend renseignée.
+STY_Vierge..Libellé..Police..Taille = 18
+dbgVérifieEgalité(STY_Vierge..Libellé..Police..Taille, 18,
+"Une taille écrite dans la brique est relue telle quelle")
+
+
+OuvreSoeur(FEN_StyleSansPolice)
+Temporise(120)
+
+// --- 2. Un style qui ne parle que de couleur ne change aucune géométrie.
+dbgVérifieEgalité(LIB_Style..Hauteur, LIB_Nu..Hauteur,
+"Libellé : un style qui ne pose qu'une couleur ne change pas la hauteur")
+dbgVérifieEgalité(LIB_Style..Largeur, LIB_Nu..Largeur,
+"Libellé : un style qui ne pose qu'une couleur ne change pas la largeur")
+
+dbgVérifieEgalité(SAI_Style..Hauteur, SAI_Nu..Hauteur,
+"Saisie : un style qui ne pose qu'une couleur ne change pas la hauteur")
+
+dbgVérifieEgalité(SEL_Style..Hauteur, SEL_Nu..Hauteur,
+"Sélecteur : un style qui ne pose qu'une couleur ne change pas la hauteur")
+
+dbgVérifieEgalité(INT_Style..Hauteur, INT_Nu..Hauteur,
+"Interrupteur : un style qui ne pose qu'une couleur ne change pas la hauteur")
+
+// --- 3. Une graisse posée à plat survit à un style muet sur la police.
+// La largeur est le témoin : un texte gras est plus large que le même texte
+// maigre, à taille égale.
+dbgVérifieVrai(LIB_Gras..Largeur > LIB_Nu..Largeur,
+"Repère : un texte gras est plus large que le même texte maigre")
+dbgVérifieEgalité(LIB_GrasStyle..Largeur, LIB_Gras..Largeur,
+"Un style qui ne parle pas de police n'efface pas la graisse posée sur le champ")
+dbgVérifieEgalité(LIB_GrasStyle..Hauteur, LIB_Gras..Hauteur,
+"Un style qui ne parle pas de police ne change pas la hauteur d'un champ en gras")
+
+// --- 4. Cas nominal : un style qui PARLE de police l'impose toujours.
+dbgVérifieEgalité(LIB_PoliceStyle..Hauteur, LIB_PolicePlate..Hauteur,
+"Une taille de police écrite dans un style produit la même hauteur que la propriété directe")
+dbgVérifieEgalité(LIB_PoliceStyle..Largeur, LIB_PolicePlate..Largeur,
+"Une taille de police écrite dans un style produit la même largeur que la propriété directe")
+dbgVérifieVrai(LIB_PoliceStyle..Hauteur > LIB_Nu..Hauteur,
+"Une taille de police plus grande écrite dans un style agrandit bien le champ")
+
+// --- 5. Affecter une instance Police complète à une brique applique sa
+// taille : le descripteur, lui, en porte une.
+STY_Instance est un styleLibellé
+STY_Instance..Libellé..Police = POL_Autonome
+dbgVérifieEgalité(STY_Instance..Libellé..Police..Taille, 11,
+"Une Police complète affectée à une brique y apporte sa taille (11)")
+
+LIB_PoliceInstance..Style = STY_Instance
+Temporise(120)
+dbgVérifieEgalité(LIB_PoliceInstance..Hauteur, LIB_PoliceOnze..Hauteur,
+"Une Police complète affectée à une brique produit la même hauteur que la taille correspondante posée directement")
+dbgVérifieEgalité(LIB_PoliceInstance..Largeur, LIB_PoliceOnze..Largeur,
+"Une Police complète affectée à une brique produit la même largeur que la taille correspondante posée directement")
+
+Ferme(FEN_StyleSansPolice)
+dbgBilanTest()

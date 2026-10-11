@@ -1,0 +1,26 @@
+//  — bilingue : le projet déclare le format sous la forme ANGLAISE
+// `TimeFormat = "HH:MI:SS"`. Le repli d'affichage (accesseur projet) reconnaît
+// les deux clés FR/EN, donc un champ Heure sans masque doit préserver les
+// secondes exactement comme si le projet avait écrit `FormatHeure` (FR). Cas
+// discriminant identique au dossier "pilote" : 14304500 (préservé) vs le
+// défaut tronqué 14300000.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que le champ
+// (forme EN TimeFormat) n'existe pas au catalogue manifeste Projet.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ProjetTimeFormatBilingue)
+
+hPrécision est une heure = ChaîneVersHeure("143045")
+SAI_Heure..Valeur = hPrécision
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Champ Heure sans masque, projet TimeFormat (EN) posé : ..Valeur reste un owlHeure")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLue est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLue, "14304500", "TimeFormat projet (forme EN) HH:MI:SS : secondes préservées comme la forme FR FormatHeure")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetTimeFormatBilingue)
+dbgBilanTest()

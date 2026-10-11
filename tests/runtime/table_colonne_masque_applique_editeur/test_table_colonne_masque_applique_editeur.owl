@@ -1,0 +1,34 @@
+// Verrou de mesure —  Path A : le masque de saisie DÉCLARÉ sur une
+// colonne doit être appliqué à l'éditeur RÉEL ouvert sur une
+// cellule de cette colonne, pas seulement stocké (Path B, e90b4a6).
+//
+// __DebugTableCelluleMasque(champ, ligne, colonne) rend le masque EFFECTIF
+// de l'éditeur transitoire de la cellule (ligne/colonne 1-based, miroir de
+// __DebugTableCelluleEditable, ). Convention de forme retenue :
+// masque de référence déclaré (round-trip via owl_ui_lineedit_get_mask, ui_qt.cpp
+// ~L9297, qui convertit l'input mask Qt effectif en forme de référence) — cohérent
+// avec le chemin de lecture SAI..MasqueSaisie. Chaîne vide si la colonne ne
+// porte aucun masque ou si la cellule/le champ est introuvable.
+//
+// Ce hook n'existe pas encore : ce test est ROUGE à la compilation (native
+// inconnue) tant que l'implementer n'a pas ajouté le hook + l'override
+// createEditor() côté src/. Une fois le hook ajouté mais createEditor() pas
+// câblé, il rougit sur les assertions (masque vide au lieu de la valeur
+// déclarée).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneMasqueAppliqueEditeur)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// Colonne avec masque déclaré : l'éditeur de cellule expose ce masque.
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_Masque, 1, 1), "99 99 99 99 99",
+"colonne Code (MasqueSaisie déclaré) : éditeur de la cellule (1,1) masqué")
+
+// Colonne sans masque déclaré : l'éditeur de cellule n'en expose aucun.
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_Masque, 1, 2), "",
+"colonne Libre (sans masque) : éditeur de la cellule (1,2) sans masque")
+
+Ferme(FEN_TableColonneMasqueAppliqueEditeur)
+
+dbgBilanTest()

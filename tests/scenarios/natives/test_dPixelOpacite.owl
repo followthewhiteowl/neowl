@@ -1,0 +1,139 @@
+// @sujet : dPixelOpacité
+// @resume : Lire l'opacité d'un pixel dans une image gérant le canal alpha
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_lecture_opacite_nominal()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image avec canal alpha (10x5 pixels)
+	img = dCréeImage(10, 5, couleurRouge)
+	dbgVérifieEgalité(img..AvecAlpha, Vrai, "image creee avec canal alpha")
+
+	// Lire l'opacité d'un pixel central (par défaut opaque = 255)
+	opacite = dPixelOpacité(img, 5, 2)
+	dbgVérifieEgalité(opacite, 255, "pixel opaque par defaut")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lecture_pixel_transparent()
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image avec fond vert opaque
+	img = dCréeImage(10, 10, couleurVert)
+
+	// Dessiner un pixel transparent (opacité 0) à (3, 3)
+	// Opacité 0 = no-op : le pixel reste inchangé (fond opaque)
+	dPoint(img, 3, 3, couleurNoir, 0)
+
+	// Lire l'opacité du pixel (reste opaque après no-op)
+	opacite = dPixelOpacité(img, 3, 3)
+	dbgVérifieEgalité(opacite, 255, "opacite 0 est no-op : pixel reste opaque")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lecture_semi_transparent()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image avec fond bleu
+	img = dCréeImage(8, 8, couleurBleu)
+
+	// Dessiner un pixel semi-transparent (opacité 128) à (4, 4)
+	dPoint(img, 4, 4, couleurJaune, 128)
+
+	// Lire l'opacité du pixel semi-transparent
+	opacite = dPixelOpacité(img, 4, 4)
+	dbgVérifieEgalité(opacite, 128, "pixel semi-transparent")
+FIN
+
+PROCEDURE PUBLIQUE scenario_pixel_hors_limites()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image 10x5
+	img = dCréeImage(10, 5, couleurJaune)
+
+	// Lire l'opacité hors limites (x=15 dépasse largeur 10)
+	// Comportement actuel : retourne 0 sans erreur (non-spécifié doc canon)
+	opacite = dPixelOpacité(img, 15, 2)
+	dbgVérifieEgalité(opacite, 0, "hors limites retourne 0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_image_invalide()
+	imgInvalide est une Image
+	opacite est un entier
+
+	// Lire l'opacité sur une image invalide
+	// Comportement actuel : retourne 0 sans erreur (non-spécifié doc canon)
+	opacite = dPixelOpacité(imgInvalide, 0, 0)
+	dbgVérifieEgalité(opacite, 0, "image invalide retourne 0")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_opacite_limites()
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurGris est un entier = RVB(100, 100, 100)
+	couleurGrisClair est un entier = RVB(200, 200, 200)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image avec fond blanc
+	img = dCréeImage(10, 10, couleurBlanc)
+
+	// Dessiner un pixel presque transparent (opacité 1)
+	dPoint(img, 2, 2, couleurGris, 1)
+	opacite = dPixelOpacité(img, 2, 2)
+	dbgVérifieEgalité(opacite, 1, "opacite limite basse")
+
+	// Dessiner un pixel presque opaque (opacité 254)
+	dPoint(img, 7, 7, couleurGrisClair, 254)
+	opacite = dPixelOpacité(img, 7, 7)
+	dbgVérifieEgalité(opacite, 254, "opacite limite haute")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1()
+	couleurCyan est un entier = RVB(0, 255, 255)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image minimale 1x1 pixel
+	img = dCréeImage(1, 1, couleurCyan)
+
+	// Lire l'opacité de l'unique pixel (0,0)
+	opacite = dPixelOpacité(img, 0, 0)
+	dbgVérifieEgalité(opacite, 255, "opacite image 1x1 pixel")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_coordonnees_limites()
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	img est une Image
+	opacite est un entier
+
+	// Créer une image 20x15
+	img = dCréeImage(20, 15, couleurMagenta)
+
+	// Lire l'opacité aux 4 coins de l'image
+	opacite = dPixelOpacité(img, 0, 0)
+	dbgVérifieEgalité(opacite, 255, "coin haut-gauche (0,0)")
+
+	opacite = dPixelOpacité(img, 19, 0)
+	dbgVérifieEgalité(opacite, 255, "coin haut-droit (19,0)")
+
+	opacite = dPixelOpacité(img, 0, 14)
+	dbgVérifieEgalité(opacite, 255, "coin bas-gauche (0,14)")
+
+	opacite = dPixelOpacité(img, 19, 14)
+	dbgVérifieEgalité(opacite, 255, "coin bas-droit (19,14)")
+FIN

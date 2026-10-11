@@ -1,0 +1,238 @@
+// @sujet : dRectangleDégradé
+// @résumé : Remplir un rectangle avec un dégradé linéaire entre plusieurs couleurs
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_degrade_horizontal_deux_couleurs()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+
+	// Dégradé horizontal (angle=0, par défaut) : rouge à gauche, bleu à droite
+	img = dCréeImage(100, 50, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 90, 40, couleurRouge, couleurBleu, 0)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 50, 25)
+
+	// Dégradé rouge-bleu visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé horizontal rouge-bleu : visible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_degrade_vertical()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCentre est un entier
+
+	// Dégradé vertical (angle=90) : vert en haut, jaune en bas
+	img = dCréeImage(80, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 70, 90, couleurVert, couleurJaune, 90)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 40, 50)
+
+	// Dégradé vert-jaune visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé vertical vert-jaune : visible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_angle_normalise_au_multiple_90()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelCentre est un entier
+
+	// Angle 45° normalisé au multiple de 90° le plus proche (0° horizontal)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 90, 90, couleurCyan, couleurMagenta, 45)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 50, 50)
+
+	// Dégradé normalisé horizontal visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé angle 45° normalisé : visible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_meme_couleur_debut_fin()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelCentre est un entier
+
+	// Dégradé avec même couleur début et fin → rectangle rempli uniformément
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 90, 90, couleurOrange, couleurOrange, 0)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 50, 50)
+
+	// Dégradé uniforme orange : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé même couleur : rectangle uni visible")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_degrade_trois_couleurs()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+
+	// Dégradé horizontal 3 couleurs : rouge → jaune (30%) → bleu
+	// Note : dégradés 3-4 couleurs uniquement pour angle 0 ou 90°
+	img = dCréeImage(120, 60, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 110, 50, couleurRouge, couleurBleu, 0, couleurJaune, 30)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 60, 30)
+
+	// Dégradé 3 couleurs visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé 3 couleurs : visible")
+FIN
+
+PROCEDURE PRIVÉE scenario_degrade_quatre_couleurs()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCentre est un entier
+
+	// Dégradé vertical 4 couleurs : rouge → vert (25%) → bleu → jaune (75%)
+	img = dCréeImage(80, 120, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 70, 110, couleurRouge, couleurBleu, 90, couleurVert, 25, couleurJaune, 75)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 40, 60)
+
+	// Dégradé 4 couleurs visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé 4 couleurs : visible")
+FIN
+
+PROCEDURE PRIVÉE scenario_bbox_largeur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelHorsBbox est un entier
+
+	// Bbox dégénérée : largeur 0 (x1=x2) → dégradé non dessinable
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 50, 10, 50, 90, couleurRouge, couleurBleu, 0)
+	dFinDessin(img)
+
+	pixelHorsBbox = dPixelCouleur(img, 30, 50)
+
+	// Pas de dégradé tracé (bbox plate) → pixel hors de la ligne reste blanc
+	dbgVérifieVrai(pixelHorsBbox = couleurBlanc, "bbox largeur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_bbox_hauteur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelHorsBbox est un entier
+
+	// Bbox dégénérée : hauteur 0 (y1=y2) → dégradé non dessinable
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 50, 90, 50, couleurVert, couleurJaune, 90)
+	dFinDessin(img)
+
+	pixelHorsBbox = dPixelCouleur(img, 50, 30)
+
+	// Pas de dégradé tracé → pixel hors de la ligne reste blanc
+	dbgVérifieVrai(pixelHorsBbox = couleurBlanc, "bbox hauteur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_bbox_inversee()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+
+	// Bbox inversée : x2 < x1 et y2 < y1 → doit corriger auto ou ignorer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 90, 90, 10, 10, couleurCyan, couleurMagenta, 0)
+	dFinDessin(img)
+
+	// Test vérifie que ça ne crash pas (correction auto ou ignoré)
+	dbgVérifieVrai(Vrai, "bbox inversée : pas de crash")
+FIN
+
+PROCEDURE PRIVÉE scenario_angle_360()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+
+	// Angle 360° (équivalent 0° horizontal)
+	img = dCréeImage(100, 50, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 90, 40, couleurRouge, couleurBleu, 360)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 50, 25)
+
+	// Dégradé 360° normalisé à 0° horizontal : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé angle 360° : visible")
+FIN
+
+PROCEDURE PRIVÉE scenario_angle_180()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelCentre est un entier
+
+	// Angle 180° (horizontal inversé : droite vers gauche)
+	img = dCréeImage(100, 50, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 90, 40, couleurVert, couleurOrange, 180)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 50, 25)
+
+	// Dégradé 180° visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé angle 180° : visible")
+FIN
+
+PROCEDURE PRIVÉE scenario_angle_270()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelCentre est un entier
+
+	// Angle 270° (vertical inversé : bas vers haut)
+	img = dCréeImage(80, 100, couleurBlanc)
+	dDébutDessin(img)
+	dRectangleDégradé(img, 10, 10, 70, 90, couleurCyan, couleurMagenta, 270)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 40, 50)
+
+	// Dégradé 270° visible : pixel central ≠ blanc
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "dégradé angle 270° : visible")
+FIN

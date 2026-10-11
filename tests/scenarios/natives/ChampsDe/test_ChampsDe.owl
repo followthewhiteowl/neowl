@@ -1,0 +1,71 @@
+// @sujet : ChampsDe / ControlsOf
+// @résumé : renvoie le tableau des noms des champs directs d'une fenêtre
+// (ou d'un champ conteneur), dans l'ordre où ils ont été créés. Parcours
+// idiomatique OWL avec POUR TOUT ; chaque nom obtenu s'exploite ensuite via
+// l'indirection scopée {nom, indChamp}..Propriété.
+//
+// Les fenêtres voisines FEN_ChampsDe.owl et FEN_ChampsDeVide.owl portent les
+// déclarations.
+
+TestModeHeadless(Vrai)
+
+
+// Liste les noms des champs directs d'une fenêtre, dans l'ordre de création.
+PROCEDURE PUBLIQUE scenario_champsDe_liste_champs_directs_ordre_creation()
+	Ouvre(FEN_ChampsDe)
+
+	tNoms est un tableau de chaînes = ChampsDe(FEN_ChampsDe)
+
+	dbgVérifieEgalité(Taille(tNoms), 4, "4 champs directs déclarés sur FEN_ChampsDe")
+	dbgVérifieEgalité(tNoms[1], "BTN_Zulu", "1er champ créé : BTN_Zulu (pas l'ordre alphabétique)")
+	dbgVérifieEgalité(tNoms[2], "SAI_Alpha", "2e champ créé : SAI_Alpha")
+	dbgVérifieEgalité(tNoms[3], "LIB_Milieu", "3e champ créé : LIB_Milieu")
+	dbgVérifieEgalité(tNoms[4], "ZR_Conteneur", "4e champ créé : le conteneur lui-même, pas ses enfants")
+
+	Ferme(FEN_ChampsDe)
+FIN
+
+
+// Chaque nom renvoyé s'exploite via l'indirection scopée {nom, indChamp}..Propriété.
+PROCEDURE PUBLIQUE scenario_champsDe_noms_exploitables_par_indirection()
+	Ouvre(FEN_ChampsDe)
+
+	tNoms est un tableau de chaînes = ChampsDe(FEN_ChampsDe)
+	sLibellés est une chaîne = ""
+
+	POUR TOUT sNom DE tNoms
+		SI sNom <> "ZR_Conteneur" ALORS
+			sLibellés += {sNom, indChamp}..Libellé + "|"
+		FIN
+	FIN
+
+	dbgVérifieEgalité(sLibellés, "Zulu|Alpha|Milieu|", "chaque nom résolu par indirection lit le libellé du bon champ, dans l'ordre de ChampsDe")
+
+	Ferme(FEN_ChampsDe)
+FIN
+
+
+// Une fenêtre sans aucun champ renvoie un tableau vide, sans erreur.
+PROCEDURE PUBLIQUE scenario_champsDe_fenetre_sans_champ_renvoie_tableau_vide()
+	Ouvre(FEN_ChampsDeVide)
+
+	tNoms est un tableau de chaînes = ChampsDe(FEN_ChampsDeVide)
+
+	dbgVérifieEgalité(Taille(tNoms), 0, "fenêtre sans champ déclaré : tableau vide, pas d'erreur")
+
+	Ferme(FEN_ChampsDeVide)
+FIN
+
+
+// Edge case : appelé sur un champ conteneur (ZoneRépétée), ChampsDe liste
+// les champs directs DU CONTENEUR — pas ceux de la fenêtre.
+PROCEDURE PRIVÉE test_champsDe_conteneur_liste_ses_enfants_directs()
+	Ouvre(FEN_ChampsDe)
+
+	tNoms est un tableau de chaînes = ChampsDe(ZR_Conteneur)
+
+	dbgVérifieEgalité(Taille(tNoms), 1, "ZR_Conteneur a 1 champ direct")
+	dbgVérifieEgalité(tNoms[1], "LIB_Interne", "ChampsDe(conteneur) liste le champ interne du conteneur")
+
+	Ferme(FEN_ChampsDe)
+FIN

@@ -1,0 +1,37 @@
+// Valide la sémantique stricte '.'/'..':
+//   '..X' obligatoire pour les propriétés de templates DSL
+//   '.X(...)' obligatoire pour les méthodes
+
+// --- 1. Propriétés DSL via '..' ---
+cnx est une sqlConnexion
+cnx..Provider      = sqlPostgres
+cnx..Serveur       = "localhost"
+cnx..Port          = 5432
+cnx..BaseDeDonnées = "test"
+cnx..Utilisateur   = "alice"
+cnx..ModeTLS       = tlsDesactive
+
+dbgVérifieEgalité(cnx..Provider, sqlPostgres, "lecture propriété cnx..Provider")
+dbgVérifieEgalité(cnx..Serveur, "localhost", "lecture propriété cnx..Serveur")
+dbgVérifieEgalité(cnx..Port, 5432, "lecture propriété cnx..Port")
+
+// --- 2. Méthodes natives sur primitives via '.' ---
+s est une chaîne = "hello"
+dbgVérifieEgalité(s.Majuscule(), "HELLO", "méthode chaîne .Majuscule()")
+
+n est un entier = -42
+dbgVérifieEgalité(n.Abs(), 42, "méthode entier .Abs()")
+
+// --- 3. Structure user-defined : '.' pour les membres ---
+Personne est une Structure
+	nom est une chaîne
+	age est un entier
+FIN
+
+p est une Personne
+p.nom = "Roger"
+p.age = 1600
+dbgVérifieEgalité(p.nom, "Roger", "membre user-struct .nom")
+dbgVérifieEgalité(p.age, 1600, "membre user-struct .age")
+
+dbgBilanTest()

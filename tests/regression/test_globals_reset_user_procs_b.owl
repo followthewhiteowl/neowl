@@ -1,0 +1,14 @@
+// @sujet smoke pollution g_user_procs cross-test (cote B)
+// @résumé Test B re-declare Helper avec une signature DIFFERENTE (2 params au
+//          lieu de 1). Sans reset, l'entree de A persiste mais user_proc_register
+//          ecrase au re-register (cf. compiler.c ligne 1133). Si la signature
+//          observable au runtime correspond bien a 2 params, pas de pollution
+//          residuelle de A. Si plante en arity 1, pollution avere.
+
+PROCEDURE Helper(x est un entier, y est un entier)
+	RENVOYER x + y
+FIN
+
+PROCEDURE scenario_user_procs_b_redecl_different_arity()
+	dbgVérifieEgalité(Helper(10, 5), 15, "Helper redeclare avec arity 2 — pas de signature heritee de A")
+FIN

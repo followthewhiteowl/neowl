@@ -1,0 +1,30 @@
+// @sujet : TableauVersMatrice
+// @résumé : Convertit explicitement un tableau imbriqué (lignes de réels) en Matrice, sans coercion implicite entre les deux types.
+
+
+// Cas nominal : un tableau imbriqué rectangulaire devient une Matrice de
+// mêmes dimensions, avec les mêmes valeurs aux mêmes positions.
+PROCEDURE PUBLIQUE scenario_conversion_nominale()
+	arrTab est un tableau = [[1.5, 2.5], [3.5, 4.5], [5.5, 6.5]]
+	m est une Matrice = TableauVersMatrice(arrTab)
+	dbgVérifieEgalité(m..Lignes, 3, "Matrice convertie a le même nombre de lignes que le tableau source")
+	dbgVérifieEgalité(m..Colonnes, 2, "Matrice convertie a le même nombre de colonnes que le tableau source")
+	dbgVérifieEgalité(m[1][1], 1.5, "m[1][1] = arrTab[1][1]")
+	dbgVérifieEgalité(m[3][2], 6.5, "m[3][2] = arrTab[3][2]")
+FIN
+
+
+// Un tableau imbriqué dont les lignes n'ont pas toutes la même longueur
+// est refusé : une matrice est rectangulaire.
+PROCEDURE PRIVÉE scenario_edge_tableau_ragged_refuse()
+	arrTab est un tableau = [[1.0, 2.0], [3.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		m est une Matrice = TableauVersMatrice(arrTab)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "TableauVersMatrice(tableau aux lignes de longueurs différentes) refusé")
+FIN

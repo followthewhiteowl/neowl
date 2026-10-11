@@ -1,0 +1,79 @@
+// @sujet : Tenseur (2D)
+// @résumé : Un Tenseur peut envelopper une Matrice (grille 2 dimensions)
+// plutôt qu'un Vecteur — même mécanique de feuille différentiable, mais
+// ..Valeur et ..Gradient rendent alors une Matrice de même forme au lieu
+// d'un Vecteur.
+
+// Envelopper une Matrice dans un Tenseur donne un Tenseur 2D : ..Valeur
+// rend une Matrice de mêmes dimensions et mêmes éléments que celle fournie
+// à la construction.
+PROCEDURE PUBLIQUE scenario_construction_depuis_matrice()
+	matW est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tW est un Tenseur = Tenseur(matW)
+
+	valW est une Matrice = tW..Valeur
+	dbgVérifieEgalité(valW..Lignes, 2, "Tenseur(Matrice 2x2) -> ..Valeur a 2 lignes")
+	dbgVérifieEgalité(valW..Colonnes, 2, "Tenseur(Matrice 2x2) -> ..Valeur a 2 colonnes")
+	dbgVérifieEgalité(valW[1][1], 1.0, "valW[1][1] = élément d'origine")
+	dbgVérifieEgalité(valW[1][2], 2.0, "valW[1][2] = élément d'origine")
+	dbgVérifieEgalité(valW[2][1], 3.0, "valW[2][1] = élément d'origine")
+	dbgVérifieEgalité(valW[2][2], 4.0, "valW[2][2] = élément d'origine")
+FIN
+
+
+// Le gradient d'un Tenseur 2D fraîchement construit est une Matrice de
+// même forme, entièrement à zéro — comme pour un Tenseur 1D.
+PROCEDURE PUBLIQUE scenario_gradient_initial_zero_matrice()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+
+	gradW est une Matrice = tW..Gradient
+	dbgVérifieEgalité(gradW..Lignes, 2, "Gradient initial a 2 lignes, comme la Matrice source")
+	dbgVérifieEgalité(gradW..Colonnes, 3, "Gradient initial a 3 colonnes, comme la Matrice source")
+	dbgVérifieEgalité(gradW[1][1], 0.0, "Gradient initial nul, coin haut-gauche")
+	dbgVérifieEgalité(gradW[2][3], 0.0, "Gradient initial nul, coin bas-droit")
+FIN
+
+
+// Non-régression : un Tenseur construit depuis un Vecteur (littéral plat)
+// continue de rendre un Vecteur via ..Valeur et ..Gradient, pas une
+// Matrice.
+PROCEDURE PUBLIQUE scenario_accesseurs_1d_vecteur_non_regression()
+	ta est un Tenseur = Tenseur([3.0, 4.0, 5.0])
+
+	valA est un Vecteur = ta..Valeur
+	dbgVérifieEgalité(valA..Taille, 3, "Tenseur 1D -> ..Valeur reste un Vecteur de taille 3")
+	dbgVérifieEgalité(valA[1], 3.0, "valA[1] = élément d'origine")
+	dbgVérifieEgalité(valA[3], 5.0, "valA[3] = élément d'origine")
+
+	gradA est un Vecteur = ta..Gradient
+	dbgVérifieEgalité(gradA..Taille, 3, "Tenseur 1D -> ..Gradient reste un Vecteur de taille 3")
+	dbgVérifieEgalité(gradA[1], 0.0, "Gradient initial nul, forme Vecteur")
+FIN
+
+
+// La forme anglaise Tensor(Matrix) désigne la même construction que
+// Tenseur(Matrice), avec ..Value/..Rows/..Columns équivalents.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise_construction()
+	matWEN is a Matrix = [[1.0, 2.0], [3.0, 4.0]]
+	tWEN is a Tensor = Tensor(matWEN)
+
+	valWEN is a Matrix = tWEN..Value
+	dbgVérifieEgalité(valWEN..Rows, 2, "Tensor(Matrix) -> ..Value a 2 lignes (..Rows)")
+	dbgVérifieEgalité(valWEN..Columns, 2, "Tensor(Matrix) -> ..Value a 2 colonnes (..Columns)")
+	dbgVérifieEgalité(valWEN[1][2], 2.0, "valWEN[1][2] = élément d'origine")
+FIN
+
+
+// Une Matrice à une seule ligne (vecteur ligne) reste un Tenseur 2D
+// valide : ..Valeur garde 1 ligne et n colonnes, pas d'aplatissement
+// automatique en Vecteur.
+PROCEDURE PRIVÉE scenario_edge_matrice_une_seule_ligne()
+	matLigne est une Matrice = [[1.0, 2.0, 3.0]]
+	tLigne est un Tenseur = Tenseur(matLigne)
+
+	valLigne est une Matrice = tLigne..Valeur
+	dbgVérifieEgalité(valLigne..Lignes, 1, "Matrice 1xN reste 2D : 1 ligne")
+	dbgVérifieEgalité(valLigne..Colonnes, 3, "Matrice 1xN reste 2D : 3 colonnes")
+	dbgVérifieEgalité(valLigne[1][3], 3.0, "valLigne[1][3] = élément d'origine")
+FIN

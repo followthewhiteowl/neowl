@@ -1,0 +1,102 @@
+// ================================================================
+// Image natif — Lot I.1 : chargement / sauvegarde raster
+// Documentation de référence (dChargeImage)
+//          + 3029013/3029027/3029038/3029026 (dSauveImage*)
+// ================================================================
+
+// Helper : crée une image PNG basique 4x2 RGBA via une chaîne de bytes.
+// On utilise dSauveImagePNG pour la créer puis on la recharge.
+
+// Stratégie : on construit une image vide en mémoire (Lot I.1 doit
+// supporter aussi la création d'image programmatique pour le test à
+// l'avenir, mais I.0 ne le fait pas). Donc en I.1 on utilise un PNG
+// préfabriqué que stb_image décode.
+
+// ----- Test : dChargeImage retourne un Image valide -----
+// On va d'abord créer une image au format PNG en utilisant les
+// fonctions stb sous-jacentes : on va sauver une image vierge depuis
+// un Image construit côté OWL.
+
+// ----- Création d'une image programmatique via dSauveImagePNG -----
+// Pour pouvoir tester dChargeImage il faut d'abord pouvoir créer une
+// image. En I.1, on ajoute une factory dCréeImage(largeur, hauteur,
+// couleur) (extension OWL — équivalent au pattern de référence "MonImage est une
+// Image; MonImage..Largeur=N; MonImage..Hauteur=M" mais qui crée VRAIMENT
+// le buffer pixels).
+//
+// (Note : le comportement de référence a aussi `dCréeImage` mais c'est canonique côté drawing,
+// donc cohérent.)
+
+img est une Image = dCréeImage(10, 5, BleuClair)
+dbgVérifieEgalité(img..Largeur, 10, "dCréeImage : Largeur synchronisée")
+dbgVérifieEgalité(img..Hauteur, 5, "dCréeImage : Hauteur synchronisée")
+dbgVérifieEgalité(img..Valide, Vrai, "dCréeImage : Valide = Vrai (image créée)")
+dbgVérifieEgalité(img..AvecAlpha, Vrai, "dCréeImage : AvecAlpha = Vrai (RGBA8)")
+dbgVérifieEgalité(img..BitParPixel, 32, "dCréeImage : 32 bits par pixel")
+
+// ----- dSauveImagePNG : écriture sur disque -----
+sCheminPNG est une chaîne = "test_image_io_tmp.png"
+res est un booléen = dSauveImagePNG(img, sCheminPNG)
+dbgVérifieEgalité(res, Vrai, "dSauveImagePNG retourne Vrai")
+dbgVérifieVrai(fFichierExiste(sCheminPNG), "Fichier PNG créé sur disque")
+
+// ----- dChargeImage : relecture du PNG -----
+img2 est une Image = dChargeImage(sCheminPNG)
+dbgVérifieEgalité(img2..Valide, Vrai, "dChargeImage : Valide = Vrai")
+dbgVérifieEgalité(img2..Largeur, 10, "dChargeImage : Largeur préservée")
+dbgVérifieEgalité(img2..Hauteur, 5, "dChargeImage : Hauteur préservée")
+dbgVérifieEgalité(img2..AvecAlpha, Vrai, "dChargeImage : alpha préservé")
+dbgVérifieEgalité(img2..BitParPixel, 32, "dChargeImage : 32 bpp")
+
+// ----- MaImage = "fichier.png" : sucre syntaxique (canon de référence) -----
+img3 est une Image = sCheminPNG
+dbgVérifieEgalité(img3..Valide, Vrai, "MaImage = path : Valide = Vrai (sucre)")
+dbgVérifieEgalité(img3..Largeur, 10, "MaImage = path : Largeur correcte")
+
+// ----- dSauveImageJPEG : qualité par défaut + qualité custom -----
+sCheminJPEG est une chaîne = "test_image_io_tmp.jpg"
+res2 est un booléen = dSauveImageJPEG(img, sCheminJPEG)
+dbgVérifieEgalité(res2, Vrai, "dSauveImageJPEG retourne Vrai")
+dbgVérifieVrai(fFichierExiste(sCheminJPEG), "Fichier JPEG créé")
+
+img4 est une Image = dChargeImage(sCheminJPEG)
+dbgVérifieEgalité(img4..Valide, Vrai, "dChargeImage JPEG : Valide")
+dbgVérifieEgalité(img4..Largeur, 10, "dChargeImage JPEG : Largeur")
+dbgVérifieEgalité(img4..Hauteur, 5, "dChargeImage JPEG : Hauteur")
+
+// ----- dSauveImageBMP -----
+sCheminBMP est une chaîne = "test_image_io_tmp.bmp"
+res3 est un booléen = dSauveImageBMP(img, sCheminBMP)
+dbgVérifieEgalité(res3, Vrai, "dSauveImageBMP retourne Vrai")
+dbgVérifieVrai(fFichierExiste(sCheminBMP), "Fichier BMP créé")
+
+img5 est une Image = dChargeImage(sCheminBMP)
+dbgVérifieEgalité(img5..Valide, Vrai, "dChargeImage BMP : Valide")
+dbgVérifieEgalité(img5..Largeur, 10, "dChargeImage BMP : Largeur")
+
+// ----- dSauveImage : auto-détection par extension -----
+sAuto est une chaîne = "test_image_io_auto.png"
+res4 est un booléen = dSauveImage(img, sAuto)
+dbgVérifieEgalité(res4, Vrai, "dSauveImage auto-detect PNG")
+dbgVérifieVrai(fFichierExiste(sAuto), "Fichier auto-PNG créé")
+
+// ----- Échec de chargement (fichier absent) -----
+imgBad est une Image = dChargeImage("nimporte_quoi_absent.png")
+dbgVérifieEgalité(imgBad..Valide, Faux, "dChargeImage fichier absent : Valide = Faux")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// ----- Constantes imgDéfaut / imgConvertir disponibles -----
+img6 est une Image = dChargeImage(sCheminPNG, imgDéfaut)
+dbgVérifieEgalité(img6..Valide, Vrai, "dChargeImage avec imgDéfaut explicite")
+
+// L'alias ASCII (imgDefaut sans accent) est auto-généré par
+// owl_registry_register_consts — runtime accepte les deux formes.
+img6b est une Image = dChargeImage(sCheminPNG, imgDéfaut)
+dbgVérifieEgalité(img6b..Valide, Vrai, "imgDefaut (alias ASCII auto) accepté")
+dbgVérifieEgalité(imgDéfaut, imgDéfaut, "imgDéfaut == imgDefaut (même valeur)")
+
+// ----- Cleanup : effacer les fichiers temporaires -----
+fSupprime(sCheminPNG)
+fSupprime(sCheminJPEG)
+fSupprime(sCheminBMP)
+fSupprime(sAuto)

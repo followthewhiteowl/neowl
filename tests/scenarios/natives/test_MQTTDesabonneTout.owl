@@ -1,0 +1,19 @@
+// @sujet : MQTTDésabonneTout
+// @résumé : Met fin à tous les abonnements en cours sur une session MQTT.
+
+
+// Se désabonner de tout depuis une session qui n'a jamais été connectée
+// échoue proprement : la native renvoie Faux et renseigne l'erreur courante.
+PROCEDURE scenario_desabonnement_tout_sans_connexion()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-01"
+
+	ErreurRAZ()
+	bRetour est un booléen = MQTTDésabonneTout(sess)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "désabonnement total sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "désabonnement total sans connexion renseigne l'erreur courante")
+	dbgVérifieEgalité(sCode, "E_NATIVE_MQTT_SUBSCRIBE_FAILURE", "code d'erreur dédié à l'abonnement")
+FIN

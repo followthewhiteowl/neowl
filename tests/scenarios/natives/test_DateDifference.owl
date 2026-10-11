@@ -1,0 +1,63 @@
+// @sujet : DateDifférence
+// @résumé : Différence en jours entre deux dates, calculée comme (d2 - d1). Le résultat est un entier signé : positif si d2 est postérieure, négatif si antérieure, nul pour la même date.
+
+
+// Cas canonique : d2 postérieure à d1 → différence positive.
+PROCEDURE scenario_d2_posterieure_positif()
+	d1 est une date = ChaîneVersDate("20260101")
+	d2 est une date = ChaîneVersDate("20260111")
+	n est un entier = DateDifférence(d1, d2)
+	dbgVérifieEgalité(n, 10)
+FIN
+
+
+// Argument inversé : d1 postérieure à d2 → différence négative (signe inversé).
+PROCEDURE scenario_d1_posterieure_negatif()
+	d1 est une date = ChaîneVersDate("20260111")
+	d2 est une date = ChaîneVersDate("20260101")
+	n est un entier = DateDifférence(d1, d2)
+	dbgVérifieEgalité(n,-10)
+FIN
+
+
+// Même date : différence nulle.
+PROCEDURE scenario_meme_date_zero()
+	d1 est une date = ChaîneVersDate("20260512")
+	d2 est une date = ChaîneVersDate("20260512")
+	n est un entier = DateDifférence(d1, d2)
+	dbgVérifieEgalité(n, 0)
+FIN
+
+
+// Différence à cheval sur un changement d'année.
+PROCEDURE scenario_a_cheval_sur_annee()
+	d1 est une date = ChaîneVersDate("20251225")
+	d2 est une date = ChaîneVersDate("20260105")
+	n est un entier = DateDifférence(d1, d2)
+	dbgVérifieEgalité(n, 11)
+FIN
+
+
+// Différence à cheval sur une année bissextile (2024 est bissextile : 366 jours).
+PROCEDURE scenario_annee_bissextile_366_jours()
+	d1 est une date = ChaîneVersDate("20240101")
+	d2 est une date = ChaîneVersDate("20250101")
+	n est un entier = DateDifférence(d1, d2)
+	dbgVérifieEgalité(n, 366)
+FIN
+
+
+// Année non-bissextile : 365 jours.
+PROCEDURE scenario_annee_non_bissextile_365_jours()
+	d1 est une date = ChaîneVersDate("20250101")
+	d2 est une date = ChaîneVersDate("20260101")
+	n est un entier = DateDifférence(d1, d2)
+	dbgVérifieEgalité(n, 365)
+FIN
+
+
+// Cast implicite chaîne AAAAMMJJ accepté en entrée sans variable date intermédiaire.
+PROCEDURE scenario_cast_implicite_chaine()
+	n est un entier = DateDifférence("20260101", "20260201")
+	dbgVérifieEgalité(n, 31)
+FIN

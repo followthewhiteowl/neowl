@@ -1,0 +1,86 @@
+// test_vecteur_noyau.owl — 
+// Verrouille les cas limites techniques du noyau Vecteur : bornes
+// extrêmes d'index, non-corruption après accès hors borne (lecture ET
+// écriture), montée en charge via conversion, distinction TypeVar avec
+// buffer. Complément technique aux scenarios pédagogiques de
+// tests/scenarios/types/test_Vecteur.owl et
+// tests/scenarios/natives/test_{Tableau,Vecteur}Vers*.owl.
+
+Trace("=== VECTEUR NOYAU ===")
+
+// --- Index hors borne extrêmes ---
+vBorne est un Vecteur = [1.0, 2.0, 3.0]
+
+capturéMax est une chaîne = ""
+QUAND EXCEPTION DANS
+	x est un réel = vBorne[2147483647]
+	capturéMax = "no-throw"
+FAIRE
+	capturéMax = "caught"
+FIN
+dbgVérifieEgalité(capturéMax, "caught", "index INT32_MAX attrapé")
+
+capturéMin est une chaîne = ""
+QUAND EXCEPTION DANS
+	y est un réel = vBorne[-2147483648]
+	capturéMin = "no-throw"
+FAIRE
+	capturéMin = "caught"
+FIN
+dbgVérifieEgalité(capturéMin, "caught", "index INT32_MIN attrapé")
+
+capturéNegatif est une chaîne = ""
+QUAND EXCEPTION DANS
+	z est un réel = vBorne[-1]
+	capturéNegatif = "no-throw"
+FAIRE
+	capturéNegatif = "caught"
+FIN
+dbgVérifieEgalité(capturéNegatif, "caught", "index -1 attrapé")
+
+// --- Écriture hors borne : pas de corruption ensuite ---
+capturéEcriture est une chaîne = ""
+QUAND EXCEPTION DANS
+	vBorne[999] = 42.0
+	capturéEcriture = "no-throw"
+FAIRE
+	capturéEcriture = "caught"
+FIN
+dbgVérifieEgalité(capturéEcriture, "caught", "écriture hors borne attrapée")
+dbgVérifieEgalité(vBorne[1], 1.0, "vBorne[1] intact après écriture hors borne")
+dbgVérifieEgalité(vBorne[2], 2.0, "vBorne[2] intact après écriture hors borne")
+dbgVérifieEgalité(vBorne[3], 3.0, "vBorne[3] intact après écriture hors borne")
+dbgVérifieEgalité(vBorne..Taille, 3, "..Taille inchangée après écriture hors borne")
+
+// --- Montée en charge via conversion depuis un tableau construit en boucle ---
+arrGrand est un tableau de réels
+POUR i = 1 À 200
+	Ajoute(arrGrand, i * 1.5)
+FIN
+vGrand est un Vecteur = TableauVersVecteur(arrGrand)
+dbgVérifieEgalité(vGrand..Taille, 200, "Vecteur converti depuis 200 éléments : taille 200")
+dbgVérifieEgalité(vGrand[1], 1.5, "vGrand[1] = 1 * 1.5")
+dbgVérifieEgalité(vGrand[100], 150.0, "vGrand[100] = 100 * 1.5")
+dbgVérifieEgalité(vGrand[200], 300.0, "vGrand[200] = 200 * 1.5")
+
+// --- TypeVar distingue Vecteur d'un buffer ---
+bufTemoin est un buffer = BufferVide(4)
+nTagVecteur est un entier = TypeVar(vBorne)
+nTagBuffer est un entier = TypeVar(bufTemoin)
+dbgVérifieDifférence(nTagVecteur, nTagBuffer, "TypeVar(Vecteur) distinct de TypeVar(buffer)")
+
+// --- Vecteur à un seul élément : bord bas = bord haut ---
+vUn est un Vecteur = [7.0]
+dbgVérifieEgalité(vUn..Taille, 1, "Vecteur à un élément : taille 1")
+dbgVérifieEgalité(vUn[1], 7.0, "vUn[1] = seul élément")
+
+capturéUn est une chaîne = ""
+QUAND EXCEPTION DANS
+	w est un réel = vUn[2]
+	capturéUn = "no-throw"
+FAIRE
+	capturéUn = "caught"
+FIN
+dbgVérifieEgalité(capturéUn, "caught", "vUn[2] hors borne sur vecteur à 1 élément, attrapé")
+
+dbgBilanTest()

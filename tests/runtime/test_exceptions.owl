@@ -1,0 +1,153 @@
+// ============================================
+// TEST: Exceptions — formes spécifique et générale, constantes errXxx,
+// SINON, re-raise via EXCEPTION keyword.
+// ============================================
+Trace("=== EXCEPTIONS ===")
+
+// --- Forme specifique basique (compat historique) ---
+bApresException est un booléen = Faux
+sErrMsg est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche("Erreur volontaire")
+	bApresException = Vrai
+FAIRE
+	sErrMsg = ExceptionInfo()
+FIN
+
+dbgVérifieVrai(PAS bApresException, "Code apres ExceptionDeclenche non execute")
+dbgVérifieEgalité(sErrMsg, "Erreur volontaire", "ExceptionInfo retourne le bon message")
+
+// --- Code sans exception: FAIRE non execute ---
+bFairExecute est un booléen = Faux
+bDansExecute est un booléen = Faux
+
+QUAND EXCEPTION DANS
+	bDansExecute = Vrai
+FAIRE
+	bFairExecute = Vrai
+FIN
+
+dbgVérifieVrai(bDansExecute, "Code DANS execute si pas d'exception")
+dbgVérifieVrai(PAS bFairExecute, "Code FAIRE non execute si pas d'exception")
+
+// --- Execution continue apres le bloc exception ---
+nApres est un entier = 0
+QUAND EXCEPTION DANS
+	ExceptionDéclenche("test")
+FAIRE
+	nApres = 1
+FIN
+nApres = nApres + 10
+dbgVérifieEgalité(nApres, 11, "Execution continue apres bloc exception")
+
+// --- Constantes errXxx via ExceptionInfo ---
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(42, "test msg")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 42, "errCode")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "test msg", "errMessage")
+	dbgVérifieEgalité(ExceptionInfo(), "test msg", "Default errMessage")
+	dbgVérifieVrai(ExceptionInfo(errLigne) > 0, "errLigne > 0")
+	dbgVérifieVrai(Taille(ExceptionInfo(errPile)) > 0, "errPile non vide")
+	dbgVérifieVrai(Taille(ExceptionInfo(errComplet)) > 0, "errComplet non vide")
+FIN
+
+// --- ExceptionDeclenche surcharges ---
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(99)
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 99, "code seul")
+FIN
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche("texte seul")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "texte seul", "msg seul")
+	dbgVérifieEgalité(ExceptionInfo(errCode), 0, "code=0 par defaut")
+FIN
+
+// --- SINON ---
+flag est un entier = 0
+QUAND EXCEPTION DANS
+	flag = 1
+FAIRE
+	flag = -1
+SINON
+	flag += 10
+FIN
+dbgVérifieEgalité(flag, 11, "SINON apres try reussi")
+
+flag = 0
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(5)
+FAIRE
+	flag = 100
+SINON
+	flag = -999
+FIN
+dbgVérifieEgalité(flag, 100, "SINON skippé sur exception")
+
+// --- Forme generale ---
+FONCTION ProcGenerale(mode est un entier) : chaîne
+	QUAND EXCEPTION
+		RENVOYER "catched:" + ExceptionInfo(errMessage)
+	FIN
+	SI mode = 1 ALORS
+		ExceptionDéclenche(7, "oops")
+	FIN
+	RENVOYER "ok"
+FIN
+
+dbgVérifieEgalité(ProcGenerale(0), "ok", "Forme generale: pas d'exception")
+dbgVérifieEgalité(ProcGenerale(1), "catched:oops", "Forme generale: exception attrapee")
+
+// --- Re-raise via EXCEPTION keyword ---
+FONCTION Inner() : chaîne
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(42, "inner boom")
+	FAIRE
+		SI ExceptionInfo(errCode) = 99 ALORS
+			RENVOYER "intercepted"
+		FIN
+		EXCEPTION
+	FIN
+	RENVOYER "unreached"
+FIN
+
+FONCTION Outer() : chaîne
+	QUAND EXCEPTION
+		RENVOYER "outer:" + ExceptionInfo(errMessage)
+	FIN
+	res est une chaîne = Inner()
+	RENVOYER res
+FIN
+
+dbgVérifieEgalité(Outer(), "outer:inner boom", "Re-raise EXCEPTION propage au parent")
+
+// --- Catch d'erreurs runtime sur code dynamique ---
+// Le compilateur refuse les identifiants inconnus écrits en dur.
+// Pour tester que le filet runtime est toujours là, on passe par
+// Compile("nom", "corps") qui enregistre une fonction dont le corps
+// référence un identifiant inconnu : l'erreur saute à l'invocation et
+// QUAND EXCEPTION l'attrape comme une exception classique.
+Compile("dynUndefVar", "Trace(variableInconnueXyz + 1)")
+Compile("dynUndefFunc", "FonctionInexistanteXyz(42)")
+
+catchUndefVar est une chaîne = ""
+QUAND EXCEPTION DANS
+	dynUndefVar()
+	catchUndefVar = "no-throw"
+FAIRE
+	catchUndefVar = "caught-var"
+FIN
+dbgVérifieEgalité(catchUndefVar, "caught-var", "QUAND EXCEPTION attrape variable indéfinie (Compile + appel)")
+
+catchUndefFunc est une chaîne = ""
+QUAND EXCEPTION DANS
+	dynUndefFunc()
+	catchUndefFunc = "no-throw"
+FAIRE
+	catchUndefFunc = "caught-func"
+FIN
+dbgVérifieEgalité(catchUndefFunc, "caught-func", "QUAND EXCEPTION attrape fonction indéfinie (Compile + appel)")

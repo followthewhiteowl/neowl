@@ -1,0 +1,55 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille Chaines
+// (, lot A1 - module stdlib_string).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   sscExterieur  -> sscOutside
+//   tailleKo      -> sizeKB
+//   rangPremier   -> firstRank
+//   MotComplet    -> WholeWord
+//   fnnOctal      -> nfnOctal
+//   urlProtocole  -> urlProtocol
+//
+// Deux couches d'assertion par couple stable : EN == FR, ET EN == valeur brute.
+// =============================================================================
+
+PROCEDURE scenario_const_string_en_resout_vers_fr()
+	// --- sscOutside == sscExterieur (sentinel SSC, valeur brute non stable
+	//     entre builds -> on ancre uniquement l'egalite EN==FR) ---
+	dbgVérifieEgalité(sscOutside, sscExtérieur,
+	"sscOutside resout vers la meme valeur que sscExterieur")
+
+	// --- sizeKB == tailleKo == 2 ---
+	dbgVérifieEgalité(sizeKB, tailleKo,
+	"sizeKB resout vers la meme valeur que tailleKo")
+	dbgVérifieEgalité(sizeKB, 2,
+	"sizeKB vaut exactement 2 (kilo-octets)")
+
+	// --- firstRank == rangPremier (sentinel RANG) ---
+	dbgVérifieEgalité(firstRank, rangPremier,
+	"firstRank resout vers la meme valeur que rangPremier")
+
+	// --- WholeWord == MotComplet == 1 ---
+	dbgVérifieEgalité(WholeWord, MotComplet,
+	"WholeWord resout vers la meme valeur que MotComplet")
+	dbgVérifieEgalité(WholeWord, 1,
+	"WholeWord vaut exactement 1 (bit-flag mot complet)")
+
+	// --- nfnOctal == fnnOctal (FormatNumerique, sentinel) ---
+	dbgVérifieEgalité(nfnOctal, fnnOctal,
+	"nfnOctal resout vers la meme valeur que fnnOctal")
+
+	// --- urlProtocol == urlProtocole == 1 ---
+	dbgVérifieEgalité(urlProtocol, urlProtocole,
+	"urlProtocol resout vers la meme valeur que urlProtocole")
+	dbgVérifieEgalité(urlProtocol, 1,
+	"urlProtocol vaut exactement 1 (portion protocole)")
+FIN
+
+scenario_const_string_en_resout_vers_fr()
+dbgBilanTest()

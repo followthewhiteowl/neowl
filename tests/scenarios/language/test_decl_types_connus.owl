@@ -1,0 +1,28 @@
+// @sujet : Déclarations typées — types reconnus
+// @résumé : Vérifie qu'une déclaration `x est un Type` accepte les formes légitimes (types fondamentaux, types intégrés du framework, structures définies par l'utilisateur). Le test verrouille la liste passante face au durcissement du contrôle de type inconnu.
+
+stPoint est une Structure
+	x est un entier
+	y est un entier
+FIN
+
+// Cas canonique : les déclarations typées les plus courantes doivent
+// continuer à compiler — types fondamentaux (entier, chaîne), types
+// intégrés du framework (httpRequête, Chrono) et une structure
+// utilisateur (stPoint). Ce test sert de filet de sécurité : si une
+// régression rejette une de ces formes, on le voit immédiatement. Les
+// classes sont couvertes par les tests POO multi-fichiers existants
+// (règle "1 classe = 1 fichier").
+PROCEDURE scenario_declarations_types_connus_passent()
+	n est un entier = 42
+	s est une chaîne = "hello"
+	req est un httpRequête
+	c est un Chrono
+	p est un stPoint
+
+	dbgVérifieEgalité(n, 42, "entier accepté")
+	dbgVérifieEgalité(s, "hello", "chaîne acceptée")
+	dbgVérifieEgalité(p.x, 0, "structure utilisateur acceptée et auto-initialisée")
+	dbgVérifieVrai(req <> Null, "httpRequête (type intégré du framework) accepté")
+	dbgVérifieVrai(c <> Null, "Chrono (type intégré du framework) accepté")
+FIN

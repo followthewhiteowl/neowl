@@ -1,0 +1,37 @@
+//  scoping — Cas 3 : Couleur statique sur Champ Libelle.
+// Verifie que la prop Couleur declaree est bien appliquee au rendu.
+// Oracle : pixels de valeur RVB(255,0,0) = 255 (en BGR 24-bit OWL)
+// presens dans la capture du Libelle colore en rouge.
+//
+// Attendu VERT (scoping pour savoir si Couleur statique est touchee
+// par la regression ). Si rouge -> regression plus large.
+
+Ouvre(FEN_LibelleCouleur)
+
+imgLib est une Image = dCopieImageChamp(LIB_Rouge)
+dbgVérifieEgalité(imgLib..Valide, Vrai, "LIB_Rouge : capture valide")
+
+// Compter les pixels exactement rouges (coeur des glyphes).
+// RVB(255, 0, 0) en BGR 24-bit = 255 + 0*256 + 0*65536 = 255
+nbRouges est un entier = 0
+yyR est un entier = 0
+TANTQUE yyR < imgLib..Hauteur
+	xxR est un entier = 0
+	TANTQUE xxR < imgLib..Largeur
+		cRef est un entier = dPixelCouleur(imgLib, xxR, yyR)
+		SI cRef = 255 ALORS
+			nbRouges = nbRouges + 1
+		FIN
+		xxR = xxR + 1
+	FIN
+	yyR = yyR + 1
+FIN
+
+// VERT ATTENDU : si Couleur statique est appliquee, au moins quelques
+// pixels rouges exacts dans les coeurs de glyphes.
+// Si rouge -> la Couleur statique Libelle est regressee par .
+dbgVérifieVrai(nbRouges > 5,
+"LIB_Rouge : pixels rouges exacts presents (Couleur = RVB(255,0,0) appliquee)")
+
+Ferme(FEN_LibelleCouleur)
+dbgBilanTest()

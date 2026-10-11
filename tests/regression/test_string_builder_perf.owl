@@ -1,0 +1,67 @@
+// Garde-fou perf pour la peephole OP_APPEND_IN_PLACE.
+// Si ce test depasse 200ms (seuil large pour absorber jitter CI), c'est
+// que la peephole concat est cassee et qu'on est retombe sur le path slow
+// O(n) -> O(n^2). Bug historique : commit bb37f80 (2026-04-25) avait
+// introduit un wrap __BufferVersChaine systematique qui defaisait la
+// peephole. Fix : peephole d'abord, coerce en fallback (compiler.c +
+// chunk_insert_before).
+//
+// Sur machine de dev (avril 2026, OWL 0.1.0) : ~15ms pour 20k iterations.
+// Seuil a 200ms : ~13x de marge avant alerte. Sous stress-GC ou poison
+// le seuil est large car le GC trigge a chaque allocation (200ms x 50).
+
+// Seuil adaptatif : sous stress-GC / poison, on tolere x50 (collect a
+// chaque alloc + memory leak intentionnel sous poison ralentissent
+// drastiquement).
+__seuilPerf est un entier = 200
+SI EnModeStressGC() ALORS
+	__seuilPerf = 10000
+FIN
+
+Trace("=== STRING BUILDER PERF GUARD ===")
+
+// --- Cas 1 : variable globale (OP_APPEND_IN_PLACE_GLOBAL) ---
+ChronoDébut()
+sGlobal est une chaîne = ""
+POUR i = 1 _A_ 20000
+	sGlobal = sGlobal + "x"
+FIN
+dureeGlobal est un entier = ChronoFin()
+dbgVérifieEgalité(Taille(sGlobal), 20000, "Build global: 20k chars produits")
+dbgVérifieVrai(dureeGlobal <= __seuilPerf,
+"perf peephole global <= 200ms (mesure=" + dureeGlobal + "ms, attendu ~15ms)")
+Trace("Build global 20k = " + dureeGlobal + "ms")
+
+// --- Cas 2 : variable locale (OP_APPEND_IN_PLACE) ---
+PROCEDURE BenchLocal()
+	ChronoDébut()
+	sLocal est une chaîne = ""
+	POUR i = 1 _A_ 20000
+		sLocal = sLocal + "x"
+	FIN
+	dureeLocal est un entier = ChronoFin()
+	dbgVérifieEgalité(Taille(sLocal), 20000, "Build local: 20k chars produits")
+	dbgVérifieVrai(dureeLocal <= __seuilPerf,
+	"perf peephole local <= 200ms (mesure=" + dureeLocal + "ms, attendu ~15ms)")
+	Trace("Build local 20k = " + dureeLocal + "ms")
+FIN
+BenchLocal()
+
+// --- Cas 3 : pattern shape 2 (whitelisted call dans RHS) ---
+// `s = s + Milieu(t, i, 1)` : la peephole doit accepter le call si
+// Milieu est dans la pure-native whitelist. Ce pattern est celui de
+// CLBG k-nucleotide.
+ChronoDébut()
+nucleotides est une chaîne = "ACGT"
+seq est une chaîne = ""
+POUR i = 1 _A_ 5000
+	c est une chaîne = Milieu(nucleotides,((i - 1) % 4) + 1, 1)
+	seq = seq + c
+FIN
+dureeShape2 est un entier = ChronoFin()
+dbgVérifieEgalité(Taille(seq), 5000, "Build shape 2: 5k iterations OK")
+dbgVérifieVrai(dureeShape2 <= __seuilPerf,
+"perf peephole shape 2 <= 200ms (mesure=" + dureeShape2 + "ms)")
+Trace("Build shape 2 (5k * Milieu) = " + dureeShape2 + "ms")
+
+dbgBilanTest()

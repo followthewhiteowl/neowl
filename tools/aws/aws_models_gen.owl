@@ -1,0 +1,941 @@
+// Générateur offline des métadonnées de service AWS.
+//
+// Lit les modèles canoniques botocore (data/<service>/<version>/service-2.json)
+// et produit une table de données C pure (src/aws_service_models.{c,h}) décrivant
+// chaque service : protocole, endpoint, signing, versions, et la liste de ses
+// actions (méthode HTTP + URI). Aucune native/type/constante n'est générée : la
+// sortie est de la donnée compilée dans owl.exe, consommée au runtime par la
+// couche requête AWS.
+//
+// Ce fichier expose des procédures réutilisables (testées directement) plus un
+// pilote en fin de fichier, actif uniquement quand l'option -out= est fournie
+// sur la ligne de commande. Sans argument (campagne owl test), le pilote est un
+// no-op : les procédures restent atteignables par le test voisin.
+//
+// Régénération : scripts/refresh_aws_models.sh
+
+
+// Échappe une chaîne pour inclusion dans un littéral C entre guillemets.
+PROCEDURE AwsEchappeC(sValeur est une chaîne)
+    r est une chaîne = Remplace(sValeur, "\", "\\")
+    r = Remplace(r, `"`, `\"`)
+    RENVOYER r
+FIN
+
+
+// Traduit le nom de protocole botocore vers l'identifiant d'énum C.
+PROCEDURE AwsProtocoleC(sProtocole est une chaîne)
+    SELON sProtocole
+        CAS "json" : RENVOYER "AWS_PROTO_JSON"
+        CAS "rest-json" : RENVOYER "AWS_PROTO_REST_JSON"
+        CAS "rest-xml" : RENVOYER "AWS_PROTO_REST_XML"
+        CAS "query" : RENVOYER "AWS_PROTO_QUERY"
+        CAS "ec2" : RENVOYER "AWS_PROTO_EC2"
+        AUTRE CAS : RENVOYER "AWS_PROTO_UNKNOWN"
+    FIN
+FIN
+
+
+// Nom canonique du service = nom du dossier parent de <version>/service-2.json.
+PROCEDURE AwsNomServiceDepuisChemin(sChemin est une chaîne)
+    norm est une chaîne = Remplace(sChemin, "\", "/")
+    parts est un tableau de chaînes = ChaîneDécoupe(norm, "/")
+    n est un entier = parts..Occurrence
+    SI n < 3 ALORS
+        RENVOYER ""
+    FIN
+    RENVOYER parts[n - 2]
+FIN
+
+
+// Symbole PascalCase d'un service, dérivé de metadata.serviceId : on retire
+// tout caractère non alphanumérique en préservant la casse ("API Gateway" ->
+// "APIGateway", "DynamoDB" -> "DynamoDB"). Sert de brique aux symboles
+// d'action `aws<Symbole><Action>` résolus à la compilation.
+PROCEDURE AwsSymboleService(sServiceId est une chaîne)
+    r est une chaîne = ""
+    POUR i = 1 A Taille(sServiceId)
+        c est une chaîne = Milieu(sServiceId, i, 1)
+        SI (c >= "a" ET c <= "z") OU (c >= "A" ET c <= "Z") OU (c >= "0" ET c <= "9") ALORS
+            r = r + c
+        FIN
+    FIN
+    RENVOYER r
+FIN
+
+
+// Rend un identifiant C valide (a-z0-9_) à partir d'un nom de service.
+PROCEDURE AwsIdentifiantC(sNom est une chaîne)
+    r est une chaîne = ""
+    POUR i = 1 A Taille(sNom)
+        c est une chaîne = Milieu(sNom, i, 1)
+        SI (c >= "a" ET c <= "z") OU (c >= "A" ET c <= "Z") OU (c >= "0" ET c <= "9") ALORS
+            r = r + c
+        SINON
+            r = r + "_"
+        FIN
+    FIN
+    RENVOYER r
+FIN
+
+
+// Émet le header C (types + déclarations externes). Contenu structurel stable.
+PROCEDURE AwsGénèreHeader()
+    s est une chaîne = ""
+    s = s + "// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-OWL-Runtime-Exception" + RC
+    s = s + "/* GÉNÉRÉ — NE PAS ÉDITER À LA MAIN." + RC
+    s = s + " * Produit par tools/aws/aws_models_gen.owl depuis les modèles botocore." + RC
+    s = s + " * Régénération : scripts/refresh_aws_models.sh" + RC
+    s = s + " */" + RC
+    s = s + "#ifndef OWL_AWS_SERVICE_MODELS_H" + RC
+    s = s + "#define OWL_AWS_SERVICE_MODELS_H" + RC
+    s = s + RC
+    s = s + `#include "owl_registry.h"` + RC
+    s = s + RC
+    s = s + "typedef enum {" + RC
+    s = s + "    AWS_PROTO_UNKNOWN = 0," + RC
+    s = s + "    AWS_PROTO_JSON," + RC
+    s = s + "    AWS_PROTO_REST_JSON," + RC
+    s = s + "    AWS_PROTO_REST_XML," + RC
+    s = s + "    AWS_PROTO_QUERY," + RC
+    s = s + "    AWS_PROTO_EC2" + RC
+    s = s + "} AwsProtocol;" + RC
+    s = s + RC
+    s = s + "typedef struct {" + RC
+    s = s + "    const char* actionName;" + RC
+    s = s + "    const char* method;" + RC
+    s = s + "    const char* requestUri;" + RC
+    s = s + "} AwsAction;" + RC
+    s = s + RC
+    s = s + "typedef struct {" + RC
+    s = s + "    const char* serviceName;" + RC
+    s = s + "    const char* symbolName;" + RC
+    s = s + "    const char* endpointPrefix;" + RC
+    s = s + "    AwsProtocol protocol;" + RC
+    s = s + "    const char* jsonVersion;" + RC
+    s = s + "    const char* targetPrefix;" + RC
+    s = s + "    const char* signingName;" + RC
+    s = s + "    const char* apiVersion;" + RC
+    s = s + "    const char* signatureVersion;" + RC
+    s = s + "    const char* globalEndpoint;" + RC
+    s = s + "    const char* signingRegion;" + RC
+    s = s + "    const AwsAction* actions;" + RC
+    s = s + "    int actionCount;" + RC
+    s = s + "} AwsService;" + RC
+    s = s + RC
+    s = s + "extern const AwsService AWS_SERVICES[];" + RC
+    s = s + "extern const int AWS_SERVICE_COUNT;" + RC
+    s = s + RC
+    s = s + "/* Descripteur de serialisation JSON->XML d'un corps de requete rest-xml." + RC
+    s = s + " * kind : 0=scalaire, 1=structure, 2=liste. Pour une structure, children" + RC
+    s = s + " * pointe le tableau de ses membres. Pour une liste, xmlName est l'element" + RC
+    s = s + " * conteneur (ou l'element repete si flattened), listItemName l'element de" + RC
+    s = s + " * chaque item, itemKind le type des items (0=scalaire, 1=structure) et" + RC
+    s = s + " * children les membres de l'item quand itemKind=1. scalarFmt precise le" + RC
+    s = s + " * format d'un scalaire de corps (kind=0) a l'ecriture : 0=texte brut," + RC
+    s = s + " * 1=blob (encode base64). Ignore hors chemin d'ecriture. */" + RC
+    s = s + "typedef struct AwsXmlMember {" + RC
+    s = s + "    const char* jsonName;" + RC
+    s = s + "    const char* xmlName;" + RC
+    s = s + "    int kind;" + RC
+    s = s + "    const struct AwsXmlMember* children;" + RC
+    s = s + "    int childCount;" + RC
+    s = s + "    const char* listItemName;" + RC
+    s = s + "    int flattened;" + RC
+    s = s + "    int itemKind;" + RC
+    s = s + "    int scalarFmt;" + RC
+    s = s + "} AwsXmlMember;" + RC
+    s = s + RC
+    s = s + "typedef struct {" + RC
+    s = s + "    const char* serviceName;" + RC
+    s = s + "    const char* actionName;" + RC
+    s = s + "    const char* rootName;" + RC
+    s = s + "    const char* xmlNamespace;" + RC
+    s = s + `    const char* payloadName;    /* cle JSON du membre payload dans laquelle descendre, "" = top-level */` + RC
+    s = s + "    const AwsXmlMember* members;" + RC
+    s = s + "    int memberCount;" + RC
+    s = s + "} AwsXmlSerDescr;" + RC
+    s = s + RC
+    s = s + "extern const AwsXmlSerDescr AWS_SER_DESCRS[];" + RC
+    s = s + "extern const int AWS_SER_DESCR_COUNT;" + RC
+    s = s + RC
+    s = s + "/* Descripteur de decodage XML->JSON d'une reponse (rest-xml/query/ec2)." + RC
+    s = s + " * members decrit les enfants attendus de l'element racine du fil : les" + RC
+    s = s + " * membres marques liste (AwsXmlMember.kind=2) decodent en tableau" + RC
+    s = s + " * deterministe (forme boto3 hoist), les structures guident la descente." + RC
+    s = s + " * Seules les operations dont la reponse porte au moins une liste ont un" + RC
+    s = s + " * descripteur ; les autres decodent generiquement. */" + RC
+    s = s + "typedef struct {" + RC
+    s = s + "    const char* serviceName;" + RC
+    s = s + "    const char* actionName;" + RC
+    s = s + "    const AwsXmlMember* members;" + RC
+    s = s + "    int memberCount;" + RC
+    s = s + "} AwsXmlOutDescr;" + RC
+    s = s + RC
+    s = s + "extern const AwsXmlOutDescr AWS_OUT_DESCRS[];" + RC
+    s = s + "extern const int AWS_OUT_DESCR_COUNT;" + RC
+    s = s + RC
+    s = s + "/* Enum awsService + constantes de service (valeur = index dans AWS_SERVICES). */" + RC
+    s = s + "extern const char* const E_awsService_values[];" + RC
+    s = s + "extern const OwlConstDef AWS_CONSTS[];" + RC
+    s = s + "extern const int AWS_CONST_COUNT;" + RC
+    s = s + RC
+    s = s + "#endif" + RC
+    RENVOYER s
+FIN
+
+
+// Lit un membre chaîne d'un objet JSON, "" si absent.
+PROCEDURE AwsMembreChaîne(jObjet est un JSON, sNom est une chaîne)
+    SI JSONExiste(jObjet, sNom) ALORS
+        RENVOYER "" + jObjet[sNom]
+    FIN
+    RENVOYER ""
+FIN
+
+
+// Convertit l'objet JSON `operations` en tableau associatif indexé par nom
+// d'action. Détour nécessaire : l'itération directe d'un objet JSON n'expose
+// pas ses clés, alors qu'un tableau associatif les parcourt.
+PROCEDURE AwsOperations(j est un JSON)
+    sOps est une chaîne = JSONVersChaîne(j.operations, psdMinifie)
+    modele est un tableau associatif de JSON
+    RENVOYER JSONDésérialise(sOps, modele)
+FIN
+
+
+// Émet le bloc de tableau d'actions d'un service et renvoie le C produit.
+// Les actions sont triées par nom pour un diff déterministe.
+PROCEDURE AwsEmetActions(sIdent est une chaîne, j est un JSON)
+    ops est un tableau associatif de JSON = AwsOperations(j)
+    // Collecte + tri des noms d'action.
+    noms est un tableau de chaînes
+    POUR TOUT op, cle DE ops
+        Ajoute(noms, "" + cle)
+    FIN
+    Trie(noms, ttCroissant)
+
+    s est une chaîne = ""
+    s = s + "static const AwsAction aws_actions_" + sIdent + "[] = {" + RC
+    POUR TOUT nomAction DE noms
+        op est un JSON = ops[nomAction]
+        method est une chaîne = ""
+        uri est une chaîne = ""
+        SI JSONExiste(op, "http") ALORS
+            method = AwsMembreChaîne(op.http, "method")
+            uri = AwsMembreChaîne(op.http, "requestUri")
+        FIN
+        s = s + `    { "` + AwsEchappeC(nomAction) + `", "` + AwsEchappeC(method)
+        s = s + `", "` + AwsEchappeC(uri) + `" },` + RC
+    FIN
+    s = s + "};" + RC
+    RENVOYER s
+FIN
+
+
+// Parse tous les service-2.json sous sInputDir et renvoie le source .c complet.
+// ---------------------------------------------------------------------------
+// Sérialisation JSON -> XML des corps de requête rest-xml.
+//
+// Pour chaque opération rest-xml dotée d'un input shape avec des membres de
+// corps, on émet un descripteur compact décrivant l'élément racine, l'éventuel
+// espace de noms XML, et l'arbre des membres (nom JSON -> locationName XML,
+// type, imbrication, listes). Le sérialiseur runtime (stdlib_aws_native.c) s'en
+// sert pour construire le corps XML. Seules les opérations rest-xml sont
+// ciblées : le poids reste borné aux services concernés.
+// ---------------------------------------------------------------------------
+
+// Traduit un type de shape botocore en kind numérique du descripteur.
+PROCEDURE AwsXmlKind(sType est une chaîne)
+    SELON sType
+        CAS "structure" : RENVOYER 1
+        CAS "list" : RENVOYER 2
+        AUTRE CAS : RENVOYER 0
+    FIN
+FIN
+
+// Nombre de membres d'une structure retenus pour le corps (hors membres portés
+// par l'URI / les en-têtes / la query string, exclus par leur trait location).
+PROCEDURE AwsCompteMembresXml(membres est un JSON)
+    n est un entier = 0
+    POUR TOUT memDef, memNom DE membres
+        SI PAS JSONExiste(memDef, "location") ALORS
+            n = n + 1
+        FIN
+    FIN
+    RENVOYER n
+FIN
+
+// Émet le tableau C des membres XML d'une structure et renvoie son nom C. Les
+// tableaux imbriqués (structures, listes de structures) sont émis d'abord et
+// accumulés dans prepend[1] (l'appelé avant l'appelant : le C exige la
+// définition avant la référence). cpt[1] fournit des suffixes uniques ; prof
+// borne la récursion sur d'éventuels shapes mutuellement récursifs.
+PROCEDURE AwsEmetMembresXml(sBase est une chaîne, membres est un JSON, shapes est un tableau associatif de JSON, prepend est un tableau de chaînes, cpt est un tableau d'entiers, prof est un entier)
+    monNom est une chaîne = sBase + "_" + cpt[1]
+    cpt[1] = cpt[1] + 1
+    lignes est une chaîne = ""
+    SI prof <= 8 ALORS
+        POUR TOUT memDef, memNom DE membres
+            SI JSONExiste(memDef, "location") ALORS
+                CONTINUER
+            FIN
+            sShapeRef est une chaîne = "" + memDef.shape
+            shp est un JSON = shapes[sShapeRef]
+            sTypeShp est une chaîne = AwsMembreChaîne(shp, "type")
+            kind est un entier = AwsXmlKind(sTypeShp)
+
+            // Format d'un scalaire de corps : un blob est encode en base64 dans
+            // le XML rest-xml (les timestamps ne sont pas encore couverts).
+            scalarFmt est un entier = 0
+            SI kind = 0 ET sTypeShp = "blob" ALORS
+                scalarFmt = 1
+            FIN
+
+            xmlName est une chaîne = memNom
+            SI JSONExiste(memDef, "locationName") ALORS
+                xmlName = "" + memDef.locationName
+            FIN
+
+            childRef est une chaîne = "NULL"
+            childCount est un entier = 0
+            listItem est une chaîne = ""
+            flat est un entier = 0
+            itemKind est un entier = 0
+
+            SI kind = 1 ALORS
+                childRef = AwsEmetMembresXml(sBase, shp.members, shapes, prepend, cpt, prof + 1)
+                childCount = AwsCompteMembresXml(shp.members)
+            SINON SI kind = 2 ALORS
+                mem est un JSON = shp.member
+                itemShp est un JSON = shapes["" + mem.shape]
+                itemKind = AwsXmlKind(AwsMembreChaîne(itemShp, "type"))
+                listItem = "member"
+                SI JSONExiste(mem, "locationName") ALORS
+                    listItem = "" + mem.locationName
+                FIN
+                SI JSONExiste(shp, "flattened") ALORS
+                    flat = 1
+                FIN
+                SI itemKind = 1 ALORS
+                    childRef = AwsEmetMembresXml(sBase, itemShp.members, shapes, prepend, cpt, prof + 1)
+                    childCount = AwsCompteMembresXml(itemShp.members)
+                FIN
+            FIN
+
+            lignes = lignes + `    { "` + AwsEchappeC(memNom) + `", "` + AwsEchappeC(xmlName) + `", `
+            lignes = lignes + kind + ", " + childRef + ", " + childCount + `, "` + AwsEchappeC(listItem) + `", `
+            lignes = lignes + flat + ", " + itemKind + ", " + scalarFmt + " }," + RC
+        FIN
+    FIN
+    prepend[1] = prepend[1] + "static const AwsXmlMember " + monNom + "[] = {" + RC + lignes + "};" + RC
+    RENVOYER monNom
+FIN
+
+// Émet les descripteurs de sérialisation d'un service rest-xml. Renvoie un
+// tableau de chaînes [définitions des tableaux de membres, lignes de la table
+// AWS_SER_DESCRS, nombre de descripteurs émis]. Pour un service non rest-xml ou
+// sans opération à corps, renvoie des chaînes vides et un compteur nul.
+PROCEDURE AwsEmetSerDescrService(sSvc est une chaîne, sIdent est une chaîne, j est un JSON)
+    resultat est un tableau de chaînes = ["", "", "0"]
+    SI PAS JSONExiste(j, "shapes") ALORS
+        RENVOYER resultat
+    FIN
+
+    sShapes est une chaîne = JSONVersChaîne(j.shapes, psdMinifie)
+    shapes est un tableau associatif de JSON
+    JSONDésérialise(sShapes, shapes)
+
+    ops est un tableau associatif de JSON = AwsOperations(j)
+    noms est un tableau de chaînes
+    POUR TOUT op, cle DE ops
+        Ajoute(noms, "" + cle)
+    FIN
+    Trie(noms, ttCroissant)
+
+    sArrays est une chaîne = ""
+    sTable est une chaîne = ""
+    nbDescr est un entier = 0
+
+    POUR TOUT nomOp DE noms
+        op est un JSON = ops[nomOp]
+        SI PAS JSONExiste(op, "input") ALORS
+            CONTINUER
+        FIN
+        sInputRef est une chaîne = "" + op.input.shape
+        shp est un JSON = shapes[sInputRef]
+
+        // Membres de corps + élément racine + espace de noms. Un membre payload
+        // dédié redéfinit la racine ; sinon l'input shape lui-même est le corps.
+        membres est un JSON = shp.members
+        rootName est une chaîne = sInputRef
+        SI JSONExiste(shp, "locationName") ALORS
+            rootName = "" + shp.locationName
+        FIN
+        // Espace de noms de l'élément racine. Trois sources selon le service :
+        //   1. la ref d'input de l'opération (Route 53 : xmlNamespace sur input) ;
+        //   2. le shape d'input lui-même (certains services) ;
+        //   3. le membre payload (S3 : xmlNamespace porté par le membre payload,
+        //      qui devient le corps sérialisé).
+        // Premier cut = un unique uri sur la racine. Les namespaces par élément
+        // ou à préfixe (rares) ne sont pas remontés.
+        nsUri est une chaîne = ""
+        SI JSONExiste(op.input, "xmlNamespace") ALORS
+            SI JSONExiste(op.input.xmlNamespace, "uri") ALORS
+                nsUri = "" + op.input.xmlNamespace.uri
+            FIN
+        FIN
+        SI nsUri = "" ET JSONExiste(shp, "xmlNamespace") ALORS
+            SI JSONExiste(shp.xmlNamespace, "uri") ALORS
+                nsUri = "" + shp.xmlNamespace.uri
+            FIN
+        FIN
+        // Membre payload dédié : la racine XML devient l'élément du membre payload
+        // (son locationName ou son nom), et les membres de SON shape deviennent les
+        // enfants directs de la racine — pas un conteneur au nom du request-shape
+        // (S3 PutBucketTagging -> <Tagging>...). L'espace de noms, quand il est
+        // porté par le membre payload, remonte sur cette même racine. Un payload
+        // scalaire (blob/stream/policy) n'est PAS restructuré : corps passé tel quel.
+        // Nom du membre payload dans le corps JSON : quand ce membre est une
+        // structure restructurée en racine, le runtime doit descendre dans
+        // corps[payloadName] avant de marcher les membres. "" = corps au
+        // top-level (aucune restructuration, ou payload scalaire).
+        payloadName est une chaîne = ""
+        SI JSONExiste(shp, "payload") ALORS
+            plNom est une chaîne = "" + shp.payload
+            plTrouvé est un booléen = Faux
+            plRoot est une chaîne = ""
+            plMembres est un JSON
+            POUR TOUT memDef, memNom DE membres
+                SI memNom = plNom ALORS
+                    SI nsUri = "" ET JSONExiste(memDef, "xmlNamespace") ALORS
+                        SI JSONExiste(memDef.xmlNamespace, "uri") ALORS
+                            nsUri = "" + memDef.xmlNamespace.uri
+                        FIN
+                    FIN
+                    plShp est un JSON = shapes["" + memDef.shape]
+                    SI AwsMembreChaîne(plShp, "type") = "structure" ALORS
+                        plRoot = memNom
+                        SI JSONExiste(memDef, "locationName") ALORS
+                            plRoot = "" + memDef.locationName
+                        FIN
+                        plMembres = plShp.members
+                        plTrouvé = Vrai
+                    FIN
+                FIN
+            FIN
+            SI plTrouvé ALORS
+                rootName = plRoot
+                membres = plMembres
+                payloadName = plNom
+            FIN
+        FIN
+
+        SI AwsCompteMembresXml(membres) = 0 ALORS
+            CONTINUER
+        FIN
+
+        sBase est une chaîne = "aws_ser_" + sIdent + "_" + AwsIdentifiantC(nomOp)
+        prepend est un tableau de chaînes = [""]
+        cpt est un tableau d'entiers = [0]
+        rootArr est une chaîne = AwsEmetMembresXml(sBase, membres, shapes, prepend, cpt, 0)
+        rootCount est un entier = AwsCompteMembresXml(membres)
+
+        sArrays = sArrays + prepend[1]
+        sTable = sTable + `    { "` + AwsEchappeC(sSvc) + `", "` + AwsEchappeC(nomOp) + `", "`
+        sTable = sTable + AwsEchappeC(rootName) + `", "` + AwsEchappeC(nsUri) + `", "`
+        sTable = sTable + AwsEchappeC(payloadName) + `", `
+        sTable = sTable + rootArr + ", " + rootCount + " }," + RC
+        nbDescr = nbDescr + 1
+    FIN
+
+    resultat[1] = sArrays
+    resultat[2] = sTable
+    resultat[3] = "" + nbDescr
+    RENVOYER resultat
+FIN
+
+
+// ---------------------------------------------------------------------------
+// Décodage XML -> JSON des réponses (rest-xml, query, ec2). Miroir côté LECTURE
+// des descripteurs de sérialisation : pour chaque opération dont la réponse
+// porte une liste, on émet un descripteur de sortie décrivant, membre par
+// membre, où se trouvent les listes (nom du conteneur, nom de l'élément répété,
+// imbrication). Le décodeur runtime s'en sert pour rendre ces listes en
+// tableaux déterministes (forme boto3 « hoist »), quel que soit le nombre
+// d'éléments présents sur le fil.
+// ---------------------------------------------------------------------------
+
+// Un shape de sortie contient-il (récursivement) au moins une liste ? Seule
+// cette information rend le décodage ambigu (une liste à 1 élément et un objet
+// produisent le même XML) ; les opérations sans liste dans leur réponse ne
+// reçoivent aucun descripteur (décodage générique suffisant). prof borne la
+// récursion sur d'éventuels shapes mutuellement récursifs.
+PROCEDURE AwsOutContientListe(shp est un JSON, shapes est un tableau associatif de JSON, prof est un entier)
+    SI prof > 8 ALORS
+        RENVOYER Faux
+    FIN
+    sType est une chaîne = AwsMembreChaîne(shp, "type")
+    SI sType = "list" ALORS
+        RENVOYER Vrai
+    FIN
+    SI sType = "structure" ET JSONExiste(shp, "members") ALORS
+        POUR TOUT memDef, memNom DE shp.members
+            SI JSONExiste(memDef, "location") ALORS
+                CONTINUER
+            FIN
+            childShp est un JSON = shapes["" + memDef.shape]
+            SI AwsOutContientListe(childShp, shapes, prof + 1) ALORS
+                RENVOYER Vrai
+            FIN
+        FIN
+    FIN
+    RENVOYER Faux
+FIN
+
+// Émet le tableau C des membres de sortie à suivre pour le décodage et renvoie
+// [nomTableauC, nbMembresÉmis]. On ÉLAGUE : seuls les membres LISTE, et les
+// STRUCTURES qui contiennent (récursivement) une liste, sont portés — les
+// scalaires se décodent génériquement au runtime, inutile de les embarquer. Les
+// tableaux imbriqués sont accumulés dans prepend[1] (défini avant leur
+// référence, contrainte C) ; cpt[1] fournit des suffixes uniques ; prof borne
+// la récursion.
+PROCEDURE AwsEmetOutMembres(sBase est une chaîne, membres est un JSON, shapes est un tableau associatif de JSON, prepend est un tableau de chaînes, cpt est un tableau d'entiers, prof est un entier)
+    monNom est une chaîne = sBase + "_" + cpt[1]
+    cpt[1] = cpt[1] + 1
+    lignes est une chaîne = ""
+    nb est un entier = 0
+    SI prof <= 8 ALORS
+        POUR TOUT memDef, memNom DE membres
+            SI JSONExiste(memDef, "location") ALORS
+                CONTINUER
+            FIN
+            shp est un JSON = shapes["" + memDef.shape]
+            sType est une chaîne = AwsMembreChaîne(shp, "type")
+
+            xmlName est une chaîne = memNom
+            SI JSONExiste(memDef, "locationName") ALORS
+                xmlName = "" + memDef.locationName
+            FIN
+
+            SI sType = "list" ALORS
+                mem est un JSON = shp.member
+                itemShp est un JSON = shapes["" + mem.shape]
+                itemType est une chaîne = AwsMembreChaîne(itemShp, "type")
+                listItem est une chaîne = "member"
+                SI JSONExiste(mem, "locationName") ALORS
+                    listItem = "" + mem.locationName
+                FIN
+                flat est un entier = 0
+                SI JSONExiste(shp, "flattened") ALORS
+                    flat = 1
+                FIN
+                childRef est une chaîne = "NULL"
+                childCount est un entier = 0
+                itemKind est un entier = 0
+                SI itemType = "structure" ALORS
+                    itemKind = 1
+                    // Membres de l'item émis seulement s'ils portent une liste.
+                    SI AwsOutContientListe(itemShp, shapes, prof + 1) ALORS
+                        res est un tableau de chaînes = AwsEmetOutMembres(sBase, itemShp.members, shapes, prepend, cpt, prof + 2)
+                        childRef = res[1]
+                        childCount = Val(res[2])
+                    FIN
+                FIN
+                lignes = lignes + `    { "` + AwsEchappeC(memNom) + `", "` + AwsEchappeC(xmlName) + `", 2, `
+                lignes = lignes + childRef + ", " + childCount + `, "` + AwsEchappeC(listItem) + `", ` + flat + ", " + itemKind + ", 0 }," + RC
+                nb = nb + 1
+            SINON SI sType = "structure" ALORS
+                SI AwsOutContientListe(shp, shapes, prof + 1) ALORS
+                    res est un tableau de chaînes = AwsEmetOutMembres(sBase, shp.members, shapes, prepend, cpt, prof + 1)
+                    lignes = lignes + `    { "` + AwsEchappeC(memNom) + `", "` + AwsEchappeC(xmlName) + `", 1, `
+                    lignes = lignes + res[1] + ", " + Val(res[2]) + `, "", 0, 0, 0 },` + RC
+                    nb = nb + 1
+                FIN
+            FIN
+            // scalaires : ignorés (décodage générique au runtime)
+        FIN
+    FIN
+    prepend[1] = prepend[1] + "static const AwsXmlMember " + monNom + "[] = {" + RC + lignes + "};" + RC
+    resultat est un tableau de chaînes = [monNom, "" + nb]
+    RENVOYER resultat
+FIN
+
+// Émet les descripteurs de décodage de sortie d'un service à réponse XML.
+// Renvoie [définitions des tableaux, lignes de AWS_OUT_DESCRS, nombre émis].
+// Seules les opérations dont la sortie porte au moins une liste produisent un
+// descripteur. Pour le protocole query, les membres de sortie sont enveloppés
+// dans le resultWrapper (ex. ListUsersResult) qui apparaît sur le fil sous
+// l'élément racine <ActionResponse> : on modélise ce niveau par une structure
+// synthétique dont les enfants sont les membres de la shape de sortie. rest-xml
+// et ec2 n'ont pas de wrapper : membres directement sous la racine.
+PROCEDURE AwsEmetOutDescrService(sSvc est une chaîne, sIdent est une chaîne, sProtocole est une chaîne, j est un JSON)
+    resultat est un tableau de chaînes = ["", "", "0"]
+    SI PAS JSONExiste(j, "shapes") ALORS
+        RENVOYER resultat
+    FIN
+
+    sShapes est une chaîne = JSONVersChaîne(j.shapes, psdMinifie)
+    shapes est un tableau associatif de JSON
+    JSONDésérialise(sShapes, shapes)
+
+    ops est un tableau associatif de JSON = AwsOperations(j)
+    noms est un tableau de chaînes
+    POUR TOUT op, cle DE ops
+        Ajoute(noms, "" + cle)
+    FIN
+    Trie(noms, ttCroissant)
+
+    sArrays est une chaîne = ""
+    sTable est une chaîne = ""
+    nbDescr est un entier = 0
+
+    POUR TOUT nomOp DE noms
+        op est un JSON = ops[nomOp]
+        SI PAS JSONExiste(op, "output") ALORS
+            CONTINUER
+        FIN
+        sOutRef est une chaîne = "" + op.output.shape
+        outShp est un JSON = shapes[sOutRef]
+        SI AwsMembreChaîne(outShp, "type") <> "structure" ALORS
+            CONTINUER
+        FIN
+        SI PAS AwsOutContientListe(outShp, shapes, 0) ALORS
+            CONTINUER
+        FIN
+
+        sBase est une chaîne = "aws_out_" + sIdent + "_" + AwsIdentifiantC(nomOp)
+        prepend est un tableau de chaînes = [""]
+        cpt est un tableau d'entiers = [0]
+
+        rootArr est une chaîne = ""
+        rootCount est un entier = 0
+
+        wrapper est une chaîne = ""
+        SI sProtocole = "query" ET JSONExiste(op.output, "resultWrapper") ALORS
+            wrapper = "" + op.output.resultWrapper
+        FIN
+
+        SI wrapper <> "" ALORS
+            innerRes est un tableau de chaînes = AwsEmetOutMembres(sBase, outShp.members, shapes, prepend, cpt, 1)
+            topNom est une chaîne = sBase + "_top"
+            ligneTop est une chaîne = `    { "` + AwsEchappeC(wrapper) + `", "` + AwsEchappeC(wrapper) + `", 1, `
+            ligneTop = ligneTop + innerRes[1] + ", " + Val(innerRes[2]) + `, "", 0, 0, 0 },` + RC
+            prepend[1] = prepend[1] + "static const AwsXmlMember " + topNom + "[] = {" + RC + ligneTop + "};" + RC
+            rootArr = topNom
+            rootCount = 1
+        SINON
+            rootRes est un tableau de chaînes = AwsEmetOutMembres(sBase, outShp.members, shapes, prepend, cpt, 0)
+            rootArr = rootRes[1]
+            rootCount = Val(rootRes[2])
+        FIN
+
+        SI rootCount = 0 ALORS
+            CONTINUER
+        FIN
+
+        sArrays = sArrays + prepend[1]
+        sTable = sTable + `    { "` + AwsEchappeC(sSvc) + `", "` + AwsEchappeC(nomOp) + `", `
+        sTable = sTable + rootArr + ", " + rootCount + " }," + RC
+        nbDescr = nbDescr + 1
+    FIN
+
+    resultat[1] = sArrays
+    resultat[2] = sTable
+    resultat[3] = "" + nbDescr
+    RENVOYER resultat
+FIN
+
+
+
+// Renseigne, à partir de endpoints.json (partition aws), deux tables indexées
+// par endpointPrefix : l'hôte global fixe et la région de signature d'un
+// service GLOBAL. Un service est global ssi son entrée porte `isRegionalized`
+// EXPLICITEMENT à false (booléen présent ET faux) — un champ absent (ou true)
+// désigne un service régional. L'hôte et la région de signature proviennent de
+// endpoints[partitionEndpoint] (hostname + credentialScope.region). Seuls les
+// services dotés d'un hostname résolu sont retenus comme globaux.
+PROCEDURE AwsChargeGlobaux(sInputDir est une chaîne, tHost est un tableau associatif de chaînes, tRegion est un tableau associatif de chaînes)
+    sChemin est une chaîne = sInputDir + "/endpoints.json"
+    SI PAS fFichierExiste(sChemin) ALORS
+        Trace("AVERTISSEMENT endpoints.json introuvable (" + sChemin + ") : aucun service global détecté")
+        RENVOYER
+    FIN
+    d est un JSON = ChaîneVersJSON(fChargeTexte(sChemin))
+    POUR TOUT part DE d.partitions
+        SI AwsMembreChaîne(part, "partition") <> "aws" ALORS
+            CONTINUER
+        FIN
+        services est un tableau associatif de JSON
+        JSONDésérialise(JSONVersChaîne(part.services, psdMinifie), services)
+        POUR TOUT e, prefix DE services
+            SI PAS JSONExiste(e, "isRegionalized") ALORS
+                CONTINUER
+            FIN
+            SI e.isRegionalized <> Faux ALORS
+                CONTINUER
+            FIN
+            pe est une chaîne = AwsMembreChaîne(e, "partitionEndpoint")
+            SI pe = "" OU PAS JSONExiste(e, "endpoints") ALORS
+                CONTINUER
+            FIN
+            SI PAS JSONExiste(e.endpoints, pe) ALORS
+                CONTINUER
+            FIN
+            ep est un JSON = e.endpoints[pe]
+            host est une chaîne = AwsMembreChaîne(ep, "hostname")
+            SI host = "" ALORS
+                CONTINUER
+            FIN
+            reg est une chaîne = ""
+            SI JSONExiste(ep, "credentialScope") ALORS
+                reg = AwsMembreChaîne(ep.credentialScope, "region")
+            FIN
+            tHost["" + prefix] = host
+            tRegion["" + prefix] = reg
+        FIN
+    FIN
+FIN
+
+
+PROCEDURE AwsGénèreTableC(sInputDir est une chaîne)
+    // Table d'autorité des services globaux (endpoints.json) : hôte global fixe
+    // et région de signature, indexés par endpointPrefix.
+    globalHostParPrefix est un tableau associatif de chaînes
+    signRegionParPrefix est un tableau associatif de chaînes
+    AwsChargeGlobaux(sInputDir, globalHostParPrefix, signRegionParPrefix)
+
+    sListe est une chaîne = fListeFichier(sInputDir + "/*service-2.json")
+    chemins est un tableau de chaînes = ChaîneDécoupe(sListe, RC)
+
+    // Indexe chaque service par son nom canonique (tri déterministe ensuite).
+    // Botocore range un même service sous plusieurs dossiers de version
+    // (data/<service>/<apiVersion>/service-2.json). On retient une seule
+    // entrée par service — la plus récente apiVersion — et on n'accumule le
+    // nom qu'une fois. Le choix ne dépend PAS de l'ordre du glob : à
+    // apiVersion égale on garde la première rencontrée, sinon la plus grande
+    // (les apiVersion botocore sont des dates ISO YYYY-MM-DD, comparables
+    // lexicalement).
+    parNom est un tableau associatif de JSON
+    versionParNom est un tableau associatif de chaînes
+    dejaVu est un tableau associatif de booléens
+    nomsServices est un tableau de chaînes
+
+    POUR TOUT chemin DE chemins
+        SI chemin = "" ALORS
+            CONTINUER
+        FIN
+        svc est une chaîne = AwsNomServiceDepuisChemin(chemin)
+        SI svc = "" ALORS
+            CONTINUER
+        FIN
+        contenu est une chaîne = fChargeTexte(chemin)
+        j est un JSON = ChaîneVersJSON(contenu)
+        apiVer est une chaîne = AwsMembreChaîne(j.metadata, "apiVersion")
+        SI PAS dejaVu[svc] ALORS
+            // Première occurrence de ce service.
+            Ajoute(nomsServices, svc)
+            dejaVu[svc] = Vrai
+            parNom[svc] = j
+            versionParNom[svc] = apiVer
+        SINON
+            // Déjà vu : ne garder que si strictement plus récent.
+            SI apiVer > versionParNom[svc] ALORS
+                parNom[svc] = j
+                versionParNom[svc] = apiVer
+            FIN
+        FIN
+    FIN
+    Trie(nomsServices, ttCroissant)
+
+    // Dédup secondaire par serviceId. Deux dossiers botocore peuvent exposer
+    // le MÊME serviceId (même API sous deux noms de dossier, ex.
+    // pinpoint-sms-voice / sms-voice → serviceId "Pinpoint SMS Voice"). Le
+    // symbole de constante dérive du serviceId (aws<Symbole>) : deux dossiers
+    // au même serviceId = une seule constante, sinon collision nameEN au
+    // registry. On ne garde qu'une entrée par serviceId, de façon
+    // déterministe : le service au plus grand nombre d'actions (superset), et
+    // à nombre égal le nom de service trié en premier (nomsServices est déjà
+    // trié croissant, donc la première rencontre gagne les égalités).
+    // Une collision dont l'endpoint/apiVersion diverge serait une vraie
+    // ambiguïté (deux API distinctes) : on la trace pour inspection.
+    vuServiceId est un tableau associatif de booléens
+    svcParServiceId est un tableau associatif de chaînes
+    nbActionsParServiceId est un tableau associatif d'entiers
+    nomsFinal est un tableau de chaînes
+    POUR TOUT nomSvc DE nomsServices
+        jj est un JSON = parNom[nomSvc]
+        sid est une chaîne = AwsMembreChaîne(jj.metadata, "serviceId")
+        opsX est un tableau associatif de JSON = AwsOperations(jj)
+        nbAct est un entier = opsX..Occurrence
+        SI PAS vuServiceId[sid] ALORS
+            vuServiceId[sid] = Vrai
+            svcParServiceId[sid] = nomSvc
+            nbActionsParServiceId[sid] = nbAct
+            Ajoute(nomsFinal, nomSvc)
+        SINON
+            ancien est une chaîne = svcParServiceId[sid]
+            jAncien est un JSON = parNom[ancien]
+            epA est une chaîne = AwsMembreChaîne(jAncien.metadata, "endpointPrefix")
+            epB est une chaîne = AwsMembreChaîne(jj.metadata, "endpointPrefix")
+            avA est une chaîne = AwsMembreChaîne(jAncien.metadata, "apiVersion")
+            avB est une chaîne = AwsMembreChaîne(jj.metadata, "apiVersion")
+            SI epA <> epB OU avA <> avB ALORS
+                Trace("AVERTISSEMENT collision serviceId AMBIGUE : '" + sid + "' entre '" + ancien + "' (endpoint=" + epA + " apiVersion=" + avA + ") et '" + nomSvc + "' (endpoint=" + epB + " apiVersion=" + avB + ")")
+            FIN
+            SI nbAct > nbActionsParServiceId[sid] ALORS
+                svcParServiceId[sid] = nomSvc
+                nbActionsParServiceId[sid] = nbAct
+                POUR k = 1 A nomsFinal..Occurrence
+                    SI nomsFinal[k] = ancien ALORS
+                        nomsFinal[k] = nomSvc
+                    FIN
+                FIN
+            FIN
+        FIN
+    FIN
+    nomsServices = nomsFinal
+
+    // Corps .c : blocs d'actions puis tableau des services.
+    sActions est une chaîne = ""
+    sTable est une chaîne = ""
+    sTable = sTable + "const AwsService AWS_SERVICES[] = {" + RC
+
+    // Collecte parallèle pour l'émission de l'enum awsService et de ses
+    // constantes : le symbole (aws<symbolName>) et le serviceId (desc).
+    symboles est un tableau de chaînes
+    serviceIds est un tableau de chaînes
+
+    // Descripteurs de sérialisation JSON->XML (rest-xml uniquement).
+    sSerArrays est une chaîne = ""
+    sSerTable est une chaîne = ""
+    nbSerDescr est un entier = 0
+
+    // Descripteurs de décodage XML->JSON des réponses (rest-xml, query, ec2).
+    sOutArrays est une chaîne = ""
+    sOutTable est une chaîne = ""
+    nbOutDescr est un entier = 0
+
+    nbServices est un entier = 0
+    POUR TOUT nomSvc DE nomsServices
+        j est un JSON = parNom[nomSvc]
+        meta est un JSON = j.metadata
+        ident est une chaîne = AwsIdentifiantC(nomSvc)
+
+        endpointPrefix est une chaîne = AwsMembreChaîne(meta, "endpointPrefix")
+        serviceId est une chaîne = AwsMembreChaîne(meta, "serviceId")
+        symbolName est une chaîne = AwsSymboleService(serviceId)
+        Ajoute(symboles, symbolName)
+        Ajoute(serviceIds, serviceId)
+        protocole est une chaîne = AwsMembreChaîne(meta, "protocol")
+        jsonVersion est une chaîne = AwsMembreChaîne(meta, "jsonVersion")
+        targetPrefix est une chaîne = AwsMembreChaîne(meta, "targetPrefix")
+        signingName est une chaîne = AwsMembreChaîne(meta, "signingName")
+        SI signingName = "" ALORS
+            signingName = endpointPrefix
+        FIN
+        apiVersion est une chaîne = AwsMembreChaîne(meta, "apiVersion")
+        signatureVersion est une chaîne = AwsMembreChaîne(meta, "signatureVersion")
+        // Hôte fixe et région de signature d'un service global (partition aws),
+        // dérivés de endpoints.json et indexés par endpointPrefix. Vides pour un
+        // service régional.
+        globalEndpoint est une chaîne = globalHostParPrefix[endpointPrefix]
+        signingRegion est une chaîne = signRegionParPrefix[endpointPrefix]
+
+        ops est un tableau associatif de JSON = AwsOperations(j)
+        nbActions est un entier = ops..Occurrence
+        sActions = sActions + AwsEmetActions(ident, j)
+
+        sTable = sTable + `    { "` + AwsEchappeC(nomSvc) + `", "` + AwsEchappeC(symbolName) + `", "` + AwsEchappeC(endpointPrefix) + `", `
+        sTable = sTable + AwsProtocoleC(protocole) + `, "` + AwsEchappeC(jsonVersion) + `", "`
+        sTable = sTable + AwsEchappeC(targetPrefix) + `", "` + AwsEchappeC(signingName) + `", "`
+        sTable = sTable + AwsEchappeC(apiVersion) + `", "` + AwsEchappeC(signatureVersion) + `", "`
+        sTable = sTable + AwsEchappeC(globalEndpoint) + `", "` + AwsEchappeC(signingRegion) + `", `
+        sTable = sTable + "aws_actions_" + ident + ", " + nbActions + " }," + RC
+        nbServices = nbServices + 1
+
+        SI protocole = "rest-xml" ALORS
+            ser est un tableau de chaînes = AwsEmetSerDescrService(nomSvc, ident, j)
+            sSerArrays = sSerArrays + ser[1]
+            sSerTable = sSerTable + ser[2]
+            nbSerDescr = nbSerDescr + Val(ser[3])
+        FIN
+
+        SI protocole = "rest-xml" OU protocole = "query" OU protocole = "ec2" ALORS
+            outd est un tableau de chaînes = AwsEmetOutDescrService(nomSvc, ident, protocole, j)
+            sOutArrays = sOutArrays + outd[1]
+            sOutTable = sOutTable + outd[2]
+            nbOutDescr = nbOutDescr + Val(outd[3])
+        FIN
+    FIN
+    sTable = sTable + "};" + RC
+
+    // Enum awsService : valeurs = aws<symbolName>, dans l'ordre trié des
+    // services (valeur numérique = index dans AWS_SERVICES). Constantes
+    // associées : desc FR/EN dérivée du serviceId (FR=EN, nom non traduit).
+    sEnum est une chaîne = ""
+    sEnum = sEnum + "const char* const E_awsService_values[] = {" + RC
+    sEnum = sEnum + "    "
+    POUR i = 1 A symboles..Occurrence
+        sEnum = sEnum + `"aws` + AwsEchappeC(symboles[i]) + `", `
+    FIN
+    sEnum = sEnum + "NULL" + RC
+    sEnum = sEnum + "};" + RC
+    sEnum = sEnum + RC
+    sEnum = sEnum + "const OwlConstDef AWS_CONSTS[] = {" + RC
+    POUR i = 1 A symboles..Occurrence
+        nomConst est une chaîne = "aws" + symboles[i]
+        sid est une chaîne = serviceIds[i]
+        sEnum = sEnum + `    { "` + AwsEchappeC(nomConst) + `", "AWS", INTEGER_VAL(` + (i - 1) + `), `
+        sEnum = sEnum + `"service ` + AwsEchappeC(sid) + `", "` + AwsEchappeC(sid) + ` service", "`
+        sEnum = sEnum + AwsEchappeC(nomConst) + `" },` + RC
+    FIN
+    sEnum = sEnum + "};" + RC
+    sEnum = sEnum + RC
+    sEnum = sEnum + "const int AWS_CONST_COUNT = " + symboles..Occurrence + ";" + RC
+
+    out est une chaîne = ""
+    out = out + "// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-OWL-Runtime-Exception" + RC
+    out = out + "/* GÉNÉRÉ — NE PAS ÉDITER À LA MAIN." + RC
+    out = out + " * Produit par tools/aws/aws_models_gen.owl depuis les modèles botocore." + RC
+    out = out + " * Régénération : scripts/refresh_aws_models.sh" + RC
+    out = out + " */" + RC
+    out = out + `#include "aws_service_models.h"` + RC
+    out = out + RC
+    out = out + sActions
+    out = out + RC
+    out = out + sTable
+    out = out + RC
+    out = out + "const int AWS_SERVICE_COUNT = " + nbServices + ";" + RC
+    out = out + RC
+    out = out + sEnum
+    out = out + RC
+    out = out + sSerArrays
+    out = out + "const AwsXmlSerDescr AWS_SER_DESCRS[] = {" + RC
+    out = out + sSerTable
+    out = out + "};" + RC
+    out = out + "const int AWS_SER_DESCR_COUNT = " + nbSerDescr + ";" + RC
+    out = out + RC
+    out = out + sOutArrays
+    out = out + "const AwsXmlOutDescr AWS_OUT_DESCRS[] = {" + RC
+    out = out + sOutTable
+    out = out + "};" + RC
+    out = out + "const int AWS_OUT_DESCR_COUNT = " + nbOutDescr + ";" + RC
+    RENVOYER out
+FIN
+
+
+
+// ---------------------------------------------------------------------------
+// Pilote : actif uniquement si -out= est fourni. Sinon no-op (owl test).
+// Usage : owl tools/aws/aws_models_gen.owl -in=<botocore/data> -out=src/aws_service_models.c
+// ---------------------------------------------------------------------------
+sPiloteOut est une chaîne = LigneCommande("out")
+SI sPiloteOut <> "" ALORS
+    sPiloteIn est une chaîne = LigneCommande("in", "botocore/botocore/data")
+    sPiloteCode est une chaîne = AwsGénèreTableC(sPiloteIn)
+    fSauveTexte(sPiloteOut, sPiloteCode)
+    sPiloteHeader est une chaîne = fChangeExtension(sPiloteOut, "h")
+    fSauveTexte(sPiloteHeader, AwsGénèreHeader())
+    Trace("Table AWS générée : " + sPiloteOut + " (+ " + sPiloteHeader + ")")
+FIN

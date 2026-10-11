@@ -1,0 +1,26 @@
+//  : toute erreur runtime de niveau utilisateur doit être
+// rattrapable par QUAND EXCEPTION. Isolé dans son propre fichier : voir
+// test_1615_arith_tableau_plus_tableau.owl pour la justification de
+// l'isolation (exit 70 tuerait les voisins).
+//
+// Cohérence attendue : l'index en ÉCRITURE mauvais-type (tab[k] = 5, k
+// chaîne) est déjà rattrapable (cf.
+// test_1615_non_regression_deja_rattrapables.owl) ; l'index en LECTURE
+// mauvais-type doit devenir cohérent avec sa forme sœur écriture.
+
+// ROUGE tant que la lecture tab[chaîne] n'est pas rattrapable.
+PROCEDURE PUBLIQUE test_index_lecture_mauvais_type_leve_exception()
+	vt est un tableau de 2 entiers
+	vt[1] = 1
+	vt[2] = 2
+	clé est une chaîne = "x"
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un entier = vt[clé]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau[chaîne] en lecture lève une exception récupérable")
+FIN

@@ -1,0 +1,220 @@
+// @sujet : Confirmer
+// @résumé : Affiche une boîte de dialogue modale Oui/Non/Annuler et retourne le choix utilisateur (1=Oui, 0=Non, 2=Annuler). Variadique : les arguments successifs forment des lignes distinctes.
+
+
+// Particularité des fonctions UI : le mock intercepte les appels pour
+// empêcher l'ouverture de dialogue pendant les tests automatisés. On vérifie
+// que la fonction a été appelée et combien de fois.
+mockConfirm est un MockNative = MockCrée(Confirmer)
+
+
+PROCEDURE avantChaqueTest()
+	mockConfirm = MockCrée(Confirmer).Quand().Retourne(Oui).Active()
+FIN
+
+
+PROCEDURE aprèsChaqueTest()
+	mockConfirm.Desactive()
+FIN
+
+
+// Cas canonique : un appel simple avec une question de confirmation.
+// La fonction retourne Oui (1), Non (0) ou Annuler (2) selon le choix.
+PROCEDURE scenario_appel_simple()
+	nRes est un entier = Confirmer("Voulez-vous enregistrer les modifications ?")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui attendu")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// Confirmer est variadique : plusieurs chaînes en arguments sont
+// concaténées en lignes successives dans le dialogue. Forme pratique
+// pour structurer une question multi-lignes avec contexte détaillé.
+PROCEDURE scenario_arguments_multiples()
+	nRes est un entier = Confirmer("Des modifications ont été apportées.", "Souhaitez-vous les enregistrer ?")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// L'interpolation [%var%] fonctionne dans le message comme dans toute
+// chaîne. Forme idiomatique pour insérer des valeurs dynamiques dans le
+// dialogue de confirmation.
+PROCEDURE scenario_avec_interpolation()
+	sFichier est une chaîne = "rapport_final.pdf"
+	nRes est un entier = Confirmer("Le fichier [%sFichier%] va être supprimé.", "Confirmer la suppression ?")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// Le mock peut simuler les trois retours possibles : Oui (1), Non (0),
+// Annuler (2). Pratique pour tester les chemins conditionnels du code
+// appelant selon la réponse utilisateur.
+PROCEDURE scenario_retour_non()
+	mockConfirm.Desactive()
+	mockLocal est un MockNative = MockCrée(Confirmer).Quand().Retourne(Non).Active()
+
+	nRes est un entier = Confirmer("Annuler l'opération en cours ?")
+	dbgVérifieEgalité(nRes, Non, "Retour Non attendu")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Appel unique")
+
+	mockLocal.Desactive()
+	mockConfirm = MockCrée(Confirmer).Quand().Retourne(Oui).Active()
+FIN
+
+
+// Retour Annuler (2) : typiquement utilisé pour abandonner une action
+// sans confirmer ni refuser explicitement.
+PROCEDURE scenario_retour_annuler()
+	mockConfirm.Desactive()
+	mockLocal est un MockNative = MockCrée(Confirmer).Quand().Retourne(Annuler).Active()
+
+	nRes est un entier = Confirmer("Quitter sans enregistrer ?")
+	dbgVérifieEgalité(nRes, Annuler, "Retour Annuler attendu")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Appel unique")
+
+	mockLocal.Desactive()
+	mockConfirm = MockCrée(Confirmer).Quand().Retourne(Oui).Active()
+FIN
+
+
+// Le premier paramètre optionnel définit le bouton par défaut
+// (pré-sélectionné). Si omis, Oui est le défaut. Ici on passe Non (0)
+// comme défaut pour inverser la sélection initiale.
+PROCEDURE scenario_bouton_defaut_non()
+	nRes est un entier = Confirmer(Non, "Supprimer tous les fichiers temporaires ?")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// Bouton par défaut Annuler (2) : permet de pré-sélectionner le bouton
+// le plus conservateur dans les situations critiques où l'utilisateur ne
+// doit pas cliquer trop vite.
+PROCEDURE scenario_bouton_defaut_annuler()
+	nRes est un entier = Confirmer(Annuler, "Cette action est irréversible.", "Êtes-vous sûr ?")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// Le compteur du mock reflète fidèlement le nombre d'invocations sur la
+// durée du scénario. Utile pour valider les chemins conditionnels qui
+// affichent plusieurs confirmations successives.
+PROCEDURE scenario_appels_repetes_compte_exact()
+	Confirmer("Confirmer l'étape 1 ?")
+	Confirmer("Confirmer l'étape 2 ?")
+	Confirmer("Confirmer l'étape 3 ?")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 3), "Trois appels successifs")
+FIN
+
+
+// Un appel conditionnel non déclenché ne génère aucune invocation. Cas
+// miroir : tester l'absence d'effet vaut tester sa présence.
+PROCEDURE scenario_aucun_appel_si_condition_fausse()
+	nValeur est un entier = 5
+	SI nValeur > 10 ALORS
+		Confirmer("Valeur anormalement élevée.", "Réinitialiser ?")
+	FIN
+	dbgVérifieFaux(MockVérifieAppelé(mockConfirm), "Aucun appel déclenché")
+FIN
+
+
+// MockRéinitialise remet à zéro les compteurs sans effacer les règles ni
+// désactiver le mock. Utile pour partitionner un scénario en plusieurs
+// phases dont on compte les appels indépendamment.
+PROCEDURE scenario_reinitialisation_des_compteurs()
+	Confirmer("Avant la réinitialisation.")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Première phase")
+
+	MockRéinitialise(mockConfirm)
+	dbgVérifieFaux(MockVérifieAppelé(mockConfirm), "Compteur remis à zéro")
+
+	Confirmer("Après.")
+	Confirmer("Encore.")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 2), "Deuxième phase")
+FIN
+
+
+// Pattern MockCommence : la règle ne s'applique que sur les appels dont le
+// premier argument texte commence par le préfixe spécifié. Pratique pour
+// catégoriser les confirmations par type (suppression, sauvegarde, etc.).
+PROCEDURE scenario_pattern_par_prefixe()
+	mockConfirm.Desactive()
+	mockLocal est un MockNative = MockCrée(Confirmer)
+	mockLocal.Quand().Avec(MockCommence("Supprimer :")).Retourne(Oui).Active()
+
+	nRes est un entier = Confirmer("Supprimer : rapport_final.pdf")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Pattern détecté")
+
+	mockLocal.Desactive()
+	mockConfirm = MockCrée(Confirmer).Quand().Retourne(Oui).Active()
+FIN
+
+
+// Pattern MockContient : la règle s'applique si l'argument texte contient
+// la sous-chaîne, quelle que soit sa position. Plus souple que
+// MockCommence pour des assertions partielles.
+PROCEDURE scenario_pattern_par_substring()
+	mockConfirm.Desactive()
+	mockLocal est un MockNative = MockCrée(Confirmer)
+	mockLocal.Quand().Avec(MockContient("expiration")).Retourne(Annuler).Active()
+
+	nRes est un entier = Confirmer("Votre session arrive à expiration dans 5 minutes.")
+	dbgVérifieEgalité(nRes, Annuler, "Retour Annuler sur pattern expiration")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Pattern détecté")
+
+	mockLocal.Desactive()
+	mockConfirm = MockCrée(Confirmer).Quand().Retourne(Oui).Active()
+FIN
+
+
+// Argument exact : si l'on connaît le texte attendu mot pour mot, on
+// passe directement la chaîne en argument de Avec(). La règle ne s'active
+// alors que sur ce texte précis (sensible à la casse et aux espaces).
+PROCEDURE scenario_argument_exact_via_chaine()
+	mockConfirm.Desactive()
+	mockLocal est un MockNative = MockCrée(Confirmer)
+	mockLocal.Quand().Avec("Continuer ?").Retourne(Non).Active()
+
+	nRes est un entier = Confirmer("Continuer ?")
+	dbgVérifieEgalité(nRes, Non, "Retour Non sur texte exact")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Pattern exact détecté")
+
+	mockLocal.Desactive()
+	mockConfirm = MockCrée(Confirmer).Quand().Retourne(Oui).Active()
+FIN
+
+
+// Cas limite défensif : une chaîne vide passe sans erreur. Pratique rare
+// mais autorisée (affiche une boîte de dialogue sans texte, juste les
+// trois boutons).
+PROCEDURE PRIVÉE scenario_message_vide()
+	nRes est un entier = Confirmer("")
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui même avec message vide")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// Cas limite : message très long (proche de la limite 4096 caractères).
+// Le runtime gère la troncature silencieusement si dépassement, mais on
+// vérifie que l'appel aboutit sans crash.
+PROCEDURE PRIVÉE scenario_message_long()
+	sLong est une chaîne = Répète("X", 4000)
+	nRes est un entier = Confirmer(sLong)
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui sur message long")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique")
+FIN
+
+
+// Cas limite : message juste au-dessus de la limite 4096 caractères.
+// La troncature est silencieuse (conforme au comportement documenté),
+// l'appel aboutit.
+PROCEDURE PRIVÉE scenario_message_tronque_silencieux()
+	sTresLong est une chaîne = Répète("Y", 5000)
+	nRes est un entier = Confirmer(sTresLong)
+	dbgVérifieEgalité(nRes, Oui, "Retour Oui sur message tronqué")
+	dbgVérifieVrai(MockVérifieAppelé(mockConfirm, 1), "Appel unique, troncature silencieuse")
+FIN

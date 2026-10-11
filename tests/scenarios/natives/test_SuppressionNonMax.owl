@@ -1,0 +1,135 @@
+// @sujet : IoU / SuppressionNonMax (NonMaxSuppression)
+// @résumé : IoU(boîteA, boîteB) mesure le recouvrement de deux rectangles
+// (chacun [x, y, largeur, hauteur]) en réel [0,1]. SuppressionNonMax
+// (FR) / NonMaxSuppression (EN) élimine, parmi un lot de boîtes notées,
+// celles qui recouvrent trop une boîte mieux notée déjà conservée,
+// et renvoie les indices conservés triés par score décroissant.
+// Oracles calculés à la main (pas de fixture externe, algo pur).
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Deux boîtes identiques se recouvrent totalement : intersection = union,
+// IoU = 1.0.
+PROCEDURE PUBLIQUE scenario_iou_boites_identiques()
+	boiteA est un tableau de réels = [0.0, 0.0, 10.0, 10.0]
+	boiteB est un tableau de réels = [0.0, 0.0, 10.0, 10.0]
+	r est un réel = IoU(boiteA, boiteB)
+	dbgVérifieVrai(Abs(r - 1.0) < 0.0001, "Boîtes identiques : IoU = 1.0")
+FIN
+
+// Deux boîtes disjointes n'ont aucune intersection : IoU = 0.0.
+PROCEDURE PUBLIQUE scenario_iou_boites_disjointes()
+	boiteA est un tableau de réels = [0.0, 0.0, 10.0, 10.0]
+	boiteB est un tableau de réels = [20.0, 20.0, 10.0, 10.0]
+	r est un réel = IoU(boiteA, boiteB)
+	dbgVérifieVrai(Abs(r - 0.0) < 0.0001, "Boîtes disjointes : IoU = 0.0")
+FIN
+
+// Chevauchement partiel calculé à la main : A=[0,0,10,10], B=[5,5,10,10].
+// Intersection = rectangle [5,5]-[10,10] = 5×5 = 25.
+// Union = aire(A) + aire(B) - intersection = 100 + 100 - 25 = 175.
+// IoU = 25/175 = 1/7 ≈ 0.142857.
+PROCEDURE PUBLIQUE scenario_iou_chevauchement_partiel()
+	boiteA est un tableau de réels = [0.0, 0.0, 10.0, 10.0]
+	boiteB est un tableau de réels = [5.0, 5.0, 10.0, 10.0]
+	r est un réel = IoU(boiteA, boiteB)
+	dbgVérifieVrai(Abs(r - 0.142857) < 0.0001, "Chevauchement partiel : IoU ≈ 25/175 ≈ 0.142857")
+FIN
+
+// Une boîte entièrement incluse dans l'autre : A=[0,0,10,10] (aire 100),
+// B=[2,2,4,4] (aire 16), B ⊂ A donc intersection = aire(B) = 16.
+// Union = 100 + 16 - 16 = 100. IoU = 16/100 = 0.16.
+PROCEDURE PUBLIQUE scenario_iou_boite_incluse()
+	boiteA est un tableau de réels = [0.0, 0.0, 10.0, 10.0]
+	boiteB est un tableau de réels = [2.0, 2.0, 4.0, 4.0]
+	r est un réel = IoU(boiteA, boiteB)
+	dbgVérifieVrai(Abs(r - 0.16) < 0.0001, "Boîte incluse : IoU = 16/100 = 0.16")
+FIN
+
+// Jeu à 3 boîtes, seuil 0.5 : A=[0,0,10,10] score 0.9, B=[1,1,10,10]
+// score 0.8 (chevauche fortement A), C=[50,50,10,10] score 0.7 (disjointe).
+// Vérification IoU(A,B) à la main : intersection = [1,1]-[10,10] = 9×9 = 81,
+// union = 100+100-81 = 119, IoU = 81/119 ≈ 0.6807 > 0.5 → B supprimée.
+// IoU(A,C) = 0 (disjointes) → C conservée. Résultat : indices [1, 3]
+// (A puis C), ordre = score décroissant.
+PROCEDURE PUBLIQUE scenario_nms_supprime_chevauchement()
+	boites est un tableau = [[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 10.0, 10.0], [50.0, 50.0, 10.0, 10.0]]
+	scores est un tableau de réels = [0.9, 0.8, 0.7]
+	gardes est un tableau d'entiers = SuppressionNonMax(boites, scores, 0.5)
+
+	dbgVérifieEgalité(gardes..Occurrence, 2, "Seuil 0.5 : 2 boîtes conservées (A et C)")
+	dbgVérifieEgalité(gardes[1], 1, "Premier conservé = A (score 0.9)")
+	dbgVérifieEgalité(gardes[2], 3, "Second conservé = C (score 0.7, disjointe de A)")
+FIN
+
+// Même jeu, seuil très haut (0.99) : IoU(A,B) ≈ 0.6807 < 0.99, donc rien
+// n'est supprimé. Les 3 boîtes sont conservées, triées par score décroissant
+// (déjà l'ordre d'entrée ici).
+PROCEDURE PUBLIQUE scenario_nms_seuil_eleve_garde_tout()
+	boites est un tableau = [[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 10.0, 10.0], [50.0, 50.0, 10.0, 10.0]]
+	scores est un tableau de réels = [0.9, 0.8, 0.7]
+	gardes est un tableau d'entiers = SuppressionNonMax(boites, scores, 0.99)
+
+	dbgVérifieEgalité(gardes..Occurrence, 3, "Seuil 0.99 : aucune suppression")
+	dbgVérifieEgalité(gardes[1], 1, "Ordre décroissant : A d'abord (0.9)")
+	dbgVérifieEgalité(gardes[2], 2, "Ordre décroissant : B ensuite (0.8)")
+	dbgVérifieEgalité(gardes[3], 3, "Ordre décroissant : C en dernier (0.7)")
+FIN
+
+// Liste vide de boîtes : aucun indice à conserver.
+PROCEDURE PUBLIQUE scenario_nms_liste_vide()
+	boites est un tableau = []
+	scores est un tableau de réels = []
+	gardes est un tableau d'entiers = SuppressionNonMax(boites, scores, 0.5)
+	dbgVérifieEgalité(gardes..Occurrence, 0, "Liste vide : 0 boîte conservée")
+FIN
+
+// Une seule boîte : toujours conservée, seule dans le résultat.
+PROCEDURE PUBLIQUE scenario_nms_une_seule_boite()
+	boites est un tableau = [[0.0, 0.0, 10.0, 10.0]]
+	scores est un tableau de réels = [0.9]
+	gardes est un tableau d'entiers = SuppressionNonMax(boites, scores, 0.5)
+	dbgVérifieEgalité(gardes..Occurrence, 1, "Une seule boîte : 1 conservée")
+	dbgVérifieEgalité(gardes[1], 1, "Une seule boîte : indice 1")
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : formes anglaises + cas limites d'erreur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Forme anglaise partagée pour IoU, forme dédiée NonMaxSuppression pour la
+// suppression : mêmes résultats que les formes françaises sur le cas central.
+PROCEDURE PRIVÉE scenario_edge_formes_anglaises()
+	boxA is an array of reals = [0.0, 0.0, 10.0, 10.0]
+	boxB is an array of reals = [5.0, 5.0, 10.0, 10.0]
+	r is a real = IoU(boxA, boxB)
+	dbgVérifieVrai(Abs(r - 0.142857) < 0.0001, "IoU (forme partagée) : chevauchement partiel ≈ 0.142857")
+
+	boxes is an array = [[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 10.0, 10.0], [50.0, 50.0, 10.0, 10.0]]
+	scores is an array of reals = [0.9, 0.8, 0.7]
+	kept is an array of integers = NonMaxSuppression(boxes, scores, 0.5)
+
+	dbgVérifieEgalité(kept..Occurrence, 2, "NonMaxSuppression : 2 boîtes conservées")
+	dbgVérifieEgalité(kept[1], 1, "NonMaxSuppression : premier conservé = A")
+	dbgVérifieEgalité(kept[2], 3, "NonMaxSuppression : second conservé = C")
+FIN
+
+// Boîte mal formée (pas 4 valeurs) : erreur claire, pas de crash silencieux.
+PROCEDURE PRIVÉE scenario_edge_boite_malformee()
+	ErreurRAZ()
+	boiteA est un tableau de réels = [0.0, 0.0, 10.0]
+	boiteB est un tableau de réels = [0.0, 0.0, 10.0, 10.0]
+	r est un réel = IoU(boiteA, boiteB)
+	dbgVérifieVrai(ErreurDétectée, "Boîte à 3 valeurs au lieu de 4 doit poser ErreurDétectée")
+FIN
+
+// Nombre de boîtes ≠ nombre de scores : erreur claire.
+PROCEDURE PRIVÉE scenario_edge_tailles_incoherentes()
+	ErreurRAZ()
+	boites est un tableau = [[0.0, 0.0, 10.0, 10.0], [1.0, 1.0, 10.0, 10.0]]
+	scores est un tableau de réels = [0.9, 0.8, 0.7]
+	gardes est un tableau d'entiers = SuppressionNonMax(boites, scores, 0.5)
+	dbgVérifieVrai(ErreurDétectée, "2 boîtes / 3 scores doit poser ErreurDétectée")
+FIN

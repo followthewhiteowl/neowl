@@ -1,0 +1,33 @@
+//  — props exposées sur Table (Orientation/EtatInitial/HauteurLigne
+// /Style) et Colonne (Visible/Etat/Style), Lot 1 : fondations backend.
+//
+// Vérifie que la déclaration + relecture après matérialisation fonctionnent
+// pour :
+//   - Table : Orientation, EtatInitial, HauteurLigne, Style..CadreExtérieur.
+//   - Colonne : Visible, Etat (les deux colonnes divergent explicitement),
+//     Style..TitreColonne (override sur une seule colonne).
+//
+// ROUGE attendu : Orientation / EtatInitial / HauteurLigne / Style sur Table
+// et Visible / Etat / Style sur Colonne n'existent pas encore (compile-fail :
+// propriété inconnue en cascade dès la déclaration du bloc PROPRIETES).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_TableColonneProps)
+
+dbgVérifieEgalité(TAB_Produits..Orientation, Vertical, "Table..Orientation déclaratif conservé")
+dbgVérifieEgalité(TAB_Produits..EtatInitial, EnSaisie, "Table..EtatInitial déclaratif conservé")
+dbgVérifieEgalité(TAB_Produits..HauteurLigne, 24, "Table..HauteurLigne déclaratif conservé")
+dbgVérifieEgalité(TAB_Produits..Visible, Vrai, "Table..Visible (existant) toujours accessible")
+dbgVérifieEgalité(TAB_Produits..Style..CadreExtérieur..CouleurFond, Blanc, "Table..Style..CadreExtérieur..CouleurFond déclaratif conservé")
+
+// Réaffectation runtime + relecture (ne doit pas régresser une fois posé).
+TAB_Produits..HauteurLigne = 32
+dbgVérifieEgalité(TAB_Produits..HauteurLigne, 32, "Table..HauteurLigne réaffecté au runtime")
+
+TAB_Produits..Orientation = Vertical
+dbgVérifieEgalité(TAB_Produits..Orientation, Vertical, "Table..Orientation réaffecté au runtime")
+
+Ferme(FEN_TableColonneProps)
+
+dbgBilanTest()

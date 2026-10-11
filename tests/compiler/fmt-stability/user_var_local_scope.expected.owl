@@ -1,0 +1,30 @@
+// Test : variables locales, usage en casse divergente doit etre
+// canonise vers la casse de la declaration.
+//
+// Suivi de portee obligatoire : un local de procA ne doit PAS
+// canoniser un homonyme de procB avec casse differente. Chaque
+// procedure a son propre scope.
+
+PROCEDURE ProcA()
+	maValeur est un entier = 42
+	// Usage en casse divergente : doit etre canonise vers maValeur
+	Trace(maValeur)
+	Trace(maValeur)
+	Trace(maValeur)
+FIN
+
+PROCEDURE ProcB()
+	// Meme nom, mais casse declaree DIFFERENTE
+	MAVALEUR est une chaîne = "abc"
+	// Usage en casse divergente : doit etre canonise vers MAVALEUR
+	// (pas vers maValeur de ProcA — portee distincte)
+	Trace(MAVALEUR)
+	Trace(MAVALEUR)
+FIN
+
+PROCEDURE ProcC_nested()
+	// Test variable locale utilisee deux fois en casse divergente
+	compteur est un entier = 0
+	compteur = compteur + 1
+	Trace(compteur)
+FIN

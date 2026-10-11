@@ -1,0 +1,130 @@
+// @sujet : Tenseur — mini-réseau à deux couches
+// @résumé : Assemblage de bout en bout des briques 2D (Tenseur(Matrice),
+// ProduitMatriciel, ReLU, ErreurQuadratique, Rétropropage, DescenteGradient)
+// pour entraîner un vrai petit MLP : entrée(3) -> W1(4×3) -> ReLU ->
+// W2(2×4) -> perte, puis un pas de descente de gradient sur les deux
+// couches de poids.
+
+// Calcul à la main (voir aussi le détail dans le commentaire de la
+// procédure) :
+// entrée x = [1, -1, 2]
+// W1 = [[1,0,-1],[0,1,1],[1,1,0],[-1,0,1]]  (4x3)
+// h1 = W1@x = [1-0-2, 0-1+2, 1-1+0, -1-0+2] = [-1, 1, 0, 1]
+// a1 = ReLU(h1) = [0, 1, 0, 1]
+// W2 = [[1,2,0,-1],[0,1,1,1]]  (2x4)
+// h2 = W2@a1 = [0+2+0-1, 0+1+0+1] = [1, 2]
+// cible = [0, 0] ; perte = mean((h2-cible)^2) = (1+4)/2 = 2.5
+PROCEDURE PUBLIQUE scenario_forward_deux_couches()
+	tx est un Tenseur = Tenseur([1.0,-1.0, 2.0])
+
+	matW1 est une Matrice = [[1.0, 0.0, -1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 0.0], [-1.0, 0.0, 1.0]]
+	tW1 est un Tenseur = Tenseur(matW1)
+	th1 est un Tenseur = tW1.ProduitMatriciel(tx)
+	ta1 est un Tenseur = th1.ReLU()
+
+	matW2 est une Matrice = [[1.0, 2.0, 0.0, -1.0], [0.0, 1.0, 1.0, 1.0]]
+	tW2 est un Tenseur = Tenseur(matW2)
+	th2 est un Tenseur = tW2.ProduitMatriciel(ta1)
+
+	dbgVérifieEgalité(th1..Valeur[1],-1.0, "h1[1] = 1*1+0*(-1)+(-1)*2 = -1")
+	dbgVérifieEgalité(th1..Valeur[2], 1.0, "h1[2] = 0*1+1*(-1)+1*2 = 1")
+	dbgVérifieEgalité(th1..Valeur[3], 0.0, "h1[3] = 1*1+1*(-1)+0*2 = 0")
+	dbgVérifieEgalité(th1..Valeur[4], 1.0, "h1[4] = -1*1+0*(-1)+1*2 = 1")
+
+	dbgVérifieEgalité(ta1..Valeur[1], 0.0, "a1 = ReLU(h1) : ReLU(-1) = 0")
+	dbgVérifieEgalité(ta1..Valeur[2], 1.0, "a1 : ReLU(1) = 1")
+	dbgVérifieEgalité(ta1..Valeur[3], 0.0, "a1 : ReLU(0) = 0")
+	dbgVérifieEgalité(ta1..Valeur[4], 1.0, "a1 : ReLU(1) = 1")
+
+	dbgVérifieEgalité(th2..Valeur[1], 1.0, "h2[1] = 1*0+2*1+0*0+(-1)*1 = 1")
+	dbgVérifieEgalité(th2..Valeur[2], 2.0, "h2[2] = 0*0+1*1+1*0+1*1 = 2")
+
+	tcible est un Tenseur = Tenseur([0.0, 0.0])
+	tperte est un Tenseur = th2.ErreurQuadratique(tcible)
+	dbgVérifieEgalité(tperte..Valeur[1], 2.5, "perte = ((1-0)^2 + (2-0)^2) / 2 = 2.5")
+FIN
+
+
+// Backward complet sur le mini-réseau : Rétropropage() depuis la perte
+// scalaire jusqu'aux deux couches de poids, en traversant ReLU au passage.
+// Calcul à la main :
+// gradSortie(h2) = 2*(h2-cible)/2 = h2 = [1, 2]
+// gradW2 = gradSortie ⊗ a1 = [1,2]⊗[0,1,0,1] = [[0,1,0,1],[0,2,0,2]]  (2x4)
+// grad_a1 = W2ᵀ @ gradSortie :
+//   [1]: 1*1+0*2=1 ; [2]: 2*1+1*2=4 ; [3]: 0*1+1*2=2 ; [4]: -1*1+1*2=1
+//   grad_a1 = [1, 4, 2, 1]
+// masque ReLU (dérivée) = [h1>0] = [0, 1, 0, 1] (h1=[-1,1,0,1], le 0 bloque)
+// grad_h1 = grad_a1 * masque = [0, 4, 0, 1]
+// gradW1 = grad_h1 ⊗ x = [0,4,0,1]⊗[1,-1,2]
+//        = [[0,0,0],[4,-4,8],[0,0,0],[1,-1,2]]  (4x3)
+PROCEDURE PUBLIQUE scenario_backward_deux_couches_formes_et_valeurs()
+	tx est un Tenseur = Tenseur([1.0,-1.0, 2.0])
+
+	matW1 est une Matrice = [[1.0, 0.0, -1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 0.0], [-1.0, 0.0, 1.0]]
+	tW1 est un Tenseur = Tenseur(matW1)
+	th1 est un Tenseur = tW1.ProduitMatriciel(tx)
+	ta1 est un Tenseur = th1.ReLU()
+
+	matW2 est une Matrice = [[1.0, 2.0, 0.0, -1.0], [0.0, 1.0, 1.0, 1.0]]
+	tW2 est un Tenseur = Tenseur(matW2)
+	th2 est un Tenseur = tW2.ProduitMatriciel(ta1)
+
+	tcible est un Tenseur = Tenseur([0.0, 0.0])
+	tperte est un Tenseur = th2.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	gradW2 est une Matrice = tW2..Gradient
+	dbgVérifieEgalité(gradW2..Lignes, 2, "gradW2 a la forme de W2 : 2 lignes")
+	dbgVérifieEgalité(gradW2..Colonnes, 4, "gradW2 a la forme de W2 : 4 colonnes")
+	dbgVérifieEgalité(gradW2[1][1], 0.0, "gradW2[1][1] = gradSortie[1]*a1[1] = 1*0 = 0")
+	dbgVérifieEgalité(gradW2[1][2], 1.0, "gradW2[1][2] = gradSortie[1]*a1[2] = 1*1 = 1")
+	dbgVérifieEgalité(gradW2[1][4], 1.0, "gradW2[1][4] = gradSortie[1]*a1[4] = 1*1 = 1")
+	dbgVérifieEgalité(gradW2[2][2], 2.0, "gradW2[2][2] = gradSortie[2]*a1[2] = 2*1 = 2")
+	dbgVérifieEgalité(gradW2[2][4], 2.0, "gradW2[2][4] = gradSortie[2]*a1[4] = 2*1 = 2")
+
+	gradW1 est une Matrice = tW1..Gradient
+	dbgVérifieEgalité(gradW1..Lignes, 4, "gradW1 a la forme de W1 : 4 lignes")
+	dbgVérifieEgalité(gradW1..Colonnes, 3, "gradW1 a la forme de W1 : 3 colonnes")
+	dbgVérifieEgalité(gradW1[1][1], 0.0, "Ligne 1 de gradW1 nulle : ReLU bloque la contribution de h1[1] (négatif)")
+	dbgVérifieEgalité(gradW1[2][1], 4.0, "gradW1[2][1] = grad_h1[2]*x[1] = 4*1 = 4")
+	dbgVérifieEgalité(gradW1[2][2],-4.0, "gradW1[2][2] = grad_h1[2]*x[2] = 4*(-1) = -4")
+	dbgVérifieEgalité(gradW1[2][3], 8.0, "gradW1[2][3] = grad_h1[2]*x[3] = 4*2 = 8")
+	dbgVérifieEgalité(gradW1[3][1], 0.0, "Ligne 3 de gradW1 nulle : ReLU bloque la contribution de h1[3] (nul)")
+	dbgVérifieEgalité(gradW1[4][1], 1.0, "gradW1[4][1] = grad_h1[4]*x[1] = 1*1 = 1")
+	dbgVérifieEgalité(gradW1[4][2],-1.0, "gradW1[4][2] = grad_h1[4]*x[2] = 1*(-1) = -1")
+	dbgVérifieEgalité(gradW1[4][3], 2.0, "gradW1[4][3] = grad_h1[4]*x[3] = 1*2 = 2")
+FIN
+
+
+// Un pas d'entraînement complet : forward -> Rétropropage() ->
+// DescenteGradient() sur les deux couches, puis nouveau forward avec les
+// poids mis à jour. La perte doit avoir diminué (propriété de base de la
+// descente de gradient pour un taux d'apprentissage suffisamment petit).
+// C'est aussi le scénario qui alloue le plus de Tenseurs 2D imbriqués dans
+// un même graphe (exercice du ramasse-miettes sur des structures Matrice).
+PROCEDURE PUBLIQUE scenario_pas_entrainement_perte_diminue()
+	tx est un Tenseur = Tenseur([1.0,-1.0, 2.0])
+
+	matW1 est une Matrice = [[1.0, 0.0, -1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 0.0], [-1.0, 0.0, 1.0]]
+	tW1 est un Tenseur = Tenseur(matW1)
+	th1 est un Tenseur = tW1.ProduitMatriciel(tx)
+	ta1 est un Tenseur = th1.ReLU()
+
+	matW2 est une Matrice = [[1.0, 2.0, 0.0, -1.0], [0.0, 1.0, 1.0, 1.0]]
+	tW2 est un Tenseur = Tenseur(matW2)
+	th2 est un Tenseur = tW2.ProduitMatriciel(ta1)
+
+	tcible est un Tenseur = Tenseur([0.0, 0.0])
+	tperteAvant est un Tenseur = th2.ErreurQuadratique(tcible)
+	tperteAvant.Rétropropage()
+
+	tW1maj est un Tenseur = tW1.DescenteGradient(0.01)
+	tW2maj est un Tenseur = tW2.DescenteGradient(0.01)
+
+	th1b est un Tenseur = tW1maj.ProduitMatriciel(tx)
+	ta1b est un Tenseur = th1b.ReLU()
+	th2b est un Tenseur = tW2maj.ProduitMatriciel(ta1b)
+	tperteApres est un Tenseur = th2b.ErreurQuadratique(tcible)
+
+	dbgVérifieVrai(tperteApres..Valeur[1] < tperteAvant..Valeur[1], "Un pas de descente de gradient fait diminuer la perte")
+FIN

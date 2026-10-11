@@ -1,0 +1,183 @@
+// @sujet : dRotation
+// @résumé : Tourner une image autour de son centre (angles positifs = horaire, négatifs = anti-horaire)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_rotation_45_degres()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	cheminTourne est une chaîne = "test_rotation_45.png"
+	img est une Image
+	res est un booléen
+
+	// Créer une image carrée 20x20 pixels
+	img = dCréeImage(20, 20, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+
+	// Tourner l'image de 45 degrés dans le sens horaire (drDéfaut agrandit pour contenir)
+	res = dRotation(img, 45.0)
+	dbgVérifieEgalité(res, Vrai, "rotation 45 degres reussie")
+	dbgVérifieEgalité(img..Valide, Vrai, "image tournee reste valide")
+	dbgVérifieVrai(img..Largeur > 20, "rotation agrandit largeur (drDefaut)")
+	dbgVérifieVrai(img..Hauteur > 20, "rotation agrandit hauteur (drDefaut)")
+
+	// Sauver pour inspection visuelle (optionnel)
+	dSauveImagePNG(img, cheminTourne)
+	dbgVérifieVrai(fFichierExiste(cheminTourne), "fichier sauve existe")
+
+	// Nettoyer
+	fSupprime(cheminTourne)
+FIN
+
+// Rotation cardinale de 90 degrés inverse largeur et hauteur
+PROCEDURE PUBLIQUE scenario_rotation_90_cardinale()
+	couleurVert est un entier = RVB(0, 255, 0)
+	img est une Image
+	res est un booléen
+	largeurOriginale est un entier
+	hauteurOriginale est un entier
+
+	// Créer une image rectangle 30x10 pixels
+	img              = dCréeImage(30, 10, couleurVert)
+	largeurOriginale = img..Largeur
+	hauteurOriginale = img..Hauteur
+
+	// Tourner de 90 degrés horaire (rotation cardinale)
+	res = dRotation(img, 90.0)
+	dbgVérifieEgalité(res, Vrai, "rotation 90 degres cardinale reussie")
+
+	// Après rotation de 90°, largeur et hauteur devraient être inversées
+	dbgVérifieEgalité(img..Largeur, hauteurOriginale, "largeur devient ancienne hauteur")
+	dbgVérifieEgalité(img..Hauteur, largeurOriginale, "hauteur devient ancienne largeur")
+FIN
+
+// Rotation avec angle négatif tourne dans le sens anti-horaire
+PROCEDURE PUBLIQUE scenario_rotation_negative_antihoraire()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image carrée 15x15 pixels
+	img = dCréeImage(15, 15, couleurBleu)
+
+	// Tourner de -30 degrés (sens anti-horaire)
+	res = dRotation(img,-30.0)
+	dbgVérifieEgalité(res, Vrai, "rotation negative antihoraire reussie")
+	dbgVérifieEgalité(img..Valide, Vrai, "image tournee reste valide")
+	dbgVérifieVrai(img..Largeur > 15, "rotation negative agrandit aussi")
+FIN
+
+// Option drAdapte réduit l'image tournée à sa taille initiale
+PROCEDURE PUBLIQUE scenario_option_adapte()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	res est un booléen
+	largeurOriginale est un entier
+	hauteurOriginale est un entier
+
+	// Créer une image carrée 25x25 pixels
+	img              = dCréeImage(25, 25, couleurJaune)
+	largeurOriginale = img..Largeur
+	hauteurOriginale = img..Hauteur
+
+	// Tourner de 45° avec drAdapte (tourne puis réduit à la taille initiale)
+	res = dRotation(img, 45.0, drAdapte)
+	dbgVérifieEgalité(res, Vrai, "rotation avec drAdapte reussie")
+
+	// L'image doit revenir à sa taille initiale (redimensionnée après rotation)
+	dbgVérifieEgalité(img..Largeur, largeurOriginale, "largeur preservee avec drAdapte")
+	dbgVérifieEgalité(img..Hauteur, hauteurOriginale, "hauteur preservee avec drAdapte")
+FIN
+
+// Rotation de zéro degré ne change pas les dimensions de l'image
+PROCEDURE PUBLIQUE scenario_rotation_zero_idempotent()
+	couleurCyan est un entier = RVB(0, 255, 255)
+	img est une Image
+	res est un booléen
+	largeurOriginale est un entier
+	hauteurOriginale est un entier
+
+	// Créer une image rectangle 18x12 pixels
+	img              = dCréeImage(18, 12, couleurCyan)
+	largeurOriginale = img..Largeur
+	hauteurOriginale = img..Hauteur
+
+	// Tourner de 0 degré (idempotent, aucun changement attendu)
+	res = dRotation(img, 0.0)
+	dbgVérifieEgalité(res, Vrai, "rotation zero degre reussie")
+
+	// Les dimensions doivent rester inchangées
+	dbgVérifieEgalité(img..Largeur, largeurOriginale, "largeur inchangee rotation 0")
+	dbgVérifieEgalité(img..Hauteur, hauteurOriginale, "hauteur inchangee rotation 0")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Rotation de 360 degrés (tour complet) doit revenir à l'orientation initiale
+PROCEDURE PRIVÉE scenario_edge_360_idempotent()
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	img est une Image
+	res est un booléen
+	largeurOriginale est un entier
+	hauteurOriginale est un entier
+
+	// Créer une image carrée 10x10 pixels
+	img              = dCréeImage(10, 10, couleurMagenta)
+	largeurOriginale = img..Largeur
+	hauteurOriginale = img..Hauteur
+
+	// Tourner de 360 degrés (un tour complet, devrait être idempotent)
+	res = dRotation(img, 360.0)
+	dbgVérifieEgalité(res, Vrai, "rotation 360 degres reussie")
+
+	// Les dimensions doivent rester inchangées (retour à l'orientation initiale)
+	dbgVérifieEgalité(img..Largeur, largeurOriginale, "largeur inchangee rotation 360")
+	dbgVérifieEgalité(img..Hauteur, hauteurOriginale, "hauteur inchangee rotation 360")
+FIN
+
+// Option drSansAgrandissement conserve les dimensions exactes, image tronquée si déborde
+PROCEDURE PRIVÉE scenario_edge_option_sans_agrandissement()
+	couleurGris est un entier = RVB(128, 128, 128)
+	img est une Image
+	res est un booléen
+	largeurOriginale est un entier
+	hauteurOriginale est un entier
+
+	// Créer une image carrée 20x20 pixels
+	img              = dCréeImage(20, 20, couleurGris)
+	largeurOriginale = img..Largeur
+	hauteurOriginale = img..Hauteur
+
+	// Tourner de 45° avec drSansAgrandissement (taille conservée, image tronquée)
+	res = dRotation(img, 45.0, drSansAgrandissement)
+	dbgVérifieEgalité(res, Vrai, "rotation avec drSansAgrandissement reussie")
+
+	// Les dimensions doivent rester exactement identiques (pas d'agrandissement)
+	dbgVérifieEgalité(img..Largeur, largeurOriginale, "largeur identique drSansAgrandissement")
+	dbgVérifieEgalité(img..Hauteur, hauteurOriginale, "hauteur identique drSansAgrandissement")
+FIN
+
+// Rotation de 720 degrés (deux tours complets) retourne à l'orientation initiale
+PROCEDURE PRIVÉE scenario_edge_rotation_grande_angle()
+	couleurOrange est un entier = RVB(255, 165, 0)
+	img est une Image
+	res est un booléen
+	largeurOriginale est un entier
+	hauteurOriginale est un entier
+
+	// Créer une image carrée 12x12 pixels
+	img              = dCréeImage(12, 12, couleurOrange)
+	largeurOriginale = img..Largeur
+	hauteurOriginale = img..Hauteur
+
+	// Tourner de 720 degrés (2 tours complets)
+	res = dRotation(img, 720.0)
+	dbgVérifieEgalité(res, Vrai, "rotation 720 degres reussie")
+
+	// Deux tours complets = retour à l'orientation initiale
+	dbgVérifieEgalité(img..Largeur, largeurOriginale, "largeur inchangee rotation 720")
+	dbgVérifieEgalité(img..Hauteur, hauteurOriginale, "hauteur inchangee rotation 720")
+FIN

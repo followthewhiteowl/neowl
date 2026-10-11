@@ -1,0 +1,63 @@
+// Ressource fenêtre — voisine de test_menu_classique_bascule_runtime.owl.
+// Deux MenuPrincipal déclarés, un affecté à l'ouverture (MNU_Initial), un
+// second (MNU_Alterné) pris par une procédure de bascule à chaud interne à
+// la fenêtre. Chaque option incrémente un compteur distinct, lu via
+// callback vers le script voisin (les blocs de menu ne sont pas
+// accessibles cross-fichier).
+
+FEN_MenuBasculeRuntime est une Fenêtre
+	PROPRIETES
+		Titre         = "Application"
+		Largeur       = 500
+		Hauteur       = 350
+		Disposition   = dispLibre
+		MenuPrincipal = MNU_Initial
+	FIN
+
+	MNU_Initial est un MenuPrincipal
+		SM_InitialFichier est un SousMenu
+			PROPRIETES
+				Libellé = "&Fichier"
+			FIN
+
+			OPT_InitialOuvrir est une OptionMenu
+				PROPRIETES
+					Libellé = "&Ouvrir"
+				FIN
+
+				PROCEDURE surSélection()
+					nInitialOuvrirCount += 1
+				FIN
+			FIN
+		FIN
+	FIN
+
+	MNU_Alterné est un MenuPrincipal
+		SM_AlternéOutils est un SousMenu
+			PROPRIETES
+				Libellé = "&Outils"
+			FIN
+
+			OPT_AlternéOptions est une OptionMenu
+				PROPRIETES
+					Libellé = "&Options"
+				FIN
+
+				PROCEDURE surSélection()
+					nAlternéOptionsCount += 1
+				FIN
+			FIN
+		FIN
+	FIN
+
+	nInitialOuvrirCount est un entier = 0
+	nAlternéOptionsCount est un entier = 0
+
+	PROCEDURE BasculeVersMenuAlterné()
+		FEN_MenuBasculeRuntime..MenuPrincipal = MNU_Alterné
+	FIN
+
+	PROCEDURE LireCompteursMenuBascule()
+		cb_menu_bascule_compteurs(nInitialOuvrirCount, nAlternéOptionsCount)
+	FIN
+FIN

@@ -1,0 +1,94 @@
+//  — focused_index doit se synchroniser quand Qt déplace le focus
+// réellement (clic utilisateur sur un autre champ).
+//
+// Contexte :  a introduit focused_index (état logique du focus OWL
+// dans ObjWindowInstance). Bug : quand l'utilisateur clique sur un autre champ
+// via l'UI réelle, Qt déplace le focus physique mais focused_index n'est pas
+// mis à jour. Conséquence : DonneFocus() sans argument vise le champ périmé
+// (celui que OWL croyait courant) au lieu du champ réellement focalisé.
+//
+// Scénario clé :
+//   1. OuvreSoeur(FEN_FocusSync) -> auto-focus SAI_1 (surEntrée SAI_1 = 1).
+//   2. TestSimuleSouris(SAI_2, ClicGauche) -> clic Qt réel -> focus physique
+//      passe sur SAI_2 (surEntrée SAI_2 = 1). focused_index DOIT être mis à
+//      jour pour pointer SAI_2.
+//   3. DonneFocus() sans argument -> doit re-confirmer SAI_2 (le champ courant
+//      RÉEL), PAS SAI_1 (le champ périmé du modèle logique avant fix).
+//      - AVANT FIX (bug) : focused_index pointe encore SAI_1 -> DonneFocus()
+//        rejoue SAI_1 -> surEntrée SAI_1 RE-DÉCLENCHÉ (nEntreeSAI1 = 2).
+//      - APRÈS FIX : focused_index = SAI_2 -> DonneFocus() = réapplication
+//        same ou no-op -> surEntrée SAI_1 PAS re-déclenché (nEntreeSAI1 = 1).
+//
+// ROUGE ATTENDU (bug actif) : après DonneFocus() sans arg au step 3, le
+// compteur nSAI1_obs va monter à 2 (surEntrée SAI_1 re-tiré à tort), ce qui
+// fait échouer l'assertion "nSAI1_obs == 1 après DonneFocus() sans arg".
+//
+// Approche : mode non-headless (TestModeHeadless(Faux)) avec TestSimuleSouris
+// qui poste un vrai clic Qt déplaçant le focus physique.
+
+TestModeHeadless(Faux)
+
+nSAI1_obs est un entier = 0
+nSAI2_obs est un entier = 0
+
+// Blindage  — compteurs surSortie miroir des surEntrée. Verrouillent
+// « un focus = exactement un surSortie sur l'ancien + un surEntrée sur le
+// nouveau », pour qu'aucune régression future ne ré-introduise une double
+// émission ni n'efface un event.
+sSAI1_obs est un entier = 0
+sSAI2_obs est un entier = 0
+
+PROCEDURE callback_sync_entrees(n1 est un entier, n2 est un entier)
+	nSAI1_obs = n1
+	nSAI2_obs = n2
+FIN
+
+PROCEDURE callback_sync_sorties(s1 est un entier, s2 est un entier)
+	sSAI1_obs = s1
+	sSAI2_obs = s2
+FIN
+
+OuvreSoeur(FEN_FocusSync)
+
+// --- Étape 1 : état initial ---
+// Auto-focus sur SAI_1 (premier champ lexical) : surEntrée SAI_1 tiré 1 fois.
+LireEntrees()
+dbgVérifieEgalité(nSAI1_obs, 1, "focus initial auto : surEntree SAI_1 = 1")
+dbgVérifieEgalité(nSAI2_obs, 0, "focus initial auto : surEntree SAI_2 = 0")
+// Blindage : l'auto-focus ne quitte aucun champ -> aucun surSortie.
+LireSorties()
+dbgVérifieEgalité(sSAI1_obs, 0, "focus initial auto : surSortie SAI_1 = 0 (pas de champ quitte)")
+dbgVérifieEgalité(sSAI2_obs, 0, "focus initial auto : surSortie SAI_2 = 0")
+
+// --- Étape 2 : clic réel Qt sur SAI_2 ---
+// TestSimuleSouris poste un vrai clic qui déplace le focus physique Qt sur SAI_2.
+// surEntrée SAI_2 doit se déclencher (focused_index doit aussi suivre pour le fix).
+TestSimuleSouris(SAI_2, ClicGauche)
+LireEntrees()
+dbgVérifieEgalité(nSAI1_obs, 1, "apres clic SAI_2 : surEntree SAI_1 reste 1 (pas de sortie/entree supplementaire)")
+dbgVérifieEgalité(nSAI2_obs, 1, "apres clic SAI_2 : surEntree SAI_2 = 1 (focus recu)")
+// Blindage : un clic qui déplace le focus = EXACTEMENT 1 transition.
+// SAI_1 quitté une fois (surSortie SAI_1 = 1), SAI_2 jamais quitté.
+LireSorties()
+dbgVérifieEgalité(sSAI1_obs, 1, "apres clic SAI_2 : surSortie SAI_1 = 1 (champ quitte, une seule fois)")
+dbgVérifieEgalité(sSAI2_obs, 0, "apres clic SAI_2 : surSortie SAI_2 = 0 (champ entrant, pas quitte)")
+
+// --- Étape 3 : DonneFocus() sans argument ---
+// focused_index DOIT pointer SAI_2 (le champ réellement focalisé après le clic).
+// DonneFocus() sans arg = réappliquer le focus sur le champ courant = SAI_2.
+// Comme SAI_2 a déjà le focus physique et logique, c'est un réapply-same
+// (canon  : aucun code exécuté si champ déjà courant).
+// surEntrée SAI_1 NE DOIT PAS être re-déclenché (preuver que focused_index != SAI_1).
+DonneFocus()
+LireEntrees()
+dbgVérifieEgalité(nSAI1_obs, 1, "DonneFocus() sans arg : surEntree SAI_1 NE doit PAS monter (focused_index sync sur SAI_2, pas SAI_1 perime)")
+dbgVérifieEgalité(nSAI2_obs, 1, "DonneFocus() sans arg : surEntree SAI_2 reste 1 (reapply-same, aucun code rejoue)")
+// Blindage : no-op total. DonneFocus() sur le champ courant ne quitte ni
+// n'entre rien -> aucun nouveau surSortie.
+LireSorties()
+dbgVérifieEgalité(sSAI1_obs, 1, "DonneFocus() sans arg : surSortie SAI_1 reste 1 (aucune nouvelle transition)")
+dbgVérifieEgalité(sSAI2_obs, 0, "DonneFocus() sans arg : surSortie SAI_2 reste 0")
+
+Ferme(FEN_FocusSync)
+
+dbgBilanTest()

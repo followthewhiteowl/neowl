@@ -1,0 +1,77 @@
+// @sujet : MatriceTranspose
+// @résumé : Transposée d'une Matrice — échange lignes et colonnes, disponible en native préfixée et en méthode fluente, avec forme anglaise et involutivité.
+
+
+// La transposée d'une matrice rectangulaire échange ses dimensions : une
+// 2×3 devient une 3×2, et l'élément (i, j) devient l'élément (j, i).
+PROCEDURE PUBLIQUE scenario_transpose_rectangulaire()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	t est une Matrice = MatriceTranspose(m)
+	dbgVérifieEgalité(t..Lignes, 3, "Transposée d'une 2x3 a 3 lignes")
+	dbgVérifieEgalité(t..Colonnes, 2, "Transposée d'une 2x3 a 2 colonnes")
+	dbgVérifieEgalité(t[1][1], 1.0, "t[1][1] = m[1][1]")
+	dbgVérifieEgalité(t[1][2], 4.0, "t[1][2] = m[2][1]")
+	dbgVérifieEgalité(t[2][1], 2.0, "t[2][1] = m[1][2]")
+	dbgVérifieEgalité(t[3][2], 6.0, "t[3][2] = m[2][3]")
+FIN
+
+
+// La transposée d'une matrice carrée conserve ses dimensions mais échange
+// les éléments symétriques par rapport à la diagonale.
+PROCEDURE PUBLIQUE scenario_transpose_carree()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	t est une Matrice = MatriceTranspose(m)
+	dbgVérifieEgalité(t..Lignes, 2, "Transposée d'une carrée garde le même nombre de lignes")
+	dbgVérifieEgalité(t..Colonnes, 2, "Transposée d'une carrée garde le même nombre de colonnes")
+	dbgVérifieEgalité(t[1][1], 1.0, "Diagonale inchangée : t[1][1] = m[1][1]")
+	dbgVérifieEgalité(t[2][2], 4.0, "Diagonale inchangée : t[2][2] = m[2][2]")
+	dbgVérifieEgalité(t[1][2], 3.0, "t[1][2] = m[2][1]")
+	dbgVérifieEgalité(t[2][1], 2.0, "t[2][1] = m[1][2]")
+FIN
+
+
+// La méthode fluente .Transpose() produit exactement le même résultat que
+// la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tViaFluent est une Matrice = m.Transpose()
+	tViaNatif est une Matrice = MatriceTranspose(m)
+	dbgVérifieEgalité(tViaFluent..Lignes, tViaNatif..Lignes, "m.Transpose()..Lignes == MatriceTranspose(m)..Lignes")
+	dbgVérifieEgalité(tViaFluent[2][1], tViaNatif[2][1], "m.Transpose()[2][1] == MatriceTranspose(m)[2][1]")
+FIN
+
+
+// La forme anglaise MatrixTranspose désigne la même opération.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	t est une Matrice = MatrixTranspose(m)
+	dbgVérifieEgalité(t..Rows, 3, "MatrixTranspose(m)..Rows = 3")
+	dbgVérifieEgalité(t..Columns, 2, "MatrixTranspose(m)..Columns = 2")
+	dbgVérifieEgalité(t[1][2], 4.0, "MatrixTranspose(m)[1][2] = m[2][1]")
+FIN
+
+
+// Transposer deux fois de suite redonne la matrice d'origine :
+// transpose(transpose(m)) == m.
+PROCEDURE PUBLIQUE scenario_involution()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tt est une Matrice = MatriceTranspose(MatriceTranspose(m))
+	dbgVérifieEgalité(tt..Lignes, m..Lignes, "transpose(transpose(m))..Lignes == m..Lignes")
+	dbgVérifieEgalité(tt..Colonnes, m..Colonnes, "transpose(transpose(m))..Colonnes == m..Colonnes")
+	dbgVérifieEgalité(tt[1][1], m[1][1], "transpose(transpose(m))[1][1] == m[1][1]")
+	dbgVérifieEgalité(tt[2][3], m[2][3], "transpose(transpose(m))[2][3] == m[2][3]")
+FIN
+
+
+// Un opérande tableau (littéral ou variable) est refusé, comme pour le
+// reste de l'algèbre Matrice : conversion explicite requise.
+PROCEDURE PRIVÉE scenario_edge_operande_tableau_refuse()
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		t est une Matrice = MatriceTranspose([[1.0, 2.0], [3.0, 4.0]])
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "MatriceTranspose([littéral]) refusé")
+FIN

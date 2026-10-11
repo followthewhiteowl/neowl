@@ -1,0 +1,67 @@
+// ChaîneCompare
+dbgVérifieEgalité(ChaîneCompare("abc", "abc"), 0, "compare egale")
+dbgVérifieEgalité(ChaîneCompare("abc", "def"),-1, "compare inferieure")
+dbgVérifieEgalité(ChaîneCompare("def", "abc"), 1, "compare superieure")
+dbgVérifieEgalité(ChaîneCompare("ABC", "abc", Faux), 0, "compare insensible")
+
+// ChaîneVersTableau / TableauVersChaîne
+t est un tableau = ChaîneVersTableau("a,b,c", ",")
+dbgVérifieEgalité(Taille(t), 3, "split taille")
+dbgVérifieEgalité(t[1], "a", "split[1]")
+dbgVérifieEgalité(t[3], "c", "split[3]")
+dbgVérifieEgalité(TableauVersChaîne(t, "-"), "a-b-c", "join")
+
+// ExtraitLigne
+ml est une chaîne = "ligne1" + LF + "ligne2" + LF + "ligne3"
+dbgVérifieEgalité(ExtraitLigne(ml, 1), "ligne1", "ligne 1")
+dbgVérifieEgalité(ExtraitLigne(ml, 3), "ligne3", "ligne 3")
+
+// PositionOccurrence
+dbgVérifieEgalité(PositionOccurrence("abcabc", "b", 1), 2, "pos occ 1")
+dbgVérifieEgalité(PositionOccurrence("abcabc", "b", 2), 5, "pos occ 2")
+
+// ExtraitChaîneEntre — référence : (chaîne, rang, séparateurDébut [, séparateurFin])
+dbgVérifieEgalité(ExtraitChaîneEntre("<b>hello</b>", 1, "<b>", "</b>"), "hello", "entre 1")
+dbgVérifieEgalité(ExtraitChaîneEntre("(a)(b)(c)", 2, "(", ")"), "b", "entre rang=2")
+dbgVérifieEgalité(ExtraitChaîneEntre("[x][y][z]", 3, "[", "]"), "z", "entre rang=3")
+
+// ChaîneInsère — référence : (source, chaîneAInsérer, position)
+dbgVérifieEgalité(ChaîneInsère("abcd", "XX", 3), "abXXcd", "insere pos 3")
+dbgVérifieEgalité(ChaîneInsère("hello", " world", 6), "hello world", "insere fin")
+
+// ChaîneSupprime — forme 1 (sous-chaîne) et forme 2 (position/nb)
+dbgVérifieEgalité(ChaîneSupprime("abcdef", 3, 2), "abef", "supprime pos")
+dbgVérifieEgalité(ChaîneSupprime("a<b>c<b>d", "<b>"), "acd", "supprime sous-chaine")
+
+// ChaîneIncremente — référence : incrémente la partie numérique, préserve le zéro-padding
+// Exemple officiel de référence : "ABCD023" → "ABCD024"
+dbgVérifieEgalité(ChaîneIncrémente("ABCD023"), "ABCD024", "incr suffixe zero-pad")
+dbgVérifieEgalité(ChaîneIncrémente("ABCD999"), "ABCD1000", "incr carry (width grow)")
+dbgVérifieEgalité(ChaîneIncrémente("001"), "002", "incr zero-pad seul")
+dbgVérifieEgalité(ChaîneIncrémente("ABCD"), "ABCD1", "incr sans num append")
+
+// TailleVersChaîne
+dbgVérifieEgalité(TailleVersChaîne(0), "0 o", "taille 0")
+dbgVérifieEgalité(TailleVersChaîne(1024), "1 Ko", "taille 1Ko")
+dbgVérifieEgalité(TailleVersChaîne(1536, tailleKo), "1,50 Ko", "taille 1.5Ko")
+
+// TexteVersHTML
+dbgVérifieEgalité(TexteVersHTML("<b>test & ""x""</b>"), "&lt;b&gt;test &amp; &quot;x&quot;&lt;/b&gt;", "html escape")
+
+// URLExtraitChemin
+dbgVérifieEgalité(URLExtraitChemin("https://example.com:8080/path?q=1#frag", "scheme"), "https", "url scheme")
+dbgVérifieEgalité(URLExtraitChemin("https://example.com:8080/path?q=1#frag", "host"), "example.com", "url host")
+dbgVérifieEgalité(URLExtraitChemin("https://example.com:8080/path?q=1#frag", "port"), "8080", "url port")
+dbgVérifieEgalité(URLExtraitChemin("https://example.com:8080/path?q=1#frag", "path"), "/path", "url path")
+dbgVérifieEgalité(URLExtraitChemin("https://example.com:8080/path?q=1#frag", "query"), "q=1", "url query")
+
+// ChaîneSupprimeDoublon
+dbgVérifieEgalité(ChaîneSupprimeDoublon("aabbcc"), "abc", "dedup chars")
+dbgVérifieEgalité(ChaîneSupprimeDoublon("a,a,b,b,c", ","), "a,b,c", "dedup tokens")
+
+// PositionVersLigne
+s est une chaîne = "ab" + LF + "cd" + LF + "ef"
+dbgVérifieEgalité(PositionVersLigne(s, 1), 1, "pos2line 1")
+dbgVérifieEgalité(PositionVersLigne(s, 5), 2, "pos2line ligne2")
+
+dbgBilanTest()

@@ -1,0 +1,27 @@
+// @sujet : MLRégressionLogistique — digue e2e tabulaire (CSV -> classification -> métrique)
+// @résumé : Pipeline complet sur des données tabulaires brutes : une
+// chaîne CSV convertie en Matrice via CSVVersMatrice, une
+// MLRégressionLogistique entraînée dessus, puis la qualité des
+// prédictions mesurée par l'exactitude. Jeu synthétique séparable pour
+// garder l'assertion exacte.
+
+
+// 8 échantillons à une variable, deux groupes bien séparés (1..4 vs
+// 11..14) : la descente de gradient softmax converge vers une
+// séparation parfaite, exactitude 1.0 exacte sur les données
+// d'entraînement.
+PROCEDURE PUBLIQUE scenario_pipeline_csv_classification()
+	csvX est une chaîne = "1.0" + CRLF + "2.0" + CRLF + "3.0" + CRLF + "4.0" + CRLF + "11.0" + CRLF + "12.0" + CRLF + "13.0" + CRLF + "14.0"
+	matX est une Matrice = CSVVersMatrice(csvX, ";", Faux)
+
+	csvY est une chaîne = "0.0" + CRLF + "0.0" + CRLF + "0.0" + CRLF + "0.0" + CRLF + "1.0" + CRLF + "1.0" + CRLF + "1.0" + CRLF + "1.0"
+	matY est une Matrice = CSVVersMatrice(csvY, ";", Faux)
+	y est un Tenseur = Tenseur(matY)
+
+	reg est une MLRégressionLogistique
+	reg.Entraîne(matX, y)
+
+	preds est un Tenseur = reg.Prédit(matX)
+	taux est un réel = Exactitude(preds, y)
+	dbgVérifieEgalité(taux, 1.0, "deux clusters bien séparés (1-4 vs 11-14) : exactitude 1.0")
+FIN

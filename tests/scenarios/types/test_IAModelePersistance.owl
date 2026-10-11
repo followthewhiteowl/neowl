@@ -1,0 +1,197 @@
+// @sujet : IAModèle — persistance (.Sauve / .Charge)
+// @résumé : .Sauve(chemin) écrit le modèle (couches + poids + biais) dans un
+// fichier JSON natif OWL. .Charge(chemin) lit ce fichier et remplit un
+// IAModèle existant — après .Charge, le modèle est prêt à .Infère exactement
+// comme l'original, sans ré-entraînement. Formes fluentes (.Sauve/.Charge,
+// .Save/.Load) et formes préfixées (IAModèleSauve/IAModèleCharge,
+// AIModelSave/AIModelLoad) produisent le même résultat.
+//
+// Le cœur du contrat est le round-trip : un modèle entraîné (poids non
+// triviaux, pas les valeurs d'initialisation) doit, après .Sauve puis
+// .Charge dans un modèle frais, redonner EXACTEMENT les mêmes poids/biais
+// (tolérance ~1e-9, c'est de la sérialisation) et EXACTEMENT la même sortie
+// de .Infère sur la même entrée — la vraie garantie utilisateur.
+//
+// Les fichiers écrits par ces scénarios vivent dans le répertoire temporaire
+// (fRepTemp()), jamais dans le dépôt, et sont supprimés en fin de scénario.
+
+// .Sauve écrit un fichier non vide sur disque.
+PROCEDURE PUBLIQUE scenario_sauve_ecrit_un_fichier_non_vide()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 4)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(4, 2)
+
+	chemin est une chaîne = fRepTemp() + "owl_test_iamodele_1644_sauve_nonvide.json"
+
+	succès est un booléen = mon.Sauve(chemin)
+
+	dbgVérifieEgalité(succès, Vrai, ".Sauve renvoie Vrai quand l'écriture réussit")
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "le fichier existe sur disque après .Sauve")
+	dbgVérifieVrai(fTailleFichier(chemin) > 0, "le fichier écrit n'est pas vide")
+
+	fSupprime(chemin)
+FIN
+
+
+// Cœur du contrat : un modèle ENTRAÎNÉ (poids non triviaux), sauvé puis
+// rechargé dans un modèle frais, redonne exactement les mêmes poids/biais
+// ET exactement la même sortie de .Infère sur la même entrée.
+PROCEDURE PUBLIQUE scenario_charge_round_trip_fidelite_exacte_apres_entrainement()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 4)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(4, 2)
+
+	matX est une Matrice = [[1.0, -1.0, 2.0], [0.0, 2.0, -1.0], [-2.0, 1.0, 1.0], [1.0, 1.0, -1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 20
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteEntropieCroisée
+
+	// Entraînement : les poids s'éloignent de l'initialisation aléatoire,
+	// c'est ce qu'on veut round-tripper (pas des valeurs triviales).
+	mon.Entraîne(tX, tY, opts)
+
+	chemin est une chaîne = fRepTemp() + "owl_test_iamodele_1644_roundtrip.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve du modèle entraîné réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge dans un modèle frais réussit")
+
+	dbgVérifieEgalité(frais..NbCouches, mon..NbCouches, "NbCouches identique après .Charge")
+
+	valW1Origine est une Matrice = mon.Poids(1)..Valeur
+	valW1Frais est une Matrice = frais.Poids(1)..Valeur
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 4
+			dbgVérifieVrai(Abs(valW1Frais[iLigne][iCol] - valW1Origine[iLigne][iCol]) < 0.000000001, "Poids(1) rechargé égale le poids d'origine (tolérance sérialisation)")
+		FIN
+	FIN
+
+	valB1Origine est un Vecteur = mon.Biais(1)..Valeur
+	valB1Frais est un Vecteur = frais.Biais(1)..Valeur
+	POUR i = 1 À 4
+		dbgVérifieVrai(Abs(valB1Frais[i] - valB1Origine[i]) < 0.000000001, "Biais(1) rechargé égale le biais d'origine (tolérance sérialisation)")
+	FIN
+
+	valW2Origine est une Matrice = mon.Poids(2)..Valeur
+	valW2Frais est une Matrice = frais.Poids(2)..Valeur
+	POUR iLigne = 1 À 4
+		POUR iCol = 1 À 2
+			dbgVérifieVrai(Abs(valW2Frais[iLigne][iCol] - valW2Origine[iLigne][iCol]) < 0.000000001, "Poids(2) rechargé égale le poids d'origine (tolérance sérialisation)")
+		FIN
+	FIN
+
+	// La vraie garantie utilisateur : .Infère(x) rend EXACTEMENT la même
+	// sortie sur le modèle rechargé que sur le modèle d'origine.
+	xTest est un Tenseur = Tenseur([2.0,-1.0, 0.5])
+	sortieOrigine est un Tenseur = mon.Infère(xTest)
+	sortieFrais est un Tenseur = frais.Infère(xTest)
+	valOrigine est un Vecteur = sortieOrigine..Valeur
+	valFrais est un Vecteur = sortieFrais..Valeur
+	POUR i = 1 À 2
+		dbgVérifieVrai(Abs(valFrais[i] - valOrigine[i]) < 0.000000001, ".Infère(x) sur le modèle rechargé égale exactement .Infère(x) sur le modèle d'origine")
+	FIN
+
+	fSupprime(chemin)
+FIN
+
+
+// Formes préfixées IAModèleSauve/IAModèleCharge : même effet observable que
+// les formes fluentes .Sauve/.Charge.
+PROCEDURE PUBLIQUE scenario_formes_prefixees_iamodelesauve_iamodelecharge()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 3)
+
+	chemin est une chaîne = fRepTemp() + "owl_test_iamodele_1644_prefixe.json"
+
+	succèsSauve est un booléen = IAModèleSauve(mon, chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, "IAModèleSauve(mon, chemin) réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = IAModèleCharge(frais, chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, "IAModèleCharge(frais, chemin) réussit")
+
+	dbgVérifieEgalité(frais..NbCouches, mon..NbCouches, "IAModèleCharge : NbCouches identique")
+
+	valWOrigine est une Matrice = mon.Poids(1)..Valeur
+	valWFrais est une Matrice = frais.Poids(1)..Valeur
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 3
+			dbgVérifieVrai(Abs(valWFrais[iLigne][iCol] - valWOrigine[iLigne][iCol]) < 0.000000001, "IAModèleCharge : Poids(1) rechargé égale le poids d'origine")
+		FIN
+	FIN
+
+	fSupprime(chemin)
+FIN
+
+
+// Formes anglaises : .Save/.Load fluent, AIModelSave/AIModelLoad préfixé.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_save_load()
+	mon is an AIModel
+	mon.AddDenseLayer(2, 2)
+
+	chemin is a string = fRepTemp() + "owl_test_iamodele_1644_english.json"
+
+	savedOk is a boolean = mon.Save(chemin)
+	dbgCheckEqual(savedOk, Vrai, ".Save (English form) succeeds")
+
+	fresh is an AIModel
+	loadedOk is a boolean = fresh.Load(chemin)
+	dbgCheckEqual(loadedOk, Vrai, ".Load (English form) succeeds")
+
+	dbgCheckEqual(fresh..LayerCount, mon..LayerCount, "LayerCount identical after .Load")
+
+	chemin2 is a string = fRepTemp() + "owl_test_iamodele_1644_english_prefixed.json"
+	savedOk2 is a boolean = AIModelSave(mon, chemin2)
+	dbgCheckEqual(savedOk2, Vrai, "AIModelSave(mon, chemin) succeeds")
+
+	fresh2 is an AIModel
+	loadedOk2 is a boolean = AIModelLoad(fresh2, chemin2)
+	dbgCheckEqual(loadedOk2, Vrai, "AIModelLoad(fresh, chemin) succeeds")
+	dbgCheckEqual(fresh2..LayerCount, mon..LayerCount, "AIModelLoad : LayerCount identical")
+
+	fSupprime(chemin)
+	fSupprime(chemin2)
+FIN
+
+
+// Cas limite : .Charge d'un fichier inexistant échoue proprement (pas de
+// crash), signale une erreur récupérable, et rend Faux.
+PROCEDURE PRIVÉE scenario_edge_charge_fichier_inexistant_echec_propre()
+	cheminInexistant est une chaîne = fRepTemp() + "owl_test_iamodele_1644_absent_xyzzy.json"
+	dbgVérifieEgalité(fFichierExiste(cheminInexistant), Faux, "précondition : le fichier n'existe pas")
+
+	frais est un IAModèle
+	résultat est un booléen = frais.Charge(cheminInexistant)
+	// ErreurDétectée se lit en premier : c'est le drapeau de l'appel qui
+	// précède, tout autre appel intercalé le remet à zéro.
+	dbgVérifieVrai(ErreurDétectée, "charger un fichier inexistant signale une erreur")
+	dbgVérifieEgalité(résultat, Faux, ".Charge sur fichier inexistant rend Faux (pas de crash)")
+FIN
+
+
+// Cas limite : .Sauve vers un chemin dont le dossier parent n'existe pas
+// échoue proprement (pas de crash), signale une erreur récupérable, et rend
+// Faux.
+PROCEDURE PRIVÉE scenario_edge_sauve_chemin_invalide_echec_propre()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	cheminInvalide est une chaîne = fRepTemp() + "owl_test_iamodele_1644_dossier_absent_xyzzy/modele.json"
+
+	résultat est un booléen = mon.Sauve(cheminInvalide)
+	// ErreurDétectée se lit en premier : c'est le drapeau de l'appel qui
+	// précède, tout autre appel intercalé le remet à zéro.
+	dbgVérifieVrai(ErreurDétectée, "sauver vers un dossier parent inexistant signale une erreur")
+	dbgVérifieEgalité(résultat, Faux, ".Sauve sur chemin invalide rend Faux (pas de crash)")
+FIN

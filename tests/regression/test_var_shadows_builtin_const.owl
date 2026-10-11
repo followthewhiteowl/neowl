@@ -1,0 +1,76 @@
+// Regression : une variable peut etre nommee comme une constante built-in
+// du registry (TAB, CRLF, LF, EOT, ESC, ESP, ValPI). canon de référence
+// accepte avec warning de surcharge, et la variable user gagne au runtime
+// sur la constante.
+//
+// Distinct de test_var_shadows_const.owl qui couvre les LITTERAUX primitifs
+// (Vrai/Faux/Nul). Ici on cible les constantes registry (lookup via
+// owl_registry_const_find) qui declenchent warn_if_shadows_builtin_const.
+//
+// Les warnings compile-time eux-memes sont valides via la meta-API
+// __dbgAvertissementAttendu (cf docs/internal_documentation/test_warnings_attendus.md).
+
+// 1. Shadow de TAB (constante chaine "\t")
+tab est un tableau de chaînes
+Ajoute(tab, "a")
+Ajoute(tab, "b")
+Ajoute(tab, "c")
+dbgVérifieEgalité(tab..Occurrence, 3,
+"Variable 'tab' shadow constante TAB : Occurrence = 3 (pas erreur de type sur chaine)")
+
+// 2. Shadow de CRLF (constante chaine "\r\n").
+crlf est un entier = 42
+dbgVérifieEgalité(crlf, 42,
+"Variable 'crlf' shadow constante CRLF : entier 42, pas chaine '\\r\\n'")
+
+// 2bis. Shadow d'une forme heritee de fin de ligne ('rc' / 'cr' valent CRLF
+// sans etre des constantes du registre). Le masquage est reel : la variable
+// gagne, et sans avertissement le user recupere son entier la ou il attendait
+// une fin de ligne. Warning distinct de celui des vraies constantes.
+rc est un entier = 7
+dbgVérifieEgalité(rc, 7,
+"Variable 'rc' masque la forme heritee RC : entier 7, pas chaine '\\r\\n'")
+
+// 2ter. Shadow de LF, la constante canonique de fin de ligne. C'est une VRAIE
+// constante du registre (contrairement a 'rc' / 'cr' ci-dessus) : l'avertissement
+// est donc celui des constantes natives, pas celui des formes heritees.
+lf est un entier = 10
+dbgVérifieEgalité(lf, 10,
+"Variable 'lf' shadow constante LF : entier 10, pas chaine '\\n'")
+
+// 3. Post- (, canon strict casse+accents) :
+// la constante TAB n'est PLUS accessible dans ce scope. 'tab' / 'Tab' / 'TAB'
+// sont canon-equivalents et resolvent tous vers la variable locale (priorite
+// local-first du compilo). Pour obtenir le caractere tab, utiliser Caract(9).
+s est une chaîne = "x" + Caract(9) + "y"
+dbgVérifieEgalité(s, "x" + Caract(9) + "y",
+"Variable 'tab' shadow rend TAB inaccessible : utiliser Caract(9)")
+
+// 4. Shadow de ESP (constante chaine NBSP)
+esp est un réel = 3.14
+dbgVérifieEgalité(esp, 3.14,
+"Variable 'esp' shadow constante ESP : reel 3.14")
+
+// 5. Shadow de ValPI (constante reel = PI)
+valpi est une chaîne = "pas pi"
+dbgVérifieEgalité(valpi, "pas pi",
+"Variable 'valpi' shadow constante ValPI : chaine custom")
+
+// === Consommation des 6 warnings compile-time attendus ===
+// Chaque shadow doit emettre son warning, sinon test FAIL ("warning
+// attendu non emis"). Aussi : retire ces warnings du bilan global
+// pour ne pas polluer le STATUS ALL CLEAR de owl test.
+__dbgAvertissementAttendu("shadow la constante native 'TAB'",
+"Shadow TAB emet son warning compile")
+__dbgAvertissementAttendu("shadow la constante native 'CRLF'",
+"Shadow CRLF emet son warning compile")
+__dbgAvertissementAttendu("masque la forme héritée 'RC'",
+"Shadow d'une forme heritee de fin de ligne emet son warning dedie")
+__dbgAvertissementAttendu("shadow la constante native 'LF'",
+"Shadow LF emet le warning des vraies constantes, pas celui des formes heritees")
+__dbgAvertissementAttendu("shadow la constante native 'ESP'",
+"Shadow ESP emet son warning compile")
+__dbgAvertissementAttendu("shadow la constante native 'ValPI'",
+"Shadow ValPI emet son warning compile")
+
+dbgBilanTest()

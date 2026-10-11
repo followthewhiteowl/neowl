@@ -1,0 +1,67 @@
+//  — Propagation clavier Saisie -> Fenetre.
+//
+// Semantique proposee (a valider par l'impl) :
+//   - Touche sur Saisie SANS handler surToucheAppuyee -> remonte a la Fenetre.
+//   - Touche sur Saisie AVEC handler surToucheAppuyee -> consommee, ne remonte pas.
+//
+// Proposition test_writer : cette semantique est la plus simple (modele
+// "bubble up si pas de handler"). Une impl alternative serait de toujours
+// propager (les deux tirent), ou de ne jamais propager (les deux independants).
+// La semantique "champ d'abord, fenetre si pas de handler" est notee dans le
+// rapport comme proposition — l'implementer la finalise.
+//
+// ROUGE ATTENDU : EnvoieTouche et tkHaut inconnues -> erreur compile.
+
+TestModeHeadless(Faux)
+
+bPropPrete est un booléen = Faux
+nFenCapProp est un entier = 0
+nSaiAvecCapProp est un entier = 0
+nDerniereCapProp est un entier = -1
+nDerniereCapSaiProp est un entier = -1
+
+PROCEDURE callback_propagation_prete()
+	bPropPrete = Vrai
+FIN
+
+PROCEDURE callback_fen_propagation(nTouche est un entier)
+	nFenCapProp += 1
+	nDerniereCapProp = nTouche
+FIN
+
+PROCEDURE callback_sai_avec_handler(nTouche est un entier)
+	nSaiAvecCapProp += 1
+	nDerniereCapSaiProp = nTouche
+FIN
+
+PROCEDURE callback_lit_prop_compteurs(nF est un entier, nS est un entier)
+	nFenCapProp     = nF
+	nSaiAvecCapProp = nS
+FIN
+
+OuvreSoeur(FEN_PropagationTouche)
+dbgVérifieVrai(bPropPrete, "FinInitialisation appelee : fenetre prete")
+
+// Donner le focus a SAI_SansHandler (pas de handler clavier sur ce champ).
+DonneFocus(SAI_SansHandler)
+
+// Envoyer une touche via EnvoieTouche : sans handler sur le champ, doit
+// remonter a la fenetre.
+EnvoieTouche(tkHaut)
+
+LirePropCompteurs()
+dbgVérifieEgalité(nFenCapProp, 1, "propagation : tkHaut sur Saisie sans handler -> 1 tir fenetre")
+dbgVérifieEgalité(nSaiAvecCapProp, 0, "propagation : SAI_AvecHandler n'a pas tire (pas focuse)")
+
+// Donner le focus a SAI_AvecHandler (a un handler clavier).
+DonneFocus(SAI_AvecHandler)
+
+// La touche doit etre consommee par le champ, NE doit PAS remonter a la fenetre.
+EnvoieTouche(tkBas)
+
+LirePropCompteurs()
+dbgVérifieEgalité(nSaiAvecCapProp, 1, "propagation : tkBas sur Saisie avec handler -> 1 tir saisie")
+dbgVérifieEgalité(nFenCapProp, 1, "propagation : compteur fenetre reste 1 (pas de remontee)")
+
+Ferme(FEN_PropagationTouche)
+dbgBilanTest()

@@ -1,0 +1,197 @@
+// @sujet : famille image - validation plages paramètres
+// @resume : Tests régression plages paramétriques (dModifieContraste, dFlou rayon, dModifieOpacité)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — validation plages paramètres
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_dmodifiecontraste_variation_hors_plage_positive()
+	img est une Image = dCréeImage(10, 10, RVB(128, 128, 128))
+
+	// dModifieContraste avec variation +150 (hors plage canon -100..+100) → erreur OU retour Faux attendu
+	ErreurRAZ()
+	res est un booléen = dModifieContraste(img, 150)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	// Attendu : soit erreur levée, soit retour Faux
+	dbgVérifieVrai(bErr OU res = Faux, "dModifieContraste variation +150 - erreur ou retour Faux")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifiecontraste_variation_hors_plage_negative()
+	img est une Image = dCréeImage(10, 10, RVB(128, 128, 128))
+
+	// dModifieContraste avec variation -150 (hors plage canon -100..+100) → erreur OU retour Faux attendu
+	ErreurRAZ()
+	res est un booléen = dModifieContraste(img,-150)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr OU res = Faux, "dModifieContraste variation -150 - erreur ou retour Faux")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifiecontraste_variation_limite_haute()
+	img est une Image = dCréeImage(10, 10, RVB(128, 128, 128))
+
+	// dModifieContraste avec variation +100 (limite haute canon) → OK attendu
+	ErreurRAZ()
+	res est un booléen = dModifieContraste(img, 100)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(res = Vrai, "dModifieContraste variation +100 - retour Vrai")
+	dbgVérifieVrai(bErr = Faux, "dModifieContraste variation +100 - pas erreur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifiecontraste_variation_limite_basse()
+	img est une Image = dCréeImage(10, 10, RVB(128, 128, 128))
+
+	// dModifieContraste avec variation -100 (limite basse canon) → OK attendu
+	ErreurRAZ()
+	res est un booléen = dModifieContraste(img,-100)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(res = Vrai, "dModifieContraste variation -100 - retour Vrai")
+	dbgVérifieVrai(bErr = Faux, "dModifieContraste variation -100 - pas erreur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dflou_rayon_negatif()
+	img est une Image = dCréeImage(10, 10, RVB(255, 0, 0))
+
+	// dFlou avec rayon négatif → erreur attendue
+	ErreurRAZ()
+	dFlou(img,-5)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dFlou rayon negatif - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "rayon") > 0 OU ChaîneOccurrence(sInfo, "radius") > 0 OU ChaîneOccurrence(sInfo, "valeur") > 0, "dFlou rayon negatif - message contient rayon/radius/valeur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dflou_rayon_0_valide()
+	img est une Image = dCréeImage(10, 10, RVB(0, 255, 0))
+
+	// dFlou avec rayon 0 (limite basse) → OK attendu (aucun effet)
+	ErreurRAZ()
+	dFlou(img, 0)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr = Faux, "dFlou rayon 0 - pas erreur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifieopacite_facteur_hors_plage_superieur_100()
+	img est une Image = dCréeImage(10, 10, RVB(255, 0, 0))
+
+	// dModifieOpacité avec facteur 150.0 (hors plage canon 0..100) → erreur OU retour Faux attendu
+	ErreurRAZ()
+	dModifieOpacité(img, 150.0)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr, "dModifieOpacite facteur 150 - erreur detectee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifieopacite_facteur_negatif()
+	img est une Image = dCréeImage(10, 10, RVB(0, 255, 0))
+
+	// dModifieOpacité avec facteur -10.0 (négatif, hors plage canon 0..100) → erreur attendue
+	ErreurRAZ()
+	dModifieOpacité(img,-10.0)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr, "dModifieOpacite facteur negatif - erreur detectee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifieopacite_facteur_limite_haute()
+	img est une Image = dCréeImage(10, 10, RVB(0, 0, 255))
+
+	// dModifieOpacité avec facteur 100.0 (limite haute canon) → OK attendu
+	ErreurRAZ()
+	dModifieOpacité(img, 100.0)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr = Faux, "dModifieOpacite facteur 100 - pas erreur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dmodifieopacite_facteur_limite_basse()
+	img est une Image = dCréeImage(10, 10, RVB(255, 255, 0))
+
+	// dModifieOpacité avec facteur 0.0 (limite basse canon) → OK attendu
+	ErreurRAZ()
+	dModifieOpacité(img, 0.0)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr = Faux, "dModifieOpacite facteur 0 - pas erreur")
+FIN
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases validation plages
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_dmodifiecontraste_variation_101()
+	img est une Image = dCréeImage(10, 10, RVB(128, 128, 128))
+
+	// dModifieContraste avec variation +101 (juste au-dessus de limite haute) → erreur ou Faux attendu
+	ErreurRAZ()
+	res est un booléen = dModifieContraste(img, 101)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr OU res = Faux, "dModifieContraste variation +101 - erreur ou retour Faux")
+FIN
+
+PROCEDURE PRIVÉE scenario_dmodifiecontraste_variation_moins_101()
+	img est une Image = dCréeImage(10, 10, RVB(128, 128, 128))
+
+	// dModifieContraste avec variation -101 (juste en-dessous de limite basse) → erreur ou Faux attendu
+	ErreurRAZ()
+	res est un booléen = dModifieContraste(img,-101)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr OU res = Faux, "dModifieContraste variation -101 - erreur ou retour Faux")
+FIN
+
+PROCEDURE PRIVÉE scenario_dflou_rayon_tres_grand()
+	img est une Image = dCréeImage(10, 10, RVB(0, 0, 255))
+
+	// dFlou avec rayon très grand (1000) → OK attendu (convergence flou extreme)
+	ErreurRAZ()
+	dFlou(img, 1000)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr = Faux, "dFlou rayon tres grand - pas erreur")
+FIN
+
+PROCEDURE PRIVÉE scenario_dmodifieopacite_facteur_100_1()
+	img est une Image = dCréeImage(10, 10, RVB(255, 0, 255))
+
+	// dModifieOpacité avec facteur 100.1 (juste au-dessus limite haute) → erreur attendue
+	ErreurRAZ()
+	dModifieOpacité(img, 100.1)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr, "dModifieOpacite facteur 100.1 - erreur detectee")
+FIN
+
+PROCEDURE PRIVÉE scenario_dmodifieopacite_facteur_moins_0_1()
+	img est une Image = dCréeImage(10, 10, RVB(0, 255, 255))
+
+	// dModifieOpacité avec facteur -0.1 (juste en-dessous limite basse) → erreur attendue
+	ErreurRAZ()
+	dModifieOpacité(img,-0.1)
+
+	bErr est un booléen = ErreurDétectée
+
+	dbgVérifieVrai(bErr, "dModifieOpacite facteur -0.1 - erreur detectee")
+FIN

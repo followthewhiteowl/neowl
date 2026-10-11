@@ -1,0 +1,132 @@
+// @sujet : AwsLambdaClient
+// @résumé : Client objet fluent pour le service d'exécution de fonctions Lambda. Instancié via `l est un AwsLambdaClient`, la session se pose via `..Session`, l'invocation d'une fonction s'appelle en `l.Invoque(nomFonction, charge)` et retourne la réponse décodée en JSON.
+
+
+// Mock partagé : Invoque signe la requête puis délègue l'envoi réseau à
+// HTTPEnvoie, exactement comme AwsBedrockClient. On intercepte cette dépendance
+// externe pour rester déterministe (pas de vrai appel Lambda en test).
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat            = 200
+	rep..DescriptionCodeEtat = "OK"
+	rep..Contenu             = `{"statusCode":200,"resultat":"ok"}`
+
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Desactive()
+FIN
+
+
+// Construit une session de test partageable entre scénarios.
+PROCEDURE PRIVÉE sessionDeTest() : AWSSession
+	sess est une AWSSession
+	sess..Région     = "eu-central-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	RENVOYER sess
+FIN
+
+
+// Construit une charge (payload transmis tel quel à la fonction).
+PROCEDURE PRIVÉE chargeDeTest() : JSON
+	charge est un JSON
+	charge.action = "ping"
+	charge.valeur = 42
+	RENVOYER charge
+FIN
+
+
+// Cas canonique : un AwsLambdaClient déclaré sans initialisation existe, la
+// session se pose via la propriété ..Session.
+PROCEDURE PUBLIQUE scenario_creation_et_session()
+	l est un AwsLambdaClient
+	l..Session = sessionDeTest()
+
+	dbgVérifieEgalité(l..Session..Région, "eu-central-1", "session relue via la propriété ..Session")
+FIN
+
+
+// Invoque : la requête déléguée à HTTPEnvoie est un POST signé, l'hôte est
+// lambda régional, le chemin porte le nom de fonction entre /functions/ et
+// /invocations, le Content-Type est application/json et le corps transmis est
+// la charge JSON fournie sérialisée.
+PROCEDURE PUBLIQUE scenario_invoque_post_signe()
+	l est un AwsLambdaClient
+	l..Session = sessionDeTest()
+
+	l.Invoque("ma-fonction", chargeDeTest())
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+
+	dbgVérifieEgalité(req..Méthode, httpPost, "Invoque envoie une requête POST")
+	dbgVérifieVrai(Contient(req..URL, "lambda.eu-central-1.amazonaws.com"), "l'URL cible l'hôte lambda régional")
+	dbgVérifieVrai(Contient(req..URL, "/2015-03-31/functions/ma-fonction/invocations"), "le chemin porte le nom de fonction entre /functions/ et /invocations")
+	dbgVérifieEgalité(req..ContentType, "application/json", "Content-Type application/json")
+	dbgVérifieVrai(Contient(req..Contenu, "ping"), "la charge JSON fournie est transmise sérialisée")
+FIN
+
+
+// Signature SigV4 : Authorization AWS4-HMAC-SHA256 avec le service `lambda`
+// dans le scope, X-Amz-Date posé, empreinte réelle du corps.
+PROCEDURE PUBLIQUE scenario_invoque_signature_service_lambda()
+	l est un AwsLambdaClient
+	l..Session = sessionDeTest()
+
+	l.Invoque("ma-fonction", chargeDeTest())
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+
+	sAutorisation est une chaîne = req..Entête["Authorization"]
+	dbgVérifieVrai(Contient(sAutorisation, "AWS4-HMAC-SHA256"), "Invoque signe la requête (SigV4)")
+	dbgVérifieVrai(Contient(sAutorisation, "/lambda/aws4_request"), "le scope de signature porte le service lambda")
+	dbgVérifieDifférence(req..Entête["X-Amz-Date"], "", "X-Amz-Date posé sur la requête signée")
+
+	sEmpreinte est une chaîne = req..Entête["X-Amz-Content-Sha256"]
+	dbgVérifieEgalité(Taille(sEmpreinte), 64, "empreinte SHA-256 hexadécimale du corps (64 caractères)")
+	dbgVérifieDifférence(sEmpreinte, "UNSIGNED-PAYLOAD", "empreinte réelle, pas un placeholder non-signé")
+FIN
+
+
+// Réponse : le corps JSON de l'invocation est retourné décodé en JSON exploitable.
+PROCEDURE PUBLIQUE scenario_invoque_reponse_json_decodee()
+	l est un AwsLambdaClient
+	l..Session = sessionDeTest()
+
+	reponse est un JSON = l.Invoque("ma-fonction", chargeDeTest())
+
+	dbgVérifieEgalité(reponse.statusCode, 200, "corps de réponse décodé en JSON (champ statusCode)")
+	dbgVérifieEgalité(reponse.resultat, "ok", "corps de réponse décodé en JSON (champ resultat)")
+FIN
+
+
+// Cas limite : le nom de fonction est encodé pour la canonical URI SigV4. Le
+// tiret est unreserved (non encodé) ; un caractère réservé (ex. ':' d'un ARN)
+// est pourcent-encodé.
+PROCEDURE PRIVÉE scenario_invoque_nomfonction_encode()
+	l est un AwsLambdaClient
+	l..Session = sessionDeTest()
+
+	l.Invoque("arn:fn", chargeDeTest())
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "/2015-03-31/functions/arn%3Afn/invocations"), "':' réservé pourcent-encodé dans le nom de fonction")
+FIN
+
+
+// Cas limite défensif : deux invocations successives comptent bien deux
+// délégations distinctes à HTTPEnvoie (pas de mise en cache implicite).
+PROCEDURE PRIVÉE scenario_deux_invocations_deux_delegations()
+	l est un AwsLambdaClient
+	l..Session = sessionDeTest()
+
+	l.Invoque("ma-fonction", chargeDeTest())
+	l.Invoque("ma-fonction", chargeDeTest())
+
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 2), "deux invocations, deux délégations HTTPEnvoie")
+FIN

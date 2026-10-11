@@ -1,0 +1,20 @@
+// Regression : parser resync manquant apres erreur constant-folding dans bloc QUAND EXCEPTION DANS
+//
+// Bug B7 : quand une erreur compile-time survient dans le corps du bloc TRY,
+// le parser emet l'erreur mais ne resynchronise PAS, donc interprete les tokens suivants
+// hors-contexte et genere des faux positifs en cascade.
+//
+// Cas d'origine : division par zero constant-folding (compile-time).
+// Symptome : 3 erreurs dont 1 seule legitime (division zero ligne 2).
+// Les 2 autres (fake) :
+//   - "Expected 'FAIRE' / 'DO' after try block." ligne 6 (alors que FAIRE est bien la)
+//   - "Expression attendue." ligne 6 (cascade parasite)
+//
+// Ce test capture l'etat actuel (3 erreurs). Apres fix synchronize(), devrait tomber a 1 seule.
+
+QUAND EXCEPTION DANS
+	rRatio est un réel = 1 / 0
+	trace(rRatio)
+FAIRE
+	trace("...")
+FIN

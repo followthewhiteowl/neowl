@@ -1,0 +1,29 @@
+// ..Valeur est la propriété de contenu CANONIQUE d'un Champ de Saisie :
+// déclarable en PROPRIETES et lisible/modifiable au runtime. Elle EST la
+// propriété par défaut (Saisie = X équivaut à Saisie..Valeur = X).
+//
+// Avant ce chantier, déclarer Valeur en PROPRIETES d'une Saisie était
+// refusé ("Propriété 'Valeur' inconnue pour Saisie") alors qu'explain
+// l'annonçait comme propriété par défaut. C'est corrigé ici.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_V)
+
+// --- Cas 1 : ..Valeur déclarée en PROPRIETES est appliquée ---
+v est une chaîne = SAI_Pre..Valeur
+dbgVérifieEgalité(v, "prérempli", "..Valeur déclarée en PROPRIETES relue")
+
+// --- Cas 2 : set runtime ..Valeur puis relecture ---
+SAI_Pre..Valeur = "modifié"
+dbgVérifieEgalité(SAI_Pre..Valeur, "modifié", "..Valeur après set runtime")
+
+// --- Cas 3 : vidage ..Valeur ---
+SAI_Pre..Valeur = ""
+w est une chaîne = SAI_Pre..Valeur
+dbgVérifieEgalité(w, "", "..Valeur vidée = chaîne vide")
+dbgVérifieVrai(w = "", "..Valeur vidée compare égale à la chaîne vide")
+
+Ferme(FEN_V)
+
+dbgBilanTest()

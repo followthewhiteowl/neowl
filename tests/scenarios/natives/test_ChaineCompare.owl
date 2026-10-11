@@ -1,0 +1,70 @@
+// @sujet : ChaîneCompare
+// @résumé : Comparaison de deux chaînes avec gestion de casse, accents et ordre lexicographique. Retourne -1, 0 ou 1 selon leur ordre relatif, avec options de normalisation.
+
+// Comparaison normale — respecte casse et accents
+PROCEDURE PUBLIQUE scenario_comparaison_normale()
+	r1 est un entier = ChaîneCompare("apple", "banana")
+	dbgVérifieEgalité(r1,-1, "apple < banana")
+
+	r2 est un entier = ChaîneCompare("zebra", "apple")
+	dbgVérifieEgalité(r2, 1, "zebra > apple")
+
+	r3 est un entier = ChaîneCompare("test", "test")
+	dbgVérifieEgalité(r3, 0, "identiques")
+FIN
+
+// Comparaison insensible à la casse — la différence de majuscules est ignorée
+PROCEDURE PUBLIQUE scenario_sans_casse()
+	r1 est un entier = ChaîneCompare("HELLO", "hello", ccSansCasse)
+	dbgVérifieEgalité(r1, 0, "casse ignoree")
+
+	r2 est un entier = ChaîneCompare("Apple", "banana", ccSansCasse)
+	dbgVérifieEgalité(r2,-1, "apple < banana malgre majuscule")
+FIN
+
+// Comparaison insensible aux accents — les caractères accentués sont normalisés
+PROCEDURE PUBLIQUE scenario_sans_accent()
+	r1 est un entier = ChaîneCompare("café", "cafe", ccSansAccent)
+	dbgVérifieEgalité(r1, 0, "accent ignore")
+
+	r2 est un entier = ChaîneCompare("élève", "eleve", ccSansAccent)
+	dbgVérifieEgalité(r2, 0, "accents multiples ignores")
+FIN
+
+// Combinaison d'options — ignore casse ET accents simultanément
+PROCEDURE PUBLIQUE scenario_options_combinees()
+	optsCombo est un entier = ccSansCasse + ccSansAccent
+	r1 est un entier = ChaîneCompare("CAFÉ", "cafe", optsCombo)
+	dbgVérifieEgalité(r1, 0, "casse + accent ignores")
+FIN
+
+// Comparaison numérique intelligente — trie fichier2.txt avant fichier10.txt
+PROCEDURE PUBLIQUE scenario_respecte_numerique()
+	r1 est un entier = ChaîneCompare("fichier2.txt", "fichier10.txt", ccRespecteNumérique)
+	dbgVérifieEgalité(r1,-1, "2 < 10 numériquement")
+
+	// Sans ccRespecteNumérique, ordre lexicographique strict "10" < "2"
+	r2 est un entier = ChaîneCompare("fichier2.txt", "fichier10.txt", ccNormal)
+	dbgVérifieEgalité(r2, 1, "2 > 10 lexicographiquement")
+FIN
+
+// Chaînes vides et espaces — valeurs sentinelles courantes
+PROCEDURE PRIVÉE scenario_vide_et_espaces()
+	r1 est un entier = ChaîneCompare("", "")
+	dbgVérifieEgalité(r1, 0, "vides identiques")
+
+	r2 est un entier = ChaîneCompare("", "a")
+	dbgVérifieEgalité(r2,-1, "vide < non-vide")
+
+	r3 est un entier = ChaîneCompare("  ", "", ccSansEspace)
+	dbgVérifieEgalité(r3, 0, "espaces ignores")
+FIN
+
+// Ponctuation et espaces intérieurs — normalisation avancée
+PROCEDURE PRIVÉE scenario_ponctuation_espace_interieur()
+	r1 est un entier = ChaîneCompare("hello world", "helloworld", ccSansEspaceIntérieur)
+	dbgVérifieEgalité(r1, 0, "espace intérieur ignoré")
+
+	r2 est un entier = ChaîneCompare("hello, world!", "hello world", ccSansPonctuationNiEspace)
+	dbgVérifieEgalité(r2, 0, "ponctuation et espaces ignorés")
+FIN

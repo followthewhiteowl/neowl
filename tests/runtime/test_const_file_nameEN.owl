@@ -1,0 +1,56 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille Fichiers
+// (, lot A2 - module stdlib_file).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   fDisque         -> fDrive        (valeur brute stable = 1)
+//   frRecursif      -> frRecursive   (valeur brute stable = 1)
+//   frNonRecursif   -> frNotRecursive(valeur brute stable = 2)
+//   frInterruptible -> fdInterruptible (valeur brute stable = 4)
+//   foLecture       -> foRead        (sentinel : EN==FR seulement)
+//   fpFin           -> fpEnd         (sentinel : EN==FR seulement)
+//
+// Deux couches d'assertion par couple stable : EN == FR, ET EN == valeur brute.
+// =============================================================================
+
+PROCEDURE scenario_const_file_en_resout_vers_fr()
+	// --- fDrive == fDisque == 1 (bit lettre de lecteur) ---
+	dbgVérifieEgalité(fDrive, fDisque,
+	"fDrive resout vers la meme valeur que fDisque")
+	dbgVérifieEgalité(fDrive, 1,
+	"fDrive vaut exactement 1 (bit lettre de lecteur)")
+
+	// --- frRecursive == frRecursif == 1 ---
+	dbgVérifieEgalité(frRecursive, frRécursif,
+	"frRecursive resout vers la meme valeur que frRecursif")
+	dbgVérifieEgalité(frRecursive, 1,
+	"frRecursive vaut exactement 1 (parcours recursif)")
+
+	// --- frNotRecursive == frNonRecursif == 2 ---
+	dbgVérifieEgalité(frNotRecursive, frNonRécursif,
+	"frNotRecursive resout vers la meme valeur que frNonRecursif")
+	dbgVérifieEgalité(frNotRecursive, 2,
+	"frNotRecursive vaut exactement 2")
+
+	// --- fdInterruptible == frInterruptible == 4 ---
+	dbgVérifieEgalité(fdInterruptible, frInterruptible,
+	"fdInterruptible resout vers la meme valeur que frInterruptible")
+	dbgVérifieEgalité(fdInterruptible, 4,
+	"fdInterruptible vaut exactement 4")
+
+	// --- foRead == foLecture (sentinel, valeur brute non ancree) ---
+	dbgVérifieEgalité(foRead, foLecture,
+	"foRead resout vers la meme valeur que foLecture")
+
+	// --- fpEnd == fpFin (sentinel, valeur brute non ancree) ---
+	dbgVérifieEgalité(fpEnd, fpFin,
+	"fpEnd resout vers la meme valeur que fpFin")
+FIN
+
+scenario_const_file_en_resout_vers_fr()
+dbgBilanTest()

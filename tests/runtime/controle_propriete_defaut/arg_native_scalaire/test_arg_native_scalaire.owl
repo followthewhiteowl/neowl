@@ -1,0 +1,29 @@
+//  (follow-up A) — Nom nu widget passé en ARGUMENT d'une NATIVE
+// scalaire. La native consomme une chaîne (Val), donc le nom nu doit être
+// déballé vers sa propriété par défaut (..Valeur), pas reçu comme objet
+// contrôle. Avant fix : Val(SAI) lisait le contrôle -> 0.
+//
+// Frontière valeur/référence : la non-régression contrôle-ref est verrouillée
+// dans test_nonreg_controle_ref.owl (TestSimuleSouris/Saisie reçoivent le ref).
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ArgNat)
+
+// 1. Val(SAI) sur entier — le nom nu déballe "42" puis parse.
+SAI_Nombre..Valeur = "42"
+dbgVérifieEgalité(Val(SAI_Nombre), 42, "Val(SAI) nom nu : déballe ..Valeur et parse 42")
+
+// 2. Val(SAI) sur réel — déballe "3.5".
+SAI_Nombre..Valeur = "3.5"
+dbgVérifieEgalité(Val(SAI_Nombre), 3.5, "Val(SAI) nom nu : déballe ..Valeur et parse 3.5")
+
+// 3. Symétrie avec l'accès explicite ..Valeur (déjà fonctionnel).
+SAI_Nombre..Valeur = "7"
+dbgVérifieEgalité(Val(SAI_Nombre), Val(SAI_Nombre..Valeur), "Val(SAI) == Val(SAI..Valeur)")
+
+// 4. Non-régression : Val sur littéral chaîne inchangé.
+dbgVérifieEgalité(Val("100"), 100, "Val(littéral) inchangé")
+
+Ferme(FEN_ArgNat)
+
+dbgBilanTest()

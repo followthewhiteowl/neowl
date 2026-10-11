@@ -1,0 +1,110 @@
+// Tests techniques edge cases : modes de débordement, valeurs sentinelles,
+// formule cyclique vérifiée, comportement modulo, plages non-standard.
+
+// Vérification formule cyclique complète pour EntierDansPlage.
+// Formule : min + modulo_positif(valeur - min, max-min+1)
+PROCEDURE scenario_cyclique_formule_varios()
+	// [0, 9] taille 10 : 15 → 5
+	n1 est un entier = EntierDansPlage(15, 0, 9, débordementCyclique)
+	dbgVérifieEgalité(n1, 5, "15 dans [0,9] cyclique = 5")
+	// [0, 9] : -1 → 9
+	n2 est un entier = EntierDansPlage(-1, 0, 9, débordementCyclique)
+	dbgVérifieEgalité(n2, 9, "-1 dans [0,9] cyclique = 9")
+	// [0, 9] : -10 → 0
+	n3 est un entier = EntierDansPlage(-10, 0, 9, débordementCyclique)
+	dbgVérifieEgalité(n3, 0, "-10 dans [0,9] cyclique = 0")
+	// [3, 7] taille 5 : 8 → 3
+	n4 est un entier = EntierDansPlage(8, 3, 7, débordementCyclique)
+	dbgVérifieEgalité(n4, 3, "8 dans [3,7] cyclique = 3")
+	// [3, 7] : 13 → 3
+	n5 est un entier = EntierDansPlage(13, 3, 7, débordementCyclique)
+	dbgVérifieEgalité(n5, 3, "13 dans [3,7] cyclique = 3")
+FIN
+
+
+// Vérification clamp : la valeur la plus proche des deux bornes est choisie.
+PROCEDURE scenario_borne_clamp_symetrie()
+	// Trop bas → min
+	n1 est un entier = EntierDansPlage(0, 10, 20, débordementBorne)
+	dbgVérifieEgalité(n1, 10, "0 < min(10), clamp → 10")
+	// Trop haut → max
+	n2 est un entier = EntierDansPlage(30, 10, 20, débordementBorne)
+	dbgVérifieEgalité(n2, 20, "30 > max(20), clamp → 20")
+	// Valeur dans la plage → inchangée
+	n3 est un entier = EntierDansPlage(15, 10, 20, débordementBorne)
+	dbgVérifieEgalité(n3, 15, "15 dans [10,20], clamp → 15 inchangé")
+FIN
+
+
+// Vérification octetFaible : comportement bitwise & 0xFF.
+PROCEDURE scenario_octet_faible_bitwise()
+	// 256 = 0x100 → & 0xFF = 0
+	n1 est un entier = EntierVersOctet(256, débordementOctetFaible)
+	dbgVérifieEgalité(n1, 0, "256 & 0xFF = 0")
+	// 257 = 0x101 → & 0xFF = 1
+	n2 est un entier = EntierVersOctet(257, débordementOctetFaible)
+	dbgVérifieEgalité(n2, 1, "257 & 0xFF = 1")
+	// 511 = 0x1FF → & 0xFF = 255
+	n3 est un entier = EntierVersOctet(511, débordementOctetFaible)
+	dbgVérifieEgalité(n3, 255, "511 & 0xFF = 255")
+	// 512 = 0x200 → & 0xFF = 0
+	n4 est un entier = EntierVersOctet(512, débordementOctetFaible)
+	dbgVérifieEgalité(n4, 0, "512 & 0xFF = 0")
+FIN
+
+
+// Vérification que BufferLitOctet et BufferÉcritOctet fonctionnent ensemble
+// pour TOUS les octets [0, 255] dans un buffer 1 octet (round-trip complet).
+// On teste plusieurs représentants.
+PROCEDURE scenario_round_trip_echantillon()
+	buf est un buffer = "X"
+	// Valeur 0
+	BufferÉcritOctet(buf, 1, 0)
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 0, "round-trip 0")
+	// Valeur 127 (limite ASCII)
+	BufferÉcritOctet(buf, 1, 127)
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 127, "round-trip 127")
+	// Valeur 128 (premier hors ASCII)
+	BufferÉcritOctet(buf, 1, 128)
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 128, "round-trip 128")
+	// Valeur 200
+	BufferÉcritOctet(buf, 1, 200)
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 200, "round-trip 200")
+	// Valeur 255
+	BufferÉcritOctet(buf, 1, 255)
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 255, "round-trip 255")
+FIN
+
+
+// Vérification que débordementErreur lève une exception runtime (mode défaut hors plage).
+// La sentinelle est capturée dans le bloc FAIRE — pattern idiomatique.
+PROCEDURE scenario_erreur_detectee_ordre()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		n est un entier = EntierDansPlage(500, 0, 255)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "500 hors [0,255] lève une exception en mode débordementErreur")
+FIN
+
+
+// Vérification des formes bilingues EN sur toutes les natives.
+PROCEDURE scenario_bilingue_toutes_natives()
+	// IntegerInRange
+	n1 est un entier = IntegerInRange(42, 0, 100)
+	dbgVérifieEgalité(n1, 42, "IntegerInRange(42, 0, 100) = 42")
+	// IntegerToByte
+	n2 est un entier = IntegerToByte(200)
+	dbgVérifieEgalité(n2, 200, "IntegerToByte(200) = 200")
+	// BufferReadByte
+	buf est un buffer = "A"
+	n3 est un entier = BufferReadByte(buf, 1)
+	dbgVérifieEgalité(n3, 65, "BufferReadByte(buf, 1) = 65")
+	// BufferWriteByte
+	BufferWriteByte(buf, 1, 90)
+	n4 est un entier = BufferReadByte(buf, 1)
+	dbgVérifieEgalité(n4, 90, "BufferWriteByte + BufferReadByte = 90")
+FIN
+
+dbgBilanTest()

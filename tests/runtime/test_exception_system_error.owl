@@ -1,0 +1,95 @@
+// ============================================
+// TEST: errCodeSystème / errMessageSystème — mécanisme opt-in
+//
+// Les natives stdlib qui ont une info syscall pertinente peuvent appeler
+// owl_set_exception_system_error(code, msg) avant la levée. La lecture se
+// fait via ExceptionInfo(errCodeSystème) / ExceptionInfo(errMessageSystème).
+//
+// Ce test passe par la native test-only __SetSystemError (préfixe __ =
+// interne, non exposée au LSP) qui transmet à l'API C.
+//
+// Contrat verrouillé :
+//   - Sans appel __SetSystemError : valeurs = 0 / "" (par défaut)
+//   - Après __SetSystemError suivi de ExceptionDéclenche : valeurs renvoyées
+//   - Reset automatique : la 2e exception sans __SetSystemError repart à 0/""
+// ============================================
+Trace("=== EXCEPTION SYSTEM ERROR (opt-in) ===")
+
+// ---------------------------------------------------------------------
+// Sans appel __SetSystemError : valeurs par défaut
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(1, "no-syscall")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 0,
+	"errCodeSystème = 0 sans __SetSystemError")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "",
+	"errMessageSystème = vide sans __SetSystemError")
+FIN
+
+// ---------------------------------------------------------------------
+// __SetSystemError puis ExceptionDéclenche : info transmise
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	__SetSystemError(13, "Permission denied")
+	ExceptionDéclenche(1, "open /etc/shadow")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 13,
+	"errCodeSystème = 13 après __SetSystemError(13, ...)")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "Permission denied",
+	"errMessageSystème = Permission denied après __SetSystemError")
+	// Les autres constantes restent cohérentes
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "open /etc/shadow",
+	"errMessage = message d'ExceptionDéclenche, distinct du message système")
+	dbgVérifieEgalité(ExceptionInfo(errCode), 1,
+	"errCode = code OWL, distinct du code système")
+FIN
+
+// ---------------------------------------------------------------------
+// Reset automatique : 2e exception sans __SetSystemError repart à 0 / ""
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	__SetSystemError(2, "No such file")
+	ExceptionDéclenche(1, "première")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 2,
+	"1ère exception : errCodeSystème = 2")
+FIN
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(2, "deuxième sans set")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 0,
+	"2e exception sans __SetSystemError : errCodeSystème reset à 0")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "",
+	"2e exception sans __SetSystemError : errMessageSystème reset à vide")
+FIN
+
+// ---------------------------------------------------------------------
+// Set répété puis nouvelle exception : la dernière valeur posée gagne
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	__SetSystemError(99, "vieux")
+	__SetSystemError(42, "frais")
+	ExceptionDéclenche(1, "boom")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 42,
+	"dernier __SetSystemError gagne (42, pas 99)")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "frais",
+	"dernier __SetSystemError gagne (frais, pas vieux)")
+FIN
+
+// ---------------------------------------------------------------------
+// Aliases ASCII équivalents
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	__SetSystemError(5, "I/O error")
+	ExceptionDéclenche(1, "io")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 5,
+	"alias ASCII errCodeSysteme = errCodeSystème")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "I/O error",
+	"alias ASCII errMessageSysteme = errMessageSystème")
+FIN
+
+dbgBilanTest()

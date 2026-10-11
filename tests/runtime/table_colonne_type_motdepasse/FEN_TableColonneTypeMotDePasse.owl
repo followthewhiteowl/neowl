@@ -1,0 +1,95 @@
+// Fenêtre voisine — ressource pour
+// test_table_colonne_type_motdepasse.owl ( lot 5, câblage de
+// colTypeMotDePasse : AFFICHAGE masqué en puces hors édition + INPUT en echo
+// mot de passe, symétrique du framework colTypeNumerique/colTypeMonétaire
+// et colTypeDate/colTypeHeure/colTypeDurée).
+//
+// COL_MotDePasse : Type = colTypeMotDePasse, colonne sous test.
+// COL_Numerique / COL_Monetaire / COL_Date / COL_Heure / COL_Duree :
+//                  non-régression — les 5 types "valeur" déjà câblés
+//                  doivent rester intacts (affichage + input) après l'ajout
+//                  du nouveau membre d'enum.
+// COL_Texte     : non-régression — aucune contrainte ni formatage.
+
+FEN_TableColonneTypeMotDePasse est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne type Mot de passe, affichage masqué + input echo"
+	FIN
+
+	TAB_ColTypes est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_MotDePasse est une Colonne
+			PROPRIETES
+				Libellé = "Mot de passe"
+				Type    = colTypeMotDePasse
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Numerique est une Colonne
+			PROPRIETES
+				Libellé = "Numérique"
+				Type    = colTypeNumerique
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Monetaire est une Colonne
+			PROPRIETES
+				Libellé = "Monétaire"
+				Type    = colTypeMonétaire
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Date est une Colonne
+			PROPRIETES
+				Libellé = "Date"
+				Type    = colTypeDate
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Heure est une Colonne
+			PROPRIETES
+				Libellé = "Heure"
+				Type    = colTypeHeure
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Duree est une Colonne
+			PROPRIETES
+				Libellé = "Durée"
+				Type    = colTypeDurée
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Texte est une Colonne
+			PROPRIETES
+				Libellé = "Texte"
+				Type    = colTypeTexte
+				Largeur = 140
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Ligne 1 : mot de passe "secret" (6 caractères) + valeurs parseables
+		// des 5 types voisins (miroir  ligne 1 numérique/monétaire,
+		//  ligne 1 date/heure/durée).
+		TableAjouteLigne(TAB_ColTypes, "secret", "1234.56", "1234.56", "2026-12-31", "0905", "+001300000", "abc")
+
+		// Ligne 2 : mot de passe "ab" (2 caractères) — longueur différente de
+		// la ligne 1, verrouille "une puce par caractère" plutôt qu'un nombre
+		// fixe de puces.
+		TableAjouteLigne(TAB_ColTypes, "ab", "1234.56", "1234.56", "2026-12-31", "0905", "+001300000", "abc")
+
+		// Ligne 3 : mot de passe vide — cas limite, aucune puce affichée, pas
+		// de crash.
+		TableAjouteLigne(TAB_ColTypes, "", "1234.56", "1234.56", "2026-12-31", "0905", "+001300000", "abc")
+	FIN
+FIN

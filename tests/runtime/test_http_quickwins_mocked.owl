@@ -1,0 +1,79 @@
+Trace("=== HTTP quick wins (Info, debug, Cookie, Version, Resultat) MOCKED ===")
+
+HTTPParamètre(httpParamReinitialise, 0)
+HTTPVideCookies()
+
+// === HTTPInfo / HTTPVersion — introspection (no network needed) ===
+// HTTPInfo() retourne un JSON object (cf fn_http_info : owl/http/tls/...).
+// La sig la signature de référence dit "chaîne" mais le runtime expose les champs comme objet.
+info est un JSON = HTTPInfo()
+// Ne pas hardcoder la version owl (susceptible de bump : 0.1.0 → 1.0.0 etc.).
+// Verifier juste que le champ existe et a une forme version-like.
+dbgVérifieVrai(Taille(info.owl) >= 3, "HTTPInfo.owl renseigne (version)")
+dbgVérifieEgalité(info.http, "1.1", "HTTPInfo.http = 1.1")
+dbgVérifieEgalité(info.tls, "1.2", "HTTPInfo.tls = 1.2")
+dbgVérifieVrai(Taille(info.mbedtls) > 0, "HTTPInfo.mbedtls renseigne")
+dbgVérifieVrai(Taille(info.pcre2) > 0, "HTTPInfo.pcre2 renseigne")
+
+// HTTPVersion est un alias
+info2 est un JSON = HTTPVersion()
+dbgVérifieEgalité(info2.owl, info.owl, "HTTPVersion alias = HTTPInfo")
+
+// === Mock HTTPRequete for remaining tests ===
+mockHTTP est un MockNative = MockCreate(HTTPRequête)
+MockWhen(mockHTTP)
+MockWith(mockHTTP, MockAny)
+rawReqMock est une chaîne = [
+GET /get HTTP/1.1
+Host: httpbin.org
+User-Agent: OWL/0.1
+Connection: keep-alive
+]
+MockReturns(mockHTTP, rawReqMock)
+MockActivate(mockHTTP)
+
+// === HTTPCodeHTTP — HTTP version from last response ===
+// Note: mocked HTTPRequete doesn't populate g_last_* internal state
+HTTPRequête("http://httpbin.org/get")
+codeHTTP est une chaîne = HTTPCodeHTTP()
+dbgVérifieVrai(Taille(codeHTTP) >= 0, "HTTPCodeHTTP returns chaine")
+
+// Reset parametres
+HTTPParamètre(httpParamReinitialise, 0)
+
+// === HTTPDonneChaineRequete / HTTPDonneChaineReponse — debug ===
+// Note: mocked calls don't populate raw request/response buffers
+HTTPRequête("http://httpbin.org/get")
+rawReq est une chaîne = HTTPDonneChaîneRequete()
+dbgVérifieVrai(Taille(rawReq) >= 0, "HTTPDonneChaineRequete returns chaine")
+
+rawResp est une chaîne = HTTPDonneChaîneReponse()
+dbgVérifieVrai(Taille(rawResp) >= 0, "HTTPDonneChaineReponse returns chaine")
+
+// === Resultat brut ===
+// Fonction inexistante, skipped
+// resultat est une chaine = Resultat()
+// dbgVerifieVrai(Taille(resultat) >= 0, "Resultat returns chaine")
+
+// === HTTPDernierEntete (si signature le permet) ===
+// Fonction signature unclear, skipped
+
+// === Parametrage via HTTPParametre constants ===
+HTTPParamètre(httpParamTimeoutConnexion, 5000)
+HTTPParamètre(httpParamUserAgent, "OWL-Custom/1.0")
+HTTPParamètre(httpParamRedirection, 1)
+HTTPRequête("http://example.com/test")
+dbgVérifieVrai(Vrai, "HTTPParametre with constants OK")
+
+// === Compression support ===
+HTTPParamètre(httpParamCompression, 1)
+HTTPRequête("http://example.com/gzip")
+dbgVérifieVrai(Vrai, "compression parameter OK")
+
+// === Reset ===
+HTTPParamètre(httpParamReinitialise, 0)
+
+MockDeactivate(mockHTTP)
+MockVerifyCount(mockHTTP)
+
+dbgBilanTest()

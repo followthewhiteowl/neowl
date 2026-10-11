@@ -1,0 +1,61 @@
+//  — deux régressions du Dégradé de la ZoneSaisie :
+//   Bug B : une CouleurFin NON définie était rendue NOIRE opaque (clamp -1 -> 0)
+//           au lieu de transparente (le fond doit transparaître). Un CouleurFin
+//           = Noir explicite doit rester noir opaque (distinction préservée).
+//   Bug A : un état focus posé (CouleurFond) écrasait le dégradé de base au focus
+//           (le champ virait à la couleur d'état plate). Le dégradé doit persister.
+//
+// Fond de fenêtre BLEU vif : sur le champ à CouleurFin transparente, le bleu doit
+// transparaître à droite (preuve que ce n'est pas du noir opaque).
+FEN_StyleElementZoneSaisieDegradeFocus est une Fenêtre
+	PROPRIETES
+		Titre       = "Style élément ZoneSaisie — dégradé focus / fin transparente"
+		Largeur     = 440
+		Hauteur     = 200
+		Disposition = dispLibre
+		CouleurFond = RVB(30, 60, 200)
+	FIN
+
+	// Cas 1 — CouleurFin NON définie : le 2e arrêt doit être TRANSPARENT.
+	SAI_FinAbsente est un Champ Saisie
+		PROPRIETES
+			X                                        = 20
+			Y                                        = 10
+			Largeur                                  = 400
+			Hauteur                                  = 40
+			Style..ZoneSaisie..Dégradé..Type         = dégradéLinéaire
+			Style..ZoneSaisie..Dégradé..Angle        = 0
+			Style..ZoneSaisie..Dégradé..CouleurDébut = RVB(255, 0, 0)
+		FIN
+	FIN
+
+	// Cas 2 — CouleurFin = Noir EXPLICITE : le 2e arrêt reste noir opaque.
+	SAI_FinNoir est un Champ Saisie
+		PROPRIETES
+			X                                        = 20
+			Y                                        = 60
+			Largeur                                  = 400
+			Hauteur                                  = 40
+			Style..ZoneSaisie..Dégradé..Type         = dégradéLinéaire
+			Style..ZoneSaisie..Dégradé..Angle        = 0
+			Style..ZoneSaisie..Dégradé..CouleurDébut = RVB(255, 0, 0)
+			Style..ZoneSaisie..Dégradé..CouleurFin   = RVB(0, 0, 0)
+		FIN
+	FIN
+
+	// Cas 3 — dégradé rouge->bleu + état focus à fond blanc : le dégradé doit
+	// PERSISTER au focus (le fond gauche reste rouge, pas blanc).
+	SAI_Focus est un Champ Saisie
+		PROPRIETES
+			X                                            = 20
+			Y                                            = 110
+			Largeur                                      = 400
+			Hauteur                                      = 40
+			Style..ZoneSaisie..Dégradé..Type             = dégradéLinéaire
+			Style..ZoneSaisie..Dégradé..Angle            = 0
+			Style..ZoneSaisie..Dégradé..CouleurDébut     = RVB(255, 0, 0)
+			Style..ZoneSaisie..Dégradé..CouleurFin       = RVB(0, 0, 255)
+			Style..ZoneSaisie..Etats[focus]..CouleurFond = RVB(255, 255, 255)
+		FIN
+	FIN
+FIN

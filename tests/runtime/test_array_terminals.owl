@@ -1,0 +1,124 @@
+// Tests des terminaux LINQ-like (Phase 3) :
+//   Applique, Agrege, Somme, Moyenne, VerifieTous{Vrai,Faux}, VerifieUn{Vrai,Faux}
+// Documentation de référence.
+Trace("=== ARRAY TERMINALS ===")
+
+// ── Applique : effets de bord ───────────────────────────────────
+counter est un entier = 0
+PROCEDURE incCounter(v est un entier)
+	counter += v
+FIN
+
+arrT est un tableau de entiers = [1, 2, 3, 4, 5]
+Applique(arrT, incCounter)
+dbgVérifieEgalité(counter, 15, "Applique somme 1..5 via effet de bord = 15")
+
+// Lambda
+counter = 0
+arrT.Applique(x => counter += x * 2)
+dbgVérifieEgalité(counter, 30, "Applique lambda *2 sur 1..5 = 30")
+
+// ── Agrege : reduce ─────────────────────────────────────────────
+// (val, acc) => val + acc avec init=0
+sumAgr est un entier = Agrège(arrT,(Val, acc) => Val + acc, 0)
+dbgVérifieEgalité(sumAgr, 15, "Agrege somme = 15")
+
+// Sans init (acc = Null sur premier appel) — utilise ternaire OWL "? :"
+maxAgr est un entier = Agrège(arrT,(Val, acc) => EstNul(acc) ? Val SINON (Val > acc ? Val SINON acc))
+dbgVérifieEgalité(maxAgr, 5, "Agrege max sans init = 5")
+
+// Concat strings
+mots est un tableau de chaînes = ["Hello", " ", "World"]
+concat est une chaîne = Agrège(mots,(s, acc) => acc + s, "")
+dbgVérifieEgalité(concat, "Hello World", "Agrege concat strings")
+
+// ── Somme : variadic + sur tableau ──────────────────────────────
+dbgVérifieEgalité(Somme(arrT), 15, "Somme(arrT 1..5) = 15")
+dbgVérifieEgalité(Somme(1, 2, 3), 6, "Somme variadic 1+2+3 = 6")
+dbgVérifieEgalité(Somme(10, 20, 30, 40), 100, "Somme variadic 4 args")
+
+// Forme prefixee
+dbgVérifieEgalité(arrT.Somme(), 15, "arrT.Somme() = 15")
+
+// Reels
+tabRl est un tableau de réels = [1.5, 2.5, 3.0]
+dbgVérifieEgalité(Somme(tabRl), 7.0, "Somme reels = 7.0")
+
+// ── Moyenne ─────────────────────────────────────────────────────
+dbgVérifieEgalité(Moyenne(arrT), 3.0, "Moyenne(1..5) = 3.0")
+dbgVérifieEgalité(arrT.Moyenne(), 3.0, "arrT.Moyenne() = 3.0")
+dbgVérifieEgalité(Moyenne(1, 2, 3), 2.0, "Moyenne variadic")
+
+// Tableau vide -> 0
+vide est un tableau de entiers
+dbgVérifieEgalité(Moyenne(vide), 0.0, "Moyenne tableau vide = 0")
+
+// ── VerifieTousVrai / VerifieTousFaux ───────────────────────────
+positifs est un tableau de entiers = [1, 2, 3, 4]
+melanges est un tableau de entiers = [1,-1, 2,-2]
+
+dbgVérifieVrai(VérifieTousVrai(positifs, x => x > 0), "Tous positifs avec cb")
+dbgVérifieFaux(VérifieTousVrai(melanges, x => x > 0), "Pas tous positifs")
+
+dbgVérifieVrai(VérifieTousFaux(melanges, x => x > 100), "Tous < 100 (donc faux pour >100)")
+dbgVérifieFaux(VérifieTousFaux(positifs, x => x > 0), "Tous positifs (donc faux pour 'tous faux')")
+
+// Forme prefixee
+dbgVérifieVrai(positifs.VérifieTousVrai(x => x > 0), "prefixe TousVrai")
+
+// Vacuous truth sur vide
+dbgVérifieVrai(VérifieTousVrai(vide, x => x > 0), "vide -> TousVrai = Vrai")
+dbgVérifieVrai(VérifieTousFaux(vide, x => x > 0), "vide -> TousFaux = Vrai")
+
+// ── VerifieUnVrai / VerifieUnFaux ───────────────────────────────
+dbgVérifieVrai(VérifieUnVrai(melanges, x => x < 0), "au moins un negatif")
+dbgVérifieFaux(VérifieUnVrai(positifs, x => x < 0), "aucun negatif")
+
+dbgVérifieVrai(VérifieUnFaux(melanges, x => x > 0), "au moins un non-positif")
+dbgVérifieFaux(VérifieUnFaux(positifs, x => x > 0), "aucun non-positif")
+
+// Vide
+dbgVérifieFaux(VérifieUnVrai(vide, x => x > 0), "vide -> UnVrai = Faux")
+
+// ── Sans callback : valeurs booleennes directes ─────────────────
+bools est un tableau de booléens = [Vrai, Vrai, Vrai]
+dbgVérifieVrai(VérifieTousVrai(bools), "arrT booleens tous Vrai")
+
+mixedBools est un tableau de booléens = [Vrai, Faux, Vrai]
+dbgVérifieFaux(VérifieTousVrai(mixedBools), "arrT booleens mixte -> pas tous Vrai")
+dbgVérifieVrai(VérifieUnVrai(mixedBools), "arrT mixte -> au moins un Vrai")
+dbgVérifieVrai(VérifieUnFaux(mixedBools), "arrT mixte -> au moins un Faux")
+
+// ── Chain complète : Filtre + Transforme + terminal ─────────────
+nb est un tableau de entiers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+// Somme des carres des pairs
+sumPairsSq est un entier = nb.Filtre(x => x MODULO 2 = 0).Transforme(x => x * x).Somme()
+dbgVérifieEgalité(sumPairsSq, 220, "somme carres pairs = 4+16+36+64+100 = 220")
+
+// Moyenne des impairs
+avgOdd est un réel = nb.Filtre(x => x MODULO 2 = 1).Moyenne()
+dbgVérifieEgalité(avgOdd, 5.0, "moyenne impairs 1..9 = 5")
+
+// Tous > 0 ?
+dbgVérifieVrai(nb.VérifieTousVrai(x => x > 0), "tous nb > 0")
+
+// ── Applique sur tableau associatif ─────────────────────────────
+dictPrix est un tableau associatif de entiers
+dictPrix["pomme"] = 2
+dictPrix["banane"] = 1
+dictPrix["cerise"] = 5
+
+totalPrix est un entier = 0
+PROCEDURE addPrix(p est un entier)
+	totalPrix += p
+FIN
+
+Applique(dictPrix, addPrix)
+dbgVérifieEgalité(totalPrix, 8, "Applique sur assoc somme prix = 8")
+
+// ── Agrege sur tableau associatif ───────────────────────────────
+totalAgr est un entier = Agrège(dictPrix,(Val, cle, acc) => Val + acc, 0)
+dbgVérifieEgalité(totalAgr, 8, "Agrege sur assoc avec callback 3-args = 8")
+
+dbgBilanTest()

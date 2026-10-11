@@ -1,0 +1,56 @@
+// @sujet : IAModèle — non-régression EXACTE de .Entraîne (indépendante de
+// OptionsEntraînement..FractionValidation / ..GardeMeilleurModèle / ..PatienceArrêt)
+// @résumé : verrou bit-à-bit sur le comportement actuel de .Entraîne (SGD à
+// un pas, cf. test_IAModeleEntrainement.owl). Ce fichier ne référence AUCUNE
+// des 3 propriétés de validation/save-best/early-stopping — il compile
+// indépendamment de leur présence.
+// Rôle : si ce test rougit un jour, les valeurs par défaut de ces
+// propriétés (0.0 / Faux / 0) ne sont plus vraiment un no-op, régression.
+
+PROCEDURE PUBLIQUE scenario_verrou_non_regression_entraine_un_pas_sgd()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	tWavant est un Tenseur = mon.Poids(1)
+	tbavant est un Tenseur = mon.Biais(1)
+
+	matX est une Matrice = [[1.0,-1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.5,-0.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	tWapres est un Tenseur = mon.Poids(1)
+	tbapres est un Tenseur = mon.Biais(1)
+
+	// Calcul indépendant "à la main", avec les poids EXTRAITS avant
+	// l'appel à .Entraîne (init aléatoire, jamais de valeur hardcodée).
+	th est un Tenseur = tX.ProduitMatriciel(tWavant)
+	thb est un Tenseur = th + tbavant
+	tperte est un Tenseur = thb.ErreurQuadratique(tY)
+	tperte.Rétropropage()
+
+	tWattendu est un Tenseur = tWavant.DescenteGradient(0.1)
+	tbattendu est un Tenseur = tbavant.DescenteGradient(0.1)
+
+	valWapres est une Matrice = tWapres..Valeur
+	valWattendu est une Matrice = tWattendu..Valeur
+	valBapres est un Vecteur = tbapres..Valeur
+	valBattendu est un Vecteur = tbattendu..Valeur
+
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 2
+			dbgVérifieVrai(Abs(valWapres[iLigne][iCol] - valWattendu[iLigne][iCol]) < 0.0000001, "Sans FractionValidation/GardeMeilleurModèle/PatienceArrêt : poids après .Entraîne inchangés (= poids - taux*gradient)")
+		FIN
+	FIN
+	dbgVérifieVrai(Abs(valBapres[1] - valBattendu[1]) < 0.0000001, "Biais(1)[1] inchangé après .Entraîne aux défauts")
+	dbgVérifieVrai(Abs(valBapres[2] - valBattendu[2]) < 0.0000001, "Biais(1)[2] inchangé après .Entraîne aux défauts")
+FIN

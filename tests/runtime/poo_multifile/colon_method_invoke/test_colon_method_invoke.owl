@@ -1,0 +1,34 @@
+// @sujet appel interne :M() depuis une methode de classe
+// @résumé  : ':methode()' doit propager 'this' correctement (symetrique a obj.methode())
+
+PROCEDURE scenario_methode_locale_simple()
+	// Repro  : ':Bump()' depuis ':BumpTwice()' doit incrementer 2 fois.
+	oFoo est un cFoo()
+	oFoo.BumpTwice()
+	dbgVérifieEgalité(oFoo.n, 2, ":M() appelee 2 fois incremente bien (this propage)")
+FIN
+
+PROCEDURE scenario_methode_locale_avec_args()
+	// Variante avec arguments : :Combine(a, b) doit recevoir a et b ET this.
+	oFoo est un cFoo()
+	oFoo.AddViaCombine(6, 7)
+	dbgVérifieEgalité(oFoo.n, 42, ":M(a, b) avec arguments propage args + this")
+FIN
+
+PROCEDURE scenario_appels_chaines_consecutifs()
+	// 3 appels consecutifs :AppendDot() => chaine "..."
+	oFoo est un cFoo()
+	oFoo.AppendThree()
+	dbgVérifieEgalité(oFoo.s, "...", ":M() x3 consecutifs accumulent correctement")
+FIN
+
+PROCEDURE scenario_methode_heritee_via_colon()
+	// :Bump() definie sur cFoo, appelee depuis :BumpViaParent() de cBar.
+	// Doit etre resolue par dispatch superclass (comme obj.Bump() aujourd'hui).
+	oBar est un cBar()
+	oBar.BumpViaParent()
+	dbgVérifieEgalité(oBar.n, 1, ":Bump() heritee resolue via superclass")
+
+	oBar.AddViaParent(10)
+	dbgVérifieEgalité(oBar.n, 11, ":M(x) heritee avec arg propage tout")
+FIN

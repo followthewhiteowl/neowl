@@ -1,0 +1,56 @@
+//  — Le Cadrage declare d'un Champ Image doit etre applique au rendu.
+// Les valeurs cad* (cadEtire/cadHomothetique/cadCentre) sont des sentinels
+// NEGATIFS : une garde `cadrage >= 0` a la construction les rejetait toutes,
+// le cadrage declare retombait silencieusement sur le defaut (centre). On
+// verrouille le contraste etire vs homothetique par capture pixel.
+//
+// Methode : image source 200x80 rouge unie dans deux Champs Image carres
+// 200x200 qui ne different que par le Cadrage. La couleur image (RougeClair)
+// est l'oracle stable ; on ne s'appuie pas sur la couleur de fond (theme Qt
+// headless variable). On mesure OU le rouge atteint dans le cadre :
+//   - cadEtire        : l'image deforme remplit tout le cadre -> le bord
+//                       haut (loin du centre vertical) porte du rouge.
+//   - cadHomothetique : ratio 200x80 preserve -> bande centrale rouge,
+//                       bords haut/bas = fond (pas de rouge).
+
+Ouvre(FEN_CadrageImage)
+
+// ---------- cadEtire : l'image remplit tout le cadre ----------
+imgE est une Image = dCopieImageChamp(IMG_Etire)
+dbgVérifieEgalité(imgE..Valide, Vrai, "cadEtire : capture valide")
+
+xMid est un entier = imgE..Largeur / 2
+yMid est un entier = imgE..Hauteur / 2
+// Centre rouge (l'image couvre le centre dans tous les cadrages).
+couleurCentreEtire est un entier = dPixelCouleur(imgE, xMid, yMid)
+dbgVérifieEgalité(couleurCentreEtire, RougeClair,
+"cadEtire : centre rouge")
+// Bord haut (y=8) rempli par l'image etiree -> rouge.
+couleurHautEtire est un entier = dPixelCouleur(imgE, xMid, 8)
+dbgVérifieEgalité(couleurHautEtire, RougeClair,
+"cadEtire : bord haut rouge (image deformee sur tout le cadre)")
+
+// ---------- cadHomothetique : bande centrale rouge, bords sans rouge ----------
+imgH est une Image = dCopieImageChamp(IMG_Homo)
+dbgVérifieEgalité(imgH..Valide, Vrai, "cadHomothetique : capture valide")
+
+xMidH est un entier = imgH..Largeur / 2
+yMidH est un entier = imgH..Hauteur / 2
+// Centre rouge (l'image occupe la bande mediane).
+couleurCentreHomo est un entier = dPixelCouleur(imgH, xMidH, yMidH)
+dbgVérifieEgalité(couleurCentreHomo, RougeClair,
+"cadHomothetique : centre rouge (bande mediane occupee)")
+// Bord haut (y=8) : ratio preserve -> bande vide, pas de rouge.
+couleurHautHomo est un entier = dPixelCouleur(imgH, xMidH, 8)
+dbgVérifieDifférence(couleurHautHomo, RougeClair,
+"cadHomothetique : bord haut sans rouge (bande preservee, pas etire)")
+
+// ---------- Contraste direct : le bord haut distingue les deux cadrages ----------
+// C'est l'assertion qui rougit tant que le cadrage declare est ignore : sans
+// le fix, etire ET homothetique retombent sur centre -> meme rendu -> bord
+// haut identique dans les deux. Avec le fix, ils different.
+dbgVérifieDifférence(couleurHautEtire, couleurHautHomo,
+"contraste : le bord haut differe entre cadEtire et cadHomothetique")
+
+Ferme(FEN_CadrageImage)
+dbgBilanTest()

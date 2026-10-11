@@ -1,0 +1,251 @@
+// @sujet : Vecteur
+// @résumé : Arithmétique du type Vecteur — opérateurs élément-par-élément (+ - * /), broadcast scalaire, négation unaire, méthodes fluentes équivalentes, immutabilité des opérandes et coercion entier -> réel.
+
+
+// Les opérateurs + - * / appliqués à deux Vecteur de même taille opèrent
+// élément par élément : le résultat est un nouveau Vecteur.
+PROCEDURE PUBLIQUE scenario_addition_element_par_element()
+	v1 est un Vecteur = [1.0, 2.0, 3.0]
+	v2 est un Vecteur = [4.0, 5.0, 6.0]
+	vSomme est un Vecteur = v1 + v2
+	dbgVérifieEgalité(vSomme..Taille, 3, "Addition élément-par-élément conserve la taille")
+	dbgVérifieEgalité(vSomme[1], 5.0, "1.0 + 4.0 = 5.0")
+	dbgVérifieEgalité(vSomme[2], 7.0, "2.0 + 5.0 = 7.0")
+	dbgVérifieEgalité(vSomme[3], 9.0, "3.0 + 6.0 = 9.0")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_soustraction_element_par_element()
+	v1 est un Vecteur = [4.0, 5.0, 6.0]
+	v2 est un Vecteur = [1.0, 2.0, 3.0]
+	vDiff est un Vecteur = v1 - v2
+	dbgVérifieEgalité(vDiff[1], 3.0, "4.0 - 1.0 = 3.0")
+	dbgVérifieEgalité(vDiff[2], 3.0, "5.0 - 2.0 = 3.0")
+	dbgVérifieEgalité(vDiff[3], 3.0, "6.0 - 3.0 = 3.0")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_multiplication_element_par_element()
+	v1 est un Vecteur = [1.0, 2.0, 3.0]
+	v2 est un Vecteur = [4.0, 5.0, 6.0]
+	vProduit est un Vecteur = v1 * v2
+	dbgVérifieEgalité(vProduit[1], 4.0, "1.0 * 4.0 = 4.0")
+	dbgVérifieEgalité(vProduit[2], 10.0, "2.0 * 5.0 = 10.0")
+	dbgVérifieEgalité(vProduit[3], 18.0, "3.0 * 6.0 = 18.0")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_division_element_par_element()
+	v1 est un Vecteur = [4.0, 9.0, 6.0]
+	v2 est un Vecteur = [2.0, 3.0, 3.0]
+	vQuotient est un Vecteur = v1 / v2
+	dbgVérifieEgalité(vQuotient[1], 2.0, "4.0 / 2.0 = 2.0")
+	dbgVérifieEgalité(vQuotient[2], 3.0, "9.0 / 3.0 = 3.0")
+	dbgVérifieEgalité(vQuotient[3], 2.0, "6.0 / 3.0 = 2.0")
+FIN
+
+
+// Un Vecteur combiné avec un scalaire réel applique l'opération à chaque
+// élément (broadcast). + et * sont commutatifs avec le scalaire.
+PROCEDURE PUBLIQUE scenario_broadcast_scalaire()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+
+	vMulDroite est un Vecteur = v * 2.0
+	dbgVérifieEgalité(vMulDroite[1], 2.0, "v * 2.0 : élément 1")
+	dbgVérifieEgalité(vMulDroite[2], 4.0, "v * 2.0 : élément 2")
+	dbgVérifieEgalité(vMulDroite[3], 6.0, "v * 2.0 : élément 3")
+
+	vMulGauche est un Vecteur = 2.0 * v
+	dbgVérifieEgalité(vMulGauche[1], 2.0, "2.0 * v commutatif : élément 1")
+	dbgVérifieEgalité(vMulGauche[2], 4.0, "2.0 * v commutatif : élément 2")
+	dbgVérifieEgalité(vMulGauche[3], 6.0, "2.0 * v commutatif : élément 3")
+
+	vDivScalaire est un Vecteur = v / 2.0
+	dbgVérifieEgalité(vDivScalaire[1], 0.5, "v / 2.0 : élément 1")
+	dbgVérifieEgalité(vDivScalaire[2], 1.0, "v / 2.0 : élément 2")
+	dbgVérifieEgalité(vDivScalaire[3], 1.5, "v / 2.0 : élément 3")
+
+	vAjoutDroite est un Vecteur = v + 1.0
+	vAjoutGauche est un Vecteur = 1.0 + v
+	dbgVérifieEgalité(vAjoutDroite[1], 2.0, "v + 1.0 : élément 1")
+	dbgVérifieEgalité(vAjoutGauche[1], 2.0, "1.0 + v commutatif : élément 1")
+
+	vSoustractionScalaire est un Vecteur = v - 1.0
+	dbgVérifieEgalité(vSoustractionScalaire[1], 0.0, "v - 1.0 : élément 1")
+	dbgVérifieEgalité(vSoustractionScalaire[2], 1.0, "v - 1.0 : élément 2")
+	dbgVérifieEgalité(vSoustractionScalaire[3], 2.0, "v - 1.0 : élément 3")
+FIN
+
+
+// La négation unaire inverse le signe de chaque élément dans un nouveau
+// Vecteur.
+PROCEDURE PUBLIQUE scenario_negation_unaire()
+	v est un Vecteur = [1.0,-2.0, 3.0]
+	vNeg est un Vecteur = -v
+	dbgVérifieEgalité(vNeg[1],-1.0, "-v : élément 1")
+	dbgVérifieEgalité(vNeg[2], 2.0, "-v : élément 2 (double négation)")
+	dbgVérifieEgalité(vNeg[3],-3.0, "-v : élément 3")
+
+FIN
+
+
+// Les méthodes fluentes .Ajoute/.Soustrait/.Multiplie/.Divise produisent
+// exactement le même résultat que les opérateurs correspondants.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_operateurs()
+	v1 est un Vecteur = [1.0, 2.0, 3.0]
+	v2 est un Vecteur = [4.0, 5.0, 6.0]
+
+	vViaFluent est un Vecteur = v1.Ajoute(v2)
+	vViaOperateur est un Vecteur = v1 + v2
+	dbgVérifieEgalité(vViaFluent[1], vViaOperateur[1], "v1.Ajoute(v2) == v1 + v2 : élément 1")
+	dbgVérifieEgalité(vViaFluent[2], vViaOperateur[2], "v1.Ajoute(v2) == v1 + v2 : élément 2")
+	dbgVérifieEgalité(vViaFluent[3], vViaOperateur[3], "v1.Ajoute(v2) == v1 + v2 : élément 3")
+
+	vSoustraitFluent est un Vecteur = v2.Soustrait(v1)
+	vSoustraitOperateur est un Vecteur = v2 - v1
+	dbgVérifieEgalité(vSoustraitFluent[1], vSoustraitOperateur[1], "v2.Soustrait(v1) == v2 - v1")
+
+	vMultiplieFluent est un Vecteur = v1.Multiplie(v2)
+	vMultiplieOperateur est un Vecteur = v1 * v2
+	dbgVérifieEgalité(vMultiplieFluent[1], vMultiplieOperateur[1], "v1.Multiplie(v2) == v1 * v2")
+
+	vDiviseFluent est un Vecteur = v2.Divise(v1)
+	vDiviseOperateur est un Vecteur = v2 / v1
+	dbgVérifieEgalité(vDiviseFluent[1], vDiviseOperateur[1], "v2.Divise(v1) == v2 / v1")
+FIN
+
+
+// Les formes anglaises Add/Subtract/Multiply/Divide désignent les mêmes
+// méthodes que leurs équivalents français.
+PROCEDURE PUBLIQUE scenario_fluent_formes_anglaises()
+	v1 est un Vecteur = [1.0, 2.0, 3.0]
+	v2 est un Vecteur = [4.0, 5.0, 6.0]
+
+	vAdd est un Vecteur = v1.Add(v2)
+	dbgVérifieEgalité(vAdd[1], 5.0, "v1.Add(v2) : élément 1")
+
+	vSubtract est un Vecteur = v2.Subtract(v1)
+	dbgVérifieEgalité(vSubtract[1], 3.0, "v2.Subtract(v1) : élément 1")
+
+	vMultiply est un Vecteur = v1.Multiply(v2)
+	dbgVérifieEgalité(vMultiply[1], 4.0, "v1.Multiply(v2) : élément 1")
+
+	vDivide est un Vecteur = v2.Divide(v1)
+	dbgVérifieEgalité(vDivide[1], 4.0, "v2.Divide(v1) : élément 1")
+FIN
+
+
+// Toute opération arithmétique produit un nouveau Vecteur : les opérandes
+// d'origine ne sont jamais modifiés.
+PROCEDURE PUBLIQUE scenario_immutabilite_operandes()
+	v1 est un Vecteur = [1.0, 2.0, 3.0]
+	v2 est un Vecteur = [4.0, 5.0, 6.0]
+
+	vRésultat est un Vecteur = v1 + v2
+	dbgVérifieEgalité(v1[1], 1.0, "v1 intact après v1 + v2 : élément 1")
+	dbgVérifieEgalité(v1[2], 2.0, "v1 intact après v1 + v2 : élément 2")
+	dbgVérifieEgalité(v2[1], 4.0, "v2 intact après v1 + v2 : élément 1")
+
+	vRésultatFluent est un Vecteur = v1.Multiplie(v2)
+	dbgVérifieEgalité(v1[1], 1.0, "v1 intact après v1.Multiplie(v2)")
+	dbgVérifieEgalité(v2[1], 4.0, "v2 intact après v1.Multiplie(v2)")
+FIN
+
+
+// Un opérande entier est coercé en réel avant l'opération, comme pour une
+// variable réelle affectée depuis un entier.
+PROCEDURE PUBLIQUE scenario_coercion_entier_vers_reel()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	nFacteur est un entier = 2
+	vMulEntier est un Vecteur = v * nFacteur
+	dbgVérifieEgalité(vMulEntier[1], 2.0, "v * entier(2) coercé en réel : élément 1")
+	dbgVérifieEgalité(vMulEntier[2], 4.0, "v * entier(2) coercé en réel : élément 2")
+	dbgVérifieEgalité(vMulEntier[3], 6.0, "v * entier(2) coercé en réel : élément 3")
+
+	vAjoutEntier est un Vecteur = v + 1
+	dbgVérifieEgalité(vAjoutEntier[1], 2.0, "v + entier(1) coercé en réel")
+FIN
+
+
+// Diviser un Vecteur par un élément nul lève une exception récupérable,
+// exactement comme la division scalaire réelle par zéro — pas de Inf/NaN
+// silencieux.
+PROCEDURE PUBLIQUE scenario_division_par_zero_leve_exception()
+	v1 est un Vecteur = [4.0, 5.0, 6.0]
+	vAvecZero est un Vecteur = [2.0, 0.0, 3.0]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		vRésultat est un Vecteur = v1 / vAvecZero
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Division par un élément nul du Vecteur est attrapée")
+FIN
+
+
+// Un débordement multiplicatif produit Inf en silence, comme la
+// multiplication scalaire réelle qui déborde.
+PROCEDURE PUBLIQUE scenario_overflow_multiplicatif_infini()
+	v est un Vecteur = [1e308, 1.0]
+	vMultiplicateur est un Vecteur = [10.0, 1.0]
+	vRésultat est un Vecteur = v * vMultiplicateur
+	dbgVérifieVrai(vRésultat[1] > 1.7976931348623157e308, "1e308 * 10.0 déborde vers Inf, sans exception")
+	dbgVérifieEgalité(vRésultat[2], 1.0, "1.0 * 1.0 reste inchangé, pas de débordement")
+FIN
+
+
+// Des Vecteur de tailles différentes ne peuvent pas être combinés
+// élément-par-élément : l'opération lève une exception plutôt que de
+// tronquer ou compléter silencieusement.
+PROCEDURE PRIVÉE scenario_edge_tailles_incompatibles()
+	vCourt est un Vecteur = [1.0, 2.0]
+	vLong est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturéAddition est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un Vecteur = vCourt + vLong
+		capturéAddition = "no-throw"
+	FAIRE
+		capturéAddition = "caught"
+	FIN
+	dbgVérifieEgalité(capturéAddition, "caught", "Addition de tailles différentes attrapée")
+
+	capturéSoustraction est une chaîne = ""
+	QUAND EXCEPTION DANS
+		y est un Vecteur = vCourt - vLong
+		capturéSoustraction = "no-throw"
+	FAIRE
+		capturéSoustraction = "caught"
+	FIN
+	dbgVérifieEgalité(capturéSoustraction, "caught", "Soustraction de tailles différentes attrapée")
+
+	capturéMultiplication est une chaîne = ""
+	QUAND EXCEPTION DANS
+		z est un Vecteur = vCourt * vLong
+		capturéMultiplication = "no-throw"
+	FAIRE
+		capturéMultiplication = "caught"
+	FIN
+	dbgVérifieEgalité(capturéMultiplication, "caught", "Multiplication de tailles différentes attrapée")
+
+	capturéDivision est une chaîne = ""
+	QUAND EXCEPTION DANS
+		w est un Vecteur = vCourt / vLong
+		capturéDivision = "no-throw"
+	FAIRE
+		capturéDivision = "caught"
+	FIN
+	dbgVérifieEgalité(capturéDivision, "caught", "Division de tailles différentes attrapée")
+FIN
+
+
+// Deux Vecteur vides sont de même taille (0) : l'opération élément-par-
+// élément est légale et produit un Vecteur vide.
+PROCEDURE PRIVÉE scenario_edge_vecteurs_vides()
+	vVide1 est un Vecteur = []
+	vVide2 est un Vecteur = []
+	vRésultat est un Vecteur = vVide1 + vVide2
+	dbgVérifieEgalité(vRésultat..Taille, 0, "Addition de deux Vecteur vides -> Vecteur vide")
+FIN

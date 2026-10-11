@@ -1,0 +1,33 @@
+// Regression: ChaineCompare with ccOrdreLexicographique and other cc* flags
+// Bug: accented chars (UTF-8 bytes > ASCII) caused wrong ordering
+Trace("=== CHAINE COMPARE OPTIONS ===")
+
+s1 est une chaîne = "Le developpement facile"
+s2 est une chaîne = "Le developpement simple"
+
+// --- ccOrdreLexicographique ---
+// "developpement" < "simple" alphabetically -> -1
+dbgVérifieEgalité(ChaîneCompare(s1, s2, ccOrdreLexicographique),-1, "lexicographique: dev < sim = -1")
+dbgVérifieEgalité(ChaîneCompare(s2, s1, ccOrdreLexicographique), 1, "lexicographique: sim > dev = 1")
+dbgVérifieEgalité(ChaîneCompare(s1, s1, ccOrdreLexicographique), 0, "lexicographique: egal = 0")
+
+// --- ccSansAccent : accents stripped before compare ---
+// "ete" vs "ete" after stripping -> 0
+dbgVérifieEgalité(ChaîneCompare("ete", "ete", ccSansAccent), 0, "sans accent: ete = ete")
+// "developpement" (no accent) vs "developpement" (no accent) -> 0
+dbgVérifieEgalité(ChaîneCompare("developpement", "developpement", ccSansAccent), 0, "sans accent: dev = dev")
+
+// --- ccSansCasse : case insensitive ---
+dbgVérifieEgalité(ChaîneCompare("Bonjour", "bonjour", ccSansCasse), 0, "sans casse: Bonjour = bonjour")
+dbgVérifieEgalité(ChaîneCompare("ABC", "abc", ccSansCasse), 0, "sans casse: ABC = abc")
+
+// --- combined flags ---
+dbgVérifieEgalité(ChaîneCompare("Bonjour", "bonjour", ccSansCasse + ccSansAccent), 0, "casse+accent: egal")
+
+// --- plain compare (no flags = binary) ---
+// "abc" < "bcd"
+dbgVérifieEgalité(ChaîneCompare("abc", "bcd"),-1, "plain: abc < bcd")
+dbgVérifieEgalité(ChaîneCompare("bcd", "abc"), 1, "plain: bcd > abc")
+dbgVérifieEgalité(ChaîneCompare("abc", "abc"), 0, "plain: abc = abc")
+
+dbgBilanTest()

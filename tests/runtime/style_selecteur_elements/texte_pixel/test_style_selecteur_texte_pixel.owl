@@ -1,0 +1,39 @@
+//  — `Style..TexteOptions..Couleur` peint le texte des options du
+// Champ Sélecteur (QRadioButton). Test pixel : grosse police grasse sur fond
+// blanc, comptage des pixels de coeur des glyphes à la couleur exacte.
+//
+// ROUGE attendu : `Style..TexteOptions..*` ne compile pas encore sur le
+// Champ Sélecteur (le type styleSélecteur n'existe pas). Cf.
+// FEN_StyleSelecteurTexte.owl.
+
+TestModeHeadless(Faux)
+
+rouge est un entier = RVB(255, 0, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleSelecteurTexte)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleSelecteurTexte)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// Zone du texte de l'option (à droite de l'indicator, dans le champ complet).
+nbRouge est un entier = CompteCouleurZone(img, 20, 20, 540, 120, rouge)
+dbgVérifieVrai(nbRouge > 30, "Style..TexteOptions..Couleur peint le texte des options en rouge")
+
+Ferme(FEN_StyleSelecteurTexte)
+dbgBilanTest()

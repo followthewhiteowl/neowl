@@ -1,0 +1,43 @@
+//  — rendu GUI réel : la source de l'image (IMG..Image, prop
+// top-level) et le Style (IMG..Style..CadreExtérieur, la boîte) coexistent
+// sur le même Champ Image. Deux champs identiques (même cadre stylé), un
+// seul avec une icône source posée : les rendus doivent différer.
+//
+// ROUGE attendu : `Style..CadreExtérieur..*` ne compile pas encore sur le
+// Champ Image (la prop 'Style' n'existe pas). Cf. FEN_StyleImageSourceGui.owl.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleImageSourceGui)
+
+imgAvec est une Image = CaptureAvecIcone()
+dbgVérifieEgalité(imgAvec..Valide, Vrai, "GUI : capture IMG_AvecIconeEtCadre valide")
+
+imgSans est une Image = CaptureSansIcone()
+dbgVérifieEgalité(imgSans..Valide, Vrai, "GUI : capture IMG_SansIcone valide")
+
+// Comparer les deux captures pixel par pixel : le cadre stylé (identique sur
+// les deux) matche, mais l'icône source (posée sur un seul des deux champs)
+// doit créer une différence visible.
+nbDiff est un entier = 0
+w est un entier = imgAvec..Largeur
+h est un entier = imgAvec..Hauteur
+yy est un entier = 0
+TANTQUE yy < h
+	xx est un entier = 0
+	TANTQUE xx < w
+		cAvec est un entier = dPixelCouleur(imgAvec, xx, yy)
+		cSans est un entier = dPixelCouleur(imgSans, xx, yy)
+		SI cAvec <> cSans ALORS
+			nbDiff = nbDiff + 1
+		FIN
+		xx = xx + 1
+	FIN
+	yy = yy + 1
+FIN
+
+dbgVérifieVrai(nbDiff > 50,
+"IMG..Image (source top-level) et IMG..Style..CadreExtérieur (boîte) coexistent : l'icône source crée une différence visible")
+
+Ferme(FEN_StyleImageSourceGui)
+dbgBilanTest()

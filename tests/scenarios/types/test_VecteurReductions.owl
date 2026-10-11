@@ -1,0 +1,123 @@
+// @sujet : Vecteur
+// @résumé : Réductions fluentes d'un Vecteur — Somme, Moyenne, Min, Max, ArgMax, disponibles uniquement en méthode (pas de native préfixée dédiée), avec formes anglaises pour Somme/Moyenne/Min/Max.
+
+
+// .Somme() additionne tous les éléments du Vecteur.
+PROCEDURE PUBLIQUE scenario_somme()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	nSomme est un réel = v.Somme()
+	dbgVérifieEgalité(nSomme, 6.0, "3.0 + 1.0 + 2.0 = 6.0")
+FIN
+
+
+// .Moyenne() divise la somme des éléments par leur nombre.
+PROCEDURE PUBLIQUE scenario_moyenne()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	nMoyenne est un réel = v.Moyenne()
+	dbgVérifieEgalité(nMoyenne, 2.0, "(3.0 + 1.0 + 2.0) / 3 = 2.0")
+FIN
+
+
+// .Min() renvoie la plus petite valeur du Vecteur.
+PROCEDURE PUBLIQUE scenario_min()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	nMin est un réel = v.Min()
+	dbgVérifieEgalité(nMin, 1.0, "Min([3, 1, 2]) = 1.0")
+FIN
+
+
+// .Max() renvoie la plus grande valeur du Vecteur.
+PROCEDURE PUBLIQUE scenario_max()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	nMax est un réel = v.Max()
+	dbgVérifieEgalité(nMax, 3.0, "Max([3, 1, 2]) = 3.0")
+FIN
+
+
+// .ArgMax() renvoie l'indice (base 1) de la plus grande valeur, pas la
+// valeur elle-même.
+PROCEDURE PUBLIQUE scenario_argmax_indice_base_un()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	nArgMax est un entier = v.ArgMax()
+	dbgVérifieEgalité(nArgMax, 1, "L'indice de la plus grande valeur (3.0) est 1")
+FIN
+
+
+// Les formes anglaises .Sum() / .Average() désignent les mêmes réductions
+// que .Somme() / .Moyenne().
+PROCEDURE PUBLIQUE scenario_formes_anglaises_somme_moyenne()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	nSumEN est un réel = v.Sum()
+	nAverageEN est un réel = v.Average()
+	dbgVérifieEgalité(nSumEN, 6.0, "v.Sum() = 6.0")
+	dbgVérifieEgalité(nAverageEN, 2.0, "v.Average() = 2.0")
+FIN
+
+
+// .Min() / .Max() sont déjà des mots identiques en français et en anglais.
+PROCEDURE PUBLIQUE scenario_min_max_deja_bilingues()
+	v est un Vecteur = [3.0, 1.0, 2.0]
+	dbgVérifieEgalité(v.Min(), 1.0, "v.Min() = 1.0")
+	dbgVérifieEgalité(v.Max(), 3.0, "v.Max() = 3.0")
+FIN
+
+
+// L'indice renvoyé par .ArgMax() pointe la deuxième occurrence si le
+// maximum apparaît plusieurs fois : la première occurrence gagne.
+PROCEDURE PRIVÉE scenario_edge_argmax_premiere_occurrence_ex_aequo()
+	v est un Vecteur = [5.0, 9.0, 9.0, 2.0]
+	nArgMax est un entier = v.ArgMax()
+	dbgVérifieEgalité(nArgMax, 2, "Premier maximum ex æquo (indice 2) gagne")
+FIN
+
+
+// Un Vecteur à un seul élément renvoie cet élément pour toutes les
+// réductions, et l'indice 1 pour ArgMax.
+PROCEDURE PRIVÉE scenario_edge_vecteur_singleton()
+	v est un Vecteur = [7.0]
+	dbgVérifieEgalité(v.Somme(), 7.0, "Somme d'un singleton = son unique élément")
+	dbgVérifieEgalité(v.Moyenne(), 7.0, "Moyenne d'un singleton = son unique élément")
+	dbgVérifieEgalité(v.Min(), 7.0, "Min d'un singleton = son unique élément")
+	dbgVérifieEgalité(v.Max(), 7.0, "Max d'un singleton = son unique élément")
+	dbgVérifieEgalité(v.ArgMax(), 1, "ArgMax d'un singleton = 1")
+FIN
+
+
+// Un Vecteur vide n'a pas d'élément à réduire : Min/Max/ArgMax lèvent une
+// exception récupérable plutôt que de renvoyer une valeur arbitraire.
+PROCEDURE PRIVÉE scenario_edge_vecteur_vide_leve_exception()
+	vVide est un Vecteur = []
+
+	capturéMin est une chaîne = ""
+	messageMin est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = vVide.Min()
+		capturéMin = "no-throw"
+	FAIRE
+		capturéMin = "caught"
+		messageMin = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturéMin, "caught", "Min() sur un Vecteur vide est attrapé")
+	dbgVérifieEgalité(messageMin, "Réduction indéfinie sur un Vecteur vide.", "Min() sur un Vecteur vide expose le message de réduction indéfinie")
+
+	capturéArgMax est une chaîne = ""
+	messageArgMax est une chaîne = ""
+	QUAND EXCEPTION DANS
+		y est un entier = vVide.ArgMax()
+		capturéArgMax = "no-throw"
+	FAIRE
+		capturéArgMax = "caught"
+		messageArgMax = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturéArgMax, "caught", "ArgMax() sur un Vecteur vide est attrapé")
+	dbgVérifieEgalité(messageArgMax, "Réduction indéfinie sur un Vecteur vide.", "ArgMax() sur un Vecteur vide expose le même message de réduction indéfinie")
+FIN
+
+
+// Un Vecteur vide n'a rien à sommer ni à moyenner : contrairement à
+// Min/Max/ArgMax, Somme/Moyenne renvoient 0, comme un tableau vide.
+PROCEDURE PRIVÉE scenario_edge_vecteur_vide_somme_moyenne()
+	vVide est un Vecteur = []
+	dbgVérifieEgalité(vVide.Somme(), 0.0, "Somme d'un Vecteur vide = 0, comme un tableau vide")
+	dbgVérifieEgalité(vVide.Moyenne(), 0.0, "Moyenne d'un Vecteur vide = 0, cohérent avec le canon tableau")
+FIN

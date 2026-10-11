@@ -1,0 +1,24 @@
+//  cas 1 — PROCEDURE top-level d Etat appelee depuis section (corps).
+// ROUGE ATTENDU : le runtime ne resout pas encore les procs top-level
+// d Etat depuis le code de section.
+// La ressource ETAT_Cas1 vit dans le voisin ETAT_Cas1.owl.
+
+TestModeHeadless(Vrai)
+
+seqCas1 est une chaîne = ""
+
+PROCEDURE callback_observe(s est une chaîne)
+	seqCas1 += s
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_resolution_proc_variable/cas1_proc_depuis_section/temp.pdf")
+iImprimeEtat(ETAT_Cas1)
+iFinImprime()
+
+Trace("seqCas1 : [" + seqCas1 + "]")
+
+// Apres fix : Calcule(5) avec marge par defaut = 10 donne 15.
+dbgVérifieEgalité(seqCas1, "c1:15",
+"Proc top-level Etat appelee depuis section corps : calcul avec param defaut correct")
+
+dbgBilanTest()

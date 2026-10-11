@@ -1,0 +1,130 @@
+// @sujet : SQLEnvoie
+// @résumé : Envoie une requête SQL préparée vers une connexion ouverte et récupère une réponse structurée à parcourir.
+
+// SQLEnvoie prend une connexion ouverte et un gabarit de requête, exécute
+// et renvoie une sqlRéponse : Succès pour savoir si ça a marché, Lignes
+// pour les résultats lus, Occurrence et LignesAffectées pour compter —
+// la différence entre les deux est le piège n°1 de cette famille (voir
+// plus bas).
+
+PROCEDURE PRIVÉE connexion_test_ouverte()
+	cnx est une sqlConnexion
+	cnx..Provider = sqlSqlite
+	cnx..Source   = ":memory:"
+	cnx.Ouvre()
+	RENVOYER cnx
+FIN
+
+
+// Cas nominal : créer une table, y insérer une ligne, relire son contenu.
+// Succès dit si la requête a abouti ; pour un SELECT, c'est Occurrence
+// (nombre de lignes lues) qu'on regarde, pas LignesAffectées.
+PROCEDURE PUBLIQUE scenario_creation_et_lecture()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE contact (id INTEGER PRIMARY KEY, nom TEXT, ville TEXT)"
+	repCree est une sqlRéponse = SQLEnvoie(cnx, reqCree)
+	dbgVérifieEgalité(repCree..Succès, Vrai, "la table est créée")
+
+	reqAjout est une sqlRequête
+	reqAjout..Code                  = "INSERT INTO contact (nom, ville) VALUES ({p_nom}, {p_ville})"
+	reqAjout..Paramètres["p_nom"]   = "Léa Dubois"
+	reqAjout..Paramètres["p_ville"] = "Lyon"
+	SQLEnvoie(cnx, reqAjout)
+
+	reqLire est une sqlRequête
+	reqLire..Code = "SELECT nom, ville FROM contact"
+	repLire est une sqlRéponse = SQLEnvoie(cnx, reqLire)
+	dbgVérifieEgalité(repLire..Succès, Vrai, "la lecture aboutit")
+	dbgVérifieEgalité(repLire..Occurrence, 1, "une seule ligne trouvée")
+	dbgVérifieEgalité(repLire..Lignes[1]["nom"], "Léa Dubois", "le nom relu correspond à ce qui a été inséré")
+
+	cnx.Ferme()
+FIN
+
+
+// Occurrence compte les lignes LUES (SELECT). LignesAffectées compte les
+// lignes ÉCRITES (INSERT / UPDATE / DELETE). Les deux compteurs cohabitent
+// dans la même sqlRéponse mais ne répondent jamais à la même question :
+// un UPDATE qui touche 2 lignes a Occurrence = 0 (rien n'a été lu) et
+// LignesAffectées = 2.
+PROCEDURE PUBLIQUE scenario_occurrence_vs_lignes_affectees()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE stock (article TEXT, quantite INTEGER)"
+	SQLEnvoie(cnx, reqCree)
+
+	reqA est une sqlRequête
+	reqA..Code = "INSERT INTO stock (article, quantite) VALUES ('vis', 10)"
+	SQLEnvoie(cnx, reqA)
+	reqB est une sqlRequête
+	reqB..Code = "INSERT INTO stock (article, quantite) VALUES ('boulon', 10)"
+	SQLEnvoie(cnx, reqB)
+
+	// UPDATE : deux lignes écrites, aucune lue.
+	reqMaj est une sqlRequête
+	reqMaj..Code = "UPDATE stock SET quantite = 0 WHERE quantite = 10"
+	repMaj est une sqlRéponse = SQLEnvoie(cnx, reqMaj)
+	dbgVérifieEgalité(repMaj..LignesAffectées, 2, "2 lignes mises à jour")
+	dbgVérifieEgalité(repMaj..Occurrence, 0, "un UPDATE ne lit aucune ligne")
+
+	// SELECT : deux lignes lues. LignesAffectées ne concerne que
+	// l'écriture — ne pas s'y fier après une lecture, c'est Occurrence
+	// qui répond à la question « combien de lignes ? » ici.
+	reqSel est une sqlRequête
+	reqSel..Code = "SELECT article FROM stock"
+	repSel est une sqlRéponse = SQLEnvoie(cnx, reqSel)
+	dbgVérifieEgalité(repSel..Occurrence, 2, "2 lignes lues")
+
+	cnx.Ferme()
+FIN
+
+
+// La forme à privilégier pour parcourir des résultats : POUR TOUT sur
+// Lignes, chaque élément se lit par nom de colonne. C'est la forme
+// idiomatique quand l'ordre des lignes importe peu.
+PROCEDURE PUBLIQUE scenario_parcours_pour_tout()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE ville (nom TEXT, population INTEGER)"
+	SQLEnvoie(cnx, reqCree)
+
+	reqA est une sqlRequête
+	reqA..Code = "INSERT INTO ville (nom, population) VALUES ('Namur', 110000)"
+	SQLEnvoie(cnx, reqA)
+	reqB est une sqlRequête
+	reqB..Code = "INSERT INTO ville (nom, population) VALUES ('Mons', 95000)"
+	SQLEnvoie(cnx, reqB)
+
+	reqTout est une sqlRequête
+	reqTout..Code = "SELECT nom, population FROM ville ORDER BY nom"
+	repTout est une sqlRéponse = SQLEnvoie(cnx, reqTout)
+
+	nTotalHabitants est un entier = 0
+	POUR TOUT ligne DE repTout..Lignes
+		nTotalHabitants = nTotalHabitants + ligne["population"]
+	FIN
+	dbgVérifieEgalité(nTotalHabitants, 205000, "somme des populations des deux villes")
+	dbgVérifieEgalité(repTout..Lignes[1]["nom"], "Mons", "Mons trié en premier par ordre alphabétique")
+
+	cnx.Ferme()
+FIN
+
+
+// Une requête invalide échoue proprement : Succès vaut Faux, aucun crash,
+// et le détail se lit avec ErreurInfo — pas de table ni de colonne
+// hasardeuse à deviner depuis un message générique.
+PROCEDURE PRIVÉE scenario_edge_requete_invalide()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqInvalide est une sqlRequête
+	reqInvalide..Code = "SELECT * FROM table_qui_n_existe_pas"
+	repInvalide est une sqlRéponse = SQLEnvoie(cnx, reqInvalide)
+	dbgVérifieEgalité(repInvalide..Succès, Faux, "une table inexistante fait échouer proprement la requête")
+	dbgVérifieVrai(ErreurInfo() <> "", "le détail de l'échec est disponible")
+
+	cnx.Ferme()
+FIN

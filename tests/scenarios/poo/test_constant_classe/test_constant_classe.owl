@@ -1,0 +1,32 @@
+// @sujet : Constantes de classe — valeurs immuables accessibles sans instance
+// @resume : Une classe peut declarer des constantes via le bloc CONSTANT. Ces valeurs sont immuables, attachees a la classe (pas a une instance), accessibles via le nom de la classe (cClasse.CONSTANTE). Publiques par defaut.
+
+// Cas nominal : lecture de constantes de classe
+PROCEDURE scenario_constantes_classe()
+	// Acces sans creer d'instance
+	dbgVérifieEgalité(cConfig.NOM_APP, "OWL_Test", "constante NOM_APP accessible")
+	dbgVérifieEgalité(cConfig.SEUIL_MAX, 1000, "constante SEUIL_MAX accessible")
+	
+	// Toute tentative d'ecriture produirait une erreur de compilation
+	dbgVérifieVrai(Vrai, "constantes sont en lecture seule")
+FIN
+
+// Variantes de casse : acces case-insensitive attendu (rouges initialement)
+PROCEDURE scenario_constantes_classe_case_insensitive()
+	// VERSION en casse exacte (doit passer)
+	dbgVérifieEgalité(cConfig.VERSION, 1, "VERSION casse exacte OK")
+	
+	// VERSION variantes de casse (rouges attendus : bug case-sensitive)
+	dbgVérifieEgalité(cConfig.version, 1, "version minuscules doit renvoyer 1")
+	dbgVérifieEgalité(cConfig.Version, 1, "Version CamelCase doit renvoyer 1")
+	dbgVérifieEgalité(cConfig.VeRsIoN, 1, "VeRsIoN mixte doit renvoyer 1")
+	
+	// NOM_APP variantes de casse
+	dbgVérifieEgalité(cConfig.nom_app, "OWL_Test", "nom_app minuscules doit renvoyer OWL_Test")
+	dbgVérifieEgalité(cConfig.NOM_app, "OWL_Test", "NOM_app mixte doit renvoyer OWL_Test")
+	dbgVérifieEgalité(cConfig.Nom_App, "OWL_Test", "Nom_App PascalCase doit renvoyer OWL_Test")
+	
+	// SEUIL_MAX variantes de casse
+	dbgVérifieEgalité(cConfig.seuil_max, 1000, "seuil_max minuscules doit renvoyer 1000")
+	dbgVérifieEgalité(cConfig.SEUIL_max, 1000, "SEUIL_max mixte doit renvoyer 1000")
+FIN

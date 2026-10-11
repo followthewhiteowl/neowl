@@ -1,0 +1,62 @@
+// @sujet : Tenseur.ReLU
+// @résumé : Activation ReLU différentiable sur un Tenseur — écrase les
+// composantes négatives à zéro et laisse les positives inchangées ;
+// Rétropropage() ne laisse passer le gradient que là où la composante
+// d'entrée était strictement positive.
+
+// ReLU écrase les négatifs et le zéro à 0.0, laisse les positifs
+// inchangés, composante par composante.
+PROCEDURE PUBLIQUE scenario_relu_melange_signes_forward()
+	ta est un Tenseur = Tenseur([-1.0, 0.0, 2.0])
+	tr est un Tenseur = ta.ReLU()
+	dbgVérifieEgalité(tr..Valeur[1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(tr..Valeur[2], 0.0, "ReLU(0.0) = 0.0")
+	dbgVérifieEgalité(tr..Valeur[3], 2.0, "ReLU(2.0) = 2.0")
+FIN
+
+
+// Rétropropage() sur le résultat multi-composantes amorce le gradient à
+// 1.0 sur chaque composante de sortie : la composante positive (2.0)
+// laisse passer ce gradient, les deux autres (négative et nulle) le
+// bloquent à 0.0.
+PROCEDURE PUBLIQUE scenario_relu_melange_signes_backward()
+	ta est un Tenseur = Tenseur([-1.0, 0.0, 2.0])
+	tr est un Tenseur = ta.ReLU()
+	tr.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 0.0, "Entrée négative : gradient bloqué à 0.0")
+	dbgVérifieEgalité(ta..Gradient[2], 0.0, "Entrée nulle : gradient bloqué à 0.0")
+	dbgVérifieEgalité(ta..Gradient[3], 1.0, "Entrée positive : gradient transmis tel quel")
+FIN
+
+
+// La forme anglaise .ReLU() est identique en français et en anglais :
+// même nom des deux côtés.
+PROCEDURE PUBLIQUE scenario_forme_identique_fr_en()
+	ta est un Tenseur = Tenseur([-3.0, 5.0])
+	tr est un Tenseur = ta.ReLU()
+	dbgVérifieEgalité(tr..Valeur[1], 0.0, "ReLU(-3.0) = 0.0")
+	dbgVérifieEgalité(tr..Valeur[2], 5.0, "ReLU(5.0) = 5.0")
+FIN
+
+
+// Une entrée entièrement négative produit une sortie entièrement nulle,
+// et un gradient entièrement bloqué.
+PROCEDURE PRIVÉE scenario_edge_tout_negatif()
+	ta est un Tenseur = Tenseur([-1.0,-5.0,-100.0])
+	tr est un Tenseur = ta.ReLU()
+	tr.Rétropropage()
+	dbgVérifieEgalité(tr..Valeur[1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(ta..Gradient[1], 0.0, "Aucune composante positive : gradient nul partout")
+	dbgVérifieEgalité(ta..Gradient[3], 0.0, "Aucune composante positive : gradient nul partout")
+FIN
+
+
+// Une entrée entièrement positive laisse le gradient intact sur toutes
+// les composantes.
+PROCEDURE PRIVÉE scenario_edge_tout_positif()
+	ta est un Tenseur = Tenseur([1.0, 5.0, 100.0])
+	tr est un Tenseur = ta.ReLU()
+	tr.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 1.0, "Toutes les composantes positives : gradient transmis partout")
+	dbgVérifieEgalité(ta..Gradient[3], 1.0, "Toutes les composantes positives : gradient transmis partout")
+FIN

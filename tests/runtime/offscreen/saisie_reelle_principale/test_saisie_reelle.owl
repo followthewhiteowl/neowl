@@ -1,0 +1,52 @@
+//  — TestSimuleSaisie en mode reel (offscreen) : vrais QKeyEvents
+//
+// ROUGE ATTENDU : TestSimuleSaisie en mode non-headless doit poster de vrais
+// evenements clavier au widget Qt -> surAChaqueModification se declenche
+// autant de fois qu'il y a de caracteres saisis -> ..Valeur = texte reel du
+// widget (chemin , pas le store headless).
+//
+// Rougeur attendue aujourd'hui :
+//   - nModif >= 1 : peut passer (TestSimuleSaisie declenche Modification 1x
+//     via invoke_callback meme en headless — voir saisie_reelle_granularite).
+//   - nModif == 3 pour "abc" : ECHOUE car TestSimuleSaisie ne poste pas de
+//     vrais QKeyEvents (1 appel invoke_callback global, pas 3 key events).
+//   - ..Valeur lu via le vrai widget Qt (chemin ) : aujourd'hui
+//     uici->widget peut exister (build_window appele), mais TestSimuleSaisie
+//     ecrit dans le store, pas dans le QLineEdit -> divergence widget/store.
+//
+// La mise en oeuvre doit :
+//   1. Armer QT_QPA_PLATFORM=offscreen au runner si TestModeHeadless(Faux).
+//   2. Avoir OuvreSoeur monter le vrai widget, ..Valeur le lire depuis Qt.
+//   3. Avoir TestSimuleSaisie poster N QKeyEvents (un par caractere).
+
+TestModeHeadless(Faux)
+
+bPrete est un booléen = Faux
+nModifCapture est un entier = 0
+
+PROCEDURE callback_fenetre_prete()
+	bPrete = Vrai
+FIN
+
+PROCEDURE callback_compte_modif(n est un entier)
+	nModifCapture = n
+FIN
+
+OuvreSoeur(FEN_SaisieReelle)
+
+// La fenetre doit avoir ete initialisee (FinInitialisation appelee).
+dbgVérifieVrai(bPrete, "FinInitialisation appelee : fenetre prete apres OuvreSoeur")
+
+// TestSimuleSaisie en mode reel : "abc" = 3 caracteres -> 3 surAChaqueModification.
+TestSimuleSaisie(SAI_Texte, "abc")
+
+// Assertion centrale  : ..Valeur lu depuis le vrai widget Qt (pas le store).
+dbgVérifieEgalité(SAI_Texte..Valeur, "abc", "mode reel : ..Valeur = texte reel du widget apres saisie")
+
+// Granularite par caractere : surAChaqueModification doit avoir tire 3 fois.
+// (Si ambigu -> assertion >= 1 acceptable, mais 3 est la cible spec.)
+dbgVérifieEgalité(nModifCapture, 3, "mode reel : surAChaqueModification tire 1 fois par caractere (3 pour abc)")
+
+Ferme(FEN_SaisieReelle)
+
+dbgBilanTest()

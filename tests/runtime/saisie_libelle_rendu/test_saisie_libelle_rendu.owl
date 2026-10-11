@@ -1,0 +1,42 @@
+// Rendu visuel du libellé intégré du champ Saisie (composite QLabel|Saisie).
+// Widgets Qt réellement montés (TestModeHeadless(Faux)) : le pipeline réel est
+// exercé. Le rendu pixel se valide à l'oeil (humain) ; ici on verrouille le
+// NON-RUISSELLEMENT : ..Valeur et la saisie clavier ciblent toujours le champ
+// de saisie interne, et ..Libellé ne doit JAMAIS écraser la zone de saisie.
+//
+// ROUGE ATTENDU avant impl : le set runtime de ..Libellé tombe dans le
+// branchement générique Libellé->texte du widget, écrasant ..Valeur. Après
+// impl, ..Libellé est routé vers le libellé intégré et ..Valeur reste intacte.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_SaisieLibelleRendu)
+
+// --- Build : le libellé déclaré n'écrit PAS dans la zone de saisie ---
+dbgVérifieEgalité(SAI_Avec..Valeur, "initial", "build : Valeur intacte malgré Libellé déclaré")
+dbgVérifieEgalité(SAI_Vide..Valeur, "vide", "build : Saisie sans libellé inchangée")
+
+// --- Le libellé intégré reste lisible (store) ---
+dbgVérifieEgalité(SAI_Avec..Libellé, "Nom :", "Libellé intégré lisible après montage")
+
+// --- Set runtime ..Libellé : NE clobber PAS ..Valeur (coeur du ruissellement) ---
+SAI_Avec..Libellé = "Modifié :"
+dbgVérifieEgalité(SAI_Avec..Valeur, "initial", "set ..Libellé n'écrase pas la zone de saisie")
+dbgVérifieEgalité(SAI_Avec..Libellé, "Modifié :", "..Libellé reflète la nouvelle valeur")
+
+// --- Saisie clavier réelle : atteint le champ interne (dans le composite) ---
+SAI_Avec..Valeur = ""
+TestSimuleSaisie(SAI_Avec, "abc")
+dbgVérifieEgalité(SAI_Avec..Valeur, "abc", "frappes routées vers le champ interne du composite")
+
+// --- Rétro-compat : Saisie sans libellé, saisie clavier identique ---
+SAI_Vide..Valeur = ""
+TestSimuleSaisie(SAI_Vide, "xy")
+dbgVérifieEgalité(SAI_Vide..Valeur, "xy", "Saisie sans libellé : frappes inchangées")
+
+// --- Live-update largeur : pas de crash, saisie préservée ---
+SAI_Avec..LargeurLibellé = 120
+dbgVérifieEgalité(SAI_Avec..Valeur, "abc", "set ..LargeurLibellé n'altère pas la saisie")
+
+Ferme(FEN_SaisieLibelleRendu)
+dbgBilanTest()

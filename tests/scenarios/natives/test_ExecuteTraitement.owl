@@ -1,0 +1,53 @@
+// @sujet : ExécuteTraitement
+// @résumé : Lance l'exécution d'une procédure désignée par son nom et récupère sa valeur de retour, sans manipulation directe dans le code appelant.
+
+
+// Procédure cible : renvoie une valeur calculée, utilisée pour vérifier le retour transporté.
+PROCEDURE CalculeReponse()
+	RENVOYER 6 * 7
+FIN
+
+
+// Procédure cible : ne renvoie explicitement aucune valeur, utilisée pour le cas limite sans retour.
+PROCEDURE SansValeurDeRetour()
+	n est un entier = 1
+FIN
+
+
+// Cas nominal : exécution d'une procédure par son nom avec la cible trtProcédure, retour transporté fidèlement.
+PROCEDURE PUBLIQUE scenario_execute_traitement_appel_nominal()
+	n est un entier = ExécuteTraitement("CalculeReponse", trtProcédure)
+	dbgVérifieEgalité(n, 42, "CalculeReponse exécutée par nom renvoie 42")
+FIN
+
+
+// Cas nominal : la cible trtProcédureProjet exécute la même procédure avec un résultat identique.
+PROCEDURE PUBLIQUE scenario_execute_traitement_cible_projet()
+	n est un entier = ExécuteTraitement("CalculeReponse", trtProcédureProjet)
+	dbgVérifieEgalité(n, 42, "CalculeReponse via trtProcédureProjet renvoie aussi 42")
+FIN
+
+
+// Cas d'erreur : nom de procédure introuvable, résultat Null et erreur posée sur le canal standard.
+PROCEDURE PUBLIQUE scenario_execute_traitement_procedure_inconnue()
+	v est un entier? = ExécuteTraitement("ProcedureQuiNexistePas", trtProcédure)
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "procédure inconnue → résultat Null")
+	dbgVérifieVrai(bErreur, "procédure inconnue signale ErreurDétectée")
+FIN
+
+
+// Cas limite : procédure cible existante mais sans instruction RENVOYER, résultat Null propre.
+PROCEDURE PUBLIQUE scenario_execute_traitement_procedure_sans_retour()
+	v est un entier? = ExécuteTraitement("SansValeurDeRetour", trtProcédure)
+	dbgVérifieVrai(EstNul(v), "procédure sans RENVOYER exécutée par nom → résultat Null")
+FIN
+
+
+// Cas limite : appel sans cible fournie, forme dégradée qui renvoie Null sans erreur explicite.
+PROCEDURE PUBLIQUE scenario_execute_traitement_nom_seul_sans_cible()
+	v est un entier? = ExécuteTraitement("CalculeReponse")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "appel sans cible → résultat Null, la procédure n'est pas exécutée")
+	dbgVérifieVrai(PAS bErreur, "appel sans cible ne pose pas d'erreur explicite")
+FIN

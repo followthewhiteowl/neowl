@@ -1,0 +1,33 @@
+//  — sentinelle headless : Ouvre imbrique et coherence stack.
+//
+// Le bug terrain (trace OWL_TRACE_UI) est GUI-only : event loop Qt
+// deja running -> g_app->exec() imbrique refuse par Qt -> retour
+// immediat -> pop FEN_B alors qu'elle reste affichee -> tous les
+// handlers ulterieurs resolvent les noms avec FEN_A en top -> MISS
+// silencieux.
+//
+// En headless il n'y a pas d'event loop : on ne peut pas reproduire
+// la desync. Cette sentinelle verrouille en revanche le contrat de
+// pile : quand FEN_A ouvre FEN_B depuis sa FinInitialisation,
+//   - pendant la vie de FEN_B, MaFenetre..Titre lit FEN_B ;
+//   - apres Ferme(FEN_B), on revient avec FEN_A en top et la valeur
+//     passee a Ferme remonte cote appelant (canon modal).
+//
+// Protege contre les regressions du push/pop multi-fenetres sans
+// dependre d'un backend GUI pilotable. La validation GUI reelle
+// (boucle locale imbriquee Qt) reste a la charge du dev sur l'app
+// reelle, classe de bugs .
+
+TestModeHeadless(Vrai)
+
+trace_pile est une chaîne = ""
+
+Ouvre(FEN_A)
+
+Trace("Trace pile = [" + trace_pile + "]")
+
+dbgVérifieEgalité(trace_pile,
+"A_avant(Fenetre A);B(Fenetre B);A_apres(Fenetre A,val=valeur_B);",
+"flux stack push/pop coherent sur Ouvre imbrique (FEN_A -> FEN_B -> FEN_A)")
+
+dbgBilanTest()

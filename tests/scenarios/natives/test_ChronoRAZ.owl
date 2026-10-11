@@ -1,0 +1,130 @@
+// @sujet : ChronoRAZ
+// @resume : remet un chronomètre à zéro et arrête le chronométrage en cours
+
+// Vitrine de ChronoRAZ : réinitialise un chronomètre (global ou instance nommée),
+// arrête le chronométrage et remet le compteur à zéro. Utile pour réutiliser
+// le même chronomètre dans plusieurs sections de code sans créer de nouvelles instances.
+
+PROCEDURE PUBLIQUE scenario_nominal_global()
+	// Démarrer le chronomètre global, effectuer du travail, puis le remettre à zéro
+	ChronoDébut()
+	somme est un entier = 0
+	POUR i = 1 À 400
+		somme += i
+	FIN
+	msAvantRAZ est un entier = ChronoValeur()
+	dbgVérifieVrai(msAvantRAZ >= 0, "valeur avant RAZ positive")
+
+	// Remettre à zéro : le chronomètre s'arrête et la valeur redevient 0
+	ChronoRAZ()
+	msApresRAZ est un entier = ChronoValeur()
+	dbgVérifieEgalité(msApresRAZ, 0, "valeur après RAZ = 0")
+	dbgVérifieEgalité(somme, 80200, "travail exécuté avant RAZ correct")
+FIN
+
+PROCEDURE PUBLIQUE scenario_instance_nommee()
+	// Utiliser une instance Chrono explicite et la remettre à zéro
+	c est un Chrono
+	ChronoDébut(c)
+	total est un entier = 0
+	POUR k = 1 À 200
+		total += k
+	FIN
+
+	// Vérifier que le chronomètre était démarré avant RAZ
+	dbgVérifieVrai(c..Démarré, "instance démarrée avant RAZ")
+
+	ChronoRAZ(c)
+
+	// Après RAZ, le chronomètre est arrêté et la valeur remise à zéro
+	dbgVérifieFaux(c..Démarré, "instance arrêtée après RAZ")
+	dbgVérifieEgalité(ChronoValeur(c), 0, "valeur instance après RAZ = 0")
+	dbgVérifieEgalité(total, 20100, "calcul avant RAZ correct")
+FIN
+
+PROCEDURE PUBLIQUE scenario_raz_pendant_pause()
+	// Remettre à zéro un chronomètre qui était en pause : le chronomètre s'arrête
+	c2 est un Chrono
+	ChronoDébut(c2)
+	accum est un entier = 0
+	POUR i = 1 À 150
+		accum += i
+	FIN
+
+	ChronoPause(c2)
+	valeurPause est un entier = ChronoValeur(c2)
+	dbgVérifieVrai(valeurPause >= 0, "valeur positive pendant pause")
+
+	// RAZ pendant pause : le chronomètre est réinitialisé et arrêté
+	ChronoRAZ(c2)
+	dbgVérifieFaux(c2..Démarré, "chrono arrêté après RAZ pendant pause")
+	dbgVérifieEgalité(ChronoValeur(c2), 0, "valeur = 0 après RAZ pendant pause")
+	dbgVérifieEgalité(accum, 11325, "calcul avant pause correct")
+FIN
+
+PROCEDURE PUBLIQUE scenario_reutilisation_apres_raz()
+	// Après un RAZ, le chronomètre peut être redémarré proprement
+	c3 est un Chrono
+	ChronoDébut(c3)
+	POUR i = 1 À 100
+		// travail léger
+	FIN
+	ChronoRAZ(c3)
+
+	// Redémarrer le chronomètre après RAZ : le compteur repart de zéro
+	ChronoDébut(c3)
+	x est un entier = 0
+	POUR j = 1 À 50
+		x += j
+	FIN
+	msApresRedemarrage est un entier = ChronoFin(c3)
+
+	// La nouvelle mesure est indépendante de la session précédente
+	dbgVérifieVrai(msApresRedemarrage >= 0, "nouvelle mesure après RAZ >= 0")
+	dbgVérifieEgalité(x, 1275, "calcul après redémarrage correct")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_raz_sans_debut()
+	// Remettre à zéro un chronomètre qui n'a jamais été démarré : opération valide
+	cNonDemarre est un Chrono
+	dbgVérifieFaux(cNonDemarre..Démarré, "chrono non démarré au départ")
+
+	ChronoRAZ(cNonDemarre)
+
+	// Après RAZ, l'état reste cohérent (non démarré, valeur = 0)
+	dbgVérifieFaux(cNonDemarre..Démarré, "chrono toujours non démarré après RAZ")
+	dbgVérifieEgalité(ChronoValeur(cNonDemarre), 0, "valeur = 0 après RAZ sans début")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_raz_apres_fin()
+	// Remettre à zéro après un ChronoFin : le chronomètre était déjà arrêté
+	c4 est un Chrono
+	ChronoDébut(c4)
+	POUR i = 1 À 80
+		// travail
+	FIN
+	premiereFin est un entier = ChronoFin(c4)
+	dbgVérifieVrai(premiereFin >= 0, "première fin >= 0")
+
+	// RAZ après Fin : l'état est nettoyé
+	ChronoRAZ(c4)
+	dbgVérifieFaux(c4..Démarré, "chrono arrêté après RAZ post-fin")
+	dbgVérifieEgalité(ChronoValeur(c4), 0, "valeur = 0 après RAZ post-fin")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_bilingue()
+	// Vérifier que l'alias anglais ChronoReset est fonctionnel
+	ChronoStart()
+	temp est un entier = 0
+	POUR i = 1 À 60
+		temp += i
+	FIN
+
+	ChronoReset()
+
+	msApresReset est un entier = ChronoValue()
+	dbgVérifieEgalité(msApresReset, 0, "alias EN ChronoReset fonctionne")
+	dbgVérifieEgalité(temp, 1830, "calcul sous alias EN correct")
+FIN
+
+dbgBilanTest()

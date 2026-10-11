@@ -1,0 +1,109 @@
+// Écriture indexée des options d'un Sélecteur et d'un Interrupteur, en mode
+// headless : le store d'options est la source de vérité (le pointeur widget
+// vaut 0). Chaque écriture est suivie d'une RE-LECTURE INDÉPENDANTE, via
+// l'indexation elle-même — jamais via une variable capturée avant l'écriture,
+// qui ne prouverait rien sur la propagation réelle vers le store.
+//
+// Les DEUX graphies d'indice sont mesurées systématiquement : littéral
+// (SEL[1]) et variable (SEL[i]). C'est la graphie variable que le canon
+// documente, et c'était le point aveugle du garde de lecture avant .
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Options)
+
+// --- Sélecteur, Libellé : littéral puis variable ---
+SEL_Livraison[1]..Libellé = "Jaune"
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Jaune",
+"Sélecteur, écriture indice littéral, Libellé relu après écriture")
+
+i est un entier = 2
+SEL_Livraison[i]..Libellé = "Violet"
+dbgVérifieEgalité(SEL_Livraison[i]..Libellé, "Violet",
+"Sélecteur, écriture indice variable, Libellé relu après écriture")
+
+// --- Sélecteur, SousLibellé : littéral puis variable ---
+SEL_Livraison[3]..SousLibellé = "Sous 1 jour"
+dbgVérifieEgalité(SEL_Livraison[3]..SousLibellé, "Sous 1 jour",
+"Sélecteur, écriture indice littéral, SousLibellé relu après écriture")
+
+SEL_Livraison[i]..SousLibellé = "Sous 6h"
+dbgVérifieEgalité(SEL_Livraison[i]..SousLibellé, "Sous 6h",
+"Sélecteur, écriture indice variable, SousLibellé relu après écriture")
+
+// --- Sélecteur, ValeurRenvoyée : littéral puis variable ---
+SEL_Livraison[1]..ValeurRenvoyée = "jau"
+dbgVérifieEgalité(SEL_Livraison[1]..ValeurRenvoyée, "jau",
+"Sélecteur, écriture indice littéral, ValeurRenvoyée relue après écriture")
+
+j est un entier = 3
+SEL_Livraison[j]..ValeurRenvoyée = "eco2"
+dbgVérifieEgalité(SEL_Livraison[j]..ValeurRenvoyée, "eco2",
+"Sélecteur, écriture indice variable, ValeurRenvoyée relue après écriture")
+
+// --- Sélecteur, forme EN : l'écriture au casier EN doit atteindre le même
+// casier canon que la forme FR (bilingue réel, pas bilingue à la lecture
+// seulement) ---
+SEL_Livraison[2]..Label = "StandardEN"
+dbgVérifieEgalité(SEL_Livraison[2]..Libellé, "StandardEN",
+"Sélecteur, écriture forme EN (Label), relecture forme FR (Libellé) convergente")
+
+// --- Le reste du Sélecteur n'a pas bougé : les écritures ci-dessus sont
+// ciblées, pas un effet de bord sur tout le store ---
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 3,
+"le Sélecteur garde ses 3 options après les écritures indexées")
+
+// --- Interrupteur, Libellé : littéral puis variable ---
+INT_Perms[1]..Libellé = "Consultation"
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Consultation",
+"Interrupteur, écriture indice littéral, Libellé relu après écriture")
+
+k est un entier = 2
+INT_Perms[k]..Libellé = "Édition"
+dbgVérifieEgalité(INT_Perms[k]..Libellé, "Édition",
+"Interrupteur, écriture indice variable, Libellé relu après écriture")
+
+// --- Interrupteur, SousLibellé : littéral puis variable ---
+INT_Perms[3]..SousLibellé = "Nettoyer"
+dbgVérifieEgalité(INT_Perms[3]..SousLibellé, "Nettoyer",
+"Interrupteur, écriture indice littéral, SousLibellé relu après écriture")
+
+INT_Perms[k]..SousLibellé = "Corriger"
+dbgVérifieEgalité(INT_Perms[k]..SousLibellé, "Corriger",
+"Interrupteur, écriture indice variable, SousLibellé relu après écriture")
+
+dbgVérifieEgalité(INT_Perms..Occurrence, 3,
+"l'Interrupteur garde ses 3 options après les écritures indexées")
+
+// --- Hors plage en écriture : soft-error, le programme continue (symétrique
+// de la lecture). ErreurDétectée est lue IMMÉDIATEMENT après l'écriture,
+// avant tout autre appel qui consommerait la sentinelle. ---
+SEL_Livraison[99]..Libellé = "Improbable"
+bErrSelWrite est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrSelWrite,
+"indice 99 sur 3 options pose ErreurDetectee en écriture (Sélecteur)")
+
+INT_Perms[99]..Libellé = "Improbable"
+bErrIntWrite est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrIntWrite,
+"indice 99 sur 3 options pose ErreurDetectee en écriture (Interrupteur)")
+
+SEL_Livraison[0]..Libellé = "Improbable"
+bErrSelZeroWrite est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrSelZeroWrite,
+"indice 0 pose ErreurDetectee en écriture (Sélecteur)")
+
+// Le programme n'est pas mort après les débordements ci-dessus : les options
+// valides restent lisibles et intactes.
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 3,
+"le Sélecteur garde ses 3 options après les débordements en écriture")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Jaune",
+"le Sélecteur reste lisible après un débordement en écriture")
+dbgVérifieEgalité(INT_Perms..Occurrence, 3,
+"l'Interrupteur garde ses 3 options après les débordements en écriture")
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Consultation",
+"l'Interrupteur reste lisible après un débordement en écriture")
+
+Ferme(FEN_Options)
+
+dbgBilanTest()

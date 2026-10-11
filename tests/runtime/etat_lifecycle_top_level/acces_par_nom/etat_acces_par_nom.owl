@@ -1,0 +1,38 @@
+// Ressource Etat pure utilisee par test_acces_par_nom.owl.
+//
+// Verifie que le top-level d'un sous-champ d'Etat peut acceder aux
+// proprietes du sous-champ par son nom (LIB_DynamicText..Libelle), poser
+// une valeur dynamique, et la relire dans la foulee. L'observation
+// remonte au script test via callback_observe() (resolu par voisinage
+// mode script).
+
+ETAT_AccesParNom est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+
+		LIB_DynamicText est un Champ Libelle
+			PROPRIETES
+				Libelle      = "Texte initial declaratif"
+				X            = 20
+				Y            = 10
+				Largeur      = 100
+				Hauteur      = 15
+				PoliceNom    = iPoliceLiberationSans
+				PoliceTaille = 11
+			FIN
+
+			// TOP-LEVEL SOUS-CHAMP (code d'init, niveau 0).
+			// Pose une valeur dynamique par programmation et observe la
+			// lecture-apres-ecriture intra-impression.
+			LIB_DynamicText..Libelle = "Valeur posee par top-level"
+			callback_observe("Set:" + LIB_DynamicText..Libelle)
+		FIN
+	FIN
+FIN

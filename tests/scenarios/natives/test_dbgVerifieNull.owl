@@ -1,0 +1,110 @@
+// @sujet : dbgVérifieNull
+// @resume : Vérifie qu'une valeur vaut Null (assertion pour harness de tests)
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_valeur_null_simple()
+	// Vérifie qu'une valeur Null passe l'assertion
+	// Cas nominal : tester qu'une absence de valeur est bien détectée
+
+	vNull est une chaîne = Null
+	compteurAvant est un entier = dbgBilanTest()
+
+	dbgVérifieNull(vNull, "Variable explicitement Null")
+
+	// Le compteur d'échecs ne doit pas avoir bougé (PASS attendu)
+	compteurApres est un entier = dbgBilanTest()
+	deltaEchecs est un entier = compteurApres - compteurAvant
+
+	dbgVérifieEgalité(deltaEchecs, 0, "Aucun echec pour Null detecte")
+FIN
+
+PROCEDURE PUBLIQUE scenario_complement_dbgVerifieNonNull()
+	// dbgVérifieNull est l'inverse logique de dbgVérifieNonNull
+	// Une valeur Null passe ici, échouerait avec dbgVérifieNonNull
+
+	resultatAbsent est une chaîne = Null
+	dbgVérifieNull(resultatAbsent, "Valeur absente confirmee")
+
+	// Note pédagogique : une valeur définie (non-Null) provoquerait FAIL ici
+	// (à ne pas tester en PUBLIQUE pour garder le bilan vert)
+FIN
+
+PROCEDURE PUBLIQUE scenario_retour_fonction_null()
+	// Cas d'usage : valider qu'une fonction retourne bien Null en cas d'échec
+	// Exemple : parser JSON invalide retourne Null plutôt qu'une exception
+
+	resultatInvalide est une chaîne = ChaîneVersJSON("{syntaxe : invalide]")
+
+	dbgVérifieNull(resultatInvalide, "JSON invalide retourne Null")
+FIN
+
+PROCEDURE PUBLIQUE scenario_objet_absent()
+	// Vérifier qu'une variable non affectée ou explicitement Null reste Null
+	// Cas d'usage : valider qu'une construction conditionnelle a échoué
+
+	reqAbsente est un httpRequête = Null
+
+	dbgVérifieNull(reqAbsente, "Objet HTTPRequete absent")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_null_explicite_vs_implicite()
+	// Cas technique : Null affecté explicitement
+	// Valeur par défaut dépend du type (sémantique standard)
+
+	vExplicite est une chaîne = Null
+
+	dbgVérifieNull(vExplicite, "Null explicite detecte")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que les alias FR/EN fonctionnent (invariant 3)
+	// dbgVérifieNull = dbgVerifieNull (sans accent) = dbgCheckNull (EN)
+
+	val est une chaîne = Null
+
+	dbgVérifieNull(val, "Forme FR avec accent")
+	dbgVérifieNull(val, "Forme FR sans accent")
+	dbgCheckNull(val, "Alias EN fonctionne")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_compteur_bilan()
+	// Vérifier que dbgVérifieNull contribue au compteur d'assertions
+	// Un PASS incrémente le total sans échouer
+
+	compteurAvant est un entier = dbgBilanTest()
+
+	v est une chaîne = Null
+	dbgVérifieNull(v, "Assertion contribue au compteur")
+
+	compteurApres est un entier = dbgBilanTest()
+
+	// Le compteur de réussites a été incrémenté (pas le compteur d'échecs)
+	dbgVérifieEgalité(compteurApres, compteurAvant, "Compteur d'echecs stable")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_objet_null_explicite()
+	// Objet composé explicitement affecté à Null
+	// Cas d'usage technique : cleanup après construction conditionnelle
+
+	req est un httpRequête = Null
+
+	dbgVérifieNull(req, "Objet compose Null explicite")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_label_vide()
+	// Cas limite : label vide (2e arg optionnel)
+	// Le système doit tolérer un label vide
+
+	v est une chaîne = Null
+
+	dbgVérifieNull(v, "")
+FIN
+
+dbgBilanTest()

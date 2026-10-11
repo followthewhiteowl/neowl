@@ -1,0 +1,42 @@
+// Ressource fenetre — voisin de test_event_image_touche.owl.
+//  : Image avec surToucheAppuyée / surToucheRelâchée. Extension OWL
+// (canvas de jeu). L'Image devient focusable au runtime ; DonneFocus en
+// FinInitialisation pour capter le clavier des l'ouverture.
+
+FEN_ImageTouche est une Fenêtre
+	PROPRIETES
+		Titre       = "ImageTouche offscreen"
+		Largeur     = 400
+		Hauteur     = 300
+		Disposition = dispLibre
+	FIN
+
+	nAppuyeeCount est un entier = 0
+	nRelacheeCount est un entier = 0
+	nDerniereAppuyee est un entier = -1
+
+	IMG_Canvas est un Champ Image
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 200
+			Hauteur = 200
+		FIN
+		PROCEDURE surToucheAppuyée(nTouche est un entier)
+			nAppuyeeCount += 1
+			nDerniereAppuyee = nTouche
+		FIN
+		PROCEDURE surToucheRelâchée(nTouche est un entier)
+			nRelacheeCount += 1
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		DonneFocus(IMG_Canvas)
+		callback_fen_prete()
+	FIN
+
+	PROCEDURE LireCompteurs()
+		callback_lit_compteurs(nAppuyeeCount, nRelacheeCount, nDerniereAppuyee)
+	FIN
+FIN

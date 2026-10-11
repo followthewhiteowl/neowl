@@ -1,0 +1,81 @@
+Trace("=== COMBINAISONS ===")
+
+// --- Test 1: Declaration basique avec auto-valeurs (puissances de 2) ---
+cDroits est une Combinaison
+	Lecture
+	Ecriture
+	Suppression
+FIN
+
+dbgVérifieEgalité(cDroits.Lecture..Valeur, 1, "Combinaison auto Lecture = 1")
+dbgVérifieEgalité(cDroits.Ecriture..Valeur, 2, "Combinaison auto Ecriture = 2")
+dbgVérifieEgalité(cDroits.Suppression..Valeur, 4, "Combinaison auto Suppression = 4")
+
+// --- Test 2: ..Nom ---
+dbgVérifieEgalité(cDroits.Lecture..Nom, "Lecture", "Combinaison ..Nom Lecture")
+dbgVérifieEgalité(cDroits.Ecriture..Nom, "Ecriture", "Combinaison ..Nom Ecriture")
+
+// --- Test 3: Combinaison avec valeur explicite ---
+dbgVérifieEgalité(cDroits.Lecture..Valeur, 1, "Combinaison ..Valeur Lecture")
+cOptions est une Combinaison
+	Gras
+	Italique
+	Souligne
+	GrasItalique = cDroits.Lecture..Valeur
+FIN
+
+dbgVérifieEgalité(cOptions..Gras..Valeur, 1, "cOptions Gras = 1")
+dbgVérifieEgalité(cOptions..Italique..Valeur, 2, "cOptions Italique = 2")
+dbgVérifieEgalité(cOptions..Souligné..Valeur, 4, "cOptions Souligne = 4")
+
+// --- Test 4: Variable combinaison et operateur + ---
+maDroit est un cDroits = cDroits.Lecture
+dbgVérifieEgalité(maDroit..Valeur, 1, "Variable = Lecture -> Valeur 1")
+
+maDroit = cDroits.Lecture + cDroits.Ecriture
+dbgVérifieEgalité(maDroit..Valeur, 3, "Lecture + Ecriture = 3 (1|2)")
+
+// --- Test 5: Test flag avec [] ---
+dbgVérifieVrai(maDroit[cDroits.Lecture], "maDroit[Lecture] = Vrai")
+dbgVérifieVrai(maDroit[cDroits.Ecriture], "maDroit[Ecriture] = Vrai")
+dbgVérifieVrai(PAS maDroit[cDroits.Suppression], "maDroit[Suppression] = Faux")
+
+// --- Test 6: Activation de flag avec []= Vrai ---
+maDroit[cDroits.Suppression] = Vrai
+dbgVérifieVrai(maDroit[cDroits.Suppression], "Apres activation, maDroit[Suppression] = Vrai")
+dbgVérifieEgalité(maDroit..Valeur, 7, "Lecture+Ecriture+Suppression = 7")
+
+// --- Test 7: Desactivation de flag avec []= Faux ---
+maDroit[cDroits.Ecriture] = Faux
+dbgVérifieVrai(PAS maDroit[cDroits.Ecriture], "Apres desactivation, maDroit[Ecriture] = Faux")
+dbgVérifieEgalité(maDroit..Valeur, 5, "Lecture+Suppression = 5 (1|4)")
+
+// --- Test 8: Reset a 0 ---
+maDroit2 est un cDroits = cDroits.Lecture + cDroits.Suppression
+dbgVérifieEgalité(maDroit2..Valeur, 5, "maDroit2 = Lecture + Suppression = 5")
+
+// --- Test 9: Egalite entre combinaisons ---
+maCombi1 est un cDroits = cDroits.Lecture + cDroits.Ecriture
+maCombi2 est un cDroits = cDroits.Lecture + cDroits.Ecriture
+dbgVérifieVrai(maCombi1 = maCombi2, "Egalite combinaisons par Valeur")
+
+// --- Test 10: Combinaison avec 5+ flags ---
+cPerms est une Combinaison
+	Voir
+	Creer
+	Modifier
+	Archiver
+	Administrer
+FIN
+
+dbgVérifieEgalité(cPerms.Voir..Valeur, 1, "5 flags: Voir = 1")
+dbgVérifieEgalité(cPerms.Creer..Valeur, 2, "5 flags: Creer = 2")
+dbgVérifieEgalité(cPerms.Modifier..Valeur, 4, "5 flags: Modifier = 4")
+dbgVérifieEgalité(cPerms.Archiver..Valeur, 8, "5 flags: Archiver = 8")
+dbgVérifieEgalité(cPerms.Administrer..Valeur, 16, "5 flags: Administrer = 16")
+
+p est un cPerms = cPerms.Voir + cPerms.Modifier + cPerms.Administrer
+dbgVérifieEgalité(p..Valeur, 21, "Voir+Modifier+Administrer = 21")
+dbgVérifieVrai(p[cPerms.Voir], "p[Voir] = Vrai")
+dbgVérifieVrai(PAS p[cPerms.Creer], "p[Creer] = Faux")
+dbgVérifieVrai(p[cPerms.Administrer], "p[Administrer] = Vrai")

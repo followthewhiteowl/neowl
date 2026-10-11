@@ -1,0 +1,42 @@
+//  — nouvelle syntaxe Style[état] (survol/focus) sur styleSaisie.
+// Fenêtre voisine dédiée à l'état "focus" : capturable en headless-off via
+// DonneFocus (le focus clavier est un vrai état Qt qu'on peut forcer par
+// programme, contrairement au survol souris). Deux champs : un leurre en
+// première position (capte le focus automatique à l'ouverture, sans style
+// d'état) et SAI_Focus qui reçoit ensuite le focus explicite. Deux captures
+// (avant/après DonneFocus) suffisent à isoler l'effet du style d'état.
+//
+// SAI_Leurre : neutre, aucun style d'état — rend le contrôle négatif valide
+// (SAI_Focus n'a pas le focus tant que DonneFocus n'est pas appelé).
+// SAI_Focus : Style[focus]..CouleurFond (pivot) + Style[focus]..Cadre..*
+// (toutes-props : la bordure doit aussi apparaître au focus).
+FEN_StyleEtatFocus est une Fenêtre
+	PROPRIETES
+		Titre       = "Style état focus"
+		Largeur     = 560
+		Hauteur     = 160
+		Disposition = dispLibre
+		CouleurFond = RVB(10, 10, 10)
+	FIN
+
+	SAI_Leurre est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 100
+			Largeur = 100
+			Hauteur = 30
+		FIN
+	FIN
+
+	SAI_Focus est un Champ Saisie
+		PROPRIETES
+			X                                                 = 20
+			Y                                                 = 20
+			Largeur                                           = 500
+			Hauteur                                           = 60
+			Style..ZoneSaisie..Etats[focus]..CouleurFond      = RVB(0, 255, 0)
+			Style..ZoneSaisie..Etats[focus]..Cadre..Couleur   = RVB(0, 128, 255)
+			Style..ZoneSaisie..Etats[focus]..Cadre..Epaisseur = 3
+		FIN
+	FIN
+FIN

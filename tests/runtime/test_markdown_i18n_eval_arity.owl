@@ -1,0 +1,50 @@
+// Verrouille les formes d'arite des familles markdown / i18n / eval suite a
+// la migration des signatures variadiques a minimum masque vers des formes
+// discretes.
+//
+// markdown : MarkdownVersHTML migre de {-1} vers {1, 2}. La sur-application
+// (3 args) et la sous-application (0 arg) sont desormais rejetees a la
+// compilation (cf. tests/compile-error/markdown_markdownvershtml_*). Ici on
+// verrouille l'execution des deux formes valides.
+//
+// i18n : __MultilingueAssignSource (interne, prefixe __, emise par le
+// compilateur) migre vers {2, 3}. Non appelable directement par
+// l'utilisateur : exercee indirectement via l'affectation d'une
+// chaineMultilingue, validee par les tests i18n dedies.
+//
+// eval : ExecuteTraitement reste variadique non bornee ({-1} garde) car son
+// implementation forwarde un nombre arbitraire d'arguments a la procedure
+// cible. On verrouille ici qu'au moins deux arites distinctes (0 et 2 args
+// forwardes) restent fonctionnelles.
+
+PROCEDURE PUBLIQUE test_markdownvershtml_formes()
+	// 1 arg : rendu HTML sans CSS
+	sH1 est une chaîne = MarkdownVersHTML("# Titre")
+	dbgVérifieVrai(Position(sH1, "<h1>") > 0, "1 arg : <h1> present")
+	dbgVérifieVrai(Position(sH1, "Titre") > 0, "1 arg : contenu present")
+	dbgVérifieVrai(Position(sH1, "<style>") = 0, "1 arg : pas de bloc <style>")
+
+	// 2 args : rendu HTML avec feuille CSS embarquee en <style>
+	sCss est une chaîne = MarkdownVersHTML("# Titre", "body{color:red}")
+	dbgVérifieVrai(Position(sCss, "<style>") > 0, "2 args : bloc <style> present")
+	dbgVérifieVrai(Position(sCss, "color:red") > 0, "2 args : CSS injecte")
+	dbgVérifieVrai(Position(sCss, "<h1>") > 0, "2 args : rendu Markdown conserve")
+FIN
+
+PROCEDURE renvoie_somme(x est un entier, y est un entier)
+	RENVOYER x + y
+FIN
+
+PROCEDURE renvoie_const()
+	RENVOYER 42
+FIN
+
+PROCEDURE PUBLIQUE test_executetraitement_arites()
+	// 0 arg forwarde : ExecuteTraitement(nom, trt)
+	r0 est un entier = ExécuteTraitement("renvoie_const", trtProcédure)
+	dbgVérifieEgalité(r0, 42, "ExecuteTraitement : 0 arg forwarde")
+
+	// 2 args forwardes : ExecuteTraitement(nom, trt, a, b)
+	r2 est un entier = ExécuteTraitement("renvoie_somme", trtProcédure, 3, 4)
+	dbgVérifieEgalité(r2, 7, "ExecuteTraitement : 2 args forwardes")
+FIN

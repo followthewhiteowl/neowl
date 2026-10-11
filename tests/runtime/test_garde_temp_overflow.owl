@@ -1,0 +1,46 @@
+//  lot1 — Garde : coercion souple intermédiaire via promotion numérique
+// Verrouille le comportement confirmé OK en pré-C (2026-06-28) :
+// Un calcul entier dont l'intermédiaire dépasse int64 (promeut en numérique)
+// mais dont le résultat FINAL rentre dans int64 doit :
+// a) ne lever AUCUNE exception (coercion souple, magnitude rentre) ;
+// b) affecter un entier en slot entier (TypeVar = owlEntier, pas owlNumerique).
+//
+// Tous les tests sont VERTS : comportement correct existant à verrouiller.
+
+// ===== Expression directe (littéraux) =====
+
+// INT64_MAX * 2 dépasse int64 → numérique intermédiaire
+// minus INT64_MAX → INT64_MAX → coerce retour en entier
+PROCEDURE PUBLIQUE test_temp_overflow_expression_directe()
+	nRes est un entier = 9223372036854775807 * 2 - 9223372036854775807
+	dbgVérifieEgalité(nRes, 9223372036854775807, "INT64_MAX*2 - INT64_MAX = INT64_MAX")
+	dbgVérifieEgalité(TypeVar(nRes), owlEntier, "résultat final coercé en entier (pas numérique fuyant)")
+FIN
+
+// ===== Même calcul via variables (évite évaluation compile-time) =====
+
+PROCEDURE PUBLIQUE test_temp_overflow_via_variables()
+	maxInt est un entier = 9223372036854775807
+	deux est un entier = 2
+	intermed est un numérique = maxInt * deux
+	// Vérifie que l'intermédiaire est bien numérique (promotion correcte)
+	dbgVérifieEgalité(TypeVar(intermed), owlNumerique, "intermédiaire overflow = numérique")
+	// La soustraction ramène dans la plage int64
+	reduct est un numérique = intermed - maxInt
+	// L'affectation vers entier doit réussir sans exception (magnitude rentre)
+	nTgt est un entier = reduct
+	dbgVérifieEgalité(nTgt, 9223372036854775807, "coerce numérique(INT64_MAX) → entier = INT64_MAX")
+	dbgVérifieEgalité(TypeVar(nTgt), owlEntier, "TypeVar = owlEntier après coerce souple retour")
+FIN
+
+// ===== Variante négative =====
+
+PROCEDURE PUBLIQUE test_temp_overflow_negatif()
+	maxInt est un entier = 9223372036854775807
+	moinsDeux est un entier = -2
+	intermed est un numérique = maxInt * moinsDeux
+	reduct est un numérique = intermed + maxInt
+	nTgt est un entier = reduct
+	dbgVérifieEgalité(nTgt,-9223372036854775807, "symétrique négatif redescend dans int64")
+	dbgVérifieEgalité(TypeVar(nTgt), owlEntier, "TypeVar = owlEntier (négatif)")
+FIN

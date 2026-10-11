@@ -1,0 +1,98 @@
+// @sujet : Coercion de type sur affectation de champ de structure — garantie arithmetique exacte
+// @resume : Les champs de structure declares avec un type explicite (monetaire, numerique, reel, entier, chaine) doivent respecter la semantique du type lors de l'affectation. Un champ monetaire garantit l'arithmetique exacte sans arrondi binaire, comme une variable monetaire.
+
+// Structures de test
+stCompte est une Structure
+	solde est un monétaire
+FIN
+
+stCalcul est une Structure
+	total est un numérique
+FIN
+
+stFacture est une Structure
+	montant est un monétaire
+FIN
+
+stDonnees est une Structure
+	valReel est un réel
+	valEntier est un entier
+	valChaine est une chaîne
+FIN
+
+// Cas central : accumulation sur champ monetaire doit rester exacte
+PROCEDURE scenario_accumulation_champ_monetaire_exacte()
+	compte est un stCompte
+	compte.solde = 0
+
+	// Accumuler 0.01 un total de 100 fois
+	POUR i = 1 À 100
+		compte.solde = compte.solde + 0.01
+	FIN
+
+	// Le resultat DOIT etre exactement 1, sans arrondi binaire
+	dbgVérifieEgalité(compte.solde, 1, "accumulation sur champ monetaire reste exacte")
+FIN
+
+// Cas equivalent pour numerique
+PROCEDURE scenario_accumulation_champ_numerique_exacte()
+	calcul est un stCalcul
+	calcul.total = 0
+
+	// Accumuler 0.01 un total de 100 fois
+	POUR i = 1 À 100
+		calcul.total = calcul.total + 0.01
+	FIN
+
+	// Le resultat DOIT etre exactement 1
+	dbgVérifieEgalité(calcul.total, 1, "accumulation sur champ numerique reste exacte")
+FIN
+
+// Coherence : le meme calcul sur variable vs champ doit donner le meme resultat
+PROCEDURE scenario_coherence_variable_vs_champ_monetaire()
+	// Variable locale monetaire
+	varSolde est un monétaire = 0
+	POUR i = 1 À 100
+		varSolde = varSolde + 0.01
+	FIN
+
+	// Champ de structure monetaire
+	compte est un stCompte
+	compte.solde = 0
+	POUR i = 1 À 100
+		compte.solde = compte.solde + 0.01
+	FIN
+
+	// Les deux resultats doivent etre identiques
+	dbgVérifieEgalité(compte.solde, varSolde, "champ monetaire se comporte comme variable monetaire")
+FIN
+
+// Affectation simple : le type du champ est respecte lors de l'affectation
+PROCEDURE scenario_affectation_simple_type_respecte()
+	facture est un stFacture
+	// Affecter une valeur litterale
+	facture.montant = 10.25
+
+	// Multiplier par un facteur qui revele la difference reel vs monetaire
+	// (monetaire exact, reel accumule erreur)
+	resultat est un monétaire = facture.montant * 3
+
+	dbgVérifieEgalité(resultat, 30.75, "affectation champ monetaire preserve type lors d'operation arithmetique")
+FIN
+
+// Non-regression : autres types primitifs doivent continuer de fonctionner correctement
+PROCEDURE scenario_non_regression_autres_types()
+	donnees est un stDonnees
+
+	// Champ reel accepte reel et reste reel (avec arrondi binaire tolere)
+	donnees.valReel = 0.1
+	dbgVérifieVrai(donnees.valReel > 0.09 ET donnees.valReel < 0.11, "champ reel accepte reel")
+
+	// Champ entier accepte entier et reste exact
+	donnees.valEntier = 42
+	dbgVérifieEgalité(donnees.valEntier, 42, "champ entier reste exact")
+
+	// Champ chaine accepte chaine
+	donnees.valChaine = "test"
+	dbgVérifieEgalité(donnees.valChaine, "test", "champ chaine fonctionne")
+FIN

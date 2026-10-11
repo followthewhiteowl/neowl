@@ -1,0 +1,49 @@
+//  /  — DonneFocus repose le focus Qt apres clic Bouton
+//
+// ROUGE ATTENDU : en mode non-headless, TestSimuleSouris(BTN, ClicGauche)
+// declenche surClic qui appelle DonneFocus(SAI_Texte). En mode reel avec
+// vrais widgets Qt, surClic appelle owl_ui_control_set_focus qui repose
+// le focus clavier sur le widget QLineEdit.
+//
+// Verification : apres DonneFocus depuis surClic, surEntrée sur SAI_Texte
+// doit s'etre declenche (= 1 entree). Puis TestSimuleSaisie doit poster
+// les vrais QKeyEvents au widget qui a le focus.
+//
+// Rougeur attendue aujourd'hui :
+//   - surEntrée peut se declencher (DonneFocus headless fonctionne deja).
+//   - TestSimuleSaisie apres : ..Valeur vide (meme raison que test_saisie_reelle).
+//
+// Nature : ROUGE partiel (..Valeur echoue).
+
+TestModeHeadless(Faux)
+
+nEntreeCapture est un entier = 0
+
+PROCEDURE callback_entree_saisie(n est un entier)
+	nEntreeCapture = n
+FIN
+
+OuvreSoeur(FEN_FocusApresCliC)
+
+// Focus initial auto sur le premier champ saisissable (SAI_Texte).
+// Clic sur BTN_Action : surClic -> DonneFocus(SAI_Texte) -> surEntree
+// Note : si focus etait deja sur SAI_Texte (focus initial), DonneFocus
+// est un reapply-same -> surEntree NE se redeclenche PAS (canon de référence).
+// Donc on simule d'abord un clic qui fait perdre le focus a SAI_Texte.
+
+// 1. Clic bouton : le focus Qt passe sur BTN_Action, puis DonneFocus repose
+//    sur SAI_Texte. surEntrée doit avoir ete declenche au moins 1 fois
+//    (focus initial + retour focus si le modele OWL avait perdu le suivi).
+TestSimuleSouris(BTN_Action, ClicGauche)
+
+// 2. Maintenant SAI_Texte a le focus (ou DonneFocus l'a repose).
+//    TestSimuleSaisie en mode reel doit poster les vrais QKeyEvents.
+TestSimuleSaisie(SAI_Texte, "ok")
+
+// Assertion critique : ..Valeur = "ok" via le vrai widget Qt.
+// ROUGE aujourd'hui : TestSimuleSaisie ecrit dans le store, ..Valeur lit Qt -> "".
+dbgVérifieEgalité(SAI_Texte..Valeur, "ok", "mode reel : ..Valeur = ok apres saisie post-DonneFocus")
+
+Ferme(FEN_FocusApresCliC)
+
+dbgBilanTest()

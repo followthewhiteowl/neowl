@@ -1,0 +1,96 @@
+//  — CAS 2 : l'icone dans un Champ Image doit s'adapter a la taille du champ.
+// Deux Champs Image : IMG_Petit (60x60) et IMG_Grand (160x160), meme icone (icones.add).
+//
+// Avant fix (64px fixe) : les deux champs ont une icone ~64px rasterisee.
+//   → bbox_Petit ≈ bbox_Grand (icone identique dans les deux) → ratio ≈ 1.
+// Apres fix (adaptatif) : icone ~60px dans Petit, ~160px dans Grand.
+//   → bbox_Grand >> bbox_Petit → ratio > 1.8.
+//
+// Oracle : hBboxGrand > hBboxPetit * 1.8 (ratio conservateur ; theorique ≈ 160/60 ≈ 2.67).
+//
+// Note : icones.add a ~42% de marge transparente dans son viewBox SVG.
+// La bbox mesure uniquement les pixels non-fond -> ~58% de la taille rasterisee.
+// Mais le ratio reste franc (58%*160 vs 58%*60) -> l'assert ratio est robuste.
+
+Ouvre(FEN_IcoImgAdaptative)
+
+// ---- Capture IMG_Petit ----
+imgPetit est une Image = dCopieImageChamp(IMG_Petit)
+dbgVérifieEgalité(imgPetit..Valide, Vrai, "IMG_Petit : capture valide")
+hChampPetit est un entier = imgPetit..Hauteur
+dbgVérifieVrai(hChampPetit > 0, "IMG_Petit : capture non vide")
+
+// Fond : coin superieur gauche.
+fondPetit est un entier = dPixelCouleur(imgPetit, 0, 0)
+
+// Bounding-box verticale icone dans IMG_Petit.
+bboxPetitYMin est un entier = hChampPetit
+bboxPetitYMax est un entier = 0
+yyPetit est un entier = 0
+TANTQUE yyPetit < hChampPetit
+	xxPetit est un entier = 0
+	TANTQUE xxPetit < imgPetit..Largeur
+		cPetit est un entier = dPixelCouleur(imgPetit, xxPetit, yyPetit)
+		SI cPetit <> fondPetit ALORS
+			SI yyPetit < bboxPetitYMin ALORS
+				bboxPetitYMin = yyPetit
+			FIN
+			SI yyPetit > bboxPetitYMax ALORS
+				bboxPetitYMax = yyPetit
+			FIN
+		FIN
+		xxPetit = xxPetit + 1
+	FIN
+	yyPetit = yyPetit + 1
+FIN
+hBboxPetit est un entier = 0
+SI bboxPetitYMax >= bboxPetitYMin ALORS
+	hBboxPetit = bboxPetitYMax - bboxPetitYMin + 1
+FIN
+dbgVérifieVrai(hBboxPetit > 0, "IMG_Petit : pixels d'icone presents dans la capture")
+
+// ---- Capture IMG_Grand ----
+imgGrand est une Image = dCopieImageChamp(IMG_Grand)
+dbgVérifieEgalité(imgGrand..Valide, Vrai, "IMG_Grand : capture valide")
+hChampGrand est un entier = imgGrand..Hauteur
+dbgVérifieVrai(hChampGrand > 0, "IMG_Grand : capture non vide")
+
+// Fond : coin superieur gauche.
+fondGrand est un entier = dPixelCouleur(imgGrand, 0, 0)
+
+// Bounding-box verticale icone dans IMG_Grand.
+bboxGrandYMin est un entier = hChampGrand
+bboxGrandYMax est un entier = 0
+yyGrand est un entier = 0
+TANTQUE yyGrand < hChampGrand
+	xxGrand est un entier = 0
+	TANTQUE xxGrand < imgGrand..Largeur
+		cGrand est un entier = dPixelCouleur(imgGrand, xxGrand, yyGrand)
+		SI cGrand <> fondGrand ALORS
+			SI yyGrand < bboxGrandYMin ALORS
+				bboxGrandYMin = yyGrand
+			FIN
+			SI yyGrand > bboxGrandYMax ALORS
+				bboxGrandYMax = yyGrand
+			FIN
+		FIN
+		xxGrand = xxGrand + 1
+	FIN
+	yyGrand = yyGrand + 1
+FIN
+hBboxGrand est un entier = 0
+SI bboxGrandYMax >= bboxGrandYMin ALORS
+	hBboxGrand = bboxGrandYMax - bboxGrandYMin + 1
+FIN
+dbgVérifieVrai(hBboxGrand > 0, "IMG_Grand : pixels d'icone presents dans la capture")
+
+// ---- Assertion cle : icone s'adapte au champ ----
+// Avant fix (64px fixe) : hBboxGrand ≈ hBboxPetit → ratio ≈ 1 → ROUGE.
+// Apres fix (adaptatif) : hBboxGrand ≈ 160*58%, hBboxPetit ≈ 60*58% → ratio ≈ 2.67 → VERT.
+// Seuil conservateur : hBboxGrand > hBboxPetit * 1.8.
+seuil180pct est un entier = (hBboxPetit * 18) / 10
+dbgVérifieVrai(hBboxGrand > seuil180pct,
+"CAS2-ADAPTATIF : bbox icone IMG_Grand > 1.8x bbox icone IMG_Petit (l'icone suit la taille du champ)")
+
+Ferme(FEN_IcoImgAdaptative)
+dbgBilanTest()

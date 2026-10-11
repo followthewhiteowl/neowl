@@ -1,0 +1,72 @@
+// @sujet : ComboFerme
+// @résumé : Ferme la liste déroulée d'un champ Combo (force la fermeture
+// du popup de sélection).
+//
+// La fenêtre voisine FEN_ComboFerme.owl porte la déclaration des Combos.
+// Chaque scenario ouvre la fenêtre, exerce ComboFerme, puis ferme.
+
+// Cas nominal — fermer une combo simple.
+PROCEDURE PUBLIQUE scenario_fermer_combo_simple()
+	Ouvre(FEN_ComboFerme)
+	// En mode headless (test runner), le popup ne s'affiche pas visuellement
+	// mais la fonction s'exécute sans erreur. ComboFerme force la fermeture
+	// de la liste déroulée du champ Combo.
+	ComboFerme(CMB_Simple)
+	dbgVérifieVrai(Vrai, "ComboFerme s'exécute sans erreur sur combo simple")
+	Ferme(FEN_ComboFerme)
+FIN
+
+// Cas limite — fermer une combo vide.
+PROCEDURE PUBLIQUE scenario_fermer_combo_vide()
+	Ouvre(FEN_ComboFerme)
+	// Fermer une combo sans options ne doit pas planter.
+	// L'appel reste valide même si le popup n'a jamais été ouvert.
+	ComboFerme(CMB_Vide)
+	dbgVérifieVrai(Vrai, "Fermer une combo vide ne génère pas d'erreur")
+	Ferme(FEN_ComboFerme)
+FIN
+
+// Cas limite — fermer une combo déjà fermée (idempotence).
+PROCEDURE PUBLIQUE scenario_fermer_combo_deja_fermee()
+	Ouvre(FEN_ComboFerme)
+	// Appeler ComboFerme sur une combo déjà fermée doit être idempotent.
+	// Si la liste n'est pas déroulée, ComboFerme n'a aucune action.
+	ComboFerme(CMB_Déjà)
+	ComboFerme(CMB_Déjà)
+	ComboFerme(CMB_Déjà)
+	dbgVérifieVrai(Vrai, "Appels multiples sur combo fermée sans erreur")
+	Ferme(FEN_ComboFerme)
+FIN
+
+// Cas limite — ouvrir puis fermer immédiatement.
+PROCEDURE PUBLIQUE scenario_ouvrir_puis_fermer()
+	Ouvre(FEN_ComboFerme)
+	// Séquence ouvrir-fermer doit fonctionner sans conflit d'état.
+	ComboOuvre(CMB_Multi)
+	ComboFerme(CMB_Multi)
+	dbgVérifieVrai(Vrai, "Séquence Ouvre → Ferme sans erreur")
+	Ferme(FEN_ComboFerme)
+FIN
+
+// Edge case — combo avec nom accentué.
+PROCEDURE PRIVÉE scenario_edge_combo_nom_accentue()
+	Ouvre(FEN_ComboFerme)
+	// Noms de champ accentués doivent être supportés.
+	ComboFerme(CMB_Météo)
+	dbgVérifieVrai(Vrai, "Combo avec nom accentué fonctionne")
+	Ferme(FEN_ComboFerme)
+FIN
+
+// Edge case — appel multiple alterné ouvre/ferme.
+PROCEDURE PRIVÉE scenario_edge_appel_alterne()
+	Ouvre(FEN_ComboFerme)
+	// Enchaînement alterné d'ouvertures et fermetures doit être stable.
+	ComboOuvre(CMB_Multi)
+	ComboFerme(CMB_Multi)
+	ComboOuvre(CMB_Multi)
+	ComboFerme(CMB_Multi)
+	ComboOuvre(CMB_Multi)
+	ComboFerme(CMB_Multi)
+	dbgVérifieVrai(Vrai, "Alternance ouvre/ferme stable")
+	Ferme(FEN_ComboFerme)
+FIN

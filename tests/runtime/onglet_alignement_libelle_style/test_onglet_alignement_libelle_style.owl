@@ -1,0 +1,175 @@
+//  — AlignementLibellé doit déplacer le texte des languettes MÊME quand
+// l'Onglet porte un bloc Style complet (coins arrondis, police grasse, états
+// survol). Un style qui arrondit la languette fait dessiner le libellé par la
+// feuille de style elle-même : le rendu du texte n'est alors plus celui du
+// thème, et l'alignement était purement et simplement ignoré (libellé toujours
+// centré, aucun des trois réglages ne changeait un pixel).
+//
+// Méthode : le fond ROUGE de la languette active sert de règle graduée. On
+// mesure l'abscisse du premier pixel de texte dans la bande rouge, à largeur de
+// languette constante (largeurÉgale), pour les trois alignements.
+//
+// Widgets réels obligatoires : un Champ Onglet re-matérialisé en mode headless
+// rend une surface vide (pas de barre de languettes), donc aveugle à tout ça.
+
+TestModeHeadless(Faux)
+
+// Abscisse du premier pixel non rouge rencontré APRÈS le début de la bande
+// rouge, sur une ligne donnée. -1 si la ligne ne rencontre pas la languette.
+PROCEDURE xTexteLigne(imgO est une Image, yLigne est un entier) : entier
+	bDansRouge est un booléen = Faux
+	nX est un entier = -1
+	POUR xScan = 0 À 519
+		SI dPixelCouleur(imgO, xScan, yLigne) = Rouge ALORS
+			bDansRouge = Vrai
+		SINON
+			SI bDansRouge ET nX = -1 ALORS
+				nX = xScan
+			FIN
+		FIN
+	FIN
+	RENVOYER nX
+FIN
+
+// Abscisse du texte du libellé : la plus petite mesure sur la hauteur du texte.
+// La plage de lignes évite les coins arrondis, qui troueraient la bande rouge
+// sans que ce soit du texte.
+PROCEDURE xTexteLibelle(imgO est une Image) : entier
+	nMin est un entier = 9999
+	nCour est un entier = -1
+	POUR yScan = 8 À 18
+		nCour = xTexteLigne(imgO, yScan)
+		SI nCour <> -1 ET nCour < nMin ALORS
+			nMin = nCour
+		FIN
+	FIN
+	RENVOYER nMin
+FIN
+
+//  — nombre de lignes de pixels occupées par le texte dans la languette
+// [nDeb, nFin] de couleur de fond donnée : intégrité VERTICALE du libellé. Le
+// balayage se tient à 8 px des bords, pour ignorer les coins arrondis et la
+// bordure, et compte les lignes portant au moins un pixel qui n'est pas du fond.
+PROCEDURE hauteurTexteLanguette(imgO est une Image, nDeb est un entier, nFin est un entier, coulFond est un entier) : entier
+	nLignes est un entier = 0
+	POUR yScan = 4 À 23
+		bTexte est un booléen = Faux
+		POUR xScan2 = nDeb + 8 À nFin - 8
+			SI dPixelCouleur(imgO, xScan2, yScan) <> coulFond ALORS
+				bTexte = Vrai
+			FIN
+		FIN
+		SI bTexte ALORS
+			nLignes = nLignes + 1
+		FIN
+	FIN
+	RENVOYER nLignes
+FIN
+
+// Largeur de la languette active : du premier au dernier pixel rouge de la
+// ligne (le texte troue la bande mais ne déplace pas ses bords).
+PROCEDURE largeurLanguette(imgO est une Image, yLigne est un entier) : entier
+	nDeb est un entier = -1
+	nFin est un entier = -1
+	POUR xScan = 0 À 519
+		SI dPixelCouleur(imgO, xScan, yLigne) = Rouge ALORS
+			SI nDeb = -1 ALORS
+				nDeb = xScan
+			FIN
+			nFin = xScan
+		FIN
+	FIN
+	SI nDeb = -1 ALORS
+		RENVOYER 0
+	FIN
+	RENVOYER nFin - nDeb + 1
+FIN
+
+// Abscisse du bord gauche de la languette active (début de la bande rouge).
+PROCEDURE débutLanguette(imgO est une Image, yLigne est un entier) : entier
+	POUR xScan = 0 À 519
+		SI dPixelCouleur(imgO, xScan, yLigne) = Rouge ALORS
+			RENVOYER xScan
+		FIN
+	FIN
+	RENVOYER -1
+FIN
+
+OuvreSoeur(FEN_OngletAlignStyle)
+Temporise(20)
+
+// ------------------------------------------------- alignFin, à la déclaration
+imgFin est une Image = dCopieImageChamp(ONG_Style)
+dbgVérifieEgalité(imgFin..Valide, Vrai, "ONG_Style : capture valide")
+
+largFin est un entier = largeurLanguette(imgFin, 12)
+dbgVérifieVrai(largFin > 60,
+"Style posé : la languette active est rendue avec sa largeur égale")
+
+xFin est un entier = xTexteLibelle(imgFin)
+dbgVérifieVrai(xFin < 9999,
+"Style posé : le libellé de la languette active est rendu")
+
+//  — le texte doit être rendu ENTIER, pas tranché en une bande : on
+// compte les lignes de pixels qu'il occupe, sur la languette active comme sur
+// une inactive (les languettes ont toutes la même largeur).
+debActif est un entier = débutLanguette(imgFin, 12)
+hFinActif est un entier = hauteurTexteLanguette(imgFin, debActif, debActif + largFin - 1, Rouge)
+hFinInactif est un entier = hauteurTexteLanguette(imgFin, debActif + largFin,
+debActif + 2 * largFin - 1, Bleu)
+
+dbgVérifieVrai(hFinActif >= 8,
+"alignFin : le libellé actif est rendu sur toute sa hauteur, pas tranché")
+dbgVérifieVrai(hFinInactif >= 8,
+"alignFin : le libellé inactif est rendu sur toute sa hauteur, pas tranché")
+
+// -------------------------------------------------- alignCentre, à l'exécution
+ONG_Style..AlignementLibellé = alignCentre
+Temporise(20)
+
+imgCentre est une Image = dCopieImageChamp(ONG_Style)
+xCentre est un entier = xTexteLibelle(imgCentre)
+
+dbgVérifieEgalité(largeurLanguette(imgCentre, 12), largFin,
+"Changer l'alignement ne change pas la largeur de la languette")
+
+dbgVérifieVrai(xFin > xCentre + 30,
+"Style posé : alignFin place le libellé nettement plus loin que le centrage")
+
+//  — alignCentre laisse la barre peindre son libellé elle-même : sa
+// hauteur de texte est donc la référence du rendu non altéré. Décaler le
+// libellé ne doit rien lui retirer en hauteur, ni sur l'active ni sur l'inactive.
+dbgVérifieEgalité(hFinActif,
+hauteurTexteLanguette(imgCentre, debActif, debActif + largFin - 1, Rouge),
+"alignFin rend le libellé actif sur exactement la même hauteur que le centrage")
+dbgVérifieEgalité(hFinInactif,
+hauteurTexteLanguette(imgCentre, debActif + largFin, debActif + 2 * largFin - 1, Bleu),
+"alignFin rend le libellé inactif sur exactement la même hauteur que le centrage")
+
+// --------------------------------------------------- alignDébut, à l'exécution
+ONG_Style..AlignementLibellé = alignDébut
+Temporise(20)
+
+imgDebut est une Image = dCopieImageChamp(ONG_Style)
+xDebut est un entier = xTexteLibelle(imgDebut)
+
+dbgVérifieEgalité(largeurLanguette(imgDebut, 12), largFin,
+"alignDébut : la largeur de la languette reste inchangée")
+
+dbgVérifieVrai(xCentre > xDebut + 30,
+"Style posé : alignDébut ramène le libellé nettement avant le centrage")
+
+dbgVérifieEgalité(hauteurTexteLanguette(imgDebut, debActif, debActif + largFin - 1, Rouge),
+hFinActif,
+"alignDébut rend le libellé actif sur toute sa hauteur, comme alignFin")
+
+// ------------------------------------------------ retour à alignFin, réversible
+ONG_Style..AlignementLibellé = alignFin
+Temporise(20)
+
+imgRetour est une Image = dCopieImageChamp(ONG_Style)
+dbgVérifieEgalité(xTexteLibelle(imgRetour), xFin,
+"Retour à alignFin : le libellé revient au pixel près à sa place d'origine")
+
+Ferme(FEN_OngletAlignStyle)
+dbgBilanTest()

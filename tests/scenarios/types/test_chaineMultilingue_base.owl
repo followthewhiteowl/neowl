@@ -1,0 +1,138 @@
+// @sujet : chaîneMultilingue
+// @résumé : Type first-class pour gérer des chaînes traduites dans plusieurs langues. Stockage inline dans le fichier, indexation par constante enum langueXxx ou tag BCP 47 libre, lookup avec fallback langue source.
+
+
+// Cas canonique : une chaîneMultilingue déclarée sans initialisation
+// reçoit une structure vide, prête à accueillir des traductions. Le
+// type est tracé par le GC comme toute autre allocation.
+PROCEDURE scenario_creation_vide()
+	m est une chaîneMultilingue
+	dbgVérifieVrai(m <> Null, "chaîneMultilingue créée non-null")
+FIN
+
+
+// Littéral inline : syntaxe `{langueFrançais: "...", langueAnglais: "..."}`
+// typée par la déclaration cible. Permet d'initialiser plusieurs
+// traductions d'un coup, lisible et concis. Le type `chaîneMultilingue`
+// de la déclaration détermine que le littéral est un dict multilingue.
+PROCEDURE scenario_litteral_inline_deux_langues()
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+
+	dbgVérifieEgalité(m[langueFrançais], "Bonjour")
+	dbgVérifieEgalité(m[langueAnglais], "Hello")
+FIN
+
+
+// Indexation lecture avec constante enum : `m[langueFrançais]` retourne
+// la chaîne associée à cette langue. Si la langue n'a pas été posée,
+// retourne le fallback (langue source — hardcodée "fr-FR" en v1).
+PROCEDURE scenario_indexation_lecture_constante_enum()
+	m est une chaîneMultilingue = {langueFrançais: "Salut", langueAnglais: "Hi", langueAllemand: "Hallo"}
+
+	dbgVérifieEgalité(m[langueFrançais], "Salut")
+	dbgVérifieEgalité(m[langueAnglais], "Hi")
+	dbgVérifieEgalité(m[langueAllemand], "Hallo")
+FIN
+
+
+// Indexation écriture : `m[langueXxx] = "..."` ajoute ou met à jour
+// la traduction pour cette langue. Pas de pré-déclaration nécessaire —
+// le runtime alloue l'entrée à la volée.
+PROCEDURE scenario_indexation_ecriture_constante_enum()
+	m est une chaîneMultilingue
+	m[langueFrançais] = "Merci"
+	m[langueAnglais] = "Thanks"
+	m[langueEspagnol] = "Gracias"
+
+	dbgVérifieEgalité(m[langueFrançais], "Merci")
+	dbgVérifieEgalité(m[langueAnglais], "Thanks")
+	dbgVérifieEgalité(m[langueEspagnol], "Gracias")
+FIN
+
+
+// Indexation avec string BCP 47 libre : en plus des constantes enum,
+// on peut indexer par tag libre ("fr-FR", "en-US", "fr-jura"…). Permet
+// de supporter des variantes régionales custom non couvertes par l'enum.
+PROCEDURE scenario_indexation_lecture_string_bcp47()
+	m est une chaîneMultilingue
+	m["fr-FR"] = "Bonjour"
+	m["en-US"] = "Hello"
+	m["fr-jura"] = "Salü"
+
+	dbgVérifieEgalité(m["fr-FR"], "Bonjour")
+	dbgVérifieEgalité(m["en-US"], "Hello")
+	dbgVérifieEgalité(m["fr-jura"], "Salü")
+FIN
+
+
+// Cohérence constante enum ⇄ string BCP 47 : `langueFrançais` mappe
+// "fr-FR", donc indexer par l'un ou l'autre accède à la même entrée.
+// Convention : défaut sans suffixe = variante principale (langueFrançais
+// → "fr-FR", langueAnglais → "en-US").
+PROCEDURE scenario_coherence_enum_et_string_bcp47()
+	m est une chaîneMultilingue
+	m[langueFrançais] = "Bonjour"
+	m[langueAnglais] = "Hello"
+
+	dbgVérifieEgalité(m["fr-FR"], "Bonjour")
+	dbgVérifieEgalité(m["en-US"], "Hello")
+
+	m["fr-FR"] = "Salut"
+	dbgVérifieEgalité(m[langueFrançais], "Salut")
+FIN
+
+
+// Littéral inline avec plus de 2 langues : on peut en mettre autant
+// qu'on veut, séparées par virgule. Le parser accepte la liste, le
+// runtime stocke toutes les entrées.
+PROCEDURE scenario_litteral_inline_cinq_langues()
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour",
+		langueAnglais: "Hello",
+		langueAllemand: "Hallo",
+		langueEspagnol: "Hola",
+		langueItalien: "Ciao"
+	}
+
+	dbgVérifieEgalité(m[langueFrançais], "Bonjour")
+	dbgVérifieEgalité(m[langueAnglais], "Hello")
+	dbgVérifieEgalité(m[langueAllemand], "Hallo")
+	dbgVérifieEgalité(m[langueEspagnol], "Hola")
+	dbgVérifieEgalité(m[langueItalien], "Ciao")
+FIN
+
+
+// Cas limite défensif : littéral inline avec une seule langue. Le
+// dictionnaire est bien créé, mais ne contient qu'une entrée. Utile
+// pour code générique qui s'attend à une chaîneMultilingue même si
+// une seule langue est pertinente à ce moment.
+PROCEDURE PRIVÉE scenario_litteral_inline_une_seule_langue()
+	m est une chaîneMultilingue = {langueFrançais: "Seul"}
+
+	dbgVérifieEgalité(m[langueFrançais], "Seul")
+FIN
+
+
+// Cas limite défensif : littéral inline vide (aucune entrée). Crée
+// une chaîneMultilingue vide, équivalent à la déclaration sans init.
+// Utile pour uniformité syntaxique dans du code généré.
+PROCEDURE PRIVÉE scenario_litteral_inline_vide()
+	m est une chaîneMultilingue = {}
+
+	dbgVérifieVrai(m <> Null, "littéral vide crée une instance valide")
+FIN
+
+
+// Cas limite défensif : indexation avec string BCP 47 non standard
+// (custom, pas dans l'enum). Le runtime accepte n'importe quel tag
+// string — pas de validation de conformité BCP 47 stricte en v1.
+// Si un projet a besoin d'une variante dialectale rare, il peut la
+// stocker librement.
+PROCEDURE PRIVÉE scenario_indexation_string_custom_non_enum()
+	m est une chaîneMultilingue
+	m["oc-gascon"] = "Adiu"
+	m["br-leon"] = "Demat"
+
+	dbgVérifieEgalité(m["oc-gascon"], "Adiu")
+	dbgVérifieEgalité(m["br-leon"], "Demat")
+FIN

@@ -1,0 +1,23 @@
+// @sujet : EmailEnvoieMessage
+// @résumé : Envoie un Email au travers d'une session SMTP déjà ouverte (MAIL FROM /
+// RCPT TO / DATA). Couvre le chemin d'échec quand la session n'a pas été ouverte.
+
+
+// Cas A : session jamais ouverte — l'envoi échoue proprement (Faux + erreur détectée)
+// au lieu de planter ou d'ouvrir une connexion implicite.
+PROCEDURE PUBLIQUE scenario_eem_session_non_ouverte()
+	session est un emailSessionSMTP
+	session..AdresseServeur = "127.0.0.1"
+	session..Port           = 9
+
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+	e..Sujet        = "Ordre du jour"
+	e..Message      = "Bonjour Bob, voici l'ordre du jour."
+
+	ok est un booléen = EmailEnvoieMessage(session, e)
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieFaux(ok, "EmailEnvoieMessage renvoie Faux sur une session non ouverte")
+	dbgVérifieVrai(bErreur, "une erreur est détectée sur une session non ouverte")
+FIN

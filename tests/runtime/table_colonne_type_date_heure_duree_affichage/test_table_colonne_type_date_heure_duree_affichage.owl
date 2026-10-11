@@ -1,0 +1,111 @@
+//  lot 4 — câblage AFFICHAGE (masque hors édition) des colonnes
+// colTypeDate/colTypeHeure/colTypeDurée, symétrique de l'AFFICHAGE
+// colTypeNumerique/colTypeMonétaire posé par  lot 3.
+//
+// AFFICHAGE (cellule hors édition) : sonde __DebugTableCelluleTexteAffiche
+// (champ, ligne, colonne) -> chaîne, partagée avec le rendu réel (DisplayRole)
+// via owl_ui_format_cell_typed. Contrat verrouillé par ce ticket :
+// une chaîne brute PARSEABLE (même dans une forme différente du masque
+// d'affichage résolu) est reformatée au masque défaut/projet ; une chaîne
+// NON parseable retombe en repli plat (inchangée).
+//
+// Formes brutes retenues pour la digue anti-tautologie (brut != affiché),
+// chacune adossée à un mécanisme de parse déjà existant et déjà réutilisé
+// ailleurs dans stdlib_ui.c pour le même type, PAS un fallback inventé pour ce
+// ticket :
+//   - Date  : ISO "AAAA-MM-JJ" via owl_parse_date_multi (repli générique déjà
+//             utilisé par input_typed_get, stdlib_ui.c ~L3377).
+//   - Heure : forme compacte "HHMI" via owl_parse_time_string_cs (repli
+//             générique déjà utilisé par input_typed_get, stdlib_ui.c ~L3390).
+//   - Durée : littéral signé canonique "+JHHMMSSCC" via
+//             owl_parse_duration_multi, déjà réutilisé côté Saisie pour la
+//             direction symétrique SET chaîne -> affichage (input_typed_set,
+//             stdlib_ui.c ~L3541 : "v = ... chaîne (repli robuste : coercion
+//             durée existante)").
+//
+// ROUGE attendu aujourd'hui : owl_ui_format_cell_typed (stdlib_ui.c L3293) ne
+// traite que Numérique/Monétaire, repli plat pour Date/Heure/Durée -> les
+// cellules parseables-divergentes (ligne 1) restent affichées telles quelles
+// au lieu d'être reformatées. Les cellules non-parseables (ligne 2) et les
+// colonnes Texte/Numérique (sans format actif) sont déjà correctes
+// aujourd'hui (repli plat de base), donc VERT dès le départ sur ces
+// assertions-là — attendu, ce n'est pas la partie non câblée.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeDateHeureDureeAffichage)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. AFFICHAGE — colonne Date : "2026-12-31" (ISO) reformatée selon
+// FormatDate projet (JJ/MM/AAAA) -> "31/12/2026" =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 1), "31/12/2026",
+"colonne Date (colTypeDate, sans masque brut) : '2026-12-31' (ISO) reformatée selon FormatDate projet (JJ/MM/AAAA)")
+
+// ===== 2. AFFICHAGE — colonne Heure : "0905" (compact) reformatée selon
+// FormatHeure projet (HH:MI) -> "09:05" =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 2), "09:05",
+"colonne Heure (colTypeHeure, sans masque brut) : '0905' (compact) reformatée selon FormatHeure projet (HH:MI)")
+
+// ===== 3. AFFICHAGE — colonne Durée : "+001300000" (littéral signé canonique,
+// 0 jour, 01h30m00s) reformatée selon FormatDurée projet (HH:MI:SS) ->
+// "01:30:00" =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 3), "01:30:00",
+"colonne Durée (colTypeDurée, sans masque brut) : '+001300000' (littéral signé) reformatée selon FormatDurée projet (HH:MI:SS)")
+
+// ===== 4. Repli plat — colonne Numérique : aucun FormatNombre projet actif
+// dans ce projet (seuls FormatDate/FormatHeure/FormatDurée configurés) ->
+// affichage inchangé (non-régression ) =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 4), "1234.56",
+"colonne Numérique : aucun FormatNombre projet actif -> repli plat inchangé (non-régression feat/2149)")
+
+// ===== 5. Non-régression : colonne Texte — jamais de formatage =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 5), "abc",
+"colonne Texte : affichage identique à la valeur brute (pas de formatage)")
+
+// ===== 6. Chaîne NON parseable — colonne Date : repli plat (inchangée), pas
+// de vide/crash surprise =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 2, 1), "pas-une-date",
+"colonne Date : chaîne brute non parseable -> repli plat inchangé")
+
+// ===== 7. Chaîne NON parseable — colonne Heure : repli plat =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 2, 2), "pas-une-heure",
+"colonne Heure : chaîne brute non parseable -> repli plat inchangé")
+
+// ===== 8. Chaîne NON parseable — colonne Durée : repli plat =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 2, 3), "pas-une-duree",
+"colonne Durée : chaîne brute non parseable -> repli plat inchangé")
+
+// ===== 9-11. Non-régression INPUT — masque dérivé du format projet toujours
+// posé (/, non affecté par le câblage AFFICHAGE) =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 1), "99/99/9999",
+"colonne Date : masque de frappe dérivé du format projet toujours posé (non-régression feat/2148)")
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 2), "99:99",
+"colonne Heure : masque de frappe dérivé du format projet toujours posé (non-régression feat/1921)")
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 3), "99:99:99",
+"colonne Durée : masque de frappe dérivé du format projet toujours posé (non-régression feat/1921)")
+
+// ===== 12-14. Non-régression INPUT — validateur toujours actif =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "12/09/2026"),
+"colonne Date : validateur de plages toujours actif (non-régression feat/2148)")
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 2, "14:30"),
+"colonne Heure : validateur de plages toujours actif (non-régression feat/1921)")
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 3, "01:30:00"),
+"colonne Durée : validateur de plages toujours actif (non-régression feat/1921)")
+
+Ferme(FEN_TableColonneTypeDateHeureDureeAffichage)
+
+dbgBilanTest()

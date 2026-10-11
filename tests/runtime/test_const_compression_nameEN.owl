@@ -1,0 +1,62 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille Compression
+// (, lot A5 - module stdlib_compression, familles compresse* / zip*).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   compresseLZW    -> compressLZW   (sentinel : EN==FR seulement)
+//   compresseGZIP   -> compressGZIP  (sentinel : EN==FR seulement)
+//   compresseAucun  -> compressNone  (sentinel : EN==FR seulement)
+//   zipLecture      -> zipRead       (valeur brute stable = 1)
+//   zipEcriture     -> zipWrite      (valeur brute stable = 2)
+//   zipAucun        -> zipNone       (valeur brute stable = 0)
+//   zipDisque       -> zipDrive      (valeur brute stable = 2)
+//
+// Deux couches d'assertion par couple stable : EN == FR, ET EN == valeur brute.
+// Les sentinels compresse* (offset interne, valeur non garantie) : EN == FR.
+// =============================================================================
+
+PROCEDURE scenario_const_compression_en_resout_vers_fr()
+	// --- compressLZW == compresseLZW (sentinel, valeur brute non ancree) ---
+	dbgVérifieEgalité(compressLZW, compresseLZW,
+	"compressLZW resout vers la meme valeur que compresseLZW")
+
+	// --- compressGZIP == compresseGZIP (sentinel) ---
+	dbgVérifieEgalité(compressGZIP, compresseGZIP,
+	"compressGZIP resout vers la meme valeur que compresseGZIP")
+
+	// --- compressNone == compresseAucun (sentinel) ---
+	dbgVérifieEgalité(compressNone, compresseAucun,
+	"compressNone resout vers la meme valeur que compresseAucun")
+
+	// --- zipRead == zipLecture == 1 ---
+	dbgVérifieEgalité(zipRead, zipLecture,
+	"zipRead resout vers la meme valeur que zipLecture")
+	dbgVérifieEgalité(zipRead, 1,
+	"zipRead vaut exactement 1 (mode lecture)")
+
+	// --- zipWrite == zipEcriture == 2 ---
+	dbgVérifieEgalité(zipWrite, zipEcriture,
+	"zipWrite resout vers la meme valeur que zipEcriture")
+	dbgVérifieEgalité(zipWrite, 2,
+	"zipWrite vaut exactement 2 (mode ecriture)")
+
+	// --- zipNone == zipAucun == 0 ---
+	dbgVérifieEgalité(zipNone, zipAucun,
+	"zipNone resout vers la meme valeur que zipAucun")
+	dbgVérifieEgalité(zipNone, 0,
+	"zipNone vaut exactement 0 (nom seul)")
+
+	// --- zipDrive == zipDisque == 2 ---
+	dbgVérifieEgalité(zipDrive, zipDisque,
+	"zipDrive resout vers la meme valeur que zipDisque")
+	dbgVérifieEgalité(zipDrive, 2,
+	"zipDrive vaut exactement 2 (chemin absolu)")
+FIN
+
+scenario_const_compression_en_resout_vers_fr()
+dbgBilanTest()

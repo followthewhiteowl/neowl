@@ -1,0 +1,156 @@
+// @sujet : Désérialise
+// @résumé : Reconstruit une variable depuis un buffer JSON sérialisé, inverse de Sérialise. Retourne Vrai en cas de succès, Faux + ErreurDétectée sinon.
+
+
+// Round-trip nominal : sérialiser puis désérialiser un entier simple restaure
+// la valeur d'origine. La variable cible doit être pré-allouée, son type sert
+// de schéma pour la coercion entre JSON et le type natif.
+PROCEDURE scenario_round_trip_entier()
+	nOriginal est un entier = 42
+	bufferJSON est une chaîne = ""
+	Sérialise(nOriginal, bufferJSON, psdMinifie)
+
+	nRestitue est un entier = 0
+	bSucces est un booléen = Désérialise(nRestitue, bufferJSON, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation réussit")
+	dbgVérifieEgalité(nRestitue, 42, "valeur restaurée conforme")
+FIN
+
+
+// Round-trip chaîne : une chaîne sérialisée puis désérialisée retrouve son
+// contenu exact, y compris les espaces, caractères accentués et ponctuation.
+PROCEDURE scenario_round_trip_chaine()
+	sOriginal est une chaîne = "Café 42 €"
+	bufferJSON est une chaîne = ""
+	Sérialise(sOriginal, bufferJSON, psdMinifie)
+
+	sRestitue est une chaîne = ""
+	bSucces est un booléen = Désérialise(sRestitue, bufferJSON, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation réussit")
+	dbgVérifieEgalité(sRestitue, "Café 42 €", "chaîne restaurée conforme")
+FIN
+
+
+// Round-trip booléen : les deux valeurs Vrai et Faux sont préservées.
+PROCEDURE scenario_round_trip_booleen()
+	bOriginal est un booléen = Vrai
+	bufferJSON est une chaîne = ""
+	Sérialise(bOriginal, bufferJSON, psdMinifie)
+
+	bRestitue est un booléen = Faux
+	bSucces est un booléen = Désérialise(bRestitue, bufferJSON, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation réussit")
+	dbgVérifieEgalité(bRestitue, Vrai, "booléen Vrai restauré")
+
+	// Cycle inverse : Faux sérialisé puis désérialisé restaure Faux
+	bOriginal  = Faux
+	bufferJSON = ""
+	Sérialise(bOriginal, bufferJSON, psdMinifie)
+	bRestitue = Vrai
+	bSucces   = Désérialise(bRestitue, bufferJSON, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation Faux réussit")
+	dbgVérifieEgalité(bRestitue, Faux, "booléen Faux restauré")
+FIN
+
+
+// Round-trip réel : les nombres flottants sont restaurés avec leur précision.
+// Note : le format JSON normalise la représentation (pas de notation
+// scientifique arbitraire), la valeur numérique est préservée.
+PROCEDURE scenario_round_trip_reel()
+	rOriginal est un réel = 3.14159
+	bufferJSON est une chaîne = ""
+	Sérialise(rOriginal, bufferJSON, psdMinifie)
+
+	rRestitue est un réel = 0.0
+	bSucces est un booléen = Désérialise(rRestitue, bufferJSON, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation réussit")
+	dbgVérifieVrai(Abs(rRestitue - 3.14159) < 0.00001, "réel restauré avec précision")
+FIN
+
+
+// Buffer vide : la désérialisation réussit et met la cible à sa valeur par
+// défaut (0 pour un entier). C'est un comportement permissif, la chaîne vide
+// est interprétée comme l'absence de valeur.
+PROCEDURE scenario_buffer_vide()
+	nCible est un entier = 99
+	bSucces est un booléen = Désérialise(nCible, "", psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "buffer vide accepté")
+	dbgVérifieEgalité(nCible, 0, "valeur remise à défaut (0 pour entier)")
+FIN
+
+
+// Buffer JSON malformé (syntaxe invalide) : le parseur détecte l'erreur et
+// retourne Faux. La variable cible conserve sa valeur initiale (pas modifiée).
+PROCEDURE scenario_json_malformed()
+	sCible est une chaîne = "initial"
+	bufferMalformed est une chaîne = "{malformed json here"
+
+	bSucces est un booléen = Désérialise(sCible, bufferMalformed, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Faux, "JSON malformé retourne Faux")
+	dbgVérifieEgalité(sCible, "initial", "valeur initiale préservée en cas d'erreur")
+FIN
+
+
+// Buffer JSON valide mais incompatible avec le type cible : tenter de
+// désérialiser un objet JSON dans un entier effectue une coercion best-effort.
+// Si aucune conversion n'est possible, la cible est mise à 0.
+PROCEDURE scenario_type_incompatible()
+	nCible est un entier = 0
+	bufferObjet est une chaîne = `{"nom":"Alice"}`
+
+	bSucces est un booléen = Désérialise(nCible, bufferObjet, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation best-effort")
+	dbgVérifieEgalité(nCible, 0, "coercion impossible vers entier, reste 0")
+FIN
+
+
+// ============================================================================
+// PROCEDURES PRIVEES — edge cases techniques
+// ============================================================================
+
+// Désérialiser un JSON null dans une chaîne : la chaîne devient vide.
+PROCEDURE PRIVÉE scenario_edge_json_null()
+	sCible est une chaîne = "initial"
+	bufferNull est une chaîne = "null"
+
+	bSucces est un booléen = Désérialise(sCible, bufferNull, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "null JSON accepté")
+	dbgVérifieEgalité(sCible, "", "null vers chaîne vide")
+FIN
+
+
+// Accents et caractères UTF-8 multibytes dans les chaînes JSON sont préservés
+// par le cycle sérialise-désérialise.
+PROCEDURE PRIVÉE scenario_edge_utf8_multibytes()
+	sOriginal est une chaîne = "Café crème 🦉 東京"
+	bufferJSON est une chaîne = ""
+	Sérialise(sOriginal, bufferJSON, psdMinifie)
+
+	sRestitue est une chaîne = ""
+	bSucces est un booléen = Désérialise(sRestitue, bufferJSON, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "désérialisation UTF-8 réussit")
+	dbgVérifieEgalité(sRestitue, "Café crème 🦉 東京", "UTF-8 multibytes préservé")
+FIN
+
+
+// Buffer avec espaces superflus avant/après le JSON valide : la désérialisation
+// réussit, le parseur JSON tolère les whitespaces.
+PROCEDURE PRIVÉE scenario_edge_whitespace_around()
+	nCible est un entier = 0
+	bufferAvecSpaces est une chaîne = "   42   "
+
+	bSucces est un booléen = Désérialise(nCible, bufferAvecSpaces, psdMinifie)
+
+	dbgVérifieEgalité(bSucces, Vrai, "whitespaces autour tolérés")
+	dbgVérifieEgalité(nCible, 42, "valeur extraite correctement")
+FIN

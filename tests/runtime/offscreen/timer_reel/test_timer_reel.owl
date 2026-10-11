@@ -1,0 +1,47 @@
+//  — Timer + Temporise en mode non-headless : cycle ouverture/fermeture
+//
+// VERT ATTENDU : sur Windows, owl_ui_wait_ms(ms, pump_events=1) cree un
+// QEventLoop local qui pompe les ticks QTimer. Cette feature est deja
+// fonctionnelle ( + stdlib_runtime.c). Ce test documente le
+// comportement et le protege en regression :
+//   - Timer 50ms tire au moins 1 fois pendant Temporise(20) (200ms).
+//   - Apres Ferme, aucun tic supplementaire (QTimer parentage correct).
+//   - Cycle 2 : re-ouverture propre, nouveau timer OK.
+//
+// NOTE  : sur Linux sans display, QT_QPA_PLATFORM=offscreen doit
+// etre arme par le runner avant que owl_ui_init() cree la QApplication.
+// Ce point ne peut pas etre teste en code OWL — c'est une config runner.
+// Sera valide en CI Linux par  (cf section 1 du DESIGN SCELLE).
+
+TestModeHeadless(Faux)
+
+nTicsCapture est un entier = 0
+
+PROCEDURE callback_tic(n est un entier)
+	nTicsCapture = n
+FIN
+
+// --- Cycle 1 : ouvre, attend, ferme ---
+OuvreSoeur(FEN_TimerReel)
+Temporise(20)
+nApremier est un entier = nTicsCapture
+dbgVérifieVrai(nApremier >= 1, "cycle 1 : Timer 50ms + Temporise(20) -> au moins 1 tic")
+
+ArretTimer()
+Ferme(FEN_TimerReel)
+
+// --- Verification qu'aucun timer zombie ne tire apres Ferme ---
+nAvantReouv est un entier = nTicsCapture
+Temporise(10)
+dbgVérifieEgalité(nTicsCapture, nAvantReouv, "apres Ferme : aucun tic supplementaire (pas de timer zombie)")
+
+// --- Cycle 2 : re-ouvre, re-arme, verifie que le nouveau timer tire ---
+nTicsCapture = 0
+OuvreSoeur(FEN_TimerReel)
+Temporise(20)
+dbgVérifieVrai(nTicsCapture >= 1, "cycle 2 : re-ouverture OK, nouveau timer tire correctement")
+
+ArretTimer()
+Ferme(FEN_TimerReel)
+
+dbgBilanTest()

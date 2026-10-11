@@ -1,0 +1,25 @@
+//  — non-régression du Champ Image après ajout de la prop Style :
+//   1. Les propriétés top-level pré-existantes (CouleurFond, Cadrage)
+//      continuent de fonctionner sans Style du tout.
+//   2. Un Champ Image avec SEULEMENT Style..CadreExtérieur stylé ne casse pas
+//      (round-trip sur l'instance).
+//
+// ROUGE attendu : `Style..CadreExtérieur..CouleurFond` ne compile pas
+// encore sur le Champ Image (la prop 'Style' n'existe pas). Cf.
+// FEN_ImageStyleDefaut.owl.
+
+Ouvre(FEN_ImageStyleDefaut)
+
+// --- Non-régression : props top-level pré-existantes (avant ce ticket) ---
+dbgVérifieEgalité(IMG_SansStyle..CouleurFond, RVB(50, 50, 50),
+"non-régression : CouleurFond direct du Champ Image reste lisible sans Style")
+
+dbgVérifieEgalité(IMG_SansStyle..Cadrage, cadHomothetique,
+"non-régression : Cadrage (mode d'échelle top-level) reste lisible sans Style")
+
+// --- Style..CadreExtérieur seul, round-trip sur l'instance ---
+dbgVérifieEgalité(IMG_CadreSeul..Style..CadreExtérieur..CouleurFond, GrisClair,
+"IMG_CadreSeul..Style..CadreExtérieur..CouleurFond lu depuis l'instance")
+
+Ferme(FEN_ImageStyleDefaut)
+dbgBilanTest()

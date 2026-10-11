@@ -1,0 +1,25 @@
+// =====================================================================
+//  : alias EN du teardown -- si Fermeture() n'est PAS definie mais
+// Closing() l'est, c'est Closing qui est appele en teardown.
+//
+// Main() n'est PLUS jamais auto-appelee (fin du dispatch cache) : le
+// top-level EST le programme. Seul le teardown Closing/Fermeture subsiste.
+// =====================================================================
+
+trace est une chaîne = "[top]"
+
+// Main() est definie mais NE doit PAS etre appelee : si elle l'etait,
+// "[main]" apparaitrait et l'egalite ci-dessous echouerait.
+PROCEDURE Main()
+	trace += "[main]"
+FIN
+
+// Pas de Fermeture() declaree -- Closing() fait office de teardown.
+PROCEDURE Closing()
+	trace += "[closing]"
+	// Main n'a PAS tourne -> trace = "[top][closing]"
+	dbgVérifieEgalité(trace, "[top][closing]",
+	"Closing() teardown apres le top-level, Main jamais appelee")
+FIN
+
+dbgBilanTest()

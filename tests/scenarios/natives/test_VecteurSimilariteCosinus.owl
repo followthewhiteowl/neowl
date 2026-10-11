@@ -1,0 +1,91 @@
+// @sujet : VecteurSimilaritéCosinus
+// @résumé : Similarité cosinus entre deux Vecteur — cosinus de l'angle qui les sépare, disponible en native préfixée et en méthode fluente, avec forme anglaise et refus du vecteur nul.
+
+
+// Deux Vecteur colinéaires (même direction) ont une similarité cosinus de
+// 1.0.
+PROCEDURE PUBLIQUE scenario_vecteurs_colineaires()
+	v est un Vecteur = [2.0, 0.0]
+	w est un Vecteur = [4.0, 0.0]
+	nSimilarité est un réel = VecteurSimilaritéCosinus(v, w)
+	dbgVérifieVrai(Abs(nSimilarité - 1.0) < 0.0001, "Vecteurs colinéaires même sens -> similarité cosinus 1.0")
+FIN
+
+
+// Deux Vecteur orthogonaux ont une similarité cosinus de 0.0.
+PROCEDURE PUBLIQUE scenario_vecteurs_orthogonaux()
+	v est un Vecteur = [1.0, 0.0]
+	w est un Vecteur = [0.0, 1.0]
+	nSimilarité est un réel = VecteurSimilaritéCosinus(v, w)
+	dbgVérifieVrai(Abs(nSimilarité - 0.0) < 0.0001, "Vecteurs orthogonaux -> similarité cosinus 0.0")
+FIN
+
+
+// Deux Vecteur opposés (même direction, sens contraire) ont une similarité
+// cosinus de -1.0.
+PROCEDURE PUBLIQUE scenario_vecteurs_opposes()
+	v est un Vecteur = [1.0, 0.0]
+	w est un Vecteur = [-1.0, 0.0]
+	nSimilarité est un réel = VecteurSimilaritéCosinus(v, w)
+	dbgVérifieVrai(Abs(nSimilarité - (-1.0)) < 0.0001, "Vecteurs opposés -> similarité cosinus -1.0")
+FIN
+
+
+// La méthode fluente .SimilaritéCosinus() produit exactement le même
+// résultat que la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [2.0, 0.0]
+	w est un Vecteur = [4.0, 0.0]
+	nViaFluent est un réel = v.SimilaritéCosinus(w)
+	nViaNatif est un réel = VecteurSimilaritéCosinus(v, w)
+	dbgVérifieVrai(Abs(nViaFluent - nViaNatif) < 0.0001, "v.SimilaritéCosinus(w) == VecteurSimilaritéCosinus(v, w)")
+FIN
+
+
+// La forme anglaise VectorCosineSimilarity / .CosineSimilarity désigne la
+// même opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	v est un Vecteur = [2.0, 0.0]
+	w est un Vecteur = [4.0, 0.0]
+	nNatifEN est un réel = VectorCosineSimilarity(v, w)
+	nFluentEN est un réel = v.CosineSimilarity(w)
+	dbgVérifieVrai(Abs(nNatifEN - 1.0) < 0.0001, "VectorCosineSimilarity(v, w) = 1.0")
+	dbgVérifieVrai(Abs(nFluentEN - 1.0) < 0.0001, "v.CosineSimilarity(w) = 1.0")
+FIN
+
+
+// La similarité cosinus n'est pas définie quand l'un des deux Vecteur est
+// nul (magnitude 0) : exception récupérable, jamais un NaN silencieux.
+PROCEDURE PRIVÉE scenario_edge_vecteur_nul_leve_exception()
+	v est un Vecteur = [1.0, 0.0]
+	vNul est un Vecteur = [0.0, 0.0]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = VecteurSimilaritéCosinus(v, vNul)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Similarité cosinus avec un Vecteur nul est attrapée, jamais NaN")
+FIN
+
+
+// Des Vecteur de tailles différentes ne peuvent pas être combinés : la
+// similarité cosinus lève l'exception dédiée, pas un calcul tronqué.
+PROCEDURE PRIVÉE scenario_edge_tailles_incompatibles()
+	vCourt est un Vecteur = [1.0, 2.0]
+	vLong est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = VecteurSimilaritéCosinus(vCourt, vLong)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg    = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Tailles différentes attrapées")
+	dbgVérifieVrai(Contient(sMsg, "incompatibles"), "message dédié tailles incompatibles")
+FIN

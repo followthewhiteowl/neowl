@@ -1,0 +1,60 @@
+//  (LOT 4) — opacité sur `Style..CadreExtérieur..CouleurFond` d'un
+// Champ Image. Trou d'ingestion connu (mesuré aux lots 1-3, mêmes sites
+// `instance_get_int`) : `stdlib_ui.c` lit CouleurFond du CadreExtérieur d'un
+// Champ Image via `instance_get_int(cadreExt, "CouleurFond", -1)`, qui rend
+// -1 (« non posé ») sur une instance Couleur -> le fond translucide est
+// totalement ignoré (widget transparent, backdrop rouge nu visible) au lieu
+// du mélange attendu.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Cf. FEN_CouleurAlphaImage.owl.
+//
+// Fond de fenêtre ROUGE PUR (255,0,0). Couleur testée : VERT translucide,
+// Opacité=128 -> {Rouge=0, Vert=255, Bleu=0, Opacité=128}.
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg=VERT (0,255,0), bg=ROUGE (255,0,0), a=128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire (calcul
+// exact, sans arrondi).
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertMelange est un entier = RVB(127, 128, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CouleurAlphaImage)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaImage)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Non-régression : témoin opaque (IMG_Opaque, X=20..420, Y=20..80) ---
+nbOpaque est un entier = CompteCouleurZone(img, 20, 20, 420, 80, vertOpaque)
+dbgVérifieVrai(nbOpaque > 5000,
+"IMG_Opaque : Style..CadreExtérieur..CouleurFond = RVB(0,255,0) (entier nu opaque) : fond vert plein, non-régression")
+
+// --- 2. Alpha (IMG_Alpha, X=20..420, Y=100..160) : mélange attendu ---------
+nbAlpha est un entier = CompteCouleurZone(img, 20, 100, 420, 160, vertMelange)
+dbgVérifieVrai(nbAlpha > 5000,
+"IMG_Alpha : Style..CadreExtérieur..CouleurFond = <Couleur Opacité=128> : fond mélangé 50/50 avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaImage)
+dbgBilanTest()

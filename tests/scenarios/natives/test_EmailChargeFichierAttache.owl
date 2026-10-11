@@ -1,0 +1,40 @@
+// @sujet : EmailChargeFichierAttaché
+// @résumé : Charge un fichier local en pièce jointe d'un Email : ajoute une emailAttache
+// avec Contenu et Nom renseignés. Couvre le chemin d'échec (fichier absent) et le
+// chemin de réussite (fichier temporaire réel).
+
+
+// Cas A : chemin inexistant — la native échoue proprement, sans ajouter de pièce
+// jointe et sans planter.
+PROCEDURE PUBLIQUE scenario_ecfa_fichier_absent()
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+
+	ok est un booléen = EmailChargeFichierAttaché(e, fRepTemp() + "\_2084_inexistant_9f3k2.dat")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieFaux(ok, "EmailChargeFichierAttaché renvoie Faux sur un chemin inexistant")
+	dbgVérifieVrai(bErreur, "une erreur est détectée sur un chemin inexistant")
+	dbgVérifieEgalité(Taille(e..Attache), 0, "aucune pièce jointe n'est ajoutée en cas d'échec")
+FIN
+
+
+// Cas B : fichier réellement présent sur disque — une emailAttache est ajoutée à
+// e..Attache, avec un contenu non vide et le nom du fichier chargé.
+PROCEDURE PUBLIQUE scenario_ecfa_fichier_existant()
+	chemin est une chaîne = fRepTemp() + "\_2084_attache_ok.txt"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "contenu de la pièce jointe de test")
+
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+
+	ok est un booléen = EmailChargeFichierAttaché(e, chemin)
+	dbgVérifieVrai(ok, "EmailChargeFichierAttaché renvoie Vrai sur un fichier existant")
+	dbgVérifieEgalité(Taille(e..Attache), 1, "une pièce jointe est ajoutée")
+	dbgVérifieVrai(Taille(e..Attache[1]..Contenu) > 0, "le contenu de la pièce jointe n'est pas vide")
+	dbgVérifieEgalité(e..Attache[1]..Nom, "_2084_attache_ok.txt", "le nom de la pièce jointe correspond au nom de fichier")
+
+	fSupprime(chemin)
+FIN

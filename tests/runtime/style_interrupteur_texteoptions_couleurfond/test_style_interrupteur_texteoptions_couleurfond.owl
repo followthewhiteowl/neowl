@@ -1,0 +1,27 @@
+//  — `Style..TexteOptions..CouleurFond` (fond du texte des cases)
+// doit se retrouver dans la feuille QSS appliquee au QCheckBox, exactement
+// comme `Style..TexteOptions..Couleur` (couleur du texte, deja cablee).
+// Verification structurelle via __DebugFeuilleStyle, meme patron que
+// test_style_interrupteur_cadre_coche_qss.owl.
+//
+// La 1re assertion (Couleur texte) prouve que la voie __DebugFeuilleStyle
+// + QCheckBox { ... } est la bonne (elle doit passer VERTE).
+// La 2e assertion (CouleurFond texte) est ROUGE attendue : le champ
+// txt_bg n'existe pas dans OwlInterrupteurStyleSpec (src/owl_ui.h) et
+// n'est jamais applique dans owl_ui_interrupteur_set_style (src/ui_qt.cpp)
+// -- seul txt_fg (Couleur) est cable aujourd'hui.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleInterrupteurTexteOptionsCouleurFond)
+
+feuille est une chaîne = __DebugFeuilleStyle(INT_TexteFond)
+
+dbgVérifieVrai(Contient(feuille, "QCheckBox"), "Style..TexteOptions : la feuille QSS cible bien QCheckBox")
+
+dbgVérifieVrai(Contient(feuille, "255, 0, 0") OU Contient(feuille, "#ff0000"), "Style..TexteOptions..Couleur : couleur du texte des cases presente dans la feuille (voie de test confirmee)")
+
+dbgVérifieVrai(Contient(feuille, "0, 200, 0") OU Contient(feuille, "#00c800"), "Style..TexteOptions..CouleurFond : fond du texte des cases present dans la feuille")
+
+Ferme(FEN_StyleInterrupteurTexteOptionsCouleurFond)
+dbgBilanTest()

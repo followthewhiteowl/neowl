@@ -1,0 +1,55 @@
+// Digue anti-UAF sur le jeu de résultats DuckDB (en mémoire).
+//
+// Motif distinct de la fenêtre inter-opérandes : la couche query DuckDB
+// matérialise les valeurs `Obj` de chaque ligne dans une structure C puis les
+// dépile de la pile VM avant de matérialiser la ligne suivante. Les Obj de la
+// ligne i restent alors des pointeurs C non enracinés. L'allocation d'une chaîne
+// pour la ligne i+1 (puis, en aval, la construction du tableau associatif de
+// rendu) déclenche un GC (déterministe sous OWL_STRESS_GC) qui collecte les
+// valeurs des lignes ≤ i ; sous OWL_GC_POISON la mémoire libérée est écrite
+// 0xDD. Signature « seule la dernière ligne survit » : les lignes du début et
+// du milieu rendent une chaîne vide (Taille 0), la dernière reste intacte.
+//
+// Précautions qui rendent le défaut OBSERVABLE (sinon masqué par la rétention
+// de chaînes du harnais) :
+//  1. les valeurs sont LUES DU MOTEUR (md5 calculé côté DuckDB), jamais des
+//     littéraux OWL : un littéral serait interné en constante compile-time et
+//     enracinerait la chaîne ;
+//  2. chaque ligne calcule une valeur DISTINCTE (md5 d'un entier différent) —
+//     jamais internée auparavant — donc chaque ligne force une allocation, donc
+//     un GC dans la fenêtre non enracinée ;
+//  3. ~60 lignes : la pression garantit que la collecte frappe les lignes déjà
+//     matérialisées avant leur rendu.
+//
+// Sans le rooting incrémental : lignes du début/milieu rendent "" (Taille 0)
+// -> assertions rouges. Avec : toutes les lignes survivent -> Taille 32.
+
+PROCEDURE PUBLIQUE scenario_lignes_duckdb_sous_pression_gc()
+    cnx est une sqlConnexion
+    cnx..Provider = sqlDuckDB
+    cnx..Source   = ":memory:"
+    SQLConnexionOuvre(cnx)
+    dbgVérifieVrai(ErreurDétectée = Faux, "SQLConnexionOuvre DuckDB :memory: sans erreur")
+
+    // md5(...) rend 32 caractères hexadécimaux par ligne, calculés au runtime.
+    // range(1,60) génère 1..59 = 59 lignes.
+    reqSel est une sqlRequête
+    reqSel..Code = "SELECT md5(CAST(i AS VARCHAR)) AS h FROM range(1,60) t(i) ORDER BY i"
+    rep est une sqlRéponse = SQLEnvoie(cnx, reqSel)
+    dbgVérifieEgalité(rep..Succès, Vrai, "SELECT md5 réussit")
+    dbgVérifieEgalité(rep..Occurrence, 59, "59 lignes rendues")
+
+    // Chaque ligne doit rendre son empreinte intacte (32 hex). Une ligne
+    // collectée rendrait "" -> Taille 0. Balaye TOUTES les lignes : sans le fix,
+    // seules les dernières survivent, les premières cassent.
+    i est un entier
+    POUR i = 1 A 59
+        dbgVérifieEgalité(Taille(rep..Lignes[i]["h"]), 32, "ligne intacte (empreinte 32 hex)")
+    FIN
+
+    // Valeur EXACTE : md5("1") est une constante connue. La première ligne est
+    // la plus exposée à la collecte upstream.
+    dbgVérifieEgalité(rep..Lignes[1]["h"], "c4ca4238a0b923820dcc509a6f75849b", `ligne 1 = md5("1") exact`)
+
+    SQLConnexionFerme(cnx)
+FIN

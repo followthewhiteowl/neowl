@@ -1,0 +1,89 @@
+// @sujet : DateHeureVersEpoch
+// @resume : Convertit une dateheure en timestamp Unix (secondes depuis 1970-01-01 00:00:00 UTC)
+
+PROCEDURE PUBLIQUE scenario_conversion_standard()
+	// Conversion d'une dateheure standard en epoch
+	dh est une dateheure = "202001011200"
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 1577876400, "2020-01-01 12:00 UTC -> epoch valide")
+
+	// Conversion d'une date recente
+	dh    = "202606051430"
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 1780662600, "2026-06-05 14:30 UTC -> epoch valide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_limite_basse_1970()
+	// OWL accepte les epochs negatifs (dates avant 1970-01-01 00:00:00 UTC)
+	dh est une dateheure = "196912311200"
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieVrai(epoch < 0, "Date avant 1970 -> epoch negatif valide")
+
+	// Franchissement de la limite epoch. NB : DateHeureVersEpoch interprete son
+	// entree en heure LOCALE -> la valeur absolue depend du fuseau du poste. On
+	// teste des DELTAS (l'offset local s'annule dans la soustraction), pas un
+	// litteral poste-dependant.
+	deltaVersEpoch est un entier = DateHeureVersEpoch("197001010000") - DateHeureVersEpoch("196912311200")
+	dbgVérifieEgalité(deltaVersEpoch, 43200, "1969-12-31 12:00 -> 1970-01-01 00:00 = 12 h")
+
+	// Une minute apres 1970-01-01 00:00 = +60 s
+	deltaUneMinute est un entier = DateHeureVersEpoch("197001010001") - DateHeureVersEpoch("197001010000")
+	dbgVérifieEgalité(deltaUneMinute, 60, "1970-01-01 00:01 - 00:00 = 60 secondes")
+FIN
+
+PROCEDURE PUBLIQUE scenario_limite_haute_2038()
+	// OWL accepte les dates au-dela de la limite INT32 Unix (2038-01-19 03:14:07)
+	dh est une dateheure = "203001011200"
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 1893495600, "2030-01-01 12:00 UTC -> epoch valide")
+
+	// Date proche limite 2038
+	dh    = "203701011200"
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 2114420400, "2037-01-01 12:00 UTC -> epoch valide")
+
+	// Date au-dela de 2038 reste valide en OWL (pas de limite INT32)
+	dh    = "203801191412"
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieVrai(epoch > 2147483647, "Date apres 2038 -> epoch depasse INT32_MAX")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dates_rondes()
+	// Conversion de dates rondes faciles a verifier
+	dh est une dateheure = "200001011200"
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 946724400, "2000-01-01 12:00 UTC -> epoch Y2K")
+
+	// Verification de l'unite : secondes, pas millisecondes
+	dh    = "197201011200"
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 63111600, "1972-01-01 12:00 UTC -> epoch en secondes")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_dateheure_invalide()
+	// Dateheure invalide retourne le sentinel -1.
+	// Note : l'epoch 0 legitime (1970-01-01 00:00 UTC) reste preserve,
+	// voir scenario_limite_basse_1970.
+	sBad est une chaîne = "000000000000"
+	dh est une dateheure = sBad
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch,-1, "Dateheure invalide -> sentinel -1")
+
+	// Dateheure mal formee retourne le sentinel -1
+	sBad2 est une chaîne = "999999999999"
+	dh    = sBad2
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch,-1, "Dateheure hors bornes -> sentinel -1")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_transitions_annees()
+	// Transitions d'annees bissextiles et standard
+	dh est une dateheure = "200002291200"
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 951822000, "2000-02-29 12:00 annee bissextile -> epoch valide")
+
+	// Annee non bissextile
+	dh    = "199902281200"
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 920199600, "1999-02-28 12:00 derniere jour fevrier -> epoch valide")
+FIN

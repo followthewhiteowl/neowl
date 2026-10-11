@@ -1,0 +1,88 @@
+// ============================================
+// TEST: Contient avec options MotComplet / SansCasse
+// Couvre les 2 formes (sous-chaine + tableau) x 4 combinaisons d'options.
+// En forme 2 (tableau), l'option est globale et s'applique a toutes les
+// chaines candidates de la recherche.
+// ============================================
+Trace("=== CONTIENT OPTIONS ===")
+
+// ----------------------------------------------------------
+// Forme 1 : Contient(s, sous-chaine [, options])
+// ----------------------------------------------------------
+
+// --- Defaut (aucune option) : sensible a la casse, substring brute ---
+dbgVérifieVrai(Contient("Bonjour le monde", "Bonjour"),
+"F1 defaut : substring presente respectant casse")
+dbgVérifieVrai(PAS Contient("Bonjour le monde", "BONJOUR"),
+"F1 defaut : casse respectee, BONJOUR absent")
+dbgVérifieVrai(Contient("Bonjour le monde", "jour"),
+"F1 defaut : substring en milieu de mot OK")
+
+// --- SansCasse ---
+dbgVérifieVrai(Contient("Bonjour le monde", "BONJOUR", SansCasse),
+"F1 SansCasse : BONJOUR trouve dans Bonjour")
+dbgVérifieVrai(Contient("Bonjour le monde", "MONDE", SansCasse),
+"F1 SansCasse : MONDE trouve dans monde")
+dbgVérifieVrai(PAS Contient("Bonjour le monde", "absent", SansCasse),
+"F1 SansCasse : absent reste absent")
+
+// --- MotComplet ---
+dbgVérifieVrai(PAS Contient("Bonjour le monde", "jour", MotComplet),
+"F1 MotComplet : jour est substring mais pas mot entier")
+dbgVérifieVrai(Contient("Hello world", "world", MotComplet),
+"F1 MotComplet : world entoure de bordures = mot complet")
+dbgVérifieVrai(Contient("Hello world", "Hello", MotComplet),
+"F1 MotComplet : Hello en debut = mot complet")
+dbgVérifieVrai(PAS Contient("Hello world", "World", MotComplet),
+"F1 MotComplet seul : casse respectee (World != world)")
+
+// --- MotComplet + SansCasse ---
+dbgVérifieVrai(Contient("Hello world", "World", MotComplet + SansCasse),
+"F1 MotComplet+SansCasse : World matche world entier")
+dbgVérifieVrai(PAS Contient("Bonjour le monde", "JOUR", MotComplet + SansCasse),
+"F1 MotComplet+SansCasse : JOUR n'est pas mot entier (substring de Bonjour)")
+dbgVérifieVrai(Contient("Bonjour le monde", "LE", MotComplet + SansCasse),
+"F1 MotComplet+SansCasse : LE matche le en mot entier")
+
+// ----------------------------------------------------------
+// Forme 2 : Contient(s, tableau [, options])
+// Option globale appliquee a toutes les chaines du tableau.
+// ----------------------------------------------------------
+
+tabMots est un tableau de chaînes = ["JOUR", "MONDE"]
+
+// --- Defaut : aucune option, casse stricte ---
+dbgVérifieVrai(PAS Contient("Bonjour le monde", tabMots),
+"F2 defaut : JOUR/MONDE absent en casse stricte")
+
+tabMotsCase est un tableau de chaînes = ["jour", "monde"]
+dbgVérifieVrai(Contient("Bonjour le monde", tabMotsCase),
+"F2 defaut : jour present (substring de Bonjour)")
+
+// --- SansCasse ---
+dbgVérifieVrai(Contient("Bonjour le monde", tabMots, SansCasse),
+"F2 SansCasse : JOUR matche jour (dans Bonjour)")
+
+tabAbsent est un tableau de chaînes = ["xyz", "absent"]
+dbgVérifieVrai(PAS Contient("Bonjour le monde", tabAbsent, SansCasse),
+"F2 SansCasse : aucun candidat present")
+
+// --- MotComplet ---
+tabMotEntier est un tableau de chaînes = ["jour", "monde"]
+dbgVérifieVrai(Contient("Bonjour le monde", tabMotEntier, MotComplet),
+"F2 MotComplet : monde est mot entier (jour ne l'est pas, mais monde oui)")
+
+tabPasMotEntier est un tableau de chaînes = ["jour", "Bon"]
+dbgVérifieVrai(PAS Contient("Bonjour le monde", tabPasMotEntier, MotComplet),
+"F2 MotComplet : ni jour ni Bon ne sont des mots entiers")
+
+// --- MotComplet + SansCasse ---
+tabMixte est un tableau de chaînes = ["MONDE", "JOUR"]
+dbgVérifieVrai(Contient("Bonjour le monde", tabMixte, MotComplet + SansCasse),
+"F2 MotComplet+SansCasse : MONDE matche monde en mot entier")
+
+tabAucun est un tableau de chaînes = ["JOUR", "BON"]
+dbgVérifieVrai(PAS Contient("Bonjour le monde", tabAucun, MotComplet + SansCasse),
+"F2 MotComplet+SansCasse : aucun n'est mot entier (substrings de Bonjour)")
+
+dbgBilanTest()

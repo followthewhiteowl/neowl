@@ -1,0 +1,111 @@
+//  — DonneFocus differe + Ferme immediat : use-after-free cross-test
+//
+// REPRO du bug latent  :
+//   DonneFocus(SAI_2) pose un QTimer::singleShot(0, wdg, ...) en mode GUI.
+//   Si Ferme() est appele AVANT que le timer echoie (avant le prochain pump),
+//   le widget Qt est cache/en cours de destruction, mais le timer survive
+//   (la garde "wdg comme contexte" annule le timer si le widget EST detruit ;
+//   or owl_ui_window_close ne fait qu'un hide, pas un delete immediat ->
+//   le timer reste en vol). Quand il tire pendant un pump ulterieur (OuvreSoeur
+//   suivant), il appelle setFocus sur un widget potentiellement detruit OU
+//   fait tirer FocusOut->surSortie sur un binding OWL perime -> use-after-free.
+//
+// Structure du test :
+//   Scenario 1 (coupable) : OuvreSoeur + DonneFocus + Ferme immediat
+//     -> le QTimer 0ms est en vol au moment de Ferme.
+//   Scenario 2 (victime) : OuvreSoeur -> pompe (Temporise(0)) -> le timer
+//     perime du scenario 1 tire pendant le pump -> UAF/crash.
+//
+// ROUGE ATTENDU : crash/abort pendant ou apres Temporise(0) du scenario 2.
+// La manifestation exacte depend du compilateur/sanitizer :
+//   - avec ASAN : abort sur heap-use-after-free
+//   - sans ASAN : crash aleatoire, ou corruption silencieuse (compteurs faux)
+//   - Minimum detectable : nSortie1_obs ou nSortie2_obs monte a 1 apres
+//     Temporise(0) du scenario 2, alors qu'aucune transition focus n'a eu
+//     lieu dans ce scenario -> binding perime a tire.
+//
+// VERT ATTENDU apres fix : Temporise(0) du scenario 2 ne tire aucun
+// event residuel (timer drain au teardown de Ferme), compteurs restent
+// exactement a l'etat de l'ouverture de la 2eme instance.
+
+TestModeHeadless(Faux)
+
+nEntree1_obs est un entier = 0
+nEntree2_obs est un entier = 0
+nSortie1_obs est un entier = 0
+nSortie2_obs est un entier = 0
+
+PROCEDURE callback_uaf_entrees(n1 est un entier, n2 est un entier)
+	nEntree1_obs = n1
+	nEntree2_obs = n2
+FIN
+
+PROCEDURE callback_uaf_sorties(s1 est un entier, s2 est un entier)
+	nSortie1_obs = s1
+	nSortie2_obs = s2
+FIN
+
+// ===== Scenario 1 : COUPABLE =====
+// OuvreSoeur -> auto-focus SAI_1 -> DonneFocus(SAI_2) pose QTimer 0ms
+// -> Ferme() IMMEDIAT (avant que le timer echoie via pump).
+// A la sortie de Ferme(), le QTimer est encore en vol.
+
+OuvreSoeur(FEN_FocusFerme)
+
+// Focus initial auto sur SAI_1 : surEntree SAI_1 = 1.
+LireEntrees()
+dbgVérifieEgalité(nEntree1_obs, 1, "scenario 1 : focus initial auto SAI_1 = 1")
+dbgVérifieEgalité(nEntree2_obs, 0, "scenario 1 : SAI_2 n'a pas le focus a l'ouverture")
+
+// DonneFocus(SAI_2) : pose un QTimer::singleShot(0, wdg2, ...) en mode GUI.
+// Le timer N'A PAS ENCORE TIRE (pas de pump entre DonneFocus et Ferme).
+DonneFocus(SAI_2)
+
+// Ferme() IMMEDIAT : demonte la fenetre avant que le QTimer echoie.
+// owl_ui_window_close = mw->close() = hide, pas delete immediat.
+// Le QTimer est encore en vol avec wdg2 comme contexte.
+Ferme(FEN_FocusFerme)
+
+// ===== Scenario 2 : VICTIME =====
+// Une nouvelle instance de FEN_FocusFerme est ouverte.
+// Quand Temporise(0) pompe la boucle Qt, le QTimer perime du scenario 1
+// peut tirer, dispatche FocusOut->surSortie sur le binding OWL de
+// l'instance 1 (deja demontee) -> use-after-free.
+
+// Reset des compteurs observes (nouvelle instance, compteurs internes = 0).
+nEntree1_obs = 0
+nEntree2_obs = 0
+nSortie1_obs = 0
+nSortie2_obs = 0
+
+OuvreSoeur(FEN_FocusFerme)
+
+// Focus initial auto sur SAI_1 de la nouvelle instance.
+LireEntrees()
+dbgVérifieEgalité(nEntree1_obs, 1, "scenario 2 : focus initial auto SAI_1 = 1 (nouvelle instance)")
+dbgVérifieEgalité(nEntree2_obs, 0, "scenario 2 : SAI_2 n'a pas encore le focus")
+LireSorties()
+dbgVérifieEgalité(nSortie1_obs, 0, "scenario 2 avant pump : surSortie SAI_1 = 0 (aucune transition)")
+dbgVérifieEgalité(nSortie2_obs, 0, "scenario 2 avant pump : surSortie SAI_2 = 0 (aucune transition)")
+
+// Temporise(0) pompe la boucle Qt (processEvents).
+// BUG : le QTimer en vol du scenario 1 tire ici -> binding perime -> UAF.
+// VERT apres fix : le timer a ete drain/annule au teardown du scenario 1,
+// aucun event residuel ne tire ici.
+Temporise(0)
+
+// Verification de contamination : si un binding perime a tire, les compteurs
+// sorties montent alors qu'aucune transition n'a eu lieu dans ce scenario.
+LireSorties()
+dbgVérifieEgalité(nSortie1_obs, 0, "scenario 2 apres pump : surSortie SAI_1 = 0 (aucun timer perime ne doit avoir tire)")
+dbgVérifieEgalité(nSortie2_obs, 0, "scenario 2 apres pump : surSortie SAI_2 = 0 (aucun timer perime ne doit avoir tire)")
+
+// Les entrees ne doivent pas non plus avoir mute (timer perime ne doit pas
+// declencher de surEntree parasite sur la nouvelle instance).
+LireEntrees()
+dbgVérifieEgalité(nEntree1_obs, 1, "scenario 2 apres pump : surEntree SAI_1 reste 1 (pas de fire parasite)")
+dbgVérifieEgalité(nEntree2_obs, 0, "scenario 2 apres pump : surEntree SAI_2 reste 0")
+
+Ferme(FEN_FocusFerme)
+
+dbgBilanTest()

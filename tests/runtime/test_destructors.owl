@@ -1,0 +1,33 @@
+// Destructeurs — couverture PROCEDURE Destructeur() inline.
+// La syntaxe tilde (~cName()) est couverte par test_destructors_tilde.owl
+// (regle OWL 1 classe = 1 fichier impose de splitter par classe).
+// La branche "Liberer sur objet sans destructeur" est dans
+// test_destructors_sans.owl (structure, pas de classe).
+//
+// Note de design : un fichier classe ne peut pas declarer de variable
+// globale runtime au top-level. La verification "le destructeur a bien
+// ete invoque" passe donc par une assertion executee a l'INTERIEUR du
+// destructeur (si le compteur d'assertions passe progresse, c'est que
+// le destructeur a tourne).
+
+cRessource est une Classe
+PUBLIC
+	sNom est une chaîne
+
+	PROCEDURE Constructeur(sNom est une chaîne)
+		:sNom = sNom
+	FIN
+
+	PROCEDURE Destructeur()
+		dbgVérifieEgalité(:sNom, "Fichier1", "Destructeur cRessource invoque pour " + :sNom)
+		Trace("Destructeur: " + :sNom)
+	FIN
+FIN
+
+PROCEDURE scenario_destructeur_classique()
+	oRes est un cRessource("Fichier1")
+	dbgVérifieEgalité(oRes.sNom, "Fichier1", "Ressource creee")
+	Libérer oRes
+	// L'assertion "Destructeur cRessource invoque pour Fichier1" tourne
+	// dans le destructeur ci-dessus.
+FIN

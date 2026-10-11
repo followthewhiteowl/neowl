@@ -1,0 +1,42 @@
+// Témoin isolation : variable de top-level CHAMP invisible au niveau FENÊTRE
+// Attendu (rouge aujourd'hui — fuite globale) :
+// - Une variable du top-level d'un champ (LIB_Compteur::nClics) ne doit PAS être
+//   visible au niveau fenêtre (top-level fenêtre ou procédure fenêtre).
+// - Référencer nClics depuis le top-level fenêtre doit produire une erreur de
+//   compilation "'nClics' : variable inconnue ou inaccessible."
+//
+// Rouge actuel (Lot 1a) : nClics fuite en global → compile OK, pas d'erreur.
+// Vert après Lot 1b : préfixe statique isole nClics → erreur "variable inconnue".
+
+TestModeHeadless(Vrai)
+
+FEN_Test_Isolation_Fenetre est une Fenêtre
+	PROPRIETES
+		Titre       = "Isolation fenêtre"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	// Champ 1 : déclare une variable de top-level
+	LIB_Compteur est un Libellé
+		PROPRIETES
+			X       = 50
+			Y       = 50
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Compteur"
+		FIN
+
+		// TOP-LEVEL CHAMP : variable locale au champ
+		nClics est un entier = 0
+	FIN
+
+	// TOP-LEVEL FENÊTRE : tente de référencer la variable d'un champ
+	// ERREUR ATTENDUE ligne suivante : 'nClics' : variable inconnue ou inaccessible.
+	// La variable nClics appartient au top-level du champ LIB_Compteur, pas à la fenêtre.
+	Trace(nClics)
+FIN
+
+Ouvre(FEN_Test_Isolation_Fenetre)
+Ferme(FEN_Test_Isolation_Fenetre)

@@ -1,0 +1,149 @@
+// Lecture indexée des options de Sélecteur / Interrupteur, avec de VRAIS
+// widgets Qt montés (hors écran). `owl test` tourne en headless par défaut
+// (le widget vaut Null) : ce fichier est le seul de la suite à exercer le
+// chemin GUI de cette lecture.
+//
+// C'est ce chemin qui portait un bug resté invisible faute d'être exercé :
+// les trois getters d'option (Libellé / SousLibellé / ValeurRenvoyée)
+// partageaient un unique tampon statique par champ — lire les trois avant de
+// les consommer rendait un sous-libellé en octets morts. Lire chaque
+// propriété dans une assertion séparée, immédiatement, est donc la forme qui
+// aurait attrapé ce bug : ne pas la remplacer par une lecture groupée.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_Options)
+
+// --- Sélecteur, indice littéral : chaque propriété lue et vérifiée seule ---
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Express",
+"widget réel : Sélecteur, indice littéral, Libellé")
+dbgVérifieEgalité(SEL_Livraison[1]..SousLibellé, "Sous 24h",
+"widget réel : Sélecteur, indice littéral, SousLibellé")
+dbgVérifieEgalité(SEL_Livraison[1]..ValeurRenvoyée, "exp",
+"widget réel : Sélecteur, indice littéral, ValeurRenvoyée")
+
+dbgVérifieEgalité(SEL_Livraison[2]..Libellé, "Standard",
+"widget réel : Sélecteur, option 2, Libellé")
+dbgVérifieEgalité(SEL_Livraison[2]..SousLibellé, "Sous 5 jours",
+"widget réel : Sélecteur, option 2, SousLibellé")
+dbgVérifieEgalité(SEL_Livraison[2]..ValeurRenvoyée, "std",
+"widget réel : Sélecteur, option 2, ValeurRenvoyée")
+
+dbgVérifieEgalité(SEL_Livraison[3]..Libellé, "Eco",
+"widget réel : Sélecteur, option 3, Libellé")
+dbgVérifieEgalité(SEL_Livraison[3]..SousLibellé, "Sous 10 jours",
+"widget réel : Sélecteur, option 3, SousLibellé")
+dbgVérifieEgalité(SEL_Livraison[3]..ValeurRenvoyée, "eco",
+"widget réel : Sélecteur, option 3, ValeurRenvoyée")
+
+// --- Sélecteur, indice VARIABLE ---
+i est un entier = 2
+dbgVérifieEgalité(SEL_Livraison[i]..Libellé, "Standard",
+"widget réel : Sélecteur, indice variable, Libellé")
+dbgVérifieEgalité(SEL_Livraison[i]..SousLibellé, "Sous 5 jours",
+"widget réel : Sélecteur, indice variable, SousLibellé")
+
+// --- Interrupteur, indice littéral et variable ---
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Lecture",
+"widget réel : Interrupteur, indice littéral, Libellé")
+dbgVérifieEgalité(INT_Perms[1]..SousLibellé, "Voir",
+"widget réel : Interrupteur, indice littéral, SousLibellé")
+
+j est un entier = 3
+dbgVérifieEgalité(INT_Perms[j]..Libellé, "Suppression",
+"widget réel : Interrupteur, indice variable, Libellé")
+dbgVérifieEgalité(INT_Perms[j]..SousLibellé, "Effacer",
+"widget réel : Interrupteur, indice variable, SousLibellé")
+
+// --- Hors plage, widget monté : soft error nommée, le programme continue ---
+vOob est une chaîne = SEL_Livraison[9]..Libellé
+bErr est un booléen = ErreurDétectée
+dbgVérifieVrai(bErr,
+"widget réel : indice 9 sur 3 options pose ErreurDetectee")
+dbgVérifieEgalité(vOob, "",
+"widget réel : option hors plage rend un libellé vide")
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 3,
+"widget réel : le compte reste correct après le débordement")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Express",
+"widget réel : la première option reste lisible après le débordement")
+
+// --- Écriture, widget réel : la source de vérité est le WIDGET (le
+// dispatch `on_instance_modified_impl` pousse au widget via
+// `__sel_widget_ptr` / `__int_widget_ptr`). Chaque relecture est
+// INDÉPENDANTE, via l'indexation, jamais via la variable qu'on vient
+// d'écrire — c'est la seule forme qui prouve la propagation réelle. ---
+
+// Sélecteur, Libellé : indice littéral
+SEL_Livraison[1]..Libellé = "Jaune"
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Jaune",
+"widget réel : écriture indice littéral, Libellé relu après écriture")
+
+// Sélecteur, SousLibellé : indice variable
+SEL_Livraison[i]..SousLibellé = "Sous 6h"
+dbgVérifieEgalité(SEL_Livraison[i]..SousLibellé, "Sous 6h",
+"widget réel : écriture indice variable, SousLibellé relu après écriture")
+
+// Sélecteur, ValeurRenvoyée : indice littéral
+SEL_Livraison[3]..ValeurRenvoyée = "eco2"
+dbgVérifieEgalité(SEL_Livraison[3]..ValeurRenvoyée, "eco2",
+"widget réel : écriture indice littéral, ValeurRenvoyée relue après écriture")
+
+// Interrupteur, Libellé : indice littéral
+INT_Perms[1]..Libellé = "Consultation"
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Consultation",
+"widget réel : écriture indice littéral, Libellé relu après écriture (Interrupteur)")
+
+// Interrupteur, SousLibellé : indice variable
+INT_Perms[j]..SousLibellé = "Nettoyer"
+dbgVérifieEgalité(INT_Perms[j]..SousLibellé, "Nettoyer",
+"widget réel : écriture indice variable, SousLibellé relu après écriture (Interrupteur)")
+
+// Le reste des options n'a pas bougé : les écritures ci-dessus sont
+// ciblées, pas un effet de bord sur tout le widget.
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 3,
+"widget réel : le Sélecteur garde ses 3 options après les écritures indexées")
+dbgVérifieEgalité(INT_Perms..Occurrence, 3,
+"widget réel : l'Interrupteur garde ses 3 options après les écritures indexées")
+
+// --- Hors plage en écriture, widget monté : soft-error, le programme
+// continue (symétrique de la lecture). ---
+SEL_Livraison[99]..Libellé = "Improbable"
+bErrWrite est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrWrite,
+"widget réel : indice 99 sur 3 options pose ErreurDetectee en écriture")
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 3,
+"widget réel : le compte reste correct après le débordement en écriture")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Jaune",
+"widget réel : la première option reste lisible après le débordement en écriture")
+
+// --- Affectation runtime `..Options = [{...}]` (littéral struct), widget
+// réel : le SEUL chemin qui exerce la propagation du littéral struct au
+// widget Qt monté (le chemin headless est couvert dans
+// tests/regression/selecteur_interrupteur_options_setter_struct/). Remplace
+// intégralement les 3 options courantes par 2 nouvelles, struct complète. ---
+SEL_Livraison..Options = [{Libellé = "Jaune", SousLibellé = "J", ValeurRenvoyée = "jau"},{Libellé = "Violet", SousLibellé = "V", ValeurRenvoyée = "vio"}]
+
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 2,
+"widget réel : affectation struct complète, remplacement intégral (2, pas 3)")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Jaune",
+"widget réel : struct complète, option 1, Libellé relu")
+dbgVérifieEgalité(SEL_Livraison[1]..SousLibellé, "J",
+"widget réel : struct complète, option 1, SousLibellé relu")
+dbgVérifieEgalité(SEL_Livraison[1]..ValeurRenvoyée, "jau",
+"widget réel : struct complète, option 1, ValeurRenvoyée relue")
+dbgVérifieEgalité(SEL_Livraison[2]..Libellé, "Violet",
+"widget réel : struct complète, option 2, Libellé relu")
+
+// --- Interrupteur, struct, widget réel ---
+INT_Perms..Options = [{Libellé = "Lecture", SousLibellé = "Voir"}]
+
+dbgVérifieEgalité(INT_Perms..Occurrence, 1,
+"widget réel : Interrupteur, affectation struct, remplacement intégral (1, pas 3)")
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Lecture",
+"widget réel : Interrupteur, struct, option 1, Libellé relu")
+dbgVérifieEgalité(INT_Perms[1]..SousLibellé, "Voir",
+"widget réel : Interrupteur, struct, option 1, SousLibellé relu")
+
+Ferme(FEN_Options)
+
+dbgBilanTest()

@@ -1,0 +1,129 @@
+// ================================================================
+// Image natif — Lot I.3c : formes courbes (cercles, arcs, cordes, portions)
+//
+// Quatre fonctions, toutes basées sur le rectangle englobant
+// (x1, y1) = coin haut-gauche, (x2, y2) = coin bas-droit :
+//   - dCercle([img,] x1, y1, x2, y2 [, fond [, trait]])
+//   - dArc([img,] x1, y1, x2, y2, x3, y3, x4, y4 [, couleur [, largeur]])
+//   - dCorde([img,] x1, y1, x2, y2, x3, y3, x4, y4 [, fond [, trait]])
+//   - dPortion([img,] x1, y1, x2, y2, x3, y3, x4, y4 [, fond [, trait]])
+// ================================================================
+
+// ----- dCercle : cercle plein avec contour -----
+img est une Image = dCréeImage(20, 20, Blanc)
+dCercle(img, 4, 4, 14, 14, BleuClair, Noir)
+
+// Centre = (9, 9), rayon = 5 — pixel central est dans le cercle
+dbgVérifieEgalité(dPixelCouleur(img, 9, 9), BleuClair, "dCercle: centre rempli")
+
+// Pixel sur le bord (axe horizontal)
+// Bord gauche du cercle ≈ (4, 9), bord droit ≈ (14, 9)
+dbgVérifieEgalité(dPixelCouleur(img, 4, 9), Noir, "dCercle: bord gauche en trait")
+dbgVérifieEgalité(dPixelCouleur(img, 14, 9), Noir, "dCercle: bord droit en trait")
+
+// Pixel dans le coin du rectangle englobant mais hors cercle → reste Blanc
+dbgVérifieEgalité(dPixelCouleur(img, 4, 4), Blanc,
+"dCercle: coin rectangle hors cercle inchangé")
+dbgVérifieEgalité(dPixelCouleur(img, 0, 0), Blanc,
+"dCercle: hors bbox inchangé")
+
+// ----- dCercle : ellipse (rectangle englobant non carré) -----
+img2 est une Image = dCréeImage(30, 20, Blanc)
+dCercle(img2, 0, 0, 29, 19, RougeClair, Noir)
+
+// Centre = (14, 9), rx = 14, ry = 9
+// Pixel proche du bord horizontal
+dbgVérifieEgalité(dPixelCouleur(img2, 14, 9), RougeClair, "dEllipse: centre rempli")
+
+// ----- dCercle : avec fond courant -----
+img3 est une Image = dCréeImage(15, 15, Blanc)
+dStylo(img3, BleuClair)
+dFond(img3, VertClair)
+dCercle(img3, 2, 2, 12, 12)
+dbgVérifieEgalité(dPixelCouleur(img3, 7, 7), VertClair, "dCercle: fond courant")
+dbgVérifieEgalité(dPixelCouleur(img3, 7, 2), BleuClair, "dCercle: stylo courant en bord haut")
+
+// ----- dCercle : FondTransparent (contour seul) -----
+img4 est une Image = dCréeImage(15, 15, Blanc)
+dStylo(img4, RougeClair)
+dFond(img4, BleuClair, FondTransparent)
+dCercle(img4, 2, 2, 12, 12)
+dbgVérifieEgalité(dPixelCouleur(img4, 7, 2), RougeClair, "FondTransparent: contour rouge")
+dbgVérifieEgalité(dPixelCouleur(img4, 7, 7), Blanc,
+"FondTransparent: intérieur intact")
+
+// ----- dArc : arc 90° en haut de l'ellipse -----
+img5 est une Image = dCréeImage(20, 20, Blanc)
+// Cercle bbox (4,4)-(14,14), centre (9,9), rayon 5
+// Arc du point (14, 9) [angle 0] vers le point (9, 4) [angle 90°]
+dArc(img5, 4, 4, 14, 14, 14, 9, 9, 4, Noir)
+
+// Le point d'arrivée doit être sur le bord
+dbgVérifieEgalité(dPixelCouleur(img5, 9, 4), Noir, "dArc: point d'arrivée tracé")
+// L'intérieur n'est PAS rempli
+dbgVérifieEgalité(dPixelCouleur(img5, 9, 9), Blanc, "dArc: intérieur non rempli")
+// La moitié inférieure du cercle n'a pas d'arc
+dbgVérifieEgalité(dPixelCouleur(img5, 9, 14), Blanc, "dArc: hors zone (bas)")
+
+// ----- dCorde : arc fermé par une corde droite -----
+img6 est une Image = dCréeImage(20, 20, Blanc)
+// Cercle bbox (4,4)-(14,14), arc (14,9) → (9,4) (90° en haut-droit)
+// La corde relie ces deux points en ligne droite
+dCorde(img6, 4, 4, 14, 14, 14, 9, 9, 4, BleuClair, Noir)
+
+// L'intérieur de la corde est rempli en BleuClair.
+// La corde droite passe par les points (x, y) avec y = x - 5.
+// On choisit un pixel du côté arc (y < x - 5) : (12, 6) → 6 < 7 ✓
+dbgVérifieEgalité(dPixelCouleur(img6, 12, 6), BleuClair, "dCorde: intérieur rempli")
+
+// Le centre du cercle (9, 9) n'est PAS dans la corde (c'est l'autre côté)
+dbgVérifieEgalité(dPixelCouleur(img6, 9, 9), Blanc, "dCorde: centre du cercle hors zone")
+
+// ----- dPortion : part de tarte (arc + 2 rayons depuis centre) -----
+img7 est une Image = dCréeImage(20, 20, Blanc)
+// Centre (9,9), arc (14,9) → (9,4), centre relié aux deux points
+dPortion(img7, 4, 4, 14, 14, 14, 9, 9, 4, RougeClair, Noir)
+
+// Le centre du cercle EST dans la portion (sommet de la part)
+dbgVérifieEgalité(dPixelCouleur(img7, 9, 9), Noir, "dPortion: sommet (centre) sur trait")
+
+// Pixel à l'intérieur de la part (ex: (11, 7))
+dbgVérifieEgalité(dPixelCouleur(img7, 11, 7), RougeClair, "dPortion: intérieur rempli")
+
+// Pixel hors de la portion (autre quadrant)
+dbgVérifieEgalité(dPixelCouleur(img7, 5, 12), Blanc, "dPortion: autre quadrant intact")
+
+// ----- Image courante + stylo -----
+// bbox 14×14 → rx=ry=7, centre (9, 9) entier : top (9, 2) exact.
+img8 est une Image = dCréeImage(20, 20, Blanc)
+dDébutDessin(img8)
+dStylo(JauneOr)
+dCercle(2, 2, 16, 16) // sans <Image> explicite
+dbgVérifieEgalité(dPixelCouleur(img8, 9, 2), JauneOr, "dCercle via image courante: trait")
+dFinDessin()
+
+// ----- Image invalide silencieuse -----
+imgVide est une Image
+dCercle(imgVide, 0, 0, 5, 5, RougeClair, Noir)
+dbgVérifieEgalité(imgVide..Valide, Faux, "dCercle sur image invalide: silencieux")
+
+// ----- Alias EN -----
+img9 est une Image = dCréeImage(15, 15, Blanc)
+dCircle(img9, 2, 2, 12, 12, BleuClair, Noir)
+dbgVérifieEgalité(dPixelColor(img9, 7, 7), BleuClair, "Alias EN: dCircle")
+
+img10 est une Image = dCréeImage(20, 20, Blanc)
+dArc(img10, 4, 4, 14, 14, 14, 9, 9, 4, RougeClair)
+// pareil avec EN
+dChord(img10, 4, 4, 14, 14, 14, 9, 9, 4, BleuClair, Noir)
+dbgVérifieEgalité(dPixelColor(img10, 12, 6), BleuClair, "Alias EN: dChord")
+
+dPie(img10, 4, 4, 14, 14, 14, 9, 9, 4, JauneOr, Noir)
+dbgVérifieEgalité(dPixelColor(img10, 11, 7), JauneOr, "Alias EN: dPie")
+
+// ----- Roundtrip PNG -----
+sChemin est une chaîne = "test_image_courbes_tmp.png"
+dSauveImagePNG(img, sChemin)
+img11 est une Image = dChargeImage(sChemin)
+dbgVérifieEgalité(dPixelCouleur(img11, 9, 9), BleuClair, "Roundtrip PNG: cercle préservé")
+fSupprime(sChemin)

@@ -1,0 +1,40 @@
+// Regression : chemin SETTER runtime `SEL_X..Options = [...]` — ,
+// périmètre élargi (décision dev 2026-08-13 : couvrir les 2 chemins des 2
+// widgets, DSL-init ET setter runtime).
+//
+// Mesuré (test_writer, avant impl) : une graphie multi-ligne sur ce chemin
+// (stdlib_ui.c ~5166, `IS_ARRAY(v)` échoue silencieusement) n'aboutit à
+// AUCUNE erreur et laisse les Options du widget inchangées — la même classe
+// de bug que le chemin DSL-init (compile-error selecteur_options_multiligne_*),
+// mais ici rien ne peut l'attraper au compile-time : le setter `..Options =`
+// est une affectation de propriété dynamique, le compilateur ne connaît pas
+// le type attendu de `Options` au moment de compiler cette ligne (contexte
+// non prouvé structurellement typable, cf. rapport test_writer ).
+//
+// CIBLE : ce setter ne doit plus jamais être silencieux — poser
+// une erreur runtime (ErreurDétectée = Vrai) au lieu d'avaler la chaîne. Le
+// mécanisme précis (quelle erreur, quel message) est laissé à l'implémenteur ;
+// ce test verrouille uniquement le contrat observable : jamais silencieux.
+//
+// AUJOURD'HUI (mesuré) : ErreurDétectée = Faux après l'affectation, et
+// SélecteurOccurrence(SEL_X) reste à 2 (Options inchangées) — silencieux.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_TestSetterOptionsMultiligne)
+
+dbgVérifieEgalité(SélecteurOccurrence(SEL_X), 2,
+"SEL_X démarre avec 2 options (Options mono-ligne initiale)")
+
+SEL_X..Options = [
+	"Monsieur",
+	"Madame"
+]
+bErreur est un booléen = ErreurDétectée
+// Ordre imposé : ErreurDétectée lu AVANT tout autre appel (cf. pitfall #6),
+// sinon la sentinelle g_err_fresh est consommée par le 1er OP_CALL suivant
+// (ici dbgVérifieVrai) et on lirait Faux même si l'erreur avait été posée.
+
+dbgVérifieVrai(bErreur,
+"SEL_X..Options = [multi-ligne] doit poser une erreur, jamais rester silencieux")
+
+dbgBilanTest()

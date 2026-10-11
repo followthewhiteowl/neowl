@@ -1,0 +1,80 @@
+// ============================================
+// REGRESSION: la restriction "QUAND EXCEPTION (forme generale) interdite
+// dans une boucle" ne doit PAS produire de faux positif sur :
+//   - la forme specifique QUAND EXCEPTION DANS ... FAIRE ... FIN
+//     placee a l'interieur d'une boucle
+//   - la forme generale QUAND EXCEPTION placee HORS de la boucle (en
+//     debut de fonction par exemple), meme si la fonction contient une
+//     boucle plus loin
+// ============================================
+Trace("=== EXCEPTION DANS LOOP — REGRESSION OK ===")
+
+// --- DANS dans POUR ---
+nDansPour est un entier = 0
+POUR i = 1 À 3
+	QUAND EXCEPTION DANS
+		SI i = 2 ALORS
+			ExceptionDéclenche("boom")
+		FIN
+		nDansPour = nDansPour + i
+	FAIRE
+		nDansPour = nDansPour + 100
+	FIN
+FIN
+dbgVérifieEgalité(nDansPour, 1 + 100 + 3,
+"QUAND EXCEPTION DANS dans POUR : exception ciblee sur i=2")
+
+// --- DANS dans BOUCLE ---
+nDansBoucle est un entier = 0
+nIterBoucle est un entier = 0
+BOUCLE
+	nIterBoucle = nIterBoucle + 1
+	QUAND EXCEPTION DANS
+		SI nIterBoucle = 2 ALORS
+			ExceptionDéclenche("boom")
+		FIN
+		nDansBoucle = nDansBoucle + 1
+	FAIRE
+		nDansBoucle = nDansBoucle + 100
+	FIN
+	SI nIterBoucle >= 3 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nDansBoucle, 1 + 100 + 1,
+"QUAND EXCEPTION DANS dans BOUCLE : exception ciblee sur iter 2")
+
+// --- DANS dans TANTQUE ---
+nDansTantque est un entier = 0
+k est un entier = 0
+TANTQUE k < 3
+	k = k + 1
+	QUAND EXCEPTION DANS
+		SI k = 2 ALORS
+			ExceptionDéclenche("boom")
+		FIN
+		nDansTantque = nDansTantque + 1
+	FAIRE
+		nDansTantque = nDansTantque + 100
+	FIN
+FIN
+dbgVérifieEgalité(nDansTantque, 1 + 100 + 1,
+"QUAND EXCEPTION DANS dans TANTQUE : exception ciblee sur k=2")
+
+// --- Forme generale HORS boucle, fonction contenant une boucle ---
+FONCTION ProcGeneralHorsBoucle() : chaîne
+	QUAND EXCEPTION
+		RENVOYER "caught:" + ExceptionInfo(errMessage)
+	FIN
+	POUR i = 1 À 5
+		SI i = 3 ALORS
+			ExceptionDéclenche("at 3")
+		FIN
+	FIN
+	RENVOYER "no_throw"
+FIN
+
+dbgVérifieEgalité(ProcGeneralHorsBoucle(), "caught:at 3",
+"QUAND EXCEPTION (general) declare HORS boucle attrape exception levee DANS la boucle")
+
+dbgBilanTest()

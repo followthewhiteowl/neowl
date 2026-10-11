@@ -1,0 +1,28 @@
+// Cas 3 : niveau 2 — sous-sous-objet (CoinHautGauche..Largeur + ..Hauteur)
+//
+// Objectif : le ticket indique explicitement que la rustine actuelle fait un
+// merge **SHALLOW** — les sous-objets niveau 2 s'écrasent mutuellement au lieu
+// de fusionner. Le refactor compile-time doit résoudre ce cas (le merge doit
+// être RÉCURSIF, ou mieux : émission d'un seul bytecode dès le départ, donc
+// pas de merge du tout — juste append de STRUCT_SET sur le même eval).
+//
+// Pattern : la fenêtre voisine FEN_Niveau2.owl appelle callback_verifie
+// dans son FinInitialisation pour remonter les valeurs lues au script test.
+
+valLargeur est un entier = -1
+valHauteur est un entier = -1
+
+PROCEDURE callback_verifie(largeur est un entier, hauteur est un entier)
+	valLargeur = largeur
+	valHauteur = hauteur
+FIN
+
+Ouvre(FEN_Niveau2)
+
+// Vérifier que les deux sous-champs niveau 2 sont préservés (pas écrasement)
+dbgVérifieEgalité(valLargeur, 5, "niveau 2 : Largeur préservée")
+dbgVérifieEgalité(valHauteur, 5, "niveau 2 : Hauteur préservée")
+
+Ferme(FEN_Niveau2)
+
+dbgBilanTest()

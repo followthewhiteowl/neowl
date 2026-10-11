@@ -1,0 +1,64 @@
+// @sujet : runner — mode procédural (charte de test §4-§5)
+// @résumé : valide la détection automatique des fixtures et scénarios par le runner.
+
+// Compteur partagé entre fixtures et scénarios. Réinitialisé par
+// avantChaqueTest. Permet de vérifier l'ordre d'exécution.
+compteur est un entier
+nbAvantTout est un entier
+nbApresTout est un entier
+nbAvantChaque est un entier
+nbApresChaque est un entier
+
+PROCEDURE avantToutTest()
+	nbAvantTout = nbAvantTout + 1
+	compteur    = 100
+FIN
+
+PROCEDURE apresToutTest()
+	nbApresTout = nbApresTout + 1
+FIN
+
+PROCEDURE avantChaqueTest()
+	nbAvantChaque = nbAvantChaque + 1
+	compteur      = 0
+FIN
+
+PROCEDURE apresChaqueTest()
+	nbApresChaque = nbApresChaque + 1
+FIN
+
+// Préfixe `scenario_` : forme canon de la charte.
+PROCEDURE scenario_compteur_reset_par_fixture()
+	// compteur a été remis à 0 par avantChaqueTest.
+	dbgVérifieEgalité(compteur, 0, "compteur reset par avantChaqueTest")
+	compteur = 1
+	dbgVérifieEgalité(compteur, 1, "set local au scenario")
+FIN
+
+// Préfixe `test_` : alias accepté.
+PROCEDURE test_compteur_reset_entre_scenarios()
+	// Si avantChaqueTest a bien tourné entre les 2 scénarios, le compteur
+	// doit être à 0 même si le précédent l'avait mis à 1.
+	dbgVérifieEgalité(compteur, 0, "compteur isolé entre scénarios")
+FIN
+
+// Préfixe `should_` : alias style BDD.
+PROCEDURE should_appeler_les_3_prefixes()
+	dbgVérifieVrai(Vrai, "trois préfixes équivalents pour le runner")
+FIN
+
+// Scénario PRIVE — charte §6 : exécuté pareil, ignoré par l'extracteur
+// de doc (futur `owl examples`). Le runner n'a aucun traitement spécial.
+PROCEDURE PRIVÉE scenario_prive_execute_quand_meme()
+	dbgVérifieVrai(Vrai, "PRIVE n'empêche pas l'exécution par le runner")
+FIN
+
+// Vérification que les fixtures sont appelées. L'ordre d'itération de
+// vm.globals n'est pas garanti — ce scénario peut tourner 1er ou dernier.
+// On vérifie juste que chaque fixture a tourné au moins une fois.
+PROCEDURE test_z_compteurs_fixtures()
+	dbgVérifieVrai(nbAvantTout >= 1, "avantTout exécuté au moins 1 fois")
+	dbgVérifieVrai(nbAvantChaque >= 1, "avantChaque exécuté au moins 1 fois")
+	// nbApresChaque peut être 0 si ce scenario est le premier (apresChaque
+	// n'a pas encore tourné). On ne l'assertise pas.
+FIN

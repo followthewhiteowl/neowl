@@ -1,0 +1,29 @@
+// Contrat CIBLE  : un paramètre `FichierTéléversé` dans
+// `surRequête` sans que l'opération ne déclare
+// `ContentType = typeMimeFormulaireMultiPartie` est le sens inverse de la
+// vérification bidirectionnelle (ContentType ⟺ présence d'un
+// FichierTéléversé). Doit être refusé à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `FichierTéléversé`
+// n'est reconnu nulle part comme type de paramètre ; le paramètre `scan`
+// est aujourd'hui traité comme un scalaire ordinaire sans source de
+// liaison connue (ni Chemin, ni Requête). Le golden ci-dessous porte cette
+// erreur accidentelle, pas encore le message dédié « FichierTéléversé sans
+// ContentType = multipart ». À régénérer une fois  livré.
+ServiceMultipartSansContentType est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Televerse est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpPost
+			Chemin   = ["upload"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(scan est un FichierTéléversé)
+			RENVOYER scan..NomFichier
+		FIN
+	FIN
+FIN

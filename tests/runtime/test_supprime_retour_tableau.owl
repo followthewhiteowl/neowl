@@ -1,0 +1,111 @@
+// =====================================================================
+// Test : Supprime alignement pattern receveur
+//   - Supprime renvoie le tableau receveur (forme fonction + méthode)
+//   - Chaînage avec autres natives chaînables (Ajoute)
+//   - Divergence canon de référence (le comportement de référence retourne entier "toujours 1", OWL retourne tableau)
+// =====================================================================
+
+Trace("=== Supprime retour tableau (pattern famille chainable) ===")
+
+// =====================================================================
+// (a) Forme fonction renvoie le tableau (tableau 1D)
+// =====================================================================
+t est un tableau de chaînes
+t.Ajoute("a")
+t.Ajoute("b")
+t.Ajoute("c")
+r est un tableau de chaînes = Supprime(t, 2)
+dbgVérifieEgalité(r..Occurrence, 2, "Supprime forme fonction renvoie tableau avec bon contenu")
+dbgVérifieEgalité(t..Occurrence, 2, "1 element supprime dans t")
+dbgVérifieEgalité(r[1], "a", "ordre preserve dans r apres suppression milieu")
+dbgVérifieEgalité(r[2], "c", "element suivant remonte dans r")
+// Verifier que r et t partagent la meme reference : mutation via r affecte t
+r.Ajoute("d")
+dbgVérifieEgalité(t..Occurrence, 3, "mutation via r affecte t (meme reference)")
+
+// =====================================================================
+// (b) Forme méthode renvoie aussi le tableau
+// =====================================================================
+t2 est un tableau de chaînes
+t2.Ajoute("x")
+r2 est un tableau de chaînes = t2.Supprime(1)
+dbgVérifieEgalité(r2..Occurrence, 0, "Supprime methode renvoie tableau vide")
+dbgVérifieEgalité(t2..Occurrence, 0, "tableau vide apres suppression unique elem")
+// Mutation via r2 affecte t2
+r2.Ajoute("y")
+dbgVérifieEgalité(t2..Occurrence, 1, "mutation via r2 affecte t2 (meme reference)")
+
+// =====================================================================
+// (c) Chaînage croisé Ajoute/Supprime (non-régression critique)
+// =====================================================================
+t3 est un tableau de chaînes
+t3.Ajoute("a").Ajoute("b").Supprime(1).Ajoute("c")
+dbgVérifieEgalité(t3..Occurrence, 2, "chaine Ajoute+Supprime+Ajoute OK")
+dbgVérifieEgalité(t3[1], "b", "premier element apres suppression+ajout")
+dbgVérifieEgalité(t3[2], "c", "deuxieme element ajoute en queue")
+
+// =====================================================================
+// (d) Statement form (non-régression)
+// =====================================================================
+t4 est un tableau de chaînes
+t4.Ajoute("x")
+Supprime(t4, 1)
+dbgVérifieEgalité(t4..Occurrence, 0, "Supprime statement form OK")
+
+// =====================================================================
+// (e) Tableau associatif
+// =====================================================================
+ta est un tableau associatif de chaînes
+ta["nom"] = "Roger"
+ta["age"] = "42"
+ra est un tableau associatif de chaînes = Supprime(ta, "nom")
+dbgVérifieEgalité(ra..Occurrence, 1, "Supprime assoc renvoie tableau avec bon contenu")
+dbgVérifieEgalité(ta..Occurrence, 1, "1 cle restante dans ta")
+dbgVérifieEgalité(ta["nom"], "", "cle supprimee lit le defaut")
+// Mutation via ra affecte ta
+ra["ville"] = "Paris"
+dbgVérifieEgalité(ta..Occurrence, 2, "mutation via ra affecte ta (meme reference)")
+
+// Forme méthode assoc
+ta2 est un tableau associatif de chaînes
+ta2["k1"] = "v1"
+ta2["k2"] = "v2"
+ra2 est un tableau associatif de chaînes = ta2.Supprime("k1")
+dbgVérifieEgalité(ra2..Occurrence, 1, "Supprime methode assoc renvoie tableau")
+dbgVérifieEgalité(ta2..Occurrence, 1, "1 cle restante apres Supprime methode")
+ra2["k3"] = "v3"
+dbgVérifieEgalité(ta2..Occurrence, 2, "mutation via ra2 affecte ta2")
+
+// =====================================================================
+// (f) Cas tordu : tableau vide après suppression (chaînage continue)
+// =====================================================================
+t5 est un tableau de chaînes
+t5.Ajoute("a")
+r5 est un tableau de chaînes = t5.Supprime(1).Ajoute("b")
+dbgVérifieEgalité(r5..Occurrence, 1, "supprime puis ajoute sur vide OK")
+dbgVérifieEgalité(r5[1], "b", "nouveau premier element")
+
+// =====================================================================
+// (g) Workaround « toujours 1 » canon de référence via ..Occurrence
+// =====================================================================
+t6 est un tableau de chaînes
+t6.Ajoute("x")
+t6.Ajoute("y")
+tailleAvant est un entier = t6..Occurrence
+Supprime(t6, 1)
+tailleApres est un entier = t6..Occurrence
+dbgVérifieEgalité(tailleAvant - tailleApres, 1, "..Occurrence donne le delta apres Supprime (workaround retour entier)")
+
+// =====================================================================
+// (h) TableauSupprime hérite naturellement du nouveau comportement
+// =====================================================================
+ta3 est un tableau associatif de chaînes
+ta3["a"] = "1"
+ta3["b"] = "2"
+ra3 est un tableau associatif de chaînes = TableauSupprime(ta3, "a")
+dbgVérifieEgalité(ra3..Occurrence, 1, "TableauSupprime renvoie tableau (herite)")
+dbgVérifieEgalité(ta3..Occurrence, 1, "TableauSupprime retire 1 cle")
+ra3["c"] = "3"
+dbgVérifieEgalité(ta3..Occurrence, 2, "mutation via ra3 affecte ta3")
+
+dbgBilanTest()

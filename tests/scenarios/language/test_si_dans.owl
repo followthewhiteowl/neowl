@@ -1,0 +1,108 @@
+// @sujet : SI ... DANS / PAS DANS / SINON court
+// @résumé : L'opérateur DANS teste l'appartenance d'une valeur à une liste de candidats énumérés directement dans le code. PAS DANS est sa négation. La forme monoligne SI ... ALORS ... SINON ... condense un choix binaire simple sur une seule ligne, sans FIN.
+
+
+// Cas canonique : DANS sert à tester une valeur contre une liste blanche
+// énumérée littéralement. Concis et lisible — préférable à une cascade
+// `v = "a" OU v = "b" OU v = "c"`.
+PROCEDURE scenario_dans_liste_blanche()
+	sVille est une chaîne = "Paris"
+	bAutorisee est un booléen = sVille DANS ("Paris", "Lyon", "Marseille")
+	dbgVérifieVrai(bAutorisee, "Paris appartient à la liste blanche")
+
+	sVille     = "Genève"
+	bAutorisee = sVille DANS ("Paris", "Lyon", "Marseille")
+	dbgVérifieFaux(bAutorisee, "Genève n'appartient pas à la liste blanche")
+FIN
+
+
+// Forme typique dans une condition SI. Idiomatique pour filtrer des
+// catégories métier (statut, code pays, code produit...).
+PROCEDURE scenario_dans_dans_un_si()
+	sStatut est une chaîne = "validé"
+	sMessage est une chaîne = ""
+	SI sStatut DANS ("brouillon", "validé", "archivé") ALORS
+		sMessage = "statut connu"
+	SINON
+		sMessage = "statut inconnu"
+	FIN
+	dbgVérifieEgalité(sMessage, "statut connu", "DANS dans la condition d'un SI bloc")
+FIN
+
+
+// PAS DANS est la négation directe — utile pour les listes noires ou les
+// gardes (« autoriser sauf si... »). Forme moderne canon, plus lisible
+// que `NON (v DANS (...))`.
+PROCEDURE scenario_pas_dans_liste_noire()
+	sCommande est une chaîne = "DROP"
+	bInterdite est un booléen = sCommande PAS DANS ("SELECT", "INSERT", "UPDATE")
+	dbgVérifieVrai(bInterdite, "DROP est exclu de la liste des verbes autorisés")
+
+	sCommande  = "SELECT"
+	bInterdite = sCommande PAS DANS ("SELECT", "INSERT", "UPDATE")
+	dbgVérifieFaux(bInterdite, "SELECT figure dans la liste des verbes autorisés")
+FIN
+
+
+// Forme courte mono-ligne avec branche SINON. Pratique pour les choix
+// binaires immédiats sans cérémonie : pas de FIN à écrire, tout tient
+// sur une ligne. Les deux branches reçoivent une seule instruction.
+PROCEDURE scenario_si_alors_sinon_monoligne()
+	nNote est un entier = 12
+	sMention est une chaîne = ""
+	SI nNote >= 10 ALORS sMention = "admis" SINON sMention = "ajourné"
+	dbgVérifieEgalité(sMention, "admis", "Forme courte SI ALORS instr SINON instr")
+
+	nNote = 5
+	SI nNote >= 10 ALORS sMention = "admis" SINON sMention = "ajourné"
+	dbgVérifieEgalité(sMention, "ajourné", "Forme courte : branche SINON empruntée")
+FIN
+
+
+// DANS s'intègre naturellement dans une condition composée avec ET / OU.
+// Ici le test combine appartenance à une liste et borne numérique pour
+// filtrer des commandes valides par catégorie + montant.
+PROCEDURE scenario_dans_combine_avec_et()
+	sCategorie est une chaîne = "premium"
+	nMontant est un entier = 250
+	bEligible est un booléen = sCategorie DANS ("premium", "vip") ET nMontant > 100
+	dbgVérifieVrai(bEligible, "DANS et comparaison numérique combinés via ET")
+
+	nMontant  = 50
+	bEligible = sCategorie DANS ("premium", "vip") ET nMontant > 100
+	dbgVérifieFaux(bEligible, "ET court-circuit : montant insuffisant rejette le tout")
+FIN
+
+
+// Liste à un seul élément : `v DANS (e)` est strictement équivalent à
+// `v = e`. Pas dégénéré — utile quand la liste est générée et peut se
+// réduire à une seule valeur.
+PROCEDURE scenario_dans_un_seul_element()
+	nCode est un entier = 7
+	dbgVérifieVrai(nCode DANS (7), "DANS à un élément = test d'égalité")
+	dbgVérifieFaux(nCode DANS (8), "DANS à un élément faux quand non égal")
+FIN
+
+
+// DANS fonctionne avec des entiers comme avec des chaînes. La comparaison
+// suit les règles d'égalité standard de chaque type.
+PROCEDURE scenario_dans_entiers()
+	nJour est un entier = 6
+	bWeekEnd est un booléen = nJour DANS (6, 7)
+	dbgVérifieVrai(bWeekEnd, "Samedi (6) ou dimanche (7) → week-end")
+
+	nJour    = 3
+	bWeekEnd = nJour DANS (6, 7)
+	dbgVérifieFaux(bWeekEnd, "Mercredi (3) → pas le week-end")
+FIN
+
+
+// Forme alternative historique : `PAS v DANS (...)` est équivalente à
+// `v PAS DANS (...)`. Les deux écritures sont acceptées, la seconde
+// étant la plus courante dans le code récent.
+PROCEDURE PRIVÉE scenario_pas_prefixe_equivalent()
+	sVille est une chaîne = "Berlin"
+	bExclu1 est un booléen = sVille PAS DANS ("Paris", "Lyon")
+	bExclu2 est un booléen = PAS sVille DANS ("Paris", "Lyon")
+	dbgVérifieEgalité(bExclu1, bExclu2, "v PAS DANS (...) et PAS v DANS (...) sont équivalents")
+FIN

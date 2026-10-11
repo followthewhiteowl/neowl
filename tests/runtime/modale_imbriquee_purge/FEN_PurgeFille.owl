@@ -1,0 +1,66 @@
+// Fenêtre fille du premier niveau. Le Champ Combo est délibéré : c'est le champ
+// qui porte le plus de sous-widgets internes (liste déroulante, ascenseurs,
+// conteneurs), donc celui qui expose le mieux une purge de fermeture trop large.
+//
+// La fermeture est déclenchée depuis surEntrée, atteint lui-même par la pose de
+// focus différée : ce gestionnaire s'exécute DANS la boucle imbriquée, ce qu'un
+// minuteur ne peut pas faire (un minuteur saute son tic quand un gestionnaire
+// est déjà en cours).
+
+FEN_PurgeFille est une Fenêtre
+	PROPRIETES
+		Titre       = "Purge fille"
+		Largeur     = 300
+		Hauteur     = 180
+		Disposition = dispLibre
+	FIN
+
+	CMB_Choix est un Champ Combo
+		PROPRIETES
+			X       = 10
+			Y       = 20
+			Largeur = 200
+			Hauteur = 30
+		FIN
+	FIN
+
+	SAI_F est un Champ Saisie
+		PROPRIETES
+			X       = 10
+			Y       = 70
+			Largeur = 200
+		FIN
+
+		PROCEDURE surAChaqueModification()
+			callback_fille_change()
+		FIN
+
+		PROCEDURE surEntrée()
+			callback_fille_entree()
+			// Un gestionnaire câblé par signal (et non par filtre d'événement) :
+			// c'est cette famille-là que le nettoyage de fermeture doit couper,
+			// puisque sa fermeture capture un index de liaison qui devient
+			// invalide dès que la fille a rendu la main.
+			TestSimuleSaisie(SAI_F, "ab")
+			TestSimuleSouris(BTN_F, ClicGauche)
+			Ferme(FEN_PurgeFille)
+		FIN
+	FIN
+
+	BTN_F est un Champ Bouton
+		PROPRIETES
+			Libellé = "Valider"
+			X       = 10
+			Y       = 120
+		FIN
+
+		PROCEDURE surClic()
+			callback_fille_clic()
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		callback_fille_init()
+		DonneFocus(SAI_F)
+	FIN
+FIN

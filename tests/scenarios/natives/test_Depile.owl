@@ -1,0 +1,138 @@
+// @sujet : Depile
+// @resume : Retire et renvoie l'element au sommet d'une Pile (structure LIFO)
+
+// ============================================================
+// PROCEDURE PUBLIQUE — vitrine pedagogique
+// ============================================================
+
+PROCEDURE PUBLIQUE scenario_nominal_empile_depile()
+	// Cas classique : empiler puis depiler respecte l'ordre LIFO
+	maPile est une pile de entiers
+
+	Empile(maPile, 10)
+	Empile(maPile, 20)
+	Empile(maPile, 30)
+
+	// Le dernier empile (30) sort en premier
+	valeur est un entier = Dépile(maPile)
+	dbgVérifieEgalité(valeur, 30, "label=Depile LIFO: dernier empile sort premier")
+
+	valeur = Dépile(maPile)
+	dbgVérifieEgalité(valeur, 20, "label=Depile ordre LIFO: 20 apres 30")
+
+	valeur = Dépile(maPile)
+	dbgVérifieEgalité(valeur, 10, "label=Depile dernier element: 10")
+
+	// Pile videe
+	dbgVérifieVrai(maPile..Vide, "label=Pile vide apres depilage complet")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	// Appel via forme methode prefixee
+	p est une pile de chaînes
+
+	Empile(p, "Alpha")
+	Empile(p, "Beta")
+
+	s est une chaîne = p.Depile()
+	dbgVérifieEgalité(s, "Beta", "label=Forme methode .Depile() renvoie Beta")
+
+	s = p.Depile()
+	dbgVérifieEgalité(s, "Alpha", "label=Forme methode .Depile() renvoie Alpha")
+FIN
+
+PROCEDURE PUBLIQUE scenario_pile_vide_retourne_Null()
+	// Depiler une pile vide renvoie Null (type nullable requis)
+	pileVide est une pile de entiers
+
+	// Type nullable obligatoire pour capter Null
+	// (sinon coerce en 0 silencieux)
+	resultat est un entier? = Dépile(pileVide)
+	dbgVérifieEgalité(resultat, Null, "label=Depile pile vide retourne Null")
+FIN
+
+PROCEDURE PUBLIQUE scenario_types_varies()
+	// Depile fonctionne avec differents types de donnees
+
+	// Pile de reels
+	pileReels est une pile de réels
+	Empile(pileReels, 3.14)
+	Empile(pileReels, 2.71)
+
+	r est un réel = Dépile(pileReels)
+	dbgVérifieEgalité(r, 2.71, "label=Depile pile de reels: 2.71")
+
+	// Pile de booleens
+	pileBool est une pile de booléens
+	Empile(pileBool, Faux)
+	Empile(pileBool, Vrai)
+
+	b est un booléen = Dépile(pileBool)
+	dbgVérifieEgalité(b, Vrai, "label=Depile pile de booleens: Vrai")
+FIN
+
+// ============================================================
+// PROCEDURES PRIVEES — edge cases techniques
+// ============================================================
+
+PROCEDURE PRIVÉE scenario_edge_alternance_empile_depile()
+	// Alternance empile/depile intensive
+	p est une pile de entiers
+
+	Empile(p, 1)
+	v1 est un entier = Dépile(p)
+	dbgVérifieEgalité(v1, 1, "label=Alternance: depile(1)")
+
+	Empile(p, 2)
+	Empile(p, 3)
+	v2 est un entier = Dépile(p)
+	dbgVérifieEgalité(v2, 3, "label=Alternance: depile(3)")
+
+	Empile(p, 4)
+	v3 est un entier = Dépile(p)
+	dbgVérifieEgalité(v3, 4, "label=Alternance: depile(4)")
+
+	v4 est un entier = Dépile(p)
+	dbgVérifieEgalité(v4, 2, "label=Alternance: depile(2) restant")
+
+	dbgVérifieVrai(p..Vide, "label=Pile vide apres alternance")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_utf8()
+	// Chaines avec accents et UTF-8 multibytes
+	p est une pile de chaînes
+
+	Empile(p, "café")
+	Empile(p, "été")
+	Empile(p, "🎯")
+
+	s1 est une chaîne = Dépile(p)
+	dbgVérifieEgalité(s1, "🎯", "label=UTF-8: emoji depile")
+
+	s2 est une chaîne = Dépile(p)
+	dbgVérifieEgalité(s2, "été", "label=UTF-8: chaine accentuee depilee")
+
+	s3 est une chaîne = Dépile(p)
+	dbgVérifieEgalité(s3, "café", "label=UTF-8: cafe depile")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_occurrence_synchrone()
+	// Propriete ..Occurrence decremente correctement
+	p est une pile de entiers
+
+	dbgVérifieEgalité(p..Occurrence, 0, "label=Occurrence initiale zero")
+
+	Empile(p, 100)
+	Empile(p, 200)
+	Empile(p, 300)
+	dbgVérifieEgalité(p..Occurrence, 3, "label=Occurrence apres 3 empilages")
+
+	Dépile(p)
+	dbgVérifieEgalité(p..Occurrence, 2, "label=Occurrence apres 1 depilage")
+
+	Dépile(p)
+	dbgVérifieEgalité(p..Occurrence, 1, "label=Occurrence apres 2 depilages")
+
+	Dépile(p)
+	dbgVérifieEgalité(p..Occurrence, 0, "label=Occurrence finale zero")
+FIN

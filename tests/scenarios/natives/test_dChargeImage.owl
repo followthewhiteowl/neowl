@@ -1,0 +1,196 @@
+// @sujet : dChargeImage
+// @resume : Charger une image depuis un fichier (PNG, JPEG, BMP, GIF, TGA, PSD)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_charge_png_nominal()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	cheminPNG est une chaîne = "test_charge_tmp.png"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer une image en mémoire (10x5 pixels, fond rouge)
+	img = dCréeImage(10, 5, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+
+	// Sauver l'image sur disque au format PNG
+	res = dSauveImagePNG(img, cheminPNG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde PNG reussie")
+
+	// Charger l'image depuis le fichier PNG
+	imgChargee = dChargeImage(cheminPNG)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image chargee valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 10, "largeur preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 5, "hauteur preservee")
+	dbgVérifieEgalité(imgChargee..AvecAlpha, Vrai, "canal alpha preserve")
+
+	// Nettoyer
+	fSupprime(cheminPNG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_charge_jpeg()
+	couleurVert est un entier = RVB(0, 255, 0)
+	cheminJPEG est une chaîne = "test_charge_jpeg_tmp.jpg"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer et sauver une image JPEG
+	img = dCréeImage(20, 15, couleurVert)
+	res = dSauveImageJPEG(img, cheminJPEG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde JPEG reussie")
+
+	// Charger l'image JPEG
+	imgChargee = dChargeImage(cheminJPEG)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image JPEG chargee valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 20, "largeur JPEG preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 15, "hauteur JPEG preservee")
+
+	// Nettoyer
+	fSupprime(cheminJPEG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_charge_bmp()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	cheminBMP est une chaîne = "test_charge_bmp_tmp.bmp"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer et sauver une image BMP
+	img = dCréeImage(16, 12, couleurBleu)
+	res = dSauveImageBMP(img, cheminBMP)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde BMP reussie")
+
+	// Charger l'image BMP
+	imgChargee = dChargeImage(cheminBMP)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image BMP chargee valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 16, "largeur BMP preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 12, "hauteur BMP preservee")
+
+	// Nettoyer
+	fSupprime(cheminBMP)
+FIN
+
+PROCEDURE PUBLIQUE scenario_sucre_syntaxique_chemin()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	cheminPNG est une chaîne = "test_sucre_tmp.png"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer et sauver une image
+	img = dCréeImage(8, 8, couleurJaune)
+	res = dSauveImagePNG(img, cheminPNG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde reussie")
+
+	// Charger via sucre syntaxique : MaImage = "chemin.png"
+	imgChargee = cheminPNG
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "sucre syntaxique charge image")
+	dbgVérifieEgalité(imgChargee..Largeur, 8, "largeur via sucre preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 8, "hauteur via sucre preservee")
+
+	// Nettoyer
+	fSupprime(cheminPNG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_fichier_absent()
+	imgInvalide est une Image
+	erreurPresente est un booléen
+
+	// Tenter de charger un fichier qui n'existe pas
+	imgInvalide = dChargeImage("fichier_inexistant_12345.png")
+
+	// L'image retournée doit être invalide
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "image invalide si fichier absent")
+
+	// Une erreur doit être enregistrée
+	erreurPresente = (ErreurInfo() <> "")
+	dbgVérifieVrai(erreurPresente, "erreur enregistree apres echec chargement")
+FIN
+
+PROCEDURE PUBLIQUE scenario_charge_avec_imgdefaut()
+	couleurCyan est un entier = RVB(0, 255, 255)
+	cheminPNG est une chaîne = "test_options_tmp.png"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer et sauver une image
+	img = dCréeImage(12, 10, couleurCyan)
+	res = dSauveImagePNG(img, cheminPNG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde reussie")
+
+	// Charger avec option imgDéfaut explicite
+	imgChargee = dChargeImage(cheminPNG, imgDéfaut)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "charge avec imgDefaut")
+	dbgVérifieEgalité(imgChargee..Largeur, 12, "largeur preservee avec option")
+
+	// Nettoyer
+	fSupprime(cheminPNG)
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	cheminUTF8 est une chaîne = "test_éàü_tmp.png"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer et sauver une image avec chemin contenant accents
+	img = dCréeImage(5, 5, couleurMagenta)
+	res = dSauveImagePNG(img, cheminUTF8)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde avec chemin UTF-8 accents")
+
+	// Charger depuis chemin avec accents
+	imgChargee = dChargeImage(cheminUTF8)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "charge depuis chemin UTF-8 accents")
+	dbgVérifieEgalité(imgChargee..Largeur, 5, "largeur preservee UTF-8")
+
+	// Nettoyer
+	fSupprime(cheminUTF8)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	cheminPNG est une chaîne = "test_1x1_tmp.png"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer une image minimale 1x1 pixel
+	img = dCréeImage(1, 1, couleurBlanc)
+	res = dSauveImagePNG(img, cheminPNG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde 1x1 pixel")
+
+	// Charger l'image 1x1
+	imgChargee = dChargeImage(cheminPNG)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "charge 1x1 pixel valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 1, "largeur 1 pixel preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 1, "hauteur 1 pixel preservee")
+
+	// Nettoyer
+	fSupprime(cheminPNG)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chemin_vide()
+	imgInvalide est une Image
+	erreurPresente est un booléen
+
+	// Tenter de charger avec chemin vide
+	imgInvalide = dChargeImage("")
+
+	// L'image retournée doit être invalide
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "image invalide si chemin vide")
+
+	// Une erreur doit être enregistrée
+	erreurPresente = (ErreurInfo() <> "")
+	dbgVérifieVrai(erreurPresente, "erreur enregistree apres chemin vide")
+FIN

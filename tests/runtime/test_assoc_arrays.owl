@@ -1,0 +1,106 @@
+Trace("=== TABLEAUX ASSOCIATIFS ===")
+
+// === Déclaration + set/get ===
+aTab est un tableau associatif de chaînes
+dbgVérifieEgalité(aTab..Occurrence, 0, "vide apres declaration")
+dbgVérifieVrai(aTab..Vide, "tab..Vide est Vrai initialement")
+
+aTab["nom"] = "Alice"
+aTab["ville"] = "Paris"
+dbgVérifieEgalité(aTab["nom"], "Alice", "lecture cle existante")
+dbgVérifieEgalité(aTab["ville"], "Paris", "lecture 2eme cle")
+dbgVérifieEgalité(aTab..Occurrence, 2, "count=2 apres 2 set")
+dbgVérifieVrai(aTab..Vide = Faux, "tab..Vide = Faux apres insertion")
+
+// === Clé inexistante retourne défaut ===
+dbgVérifieEgalité(aTab["inconnue"], "", "cle inexistante -> chaine vide (defaut chaine)")
+
+// === Mise à jour de clé existante ===
+aTab["nom"] = "Bob"
+dbgVérifieEgalité(aTab["nom"], "Bob", "maj cle existante")
+dbgVérifieEgalité(aTab..Occurrence, 2, "count inchange apres maj")
+
+// === Taille() aussi ===
+dbgVérifieEgalité(Taille(aTab), 2, "Taille() sur assoc = count")
+
+// === TableauSupprime ===
+TableauSupprime(aTab, "nom")
+dbgVérifieEgalité(aTab..Occurrence, 1, "count=1 apres supprime")
+dbgVérifieEgalité(aTab["nom"], "", "cle supprimee lit le defaut")
+
+// Supprimer clé inexistante
+tailleAvant est un entier = aTab..Occurrence
+TableauSupprime(aTab, "foobar")
+dbgVérifieEgalité(aTab..Occurrence, tailleAvant, "supprime inexistant : count inchange")
+
+// === TableauSupprimeTout ===
+aTab["a"] = "x"
+aTab["b"] = "y"
+TableauSupprimeTout(aTab)
+dbgVérifieEgalité(aTab..Occurrence, 0, "SupprimeTout vide le tableau")
+dbgVérifieVrai(aTab..Vide, "vide apres SupprimeTout")
+
+// === TableauAjoute (alias set) ===
+TableauAjoute(aTab, "k1", "v1")
+TableauAjoute(aTab, "k2", "v2")
+dbgVérifieEgalité(aTab["k1"], "v1", "TableauAjoute cree l'entree")
+dbgVérifieEgalité(aTab..Occurrence, 2, "count via Ajoute")
+
+// === TableauCherche (alias get) ===
+dbgVérifieEgalité(TableauCherche(aTab, "k1"), "v1", "TableauCherche existant")
+dbgVérifieEgalité(TableauCherche(aTab, "nope"), "", "TableauCherche inexistant -> defaut")
+
+// === POUR TOUT ===
+compteurVal est un entier = 0
+POUR TOUT v DE aTab
+	compteurVal = compteurVal + 1
+FIN
+dbgVérifieEgalité(compteurVal, 2, "POUR TOUT itere 2 fois")
+
+// Avec clé
+sb est une chaîne = ""
+POUR TOUT v, k DE aTab
+	sb = sb + k + "=" + v + ";"
+FIN
+dbgVérifieVrai(Position(sb, "k1=v1") > 0, "iter avec cle: k1=v1 present")
+dbgVérifieVrai(Position(sb, "k2=v2") > 0, "iter avec cle: k2=v2 present")
+
+// === Types de valeur autres que chaines ===
+compteurs est un tableau associatif de entiers
+compteurs["alice"] = 10
+compteurs["bob"] = 20
+dbgVérifieEgalité(compteurs["alice"], 10, "assoc d'entiers: lecture")
+dbgVérifieEgalité(compteurs["alice"] + compteurs["bob"], 30, "arithmetique sur valeurs")
+dbgVérifieEgalité(compteurs["absent"], 0, "entier defaut = 0")
+
+prix est un tableau associatif de réels
+prix["pomme"] = 1.5
+prix["poire"] = 2.0
+dbgVérifieEgalité(prix["pomme"], 1.5, "reel set/get")
+dbgVérifieEgalité(prix["inconnu"], 0.0, "reel defaut = 0.0")
+
+drapeaux est un tableau associatif de booléens
+drapeaux["activer"] = Vrai
+dbgVérifieEgalité(drapeaux["activer"], Vrai, "booleen set/get")
+dbgVérifieEgalité(drapeaux["pas_set"], Faux, "booleen defaut = Faux")
+
+// === Sans type de valeur (heterogene) ===
+mixte est un tableau associatif
+mixte["nb"] = 42
+mixte["s"] = "hello"
+mixte["b"] = Vrai
+dbgVérifieEgalité(mixte["nb"], 42, "heterogene stocke entier")
+dbgVérifieEgalité(mixte["s"], "hello", "heterogene stocke chaine")
+dbgVérifieEgalité(mixte["b"], Vrai, "heterogene stocke booleen")
+
+// === Nombreuses clés (stress) ===
+gros est un tableau associatif de entiers
+POUR i = 1 À 50
+	cle est une chaîne = "k" + i
+	gros[cle] = i * 2
+FIN
+dbgVérifieEgalité(gros..Occurrence, 50, "50 cles inserees")
+dbgVérifieEgalité(gros["k1"], 2, "k1=2")
+dbgVérifieEgalité(gros["k50"], 100, "k50=100")
+
+dbgBilanTest()

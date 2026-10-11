@@ -1,0 +1,22 @@
+//  — régression : un service déjà en FR canon (accents corrects)
+// doit rester STABLE sous le formatter (idempotence, invariant 4). Bug
+// constaté (builder ) : `MoiMême..CodeÉtat` perd son accent et
+// devient `MoiMême..CodeEtat` après une passe de `owl fmt`.
+ServiceAccentStable est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "accent"]
+	FIN
+
+	Ping est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["ping"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : entier
+			MoiMême..Réponse..CodeÉtat = httpOK
+			RENVOYER 0
+		FIN
+	FIN
+FIN

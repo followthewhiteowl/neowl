@@ -1,0 +1,86 @@
+// Non-régression  : RENVOYER (expr) ne doit plus être
+// systématiquement interprété comme l'ouverture d'un tuple
+// multi-valeurs. Le parser doit faire un lookahead : virgule
+// au niveau de la paren ouvrante → tuple ; sinon → expression
+// parenthésée, et le parsing continue au niveau RENVOYER pour
+// chercher un opérateur binaire éventuel.
+//
+// Avant le fix :
+//   PROCEDURE f() : booléen
+//       RENVOYER (a = b) OU (a > 10)
+//   FIN
+// → compile fail "Error at 'OU': Expression attendue."
+
+PROCEDURE pivotOuParen(nA est un entier, nB est un entier) : booléen
+	RENVOYER (nA = nB) OU (nA > 10)
+FIN
+
+PROCEDURE pivotEtParen(bA est un booléen, bB est un booléen) : booléen
+	RENVOYER (bA) ET (bB)
+FIN
+
+PROCEDURE pivotPlusParen(nA est un entier, nB est un entier) : entier
+	RENVOYER (nA) + (nB)
+FIN
+
+PROCEDURE pivotExprSeule(nA est un entier) : entier
+	// Cas extrême : juste (expr) — doit retourner expr.
+	RENVOYER (nA)
+FIN
+
+PROCEDURE pivotSansParen(nA est un entier) : entier
+	// Retro-compat : pas de paren du tout.
+	RENVOYER nA
+FIN
+
+PROCEDURE pivotTuple(nA est un entier, nB est un entier)
+	// Le tuple multi-valeurs (avec virgule) doit continuer à marcher.
+	RENVOYER (nA, nB)
+FIN
+
+PROCEDURE pivotParenImbriquee(nA est un entier) : entier
+	// Paren imbriquées sans virgule : toujours expression parenthésée.
+	RENVOYER ((nA + 1))
+FIN
+
+PROCEDURE pivotIndexationDansParen(nA est un entier) : entier
+	// Une virgule à l'intérieur de crochets ([2, 3]) NE déclenche PAS
+	// le mode tuple : le lookahead doit ignorer les virgules sous
+	// brackets / braces et ne compter que celles au niveau paren racine.
+	mat est un tableau de 2 par 2 entiers
+	mat[1, 1] = nA * 10
+	RENVOYER (mat[1, 1])
+FIN
+
+// === Cas pivot du ticket : OU entre deux conditions parenthésées ===
+dbgVérifieEgalité(pivotOuParen(3, 3), Vrai, "pivot OU : nA=nB → Vrai")
+dbgVérifieEgalité(pivotOuParen(11, 5), Vrai, "pivot OU : nA>10 → Vrai")
+dbgVérifieEgalité(pivotOuParen(5, 7), Faux, "pivot OU : ni l'un ni l'autre → Faux")
+
+// === ET entre deux expressions parenthésées ===
+dbgVérifieEgalité(pivotEtParen(Vrai, Vrai), Vrai, "pivot ET : tout vrai")
+dbgVérifieEgalité(pivotEtParen(Vrai, Faux), Faux, "pivot ET : un faux suffit")
+
+// === Opérateur arithmétique entre deux parens ===
+dbgVérifieEgalité(pivotPlusParen(3, 4), 7, "pivot + : (3) + (4) = 7")
+
+// === (expr) seule — doit juste retourner expr ===
+dbgVérifieEgalité(pivotExprSeule(42), 42, "(expr) seule → expr")
+
+// === Rétro-compat : sans paren ===
+dbgVérifieEgalité(pivotSansParen(7), 7, "RENVOYER nA sans paren")
+
+// === Rétro-compat : tuple (avec virgule) — déstructuration canon ===
+tplA est un entier = 0
+tplB est un entier = 0
+(tplA, tplB) = pivotTuple(11, 22)
+dbgVérifieEgalité(tplA, 11, "tuple [1] via destructuration")
+dbgVérifieEgalité(tplB, 22, "tuple [2] via destructuration")
+
+// === Parens imbriquées ===
+dbgVérifieEgalité(pivotParenImbriquee(5), 6, "((nA + 1)) = 6")
+
+// === Virgule sous brackets ne déclenche PAS le tuple ===
+dbgVérifieEgalité(pivotIndexationDansParen(4), 40, "virgule dans [i,j] ignorée par le lookahead tuple")
+
+dbgBilanTest()

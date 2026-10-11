@@ -1,0 +1,28 @@
+//  — Focus initial auto : fenêtre sans champ saisissable
+//
+// Spec : si la fenêtre ne contient aucun champ saisissable, l'ouverture
+// ne doit pas crasher ni poser ErreurDétectée.
+//
+// Test VERT attendu même avant implémentation de DonneFocus : ce test
+// vérifie uniquement que Ouvre() ne crashe pas sur une fenêtre sans Saisie.
+// Il sert de régression si l'implémentation du focus initial introduit un crash.
+
+TestModeHeadless(Vrai)
+
+bOuverte_obs est un booléen = Faux
+
+PROCEDURE callback_ouverte_sans_saisie(b est un booléen)
+	bOuverte_obs = b
+FIN
+
+Ouvre(FEN_SansSaisie)
+
+bErrOuverture est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrOuverture, "Ouvre fenetre sans champ saisissable : pas d'ErreurDetectee")
+
+RemonteOuverte()
+dbgVérifieVrai(bOuverte_obs, "fenetre sans saisie ouverte sans crash")
+
+Ferme(FEN_SansSaisie)
+
+dbgBilanTest()

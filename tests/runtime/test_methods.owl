@@ -1,0 +1,75 @@
+Trace("=== EXTENSION METHODS ===")
+
+// --- String methods ---
+dbgVérifieEgalité("hello".Majuscule(), "HELLO", "string.Majuscule()")
+dbgVérifieEgalité("HELLO".Minuscule(), "hello", "string.Minuscule()")
+dbgVérifieEgalité("hello world".Gauche(5), "hello", "string.Gauche(n)")
+dbgVérifieEgalité("hello world".Droite(5), "world", "string.Droite(n)")
+dbgVérifieEgalité("hello world".Milieu(7, 5), "world", "string.Milieu(p, n)")
+dbgVérifieEgalité("  hello  ".SansEspace(), "hello", "string.SansEspace()")
+dbgVérifieEgalité("hello world".Taille(), 11, "string.Taille()")
+
+// --- String chaining ---
+dbgVérifieEgalité("  hello  ".SansEspace().Majuscule(), "HELLO", "chain SansEspace+Majuscule")
+dbgVérifieEgalité("hello world".Gauche(5).Majuscule(), "HELLO", "chain Gauche+Majuscule")
+dbgVérifieEgalité("HELLO WORLD".Minuscule().Gauche(5), "hello", "chain Minuscule+Gauche")
+dbgVérifieEgalité("abc".Majuscule().Minuscule(), "abc", "chain Majuscule+Minuscule roundtrip")
+
+// --- Prefix-stripped conversion aliases ---
+dbgVérifieEgalité("123".VersEntier(), 123, "string.VersEntier()")
+dbgVérifieEgalité("3.14".VersRéel(), 3.14, "string.VersReel()")
+
+// --- Position and Remplace as methods ---
+dbgVérifieEgalité("hello world".Position("world"), 7, "string.Position()")
+dbgVérifieEgalité("hello world".Remplace("world", "owl"), "hello owl", "string.Remplace()")
+
+// --- Occurrence ---
+dbgVérifieEgalité("abcabc"..Occurrence("a"), 2, "string..Occurrence()")
+
+// --- Numeric methods ---
+n est un réel = -3.7
+dbgVérifieEgalité(n.Abs(), 3.7, "real.Abs()")
+
+n2 est un entier = -42
+dbgVérifieEgalité(n2.Abs(), 42, "int.Abs()")
+
+// --- Numeric chaining ---
+dbgVérifieEgalité((-3.7).Abs().Arrondi(0), 4, "chain Abs+Arrondi")
+
+// --- VersChaine on numerics ---
+dbgVérifieEgalité((42).VersChaîne(), "42", "int.VersChaine()")
+
+// --- Array methods ---
+arrT est un tableau d'entiers
+arrT.Ajoute(3)
+arrT.Ajoute(1)
+arrT.Ajoute(2)
+dbgVérifieEgalité(arrT.Taille(), 3, "array.Taille()")
+arrT.Trie()
+dbgVérifieEgalité(arrT[1], 1, "array.Trie() works")
+dbgVérifieEgalité(arrT[2], 2, "array sorted[2]")
+dbgVérifieEgalité(arrT[3], 3, "array sorted[3]")
+arrT.Inverse()
+dbgVérifieEgalité(arrT[1], 3, "array.Inverse()")
+
+// --- Array chaining ---
+tab2 est un tableau d'entiers
+tab2.Ajoute(5).Ajoute(2).Ajoute(8)
+dbgVérifieEgalité(tab2.Taille(), 3, "chained Ajoute")
+tab2.Trie().Inverse()
+dbgVérifieEgalité(tab2[1], 8, "chained Trie+Inverse")
+
+// --- Array Cherche ---
+dbgVérifieEgalité(tab2.Cherche(5), 2, "array.Cherche()")
+
+// --- Coexistence: function-call style still works ---
+dbgVérifieEgalité(Majuscule("abc"), "ABC", "function call Majuscule still works")
+dbgVérifieEgalité(Gauche("hello", 3), "hel", "function call Gauche still works")
+dbgVérifieEgalité(ChaîneVersEntier("99"), 99, "function call ChaineVersEntier still works")
+
+// --- JSON methods ---
+jDoc est un JSON = ChaîneVersJSON("{""nom"":""Roger"",""age"":46}")
+r est une chaîne = jDoc.VersChaîne()
+dbgVérifieVrai(r <> "", "json.VersChaine() non vide")
+
+dbgBilanTest()

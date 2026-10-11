@@ -1,0 +1,38 @@
+//  — parité GUI/headless : surEntrée / surSortie sur ZoneRépétée.
+//
+// DonneFocus vers le champ ZoneRépétée doit déclencher surEntrée en mode
+// graphique comme en headless. Aujourd'hui aucun hook focus GUI n'existe
+// pour ZoneRépétée : ce test rougit tant qu'il n'est pas posé.
+//
+// ROUGE ATTENDU : nEntree_obs / nSortie_obs restent à 0.
+
+TestModeHeadless(Faux)
+
+bFocusZrGuiPrete est un booléen = Faux
+nEntree_obs est un entier = -1
+nSortie_obs est un entier = -1
+
+PROCEDURE callback_focus_zr_gui_prete()
+	bFocusZrGuiPrete = Vrai
+FIN
+
+PROCEDURE callback_focus_zr_gui_compteurs(nE est un entier, nS est un entier)
+	nEntree_obs = nE
+	nSortie_obs = nS
+FIN
+
+OuvreSoeur(FEN_FocusZoneRepeteeGui)
+dbgVérifieVrai(bFocusZrGuiPrete, "FinInitialisation appelée : fenêtre prête")
+
+// -- Etape 1 : donner le focus à la ZoneRépétée. surEntrée doit tirer 1 fois.
+DonnerFocusZr()
+LireCompteursFocusZrGui()
+dbgVérifieEgalité(nEntree_obs, 1, "surEntrée ZoneRépétée (GUI) : 1 tir après DonneFocus(ZR_Focus)")
+
+// -- Etape 2 : déplacer le focus vers la Saisie. surSortie doit tirer 1 fois.
+DonnerFocusSaisie()
+LireCompteursFocusZrGui()
+dbgVérifieEgalité(nSortie_obs, 1, "surSortie ZoneRépétée (GUI) : 1 tir après DonneFocus(SAI_Focus)")
+
+Ferme(FEN_FocusZoneRepeteeGui)
+dbgBilanTest()

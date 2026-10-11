@@ -1,0 +1,148 @@
+// @sujet : ChaîneRécupère
+// @résumé : ChaîneRécupère : extraire une sous-chaîne à partir d'une position donnée.
+// Vitrine de ChaîneRécupère : extraire une sous-chaîne à partir d'une position donnée.
+// Alias de Milieu. Retourne une chaîne extraite depuis la position (base 1) pour une longueur donnée.
+
+// ============================================================================
+// PROCEDURES PUBLIQUES
+// ============================================================================
+
+// Cas nominal : extraction d'une portion de chaîne.
+// Utilisation typique : découper un identifiant, parser un format fixe, extraire un segment.
+PROCEDURE PUBLIQUE scenario_extraction_base()
+	texte est une chaîne = "Bonjour le monde"
+
+	// Extraction simple : 7 caractères depuis position 1
+	debut est une chaîne = ChaîneRécupère(texte, 1, 7)
+	dbgVérifieEgalité(debut, "Bonjour", "7 premiers caractères")
+
+	// Extraction milieu : 2 caractères depuis position 9
+	milieu est une chaîne = ChaîneRécupère(texte, 9, 2)
+	dbgVérifieEgalité(milieu, "le", "extraction au milieu")
+
+	// Extraction fin : 5 caractères depuis position 12
+	final est une chaîne = ChaîneRécupère(texte, 12, 5)
+	dbgVérifieEgalité(final, "monde", "extraction à la fin")
+FIN
+
+// Forme méthode : appel direct sur une variable ou littéral.
+// Pratique pour chaînage et pipelines de traitement.
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	texte est une chaîne = "identification-2026-06-04"
+
+	// Méthode sur variable
+	annee est une chaîne = texte.Milieu(16, 4)
+	dbgVérifieEgalité(annee, "2026", "extraction année via méthode")
+
+	// Méthode sur littéral
+	dbgVérifieEgalité("ABCDEFGH".Milieu(3, 3), "CDE", "méthode sur littéral")
+
+	// Chaînage : extraction puis validation
+	code est une chaîne = "REF-12345-END".Milieu(5, 5)
+	dbgVérifieEgalité(code, "12345", "extraction code numérique")
+	SI code <> "" ALORS
+		dbgVérifieVrai(Vrai, "idiome validation extraction réussie")
+	FIN
+FIN
+
+// Alias Milieu : ChaîneRécupère et Milieu sont interchangeables.
+// Vérifier que les deux formes produisent le même résultat.
+PROCEDURE PUBLIQUE scenario_alias_milieu()
+	texte_base est une chaîne = "Extraction test"
+
+	// Même extraction via les 2 alias
+	res1 est une chaîne = ChaîneRécupère(texte_base, 1, 10)
+	res2 est une chaîne = Milieu(texte_base, 1, 10)
+
+	dbgVérifieEgalité(res1, "Extraction", "ChaîneRécupère")
+	dbgVérifieEgalité(res2, "Extraction", "Milieu")
+	dbgVérifieEgalité(res1, res2, "les deux alias sont équivalents")
+FIN
+
+// Cas limites : position hors borne, longueur débordante, chaîne vide.
+PROCEDURE PUBLIQUE scenario_cas_limites()
+	texte est une chaîne = "Court"
+
+	// Position hors borne (au-delà de la longueur)
+	vide1 est une chaîne = ChaîneRécupère(texte, 100, 5)
+	dbgVérifieEgalité(vide1, "", "position hors borne retourne vide")
+
+	// Longueur débordante (demander plus que disponible)
+	debord est une chaîne = ChaîneRécupère(texte, 1, 100)
+	dbgVérifieEgalité(debord, "Court", "longueur débordante prend tout")
+
+	// Chaîne vide en entrée
+	vide2 est une chaîne = ChaîneRécupère("", 1, 5)
+	dbgVérifieEgalité(vide2, "", "chaîne vide reste vide")
+
+	// Longueur 0 demandée
+	vide3 est une chaîne = ChaîneRécupère(texte, 1, 0)
+	dbgVérifieEgalité(vide3, "", "longueur 0 retourne vide")
+FIN
+
+// ============================================================================
+// PROCEDURES PRIVEES (edge cases proactifs, non-pédagogiques)
+// ============================================================================
+
+// Edge cases proactifs : positions extrêmes, longueurs limites, combinaisons pathologiques.
+PROCEDURE PRIVÉE scenario_edge_positions_extremes()
+	texte est une chaîne = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	// Position 1 : premier caractère
+	premier est une chaîne = ChaîneRécupère(texte, 1, 1)
+	dbgVérifieEgalité(premier, "A", "position 1 = premier caractère")
+
+	// Position = taille : dernier caractère
+	dernier est une chaîne = ChaîneRécupère(texte, 26, 1)
+	dbgVérifieEgalité(dernier, "Z", "position = taille → dernier caractère")
+
+	// Position négative (comportement indéterminé selon impl, tester sans crash)
+	negatif est une chaîne = ChaîneRécupère(texte,-5, 3)
+	dbgVérifieVrai(Vrai, "position négative ne crash pas")
+
+	// Longueur très grande (32k)
+	grande est une chaîne = Répète("X", 10000)
+	extrait est une chaîne = ChaîneRécupère(grande, 1, 5000)
+	dbgVérifieEgalité(Taille(extrait), 5000, "extraction large 5000 chars")
+FIN
+
+// Edge case : caractères ASCII étendus et limites encodage.
+// Rester ASCII pour rester indépendant des particularités d'encodage UTF-8.
+PROCEDURE PRIVÉE scenario_edge_ascii_etendu()
+	// ASCII de base
+	ascii est une chaîne = "Hello123!@#"
+	dbgVérifieEgalité(ChaîneRécupère(ascii, 1, 5), "Hello", "ASCII basique")
+
+	// Espaces et tabulations
+	espaces est une chaîne = "A   B	C"
+	dbgVérifieEgalité(ChaîneRécupère(espaces, 2, 3), "   ", "espaces consécutifs")
+
+	// Caractères de contrôle simulés (newline, tab)
+	controle est une chaîne = "Ligne1
+	Ligne2"
+	extrait est une chaîne = ChaîneRécupère(controle, 1, 6)
+	dbgVérifieEgalité(Taille(extrait), 6, "newline compte comme 1 char")
+FIN
+
+// Edge case : extraction complète vs partielle, chevauchements.
+PROCEDURE PRIVÉE scenario_edge_chevauchements()
+	base est une chaîne = "0123456789"
+
+	// Extraction complète (position 1, longueur = taille)
+	complet est une chaîne = ChaîneRécupère(base, 1, 10)
+	dbgVérifieEgalité(complet, base, "extraction complète = identique")
+
+	// Extraction décalée d'1 char à chaque fois
+	e1 est une chaîne = ChaîneRécupère(base, 1, 3)
+	e2 est une chaîne = ChaîneRécupère(base, 2, 3)
+	e3 est une chaîne = ChaîneRécupère(base, 3, 3)
+
+	dbgVérifieEgalité(e1, "012", "décalage 1")
+	dbgVérifieEgalité(e2, "123", "décalage 2")
+	dbgVérifieEgalité(e3, "234", "décalage 3")
+
+	// Fenêtre glissante : vérifier cohérence
+	dbgVérifieVrai(e1 <> e2 ET e2 <> e3, "fenêtres glissantes distinctes")
+FIN
+
+dbgBilanTest()

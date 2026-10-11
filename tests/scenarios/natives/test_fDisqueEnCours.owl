@@ -1,0 +1,25 @@
+// @sujet : fDisqueEnCours
+// @résumé : Renvoie l'identifiant du disque ou de la racine du système de
+// fichiers en cours (lettre de lecteur sous Windows, racine "/" ailleurs).
+
+PROCEDURE PUBLIQUE scenario_non_vide()
+	disque est une chaîne = fDisqueEnCours()
+	dbgVérifieVrai(Taille(disque) > 0, "le disque en cours est renseigné")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_plausible()
+	// Motif attendu : soit une lettre de lecteur suivie de ':' (Windows),
+	// soit la racine "/" du système de fichiers (POSIX). On n'asserte
+	// jamais la lettre exacte, dépendante de la machine.
+	disque est une chaîne = fDisqueEnCours()
+	SI Taille(disque) = 2 ALORS
+		dbgVérifieEgalité(Milieu(disque, 2, 1), ":", "forme lettre de lecteur (2 caractères, second = ':')")
+	SINON
+		dbgVérifieEgalité(disque, "/", "forme racine POSIX")
+	FIN
+FIN
+
+PROCEDURE PUBLIQUE scenario_bilingue()
+	// La forme anglaise renvoie la même valeur que la forme FR-canon.
+	dbgVérifieEgalité(fDisqueEnCours(), fCurrentDrive(), "fDisqueEnCours() = fCurrentDrive()")
+FIN

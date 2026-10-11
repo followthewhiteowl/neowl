@@ -1,0 +1,23 @@
+// Référence qualifiée vers un champ niché dans un Conteneur :
+// FEN_Panneau.SAI_Cmd où SAI_Cmd est déclaré à l'intérieur de BAR_Haut.
+// La résolution qualifiée est à plat : on cite la fenêtre + le champ, sans
+// nommer le conteneur intermédiaire. Le champ niché doit donc se résoudre
+// exactement comme un champ de premier niveau.
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Panneau)
+
+// Saisie via la référence qualifiée fenêtre.champ-niché.
+TestSimuleSaisie(FEN_Panneau.SAI_Cmd, "ping")
+
+// Relecture qualifiée du champ niché.
+dbgVérifieEgalité(FEN_Panneau.SAI_Cmd..Valeur, "ping",
+"Champ niche dans Conteneur resolu via ref qualifiee a plat")
+
+// L'accès nu doit donner la même valeur.
+dbgVérifieEgalité(SAI_Cmd..Valeur, "ping",
+"Acces nu au champ niche coherent avec ref qualifiee")
+
+Ferme(FEN_Panneau)
+
+dbgBilanTest()

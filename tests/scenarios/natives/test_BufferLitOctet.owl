@@ -1,0 +1,94 @@
+// @sujet : BufferLitOctet
+// @résumé : Lit un octet à une position 1-based dans un Buffer et renvoie sa valeur en entier 0–255. Position hors buffer lève une erreur runtime. Court-circuite le codec : l'octet brut est renvoyé comme entier, sans interprétation UTF-8.
+
+
+// Cas A : lecture d'un octet valide dans un buffer.
+PROCEDURE PUBLIQUE scenario_lecture_base()
+	buf est un buffer = "ABC"
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 65, "premier octet de 'ABC' = 65 (code ASCII de 'A')")
+FIN
+
+
+// Cas B : lecture du dernier octet d'un buffer.
+PROCEDURE PUBLIQUE scenario_lecture_dernier()
+	buf est un buffer = "ABC"
+	n est un entier = BufferLitOctet(buf, 3)
+	dbgVérifieEgalité(n, 67, "troisième octet de 'ABC' = 67 (code ASCII de 'C')")
+FIN
+
+
+// Cas C : position hors buffer — erreur runtime.
+PROCEDURE PUBLIQUE scenario_position_hors_buffer()
+	ErreurRAZ()
+	buf est un buffer = "ABC"
+	n est un entier = BufferLitOctet(buf, 10)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "position 10 hors buffer de 3 octets lève erreur")
+FIN
+
+
+// Cas D : lecture d'un octet ≥ 128 (valeur hors ASCII) — renvoie la valeur brute 0–255.
+PROCEDURE PUBLIQUE scenario_octet_hors_ascii()
+	buf est un buffer
+	// Construction d'un buffer contenant l'octet brut 200 (0xC8).
+	// On écrit d'abord via BufferÉcritOctet après init avec un octet placeholder.
+	buf = "X"
+	BufferÉcritOctet(buf, 1, 200)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 200, "octet brut 200 lu correctement (pas de corruption UTF-8)")
+FIN
+
+
+// Cas E : forme EN (bilingue) — BufferReadByte.
+PROCEDURE PUBLIQUE scenario_bilingue_en()
+	buf est un buffer = "Z"
+	n est un entier = BufferReadByte(buf, 1)
+	dbgVérifieEgalité(n, 90, "BufferReadByte (EN) = 90 (code ASCII de 'Z')")
+FIN
+
+
+// Cas F : forme fluent FR — buf.LitOctet(position).
+PROCEDURE PUBLIQUE scenario_fluent_fr()
+	buf est un buffer = "A"
+	n est un entier = buf.LitOctet(1)
+	dbgVérifieEgalité(n, 65, "fluent buf.LitOctet(1) = 65")
+FIN
+
+
+// Cas G : forme fluent EN — buf.ReadByte(position).
+PROCEDURE PUBLIQUE scenario_fluent_en()
+	buf est un buffer = "A"
+	n est un entier = buf.ReadByte(1)
+	dbgVérifieEgalité(n, 65, "fluent buf.ReadByte(1) = 65")
+FIN
+
+
+// Edge case : position 0 (invalide, 1-based) — erreur runtime.
+PROCEDURE PRIVÉE scenario_edge_position_zero()
+	ErreurRAZ()
+	buf est un buffer = "ABC"
+	n est un entier = BufferLitOctet(buf, 0)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "position 0 invalide (1-based) lève erreur")
+FIN
+
+
+// Edge case : position négative — erreur runtime.
+PROCEDURE PRIVÉE scenario_edge_position_negative()
+	ErreurRAZ()
+	buf est un buffer = "ABC"
+	n est un entier = BufferLitOctet(buf,-1)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "position négative lève erreur")
+FIN
+
+
+// Edge case : buffer vide — toute position lève erreur.
+PROCEDURE PRIVÉE scenario_edge_buffer_vide()
+	ErreurRAZ()
+	buf est un buffer = ""
+	n est un entier = BufferLitOctet(buf, 1)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "lecture dans buffer vide lève erreur")
+FIN

@@ -1,0 +1,62 @@
+// Fenêtre voisine — ressource pour test_zr_champ_casse_accent.owl.
+// Verrouille la non-régression  : un champ ZoneRépétée réellement
+// déclaré reste accessible en lecture ET écriture, y compris avec une casse
+// différente et sans l'accent d'origine (invariants langage OWL).
+
+FEN_ZRCasseAccent est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR champ casse/accent"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 300
+	FIN
+
+	ZR_Liste est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 480
+			Hauteur           = 250
+			Sens              = zrVertical
+			HauteurRepetition = 40
+		FIN
+
+		LIB_Nom est un Champ Libellé
+			PROPRIETES
+				X       = 5
+				Y       = 8
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+
+		LIB_Été est un Champ Libellé
+			PROPRIETES
+				X       = 210
+				Y       = 8
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		i est un entier = ZoneRépétéeAjouteLigne(ZR_Liste)
+		// Écriture casse différente sur LIB_Nom (minuscules)
+		ZR_Liste[i].lib_nom = "Alice"
+		// Écriture sans accent sur LIB_Été (majuscules, sans accent)
+		ZR_Liste[i].LIB_ETE = "Juillet"
+
+		cb_casse_accent_done()
+	FIN
+
+	// Lecture casse différente sur LIB_Nom (majuscules)
+	PROCEDURE LireNom(n est un entier)
+		RENVOYER ZR_Liste[n].LIB_NOM
+	FIN
+
+	// Lecture sans accent sur LIB_Été (minuscules, sans accent)
+	PROCEDURE LireEte(n est un entier)
+		RENVOYER ZR_Liste[n].lib_ete
+	FIN
+FIN

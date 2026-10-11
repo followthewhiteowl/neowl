@@ -1,0 +1,94 @@
+//  — la bande de languettes d'un Champ Onglet habillé ne doit peindre
+// aucun fond à elle : elle laisse voir ce qui est derrière le champ.
+//
+// Défaut observé : l'habillage peignait les languettes et le cadre extérieur,
+// mais jamais la BANDE qui les porte. Tant qu'un parent peint derrière (une
+// fenêtre ouverte), la bande laissait déjà passer sa couleur ; en revanche dès
+// que le champ est rendu SEUL (capture d'un champ, aperçu d'un éditeur), la
+// bande était remplie de la couleur de fenêtre du rendu par défaut — mesurée
+// ici à RVB(239,239,239) — d'où des rectangles clairs parasites autour et
+// au-dessus des languettes.
+//
+// Méthode : une fenêtre au VERT FRANC RVB(0,200,0), deux Champs Onglet
+// identiques (l'un habillé, l'autre nu). Les languettes occupent la gauche de
+// la bande (rouge de x=0 à ~55, bleu jusqu'à ~130) : la colonne x=300 tombe
+// donc en pleine bande nue, et les lignes y=0..24 restent au-dessus du cadre
+// extérieur (dont le liseré vert est mesuré à y=27).
+//
+// Trois situations mesurées :
+//   1. dans la fenêtre  : la bande lit le vert de la fenêtre, jamais un gris ;
+//   2. champ seul       : plus aucun gris système — rien n'est peint, la
+//                         capture isolée aplatit ce vide sur RVB(0,0,0) ;
+//   3. Onglet nu        : rendu par défaut strictement intact — le champ seul
+//                         montre toujours son gris de fenêtre RVB(239,239,239),
+//                         preuve que la transparence n'est déclarée que
+//                         lorsqu'un style est posé.
+//
+// Widgets réels obligatoires : un Champ Onglet re-matérialisé en mode headless
+// rend une surface vide (pas de barre de languettes), donc aveugle à tout ça.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OngletBandeFond)
+
+imgFen est une Image = dCopieImageFenêtre(FEN_OngletBandeFond)
+dbgVérifieEgalité(imgFen..Valide, Vrai, "Capture de la fenêtre : valide")
+
+imgSty est une Image = dCopieImageChamp(ONG_Stylise)
+dbgVérifieEgalité(imgSty..Valide, Vrai, "Capture du champ habillé seul : valide")
+
+imgNu est une Image = dCopieImageChamp(ONG_Nu)
+dbgVérifieEgalité(imgNu..Valide, Vrai, "Capture du champ nu seul : valide")
+
+// --- 1. Dans la fenêtre : la bande laisse voir la fenêtre -----------------
+// Le champ habillé est posé en (10,10) : la bande nue est lue de son bord
+// haut jusque sous les languettes, sur toute la largeur restant à droite.
+dbgVérifieEgalité(dPixelCouleur(imgFen, 310, 12), RVB(0, 200, 0),
+"Onglet habillé dans la fenêtre : la bande laisse voir le vert de la fenêtre (haut)")
+dbgVérifieEgalité(dPixelCouleur(imgFen, 310, 30), RVB(0, 200, 0),
+"Onglet habillé dans la fenêtre : la bande laisse voir le vert de la fenêtre (bas de bande)")
+dbgVérifieEgalité(dPixelCouleur(imgFen, 470, 20), RVB(0, 200, 0),
+"Onglet habillé dans la fenêtre : la bande reste transparente jusqu'à son bord droit")
+dbgVérifieDifférence(dPixelCouleur(imgFen, 310, 20), RVB(239, 239, 239),
+"Onglet habillé dans la fenêtre : aucun rectangle gris parasite dans la bande")
+
+// --- 2. Champ seul : le cas qui régressait --------------------------------
+// Rendu hors de sa fenêtre, le champ n'a plus rien derrière lui : la bande ne
+// doit rien peindre du tout, surtout pas le gris de fenêtre du rendu par
+// défaut. La capture isolée aplatit l'absence de peinture sur RVB(0,0,0).
+dbgVérifieDifférence(dPixelCouleur(imgSty, 300, 5), RVB(239, 239, 239),
+"Champ habillé seul : aucun gris système dans la bande (haut)")
+dbgVérifieDifférence(dPixelCouleur(imgSty, 300, 20), RVB(239, 239, 239),
+"Champ habillé seul : aucun gris système dans la bande (bas de bande)")
+dbgVérifieDifférence(dPixelCouleur(imgSty, 460, 12), RVB(239, 239, 239),
+"Champ habillé seul : aucun gris système jusqu'au bord droit de la bande")
+dbgVérifieEgalité(dPixelCouleur(imgSty, 300, 5), RVB(0, 0, 0),
+"Champ habillé seul : la bande ne peint rien (capture isolée aplatie sur le noir)")
+dbgVérifieEgalité(dPixelCouleur(imgSty, 300, 20), RVB(0, 0, 0),
+"Champ habillé seul : rien de peint jusqu'au bas de la bande")
+
+// --- 3. Onglet NU : rendu par défaut strictement intact -------------------
+// Aucun style posé -> aucune feuille de style -> aucune transparence
+// déclarée. Le champ rendu seul montre donc toujours le gris de fenêtre du
+// rendu par défaut : c'est exactement ce que le champ habillé montrait avant
+// correction, et c'est ce qui doit rester vrai ici.
+dbgVérifieEgalité(dPixelCouleur(imgNu, 300, 5), RVB(239, 239, 239),
+"Champ nu seul : la bande garde le fond du rendu par défaut (rien n'est déclaré transparent)")
+dbgVérifieEgalité(dPixelCouleur(imgNu, 460, 20), RVB(239, 239, 239),
+"Champ nu seul : fond du rendu par défaut sur toute la bande")
+dbgVérifieEgalité(dPixelCouleur(imgFen, 310, 220), RVB(0, 200, 0),
+"Onglet nu dans la fenêtre : la bande laissait déjà voir la fenêtre, inchangé")
+
+// --- 4. Non-régression : la transparence ne mange que la bande ------------
+// Les languettes et le cadre extérieur restent peints de leurs couleurs.
+dbgVérifieEgalité(dPixelCouleur(imgSty, 10, 12), Rouge,
+"Languette active : toujours peinte de son fond")
+dbgVérifieEgalité(dPixelCouleur(imgSty, 70, 12), Bleu,
+"Languette inactive : toujours peinte de son fond")
+dbgVérifieEgalité(dPixelCouleur(imgSty, 240, 80), RVB(255, 255, 255),
+"Cadre extérieur : toujours peint de son fond")
+dbgVérifieEgalité(dPixelCouleur(imgFen, 250, 90), RVB(255, 255, 255),
+"Cadre extérieur dans la fenêtre : toujours peint de son fond")
+
+Ferme(FEN_OngletBandeFond)
+dbgBilanTest()

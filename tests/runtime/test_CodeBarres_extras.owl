@@ -1,0 +1,57 @@
+// Symbologies code-barres hors gamme standard (extensions OWL) : GS1 DataBar
+// (Omnidirectional + Expanded), Micro QR, rMQR, DotCode, Han Xin, PZN.
+// Aucun oracle de référence pour ces types : les contenus de test sont choisis
+// conformes aux specs publiques et au format d'entree attendu par le moteur.
+
+// Helper : genere une image pour un type + contenu donnes et verifie qu'elle
+// est valide et de dimensions non-nulles (pas d'erreur d'encodage).
+PROCEDURE verifieGenere(sNom est une chaîne, nType est un entier, sContenu est une chaîne)
+	cb est un CodeBarres
+	cb..TypeCodeBarres = nType
+	cb..Contenu        = sContenu
+
+	ErreurRAZ()
+	img est une Image = CodeBarreVersImage(cb)
+	dbgVérifieVrai(ErreurInfo() = "", sNom + " - pas d'erreur d'encodage : " + ErreurInfo())
+	dbgVérifieVrai(img..Valide, sNom + " - Image valide")
+	dbgVérifieVrai(img..Largeur > 0, sNom + " - Largeur > 0")
+	dbgVérifieVrai(img..Hauteur > 0, sNom + " - Hauteur > 0")
+FIN
+
+// Les nouvelles constantes de symbologie sont distinctes des anciennes et
+// entre elles (verrou sur les valeurs, pas seulement sur la generation).
+dbgVérifieVrai(CB_GS1_DATABAR <> CB_QRCODE, "CB_GS1_DATABAR distinct de CB_QRCODE")
+dbgVérifieVrai(CB_GS1_DATABAR_ETENDU <> CB_GS1_DATABAR, "CB_GS1_DATABAR_ETENDU distinct de CB_GS1_DATABAR")
+dbgVérifieVrai(CB_MICRO_QR <> CB_QRCODE, "CB_MICRO_QR distinct de CB_QRCODE")
+dbgVérifieVrai(CB_RMQR <> CB_MICRO_QR, "CB_RMQR distinct de CB_MICRO_QR")
+dbgVérifieVrai(CB_DOTCODE <> CB_RMQR, "CB_DOTCODE distinct de CB_RMQR")
+dbgVérifieVrai(CB_HAN_XIN <> CB_DOTCODE, "CB_HAN_XIN distinct de CB_DOTCODE")
+dbgVérifieVrai(CB_PZN <> CB_HAN_XIN, "CB_PZN distinct de CB_HAN_XIN")
+
+// GS1 DataBar Omnidirectional : GTIN numerique (jusqu'a 13 chiffres de donnee,
+// le caractere de controle est calcule par le moteur).
+verifieGenere("CB_GS1_DATABAR", CB_GS1_DATABAR, "0801234567890")
+
+// GS1 DataBar Expanded : donnees a identifiants applicatifs GS1. [01] = GTIN-14
+// (check digit valide), [3103] = poids net en kg (3 decimales).
+verifieGenere("CB_GS1_DATABAR_ETENDU", CB_GS1_DATABAR_ETENDU, "[01]90012345678908[3103]001234")
+
+// Micro QR : capacite tres limitee. Contenu court alphanumerique majuscule
+// (charset Micro QR : 0-9 A-Z espace $%*+-./:).
+verifieGenere("CB_MICRO_QR", CB_MICRO_QR, "OWL2026")
+
+// rMQR (Micro QR rectangulaire) : contenu court/moyen, mode octet.
+verifieGenere("CB_RMQR", CB_RMQR, "OWL-rMQR-2026")
+
+// DotCode : texte libre.
+verifieGenere("CB_DOTCODE", CB_DOTCODE, "OWL-DotCode")
+
+// Han Xin (standard national chinois) : texte. ASCII ici pour la source ;
+// le jeu chinois est supporte par la symbologie.
+verifieGenere("CB_HAN_XIN", CB_HAN_XIN, "OWL-HanXin")
+
+// PZN (Pharmazentralnummer, pharma allemand) : 7 chiffres de donnee, le
+// caractere de controle (8e chiffre, PZN-8) est calcule par le moteur.
+verifieGenere("CB_PZN", CB_PZN, "1234567")
+
+dbgBilanTest()

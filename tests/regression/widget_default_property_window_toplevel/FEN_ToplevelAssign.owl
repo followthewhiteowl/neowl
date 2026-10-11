@@ -1,0 +1,56 @@
+// Fenêtre voisine — ressource pour test_widget_default_property_window_toplevel.owl.
+// Témoin compile-time  : au top-level du corps Fenêtre (le "code
+// d'initialisation", hors PROPRIETES, hors PROCEDURE), `WIDGET = X` doit
+// router vers la propriété par défaut du widget, exactement comme dans une
+// PROCEDURE (cf. tests/regression/widget_default_property/FEN_Test.owl).
+// Avant le fix : rejeté avec "Propriété '<widget>' inconnue pour Fenêtre"
+// (le dispatch ne vérifiait jamais si l'identifiant était un widget déclaré).
+//
+// Regroupe transversalement les 2 bugs de la même racine (dispatch corps
+// Fenêtre) : chaîne simple (Saisie/Libellé) + littéral multilingue inline
+// (Libellé), au top-level ET dans une PROCEDURE pour le multilingue.
+//
+// Note runtime : en mode `owl test`, les widgets Qt ne sont pas instanciés.
+// Le code d'initialisation de la Fenêtre s'exécuterait à l'ouverture
+// (jamais déclenchée ici) ; seule la compilation est exercée par ce témoin.
+
+FEN_ToplevelAssign est une Fenêtre
+	PROPRIETES
+		Titre = "Init"
+	FIN
+	SAI_X est un Champ Saisie
+		PROPRIETES
+			Indication = "saisie test"
+		FIN
+	FIN
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			Libellé = "init"
+		FIN
+	FIN
+	BTN_X est un Champ Bouton
+		PROPRIETES
+			Libellé = "go"
+		FIN
+		PROCEDURE surClic()
+			// Bug B (multilingue) exercé aussi côté impératif : le littéral
+			// inline doit rester accepté quand la translation pose le type
+			// cible de la propriété par défaut multilingue.
+			LIB_X = {langueFrançais:"bonjour", langueAnglais:"hello"}
+		FIN
+	FIN
+
+	// Bug A / chaîne simple : affectation directe à un widget scalaire au
+	// top-level du corps Fenêtre.
+	SAI_X = "valeur initiale"
+	LIB_X = "coucou"
+
+	// Bug B / multilingue au top-level du corps Fenêtre (pas seulement en
+	// PROCEDURE).
+	LIB_X = {langueFrançais:"bonjour", langueAnglais:"hello"}
+
+	// Non-régression : une vraie propriété Fenêtre continue de router vers
+	// l'init de propriété Fenêtre (ne doit jamais être confondue avec un
+	// widget).
+	Titre = "Init modifié"
+FIN

@@ -1,0 +1,49 @@
+// @sujet : algoHachage
+// @résumé : Enum regroupant les algorithmes de hachage acceptés par HashChaîne, HashFichier, HMACChaîne, HashVérifieChaîne et HashVérifieFichier. Couvre les familles standard (MD5, SHA-1/2/3, RIPEMD, BLAKE2b) et leurs variantes à clé (HMAC-*).
+
+
+// HA_SHA_256 : hachage standard produit une empreinte hexadécimale déterministe.
+PROCEDURE PUBLIQUE scenario_hachage_sha256()
+	h est une chaîne = HashChaîne(HA_SHA_256, "owl")
+	dbgVérifieEgalité(h, "10f7127b980b0b06ef157749f8a02cca1c606d22642729dcb2d24dbbf2bf30df", "SHA-256 de 'owl' en hexadécimal minuscule")
+FIN
+
+
+// HA_SHA_512 : empreinte 128 caractères hexadécimaux.
+PROCEDURE PUBLIQUE scenario_hachage_sha512()
+	h est une chaîne = HashChaîne(HA_SHA_512, "owl")
+	dbgVérifieEgalité(Taille(h), 128, "SHA-512 produit 128 caractères hexadécimaux")
+FIN
+
+
+// HA_MD5_128 : empreinte 32 caractères hexadécimaux.
+PROCEDURE PUBLIQUE scenario_hachage_md5()
+	h est une chaîne = HashChaîne(HA_MD5_128, "owl")
+	dbgVérifieEgalité(Taille(h), 32, "MD5 produit 32 caractères hexadécimaux")
+FIN
+
+
+// HA_HMAC_SHA_256 : la variante HMAC nécessite une clé et diffère du hash simple.
+PROCEDURE PUBLIQUE scenario_hmac_sha256()
+	hSimple est une chaîne = HashChaîne(HA_SHA_256, "owl")
+	hMac est une chaîne = HashChaîne(HA_HMAC_SHA_256, "owl", "clé")
+	dbgVérifieEgalité(Taille(hMac), 64, "HMAC-SHA-256 produit 64 caractères hexadécimaux")
+	dbgVérifieVrai(hSimple <> hMac, "HMAC-SHA-256 avec clé diffère du hash simple")
+FIN
+
+
+// HA_SHA3_256 et HA_BLAKE2B_256 : familles distinctes, empreintes non nulles.
+PROCEDURE PRIVÉE scenario_familles_sha3_blake2b()
+	hSha3 est une chaîne = HashChaîne(HA_SHA3_256, "owl")
+	hBlake est une chaîne = HashChaîne(HA_BLAKE2B_256, "owl")
+	dbgVérifieEgalité(Taille(hSha3), 64, "SHA-3-256 produit 64 caractères hexadécimaux")
+	dbgVérifieEgalité(Taille(hBlake), 64, "BLAKE2b-256 produit 64 caractères hexadécimaux")
+	dbgVérifieVrai(hSha3 <> hBlake, "SHA-3-256 et BLAKE2b-256 produisent des empreintes différentes")
+FIN
+
+
+// HA_RIPEMD_160 : empreinte 40 caractères hexadécimaux.
+PROCEDURE PRIVÉE scenario_hachage_ripemd160()
+	h est une chaîne = HashChaîne(HA_RIPEMD_160, "owl")
+	dbgVérifieEgalité(Taille(h), 40, "RIPEMD-160 produit 40 caractères hexadécimaux")
+FIN

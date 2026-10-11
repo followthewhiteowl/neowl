@@ -1,0 +1,255 @@
+// @sujet : Tenseur — entraînement de bout en bout d'un détecteur général
+// @résumé : Preuve d'assemblage complète, sur un cas synthétique contrôlé :
+// une tête de détection Conv 1×1 (4 canaux boîte, 1 objectness, 2 classes)
+// s'entraîne sur une grille 2×2 avec association automatique des cibles
+// (AssocieCiblesDétection), découpage par canaux (TrancheCanaux) et pertes
+// masquées par diffusion (broadcast). Une seule cellule reçoit une boîte
+// annotée ; le masque d'objectness diffusé isole les pertes de boîte sur
+// cette cellule responsable, tandis que la perte de classe (entropie
+// croisée) porte sur toutes les cellules sans masquage explicite — une
+// cellule de fond (cible entièrement nulle) contribue naturellement 0 à la
+// perte et au gradient. La boucle de descente de gradient est explicite
+// (Rétropropage + DescenteGradient). La perte fond, la cellule responsable
+// apprend sa boîte/objectness/classe, et la précision moyenne (mAP) grimpe
+// nettement entre avant et après entraînement.
+
+// Construit une ligne de détection [classe, score, x, y, l, h] (coin,
+// même espace que PrécisionMoyenne) à partir d'une boîte prédite centrée.
+PROCEDURE PRIVÉE ligneDetection(classePrédite est un réel, score est un réel, cx est un réel, cy est un réel, l est un réel, h est un réel) : tableau
+	RENVOYER[classePrédite, score, cx - l / 2, cy - h / 2, l, h]
+FIN
+
+// Classe décodée d'une cellule par argmax sur 2 canaux (égalité -> classe 0).
+PROCEDURE PRIVÉE classeDecodee(prédClasse est un Tenseur, cellule est un entier) : réel
+	SI prédClasse..Valeur[cellule][2] > prédClasse..Valeur[cellule][1] ALORS
+		RENVOYER 1.0
+	FIN
+	RENVOYER 0.0
+FIN
+
+// Décode une cellule (grille 2×2) en une ligne de détection. Le centre prédit
+// est RELATIF à la cellule (convention AssocieCiblesDétection) : on reconstruit
+// l'absolu avant PrécisionMoyenne — cx = (col + cx_rel)/W, cy = (row + cy_rel)/H
+// avec col = idx%W, row = idx/W (patron détecteTop de la démo).
+PROCEDURE PRIVÉE ligneCellule(prédClasse est un Tenseur, prédBoite est un Tenseur, scores est un Tenseur, cellule est un entier) : tableau
+	idx est un entier = cellule - 1
+	col est un entier = idx % 2
+	rang est un entier = idx / 2
+	cx est un réel = (col + prédBoite..Valeur[cellule][1]) / 2.0
+	cy est un réel = (rang + prédBoite..Valeur[cellule][2]) / 2.0
+	l est un réel = prédBoite..Valeur[cellule][3]
+	h est un réel = prédBoite..Valeur[cellule][4]
+	RENVOYER ligneDetection(classeDecodee(prédClasse, cellule), scores..Valeur[cellule][1], cx, cy, l, h)
+FIN
+
+
+// Grille 2×2, K=2 classes, Cin=3 caractéristiques par cellule. Une boîte
+// annotée cx=0.7, cy=0.3, l=0.4, h=0.3, classe=1 (0-based) :
+// col=plancher(0.7*2)=1, row=plancher(0.3*2)=0 -> cellule responsable
+// index=row*W+col=0*2+1=1 (0-based) -> ligne 2 (1-based) du Tenseur
+// [cellules, canaux]. 1500 pas de descente de gradient (taux modéré) font
+// fondre la perte et monter la mAP de ~0 vers proche de 1.0.
+PROCEDURE PUBLIQUE scenario_entrainement_e2e_detecteur_map_monte()
+	// Entrée NCHW [1,3,2,2] : caractéristiques fixes et distinctes par
+	// cellule (canal-majeur, puis ligne, puis colonne).
+	// (row=0,col=0)=[1,0,0], (row=0,col=1)=[0,1,0],
+	// (row=1,col=0)=[0,0,1], (row=1,col=1)=[0.7,0.7,0].
+	entrée est un Tenseur = Tenseur([1.0, 0.0, 0.0, 0.7, 0.0, 1.0, 0.0, 0.7, 0.0, 0.0, 1.0, 0.0]).Redimensionne([1, 3, 2, 2])
+
+	// Tête Conv 1×1 : 7 canaux de sortie (4 boîte + 1 objectness + 2
+	// classes), 3 canaux d'entrée, noyau 1×1, initialisée à 0.
+	poidsPlats est un tableau de réels
+	POUR k = 1 À 21
+		poidsPlats.Ajoute(0.0)
+	FIN
+	poids est un Tenseur = Tenseur(poidsPlats).Redimensionne([7, 3, 1, 1])
+
+	// Cible : association automatique de la boîte annotée à sa cellule
+	// responsable, découpée en 3 groupes de canaux (hors boucle).
+	boites est un tableau = [[1.0, 0.7, 0.3, 0.4, 0.3]]
+	cible est un Tenseur = AssocieCiblesDétection(boites, 2, 2, 2)
+	cibleBoite est un Tenseur = cible.TrancheCanaux(1, 4)
+	cibleObj est un Tenseur = cible.TrancheCanaux(5, 1)
+	cibleClasse est un Tenseur = cible.TrancheCanaux(6, 2)
+	masque est un Tenseur = cible.TrancheCanaux(5, 1)
+
+	// Vérité terrain en coin (même espace que PrécisionMoyenne) :
+	// x=cx-l/2=0.7-0.2=0.5, y=cy-h/2=0.3-0.15=0.15.
+	gts est un tableau = [[1.0, 0.5, 0.15, 0.4, 0.3]]
+
+	// Taux volontairement modéré : la perte L1 a un gradient de magnitude
+	// CONSTANTE (signe de l'écart, pas d'amortissement près de la cible),
+	// donc un taux trop élevé fait osciller la boîte apprise autour de la
+	// cible avec une amplitude proportionnelle au taux plutôt que de
+	// converger dessus.
+	taux est un réel = 0.1
+	perteInitiale est un réel = 0.0
+	perteFinale est un réel = 0.0
+	prédBoite est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0])
+	prédObj est un Tenseur = Tenseur([0.0])
+	prédClasse est un Tenseur = Tenseur([0.0, 0.0])
+	mapAvant est un réel = 0.0
+
+	POUR i = 1 À 1500
+		sortie4D est un Tenseur = entrée.Convolution2D(poids, 1, 0)
+		sortie est un Tenseur = sortie4D.Permute([1, 3, 4, 2]).Redimensionne([4, 7])
+
+		prédBoite  = sortie.TrancheCanaux(1, 4)
+		prédObj    = sortie.TrancheCanaux(5, 1)
+		prédClasse = sortie.TrancheCanaux(6, 2)
+
+		pObj est un Tenseur = prédObj.EntropieCroiséeBinaire(cibleObj)
+		pBox est un Tenseur = (prédBoite * masque).L1(cibleBoite)
+		pClasse est un Tenseur = prédClasse.EntropieCroisée(cibleClasse)
+		perteTotale est un Tenseur = pObj + pBox + pClasse
+		perteTotale.Rétropropage()
+
+		SI i = 1 ALORS
+			perteInitiale = perteTotale..Valeur[1]
+
+			// mAP AVANT entraînement : décodage des 4 cellules en détections.
+			// Chaque ligne est construite en un seul littéral (PAS via
+			// .Ajoute, qui aplatit un tableau argument au lieu de l'imbriquer).
+			scoresAvant est un Tenseur = prédObj.Sigmoïde()
+			detsAvant est un tableau = [ligneCellule(prédClasse, prédBoite, scoresAvant, 1), ligneCellule(prédClasse, prédBoite, scoresAvant, 2), ligneCellule(prédClasse, prédBoite, scoresAvant, 3), ligneCellule(prédClasse, prédBoite, scoresAvant, 4)]
+			mapAvant = PrécisionMoyenne(detsAvant, gts, 0.5)
+		FIN
+		SI i = 1500 ALORS
+			perteFinale = perteTotale..Valeur[1]
+		FIN
+
+		poids = poids.DescenteGradient(taux)
+	FIN
+
+	// La perte fond nettement (au moins un ordre de grandeur).
+	dbgVérifieVrai(perteFinale < perteInitiale * 0.1, "La perte finale a chuté d'au moins un ordre de grandeur")
+
+	// La cellule responsable (ligne 2, 1-based) a appris sa boîte, en
+	// coordonnées de centre RELATIVES à la cellule : col=1, row=0 →
+	// cx_rel = 0.7·2 - 1 = 0.4, cy_rel = 0.3·2 - 0 = 0.6 ; largeur/hauteur
+	// restent en fraction de l'image (0.4 / 0.3).
+	dbgVérifieVrai(Abs(prédBoite..Valeur[2][1] - 0.4) < 0.01, "Boîte apprise : cx_rel proche de 0.4")
+	dbgVérifieVrai(Abs(prédBoite..Valeur[2][2] - 0.6) < 0.01, "Boîte apprise : cy_rel proche de 0.6")
+	dbgVérifieVrai(Abs(prédBoite..Valeur[2][3] - 0.4) < 0.01, "Boîte apprise : largeur proche de 0.4")
+	dbgVérifieVrai(Abs(prédBoite..Valeur[2][4] - 0.3) < 0.01, "Boîte apprise : hauteur proche de 0.3")
+
+	// L'objectness sépare le premier plan du fond : cellule responsable
+	// (ligne 2) au-dessus de 0.9, cellules de fond (lignes 1, 3, 4) en
+	// dessous de 0.2.
+	scoresFinaux est un Tenseur = prédObj.Sigmoïde()
+	dbgVérifieVrai(scoresFinaux..Valeur[2][1] > 0.9, "Objectness de la cellule responsable au-dessus de 0.9")
+	dbgVérifieVrai(scoresFinaux..Valeur[1][1] < 0.2, "Objectness de la cellule de fond 1 sous 0.2")
+	dbgVérifieVrai(scoresFinaux..Valeur[3][1] < 0.2, "Objectness de la cellule de fond 2 sous 0.2")
+	dbgVérifieVrai(scoresFinaux..Valeur[4][1] < 0.2, "Objectness de la cellule de fond 3 sous 0.2")
+
+	// La classe apprise sur la cellule responsable est la bonne (classe 1).
+	dbgVérifieVrai(prédClasse..Valeur[2][2] > prédClasse..Valeur[2][1], "La classe 1 (attendue) domine la classe 0")
+
+	// mAP APRÈS entraînement : décodage des 4 cellules en détections
+	// (reconstruction du centre absolu à partir du centre relatif appris).
+	detsApres est un tableau = [ligneCellule(prédClasse, prédBoite, scoresFinaux, 1), ligneCellule(prédClasse, prédBoite, scoresFinaux, 2), ligneCellule(prédClasse, prédBoite, scoresFinaux, 3), ligneCellule(prédClasse, prédBoite, scoresFinaux, 4)]
+	mapApres est un réel = PrécisionMoyenne(detsApres, gts, 0.5)
+
+	// mAP AVANT ~0 (aucune détection de la bonne classe, la tête est à 0) ;
+	// mAP APRÈS proche de 1.0 (la cellule responsable détecte la bonne
+	// classe, en tête du classement par score, avec une boîte quasi exacte).
+	dbgVérifieVrai(Abs(mapAvant - 0.0) < 0.0001, "mAP avant entraînement : ~0 (aucune détection de la bonne classe)")
+	dbgVérifieVrai(mapApres > 0.9, "mAP après entraînement : montée nette vers 1.0")
+FIN
+
+
+// Construction d'une ligne de détection, forme anglaise.
+PROCEDURE PRIVÉE detectionRow(predictedClass is a real, score is a real, cx is a real, cy is a real, l is a real, h is a real) : array
+	RETURN[predictedClass, score, cx - l / 2, cy - h / 2, l, h]
+FIN
+
+// Classe décodée, forme anglaise.
+PROCEDURE PRIVÉE decodedClass(predClass is a Tensor, cell is an integer) : real
+	IF predClass..Value[cell][2] > predClass..Value[cell][1] THEN
+		RETURN 1.0
+	END
+	RETURN 0.0
+FIN
+
+// Décodage d'une cellule (grille 2×2), forme anglaise : reconstruit le centre
+// absolu à partir du centre relatif appris avant MeanAveragePrecision.
+PROCEDURE PRIVÉE cellRow(predClass is a Tensor, predBox is a Tensor, scores is a Tensor, cell is an integer) : array
+	idx is an integer = cell - 1
+	col is an integer = idx % 2
+	row is an integer = idx / 2
+	cx is a real = (col + predBox..Value[cell][1]) / 2.0
+	cy is a real = (row + predBox..Value[cell][2]) / 2.0
+	l is a real = predBox..Value[cell][3]
+	h is a real = predBox..Value[cell][4]
+	RETURN detectionRow(decodedClass(predClass, cell), scores..Value[cell][1], cx, cy, l, h)
+FIN
+
+
+// Même recette, formes anglaises exercées de bout en bout : Reshape,
+// AssignDetectionTargets, ChannelSlice, BinaryCrossEntropy, CrossEntropy,
+// Backpropagate, GradientDescent, MeanAveragePrecision.
+PROCEDURE PUBLIQUE scenario_end_to_end_training_map_increases_english_forms()
+	input is a Tensor = Tensor([1.0, 0.0, 0.0, 0.7, 0.0, 1.0, 0.0, 0.7, 0.0, 0.0, 1.0, 0.0]).Reshape([1, 3, 2, 2])
+
+	flatWeights is an array of reals
+	FOR k = 1 TO 21
+		flatWeights.Add(0.0)
+	END
+	weights is a Tensor = Tensor(flatWeights).Reshape([7, 3, 1, 1])
+
+	boxes is an array = [[1.0, 0.7, 0.3, 0.4, 0.3]]
+	target is a Tensor = AssignDetectionTargets(boxes, 2, 2, 2)
+	targetBox is a Tensor = target.ChannelSlice(1, 4)
+	targetObj is a Tensor = target.ChannelSlice(5, 1)
+	targetClass is a Tensor = target.ChannelSlice(6, 2)
+	mask is a Tensor = target.ChannelSlice(5, 1)
+
+	groundTruth is an array = [[1.0, 0.5, 0.15, 0.4, 0.3]]
+
+	rate is a real = 0.1
+	initialLoss is a real = 0.0
+	finalLoss is a real = 0.0
+	predBox is a Tensor = Tensor([0.0, 0.0, 0.0, 0.0])
+	predObj is a Tensor = Tensor([0.0])
+	predClass is a Tensor = Tensor([0.0, 0.0])
+
+	FOR i = 1 TO 1500
+		rawOutput is a Tensor = input.Convolution2D(weights, 1, 0)
+		flatOutput is a Tensor = rawOutput.Permute([1, 3, 4, 2]).Reshape([4, 7])
+
+		predBox   = flatOutput.ChannelSlice(1, 4)
+		predObj   = flatOutput.ChannelSlice(5, 1)
+		predClass = flatOutput.ChannelSlice(6, 2)
+
+		objLoss is a Tensor = predObj.BinaryCrossEntropy(targetObj)
+		boxLoss is a Tensor = (predBox * mask).L1(targetBox)
+		classLoss is a Tensor = predClass.CrossEntropy(targetClass)
+		totalLoss is a Tensor = objLoss + boxLoss + classLoss
+		totalLoss.Backpropagate()
+
+		IF i = 1 THEN
+			initialLoss = totalLoss..Value[1]
+		END
+		IF i = 1500 THEN
+			finalLoss = totalLoss..Value[1]
+		END
+
+		weights = weights.GradientDescent(rate)
+	END
+
+	dbgCheckTrue(finalLoss < initialLoss * 0.1, "English forms: final loss dropped by at least one order of magnitude")
+	dbgCheckTrue(Abs(predBox..Value[2][1] - 0.4) < 0.01, "English forms: learned box cx_rel close to 0.4")
+	dbgCheckTrue(Abs(predBox..Value[2][2] - 0.6) < 0.01, "English forms: learned box cy_rel close to 0.6")
+
+	finalScores is a Tensor = predObj.Sigmoid()
+	dbgCheckTrue(finalScores..Value[2][1] > 0.9, "English forms: responsible cell objectness above 0.9")
+	dbgCheckTrue(finalScores..Value[1][1] < 0.2, "English forms: background cell 1 objectness below 0.2")
+	dbgCheckTrue(predClass..Value[2][2] > predClass..Value[2][1], "English forms: correct class (1) dominates class 0")
+
+	// Detection rows are built with a single-literal helper call (NOT via
+	// .Add, which flattens an array argument instead of nesting it). Each cell
+	// rebuilds its absolute center from the learned cell-relative center.
+	detections is an array = [cellRow(predClass, predBox, finalScores, 1), cellRow(predClass, predBox, finalScores, 2), cellRow(predClass, predBox, finalScores, 3), cellRow(predClass, predBox, finalScores, 4)]
+	mapAfter is a real = MeanAveragePrecision(detections, groundTruth, 0.5)
+	dbgCheckTrue(mapAfter > 0.9, "English forms: mAP after training rises sharply toward 1.0")
+FIN

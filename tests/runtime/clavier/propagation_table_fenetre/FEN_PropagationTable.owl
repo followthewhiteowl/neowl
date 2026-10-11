@@ -1,0 +1,75 @@
+// Ressource fenêtre — voisin de test_propagation_table_fenetre.owl.
+//  lot B : verrouille le bubble-up sur un des champs
+// nouvellement câblés — pas seulement sur Saisie (déjà couvert par
+// tests/runtime/clavier/propagation_saisie_fenetre).
+//
+//   1. TABLE_SansHandler focusée SANS surToucheAppuyée -> remonte à la
+//      Fenêtre.
+//   2. TABLE_AvecHandler focusée AVEC surToucheAppuyée -> consomme, ne
+//      remonte pas.
+
+FEN_PropagationTable est une Fenêtre
+	PROPRIETES
+		Titre       = "PropagationTable offscreen"
+		Largeur     = 500
+		Hauteur     = 350
+		Disposition = dispLibre
+	FIN
+
+	nFenAppuye est un entier = 0
+	nTblAvecHandlerAppuye est un entier = 0
+
+	// Table SANS handler clavier (la touche doit remonter à la fenêtre).
+	TABLE_SansHandler est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 460
+			Hauteur = 100
+		FIN
+
+		COL_A est une Colonne
+			PROPRIETES
+				Libellé = "A"
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+	FIN
+
+	// Table AVEC handler clavier (consomme la touche, ne remonte pas).
+	TABLE_AvecHandler est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 130
+			Largeur = 460
+			Hauteur = 100
+		FIN
+
+		COL_B est une Colonne
+			PROPRIETES
+				Libellé = "B"
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+
+		PROCEDURE surToucheAppuyée(nTouche est un entier)
+			nTblAvecHandlerAppuye += 1
+			callback_tbl_avec_handler(nTouche)
+		FIN
+	FIN
+
+	PROCEDURE surToucheAppuyée(nTouche est un entier)
+		nFenAppuye += 1
+		callback_fen_propagation(nTouche)
+	FIN
+
+	PROCEDURE FinInitialisation()
+		callback_propagation_prete()
+	FIN
+
+	PROCEDURE LirePropCompteurs()
+		callback_lit_prop_compteurs(nFenAppuye, nTblAvecHandlerAppuye)
+	FIN
+FIN

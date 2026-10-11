@@ -1,0 +1,125 @@
+// @sujet : TexteSimilarité
+// @résumé : Ratio de similarité normalisé entre deux chaînes (algorithme Indel basé sur LCS — Longest Common Subsequence). Retourne un réel entre 0 (aucune correspondance) et 1 (identiques). Insensible à la casse et aux accents par défaut. Utile pour rapprochement global de textes (détecter similarité générale, comparer noms complets).
+
+
+// Vecteur de référence canonique : "kitten" → "sitting". LCS("kitten","sitting")
+// = "ittn" = 4, indel = 6+7-2*4 = 5, ratio = 1 - 5/13 = 8/13 ≈ 0.615.
+// Même corpus que Levenshtein mais normalisé en ratio 0..1. Permet de
+// comparer visuellement la similitude indépendamment de la longueur.
+PROCEDURE scenario_texte_similarite_vecteur_canon_kitten_sitting()
+	sim est un réel = TexteSimilarité("kitten", "sitting")
+	attendu est un réel = 8.0 / 13.0
+
+	dbgVérifieÉgalitéRéel(sim, attendu, "ratio kitten→sitting = 8/13", 0.0001)
+FIN
+
+
+// Cas trivial : chaînes identiques → similarité maximale 1.0. Borne
+// supérieure de la métrique.
+PROCEDURE scenario_texte_similarite_identiques()
+	sim est un réel = TexteSimilarité("test", "test")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaînes identiques → 1.0", 0.0001)
+FIN
+
+
+// Cas trivial : chaînes totalement disjointes → similarité minimale 0.0.
+// "abc" vs "xyz" : LCS=0, indel=6, total=6, ratio=1-6/6=0. Borne inférieure.
+PROCEDURE scenario_texte_similarite_disjointes()
+	sim est un réel = TexteSimilarité("abc", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "chaînes disjointes → 0.0", 0.0001)
+FIN
+
+
+// Insensible casse par défaut : "MARIE" vs "marie" après folding casse
+// → identiques → 1.0. Le repli casse normalise avant le calcul.
+PROCEDURE scenario_texte_similarite_insensible_casse()
+	sim est un réel = TexteSimilarité("MARIE", "marie")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "casse ignorée par défaut", 0.0001)
+FIN
+
+
+// Insensible accents par défaut : "Café" vs "cafe" après folding
+// accents → identiques → 1.0. Le folding normalise é→e, à→a, etc.
+PROCEDURE scenario_texte_similarite_insensible_accents()
+	sim est un réel = TexteSimilarité("Café", "cafe")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "accents ignorés par défaut", 0.0001)
+FIN
+
+
+// Cas limite : l'une des chaînes est vide → similarité = 0.0
+// (indel = len(non-vide), total = len(non-vide), ratio = 1 - total/total = 0).
+PROCEDURE scenario_texte_similarite_une_vide()
+	sim1 est un réel = TexteSimilarité("abc", "")
+	sim2 est un réel = TexteSimilarité("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → 0.0", 0.0001)
+FIN
+
+
+// Cas limite : deux chaînes vides → similarité = 1.0 (convention : identiques).
+PROCEDURE scenario_texte_similarite_deux_vides()
+	sim est un réel = TexteSimilarité("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → 1.0", 0.0001)
+FIN
+
+
+// Alias EN : TextSimilarity() (sans accent) équivalent à TexteSimilarité().
+// Vérifie la cohérence bilingue du langage.
+PROCEDURE scenario_text_similarity_alias_en()
+	simFR est un réel = TexteSimilarité("kitten", "sitting")
+	simEN est un réel = TextSimilarity("kitten", "sitting")
+	attendu est un réel = 8.0 / 13.0
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR", 0.0001)
+	dbgVérifieÉgalitéRéel(simEN, attendu, "alias EN calcule correctement", 0.0001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Symétrie : TexteSimilarité est symétrique (indel est symétrique).
+// Inverser l'ordre des arguments ne change pas le résultat.
+PROCEDURE PRIVÉE scenario_texte_similarite_symetrie()
+	sim1 est un réel = TexteSimilarité("abc", "def")
+	sim2 est un réel = TexteSimilarité("def", "abc")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "similarité symétrique", 0.0001)
+FIN
+
+
+// Cas casse+accents combiné : "Café" vs "CAFE" → 1.0 (les deux
+// transformations appliquées simultanément).
+PROCEDURE PRIVÉE scenario_texte_similarite_casse_et_accents()
+	sim est un réel = TexteSimilarité("Café", "CAFE")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "casse + accents ignorés simultanément", 0.0001)
+FIN
+
+
+// Vecteur référence supplétif : "Saturday" vs "Sunday".
+// LCS("saturday","sunday" après folding) = "suday" = 5,
+// indel = 8+6-2*5 = 4, total = 14, ratio = 1-4/14 = 10/14 = 5/7.
+PROCEDURE PRIVÉE scenario_texte_similarite_saturday_sunday()
+	sim est un réel = TexteSimilarité("Saturday", "Sunday")
+	attendu est un réel = 5.0 / 7.0
+
+	dbgVérifieÉgalitéRéel(sim, attendu, "Saturday→Sunday = 5/7", 0.0001)
+FIN
+
+
+// Chaînes proches mais pas identiques : "test" vs "tests" (ajout 1 char).
+// LCS=4 "test", indel=4+5-8=1, total=9, ratio=1-1/9=8/9.
+PROCEDURE PRIVÉE scenario_texte_similarite_ajout_un_char()
+	sim est un réel = TexteSimilarité("test", "tests")
+	attendu est un réel = 8.0 / 9.0
+
+	dbgVérifieÉgalitéRéel(sim, attendu, "ajout 1 char → 8/9", 0.0001)
+FIN

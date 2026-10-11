@@ -1,0 +1,58 @@
+//  — le Saisie stylé enveloppé du CadreExtérieur ballonne en
+// disposition verticale : le QLineEdit enveloppé est forcé en Expanding vertical
+// et le wrapper (QWidget, politique par défaut) absorbe tout l'espace vertical du
+// layout -> le champ prend ~toute la hauteur de la fenêtre au lieu de sa hauteur
+// naturelle. Ce test mesure la hauteur peinte du fond de chaque champ (colonne
+// centrale) : le stylé doit rester ≈ au témoin (non enveloppé), pas ballonner.
+//
+// ROUGE attendu avant le fix : hStylee ~ hauteur fenêtre (>> hTemoin).
+// VERT après le fix : hStylee ≈ hTemoin (hauteur naturelle bornée).
+
+TestModeHeadless(Faux)
+
+couleurTemoin est un entier = RVB(0, 200, 0)
+couleurStylee est un entier = RVB(0, 0, 200)
+
+// Hauteur (en px) de la bande de `couleur` sur la colonne verticale x.
+PROCEDURE HauteurBande(img est une Image, x est un entier, y1 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		SI dPixelCouleur(img, x, yy) = couleur ALORS
+			n = n + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_SaisieHauteurVerticale)
+
+img est une Image = dCopieImageFenêtre(FEN_SaisieHauteurVerticale)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+//  — sonde en x=20 (à l'intérieur des champs, désormais accrochés à
+// gauche à leur largeur naturelle). L'ancienne colonne x=150 supposait un
+// étirement transverse implicite sur toute la largeur : sans Largeur déclarée,
+// le champ occupe maintenant sa largeur naturelle (~140px) et s'aligne à gauche
+// (défaut alignDébut), donc x=150 tombe hors du champ.
+hTemoin est un entier = HauteurBande(img, 20, 0, 400, couleurTemoin)
+hStylee est un entier = HauteurBande(img, 20, 0, 400, couleurStylee)
+
+// Les deux champs sont rendus (fond ZoneSaisie peint).
+dbgVérifieVrai(hTemoin > 0, "témoin : fond ZoneSaisie peint")
+dbgVérifieVrai(hStylee > 0, "stylé : fond ZoneSaisie peint (rendu préservé)")
+
+// Cœur du fix : PARITÉ. Le champ stylé (enveloppé) doit avoir la MÊME hauteur
+// que le témoin non enveloppé — dans les DEUX sens (ni plus haut = ballon, ni
+// plus court = compression). Avant fix : témoin ~239px, stylé ~137px (le wrapper
+// se dimensionne autrement que le QLineEdit qu'il remplace) -> asymétrie.
+dbgVérifieVrai(hStylee <= hTemoin + 12, "stylé ≤ témoin : pas de ballon vertical")
+dbgVérifieVrai(hTemoin <= hStylee + 12, "témoin ≤ stylé : pas de compression du stylé")
+
+// Borne dure indépendante : la hauteur peinte reste naturelle, jamais celle de
+// la fenêtre (400) -> un ballon donnerait plusieurs centaines de px.
+dbgVérifieVrai(hStylee < 120, "stylé : hauteur bornée (pas d'expansion verticale)")
+
+Ferme(FEN_SaisieHauteurVerticale)
+dbgBilanTest()

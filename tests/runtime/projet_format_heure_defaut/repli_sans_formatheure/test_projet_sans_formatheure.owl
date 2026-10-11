@@ -1,0 +1,30 @@
+//  — repli quand ni le champ (pas de MasqueAffichage) ni le projet
+// (pas de FormatHeure) ne posent de format : la relecture doit suivre le
+// défaut en dur HH:MI (comportement  préservé, secondes tronquées).
+// Vérifie aussi que Projet..FormatHeure rend "" par défaut (jamais nil) quand
+// le champ n'est pas posé dans PROPRIETES.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que le champ
+// FormatHeure n'existe pas au catalogue manifeste Projet — même absent de
+// PROPRIETES ici, le CATALOGUE doit connaître le champ pour matérialiser sa
+// valeur par défaut dans l'ObjInstance (sinon MonApp..FormatHeure lève un
+// symbole inconnu à la lecture).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppSansFormatHeure..FormatHeure, "", "Projet..FormatHeure : chaîne vide par défaut quand non posé (jamais nil)")
+
+OuvreSoeur(FEN_ProjetSansFormatHeure)
+
+hPrécision est une heure = ChaîneVersHeure("143045")
+SAI_Heure..Valeur = hPrécision
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Repli défaut : ..Valeur reste un owlHeure")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLue est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLue, "14300000", "Repli HH:MI (ni masque champ, ni FormatHeure projet) : secondes tronquées (14:30:00)")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetSansFormatHeure)
+dbgBilanTest()

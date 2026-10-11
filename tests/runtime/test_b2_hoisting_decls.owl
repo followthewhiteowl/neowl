@@ -1,0 +1,56 @@
+// =====================================================================
+// B.2 : verrou hoisting -- decls structurelles top-level sont
+// systematiquement disponibles avant tout statement, peu importe leur
+// position dans le source.
+//
+// Si ce test casse, c'est que le compileur a perdu le hoisting (passage
+// non-lineaire reorder_chunk_for_hoisting ou equivalent).
+//
+// Note : la couverture forward-ref CLASSE intra-fichier disparait avec
+// la regle OWL 1 classe = 1 fichier (un fichier classe ne peut pas
+// contenir de runtime top-level, donc la sequence "usage -> decl"
+// n'est plus possible). PROC/FONCTION/STRUCT/ENUM restent couvertes.
+// =====================================================================
+
+// -- 1. forward call vers PROCEDURE declaree apres --
+r1 est un entier = ProcAvant(10)
+dbgVérifieEgalité(r1, 11, "PROCEDURE hoistee : forward call OK")
+
+// -- 2. forward call vers FONCTION declaree apres --
+r2 est un entier = FonctionAvant(20)
+dbgVérifieEgalité(r2, 22, "FONCTION hoistee : forward call OK")
+
+// -- 3. forward usage d'une STRUCTURE declaree apres --
+stP est un stPoint
+stP.X = 1
+stP.Y = 2
+dbgVérifieEgalité(stP.X + stP.Y, 3, "STRUCTURE hoistee : usage OK avant decl")
+
+// -- 4. forward usage d'une ENUMERATION declaree apres -- (acces qualifie)
+col est un eCouleur = eCouleur.Rouge
+dbgVérifieEgalité(col..Nom, "Rouge", "ENUMERATION hoistee : nom enum OK avant decl")
+
+// =====================================================================
+// Decls placees APRES les statements (hoisted at compile time)
+// =====================================================================
+
+PROCEDURE ProcAvant(x est un entier)
+	RENVOYER x + 1
+FIN
+
+FONCTION FonctionAvant(x est un entier) : entier
+	RENVOYER x + 2
+FIN
+
+stPoint est une Structure
+	X est un entier
+	Y est un entier
+FIN
+
+eCouleur est une Énumération
+	Rouge
+	Vert
+	Bleu
+FIN
+
+dbgBilanTest()

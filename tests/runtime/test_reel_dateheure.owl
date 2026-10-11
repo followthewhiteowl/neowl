@@ -1,0 +1,45 @@
+// Test : RéelVersDateHeure / DateHeureVersRéel
+// Sérialisation Excel : entier = numéro du jour, fraction = fraction du jour.
+// Documentation de référence.
+Trace("=== ReelVersDateHeure ===")
+
+// Documentation de référence exemple 1 : RéelVersDateHeure(3.25) → 19000103060000
+dh1 est un dateheure = RéelVersDateHeure(3.25)
+dbgVérifieEgalité(DateHeureVersChaîne(dh1), "03/01/1900 06:00:00:00",
+"doc exemple : 3.25 → 03/01/1900 06:00")
+
+// Excel jour 36526.5 = 1 jan 2000 midi (nombre rond)
+dbgVérifieEgalité(DateHeureVersChaîne(RéelVersDateHeure(36526.5)),
+"01/01/2000 12:00:00:00", "36526.5 → 01/01/2000 12:00")
+
+// Excel quirk : jour 60 = 29/02/1900 fictif (confirmé), jour 61 = 01/03/1900
+dbgVérifieEgalité(DateHeureVersChaîne(RéelVersDateHeure(60)),
+"29/02/1900 00:00:00:00", "Excel jour 60 = 29/02/1900 fictif (canon de référence)")
+dbgVérifieEgalité(DateHeureVersChaîne(RéelVersDateHeure(61)),
+"01/03/1900 00:00:00:00", "Excel jour 61 = 01/03/1900")
+// Doc original (typo) "73773.5 → 25/12/2001" — réel mesuré = 24/12/2101 12:00
+dbgVérifieEgalité(DateHeureVersChaîne(RéelVersDateHeure(73773.5)),
+"24/12/2101 12:00:00:00", "73773.5 → 24/12/2101 (documentation de référence contient une typo)")
+
+// Aller-retour (round-trip) — épsilon flottant ignoré sur entiers
+dbgVérifieEgalité(DateHeureVersRéel("20000101000000"), 36526,
+"01/01/2000 → 36526 (Excel days)")
+dbgVérifieEgalité(DateHeureVersRéel("19000301000000"), 61,
+"01/03/1900 → 61 (Excel days, après le bug 1900)")
+dbgVérifieEgalité(DateHeureVersRéel("19000228000000"), 59,
+"28/02/1900 → 59 (avant le bug)")
+dbgVérifieEgalité(DateHeureVersRéel("19000101000000"), 1,
+"01/01/1900 → 1 (Excel jour 1)")
+
+// Mode 1904 (jour 0 = 01/01/1904)
+dbgVérifieEgalité(DateHeureVersChaîne(RéelVersDateHeure(0, Vrai)),
+"01/01/1904 00:00:00:00", "mode 1904 : jour 0 = 01/01/1904")
+dbgVérifieEgalité(DateHeureVersRéel("19040101000000", Vrai), 0,
+"01/01/1904 mode 1904 → 0")
+
+// Méthode prefix
+dh est un dateheure = "20000615120000"
+r est un réel = dh.VersRéel()
+dbgVérifieEgalité(r, 36692.5, "méthode .VersRéel() : 15/06/2000 12:00 → 36692.5")
+
+dbgBilanTest()

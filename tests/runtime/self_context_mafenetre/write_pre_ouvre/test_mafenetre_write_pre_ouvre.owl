@@ -1,0 +1,37 @@
+// MaFenetre / FEN_X..Prop : ecriture pre-Ouvre doit survivre a l'ouverture.
+//
+// Lot B livre : `FEN_X..Titre = "x"` avant Ouvre va dans le fallback_store du
+// proxy ObjWindowRef. Mais open_window_instance seede le headless_store de
+// l'ObjWindowInstance UNIQUEMENT depuis le DECL statique, jamais depuis le
+// fallback_store. Resultat avant fix : l'ecriture pre-Ouvre est ecrasee par
+// la valeur declarative.
+//
+// Semantique attendue : ce que l'utilisateur a ecrit explicitement avant
+// l'ouverture gagne sur le declaratif. Le drain a l'ouverture materialise ca.
+//
+// Pattern : la ressource fenetre FEN_PreOuvre.owl voisine est manipulee
+// directement depuis le script (lecture/ecriture par nom fenetre).
+
+TestModeHeadless(Vrai)
+
+// Ecriture AVANT Ouvre : atterrit aujourd'hui dans le fallback_store du proxy
+FEN_PreOuvre..Titre   = "pre-ouvre"
+FEN_PreOuvre..Largeur = 450
+
+Ouvre(FEN_PreOuvre)
+
+// Verification APRES Ouvre : l'ecriture pre-Ouvre doit avoir survecu.
+// Au top-level script (hors decl fenetre) on utilise le nom direct, qui passe
+// par le meme ObjWindowRef global pose au compile + branche vm.c
+// IS_WINDOW_REF qui delegue a l'instance top-of-stack.
+dbgVérifieEgalité(FEN_PreOuvre..Titre, "pre-ouvre",
+"ecriture pre-Ouvre survit a l'ouverture (Titre)")
+dbgVérifieEgalité(FEN_PreOuvre..Largeur, 450,
+"ecriture pre-Ouvre survit a l'ouverture (Largeur)")
+
+// Les props non touchees avant Ouvre gardent leur valeur declarative.
+dbgVérifieEgalité(FEN_PreOuvre..Hauteur, 200,
+"prop non touchee avant Ouvre = declaratif")
+
+Ferme(FEN_PreOuvre)
+dbgBilanTest()

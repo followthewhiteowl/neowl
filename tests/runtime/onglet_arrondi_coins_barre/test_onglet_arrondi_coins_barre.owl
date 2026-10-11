@@ -1,0 +1,57 @@
+//  — arrondir les languettes d'un Champ Onglet ne doit pas faire
+// apparaître de liseré parasite au ras de leurs coins.
+//
+// Défaut observé : dès qu'un arrondi est posé, de petits arcs sombres se
+// dessinent au-dessus des coins des languettes, à la frontière avec la barre.
+// Le liseré de jonction de la barre est tracé sur toute la largeur, au ras du
+// bord haut des languettes ; une languette carrée le recouvre entièrement,
+// une languette arrondie le découvre dans ses coins.
+//
+// Méthode : trois Onglets identiques (mêmes couleurs, mêmes libellés), aux
+// arrondis 0, 8 et 16. Sur la ligne du haut de chaque capture, la colonne x=1
+// tombe dans le coin découpé dès qu'un arrondi est posé : elle doit y montrer
+// le fond de la barre, exactement comme la ligne juste en dessous.
+//
+// Widgets réels obligatoires : la capture d'un Champ Onglet re-matérialisé en
+// mode headless rend une surface vide (pas de barre de languettes), donc
+// aveugle à ce défaut.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OngletCoinsBarre)
+
+img0 est une Image = dCopieImageChamp(ONG_Coins0)
+dbgVérifieEgalité(img0..Valide, Vrai, "ONG_Coins0 : capture valide")
+
+img8 est une Image = dCopieImageChamp(ONG_Coins8)
+dbgVérifieEgalité(img8..Valide, Vrai, "ONG_Coins8 : capture valide")
+
+img16 est une Image = dCopieImageChamp(ONG_Coins16)
+dbgVérifieEgalité(img16..Valide, Vrai, "ONG_Coins16 : capture valide")
+
+// Arrondi 0 : la languette est carrée, elle couvre la ligne du haut de bout
+// en bout — son fond rouge s'y lit jusque dans le coin.
+dbgVérifieEgalité(dPixelCouleur(img0, 1, 0), Rouge,
+"Languette plate : le fond du volet actif couvre le coin haut")
+
+// Arrondi 8 et 16 : le coin est découpé (donc plus rouge), et ce qu'on y voit
+// est le fond de la barre, identique une ligne plus bas — aucun liseré.
+dbgVérifieDifférence(dPixelCouleur(img8, 1, 0), Rouge,
+"Arrondi 8 : le coin haut de la languette est bien découpé")
+dbgVérifieEgalité(dPixelCouleur(img8, 1, 0), dPixelCouleur(img8, 1, 1),
+"Arrondi 8 : aucun liseré au ras du coin de la languette")
+
+dbgVérifieDifférence(dPixelCouleur(img16, 1, 0), Rouge,
+"Arrondi 16 : le coin haut de la languette est bien découpé")
+dbgVérifieEgalité(dPixelCouleur(img16, 1, 0), dPixelCouleur(img16, 1, 1),
+"Arrondi 16 : aucun liseré au ras du coin de la languette")
+
+// L'arrondi n'est pas « corrigé » en supprimant la languette : hors des
+// coins, la ligne du haut reste peinte du fond du volet actif.
+dbgVérifieEgalité(dPixelCouleur(img8, 30, 0), Rouge,
+"Arrondi 8 : la languette peint toujours son bord haut hors des coins")
+dbgVérifieEgalité(dPixelCouleur(img16, 30, 0), Rouge,
+"Arrondi 16 : la languette peint toujours son bord haut hors des coins")
+
+Ferme(FEN_OngletCoinsBarre)
+dbgBilanTest()

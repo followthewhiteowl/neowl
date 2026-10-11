@@ -1,0 +1,31 @@
+// Runtime GUI (widgets montés, offscreen) : Champ Jauge — lecture de
+// CouleurJauge. Distinction entre l'état NON DÉFINI (aucune couleur posée
+// -> Null) et une couleur explicitement fixée à noir/0 (-> 0). Le widget
+// live porte la vérité (m_progressColor == -1 pour non défini).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_JaugeCouleur)
+
+// --- 1. Couleur jamais fixée : lecture = Null (pas 0) ---
+dbgVérifieVrai(JAU_Sans..CouleurJauge = Null,
+"JAU_Sans : CouleurJauge non définie renvoie Null")
+
+// --- 2. Couleur posée au runtime, relue à l'identique ---
+JAU_Col..CouleurJauge = RVB(70, 130, 180)
+dbgVérifieEgalité(JAU_Col..CouleurJauge, RVB(70, 130, 180),
+"JAU_Col : couleur posée relue à l'identique")
+
+// --- 3. Distinction non-défini / noir : noir(0) explicite renvoie 0 ---
+JAU_Col..CouleurJauge = Noir
+dbgVérifieEgalité(JAU_Col..CouleurJauge, 0,
+"JAU_Col : couleur fixée à Noir renvoie 0")
+dbgVérifieVrai(JAU_Col..CouleurJauge <> Null,
+"JAU_Col : couleur fixée à Noir n'est pas Null")
+
+// --- 4. Accès bilingue EN cohérent sur la jauge sans couleur ---
+dbgVérifieVrai(JAU_Sans..ProgressBarColor = Null,
+"JAU_Sans : ..ProgressBarColor (EN) cohérent avec ..CouleurJauge")
+
+Ferme(FEN_JaugeCouleur)
+dbgBilanTest()

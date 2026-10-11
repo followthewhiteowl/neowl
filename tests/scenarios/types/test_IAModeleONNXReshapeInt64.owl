@@ -1,0 +1,74 @@
+// @sujet : IAModèle.ChargeONNX — décodage des tenseurs INT64 (shape-tensors)
+// @résumé : les réseaux exportés par les frameworks courants stockent la cible
+// d'un Reshape dans un initializer INT64, souvent sérialisé en raw_data (octets
+// bruts little-endian). Un lecteur qui ne décode pas l'INT64 fait échouer TOUT
+// l'import dès qu'un tel initializer est présent. Ce scénario importe une
+// fixture MatMul(entrée, Reshape(poids, forme INT64 raw_data)) → Add(biais) et
+// compare l'inférence à un oracle onnxruntime.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_reshape_int64.onnx.
+// Oracle : tests/internal_fixtures/onnx/fixture_reshape_int64_oracle.json —
+// entrée [1,4] = [0.1, 0.2, 0.3, 0.4], sortie attendue
+// [0.2, -0.016667, 0.216667].
+//
+// L'initializer de forme est un INT64 en raw_data : tant que l'INT64 n'est pas
+// décodé, le parser rejette le fichier entier (import en échec). Une fois
+// décodé, l'import et l'inférence aboutissent.
+PROCEDURE PUBLIQUE scenario_charge_onnx_shape_int64_infere_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_reshape_int64.onnx")
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un modèle avec forme INT64 (raw_data) réussit")
+
+	brut est un tableau de réels
+	brut.Ajoute(0.1)
+	brut.Ajoute(0.2)
+	brut.Ajoute(0.3)
+	brut.Ajoute(0.4)
+	entrée est un Tenseur = Tenseur(brut)
+
+	sortie est un Tenseur = mon.Infère(entrée)
+	bInfereEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bInfereEchoue, "l'inférence après import INT64 réussit")
+
+	val est un Vecteur = sortie..Valeur
+
+	attendu1 est un réel = 0.20000000298023224
+	attendu2 est un réel = -0.016666680574417114
+	attendu3 est un réel = 0.21666668355464935
+
+	dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (forme INT64, tolérance flottante)")
+	dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (forme INT64, tolérance flottante)")
+	dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (forme INT64, tolérance flottante)")
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le même
+// comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_shape_int64_infer_equals_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_reshape_int64.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a model with an INT64 shape (raw_data) succeeds")
+
+	raw is an array of reals
+	raw.Ajoute(0.1)
+	raw.Ajoute(0.2)
+	raw.Ajoute(0.3)
+	raw.Ajoute(0.4)
+	input is a Tensor = Tensor(raw)
+
+	output is a Tensor = mon.Infer(input)
+	bInferFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bInferFailed, "inference after INT64 import succeeds")
+
+	val is a Vector = output..Value
+
+	expected1 is a real = 0.20000000298023224
+	expected2 is a real = -0.016666680574417114
+	expected3 is a real = 0.21666668355464935
+
+	dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the INT64 shape oracle")
+	dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the INT64 shape oracle")
+	dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the INT64 shape oracle")
+FIN

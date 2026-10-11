@@ -1,0 +1,30 @@
+// @sujet : AMQPRejette
+// @résumé : Rejette un message reçu (Basic.Nack) avec ou sans remise en file, à partir de son identifiant de livraison.
+
+// Rejeter sur une connexion qui n'a jamais été ouverte échoue proprement :
+// la native renvoie Faux et pose une erreur, sans émettre sur le fil.
+PROCEDURE PUBLIQUE scenario_rejette_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPRejette(cnx, 1, Vrai)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bOk, "AMQPRejette renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+
+// Le tag de livraison doit être un entier : une chaîne en 2e argument est
+// refusée avec le code d'erreur canonique de type d'argument invalide, pas
+// juste un Faux muet.
+PROCEDURE PUBLIQUE scenario_rejette_tag_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPRejette(cnx, "pas-un-entier", Vrai)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPRejette refuse un tag qui n'est pas un entier")
+	dbgVérifieVrai(bErr, "une erreur est posée sur un tag de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

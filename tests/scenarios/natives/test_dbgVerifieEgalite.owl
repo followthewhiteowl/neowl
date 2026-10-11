@@ -1,0 +1,110 @@
+// @sujet : dbgVérifieEgalité
+// @resume : Vérifie que deux valeurs sont égales et signale une assertion si différentes
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_egalite_entiers_simples()
+	// Cas nominal : deux entiers égaux déclenchent une assertion réussie
+	// Aucun échec ne doit être enregistré dans le bilan
+
+	nbEchecsAvant est un entier = dbgBilanTest()
+
+	x est un entier = 42
+	y est un entier = 42
+
+	dbgVérifieEgalité(x, y, "42 egal 42")
+
+	// Le compteur d'échecs ne doit pas avoir bougé
+	nbEchecsApres est un entier = dbgBilanTest()
+	deltaEchecs est un entier = nbEchecsApres - nbEchecsAvant
+
+	dbgVérifieEgalité(deltaEchecs, 0, "Aucun echec pour egalite reussie")
+FIN
+
+PROCEDURE PUBLIQUE scenario_egalite_chaines()
+	// Vérification d'égalité sur des chaînes de caractères
+	// Sensible à la casse et aux espaces
+
+	message1 est une chaîne = "Bonjour"
+	message2 est une chaîne = "Bonjour"
+
+	// L'assertion doit passer car les chaînes sont identiques
+	dbgVérifieEgalité(message1, message2, "Chaines identiques")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_egalite_reels()
+	// Vérification stricte sur des réels (attention aux arrondis)
+	// Pour une tolérance, utiliser dbgVérifieÉgalitéRéel
+
+	valReel1 est un réel = 3.14
+	valReel2 est un réel = 3.14
+
+	dbgVérifieEgalité(valReel1, valReel2, "Reels identiques stricts")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_zero_et_valeurs_negatives()
+	// Valeurs sentinel : 0, négatifs, limites arithmétiques
+
+	dbgVérifieEgalité(0, 0, "Zero egal zero")
+	dbgVérifieEgalité(-1,-1, "Negatifs egaux")
+	dbgVérifieEgalité(-999,-999, "Negatifs egaux grands")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_vides_et_espaces()
+	// Cas limites sur chaînes : vides, espaces, accents
+
+	vide1 est une chaîne = ""
+	vide2 est une chaîne = ""
+	dbgVérifieEgalité(vide1, vide2, "Chaines vides egales")
+
+	espace1 est une chaîne = " "
+	espace2 est une chaîne = " "
+	dbgVérifieEgalité(espace1, espace2, "Chaines un espace egales")
+
+	accent1 est une chaîne = "café"
+	accent2 est une chaîne = "café"
+	dbgVérifieEgalité(accent1, accent2, "Chaines avec accents egales")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_types_mixtes_entier_reel()
+	// Comparaison entre un entier et un réel de même valeur numérique
+	// Comportement attendu : égalité numérique (3 == 3.0)
+
+	entierVal est un entier = 3
+	reelVal est un réel = 3.0
+
+	dbgVérifieEgalité(entierVal, reelVal, "Entier et reel meme valeur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que dbgVérifieEgalité et dbgCheckEqual sont équivalents
+	// Les deux formes doivent accepter la même syntaxe
+
+	x est un entier = 100
+	y est un entier = 100
+
+	// Appel forme FR
+	dbgVérifieEgalité(x, y, "Alias FR fonctionne")
+
+	// Appel forme EN (équivalent)
+	dbgCheckEqual(x, y, "Alias EN fonctionne")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_label_vide()
+	// Cas limite : label vide ou absent (3e arg optionnel normalement)
+	// Le système doit tolérer un label vide
+
+	val1 est un entier = 7
+	val2 est un entier = 7
+
+	dbgVérifieEgalité(val1, val2, "")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,44 @@
+// Cas 1 : convergence cascade homonyme ↔ littéral
+//
+// Objectif : 2 cascades homonymes (Cadre..Epaisseur + Cadre..Couleur) doivent
+// produire le MÊME résultat que la forme littérale (Cadre = {...}).
+//
+// Avant refactor compile-time : 2 props "Cadre" distinctes émises par le compilateur,
+// merge runtime via `merge_homonym_object_props` (rustine ).
+//
+// Après refactor : 1 seul bytecode (clone + 2 STRUCT_SET), identique à la forme
+// littérale. Les deux libellés doivent donner les mêmes valeurs finales.
+//
+// Pattern : la fenêtre voisine FEN_Convergence.owl appelle callback_verifie
+// dans son FinInitialisation pour remonter les valeurs lues au script test.
+
+cascadeEpaisseur est un entier = -1
+cascadeCouleur est un entier = -1
+litteralEpaisseur est un entier = -1
+litteralCouleur est un entier = -1
+
+PROCEDURE callback_verifie(cEp est un entier, cCol est un entier,
+	lEp est un entier, lCol est un entier)
+	cascadeEpaisseur  = cEp
+	cascadeCouleur    = cCol
+	litteralEpaisseur = lEp
+	litteralCouleur   = lCol
+FIN
+
+Ouvre(FEN_Convergence)
+
+// Vérifier que cascade homonyme préserve les deux valeurs
+dbgVérifieEgalité(cascadeEpaisseur, 3, "cascade : Épaisseur préservée")
+dbgVérifieEgalité(cascadeCouleur, RougeClair, "cascade : Couleur préservée")
+
+// Vérifier que littéral aussi (référence oracle)
+dbgVérifieEgalité(litteralEpaisseur, 3, "littéral : Épaisseur présente")
+dbgVérifieEgalité(litteralCouleur, RougeClair, "littéral : Couleur présente")
+
+// Vérifier convergence : cascade ≡ littéral
+dbgVérifieEgalité(cascadeEpaisseur, litteralEpaisseur, "cascade ≡ littéral sur Épaisseur")
+dbgVérifieEgalité(cascadeCouleur, litteralCouleur, "cascade ≡ littéral sur Couleur")
+
+Ferme(FEN_Convergence)
+
+dbgBilanTest()

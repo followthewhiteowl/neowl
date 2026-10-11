@@ -1,0 +1,129 @@
+// @sujet : httpRequête
+// @résumé : Type composé décrivant une requête HTTP : URL, méthode, entêtes, corps, authentification, options TLS. S'envoie via HTTPEnvoie qui retourne un httpRéponse.
+
+
+// Mock partagé par les scénarios qui simulent un envoi réseau. Le mock
+// rend un httpRéponse pré-construit ; chaque scénario manipule ensuite la
+// réponse comme dans un vrai appel. Recréé en avantChaqueTest pour partir
+// d'un état propre, nettoyé en apresChaqueTest.
+//
+// Note : la chaîne fluente du mock est coupée en deux lignes
+// `Quand().Retourne(rep)` puis `Active()` parce que l'argument typé
+// `rep` perturbe la résolution de la méthode chaînée qui suit (cf.
+// tests/_review/queue.md). Le résultat est identique.
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat            = 200
+	rep..DescriptionCodeEtat = "OK"
+	rep..ContentType         = "application/json"
+	rep..Contenu             = `{"status":"ok","items":42}`
+
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Desactive()
+FIN
+
+// Cas canonique : une httpRequête déclarée sans initialisation reçoit les
+// valeurs par défaut prêtes à l'emploi (URL vide, méthode GET, timeout 20s).
+PROCEDURE scenario_creation_avec_defauts()
+	req est un httpRequête
+	dbgVérifieEgalité(req..URL, "")
+	dbgVérifieEgalité(req..Méthode, httpGet)
+	dbgVérifieEgalité(req..DuréeNonRéponse, 20000)
+FIN
+
+
+// Le databinding est direct : on assigne aux propriétés avec la notation
+// `..`, on relit de la même façon. URL, en-têtes via tableau associatif et
+// identifiants d'authentification basique se posent au même endroit.
+PROCEDURE scenario_databinding_complet()
+	req est un httpRequête
+	req..URL                 = "https://api.example.com/v1/users"
+	req..Méthode             = httpPost
+	req..ContentType         = typeMimeJSON
+	req..Entête["X-API-Key"] = "secret123"
+	req..Utilisateur         = "alice"
+	req..MotDePasse          = "secret42"
+
+	dbgVérifieEgalité(req..URL, "https://api.example.com/v1/users")
+	dbgVérifieEgalité(req..Méthode, httpPost)
+	dbgVérifieEgalité(req..Entête["X-API-Key"], "secret123")
+	dbgVérifieEgalité(req..Utilisateur, "alice")
+FIN
+
+
+// La propriété Méthode est contrainte à l'énumération httpMéthodes. Affecter
+// une constante nommée (httpGet, httpPost, httpPut, httpDelete…) rend le
+// code lisible et autodocumenté.
+PROCEDURE scenario_methode_via_constante_enum()
+	req est un httpRequête
+	req..Méthode = httpPut
+	dbgVérifieDifférence(req..Méthode, httpGet)
+	dbgVérifieEgalité(req..Méthode, httpPut)
+FIN
+
+
+// La propriété Destination, quand elle est posée, indique au runtime
+// d'écrire la réponse directement dans un fichier local au lieu de la
+// charger en mémoire. Utile pour les téléchargements volumineux.
+PROCEDURE scenario_destination_telechargement_disque()
+	req est un httpRequête
+	req..URL         = "https://example.com/gros-fichier.zip"
+	req..Destination = "C:/tmp/telechargement.zip"
+	dbgVérifieEgalité(req..Destination, "C:/tmp/telechargement.zip")
+FIN
+
+
+// Forme canonique d'envoi : HTTPEnvoie prend une httpRequête et retourne
+// un httpRéponse typé. On lit le code HTTP via la propriété CodeEtat puis
+// on parse le corps si nécessaire.
+PROCEDURE scenario_envoi_get_et_lecture_reponse_typee()
+	req est un httpRequête
+	req..URL     = "https://api.example.com/items"
+	req..Méthode = httpGet
+
+	cRep est un httpRéponse = HTTPEnvoie(req)
+	dbgVérifieEgalité(cRep..CodeEtat, 200)
+
+	jContenu est un JSON = ChaîneVersJSON(cRep..Contenu)
+	dbgVérifieEgalité(jContenu.status, "ok")
+	dbgVérifieEgalité(jContenu.items, 42)
+FIN
+
+
+// Variation POST avec payload : la même fixture sert plusieurs scénarios.
+// Le scénario décrit la requête, l'envoi est une ligne, la réponse est
+// inspectée via ses propriétés typées.
+PROCEDURE scenario_envoi_post_avec_payload()
+	req est un httpRequête
+	req..URL         = "https://api.example.com/v1/items"
+	req..Méthode     = httpPost
+	req..ContentType = "application/json"
+	req..Contenu     = `{"nom":"Carnet","prix":12.50}`
+
+	cRep est un httpRéponse = HTTPEnvoie(req)
+	dbgVérifieEgalité(cRep..CodeEtat, 200)
+	dbgVérifieEgalité(cRep..ContentType, "application/json")
+FIN
+
+
+// Cas limite défensif : la cohérence des défauts ne se résume pas aux trois
+// propriétés vérifiées dans le scénario nominal. Le timeout de connexion
+// suit la même valeur (20s), les chaînes d'identification sont vides à la
+// création.
+PROCEDURE PRIVÉE scenario_tous_les_defauts()
+	req est un httpRequête
+	dbgVérifieEgalité(req..TimeoutConnexion, 20000)
+	dbgVérifieEgalité(req..Utilisateur, "")
+	dbgVérifieEgalité(req..MotDePasse, "")
+	dbgVérifieEgalité(req..CertificatClient, "")
+	dbgVérifieEgalité(req..AgentUtilisateur, "")
+	dbgVérifieEgalité(req..Destination, "")
+	dbgVérifieEgalité(req..IgnoreErreur, 0)
+FIN

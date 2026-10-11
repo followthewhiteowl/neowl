@@ -1,0 +1,28 @@
+//  — repro segfault : erreur runtime (div/0) levee depuis l'event
+// FinInitialisation pendant Ouvre(). Pre-fix : runtime_error() wipe
+// vm.frameCount=0 / vm.stackTop=vm.stack, la native fn_ouvre revient dans
+// call_value, qui pop sur une stack vide -> segfault. Post-fix : la garde
+// sentinel post-native detecte vm.frameCount < entryFrames et propage
+// l'erreur proprement (return false dans call_value).
+//
+//  — TestModeHeadless / Ouvre vivaient ici au top-level ; la regle
+// du fichier-fenetre pur les refuse depuis  +  et la
+// fixture ne compilait plus. Ils ont migre dans le top-level de projet.owl
+// (le declencheur), ce qui laisse le chemin re-entrant inchange : Ouvre()
+// -> vm_call_reentrant -> FinInitialisation. Les Trace() sont les
+// marqueurs que scripts/run_segfault_unwind_test.sh exige pour prouver que
+// le programme a reellement tourne avant de conclure "pas de crash".
+
+FEN_Crash est une Fenêtre
+	PROPRIETES
+		Titre       = "Crash"
+		Disposition = dispLibre
+	FIN
+
+	PROCEDURE FinInitialisation()
+		Trace("segfault_unwind: FinInitialisation entree")
+		x est un entier = 0
+		y est un entier = 10 / x
+		Trace(y)
+	FIN
+FIN

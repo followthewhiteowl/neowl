@@ -1,0 +1,61 @@
+// @sujet : STOMPAbonne
+// @résumé : Abonne une procédure aux messages STOMP publiés sur une destination du courtier ; la procédure est appelée à chaque message reçu.
+
+
+// Procédure de réception passée en abonnement. Jamais appelée dans ces
+// scénarios puisque la session n'est pas connectée au courtier. Paramètres
+// préfixés `_` (convention canon : non utilisés, pas un oubli).
+PROCEDURE reception_message(_sess est un stompSession, _msg est un stompMessage)
+FIN
+
+
+// S'abonner depuis une session qui n'a jamais été connectée échoue
+// proprement : la native renvoie Faux et renseigne l'erreur courante (même
+// parité que la connexion et la publication).
+PROCEDURE PUBLIQUE scenario_abonnement_sans_connexion()
+	sess est un stompSession
+	sess..Adresse = "broker.exemple.local"
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPAbonne(sess, "/queue/notifications", reception_message)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "abonnement sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "abonnement sans connexion pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_STOMP_SUBSCRIBE_FAILURE", "code d'erreur dédié à l'abonnement")
+FIN
+
+
+// Validation d'argument AVANT toute tentative réseau : une destination d'un
+// autre type qu'une chaîne est refusée avec le code canonique de type
+// d'argument invalide, même sur une session jamais connectée. La validation
+// de type doit précéder le contrôle de connexion vivante (parité AMQP/MQTT).
+PROCEDURE PUBLIQUE scenario_destination_type_invalide()
+	sess est un stompSession
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPAbonne(sess, 42, reception_message)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "destination d'un type invalide renvoie Faux")
+	dbgVérifieVrai(bErr, "destination d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+
+// Même exigence pour la procédure : un argument non appelable (ici un
+// entier) est refusé avec le code canonique de type invalide, avant même
+// toute tentative d'émission sur le fil.
+PROCEDURE PUBLIQUE scenario_procedure_type_invalide()
+	sess est un stompSession
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPAbonne(sess, "/queue/notifications", 42)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "procédure non appelable renvoie Faux")
+	dbgVérifieVrai(bErr, "procédure non appelable pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,29 @@
+// Test : prescan widgets - cross-reference events.
+// Un event d'un champ A (declare en 1er) modifie un champ B (declare APRES A).
+// Le prescan des widgets rend B visible au moment de compiler l'event de A.
+//
+// Pattern : la fenêtre voisine FEN_CrossRef.owl porte la déclaration.
+
+TestModeHeadless(Vrai)
+
+clicObs est un booléen = Faux
+libObs est une chaîne = ""
+
+PROCEDURE callback_etat(c est un booléen, l est une chaîne)
+	clicObs = c
+	libObs  = l
+FIN
+
+Ouvre(FEN_CrossRef)
+
+RemonteEtat()
+dbgVérifieFaux(clicObs, "flag initial faux")
+
+TestSimuleSouris(BTN_ACTION, ClicGauche)
+RemonteEtat()
+dbgVérifieVrai(clicObs, "event surClic declenche")
+dbgVérifieEgalité(libObs, "Bouton clique !", "cross-ref : B modifie par event de A")
+
+Ferme(FEN_CrossRef)
+
+dbgBilanTest()

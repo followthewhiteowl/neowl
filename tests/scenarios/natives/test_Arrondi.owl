@@ -1,0 +1,121 @@
+// @sujet : Arrondi
+// @résumé : Arrondit un nombre au nombre de décimales spécifié (défaut : 0 décimale).
+// Comportement cible : demi-pair (banker's rounding) par défaut, uniforme
+// sur réel et numérique. Les cas non-ambigus (digit ≠ 5) sont inchangés.
+
+
+// Cas A : arrondi demi-pair sur réel — cas tie (digit de décision = 5).
+// Demi-pair : l'entier le plus proche dont la parité est paire.
+// 2.5 → 2 (pair), 0.5 → 0 (pair), -2.5 → -2 (pair), 1.5 → 2 (pair).
+// À comparer avec round() en C qui donne demi-away → 3, 1, -3.
+PROCEDURE PUBLIQUE scenario_demi_pair_reel()
+	r25 est un réel = 2.5
+	r05 est un réel = 0.5
+	rn25 est un réel = -2.5
+	r15 est un réel = 1.5
+	dbgVérifieEgalité(Arrondi(r25), 2, "Arrondi(2.5r) demi-pair = 2")
+	dbgVérifieEgalité(Arrondi(r05), 0, "Arrondi(0.5r) demi-pair = 0")
+	dbgVérifieEgalité(Arrondi(rn25),-2, "Arrondi(-2.5r) demi-pair = -2")
+	dbgVérifieEgalité(Arrondi(r15), 2, "Arrondi(1.5r) demi-pair = 2")
+FIN
+
+
+// Cas B : arrondi demi-pair sur numérique — mêmes cas tie.
+// Numérique = représentation décimale exacte, pas d'ambiguïté binaire.
+// Numeric est déjà demi-pair ; ce scénario vérifie la consistance.
+PROCEDURE PUBLIQUE scenario_demi_pair_numerique()
+	n25 est un numérique = 2.5
+	n05 est un numérique = 0.5
+	nn25 est un numérique = -2.5
+	n15 est un numérique = 1.5
+	dbgVérifieEgalité(Arrondi(n25), 2, "Arrondi(2.5n) demi-pair = 2")
+	dbgVérifieEgalité(Arrondi(n05), 0, "Arrondi(0.5n) demi-pair = 0")
+	dbgVérifieEgalité(Arrondi(nn25),-2, "Arrondi(-2.5n) demi-pair = -2")
+	dbgVérifieEgalité(Arrondi(n15), 2, "Arrondi(1.5n) demi-pair = 2")
+FIN
+
+
+// Cas C : cohérence réel et numérique — même résultat sur les cas tie.
+// Réel et numérique valent tous deux 2 (demi-pair) sur les cas tie.
+PROCEDURE PUBLIQUE scenario_reel_numerique_coherence()
+	reel25 est un réel = 2.5
+	num25 est un numérique = 2.5
+	resReel est un entier = Arrondi(reel25)
+	resNum est un entier = Arrondi(num25)
+	dbgVérifieEgalité(resReel, resNum, "Arrondi(2.5) : réel et numérique donnent le même résultat")
+	reel05 est un réel = 0.5
+	num05 est un numérique = 0.5
+	dbgVérifieEgalité(Arrondi(reel05), Arrondi(num05), "Arrondi(0.5) : réel et numérique identiques")
+FIN
+
+
+// Cas D : arrondi avec décimales sur numérique — cas tie au rang des décimales.
+// 2.125n arrondi à 2 décimales : digit de décision = 5, chiffre précédent = 2 (pair).
+// Demi-pair → 2.12. Demi-away → 2.13.
+// Numérique garantit la représentation exacte (2.125 est exact en décimal).
+PROCEDURE PUBLIQUE scenario_decimales_numerique()
+	n2125 est un numérique = 2.125
+	n2135 est un numérique = 2.135
+	res1 est un numérique = Arrondi(n2125, 2)
+	res2 est un numérique = Arrondi(n2135, 2)
+	dbgVérifieEgalité(res1, 0n2.12, "Arrondi(2.125n, 2) demi-pair = 2.12 (pair=2)")
+	dbgVérifieEgalité(res2, 0n2.14, "Arrondi(2.135n, 2) demi-pair = 2.14 (pair=4)")
+FIN
+
+
+// Cas E : cas non-ambigus — digit de décision ≠ 5, comportement inchangé.
+// Ces cas sont verts et le comportement doit rester inchangé.
+PROCEDURE PUBLIQUE scenario_non_tie_inchange()
+	dbgVérifieEgalité(Arrondi(3.7), 4, "Arrondi(3.7) = 4 (non-tie)")
+	dbgVérifieEgalité(Arrondi(3.2), 3, "Arrondi(3.2) = 3 (non-tie)")
+	dbgVérifieEgalité(Arrondi(-2.7),-3, "Arrondi(-2.7) = -3 (non-tie)")
+	r est un réel = -16.238167
+	res est un réel = Arrondi(r, 2)
+	dbgVérifieEgalité(res,-16.24, "Arrondi(-16.238167, 2) = -16.24 (non-tie)")
+FIN
+
+
+// Cas F : rétro-compatibilité — appels 1-arg et 2-arg restent valides.
+// Le 3ᵉ arg modeArrondi est optionnel ; les formes historiques sont inchangées.
+PROCEDURE PUBLIQUE scenario_retrocompat_arity()
+	a1 est un entier = Arrondi(3.6)
+	dbgVérifieEgalité(a1, 4, "Arrondi 1-arg : entier le plus proche (3.6 → 4)")
+	a2 est un réel = Arrondi(3.14159, 2)
+	dbgVérifieEgalité(a2, 3.14, "Arrondi 2-args : decimales (3.14159, 2 → 3.14)")
+FIN
+
+
+// Edge : zéro — ni positif ni négatif, toujours 0.
+PROCEDURE PRIVÉE scenario_edge_zero()
+	dbgVérifieEgalité(Arrondi(0.0), 0, "Arrondi(0.0) = 0")
+	dbgVérifieEgalité(Arrondi(0), 0, "Arrondi(0) = 0")
+FIN
+
+
+// Edge : entier exact — aucune fraction, retourné tel quel.
+PROCEDURE PRIVÉE scenario_edge_entier_exact()
+	dbgVérifieEgalité(Arrondi(3.0), 3, "Arrondi(3.0) = 3 (fraction nulle)")
+	dbgVérifieEgalité(Arrondi(-5.0),-5, "Arrondi(-5.0) = -5")
+FIN
+
+
+// Edge : négatifs — -0.5 → 0 (pair), -1.5 → -2 (pair), -3.5 → -4 (pair).
+// Demi-pair symétrique autour de zéro (même règle pair pour les négatifs).
+PROCEDURE PRIVÉE scenario_edge_negatifs_demi_pair()
+	rn05 est un réel = -0.5
+	rn15 est un réel = -1.5
+	rn35 est un réel = -3.5
+	dbgVérifieEgalité(Arrondi(rn05), 0, "Arrondi(-0.5r) demi-pair = 0 (pair=0)")
+	dbgVérifieEgalité(Arrondi(rn15),-2, "Arrondi(-1.5r) demi-pair = -2 (pair=-2)")
+	dbgVérifieEgalité(Arrondi(rn35),-4, "Arrondi(-3.5r) demi-pair = -4 (pair=-4)")
+FIN
+
+
+// Edge : 3.5 et -3.5 — demi-pair et demi-away convergent (4 et -4 sont pairs).
+// Ces cas sont verts et le restent.
+PROCEDURE PRIVÉE scenario_edge_35_convergence()
+	r35 est un réel = 3.5
+	rn35 est un réel = -3.5
+	dbgVérifieEgalité(Arrondi(r35), 4, "Arrondi(3.5r) = 4 (demi-pair = demi-away ici)")
+	dbgVérifieEgalité(Arrondi(rn35),-4, "Arrondi(-3.5r) = -4 (demi-pair = demi-away ici)")
+FIN

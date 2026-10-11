@@ -1,0 +1,84 @@
+//  — deux bugs de fond en dispVerticale :
+// (A) `Hauteur=N` d'un enfant sans Étire est ignorée en layout : le wrapper
+//     CadreExtérieur gonfle pour absorber l'excédent vertical au lieu de
+//     rester figé à N px (~237px observés en investigation pour Hauteur=25).
+// (B) Pas de ressort terminal : l'excédent part dans le seul enfant
+//     élastique au lieu de rester vide en bas -> aucun widget ne devrait
+//     dépasser sa Hauteur déclarée, et le bas de la fenêtre doit rester à
+//     la CouleurFond pure de la fenêtre.
+//
+// ROUGE attendu avant fix : la bande verte (fond du wrapper LIB_Cible)
+// dépasse largement 25-40px (+ éventuellement colonisation du bas de la
+// fenêtre par un widget gonflé).
+// VERT attendu après fix : bande verte bornée à sa Hauteur déclarée (25px
+// + bordure), les deux widgets empilés en haut, bas de fenêtre = fond pur.
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteHauteurBande(im est une Image, xSonde est un entier, hauteurImg est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = 0
+	TANTQUE yy < hauteurImg
+		SI dPixelCouleur(im, xSonde, yy) = couleur ALORS
+			n = n + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+PROCEDURE CompteCouleurZone(im est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(im, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+couleurFondCible est un entier = RVB(0, 200, 0)
+couleurFondBouton est un entier = RVB(0, 0, 200)
+couleurFondFenetre est un entier = RVB(5, 5, 5)
+
+OuvreSoeur(FEN_DispVertHauteurFigee)
+Temporise(50)
+
+img est une Image = dCopieImageFenêtre(FEN_DispVertHauteurFigee)
+dbgVérifieEgalité(img..Valide, Vrai, "capture de la fenêtre valide")
+
+// (A) Hauteur figée respectée : la bande verte (fond du wrapper de
+// LIB_Cible, Hauteur=25) doit rester proche de 25px, pas gonfler jusqu'à
+// occuper l'essentiel des 400px de la fenêtre.
+nHauteurCible est un entier = CompteHauteurBande(img, 50, 400, couleurFondCible)
+dbgVérifieVrai(nHauteurCible > 0, "le fond du Libellé cible est rendu (sonde non vide)")
+dbgVérifieVrai(nHauteurCible <= 40,
+"(A) la Hauteur=25 du Libellé cible est respectée en dispVerticale (pas de gonflement)")
+
+// (B) Empilement en haut : le dernier quart de la fenêtre (y > 300, bien
+// après la somme des Hauteurs déclarées + espacement : 25+8+30 = 63) ne
+// doit contenir AUCUN pixel de widget (ni fond cible, ni fond bouton) —
+// uniquement la CouleurFond pure de la fenêtre.
+nCibleBasFenetre est un entier = CompteCouleurZone(img, 0, 300, 300, 400, couleurFondCible)
+nBoutonBasFenetre est un entier = CompteCouleurZone(img, 0, 300, 300, 400, couleurFondBouton)
+dbgVérifieEgalité(nCibleBasFenetre, 0,
+"(B) empilement en haut : le fond du Libellé n'atteint pas le bas de la fenêtre")
+dbgVérifieEgalité(nBoutonBasFenetre, 0,
+"(B) empilement en haut : le fond du Bouton n'atteint pas le bas de la fenêtre")
+
+// Le bas de la fenêtre (dernier dixième, y=380-395, à l'écart de toute
+// bordure de widget) doit être rempli par la CouleurFond de la fenêtre
+// (excédent vide) : confirmation positive de (B), pas seulement l'absence
+// des couleurs de widgets.
+nFondFenetreEnBas est un entier = CompteCouleurZone(img, 0, 380, 300, 395, couleurFondFenetre)
+dbgVérifieVrai(nFondFenetreEnBas > 0,
+"(B) l'excédent vertical en bas de fenêtre reste à la CouleurFond pure (aucun widget ne gonfle)")
+
+Ferme(FEN_DispVertHauteurFigee)
+dbgBilanTest()

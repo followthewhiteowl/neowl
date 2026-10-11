@@ -1,0 +1,28 @@
+// Contrôle négatif (chantier 3, ) : la règle « pas de paramètre
+// requis après un paramètre à défaut » s'applique UNIFORMÉMENT, y compris au
+// paramètre structuré (le corps de requête). Ici le corps `client` (requis)
+// suit l'optionnel de query `tri` (à défaut) — refusé à la compilation, au
+// même titre qu'un scalaire requis après optionnel. La forme correcte déclare
+// l'optionnel en dernier (cf. service_binding_requete_optionnelle_defaut_valide).
+ServiceBindingCorpsApresOptionnel est un ServiceREST
+stClientCorpsApresOpt est une Structure
+	nom est une chaîne
+FIN
+
+PROPRIETES
+	UrlBase = ["api", "v1", "clients"]
+FIN
+
+MajClient est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpPut
+		Chemin   = ["clients", id]
+		Requête  = [tri]
+		Réponses = [httpOK]
+		CodeÉtat = httpOK
+	FIN
+	PROCEDURE surRequête(id est un entier, tri est une chaîne = "nom", client est une stClientCorpsApresOpt) : entier
+		RENVOYER id
+	FIN
+FIN
+FIN

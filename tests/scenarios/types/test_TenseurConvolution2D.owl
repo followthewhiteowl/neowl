@@ -1,0 +1,167 @@
+// @sujet : Tenseur.Convolution2D — convolution 2D (avant + arrière)
+// @résumé : Convolution2D applique un noyau glissant sur une entrée
+// B×C×H×W et rend une sortie B×C_sortie×H'×W' (corrélation croisée, comme
+// les bibliothèques de référence : le noyau n'est PAS retourné). La
+// rétropropagation calcule DEUX gradients : celui vers le noyau (corrélation
+// entrée⊛gradient_sortie) et celui vers l'entrée (convolution du gradient
+// de sortie par le noyau retourné). Toutes les valeurs ci-dessous sont
+// calculées à la main, cellule par cellule.
+//
+// Hypothèse de signature (à confirmer par l'implémenteur) : le paramètre
+// "pas" est le décalage entre deux fenêtres consécutives (identique en
+// hauteur et largeur), "remplissage" est le nombre de zéros ajoutés de
+// chaque côté avant de faire glisser le noyau. Taille de sortie :
+// floor((taille + 2*remplissage - tailleNoyau) / pas) + 1.
+
+// Entrée 1×1×3×3 = [[1,2,3],[4,5,6],[7,8,9]], noyau 1×1×2×2 = [[1,0],[0,1]],
+// pas=1, remplissage=0 -> sortie 1×1×2×2. Chaque cellule de sortie est le
+// produit scalaire de la fenêtre 2×2 correspondante avec le noyau :
+// sortie[1][1] = 1*1 + 2*0 + 4*0 + 5*1 = 1+5 = 6   (fenêtre [[1,2],[4,5]])
+// sortie[1][2] = 2*1 + 3*0 + 5*0 + 6*1 = 2+6 = 8   (fenêtre [[2,3],[5,6]])
+// sortie[2][1] = 4*1 + 5*0 + 7*0 + 8*1 = 4+8 = 12  (fenêtre [[4,5],[7,8]])
+// sortie[2][2] = 5*1 + 6*0 + 8*0 + 9*1 = 5+9 = 14  (fenêtre [[5,6],[8,9]])
+PROCEDURE PUBLIQUE scenario_convolution2d_forward_mono_canal()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	poids est un Tenseur = Tenseur([1.0, 0.0, 0.0, 1.0]).Redimensionne([1, 1, 2, 2])
+	sortie est un Tenseur = entrée.Convolution2D(poids, 1, 0)
+
+	dbgVérifieEgalité(sortie..Forme[1], 1, "B=1 conservé")
+	dbgVérifieEgalité(sortie..Forme[2], 1, "1 canal de sortie (noyau à 1 canal de sortie)")
+	dbgVérifieEgalité(sortie..Forme[3], 2, "H' = (3-2)/1+1 = 2")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "W' = (3-2)/1+1 = 2")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 6.0, "1*1 + 2*0 + 4*0 + 5*1 = 6")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 8.0, "2*1 + 3*0 + 5*0 + 6*1 = 8")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 12.0, "4*1 + 5*0 + 7*0 + 8*1 = 12")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 14.0, "5*1 + 6*0 + 8*0 + 9*1 = 14")
+FIN
+
+
+// Même entrée/noyau que ci-dessus, mais remplissage=1 : la fenêtre glisse
+// aussi sur les zéros ajoutés autour de l'entrée -> sortie 1×1×4×4. Entrée
+// remplie (5×5, zéros en bordure) :
+//   0 0 0 0 0
+//   0 1 2 3 0
+//   0 4 5 6 0
+//   0 7 8 9 0
+//   0 0 0 0 0
+// Avec le noyau [[1,0],[0,1]], sortie[i][j] = rempli[i][j] + rempli[i+1][j+1].
+PROCEDURE PUBLIQUE scenario_convolution2d_forward_avec_remplissage()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	poids est un Tenseur = Tenseur([1.0, 0.0, 0.0, 1.0]).Redimensionne([1, 1, 2, 2])
+	sortie est un Tenseur = entrée.Convolution2D(poids, 1, 1)
+
+	dbgVérifieEgalité(sortie..Forme[3], 4, "H' = (3+2*1-2)/1+1 = 4")
+	dbgVérifieEgalité(sortie..Forme[4], 4, "W' = (3+2*1-2)/1+1 = 4")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 1.0, "rempli[1][1] + rempli[2][2] = 0+1 = 1")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][3], 3.0, "rempli[1][3] + rempli[2][4] = 0+3 = 3")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 6.0, "rempli[2][2] + rempli[3][3] = 1+5 = 6")
+	dbgVérifieEgalité(sortie..Valeur[1][1][3][3], 14.0, "rempli[3][3] + rempli[4][4] = 5+9 = 14")
+	dbgVérifieEgalité(sortie..Valeur[1][1][4][1], 0.0, "rempli[4][1] + rempli[5][2] = 0+0 = 0")
+	dbgVérifieEgalité(sortie..Valeur[1][1][4][4], 9.0, "rempli[4][4] + rempli[5][5] = 9+0 = 9")
+FIN
+
+
+// Entrée à 2 canaux 1×2×3×3, noyau 1×2×2×2 (1 canal de sortie, 2 canaux
+// d'entrée) : la sortie somme la contribution des 2 canaux.
+// Canal 1 = [[1,2,3],[4,5,6],[7,8,9]], noyau canal 1 = [[1,1],[1,1]]
+//   (somme de la fenêtre) -> contributions [12,16,24,28] (fenêtres 2×2)
+// Canal 2 = [[1,0,1],[0,1,0],[1,0,1]], noyau canal 2 = [[2,0],[0,2]]
+//   (2× le coin haut-gauche + 2× le coin bas-droit de la fenêtre)
+//   fenêtre[1][1]=[[1,0],[0,1]] -> 2*1+2*1=4
+//   fenêtre[1][2]=[[0,1],[1,0]] -> 2*0+2*0=0
+//   fenêtre[2][1]=[[0,1],[1,0]] -> 2*0+2*0=0
+//   fenêtre[2][2]=[[1,0],[0,1]] -> 2*1+2*1=4
+// Sortie = canal1 + canal2 = [12+4, 16+0, 24+0, 28+4] = [16, 16, 24, 32]
+PROCEDURE PUBLIQUE scenario_convolution2d_forward_multi_canal()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]).Redimensionne([1, 2, 3, 3])
+	poids est un Tenseur = Tenseur([1.0, 1.0, 1.0, 1.0, 2.0, 0.0, 0.0, 2.0]).Redimensionne([1, 2, 2, 2])
+	sortie est un Tenseur = entrée.Convolution2D(poids, 1, 0)
+
+	dbgVérifieEgalité(sortie..Forme[2], 1, "1 canal de sortie (le noyau n'a qu'1 canal de sortie)")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 16.0, "12 (canal 1) + 4 (canal 2) = 16")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 16.0, "16 (canal 1) + 0 (canal 2) = 16")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 24.0, "24 (canal 1) + 0 (canal 2) = 24")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 32.0, "28 (canal 1) + 4 (canal 2) = 32")
+FIN
+
+
+// LE cœur du contrat : les deux gradients de Convolution2D, vérifiés
+// cellule par cellule. On dérive à travers q = sortie*sortie (comme pour
+// le broadcasting) pour obtenir un gradient de sortie non uniforme :
+// sortie = [[6,8],[12,14]] (cf. scénario forward mono-canal)
+// grad_sortie = 2*sortie = [[12,16],[24,28]]
+//
+// dPoids[p][q] = somme sur les 4 fenêtres de entrée[fenêtre+décalage(p,q)] * grad_sortie[fenêtre] :
+// dPoids[1][1] = 1*12 + 2*16 + 4*24 + 5*28 = 12+32+96+140 = 280
+// dPoids[1][2] = 2*12 + 3*16 + 5*24 + 6*28 = 24+48+120+168 = 360
+// dPoids[2][1] = 4*12 + 5*16 + 7*24 + 8*28 = 48+80+168+224 = 520
+// dPoids[2][2] = 5*12 + 6*16 + 8*24 + 9*28 = 60+96+192+252 = 600
+//
+// dEntrée[i][j] = somme, pour chaque fenêtre qui couvre la cellule (i,j),
+// de grad_sortie[fenêtre] * poids[position relative de (i,j) dans la fenêtre] :
+// dEntrée[1][1] = grad_sortie[1][1]*poids[1][1] = 12*1 = 12
+// dEntrée[1][2] = grad_sortie[1][1]*poids[1][2] + grad_sortie[1][2]*poids[1][1] = 12*0 + 16*1 = 16
+// dEntrée[1][3] = grad_sortie[1][2]*poids[1][2] = 16*0 = 0
+// dEntrée[2][1] = grad_sortie[1][1]*poids[2][1] + grad_sortie[2][1]*poids[1][1] = 12*0 + 24*1 = 24
+// dEntrée[2][2] = grad_sortie[1][1]*poids[2][2] + grad_sortie[1][2]*poids[2][1]
+//               + grad_sortie[2][1]*poids[1][2] + grad_sortie[2][2]*poids[1][1]
+//               = 12*1 + 16*0 + 24*0 + 28*1 = 40
+// dEntrée[2][3] = grad_sortie[1][2]*poids[2][2] + grad_sortie[2][2]*poids[1][2] = 16*1 + 28*0 = 16
+// dEntrée[3][1] = grad_sortie[2][1]*poids[2][1] = 24*0 = 0
+// dEntrée[3][2] = grad_sortie[2][1]*poids[2][2] + grad_sortie[2][2]*poids[2][1] = 24*1 + 28*0 = 24
+// dEntrée[3][3] = grad_sortie[2][2]*poids[2][2] = 28*1 = 28
+PROCEDURE PUBLIQUE scenario_convolution2d_backward_dpoids_et_dentree()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	poids est un Tenseur = Tenseur([1.0, 0.0, 0.0, 1.0]).Redimensionne([1, 1, 2, 2])
+	sortie est un Tenseur = entrée.Convolution2D(poids, 1, 0)
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	dbgVérifieEgalité(poids..Gradient[1][1][1][1], 280.0, "dPoids[1][1] = 1*12+2*16+4*24+5*28 = 280")
+	dbgVérifieEgalité(poids..Gradient[1][1][1][2], 360.0, "dPoids[1][2] = 2*12+3*16+5*24+6*28 = 360")
+	dbgVérifieEgalité(poids..Gradient[1][1][2][1], 520.0, "dPoids[2][1] = 4*12+5*16+7*24+8*28 = 520")
+	dbgVérifieEgalité(poids..Gradient[1][1][2][2], 600.0, "dPoids[2][2] = 5*12+6*16+8*24+9*28 = 600")
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][1], 12.0, "dEntrée[1][1] = 12")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][2], 16.0, "dEntrée[1][2] = 16")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][3], 0.0, "dEntrée[1][3] = 0")
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][1], 24.0, "dEntrée[2][1] = 24")
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][2], 40.0, "dEntrée[2][2] = 40")
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][3], 16.0, "dEntrée[2][3] = 16")
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][1], 0.0, "dEntrée[3][1] = 0")
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][2], 24.0, "dEntrée[3][2] = 24")
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][3], 28.0, "dEntrée[3][3] = 28")
+FIN
+
+
+// La forme native TenseurConvolution2D(entrée, poids, pas, remplissage)
+// doit rendre exactement le même résultat que la méthode fluente.
+PROCEDURE PUBLIQUE scenario_convolution2d_forme_native_egale_methode()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	poids est un Tenseur = Tenseur([1.0, 0.0, 0.0, 1.0]).Redimensionne([1, 1, 2, 2])
+
+	sortieMéthode est un Tenseur = entrée.Convolution2D(poids, 1, 0)
+	sortieNative est un Tenseur = TenseurConvolution2D(entrée, poids, 1, 0)
+
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], sortieMéthode..Valeur[1][1][1][1], "native et méthode rendent la même cellule [1][1]")
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][2][2], sortieMéthode..Valeur[1][1][2][2], "native et méthode rendent la même cellule [2][2]")
+FIN
+
+
+// Cas limite : pas=2 (fenêtre non chevauchante), noyau 1×1×1×1 (juste un
+// facteur d'échelle). Entrée 1×1×4×4 = 1..16, noyau = [2.0].
+// Sortie = (4-1)/2+1 = 2×2 : échantillonne (1,1),(1,3),(3,1),(3,3) et
+// multiplie par 2 -> [2*1, 2*3, 2*9, 2*11] = [2, 6, 18, 22]
+PROCEDURE PRIVÉE scenario_convolution2d_edge_pas_2_noyau_1x1()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+	poids est un Tenseur = Tenseur([2.0]).Redimensionne([1, 1, 1, 1])
+	sortie est un Tenseur = entrée.Convolution2D(poids, 2, 0)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "H' = (4-1)/2+1 = 2 (division entière)")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 2.0, "2*entrée[1][1] = 2*1 = 2")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 6.0, "2*entrée[1][3] = 2*3 = 6")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 18.0, "2*entrée[3][1] = 2*9 = 18")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 22.0, "2*entrée[3][3] = 2*11 = 22")
+FIN

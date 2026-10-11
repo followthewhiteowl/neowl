@@ -1,0 +1,370 @@
+// @sujet : LLM — chargement d'un modèle GGUF et génération de texte
+// @résumé : LLM est un type opaque qui charge un modèle GGUF via .Charge
+// (rend Vrai en cas de succès, Faux+ErreurDétectée sinon) puis produit du
+// texte via .Génère(prompt, options). Les réglages d'un appel de génération
+// vivent dans une feuille séparée, OptionsGénération (mêmes conventions que
+// OptionsEntraînement : propriétés lues/écrites au double point, valeurs
+// par défaut sensées à la construction). Une température à 0 désactive
+// l'échantillonnage aléatoire (choix systématique du token le plus
+// probable), ce qui rend une génération reproductible d'un appel à
+// l'autre — utile pour verrouiller un test sans dépendre du hasard.
+//
+// Ce fichier couvre uniquement la mécanique de surface, sans modèle réel :
+// déclarabilité des deux types, lecture/écriture des propriétés
+// d'OptionsGénération (valeurs écrites + valeurs par défaut, formes
+// française et anglaise), chemins d'erreur (chemin de modèle invalide,
+// génération avant chargement), et l'affectation du callback de flux
+// ..SurToken (nom nu, résolution avant sa définition dans le fichier).
+// La génération réelle sur un modèle chargé vit dans un fichier séparé,
+// gatée par la disponibilité d'un modèle externe.
+
+// Callback de flux : compte les appels et concatène le texte reçu. Utilisé
+// uniquement pour prouver que l'affectation ..SurToken compile et ne casse
+// rien — son déclenchement réel nécessite un modèle chargé (fichier séparé).
+PROCEDURE ObserveTokenSurface(_morceau est une chaîne, _terminé est un booléen)
+FIN
+
+
+// Un LLM fraîchement déclaré n'est associé à aucun modèle : tenter de
+// charger un chemin qui n'existe pas rend Faux et signale une erreur, sans
+// crash. Prouve du même geste que le type LLM est déclarable.
+PROCEDURE PUBLIQUE scenario_llm_declarable_et_charge_chemin_invalide()
+	mon est un LLM
+
+	ErreurRAZ()
+	ok est un booléen = mon.Charge("chemin/qui/nexiste/pas/modele-inexistant.gguf")
+	dbgVérifieVrai(ErreurDétectée, "un chemin GGUF invalide fait signaler une erreur à .Charge")
+	dbgVérifieEgalité(ok, Faux, "un chemin GGUF invalide fait rendre Faux à .Charge")
+FIN
+
+
+// Forme anglaise .Load : même contrat observable que .Charge sur un chemin
+// invalide (Faux + ErreurDétectée).
+PROCEDURE PUBLIQUE scenario_llm_forme_anglaise_load_chemin_invalide()
+	mon is an LLM
+
+	ErreurRAZ()
+	ok is a boolean = mon.Load("path/that/does/not/exist/missing-model.gguf")
+	dbgCheckTrue(ErreurDétectée, "Load with an invalid GGUF path flags an error")
+	dbgCheckEqual(ok, Faux, "Load with an invalid GGUF path returns Faux")
+FIN
+
+
+// Appeler .Génère sur un LLM qui n'a jamais été chargé est un échec
+// récupérable, pas un crash : ErreurDétectée est posé et la chaîne rendue
+// reste vide.
+PROCEDURE PUBLIQUE scenario_genere_sans_charger_erreur_recuperable()
+	mon est un LLM
+	opts est un OptionsGénération
+
+	ErreurRAZ()
+	texte est une chaîne = mon.Génère("Bonjour", opts)
+	dbgVérifieVrai(ErreurDétectée, "générer sans modèle chargé signale une erreur")
+	dbgVérifieEgalité(texte, "", "générer sans modèle chargé rend une chaîne vide")
+FIN
+
+
+// OptionsGénération : chaque propriété se relit exactement comme elle a
+// été écrite (formes françaises).
+PROCEDURE PUBLIQUE scenario_options_generation_proprietes_lecture_ecriture()
+	opts est un OptionsGénération
+	opts..Température = 0.5
+	opts..TopK        = 10
+	opts..TopP        = 0.8
+	opts..MaxTokens   = 64
+	opts..Graine      = 42
+
+	dbgVérifieVrai(Abs(opts..Température - 0.5) < 0.0000001, "Température relue = valeur écrite")
+	dbgVérifieEgalité(opts..TopK, 10, "TopK relu = valeur écrite")
+	dbgVérifieVrai(Abs(opts..TopP - 0.8) < 0.0000001, "TopP relu = valeur écrite")
+	dbgVérifieEgalité(opts..MaxTokens, 64, "MaxTokens relu = valeur écrite")
+	dbgVérifieEgalité(opts..Graine, 42, "Graine relue = valeur écrite")
+FIN
+
+
+// Une OptionsGénération fraîchement construite porte des valeurs par
+// défaut sensées : température modérée (0.8), TopK 40, TopP 0.95, 512
+// tokens maximum.
+PROCEDURE PUBLIQUE scenario_options_generation_defauts_sensés()
+	opts est un OptionsGénération
+
+	dbgVérifieVrai(Abs(opts..Température - 0.8) < 0.0000001, "Température par défaut = 0.8")
+	dbgVérifieEgalité(opts..TopK, 40, "TopK par défaut = 40")
+	dbgVérifieVrai(Abs(opts..TopP - 0.95) < 0.0000001, "TopP par défaut = 0.95")
+	dbgVérifieEgalité(opts..MaxTokens, 512, "MaxTokens par défaut = 512")
+FIN
+
+
+// Une température à 0 se relit exactement à 0 : c'est la valeur qui bascule
+// la génération en mode déterministe (pas d'échantillonnage aléatoire).
+PROCEDURE PUBLIQUE scenario_options_generation_temperature_zero_deterministe()
+	opts est un OptionsGénération
+	opts..Température = 0
+
+	dbgVérifieVrai(Abs(opts..Température - 0.0) < 0.0000001, "Température = 0 se relit exactement à 0 (mode déterministe)")
+FIN
+
+
+// Formes anglaises : GenerationOptions..Temperature/..TopK/..TopP/..MaxTokens
+// se relisent exactement comme elles ont été écrites, avec les mêmes
+// défauts que la forme française.
+PROCEDURE PUBLIQUE scenario_options_generation_formes_anglaises()
+	optsDefaut is a GenerationOptions
+	dbgCheckTrue(Abs(optsDefaut..Temperature - 0.8) < 0.0000001, "Temperature default = 0.8")
+	dbgCheckEqual(optsDefaut..TopK, 40, "TopK default = 40")
+	dbgCheckTrue(Abs(optsDefaut..TopP - 0.95) < 0.0000001, "TopP default = 0.95")
+	dbgCheckEqual(optsDefaut..MaxTokens, 512, "MaxTokens default = 512")
+
+	opts is a GenerationOptions
+	opts..Temperature = 0.3
+	opts..TopK        = 5
+	opts..TopP        = 0.7
+	opts..MaxTokens   = 32
+
+	dbgCheckTrue(Abs(opts..Temperature - 0.3) < 0.0000001, "Temperature read back = value written")
+	dbgCheckEqual(opts..TopK, 5, "TopK read back = value written")
+	dbgCheckTrue(Abs(opts..TopP - 0.7) < 0.0000001, "TopP read back = value written")
+	dbgCheckEqual(opts..MaxTokens, 32, "MaxTokens read back = value written")
+FIN
+
+
+// La graine (Graine/Seed) se relit à l'identique, formes française et
+// anglaise, sans lien entre les deux instances.
+PROCEDURE PUBLIQUE scenario_graine_seed_bilingue_lecture_ecriture()
+	optsFR est un OptionsGénération
+	optsFR..Graine = 777
+
+	optsEN is a GenerationOptions
+	optsEN..Seed = 999
+
+	dbgVérifieEgalité(optsFR..Graine, 777, "Graine relue = valeur écrite (forme française)")
+	dbgCheckEqual(optsEN..Seed, 999, "Seed read back = value written (English form)")
+FIN
+
+
+// ..SurToken accepte une référence de procédure au nom nu, comme
+// ..SurÉpoque sur OptionsEntraînement. L'affectation seule ne déclenche
+// aucune erreur (le callback n'est réellement invoqué que pendant une
+// génération sur un modèle chargé, testée séparément).
+PROCEDURE PUBLIQUE scenario_surtoken_affectation_nom_nu()
+	opts est un OptionsGénération
+
+	ErreurRAZ()
+	opts..SurToken = ObserveTokenSurface
+	dbgVérifieFaux(ErreurDétectée, "affecter ..SurToken à une procédure déclarée ne signale aucune erreur")
+FIN
+
+
+// Résolution forward : le helper de callback est défini PLUS BAS dans ce
+// fichier que l'affectation ..SurToken qui le référence.
+PROCEDURE PUBLIQUE scenario_surtoken_resolution_forward()
+	opts est un OptionsGénération
+
+	ErreurRAZ()
+	opts..SurToken = HelperTokenDéfiniPlusBas
+	dbgVérifieFaux(ErreurDétectée, "référence forward vers un helper défini plus bas : résolue sans erreur")
+FIN
+
+
+// Forme anglaise ..OnToken : même contrat que ..SurToken.
+PROCEDURE PUBLIQUE scenario_ontoken_forme_anglaise()
+	opts is a GenerationOptions
+
+	ErreurRAZ()
+	opts..OnToken = ObserveTokenSurface
+	dbgCheckFalse(ErreurDétectée, "assigning ..OnToken to a declared procedure raises no error")
+FIN
+
+
+// Cas limite : un chemin vide passé à .Charge est traité comme n'importe
+// quel chemin invalide (Faux + ErreurDétectée), pas de cas spécial silencieux.
+PROCEDURE PRIVÉE scenario_edge_charge_chemin_vide()
+	mon est un LLM
+
+	ErreurRAZ()
+	ok est un booléen = mon.Charge("")
+	dbgVérifieVrai(ErreurDétectée, "un chemin vide passé à .Charge signale une erreur")
+	dbgVérifieEgalité(ok, Faux, "un chemin vide passé à .Charge rend Faux")
+FIN
+
+
+// Cas limite : deux appels ratés successifs à .Charge sur le même LLM ne
+// laissent pas de résidu — le second échec est signalé exactement comme le
+// premier, aucun état corrompu n'apparaît entre les deux tentatives.
+PROCEDURE PRIVÉE scenario_edge_deux_charges_ratees_successives()
+	mon est un LLM
+
+	ErreurRAZ()
+	ok1 est un booléen = mon.Charge("premier/chemin/invalide.gguf")
+	dbgVérifieVrai(ErreurDétectée, "premier chemin invalide : erreur signalée")
+	dbgVérifieEgalité(ok1, Faux, "premier chemin invalide : Faux rendu")
+
+	ErreurRAZ()
+	ok2 est un booléen = mon.Charge("second/chemin/invalide.gguf")
+	dbgVérifieVrai(ErreurDétectée, "second chemin invalide sur le même LLM : erreur signalée à nouveau")
+	dbgVérifieEgalité(ok2, Faux, "second chemin invalide sur le même LLM : Faux rendu à nouveau")
+FIN
+
+
+// Cas limite : MaxTokens à 0 se relit exactement à 0 (pas de clamp
+// silencieux à la construction de l'option — le comportement de génération
+// avec 0 token est de la responsabilité de .Génère, testé ailleurs).
+PROCEDURE PRIVÉE scenario_edge_maxtokens_zero_se_relit_a_zero()
+	opts est un OptionsGénération
+	opts..MaxTokens = 0
+	dbgVérifieEgalité(opts..MaxTokens, 0, "MaxTokens = 0 se relit exactement à 0")
+FIN
+
+
+// ..ContrainteDeSortie porte la contrainte exercée sur la sortie de la
+// génération : par défaut, aucune contrainte (contrainteLibre). Comparaison
+// value-agnostic contre la constante, pas contre une chaîne brute.
+PROCEDURE PUBLIQUE scenario_contraintedesortie_defaut_contraintelibre()
+	opts est un OptionsGénération
+	dbgVérifieEgalité(opts..ContrainteDeSortie, contrainteLibre, "ContrainteDeSortie vaut contrainteLibre par défaut")
+
+	optsEN is a GenerationOptions
+	dbgCheckEqual(optsEN..OutputConstraint, constraintFree, "OutputConstraint defaults to constraintFree")
+FIN
+
+
+// Poser ..ContrainteDeSortie à contrainteJSON puis la relire rend la même
+// constante : la propriété se comporte comme une affectation/lecture
+// classique, aucune coercition surprenante.
+PROCEDURE PUBLIQUE scenario_contraintedesortie_json_relecture_constante()
+	opts est un OptionsGénération
+	opts..ContrainteDeSortie = contrainteJSON
+	dbgVérifieEgalité(opts..ContrainteDeSortie, contrainteJSON, "ContrainteDeSortie relue = contrainteJSON après affectation")
+FIN
+
+
+// Bilingue : poser via la forme française et relire via la forme anglaise
+// (et inversement) rend la même valeur — les deux formes désignent le même
+// champ, pas deux champs distincts qui coïncident par hasard.
+PROCEDURE PUBLIQUE scenario_contraintedesortie_bilingue_croisee()
+	opts est un OptionsGénération
+	opts..ContrainteDeSortie = contrainteJSON
+	dbgVérifieEgalité(opts..OutputConstraint, constraintJSON, "posé via la forme française, relu via la forme anglaise : même valeur")
+
+	optsEN is a GenerationOptions
+	optsEN..OutputConstraint = constraintJSON
+	dbgCheckEqual(optsEN..ContrainteDeSortie, contrainteJSON, "posé via la forme anglaise, relu via la forme française : même valeur")
+FIN
+
+
+// Au-delà des deux constantes suggérées, ..ContrainteDeSortie tolère une
+// saisie libre : une grammaire GBNF quelconque se relit telle quelle, sans
+// validation à l'affectation (le contenu n'est interprété qu'au moment de
+// générer, sur un modèle chargé — testé séparément).
+PROCEDURE PUBLIQUE scenario_contraintedesortie_gbnf_libre_saisie_toleree()
+	opts est un OptionsGénération
+	opts..ContrainteDeSortie = `root ::= "oui" | "non"`
+	dbgVérifieEgalité(opts..ContrainteDeSortie, `root ::= "oui" | "non"`, "une grammaire GBNF libre est acceptée telle quelle")
+FIN
+
+
+// Cas limite : ContrainteDeSortie basculée à contrainteJSON puis remise à
+// contrainteLibre ne laisse aucun résidu — la relecture reflète toujours la
+// dernière affectation.
+PROCEDURE PRIVÉE scenario_edge_contraintedesortie_bascule_json_puis_libre()
+	opts est un OptionsGénération
+	opts..ContrainteDeSortie = contrainteJSON
+	opts..ContrainteDeSortie = contrainteLibre
+	dbgVérifieEgalité(opts..ContrainteDeSortie, contrainteLibre, "basculé contrainteJSON puis contrainteLibre se relit contrainteLibre")
+FIN
+
+
+// MessageLLM se construit en deux lignes : une instance nommée avec ses
+// champs, puis un ajout dans un tableau. Rôle et Contenu se relisent
+// exactement comme ils ont été écrits.
+PROCEDURE PUBLIQUE scenario_messagellm_construction_deux_lignes_et_lecture()
+	m est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Résume la photosynthèse."}
+	messages est un tableau de MessageLLM
+	messages.Ajoute(m)
+
+	dbgVérifieEgalité(m..Rôle, rôleUtilisateur, "Rôle relu = valeur écrite à la construction")
+	dbgVérifieEgalité(m..Contenu, "Résume la photosynthèse.", "Contenu relu = valeur écrite à la construction")
+	dbgVérifieEgalité(messages.Taille(), 1, "le message construit rejoint bien le tableau via Ajoute")
+FIN
+
+
+// Forme anglaise LLMMessage : mêmes contrats, ..Role/..Content.
+PROCEDURE PUBLIQUE scenario_llmmessage_forme_anglaise_construction()
+	m is a LLMMessage = {Role = roleUser, Content = "Summarize photosynthesis."}
+	messages is an array of LLMMessage
+	messages.Add(m)
+
+	dbgCheckEqual(m..Role, roleUser, "Role read back = value written at construction")
+	dbgCheckEqual(m..Content, "Summarize photosynthesis.", "Content read back = value written at construction")
+FIN
+
+
+// ..Rôle est une propriété inscriptible après construction : réaffecter une
+// des constantes suggérées se relit à l'identique.
+PROCEDURE PUBLIQUE scenario_messagellm_role_reaffectation_constante_suggeree()
+	m est un MessageLLM = {Rôle = rôleSystème, Contenu = "Tu es un assistant utile."}
+	dbgVérifieEgalité(m..Rôle, rôleSystème, "Rôle relu = rôleSystème après construction")
+
+	m..Rôle = rôleAssistant
+	dbgVérifieEgalité(m..Rôle, rôleAssistant, "Rôle relu = rôleAssistant après réaffectation")
+FIN
+
+
+// L'énumération de rôle est OUVERTE : une chaîne libre (rôle custom, hors
+// des quatre constantes suggérées) est tolérée et se relit telle quelle.
+PROCEDURE PUBLIQUE scenario_messagellm_role_chaine_libre_toleree()
+	m est un MessageLLM = {Rôle = "developer", Contenu = "Instructions internes."}
+	dbgVérifieEgalité(m..Rôle, "developer", "un rôle en chaîne libre se relit tel quel")
+FIN
+
+
+// Rôle Outil : dernière des quatre constantes suggérées, même contrat.
+PROCEDURE PUBLIQUE scenario_messagellm_role_outil()
+	m est un MessageLLM = {Rôle = rôleOutil, Contenu = `{"résultat": 42}`}
+	dbgVérifieEgalité(m..Rôle, rôleOutil, "Rôle relu = rôleOutil après construction")
+FIN
+
+
+// RéponseLLM : la mécanique de ses quatre propriétés s'observe via le
+// chemin soft-error de .Chat sur un LLM jamais chargé (aucun modèle requis
+// ici). Contenu vide, compteurs de jetons à zéro (aucun calcul effectué),
+// Raison malgré tout une valeur valide de l'énumération stricte.
+PROCEDURE PUBLIQUE scenario_reponsellm_proprietes_via_chat_sans_modele_charge()
+	mon est un LLM
+	messages est un tableau de MessageLLM
+	m est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Bonjour"}
+	messages.Ajoute(m)
+	opts est un OptionsGénération
+
+	ErreurRAZ()
+	rep est un RéponseLLM = mon.Chat(messages, opts)
+	dbgVérifieVrai(ErreurDétectée, "discuter sans modèle chargé signale une erreur")
+	dbgVérifieEgalité(rep..Contenu, "", "discuter sans modèle chargé rend un Contenu vide")
+	dbgVérifieEgalité(rep..JetonsEntrée, 0, "aucun calcul effectué : JetonsEntrée à zéro")
+	dbgVérifieEgalité(rep..JetonsSortie, 0, "aucun calcul effectué : JetonsSortie à zéro")
+	dbgVérifieVrai(rep..Raison = stopNaturel OU rep..Raison = stopMaxTokens, "Raison reste une valeur valide de l'énumération stricte")
+FIN
+
+
+// Forme anglaise LLMResponse : ..Content/..Reason/..InputTokens/..OutputTokens,
+// même chemin soft-error.
+PROCEDURE PUBLIQUE scenario_llmresponse_forme_anglaise_via_chat_sans_modele_charge()
+	mon is an LLM
+	messages is an array of LLMMessage
+	m is a LLMMessage = {Role = roleUser, Content = "Hello"}
+	messages.Add(m)
+	opts is a GenerationOptions
+
+	ErreurRAZ()
+	rep is a LLMResponse = mon.Chat(messages, opts)
+	dbgCheckTrue(ErreurDétectée, "chatting without a loaded model flags an error")
+	dbgCheckEqual(rep..Content, "", "chatting without a loaded model returns an empty Content")
+	dbgCheckEqual(rep..InputTokens, 0, "no computation performed: InputTokens is zero")
+	dbgCheckEqual(rep..OutputTokens, 0, "no computation performed: OutputTokens is zero")
+FIN
+
+
+// ======== HELPER DÉFINI APRÈS SON USAGE (résolution forward) ========
+
+PROCEDURE HelperTokenDéfiniPlusBas(_morceau est une chaîne, _terminé est un booléen)
+FIN

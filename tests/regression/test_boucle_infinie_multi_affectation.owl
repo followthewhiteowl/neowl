@@ -1,0 +1,56 @@
+// Non-régression : BOUCLE infini ne doit pas confondre son compteur
+// optionnel (N) avec une multi-affectation (a, b, c) = f() placée en
+// première ligne du corps. Le compteur (N) n'est reconnu que s'il est
+// adjacent au mot-clé BOUCLE (même ligne) ; un BOUCLE seul suivi d'un
+// newline est infini, et une paren en tête de corps est un statement.
+
+PROCEDURE Triple()
+	RENVOYER (1, 2, 3)
+FIN
+
+// === Cas 1 : BOUCLE infini + 1re ligne = déstructuration parenthésée ===
+n1 est un entier = 0
+n2 est un entier = 0
+n3 est un entier = 0
+BOUCLE
+	(n1, n2, n3) = Triple()
+	SORTIR
+FIN
+dbgVérifieEgalité(n1, 1, "Cas1 : destructuration n1 = 1")
+dbgVérifieEgalité(n2, 2, "Cas1 : destructuration n2 = 2")
+dbgVérifieEgalité(n3, 3, "Cas1 : destructuration n3 = 3")
+
+// === Cas 2 : BOUCLE (3) compteur littéral même ligne = 3 tours ===
+nTours est un entier = 0
+BOUCLE (3)
+	nTours = nTours + 1
+FIN
+dbgVérifieEgalité(nTours, 3, "Cas2 : BOUCLE (3) exécute exactement 3 fois")
+
+// === Cas 3 : BOUCLE (n) compteur variable = n tours (non-régression) ===
+nMax est un entier = 5
+nToursVar est un entier = 0
+BOUCLE (nMax)
+	nToursVar = nToursVar + 1
+FIN
+dbgVérifieEgalité(nToursVar, 5, "Cas3 : BOUCLE (n variable) exécute n fois")
+
+// Variante expression compteur
+nToursExpr est un entier = 0
+BOUCLE (nMax - 2)
+	nToursExpr = nToursExpr + 1
+FIN
+dbgVérifieEgalité(nToursExpr, 3, "Cas3 : BOUCLE (expression) exécute expr fois")
+
+// === Cas 4 : BOUCLE infini + 1re ligne = expression parenthésée assignée ===
+// La paren en tête de corps est un statement d'affectation, pas un compteur
+// (le newline entre BOUCLE et la paren l'exclut déjà de la règle d'adjacence).
+nX est un entier = 0
+BOUCLE
+	nX = (nX + 1)
+	nX = nX + 10
+	SORTIR
+FIN
+dbgVérifieEgalité(nX, 11, "Cas4 : corps exécuté, paren en tête traitée comme statement")
+
+dbgBilanTest()

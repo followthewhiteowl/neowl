@@ -1,0 +1,81 @@
+//  — dCopieImageChamp d'un champ composite (libellé intégré) doit
+// rendre la BOÎTE COMPLÈTE du champ, libellé inclus, et non le seul widget
+// logique interne. Deux surfaces doivent s'accorder sur « quelle est la
+// taille du champ » : la géométrie (..Largeur, autorité depuis ) et
+// la capture (dCopieImageChamp).
+//
+// Défaut mesuré avant fix : Saisie 280 de large déclarée → capture 186 (le
+// QLineEdit interne seul, sans le QLabel du libellé). La géométrie rendait
+// bien 280 → capture et géométrie se contredisaient.
+//
+// Ce test est la digue : il prouve le fix indépendamment de toute autre
+// sonde, par
+//   (1) une égalité EXACTE capture..Largeur == géométrie..Largeur, et
+//   (2) une sonde pixel sur la ZONE DU LIBELLÉ (aplat de fond coloré) —
+//       absente si la capture est étroite (le QLabel n'y figure pas).
+// Contrôle négatif : la couleur du libellé ne doit pas déborder sur la zone
+// du widget logique (à droite), ce qui prouve qu'on mesure bien la position
+// réelle du libellé dans la boîte, pas un simple élargissement.
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CaptureCompositeBoite)
+
+// ---------------- Saisie composite ----------------
+fondLibSai est un entier = RVB(200, 0, 200)
+geoSai est un entier = SAI_Compo..Largeur
+imgSai est une Image = dCopieImageChamp(SAI_Compo)
+dbgVérifieEgalité(imgSai..Valide, Vrai, "Saisie composite : capture valide")
+
+// (1) capture et géométrie s'accordent sur la largeur du champ.
+dbgVérifieEgalité(geoSai, 280, "Saisie : géométrie ..Largeur = 280 (boîte déclarée)")
+dbgVérifieEgalité(imgSai..Largeur, geoSai,
+"Saisie : capture..Largeur == géométrie..Largeur (boîte complète, pas le widget interne)")
+
+// (2) le libellé est présent dans la capture (aplat de fond dans sa zone).
+// Libellé = 100 px à gauche ; échantillon intérieur [10..90] pour éviter les bords.
+nbFondSai est un entier = CompteCouleurZone(imgSai, 10, 10, 90, 30, fondLibSai)
+dbgVérifieVrai(nbFondSai > 500,
+"Saisie : le libellé intégré est visible dans la capture (fond coloré présent)")
+
+// Contrôle négatif : pas de couleur du libellé sur la zone de saisie (droite).
+nbDebordSai est un entier = CompteCouleurZone(imgSai, 130, 10, 275, 30, fondLibSai)
+dbgVérifieEgalité(nbDebordSai, 0,
+"Saisie : la couleur du libellé ne déborde pas sur la zone de saisie")
+
+// ---------------- Combo composite ----------------
+fondLibCmb est un entier = RVB(0, 200, 200)
+geoCmb est un entier = CMB_Compo..Largeur
+imgCmb est une Image = dCopieImageChamp(CMB_Compo)
+dbgVérifieEgalité(imgCmb..Valide, Vrai, "Combo composite : capture valide")
+
+dbgVérifieEgalité(geoCmb, 280, "Combo : géométrie ..Largeur = 280 (boîte déclarée)")
+dbgVérifieEgalité(imgCmb..Largeur, geoCmb,
+"Combo : capture..Largeur == géométrie..Largeur (boîte complète, pas le widget interne)")
+
+nbFondCmb est un entier = CompteCouleurZone(imgCmb, 10, 10, 90, 30, fondLibCmb)
+dbgVérifieVrai(nbFondCmb > 500,
+"Combo : le libellé intégré est visible dans la capture (fond coloré présent)")
+
+nbDebordCmb est un entier = CompteCouleurZone(imgCmb, 130, 10, 275, 30, fondLibCmb)
+dbgVérifieEgalité(nbDebordCmb, 0,
+"Combo : la couleur du libellé ne déborde pas sur la zone de saisie")
+
+Ferme(FEN_CaptureCompositeBoite)
+dbgBilanTest()

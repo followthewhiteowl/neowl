@@ -1,0 +1,27 @@
+//  : le compilo n'acceptait le tableau associatif que dans
+// l'ordre grammatical FR (nom puis adjectif : "tableau associatif" / le
+// calque "array associative"). L'ordre anglais naturel adjectif-nom
+// ("associative array") etait rejete avec "Nom de type attendu.".
+// Ce test verrouille la parite : l'ordre naturel EN doit declarer la
+// meme structure et se comporter identiquement (set/get par cle).
+
+Trace("=== associative array (ordre naturel EN) ===")
+
+x is associative array of strings
+dbgVérifieEgalité(x..Occurrence, 0, "vide apres declaration EN naturel")
+
+x["nom"] = "Alice"
+x["ville"] = "Paris"
+dbgVérifieEgalité(x["nom"], "Alice", "lecture cle nom")
+dbgVérifieEgalité(x["ville"], "Paris", "lecture cle ville")
+dbgVérifieEgalité(x..Occurrence, 2, "count=2 apres 2 sets")
+dbgVérifieEgalité(x["inconnue"], "", "cle inexistante -> defaut chaine vide")
+
+compteurs is associative array of integers
+compteurs["alice"] = 10
+compteurs["bob"] = 20
+dbgVérifieEgalité(compteurs["alice"], 10, "assoc EN naturel d'entiers: lecture alice")
+dbgVérifieEgalité(compteurs["alice"] + compteurs["bob"], 30, "arithmetique sur valeurs entieres")
+dbgVérifieEgalité(compteurs["absent"], 0, "entier defaut = 0")
+
+dbgBilanTest()

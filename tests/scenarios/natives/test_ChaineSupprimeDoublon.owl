@@ -1,0 +1,55 @@
+// @sujet : ChaîneSupprimeDoublon
+// @résumé : Scénario : ChaîneSupprimeDoublon / StringDeleteDuplicate
+// Scénario : ChaîneSupprimeDoublon / StringDeleteDuplicate
+// Supprime les doublons parmi les sous-chaînes d'une chaîne après split selon séparateur(s)
+
+// Cas nominal : liste avec plusieurs doublons dispersés
+PROCEDURE PUBLIQUE scenario_liste_avec_doublons()
+	résultat est une chaîne = ChaîneSupprimeDoublon("France, Italie, Allemagne, Espagne, France, Italie", ", ")
+	dbgVérifieVrai(résultat = "France, Italie, Allemagne, Espagne", "Doublons France et Italie supprimés, première occurrence conservée")
+
+	résultat = ChaîneSupprimeDoublon("rouge|bleu|vert|rouge|jaune|bleu", "|")
+	dbgVérifieVrai(résultat = "rouge|bleu|vert|jaune", "Doublons avec séparateur pipe")
+FIN
+
+// Options de comparaison : insensible à la casse
+PROCEDURE PUBLIQUE scenario_options_comparaison()
+	résultat est une chaîne = ChaîneSupprimeDoublon("Pomme, pomme, POMME, Poire", ", ", ccSansCasse)
+	dbgVérifieVrai(résultat = "Pomme, Poire", "ccSansCasse : Pomme/pomme/POMME dédupliqués")
+
+	résultat = ChaîneSupprimeDoublon("café, cafe, thé, café", ", ", ccSansAccent)
+	dbgVérifieVrai(résultat = "café, thé", "ccSansAccent : café/cafe dédupliqués")
+FIN
+
+// Cas limites : chaîne sans doublon, déjà propre
+PROCEDURE PRIVÉE scenario_sans_doublon()
+	résultat est une chaîne = ChaîneSupprimeDoublon("alpha, beta, gamma", ", ")
+	dbgVérifieVrai(résultat = "alpha, beta, gamma", "Aucun doublon : chaîne inchangée")
+
+	résultat = ChaîneSupprimeDoublon("unique", ",")
+	dbgVérifieVrai(résultat = "unique", "Un seul élément sans séparateur")
+FIN
+
+// Cas limite : chaîne vide et élément unique répété
+PROCEDURE PRIVÉE scenario_chaine_vide_ou_unique()
+	résultat est une chaîne = ChaîneSupprimeDoublon("", ",")
+	dbgVérifieVrai(résultat = "", "Chaîne vide retourne vide")
+
+	résultat = ChaîneSupprimeDoublon("x,x,x,x", ",")
+	dbgVérifieVrai(résultat = "x", "Élément unique répété : une seule occurrence conservée")
+FIN
+
+// Ordre de conservation : première occurrence gardée, suivantes supprimées
+PROCEDURE PRIVÉE scenario_ordre_conservation()
+	résultat est une chaîne = ChaîneSupprimeDoublon("Z, A, Z, B, A, Z", ", ")
+	dbgVérifieVrai(résultat = "Z, A, B", "Ordre d'apparition : première Z et A conservées")
+FIN
+
+// Sensibilité casse par défaut (ccNormal)
+PROCEDURE PRIVÉE scenario_sensible_casse_defaut()
+	résultat est une chaîne = ChaîneSupprimeDoublon("Chat, chat, CHAT", ", ")
+	dbgVérifieVrai(résultat = "Chat, chat, CHAT", "Casse par défaut : Chat/chat/CHAT distincts")
+
+	résultat = ChaîneSupprimeDoublon("Chat, Chat, chat", ", ")
+	dbgVérifieVrai(résultat = "Chat, chat", "Chat dupliqué supprimé, chat distinct conservé")
+FIN

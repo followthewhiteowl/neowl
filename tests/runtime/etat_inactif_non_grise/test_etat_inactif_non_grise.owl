@@ -1,0 +1,44 @@
+// Etat « Inactif » = non-interactif MAIS distinct de « Grisé » sur un contrôle
+// SANS lecture-seule native (Bouton). Avant, Inactif retombait sur
+// setEnabled(false) : la relecture de ..Etat rendait Grisé (collapse). Le
+// rendu Qt (couleur normale vs grisée) n'est validable qu'à l'œil, mais la
+// DISTINCTION des états est observable via ..Etat qui, en mode widgets réels,
+// lit l'état effectif du widget (owl_ui_control_get_etat).
+//
+// Widgets réels requis : en headless ..Etat transite par le storage virtuel et
+// ne passerait pas par owl_ui_control_get_etat.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_EtatInactif)
+
+// --- Bouton (pas de lecture-seule native) : Inactif <> Grisé ---
+BTN_Test..Etat = Inactif
+dbgVérifieEgalité(BTN_Test..Etat, Inactif,
+"Bouton Inactif : ..Etat relit Inactif (pas Grisé) — plus de collapse")
+
+BTN_Test..Etat = Grisé
+dbgVérifieEgalité(BTN_Test..Etat, Grisé,
+"Bouton Grisé : ..Etat relit Grisé")
+
+BTN_Test..Etat = Actif
+dbgVérifieEgalité(BTN_Test..Etat, Actif,
+"Bouton Actif : ..Etat relit Actif")
+
+// Re-poser Inactif après Grisé/Actif (transition qui nettoie et repose le marqueur)
+BTN_Test..Etat = Inactif
+dbgVérifieEgalité(BTN_Test..Etat, Inactif,
+"Bouton Inactif ré-appliqué après Grisé/Actif : relit Inactif")
+
+// --- Saisie (lecture-seule native) : Inactif = readonly, relit Inactif ---
+SAI_Test..Etat = Inactif
+dbgVérifieEgalité(SAI_Test..Etat, Inactif,
+"Saisie Inactif : readonly natif, ..Etat relit Inactif")
+
+SAI_Test..Etat = Grisé
+dbgVérifieEgalité(SAI_Test..Etat, Grisé,
+"Saisie Grisé : ..Etat relit Grisé")
+
+Ferme(FEN_EtatInactif)
+
+dbgBilanTest()

@@ -1,0 +1,50 @@
+// Une Saisie texte jamais alimentée doit exposer une chaîne vide réelle
+// sur ..Valeur. Le piège : sans valeur écrite, la lecture tombait sur un
+// défaut Null déguisé (affiche vide, Taille 0, mais `valeur = ""` valait
+// Faux). Conséquence en aval : un garde-fou `SI s = "" ALORS RENVOYER`
+// ne rattrapait pas le cas, et l'indexation suivante d'un non-chaîne
+// plantait.
+//
+// ..Valeur est la propriété de contenu d'un Champ de Saisie : type chaîne,
+// chaîne vide par défaut. ValeurAffichée / ValeurMémorisée ne partagent
+// PAS cette racine pour une Saisie (concepts Liste/Combo/Sélecteur :
+// libellé affiché vs clef interne d'un élément sélectionné) — hors-scope
+// ici, cohérent avec le mode GUI qui ne les expose pas non plus pour une
+// Saisie.
+
+TestModeHeadless(Vrai)
+
+Trace("=== fix/0527 — Saisie ..Valeur vide = chaîne vide réelle ===")
+
+Ouvre(FEN_T)
+
+// --- Cas 1 : ..Valeur jamais écrite ---
+v est une chaîne = SAI_X..Valeur
+
+dbgVérifieEgalité(v, "", "..Valeur jamais écrite vaut la chaîne vide")
+dbgVérifieEgalité(Taille(v), 0, "..Valeur jamais écrite : Taille 0")
+dbgVérifieVrai(v = "", "..Valeur jamais écrite compare égale à la chaîne vide")
+
+// --- Cas 2 : écriture puis vidage, relecture ..Valeur ---
+SAI_X..Valeur = "abc"
+dbgVérifieEgalité(SAI_X..Valeur, "abc", "..Valeur après écriture = abc")
+
+SAI_X..Valeur = ""
+w est une chaîne = SAI_X..Valeur
+dbgVérifieEgalité(w, "", "..Valeur après vidage = chaîne vide")
+dbgVérifieVrai(w = "", "..Valeur après vidage compare égale à la chaîne vide")
+
+// --- Cas 3 : chaîne du crash Snake (garde-fou `= ""` rattrape le vide) ---
+// Lecture en déclaration + garde qui doit court-circuiter sur le vide.
+s est une chaîne = SAI_X..Valeur
+rattrape est un booléen = Faux
+SI s = "" ALORS
+	rattrape = Vrai
+FIN
+dbgVérifieVrai(rattrape, "garde-fou égalité chaîne vide rattrape la Saisie vide")
+
+Ferme(FEN_T)
+
+Trace("=== Fin fix/0527 ===")
+
+dbgBilanTest()

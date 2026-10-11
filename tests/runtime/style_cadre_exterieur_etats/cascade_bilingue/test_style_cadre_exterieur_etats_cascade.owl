@@ -1,0 +1,43 @@
+//  — Lot 1 (modèle + round-trip) : `Etats` sur `styleCadreExtérieur`
+// via CASCADE directe `BTN..Style..CadreExtérieur..Etats[état]..X = Y`, PLUS
+// preuve bilingue (écriture EN, relecture FR — même slot, cf.  sur
+// ZoneSaisie/Libellé/Image).
+//
+// ROUGE attendu : `Etats` inconnu sur styleCadreExtérieur aujourd'hui.
+//
+// Le RENDU visuel réel (survol/appuyé/focus/grisé peints) est HORS SCOPE :
+// ce test verrouille uniquement le compile + round-trip headless.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_StyleCadreExterieurEtatsCascade)
+
+// --- Survol : Dégradé..CouleurDébut ET Ombre..Flou ---
+BTN_Zone..Style..CadreExtérieur..Etats[survol]..Dégradé..CouleurDébut = RVB(255, 0, 0)
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..Etats[survol]..Dégradé..CouleurDébut, RVB(255, 0, 0), "cascade : Etats[survol]..Dégradé..CouleurDébut round-trip")
+
+BTN_Zone..Style..CadreExtérieur..Etats[survol]..Ombre..Flou = 22
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..Etats[survol]..Ombre..Flou, 22, "cascade : Etats[survol]..Ombre..Flou round-trip")
+
+// --- Appuyé : CouleurFond ---
+BTN_Zone..Style..CadreExtérieur..Etats[appuyé]..CouleurFond = RVB(0, 200, 0)
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..Etats[appuyé]..CouleurFond, RVB(0, 200, 0), "cascade : Etats[appuyé]..CouleurFond round-trip")
+
+// --- Focus : Cadre..Couleur ---
+BTN_Zone..Style..CadreExtérieur..Etats[focus]..Cadre..Couleur = RVB(0, 0, 255)
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..Etats[focus]..Cadre..Couleur, RVB(0, 0, 255), "cascade : Etats[focus]..Cadre..Couleur round-trip")
+
+// --- Grisé : CouleurFond ---
+BTN_Zone..Style..CadreExtérieur..Etats[grisé]..CouleurFond = RVB(120, 120, 120)
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..Etats[grisé]..CouleurFond, RVB(120, 120, 120), "cascade : Etats[grisé]..CouleurFond round-trip")
+
+// --- Bilingue : écriture EN (States[hover]..Gradient..StartColor),
+// relecture FR (Etats[survol]..Dégradé..CouleurDébut) — même slot ---
+BTN_Zone..Style..CadreExtérieur..States[hover]..Gradient..StartColor = RVB(10, 20, 30)
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..Etats[survol]..Dégradé..CouleurDébut, RVB(10, 20, 30), "bilingue : écrit via States[hover]..Gradient..StartColor (EN), relu via Etats[survol]..Dégradé..CouleurDébut (FR)")
+
+dbgVérifieVrai(Vrai, "fenêtre avec cascade Etats CadreExtérieur compile et se lance sans crash")
+
+Ferme(FEN_StyleCadreExterieurEtatsCascade)
+
+dbgBilanTest()

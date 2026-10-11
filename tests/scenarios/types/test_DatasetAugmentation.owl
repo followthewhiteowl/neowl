@@ -1,0 +1,356 @@
+// @sujet : Augmentation de données images sur le Dataset
+// @résumé : Deux transformations opt-in, activées par méthode sur le
+// Dataset d'entraînement, appliquées AU VOL à chaque matérialisation de
+// lot (.LotEntrées) : .RetournementHorizontalAléatoire() (miroir
+// horizontal, probabilité 0,5 par image) et .RecadrageAléatoire(marge)
+// (zéro-padding de `marge` px puis crop aléatoire ramenant à la taille
+// d'origine). Sans appel, aucune augmentation (comportement inchangé). Le
+// tirage aléatoire réutilise le générateur global (InitHasard) : à graine
+// fixe, les lots augmentés sont reproductibles.
+
+// ================================================================
+// Helpers (pas d'assertion : purs utilitaires)
+// ================================================================
+
+// Écrit une image 3×1 aux trois colonnes distinctes (rouge, vert, bleu) :
+// horizontalement asymétrique, donc un miroir est détectable exactement.
+PROCEDURE PRIVÉE ecritImageAsym3x1(chemin est une chaîne)
+	img est une Image = dCréeImage(3, 1, RVB(255, 0, 0))
+	dPoint(img, 0, 0, RVB(255, 0, 0))
+	dPoint(img, 1, 0, RVB(0, 255, 0))
+	dPoint(img, 2, 0, RVB(0, 0, 255))
+	dSauveImagePNG(img, chemin)
+FIN
+
+// Écrit une image 3×3 aux neuf pixels de niveaux de gris distincts :
+// chaque décalage de recadrage produit un arrangement discernable.
+PROCEDURE PRIVÉE ecritImageDistincte3x3(chemin est une chaîne)
+	img est une Image = dCréeImage(3, 3, RVB(0, 0, 0))
+	n est un entier = 1
+	POUR y = 0 À 2
+		POUR x = 0 À 2
+			v est un entier = n * 25
+			dPoint(img, x, y, RVB(v, v, v))
+			n = n + 1
+		FIN
+	FIN
+	dSauveImagePNG(img, chemin)
+FIN
+
+// Vrai si la tranche `b` de `tX` est EXACTEMENT le recadrage zéro-paddé de
+// `ref` (tranche 1) pour l'offset (oy, ox) dans le cadre rembourré de
+// `marge` px. Source hors de l'image d'origine -> 0 (padding).
+PROCEDURE PRIVÉE correspondCrop(tX est un Tenseur, b est un entier, ref est un Tenseur, oy est un entier, ox est un entier, marge est un entier, H est un entier, L est un entier) : booléen
+	POUR c = 1 À 3
+		POUR y = 1 À H
+			POUR x = 1 À L
+				sy est un entier = (y - 1) + oy - marge
+				sx est un entier = (x - 1) + ox - marge
+				attendu est un réel = 0.0
+				SI sy >= 0 ET sy < H ET sx >= 0 ET sx < L ALORS
+					attendu = ref..Valeur[1][c][sy + 1][sx + 1]
+				FIN
+				SI Abs(tX..Valeur[b][c][y][x] - attendu) > 0.00001 ALORS
+					RENVOYER Faux
+				FIN
+			FIN
+		FIN
+	FIN
+	RENVOYER Vrai
+FIN
+
+// Égalité exacte de deux tenseurs B×C×H×W.
+PROCEDURE PRIVÉE tenseursEgaux4D(aT est un Tenseur, bT est un Tenseur, B est un entier, nbC est un entier, H est un entier, L est un entier) : booléen
+	POUR i = 1 À B
+		POUR c = 1 À nbC
+			POUR y = 1 À H
+				POUR x = 1 À L
+					SI Abs(aT..Valeur[i][c][y][x] - bT..Valeur[i][c][y][x]) > 0.00001 ALORS
+						RENVOYER Faux
+					FIN
+				FIN
+			FIN
+		FIN
+	FIN
+	RENVOYER Vrai
+FIN
+
+
+// ================================================================
+// Flip horizontal aléatoire
+// ================================================================
+
+// Avec le flip activé, chaque image d'un lot est SOIT inchangée SOIT le
+// miroir horizontal EXACT (colonnes inversées) — jamais autre chose. Sur
+// un lot de copies d'une même image asymétrique, les deux cas surviennent.
+PROCEDURE PUBLIQUE scenario_flip_miroir_exact()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_flip"
+	fRepCree(racine + "\a")
+	POUR i = 1 À 20
+		ecritImageAsym3x1(racine + "\a\img" + i + ".png")
+	FIN
+
+	// Référence propre (aucune augmentation).
+	dsRef est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	refT est un Tenseur = dsRef.LotEntrées(1, 1)
+
+	dsFlip est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dsFlip.RetournementHorizontalAléatoire()
+
+	InitHasard(7)
+	tX est un Tenseur = dsFlip.LotEntrées(20, 1)
+	dbgVérifieEgalité(tX..Forme[1], 20, "B inchangé (20 exemples)")
+	dbgVérifieEgalité(tX..Forme[4], 3, "W inchangé (3 colonnes)")
+
+	nbFlip est un entier = 0
+	nbOrig est un entier = 0
+	POUR b = 1 À 20
+		origOK est un booléen = Vrai
+		mirOK est un booléen = Vrai
+		POUR c = 1 À 3
+			POUR w = 1 À 3
+				v est un réel = tX..Valeur[b][c][1][w]
+				SI Abs(v - refT..Valeur[1][c][1][w]) > 0.00001 ALORS
+					origOK = Faux
+				FIN
+				SI Abs(v - refT..Valeur[1][c][1][3 + 1 - w]) > 0.00001 ALORS
+					mirOK = Faux
+				FIN
+			FIN
+		FIN
+		dbgVérifieVrai(origOK OU mirOK, "tranche " + b + " : exactement l'original ou son miroir exact")
+		SI mirOK ET PAS origOK ALORS
+			nbFlip = nbFlip + 1
+		FIN
+		SI origOK ET PAS mirOK ALORS
+			nbOrig = nbOrig + 1
+		FIN
+	FIN
+	dbgVérifieVrai(nbFlip > 0, "au moins une image retournée sur le lot")
+	dbgVérifieVrai(nbOrig > 0, "au moins une image non retournée sur le lot")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// ================================================================
+// Recadrage aléatoire (zéro-padding + crop)
+// ================================================================
+
+// Marge 0 = recadrage désactivé : .LotEntrées inchangé, tirage inclus (deux
+// appels consécutifs identiques, aucune consommation de hasard).
+PROCEDURE PUBLIQUE scenario_recadrage_marge_zero_identite()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_crop0"
+	fRepCree(racine + "\a")
+	POUR i = 1 À 4
+		ecritImageDistincte3x3(racine + "\a\img" + i + ".png")
+	FIN
+
+	dsRef est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	refT est un Tenseur = dsRef.LotEntrées(4, 1)
+
+	dsCrop est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dsCrop.RecadrageAléatoire(0)
+
+	tX est un Tenseur = dsCrop.LotEntrées(4, 1)
+	dbgVérifieVrai(tenseursEgaux4D(tX, refT, 4, 3, 3, 3), "marge 0 : lot identique à la référence non augmentée")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+// Le recadrage préserve la forme B×C×H×W (crop ramène toujours à la taille
+// d'origine).
+PROCEDURE PUBLIQUE scenario_recadrage_forme_preservee()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_cropforme"
+	fRepCree(racine + "\a")
+	POUR i = 1 À 4
+		ecritImageDistincte3x3(racine + "\a\img" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	ds.RecadrageAléatoire(2)
+
+	InitHasard(3)
+	tX est un Tenseur = ds.LotEntrées(4, 1)
+	dbgVérifieEgalité(tX..Rang, 4, "rang 4 conservé")
+	dbgVérifieEgalité(tX..Forme[1], 4, "B = 4")
+	dbgVérifieEgalité(tX..Forme[2], 3, "C = 3")
+	dbgVérifieEgalité(tX..Forme[3], 3, "H = 3 (taille d'origine)")
+	dbgVérifieEgalité(tX..Forme[4], 3, "W = 3 (taille d'origine)")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+// Chaque tranche augmentée est EXACTEMENT un décalage zéro-paddé de l'image
+// d'origine (translate cohérente + padding aux bords), et au moins une
+// tranche du lot est réellement décalée (le recadrage agit).
+PROCEDURE PUBLIQUE scenario_recadrage_translation_zero_padding()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_croptrans"
+	fRepCree(racine + "\a")
+	POUR i = 1 À 30
+		ecritImageDistincte3x3(racine + "\a\img" + i + ".png")
+	FIN
+
+	dsRef est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	refT est un Tenseur = dsRef.LotEntrées(1, 1)
+
+	dsCrop est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dsCrop.RecadrageAléatoire(1)
+
+	InitHasard(11)
+	tX est un Tenseur = dsCrop.LotEntrées(30, 1)
+
+	nbShift est un entier = 0
+	POUR b = 1 À 30
+		ok est un booléen = Faux
+		POUR oy = 0 À 2
+			POUR ox = 0 À 2
+				SI correspondCrop(tX, b, refT, oy, ox, 1, 3, 3) ALORS
+					ok = Vrai
+				FIN
+			FIN
+		FIN
+		dbgVérifieVrai(ok, "tranche " + b + " : recadrage zéro-paddé exact d'un décalage valide")
+		SI PAS correspondCrop(tX, b, refT, 1, 1, 1, 3, 3) ALORS
+			nbShift = nbShift + 1
+		FIN
+	FIN
+	dbgVérifieVrai(nbShift > 0, "au moins un recadrage décalé (non-identité) sur le lot")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// ================================================================
+// Déterminisme (pilier 2)
+// ================================================================
+
+// À graine identique, deux matérialisations du même lot augmenté sont
+// bit-identiques ; une graine différente change le lot.
+PROCEDURE PUBLIQUE scenario_determinisme_meme_graine()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_determ"
+	fRepCree(racine + "\a")
+	POUR i = 1 À 6
+		ecritImageDistincte3x3(racine + "\a\img" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	ds.RetournementHorizontalAléatoire()
+	ds.RecadrageAléatoire(1)
+
+	InitHasard(12345)
+	t1 est un Tenseur = ds.LotEntrées(6, 1)
+	InitHasard(12345)
+	t2 est un Tenseur = ds.LotEntrées(6, 1)
+	dbgVérifieVrai(tenseursEgaux4D(t1, t2, 6, 3, 3, 3), "même graine -> lots augmentés identiques")
+
+	InitHasard(999)
+	t3 est un Tenseur = ds.LotEntrées(6, 1)
+	dbgVérifieVrai(PAS tenseursEgaux4D(t1, t3, 6, 3, 3, 3), "graine différente -> lot augmenté différent")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// ================================================================
+// Opt-out et indépendance des Datasets
+// ================================================================
+
+// Sans activation, .LotEntrées est déterministe et identique au comportement
+// non augmenté : deux appels consécutifs coïncident (aucun hasard consommé).
+PROCEDURE PUBLIQUE scenario_opt_out_non_regression()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_optout"
+	fRepCree(racine + "\chat")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c2.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	tA est un Tenseur = ds.LotEntrées(2, 1)
+	tB est un Tenseur = ds.LotEntrées(2, 1)
+	dbgVérifieVrai(tenseursEgaux4D(tA, tB, 2, 3, 2, 2), "sans augmentation : deux lots identiques (déterministe)")
+	// Canal Vert des images vertes = 1.0, inchangé.
+	dbgVérifieVrai(Abs(tA..Valeur[1][2][1][1] - 1.0) < 0.00001, "canal Vert à 1.0 (aucune transformation)")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+// Les flags d'augmentation sont propres à chaque Dataset : activer le flip
+// sur l'un ne l'active pas sur l'autre (chargé du même dossier).
+PROCEDURE PUBLIQUE scenario_flags_independants()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_indep"
+	fRepCree(racine + "\a")
+	POUR i = 1 À 20
+		ecritImageAsym3x1(racine + "\a\img" + i + ".png")
+	FIN
+
+	dsAug est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dsPur est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dsAug.RetournementHorizontalAléatoire()
+
+	refT est un Tenseur = dsPur.LotEntrées(1, 1)
+
+	// dsPur (non augmenté) : chaque tranche reste l'original exact.
+	InitHasard(7)
+	tPur est un Tenseur = dsPur.LotEntrées(20, 1)
+	POUR b = 1 À 20
+		POUR c = 1 À 3
+			POUR w = 1 À 3
+				dbgVérifieVrai(Abs(tPur..Valeur[b][c][1][w] - refT..Valeur[1][c][1][w]) < 0.00001, "Dataset non augmenté : jamais de flip")
+			FIN
+		FIN
+	FIN
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// ================================================================
+// Formes anglaises + chaînage
+// ================================================================
+
+// RandomHorizontalFlip / RandomCrop désignent les mêmes opérations, et les
+// méthodes renvoient le Dataset (chaînage possible).
+PROCEDURE PUBLIQUE scenario_formes_anglaises_et_chainage()
+	root est une chaîne = fRepTemp() + "\owl_test_1718_english"
+	fRepCree(root + "\a")
+	POUR i = 1 À 4
+		ecritImageDistincte3x3(root + "\a\img" + i + ".png")
+	FIN
+
+	ds is a Dataset of LabeledImage = LoadLabeledImagesFromFolder(root)
+	dsRetour est un Dataset de ImageÉtiquetée = ds.RandomHorizontalFlip()
+	dbgVérifieEgalité(dsRetour..Taille, 4, "RandomHorizontalFlip renvoie le Dataset (chaînage)")
+	ds.RandomCrop(1)
+
+	InitHasard(42)
+	tX is a Tensor = ds.BatchInputs(4, 1)
+	dbgVérifieEgalité(tX..Shape[1], 4, "lot augmenté matérialisé via les formes anglaises")
+	dbgVérifieEgalité(tX..Shape[3], 3, "H = 3 conservé après RandomCrop")
+
+	fRepSupprime(root, frRécursif)
+FIN
+
+
+// ================================================================
+// Bords : argument invalide
+// ================================================================
+
+// Une marge négative est refusée (exception rattrapable).
+PROCEDURE PRIVÉE scenario_edge_marge_negative_leve()
+	racine est une chaîne = fRepTemp() + "\owl_test_1718_margeneg"
+	fRepCree(racine + "\a")
+	ecritImageDistincte3x3(racine + "\a\img1.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	bLeve est un booléen = Faux
+	QUAND EXCEPTION DANS
+		ds.RecadrageAléatoire(-1)
+	FAIRE
+		bLeve = Vrai
+	FIN
+	dbgVérifieVrai(bLeve, "marge négative lève une exception")
+
+	fRepSupprime(racine, frRécursif)
+FIN

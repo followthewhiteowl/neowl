@@ -1,0 +1,107 @@
+//  : le message de l'erreur "propriété inconnue sur collection"
+// (E_RT_COLLECTION_HAS_NO_PROP, introduite par ) doit lister les
+// propriétés valides PER-TYPE, pas une whitelist globale. Régression UX :
+// avant ce fix, `v..Occurrence` sur un Vecteur (qui a perdu ..Occurrence
+// via ) affichait ..Occurrence COMME valide — boucle de confusion.
+//
+// La liste affichée est dérivée de la branche d'acceptation vm.c du type :
+//   Vecteur  -> ..Taille, ..Vide
+//   tableau  -> ..Occurrence, ..Vide
+//   Matrice  -> ..Lignes, ..Colonnes
+//   assoc    -> ..Occurrence, ..Vide
+
+
+// ==================== Vecteur : ..Occurrence n'est PAS valide ====================
+// C'est le bug canonique. Le message ne doit plus lister ..Occurrence.
+
+PROCEDURE PUBLIQUE test_vecteur_message_liste_taille_vide_pas_occurrence()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = v..Occurrence
+	FAIRE
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+
+	// Assertion sur valeur EXACTE (verrou du message per-type Vecteur).
+	dbgVérifieEgalité(sMsg,
+		"La collection n'a pas de propriété 'Occurrence'. Propriétés valides : ..Taille, ..Vide.",
+		"Vecteur..Occurrence : message per-type exact (Taille/Vide, pas Occurrence)")
+
+	// Le nom rejeté 'Occurrence' apparaît (entre quotes) mais PAS ..Occurrence
+	// dans la liste des valides (préfixe double-point).
+	dbgVérifieEgalité(Position(sMsg, "..Occurrence"), 0,
+		"Vecteur : ..Occurrence absent de la liste des valides")
+	dbgVérifieVrai(Position(sMsg, "..Taille") > 0,
+		"Vecteur : ..Taille présent dans les valides")
+	dbgVérifieVrai(Position(sMsg, "..Vide") > 0,
+		"Vecteur : ..Vide présent dans les valides")
+FIN
+
+
+// ==================== tableau : ..Occurrence EST valide ====================
+
+PROCEDURE PUBLIQUE test_tableau_message_liste_occurrence_vide()
+	t est un tableau de 2 réels
+	t[1] = 1.0
+	t[2] = 2.0
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = t..Typo
+	FAIRE
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieVrai(Position(sMsg, "..Occurrence") > 0,
+		"tableau : ..Occurrence présent dans les valides")
+	dbgVérifieVrai(Position(sMsg, "..Vide") > 0,
+		"tableau : ..Vide présent dans les valides")
+	// Le tableau n'accepte pas ..Taille ni ..Lignes : ne doit pas les lister.
+	dbgVérifieEgalité(Position(sMsg, "..Taille"), 0,
+		"tableau : ..Taille absent (non accepté par la branche tableau)")
+	dbgVérifieEgalité(Position(sMsg, "..Lignes"), 0,
+		"tableau : ..Lignes absent (propriété Matrice, pas tableau)")
+FIN
+
+
+// ==================== Matrice : ..Lignes / ..Colonnes valides ====================
+
+PROCEDURE PUBLIQUE test_matrice_message_liste_lignes_colonnes()
+	arrTab est un tableau = [[1.0, 2.0], [3.0, 4.0]]
+	m est une Matrice = TableauVersMatrice(arrTab)
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un entier = m..Typo
+	FAIRE
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieVrai(Position(sMsg, "..Lignes") > 0,
+		"Matrice : ..Lignes présent dans les valides")
+	dbgVérifieVrai(Position(sMsg, "..Colonnes") > 0,
+		"Matrice : ..Colonnes présent dans les valides")
+	// La Matrice n'expose pas ..Occurrence.
+	dbgVérifieEgalité(Position(sMsg, "..Occurrence"), 0,
+		"Matrice : ..Occurrence absent (non accepté par la branche Matrice)")
+FIN
+
+
+// ==================== tableau associatif : ..Occurrence / ..Vide ====================
+
+PROCEDURE PUBLIQUE test_assoc_message_liste_occurrence_vide()
+	assoc est un tableau associatif de entiers
+	assoc["a"] = 1
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un entier = assoc..Bidon
+	FAIRE
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieVrai(Position(sMsg, "..Occurrence") > 0,
+		"assoc : ..Occurrence présent dans les valides")
+	dbgVérifieVrai(Position(sMsg, "..Vide") > 0,
+		"assoc : ..Vide présent dans les valides")
+	dbgVérifieEgalité(Position(sMsg, "..Lignes"), 0,
+		"assoc : ..Lignes absent (propriété Matrice)")
+FIN

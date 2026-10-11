@@ -1,0 +1,78 @@
+// @sujet : MonChamp / MyControl
+// @résumé : Keyword qui désigne SANS AMBIGUÏTÉ le champ qui exécute le
+// code courant. À la différence de MoiMême (qui se replie sur l'état ou
+// la fenêtre si aucun champ n'est en cours d'exécution), MonChamp exige
+// toujours un champ courant : hors de ce contexte, il produit une erreur.
+//
+// - dans le gestionnaire d'événement d'un champ, MonChamp est ce champ ;
+// - dans une procédure appelée depuis ce gestionnaire, MonChamp hérite du
+//   champ émetteur (même mécanisme de chaîne d'appel que MoiMême) ;
+// - MonChamp..Propriété permet de lire/écrire une propriété du champ.
+//
+// La fenêtre voisine FEN_MonChamp.owl porte la déclaration. Les procédures
+// utilitaires appelées depuis les handlers de délégation sont définies ici.
+
+PROCEDURE ModifierLibelleViaMonChamp()
+	MonChamp..Libellé = "Chain Modifié"
+FIN
+
+PROCEDURE ModifierLibelleViaMyControl()
+	MyControl..Libellé = "Chain EN Modifié"
+FIN
+
+
+// MonChamp..Libellé dans le propre handler du champ modifie ce champ.
+PROCEDURE scenario_propriete_modifiee_via_monchamp()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MonChamp)
+	dbgVérifieEgalité(BTN_Auto..Libellé, "Avant", "Libellé initial")
+	TestSimuleSouris(BTN_Auto, ClicGauche)
+	dbgVérifieEgalité(BTN_Auto..Libellé, "Après", "MonChamp modifie le champ courant")
+	Ferme(FEN_MonChamp)
+FIN
+
+
+// Alias bilingue : MyControl se comporte identiquement à MonChamp.
+PROCEDURE scenario_alias_mycontrol_identique()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MonChamp)
+	dbgVérifieEgalité(BTN_MyControl..Libellé, "EN Before", "Libellé avant")
+	TestSimuleSouris(BTN_MyControl, ClicGauche)
+	dbgVérifieEgalité(BTN_MyControl..Libellé, "EN After", "MyControl se comporte comme MonChamp")
+	Ferme(FEN_MonChamp)
+FIN
+
+
+// Edge case casse alternative : monchamp (sans majuscule) fonctionne
+// identiquement à MonChamp. OWL est casse-insensible.
+PROCEDURE PRIVÉE test_casse_alternative_monchamp()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MonChamp)
+	dbgVérifieEgalité(BTN_Casse..Libellé, "Casse Init", "Libellé avant")
+	TestSimuleSouris(BTN_Casse, ClicGauche)
+	dbgVérifieEgalité(BTN_Casse..Libellé, "Casse OK", "monchamp sans majuscule fonctionne comme MonChamp")
+	Ferme(FEN_MonChamp)
+FIN
+
+
+// Edge case héritage chain : handler → procédure externe → MonChamp
+// résout au champ émetteur (comme MoiMême, mais sans repli possible).
+PROCEDURE PRIVÉE test_heritage_chain_monchamp()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MonChamp)
+	dbgVérifieEgalité(BTN_Chain..Libellé, "Chain Init", "Libellé avant")
+	TestSimuleSouris(BTN_Chain, ClicGauche)
+	dbgVérifieEgalité(BTN_Chain..Libellé, "Chain Modifié", "MonChamp hérite du champ émetteur via une procédure externe")
+	Ferme(FEN_MonChamp)
+FIN
+
+
+// Edge case héritage chain + alias EN combinés.
+PROCEDURE PRIVÉE test_heritage_chain_mycontrol()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MonChamp)
+	dbgVérifieEgalité(BTN_ChainMyControl..Libellé, "Chain EN Init", "Libellé avant")
+	TestSimuleSouris(BTN_ChainMyControl, ClicGauche)
+	dbgVérifieEgalité(BTN_ChainMyControl..Libellé, "Chain EN Modifié", "MyControl hérite via chaîne d'appel comme MonChamp")
+	Ferme(FEN_MonChamp)
+FIN

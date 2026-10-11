@@ -1,0 +1,104 @@
+// Verifie que les mots retires du scanner peuvent etre utilises
+// comme identifiants normaux : declaration typee, lecture, ecriture,
+// nom de parametre et nom de procedure. Couvre les formes FR (canon
+// utilisateur courant) et un echantillon EN (aliases scanner).
+// Note  : abstraite/abstract ont ete re-promus en mots-cles
+// (canon de référence : modificateur sur Classe / methode) — retires de cette
+// liste de "mots liberes".
+
+// Procedures top-level : prouve que les mots liberes sont utilisables
+// comme noms de procedure / parametres.
+
+PROCEDURE allouer(nTaille est un entier) : entier
+	RENVOYER nTaille * 4
+FIN
+
+PROCEDURE propriete() : chaîne
+	RENVOYER "valeur"
+FIN
+
+PROCEDURE DoubleFaible(faible est un réel) : réel
+	RENVOYER faible * 2.0
+FIN
+
+PROCEDURE ConcatExtension(extension est une chaîne) : chaîne
+	RENVOYER "fichier." + extension
+FIN
+
+// Les variables locales sont declarees dans une procedure pour eviter
+// toute collision avec les noms de procedure ci-dessus (allouer,
+// propriete sont prises au top-level).
+
+PROCEDURE TestDeclarationsLocales()
+	Trace("=== Mots liberes : declaration + lecture ===")
+
+	//  : les locales `propriete`/`allouer` etaient en shadow direct
+	// des PROCEDURE top-level homonymes (interdit). On garde l'intention "mots
+	// liberes utilisables comme identifiant local" via des noms differents
+	// — les procedures top-level couvrent deja le pattern "comme nom de proc".
+	mesparametres est un entier = 1
+	extension est une chaîne = "ext"
+	proprieteLoc est un booléen = Vrai
+	alloueurLoc est un entier = 42
+	faible est un réel = 1.5
+	restreint est un entier = 0
+	interne est un entier = 7
+	virtuelle est un entier = 9
+
+	dbgVérifieEgalité(mesparametres, 1, "mesparametres declaree et lue")
+	dbgVérifieEgalité(extension, "ext", "extension declaree et lue")
+	dbgVérifieEgalité(proprieteLoc, Vrai, "proprieteLoc declaree et lue")
+	dbgVérifieEgalité(alloueurLoc, 42, "alloueurLoc declaree et lue")
+	dbgVérifieEgalité(faible, 1.5, "faible declaree et lue")
+	dbgVérifieEgalité(restreint, 0, "restreint declaree et lue")
+	dbgVérifieEgalité(interne, 7, "interne declaree et lue")
+	dbgVérifieEgalité(virtuelle, 9, "virtuelle declaree et lue")
+
+	Trace("=== Mots liberes : reaffectation ===")
+
+	mesparametres = 100
+	extension     = "modifié"
+	proprieteLoc  = Faux
+	alloueurLoc   = -1
+	faible        = 2.5
+	restreint     = 99
+	interne       = 77
+	virtuelle     = 1000
+
+	dbgVérifieEgalité(mesparametres, 100, "mesparametres reaffectee")
+	dbgVérifieEgalité(extension, "modifié", "extension reaffectee")
+	dbgVérifieEgalité(proprieteLoc, Faux, "proprieteLoc reaffectee")
+	dbgVérifieEgalité(alloueurLoc,-1, "alloueurLoc reaffectee")
+	dbgVérifieEgalité(faible, 2.5, "faible reaffectee")
+	dbgVérifieEgalité(restreint, 99, "restreint reaffectee")
+	dbgVérifieEgalité(interne, 77, "interne reaffectee")
+	dbgVérifieEgalité(virtuelle, 1000, "virtuelle reaffectee")
+FIN
+
+PROCEDURE TestAliasesAnglais()
+	Trace("=== Mots liberes : aliases EN ===")
+
+	// Echantillon EN — pas la peine de dupliquer les 9, on prouve juste
+	// que les aliases scanner anglais sont aussi libres.
+	myparameters est un entier = 11
+	property est une chaîne = "p"
+	weak est un entier = 22
+	internal est un entier = 33
+	virtual est un entier = 55
+
+	dbgVérifieEgalité(myparameters, 11, "alias EN myparameters utilisable")
+	dbgVérifieEgalité(property, "p", "alias EN property utilisable")
+	dbgVérifieEgalité(weak, 22, "alias EN weak utilisable")
+	dbgVérifieEgalité(internal, 33, "alias EN internal utilisable")
+	dbgVérifieEgalité(virtual, 55, "alias EN virtual utilisable")
+FIN
+
+TestDeclarationsLocales()
+TestAliasesAnglais()
+
+Trace("=== Mots liberes : nom de procedure et de parametre ===")
+
+dbgVérifieEgalité(allouer(10), 40, "allouer utilisable comme nom de procedure")
+dbgVérifieEgalité(propriete(), "valeur", "propriete utilisable comme nom de procedure")
+dbgVérifieEgalité(DoubleFaible(3.5), 7.0, "faible utilisable comme parametre")
+dbgVérifieEgalité(ConcatExtension("owl"), "fichier.owl", "extension utilisable comme parametre")

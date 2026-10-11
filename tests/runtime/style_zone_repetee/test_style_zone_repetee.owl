@@ -1,0 +1,54 @@
+//  — type composite styleZoneRépétée (Lot 1 : fondations backend).
+// Vérifie que styleZoneRépétée existe avec ses 7 sous-éléments :
+//   CadreExtérieur, CadreInterne, LignesImpaires, LignesPaires,
+//   LigneSélectionnée, LigneSurvolée, Séparateur.
+//
+// Vérifie aussi les DÉFAUTS SOBRES du ticket : contrairement à styleTable et
+// styleListe (qui alignent LigneSélectionnée..CouleurFond sur le bleu
+// highlight 0xD77800), la Zone répétée est discrète par défaut : aucun
+// sous-élément ne pose de fond ou de cadre visible tant que l'utilisateur ne
+// l'a pas demandé explicitement.
+//
+// ROUGE attendu : le type styleZoneRépétée n'existe pas encore (compile-fail :
+// type styleZoneRépétée inconnu).
+
+Trace("=== styleZoneRépétée : type composite 7 sous-éléments ===")
+
+STY_ZR est un styleZoneRépétée
+STY_ZR..CadreExtérieur..CouleurFond    = JauneClair
+STY_ZR..CadreInterne..Cadre..Epaisseur = 2
+STY_ZR..LignesImpaires..CouleurFond    = Blanc
+STY_ZR..LignesPaires..CouleurFond      = GrisClair
+STY_ZR..LigneSélectionnée..CouleurFond = Bleu
+STY_ZR..LigneSurvolée..CouleurFond     = JauneClair
+STY_ZR..Séparateur..Couleur            = GrisFoncé
+
+dbgVérifieEgalité(STY_ZR..CadreExtérieur..CouleurFond, JauneClair, "styleZoneRépétée : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_ZR..CadreInterne..Cadre..Epaisseur, 2, "styleZoneRépétée : CadreInterne..Cadre..Épaisseur posée")
+dbgVérifieEgalité(STY_ZR..LignesImpaires..CouleurFond, Blanc, "styleZoneRépétée : LignesImpaires..CouleurFond posée")
+dbgVérifieEgalité(STY_ZR..LignesPaires..CouleurFond, GrisClair, "styleZoneRépétée : LignesPaires..CouleurFond posée")
+dbgVérifieEgalité(STY_ZR..LigneSélectionnée..CouleurFond, Bleu, "styleZoneRépétée : LigneSélectionnée..CouleurFond posée")
+dbgVérifieEgalité(STY_ZR..LigneSurvolée..CouleurFond, JauneClair, "styleZoneRépétée : LigneSurvolée..CouleurFond posée")
+dbgVérifieEgalité(STY_ZR..Séparateur..Couleur, GrisFoncé, "styleZoneRépétée : Séparateur..Couleur posée")
+
+Trace("=== styleZoneRépétée : défauts sobres (pas de bleu de sélection) ===")
+
+// Instance fraîche, aucune propriété posée : tous les fonds doivent être
+// transparents (-1) et tous les cadres invisibles (Épaisseur = 0). En
+// particulier LigneSélectionnée NE DOIT PAS hériter du bleu highlight
+// 0xD77800 utilisé par défaut sur styleTable/styleListe/styleCombo.
+STY_ZR_Neuf est un styleZoneRépétée
+
+dbgVérifieEgalité(STY_ZR_Neuf..CadreExtérieur..CouleurFond,-1, "styleZoneRépétée : CadreExtérieur..CouleurFond défaut transparent")
+dbgVérifieEgalité(STY_ZR_Neuf..CadreInterne..CouleurFond,-1, "styleZoneRépétée : CadreInterne..CouleurFond défaut transparent")
+dbgVérifieEgalité(STY_ZR_Neuf..CadreInterne..Cadre..Epaisseur, 0, "styleZoneRépétée : CadreInterne..Cadre..Épaisseur défaut invisible")
+dbgVérifieEgalité(STY_ZR_Neuf..LignesImpaires..CouleurFond,-1, "styleZoneRépétée : LignesImpaires..CouleurFond défaut transparent")
+dbgVérifieEgalité(STY_ZR_Neuf..LignesPaires..CouleurFond,-1, "styleZoneRépétée : LignesPaires..CouleurFond défaut transparent")
+dbgVérifieEgalité(STY_ZR_Neuf..LigneSurvolée..CouleurFond,-1, "styleZoneRépétée : LigneSurvolée..CouleurFond défaut transparent")
+dbgVérifieEgalité(STY_ZR_Neuf..Séparateur..Couleur,-1, "styleZoneRépétée : Séparateur..Couleur défaut (thème)")
+
+// Assertion centrale du ticket : PAS de bleu de sélection par défaut, à
+// l'inverse de styleTable/styleListe/styleCombo (0xD77800).
+dbgVérifieEgalité(STY_ZR_Neuf..LigneSélectionnée..CouleurFond,-1, "styleZoneRépétée : LigneSélectionnée..CouleurFond défaut transparent (PAS de bleu, contrairement à Table/Liste)")
+
+dbgBilanTest()

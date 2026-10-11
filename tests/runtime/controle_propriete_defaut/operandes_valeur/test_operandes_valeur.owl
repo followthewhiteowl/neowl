@@ -1,0 +1,67 @@
+//  — Nom nu widget en contexte OPÉRANDE.
+// Vérifie que le nom nu en opérande résout ..defaultProperty (symétrie bare == explicite).
+//
+// Contextes couverts :
+//   1. Opérande + avec entier   : SAI_Num + 1 = SAI_Num..Valeur + 1 = "421"
+//      (Saisie ..Valeur est toujours une chaîne ; "42" + 1 = concat = "421")
+//   2. Opérande + concat chaîne : SAI_Mot + "x" = SAI_Mot..Valeur + "x" = "okx"
+//      (+ est la concat string ; & est le ET binaire — "ok" & "x" = 0)
+//   3. Comparaison Si           : Si SAI_Mot = "ok" → branche vraie
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Op)
+
+SAI_Num..Valeur = "42"
+SAI_Mot..Valeur = "ok"
+
+// 1. Opérande + avec entier — Saisie ..Valeur est une chaîne, "42" + 1 = concat = "421".
+//    Oracle : bare SAI_Num + 1 == explicite SAI_Num..Valeur + 1 (symétrie ).
+sCatNum est une chaîne = SAI_Num + 1
+sCatNumExplicite est une chaîne = SAI_Num..Valeur + 1
+dbgVérifieEgalité(sCatNum, "421", "SAI nom nu + 1 : chaîne + entier = concat 421")
+dbgVérifieEgalité(sCatNum, sCatNumExplicite, "SAI bare == explicite pour + 1")
+
+// 2. Opérande concat — + est la concat string, pas &.
+//    Oracle : bare SAI_Mot + "x" == explicite SAI_Mot..Valeur + "x" == "okx".
+sCat est une chaîne = SAI_Mot + "x"
+sCatExplicite est une chaîne = SAI_Mot..Valeur + "x"
+dbgVérifieEgalité(sCat, "okx", "SAI nom nu concat + : ok + x = okx")
+dbgVérifieEgalité(sCat, sCatExplicite, "SAI bare == explicite pour concat")
+
+// 3. Comparaison Si directe — SAI_Mot nom nu en LHS de comparaison.
+bBranche est un booléen = Faux
+SI SAI_Mot = "ok" ALORS
+	bBranche = Vrai
+FIN
+dbgVérifieVrai(bBranche, "SAI nom nu comparaison Si : branche vraie quand valeur = ok")
+
+// 4. Opérateurs scalaires multiplicatifs et négation — le nom nu en opérande
+//    de *, /, %, ^, négation déballe sa propriété par défaut au même chokepoint
+//    que +/- (tandem IS_INSTANCE/IS_UI_CONTROL_REF, ).
+//    La ..Valeur d'une Saisie est une chaîne ("42") : pour l'arithmétique
+//    numérique on convertit la chaîne déballée. L'oracle vérifie la symétrie
+//    bare == explicite — le nom nu et la forme ..Valeur résolvent à l'identique.
+nValBare est un entier = Val(SAI_Num + "") // bare ref -> concat (+) -> "42" -> Val
+nValExplicite est un entier = Val(SAI_Num..Valeur)
+dbgVérifieEgalité(nValBare, nValExplicite, "SAI bare + == explicite (déballage opérande)")
+dbgVérifieEgalité(nValBare, 42, "Val sur déballage nom nu = 42")
+
+// Arithmétique scalaire sur la valeur numérisée — exerce *, /, %, ^, négation.
+nMul est un entier = nValBare * 2
+dbgVérifieEgalité(nMul, 84, "déballage SAI numérisé * 2 = 84")
+
+rDiv est un réel = nValBare / 4
+dbgVérifieEgalité(rDiv, 10.5, "déballage SAI numérisé / 4 = 10.5")
+
+nMod est un entier = nValBare % 5
+dbgVérifieEgalité(nMod, 2, "déballage SAI numérisé %% 5 = 2")
+
+rPow est un réel = nValBare ^ 2
+dbgVérifieEgalité(rPow, 1764, "déballage SAI numérisé ^ 2 = 1764")
+
+nNeg est un entier = -nValBare
+dbgVérifieEgalité(nNeg,-42, "négation -déballage SAI numérisé = -42")
+
+Ferme(FEN_Op)
+
+dbgBilanTest()

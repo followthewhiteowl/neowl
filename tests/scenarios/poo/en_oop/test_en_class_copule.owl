@@ -1,0 +1,30 @@
+// @subject: English class copula — `is a class` declares a class
+// @summary: Classes declared with the English copula `is a class` (not the
+// French `est une Class`) compile, instantiate, and execute their methods.
+// Also covers English inheritance (`is a class \n inherits Parent`). The
+// instances are exercised end-to-end: constructor, method calls, inherited
+// fields, and exact return values.
+
+PROCEDURE PUBLIQUE scenario_en_copula_basic()
+	w est un cWidget(3, 4)
+	dbgCheckEqual(w.nWidth, 3, "EN-copula class field nWidth set by constructor")
+	dbgCheckEqual(w.nHeight, 4, "EN-copula class field nHeight set by constructor")
+	dbgCheckEqual(w.Area(), 12, "Area() returns width times height")
+FIN
+
+PROCEDURE PUBLIQUE scenario_en_copula_method_mutates()
+	w est un cWidget(2, 5)
+	w.Resize(3)
+	dbgCheckEqual(w.nWidth, 6, "Resize multiplies width in place")
+	dbgCheckEqual(w.nHeight, 15, "Resize multiplies height in place")
+	dbgCheckEqual(w.Area(), 90, "Area() reflects resized dimensions")
+FIN
+
+PROCEDURE PUBLIQUE scenario_en_copula_inherits()
+	p est un cPanel(3, 4, 1)
+	dbgCheckEqual(p.nWidth, 3, "inherited field nWidth set via parent constructor")
+	dbgCheckEqual(p.nHeight, 4, "inherited field nHeight set via parent constructor")
+	dbgCheckEqual(p.nBorder, 1, "own field nBorder set by child constructor")
+	dbgCheckEqual(p.Area(), 12, "inherited Area() callable on child instance")
+	dbgCheckEqual(p.OuterArea(), 20, "child method uses inherited fields (4 times 5)")
+FIN

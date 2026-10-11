@@ -1,0 +1,102 @@
+// @sujet : Dataset (de ImageAnnotée)
+// @résumé : Le générique `Dataset de <type>` accueille aussi
+// l'exemple de détection `ImageAnnotée` : .NombreLots/.LotEntrées/.Mélange
+// fonctionnent à l'identique du Dataset de classification, puisqu'ils ne
+// dépendent que de `..Image` (matérialisation paresseuse commune aux deux
+// types d'exemple), pas de l'étiquette. Chargé ici via
+// ChargeImagesAnnotéesDepuisYOLO sur la fixture committée
+// tests/scenarios/natives/fixtures/yolo_mini/ (4 images).
+
+// .NombreLots(taille) rend le nombre de lots nécessaires pour couvrir tous
+// les exemples, division exacte ou partielle, comme pour ImageÉtiquetée.
+PROCEDURE PUBLIQUE scenario_nombre_lots_division_exacte_et_partielle()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	dbgVérifieEgalité(ds..Taille, 4, "précondition : 4 exemples au total")
+
+	dbgVérifieEgalité(ds.NombreLots(2), 2, "4 exemples / lot de 2 = 2 lots (division exacte)")
+	dbgVérifieEgalité(ds.NombreLots(3), 2, "4 exemples / lot de 3 = 2 lots (1 plein + 1 partiel)")
+	dbgVérifieEgalité(ds.NombreLots(4), 1, "4 exemples / lot de 4 = 1 lot")
+FIN
+
+// .LotEntrées(taille, i) rend un Tenseur B×C×H×W à partir de ..Image, comme
+// pour ImageÉtiquetée : la forme ne dépend que des images, pas des boîtes.
+PROCEDURE PUBLIQUE scenario_lot_entrees_forme_bxcxhxw()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+
+	tX est un Tenseur = ds.LotEntrées(2, 1)
+	dbgVérifieEgalité(tX..Rang, 4, "B×C×H×W -> rang 4")
+	dbgVérifieEgalité(tX..Forme[1], 2, "B = taille de lot demandée")
+	dbgVérifieEgalité(tX..Forme[2], 3, "C = 3 canaux RGB")
+	dbgVérifieEgalité(tX..Forme[3], 4, "H = hauteur des images fixture (4px)")
+	dbgVérifieEgalité(tX..Forme[4], 4, "W = largeur des images fixture (4px)")
+FIN
+
+// .LotCibles est indisponible sur un Dataset de détection : l'étiquette de
+// classe n'existe pas pour un exemple annoté (les cibles sont des boîtes en
+// nombre variable, voir ..Boîtes). L'appel lève une exception explicite plutôt
+// que de rendre silencieusement un Tenseur de zéros — sinon la classe 0 (une
+// vraie classe) passerait pour une donnée légitime.
+PROCEDURE PUBLIQUE scenario_lot_cibles_refuse_sur_detection()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+
+	résultat est une chaîne = ""
+	QUAND EXCEPTION DANS
+		tY est un Tenseur = ds.LotCibles(2, 1)
+		résultat = "aucune-exception"
+	FAIRE
+		résultat = "exception"
+	FIN
+	dbgVérifieEgalité(résultat, "exception", ".LotCibles sur un Dataset de détection lève une exception au lieu d'un Tenseur de zéros")
+FIN
+
+// .Mélange() rebat l'ordre des exemples sans perdre ni dupliquer d'exemple,
+// et sans perdre les boîtes associées à chaque image (vérifié via le nombre
+// total de boîtes, invariant par permutation).
+PROCEDURE PUBLIQUE scenario_melange_preserve_taille_et_nombre_total_de_boites()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	tailleAvant est un entier = ds..Taille
+
+	totalBoitesAvant est un entier = 0
+	POUR i = 1 À ds..Taille
+		totalBoitesAvant += ds[i]..Boîtes..Occurrence
+	FIN
+
+	ds.Mélange()
+
+	dbgVérifieEgalité(ds..Taille, tailleAvant, ".Mélange() ne change pas ..Taille")
+
+	totalBoitesApres est un entier = 0
+	POUR i = 1 À ds..Taille
+		totalBoitesApres += ds[i]..Boîtes..Occurrence
+	FIN
+	dbgVérifieEgalité(totalBoitesApres, totalBoitesAvant, ".Mélange() préserve le nombre total de boîtes (3 : 2+1+0+0)")
+FIN
+
+// Les formes anglaises .Shuffle() / .BatchCount / .BatchInputs désignent les
+// mêmes opérations.
+PROCEDURE PRIVÉE scenario_edge_formes_anglaises()
+	ds is a Dataset of AnnotatedImage = LoadAnnotatedImagesFromYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+
+	dbgVérifieEgalité(ds.BatchCount(2), 2, "BatchCount(2) : 4 exemples / lot de 2 = 2 lots")
+
+	tX is a Tensor = ds.BatchInputs(2, 1)
+	dbgVérifieEgalité(tX..Shape[1], 2, "BatchInputs : B = 2")
+
+	ds.Shuffle()
+	dbgVérifieEgalité(ds..Count, 4, "Shuffle() ne change pas ..Count")
+FIN
+
+// .BatchTargets (forme anglaise) est refusée de la même façon sur un Dataset
+// de détection.
+PROCEDURE PRIVÉE scenario_edge_batch_targets_refuse_sur_detection()
+	ds is a Dataset of AnnotatedImage = LoadAnnotatedImagesFromYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+
+	verdict is a string = ""
+	WHEN EXCEPTION IN
+		tY is a Tensor = ds.BatchTargets(2, 1)
+		verdict = "no-exception"
+	DO
+		verdict = "exception"
+	END
+	dbgVérifieEgalité(verdict, "exception", ".BatchTargets on a detection Dataset raises instead of returning a zero Tensor")
+FIN

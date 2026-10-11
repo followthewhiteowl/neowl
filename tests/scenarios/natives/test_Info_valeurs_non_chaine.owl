@@ -1,0 +1,107 @@
+// @sujet : Info
+// @résumé : Une boîte de message accepte des arguments de tout type. Chaque argument est rendu sur sa propre ligne, dans la même représentation que Trace.
+
+
+// Info est variadique et n'exige pas des chaînes : un entier, un booléen,
+// une date ou une constante prédéfinie s'affichent tels quels, chacun sur
+// sa ligne. C'est le moyen le plus court d'inspecter une valeur dont on ne
+// connaît ni le contenu ni le type.
+//
+// Comme pour tout scénario portant sur une boîte modale, la fixture pose un
+// mock catch-all : la fenêtre ne s'ouvre pas et l'on vérifie l'appel, son
+// nombre et ses arguments.
+mockInfoValeurs est un MockNative = MockCrée(Info)
+
+
+PROCEDURE avantChaqueTest()
+	mockInfoValeurs = MockCrée(Info).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockInfoValeurs.Desactive()
+FIN
+
+
+// Un entier se passe directement, sans conversion préalable.
+PROCEDURE scenario_argument_entier()
+	nFichiers est un entier = 42
+	Info(nFichiers)
+	dbgVérifieVrai(MockVérifieAppelé(mockInfoValeurs, 1))
+FIN
+
+
+// Une constante prédéfinie est un entier : elle s'affiche par sa valeur.
+// C'est la façon la plus directe de découvrir ce que vaut une constante.
+PROCEDURE scenario_constante_predefinie()
+	Info(sqlHFSQLClassic)
+	dbgVérifieVrai(MockVérifieAppelé(mockInfoValeurs, 1))
+FIN
+
+
+// Plusieurs constantes en un seul appel : une par ligne.
+PROCEDURE scenario_plusieurs_constantes()
+	Info(sqlHFSQLClassic, sqlHFSQL, sqlODBC)
+	dbgVérifieVrai(MockVérifieAppelé(mockInfoValeurs, 1))
+FIN
+
+
+// Les types se mélangent librement dans un même appel : un libellé en
+// chaîne suivi de la valeur qu'il annonce.
+PROCEDURE scenario_melange_chaine_et_valeur()
+	Info("Connecteur :", sqlHFSQLClassic)
+	dbgVérifieVrai(MockVérifieAppelé(mockInfoValeurs, 1))
+FIN
+
+
+// Les autres types courants passent de la même manière : booléen, date,
+// durée, réel, tableau.
+PROCEDURE scenario_types_courants()
+	bActif est un booléen = Vrai
+	dEcheance est une date = "20250101"
+	rTaux est un réel = 3.5
+	tCodes est un tableau de entiers = [1, 2, 3]
+
+	Info(bActif, dEcheance, rTaux, tCodes)
+	dbgVérifieVrai(MockVérifieAppelé(mockInfoValeurs, 1))
+FIN
+
+
+// Null est une valeur comme une autre pour l'affichage : il est montré,
+// pas confondu avec une ligne vide.
+PROCEDURE scenario_valeur_nulle()
+	Info("Valeur reçue :", Null)
+	dbgVérifieVrai(MockVérifieAppelé(mockInfoValeurs, 1))
+FIN
+
+
+// Une règle peut cibler une valeur non-chaîne exacte : elle ne se déclenche
+// que pour cette valeur précise, et reste muette pour une autre.
+PROCEDURE scenario_regle_sur_valeur_exacte()
+	mockLocal est un MockNative = MockCrée(Info)
+	mockLocal.Quand().Avec(sqlHFSQLClassic).Active()
+
+	Info(sqlHFSQLClassic)
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Toute la famille des boîtes de message partage ce comportement :
+// Erreur et Avertissement affichent les mêmes valeurs de la même façon.
+PROCEDURE scenario_famille_complete()
+	mockErreur est un MockNative = MockCrée(Erreur)
+	mockAvert  est un MockNative = MockCrée(Avertissement)
+	mockErreur.Quand().Active()
+	mockAvert.Quand().Active()
+
+	Erreur("Code :", 404)
+	Avertissement("Seuil :", 80)
+
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 1))
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+
+	mockErreur.Desactive()
+	mockAvert.Desactive()
+FIN

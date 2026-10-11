@@ -1,0 +1,21 @@
+// Regression  — helpers FEN appelables depuis le top-level FENETRE.
+//
+// Scenario : Ouvre(FEN_HelperTopLevel) execute le top-level fenetre, qui
+// appelle HelperB(), qui appelle HelperA(). Chaque helper ecrit dans le
+// libelle d'un champ distinct. Apres l'ouverture, le test verifie que :
+//  1. HelperB est resolu depuis le top-level fenetre (cas direct) -> LIB_Y
+//  2. HelperA est resolu depuis HelperB (cas transitif) -> LIB_X
+//
+// Avant le fix, la VM crashait avec "Seules les fonctions et procedures
+// peuvent etre appelees." : le top-level fenetre est le premier code
+// execute (appel eager au chargement du script) et la globale qualifiee
+// '<window>_<proc>' du helper valait encore NIL.
+
+Ouvre(FEN_HelperTopLevel)
+
+dbgVérifieEgalité(FEN_HelperTopLevel.LIB_Y..Libellé, "via HelperB",
+"HelperB doit avoir ete resolu depuis le top-level fenetre (direct)")
+dbgVérifieEgalité(FEN_HelperTopLevel.LIB_X..Libellé, "via HelperA",
+"HelperA doit avoir ete resolu depuis HelperB (transitif)")
+
+dbgBilanTest()

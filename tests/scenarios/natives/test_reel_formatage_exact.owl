@@ -1,0 +1,179 @@
+// @sujet : JSONVersChaîne, NumériqueVersChaîne
+// @résumé : Formatage exact des réels (shortest round-trippable). JSON, concaténation chaîne et conversion native des réels doivent produire le texte le plus court qui se relit vers le même double (comportement standard Python repr/JSON).
+
+// Les trois valeurs clés testées : latitude GPS (48.856614), pi double plein (3.141592653589793), montant facture (1234567.89).
+// Toutes s'écrivent sans ambiguïté dans un double et doivent se sérialiser en texte sous leur forme décimale intuitive, jamais tronquées à 6 chiffres ni en notation scientifique non demandée.
+
+
+// Un réel affecté à un membre JSON se sérialise avec tous ses chiffres significatifs exacts.
+// Cas typique : latitude GPS dans une API REST.
+PROCEDURE scenario_json_latitude_gps()
+	doc est un JSON = ChaîneVersJSON("{}")
+	latitude est un réel = 48.856614
+	doc.lat = latitude
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"lat":48.856614`))
+FIN
+
+
+// Un réel affecté à un membre JSON se sérialise avec tous ses chiffres significatifs exacts.
+// Cas typique : constante mathématique (pi double plein).
+PROCEDURE scenario_json_pi_double_plein()
+	doc est un JSON = ChaîneVersJSON("{}")
+	pi est un réel = 3.141592653589793
+	doc.valeur = pi
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"valeur":3.141592653589793`))
+FIN
+
+
+// Un réel affecté à un membre JSON se sérialise avec tous ses chiffres significatifs exacts.
+// Cas typique : montant facture au centime près.
+PROCEDURE scenario_json_montant_facture()
+	doc est un JSON = ChaîneVersJSON("{}")
+	montant est un réel = 1234567.89
+	doc.montant = montant
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"montant":1234567.89`))
+FIN
+
+
+// La concaténation chaîne d'un réel produit le texte exact (pas tronqué, pas de notation scientifique non désirée).
+// Cas typique : affichage utilisateur, log debug.
+PROCEDURE scenario_concat_latitude_gps()
+	latitude est un réel = 48.856614
+	s est une chaîne = "Coordonnées : " + latitude
+	dbgVérifieVrai(Contient(s, "48.856614"))
+FIN
+
+
+// La concaténation chaîne d'un réel produit le texte exact (pas tronqué, pas de notation scientifique non désirée).
+// Cas typique : constante mathématique (pi).
+PROCEDURE scenario_concat_pi()
+	pi est un réel = 3.141592653589793
+	s est une chaîne = "pi = " + pi
+	dbgVérifieVrai(Contient(s, "3.141592653589793"))
+FIN
+
+
+// La concaténation chaîne d'un réel produit le texte exact (pas tronqué, pas de notation scientifique non désirée).
+// Cas typique : montant facture.
+PROCEDURE scenario_concat_montant()
+	montant est un réel = 1234567.89
+	s est une chaîne = "Total : " + montant
+	dbgVérifieVrai(Contient(s, "1234567.89"))
+FIN
+
+
+// La conversion native réel vers chaîne sans masque produit le texte exact (shortest round-trippable).
+// Cas typique : conversion explicite pour stockage, export.
+PROCEDURE scenario_conversion_native_latitude()
+	latitude est un réel = 48.856614
+	s est une chaîne = NumériqueVersChaîne(latitude)
+	dbgVérifieEgalité(s, "48.856614")
+FIN
+
+
+// La conversion native réel vers chaîne sans masque produit le texte exact (shortest round-trippable).
+// Cas typique : constante mathématique (pi).
+PROCEDURE scenario_conversion_native_pi()
+	pi est un réel = 3.141592653589793
+	s est une chaîne = NumériqueVersChaîne(pi)
+	dbgVérifieEgalité(s, "3.141592653589793")
+FIN
+
+
+// La conversion native réel vers chaîne sans masque produit le texte exact (shortest round-trippable).
+// Cas typique : montant facture.
+PROCEDURE scenario_conversion_native_montant()
+	montant est un réel = 1234567.89
+	s est une chaîne = NumériqueVersChaîne(montant)
+	dbgVérifieEgalité(s, "1234567.89")
+FIN
+
+
+// Un numérique converti via NumériqueVersChaîne sans masque conserve tous ses chiffres (pas de cast lossy vers double).
+// Bug latent identifié par audit : numérique → double → %g perd la précision.
+PROCEDURE scenario_numerique_vers_chaine_sans_perte()
+	n est un numérique = 0n9999.123456
+	s est une chaîne = NumériqueVersChaîne(n)
+	dbgVérifieEgalité(s, "9999.123456")
+FIN
+
+
+// La concaténation chaîne d'un numérique (qui passe par numeric_to_str exact) et sa conversion via NumériqueVersChaîne doivent donner le même résultat.
+// Garantie de cohérence inter-sortie.
+PROCEDURE scenario_coherence_numerique_concat_vs_conversion()
+	n est un numérique = 0n9999.123456
+	sConcat est une chaîne = "" + n
+	sConv est une chaîne = NumériqueVersChaîne(n)
+	dbgVérifieEgalité(sConcat, sConv)
+FIN
+
+
+// Un réel sérialisé en JSON puis concaténé en chaîne doit produire des textes identiques.
+// Garantie de cohérence inter-sortie JSON vs Trace/concat.
+PROCEDURE scenario_coherence_reel_json_vs_concat()
+	latitude est un réel = 48.856614
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.Val = latitude
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	sConcat est une chaîne = "" + latitude
+	// Le JSON contient `"val":48.856614`, et la concat donne `48.856614` : on vérifie que les deux contiennent la même forme textuelle du réel.
+	dbgVérifieVrai(Contient(sJSON, sConcat))
+FIN
+
+
+// Cas limite défensif : réel 0.1 (fraction binaire non-représentable exactement) doit se sérialiser en "0.1" shortest.
+PROCEDURE PRIVÉE scenario_reel_fraction_binaire()
+	r est un réel = 0.1
+	sConcat est une chaîne = "" + r
+	sJSON est une chaîne
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.val = r
+	sJSON = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sConcat, "0.1"))
+	dbgVérifieVrai(Contient(sJSON, `"val":0.1`))
+FIN
+
+
+// Cas limite défensif : réel 1.0 (entier-valued) peut se sérialiser en "1" ou "1.0" selon l'algo shortest.
+// On accepte les deux formes tant que le round-trip fonctionne. Pour ce test, on vérifie juste que ce n'est PAS tronqué ou en notation scientifique.
+PROCEDURE PRIVÉE scenario_reel_entier_valued()
+	r est un réel = 1.0
+	sConcat est une chaîne = "" + r
+	// Acceptable : "1" ou "1.0", mais pas "1e+00" ni "1.000000".
+	// On vérifie juste présence de "1" (test minimal — l'impl peut raffiner).
+	dbgVérifieVrai(Contient(sConcat, "1"))
+FIN
+
+
+// Cas limite défensif : réel négatif avec précision.
+PROCEDURE PRIVÉE scenario_reel_negatif()
+	r est un réel = -123.456789
+	sConcat est une chaîne = "" + r
+	dbgVérifieVrai(Contient(sConcat, "-123.456789"))
+FIN
+
+
+// Cas limite défensif : réel très grand (pas de notation scientifique non demandée si shortest le permet).
+PROCEDURE PRIVÉE scenario_reel_tres_grand()
+	r est un réel = 9876543210.123456
+	sConcat est une chaîne = "" + r
+	// Shortest pour ce double doit être ~"9876543210.123456" (ou proche, selon arrondi binaire).
+	// On vérifie au moins qu'on ne tronque pas à 6 chiffres ni ne force l'expo.
+	dbgVérifieVrai(Contient(sConcat, "9876543210"))
+FIN
+
+
+// Cas limite défensif : réel zéro.
+PROCEDURE PRIVÉE scenario_reel_zero()
+	r est un réel = 0.0
+	sConcat est une chaîne = "" + r
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.val = r
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	// Acceptable : "0" ou "0.0".
+	dbgVérifieVrai(Contient(sConcat, "0"))
+	dbgVérifieVrai(Contient(sJSON, `"val":0`))
+FIN

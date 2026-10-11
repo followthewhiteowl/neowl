@@ -1,0 +1,40 @@
+// Un nom de colonne est un identifiant : sa résolution ignore les accents
+// comme la casse. La graphie écrite à la déclaration et celle écrite à la
+// lecture n'ont donc pas à coïncider.
+//
+// Contrepartie du refus du doublon de colonne : si deux graphies ne
+// pouvaient pas s'atteindre l'une l'autre, refuser leur coexistence
+// enfermerait le code lecteur dans une seule orthographe.
+//
+// Les deux formes d'accès doivent se comporter à l'identique — la symétrie
+// TBL.COL[L] == TBL[L].COL vaut quelle que soit la graphie.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColGraphie)
+
+// Colonne déclarée accentuée, lue dans les deux graphies.
+dbgVérifieEgalité(LigneAccentAccent(), "valeurClé",
+"colonne accentuée lue par sa propre graphie (ligne d'abord)")
+dbgVérifieEgalité(LigneAccentNu(), "valeurClé",
+"colonne accentuée atteinte par la graphie nue (ligne d'abord)")
+
+// Colonne déclarée nue, lue dans les deux graphies.
+dbgVérifieEgalité(LigneNuNu(), "valeurNom",
+"colonne nue lue par sa propre graphie (ligne d'abord)")
+dbgVérifieEgalité(LigneNuAccent(), "valeurNom",
+"colonne nue atteinte par la graphie accentuée (ligne d'abord)")
+
+// Forme colonne d'abord : mêmes valeurs que la forme ligne d'abord.
+dbgVérifieEgalité(ColAccentAccent(), "valeurClé",
+"colonne accentuée lue par sa propre graphie (colonne d'abord)")
+dbgVérifieEgalité(ColAccentNu(), "valeurClé",
+"colonne accentuée atteinte par la graphie nue (colonne d'abord)")
+
+// Symétrie stricte entre les deux formes, sur une colonne accentuée.
+dbgVérifieEgalité(LigneAccentNu(), ColAccentNu(),
+"TBL[L].COL == TBL.COL[L] sur une colonne accentuée")
+
+Ferme(FEN_ColGraphie)
+
+dbgBilanTest()

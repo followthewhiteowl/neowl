@@ -1,0 +1,28 @@
+//  : une ligne de contenu qui commence par `]` sans être suivie
+// d'une ponctuation de structure reste du contenu. C'est la borne qui
+// sépare la règle réelle de la formulation littérale « toute ligne
+// commençant par ] », laquelle casserait les modèles de texte.
+
+sTexteLibre est une chaîne = [
+] ceci est du contenu
+]suivi sans espace
+] // ni une fermeture, ni un commentaire : du texte
+fin
+]
+dbgVérifieEgalité(sTexteLibre,
+	"] ceci est du contenu" + LF + "]suivi sans espace" + LF
+	+ "] // ni une fermeture, ni un commentaire : du texte" + LF + "fin",
+	"lignes commençant par ] suivi de texte : conservées comme contenu")
+
+// Même protection quand le bloc est imbriqué dans un appel : seule la
+// ligne dont le ] est suivi d'une ponctuation de structure ferme.
+PROCEDURE Taille1365(s est une chaîne) : entier
+	RENVOYER Taille(s)
+FIN
+
+nTaille est un entier = Taille1365([
+] texte
+])
+dbgVérifieEgalité(nTaille, 7, "] texte reste du contenu, seul le ]) final ferme")
+
+dbgBilanTest()

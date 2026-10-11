@@ -1,0 +1,35 @@
+//  (bug a) : un parametre dont le nom collisionne case-insensitive
+// avec le nom de la procedure qui le declare ne doit pas etre renomme,
+// et le nom de la procedure ne doit pas etre renomme non plus.
+//
+// Cause racine (avant fix) : user_scopes_collect demarrait le scope au
+// keyword PROCEDURE/FONCTION, ce qui aspirait le nom de la procedure
+// dans la canonisation scoped des locals/params. Le nom `C` matchait
+// case-insensitive le param `c` -> chacun degradait l'autre :
+//   PROCEDURE C(c est une chaine) -> PROCEDURE c(C est une chaine)
+// Corruption symetrique du code utilisateur.
+//
+// Fix : startOff du scope = position du `(` (signature) — exclut le
+// nom de procedure de la canonisation scoped, tout en preservant la
+// canon des params dans la signature et le body.
+
+PROCEDURE C(c est une chaîne)
+	Trace(c)
+FIN
+
+PROCEDURE Init(s est une chaîne, n est un entier)
+	Trace(s)
+	Trace(n)
+FIN
+
+// Cas etendu : plusieurs params 1 char + nom de proc qui collisionne
+// avec un seul d'entre eux. Aucun des params, ni le nom de proc,
+// ne doit etre renomme.
+PROCEDURE A(a est un entier, b est un entier)
+	Trace(a)
+	Trace(b)
+FIN
+
+C("hello")
+Init("world", 42)
+A(1, 2)

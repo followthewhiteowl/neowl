@@ -1,0 +1,104 @@
+// @sujet : enums de dessin image (dessinOptions, fondStyle, imgRedimOptions, imgRotationOptions)
+// @résumé : Verrouille le comportement des constantes de dessin image via leurs natives associées : début de dessin (dDébutDessin), fond (dFond), redimensionnement (dRedimensionne) et rotation (dRotation).
+
+
+// dEffacer : dDébutDessin avec dEffacer remet le fond à blanc avant de dessiner.
+PROCEDURE PUBLIQUE scenario_debut_dessin_effacer()
+	img est une Image = dCréeImage(10, 10, RougeFoncé)
+	dbgVérifieVrai(img..Valide, "image créée valide")
+	ok est un booléen = dDébutDessin(img, dEffacer)
+	dbgVérifieVrai(ok, "dDébutDessin avec dEffacer réussit")
+FIN
+
+
+// dSansEffacer : dDébutDessin avec dSansEffacer préserve le contenu existant.
+PROCEDURE PUBLIQUE scenario_debut_dessin_sans_effacer()
+	img est une Image = dCréeImage(10, 10, Bleu)
+	ok est un booléen = dDébutDessin(img, dSansEffacer)
+	dbgVérifieVrai(ok, "dDébutDessin avec dSansEffacer réussit")
+FIN
+
+
+// FondPlein : dFond avec FondPlein remplit l'image d'une couleur unie.
+PROCEDURE PUBLIQUE scenario_fond_plein()
+	img est une Image = dCréeImage(20, 20)
+	dDébutDessin(img, dEffacer)
+	dFond(img, Vert, FondPlein)
+	dbgVérifieVrai(img..Valide, "image valide après dFond FondPlein")
+FIN
+
+
+// FondTransparent : dFond avec FondTransparent (fond sans remplissage opaque).
+PROCEDURE PUBLIQUE scenario_fond_transparent()
+	img est une Image = dCréeImage(20, 20)
+	dDébutDessin(img, dEffacer)
+	dFond(img, Blanc, FondTransparent)
+	dbgVérifieVrai(img..Valide, "image valide après dFond FondTransparent")
+FIN
+
+
+// FondHachuré : dFond avec FondHachuré (hachures horizontales).
+PROCEDURE PUBLIQUE scenario_fond_hachure()
+	img est une Image = dCréeImage(20, 20)
+	dDébutDessin(img, dEffacer)
+	dFond(img, Noir, FondHachuré, 0)
+	dbgVérifieVrai(img..Valide, "image valide après dFond FondHachuré")
+FIN
+
+
+// drEtiré : redimensionnement par étirement (dimensions changent effectivement).
+PROCEDURE PUBLIQUE scenario_redim_etire()
+	img est une Image = dCréeImage(40, 40)
+	ok est un booléen = dRedimensionne(img, 20, 10, drEtiré)
+	dbgVérifieVrai(ok, "dRedimensionne avec drEtiré réussit")
+	dbgVérifieEgalité(img..Largeur, 20, "largeur après redim étirée vaut 20")
+	dbgVérifieEgalité(img..Hauteur, 10, "hauteur après redim étirée vaut 10")
+FIN
+
+
+// drHomothétique : redimensionnement proportionnel.
+PROCEDURE PUBLIQUE scenario_redim_homothetique()
+	img est une Image = dCréeImage(40, 40)
+	ok est un booléen = dRedimensionne(img, 20, 20, drHomothétique)
+	dbgVérifieVrai(ok, "dRedimensionne avec drHomothétique réussit")
+FIN
+
+
+// drHauteQualité : redimensionnement avec interpolation bilinéaire.
+PROCEDURE PUBLIQUE scenario_redim_haute_qualite()
+	img est une Image = dCréeImage(40, 40)
+	ok est un booléen = dRedimensionne(img, 20, 20, drHauteQualité)
+	dbgVérifieVrai(ok, "dRedimensionne avec drHauteQualité réussit")
+FIN
+
+
+// drDéfaut : rotation 90° avec agrandissement automatique.
+PROCEDURE PUBLIQUE scenario_rotation_defaut()
+	img est une Image = dCréeImage(40, 20)
+	ok est un booléen = dRotation(img, 90.0, drDéfaut)
+	dbgVérifieVrai(ok, "dRotation avec drDéfaut réussit")
+FIN
+
+
+// drAdapte : rotation 90° avec réduction à la taille initiale.
+PROCEDURE PUBLIQUE scenario_rotation_adapte()
+	img est une Image = dCréeImage(40, 20)
+	ok est un booléen = dRotation(img, 90.0, drAdapte)
+	dbgVérifieVrai(ok, "dRotation avec drAdapte réussit")
+FIN
+
+
+// drSansAgrandissement : rotation 45° sans agrandissement (image tronquée si nécessaire).
+PROCEDURE PUBLIQUE scenario_rotation_sans_agrandissement()
+	img est une Image = dCréeImage(40, 40)
+	ok est un booléen = dRotation(img, 45.0, drSansAgrandissement)
+	dbgVérifieVrai(ok, "dRotation avec drSansAgrandissement réussit")
+FIN
+
+
+// drHomothétique + drHauteQualité combinés par OU binaire.
+PROCEDURE PRIVÉE scenario_redim_combinaison_flags()
+	img est une Image = dCréeImage(100, 100)
+	ok est un booléen = dRedimensionne(img, 50, 50, OUBinaire(drHomothétique, drHauteQualité))
+	dbgVérifieVrai(ok, "dRedimensionne avec drHomothétique+drHauteQualité combinés réussit")
+FIN

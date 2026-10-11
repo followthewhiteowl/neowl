@@ -1,0 +1,211 @@
+// @sujet : Tenseur.L1
+// @résumé : Perte différentiable L1 (erreur absolue moyenne) — le receveur
+// porte une prédiction, l'argument porte une cible ; la perte est la
+// moyenne des écarts absolus. Rétropropage() remonte vers la prédiction un
+// gradient fait du seul signe de l'écart (divisé par le nombre
+// d'éléments), jamais vers la cible. Perte de choix pour une régression de
+// boîte englobante, moins sensible aux valeurs aberrantes que
+// ErreurQuadratique.
+
+// prédiction = [1.0, 3.0], cible = [0.0, 0.0] : perte = moyenne(|1|, |3|) =
+// 2.0.
+PROCEDURE PUBLIQUE scenario_l1_deux_composantes_forward()
+	tp est un Tenseur = Tenseur([1.0, 3.0])
+	tc est un Tenseur = Tenseur([0.0, 0.0])
+	tperte est un Tenseur = tp.L1(tc)
+	dbgVérifieEgalité(tperte..Valeur[1], 2.0, "moyenne(|1.0-0.0|, |3.0-0.0|) = 2.0")
+FIN
+
+
+// Écarts de signes opposés : prédiction = [1.0, -3.0], cible = [0.0, 0.0].
+// perte = moyenne(|1|, |-3|) = 2.0. Gradient = signe(écart) / 2 : [0.5,
+// -0.5]. La cible ne porte pas de gradient.
+PROCEDURE PUBLIQUE scenario_l1_signes_opposes_backward()
+	tp est un Tenseur = Tenseur([1.0,-3.0])
+	tc est un Tenseur = Tenseur([0.0, 0.0])
+	tperte est un Tenseur = tp.L1(tc)
+	tperte.Rétropropage()
+	dbgVérifieEgalité(tperte..Valeur[1], 2.0, "moyenne(|1.0|, |-3.0|) = 2.0")
+	dbgVérifieEgalité(tp..Gradient[1], 0.5, "signe(1.0-0.0) / 2 = 0.5")
+	dbgVérifieEgalité(tp..Gradient[2],-0.5, "signe(-3.0-0.0) / 2 = -0.5")
+	dbgVérifieEgalité(tc..Gradient[1], 0.0, "La cible ne porte pas de gradient")
+	dbgVérifieEgalité(tc..Gradient[2], 0.0, "La cible ne porte pas de gradient")
+FIN
+
+
+// .L1 est le même nom dans les deux langues (neutre) : la forme anglaise
+// n'est qu'une syntaxe de déclaration différente, même méthode.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	tp is a Tensor = Tensor([1.0,-3.0])
+	tc is a Tensor = Tensor([0.0, 0.0])
+	tloss is a Tensor = tp.L1(tc)
+	tloss.Backpropagate()
+	dbgCheckEqual(tloss..Valeur[1], 2.0, "English declarations: same L1 loss")
+	dbgCheckEqual(tp..Gradient[1], 0.5, "English declarations: same L1 gradient")
+FIN
+
+
+// Entrée déterministe [4] de prédictions et de cibles pour le
+// gradient-check par différences finies. Les écarts (0.5, -0.8, 0.5, -0.5)
+// sont tous strictement non nuls et restent loin de zéro même perturbés de
+// ±eps : L1 est non différentiable en zéro, donc le gradient-check évite
+// délibérément tout écart nul.
+PROCEDURE PRIVÉE construitPredGradientCheckL1(idxPerturbe est un entier, delta est un réel) : Tenseur
+	v est un tableau de réels
+	base est un tableau de réels
+	base.Ajoute(0.7)
+	base.Ajoute(-0.3)
+	base.Ajoute(1.5)
+	base.Ajoute(-0.9)
+	POUR k = 0 À 3
+		val est un réel = base[k + 1]
+		SI k = idxPerturbe ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tenseur(v)
+FIN
+
+PROCEDURE PRIVÉE cibleGradientCheckL1() : Tenseur
+	RENVOYER Tenseur([0.2, 0.5, 1.0,-0.4])
+FIN
+
+// Perte scalaire pour une prédiction perturbée à l'indice idxPerturbe
+// (0-based). N'appelle QUE le chemin forward — jamais Rétropropage() —
+// pour rester indépendante du backward analytique qu'elle vérifie.
+PROCEDURE PRIVÉE perteL1Perturbee(idxPerturbe est un entier, delta est un réel) : réel
+	pred est un Tenseur = construitPredGradientCheckL1(idxPerturbe, delta)
+	tperte est un Tenseur = pred.L1(cibleGradientCheckL1())
+	RENVOYER tperte..Valeur[1]
+FIN
+
+PROCEDURE PUBLIQUE scenario_l1_gradient_verifie_par_differences_finies()
+	pred est un Tenseur = construitPredGradientCheckL1(-1, 0.0)
+	tperte est un Tenseur = pred.L1(cibleGradientCheckL1())
+	tperte.Rétropropage()
+
+	eps est un réel = 0.0001
+	tolérance est un réel = 0.001
+
+	d1Findiff est un réel = (perteL1Perturbee(0, eps) - perteL1Perturbee(0,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(pred..Gradient[1] - d1Findiff) < tolérance, "composante 1 (écart 0.5) : gradient analytique proche des différences finies")
+
+	d2Findiff est un réel = (perteL1Perturbee(1, eps) - perteL1Perturbee(1,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(pred..Gradient[2] - d2Findiff) < tolérance, "composante 2 (écart -0.8) : gradient analytique proche des différences finies")
+
+	d3Findiff est un réel = (perteL1Perturbee(2, eps) - perteL1Perturbee(2,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(pred..Gradient[3] - d3Findiff) < tolérance, "composante 3 (écart 0.5) : gradient analytique proche des différences finies")
+
+	d4Findiff est un réel = (perteL1Perturbee(3, eps) - perteL1Perturbee(3,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(pred..Gradient[4] - d4Findiff) < tolérance, "composante 4 (écart -0.5) : gradient analytique proche des différences finies")
+FIN
+
+
+// Même gradient-check, formes anglaises : .Backpropagate() au lieu de
+// .Rétropropage(). Helpers dupliqués pour exercer réellement le chemin
+// anglais.
+PROCEDURE PRIVÉE buildPredGradientCheckL1(idxPerturb est un entier, delta est un réel) : Tenseur
+	v is an array of reals
+	base is an array of reals
+	base.Ajoute(0.7)
+	base.Ajoute(-0.3)
+	base.Ajoute(1.5)
+	base.Ajoute(-0.9)
+	POUR k = 0 À 3
+		val is a real = base[k + 1]
+		SI k = idxPerturb ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tensor(v)
+FIN
+
+PROCEDURE PRIVÉE targetGradientCheckL1() : Tenseur
+	RENVOYER Tensor([0.2, 0.5, 1.0,-0.4])
+FIN
+
+PROCEDURE PRIVÉE l1LossPerturbed(idxPerturb est un entier, delta est un réel) : réel
+	pred is a Tensor = buildPredGradientCheckL1(idxPerturb, delta)
+	tloss is a Tensor = pred.L1(targetGradientCheckL1())
+	RENVOYER tloss..Valeur[1]
+FIN
+
+PROCEDURE PUBLIQUE scenario_formes_anglaises_l1_gradient_findiff()
+	pred is a Tensor = buildPredGradientCheckL1(-1, 0.0)
+	tloss is a Tensor = pred.L1(targetGradientCheckL1())
+	tloss.Backpropagate()
+
+	eps is a real = 0.0001
+	tolerance is a real = 0.001
+
+	d1Findiff is a real = (l1LossPerturbed(0, eps) - l1LossPerturbed(0,-eps)) / (2 * eps)
+	dbgCheckTrue(Abs(pred..Gradient[1] - d1Findiff) < tolerance, "English forms: component 1: analytical gradient close to finite differences")
+
+	d2Findiff is a real = (l1LossPerturbed(1, eps) - l1LossPerturbed(1,-eps)) / (2 * eps)
+	dbgCheckTrue(Abs(pred..Gradient[2] - d2Findiff) < tolerance, "English forms: component 2: analytical gradient close to finite differences")
+FIN
+
+
+// Digue métier : une boîte à 4 composantes, entraînée par descente de
+// gradient à partir de zéro contre une cible fixe avec la perte L1, chute
+// fortement puis rejoint la cible. Contrairement à ErreurQuadratique dont
+// le gradient s'amenuise près de la cible, le gradient L1 garde une
+// magnitude constante (signe seul) : un pas d'apprentissage modeste est
+// choisi pour que la trajectoire converge sans osciller au-delà de la
+// tolérance.
+PROCEDURE PUBLIQUE scenario_l1_remplace_erreur_quadratique_boite_converge()
+	x est un Tenseur = Tenseur([1.0])
+	poidsBoite est un Tenseur = Tenseur([[0.0], [0.0], [0.0], [0.0]])
+	cibleBoite est un Tenseur = Tenseur([0.5, 0.4, 0.3, 0.2])
+	taux est un réel = 0.01
+
+	perteInitiale est un réel = 0.0
+	perteFinale est un réel = 0.0
+	boitePredite est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0])
+
+	POUR i = 1 À 400
+		boitePredite = poidsBoite.ProduitMatriciel(x)
+		perte est un Tenseur = boitePredite.L1(cibleBoite)
+		perte.Rétropropage()
+
+		SI i = 1 ALORS
+			perteInitiale = perte..Valeur[1]
+		FIN
+		SI i = 400 ALORS
+			perteFinale = perte..Valeur[1]
+		FIN
+
+		poidsBoite = poidsBoite.DescenteGradient(taux)
+	FIN
+
+	dbgVérifieVrai(perteFinale < perteInitiale * 0.1, "L1 sur la boîte : la perte finale a chuté d'au moins un ordre de grandeur")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[1] - 0.5) < 0.01, "Boîte apprise (L1), composante 1 proche de 0.5")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[2] - 0.4) < 0.01, "Boîte apprise (L1), composante 2 proche de 0.4")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[3] - 0.3) < 0.01, "Boîte apprise (L1), composante 3 proche de 0.3")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[4] - 0.2) < 0.01, "Boîte apprise (L1), composante 4 proche de 0.2")
+FIN
+
+
+// Cas limite : prédiction identique à la cible sur un couple de
+// composantes (perte nulle attendue), tandis qu'une troisième composante
+// porte un écart net — évite tout gradient au point non-différentiable
+// zéro tout en vérifiant qu'une perte partiellement nulle reste correcte.
+PROCEDURE PRIVÉE scenario_edge_l1_partiellement_nul_forward()
+	tp est un Tenseur = Tenseur([1.0, 1.0, 5.0])
+	tc est un Tenseur = Tenseur([1.0, 1.0, 2.0])
+	tperte est un Tenseur = tp.L1(tc)
+	dbgVérifieEgalité(tperte..Valeur[1], 1.0, "moyenne(|0|, |0|, |3|) = 1.0")
+FIN
+
+// Cas limite : formes incompatibles entre prédiction et cible -> erreur,
+// pas de résultat silencieusement faux.
+PROCEDURE PRIVÉE scenario_edge_l1_formes_incompatibles_refusee()
+	tp est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	tcAutreForme est un Tenseur = Tenseur([1.0, 2.0])
+
+	ErreurRAZ()
+	tperte est un Tenseur = tp.L1(tcAutreForme)
+	dbgVérifieVrai(ErreurDétectée, "prédiction(3) et cible(2) de formes incompatibles : refusé")
+FIN

@@ -1,0 +1,27 @@
+//  : temoins negatifs du refus de division decrit dans
+// tests/regression/faux_positifs_garde_division/.
+//
+// Les deux procedures ci-dessous sont le cas « diviseur termine par une
+// addition » a une valeur pres dans le tableau litteral. Elles ont toujours
+// compile proprement, avant comme apres le correctif : elles montrent que le
+// refus dependait uniquement du rang occupe par le zero dans le jeu de
+// constantes, et pas de la forme du diviseur ni d'une source invalide.
+//
+// A comparer ligne a ligne avec la procedure Repro1555Addition du dossier
+// voisin, dont le tableau est [1, 2, 3, 4, 0].
+
+// Meme tableau, le zero remplace par une valeur non nulle.
+PROCEDURE Temoin1555ZeroAbsent(num est un entier, den est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 9]
+	RENVOYER num / (den + 1)
+FIN
+
+// Meme tableau, le zero recule d'un rang.
+PROCEDURE Temoin1555ZeroDeplace(num est un entier, den est un entier)
+	t est un tableau de entiers = [1, 2, 3, 0, 4]
+	RENVOYER num / (den + 1)
+FIN
+
+dbgVérifieEgalité(Temoin1555ZeroAbsent(10, 1), 5, "aucun zero dans le jeu de constantes")
+dbgVérifieEgalité(Temoin1555ZeroDeplace(10, 1), 5, "zero present, mais a un autre rang")
+dbgBilanTest()

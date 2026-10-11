@@ -1,0 +1,87 @@
+// @sujet : dStylo signature optionnelle - image implicite via dDébutDessin
+// @resume : dStylo([<Image>,] <Couleur> [, <Style> [, <Largeur> [, <Opacité>]]])
+//           Le paramètre image est optionnel si une session dDébutDessin
+//           est active. Sans session ouverte, l'appel sans image émet
+//           NO_CANVAS (canon de référence).
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — variantes signature dStylo
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_dstylo_sans_image_avec_session_couleur_seule()
+	img est une Image = dCréeImage(10, 10, Blanc)
+	dDébutDessin(img)
+
+	// Forme courte : dStylo(couleur) sans image (session active)
+	ErreurRAZ()
+	dStylo(RVB(255, 0, 0))
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr = Faux, "dStylo(couleur) avec session active - pas d erreur")
+
+	// Vérification fonctionnelle : dPoint sans couleur doit reprendre le stylo
+	dPoint(5, 5)
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	dbgVérifieEgalité(c..Rouge, 255, "dStylo(couleur) - pixel rouge R")
+	dbgVérifieEgalité(c..Vert, 0, "dStylo(couleur) - pixel rouge V")
+	dbgVérifieEgalité(c..Bleu, 0, "dStylo(couleur) - pixel rouge B")
+
+	dFinDessin(img)
+FIN
+
+PROCEDURE PUBLIQUE scenario_dstylo_sans_image_avec_session_style_largeur()
+	img est une Image = dCréeImage(10, 10, Blanc)
+	dDébutDessin(img)
+
+	// Forme courte avec style et largeur : dStylo(couleur, style, largeur)
+	ErreurRAZ()
+	dStylo(RVB(0, 0, 255), 0, 1)
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr = Faux, "dStylo(couleur, style, largeur) avec session - pas d erreur")
+
+	dPoint(3, 3)
+	c est une Couleur = dPixelCouleur(img, 3, 3)
+	dbgVérifieEgalité(c..Bleu, 255, "dStylo(couleur, style, largeur) - pixel bleu B")
+
+	dFinDessin(img)
+FIN
+
+PROCEDURE PUBLIQUE scenario_dstylo_avec_image_explicite_compat()
+	// Forme longue (compat existante) : dStylo(image, couleur, style, largeur, opacité)
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	ErreurRAZ()
+	dStylo(img, RVB(0, 255, 0), 0, 1, 255)
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr = Faux, "dStylo(image, couleur, ...) - compat preservee, pas d erreur")
+
+	// Verification fonctionnelle via dPoint qui herite la couleur stylo
+	dDébutDessin(img)
+	dStylo(img, RVB(0, 255, 0), 0, 1, 255)
+	dPoint(img, 4, 4)
+	c est une Couleur = dPixelCouleur(img, 4, 4)
+	dbgVérifieEgalité(c..Vert, 255, "dStylo(image, ...) - pixel vert V")
+	dFinDessin(img)
+FIN
+
+PROCEDURE PUBLIQUE scenario_dstylo_sans_image_sans_session_emet_NO_CANVAS()
+	// Sans dDébutDessin actif, dStylo(couleur) doit émettre NO_CANVAS.
+	// On s'assure qu'aucune session n'est ouverte au préalable.
+	dFinDessin()
+
+	ErreurRAZ()
+	dStylo(RVB(128, 128, 128))
+
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "dStylo(couleur) sans session - erreur detectee")
+
+	sInfo est une chaîne = ErreurInfo()
+	dbgVérifieVrai(
+	ChaîneOccurrence(sInfo, "dDébutDessin") > 0
+	OU ChaîneOccurrence(sInfo, "dDebutDessin") > 0
+	OU ChaîneOccurrence(sInfo, "dStartDrawing") > 0,
+	"dStylo sans session - message mentionne dDébutDessin"
+	)
+FIN

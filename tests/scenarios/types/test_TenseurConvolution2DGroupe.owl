@@ -1,0 +1,217 @@
+// @sujet : Tenseur.Convolution2D / IAModèle.ChargeONNX — convolution 2D
+// GROUPÉE (group>1, dont depthwise = group == Cin)
+// @résumé : les canaux d'entrée/sortie sont partitionnés en `group` groupes
+// indépendants ; les poids ont la forme [Cout, Cin/group, kH, kW] au lieu de
+// [Cout, Cin, kH, kW]. Le cas group == Cin est la convolution "depthwise"
+// (un filtre par canal), brique de base des réseaux mobiles/efficients
+// (MobileNet). Ce scénario compare l'inférence d'un réseau importé depuis
+// ONNX (dont l'attribut `group` vaut respectivement 4 puis 2) à un oracle
+// capturé hors OWL (onnxruntime), avec tolérance flottante.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_groupconv.onnx (depthwise
+// group=4 puis conv group=2, suivi de Flatten + Gemm).
+// Oracle : tests/internal_fixtures/onnx/fixture_groupconv_oracle.json —
+// entrée [1,4,6,6] (flat[k] = k/144.0 pour k=0..143, reconstruite à la main
+// ci-dessous), sortie attendue [-0.141838, 0.083999, -0.008371].
+//
+// Si la convolution groupée n'est pas supportée, l'import
+// réussit (la couche est mappée), mais l'inférence échoue — message runtime
+// attendu : "TenseurConvolution2D: argument
+// 'poids' attendu des poids dont le nombre de canaux d'entree egale celui de
+// l'entree (4), reçu nombre de canaux d'entree different." (le code actuel
+// suppose group=1 et calcule les poids attendus sans diviser par `group`).
+PROCEDURE PUBLIQUE scenario_charge_onnx_conv_groupee_infere_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_groupconv.onnx")
+	// Capture immédiate : la sentinelle d'erreur est consommée au 1er appel
+	// natif suivant (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un réseau à convolutions groupées réussit (la couche est mappée)")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 143
+			brut.Ajoute(k / 144.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 4, 6, 6])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+		// Capture immédiate : voir skill test-writing-pitfalls §6.
+		bInfereEchoue est un booléen = ErreurDétectée
+		dbgVérifieVrai(PAS bInfereEchoue, "l'inférence d'un réseau à convolutions groupées (depthwise group=4 puis group=2) réussit")
+
+		SI PAS bInfereEchoue ALORS
+			// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [classes],
+			// même sémantique que les autres digues d'import ONNX.
+			dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+			val est un Vecteur = sortie..Valeur
+
+			attendu1 est un réel = -0.141838
+			attendu2 est un réel = 0.083999
+			attendu3 est un réel = -0.008371
+
+			dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (conv groupée, tolérance flottante)")
+			dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (conv groupée, tolérance flottante)")
+			dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (conv groupée, tolérance flottante)")
+		FIN
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le
+// même comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_grouped_conv_infer_egale_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_groupconv.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a network with grouped convolutions succeeds (the layer is mapped)")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 143
+			raw.Ajoute(k / 144.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 4, 6, 6])
+
+		output is a Tensor = mon.Infer(input)
+		bInferFailed is a boolean = ErrorOccurred
+		dbgCheckTrue(PAS bInferFailed, "inferring a network with grouped convolutions (depthwise group=4 then group=2) succeeds")
+
+		SI PAS bInferFailed ALORS
+			dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+			val is a Vector = output..Value
+
+			expected1 is a real = -0.141838
+			expected2 is a real = 0.083999
+			expected3 is a real = -0.008371
+
+			dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the grouped-conv oracle")
+			dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the grouped-conv oracle")
+			dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the grouped-conv oracle")
+		FIN
+	FIN
+FIN
+
+
+// Non-régression : sans argument group, TenseurConvolution2D calcule
+// toujours la corrélation croisée group=1 (chaque canal de sortie voit tous
+// les canaux d'entrée). Entrée 1×2×3×3, noyau 1×2×2×2 — mêmes valeurs et
+// même résultat que scenario_convolution2d_forward_multi_canal
+// (tests/scenarios/types/test_TenseurConvolution2D.owl), reproduit ici pour
+// verrouiller la non-régression dans le même fichier que la convolution groupée.
+PROCEDURE PUBLIQUE scenario_convolution2d_group1_implicite_non_regression()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]).Redimensionne([1, 2, 3, 3])
+	poids est un Tenseur = Tenseur([1.0, 1.0, 1.0, 1.0, 2.0, 0.0, 0.0, 2.0]).Redimensionne([1, 2, 2, 2])
+	sortie est un Tenseur = TenseurConvolution2D(entrée, poids, 1, 0)
+
+	dbgVérifieEgalité(sortie..Forme[2], 1, "1 canal de sortie (le noyau n'a qu'1 canal de sortie), group=1 implicite inchangé")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 16.0, "12 (canal 1) + 4 (canal 2) = 16")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 16.0, "16 (canal 1) + 0 (canal 2) = 16")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 24.0, "24 (canal 1) + 0 (canal 2) = 24")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 32.0, "28 (canal 1) + 4 (canal 2) = 32")
+FIN
+
+
+// Construit l'entrée déterministe [1,4,3,3] du gradient-check, avec une
+// composante optionnellement perturbée (idxPerturbe = -1 : aucune
+// perturbation, sert de forward de référence).
+PROCEDURE PRIVÉE construitEntréeGradientCheck(idxPerturbe est un entier, delta est un réel)
+	v est un tableau de réels
+	POUR k = 0 À 35
+		val est un réel = k / 36.0
+		SI k = idxPerturbe ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([1, 4, 3, 3])
+FIN
+
+// Construit les poids déterministes [Cout=4, Cin/group=2, kH=2, kW=2] du
+// gradient-check, avec la même convention de perturbation optionnelle.
+PROCEDURE PRIVÉE construitPoidsGradientCheck(idxPerturbe est un entier, delta est un réel)
+	v est un tableau de réels
+	POUR k = 0 À 31
+		val est un réel = (k + 1) / 32.0 - 0.5
+		SI k = idxPerturbe ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([4, 2, 2, 2])
+FIN
+
+// Cible nulle [16] pour une perte ErreurQuadratique qui se réduit à
+// moyenne(sortie²) — scalaire différentiable, discriminant sur les deux
+// groupes de la convolution groupée.
+PROCEDURE PRIVÉE cibleNulleGradientCheck()
+	v est un tableau de réels
+	POUR k = 1 À 16
+		v.Ajoute(0.0)
+	FIN
+	RENVOYER Tenseur(v)
+FIN
+
+// Perte scalaire pour une entrée perturbée à l'indice idxPerturbe (poids
+// inchangés). N'appelle QUE le chemin forward — jamais Rétropropage() —
+// pour rester indépendante du backward analytique qu'elle vérifie.
+PROCEDURE PRIVÉE perteEntréePerturbée(idxPerturbe est un entier, delta est un réel) : réel
+	entrée est un Tenseur = construitEntréeGradientCheck(idxPerturbe, delta)
+	poids est un Tenseur = construitPoidsGradientCheck(-1, 0.0)
+	sortie est un Tenseur = TenseurConvolution2D(entrée, poids, 1, 0, 2)
+	tperte est un Tenseur = sortie.ErreurQuadratique(cibleNulleGradientCheck())
+	RENVOYER tperte..Valeur[1]
+FIN
+
+// Perte scalaire pour des poids perturbés à l'indice idxPerturbe (entrée
+// inchangée). Même remarque : forward seul.
+PROCEDURE PRIVÉE pertePoidsPerturbés(idxPerturbe est un entier, delta est un réel) : réel
+	entrée est un Tenseur = construitEntréeGradientCheck(-1, 0.0)
+	poids est un Tenseur = construitPoidsGradientCheck(idxPerturbe, delta)
+	sortie est un Tenseur = TenseurConvolution2D(entrée, poids, 1, 0, 2)
+	tperte est un Tenseur = sortie.ErreurQuadratique(cibleNulleGradientCheck())
+	RENVOYER tperte..Valeur[1]
+FIN
+
+
+// Gradient-check : le gradient analytique de Rétropropage() est comparé à
+// des différences finies centrées calculées indépendamment (le findiff ne
+// touche jamais Rétropropage(), seulement le forward). Convolution groupée
+// group=2, entrée [1,4,3,3], poids [Cout=4, Cin/group=2, 2, 2] : les
+// composantes vérifiées couvrent volontairement les DEUX groupes, pour
+// prouver que le backward ne mélange pas leurs canaux.
+//
+// Groupe 0 = canaux de sortie 1-2 / canaux d'entrée 1-2.
+// Groupe 1 = canaux de sortie 3-4 / canaux d'entrée 3-4.
+PROCEDURE PUBLIQUE scenario_convolution2d_groupe_gradient_verifie_par_differences_finies()
+	entrée est un Tenseur = construitEntréeGradientCheck(-1, 0.0)
+	poids est un Tenseur = construitPoidsGradientCheck(-1, 0.0)
+	sortie est un Tenseur = TenseurConvolution2D(entrée, poids, 1, 0, 2)
+	tperte est un Tenseur = sortie.ErreurQuadratique(cibleNulleGradientCheck())
+	tperte.Rétropropage()
+
+	eps est un réel = 0.0001
+	tolérance est un réel = 0.001
+
+	// dPoids, groupe 0 : co=1 (sortie 1, groupe 0), ci=1, kh=1, kw=1
+	// -> indice à plat (0-based, ordre co,ci,kh,kw) = 0.
+	dPoidsG0Findiff est un réel = (pertePoidsPerturbés(0, eps) - pertePoidsPerturbés(0,-eps)) / (2 * eps)
+	dPoidsG0Analytique est un réel = poids..Gradient[1][1][1][1]
+	dbgVérifieVrai(Abs(dPoidsG0Analytique - dPoidsG0Findiff) < tolérance, "dPoids[1][1][1][1] (groupe 0) : gradient analytique proche des différences finies")
+
+	// dPoids, groupe 1 : co=3 (sortie 3, groupe 1), ci=2, kh=2, kw=2
+	// -> indice à plat = 23.
+	dPoidsG1Findiff est un réel = (pertePoidsPerturbés(23, eps) - pertePoidsPerturbés(23,-eps)) / (2 * eps)
+	dPoidsG1Analytique est un réel = poids..Gradient[3][2][2][2]
+	dbgVérifieVrai(Abs(dPoidsG1Analytique - dPoidsG1Findiff) < tolérance, "dPoids[3][2][2][2] (groupe 1) : gradient analytique proche des différences finies")
+
+	// dEntrée, groupe 0 : canal d'entrée 1, h=1, w=1 -> indice à plat = 0.
+	dEntréeG0Findiff est un réel = (perteEntréePerturbée(0, eps) - perteEntréePerturbée(0,-eps)) / (2 * eps)
+	dEntréeG0Analytique est un réel = entrée..Gradient[1][1][1][1]
+	dbgVérifieVrai(Abs(dEntréeG0Analytique - dEntréeG0Findiff) < tolérance, "dEntrée[1][1][1][1] (canal groupe 0) : gradient analytique proche des différences finies")
+
+	// dEntrée, groupe 1 : canal d'entrée 3, h=2, w=2 -> indice à plat = 22.
+	dEntréeG1Findiff est un réel = (perteEntréePerturbée(22, eps) - perteEntréePerturbée(22,-eps)) / (2 * eps)
+	dEntréeG1Analytique est un réel = entrée..Gradient[1][3][2][2]
+	dbgVérifieVrai(Abs(dEntréeG1Analytique - dEntréeG1Findiff) < tolérance, "dEntrée[1][3][2][2] (canal groupe 1) : gradient analytique proche des différences finies")
+FIN

@@ -1,0 +1,94 @@
+// @sujet : DateHeureValide
+// @résumé : Valide une dateheure. Retourne Vrai si la dateheure est correcte (format et plage), Faux sinon.
+
+
+// Cas nominal : dateheure valide courante.
+PROCEDURE scenario_dateheure_valide_courante()
+	dh est une dateheure = "2026-06-05 14:30:45"
+	dbgVérifieVrai(DateHeureValide(dh), "dateheure valide reconnue")
+FIN
+
+
+// Cas nominal : dateheure construite via cast valide.
+PROCEDURE scenario_dateheure_construite()
+	dh est une dateheure = ChaîneVersDate("20260605143045", "AAAAMMJJHHmmSS")
+	dbgVérifieVrai(DateHeureValide(dh), "dateheure construite valide")
+FIN
+
+
+// Cas limite : 29 février année bissextile est valide.
+PROCEDURE scenario_29_fevrier_bissextile()
+	dh est une dateheure = "2024-02-29 12:00:00"
+	dbgVérifieVrai(DateHeureValide(dh), "29 février 2024 valide (bissextile)")
+FIN
+
+
+// Cas limite : dernière seconde de l'année 9999.
+PROCEDURE scenario_limite_haute()
+	dh est une dateheure = "9999-12-31 23:59:59"
+	dbgVérifieVrai(DateHeureValide(dh), "limite haute 9999-12-31 23:59:59 valide")
+FIN
+
+
+// Cas limite : première seconde de l'époque supportée.
+PROCEDURE scenario_limite_basse()
+	dh est une dateheure = "0001-01-01 00:00:00"
+	dbgVérifieVrai(DateHeureValide(dh), "limite basse 0001-01-01 00:00:00 valide")
+FIN
+
+
+// Cas invalide : 29 février année non-bissextile.
+PROCEDURE scenario_29_fevrier_non_bissextile()
+	// Pattern variable chaîne intermédiaire pour bypass compile filter
+	sInvalid est une chaîne = "2023-02-29 12:00:00"
+	dh est une dateheure = sInvalid
+	dbgVérifieVrai(PAS DateHeureValide(dh), "29 février 2023 invalide (non-bissextile)")
+FIN
+
+
+// Cas invalide : jour 32 hors plage.
+PROCEDURE scenario_jour_hors_plage()
+	sInvalid est une chaîne = "2026-01-32 14:30:00"
+	dh est une dateheure = sInvalid
+	dbgVérifieVrai(PAS DateHeureValide(dh), "jour 32 invalide")
+FIN
+
+
+// Cas invalide : mois 13 hors plage.
+PROCEDURE scenario_mois_hors_plage()
+	sInvalid est une chaîne = "2026-13-15 14:30:00"
+	dh est une dateheure = sInvalid
+	dbgVérifieVrai(PAS DateHeureValide(dh), "mois 13 invalide")
+FIN
+
+
+// Cas invalide : heure 25 hors plage.
+PROCEDURE scenario_heure_hors_plage()
+	sInvalid est une chaîne = "2026-06-05 25:00:00"
+	dh est une dateheure = sInvalid
+	dbgVérifieVrai(PAS DateHeureValide(dh), "heure 25 invalide")
+FIN
+
+
+// Cas invalide : minute 60 hors plage.
+PROCEDURE scenario_minute_hors_plage()
+	sInvalid est une chaîne = "2026-06-05 14:60:00"
+	dh est une dateheure = sInvalid
+	dbgVérifieVrai(PAS DateHeureValide(dh), "minute 60 invalide")
+FIN
+
+
+// Cas invalide : seconde 61 hors plage (seconde intercalaire non gérée).
+PROCEDURE scenario_seconde_hors_plage()
+	sInvalid est une chaîne = "2026-06-05 14:30:61"
+	dh est une dateheure = sInvalid
+	dbgVérifieVrai(PAS DateHeureValide(dh), "seconde 61 invalide")
+FIN
+
+
+// Cas limite défensif : chaîne vide retourne Faux.
+PROCEDURE scenario_chaine_vide()
+	sBad est une chaîne = ""
+	dh est une dateheure = sBad
+	dbgVérifieVrai(PAS DateHeureValide(dh), "chaîne vide invalide")
+FIN

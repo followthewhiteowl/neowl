@@ -1,0 +1,55 @@
+// Une valeur de propriété d'un bloc PROPRIETES accepte une expression
+// composée (concaténation, somme…), à parité avec l'affectation directe
+// `CHAMP..Prop = <expression>`. Les valeurs simples et les formes spéciales
+// (multilingue inline, cascade) restent correctes.
+//
+// La fenêtre voisine FEN_PropExprComposee.owl porte les déclarations et
+// exerce les expressions composées au compile-time du designer. Le script
+// ouvre la fenêtre et relit les valeurs évaluées.
+
+PROCEDURE scenario_expression_composee_chaine()
+	Ouvre(FEN_PropExprComposee)
+
+	// "x" + LF + "y" évalué sur le slot Valeur.
+	dbgVérifieEgalité(SAI_V..Valeur, "x" + LF + "y",
+	"Valeur = concaténation de chaînes en PROPRIETES")
+
+	// "a" + LF + "b" sur le Libellé.
+	dbgVérifieEgalité(LIB_C..Libellé, "a" + LF + "b",
+	"Libellé = concaténation de chaînes en PROPRIETES")
+
+	Ferme(FEN_PropExprComposee)
+FIN
+
+PROCEDURE scenario_expression_composee_entier()
+	Ouvre(FEN_PropExprComposee)
+
+	// 100 + 25 en position de propriété entière.
+	dbgVérifieEgalité(SAI_V..X, 125, "X = somme d'entiers en PROPRIETES")
+
+	// 800 - 300 sur une propriété entière de fenêtre.
+	dbgVérifieEgalité(FEN_PropExprComposee..Largeur, 500,
+	"Largeur fenêtre = soustraction d'entiers en PROPRIETES")
+
+	// Cascade avec expression composée : Police..Taille = 6 + 6.
+	dbgVérifieEgalité(LIB_C..Police..Taille, 12,
+	"cascade Police..Taille = somme d'entiers")
+
+	Ferme(FEN_PropExprComposee)
+FIN
+
+PROCEDURE scenario_non_regression_formes_simples()
+	Ouvre(FEN_PropExprComposee)
+
+	// Littéral chaîne simple non impacté.
+	dbgVérifieEgalité(FEN_PropExprComposee..Titre, "Expressions composées",
+	"littéral chaîne simple inchangé")
+
+	// Littéral multilingue inline `{}` non impacté.
+	dbgVérifieEgalité(LIB_M..Libellé[langueFrançais], "Bonjour",
+	"littéral multilingue inline (fr) inchangé")
+	dbgVérifieEgalité(LIB_M..Libellé[langueAnglais], "Hello",
+	"littéral multilingue inline (en) inchangé")
+
+	Ferme(FEN_PropExprComposee)
+FIN

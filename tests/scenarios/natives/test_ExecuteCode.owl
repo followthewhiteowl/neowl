@@ -1,0 +1,39 @@
+// @sujet : ExécuteCode
+// @résumé : Compile et exécute une chaîne de code source, et retourne la valeur passée à RENVOYER dans ce code, ou Null en son absence.
+
+
+// Cas nominal : le code source déclare une variable puis la renvoie via RENVOYER.
+// LF insère le saut de ligne nécessaire entre les deux instructions du bloc.
+PROCEDURE PUBLIQUE scenario_execute_code_renvoyer_valeur()
+	n est un entier = ExécuteCode("n est un entier = 5" + LF + "RENVOYER n * 2")
+	dbgVérifieEgalité(n, 10, "bloc source avec RENVOYER n * 2 = 10")
+FIN
+
+
+// Cas nominal : le code source ne fait qu'un effet de bord (Trace), sans RENVOYER.
+// Les guillemets internes sont doublés (convention OWL) pour former le littéral affiché.
+PROCEDURE PUBLIQUE scenario_execute_code_effet_de_bord_sans_renvoyer()
+	v est une chaîne? = ExécuteCode("Trace(""effet de bord exécuté"")")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "code sans RENVOYER → résultat Null")
+	dbgVérifieVrai(PAS bErreur, "effet de bord seul ne pose pas d'erreur")
+FIN
+
+
+// Cas limite : code source syntaxiquement invalide se dégrade en Null, sans crash,
+// et signale l'échec via le canal d'erreur standard.
+PROCEDURE PUBLIQUE scenario_execute_code_source_invalide()
+	v est une chaîne? = ExécuteCode("ceci n'est pas du code valide !!! ###")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "code source invalide → résultat Null")
+	dbgVérifieVrai(bErreur, "code source invalide signale ErreurDétectée")
+FIN
+
+
+// Cas limite : code source vide se dégrade en Null, sans erreur posée (rien à compiler).
+PROCEDURE PUBLIQUE scenario_execute_code_source_vide()
+	v est une chaîne? = ExécuteCode("")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "code source vide → résultat Null")
+	dbgVérifieVrai(PAS bErreur, "code source vide ne pose pas d'erreur")
+FIN

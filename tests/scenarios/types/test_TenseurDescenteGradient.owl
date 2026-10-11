@@ -1,0 +1,138 @@
+// @sujet : Tenseur.DescenteGradient
+// @résumé : DescenteGradient(taux) rend une nouvelle feuille = valeur -
+// taux*gradient, même forme que l'opérande — Matrice pour un Tenseur 2D
+// (poids), Vecteur pour un Tenseur 1D (biais). Le résultat est une feuille
+// fraîche : son propre gradient repart à zéro, sans lien avec le graphe
+// qui a produit le gradient d'origine.
+
+// Poids 2D (W du cas central matmul) : après Rétropropage(), un pas de
+// descente de gradient à taux 0.1 donne W - 0.1*gradW. Calcul à la main :
+// gradW = [[2,0,4],[6,0,12]] -> Wmaj = [[1-0.2,2-0,3-0.4],[4-0.6,5-0,6-1.2]]
+//       = [[0.8, 2.0, 2.6], [3.4, 5.0, 4.8]]
+PROCEDURE PUBLIQUE scenario_descente_gradient_poids_2d()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 0.0, 2.0])
+
+	ty est un Tenseur = tW.ProduitMatriciel(tx)
+	tcible est un Tenseur = Tenseur([5.0, 10.0])
+	tperte est un Tenseur = ty.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	tWmaj est un Tenseur = tW.DescenteGradient(0.1)
+	valWmaj est une Matrice = tWmaj..Valeur
+	dbgVérifieEgalité(valWmaj[1][1], 0.8, "1 - 0.1*2 = 0.8")
+	dbgVérifieEgalité(valWmaj[1][2], 2.0, "2 - 0.1*0 = 2.0")
+	dbgVérifieEgalité(valWmaj[1][3], 2.6, "3 - 0.1*4 = 2.6")
+	dbgVérifieEgalité(valWmaj[2][1], 3.4, "4 - 0.1*6 = 3.4")
+	dbgVérifieEgalité(valWmaj[2][2], 5.0, "5 - 0.1*0 = 5.0")
+	dbgVérifieEgalité(valWmaj[2][3], 4.8, "6 - 0.1*12 = 4.8")
+FIN
+
+
+// Biais 1D : réutilise le cas connu de test_TenseurErreurQuadratique
+// (tp=[2.0,0.0], cible=[1.0,0.0], gradient=[1.0,0.0]). Un pas à taux 0.1
+// donne biaisMaj = [2.0-0.1*1.0, 0.0-0.1*0.0] = [1.9, 0.0].
+PROCEDURE PUBLIQUE scenario_descente_gradient_biais_1d()
+	tb est un Tenseur = Tenseur([2.0, 0.0])
+	tcible est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tb.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	tbmaj est un Tenseur = tb.DescenteGradient(0.1)
+	valBmaj est un Vecteur = tbmaj..Valeur
+	dbgVérifieEgalité(valBmaj[1], 1.9, "2.0 - 0.1*1.0 = 1.9")
+	dbgVérifieEgalité(valBmaj[2], 0.0, "0.0 - 0.1*0.0 = 0.0")
+FIN
+
+
+// Le Tenseur rendu par DescenteGradient est une feuille fraîche : son
+// gradient démarre à zéro, indépendamment du gradient de l'opérande
+// d'origine (qui n'est ni copié ni reporté).
+PROCEDURE PUBLIQUE scenario_feuille_fraiche_gradient_a_zero()
+	matW est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 1.0])
+
+	ty est un Tenseur = tW.ProduitMatriciel(tx)
+	tcible est un Tenseur = Tenseur([0.0, 0.0])
+	tperte est un Tenseur = ty.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	tWmaj est un Tenseur = tW.DescenteGradient(0.01)
+	gradWmaj est une Matrice = tWmaj..Gradient
+	dbgVérifieEgalité(gradWmaj[1][1], 0.0, "Feuille fraîche : gradient reparti à zéro")
+	dbgVérifieEgalité(gradWmaj[2][2], 0.0, "Feuille fraîche : gradient reparti à zéro")
+FIN
+
+
+// La feuille fraîche ne fait pas s'accumuler un gradient avec l'ancien
+// graphe : un nouveau forward + Rétropropage() sur tWmaj recalcule un
+// gradient propre, pas la somme avec le gradient de tW.
+// 1re passe : y1 = W@[1,1] = [3,7] ; cible1=[0,0] ; gradSortie1 = y1 = [3,7]
+// -> gradW (1re passe) = [3,7]⊗[1,1] = [[3,3],[7,7]] (colonne 2 à 3 et 7,
+// PAS zéro).
+// tWmaj = W - 0.01*gradW = [[0.97,1.97],[2.93,3.93]]
+// 2e passe : y2 = tWmaj@[1,0] = [0.97,2.93] ; cible2=[1,1] ;
+// diff = [-0.03, 1.93] ; gradSortie2 = diff (n=2, facteur 2/2=1)
+// -> gradWmaj (2e passe) = diff⊗[1,0] = [[-0.03,0],[1.93,0]].
+// Si le gradient de la 1re passe avait fui dans tWmaj, la colonne 2 ne
+// vaudrait pas 0 (elle vaudrait 3 et 7 en plus). Elle vaut bien 0 : pas
+// d'accumulation entre les deux feuilles.
+PROCEDURE PUBLIQUE scenario_edge_pas_accumulation_entre_deux_passes()
+	matW est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx1 est un Tenseur = Tenseur([1.0, 1.0])
+
+	ty1 est un Tenseur = tW.ProduitMatriciel(tx1)
+	tcible1 est un Tenseur = Tenseur([0.0, 0.0])
+	tperte1 est un Tenseur = ty1.ErreurQuadratique(tcible1)
+	tperte1.Rétropropage()
+
+	tWmaj est un Tenseur = tW.DescenteGradient(0.01)
+
+	tx2 est un Tenseur = Tenseur([1.0, 0.0])
+	ty2 est un Tenseur = tWmaj.ProduitMatriciel(tx2)
+	tcible2 est un Tenseur = Tenseur([1.0, 1.0])
+	tperte2 est un Tenseur = ty2.ErreurQuadratique(tcible2)
+	tperte2.Rétropropage()
+
+	gradWmaj est une Matrice = tWmaj..Gradient
+	dbgVérifieEgalité(gradWmaj[1][2], 0.0, "Colonne 2 nulle (entrée[2]=0) : aucune fuite du gradient de la 1ère passe (qui valait 3 ici)")
+	dbgVérifieEgalité(gradWmaj[2][2], 0.0, "Colonne 2 nulle (entrée[2]=0) : aucune fuite du gradient de la 1ère passe (qui valait 7 ici)")
+	dbgVérifieVrai(Abs(gradWmaj[1][1] - (-0.03)) < 0.0000001, "gradWmaj[1][1] ~= -0.03 (recalculé proprement sur la 2e passe)")
+	dbgVérifieVrai(Abs(gradWmaj[2][1] - 1.93) < 0.0000001, "gradWmaj[2][1] ~= 1.93 (recalculé proprement sur la 2e passe)")
+FIN
+
+
+// Forme préfixée : TenseurDescenteGradient(poids, taux) calcule le même
+// résultat que poids.DescenteGradient(taux).
+PROCEDURE PUBLIQUE scenario_forme_prefixee()
+	tb est un Tenseur = Tenseur([2.0, 0.0])
+	tcible est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tb.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	tbmaj est un Tenseur = TenseurDescenteGradient(tb, 0.1)
+	valBmaj est un Vecteur = tbmaj..Valeur
+	dbgVérifieEgalité(valBmaj[1], 1.9, "Forme préfixée : 2.0 - 0.1*1.0 = 1.9")
+FIN
+
+
+// Formes anglaises .GradientDescent() (fluent) et TensorGradientDescent()
+// (préfixée) désignent la même opération que .DescenteGradient() /
+// TenseurDescenteGradient().
+PROCEDURE PRIVÉE scenario_edge_formes_anglaises()
+	tb is a Tensor = Tensor([2.0, 0.0])
+	tcible is a Tensor = Tensor([1.0, 0.0])
+	tperte is a Tensor = tb.MeanSquaredError(tcible)
+	tperte.Backpropagate()
+
+	tbmajFluent is a Tensor = tb.GradientDescent(0.1)
+	valFluent is a Vector = tbmajFluent..Value
+	dbgVérifieEgalité(valFluent[1], 1.9, "GradientDescent (fluent, EN) : 2.0 - 0.1*1.0 = 1.9")
+
+	tbmajPrefixe is a Tensor = TensorGradientDescent(tb, 0.1)
+	valPrefixe is a Vector = tbmajPrefixe..Value
+	dbgVérifieEgalité(valPrefixe[1], 1.9, "TensorGradientDescent (préfixée, EN) : 2.0 - 0.1*1.0 = 1.9")
+FIN

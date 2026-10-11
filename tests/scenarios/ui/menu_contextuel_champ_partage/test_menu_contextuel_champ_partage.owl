@@ -1,0 +1,29 @@
+// Menu contextuel partagé par deux champs : une seule déclaration nommée
+// (MNU_Partage est un MenuContextuel), référencée deux fois via la
+// propriété d'attache MenuContextuel = MNU_Partage. Vérifie l'ouverture
+// sans erreur puis lit les compteurs de surSélection (zéro avant toute
+// interaction).
+
+TestModeHeadless(Vrai)
+
+nCopier_obs est un entier = -1
+nColler_obs est un entier = -1
+nSupprimer_obs est un entier = -1
+
+PROCEDURE cb_partage_compteurs(nCopier est un entier, nColler est un entier, nSupprimer est un entier)
+	nCopier_obs    = nCopier
+	nColler_obs    = nColler
+	nSupprimer_obs = nSupprimer
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_contextuel_partage_par_deux_champs_compile()
+	Ouvre(FEN_MenuContextuelPartage)
+	dbgVérifieFaux(ErreurDétectée, "un menu contextuel nommé référencé par deux champs : ouverture sans erreur")
+
+	LireCompteursPartage()
+	dbgVérifieEgalité(nCopier_obs, 0, "option Copier : compteur surSélection à zéro avant toute interaction")
+	dbgVérifieEgalité(nColler_obs, 0, "option Coller : compteur surSélection à zéro avant toute interaction")
+	dbgVérifieEgalité(nSupprimer_obs, 0, "option Supprimer : compteur surSélection à zéro avant toute interaction")
+
+	Ferme(FEN_MenuContextuelPartage)
+FIN

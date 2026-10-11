@@ -1,0 +1,82 @@
+// Verrou : une affectation `LBL_X..Libelle = ...` posée dans le top-level
+// du sous-bloc Corps d'un Etat (exécuté à chaque rendu du bloc) doit se
+// refléter dans le PDF rendu, pas seulement dans la valeur relue par le
+// getter. La ressource ETAT_LibelleRuntimeCorps vit dans le voisin
+// ETAT_LibelleRuntimeCorps.owl : Libelle déclaré "AAAA" (4), écrasé par
+// code en "BBBBBBB" (7).
+//
+// Assertion indirecte : le nombre d'opérateurs "Tj" (un par caractère
+// dessiné, police non-embarquée en glyphes littéraux) dans le flux de
+// contenu décompressé du PDF doit correspondre à la longueur du texte
+// RÉELLEMENT rendu, pas à la longueur du texte déclaré dans PROPRIETES.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+// Extrait et décompresse le 1er flux de contenu (celui référencé par
+// /Contents) du PDF produit. Recherche purement en domaine Buffer
+// (BufferLitOctet) pour ne jamais tronquer sur un octet nul du flux
+// compressé.
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_libelle_runtime_corps/temp.pdf")
+iImprimeEtat(ETAT_LibelleRuntimeCorps)
+iFinImprime()
+
+sContenu est une chaîne = StreamContenuPDF("tests/runtime/etat_libelle_runtime_corps/temp.pdf")
+nTj est un entier = Occurrence(sContenu, "Tj")
+
+dbgVérifieEgalité(nTj, 7,
+"écriture du Libelle dans le top-level du Corps rend la valeur posée par code (7 caractères), pas la valeur PROPRIETES (4 caractères)")
+
+dbgBilanTest()

@@ -1,0 +1,50 @@
+//  — Style..Image..Position doit s'accrocher a l'icone posee via
+// la feuille Style..Image..Image (icone dans Style, unification 
+// avec la prop plate BTN..Image, ).
+//
+// BTN_Gauche et BTN_Seule portent la MEME icone (icones.add, posee via
+// Style..Image..Image) et le MEME libelle ("Valider"), a la meme
+// geometrie. Seule Style..Image..Position differe (posBtnImageGauche :
+// icone + texte vs posBtnImageSeule : icone seule, texte masque). Si
+// Position s'accroche bien a l'icone posee dans Style, les deux rendus
+// divergent nettement (le texte "Valider" disparait dans le rendu Seule).
+// Discrimination reelle : deux positions concretes comparees entre elles,
+// pas une comparaison a un bouton nu.
+//
+// Le rendu QProxyStyle n'est pas capturable de facon fiable en offscreen
+// (fragilite connue  : la comparaison pixel entre deux captures
+// ne diverge pas de facon deterministe selon l'environnement). L'assertion
+// centrale porte donc sur __DebugPositionImageBouton (getter test-only qui
+// lit la property Qt reellement appliquee au QPushButton), pas sur les
+// pixels. Les captures sont conservees uniquement pour verifier que le
+// pipeline GUI headless=Faux fonctionne (widgets montes, image valide).
+//
+// __DebugPositionImageBouton renvoie l'entier E_PositionImageBouton interne
+// (offset sentinelle OWL_SENTINEL_OFFSET(75) + N, pas la valeur d'enum
+// nominale 0..5) : la valeur brute n'est pas destinee a etre lue telle
+// quelle, seule son IDENTITE/DISTINCTION entre les deux boutons compte ici.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_BoutonImagePosition)
+
+imgGauche est une Image = CaptureGauche()
+dbgVérifieEgalité(imgGauche..Valide, Vrai, "GUI : capture BTN_Gauche valide")
+
+imgSeule est une Image = CaptureSeule()
+dbgVérifieEgalité(imgSeule..Valide, Vrai, "GUI : capture BTN_Seule valide")
+
+posGauche est un entier = __DebugPositionImageBouton(BTN_Gauche)
+posSeule est un entier = __DebugPositionImageBouton(BTN_Seule)
+Trace("posGauche=", posGauche, "posSeule=", posSeule)
+
+// Meme icone (icones.add posee via Style..Image..Image), seule la
+// feuille Style..Image..Position differe : le getter doit refleter deux
+// positions distinctes appliquees au QPushButton reel (widget monte,
+// pas un fallback "champ introuvable" qui renverrait posBtnImageGauche
+// dans les deux cas).
+dbgVérifieVrai(posGauche <> posSeule,
+"Style..Image..Position (posBtnImageGauche vs posBtnImageSeule) s'accroche a l'icone posee dans Style : positions distinctes appliquees au widget")
+
+Ferme(FEN_BoutonImagePosition)
+dbgBilanTest()

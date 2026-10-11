@@ -1,0 +1,224 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — import d'un modèle ONNX préentraîné
+// @résumé : .ChargeONNX(chemin) (FR) / .LoadONNX(chemin) (EN) lit un fichier
+// `.onnx` (format protobuf) et reconstruit un IAModèle OWL équivalent — les
+// couches, poids et biais du réseau d'origine sont importés tels quels,
+// capable d'inférer immédiatement. Le scénario central compare l'inférence
+// du modèle importé à une sortie de référence (oracle) capturée en dehors
+// d'OWL, avec une tolérance flottante : l'ordre des opérations flottantes
+// diffère selon le moteur (PyTorch/ONNX vs OWL), la dernière décimale peut
+// donc légèrement diverger sans que l'import soit en cause.
+//
+// Fixture utilisée par tous les scénarios de ce fichier :
+//   tests/internal_fixtures/onnx/fixture_cnn.onnx — petit CNN exporté
+//   depuis PyTorch : Conv2d(1→2, noyau 3, pad 1) → BatchNorm2d → ReLU →
+//   MaxPool2d(2) → Flatten → Linear(32→3). Entrée [1,1,8,8], sortie [1,3].
+//   L'oracle (entrée + sortie attendue) vit dans
+//   tests/internal_fixtures/onnx/fixture_cnn_oracle.json — ce scénario
+//   reconstruit l'entrée à la main (mêmes valeurs) plutôt que de parser
+//   le JSON, pour ne dépendre d'aucune lecture JSON dans la digue.
+
+// Cœur du contrat : .ChargeONNX importe fixture_cnn.onnx, puis .Infère sur
+// l'entrée oracle [1,1,8,8] (valeurs flat[k] = k/64.0 pour k=0..63, mises en
+// forme via .Redimensionne) doit reproduire la sortie [1,3] capturée hors
+// OWL, à une tolérance flottante près (cf. @résumé pour la justification).
+PROCEDURE PUBLIQUE scenario_charge_onnx_infere_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_cnn.onnx")
+
+	brut est un tableau de réels
+	POUR k = 0 À 63
+		brut.Ajoute(k / 64.0)
+	FIN
+	entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 8, 8])
+
+	sortie est un Tenseur = mon.Infère(entrée)
+
+	// Inférence sur une image unique (entrée 4D [1,1,8,8], lot=1) : le
+	// runtime rétrograde délibérément la sortie en Tenseur 1D [classes]
+	// (sémantique d'import ONNX) — l'oracle ONNX [1,3] correspond aux mêmes
+	// 3 valeurs, lues ici comme un Vecteur plutôt qu'une Matrice 2D.
+	dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+	val est un Vecteur = sortie..Valeur
+
+	attendu1 est un réel = -0.02090887725353241
+	attendu2 est un réel = -0.07250624895095825
+	attendu3 est un réel = -0.08615229278802872
+
+	dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle PyTorch/ONNX (tolérance flottante, cf. @résumé)")
+	dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle PyTorch/ONNX (tolérance flottante, cf. @résumé)")
+	dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle PyTorch/ONNX (tolérance flottante, cf. @résumé)")
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le même
+// comportement observable que .ChargeONNX (mêmes valeurs, même tolérance).
+PROCEDURE PUBLIQUE scenario_load_onnx_forme_anglaise_egale_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_cnn.onnx")
+
+	raw is an array of reals
+	POUR k = 0 À 63
+		raw.Ajoute(k / 64.0)
+	FIN
+	input is a Tensor = Tensor(raw).Redimensionne([1, 1, 8, 8])
+
+	output is a Tensor = mon.Infer(input)
+
+	// Single-image inference (4D input [1,1,8,8], batch=1): the runtime
+	// deliberately downgrades the output to a 1D Tensor [classes]
+	// (ONNX import semantics) — the [1,3] ONNX oracle maps to the same 3
+	// values, read here as a Vector rather than a 2D Matrix.
+	dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+	val is a Vector = output..Value
+
+	expected1 is a real = -0.02090887725353241
+	expected2 is a real = -0.07250624895095825
+	expected3 is a real = -0.08615229278802872
+
+	dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the oracle")
+	dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the oracle")
+	dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the oracle")
+FIN
+
+
+// Cas limite : chemin absent. Doit être rejeté proprement (ErreurDétectée,
+// pas de crash) — même contrat que .Charge (JSON) sur fichier absent, cf.
+// test_IAModeleCheminsErreur.owl.
+PROCEDURE PRIVÉE scenario_edge_charge_onnx_fichier_absent()
+	chemin est une chaîne = fRepTemp() + "owl_test_onnx_absent_xyzzy.onnx"
+	dbgVérifieEgalité(fFichierExiste(chemin), Faux, "précondition : le fichier n'existe pas")
+
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX(chemin)
+	dbgVérifieVrai(ErreurDétectée, "un chemin ONNX absent fait signaler une erreur à .ChargeONNX, pas planter")
+FIN
+
+
+// Cas limite : fichier présent mais pas un protobuf ONNX valide (texte
+// arbitraire). Doit être rejeté proprement (ErreurDétectée), pas un crash
+// du parser sur octets inattendus — c'est la première ligne de défense
+// "fichier hostile". Même remarque que ci-dessus : si l'import n'est pas
+// disponible, l'erreur porte sur la "méthode absente".
+PROCEDURE PRIVÉE scenario_edge_charge_onnx_fichier_malforme()
+	chemin est une chaîne = fRepTemp() + "owl_test_onnx_malforme.onnx"
+	fSauveTexte(chemin, "ceci n'est pas un protobuf ONNX")
+
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX(chemin)
+	dbgVérifieVrai(ErreurDétectée, "un fichier .onnx malformé fait signaler une erreur à .ChargeONNX, pas planter")
+
+	fSupprime(chemin)
+FIN
+
+
+// Cas limite : un .onnx protobuf valide mais TRONQUÉ. Un champ length-delimited
+// (sous-message node/graph, tenseur) déclare une taille qui ne tient plus dans
+// les octets restants : le parser doit rejeter proprement (ErreurDétectée) sans
+// planter, et libérer les structures déjà construites au lieu de les laisser
+// fuir (chemin de libération sur échec en cours de boucle de parse_node /
+// parse_graph). La fuite elle-même n'est pas observable en test .owl (pas de
+// détecteur mémoire dans la batterie) ; ces scénarios verrouillent le contrat
+// observable « erreur propre, pas de crash » sur fichier hostile. Deux
+// troncatures à des profondeurs différentes (120 et 800 octets d'un CNN de
+// ~1,5 Ko de graphe).
+PROCEDURE PRIVÉE scenario_edge_charge_onnx_tronque_court()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_cnn_tronque_node.onnx")
+	dbgVérifieVrai(ErreurDétectée, "un .onnx tronqué (120 octets) fait signaler une erreur à .ChargeONNX, pas planter")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_charge_onnx_tronque_graphe()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_cnn_tronque_graph.onnx")
+	dbgVérifieVrai(ErreurDétectée, "un .onnx tronqué (800 octets) fait signaler une erreur à .ChargeONNX, pas planter")
+FIN
+
+
+// Bloc résiduel (ResNet) : ce scénario exerce l'addition de raccourci
+// (Add-skip, deux branches qui convergent) et la moyenne spatiale globale
+// (GlobalAveragePool), en plus de Conv/BatchNorm/ReLU déjà couverts par le
+// CNN séquentiel ci-dessus. Rouge tant que ces deux opérations ne sont pas
+// mappées par l'import ONNX (l'import échoue avec une erreur "opération
+// ONNX non supportée"), vert une fois l'implémentation posée.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_resnet.onnx — stem
+// (Conv2d 2→4, BatchNorm, ReLU) → bloc résiduel (2× Conv2d 4→4 + BatchNorm,
+// Add avec le raccourci d'entrée du bloc, ReLU) → GlobalAveragePool →
+// Dense(4→3). Entrée [1,2,8,8], sortie [1,3].
+PROCEDURE PUBLIQUE scenario_charge_onnx_resnet_add_skip_et_average_pool()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_resnet.onnx")
+	// Capture immédiate : le mécanisme de RAZ-auto consomme la sentinelle
+	// d'erreur au 1er appel natif suivant, il faut donc lire ErreurDétectée
+	// avant tout autre appel (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import du bloc résiduel (Add-skip + GlobalAveragePool) réussit")
+
+	// Tant que Add/GlobalAveragePool ne sont pas mappés, .ChargeONNX échoue
+	// proprement (ErreurDétectée) et le modèle reste vide : ne pas appeler
+	// .Infère dans ce cas (comportement non garanti sur un modèle vide).
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 127
+			brut.Ajoute(k / 128.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 2, 8, 8])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [classes],
+		// même sémantique que le CNN séquentiel ci-dessus.
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = -0.13573767244815826
+		attendu2 est un réel = 0.19091612100601196
+		attendu3 est un réel = 0.05653282627463341
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle PyTorch/ONNX (bloc résiduel, tolérance flottante)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle PyTorch/ONNX (bloc résiduel, tolérance flottante)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle PyTorch/ONNX (bloc résiduel, tolérance flottante)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise pour le bloc résiduel : même contrat que la
+// forme FR ci-dessus (Add-skip + GlobalAveragePool), via .LoadONNX / .Infer.
+PROCEDURE PUBLIQUE scenario_load_onnx_resnet_add_skip_et_average_pool()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_resnet.onnx")
+	// Immediate capture : the auto-reset mechanism consumes the error
+	// sentinel on the next native call, so ErrorDetected must be read
+	// before any other call (cf. skill test-writing-pitfalls §6).
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "residual block import (Add-skip + GlobalAveragePool) succeeds")
+
+	// While Add/GlobalAveragePool are not mapped yet, .LoadONNX fails
+	// cleanly (ErrorDetected) and the model stays empty : do not call
+	// .Infer in that case (no guaranteed behavior on an empty model).
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 127
+			raw.Ajoute(k / 128.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 2, 8, 8])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = -0.13573767244815826
+		expected2 is a real = 0.19091612100601196
+		expected3 is a real = 0.05653282627463341
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: residual block output[1] within tolerance of the oracle")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: residual block output[2] within tolerance of the oracle")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: residual block output[3] within tolerance of the oracle")
+	FIN
+FIN

@@ -1,0 +1,82 @@
+//  — symétrique horizontal des bugs (A)/(B) : la Largeur figée d'un
+// enfant sans Étire est ignorée en dispHorizontale (gonflement, ~240px pour
+// une Largeur=60 déclarée) et l'empilement à gauche n'est pas respecté
+// (l'excédent gonfle les widgets au lieu de rester vide à droite).
+//
+// ROUGE attendu avant fix : la bande verte (fond du wrapper LIB_Cible)
+// dépasse largement 60-90px.
+// VERT attendu après fix : bande verte bornée à sa Largeur déclarée, les
+// deux widgets empilés à gauche, droite de fenêtre = fond pur.
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteLargeurBande(im est une Image, ySonde est un entier, largeurImg est un entier, couleur est un entier)
+	n est un entier = 0
+	xx est un entier = 0
+	TANTQUE xx < largeurImg
+		SI dPixelCouleur(im, xx, ySonde) = couleur ALORS
+			n = n + 1
+		FIN
+		xx = xx + 1
+	FIN
+	RENVOYER n
+FIN
+
+PROCEDURE CompteCouleurZone(im est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(im, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+couleurFondCible est un entier = RVB(0, 200, 0)
+couleurFondBouton est un entier = RVB(0, 0, 200)
+couleurFondFenetre est un entier = RVB(5, 5, 5)
+
+OuvreSoeur(FEN_DispHorizLargeurFigee)
+Temporise(50)
+
+img est une Image = dCopieImageFenêtre(FEN_DispHorizLargeurFigee)
+dbgVérifieEgalité(img..Valide, Vrai, "capture de la fenêtre valide")
+
+// (A) Largeur figée respectée : la bande verte (fond du wrapper de
+// LIB_Cible, Largeur=60) doit rester proche de 60px, pas gonfler jusqu'à
+// occuper l'essentiel des 500px de la fenêtre.
+//  — sonde à y=20 (au cœur des 40px de Hauteur du Libellé, désormais
+// accroché en haut de l'axe transverse). L'ancienne sonde y=40 tombait sur le
+// bord bas du widget car, avant , le Libellé était étiré sur toute la
+// hauteur (Étire transverse implicite) au lieu de rester à sa Hauteur=40.
+nLargeurCible est un entier = CompteLargeurBande(img, 20, 500, couleurFondCible)
+dbgVérifieVrai(nLargeurCible > 0, "le fond du Libellé cible est rendu (sonde non vide)")
+dbgVérifieVrai(nLargeurCible <= 90,
+"(A) la Largeur=60 du Libellé cible est respectée en dispHorizontale (pas de gonflement)")
+
+// (B) Empilement à gauche : la dernière tranche droite de la fenêtre
+// (x > 400, bien après la somme des Largeurs déclarées + espacement :
+// 60+8+80 = 148) ne doit contenir AUCUN pixel de widget.
+nCibleDroiteFenetre est un entier = CompteCouleurZone(img, 400, 0, 500, 120, couleurFondCible)
+nBoutonDroiteFenetre est un entier = CompteCouleurZone(img, 400, 0, 500, 120, couleurFondBouton)
+dbgVérifieEgalité(nCibleDroiteFenetre, 0,
+"(B) empilement à gauche : le fond du Libellé n'atteint pas la droite de la fenêtre")
+dbgVérifieEgalité(nBoutonDroiteFenetre, 0,
+"(B) empilement à gauche : le fond du Bouton n'atteint pas la droite de la fenêtre")
+
+// Confirmation positive : le coin haut-droite de la fenêtre (hors zone de
+// hauteur occupée par les widgets, quelle que soit leur Hauteur=40
+// déclarée) reste à la CouleurFond pure de la fenêtre (excédent vide), pas
+// juste absence des couleurs de widgets.
+nFondFenetreADroite est un entier = CompteCouleurZone(img, 470, 0, 495, 10, couleurFondFenetre)
+dbgVérifieVrai(nFondFenetreADroite > 0,
+"(B) l'excédent horizontal à droite reste à la CouleurFond pure (aucun widget ne gonfle)")
+
+Ferme(FEN_DispHorizLargeurFigee)
+dbgBilanTest()

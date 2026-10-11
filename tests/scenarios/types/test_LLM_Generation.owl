@@ -1,0 +1,184 @@
+// @sujet : LLM — génération réelle sur un modèle chargé (gatée)
+// @résumé : la génération de texte proprement dite dépend d'un modèle GGUF
+// externe, trop volumineux pour vivre dans le dépôt. Ce fichier ne
+// s'exécute réellement que si un modèle est déposé au chemin conventionnel
+// tests/_local/llm_test.gguf (dossier local non versionné). Sans modèle à
+// cet emplacement, chaque scénario constate l'absence via fFichierExiste et
+// reste vert — aucun échec, aucune donnée requise en plus du dépôt.
+//
+// Le scénario, quand un modèle est disponible, verrouille trois choses :
+//   1. .Charge rend Vrai sur un GGUF valide.
+//   2. .Génère en mode glouton (Température = 0) rend un texte non vide
+//      pour un prompt court.
+//   3. Le callback ..SurToken est rappelé au moins une fois pendant cette
+//      génération, et l'accumulation de son texte reçu correspond au texte
+//      final rendu par .Génère.
+
+cheminModèleTest est une chaîne = "tests/_local/llm_test.gguf"
+
+compteurTokensRecus est un entier = 0
+texteAccumuleParToken est une chaîne = ""
+compteurTerminaisons est un entier = 0
+
+PROCEDURE AccumuleToken(morceau est une chaîne, terminé est un booléen)
+	compteurTokensRecus = compteurTokensRecus + 1
+	texteAccumuleParToken += morceau
+	SI terminé ALORS
+		compteurTerminaisons = compteurTerminaisons + 1
+	FIN
+FIN
+
+// Génération glouton (Température = 0) sur un modèle réel : texte non
+// vide, callback ..SurToken rappelé au moins une fois, et le texte
+// accumulé token par token correspond exactement au texte final rendu.
+// Sans modèle au chemin conventionnel : scénario ignoré proprement (aucune
+// assertion sur la génération elle-même, pas d'échec).
+PROCEDURE PUBLIQUE scenario_generation_greedy_reelle_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : génération réelle ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+
+		ErreurRAZ()
+		ok est un booléen = mon.Charge(cheminModèleTest)
+		dbgVérifieVrai(ok, "le modèle déposé se charge avec succès")
+		dbgVérifieFaux(ErreurDétectée, "charger le modèle déposé ne signale aucune erreur")
+
+		opts est un OptionsGénération
+		opts..Température = 0
+		opts..MaxTokens   = 16
+		opts..SurToken    = AccumuleToken
+
+		compteurTokensRecus   = 0
+		texteAccumuleParToken = ""
+		compteurTerminaisons  = 0
+
+		texte est une chaîne = mon.Génère("Bonjour", opts)
+
+		dbgVérifieVrai(Taille(texte) > 0, "la génération glouton rend un texte non vide")
+		dbgVérifieVrai(compteurTokensRecus > 0, "..SurToken a été rappelé au moins une fois pendant la génération")
+		dbgVérifieEgalité(texteAccumuleParToken, texte, "le texte accumulé token par token correspond au texte final rendu")
+		dbgVérifieEgalité(compteurTerminaisons, 1, "terminé=Vrai est signalé exactement une fois, sur le dernier morceau")
+	FIN
+FIN
+
+
+// Deux générations glouton successives (Température = 0) avec le même
+// prompt sur le même modèle chargé rendent exactement le même texte : le
+// mode glouton est déterministe. Même gate que le scénario précédent.
+PROCEDURE PUBLIQUE scenario_generation_greedy_reproductible_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : reproductibilité ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		opts est un OptionsGénération
+		opts..Température = 0
+		opts..MaxTokens   = 16
+
+		texte1 est une chaîne = mon.Génère("Bonjour", opts)
+		texte2 est une chaîne = mon.Génère("Bonjour", opts)
+
+		dbgVérifieEgalité(texte1, texte2, "deux générations glouton avec le même prompt rendent le même texte")
+	FIN
+FIN
+
+
+// ..ContrainteDeSortie = contrainteJSON garantit une sortie JSON valide,
+// même sur un prompt qui ne le garantirait pas naturellement. Génération
+// glouton pour la reproductibilité, MaxTokens généreux pour laisser la
+// structure se compléter. Même gate que les scénarios précédents.
+PROCEDURE PUBLIQUE scenario_contrainte_json_sortie_valide_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : contrainte JSON ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		opts est un OptionsGénération
+		opts..Température        = 0
+		opts..MaxTokens          = 128
+		opts..ContrainteDeSortie = contrainteJSON
+
+		ErreurRAZ()
+		texte est une chaîne = mon.Génère("Donne un objet JSON avec un champ nom et un champ age.", opts)
+
+		dbgVérifieVrai(JSONValide(texte), "contrainteJSON avec assez de tokens garantit une sortie JSON valide")
+		dbgVérifieFaux(ErreurDétectée, "une sortie JSON complète ne signale aucune erreur")
+
+		doc est un JSON = ChaîneVersJSON(texte)
+		dbgVérifieVrai(doc <> Null, "la sortie contrainte JSON se désérialise en document exploitable")
+	FIN
+FIN
+
+
+// Le garde-fou anti-casse-en-silence : une grammaire contraint les tokens,
+// mais ne peut pas forcer la complétion. MaxTokens bas est là pour exercer
+// la branche de troncature si le modèle en a besoin, mais certains modèles
+// complètent quand même un JSON valide dans le budget imparti. L'invariant
+// qui compte, indépendant du modèle : la sortie est un JSON valide si et
+// seulement si aucune erreur n'est signalée — jamais de JSON cassé rendu
+// en silence.
+PROCEDURE PUBLIQUE scenario_contrainte_json_troncature_signale_erreur_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : troncature JSON ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		opts est un OptionsGénération
+		opts..Température        = 0
+		opts..MaxTokens          = 4
+		opts..ContrainteDeSortie = contrainteJSON
+
+		ErreurRAZ()
+		texte est une chaîne = mon.Génère("Donne un objet JSON avec un champ nom et un champ age.", opts)
+		dbgVérifieEgalité(JSONValide(texte), PAS ErreurDétectée, "contrainteJSON : sortie valide ssi aucune erreur — jamais cassé en silence")
+	FIN
+FIN
+
+
+// Une grammaire GBNF explicite contraint strictement la sortie : seul
+// "oui" ou "non" peut être produit. ..ContrainteDeSortie accepte une
+// saisie libre de grammaire au même titre qu'une des deux constantes
+// suggérées.
+PROCEDURE PUBLIQUE scenario_contrainte_gbnf_explicite_contraint_sortie_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : contrainte grammaire ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		opts est un OptionsGénération
+		opts..Température        = 0
+		opts..MaxTokens          = 4
+		opts..ContrainteDeSortie = `root ::= "oui" | "non"`
+
+		texte est une chaîne = mon.Génère("Est-ce que le ciel est bleu ? Réponds par oui ou non.", opts)
+
+		dbgVérifieVrai(texte = "oui" OU texte = "non", "la grammaire explicite ne laisse produire que oui ou non")
+	FIN
+FIN
+
+
+// Une grammaire GBNF manifestement invalide affectée à ..ContrainteDeSortie
+// ne fait pas planter .Génère : la génération signale une erreur
+// récupérable et rend une chaîne vide, comme générer sans modèle chargé.
+PROCEDURE PUBLIQUE scenario_contrainte_gbnf_invalide_erreur_recuperable_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : grammaire invalide ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		opts est un OptionsGénération
+		opts..MaxTokens          = 4
+		opts..ContrainteDeSortie = "ceci n'est pas du GBNF {{{ ::: ]]]"
+
+		ErreurRAZ()
+		texte est une chaîne = mon.Génère("Bonjour", opts)
+		dbgVérifieVrai(ErreurDétectée, "une grammaire GBNF invalide signale une erreur à la génération")
+		dbgVérifieEgalité(texte, "", "une grammaire GBNF invalide rend une chaîne vide")
+	FIN
+FIN

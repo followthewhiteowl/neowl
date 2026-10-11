@@ -1,0 +1,31 @@
+// Régression : DSL État + Fenêtre 100% EN doivent compiler et fonctionner
+// malgré l'article EN `a` qui s'intercale entre la copule `is` et le type.
+//
+// En FR `un/une` est un filler jeté par le scanner ; en EN `a` reste un
+// token (TOKEN_A) et `an` un identifiant. Tous les sites qui détectent une
+// déclaration DSL par adjacence `prev == est` ratent en EN tant que
+// l'article n'est pas rendu transparent. Pour l'État, le dispatch des
+// sous-blocs + la résolution des 6 noms de blocs EN canon doivent suivre.
+//
+// Ressources DSL voisines : ETAT_BilingueEN.owl, FEN_MixCopuleEN.owl.
+
+PROCEDURE PUBLIQUE scenario_etat_en_compile()
+	// La résolution du voisin ETAT_BilingueEN.owl par l'autodiscovery suffit
+	// à valider que l'État 100% EN compile : copule `is a` sautée dans le
+	// dispatch + 6 noms de blocs EN (DocumentHeader/Body/...) résolus, donc
+	// le garde-fou « Corps obligatoire » (Body) est satisfait.
+	TestModeHeadless(Vrai)
+	dbgVérifieVrai(Vrai, "État 100% EN (is a Report + blocs EN) compile")
+FIN
+
+PROCEDURE PUBLIQUE scenario_fenetre_en_valeur_exacte()
+	// Mélange article EN + lecture de propriété : la valeur lue doit être
+	// exactement celle posée, pas Null. Verrouille l'adjacence `is a <Type>`.
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MixCopuleEN)
+	dbgVérifieEgalité(SAI_Nom..Valeur, "Bonjour",
+	"Fenêtre EN (is a Window/Control Input) : propriété lue exactement")
+	Ferme(FEN_MixCopuleEN)
+FIN
+
+dbgBilanTest()

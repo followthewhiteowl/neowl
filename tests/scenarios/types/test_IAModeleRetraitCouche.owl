@@ -1,0 +1,261 @@
+// @sujet : IAModèle — retrait de la dernière couche (.RetireDernièreCouche /
+// .RemoveLastLayer)
+// @résumé : mon.RetireDernièreCouche() enlève LA dernière couche empilée du
+// modèle — ..NbCouches diminue de 1 et le passage en avant (.Infère) produit
+// désormais la sortie de l'avant-dernière couche. Un appel répété retire les
+// couches une par une, dans l'ordre inverse d'ajout.
+//
+// C'est la 2ème brique de l'idiome transfert (après .Gèle()) :
+// charger un modèle pré-entraîné, geler son socle, retirer sa tête d'origine
+// (ex. classification à 1000 catégories), greffer une nouvelle tête à N
+// catégories, puis entraîner — seule la nouvelle tête apprend, le socle gelé
+// reste strictement inchangé.
+//
+// Convention de vérification (comme les autres scénarios IAModèle) : les
+// poids/biais sont extraits via .Poids/.Biais AVANT et APRÈS .Entraîne —
+// jamais de valeur hardcodée. Pour une couche gelée, l'égalité poids
+// avant/après doit être EXACTE.
+
+// .RetireDernièreCouche() enlève effectivement la dernière couche : ..NbCouches
+// diminue de 1, et .Infère produit ensuite la sortie de l'avant-dernière
+// couche (forme de sortie différente, ici 4 colonnes au lieu de 3).
+PROCEDURE PUBLIQUE scenario_retrait_effectif_diminue_nbcouches_et_change_la_sortie()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 4)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(4, 3)
+
+	dbgVérifieEgalité(mon..NbCouches, 3, "précondition : 3 couches empilées")
+
+	x est un Tenseur = Tenseur([[1.0, -1.0]])
+	sortieAvant est un Tenseur = mon.Infère(x)
+	formeAvant est un Vecteur = sortieAvant..Forme
+	dbgVérifieEgalité(formeAvant[2], 3, "avant retrait : sortie à 3 colonnes (dernière couche dense 4→3)")
+
+	mon.RetireDernièreCouche()
+
+	dbgVérifieEgalité(mon..NbCouches, 2, ".RetireDernièreCouche() décrémente ..NbCouches de 1")
+
+	sortieApres est un Tenseur = mon.Infère(x)
+	formeApres est un Vecteur = sortieApres..Forme
+	dbgVérifieEgalité(formeApres[2], 4, "après retrait : la sortie est celle de l'avant-dernière couche (ReLU, 4 colonnes)")
+
+	// Un second retrait enlève la couche ReLU : il ne reste que la couche
+	// dense d'origine (2→4), qui redevient la dernière couche du modèle.
+	mon.RetireDernièreCouche()
+	dbgVérifieEgalité(mon..NbCouches, 1, "un second retrait enlève la couche ReLU restante")
+	sortieFinale est un Tenseur = mon.Infère(x)
+	formeFinale est un Vecteur = sortieFinale..Forme
+	dbgVérifieEgalité(formeFinale[2], 4, "il ne reste que la couche dense 2→4 : sortie toujours à 4 colonnes")
+FIN
+
+
+// Idiome transfert bout-en-bout : un socle (Dense(4,8) + ReLU) et une tête
+// d'origine (Dense(8,5)) sont figés ensemble par .Gèle(). La tête d'origine
+// est retirée par .RetireDernièreCouche(), remplacée par une nouvelle tête
+// (Dense(8,2)) ajoutée APRÈS le gel — donc entraînable. Après .Entraîne : le
+// socle gelé est strictement inchangé, la nouvelle tête a changé.
+PROCEDURE PUBLIQUE scenario_idiome_transfert_socle_gele_tete_remplacee_apprend()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(4, 8)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(8, 5)
+
+	valSocleWavant est une Matrice = mon.Poids(1)..Valeur
+	valSocleBavant est un Vecteur = mon.Biais(1)..Valeur
+
+	mon.Gèle()
+	mon.RetireDernièreCouche()
+	dbgVérifieEgalité(mon..NbCouches, 2, "après retrait de la tête d'origine : socle (dense + ReLU) seul")
+
+	mon.AjouteCoucheDense(8, 2)
+	dbgVérifieEgalité(mon..NbCouches, 3, "nouvelle tête ajoutée après le retrait")
+
+	valTeteWavant est une Matrice = mon.Poids(2)..Valeur
+	valTeteBavant est un Vecteur = mon.Biais(2)..Valeur
+
+	matX est une Matrice = [[1.0, -1.0, 2.0, 0.5], [0.5, 2.0, -1.0, 1.0], [-1.0, 1.0, 0.5, -2.0], [2.0, -0.5, 1.0, 1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	valSocleWapres est une Matrice = mon.Poids(1)..Valeur
+	valSocleBapres est un Vecteur = mon.Biais(1)..Valeur
+	valTeteWapres est une Matrice = mon.Poids(2)..Valeur
+	valTeteBapres est un Vecteur = mon.Biais(2)..Valeur
+
+	POUR iLigne = 1 À 4
+		POUR iCol = 1 À 8
+			dbgVérifieEgalité(valSocleWapres[iLigne][iCol], valSocleWavant[iLigne][iCol], "socle gelé avant retrait de la tête : Poids(1) strictement inchangé après .Entraîne")
+		FIN
+	FIN
+	POUR i = 1 À 8
+		dbgVérifieEgalité(valSocleBapres[i], valSocleBavant[i], "socle gelé avant retrait de la tête : Biais(1) strictement inchangé après .Entraîne")
+	FIN
+
+	dbgVérifieDifférence(valTeteWapres[1][1], valTeteWavant[1][1], "nouvelle tête ajoutée après .Gèle() + retrait : Poids(2)[1][1] a changé après .Entraîne")
+	dbgVérifieDifférence(valTeteBapres[1], valTeteBavant[1], "nouvelle tête ajoutée après .Gèle() + retrait : Biais(2)[1] a changé après .Entraîne")
+FIN
+
+
+// Formes anglaises .RemoveLastLayer() : même contrat que .RetireDernièreCouche()
+// — retrait effectif (..LayerCount décrémenté, sortie de l'avant-dernière
+// couche) et idiome transfert (socle gelé inchangé, nouvelle tête entraînée).
+PROCEDURE PUBLIQUE scenario_formes_anglaises_removelastlayer()
+	mon is an AIModel
+	mon.AddDenseLayer(3, 6)
+	mon.AddReLULayer()
+	mon.AddDenseLayer(6, 4)
+
+	dbgCheckEqual(mon..LayerCount, 3, "precondition: 3 layers stacked")
+
+	x is a Tensor = Tensor([[1.0, -1.0, 0.5]])
+	outputBefore is a Tensor = mon.Infer(x)
+	shapeBefore is a Vector = outputBefore..Shape
+	dbgCheckEqual(shapeBefore[2], 4, "before removal: output has 4 columns (last dense layer 6->4)")
+
+	mon.RemoveLastLayer()
+	dbgCheckEqual(mon..LayerCount, 2, ".RemoveLastLayer() decrements ..LayerCount by 1")
+
+	outputAfter is a Tensor = mon.Infer(x)
+	shapeAfter is a Vector = outputAfter..Shape
+	dbgCheckEqual(shapeAfter[2], 6, "after removal: output is the second-to-last layer's (ReLU, 6 columns)")
+FIN
+
+
+// Idiome transfert, formes anglaises : socle gelé strictement inchangé, nouvelle
+// tête ajoutée après .Freeze() + .RemoveLastLayer() qui apprend.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_idiome_transfert()
+	base is an AIModel
+	base.AddDenseLayer(4, 8)
+	base.AddReLULayer()
+	base.AddDenseLayer(8, 5)
+
+	baseWeightsBefore is a Matrix = base.Weights(1)..Value
+	baseBiasBefore is a Vector = base.Bias(1)..Value
+
+	base.Freeze()
+	base.RemoveLastLayer()
+	base.AddDenseLayer(8, 2)
+
+	headWeightsBefore is a Matrix = base.Weights(2)..Value
+	headBiasBefore is a Vector = base.Bias(2)..Value
+
+	matX is a Matrix = [[1.0, -1.0, 2.0, 0.5], [0.5, 2.0, -1.0, 1.0], [-1.0, 1.0, 0.5, -2.0], [2.0, -0.5, 1.0, 1.0]]
+	tX is a Tensor = Tensor(matX)
+	matY is a Matrix = [[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0]]
+	tY is a Tensor = Tensor(matY)
+
+	opts is a TrainingOptions
+	opts..Epochs       = 5
+	opts..BatchSize    = 2
+	opts..LearningRate = 0.1
+	opts..Optimizer    = optimSGD
+	opts..Loss         = perteErreurQuadratique
+
+	base.Train(tX, tY, opts)
+
+	baseWeightsAfter is a Matrix = base.Weights(1)..Value
+	baseBiasAfter is a Vector = base.Bias(1)..Value
+	headWeightsAfter is a Matrix = base.Weights(2)..Value
+	headBiasAfter is a Vector = base.Bias(2)..Value
+
+	POUR iLigne = 1 À 4
+		POUR iCol = 1 À 8
+			dbgCheckEqual(baseWeightsAfter[iLigne][iCol], baseWeightsBefore[iLigne][iCol], "AIModel.RemoveLastLayer(): frozen base weight strictly unchanged after .Train")
+		FIN
+	FIN
+	POUR i = 1 À 8
+		dbgCheckEqual(baseBiasAfter[i], baseBiasBefore[i], "AIModel.RemoveLastLayer(): frozen base bias strictly unchanged after .Train")
+	FIN
+
+	dbgCheckDifferent(headWeightsAfter[1][1], headWeightsBefore[1][1], "AIModel.RemoveLastLayer(): new head weight changed after .Train")
+	dbgCheckDifferent(headBiasAfter[1], headBiasBefore[1], "AIModel.RemoveLastLayer(): new head bias changed after .Train")
+FIN
+
+
+// Round-trip .Sauve/.Charge : un modèle dont la tête a été retirée puis
+// remplacée conserve sa structure réduite après sauvegarde et rechargement —
+// mêmes prédictions qu'avant la sauvegarde.
+PROCEDURE PUBLIQUE scenario_round_trip_persistance_preserve_structure_reduite()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 5)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(5, 4)
+	mon.RetireDernièreCouche()
+	mon.AjouteCoucheDense(5, 2)
+
+	dbgVérifieEgalité(mon..NbCouches, 3, "précondition : socle (dense+ReLU) + nouvelle tête à 2 sorties")
+
+	x est un Tenseur = Tenseur([1.0,-0.5, 2.0])
+	sortieAvantSauve est un Tenseur = mon.Infère(x)
+	valSortieAvant est un Vecteur = sortieAvantSauve..Valeur
+
+	chemin est une chaîne = fRepTemp() + "owl_test_iamodele_1816_retrait_roundtrip.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve d'un modèle avec tête retirée/remplacée réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge dans un modèle frais réussit")
+	dbgVérifieEgalité(frais..NbCouches, 3, "rechargement : la structure réduite (3 couches) est préservée")
+
+	sortieApresCharge est un Tenseur = frais.Infère(x)
+	valSortieApres est un Vecteur = sortieApresCharge..Valeur
+
+	dbgVérifieEgalité(valSortieApres[1], valSortieAvant[1], "rechargement : même prédiction qu'avant sauvegarde (colonne 1), AU BIT PRÈS")
+	dbgVérifieEgalité(valSortieApres[2], valSortieAvant[2], "rechargement : même prédiction qu'avant sauvegarde (colonne 2), AU BIT PRÈS")
+
+	fSupprime(chemin)
+FIN
+
+
+// Cas limite : .RetireDernièreCouche() sur un IAModèle sans aucune couche
+// signale ErreurDétectée et ne crashe pas.
+PROCEDURE PRIVÉE scenario_edge_modele_vide_signale_une_erreur()
+	mon est un IAModèle
+
+	ErreurRAZ()
+	mon.RetireDernièreCouche()
+	dbgVérifieVrai(ErreurDétectée, ".RetireDernièreCouche() sur un modèle vide signale une erreur")
+	dbgVérifieEgalité(mon..NbCouches, 0, "le modèle reste vide après le retrait rejeté")
+FIN
+
+
+// Cas limite : .RetireDernièreCouche() alors que la dernière couche est un
+// marqueur structurel de bloc à branches (ici BRANCH_BEGIN, posé par
+// .DébutBranches() qui vient d'ouvrir le bloc) signale ErreurDétectée — un
+// retrait au milieu d'un bloc à branches est ambigu et donc interdit. Le
+// modèle reste intact (le marqueur n'est pas retiré).
+PROCEDURE PRIVÉE scenario_edge_retrait_marqueur_bloc_branches_refuse()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.DébutBranches()
+
+	dbgVérifieEgalité(mon..NbCouches, 2, "précondition : la couche dense + le marqueur de début de bloc")
+
+	ErreurRAZ()
+	mon.RetireDernièreCouche()
+	dbgVérifieVrai(ErreurDétectée, "retirer un marqueur de bloc à branches (DébutBranches) signale une erreur")
+	dbgVérifieEgalité(mon..NbCouches, 2, "le modèle reste intact après le retrait rejeté")
+
+	// Un retrait juste APRÈS un bloc à branches complet (donc sur une couche
+	// normale ajoutée après la fusion) fonctionne sans corrompre le modèle.
+	mon.BrancheSuivante()
+	mon.AjouteCoucheDense(2, 2)
+	mon.FusionneParAddition()
+	mon.AjouteCoucheDense(2, 1)
+
+	nbAvant est un entier = mon..NbCouches
+	mon.RetireDernièreCouche()
+	dbgVérifieEgalité(mon..NbCouches, nbAvant - 1, "retrait juste après un bloc à branches complet : fonctionne normalement, ne corrompt pas le modèle")
+FIN

@@ -1,0 +1,29 @@
+// Menu classique de fenêtre : un arbre complet valide compile et s'ouvre
+// sans erreur. Ce scénario vérifie la déclaration et la structure du menu :
+// affectation MenuPrincipal, sous-menu imbriqué, séparateur, Libellé simple
+// et multilingue, Raccourci. Les compteurs de surSélection sont lus à
+// l'ouverture, avant toute interaction : ils valent donc zéro.
+
+TestModeHeadless(Vrai)
+
+nNouveau_obs est un entier = -1
+nQuitter_obs est un entier = -1
+nCopier_obs est un entier = -1
+
+PROCEDURE cb_menu_compteurs(nNouveau est un entier, nQuitter est un entier, nCopier est un entier)
+	nNouveau_obs = nNouveau
+	nQuitter_obs = nQuitter
+	nCopier_obs  = nCopier
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_classique_arbre_complet_compile()
+	Ouvre(FEN_MenuClassique)
+	dbgVérifieFaux(ErreurDétectée, "arbre menu complet (MenuPrincipal/SousMenu/OptionMenu/MenuSéparateur) : ouverture sans erreur")
+
+	LireCompteursMenu()
+	dbgVérifieEgalité(nNouveau_obs, 0, "option Nouveau : compteur surSélection à zéro avant toute interaction")
+	dbgVérifieEgalité(nQuitter_obs, 0, "option Quitter : compteur surSélection à zéro avant toute interaction")
+	dbgVérifieEgalité(nCopier_obs, 0, "option Copier (sous-menu imbriqué) : compteur surSélection à zéro avant toute interaction")
+
+	Ferme(FEN_MenuClassique)
+FIN

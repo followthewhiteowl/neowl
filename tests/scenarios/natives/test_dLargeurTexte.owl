@@ -1,0 +1,125 @@
+// @sujet : dLargeurTexte
+// @résumé : Mesure la largeur en pixels d'un texte rendu dans la police courante d'une image
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_mesure_simple()
+	img est une Image
+	nLargeur est un entier
+
+	// Préparer l'image avec une police chargée
+	img = dCréeImage(400, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 16, iNormal, 0)
+
+	// Mesurer la largeur d'une chaîne
+	nLargeur = dLargeurTexte(img, "Bonjour OWL")
+
+	dFinDessin(img)
+
+	// La largeur d'une chaîne non vide est strictement positive
+	dbgVérifieVrai(nLargeur > 0, "largeur d'un texte non vide est strictement positive")
+FIN
+
+PROCEDURE PUBLIQUE scenario_centrage_horizontal()
+	img est une Image
+	nLargeurImage est un entier = 400
+	nLargeurTexte est un entier
+	nX est un entier
+
+	// Usage typique : centrer un texte horizontalement dans une image
+	img = dCréeImage(nLargeurImage, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 18, iNormal, 0)
+
+	nLargeurTexte = dLargeurTexte(img, "Titre centré")
+	nX            = (nLargeurImage - nLargeurTexte) / 2
+
+	dTexte(img, nX, 30, "Titre centré")
+
+	dFinDessin(img)
+
+	// La coordonnée X de centrage est strictement positive (texte plus étroit que l'image)
+	dbgVérifieVrai(nX > 0, "texte plus étroit que l'image, centrage possible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chaine_vide()
+	img est une Image
+	nLargeur est un entier
+
+	// La largeur d'une chaîne vide vaut 0
+	img = dCréeImage(200, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 14, iNormal, 0)
+
+	nLargeur = dLargeurTexte(img, "")
+
+	dFinDessin(img)
+
+	dbgVérifieEgalité(nLargeur, 0, "chaîne vide → largeur 0")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases et cas limites proactifs
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_sans_police()
+	img est une Image
+	nLargeur est un entier
+	bErr est un booléen
+
+	// Sans police chargée, la mesure échoue avec erreur posée
+	img = dCréeImage(200, 100)
+	dDébutDessin(img)
+
+	nLargeur = dLargeurTexte(img, "Sans police")
+	bErr     = ErreurDétectée
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(bErr, "erreur posée si police non chargée")
+	dbgVérifieEgalité(nLargeur, 0, "retour 0 si police non chargée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_taille_police_influence()
+	img est une Image
+	nPetit est un entier
+	nGrand est un entier
+
+	// La même chaîne mesure plus large dans une plus grande police
+	img = dCréeImage(800, 200)
+	dDébutDessin(img)
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 10, iNormal, 0)
+	nPetit = dLargeurTexte(img, "Comparaison")
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 30, iNormal, 0)
+	nGrand = dLargeurTexte(img, "Comparaison")
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(nGrand > nPetit, "même texte, plus grande police → largeur plus grande")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_accents_utf8()
+	img est une Image
+	nSansAccent est un entier
+	nAvecAccent est un entier
+
+	// Les caractères accentés (UTF-8 multi-byte) sont mesurés correctement
+	// — pas confondus avec leur taille en octets
+	img = dCréeImage(400, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 14, iNormal, 0)
+
+	nSansAccent = dLargeurTexte(img, "eeeeee")
+	nAvecAccent = dLargeurTexte(img, "éèêëàâ")
+
+	dFinDessin(img)
+
+	// Les deux chaînes ont 6 caractères ; les largeurs sont du même ordre
+	dbgVérifieVrai(nSansAccent > 0, "mesure non nulle pour 6 caractères ASCII")
+	dbgVérifieVrai(nAvecAccent > 0, "mesure non nulle pour 6 caractères accentués")
+FIN

@@ -1,0 +1,46 @@
+//  — Une ombre DURE (Flou = 0 + décalage) doit être rendue.
+//
+// Le style néobrutaliste repose sur des ombres décalées nettes, sans flou
+// (Flou = 0). Un QGraphicsDropShadowEffect à rayon 0 + offset rend exactement
+// cette ombre nette. Avant le fix, l'ombre était jetée dès Flou <= 0 — même
+// avec un décalage — donc jamais rendue (boutons plats au runtime).
+//
+// On monte les VRAIS widgets Qt (TestModeHeadless(Faux) + OuvreSoeur) et on lit
+// le rayon de flou de l'effet courant (__DebugOmbreFlou) : -1 = aucun effet,
+// 0 = ombre dure présente.
+//
+// ROUGE attendu avant fix : l'ombre dure n'est pas rendue -> __DebugOmbreFlou
+// renvoie -1 au lieu de 0 sur BTN_Dure et BTN_DureGrise.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OmbreDure)
+
+// --- 1. Ombre dure de base : Flou 0 + décalage -> effet présent (blur 0) ---
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Dure), 0,
+"ombre dure : effet présent avec rayon de flou 0 (offset 6/6)")
+
+// --- 2. Swap dynamique depuis une base dure : survol -> ombre floue (Flou 12) ---
+__SimuleInteraction(BTN_Dure, 0)
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Dure), 12,
+"survol : l'ombre dure de base se change en ombre de survol (Flou 12)")
+__SimuleInteraction(BTN_Dure, 1)
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Dure), 0,
+"quitté : retour à l'ombre dure de base (Flou 0)")
+
+// --- 3. Coexistence grisé + ombre dure : les deux tiennent ensemble ---
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_DureGrise), 0,
+"grisé + ombre dure : l'effet d'ombre est présent (blur 0)")
+dbgVérifieEgalité(BTN_DureGrise..Etat, Grisé,
+"grisé + ombre dure : l'état grisé reste appliqué (effet Qt n'écrase pas le grisé)")
+
+// --- 4. Non-régression ombre floue : Flou 20 inchangé ---
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Floue), 20,
+"ombre floue classique : rayon de flou 20 inchangé")
+
+// --- 5. Ombre totalement vide (tout à 0) : aucun effet ---
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Vide),-1,
+"ombre totalement vide : aucun effet posé (pas d'effet fantôme)")
+
+Ferme(FEN_OmbreDure)
+dbgBilanTest()

@@ -1,0 +1,63 @@
+//  — propriété hors catalogue accédée via référence qualifiée
+// cross-fichier (FEN_Cible.SAI_Champ..Prop).
+//
+// Cet accès n'est PAS vérifiable à la compile (le chemin qualifié résout le
+// widget au runtime), donc le rejet compile-time des props inconnues ne le
+// couvre pas. Avant ce correctif : lecture/écriture silencieuse d'un store
+// fantôme (aucun signal). Désormais : soft-error centralisée (ErreurDétectée)
+// au lieu du fallback fantôme, sans casser les props catalogues légitimes.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Cible)
+
+// --- Prop catalogue légitime : lecture/écriture, aucune erreur ---
+dbgVérifieEgalité(FEN_Cible.SAI_Champ..Valeur, "init",
+"Valeur catalogue lue via ref qualifiee = init")
+bErrLectureOk est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrLectureOk, "Lecture prop catalogue : pas d'erreur")
+
+FEN_Cible.SAI_Champ..Valeur = "modif"
+bErrEcritureOk est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrEcritureOk, "Ecriture prop catalogue : pas d'erreur")
+dbgVérifieEgalité(FEN_Cible.SAI_Champ..Valeur, "modif",
+"Valeur catalogue relue apres ecriture = modif")
+
+// --- Prop hors catalogue en LECTURE : soft-error ---
+sIgnore est une chaîne = FEN_Cible.SAI_Champ..Inconnue
+bErrLectureInconnue est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrLectureInconnue,
+"Lecture prop hors catalogue via ref qualifiee -> ErreurDetectee")
+
+// --- Prop hors catalogue en ECRITURE : soft-error ---
+FEN_Cible.SAI_Champ..Bidule = "fantome"
+bErrEcritureInconnue est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrEcritureInconnue,
+"Ecriture prop hors catalogue via ref qualifiee -> ErreurDetectee")
+
+// --- Prop universelle Style : légitime hors catalogue per-kind ---
+// Appliquée génériquement (apply_style_to_control), pas une prop scalaire
+// par kind. Doit être acceptée à la compile ET au runtime sans erreur.
+ErreurRAZ()
+sty est un Style
+sty..Couleur = 255
+FEN_Cible.SAI_Champ..Style = sty
+bErrStyle est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrStyle,
+"Ecriture prop universelle Style via ref qualifiee : pas d'erreur")
+
+// --- Message d'erreur runtime : {kind} accentué (forme nameFR) ---
+// Sur un Libellé (kind accentué « Libellé »), le message doit porter la
+// forme accentuée, identique à celle de l'erreur compile-time.
+ErreurRAZ()
+FEN_Cible.LIB_Titre..Fantome = "x"
+bErrLib est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrLib,
+"Ecriture prop inconnue sur Libellé -> ErreurDetectee")
+sMsgKind est une chaîne = ErreurInfo(errMessage)
+dbgVérifieVrai(Contient(sMsgKind, "Libellé"),
+"Message d'erreur runtime contient le kind accentué « Libellé »")
+
+Ferme(FEN_Cible)
+
+dbgBilanTest()

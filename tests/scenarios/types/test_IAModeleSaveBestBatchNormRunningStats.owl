@@ -1,0 +1,151 @@
+// @sujet : IAModèle — cohérence des statistiques mobiles de BatchNorm après
+// ..GardeMeilleurModèle
+// @résumé : ..GardeMeilleurModèle restaure, à la fin de .Entraîne, les poids
+// entraînables de l'époque où la perte de validation était la plus basse.
+// Une couche de normalisation de lot porte AUSSI un état non-entraînable
+// (ses statistiques mobiles moyenne/variance), mis à jour à chaque époque et
+// utilisé à l'inférence. Ce scénario vérifie que la restauration couvre les
+// DEUX : poids entraînables ET statistiques mobiles de la même époque — pas
+// seulement les poids avec les statistiques d'une autre époque.
+//
+// Méthode « modèle jumeau », déterministe et sans valeur hardcodée : deux
+// modèles identiques (même graine InitHasard, même architecture), monA
+// entraîné sur nEpoques avec ..GardeMeilleurModèle = Vrai, monRef entraîné
+// sur UNE SEULE époque sans garde. L'architecture (couche instable ->
+// normalisation de lot -> aplatissement -> couche dense, taux
+// d'apprentissage volontairement élevé) diverge dès la 2e époque (perte qui
+// explose), donc la 1re époque est structurellement la SEULE meilleure —
+// GardeMeilleurModèle=Vrai ne peut restaurer que ses poids (confirmé par
+// l'égalité exacte des poids ci-dessous, poids extraits après coup, jamais
+// hardcodés). Si la restauration est complète (poids + statistiques mobiles
+// de l'époque 1), monA après restauration doit produire EXACTEMENT la même
+// inférence que monRef (qui n'a vécu que l'époque 1, poids et statistiques
+// forcément cohérents entre eux). Un écart révèle des statistiques mobiles
+// restées à leur valeur de fin d'entraînement (une époque bien postérieure)
+// pendant que les poids, eux, ont reculé jusqu'à l'époque 1 — la
+// désynchronisation exacte que ce scénario verrouille.
+
+PROCEDURE construitModeleAvecNormalisationLot()
+	m est un IAModèle
+	m.AjouteCoucheConvolution2D(1, 1, 1, 1, 0)
+	m.AjouteCoucheNormalisationLot(1)
+	m.AjouteCoucheAplatissement()
+	m.AjouteCoucheDense(1, 1)
+	RENVOYER m
+FIN
+
+PROCEDURE PUBLIQUE scenario_garde_meilleur_modele_restaure_stats_normalisation_lot_coherentes_fr()
+	matX est une Matrice = [[1.0], [-1.0], [2.0], [-2.0]]
+	tX est un Tenseur = Tenseur(matX).Redimensionne([4, 1, 1, 1])
+	matY est une Matrice = [[2.0], [-2.0], [4.0], [-4.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	// monA : 4 époques, taux instable, GardeMeilleurModèle=Vrai. La perte
+	// diverge dès l'époque 2 (vérifié expérimentalement, hors dépôt) donc
+	// l'époque 1 reste la seule meilleure sur toute la boucle.
+	InitHasard(1234)
+	monA est un IAModèle = construitModeleAvecNormalisationLot()
+
+	optsA est un OptionsEntraînement
+	optsA..Époques             = 4
+	optsA..TailleLot           = 2
+	optsA..TauxApprentissage   = 3.0
+	optsA..Optimiseur          = optimSGD
+	optsA..Perte               = perteErreurQuadratique
+	optsA..FractionValidation  = 0.5
+	optsA..GardeMeilleurModèle = Vrai
+	monA.Entraîne(tX, tY, optsA)
+
+	// monRef : même graine, UNE SEULE époque, pas de garde. Poids et
+	// statistiques mobiles forcément cohérents entre eux (jamais restaurés).
+	InitHasard(1234)
+	monRef est un IAModèle = construitModeleAvecNormalisationLot()
+
+	optsRef est un OptionsEntraînement
+	optsRef..Époques             = 1
+	optsRef..TailleLot           = 2
+	optsRef..TauxApprentissage   = 3.0
+	optsRef..Optimiseur          = optimSGD
+	optsRef..Perte               = perteErreurQuadratique
+	optsRef..FractionValidation  = 0.5
+	optsRef..GardeMeilleurModèle = Faux
+	monRef.Entraîne(tX, tY, optsRef)
+
+	// Contrôle positif : les poids restaurés par monA sont EXACTEMENT ceux
+	// de monRef (époque 1 seule). Prouve que GardeMeilleurModèle a bien
+	// identifié l'époque 1 comme meilleure ET restauré ses poids
+	// correctement — la partie du mécanisme qui fonctionne déjà.
+	wA est un réel = monA.Poids(1)..Valeur[1][1][1][1]
+	wRef est un réel = monRef.Poids(1)..Valeur[1][1][1][1]
+	dbgVérifieVrai(Abs(wA - wRef) < 0.0000001, "poids restaurés par GardeMeilleurModèle == poids de l'unique meilleure époque (contrôle positif)")
+
+	// Assertion centrale : l'inférence de monA (poids époque 1 restaurés)
+	// doit égaler celle de monRef (poids ET statistiques mobiles de
+	// l'époque 1, jamais désynchronisés). Un écart signale que les
+	// statistiques mobiles de normalisation de lot n'ont pas suivi la
+	// restauration des poids.
+	matP est une Matrice = [[1.0], [-1.0], [2.0], [-2.0]]
+	tP est un Tenseur = Tenseur(matP).Redimensionne([4, 1, 1, 1])
+	valA est une Matrice = monA.Infère(tP)..Valeur
+	valRef est une Matrice = monRef.Infère(tP)..Valeur
+
+	POUR k = 1 À 4
+		dbgVérifieVrai(Abs(valA[k][1] - valRef[k][1]) < 0.0001, "inférence après GardeMeilleurModèle == inférence du modèle jumeau (poids+statistiques mobiles de l'unique meilleure époque, aucune désynchronisation)")
+	FIN
+FIN
+
+
+// Mêmes assertions, formes anglaises (AIModel..AddConvolution2DLayer /
+// ..AddBatchNormLayer / ..AddFlattenLayer / ..AddDenseLayer / .Train /
+// .Infer, TrainingOptions..Epochs / ..BatchSize / ..LearningRate /
+// ..ValidationFraction / ..KeepBestModel) : même mécanisme, même verrou.
+PROCEDURE construitModeleAvecBatchNormEn()
+	m is an AIModel
+	m.AddConvolution2DLayer(1, 1, 1, 1, 0)
+	m.AddBatchNormLayer(1)
+	m.AddFlattenLayer()
+	m.AddDenseLayer(1, 1)
+	RENVOYER m
+FIN
+
+PROCEDURE PUBLIQUE scenario_garde_meilleur_modele_restaure_stats_normalisation_lot_coherentes_en()
+	matX est une Matrice = [[1.0], [-1.0], [2.0], [-2.0]]
+	tX est un Tenseur = Tenseur(matX).Redimensionne([4, 1, 1, 1])
+	matY est une Matrice = [[2.0], [-2.0], [4.0], [-4.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	InitHasard(1234)
+	monA is an AIModel = construitModeleAvecBatchNormEn()
+
+	optsA is a TrainingOptions
+	optsA..Epochs             = 4
+	optsA..BatchSize          = 2
+	optsA..LearningRate       = 3.0
+	optsA..Optimizer          = optimSGD
+	optsA..Loss               = perteErreurQuadratique
+	optsA..ValidationFraction = 0.5
+	optsA..KeepBestModel      = Vrai
+	monA.Train(tX, tY, optsA)
+
+	InitHasard(1234)
+	monRef is an AIModel = construitModeleAvecBatchNormEn()
+
+	optsRef is a TrainingOptions
+	optsRef..Epochs             = 1
+	optsRef..BatchSize          = 2
+	optsRef..LearningRate       = 3.0
+	optsRef..Optimizer          = optimSGD
+	optsRef..Loss               = perteErreurQuadratique
+	optsRef..ValidationFraction = 0.5
+	optsRef..KeepBestModel      = Faux
+	monRef.Train(tX, tY, optsRef)
+
+	matP est une Matrice = [[1.0], [-1.0], [2.0], [-2.0]]
+	tP est un Tenseur = Tenseur(matP).Redimensionne([4, 1, 1, 1])
+	valA est une Matrice = monA.Infer(tP)..Valeur
+	valRef est une Matrice = monRef.Infer(tP)..Valeur
+
+	POUR k = 1 À 4
+		dbgVérifieVrai(Abs(valA[k][1] - valRef[k][1]) < 0.0001, "EN : inférence après KeepBestModel == inférence du modèle jumeau (poids+statistiques mobiles cohérents)")
+	FIN
+FIN

@@ -1,0 +1,60 @@
+// Ressource fenêtre — voisine de test_menu_contextuel_moimeme_selection.owl.
+//
+// Un menu contextuel attaché à un champ. Dans la surSélection d'une option,
+// MoiMême doit résoudre au CHAMP déclencheur (le champ cliqué), pas à
+// l'option — sémantique clé d'un menu partageable entre plusieurs champs.
+// Le handler lit deux propriétés de MoiMême — ..Nom (le nom déclaré du
+// champ déclencheur) et ..Indication (distinctive, de valeur différente du
+// nom) — ET accède un champ voisin de la fenêtre (LBL_Statut) dans le même
+// passage.
+
+FEN_MenuContextuelMoiMeme est une Fenêtre
+	PROPRIETES
+		Titre       = "MoiMême contextuel"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	MNU_Ctx est un MenuContextuel
+		OPT_Copier est une OptionMenu
+			PROPRIETES
+				Libellé = "&Copier"
+			FIN
+
+			PROCEDURE surSélection()
+				// MoiMême = le champ déclencheur (le crash rapporté venait de
+				// MoiMême résolu à Null). On lit deux propriétés de MoiMême —
+				// ..Nom (nom déclaré) et ..Indication (valeur distincte du nom) —
+				// ET on met à jour un champ voisin de la fenêtre dans le même
+				// passage. Combiner les deux prouve que ..Nom retourne bien le
+				// nom déclaré et non le texte d'indication.
+				LBL_Statut..Libellé = MoiMême..Nom + " | " + MoiMême..Indication
+			FIN
+		FIN
+	FIN
+
+	ZS_Zone est un Champ Saisie
+		PROPRIETES
+			X              = 10
+			Y              = 10
+			Largeur        = 300
+			Hauteur        = 30
+			Indication     = "Saisissez ici"
+			MenuContextuel = MNU_Ctx
+		FIN
+	FIN
+
+	LBL_Statut est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 50
+			Largeur = 380
+			Libellé = "init"
+		FIN
+	FIN
+
+	PROCEDURE RemonteStatutMoiMeme()
+		cb_moimeme_statut(LBL_Statut..Libellé, ErreurDétectée)
+	FIN
+FIN

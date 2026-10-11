@@ -1,0 +1,30 @@
+// Champ Liste / Combo : ValeurMémorisée est une chaîne (clef interne).
+// Headless (sans widget Qt) : la prop se lit toujours comme chaîne,
+// jamais comme entier — y compris quand aucune valeur n'est définie
+// (défaut = chaîne vide, pas un index ni Nul).
+// Pattern : la fenêtre voisine FEN_VM.owl porte la déclaration.
+
+Ouvre(FEN_VM)
+
+// --- Liste : lecture par défaut sans valeur définie -> chaîne vide ---
+defautListe est une chaîne = LISTE_VM..ValeurMémorisée
+dbgVérifieEgalité(defautListe, "", "Liste ValeurMemorisee defaut = chaine vide")
+dbgVérifieEgalité(TypeVar(defautListe), owlChaine, "Liste ValeurMemorisee defaut typee chaine (owlChaine)")
+
+// --- Liste : écriture puis relecture d'une clef chaîne ---
+LISTE_VM..ValeurMémorisée = "clef_metier_42"
+relueListe est une chaîne = LISTE_VM..ValeurMémorisée
+dbgVérifieEgalité(relueListe, "clef_metier_42", "Liste ValeurMemorisee ecrite/relue comme chaine")
+
+// --- Combo : forme EN (StoredValue), défaut chaîne vide (lookup catalog
+//     bilingue : la forme EN résout le même type que la forme FR) ---
+defautCombo est une chaîne = COMBO_VM..StoredValue
+dbgVérifieEgalité(defautCombo, "", "Combo StoredValue (EN) defaut = chaine vide")
+
+COMBO_VM..ValeurMémorisée = "M"
+relueCombo est une chaîne = COMBO_VM..ValeurMémorisée
+dbgVérifieEgalité(relueCombo, "M", "Combo ValeurMemorisee ecrite/relue comme chaine")
+
+Ferme(FEN_VM)
+
+dbgBilanTest()

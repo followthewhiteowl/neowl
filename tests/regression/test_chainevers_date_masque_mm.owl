@@ -1,0 +1,33 @@
+// Regression  : asymétrie parse/format sur token `mm` (minutes).
+// Format-side acceptait `mm` minuscule comme minutes ; parse-side ne reconnaissait
+// que `MI`. Round-trip cassé pour tout masque rédigé en convention `mm`.
+
+// Repro principal : 14 chars AAAAMMJJHHmmSS
+dh est une dateheure = ChaîneVersDate("20260605143045", "AAAAMMJJHHmmSS")
+dbgVérifieVrai(DateHeureValide(dh), "parse mm 14char produit dateheure valide")
+dbgVérifieEgalité(DateHeureVersChaîne(dh, "AAAAMMJJHHmmSS"), "20260605143045",
+"round-trip identite avec masque mm")
+// Cross-check : reformatter avec mm depuis un parse MI doit donner pareil
+// (format-side ne connait que mm minutes — MI literal serait imprimé tel quel,
+// cf. observations follow-up format-side asymétrique).
+dbgVérifieEgalité(DateHeureVersChaîne(dh, "JJ/MM/AAAA HH:mm:SS"), "05/06/2026 14:30:45",
+"round-trip parse mm vers format mm avec separateurs")
+
+// Non-régression : MI continue à fonctionner parse-side
+dh2 est une dateheure = ChaîneVersDate("20260605143045", "AAAAMMJJHHMISS")
+dbgVérifieVrai(DateHeureValide(dh2), "parse MI 14char toujours valide")
+dbgVérifieEgalité(DateHeureVersChaîne(dh2, "AAAAMMJJHHmmSS"), "20260605143045",
+"MI parse produit memes composants que mm parse")
+
+// Non-régression : MM majuscule = mois (date seule, pas d'ambiguite)
+d est une date = ChaîneVersDate("20260605", "AAAAMMJJ")
+dbgVérifieEgalité(DateVersChaîne(d, "AAAAMMJJ"), "20260605",
+"MM majuscule reste mois sur date seule")
+
+// Symétrie parse/format avec séparateurs : "AAAA-MM-JJ HH:mm:SS"
+dh3 est une dateheure = ChaîneVersDate("2026-06-05 14:30:45", "AAAA-MM-JJ HH:mm:SS")
+dbgVérifieVrai(DateHeureValide(dh3), "parse avec separateurs et mm valide")
+dbgVérifieEgalité(DateHeureVersChaîne(dh3, "AAAA-MM-JJ HH:mm:SS"), "2026-06-05 14:30:45",
+"round-trip masque avec separateurs et mm")
+
+dbgBilanTest()

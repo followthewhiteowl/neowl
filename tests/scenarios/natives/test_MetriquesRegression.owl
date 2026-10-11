@@ -1,0 +1,158 @@
+// @sujet : ErreurQuadratiqueMoyenne / ErreurAbsolueMoyenne / CoefficientDétermination
+// @résumé : Trois métriques d'évaluation de régression (comptage pur, sans
+// gradient — à ne pas confondre avec les pertes différentiables du même
+// nom sur Tenseur). ErreurQuadratiqueMoyenne (MSE) = moyenne des carrés des
+// écarts (cible - prédiction). ErreurAbsolueMoyenne (MAE) = moyenne des
+// écarts absolus. CoefficientDétermination (R²) = 1 - SS_res/SS_tot, où
+// SS_res = Σ(cible-préd)² et SS_tot = Σ(cible-moyenne_cibles)². Les trois
+// prennent deux Tenseurs de même forme (prédictions continues, cibles) et
+// rendent un réel. Convention déterministe sans NaN : si toutes les cibles
+// sont égales (SS_tot = 0), R² rend 0.0.
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Cas contrôlé où MSE et MAE divergent nettement (écarts de magnitude 2) :
+//   préd = [2, 4, 6], cible = [0, 4, 4]
+//   écarts (cible-préd) = [-2, 0, -2]
+//   carrés = [4, 0, 4] -> somme 8 -> MSE = 8/3 ≈ 2.6666667
+//   abs    = [2, 0, 2] -> somme 4 -> MAE = 4/3 ≈ 1.3333333
+PROCEDURE PUBLIQUE scenario_mse_mae_ecarts_main_calcules()
+	preds est un Tenseur = Tenseur([2.0, 4.0, 6.0])
+	cibles est un Tenseur = Tenseur([0.0, 4.0, 4.0])
+
+	mse est un réel = ErreurQuadratiqueMoyenne(preds, cibles)
+	mae est un réel = ErreurAbsolueMoyenne(preds, cibles)
+
+	dbgVérifieÉgalitéRéel(mse, 2.6666667, "MSE = (4+0+4)/3 ≈ 2.6666667", 0.0000001)
+	dbgVérifieÉgalitéRéel(mae, 1.3333333, "MAE = (2+0+2)/3 ≈ 1.3333333", 0.0000001)
+	dbgVérifieVrai(mse <> mae, "écarts >1 : MSE et MAE divergent (le carré n'est pas l'écart absolu)")
+FIN
+
+
+// Prédictions parfaites : tous les écarts sont nuls -> MSE = MAE = 0.0
+// exactement.
+PROCEDURE PUBLIQUE scenario_mse_mae_predictions_parfaites()
+	preds est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+
+	dbgVérifieEgalité(ErreurQuadratiqueMoyenne(preds, cibles), 0.0, "prédictions parfaites -> MSE = 0.0")
+	dbgVérifieEgalité(ErreurAbsolueMoyenne(preds, cibles), 0.0, "prédictions parfaites -> MAE = 0.0")
+FIN
+
+
+// R² = 1 quand les prédictions égalent exactement les cibles : le résidu
+// SS_res est nul, quel que soit SS_tot (ici non nul).
+PROCEDURE PUBLIQUE scenario_r2_predictions_parfaites_vaut_un()
+	preds est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	r2 est un réel = CoefficientDétermination(preds, cibles)
+	dbgVérifieEgalité(r2, 1.0, "préd = cible sur toute la ligne -> R² = 1.0")
+FIN
+
+
+// R² = 0 quand le modèle prédit uniformément la moyenne des cibles : dans
+// ce cas SS_res = SS_tot par construction (le prédicteur "moyenne" est la
+// référence neutre du R²).
+//   cible = [1, 2, 3], moyenne = 2, préd = [2, 2, 2]
+//   SS_res = (1-2)²+(2-2)²+(3-2)² = 1+0+1 = 2
+//   SS_tot = (1-2)²+(2-2)²+(3-2)² = 2 (même somme, préd = moyenne partout)
+PROCEDURE PUBLIQUE scenario_r2_predictions_moyenne_vaut_zero()
+	preds est un Tenseur = Tenseur([2.0, 2.0, 2.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	r2 est un réel = CoefficientDétermination(preds, cibles)
+	dbgVérifieEgalité(r2, 0.0, "préd = moyenne(cible) partout -> R² = 0.0")
+FIN
+
+
+// Cas intermédiaire main-calculé, ni 0 ni 1 :
+//   cible = [1, 2, 3, 4], préd = [1.5, 2.5, 2.5, 4.5]
+//   écarts (cible-préd) = [-0.5, -0.5, 0.5, -0.5] -> carrés = [0.25]*4
+//   SS_res = 1.0
+//   moyenne cible = 2.5 -> écarts = [-1.5, -0.5, 0.5, 1.5] -> carrés = [2.25, 0.25, 0.25, 2.25]
+//   SS_tot = 5.0
+//   R² = 1 - 1.0/5.0 = 0.8
+PROCEDURE PUBLIQUE scenario_r2_cas_intermediaire_main_calcule()
+	preds est un Tenseur = Tenseur([1.5, 2.5, 2.5, 4.5])
+	cibles est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	r2 est un réel = CoefficientDétermination(preds, cibles)
+	dbgVérifieÉgalitéRéel(r2, 0.8, "SS_res=1.0, SS_tot=5.0 -> R² = 1 - 1/5 = 0.8", 0.0000001)
+FIN
+
+
+// Convention figée : variance des cibles nulle (toutes égales) -> SS_tot = 0
+// -> R² rend 0.0 exactement, jamais NaN ni infini, même si les prédictions
+// sont loin des cibles.
+PROCEDURE PUBLIQUE scenario_r2_variance_cible_nulle_convention_zero()
+	preds est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	cibles est un Tenseur = Tenseur([5.0, 5.0, 5.0])
+	r2 est un réel = CoefficientDétermination(preds, cibles)
+	dbgVérifieEgalité(r2, 0.0, "cibles toutes égales (SS_tot=0) -> convention R² = 0.0, pas NaN")
+FIN
+
+
+// Formes anglaises MeanSquaredError / MeanAbsoluteError / RSquared : même
+// calcul que leurs équivalents français.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	preds est un Tenseur = Tenseur([2.0, 4.0, 6.0])
+	cibles est un Tenseur = Tenseur([0.0, 4.0, 4.0])
+
+	mse est un réel = MeanSquaredError(preds, cibles)
+	mae est un réel = MeanAbsoluteError(preds, cibles)
+	dbgVérifieÉgalitéRéel(mse, 2.6666667, "MeanSquaredError = ErreurQuadratiqueMoyenne", 0.0000001)
+	dbgVérifieÉgalitéRéel(mae, 1.3333333, "MeanAbsoluteError = ErreurAbsolueMoyenne", 0.0000001)
+
+	predsParfait est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	ciblesParfait est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	r2 est un réel = RSquared(predsParfait, ciblesParfait)
+	dbgVérifieEgalité(r2, 1.0, "RSquared = CoefficientDétermination")
+FIN
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : edge cases et cas limites (initiative test_writer)
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Tailles incohérentes entre prédictions et cibles : erreur récupérable
+// posée, résultat neutre. On vérifie ErreurDétectée AVANT toute autre
+// instruction (la sentinelle d'erreur fraîche ne survit qu'à un OP_CALL).
+PROCEDURE PRIVÉE scenario_edge_mse_tailles_incoherentes()
+	ErreurRAZ()
+	preds est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0])
+	mse est un réel = ErreurQuadratiqueMoyenne(preds, cibles)
+	dbgVérifieVrai(ErreurDétectée, "MSE : tailles incohérentes -> ErreurDétectée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_mae_tailles_incoherentes()
+	ErreurRAZ()
+	preds est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0])
+	mae est un réel = ErreurAbsolueMoyenne(preds, cibles)
+	dbgVérifieVrai(ErreurDétectée, "MAE : tailles incohérentes -> ErreurDétectée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_r2_tailles_incoherentes()
+	ErreurRAZ()
+	preds est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0])
+	r2 est un réel = CoefficientDétermination(preds, cibles)
+	dbgVérifieVrai(ErreurDétectée, "R² : tailles incohérentes -> ErreurDétectée")
+FIN
+
+
+// R² au-delà de 0/1 : une prédiction pire que le prédicteur "moyenne" fait
+// tomber R² en négatif (aucune borne basse à 0). Sert à vérifier que la
+// formule n'est pas artificiellement clampée.
+//   cible = [1, 2, 3], moyenne = 2, préd = [10, 10, 10] (très loin)
+//   SS_res = (1-10)²+(2-10)²+(3-10)² = 81+64+49 = 194
+//   SS_tot = 2 (comme ci-dessus)
+//   R² = 1 - 194/2 = 1 - 97 = -96
+PROCEDURE PRIVÉE scenario_edge_r2_negatif_pire_que_moyenne()
+	preds est un Tenseur = Tenseur([10.0, 10.0, 10.0])
+	cibles est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	r2 est un réel = CoefficientDétermination(preds, cibles)
+	dbgVérifieÉgalitéRéel(r2,-96.0, "prédiction bien pire que la moyenne -> R² négatif, pas clampé à 0", 0.0000001)
+FIN

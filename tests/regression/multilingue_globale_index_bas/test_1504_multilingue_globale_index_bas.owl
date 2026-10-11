@@ -1,0 +1,25 @@
+//  : voisin volontairement minimal de
+// _multilingue_globale. Ce dernier pousse le pool de constantes
+// au-dela de 255 pour forcer un index tronque ; ce fichier verrouille
+// que le meme site fautif (assignation scalaire sur une chaineMultilingue
+// globale) plante deja avec une poignee de globales, tres en-dessous du
+// seuil de 256. Il verrouille le MECANISME (l'ecriture d'un octet ou la
+// VM en lit deux), pas seulement le symptome spectaculaire du gros
+// fichier. Un correctif qui ne traiterait que le cas "index > 255"
+// laisserait ce fichier rouge.
+//
+// Rouge attendu aujourd'hui : segmentation fault a l'assignation scalaire.
+// Vert attendu apres correction.
+
+gAvant est un entier = 101
+mMulti est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+gApres est un entier = 202
+
+// Assignation scalaire nue : declenche __MultilingueAssignSource(mMulti, "Salut")
+mMulti = "Salut"
+
+sLu est une chaîne = mMulti
+dbgVérifieEgalité(sLu, "Salut", "assignation scalaire sur multilingue globale a index bas")
+dbgVérifieEgalité(gAvant, 101, "globale voisine declaree avant garde sa valeur")
+dbgVérifieEgalité(gApres, 202, "globale voisine declaree apres garde sa valeur")
+dbgBilanTest()

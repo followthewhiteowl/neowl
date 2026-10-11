@@ -1,0 +1,23 @@
+//  — verrou non-régression : une ZoneRépétée imbriquée dans une
+// autre ZoneRépétée reste indexable sur son propre champ réel (LIB_A de
+// ZR_Inner), sans faux positif de la validation compile-time lié à
+// l'imbrication du conteneur.
+
+TestModeHeadless(Vrai)
+
+imbriquee_done est un booléen = Faux
+
+PROCEDURE cb_imbriquee_done()
+	imbriquee_done = Vrai
+FIN
+
+Ouvre(FEN_ZRImbriquee)
+
+dbgVérifieVrai(imbriquee_done, "FinInitialisation FEN_ZRImbriquee exécutée")
+
+val est une chaîne = LireCellule(1)
+dbgVérifieEgalité(val, "valeur imbriquée", "ZR_Inner[1].LIB_A écrit/lu malgré l'imbrication dans ZR_Outer")
+
+Ferme(FEN_ZRImbriquee)
+
+dbgBilanTest()

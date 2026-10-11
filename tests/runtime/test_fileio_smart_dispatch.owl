@@ -1,0 +1,38 @@
+// Test: conversion chaîne CRLF-séparée -> tableau via ChaîneVersTableau (idiome canon).
+// Le split implicite `tableau de chaînes = <chaîne>` (smart-dispatch) est retiré
+// : toute conversion chaîne -> tableau passe par ChaîneVersTableau(s, sep).
+Trace("=== CONVERSION CHAINE VERS TABLEAU (idiome canon) ===")
+
+S est une chaîne = fSep()
+base est une chaîne = fRepTemp() + S + "owl_test_fileio_smart"
+fRepSupprime(base, frRécursif)
+fRepCree(base)
+fSauveTexte(base + S + "a.txt", "AAA")
+fSauveTexte(base + S + "b.txt", "BB")
+fSauveTexte(base + S + "c.log", "")
+
+// 1. chaîne littérale CRLF-séparée -> tableau via ChaîneVersTableau
+direct est un tableau de chaînes = ChaîneVersTableau("x" + CRLF + "y" + CRLF + "z", CRLF)
+dbgVérifieEgalité(direct..Occurrence, 3, "ChaîneVersTableau(chaîne CRLF littérale) → tableau 3 lignes")
+
+// 2. fListeFichier (retourne une chaîne CRLF-séparée) -> tableau via ChaîneVersTableau
+fichiers est un tableau de chaînes = ChaîneVersTableau(fListeFichier(base + S + "*.txt", frNonRécursif), CRLF)
+dbgVérifieEgalité(fichiers..Occurrence, 2, "ChaîneVersTableau(fListeFichier(...)) → tableau 2 fichiers")
+
+// 3. chaîne vide -> tableau à 1 élément (l'élément vide), pas 0 : ChaîneVersTableau
+// ne collabore pas avec une notion de "tableau vide", elle découpe littéralement.
+vide est un tableau de chaînes = ChaîneVersTableau("", CRLF)
+dbgVérifieEgalité(vide..Occurrence, 1, "ChaîneVersTableau(chaîne vide) → tableau 1 élément (chaîne vide)")
+
+// 4. littéral tableau -> passthrough (aucune conversion nécessaire)
+lit est un tableau de chaînes = ["a", "b", "c"]
+dbgVérifieEgalité(lit..Occurrence, 3, "littéral tableau → passthrough")
+
+// Note : le type fInfoFichier et le mode structuré ont été retirés (extension non-canon).
+// Pour l'information par fichier, la forme callback de fListeFichier reste disponible.
+// Le mode frInformationComplète produit toujours une chaîne (lignes TAB-séparées de champs).
+
+// Cleanup recursif
+fRepSupprime(base, frRécursif)
+
+dbgBilanTest()

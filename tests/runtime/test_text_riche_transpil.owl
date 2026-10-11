@@ -1,0 +1,63 @@
+// =====================================================================
+// TEST: Lot E.1 — transpileur Texte Riche → HTML.
+//
+// Vérifie que TexteRicheVersHTML produit le HTML attendu pour :
+//   - Markdown standard (gras, italique, barré, listes)
+//   - Extensions OWL (couleurs, tailles, alignement)
+//   - Imbrication
+//   - Constantes de référence résolues vers hex CSS
+// =====================================================================
+
+Trace("=== E.1 : transpileur Texte Riche → HTML ===")
+
+// --- Gras, italique, barré, souligné, code ---
+h est une chaîne = TexteRicheVersHTML("**gras** *italique* ~~barré~~ `code`")
+dbgVérifieVrai(Position(h, "<strong>gras</strong>") > 0, "Gras → <strong>")
+dbgVérifieVrai(Position(h, "<em>italique</em>") > 0, "Italique → <em>")
+dbgVérifieVrai(Position(h, "<del>barré</del>") > 0, "Barré → <del>")
+dbgVérifieVrai(Position(h, "<code>code</code>") > 0, "Code → <code>")
+
+// --- Liste à puces ---
+h = TexteRicheVersHTML("- A`+`B`-`C")
+dbgVérifieVrai(Position(h, "<ul>") > 0, "Liste à puces → <ul>")
+dbgVérifieVrai(Position(h, "<li>") > 0, "Item liste → <li>")
+
+// --- Couleur via hex direct ---
+h = TexteRicheVersHTML("[c:#FF6600]orange[/c]")
+dbgVérifieVrai(Position(h, "color:#FF6600") > 0, "Couleur hex direct → #FF6600")
+
+// --- Couleur via constante de référence ---
+h = TexteRicheVersHTML("[c:RougeFoncé]erreur[/c]")
+// RougeFoncé = RVB(128, 0, 0) = 128 (BGR pack) → #800000
+dbgVérifieVrai(Position(h, "color:#800000") > 0, "Constante RougeFoncé → #800000")
+
+// --- Taille de police ---
+h = TexteRicheVersHTML("[s:14]gros[/s]")
+dbgVérifieVrai(Position(h, "font-size:14pt") > 0, "Taille police → font-size:14pt")
+
+// --- Alignement justifié ---
+h = TexteRicheVersHTML("[j:justifie]long paragraphe[/j]")
+dbgVérifieVrai(Position(h, "text-align:justify") > 0, "Alignement justifié → text-align:justify")
+
+// --- Alignement mode anglais ---
+h = TexteRicheVersHTML("[j:right]droite[/j]")
+dbgVérifieVrai(Position(h, "text-align:right") > 0, "Alignement right (alias EN)")
+
+// --- Imbrication ---
+h = TexteRicheVersHTML("**[c:RougeClair]gras rouge[/c]**")
+dbgVérifieVrai(Position(h, "<strong>") > 0, "Imbrication : strong present")
+dbgVérifieVrai(Position(h, "color:#FF0000") > 0, "Imbrication : couleur RougeClair preservee")
+
+// --- Méthode prefix ---
+h = "**bonjour**".TexteRicheVersHTML()
+dbgVérifieVrai(Position(h, "<strong>bonjour</strong>") > 0, "Méthode prefix .TexteRicheVersHTML()")
+
+// --- Texte literal sans format reste literal (pas de markdown applique) ---
+h = TexteRicheVersHTML("texte simple sans markup")
+dbgVérifieVrai(Position(h, "<p>texte simple") > 0, "Texte simple → <p>texte</p>")
+
+// --- Tag invalide reste literal ---
+h = TexteRicheVersHTML("[truc:bidule]X[/truc]")
+dbgVérifieVrai(Position(h, "[truc:bidule]") > 0, "Tag invalide → emis literal")
+
+dbgBilanTest()

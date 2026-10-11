@@ -1,0 +1,46 @@
+//  — prop Style (type styleCombo) sur le Champ Combo.
+//
+// Vérifie de bout en bout (backend headless) :
+//   1. Déclaration d'un styleCombo + renseignement de ses 5 sous-éléments,
+//      read-back sur l'instance (le type compose correctement) :
+//      Libellé (Couleur), CadreExtérieur (CouleurFond), ZoneSaisie
+//      (CouleurFond), LibelléLignes (Couleur), LigneSélectionnée
+//      (CouleurFond).
+//   2. Application au Champ Combo via COMBO..Style ne casse pas.
+//   3. La prop Style typée sur Combo : la cascade
+//      COMBO..Style..SousElement matérialise un styleCombo et fait
+//      un round-trip.
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore avec le type
+// styleCombo (compile-fail : type styleCombo inconnu).
+
+Trace("=== styleCombo : type composite 5 sous-éléments + application Champ Combo ===")
+
+STY_Combo est un styleCombo
+STY_Combo..Libellé..Couleur               = Rouge
+STY_Combo..CadreExtérieur..CouleurFond    = JauneClair
+STY_Combo..ZoneSaisie..CouleurFond        = Blanc
+STY_Combo..LibelléLignes..Couleur         = Bleu
+STY_Combo..LigneSélectionnée..CouleurFond = VertFoncé
+
+dbgVérifieEgalité(STY_Combo..Libellé..Couleur, Rouge, "styleCombo : Libellé..Couleur posée")
+dbgVérifieEgalité(STY_Combo..CadreExtérieur..CouleurFond, JauneClair, "styleCombo : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Combo..ZoneSaisie..CouleurFond, Blanc, "styleCombo : ZoneSaisie..CouleurFond posée")
+dbgVérifieEgalité(STY_Combo..LibelléLignes..Couleur, Bleu, "styleCombo : LibelléLignes..Couleur posée")
+dbgVérifieEgalité(STY_Combo..LigneSélectionnée..CouleurFond, VertFoncé, "styleCombo : LigneSélectionnée..CouleurFond posée")
+
+Ouvre(FEN_ComboStyle)
+COMBO_Style..Style = STY_Combo
+dbgVérifieVrai(Vrai, "styleCombo appliqué à COMBO..Style sans crash")
+
+COMBO_Style..Style..Libellé..Couleur = Noir
+dbgVérifieEgalité(COMBO_Style..Style..Libellé..Couleur, Noir, "COMBO..Style..Libellé..Couleur round-trip")
+
+COMBO_Style..Style..ZoneSaisie..CouleurFond = GrisClair
+dbgVérifieEgalité(COMBO_Style..Style..ZoneSaisie..CouleurFond, GrisClair, "COMBO..Style..ZoneSaisie..CouleurFond round-trip")
+
+COMBO_Style..Style..LigneSélectionnée..CouleurFond = Bleu
+dbgVérifieEgalité(COMBO_Style..Style..LigneSélectionnée..CouleurFond, Bleu, "COMBO..Style..LigneSélectionnée..CouleurFond round-trip")
+
+Ferme(FEN_ComboStyle)
+dbgBilanTest()

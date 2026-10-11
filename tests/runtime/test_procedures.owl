@@ -1,0 +1,84 @@
+// ============================================
+// TEST: Procedures et fonctions
+// ============================================
+Trace("=== PROCEDURES ===")
+
+// --- Procedure simple sans retour ---
+nEffet est un entier = 0
+
+PROCEDURE SetEffet()
+	nEffet = 42
+FIN
+
+SetEffet()
+dbgVérifieEgalité(nEffet, 42, "Procedure modifie globale")
+
+// --- Fonction avec retour ---
+FONCTION Double(n est un entier) : entier
+	RENVOYER n * 2
+FIN
+
+dbgVérifieEgalité(Double(5), 10, "Fonction Double(5) = 10")
+dbgVérifieEgalité(Double(0), 0, "Fonction Double(0) = 0")
+dbgVérifieEgalité(Double(-3),-6, "Fonction Double(-3) = -6")
+
+// --- Fonction multi-parametres ---
+FONCTION Additionner(nA est un entier, nB est un entier) : entier
+	RENVOYER nA + nB
+FIN
+
+dbgVérifieEgalité(Additionner(3, 7), 10, "Addition(3,7) = 10")
+dbgVérifieEgalité(Additionner(0, 0), 0, "Addition(0,0) = 0")
+dbgVérifieEgalité(Additionner(-5, 5), 0, "Addition(-5,5) = 0")
+
+// --- Fonction avec chaines ---
+FONCTION Saluer(nom est une chaîne) : chaîne
+	RENVOYER "Bonjour " + nom + "!"
+FIN
+
+dbgVérifieEgalité(Saluer("Roger"), "Bonjour Roger!", "Saluer(Roger)")
+
+// --- Recursion ---
+FONCTION Factorielle(n est un entier) : entier
+	SI n <= 1 ALORS
+		RENVOYER 1
+	FIN
+	RENVOYER n * Factorielle(n - 1)
+FIN
+
+dbgVérifieEgalité(Factorielle(0), 1, "Factorielle(0) = 1")
+dbgVérifieEgalité(Factorielle(1), 1, "Factorielle(1) = 1")
+dbgVérifieEgalité(Factorielle(5), 120, "Factorielle(5) = 120")
+dbgVérifieEgalité(Factorielle(10), 3628800, "Factorielle(10) = 3628800")
+
+// --- Fibonacci (recursion double) ---
+FONCTION Fibonacci(n est un entier) : entier
+	SI n <= 1 ALORS
+		RENVOYER n
+	FIN
+	RENVOYER Fibonacci(n - 1) + Fibonacci(n - 2)
+FIN
+
+dbgVérifieEgalité(Fibonacci(0), 0, "Fibonacci(0) = 0")
+dbgVérifieEgalité(Fibonacci(1), 1, "Fibonacci(1) = 1")
+dbgVérifieEgalité(Fibonacci(10), 55, "Fibonacci(10) = 55")
+
+// --- Fonction appelant une autre fonction ---
+FONCTION DoubleAddition(nA est un entier, nB est un entier) : entier
+	RENVOYER Double(Additionner(nA, nB))
+FIN
+
+dbgVérifieEgalité(DoubleAddition(3, 4), 14, "DoubleAddition(3,4) = 14")
+
+// --- Fonction avec variable locale ---
+FONCTION Carre(n est un entier) : entier
+	resultat est un entier = n * n
+	RENVOYER resultat
+FIN
+
+dbgVérifieEgalité(Carre(7), 49, "Carre(7) = 49")
+
+// --- Fonction utilisee dans expression ---
+nResult est un entier = Double(5) + Carre(3)
+dbgVérifieEgalité(nResult, 19, "Double(5) + Carre(3) = 19")
+

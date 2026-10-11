@@ -1,0 +1,53 @@
+// Regression : variables typées non-initialisées doivent prendre la valeur
+// zéro typée (canon de référence), pas Null.
+// Bug d'origine : le compilateur emit OP_NIL pour chaîne/entier/réel/booléen
+// par paresse héritée de Lox/Crafting Interpreters. Seuls les types composés
+// (Date, Monétaire, Numérique, Buffer, Tableau, Struct) recevaient le bon zéro.
+
+s est une chaîne
+n est un entier
+r est un réel
+b est un booléen
+
+// Concat chaîne : doit produire "" pour s, pas "0" (régression majeure du
+// debugger watch : Majuscule(sNonInit) retournait "0" au lieu de "")
+dbgVérifieEgalité(s, "", "chaine non-init = chaine vide")
+dbgVérifieEgalité(Taille(s), 0, "Taille(chaine non-init) = 0")
+dbgVérifieEgalité(s + "x", "x", "concat chaine non-init + 'x' = 'x'")
+dbgVérifieEgalité(Majuscule(s), "", "Majuscule(chaine non-init) = ''")
+
+// Numériques : valeur zéro typée
+dbgVérifieEgalité(n, 0, "entier non-init = 0")
+dbgVérifieEgalité(n + 1, 1, "entier non-init + 1 = 1")
+dbgVérifieEgalité(r, 0, "reel non-init = 0")
+dbgVérifieEgalité(r + 1.5, 1.5, "reel non-init + 1.5 = 1.5")
+
+// Booléen : Faux
+dbgVérifieFaux(b, "booleen non-init = Faux")
+
+// Comparaison à Null — sémantique OWL stricte : aucune zero-value n'est
+// égale à Null. Une variable typée non-nullable ne contient JAMAIS Null
+// (init zero-typed, `var = Null` reset zero-typed), donc compare toujours
+// FAUX à Null.
+dbgVérifieFaux(s = Null, "chaine non-init != Null")
+dbgVérifieFaux(n = Null, "entier non-init (= 0) != Null")
+dbgVérifieFaux(r = Null, "reel non-init (= 0) != Null")
+dbgVérifieFaux(b = Null, "booleen non-init (= Faux) != Null")
+
+// Une fois affectées : non-nullable ne peut jamais valoir Null
+n = 5
+dbgVérifieFaux(n = Null, "n=5 != Null")
+n = 0
+dbgVérifieFaux(n = Null, "n=0 != Null (sémantique stricte)")
+
+s = "hello"
+dbgVérifieFaux(s = Null, "s='hello' != Null")
+s = ""
+dbgVérifieFaux(s = Null, "s='' != Null")
+
+// Types composés non touchés (rappel : ils ont déjà le bon zéro typé)
+m est un monétaire
+dbgVérifieEgalité(m, 0, "monetaire non-init = 0")
+
+t est un tableau de chaînes
+dbgVérifieEgalité(Occurrence(t), 0, "tableau non-init = vide")

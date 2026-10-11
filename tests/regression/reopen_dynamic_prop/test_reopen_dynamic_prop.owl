@@ -1,0 +1,31 @@
+// Regression  — prop dynamique re-evaluee a chaque Ouvre.
+//
+// FEN_ReopenProp a un Champ Libelle dont la prop Libelle est DYNAMIQUE :
+//   Libellé = EntierVersChaîne(__dbgNombreExecutions("reopenprop"))
+// Le top-level fenetre fait __dbgNoteExecution("reopenprop") a chaque Ouvre.
+//
+// Scenario : 2 ouvertures successives. Le compteur persistant vaut 1 a la
+// 1re ouverture, 2 a la 2e. La prop dynamique doit refleter la valeur
+// COURANTE a chaque ouverture.
+//
+// AVANT fix : is_constant memoise sur le decl PARTAGE -> la prop dynamique
+// n'est pas re-evaluee a la 2e ouverture -> reste figee a "1" (ROUGE).
+// APRES fix : prop re-evaluee -> "2" (VERT).
+
+TestModeHeadless(Vrai)
+
+__dbgResetExecutions()
+
+// 1re ouverture : compteur -> 1, gTexte -> "v1", prop dynamique -> "v1"
+Ouvre(FEN_ReopenProp)
+dbgVérifieEgalité(FEN_ReopenProp.LIB_Compteur..Libellé, "v1",
+"1re ouverture : prop dynamique reflete la globale top-level (v1)")
+Ferme(FEN_ReopenProp)
+
+// 2e ouverture : compteur -> 2, gTexte -> "v2", prop dynamique doit valoir "v2"
+Ouvre(FEN_ReopenProp)
+dbgVérifieEgalité(FEN_ReopenProp.LIB_Compteur..Libellé, "v2",
+"2e ouverture : prop dynamique re-evaluee reflete la globale top-level (v2)")
+Ferme(FEN_ReopenProp)
+
+dbgBilanTest()

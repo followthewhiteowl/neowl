@@ -1,0 +1,56 @@
+// @sujet : zipMode
+// @résumé : Enum regroupant les modes d'ouverture acceptés par le paramètre mode de zipOuvre : lecture, écriture et création si absent. Les modes sont combinables (écriture et création peuvent se cumuler).
+
+
+// zipLecture : ouvrir une archive existante en lecture seule.
+PROCEDURE PUBLIQUE scenario_mode_lecture()
+	arch est une zipArchive = zipCrée("test_mode_lecture.zip")
+	contenu est un buffer = ChaîneVersBuffer("owl")
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "data.txt")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_mode_lecture.zip", zipLecture)
+	dbgVérifieVrai(lecture <> Null, "zipOuvre avec zipLecture retourne une archive valide")
+	nb est un entier = zipNbFichier(lecture)
+	dbgVérifieEgalité(nb, 1, "lecture de l'archive : 1 entrée accessible")
+	zipFerme(lecture)
+	fSupprime("test_mode_lecture.zip")
+FIN
+
+
+// zipEcriture : ouvrir une archive existante en écriture pour y ajouter des entrées.
+PROCEDURE PUBLIQUE scenario_mode_ecriture()
+	arch est une zipArchive = zipCrée("test_mode_ecriture.zip")
+	zipFerme(arch)
+	ecriture est une zipArchive = zipOuvre("test_mode_ecriture.zip", zipEcriture)
+	dbgVérifieVrai(ecriture <> Null, "zipOuvre avec zipEcriture retourne une archive valide")
+	contenu est un buffer = ChaîneVersBuffer("ajout")
+	zipAjouteFichier(ecriture, contenu, zipEnMémoire, "ajout.txt")
+	zipFerme(ecriture)
+	lecture est une zipArchive = zipOuvre("test_mode_ecriture.zip", zipLecture)
+	nb est un entier = zipNbFichier(lecture)
+	dbgVérifieEgalité(nb, 1, "après écriture : l'archive contient 1 entrée ajoutée")
+	zipFerme(lecture)
+	fSupprime("test_mode_ecriture.zip")
+FIN
+
+
+// zipCréationSiInexistant : combiné à zipEcriture, crée l'archive si elle n'existe pas.
+PROCEDURE PUBLIQUE scenario_mode_creation_si_inexistant()
+	chemin est une chaîne = "test_mode_creation.zip"
+	SI zipExiste(chemin) ALORS
+		fSupprime(chemin)
+	FIN
+	arch est une zipArchive = zipOuvre(chemin, OUBinaire(zipEcriture, zipCréationSiInexistant))
+	dbgVérifieVrai(arch <> Null, "zipOuvre avec zipEcriture+zipCréationSiInexistant crée l'archive")
+	zipFerme(arch)
+	dbgVérifieVrai(zipExiste(chemin), "l'archive a été créée sur disque")
+	fSupprime(chemin)
+FIN
+
+
+// Les modes zipEcriture et zipCréationSiInexistant se combinent par OU binaire.
+PROCEDURE PRIVÉE scenario_combinaison_bitmask()
+	combine est un entier = OUBinaire(zipEcriture, zipCréationSiInexistant)
+	dbgVérifieVrai(ETBinaire(combine, zipEcriture) = zipEcriture, "le mode combiné contient l'écriture")
+	dbgVérifieVrai(ETBinaire(combine, zipCréationSiInexistant) = zipCréationSiInexistant, "le mode combiné contient la création")
+FIN

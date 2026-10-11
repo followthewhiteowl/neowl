@@ -1,0 +1,41 @@
+Trace("=== BUFFER (binary-safe byte array) ===")
+
+// === Déclaration + défaut ===
+b est un buffer
+dbgVérifieEgalité(Taille(b), 0, "buffer default taille=0")
+
+// === Conversion chaine <-> buffer ===
+b1 est un buffer = ChaîneVersBuffer("hello")
+dbgVérifieEgalité(Taille(b1), 5, "hello -> buffer taille 5")
+
+txt est une chaîne = BufferVersChaîne(b1)
+dbgVérifieEgalité(txt, "hello", "buffer -> chaine roundtrip")
+
+// === Buffer avec plusieurs caractères ===
+binBuf est un buffer = ChaîneVersBuffer("ABC")
+dbgVérifieEgalité(Taille(binBuf), 3, "3 bytes")
+
+// === Idempotence des conversions ===
+b2 est un buffer = ChaîneVersBuffer(b1)
+dbgVérifieEgalité(Taille(b2), 5, "ChaineVersBuffer sur buffer: passe-plat")
+
+c est un buffer = BufferVersChaîne("deja chaine")
+dbgVérifieEgalité(c, "deja chaine", "BufferVersChaine sur chaine: passe-plat")
+
+// === Taille sur les deux types ===
+s est une chaîne = "abcdef"
+dbgVérifieEgalité(Taille(s), 6, "Taille() sur chaine")
+buf est un buffer = ChaîneVersBuffer(s)
+dbgVérifieEgalité(Taille(buf), 6, "Taille() sur buffer")
+
+// === Usage en tant que contenu HTTP ===
+req est un httpRequête
+dbgVérifieEgalité(Taille(req..Contenu), 0, "req..Contenu default buffer vide")
+req..Contenu = ChaîneVersBuffer("binary payload")
+dbgVérifieEgalité(Taille(req..Contenu), 14, "Contenu buffer peuple")
+
+// Assignation d'une chaine au champ -> loose typing accepte les deux
+req..Contenu = "simple string"
+dbgVérifieEgalité(Taille(req..Contenu), 13, "chaine dans Contenu -> length 13")
+
+dbgBilanTest()

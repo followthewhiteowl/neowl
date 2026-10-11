@@ -1,0 +1,53 @@
+// Test régression  (follow-up  / ) :
+// MoiMême dans le top-level d'un sous-champ d'Etat doit résoudre au
+// sous-champ et permettre la lecture-après-écriture de ses propriétés,
+// SYMÉTRIQUEMENT au top-level d'un sous-champ de Fenêtre (canon de référence).
+//
+// Pre-fix : le builder  n'a pas instrumenté fn_i_imprime_etat
+// avec push/pop event_sender autour des top-levels sous-champs.
+// Résultat : MoiMême tombe sur stack vide -> ErreurDetectee + le
+// `MoiMême..Libelle = ...` plante en accès à un champ sur Null.
+//
+// Post-fix : event_sender_stack alimenté par run_etat_controls_top_level
+// avec l'ObjUiControlRef du sous-champ courant. MoiMême résout au sous-champ
+// et MoiMême..Prop fonctionne comme sur une fenêtre.
+//
+// Note : MoiMême dans le top-level Etat lui-même n'est pas testé ici (pas de
+// surface OWL stable pour accéder à un ObjEtatInstance via .Prop, V2.x). Le
+// push de l'etatSender est néanmoins fait dans fn_i_imprime_etat pour ne pas
+// tomber en stack vide / soft error.
+//
+// Pattern : la ressource voisine ETAT_MoiMemeTopLevel.owl porte la déclaration.
+// Les observations sont remontées via callbacks (canon DSL strict).
+
+TestModeHeadless(Vrai)
+
+sLibLuParMoiMeme est une chaîne = ""
+sLibLuViaNom est une chaîne = ""
+
+PROCEDURE callback_lib_moimeme(t est une chaîne)
+	sLibLuParMoiMeme = t
+FIN
+
+PROCEDURE callback_lib_via_nom(t est une chaîne)
+	sLibLuViaNom = t
+FIN
+
+// Destination PDF muette (jetable).
+iDestination(iPDFGénérique, "tests/regression/moimeme_etat_top_level/temp.pdf")
+iImprimeEtat(ETAT_MoiMemeTopLevel)
+iFinImprime()
+
+Trace("sLibLuParMoiMeme = [" + sLibLuParMoiMeme + "]")
+Trace("sLibLuViaNom     = [" + sLibLuViaNom + "]")
+
+// Assertions sur valeurs exactes (canon de référence : MoiMême et nom-direct
+// référencent la même instance).
+dbgVérifieEgalité(sLibLuParMoiMeme, "pose par MoiMeme",
+"MoiMême..Libelle relu dans top-level sous-champ = valeur posee")
+dbgVérifieEgalité(sLibLuViaNom, "pose par MoiMeme",
+"LIB_Test..Libelle (acces par nom) voit aussi la valeur posee via MoiMême")
+dbgVérifieEgalité(sLibLuParMoiMeme, sLibLuViaNom,
+"MoiMême et nom-direct referencent le meme sous-champ d'Etat")
+
+dbgBilanTest()

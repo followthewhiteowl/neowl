@@ -1,0 +1,43 @@
+// Ressource fenetre — voisin de test_event_saisie_touche.owl.
+// Saisie avec surToucheAppuyee / surToucheRelachee pour tester le dispatch
+// clavier reel via TestSimuleSaisie (mode OuvreSoeur, vrais QKeyEvents).
+
+FEN_SaisieTouche est une Fenêtre
+	PROPRIETES
+		Titre       = "SaisieTouche offscreen"
+		Largeur     = 400
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	nAppuyeeCount est un entier = 0
+	nRelacheeCount est un entier = 0
+	nDerniereAppuyee est un entier = -1
+	nDerniereRelachee est un entier = -1
+
+	SAI_Texte est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 300
+		FIN
+		PROCEDURE surToucheAppuyee(nTouche est un entier)
+			nAppuyeeCount += 1
+			nDerniereAppuyee = nTouche
+			callback_saisie_appuyee(nTouche)
+		FIN
+		PROCEDURE surToucheRelachee(nTouche est un entier)
+			nRelacheeCount += 1
+			nDerniereRelachee = nTouche
+			callback_saisie_relachee(nTouche)
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		callback_fen_prete()
+	FIN
+
+	PROCEDURE LireCompteurs()
+		callback_lit_compteurs(nAppuyeeCount, nRelacheeCount, nDerniereAppuyee, nDerniereRelachee)
+	FIN
+FIN

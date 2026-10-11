@@ -1,0 +1,29 @@
+// Test avec assertions runtime sur les slots UI multilangue.
+// Valide le coerce auto chaîne → chaîneMultilingue et le fallback
+// vers langue source.
+//
+// La fenêtre voisine FEN_ChampLibelle.owl porte la déclaration.
+
+PROCEDURE PUBLIQUE scenario_libelle_multilingue_coerce()
+	Ouvre(FEN_ChampLibelle)
+
+	// Note : les props assignées dans PROPRIETES DSL ne sont pas propagées
+	// au storage virtuel avant Ouvre() dans le runtime actuel. On affecte
+	// explicitement pour tester le coerce auto chaîne → chaîneMultilingue.
+
+	// Backward-compat : affectation string simple post-déclaration.
+	// Le coerce auto chaîne → chaîneMultilingue crée un objet multilangue
+	// avec langue source uniquement.
+	BTN_Valider..Libellé = "Valider"
+	BTN_Annuler..Libellé = "Annuler"
+
+	dbgVérifieEgalité(BTN_Valider..Libellé, "Valider")
+	dbgVérifieEgalité(BTN_Annuler..Libellé, "Annuler")
+
+	// Backward-compat : modification post-assignation via string simple.
+	// Le coerce auto écrase le précédent objet multilangue.
+	BTN_Valider..Libellé = "Confirmer"
+	dbgVérifieEgalité(BTN_Valider..Libellé, "Confirmer")
+
+	Ferme(FEN_ChampLibelle)
+FIN

@@ -1,0 +1,23 @@
+// Regression ordre-independant : helper declare APRES une procedure a chaine
+// `SINON SI`. Sans le correctif du pre-scan, SecondHelper n'est pas
+// pre-enregistre -> erreur "fonction inconnue" a la compilation de surClic.
+//
+// Verifie aussi que la chaine elif de PremierHelper evalue correctement
+// (n=2 -> 20), donc que la structure conditionnelle reste intacte.
+
+TestModeHeadless(Vrai)
+
+marqueur est un entier = -1
+
+PROCEDURE callback_observe(tag est une chaîne, val est un entier)
+	SI tag = "second" ALORS
+		marqueur = val
+	FIN
+FIN
+
+Ouvre(FEN_ElifAvantHelper)
+
+TestSimuleSouris(BTN_Go, ClicGauche)
+dbgVérifieEgalité(marqueur, 20, "SecondHelper (declare apres helper a SINON SI) resolu + execute")
+
+dbgBilanTest()

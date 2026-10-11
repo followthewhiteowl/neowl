@@ -1,0 +1,222 @@
+// @sujet : dFlou
+// @resume : Appliquer un flou box-blur sur tout ou partie d'une image, avec controle du rayon
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_flou_defaut_image_complete()
+	img est une Image
+	couleurRouge est un entier = RVB(200, 0, 0)
+	couleurAvant est un entier
+	couleurApresEntier est un entier
+	couleurApres est une Couleur
+
+	// Appliquer flou avec rayon par defaut (5) sur image unie
+	img          = dCréeImage(50, 50, couleurRouge)
+	couleurAvant = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurAvant, couleurRouge, "image uniforme rouge avant flou")
+
+	dFlou(img)
+
+	// Après flou, couleur dominante doit rester proche du rouge
+	// (leger bleed aux bords mais centre stable)
+	couleurApresEntier = CouleurDominanteImage(img)
+	couleurApres       = couleurApresEntier
+
+	dbgVérifieVrai(couleurApres..Rouge >= 190, "canal rouge dominant reste eleve apres flou defaut")
+	dbgVérifieVrai(couleurApres..Vert <= 10, "canal vert minimal apres flou defaut")
+	dbgVérifieVrai(couleurApres..Bleu <= 10, "canal bleu minimal apres flou defaut")
+FIN
+
+PROCEDURE PUBLIQUE scenario_flou_rayon_explicite_grand()
+	img est une Image
+	couleurVert est un entier = RVB(0, 220, 0)
+	couleurDominanteEntier est un entier
+	couleurDominante est une Couleur
+
+	// Appliquer flou avec rayon large (20) sur image unie verte
+	img = dCréeImage(80, 80, couleurVert)
+	dFlou(img, 20)
+
+	// Avec rayon large, flou prononce mais couleur dominante reste verte
+	couleurDominanteEntier = CouleurDominanteImage(img)
+	couleurDominante       = couleurDominanteEntier
+	dbgVérifieVrai(couleurDominante..Vert >= 200, "canal vert dominant apres flou rayon large")
+FIN
+
+PROCEDURE PUBLIQUE scenario_flou_rayon_petit()
+	img est une Image
+	couleurBleu est un entier = RVB(0, 0, 230)
+	couleurDominanteEntier est un entier
+	couleurDominante est une Couleur
+
+	// Appliquer flou avec rayon petit (2) sur image unie bleue
+	img = dCréeImage(60, 60, couleurBleu)
+	dFlou(img, 2)
+
+	// Flou legers, effet minimal sur image uniforme
+	couleurDominanteEntier = CouleurDominanteImage(img)
+	couleurDominante       = couleurDominanteEntier
+	dbgVérifieVrai(couleurDominante..Bleu >= 220, "canal bleu dominant preserve apres flou rayon petit")
+FIN
+
+PROCEDURE PUBLIQUE scenario_flou_image_avec_contraste()
+	img est une Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurAvantGaucheEntier est un entier
+	couleurAvantDroitEntier est un entier
+	couleurAvantGauche est une Couleur
+	couleurAvantDroit est une Couleur
+	couleurApresGaucheEntier est un entier
+	couleurApresDroitEntier est un entier
+	couleurApresGauche est une Couleur
+	couleurApresDroit est une Couleur
+	deltaR est un entier
+	deltaB est un entier
+
+	// Créer image moitié rouge, moitié bleue (contraste net)
+	img = dCréeImage(100, 50, couleurRouge)
+	dRectangle(img, 50, 0, 100, 50, couleurBleu, couleurBleu)
+
+	// Mesurer couleurs avant flou
+	couleurAvantGaucheEntier = dPixelCouleur(img, 10, 25)
+	couleurAvantDroitEntier  = dPixelCouleur(img, 90, 25)
+	couleurAvantGauche       = couleurAvantGaucheEntier
+	couleurAvantDroit        = couleurAvantDroitEntier
+	dbgVérifieVrai(couleurAvantGauche..Rouge >= 240, "moitie gauche rouge avant flou")
+	dbgVérifieVrai(couleurAvantDroit..Bleu >= 240, "moitie droite bleue avant flou")
+
+	// Appliquer flou rayon 5
+	dFlou(img, 5)
+
+	// Après flou : bords adoucis (melange), centre moins affecte
+	couleurApresGaucheEntier = dPixelCouleur(img, 10, 25)
+	couleurApresDroitEntier  = dPixelCouleur(img, 90, 25)
+	couleurApresGauche       = couleurApresGaucheEntier
+	couleurApresDroit        = couleurApresDroitEntier
+
+	// Centre gauche (loin de la frontière 50) doit rester majoritairement rouge
+	deltaR = couleurApresGauche..Rouge - couleurApresGauche..Bleu
+	dbgVérifieVrai(deltaR >= 100, "centre gauche reste majoritairement rouge apres flou")
+
+	// Centre droit doit rester majoritairement bleu
+	deltaB = couleurApresDroit..Bleu - couleurApresDroit..Rouge
+	dbgVérifieVrai(deltaB >= 100, "centre droit reste majoritairement bleu apres flou")
+FIN
+
+PROCEDURE PUBLIQUE scenario_flou_sans_effet_rayon_zero()
+	img est une Image
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurAvant est un entier
+	couleurApres est un entier
+
+	// Flou avec rayon 0 ne doit avoir aucun effet
+	img          = dCréeImage(40, 40, couleurJaune)
+	couleurAvant = CouleurDominanteImage(img)
+
+	dFlou(img, 0)
+
+	couleurApres = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurApres, couleurAvant, "flou rayon zero sans effet")
+FIN
+
+PROCEDURE PUBLIQUE scenario_flou_images_multiples_independance()
+	img1 est une Image
+	img2 est une Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleur1ApresEntier est un entier
+	couleur2ApresEntier est un entier
+	couleur1Apres est une Couleur
+
+	// Appliquer flou sur img1 uniquement, img2 non affectée
+	img1 = dCréeImage(50, 50, couleurRouge)
+	img2 = dCréeImage(50, 50, couleurVert)
+
+	dFlou(img1, 5)
+
+	// img1 floutée, img2 intact
+	couleur1ApresEntier = CouleurDominanteImage(img1)
+	couleur2ApresEntier = CouleurDominanteImage(img2)
+	couleur1Apres       = couleur1ApresEntier
+
+	dbgVérifieVrai(couleur1Apres..Rouge >= 200, "img1 floutee dominant rouge")
+	dbgVérifieEgalité(couleur2ApresEntier, couleurVert, "img2 non floutee reste verte")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — cas limites, edge cases, combinaisons non-documentées
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_flou_image_1x1_invariant()
+	img est une Image
+	couleurCyan est un entier = RVB(0, 200, 200)
+	couleurAvant est un entier
+	couleurApres est un entier
+
+	// Flou sur image 1x1 : aucun voisin, doit rester identique
+	img          = dCréeImage(1, 1, couleurCyan)
+	couleurAvant = dPixelCouleur(img, 0, 0)
+
+	dFlou(img, 10)
+
+	couleurApres = dPixelCouleur(img, 0, 0)
+	dbgVérifieEgalité(couleurApres, couleurAvant, "flou sur 1x1 invariant")
+FIN
+
+PROCEDURE PRIVÉE scenario_flou_rayon_tres_large()
+	img est une Image
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	couleurDominanteEntier est un entier
+	couleurDominante est une Couleur
+
+	// Rayon tres large (100) sur image moyenne (60x60) : convergence moyenne
+	img = dCréeImage(60, 60, couleurMagenta)
+	dFlou(img, 100)
+
+	// Flou extreme : couleur dominante doit converger vers moyenne globale
+	couleurDominanteEntier = CouleurDominanteImage(img)
+	couleurDominante       = couleurDominanteEntier
+
+	dbgVérifieVrai(couleurDominante..Rouge >= 200, "canal rouge preserve apres flou extreme")
+	dbgVérifieVrai(couleurDominante..Bleu >= 200, "canal bleu preserve apres flou extreme")
+FIN
+
+PROCEDURE PRIVÉE scenario_flou_image_transparente()
+	img est une Image
+	couleurSemiRouge est un entier
+	couleurDominanteEntier est un entier
+	couleurDominante est une Couleur
+
+	// Flou sur image avec canal alpha (pas de RVBA dans registry OWL, skip)
+	// RVB ne gère pas alpha, on crée une couleur avec opacité manuelle
+	couleurSemiRouge = RVB(255, 0, 0)
+	img              = dCréeImage(50, 50, couleurSemiRouge)
+	dFlou(img, 5)
+
+	couleurDominanteEntier = CouleurDominanteImage(img)
+	couleurDominante       = couleurDominanteEntier
+
+	dbgVérifieVrai(couleurDominante..Rouge >= 200, "canal rouge preserve apres flou")
+FIN
+
+PROCEDURE PRIVÉE scenario_flou_rayon_negatif_erreur()
+	img est une Image
+	couleurBleu est un entier = RVB(0, 0, 255)
+	avantFlou est un entier
+	apresFlou est un entier
+
+	// Rayon negatif : comportement non-specifie (probablement clamp ou erreur)
+	// On teste qu'aucun crash ne survient, pas d'assertion forte
+	img       = dCréeImage(30, 30, couleurBleu)
+	avantFlou = CouleurDominanteImage(img)
+
+	// Appel avec rayon négatif (comportement indéterminé, on vérifie juste pas de crash)
+	dFlou(img,-5)
+
+	apresFlou = CouleurDominanteImage(img)
+	// Si rayon négatif clamp à 0 : aucun effet attendu
+	dbgVérifieVrai(apresFlou >= 0, "flou rayon negatif ne crash pas")
+FIN

@@ -1,0 +1,111 @@
+// @sujet : MLRégressionLinéaire — régression par moindres carrés ordinaires (forme close)
+// @résumé : MLRégressionLinéaire résout les équations normales en forme
+// close (élimination de Gauss, léger ridge de stabilité). Aucun
+// hyperparamètre, aucun objectif à régler : le type est dédié à la
+// régression. `.Entraîne(X, y)` prend une Matrice d'échantillons ×
+// variables et un Tenseur 1D de cibles continues. `.Prédit(X)` rend un
+// Tenseur 1D, une prédiction par ligne. `..Coefficients` (Vecteur des
+// poids, un par colonne de X) et `..Ordonnée` (réel, le biais) exposent
+// la solution exacte. Sur un jeu strictement linéaire sans bruit, la
+// forme close retrouve les coefficients d'origine au réel près et prédit
+// exactement les cibles.
+
+
+// Deux variables, cible construite à la main : y = 3·x1 + 2·x2 + 5, sans
+// bruit. L'OLS en forme close doit retrouver exactement w1=3, w2=2,
+// biais=5 et prédire les 4 cibles sans résidu (R² ≈ 1, tolérance serrée
+// car aucune approximation itérative n'est en jeu).
+PROCEDURE PUBLIQUE scenario_deux_variables_exact()
+	reg est une MLRégressionLinéaire
+
+	matX est une Matrice = [[1.0, 1.0], [2.0, 1.0], [1.0, 2.0], [3.0, 2.0]]
+	y est un Tenseur = Tenseur([10.0, 13.0, 12.0, 18.0])
+	reg.Entraîne(matX, y)
+
+	dbgVérifieVrai(Abs(reg..Coefficients[1] - 3.0) < 0.0001, "coefficient de x1 retrouvé exactement : 3")
+	dbgVérifieVrai(Abs(reg..Coefficients[2] - 2.0) < 0.0001, "coefficient de x2 retrouvé exactement : 2")
+	dbgVérifieVrai(Abs(reg..Ordonnée - 5.0) < 0.0001, "ordonnée à l'origine retrouvée exactement : 5")
+
+	preds est un Tenseur = reg.Prédit(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[1] - 10.0) < 0.0001, "ligne 1 : prédiction = cible exacte")
+	dbgVérifieVrai(Abs(preds..Valeur[4] - 18.0) < 0.0001, "ligne 4 : prédiction = cible exacte")
+
+	r2 est un réel = CoefficientDétermination(preds, y)
+	dbgVérifieVrai(Abs(r2 - 1.0) < 0.000001, "jeu strictement linéaire sans bruit : R² = 1 (forme close exacte, pas d'approximation)")
+FIN
+
+
+// Une variable, cible y = 2·x + 1, pour lire un coefficient unique
+// sans ambiguïté d'indexation.
+PROCEDURE PUBLIQUE scenario_une_variable()
+	reg est une MLRégressionLinéaire
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([3.0, 5.0, 7.0, 9.0])
+	reg.Entraîne(matX, y)
+
+	dbgVérifieVrai(Abs(reg..Coefficients[1] - 2.0) < 0.0001, "coefficient unique retrouvé exactement : 2")
+	dbgVérifieVrai(Abs(reg..Ordonnée - 1.0) < 0.0001, "ordonnée à l'origine retrouvée exactement : 1")
+
+	preds est un Tenseur = reg.Prédit(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[3] - 7.0) < 0.0001, "ligne 3 (x=3) : prédiction = 7")
+FIN
+
+
+// Formes anglaises : MLLinearRegression / ..Intercept / .Train /
+// .Predict. Même jeu à une variable que le scénario FR.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	reg est une MLLinearRegression
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([3.0, 5.0, 7.0, 9.0])
+	reg.Train(matX, y)
+
+	dbgVérifieVrai(Abs(reg..Coefficients[1] - 2.0) < 0.0001, "Train EN : coefficient unique = 2")
+	dbgVérifieVrai(Abs(reg..Intercept - 1.0) < 0.0001, "Train EN : ..Intercept = 1")
+
+	preds est un Tenseur = reg.Predict(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[3] - 7.0) < 0.0001, "Predict EN : ligne 3 (x=3) = 7")
+FIN
+
+
+// Tailles incohérentes entre X (nombre de lignes) et y (nombre
+// d'éléments) : erreur récupérable, pas de crash ni de résultat inventé.
+PROCEDURE PUBLIQUE scenario_tailles_incoherentes_x_y()
+	ErreurRAZ()
+	reg est une MLRégressionLinéaire
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	reg.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "4 lignes dans X mais 3 valeurs dans y -> ErreurDétectée")
+FIN
+
+
+// Edge case (initiative test_writer) : coefficient négatif, pour
+// vérifier que le signe n'est pas perdu dans l'élimination de Gauss.
+PROCEDURE PRIVÉE scenario_edge_coefficient_negatif()
+	reg est une MLRégressionLinéaire
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([9.0, 7.0, 5.0, 3.0])
+	reg.Entraîne(matX, y)
+
+	dbgVérifieVrai(Abs(reg..Coefficients[1] - (-2.0)) < 0.0001, "pente négative retrouvée exactement : -2")
+	dbgVérifieVrai(Abs(reg..Ordonnée - 11.0) < 0.0001, "ordonnée à l'origine retrouvée exactement : 11")
+FIN
+
+
+// Edge case (initiative test_writer) : trois variables, pour vérifier
+// que ..Coefficients rend bien un poids par colonne au-delà de deux.
+PROCEDURE PRIVÉE scenario_edge_trois_variables()
+	reg est une MLRégressionLinéaire
+
+	matX est une Matrice = [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 0.0], [2.0, 1.0, 1.0]]
+	y est un Tenseur = Tenseur([8.0, 9.0, 7.0, 11.0])
+	reg.Entraîne(matX, y)
+
+	dbgVérifieVrai(Abs(reg..Coefficients[1] - 1.0) < 0.0001, "coefficient de x1 retrouvé exactement : 1")
+	dbgVérifieVrai(Abs(reg..Coefficients[2] - 2.0) < 0.0001, "coefficient de x2 retrouvé exactement : 2")
+	dbgVérifieVrai(Abs(reg..Coefficients[3] - 3.0) < 0.0001, "coefficient de x3 retrouvé exactement : 3")
+	dbgVérifieVrai(Abs(reg..Ordonnée - 4.0) < 0.0001, "ordonnée à l'origine retrouvée exactement : 4")
+FIN

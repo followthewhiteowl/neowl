@@ -1,0 +1,33 @@
+//  — ToucheRaccourci du bouton : non-regression des raccourcis
+// explicites en chaine (Alt / Ctrl / Shift / combinaisons).
+//
+// PORTEE DE CE TEST : le round-trip des raccourcis explicites declares.
+// Il verrouille que le fix du mnemonic (restauration de la QKeySequence du
+// libelle dans owl_ui_button_set_type_bouton / set_shortcut) n'a PAS casse la
+// prise en charge des raccourcis explicites.
+//
+// CE QUI N'EST PAS TESTABLE ICI : le mnemonic '&Lettre' lui-meme. La lecture
+// de ..ToucheRaccourci renvoie la valeur DECLAREE (store), pas la QKeySequence
+// vive du QPushButton ; or le mnemonic est un artefact du widget uniquement.
+// Son activation reelle (Alt+lettre) exige une boucle clavier absente en
+// offscreen. Validation : verification manuelle GUI (Alt+lettre) hors runner
+// + le raccourci mnemonic est bien pose sur le widget au montage (verifie).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_Mnemonic)
+
+dbgVérifieEgalité(BTN_Explicite..ToucheRaccourci, "Ctrl+S",
+"ToucheRaccourci explicite 'Ctrl+S' conservee")
+
+dbgVérifieEgalité(BTN_AltExpl..ToucheRaccourci, "Alt+P",
+"ToucheRaccourci explicite 'Alt+P' conservee (non-regression Alt)")
+
+dbgVérifieEgalité(BTN_Combo..ToucheRaccourci, "Ctrl+Shift+T",
+"ToucheRaccourci combo 'Ctrl+Shift+T' conservee")
+
+dbgVérifieEgalité(BTN_MnemoOverride..ToucheRaccourci, "Ctrl+W",
+"raccourci explicite conserve meme si le libelle porte un '&'")
+
+Ferme(FEN_Mnemonic)
+dbgBilanTest()

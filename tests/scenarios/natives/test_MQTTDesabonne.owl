@@ -1,0 +1,19 @@
+// @sujet : MQTTDésabonne
+// @résumé : Met fin à l'abonnement à un sujet du broker MQTT.
+
+
+// Se désabonner d'une session qui n'a jamais été connectée échoue
+// proprement : la native renvoie Faux et renseigne l'erreur courante.
+PROCEDURE scenario_desabonnement_sans_connexion()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-01"
+
+	ErreurRAZ()
+	bRetour est un booléen = MQTTDésabonne(sess, "capteurs/temperature")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "désabonnement sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "désabonnement sans connexion renseigne l'erreur courante")
+	dbgVérifieEgalité(sCode, "E_NATIVE_MQTT_SUBSCRIBE_FAILURE", "code d'erreur dédié à l'abonnement")
+FIN

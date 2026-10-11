@@ -1,0 +1,41 @@
+// Coverage du cast auto Buffer → String et de l'égalité Buffer ↔ String.
+// Conforme au comportement de référence (vrai cast type 28 → 16
+// et considère Buffer = String égaux en contenu).
+
+// ============================================================================
+// 1. Cast implicite à l'assignement typé: `est une chaîne = <Buffer>`
+// ============================================================================
+b1 est un buffer = ChaîneVersBuffer("hello")
+s1 est une chaîne = b1
+dbgVérifieEgalité(s1, "hello", "cast Buffer → String")
+dbgVérifieEgalité(Taille(s1), 5, "Taille codepoints après cast")
+
+// ASCII pur
+b2 est un buffer = Compresse("data")
+s2 est une chaîne = Décompresse(b2)
+dbgVérifieEgalité(s2, "data", "round-trip Compresse/Décompresse → chaîne")
+
+// UTF-8 multi-byte
+b3 est un buffer = ChaîneVersBuffer("café")
+s3 est une chaîne = b3
+dbgVérifieEgalité(s3, "café", "cast UTF-8 multi-byte")
+dbgVérifieEgalité(Taille(s3), 4, "Taille codepoints (4 chars 'café')")
+
+// ============================================================================
+// 2. Égalité Buffer ↔ String directe (sans var intermédiaire)
+// ============================================================================
+dbgVérifieEgalité(ChaîneVersBuffer("abc"), "abc", "Buffer = String directe")
+dbgVérifieEgalité("abc", ChaîneVersBuffer("abc"), "String = Buffer directe (symétrique)")
+dbgVérifieEgalité(Compresse("x"), Compresse("x"), "Buffer = Buffer même contenu")
+
+// Inégalité
+dbgVérifieFaux(Décompresse(Compresse("abc")) = "xyz", "contenu différent = faux")
+
+// ============================================================================
+// 3. Buffer vide
+// ============================================================================
+bVide est un buffer = ChaîneVersBuffer("")
+sVide est une chaîne = bVide
+dbgVérifieEgalité(sVide, "", "buffer vide → chaîne vide")
+
+dbgBilanTest()

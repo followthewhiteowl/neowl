@@ -1,0 +1,48 @@
+//  — la « répétition » d'un Interrupteur est la prop Options
+// existante (pas un sous-élément Style dédié) : 3 options doivent produire
+// 3 QCheckBox visibles, chacun avec l'indicator stylé via Style..CadreCoche.
+// On tranche la hauteur du champ en 3 bandes horizontales (une par option
+// attendue) et on vérifie que CHAQUE bande contient la couleur d'indicator
+// posée — preuve structurelle que les N options sont bien rendues, pas
+// seulement la première.
+//
+// ROUGE attendu : `Style..CadreCoche..CouleurFond` ne compile pas encore
+// (le type styleInterrupteur n'existe pas). Cf.
+// FEN_StyleInterrupteurOptionsRendu.owl.
+
+TestModeHeadless(Faux)
+
+couleurCoche est un entier = RVB(0, 200, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleInterrupteurOptionsRendu)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleInterrupteurOptionsRendu)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// INT_Multi occupe [20,20]-[320,170] : 3 bandes de 50px (une par option).
+nbBande1 est un entier = CompteCouleurZone(img, 20, 20, 320, 70, couleurCoche)
+nbBande2 est un entier = CompteCouleurZone(img, 20, 70, 320, 120, couleurCoche)
+nbBande3 est un entier = CompteCouleurZone(img, 20, 120, 320, 170, couleurCoche)
+
+dbgVérifieVrai(nbBande1 > 5, "option 1 (Un) : indicator stylé visible dans sa bande")
+dbgVérifieVrai(nbBande2 > 5, "option 2 (Deux) : indicator stylé visible dans sa bande")
+dbgVérifieVrai(nbBande3 > 5, "option 3 (Trois) : indicator stylé visible dans sa bande")
+
+Ferme(FEN_StyleInterrupteurOptionsRendu)
+dbgBilanTest()

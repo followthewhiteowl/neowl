@@ -1,0 +1,48 @@
+// Fichier-fenetre : deux procedures dont les parametres `x` shadowent la
+// globale top-level declaree dans main.owl voisin.
+//
+// Deui criteres cles du declencheur :
+//   1. Le parametre `x` emet un shadow E_SEM_VAR_SHADOWS_OUTER_SCOPE.
+//   2. La procedure contient des structures imbriquees (POUR + SI) dont les
+//      FIN desynchronisaient le parseur apres la recovery du shadow.
+//
+// Comportement ATTENDU : 2 erreurs shadow propres (une par procedure), aucun
+// WINDOW_CLOSED_EARLY, aucune declaration hors bloc.
+
+FEN_Test est une Fenetre
+	PROPRIETES
+		Largeur = 400
+		Hauteur = 200
+	FIN
+
+	serpentX est un tableau de entier
+	serpentY est un tableau de entier
+
+	LIB_Score est un Champ Libelle
+		PROPRIETES
+			Libelle = "Score"
+		FIN
+	FIN
+
+	// Proc 1 : param `x` shadow + boucle POUR + SI imbrique
+	PROCEDURE CollisionCorps(x est un entier, y est un entier) : booleen
+		nb est un entier = Taille(serpentX)
+		POUR i = 1 A nb - 1
+			SI serpentX[i] = x ET serpentY[i] = y ALORS
+				RENVOYER Vrai
+			FIN
+		FIN
+		RENVOYER Faux
+	FIN
+
+	// Proc 2 : meme declencheur, verifie qu'il n'y a pas de cascade entre procs
+	PROCEDURE SurSerpent(x est un entier, y est un entier) : booleen
+		nb est un entier = Taille(serpentX)
+		POUR i = 1 A nb
+			SI serpentX[i] = x ET serpentY[i] = y ALORS
+				RENVOYER Vrai
+			FIN
+		FIN
+		RENVOYER Faux
+	FIN
+FIN

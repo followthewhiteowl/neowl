@@ -1,0 +1,230 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Convertit une chaîne en buffer d'octets selon l'encodage cible. Sans deuxième argument, produit les octets UTF-8 de la chaîne, comportement inchangé par rapport aux versions antérieures. Avec un encodage explicite (encUTF8, encLatin1, encWindows1252, encUTF16LE, encUTF16BE), transcode les codepoints vers l'encodage demandé octet par octet. Tout caractère non représentable dans l'encodage cible est remplacé par l'octet 63 (caractère '?').
+
+
+// Cas A : comportement par défaut sans argument d'encodage.
+// Les octets produits sont inchangés par rapport aux versions antérieures.
+PROCEDURE PUBLIQUE scenario_cvb_utf8_defaut_retrocompatible()
+	buf est un buffer = ChaîneVersBuffer("café")
+	dbgVérifieEgalité(Taille(buf), 5, "café sans encodage = 5 octets (é occupe 2 octets)")
+	n4 est un entier = BufferLitOctet(buf, 4)
+	n5 est un entier = BufferLitOctet(buf, 5)
+	dbgVérifieEgalité(n4, 195, "4e octet de café = 195 (premier octet de é en UTF-8)")
+	dbgVérifieEgalité(n5, 169, "5e octet de café = 169 (second octet de é en UTF-8)")
+FIN
+
+
+// Cas B : argument encUTF8 explicite — résultat identique au défaut.
+PROCEDURE PUBLIQUE scenario_cvb_utf8_explicite()
+	buf est un buffer = ChaîneVersBuffer("café", encUTF8)
+	dbgVérifieEgalité(Taille(buf), 5, "café avec encUTF8 = 5 octets, identique au défaut")
+	n4 est un entier = BufferLitOctet(buf, 4)
+	n5 est un entier = BufferLitOctet(buf, 5)
+	dbgVérifieEgalité(n4, 195, "4e octet = 195 (premier octet de é)")
+	dbgVérifieEgalité(n5, 169, "5e octet = 169 (second octet de é)")
+FIN
+
+
+// Cas C : encodage Europe occidentale (encLatin1) — é représentable sur 1 octet.
+PROCEDURE PUBLIQUE scenario_cvb_latin1_representable()
+	buf est un buffer = ChaîneVersBuffer("é", encLatin1)
+	dbgVérifieEgalité(Taille(buf), 1, "é en Latin-1 = 1 octet")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 233, "é en Latin-1 = octet 233")
+FIN
+
+
+// Cas D : encodage Europe occidentale (encLatin1) — € non représentable → octet 63 ('?').
+PROCEDURE PUBLIQUE scenario_cvb_latin1_non_representable()
+	buf est un buffer = ChaîneVersBuffer("€", encLatin1)
+	dbgVérifieEgalité(Taille(buf), 1, "€ non représentable en Latin-1 → 1 octet de remplacement")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 63, "€ non représentable en Latin-1 → octet 63")
+FIN
+
+
+// Cas E : encodage Windows-1252 — € représentable (octet 128).
+PROCEDURE PUBLIQUE scenario_cvb_windows1252_euro()
+	buf est un buffer = ChaîneVersBuffer("€", encWindows1252)
+	dbgVérifieEgalité(Taille(buf), 1, "€ en Windows-1252 = 1 octet")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 128, "€ en Windows-1252 = octet 128")
+FIN
+
+
+// Cas F : encodage Windows-1252 — œ (U+0153) représentable (octet 156).
+PROCEDURE PUBLIQUE scenario_cvb_windows1252_oe()
+	buf est un buffer = ChaîneVersBuffer("œ", encWindows1252)
+	dbgVérifieEgalité(Taille(buf), 1, "œ en Windows-1252 = 1 octet")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 156, "œ en Windows-1252 = octet 156")
+FIN
+
+
+// Cas G : encodage Windows-1252 — guillemet courbe gauche (U+201C) représentable (octet 147).
+PROCEDURE PUBLIQUE scenario_cvb_windows1252_guillemet_courbe()
+	buf est un buffer = ChaîneVersBuffer(`“`, encWindows1252)
+	dbgVérifieEgalité(Taille(buf), 1, "guillemet courbe gauche en Windows-1252 = 1 octet")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 147, "guillemet courbe gauche en Windows-1252 = octet 147")
+FIN
+
+
+// Cas H : encodage UTF-16 petit-boutiste (encUTF16LE) — "Aé" → 4 octets.
+// Chaque codepoint BMP occupe 2 octets, octet de poids faible en premier.
+PROCEDURE PUBLIQUE scenario_cvb_utf16le()
+	buf est un buffer = ChaîneVersBuffer("Aé", encUTF16LE)
+	dbgVérifieEgalité(Taille(buf), 4, "Aé en UTF-16LE = 4 octets (2 par codepoint BMP)")
+	n1 est un entier = BufferLitOctet(buf, 1)
+	n2 est un entier = BufferLitOctet(buf, 2)
+	n3 est un entier = BufferLitOctet(buf, 3)
+	n4 est un entier = BufferLitOctet(buf, 4)
+	dbgVérifieEgalité(n1, 65, "octet 1 : poids faible de A (65)")
+	dbgVérifieEgalité(n2, 0, "octet 2 : poids fort de A (0)")
+	dbgVérifieEgalité(n3, 233, "octet 3 : poids faible de é (233)")
+	dbgVérifieEgalité(n4, 0, "octet 4 : poids fort de é (0)")
+FIN
+
+
+// Cas I : encodage UTF-16 grand-boutiste (encUTF16BE) — "Aé" → 4 octets.
+// Chaque codepoint BMP occupe 2 octets, octet de poids fort en premier.
+PROCEDURE PUBLIQUE scenario_cvb_utf16be()
+	buf est un buffer = ChaîneVersBuffer("Aé", encUTF16BE)
+	dbgVérifieEgalité(Taille(buf), 4, "Aé en UTF-16BE = 4 octets")
+	n1 est un entier = BufferLitOctet(buf, 1)
+	n2 est un entier = BufferLitOctet(buf, 2)
+	n3 est un entier = BufferLitOctet(buf, 3)
+	n4 est un entier = BufferLitOctet(buf, 4)
+	dbgVérifieEgalité(n1, 0, "octet 1 : poids fort de A (0)")
+	dbgVérifieEgalité(n2, 65, "octet 2 : poids faible de A (65)")
+	dbgVérifieEgalité(n3, 0, "octet 3 : poids fort de é (0)")
+	dbgVérifieEgalité(n4, 233, "octet 4 : poids faible de é (233)")
+FIN
+
+
+// Cas J : caractère hors des 256 premiers codepoints, non représentable en Latin-1 → octet 63 ('?').
+PROCEDURE PUBLIQUE scenario_cvb_cjk_latin1_non_representable()
+	buf est un buffer = ChaîneVersBuffer("中", encLatin1)
+	dbgVérifieEgalité(Taille(buf), 1, "中 non représentable en Latin-1 → 1 octet de remplacement")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 63, "中 en Latin-1 → octet 63 ('?')")
+FIN
+
+
+// Cas K : caractère hors des 256 premiers codepoints, non représentable en Windows-1252 → octet 63 ('?').
+PROCEDURE PUBLIQUE scenario_cvb_cjk_windows1252_non_representable()
+	buf est un buffer = ChaîneVersBuffer("中", encWindows1252)
+	dbgVérifieEgalité(Taille(buf), 1, "中 non représentable en Windows-1252 → 1 octet de remplacement")
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 63, "中 en Windows-1252 → octet 63 ('?')")
+FIN
+
+
+// Edge case : chaîne vide — buffer vide quelle que soit l'encodage.
+PROCEDURE PRIVÉE scenario_cvb_edge_chaine_vide()
+	buf est un buffer = ChaîneVersBuffer("", encUTF8)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide → buffer de 0 octet")
+FIN
+
+
+// Edge case : texte ASCII pur en Latin-1 — valeurs identiques aux codes ASCII.
+PROCEDURE PRIVÉE scenario_cvb_edge_ascii_latin1()
+	buf est un buffer = ChaîneVersBuffer("ABC", encLatin1)
+	dbgVérifieEgalité(Taille(buf), 3, "ASCII pur en Latin-1 = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67")
+FIN
+
+
+// Edge case : texte ASCII pur en Windows-1252 — mêmes valeurs qu'en Latin-1.
+PROCEDURE PRIVÉE scenario_cvb_edge_ascii_windows1252()
+	buf est un buffer = ChaîneVersBuffer("ABC", encWindows1252)
+	dbgVérifieEgalité(Taille(buf), 3, "ASCII pur en Windows-1252 = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67")
+FIN
+
+
+// --- Extension longueur fixe (3e argument optionnel) ---
+
+
+// Cas L : taille fixe avec padding — "AB" en Windows-1252 calé à 5 octets.
+// "AB" occupe 2 octets (0x41, 0x42) ; les 3 octets restants sont des zéros.
+PROCEDURE PUBLIQUE scenario_cvb_longueur_padding()
+	buf est un buffer = ChaîneVersBuffer("AB", encWindows1252, 5)
+	dbgVérifieEgalité(Taille(buf), 5, "ChaîneVersBuffer longueur 5 produit 5 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	o3 est un entier = BufferLitOctet(buf, 3)
+	o4 est un entier = BufferLitOctet(buf, 4)
+	o5 est un entier = BufferLitOctet(buf, 5)
+	dbgVérifieEgalité(o1, 65, "octet 1 = 65 ('A')")
+	dbgVérifieEgalité(o2, 66, "octet 2 = 66 ('B')")
+	dbgVérifieEgalité(o3, 0, "octet 3 = 0 (padding)")
+	dbgVérifieEgalité(o4, 0, "octet 4 = 0 (padding)")
+	dbgVérifieEgalité(o5, 0, "octet 5 = 0 (padding)")
+FIN
+
+
+// Cas M : taille fixe exacte — "AB" calé à 2 octets, aucun padding ajouté.
+PROCEDURE PUBLIQUE scenario_cvb_longueur_exacte()
+	buf est un buffer = ChaîneVersBuffer("AB", encWindows1252, 2)
+	dbgVérifieEgalité(Taille(buf), 2, "ChaîneVersBuffer longueur = taille encodée = 2 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	dbgVérifieEgalité(o1, 65, "octet 1 = 65 ('A')")
+	dbgVérifieEgalité(o2, 66, "octet 2 = 66 ('B')")
+FIN
+
+
+// Cas N : dépassement — "ABCDE" (5 octets encodés en Windows-1252) ne tient pas dans 3 octets.
+PROCEDURE PUBLIQUE scenario_cvb_longueur_depassement()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		ChaîneVersBuffer("ABCDE", encWindows1252, 3)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "5 octets encodés ne tiennent pas dans 3 → exception")
+FIN
+
+
+// Cas O : encodage UTF-16LE avec longueur fixe — "é" produit 2 octets (E9 00), padé à 4.
+// é (U+00E9) en UTF-16LE : octet de poids faible = 233 (0xE9), poids fort = 0.
+// Après padding à 4 octets : octets 3 et 4 valent 0.
+PROCEDURE PUBLIQUE scenario_cvb_longueur_utf16le_padding()
+	buf est un buffer = ChaîneVersBuffer("é", encUTF16LE, 4)
+	dbgVérifieEgalité(Taille(buf), 4, "é en UTF-16LE padé à 4 = 4 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	o3 est un entier = BufferLitOctet(buf, 3)
+	o4 est un entier = BufferLitOctet(buf, 4)
+	dbgVérifieEgalité(o1, 233, "octet 1 = 233 (0xE9 — poids faible de é en UTF-16LE)")
+	dbgVérifieEgalité(o2, 0, "octet 2 = 0 (poids fort de é en UTF-16LE)")
+	dbgVérifieEgalité(o3, 0, "octet 3 = 0 (padding)")
+	dbgVérifieEgalité(o4, 0, "octet 4 = 0 (padding)")
+FIN
+
+
+// Edge case longueur fixe : chaîne vide avec longueur 3 → 3 octets nuls.
+PROCEDURE PRIVÉE scenario_edge_cvb_longueur_vide_padded()
+	buf est un buffer = ChaîneVersBuffer("", encUTF8, 3)
+	dbgVérifieEgalité(Taille(buf), 3, "chaîne vide avec longueur 3 → 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 0, "octet 1 = 0")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 0, "octet 2 = 0")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 0, "octet 3 = 0")
+FIN
+
+
+// Edge case longueur fixe : longueur 0 avec chaîne non vide → exception.
+PROCEDURE PRIVÉE scenario_edge_cvb_longueur_zero_depassement()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		ChaîneVersBuffer("A", encUTF8, 0)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "1 octet encodé ne tient pas dans 0 → exception")
+FIN

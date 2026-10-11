@@ -1,0 +1,229 @@
+// @sujet : MLForêtAléatoire — ensemble d'arbres CART (bagging + variables aléatoires)
+// @résumé : MLForêtAléatoire entraîne `..NbArbres` arbres CART, chacun sur un
+// échantillon bootstrap des lignes et un sous-ensemble aléatoire de
+// `..VariablesParSéparation` variables par split. La prédiction agrège les
+// arbres (vote majoritaire en classification, moyenne en régression).
+// `..Graine` pilote tout le tirage aléatoire : à graine fixe, l'entraînement
+// est intégralement reproductible. Les scénarios ci-dessous s'appuient sur
+// des jeux de données parfaitement séparables (chaque arbre individuel les
+// sépare, quel que soit son tirage bootstrap/variables), ce qui garantit des
+// prédictions exactes sans dépendre du hasard interne.
+
+
+// Deux groupes d'une seule variable, largement séparés (1..4 vs 11..14) :
+// chaque arbre de la forêt, quel que soit son échantillon bootstrap, sépare
+// parfaitement les deux classes. La forêt prédit donc exactement, sans
+// dépendre du tirage aléatoire.
+PROCEDURE PUBLIQUE scenario_classification_deux_clusters_separes()
+	foret est une MLForêtAléatoire
+	foret..Objectif = objClassification
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+	foret.Entraîne(matX, y)
+
+	preds est un Tenseur = foret.Prédit(matX)
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "cluster gauche : classe 0")
+	dbgVérifieEgalité(preds..Valeur[4], 0.0, "cluster gauche : classe 0")
+	dbgVérifieEgalité(preds..Valeur[5], 1.0, "cluster droit : classe 1")
+	dbgVérifieEgalité(preds..Valeur[8], 1.0, "cluster droit : classe 1")
+FIN
+
+
+// Régression, marche d'escalier nette (10 pour x<=4, 30 pour x>4). La forêt
+// agrège par MOYENNE : la grande majorité des arbres représente la marche
+// sans résidu, mais avec le bootstrap une poignée d'arbres (échantillon
+// ratant un cluster) peut prédire une constante. La moyenne d'ensemble est
+// donc TRÈS PROCHE de 10/30 sans être bit-exacte -> on vérifie le bon NIVEAU
+// (tolérance large), pas l'égalité stricte (à la différence de l'arbre seul,
+// déterministe). Le contraste avec la classification, robuste par vote
+// majoritaire, est volontaire.
+PROCEDURE PUBLIQUE scenario_regression_marche_escalier()
+	foret est une MLForêtAléatoire
+	foret..Objectif = objRégression
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]
+	y est un Tenseur = Tenseur([10.0, 10.0, 10.0, 10.0, 30.0, 30.0, 30.0, 30.0])
+	foret.Entraîne(matX, y)
+
+	preds est un Tenseur = foret.Prédit(matX)
+	dbgVérifieVrai(Abs(preds..Valeur[1] - 10.0) < 2.0, "marche basse : moyenne d'ensemble ≈ 10")
+	dbgVérifieVrai(Abs(preds..Valeur[8] - 30.0) < 2.0, "marche haute : moyenne d'ensemble ≈ 30")
+FIN
+
+
+// Reproductibilité : deux forêts entraînées avec la même ..Graine, sur les
+// mêmes données et les mêmes hyperparamètres, produisent des prédictions
+// strictement identiques ligne à ligne. C'est le cœur du contrat de
+// déterminisme (pilier 2 : rien n'est aléatoire sans contrôle explicite).
+PROCEDURE PUBLIQUE scenario_graine_reproductibilite()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	foretA est une MLForêtAléatoire
+	foretA..Objectif = objClassification
+	foretA..Graine   = 42
+	foretA.Entraîne(matX, y)
+	predsA est un Tenseur = foretA.Prédit(matX)
+
+	foretB est une MLForêtAléatoire
+	foretB..Objectif = objClassification
+	foretB..Graine   = 42
+	foretB.Entraîne(matX, y)
+	predsB est un Tenseur = foretB.Prédit(matX)
+
+	dbgVérifieEgalité(predsA..Valeur[1], predsB..Valeur[1], "même graine, même donnée -> même prédiction ligne 1")
+	dbgVérifieEgalité(predsA..Valeur[4], predsB..Valeur[4], "même graine, même donnée -> même prédiction ligne 4")
+	dbgVérifieEgalité(predsA..Valeur[5], predsB..Valeur[5], "même graine, même donnée -> même prédiction ligne 5")
+	dbgVérifieEgalité(predsA..Valeur[8], predsB..Valeur[8], "même graine, même donnée -> même prédiction ligne 8")
+FIN
+
+
+// ..NbArbres pilote la taille de l'ensemble : sur un jeu séparable, une
+// petite forêt (5 arbres) et une grande forêt (50 arbres) doivent toutes
+// deux classifier parfaitement (chaque arbre individuel sépare quel que
+// soit son tirage). Angle déterministe, pas de comparaison de performance.
+PROCEDURE PUBLIQUE scenario_nbarbres_petit_et_grand_ensemble()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	foretPetite est une MLForêtAléatoire
+	foretPetite..Objectif = objClassification
+	foretPetite..NbArbres = 5
+	foretPetite.Entraîne(matX, y)
+	predsPetite est un Tenseur = foretPetite.Prédit(matX)
+	dbgVérifieEgalité(predsPetite..Valeur[1], 0.0, "5 arbres : cluster gauche = classe 0")
+	dbgVérifieEgalité(predsPetite..Valeur[8], 1.0, "5 arbres : cluster droit = classe 1")
+
+	foretGrande est une MLForêtAléatoire
+	foretGrande..Objectif = objClassification
+	foretGrande..NbArbres = 50
+	foretGrande.Entraîne(matX, y)
+	predsGrande est un Tenseur = foretGrande.Prédit(matX)
+	dbgVérifieEgalité(predsGrande..Valeur[1], 0.0, "50 arbres : cluster gauche = classe 0")
+	dbgVérifieEgalité(predsGrande..Valeur[8], 1.0, "50 arbres : cluster droit = classe 1")
+FIN
+
+
+// ..VariablesParSéparation borne le nombre de variables candidates à chaque
+// split. Pour tester son effet sans dépendre de QUELLE variable est tirée,
+// les 3 colonnes de X portent la MÊME information (valeurs identiques) :
+// peu importe laquelle des 3 est choisie à chaque split (candidat réduit à
+// 1 seule variable), le signal est toujours présent -> séparation garantie,
+// déterministe malgré le tirage aléatoire des variables.
+PROCEDURE PUBLIQUE scenario_variablesparseparation_borne_candidats()
+	foret est une MLForêtAléatoire
+	foret..Objectif               = objClassification
+	foret..VariablesParSéparation = 1
+
+	matX est une Matrice = [[1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [3.0, 3.0, 3.0], [4.0, 4.0, 4.0], [11.0, 11.0, 11.0], [12.0, 12.0, 12.0], [13.0, 13.0, 13.0], [14.0, 14.0, 14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+	foret.Entraîne(matX, y)
+
+	preds est un Tenseur = foret.Prédit(matX)
+	dbgVérifieEgalité(preds..Valeur[1], 0.0, "1 seule variable candidate par split, mais les 3 colonnes portent le même signal : cluster gauche = classe 0")
+	dbgVérifieEgalité(preds..Valeur[8], 1.0, "idem : cluster droit = classe 1")
+FIN
+
+
+// `.Entraîne` sans `..Objectif` réglé est une erreur récupérable (même
+// convention que MLArbreDécision). Vérification d'`ErreurDétectée` avant
+// toute autre instruction (la sentinelle ne survit qu'à un OP_CALL).
+PROCEDURE PUBLIQUE scenario_objectif_obligatoire_avant_entraine()
+	ErreurRAZ()
+	foret est une MLForêtAléatoire
+	matX est une Matrice = [[1.0], [2.0]]
+	y est un Tenseur = Tenseur([0.0, 1.0])
+	foret.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "Entraîne sans Objectif réglé -> ErreurDétectée")
+FIN
+
+
+// Tailles incohérentes entre X (nombre de lignes) et y (nombre
+// d'éléments) : erreur récupérable, pas de crash ni de résultat inventé.
+PROCEDURE PUBLIQUE scenario_tailles_incoherentes_x_y()
+	ErreurRAZ()
+	foret est une MLForêtAléatoire
+	foret..Objectif = objClassification
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0]]
+	y est un Tenseur = Tenseur([0.0, 1.0, 1.0])
+	foret.Entraîne(matX, y)
+	dbgVérifieVrai(ErreurDétectée, "4 lignes dans X mais 3 valeurs dans y -> ErreurDétectée")
+FIN
+
+
+// Formes anglaises : MLRandomForest / ..Objective / ..NumTrees / ..Seed /
+// .Train / .Predict. Reprend le scénario de reproductibilité en formes EN.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_mlrandomforest()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	foretA est une MLRandomForest
+	foretA..Objective = objClassification
+	foretA..NumTrees  = 10
+	foretA..Seed      = 7
+	foretA.Train(matX, y)
+	predsA est un Tenseur = foretA.Predict(matX)
+
+	foretB est une MLRandomForest
+	foretB..Objective = objClassification
+	foretB..NumTrees  = 10
+	foretB..Seed      = 7
+	foretB.Train(matX, y)
+	predsB est un Tenseur = foretB.Predict(matX)
+
+	dbgVérifieEgalité(predsA..Valeur[1], 0.0, "Train/Predict EN : cluster gauche = classe 0")
+	dbgVérifieEgalité(predsA..Valeur[8], 1.0, "Train/Predict EN : cluster droit = classe 1")
+	dbgVérifieEgalité(predsA..Valeur[1], predsB..Valeur[1], "Seed EN identique -> reproductibilité ligne 1")
+	dbgVérifieEgalité(predsA..Valeur[8], predsB..Valeur[8], "Seed EN identique -> reproductibilité ligne 8")
+FIN
+
+
+// Edge case (initiative test_writer) : deux graines différentes restent
+// toutes deux des tirages VALIDES sur un jeu séparable -> l'exactitude
+// reste 1.0 quelle que soit la graine (angle non-flaky : on ne compare pas
+// les deux forêts entre elles, on vérifie juste que chacune reste correcte).
+PROCEDURE PRIVÉE scenario_edge_graines_differentes_restent_correctes()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	foret1 est une MLForêtAléatoire
+	foret1..Objectif = objClassification
+	foret1..Graine   = 1
+	foret1.Entraîne(matX, y)
+	preds1 est un Tenseur = foret1.Prédit(matX)
+	taux1 est un réel = Exactitude(preds1, y)
+	dbgVérifieEgalité(taux1, 1.0, "graine=1 : jeu séparable -> exactitude 1.0")
+
+	foret2 est une MLForêtAléatoire
+	foret2..Objectif = objClassification
+	foret2..Graine   = 999
+	foret2.Entraîne(matX, y)
+	preds2 est un Tenseur = foret2.Prédit(matX)
+	taux2 est un réel = Exactitude(preds2, y)
+	dbgVérifieEgalité(taux2, 1.0, "graine=999 : jeu séparable -> exactitude 1.0")
+FIN
+
+
+// Edge case (initiative test_writer) : ..Graine=0 explicite doit se
+// comporter comme la valeur par défaut (0 = graine fixe reproductible),
+// pas comme "aucune graine". Deux forêts, l'une par défaut, l'autre avec
+// ..Graine=0 réglée explicitement, doivent produire les mêmes prédictions.
+PROCEDURE PRIVÉE scenario_edge_graine_zero_egale_defaut()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [4.0], [11.0], [12.0], [13.0], [14.0]]
+	y est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+
+	foretDefaut est une MLForêtAléatoire
+	foretDefaut..Objectif = objClassification
+	foretDefaut.Entraîne(matX, y)
+	predsDefaut est un Tenseur = foretDefaut.Prédit(matX)
+
+	foretExplicite est une MLForêtAléatoire
+	foretExplicite..Objectif = objClassification
+	foretExplicite..Graine   = 0
+	foretExplicite.Entraîne(matX, y)
+	predsExplicite est un Tenseur = foretExplicite.Prédit(matX)
+
+	dbgVérifieEgalité(predsDefaut..Valeur[1], predsExplicite..Valeur[1], "Graine=0 explicite = défaut, ligne 1 identique")
+	dbgVérifieEgalité(predsDefaut..Valeur[8], predsExplicite..Valeur[8], "Graine=0 explicite = défaut, ligne 8 identique")
+FIN

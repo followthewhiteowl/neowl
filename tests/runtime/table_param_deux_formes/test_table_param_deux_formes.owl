@@ -1,0 +1,86 @@
+//  — VERROU test-first (VOIE A) : le 1er param des natives Table
+// (TableAjouteLigne, TableSupprime, TableModifieLigne...) va être retypé
+// de "tout" vers "Champ Table". Ce fichier verrouille que les DEUX formes
+// d'appel historiques restent valides après le retypage :
+//   - forme référence : TableAjouteLigne(TAB_Articles, ...)
+//   - forme nom-chaîne : TableAjouteLigne("TAB_Articles", ...)
+//
+// Ces scénarios sont VERTS dès maintenant (comportement actuel avec le
+// param "tout") et DOIVENT rester verts après l'implémentation du
+// retypage — c'est le filet de non-régression du ticket.
+//
+// TableSelect/TableSelectPlus sont volontairement absents d'ici : ce sont
+// des no-op en mode headless (widget non monté), donc pas testables dans
+// ce fichier — hors scope de ce verrou.
+
+TestModeHeadless(Vrai)
+
+
+PROCEDURE PUBLIQUE scenario_tableAjouteLigne_forme_reference()
+	Ouvre(FEN_TableParamFormes)
+
+	TableAjouteLigne(TAB_Articles, "Clavier")
+	nOcc est un entier = TableOccurrence(TAB_Articles)
+	dbgVérifieEgalité(nOcc, 1, "forme référence : TableAjouteLigne(TAB_Articles, ...) ajoute la ligne")
+	dbgVérifieEgalité(TAB_Articles.COL_Nom[1], "Clavier", "forme référence : la valeur ajoutée est lisible en colonne")
+
+	Ferme(FEN_TableParamFormes)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableAjouteLigne_forme_nom_chaine()
+	Ouvre(FEN_TableParamFormes)
+
+	TableAjouteLigne("TAB_Articles", "Souris")
+	nOcc est un entier = TableOccurrence("TAB_Articles")
+	dbgVérifieEgalité(nOcc, 1, `forme nom-chaîne : TableAjouteLigne("TAB_Articles", ...) ajoute la ligne`)
+	dbgVérifieEgalité(TAB_Articles.COL_Nom[1], "Souris", "forme nom-chaîne : la ligne est visible via la référence")
+
+	Ferme(FEN_TableParamFormes)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableSupprime_forme_reference()
+	Ouvre(FEN_TableParamFormes)
+
+	TableAjouteLigne(TAB_Articles, "Écran")
+	TableSupprime(TAB_Articles, 1)
+	nOcc est un entier = TableOccurrence(TAB_Articles)
+	dbgVérifieEgalité(nOcc, 0, "forme référence : TableSupprime(TAB_Articles, 1) retire la ligne")
+
+	Ferme(FEN_TableParamFormes)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableSupprime_forme_nom_chaine()
+	Ouvre(FEN_TableParamFormes)
+
+	TableAjouteLigne(TAB_Articles, "Tapis de souris")
+	TableSupprime("TAB_Articles", 1)
+	nOcc est un entier = TableOccurrence("TAB_Articles")
+	dbgVérifieEgalité(nOcc, 0, `forme nom-chaîne : TableSupprime("TAB_Articles", 1) retire la ligne`)
+
+	Ferme(FEN_TableParamFormes)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableModifieLigne_forme_reference()
+	Ouvre(FEN_TableParamFormes)
+
+	TableAjouteLigne(TAB_Articles, "Casque")
+	TableModifieLigne(TAB_Articles, 1, "Casque sans fil")
+	dbgVérifieEgalité(TAB_Articles.COL_Nom[1], "Casque sans fil", "forme référence : TableModifieLigne(TAB_Articles, 1, ...) modifie la ligne")
+
+	Ferme(FEN_TableParamFormes)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableModifieLigne_forme_nom_chaine()
+	Ouvre(FEN_TableParamFormes)
+
+	TableAjouteLigne(TAB_Articles, "Webcam")
+	TableModifieLigne("TAB_Articles", 1, "Webcam HD")
+	dbgVérifieEgalité(TAB_Articles.COL_Nom[1], "Webcam HD", `forme nom-chaîne : TableModifieLigne("TAB_Articles", 1, ...) modifie la ligne`)
+
+	Ferme(FEN_TableParamFormes)
+FIN

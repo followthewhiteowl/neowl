@@ -1,0 +1,27 @@
+// Test : résolution accent-insensible d'un widget frère SUIVANT un bloc colonne.
+//
+// Le bloc colonne d'une Table ne doit pas désynchroniser le scope du widget
+// frère déclaré juste après : ce frère, s'il porte un nom accentué
+// (TAB_Résultats), doit rester résoluble par sa forme SANS accent
+// (TAB_Resultats) — invariant 2 du langage (accent-insensible au runtime).
+//
+// La fenêtre voisine FEN_ApresColonne.owl porte la déclaration.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ApresColonne)
+
+// Le littéral multilingue { ... } exige que le compilateur reconnaisse
+// TAB_Resultats comme un widget (typage de la prop cible via le prescan).
+// C'est ce chemin que le bug de désync cassait : le frère suivant la
+// colonne n'était pas pré-enregistré, d'où « littéral sans type cible ».
+TAB_Resultats..Bulle = {langueFrançais: "Résultats", langueAnglais: "Results"}
+dbgVérifieEgalité(TAB_Resultats..Bulle[langueFrançais], "Résultats",
+"frère accentué après colonne : forme sans accent OK")
+
+// Relecture via la forme ACCENTUÉE : résout le même widget.
+dbgVérifieEgalité(TAB_Résultats..Bulle[langueAnglais], "Results",
+"frère accentué après colonne : cross-form accent OK")
+
+Ferme(FEN_ApresColonne)
+dbgBilanTest()

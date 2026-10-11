@@ -1,0 +1,20 @@
+//  : même défaut sur un type OBJET, pas seulement sur une structure
+// utilisateur. Un tableau dimensionné de httpRequête pré-instancie ses
+// éléments, et écrire une propriété d'une cellule jamais construite marche.
+tReq est un tableau de 3 httpRequête
+
+dbgVérifieEgalité(tReq..Occurrence, 3, "1398 : trois requêtes déclarées")
+
+dbgVérifieEgalité(tReq[2]..URL, "", "1398 : propriété d'un objet jamais écrit rend la valeur par défaut, pas une erreur")
+
+tReq[1]..URL = "https://exemple.test/ping"
+dbgVérifieEgalité(tReq[1]..URL, "https://exemple.test/ping", "1398 : écriture puis relecture d'une propriété de la première cellule")
+dbgVérifieEgalité(tReq[2]..URL, "", "1398 : les trois objets sont indépendants, la cellule 2 n'a pas bougé")
+dbgVérifieEgalité(tReq[3]..URL, "", "1398 : les trois objets sont indépendants, la cellule 3 n'a pas bougé")
+
+tReq[3]..URL = "https://exemple.test/status"
+dbgVérifieEgalité(tReq[3]..URL, "https://exemple.test/status", "1398 : la cellule 3 porte sa propre valeur")
+dbgVérifieEgalité(tReq[1]..URL, "https://exemple.test/ping", "1398 : écrire la cellule 3 ne réécrit pas la cellule 1")
+dbgVérifieEgalité(tReq[2]..URL, "", "1398 : la cellule 2 reste vide")
+
+dbgBilanTest()

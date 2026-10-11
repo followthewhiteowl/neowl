@@ -1,0 +1,101 @@
+//  lot2 — backing monétaire int128
+// Borne actuelle : int64 × 10^6 ≈ ±9.223×10^12 (9.2 trillions)
+// Borne cible    : int128 × 10^6 ≈ ±1.7×10^32
+//
+// Parser 0m : strtoll("100000000000000") = 10^14 (rentre en int64 OK),
+// puis scaled = 10^14 × 10^6 = 10^20 > INT64_MAX → overflow int64 silencieux.
+// La sérialisation révèle la valeur poubelle (≠ valeur attendue) → rouge pour bonne raison.
+//
+// Note : fn_monetaire_coerce IS_NUMERIC + mur int64 déjà implémentés (lot 1).
+// Ce lot 2 déplace le mur de int64 (~9.2T) à int128 (~1.7×10^32).
+//
+// Tests G* (VERTS) : gardes anti-régression.
+// Tests R* (ROUGES) : valeurs > borne int64, passeront en int128 après impl.
+
+// ===== GARDE 1 : petits montants inchangés =====
+
+// 9×10^12 × 10^6 = 9×10^18 < INT64_MAX (≈9.223×10^18) → rentre dans int64 actuel.
+PROCEDURE PUBLIQUE test_g1_petits_montants_anti_regression()
+	mNeuf est un monétaire = 0m9000000000000.00
+	sSer est une chaîne = "" + mNeuf
+	dbgVérifieEgalité(sSer, "9000000000000", "9T : rentre dans int64 actuel (garde int128 non-régression)")
+	mPrecis est un monétaire = 0m0.1 + 0m0.2
+	dbgVérifieEgalité(mPrecis, 0m0.3, "0.1 + 0.2 = 0.3 exact (6 décimales, garde int128)")
+FIN
+
+
+// ===== GARDE 2 : mur existe toujours au-delà de int128×10^6 =====
+// numérique(10^33) > int128 max / 10^6 (≈1.7×10^32) → doit lever exception aussi après int128.
+// Actuellement : mur int64 rattrape 10^33. Après impl : mur int128 rattrape 10^33 aussi.
+// Vert avant ET après impl — garde que le mur ne disparaît pas.
+PROCEDURE PUBLIQUE test_g2_mur_existe_au_dela_borne_int128()
+	nBase est un entier = 10000000000
+	n20 est un numérique = nBase * nBase
+	n30 est un numérique = n20 * nBase
+	n33 est un numérique = n30 * 1000
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		mMur est un monétaire = n33
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "numérique(10^33) → monétaire : mur (dépasse int128×10^6 max ≈1.7×10^32)")
+FIN
+
+
+// ===== ROUGE 1 : 0m littéral 10^14 — overflow int64 ×10^6 =====
+// strtoll("100000000000000") = 10^14 (rentre int64), scaled = 10^14×10^6 = 10^20 > INT64_MAX.
+// Wrappe en int64 → sérialisation ≠ "100000000000000".
+PROCEDURE PUBLIQUE test_r1_monetaire_10pow14_literal_stocke_exact()
+	mGrand est un monétaire = 0m100000000000000.00
+	sSer est une chaîne = "" + mGrand
+	dbgVérifieEgalité(sSer, "100000000000000", "monétaire 10^14 via 0m littéral : sérialisé exact")
+FIN
+
+
+// ===== ROUGE 2 : 0m littéral 10^16 =====
+// 10^16 × 10^6 = 10^22 → wrappe en int64 → valeur fausse.
+PROCEDURE PUBLIQUE test_r2_monetaire_10pow16_literal_stocke_exact()
+	mSeize est un monétaire = 0m10000000000000000.00
+	sSer est une chaîne = "" + mSeize
+	dbgVérifieEgalité(sSer, "10000000000000000", "monétaire 10^16 via 0m littéral : sérialisé exact")
+FIN
+
+
+// ===== ROUGE 3 : arithmétique de grands montants =====
+// m1 = 5×10^13 : scaled = 5×10^19 > INT64_MAX → wrappe (valeur fausse).
+// m1 + m2 doublement fausse.
+PROCEDURE PUBLIQUE test_r3_arithmetique_grands_montants()
+	m1 est un monétaire = 0m50000000000000.00
+	m2 est un monétaire = 0m50000000000000.00
+	mSum est un monétaire = m1 + m2
+	sSer est une chaîne = "" + mSum
+	dbgVérifieEgalité(sSer, "100000000000000", "50T + 50T = 100T (arithmétique grands montants int128)")
+FIN
+
+
+// ===== ROUGE 4 : 0m négatif large =====
+PROCEDURE PUBLIQUE test_r4_monetaire_negatif_10pow14()
+	mNeg est un monétaire = -0m100000000000000.00
+	sSer est une chaîne = "" + mNeg
+	dbgVérifieEgalité(sSer, "-100000000000000", "monétaire -10^14 sérialisé exact")
+FIN
+
+
+// ===== ROUGE 5 : numérique(10^20) → monétaire : dans borne int128, pas d'exception =====
+// 10^20 × 10^6 = 10^26 < int128 max (≈1.7×10^38) → doit rentrer sans exception après impl.
+// Bug actuel : numeric_to_currency_i64 → overflow int64 → exception levée.
+// Raison rouge : bException = Vrai (exception levée alors qu'elle ne devrait pas l'être).
+PROCEDURE PUBLIQUE test_r5_numerique_10pow20_vers_monetaire_dans_borne_int128()
+	nBase est un entier = 10000000000
+	n20 est un numérique = nBase * nBase
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		mResult est un monétaire = n20
+		dbgVérifieEgalité(TypeVar(mResult), owlMonétaire,
+		"numérique(10^20) → monétaire : TypeVar = owlMonétaire (dans borne int128)")
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException = Faux, "numérique(10^20) → monétaire : pas d'exception (dans borne int128)")
+FIN

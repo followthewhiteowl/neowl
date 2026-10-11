@@ -1,0 +1,47 @@
+// Dans un littéral `{ ... }`, un état se déclare par clé — `Etats = { Survol
+// = ... }`. La forme indexée `Etats[survol] = { ... }` n'y est pas acceptée :
+// elle appartient à l'écriture en cascade (`..Etats[survol]..CouleurFond`).
+//
+// Le refus vaut pour TOUTES les familles de style : les deux déclarations
+// ci-dessous rendent le même diagnostic, qui nomme la forme qui marche, et
+// une seule erreur chacune (pas de cascade).
+
+ThèmeEtatsIndexé est un Thème
+	ongIndexé est un styleOnglet = {
+		VoletActif = {
+			CouleurFond = Blanc
+			Etats[survol] = {
+				CouleurFond = Rouge
+			}
+		}
+	}
+
+	saiIndexé est un styleSaisie = {
+		ZoneSaisie = {
+			CouleurFond = Blanc
+			Etats[survol] = {
+				CouleurFond = Rouge
+			}
+		}
+	}
+
+	// Même refus quand la forme indexée ouvre le bloc : le littéral doit être
+	// reconnu comme tel pour porter le diagnostic, au lieu de partir en
+	// indirection et de rendre « 'Etats' : variable inconnue ».
+	ongIndexéEnTête est un styleOnglet = {
+		VoletActif = {
+			Etats[survol] = {
+				CouleurFond = Rouge
+			}
+			CouleurFond = Blanc
+		}
+	}
+
+	// Le crochet posé sur un sous-élément structurel (et non sur le membre
+	// Etats) rend, dans un littéral, exactement ce que rend la cascade.
+	ongCrochetHorsEtats est un styleOnglet = {
+		VoletActif[survol] = {
+			CouleurFond = Rouge
+		}
+	}
+FIN

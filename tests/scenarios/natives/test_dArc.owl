@@ -1,0 +1,165 @@
+// @sujet : dArc
+// @resume : Tracer un arc de cercle ou d'ellipse défini par un rectangle englobant et deux points (départ/arrivée)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_arc_cercle_quart_superieur_droit()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Arc de cercle (bbox carrée 100x100) : quart supérieur droit
+	// Points : départ (x=100, y=50 = milieu droit), arrivée (x=50, y=0 = milieu haut)
+	// Sens anti-horaire → arc couvre le quart supérieur droit
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurRouge, 0, 2)
+	dArc(img, 0, 0, 100, 100, 100, 50, 50, 0)
+	dFinDessin(img)
+
+	// Échantillonnage le long du quart d'arc supérieur droit (cercle rayon 50, centre (50,50))
+	// Points théoriques : (100,50), (≈85,15), (50,0). Trait largeur 2 → tolérance.
+	pixelA = dPixelCouleur(img, 99, 50)
+	pixelB = dPixelCouleur(img, 85, 15)
+	pixelC = dPixelCouleur(img, 50, 1)
+	dbgVérifieVrai(pixelA = couleurRouge OU pixelB = couleurRouge OU pixelC = couleurRouge, "arc cercle quart supérieur : au moins un point d'échantillon sur l'arc est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_arc_ellipse_large()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Arc d'ellipse (bbox rectangulaire 150x80) : demi-arc supérieur
+	// Départ à gauche (x=0, y=40 = milieu gauche), arrivée à droite (x=150, y=40 = milieu droit)
+	// Sens anti-horaire → arc couvre la moitié supérieure de l'ellipse
+	img = dCréeImage(150, 80, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurBleu, 0, 3)
+	dArc(img, 0, 0, 150, 80, 0, 40, 150, 40)
+	dFinDessin(img)
+
+	// Échantillonnage le long du demi-arc supérieur
+	// Sommet attendu vers (75, 0), points latéraux vers (0,40) et (150,40)
+	pixelA = dPixelCouleur(img, 1, 40)
+	pixelB = dPixelCouleur(img, 75, 1)
+	pixelC = dPixelCouleur(img, 148, 40)
+	dbgVérifieVrai(pixelA = couleurBleu OU pixelB = couleurBleu OU pixelC = couleurBleu, "arc ellipse demi-supérieur : au moins un point d'échantillon sur l'arc est bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_arc_avec_couleur_largeur_explicites()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Arc avec couleur et largeur spécifiées en arguments (sans dStylo)
+	// Arc de 3/4 de cercle (bbox 60x60), large de 5 pixels, vert
+	img = dCréeImage(60, 60, couleurBlanc)
+	dDébutDessin(img)
+	dArc(img, 0, 0, 60, 60, 60, 30, 30, 0, couleurVert, 5)
+	dFinDessin(img)
+
+	// Échantillonnage : départ (60,30), sommet supérieur (30,0), milieu d'arc oblique
+	pixelA = dPixelCouleur(img, 58, 30)
+	pixelB = dPixelCouleur(img, 30, 2)
+	pixelC = dPixelCouleur(img, 51, 9)
+	dbgVérifieVrai(pixelA = couleurVert OU pixelB = couleurVert OU pixelC = couleurVert, "arc avec args couleur+largeur : au moins un point d'échantillon est vert")
+FIN
+
+PROCEDURE PUBLIQUE scenario_arc_petit_angle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Arc de petit angle (~30 degrés) : vérifier qu'un arc court est bien tracé
+	// Cercle rayon 50 (bbox 100x100), départ (x=100, y=50), arrivée proche (x≈93, y≈25)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurMagenta, 0, 3)
+	dArc(img, 0, 0, 100, 100, 100, 50, 93, 25)
+	dFinDessin(img)
+
+	// Échantillonnage proche des extrémités et du milieu du petit arc
+	pixelA = dPixelCouleur(img, 99, 50)
+	pixelB = dPixelCouleur(img, 97, 37)
+	pixelC = dPixelCouleur(img, 93, 26)
+	dbgVérifieVrai(pixelA = couleurMagenta OU pixelB = couleurMagenta OU pixelC = couleurMagenta, "arc petit angle : au moins un point d'échantillon est magenta")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_arc_points_hors_contour_projection()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Points départ/arrivée très éloignés du contour → projection automatique
+	// Cercle bbox (10,10)..(90,90), départ à (200,50) projeté → (90,50), arrivée (50,-50) → (50,10)
+	// L'arc doit quand même être tracé (sens anti-horaire entre les projections)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurCyan, 0, 2)
+	dArc(img, 10, 10, 90, 90, 200, 50, 50,-50)
+	dFinDessin(img)
+
+	// Échantillonnage le long du quart d'arc supérieur droit (centre 50,50, rayon 40)
+	pixelA = dPixelCouleur(img, 89, 50)
+	pixelB = dPixelCouleur(img, 78, 22)
+	pixelC = dPixelCouleur(img, 50, 11)
+	dbgVérifieVrai(pixelA = couleurCyan OU pixelB = couleurCyan OU pixelC = couleurCyan, "arc avec points hors contour : projection OK, au moins un point d'arc cyan")
+FIN
+
+PROCEDURE PRIVÉE scenario_arc_bbox_degeneree_largeur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : largeur 0 (x1=x2) → arc non dessinable, image doit rester blanche
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurJaune, 0, 2)
+	dArc(img, 50, 10, 50, 90, 50, 10, 50, 90)
+	dFinDessin(img)
+
+	// Pas d'arc tracé (bbox plate) → image reste blanche
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "arc bbox largeur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_arc_bbox_degeneree_hauteur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : hauteur 0 (y1=y2) → arc non dessinable
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurOrange, 0, 2)
+	dArc(img, 10, 50, 90, 50, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	// Pas d'arc tracé → image blanche
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "arc bbox hauteur=0 : rien tracé, image blanche")
+FIN

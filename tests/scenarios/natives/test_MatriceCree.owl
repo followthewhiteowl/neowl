@@ -1,0 +1,72 @@
+// @sujet : MatriceCrée
+// @résumé : Construit une Matrice aux dimensions données (lignes × colonnes) initialisée à zéro, disponible en native préfixée avec forme anglaise. Sert de point de départ à remplir ensuite cellule par cellule via m[ligne][colonne]. Des dimensions non strictement positives lèvent une exception.
+
+
+// MatriceCrée(lignes, colonnes) rend une Matrice aux dimensions demandées ;
+// chaque cellule vaut exactement 0.0 à la construction.
+PROCEDURE PUBLIQUE scenario_dimensions_et_zeros()
+	m est une Matrice = MatriceCrée(3, 5)
+	dbgVérifieEgalité(m..Lignes, 3, "MatriceCrée(3, 5) a 3 lignes")
+	dbgVérifieEgalité(m..Colonnes, 5, "MatriceCrée(3, 5) a 5 colonnes")
+
+	POUR nL = 1 À 3
+		POUR nC = 1 À 5
+			dbgVérifieEgalité(m[nL][nC], 0.0, "Cellule initialisée à zéro")
+		FIN
+	FIN
+FIN
+
+
+// Usage réel : on crée une grille vide puis on remplit une cellule, la
+// relecture rend la valeur écrite (les autres restent à zéro).
+PROCEDURE PUBLIQUE scenario_ecriture_puis_relecture()
+	m est une Matrice = MatriceCrée(4, 4)
+	m[2][3] = 7.0
+	dbgVérifieEgalité(m[2][3], 7.0, "La cellule écrite rend 7.0")
+	dbgVérifieEgalité(m[1][1], 0.0, "Une cellule voisine reste à zéro")
+	dbgVérifieEgalité(m[4][4], 0.0, "La dernière cellule reste à zéro")
+FIN
+
+
+// La forme anglaise MatrixCreate désigne la même opération et produit le
+// même contrat (dimensions correctes, cellules à zéro).
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	m est une Matrice = MatrixCreate(2, 4)
+	dbgVérifieEgalité(m..Rows, 2, "MatrixCreate(2, 4)..Rows = 2")
+	dbgVérifieEgalité(m..Columns, 4, "MatrixCreate(2, 4)..Columns = 4")
+	dbgVérifieEgalité(m[1][1], 0.0, "MatrixCreate : cellule initialisée à zéro")
+	dbgVérifieEgalité(m[2][4], 0.0, "MatrixCreate : dernière cellule à zéro")
+FIN
+
+
+// Une matrice à une seule cellule (1 × 1) est une dimension valide : borne
+// inférieure du contrat « au moins une ligne et une colonne ».
+PROCEDURE PUBLIQUE scenario_dimension_minimale()
+	m est une Matrice = MatriceCrée(1, 1)
+	dbgVérifieEgalité(m..Lignes, 1, "MatriceCrée(1, 1) a 1 ligne")
+	dbgVérifieEgalité(m..Colonnes, 1, "MatriceCrée(1, 1) a 1 colonne")
+	dbgVérifieEgalité(m[1][1], 0.0, "L'unique cellule vaut zéro")
+FIN
+
+
+// Des dimensions non strictement positives ne définissent pas une matrice
+// valide : chaque cas lève une exception récupérable.
+PROCEDURE PRIVÉE scenario_edge_dimensions_non_positives_refusees()
+	capturéLignes est une chaîne = ""
+	QUAND EXCEPTION DANS
+		mZéro est une Matrice = MatriceCrée(0, 5)
+		capturéLignes = "no-throw"
+	FAIRE
+		capturéLignes = "caught"
+	FIN
+	dbgVérifieEgalité(capturéLignes, "caught", "MatriceCrée(0, 5) refusé")
+
+	capturéColonnes est une chaîne = ""
+	QUAND EXCEPTION DANS
+		mNég est une Matrice = MatriceCrée(3, -2)
+		capturéColonnes = "no-throw"
+	FAIRE
+		capturéColonnes = "caught"
+	FIN
+	dbgVérifieEgalité(capturéColonnes, "caught", "MatriceCrée(3, -2) refusé")
+FIN

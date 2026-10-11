@@ -1,0 +1,104 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES injectees au mop-up final
+// ( ENDGAME). Echantillon couvrant tous les modules touches.
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre, sourcee canon de référence) resout vers EXACTEMENT
+// la meme valeur que la forme FR canon. L'alias EN est runtime-only dans
+// vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Chaque scenario porte au moins une assertion sur une valeur EXACTE (pas juste
+// EN==FR) quand la valeur est un litteral stable.
+// =============================================================================
+
+PROCEDURE scenario_array_tableau()
+	// tt* / tc* / ti* / tcc* (stdlib_array)
+	dbgVérifieEgalité(asAscending, ttCroissant,
+	"asAscending resout vers ttCroissant")
+	dbgVérifieEgalité(asDescending, ttDecroissant,
+	"asDescending resout vers ttDecroissant")
+	dbgVérifieEgalité(asBinary, tcDichotomique,
+	"asBinary resout vers tcDichotomique")
+	dbgVérifieEgalité(tccIgnoreCase, tccSansCasse,
+	"tccIgnoreCase resout vers tccSansCasse")
+	dbgVérifieEgalité(tiTotalNumber, tiNombreTotal,
+	"tiTotalNumber resout vers tiNombreTotal")
+	dbgVérifieEgalité(CurrentElement, ÉlémentCourant,
+	"CurrentElement resout vers ÉlémentCourant")
+FIN
+
+PROCEDURE scenario_filtre_table()
+	// filtre* (ui_catalog)
+	dbgVérifieEgalité(filterContains, filtreContient,
+	"filterContains resout vers filtreContient")
+	dbgVérifieEgalité(filterGreaterOrEqual, filtreSupérieurOuEgal,
+	"filterGreaterOrEqual resout vers filtreSupérieurOuEgal")
+FIN
+
+PROCEDURE scenario_trait_bord()
+	// Trait* / Bord* (ui_catalog)
+	dbgVérifieEgalité(LineSolid, TraitContinu,
+	"LineSolid resout vers TraitContinu")
+	dbgVérifieEgalité(BorderAll, BordTous,
+	"BorderAll resout vers BordTous")
+	dbgVérifieEgalité(BorderAll, 15,
+	"BorderAll vaut exactement 15 (tous les bords)")
+FIN
+
+PROCEDURE scenario_color()
+	// *Foncé / CouleurDéfaut / iSystème (stdlib_color)
+	dbgVérifieEgalité(DarkRed, RougeFoncé,
+	"DarkRed resout vers RougeFoncé")
+	dbgVérifieEgalité(DarkBlue, BleuFoncé,
+	"DarkBlue resout vers BleuFoncé")
+	dbgVérifieEgalité(DefaultColor, CouleurDéfaut,
+	"DefaultColor resout vers CouleurDéfaut")
+FIN
+
+PROCEDURE scenario_xml()
+	// depuis* / XML* (stdlib_xml)
+	dbgVérifieEgalité(fromFile, depuisFichier,
+	"fromFile resout vers depuisFichier")
+	dbgVérifieEgalité(XMLTag, XMLBalise,
+	"XMLTag resout vers XMLBalise")
+FIN
+
+PROCEDURE scenario_image()
+	// img* / d* / dr* (stdlib_image)
+	dbgVérifieEgalité(imgConvert, imgConvertir,
+	"imgConvert resout vers imgConvertir")
+	dbgVérifieEgalité(drStretched, drEtiré,
+	"drStretched resout vers drEtiré")
+FIN
+
+PROCEDURE scenario_file_json_eval_compress()
+	// fCréation (file), psd* (json), trt* (eval), zip* (compression)
+	dbgVérifieEgalité(fCréation, fCréation,
+	"fCreation resout vers fCréation")
+	dbgVérifieEgalité(psdMinified, psdMinifie,
+	"psdMinified resout vers psdMinifie")
+	dbgVérifieEgalité(trtProcédure, trtProcédure,
+	"trtProcedure resout vers trtProcédure")
+	dbgVérifieEgalité(zipDirectory, zipRépertoire,
+	"zipDirectory resout vers zipRépertoire")
+FIN
+
+PROCEDURE scenario_string_misc()
+	// ccNormal EN==FR (string), TAB/ValPI (builtin_types), ind* (builtin_types)
+	dbgVérifieEgalité(ccNormal, 0,
+	"ccNormal vaut exactement 0 (comparaison normale)")
+	dbgVérifieEgalité(TAB, Caract(9),
+	"TAB vaut exactement Caract(9) (tabulation)")
+	dbgVérifieEgalité(indControl, indChamp,
+	"indControl resout vers indChamp")
+FIN
+
+scenario_array_tableau()
+scenario_filtre_table()
+scenario_trait_bord()
+scenario_color()
+scenario_xml()
+scenario_image()
+scenario_file_json_eval_compress()
+scenario_string_misc()
+dbgBilanTest()

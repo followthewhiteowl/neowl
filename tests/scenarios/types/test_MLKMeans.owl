@@ -1,0 +1,190 @@
+// @sujet : MLKMeans — clustering non-supervisé (algorithme de Lloyd)
+// @résumé : MLKMeans regroupe des lignes de Matrice en `..NbClusters` groupes
+// sans étiquette (`.Entraîne` ne prend QUE X). `.Prédit` rend, pour chaque
+// ligne, l'indice du cluster (0-based) dont le centroïde est le plus proche.
+// Ces indices sont ARBITRAIRES : rien ne garantit qu'un groupe donné reçoive
+// toujours le même numéro d'une exécution à l'autre. Les scénarios vérifient
+// donc la STRUCTURE (mêmes points -> même label, points de groupes différents
+// -> labels différents), jamais une valeur de label en dur. `..Graine` fige
+// l'initialisation aléatoire pour une reproductibilité bit-exacte.
+
+
+// Trois groupes d'une seule variable, largement séparés (1-3 / 11-13 /
+// 21-23) : KMeans doit retrouver exactement ces trois groupes. On vérifie la
+// cohérence intra-cluster (points d'un même vrai groupe -> même label) et la
+// séparation inter-cluster (groupes différents -> labels différents), sans
+// jamais présumer de la numérotation des clusters (permutation-invariant).
+PROCEDURE PUBLIQUE scenario_trois_groupes_separes_coherence_structurelle()
+	km est un MLKMeans
+	km..NbClusters = 3
+
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+	km.Entraîne(matX)
+
+	preds est un Tenseur = km.Prédit(matX)
+
+	// Cohérence intra-cluster : chaque groupe reçoit un label unique et constant.
+	dbgVérifieEgalité(preds..Valeur[1], preds..Valeur[2], "groupe A (1-3) : lignes 1 et 2 même label")
+	dbgVérifieEgalité(preds..Valeur[2], preds..Valeur[3], "groupe A (1-3) : lignes 2 et 3 même label")
+	dbgVérifieEgalité(preds..Valeur[4], preds..Valeur[5], "groupe B (11-13) : lignes 4 et 5 même label")
+	dbgVérifieEgalité(preds..Valeur[5], preds..Valeur[6], "groupe B (11-13) : lignes 5 et 6 même label")
+	dbgVérifieEgalité(preds..Valeur[7], preds..Valeur[8], "groupe C (21-23) : lignes 7 et 8 même label")
+	dbgVérifieEgalité(preds..Valeur[8], preds..Valeur[9], "groupe C (21-23) : lignes 8 et 9 même label")
+
+	// Séparation inter-cluster : les trois groupes portent des labels distincts.
+	dbgVérifieVrai(preds..Valeur[1] <> preds..Valeur[4], "groupe A <> groupe B")
+	dbgVérifieVrai(preds..Valeur[4] <> preds..Valeur[7], "groupe B <> groupe C")
+	dbgVérifieVrai(preds..Valeur[1] <> preds..Valeur[7], "groupe A <> groupe C")
+FIN
+
+
+// `..Centroïdes` rend une Matrice k×variables (les centres appris). On ne
+// vérifie que sa FORME (nombre de lignes = k, nombre de colonnes = nombre de
+// variables de X) : l'ORDRE des centroïdes dans cette Matrice suit la même
+// numérotation arbitraire que les labels, donc leurs valeurs exactes ne sont
+// pas testées ici.
+PROCEDURE PUBLIQUE scenario_centroides_forme_k_lignes_par_variables()
+	km est un MLKMeans
+	km..NbClusters = 3
+
+	matX est une Matrice = [[1.0, 100.0], [2.0, 101.0], [3.0, 102.0], [11.0, 110.0], [12.0, 111.0], [13.0, 112.0], [21.0, 120.0], [22.0, 121.0], [23.0, 122.0]]
+	km.Entraîne(matX)
+
+	centroides est une Matrice = km..Centroïdes
+	dbgVérifieEgalité(centroides..Lignes, 3, "..NbClusters=3 -> 3 centroïdes")
+	dbgVérifieEgalité(centroides..Colonnes, 2, "X a 2 variables -> centroïdes à 2 colonnes")
+FIN
+
+
+// Reproductibilité : deux MLKMeans avec la même ..Graine, sur les mêmes
+// données et les mêmes hyperparamètres, produisent des affectations
+// STRICTEMENT identiques ligne à ligne (bit-exact, la permutation est fixée
+// par la graine).
+PROCEDURE PUBLIQUE scenario_graine_reproductibilite_affectations_identiques()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+
+	kmA est un MLKMeans
+	kmA..NbClusters = 3
+	kmA..Graine     = 42
+	kmA.Entraîne(matX)
+	predsA est un Tenseur = kmA.Prédit(matX)
+
+	kmB est un MLKMeans
+	kmB..NbClusters = 3
+	kmB..Graine     = 42
+	kmB.Entraîne(matX)
+	predsB est un Tenseur = kmB.Prédit(matX)
+
+	dbgVérifieEgalité(predsA..Valeur[1], predsB..Valeur[1], "même graine -> même label ligne 1")
+	dbgVérifieEgalité(predsA..Valeur[4], predsB..Valeur[4], "même graine -> même label ligne 4")
+	dbgVérifieEgalité(predsA..Valeur[7], predsB..Valeur[7], "même graine -> même label ligne 7")
+	dbgVérifieEgalité(predsA..Valeur[9], predsB..Valeur[9], "même graine -> même label ligne 9")
+FIN
+
+
+// `..NbClusters` supérieur au nombre de lignes de X est impossible à
+// satisfaire (pas assez de points pour peupler chaque cluster) : erreur
+// récupérable, pas de crash ni de résultat inventé.
+PROCEDURE PUBLIQUE scenario_erreur_nbclusters_superieur_nb_lignes()
+	ErreurRAZ()
+	km est un MLKMeans
+	km..NbClusters = 5
+	matX est une Matrice = [[1.0], [2.0], [3.0]]
+	km.Entraîne(matX)
+	dbgVérifieVrai(ErreurDétectée, "NbClusters=5 > 3 lignes -> ErreurDétectée")
+FIN
+
+
+// (« X vide » n'est pas testable : une Matrice ne peut PAS être vide — invariant
+// documenté rows>=1/cols>=1, le littéral `[]` lève à la construction. L'entrée
+// n'existe pas par design ; le cas d'erreur utile est NbClusters > nb lignes ci-dessus.)
+
+
+// Formes anglaises : MLKMeans / ..NumClusters / ..Seed / ..Centroids /
+// .Train / .Predict. Reprend le scénario de reproductibilité en formes EN.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_mlkmeans()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+
+	kmA est un MLKMeans
+	kmA..NumClusters = 3
+	kmA..Seed        = 7
+	kmA.Train(matX)
+	predsA est un Tenseur = kmA.Predict(matX)
+
+	kmB est un MLKMeans
+	kmB..NumClusters = 3
+	kmB..Seed        = 7
+	kmB.Train(matX)
+	predsB est un Tenseur = kmB.Predict(matX)
+
+	centroidesA est une Matrice = kmA..Centroids
+	dbgVérifieEgalité(centroidesA..Lignes, 3, "Centroids EN : 3 centroïdes")
+
+	dbgVérifieEgalité(predsA..Valeur[1], predsA..Valeur[2], "Train/Predict EN : groupe A cohérent (lignes 1-2)")
+	dbgVérifieVrai(predsA..Valeur[1] <> predsA..Valeur[4], "Train/Predict EN : groupe A <> groupe B")
+	dbgVérifieEgalité(predsA..Valeur[1], predsB..Valeur[1], "Seed EN identique -> reproductibilité ligne 1")
+	dbgVérifieEgalité(predsA..Valeur[9], predsB..Valeur[9], "Seed EN identique -> reproductibilité ligne 9")
+FIN
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : edge cases et cas limites (initiative test_writer)
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Deux graines différentes ne sont PAS comparées entre elles (comparaison
+// flaky) : on vérifie que chacune, indépendamment, reste une partition
+// STRUCTURELLEMENT valide sur un jeu séparable (cohérence intra-cluster).
+PROCEDURE PRIVÉE scenario_edge_graines_differentes_restent_valides()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+
+	km1 est un MLKMeans
+	km1..NbClusters = 3
+	km1..Graine     = 1
+	km1.Entraîne(matX)
+	preds1 est un Tenseur = km1.Prédit(matX)
+	dbgVérifieEgalité(preds1..Valeur[1], preds1..Valeur[2], "graine=1 : groupe A cohérent")
+	dbgVérifieVrai(preds1..Valeur[1] <> preds1..Valeur[4], "graine=1 : groupe A <> groupe B")
+
+	km2 est un MLKMeans
+	km2..NbClusters = 3
+	km2..Graine     = 999
+	km2.Entraîne(matX)
+	preds2 est un Tenseur = km2.Prédit(matX)
+	dbgVérifieEgalité(preds2..Valeur[1], preds2..Valeur[2], "graine=999 : groupe A cohérent")
+	dbgVérifieVrai(preds2..Valeur[1] <> preds2..Valeur[4], "graine=999 : groupe A <> groupe B")
+FIN
+
+
+// ..Graine=0 explicite doit se comporter comme la valeur par défaut (0 =
+// graine fixe reproductible), pas comme "aucune graine".
+PROCEDURE PRIVÉE scenario_edge_graine_zero_egale_defaut()
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+
+	kmDefaut est un MLKMeans
+	kmDefaut..NbClusters = 3
+	kmDefaut.Entraîne(matX)
+	predsDefaut est un Tenseur = kmDefaut.Prédit(matX)
+
+	kmExplicite est un MLKMeans
+	kmExplicite..NbClusters = 3
+	kmExplicite..Graine     = 0
+	kmExplicite.Entraîne(matX)
+	predsExplicite est un Tenseur = kmExplicite.Prédit(matX)
+
+	dbgVérifieEgalité(predsDefaut..Valeur[1], predsExplicite..Valeur[1], "Graine=0 explicite = défaut, ligne 1 identique")
+	dbgVérifieEgalité(predsDefaut..Valeur[9], predsExplicite..Valeur[9], "Graine=0 explicite = défaut, ligne 9 identique")
+FIN
+
+
+// ..NbClusters par défaut (8, comme sklearn) : sur 9 points en 3 groupes,
+// demander 8 clusters reste valide (8 <= 9 lignes), pas d'erreur.
+PROCEDURE PRIVÉE scenario_edge_nbclusters_defaut_huit()
+	ErreurRAZ()
+	km est un MLKMeans
+	matX est une Matrice = [[1.0], [2.0], [3.0], [11.0], [12.0], [13.0], [21.0], [22.0], [23.0]]
+	km.Entraîne(matX)
+	dbgVérifieVrai(ErreurDétectée = Faux, "NbClusters par défaut (8) <= 9 lignes -> pas d'erreur")
+
+	centroides est une Matrice = km..Centroïdes
+	dbgVérifieEgalité(centroides..Lignes, 8, "défaut ..NbClusters=8 -> 8 centroïdes")
+FIN

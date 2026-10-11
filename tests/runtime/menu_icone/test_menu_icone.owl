@@ -1,0 +1,43 @@
+//  — icône dans une OptionMenu (propriété Image).
+//
+// Ce test exerce le CHEMIN DE CONSTRUCTION du menu avec les différentes
+// formes d'icône acceptées (référence catalogue, fichier absent, catalogue
+// inconnu, option sans icône). La capture offscreen du sous-menu déroulé
+// force ce chemin (`build_window_main_menu` -> résolution d'icône de chaque
+// option). L'oracle VISUEL (l'icône du catalogue s'affiche réellement) est
+// validé par le développeur sur la fenêtre réelle ; ici on verrouille le
+// contrat DÉFENSIF automatisable :
+//   1. le menu se construit et se capture (retour Vrai) malgré des entrées
+//      d'icône invalides ;
+//   2. aucune de ces entrées ne lève une erreur d'exécution OWL
+//      (ErreurDétectée reste Faux) — une icône introuvable est absente, pas
+//      un échec du programme.
+
+Ouvre(FEN_MenuIcone)
+
+ErreurRAZ()
+chemin est une chaîne = fFichierTemp("owlmenuicone")
+ok est un booléen = __CaptureSousMenu(FEN_MenuIcone, "Fichier", chemin)
+
+// ErreurDétectée d'abord : évite qu'un OP_CALL intercalé ne consomme la
+// sentinelle d'erreur fraîche (convention idiomatique OWL).
+dbgVérifieEgalité(ErreurDétectée, Faux, "construction du menu avec icônes invalides ne lève aucune erreur runtime")
+dbgVérifieEgalité(ok, Vrai, "le sous-menu contenant des OptionMenu à icône se construit et se capture")
+dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "le PNG du sous-menu est écrit sur disque")
+
+// Résolution d'icône : une référence du catalogue intégré ("icones.<nom>") doit
+// poser une icône réelle sur l'option, comme sur un Bouton.
+dbgVérifieEgalité(__DebugMenuIcone(FEN_MenuIcone, "Fichier", "Enregistrer"), Vrai,
+`OptionMenu..Image = "icones.save" pose une icône (référence catalogue résolue)`)
+
+// Contrat défensif : entrées invalides -> pas d'icône, mais jamais de plantage.
+dbgVérifieEgalité(__DebugMenuIcone(FEN_MenuIcone, "Fichier", "Catalogue inconnu"), Faux,
+"une référence catalogue inconnue ne pose aucune icône")
+dbgVérifieEgalité(__DebugMenuIcone(FEN_MenuIcone, "Fichier", "Fichier absent"), Faux,
+"un chemin de fichier introuvable ne pose aucune icône")
+dbgVérifieEgalité(__DebugMenuIcone(FEN_MenuIcone, "Fichier", "Sans icône"), Faux,
+"une option sans propriété Image n'a pas d'icône")
+
+Ferme(FEN_MenuIcone)
+fSupprime(chemin)
+dbgBilanTest()

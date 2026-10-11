@@ -1,0 +1,98 @@
+// Wire des 5 options de tri tableau orphelines (tccOrdreLexicographique,
+// tccRespecteNumerique, tccSansEspace, tccSansEspaceInterieur,
+// tccSansPonctuationNiEspace). Avant  wire, le comparateur ne lisait
+// que TCC_SANS_ACCENT + TCC_SANS_CASSE ; ce test verifie qu'elles ont
+// maintenant un effet observable. Voir aussi tests/regression/
+// test_tableau_trie_modes.owl pour ttCroissant/tccSansCasse de base.
+
+Trace("=== Trie tableau : 5 options tcc orphelines wires ===")
+
+// === tccOrdreLexicographique ===
+// Sans option : 'é' (UTF-8 0xC3 0xA9) trie comme octet 0xC3 > 'z' (0x7A),
+// donc apres alpha et zoo. Avec lexicographique, 'é' trie comme 'e',
+// donc entre alpha et zoo.
+tLexSans est un tableau de chaînes = ["zoo", "échec", "alpha"]
+TableauTrie(tLexSans, ttCroissant)
+dbgVérifieEgalité(tLexSans[1], "alpha", "lex sans : alpha premier (ASCII)")
+dbgVérifieEgalité(tLexSans[2], "zoo", "lex sans : zoo ('z' = 0x7A)")
+dbgVérifieEgalité(tLexSans[3], "échec", "lex sans : echec accentue (0xC3) en queue")
+
+// "é" = é en UTF-8 (octets 0xC3 0xA9, donc octet >= 'f' sans option).
+tLexAvec est un tableau de chaînes = ["zoo", "échec", "alpha"]
+// Sans option : ASCII brut, ordre = ["alpha", "zoo", "echec"] (é -> 0xC3 > 'z').
+// Avec lexicographique : 'é' trie comme 'e', donc echec entre alpha et zoo.
+TableauTrie(tLexAvec, ttCroissant + tccOrdreLexicographique)
+dbgVérifieEgalité(tLexAvec[1], "alpha", "lex avec : alpha premier")
+dbgVérifieEgalité(tLexAvec[2], "échec", "lex avec : echec accentue au milieu (cle 'e')")
+dbgVérifieEgalité(tLexAvec[3], "zoo", "lex avec : zoo en queue")
+
+// === tccRespecteNumerique ===
+tNumSans est un tableau de chaînes = ["abc10", "abc2", "abc9"]
+TableauTrie(tNumSans, ttCroissant)
+dbgVérifieEgalité(tNumSans[1], "abc10", "num sans : ordre ASCII abc10 en tete")
+dbgVérifieEgalité(tNumSans[2], "abc2", "num sans : abc2")
+dbgVérifieEgalité(tNumSans[3], "abc9", "num sans : abc9")
+
+tNumAvec est un tableau de chaînes = ["abc10", "abc2", "abc9"]
+TableauTrie(tNumAvec, ttCroissant + tccRespecteNumérique)
+dbgVérifieEgalité(tNumAvec[1], "abc2", "num avec : abc2 (2 < 9 < 10)")
+dbgVérifieEgalité(tNumAvec[2], "abc9", "num avec : abc9")
+dbgVérifieEgalité(tNumAvec[3], "abc10", "num avec : abc10 en queue")
+
+// === tccSansEspace (trim externe) ===
+// Cle bascule : "  zebra" (espaces leading) vs "alpha".
+// Sans option : ' ' (0x20) < 'a' (0x61), donc "  zebra" trie AVANT "alpha".
+// Avec option (trim) : "zebra" > "alpha", donc bascule.
+tEspSans est un tableau de chaînes = ["  zebra", "alpha"]
+TableauTrie(tEspSans, ttCroissant)
+dbgVérifieEgalité(tEspSans[1], "  zebra", "esp sans : espace leading en tete")
+dbgVérifieEgalité(tEspSans[2], "alpha", "esp sans : alpha ensuite")
+
+tEspAvec est un tableau de chaînes = ["  zebra", "alpha"]
+TableauTrie(tEspAvec, ttCroissant + tccSansEspace)
+// Apres trim : "zebra" vs "alpha" -> alpha premier.
+dbgVérifieEgalité(tEspAvec[1], "alpha", "esp avec : alpha premier (zebra trim)")
+dbgVérifieEgalité(tEspAvec[2], "  zebra", "esp avec : zebra trimme en queue")
+
+// === tccSansEspaceInterieur (toutes les espaces, interieures comprises) ===
+// Cle bascule reelle : "p z" vs "pa". Sans option, 2e car ' ' (0x20) < 'a'
+// (0x61), donc "p z" trie AVANT "pa". Avec strip-internal, "p z" -> "pz",
+// donc "pa" < "pz" : "pa" passe en tete. L'ordre bascule.
+tIntSans est un tableau de chaînes = ["pa", "p z"]
+TableauTrie(tIntSans, ttCroissant)
+dbgVérifieEgalité(tIntSans[1], "p z", "int sans : espace ASCII (' ' < 'a') en tete")
+dbgVérifieEgalité(tIntSans[2], "pa", "int sans : pa ensuite")
+
+tIntAvec est un tableau de chaînes = ["pa", "p z"]
+TableauTrie(tIntAvec, ttCroissant + tccSansEspaceIntérieur)
+// Apres strip : "pa" vs "pz" -> "pa" en tete.
+dbgVérifieEgalité(tIntAvec[1], "pa", "int avec : pa premier (cle pz pour 'p z')")
+dbgVérifieEgalité(tIntAvec[2], "p z", "int avec : 'p z' (cle pz) en queue")
+
+// === tccSansPonctuationNiEspace ===
+// Cle bascule : "p,z" vs "pa". Sans option, ',' (0x2C) < 'a' (0x61),
+// "p,z" en tete. Avec strip ponct+espaces, "p,z" -> "pz", donc "pa" < "pz" :
+// "pa" passe en tete. Bascule.
+tPonctSans est un tableau de chaînes = ["pa", "p,z"]
+TableauTrie(tPonctSans, ttCroissant)
+dbgVérifieEgalité(tPonctSans[1], "p,z", "ponct sans : virgule (',' < 'a') en tete")
+dbgVérifieEgalité(tPonctSans[2], "pa", "ponct sans : pa ensuite")
+
+tPonctAvec est un tableau de chaînes = ["pa", "p,z"]
+TableauTrie(tPonctAvec, ttCroissant + tccSansPonctuationNiEspace)
+dbgVérifieEgalité(tPonctAvec[1], "pa", "ponct avec : pa premier (cle pz pour 'p,z')")
+dbgVérifieEgalité(tPonctAvec[2], "p,z", "ponct avec : 'p,z' (cle pz) en queue")
+
+// === Combo tccSansCasse + tccSansAccent + tccSansEspace ===
+// Cle bascule : sans options, "  Z" (ASCII 0x20...) < "alpha" ('a' 0x61 < 'A' wait
+// 'a'=0x61, 'A'=0x41, ' '=0x20), donc "  ZEBRA" < "Alpha" (espace en tete) en sans-option.
+// Avec combo : trim + casse + accents -> "ZEBRA"->"zebra" ; "Alpha"->"alpha" ; "écouter"->"ecouter".
+// Ordre attendu : alpha < ecouter < zebra.
+tCombo est un tableau de chaînes = ["  ZEBRA", "Alpha", "écouter"]
+// "écouter" = écouter
+TableauTrie(tCombo, ttCroissant + tccSansCasse + tccSansAccent + tccSansEspace)
+dbgVérifieEgalité(tCombo[1], "Alpha", "combo : Alpha premier (trim+casse+accent)")
+dbgVérifieEgalité(tCombo[2], "écouter", "combo : ecouter au milieu")
+dbgVérifieEgalité(tCombo[3], "  ZEBRA", "combo : zebra trim'd en queue")
+
+Trace("=== Trie tcc options : tous verts ===")

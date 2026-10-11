@@ -1,0 +1,26 @@
+//  — bilingue : le projet déclare le format sous la forme ANGLAISE
+// `DurationFormat = "HH:MI"`. Le repli d'affichage (accesseur projet) reconnaît
+// les deux clés FR/EN, donc un champ Durée sans masque doit tronquer les
+// secondes exactement comme si le projet avait écrit `FormatDurée` (FR). Cas
+// discriminant identique au dossier "pilote" : "14:30:00" (tronqué) vs le défaut
+// HH:MI:SS "14:30:45".
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que le champ
+// (forme EN DurationFormat) n'existe pas au catalogue manifeste Projet.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ProjetDurationFormatBilingue)
+
+dRéférence est une durée = ChaîneVersDurée("14:30:45", "HH:MM:SS")
+SAI_Duree..Valeur = dRéférence
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Champ Durée sans masque, projet DurationFormat (EN) posé : ..Valeur reste un owlDuree")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	sLue est une chaîne = SAI_Duree..Valeur
+	dbgVérifieEgalité(sLue, "14:30:00", "DurationFormat projet (forme EN) HH:MI : secondes tronquées comme la forme FR FormatDurée")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetDurationFormatBilingue)
+dbgBilanTest()

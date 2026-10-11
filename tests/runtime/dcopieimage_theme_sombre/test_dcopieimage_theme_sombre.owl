@@ -1,0 +1,43 @@
+//  — Lot 3 dCopieImageFenêtre : verifie la non-fuite palette globale.
+// Apres une capture themeSombre, la palette de l'application doit etre
+// restauree (push/pop propre). Une capture themeDefaut consecutive sur une
+// fenetre nouvellement ouverte doit donner un resultat identique a une
+// capture themeDefaut faite avant la sequence sombre.
+
+Ouvre(FEN_ThemeSombre)
+
+xMid est un entier = 160
+yBas est un entier = 150
+
+// 1) Baseline themeDefaut avant toute manipulation palette.
+imgAvant est une Image = dCopieImageFenêtre(FEN_ThemeSombre, themeDéfaut)
+couleurAvant est un entier = dPixelCouleur(imgAvant, xMid, yBas)
+rAvant est un entier = ETBinaire(couleurAvant, 255)
+
+// 2) Capture themeSombre : push palette dark, grab, pop palette.
+imgSombre est une Image = dCopieImageFenêtre(FEN_ThemeSombre, themeSombre)
+couleurSombre est un entier = dPixelCouleur(imgSombre, xMid, yBas)
+rSombre est un entier = ETBinaire(couleurSombre, 255)
+dbgVérifieVrai(rSombre <= 80, "themeSombre : R <= 80")
+
+// 3) Re-capture themeDefaut apres la sombre : doit retourner au rendu initial
+// (palette globale restauree, pas de fuite).
+imgApres est une Image = dCopieImageFenêtre(FEN_ThemeSombre, themeDéfaut)
+couleurApres est un entier = dPixelCouleur(imgApres, xMid, yBas)
+rApres est un entier = ETBinaire(couleurApres, 255)
+
+// Tolerance 5 : compense bruit anti-aliasing / sub-pixel.
+diff est un entier = rApres - rAvant
+SI diff < 0 ALORS diff = 0 - diff
+dbgVérifieVrai(diff <= 5, "themeDefaut avant/apres themeSombre : R identique (palette restauree)")
+
+// 4) Forme sans 2e param doit etre equivalente a themeDefaut.
+imgImplicite est une Image = dCopieImageFenêtre(FEN_ThemeSombre)
+couleurImpl est un entier = dPixelCouleur(imgImplicite, xMid, yBas)
+rImpl est un entier = ETBinaire(couleurImpl, 255)
+diff2 est un entier = rImpl - rAvant
+SI diff2 < 0 ALORS diff2 = 0 - diff2
+dbgVérifieVrai(diff2 <= 5, "Sans 2e param == themeDefaut (R identique)")
+
+Ferme(FEN_ThemeSombre)
+dbgBilanTest()

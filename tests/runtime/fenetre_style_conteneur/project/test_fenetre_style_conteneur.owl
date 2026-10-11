@@ -1,0 +1,40 @@
+// Phase 1 épic esthétique : la Fenêtre reçoit une prop Style
+// (styleConteneur) thémable pour peindre son fond/cadre, en plus de son
+// CouleurFond plat existant. Réutilise la sémantique COPIE
+// et le sucre theme.X (/).
+//
+// ROUGE attendu : la prop Style est inconnue pour le type Fenêtre
+// aujourd'hui -> échec compile "Propriété 'Style' inconnue pour Fenêtre".
+//
+// Le rendu visuel réel (peinture effective du panneau de la fenêtre) est
+// HORS scope ici (vérification par capture offscreen à l'œil, cf ticket) :
+// seul le round-trip headless de la valeur du style est vérifié.
+
+TestModeHeadless(Vrai)
+
+Trace("=== Fenêtre..Style (styleConteneur) : compilation + round-trip headless ===")
+
+Ouvre(FEN_StyleConteneur)
+
+dbgVérifieEgalité(FEN_StyleConteneur..Style..CadreExtérieur..CouleurFond, Bleu,
+"FEN..Style..CadreExtérieur..CouleurFond reflète le style résolu via theme.X")
+
+dbgVérifieEgalité(FEN_StyleConteneur..CouleurFond, Rouge,
+"CouleurFond plat reste lisible indépendamment du Style (coexistence)")
+
+// Assignation directe en cascade (comme sur les widgets) : override du
+// style après ouverture.
+FEN_StyleConteneur..Style..CadreExtérieur..CouleurFond = Vert
+
+dbgVérifieEgalité(FEN_StyleConteneur..Style..CadreExtérieur..CouleurFond, Vert,
+"Cascade directe FEN..Style..CadreExtérieur..CouleurFond = ... applique la nouvelle valeur")
+
+// Réaffectation complète via theme.X (sémantique COPIE) : bascule vers une
+// autre instance de style, indépendante de l'override précédent.
+FEN_StyleConteneur..Style = theme.fondFenêtreAlt
+
+dbgVérifieEgalité(FEN_StyleConteneur..Style..CadreExtérieur..CouleurFond, JauneClair,
+"FEN..Style = theme.X (2e affectation) reflète le nouveau style résolu, pas l'override précédent")
+
+Ferme(FEN_StyleConteneur)
+dbgBilanTest()

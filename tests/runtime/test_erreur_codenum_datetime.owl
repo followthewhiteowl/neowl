@@ -1,0 +1,63 @@
+// ============================================
+// TEST: ErreurInfo(errCodeNum) et ErreurInfo(errDateHeure)
+//
+// Couvre deux accesseurs d'introspection d'erreur :
+//   errCodeNum  = alias numerique court du code ("E0NNN"/"W0NNN"), resolu
+//                 depuis le code symbole canonique du registre. Vide si le
+//                 code courant n'est pas un symbole connu (valeur user brute).
+//   errDateHeure = horodatage Unix milliseconde de la levee.
+//
+// Les deux sont alimentes par fn_erreur_info (cases OWL_ERR_CODE_NUM et
+// OWL_ERR_DATE_HEURE), donc tous deux branches.
+// ============================================
+Trace("=== ERREUR errCodeNum / errDateHeure ===")
+
+// ---------------------------------------------------------------------
+// T1 — errCodeNum sur une erreur native : code symbole -> alias numerique
+// ChaineVersEntier("abc") pose E_NATIVE_PARSE_ERROR, dont l'alias suit
+// la forme "E0NNN". On asserte la FORME du num (pas la valeur exacte) :
+// le rang d'apparition dans owl_errors.def est un detail d'implementation
+// qui glisse a chaque insertion d'une E_* anterieure (cf. owl_errors.c
+// "le numero est recalcule a la volee, pas stocke"). Hardcoder "E0190"
+// = bombe a retardement, l'invariant testable est la forme du code.
+// ---------------------------------------------------------------------
+ErreurRAZ()
+n est un entier = ChaîneVersEntier("abc")
+dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_PARSE_ERROR",
+"T1: errCode = symbole canonique de la native")
+codeNum est une chaîne = ErreurInfo(errCodeNum)
+dbgVérifieVrai(RegexVérifie(codeNum, "^E[0-9]{4}$"),
+"T1: errCodeNum bien forme (E0NNN) pour un symbole du registre")
+
+// ---------------------------------------------------------------------
+// T2 — errCodeNum vide pour un code user brut (non resoluble au registre)
+// ErreurDeclenche(42, ...) stocke "42", qui n'est pas un symbole du registre.
+// ---------------------------------------------------------------------
+ErreurRAZ()
+ErreurDéclenche(42, "boom user")
+dbgVérifieEgalité(ErreurInfo(errCode), "42",
+"T2: errCode = chaine numerique brute du code user")
+dbgVérifieEgalité(ErreurInfo(errCodeNum), "",
+"T2: errCodeNum vide si le code n'est pas un symbole du registre")
+
+// ---------------------------------------------------------------------
+// T3 — errDateHeure = horodatage milliseconde non nul a la levee
+// ---------------------------------------------------------------------
+ErreurRAZ()
+m est un entier = ChaîneVersEntier("xyz")
+ts est un entier = ErreurInfo(errDateHeure)
+dbgVérifieVrai(ts > 0, "T3: errDateHeure > 0 (horodatage ms renseigne)")
+// Plage de plausibilite : apres le 1er janvier 2020 (1577836800000 ms).
+dbgVérifieVrai(ts > 1577836800000,
+"T3: errDateHeure posterieur a 2020 (millisecondes Unix)")
+
+// ---------------------------------------------------------------------
+// T4 — errDateHeure se met a jour : une nouvelle levee >= la precedente
+// ---------------------------------------------------------------------
+ErreurRAZ()
+p est un entier = ChaîneVersEntier("zzz")
+ts2 est un entier = ErreurInfo(errDateHeure)
+dbgVérifieVrai(ts2 >= ts,
+"T4: errDateHeure d'une levee ulterieure >= celle d'avant (monotone)")
+
+dbgBilanTest()

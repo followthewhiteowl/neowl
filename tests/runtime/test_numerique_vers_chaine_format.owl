@@ -1,0 +1,102 @@
+// =====================================================================
+// Test runtime : NumeriqueVersChaine, masques canon de référence (documentation de référence)
+// Cas non illustrés par la doc mais documentés dans le format détaillé
+// + cas vérifiés + edge cases.
+// =====================================================================
+
+Trace("=== NumeriqueVersChaine -- couverture exhaustive ===")
+
+// Locale fixée pour reproductibilité
+OwlConfigureLocale(".", "'")
+
+// =====================================================================
+// Type 'd' (entier décimal) avec banker's rounding
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(0, "d"), "0", "0 en d")
+dbgVérifieEgalité(NumériqueVersChaîne(42, "d"), "42", "entier en d")
+dbgVérifieEgalité(NumériqueVersChaîne(-42, "d"), "-42", "négatif en d")
+// Banker's rounding : .5 rond vers pair
+dbgVérifieEgalité(NumériqueVersChaîne(0.5, "d"), "0", "0.5 -> 0 (banker)")
+dbgVérifieEgalité(NumériqueVersChaîne(1.5, "d"), "2", "1.5 -> 2 (banker)")
+dbgVérifieEgalité(NumériqueVersChaîne(2.5, "d"), "2", "2.5 -> 2 (banker)")
+dbgVérifieEgalité(NumériqueVersChaîne(3.5, "d"), "4", "3.5 -> 4 (banker)")
+// Width
+dbgVérifieEgalité(NumériqueVersChaîne(7, "5d"), "    7", "width 5 right-align")
+dbgVérifieEgalité(NumériqueVersChaîne(7, "-5d"), "7    ", "width 5 left-align")
+dbgVérifieEgalité(NumériqueVersChaîne(7, "05d"), "00007", "width 5 zero-pad")
+dbgVérifieEgalité(NumériqueVersChaîne(-7, "05d"), "-0007", "width 5 zero-pad négatif")
+dbgVérifieEgalité(NumériqueVersChaîne(7, "+05d"), "+0007", "width 5 zero-pad signe forcé")
+
+// =====================================================================
+// Type 'f' (virgule fixe) -- précision défaut 6
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(3, "f"), "3.000000", "f sans précision -> 6 dec défaut")
+dbgVérifieEgalité(NumériqueVersChaîne(3.14, "f"), "3.140000", "f réel + précision défaut")
+dbgVérifieEgalité(NumériqueVersChaîne(3.14, ".0f"), "3", "précision 0 sur f")
+dbgVérifieEgalité(NumériqueVersChaîne(0.1, ".10f"), "0.1000000000", "haute précision")
+
+// =====================================================================
+// Type 'e' (exponentielle) -- précision défaut 6
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(0, ".2e"), "0.00e+00", "0 en exponentielle")
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, ".2e"), "1.23e+03", "exponentielle 2 dec")
+dbgVérifieEgalité(NumériqueVersChaîne(0.001, ".3e"), "1.000e-03", "petit nombre exponentielle")
+
+// =====================================================================
+// Type 'x' / 'X' (hexadécimal)
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(0, "x"), "0", "0 en hex")
+dbgVérifieEgalité(NumériqueVersChaîne(15, "x"), "f", "15 -> f")
+dbgVérifieEgalité(NumériqueVersChaîne(15, "X"), "F", "15 -> F majuscule")
+dbgVérifieEgalité(NumériqueVersChaîne(255, "x"), "ff", "255 -> ff")
+dbgVérifieEgalité(NumériqueVersChaîne(255, "08X"), "000000FF", "hex zero-pad 8")
+
+// =====================================================================
+// Type 'o' (octal)
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(0, "o"), "0", "0 en octal")
+dbgVérifieEgalité(NumériqueVersChaîne(8, "o"), "10", "8 -> 10 octal")
+dbgVérifieEgalité(NumériqueVersChaîne(64, "o"), "100", "64 -> 100 octal")
+
+// =====================================================================
+// Combinaisons cadrage / signe / zéro / précision
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(-12.5, "+8.2f"), "  -12.50", "négatif ignore + (montre -)")
+dbgVérifieEgalité(NumériqueVersChaîne(-12.5, "-8.2f"), "-12.50  ", "left-align négatif")
+dbgVérifieEgalité(NumériqueVersChaîne(0, "+8.2f"), "   +0.00", "zéro avec signe forcé +")
+dbgVérifieEgalité(NumériqueVersChaîne(0, "8.2f"), "    0.00", "zéro sans signe forcé")
+
+// =====================================================================
+// Suffixe S/s -- séparateur milliers
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne(1000, "dS"), "1'000", "S sans width")
+dbgVérifieEgalité(NumériqueVersChaîne(1000000, "dS"), "1'000'000", "millions")
+dbgVérifieEgalité(NumériqueVersChaîne(123, "dS"), "123", "S sans effet < 1000")
+dbgVérifieEgalité(NumériqueVersChaîne(-123456, "dS"), "-123'456", "négatif avec S")
+
+// =====================================================================
+// String passthrough (documentation de référence)
+// =====================================================================
+dbgVérifieEgalité(NumériqueVersChaîne("texte"), "texte", "string passthrough sans masque")
+dbgVérifieEgalité(NumériqueVersChaîne("texte", "f"), "texte", "string passthrough ignore masque")
+dbgVérifieEgalité(NumériqueVersChaîne(""), "", "chaîne vide passthrough")
+
+// =====================================================================
+// OwlConfigureLocale : changer le séparateur milliers en cours
+// (le décimal du masque -- '.' ou ',' explicite -- gagne sur la locale)
+// =====================================================================
+OwlConfigureLocale(",", " ") // FR : milliers = espace
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "10.2fS"), " 12 345.50",
+"milliers FR (espace), décimal forcé '.' par le masque")
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "10,2fS"), " 12 345,50",
+"milliers FR + décimal ',' par le masque")
+OwlConfigureLocale(".", "'") // restore CH-style
+
+// =====================================================================
+// Type Numérique (OWL __int128 fixed-point)
+// =====================================================================
+n est un numérique = 12345.6789
+dbgVérifieEgalité(NumériqueVersChaîne(n, ".2f"), "12345.68", "numérique en .2f arrondi")
+dbgVérifieEgalité(NumériqueVersChaîne(n, "d"), "12346", "numérique en d (banker round)")
+
+dbgBilanTest()

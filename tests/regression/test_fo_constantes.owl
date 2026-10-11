@@ -1,0 +1,62 @@
+// Regression: fOuvre doit accepter les constantes de référence nommées
+// foLecture, foEcriture, foLectureEcriture (défaut de référence), foAjout, foCreation, foCreationSiInexistant
+// fPositionne doit accepter fpDebut, fpCourant, fpFin
+// Avant le fix: seuls les entiers bruts 0/1/2/3 étaient acceptés
+
+// Vérifier que les constantes sont définies et ont les bonnes valeurs fonctionnelles
+// (test via utilisation réelle sur un fichier temporaire)
+chemin est une chaîne = fRepTemp() + "/test_fo_reg.tmp"
+
+// Création / écriture
+h est un entier = fOuvre(chemin, foCréation)
+dbgVérifieVrai(h > 0, "foCreation ouvre")
+fEcrit(h, "HelloWorld")
+fFerme(h)
+
+// Lecture seule
+h2 est un entier = fOuvre(chemin, foLecture)
+dbgVérifieVrai(h2 > 0, "foLecture ouvre")
+contenu est une chaîne = fLitLigne(h2)
+dbgVérifieEgalité(contenu, "HelloWorld", "foLecture lit")
+fFerme(h2)
+
+// LectureEcriture (défaut de référence — équivalent foLecture+foEcriture)
+h3 est un entier = fOuvre(chemin, foLectureEcriture)
+dbgVérifieVrai(h3 > 0, "foLectureEcriture ouvre")
+
+// fPositionne avec constantes nommées
+fPositionne(h3, 0, fpDebut)
+contenu2 est une chaîne = fLitLigne(h3)
+dbgVérifieEgalité(contenu2, "HelloWorld", "fpDebut lit depuis debut")
+
+fPositionne(h3, 0, fpDebut)
+pos est un entier = fPositionne(h3, 0, fpCourant)
+dbgVérifieEgalité(pos, 0, "fpCourant position initiale")
+
+// fpFin → position en fin de fichier
+fPositionne(h3, 0, fpFin)
+posFin est un entier = fPositionne(h3, 0, fpCourant)
+dbgVérifieVrai(posFin > 0, "fpFin positionne en fin")
+
+fFerme(h3)
+
+// Ajout
+h4 est un entier = fOuvre(chemin, foAjout)
+dbgVérifieVrai(h4 > 0, "foAjout ouvre")
+fEcrit(h4, "!")
+fFerme(h4)
+
+// foCreationSiInexistant — crée seulement si inexistant
+cheminNouveau est une chaîne = fRepTemp() + "/test_fo_new_reg.tmp"
+SI fFichierExiste(cheminNouveau) ALORS
+	fSupprime(cheminNouveau)
+FIN
+h5 est un entier = fOuvre(cheminNouveau, foCréationSiInexistant)
+dbgVérifieVrai(h5 > 0, "foCreationSiInexistant cree")
+fFerme(h5)
+
+// Nettoyage
+fSupprime(chemin)
+fSupprime(cheminNouveau)
+
+dbgBilanTest()

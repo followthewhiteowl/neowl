@@ -1,0 +1,39 @@
+// =====================================================================
+// TEST: propriété d'état unifié `État` sur un Champ Onglet.
+//
+// Un Onglet possède désormais la propriété standard `État`
+// (Actif / AffichageSeulement / Grisé / Invisible), comme une Saisie ou un
+// Bouton. Avant ce ticket l'Onglet ne connaissait que les booléens
+// `Grisé`/`Visible` et rejetait `État = Grisé` au compile-time
+// (« Propriété 'Etat' inconnue pour Onglet »).
+//
+// Ce test verrouille :
+//   1. `État = <valeur>` compile dans le bloc PROPRIETES d'un Onglet.
+//   2. Chaque état déclaré est honoré au runtime et relu correctement
+//      via `ONG_x..État` (widget Qt réel monté).
+//   3. La réaffectation runtime `ONG_x..État = ...` fonctionne.
+//
+// Widgets Qt réels requis (le mode headless ne matérialise pas les
+// QTabWidget) : TestModeHeadless(Faux) + OuvreSoeur.
+// =====================================================================
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OngletEtat)
+
+// 1 + 2 — valeurs déclaratives, relues après matérialisation du QTabWidget.
+dbgVérifieEgalité(ONG_Actif..Etat, Actif, "État=Actif déclaratif conservé (Onglet)")
+dbgVérifieEgalité(ONG_Grise..Etat, Grisé, "État=Grisé déclaratif conservé (Onglet)")
+dbgVérifieEgalité(ONG_AffSeul..Etat, AffichageSeulement, "État=AffichageSeulement déclaratif conservé (Onglet)")
+dbgVérifieEgalité(ONG_Invis..Etat, Invisible, "État=Invisible déclaratif conservé (Onglet)")
+
+// 3 — réaffectation runtime + relecture.
+ONG_Actif..Etat = Grisé
+dbgVérifieEgalité(ONG_Actif..Etat, Grisé, "État réaffecté au runtime (Onglet)")
+
+ONG_Grise..Etat = Actif
+dbgVérifieEgalité(ONG_Grise..Etat, Actif, "État réactivé au runtime (Onglet)")
+
+Ferme(FEN_OngletEtat)
+
+dbgBilanTest()

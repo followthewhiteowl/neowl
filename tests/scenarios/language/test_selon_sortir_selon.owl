@@ -1,0 +1,127 @@
+// @sujet : SORTIR SELON — sortir explicitement d'un SELON sans toucher aux boucles englobantes
+// @résumé : `SORTIR SELON` quitte immédiatement le `SELON` en cours et reprend l'exécution juste après son `FIN`. Utile pour interrompre un CAS au milieu de son corps sur condition, sans passer aux CAS suivants (rappel : il n'y a pas de fall-through). `SORTIR` seul reste réservé aux boucles : un `SORTIR` placé dans un CAS d'un SELON imbriqué dans une boucle quitte **la boucle**, pas le SELON. Cette séparation rend le contrôle de flux explicite quand on a les deux structures imbriquées.
+
+
+// Cas canonique : interruption conditionnelle d'un CAS. Le corps d'un CAS
+// commence à s'exécuter, puis une condition découverte en cours de route
+// fait sortir du SELON. Les instructions après le SORTIR SELON ne sont
+// pas atteintes, et le contrôle reprend juste après le FIN du SELON.
+PROCEDURE scenario_interruption_dans_cas()
+	nCommande est un entier = 1
+	sUtilisateur est une chaîne = "Admin"
+	sJournal est une chaîne = ""
+	SELON nCommande
+		CAS 1 :
+			sJournal = sJournal + "début|"
+			SI sUtilisateur = "Admin" ALORS
+				SORTIR SELON
+			FIN
+			sJournal = sJournal + "promo|"
+			AUTRE CAS : sJournal = sJournal + "défaut|"
+		FIN
+		sJournal = sJournal + "fin|"
+		dbgVérifieEgalité(sJournal, "début|fin|", "SORTIR SELON saute le reste du CAS et continue après FIN")
+	FIN
+
+
+	// Cas symétrique : sans SORTIR SELON, le corps complet s'exécute. Présenté
+	// côte à côte pour clarifier le rôle du statement — c'est bien une sortie
+	// conditionnelle, pas un fall-through suppressor (il n'y en a jamais).
+	PROCEDURE scenario_sans_sortir_selon_comparaison()
+		nCommande est un entier = 1
+		sUtilisateur est une chaîne = "Client"
+		sJournal est une chaîne = ""
+		SELON nCommande
+			CAS 1 :
+				sJournal = sJournal + "début|"
+				SI sUtilisateur = "Admin" ALORS
+					SORTIR SELON
+				FIN
+				sJournal = sJournal + "promo|"
+				AUTRE CAS : sJournal = sJournal + "défaut|"
+			FIN
+			sJournal = sJournal + "fin|"
+			dbgVérifieEgalité(sJournal, "début|promo|fin|", "Sans condition vraie, SORTIR SELON n'est pas atteint")
+		FIN
+
+
+		// SORTIR SELON et SORTIR coexistent dans une boucle qui contient un SELON.
+		// SORTIR quitte la **boucle** ; SORTIR SELON quitte juste le SELON et
+		// laisse la boucle continuer ses itérations. La séparation des deux mots-
+		// clés rend l'intention explicite — pas de devinette possible.
+		PROCEDURE scenario_sortir_vs_sortir_selon_dans_boucle()
+			sTrace est une chaîne = ""
+			POUR i = 1 À 4
+				SELON i
+					CAS 2 :
+						sTrace = sTrace + "cas2-début|"
+						SORTIR SELON
+							sTrace = sTrace + "cas2-après|"
+						CAS 3 : sTrace = sTrace + "cas3|"
+						AUTRE CAS : sTrace = sTrace + "défaut" + i + "|"
+					FIN
+					sTrace = sTrace + "tour" + i + "|"
+				FIN
+				dbgVérifieEgalité(sTrace, "défaut1|tour1|cas2-début|tour2|cas3|tour3|défaut4|tour4|", "SORTIR SELON quitte le SELON mais laisse la boucle continuer")
+			FIN
+
+
+			// SORTIR (sans SELON) à l'intérieur d'un CAS d'un SELON imbriqué dans une
+			// boucle quitte la boucle entière. Comportement canon : SORTIR n'a aucune
+			// sémantique SELON, c'est exclusivement un break de boucle.
+			PROCEDURE scenario_sortir_quitte_la_boucle_complete()
+				sTrace est une chaîne = ""
+				POUR i = 1 À 5
+					SELON i
+						CAS 3 :
+							sTrace = sTrace + "trouvé|"
+							SORTIR
+						AUTRE CAS : sTrace = sTrace + "tour" + i + "|"
+					FIN
+					sTrace = sTrace + "queue" + i + "|"
+				FIN
+				sTrace = sTrace + "après-boucle"
+				dbgVérifieEgalité(sTrace, "tour1|queue1|tour2|queue2|trouvé|après-boucle", "SORTIR quitte la boucle entière, le 'queue3' et les tours 4-5 ne sont jamais exécutés")
+			FIN
+
+
+			// SORTIR SELON dans un SELON imbriqué dans un autre SELON : sort uniquement
+			// du SELON le plus proche, le SELON englobant continue son traitement
+			// normal. Pas d'effet en cascade, pas d'ambiguïté sur la portée.
+			PROCEDURE scenario_sortir_selon_imbrique()
+				nExterieur est un entier = 1
+				nInterieur est un entier = 1
+				sTrace est une chaîne = ""
+				SELON nExterieur
+					CAS 1 :
+						sTrace = sTrace + "ext-début|"
+						SELON nInterieur
+						CAS 1 :
+							sTrace = sTrace + "int-début|"
+							SORTIR SELON
+								sTrace = sTrace + "int-après|"
+							AUTRE CAS : sTrace = sTrace + "int-défaut|"
+						FIN
+						sTrace = sTrace + "ext-après|"
+						AUTRE CAS : sTrace = sTrace + "ext-défaut|"
+					FIN
+					dbgVérifieEgalité(sTrace, "ext-début|int-début|ext-après|", "SORTIR SELON sort du SELON le plus proche uniquement, l'extérieur poursuit normalement")
+				FIN
+
+
+				// Forme anglaise : `EXIT SWITCH` est l'équivalent EN canonique de
+				// `SORTIR SELON`. Comme tous les mots-clés OWL, les deux langues sont
+				// interchangeables — utile pour les bases de code multilingues ou les
+				// portages.
+				PROCEDURE scenario_forme_anglaise()
+					nVal est un entier = 1
+					sTrace est une chaîne = ""
+					SWITCH nVal
+						CASE 1 :
+							sTrace = sTrace + "a|"
+							EXIT SWITCH
+								sTrace = sTrace + "b|"
+								OTHER CASE : sTrace = sTrace + "c|"
+						END
+						dbgVérifieEgalité(sTrace, "a|", "EXIT SWITCH est l'équivalent EN de SORTIR SELON")
+					FIN

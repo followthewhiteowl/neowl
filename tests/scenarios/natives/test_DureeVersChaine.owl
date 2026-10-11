@@ -1,0 +1,68 @@
+// @sujet : DuréeVersChaîne
+// @résumé : Formate une durée en chaîne selon un format obligatoire. Le format peut être une constante (duréeMillième pour JHHMMSSCCC à 10-11 chiffres, duréeCentième pour JHHMMSSCC à 9-10 chiffres) ou une chaîne template avec tokens. Retourne une représentation textuelle de la durée sous la forme demandée.
+
+
+// Cas canonique : constante duréeMillième (JHHMMSSCCC à 10-11 chiffres)
+// avec 1 heure 30 minutes. La durée est exprimée en millisecondes,
+// le retour est une chaîne formatée selon le template JHHMMSSCC.
+PROCEDURE PUBLIQUE scenario_format_millieme_une_heure_trente()
+	dur est une durée = 90 * 60 * 1000 // 1h30 en millisecondes
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
+	dbgVérifieEgalité(sChaîne, "0013000000", "1h30 formatée correctement (0 jour 01h 30min 00s 000ms)")
+FIN
+
+
+// Constante duréeMillième avec composante jours non nulle.
+// Permet de formater une durée supérieure à 24 heures (par ex. 1 jour + 2h).
+PROCEDURE PUBLIQUE scenario_format_millieme_avec_jours()
+	dur est une durée = (24 + 2) * 3600 * 1000 // 1 jour + 2 heures en millisecondes
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
+	dbgVérifieEgalité(sChaîne, "1020000000", "1 jour + 2h formaté correctement (1 jour 02h 00min 00s 000ms)")
+FIN
+
+
+// Constante duréeCentième pour une durée courte de 30 secondes.
+// Vérifie que le format centième (précision à 10ms) est bien appliqué.
+PROCEDURE PUBLIQUE scenario_format_centieme_trente_secondes()
+	dur est une durée = 30 * 1000 // 30 secondes en millisecondes
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeCentième)
+	dbgVérifieEgalité(sChaîne, "000003000", "30 secondes formatées correctement (0 jour 00h 00min 30s 00cs)")
+FIN
+
+
+// Cas limite : durée nulle retourne chaîne de zéros.
+// Permet de distinguer l'absence de valeur d'un format réussi à zéro.
+PROCEDURE PUBLIQUE scenario_duree_nulle_format_millieme()
+	dur est une durée = 0
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
+	dbgVérifieEgalité(sChaîne, "0000000000", "durée nulle retourne chaîne de zéros")
+FIN
+
+
+// Cas limite : durée maximale (proche débordement mais reste valide).
+// Teste la robustesse du formatage sur une très longue durée.
+PROCEDURE PRIVÉE scenario_edge_duree_tres_longue()
+	dur est une durée = 999 * 24 * 3600 * 1000 // ~999 jours en millisecondes
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
+	// Attendu : 999 jours, reste zéro — le format déborde à 12 chiffres (999 jours)
+	dbgVérifieEgalité(sChaîne, "999000000000", "durée ~999 jours formatée correctement")
+FIN
+
+
+// Cas limite : durée négative (si supporté).
+// Vérifie que le formatage ajoute un signe moins en préfixe.
+PROCEDURE PRIVÉE scenario_edge_duree_negative()
+	dur est une durée = -3600 * 1000 // -1 heure en millisecondes
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
+	// Attendu : signe moins en préfixe + 1 heure
+	dbgVérifieEgalité(sChaîne, "-0010000000", "durée négative formatée avec signe moins")
+FIN
+
+
+// Cas limite : durée avec millisecondes non nulles.
+// Vérifie que la partie fractionnaire est bien rendue dans le format millième.
+PROCEDURE PRIVÉE scenario_edge_millisecondes_non_nulles()
+	dur est une durée = 1234 // 1.234 secondes en millisecondes
+	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
+	dbgVérifieEgalité(sChaîne, "0000001234", "1.234 secondes formatées correctement (0j 0h 0min 1s 234ms)")
+FIN

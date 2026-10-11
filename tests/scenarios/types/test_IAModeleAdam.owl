@@ -1,0 +1,314 @@
+// @sujet : IAModèle — entraînement Adam (opts..Optimiseur = optimAdam)
+// @résumé : optimAdam est un second optimiseur disponible pour mon.Entraîne,
+// aux côtés de optimSGD. Par poids, Adam maintient deux moments (m, v)
+// remis à zéro à chaque appel de .Entraîne, met à jour ces moments à
+// chaque mini-lot, applique la correction de biais (division par
+// 1 − β1^t et 1 − β2^t), puis déplace le poids de
+// taux · m̂ / (√v̂ + eps). Au tout premier pas (m et v encore nuls), la
+// formule se simplifie : m̂ = gradient, v̂ = gradient², donc le poids bouge
+// d'environ taux dans le sens opposé au gradient, quelle que soit
+// l'amplitude de ce gradient — c'est ce qui rend le premier pas
+// vérifiable à la main sans connaître l'initialisation aléatoire des
+// poids (on les extrait via .Poids/.Biais avant l'appel).
+//
+// Le scénario "multi-pas" pousse la vérification à deux mini-lots
+// successifs (une seule époque, taille de lot 1, deux échantillons) : il
+// recalcule indépendamment le second pas à partir des moments accumulés
+// au premier pas, prouvant que les moments survivent bien d'un mini-lot
+// à l'autre au sein d'un même appel à .Entraîne.
+
+// optimAdam se lit tel qu'il a été écrit dans ..Optimiseur, et diffère de
+// optimSGD.
+PROCEDURE PUBLIQUE scenario_optimiseur_adam_reconnu_en_propriete()
+	opts est un OptionsEntraînement
+	opts..Optimiseur = optimAdam
+	dbgVérifieEgalité(opts..Optimiseur, optimAdam, "Optimiseur relu = optimAdam écrit")
+	dbgVérifieDifférence(opts..Optimiseur, optimSGD, "optimAdam diffère de optimSGD")
+FIN
+
+
+// Cœur du contrat, verrou de la formule Adam au tout premier pas (1
+// époque, 1 échantillon, taille de lot 1, m0 = v0 = 0) : le gradient
+// exact utilisé par .Entraîne se lit directement sur l'ancien Tenseur
+// poids/biais (encore roôté par nos variables, jamais réécrasé — le
+// modèle remplace la référence par une feuille fraîche à la mise à jour,
+// il ne mute pas l'ancien objet). Avec m0 = v0 = 0, la formule Adam
+// simplifie à poids − taux·gradient/(|gradient| + eps).
+PROCEDURE PUBLIQUE scenario_adam_un_pas_poids_egale_poids_moins_taux_signe_gradient()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	tWavant est un Tenseur = mon.Poids(1)
+	tbavant est un Tenseur = mon.Biais(1)
+	valWavant est une Matrice = tWavant..Valeur
+	valBavant est un Vecteur = tbavant..Valeur
+
+	matX est une Matrice = [[1.0, -1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.5, -0.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.1
+	eps est un réel = 0.00000001
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	gradW est une Matrice = tWavant..Gradient
+	gradB est un Vecteur = tbavant..Gradient
+
+	tWapres est un Tenseur = mon.Poids(1)
+	tbapres est un Tenseur = mon.Biais(1)
+	valWapres est une Matrice = tWapres..Valeur
+	valBapres est un Vecteur = tbapres..Valeur
+
+	g est un réel = 0.0
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 2
+			g = gradW[iLigne][iCol]
+			dbgVérifieVrai(Abs(valWapres[iLigne][iCol] - (valWavant[iLigne][iCol] - taux * g / (Abs(g) + eps))) < 0.000001, "Adam t=1 : poids = poids - taux*gradient/(|gradient|+eps) (m0=v0=0)")
+		FIN
+	FIN
+	g = gradB[1]
+	dbgVérifieVrai(Abs(valBapres[1] - (valBavant[1] - taux * g / (Abs(g) + eps))) < 0.000001, "Adam t=1, biais[1] : formule simplifiée m0=v0=0")
+	g = gradB[2]
+	dbgVérifieVrai(Abs(valBapres[2] - (valBavant[2] - taux * g / (Abs(g) + eps))) < 0.000001, "Adam t=1, biais[2] : formule simplifiée m0=v0=0")
+FIN
+
+
+// Deux mini-lots successifs (1 époque, taille de lot 1, 2 échantillons) :
+// le second pas doit refléter la correction de biais à t=2 ET
+// l'accumulation des moments m/v depuis le premier pas. Le premier pas
+// est vérifié comme ci-dessus (formule simplifiée). Le second pas est
+// recalculé indépendamment : poids θ1 (résultat du premier pas, calculé
+// à la main) rejoué dans un forward manuel avec le second échantillon
+// pour obtenir g2, combiné aux moments bruts du premier pas selon la
+// récurrence Adam (m2 = β1·m1 + (1−β1)·g2, idem v2), puis la mise à
+// jour à t=2 (division par 1 − β1² et 1 − β2²).
+PROCEDURE PUBLIQUE scenario_adam_multipas_correction_biais_deux_mini_lots()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 1)
+
+	tWavant est un Tenseur = mon.Poids(1)
+	tbavant est un Tenseur = mon.Biais(1)
+	valWavant est une Matrice = tWavant..Valeur
+	valBavant est un Vecteur = tbavant..Valeur
+
+	matX est une Matrice = [[1.0, 2.0], [-1.0, 1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[3.0], [1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.1
+	beta1 est un réel = 0.9
+	beta2 est un réel = 0.999
+	eps est un réel = 0.00000001
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	// Gradient exact du 1er mini-lot, lu sur les Tenseurs d'origine.
+	gradW1 est une Matrice = tWavant..Gradient
+	gradB1 est un Vecteur = tbavant..Gradient
+
+	matWTheta1 est une Matrice = [[0.0], [0.0]]
+	vecMWraw1 est un Vecteur = [0.0, 0.0]
+	vecVWraw1 est un Vecteur = [0.0, 0.0]
+	g est un réel = 0.0
+	POUR i = 1 À 2
+		g = gradW1[i][1]
+		vecMWraw1[i] = (1.0 - beta1) * g
+		vecVWraw1[i] = (1.0 - beta2) * g * g
+		matWTheta1[i][1] = valWavant[i][1] - taux * g / (Abs(g) + eps)
+	FIN
+
+	gB1 est un réel = gradB1[1]
+	mBraw1 est un réel = (1.0 - beta1) * gB1
+	vBraw1 est un réel = (1.0 - beta2) * gB1 * gB1
+	bTheta1 est un réel = valBavant[1] - taux * gB1 / (Abs(gB1) + eps)
+
+	// 2e mini-lot : forward manuel avec θ1 calculé ci-dessus (Tenseurs
+	// frais), pour obtenir g2 indépendamment de l'implémentation.
+	tW1 est un Tenseur = Tenseur(matWTheta1)
+	vecB1 est un Vecteur = [bTheta1]
+	tb1 est un Tenseur = Tenseur(vecB1)
+
+	matX2 est une Matrice = [[-1.0, 1.0]]
+	tX2 est un Tenseur = Tenseur(matX2)
+	matY2 est une Matrice = [[1.0]]
+	tY2 est un Tenseur = Tenseur(matY2)
+
+	th2 est un Tenseur = tX2.ProduitMatriciel(tW1)
+	thb2 est un Tenseur = th2 + tb1
+	tperte2 est un Tenseur = thb2.ErreurQuadratique(tY2)
+	tperte2.Rétropropage()
+
+	gradW2 est une Matrice = tW1..Gradient
+	gradB2 est un Vecteur = tb1..Gradient
+
+	matWTheta2 est une Matrice = [[0.0], [0.0]]
+	mraw2 est un réel = 0.0
+	vraw2 est un réel = 0.0
+	mhat2 est un réel = 0.0
+	vhat2 est un réel = 0.0
+	POUR i = 1 À 2
+		g     = gradW2[i][1]
+		mraw2 = beta1 * vecMWraw1[i] + (1.0 - beta1) * g
+		vraw2 = beta2 * vecVWraw1[i] + (1.0 - beta2) * g * g
+		mhat2 = mraw2 / (1.0 - beta1 * beta1)
+		vhat2 = vraw2 / (1.0 - beta2 * beta2)
+		matWTheta2[i][1] = matWTheta1[i][1] - taux * mhat2 / (Racine(vhat2) + eps)
+	FIN
+
+	gB2 est un réel = gradB2[1]
+	mBraw2 est un réel = beta1 * mBraw1 + (1.0 - beta1) * gB2
+	vBraw2 est un réel = beta2 * vBraw1 + (1.0 - beta2) * gB2 * gB2
+	mBhat2 est un réel = mBraw2 / (1.0 - beta1 * beta1)
+	vBhat2 est un réel = vBraw2 / (1.0 - beta2 * beta2)
+	bTheta2 est un réel = bTheta1 - taux * mBhat2 / (Racine(vBhat2) + eps)
+
+	valWapres est une Matrice = mon.Poids(1)..Valeur
+	valBapres est un Vecteur = mon.Biais(1)..Valeur
+
+	dbgVérifieVrai(Abs(valWapres[1][1] - matWTheta2[1][1]) < 0.000001, "Adam t=2, poids ligne 1 : accumulation m/v et correction de biais conformes au calcul indépendant")
+	dbgVérifieVrai(Abs(valWapres[2][1] - matWTheta2[2][1]) < 0.000001, "Adam t=2, poids ligne 2 : accumulation m/v et correction de biais conformes au calcul indépendant")
+	dbgVérifieVrai(Abs(valBapres[1] - bTheta2) < 0.000001, "Adam t=2, biais : accumulation m/v et correction de biais conformes au calcul indépendant")
+FIN
+
+
+// Sur un problème linéairement séparable (perte entropie croisée),
+// l'entraînement avec optimAdam fait nettement diminuer la perte et le
+// modèle classe correctement les points, exactement comme avec optimSGD
+// (assertions en inégalité, pas de valeur exacte : les poids initiaux
+// sont aléatoires).
+PROCEDURE PUBLIQUE scenario_adam_reduit_nettement_la_perte_probleme_convexe()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	wAvant est un réel = mon.Poids(1)..Valeur[1][1]
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	tperteAvant est un Tenseur = sortieAvant.EntropieCroisée(tY)
+	valPerteAvant est un réel = tperteAvant..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 150
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.05
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, opts)
+
+	wApres est un réel = mon.Poids(1)..Valeur[1][1]
+	dbgVérifieDifférence(wApres, wAvant, "Le poids a changé après .Entraîne(optimAdam) : le modèle a appris")
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	tperteApres est un Tenseur = sortieApres.EntropieCroisée(tY)
+	valPerteApres est un réel = tperteApres..Valeur[1]
+
+	dbgVérifieVrai(valPerteApres < valPerteAvant * 0.5, "optimAdam : la perte finale est nettement inférieure à la perte initiale")
+
+	valSortieApres est une Matrice = sortieApres..Valeur
+	dbgVérifieVrai(valSortieApres[1][1] > valSortieApres[1][2], "Point 1 (classe 1) : logit classe 1 > logit classe 2 après entraînement Adam")
+	dbgVérifieVrai(valSortieApres[3][2] > valSortieApres[3][1], "Point 3 (classe 2) : logit classe 2 > logit classe 1 après entraînement Adam")
+FIN
+
+
+// Basculer ..Optimiseur entre optimSGD et optimAdam change bien le
+// comportement de l'entraînement, sur le même modèle, sans réinitialiser
+// quoi que ce soit entre les deux appels : optimSGD marche toujours
+// (non-régression), et poursuivre avec optimAdam continue de faire
+// baisser la perte.
+PROCEDURE PUBLIQUE scenario_bascule_sgd_puis_adam_meme_modele_continue_a_apprendre()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieInit est un Tenseur = mon.Infère(tX)
+	tperteInit est un Tenseur = sortieInit.EntropieCroisée(tY)
+	valPerteInit est un réel = tperteInit..Valeur[1]
+
+	optsSGD est un OptionsEntraînement
+	optsSGD..Époques           = 30
+	optsSGD..TailleLot         = 4
+	optsSGD..TauxApprentissage = 0.5
+	optsSGD..Optimiseur        = optimSGD
+	optsSGD..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, optsSGD)
+
+	sortieApresSGD est un Tenseur = mon.Infère(tX)
+	tperteApresSGD est un Tenseur = sortieApresSGD.EntropieCroisée(tY)
+	valPerteApresSGD est un réel = tperteApresSGD..Valeur[1]
+
+	dbgVérifieVrai(valPerteApresSGD < valPerteInit, "Phase optimSGD : la perte a diminué (non-régression)")
+
+	optsAdam est un OptionsEntraînement
+	optsAdam..Époques           = 30
+	optsAdam..TailleLot         = 4
+	optsAdam..TauxApprentissage = 0.05
+	optsAdam..Optimiseur        = optimAdam
+	optsAdam..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, optsAdam)
+
+	sortieApresAdam est un Tenseur = mon.Infère(tX)
+	tperteApresAdam est un Tenseur = sortieApresAdam.EntropieCroisée(tY)
+	valPerteApresAdam est un réel = tperteApresAdam..Valeur[1]
+
+	dbgVérifieVrai(valPerteApresAdam < valPerteApresSGD, "Phase optimAdam qui poursuit sur le même modèle : la perte continue de diminuer")
+FIN
+
+
+// Cas limite : 0 époque avec optimAdam ne fait tourner aucun pas
+// d'entraînement, les poids restent strictement identiques à ceux de la
+// construction (même garde-fou que optimSGD).
+PROCEDURE PRIVÉE scenario_edge_adam_zero_epoque_ne_modifie_pas_les_poids()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	valWavant est une Matrice = mon.Poids(1)..Valeur
+	valBavant est un Vecteur = mon.Biais(1)..Valeur
+
+	matX est une Matrice = [[1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 0
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, opts)
+
+	valWapres est une Matrice = mon.Poids(1)..Valeur
+	valBapres est un Vecteur = mon.Biais(1)..Valeur
+
+	dbgVérifieEgalité(valWapres[1][1], valWavant[1][1], "0 époque, optimAdam : le poids reste strictement inchangé")
+	dbgVérifieEgalité(valBapres[1], valBavant[1], "0 époque, optimAdam : le biais reste strictement inchangé")
+FIN

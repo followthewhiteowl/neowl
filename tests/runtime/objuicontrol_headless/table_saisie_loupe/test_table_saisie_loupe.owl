@@ -1,0 +1,60 @@
+// ============================================
+// TEST (headless): TableSaisieLoupe / TableInputSearch
+//
+// TableSaisieLoupe(TAB.COL [, type [, valeur]]) declenche la saisie loupe
+// d'une colonne, comme un clic utilisateur sur l'icone loupe. L'OUVERTURE
+// VISUELLE de l'editeur inline releve de la validation humaine (demo) et
+// n'est pas assertee ici. Ce qui est interrogeable HEADLESS : quand le type
+// est une constante filtre* + une valeur non vide, la fonction applique le
+// filtre correspondant (meme store $tblfilters que TableActiveFiltre), donc
+// TableColonnesFiltrees le reflete. Un type recherche* (ou l'absence de type)
+// ne persiste aucun filtre : c'est du positionnement visuel, invisible
+// headless. Cette suite verrouille exactement cette frontiere.
+// Pattern : la fenetre voisine FEN_SaisieLoupe.owl porte la declaration.
+// ============================================
+
+Ouvre(FEN_SaisieLoupe)
+
+// --- etat initial : aucun filtre --------------------------------------
+sListe0 est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieEgalité(sListe0, "", "etat initial : aucun filtre actif")
+
+// --- colonne seule : passe en mode recherche, ne persiste AUCUN filtre
+TableSaisieLoupe(TAB_Clients.COL_Nom)
+sListeRech est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieEgalité(sListeRech, "", "colonne seule (rechercheDefaut) : aucun filtre persiste headless")
+
+// --- type recherche* + valeur : positionnement, pas de filtre persiste
+TableSaisieLoupe(TAB_Clients.COL_Nom, rechercheContient, "Du")
+sListeRech2 est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieEgalité(sListeRech2, "", "type recherche* : positionnement visuel, aucun filtre headless")
+
+// --- type filtre* + valeur : applique le filtre (reflete headless) ----
+TableSaisieLoupe(TAB_Clients.COL_Nom, filtreContient, "Du")
+sListe1 est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieVrai(sListe1 <> "", "filtre* + valeur : TableColonnesFiltrees non vide")
+dbgVérifieVrai(Contient(sListe1, "COL_Nom"), "la colonne loupee (COL_Nom) apparait")
+dbgVérifieVrai(Contient(sListe1, "Du"), "la valeur initiale (Du) apparait")
+dbgVérifieEgalité(Occurrence(sListe1, CRLF), 0, "un seul filtre actif : aucune separation RC")
+
+// --- valeur vide sur filtre* : retire le filtre -----------------------
+TableSaisieLoupe(TAB_Clients.COL_Nom, filtreContient, "")
+sListe2 est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieEgalité(sListe2, "", "valeur vide sur filtre* : filtre retire")
+
+// --- TableDesactiveFiltre annule un filtre pose par la loupe (canon) --
+TableSaisieLoupe(TAB_Clients.COL_Ville, filtreCommencePar, "Pa")
+dbgVérifieVrai(Contient(TableColonnesFiltrees(TAB_Clients), "COL_Ville"), "filtre loupe pose sur COL_Ville")
+TableDésactiveFiltre(TAB_Clients.COL_Ville)
+sListe3 est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieEgalité(sListe3, "", "TableDesactiveFiltre annule le filtre pose par la loupe")
+
+// --- bilingue : TableInputSearch applique identiquement ---------------
+TableInputSearch(TAB_Clients.COL_Nom, filtreEgal, "Martin")
+sEN est une chaîne = TableColonnesFiltrees(TAB_Clients)
+dbgVérifieVrai(Contient(sEN, "COL_Nom"), "TableInputSearch (EN) pose le filtre sur COL_Nom")
+dbgVérifieVrai(Contient(sEN, "Martin"), "TableInputSearch (EN) porte la valeur Martin")
+
+Ferme(FEN_SaisieLoupe)
+
+dbgBilanTest()

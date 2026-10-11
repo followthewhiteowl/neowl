@@ -1,0 +1,44 @@
+// Non-regression  : un element indexe `tab[i]` en position FINALE d'un
+// litteral (le `]` de l'indice colle au `]` englobant, scanne `]]`) doit etre
+// accepte. Couvre les trois facettes de la meme cause : indexation imbriquee,
+// litteral tableau ordinaire, et litteral argument du constructeur Tenseur.
+
+labels est un tableau de réels
+Ajoute(labels, 1.0)
+Ajoute(labels, 2.0)
+Ajoute(labels, 3.0)
+
+idx est un tableau d'entiers
+Ajoute(idx, 2)
+
+// Facette 1 — indexation imbriquee terminale : data[idx[1]]
+v est un réel = labels[idx[1]]
+dbgVérifieEgalité(v, 2.0, "indexation imbriquee terminale data[idx[1]]")
+
+// Facette 2 — litteral tableau ordinaire, dernier element indexe
+lit est un tableau de réels = [labels[1]]
+dbgVérifieEgalité(lit[1], 1.0, "littéral tableau : seul élément indexé")
+
+lit2 est un tableau de réels = [labels[1], labels[3]]
+dbgVérifieEgalité(lit2[1], 1.0, "littéral tableau : premier élément indexé")
+dbgVérifieEgalité(lit2[2], 3.0, "littéral tableau : dernier élément indexé")
+
+// Facette 3 — litteral argument du constructeur Tenseur
+t1 est un Tenseur = Tenseur([labels[1]])
+dbgVérifieEgalité(t1..Valeur[1], 1.0, "Tenseur([labels[1]]) : composante unique")
+
+t2 est un Tenseur = Tenseur([labels[1], labels[2]])
+dbgVérifieEgalité(t2..Valeur[1], 1.0, "Tenseur([labels[1], labels[2]]) : composante 1")
+dbgVérifieEgalité(t2..Valeur[2], 2.0, "Tenseur([labels[1], labels[2]]) : composante 2")
+
+// Expression composee dont un terme est un element indexe terminal
+t3 est un Tenseur = Tenseur([labels[1] * 2.0, labels[3]])
+dbgVérifieEgalité(t3..Valeur[1], 2.0, "Tenseur([labels[1] * 2.0, ...]) : terme calculé")
+dbgVérifieEgalité(t3..Valeur[2], 3.0, "Tenseur([..., labels[3]]) : dernier terme indexé")
+
+// Non-regression des formes deja valides
+t4 est un Tenseur = Tenseur([1.0, 2.0])
+dbgVérifieEgalité(t4..Valeur[1], 1.0, "Tenseur([1.0, 2.0]) inchangé : composante 1")
+dbgVérifieEgalité(t4..Valeur[2], 2.0, "Tenseur([1.0, 2.0]) inchangé : composante 2")
+
+dbgBilanTest()

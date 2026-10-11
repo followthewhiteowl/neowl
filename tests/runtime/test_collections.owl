@@ -1,0 +1,160 @@
+Trace("=== COLLECTIONS (File/Pile/Liste) ===")
+
+// ============================================================
+// FILE (Queue) - FIFO
+// ============================================================
+
+maFile est une file de entiers
+
+// Test: vide au debut
+dbgVérifieVrai(maFile..Vide, "File vide au depart")
+dbgVérifieEgalité(maFile..Occurrence, 0, "File ..Occurrence = 0")
+
+// Test: Enfile
+Enfile(maFile, 10)
+Enfile(maFile, 20)
+Enfile(maFile, 30)
+dbgVérifieEgalité(maFile..Occurrence, 3, "File 3 elements apres Enfile")
+dbgVérifieVrai(PAS maFile..Vide, "File non vide")
+
+// Test: Taille sur File
+dbgVérifieEgalité(Taille(maFile), 3, "Taille(File) = 3")
+
+// Test: Defile (FIFO: premier entre = premier sorti)
+v1 est un entier = Défile(maFile)
+dbgVérifieEgalité(v1, 10, "Defile -> 10 (premier entre)")
+
+v2 est un entier = Défile(maFile)
+dbgVérifieEgalité(v2, 20, "Defile -> 20")
+
+dbgVérifieEgalité(maFile..Occurrence, 1, "File 1 element restant")
+
+v3 est un entier = Défile(maFile)
+dbgVérifieEgalité(v3, 30, "Defile -> 30 (dernier)")
+
+dbgVérifieVrai(maFile..Vide, "File vide apres tout defiler")
+
+// Test: Defile sur file vide retourne Null (var nullable requise sinon
+// le coerce __EntierCoerce convertit NIL_VAL en 0 — canon de référence strict).
+vNull est un entier? = Défile(maFile)
+dbgVérifieEgalité(vNull, Null, "Defile sur file vide = Null")
+
+// ============================================================
+// PILE (Stack) - LIFO
+// ============================================================
+
+maPile est une pile de entiers
+
+// Test: vide au debut
+dbgVérifieVrai(maPile..Vide, "Pile vide au depart")
+dbgVérifieEgalité(maPile..Occurrence, 0, "Pile ..Occurrence = 0")
+
+// Test: Empile
+Empile(maPile, 100)
+Empile(maPile, 200)
+Empile(maPile, 300)
+dbgVérifieEgalité(maPile..Occurrence, 3, "Pile 3 elements apres Empile")
+
+// Test: Taille sur Pile
+dbgVérifieEgalité(Taille(maPile), 3, "Taille(Pile) = 3")
+
+// Test: Depile (LIFO: dernier entre = premier sorti)
+s1 est un entier = Dépile(maPile)
+dbgVérifieEgalité(s1, 300, "Depile -> 300 (dernier entre)")
+
+s2 est un entier = Dépile(maPile)
+dbgVérifieEgalité(s2, 200, "Depile -> 200")
+
+s3 est un entier = Dépile(maPile)
+dbgVérifieEgalité(s3, 100, "Depile -> 100 (premier entre)")
+
+dbgVérifieVrai(maPile..Vide, "Pile vide apres tout depiler")
+
+// ============================================================
+// LISTE (List) - insertion/suppression a position arbitraire
+// ============================================================
+
+maListe est une Liste de entiers
+
+// Test: vide au debut
+dbgVérifieVrai(maListe..Vide, "Liste vide au depart")
+
+// Test: .Ajoute (append) — methode prefix sur collection Liste
+maListe.Ajoute(1)
+maListe.Ajoute(2)
+maListe.Ajoute(3)
+dbgVérifieEgalité(maListe..Occurrence, 3, "Liste 3 elements")
+
+// Test: .Insere a position
+maListe.Insère(2, 99) // insert 99 a position 2 (base 1)
+dbgVérifieEgalité(maListe..Occurrence, 4, "Liste 4 elements apres insert")
+
+// Test: .Supprime a position
+maListe.Supprime(2) // supprime position 2 (le 99)
+dbgVérifieEgalité(maListe..Occurrence, 3, "Liste 3 elements apres supprime")
+
+// Test: SupprimeTout sur collection
+SupprimeTout(maListe)
+dbgVérifieVrai(maListe..Vide, "Liste vide apres SupprimeTout")
+dbgVérifieEgalité(maListe..Occurrence, 0, "Liste ..Occurrence = 0 apres SupprimeTout")
+
+// ============================================================
+// POUR TOUT sur File
+// ============================================================
+
+fileTest est une file de entiers
+Enfile(fileTest, 5)
+Enfile(fileTest, 10)
+Enfile(fileTest, 15)
+
+nSommeFile est un entier = 0
+POUR TOUT elem DE fileTest
+	nSommeFile = nSommeFile + elem
+FIN
+dbgVérifieEgalité(nSommeFile, 30, "POUR TOUT File: 5+10+15=30")
+
+// ============================================================
+// POUR TOUT sur Pile
+// ============================================================
+
+pileTest est une pile de entiers
+Empile(pileTest, 1)
+Empile(pileTest, 2)
+Empile(pileTest, 3)
+
+nSommePile est un entier = 0
+POUR TOUT elem2 DE pileTest
+	nSommePile = nSommePile + elem2
+FIN
+dbgVérifieEgalité(nSommePile, 6, "POUR TOUT Pile: 1+2+3=6")
+
+// ============================================================
+// POUR TOUT sur Liste
+// ============================================================
+
+listeTest est une Liste de entiers
+listeTest.Ajoute(100)
+listeTest.Ajoute(200)
+listeTest.Ajoute(300)
+
+nSommeListe est un entier = 0
+POUR TOUT elem3 DE listeTest
+	nSommeListe = nSommeListe + elem3
+FIN
+dbgVérifieEgalité(nSommeListe, 600, "POUR TOUT Liste: 100+200+300=600")
+
+// ============================================================
+// File avec des chaines
+// ============================================================
+
+fileStr est une file de chaînes
+Enfile(fileStr, "Bonjour")
+Enfile(fileStr, " ")
+Enfile(fileStr, "OWL")
+dbgVérifieEgalité(fileStr..Occurrence, 3, "File de chaines: 3 elements")
+
+sConcat est une chaîne = ""
+POUR TOUT mot DE fileStr
+	sConcat = sConcat + mot
+FIN
+dbgVérifieEgalité(sConcat, "Bonjour OWL", "File de chaines concat = Bonjour OWL")

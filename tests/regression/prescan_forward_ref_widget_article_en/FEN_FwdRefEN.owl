@@ -1,0 +1,46 @@
+// Regression  — forward-ref d'un widget declare avec l'article
+// EN `a`/`an` apres la copule `is`.
+//
+// Le pre-scan de forward-reference des widgets (compiler.c::
+// prescan_source_unified, branche depth>0) ne sautait que l'article FR
+// `un`/`une`. L'article EN `a` (scanne en TOKEN_A) et `an` (IDENT 2-char)
+// n'etaient pas sautes, donc un widget `NAME is a Field <Kind>` declare
+// APRES son site d'usage n'etait ni pre-enregistre ni compte en depth :
+// `'NAME' : variable inconnue ou inaccessible` au site forward-ref.
+//
+// Ce fichier reference deux widgets (article `a` et article `an`) depuis
+// une PROCEDURE puis ecrit dedans depuis le top-level fenetre, AVANT leur
+// declaration textuelle. Les widgets portent des noms uniques au test
+// pour ne pas etre masques par un voisin du dossier.
+//
+// Si ce fichier ne compile plus avec `variable inconnue`, c'est que le
+// skip de l'article EN a disparu de la branche depth>0 du prescan.
+
+FEN_FwdRefEN is a Window
+	PROPERTIES
+		Title = "FwdRef EN"
+	END
+
+	PROCEDURE FillThem()
+		LBL_FwdA..Caption  = "set via a"
+		LBL_FwdAn..Caption = "set via an"
+	END
+
+	// Appel au top-level fenetre : declenche FillThem() qui touche des
+	// widgets declares plus bas (forward-ref).
+	FillThem()
+
+	// Widget declare APRES son usage, article EN `a`.
+	LBL_FwdA is a Field Label
+		PROPERTIES
+			Caption = "depart a"
+		END
+	END
+
+	// Widget declare APRES son usage, article EN `an`.
+	LBL_FwdAn is an Field Label
+		PROPERTIES
+			Caption = "depart an"
+		END
+	END
+END

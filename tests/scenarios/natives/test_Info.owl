@@ -1,0 +1,139 @@
+// @sujet : Info
+// @résumé : Affiche une boîte de dialogue modale d'information. Variadique : les arguments sont concaténés sur des lignes successives.
+
+
+// Particularité des fonctions UI : on ne peut pas vérifier l'apparence d'une
+// boîte de dialogue dans un test automatisé. On vérifie en revanche que la
+// fonction a été appelée, combien de fois, et — via les patterns d'argument
+// du mock — sur quel type de contenu. La fixture pose un catch-all qui
+// empêche la GUI de s'ouvrir ; les scénarios installent au besoin des
+// règles plus spécifiques avant l'appel.
+mockInfo est un MockNative = MockCrée(Info)
+
+
+PROCEDURE avantChaqueTest()
+	mockInfo = MockCrée(Info).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockInfo.Desactive()
+FIN
+
+
+// Cas canonique : un appel simple produit exactement une invocation
+// interceptée.
+PROCEDURE scenario_appel_simple()
+	Info("Opération réussie.")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 1))
+FIN
+
+
+// Info est variadique : plusieurs chaînes en arguments sont concaténées en
+// lignes successives dans le dialogue. La fixture intercepte quelle que
+// soit l'arité.
+PROCEDURE scenario_arguments_multiples()
+	Info("Opération terminée.", "3 fichiers traités.", "Aucune erreur détectée.")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 1))
+FIN
+
+
+// L'interpolation [%var%] fonctionne dans le message comme dans toute
+// chaîne. Forme idiomatique pour insérer des valeurs variables.
+PROCEDURE scenario_avec_interpolation()
+	nFichiers est un entier = 42
+	Info("Vous avez [%nFichiers%] fichiers en attente.")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 1))
+FIN
+
+
+// Le compteur du mock reflète fidèlement le nombre d'invocations sur la
+// durée du scénario. Le second argument de MockVérifieAppelé est le
+// compte exact attendu.
+PROCEDURE scenario_appels_repetes_compte_exact()
+	Info("Étape 1 terminée.")
+	Info("Étape 2 terminée.")
+	Info("Étape 3 terminée.")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 3))
+FIN
+
+
+// Un appel conditionnel non déclenché ne génère aucune invocation. Cas
+// miroir : tester l'absence d'effet vaut tester sa présence.
+PROCEDURE scenario_aucun_appel_si_condition_fausse()
+	nValeur est un entier = 10
+	SI nValeur < 0 ALORS
+		Info("Valeur négative détectée.")
+	FIN
+	dbgVérifieFaux(MockVérifieAppelé(mockInfo))
+FIN
+
+
+// MockRéinitialise remet à zéro les compteurs sans effacer les règles ni
+// désactiver le mock. Utile pour partitionner un scénario en plusieurs
+// phases dont on compte les appels indépendamment.
+PROCEDURE scenario_reinitialisation_des_compteurs()
+	Info("Avant la réinitialisation.")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 1))
+
+	MockRéinitialise(mockInfo)
+	dbgVérifieFaux(MockVérifieAppelé(mockInfo))
+
+	Info("Après.")
+	Info("Encore.")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 2))
+FIN
+
+
+// Pattern MockCommence : la règle ne s'applique que sur les appels dont le
+// premier argument commence par le préfixe spécifié. Pédagogiquement
+// utile pour catégoriser les messages (erreurs, infos, etc.) mais ne
+// permet pas, avec le mock actuel, de vérifier qu'une règle précise a
+// matché — seul le total des appels est interrogeable.
+PROCEDURE scenario_pattern_par_prefixe()
+	mockLocal est un MockNative = MockCrée(Info)
+	mockLocal.Quand().Avec(MockCommence("Erreur :")).Retourne(0).Active()
+
+	Info("Erreur : disque plein.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Pattern MockContient : la règle s'applique si le premier argument
+// contient la sous-chaîne, quelle que soit sa position. Utile pour des
+// assertions plus souples que MockCommence.
+PROCEDURE scenario_pattern_par_substring()
+	mockLocal est un MockNative = MockCrée(Info)
+	mockLocal.Quand().Avec(MockContient("succès")).Retourne(0).Active()
+
+	Info("Opération terminée avec succès.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Argument exact : si l'on connaît le texte attendu mot pour mot, on
+// passe directement la chaîne en argument de Avec(). La règle ne s'active
+// alors que sur ce texte précis. Limite à connaître : la règle vérifie
+// par stricte égalité d'arité, donc Avec("texte") ne match que les appels
+// à exactement un argument.
+PROCEDURE scenario_argument_exact_via_chaine()
+	mockLocal est un MockNative = MockCrée(Info)
+	mockLocal.Quand().Avec("Bonjour Alice").Retourne(0).Active()
+
+	Info("Bonjour Alice")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Cas limite défensif : une chaîne vide passe sans erreur. Pratique rare
+// mais autorisée.
+PROCEDURE PRIVÉE scenario_message_vide()
+	Info("")
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 1))
+FIN

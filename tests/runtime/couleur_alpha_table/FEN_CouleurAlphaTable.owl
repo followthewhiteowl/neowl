@@ -1,0 +1,135 @@
+// Fenêtre voisine — ressource pour test_couleur_alpha_table.owl (
+// LOT 2 : opacité sur les couleurs d'affichage de données — Table).
+//
+// 3 Champ Table empilés verticalement, chacun 1 colonne / 5 lignes,
+// stylés STATIQUEMENT via Style.. (une mutation live de Style.. sur un
+// Champ Table déjà ouvert ne re-déclenche pas le style — même limite que
+// les autres familles composites, cf. commentaire au niveau du test).
+//
+//   TAB_Temoin    : tous les sous-éléments en entier nu opaque (témoin
+//                   non-régression).
+//   TAB_AlphaFond : les fonds (TitreColonne/LignesImpaires/LignesPaires/
+//                   LigneSélectionnée) en instance Couleur translucide
+//                   (Opacité=128), le texte gardé en entier nu opaque
+//                   (découplé, pour isoler le bug fond).
+//   TAB_AlphaTexte : le texte (TitreColonne/LigneSélectionnée) en instance
+//                   Couleur translucide, le fond gardé en entier nu opaque
+//                   BLANC (substrat déterministe, mélange sans arrondi).
+//
+// Substrats de mélange :
+//   - CadreExtérieur..CouleurFond = RVB(255,0,0) (entier nu, opaque, HORS
+//     bug lot 2) peint le QTableView entier ; les lignes "impaires" (rôle
+//     Qt Base, index pair 0-based) et la ligne sélectionnée le montrent
+//     tel quel quand rien ne les recouvre -> substrat rouge déterministe.
+//   - Les lignes "paires" (rôle Qt AlternateBase, index impair 0-based) et
+//     le fond d'en-tête par défaut ne sont PAS recouverts par le QSS du
+//     widget : gris mesuré empiriquement sur ce build, RVB(247,247,247)
+//     (non garanti stable sur un autre thème Qt — tolérance appliquée).
+//   - Le texte est toujours testé sur un fond BLANC opaque déclaré
+//     explicitement (mélange exact, sans arrondi).
+
+FEN_CouleurAlphaTable est une Fenêtre
+	PROPRIETES
+		Titre       = "Alpha Table — affichage de données"
+		Largeur     = 700
+		Hauteur     = 700
+		Disposition = dispLibre
+		CouleurFond = RVB(255, 0, 0)
+	FIN
+
+	TAB_Temoin est un Champ Table
+		PROPRIETES
+			X                                     = 20
+			Y                                     = 20
+			Largeur                               = 620
+			Hauteur                               = 190
+			HauteurLigne                          = 30
+			Style..CadreExtérieur..CouleurFond    = RVB(255, 0, 0)
+			Style..TitreColonne..CouleurFond      = RVB(0, 180, 0)
+			Style..TitreColonne..Couleur          = RVB(255, 255, 255)
+			Style..LignesImpaires..CouleurFond    = RVB(0, 200, 0)
+			Style..LignesPaires..CouleurFond      = RVB(0, 0, 200)
+			Style..LigneSélectionnée..CouleurFond = RVB(200, 200, 0)
+			Style..LigneSélectionnée..Couleur     = RVB(10, 10, 10)
+		FIN
+
+		COL_Temoin est une Colonne
+			PROPRIETES
+				Libellé = "Col"
+				Type    = colTypeTexte
+				Largeur = 600
+			FIN
+		FIN
+	FIN
+
+	TAB_AlphaFond est un Champ Table
+		PROPRIETES
+			X                                     = 20
+			Y                                     = 240
+			Largeur                               = 620
+			Hauteur                               = 190
+			HauteurLigne                          = 30
+			Style..CadreExtérieur..CouleurFond    = RVB(255, 0, 0)
+			Style..TitreColonne..CouleurFond      = {Rouge = 0, Vert = 255, Bleu = 0, Opacité = 128}
+			Style..TitreColonne..Couleur          = RVB(0, 0, 0)
+			Style..LignesImpaires..CouleurFond    = {Rouge = 0, Vert = 255, Bleu = 0, Opacité = 128}
+			Style..LignesPaires..CouleurFond      = {Rouge = 255, Vert = 0, Bleu = 0, Opacité = 128}
+			Style..LigneSélectionnée..CouleurFond = {Rouge = 0, Vert = 0, Bleu = 255, Opacité = 128}
+			Style..LigneSélectionnée..Couleur     = RVB(0, 0, 0)
+		FIN
+
+		COL_AlphaFond est une Colonne
+			PROPRIETES
+				Libellé = "Col"
+				Type    = colTypeTexte
+				Largeur = 600
+			FIN
+		FIN
+	FIN
+
+	TAB_AlphaTexte est un Champ Table
+		PROPRIETES
+			X                                     = 20
+			Y                                     = 460
+			Largeur                               = 620
+			Hauteur                               = 190
+			HauteurLigne                          = 30
+			Style..CadreExtérieur..CouleurFond    = RVB(255, 0, 0)
+			Style..TitreColonne..CouleurFond      = RVB(255, 255, 255)
+			Style..TitreColonne..Couleur          = {Rouge = 0, Vert = 0, Bleu = 255, Opacité = 128}
+			Style..LigneSélectionnée..CouleurFond = RVB(255, 255, 255)
+			Style..LigneSélectionnée..Couleur     = {Rouge = 255, Vert = 0, Bleu = 0, Opacité = 128}
+		FIN
+
+		COL_AlphaTexte est une Colonne
+			PROPRIETES
+				Libellé = "Col"
+				Type    = colTypeTexte
+				Largeur = 600
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TAB_Temoin, "Ligne 0")
+		TableAjouteLigne(TAB_Temoin, "Ligne 1")
+		TableAjouteLigne(TAB_Temoin, "Ligne 2")
+		TableAjouteLigne(TAB_Temoin, "Ligne 3")
+		TableAjouteLigne(TAB_Temoin, "Ligne 4")
+		TableSelectPlus(TAB_Temoin, 3)
+
+		TableAjouteLigne(TAB_AlphaFond, "Ligne 0")
+		TableAjouteLigne(TAB_AlphaFond, "Ligne 1")
+		TableAjouteLigne(TAB_AlphaFond, "Ligne 2")
+		TableAjouteLigne(TAB_AlphaFond, "Ligne 3")
+		TableAjouteLigne(TAB_AlphaFond, "Ligne 4")
+		TableSelectPlus(TAB_AlphaFond, 3)
+
+		TableAjouteLigne(TAB_AlphaTexte, "Ligne 0")
+		TableAjouteLigne(TAB_AlphaTexte, "Ligne 1")
+		TableAjouteLigne(TAB_AlphaTexte, "Ligne 2")
+		TableAjouteLigne(TAB_AlphaTexte, "Ligne 3")
+		TableAjouteLigne(TAB_AlphaTexte, "Ligne 4")
+		TableSelectPlus(TAB_AlphaTexte, 3)
+	FIN
+FIN

@@ -1,0 +1,179 @@
+// Régression et cas limites pour les ajouts ticket 0010 :
+//  - BOUCLE (N) compteur d'itérations (Ajout 1)
+//  - POUR i = a A b DepuisFin / DepuisDébut (Ajout 2)
+//  - Mutex DepuisFin + PAS (erreur compile)
+//  - Non-régression BOUCLE simple + POUR scalaire ascendant
+Trace("=== BOUCLE (N) + POUR DepuisFin COMPLET ===")
+
+
+// ── 1. BOUCLE (N) cas nominal — body exécuté N fois exactement ──────────
+nA est un entier = 0
+nGuardA est un entier = 0
+BOUCLE (4)
+	nA      = nA + 1
+	nGuardA = nGuardA + 1
+	SI nGuardA > 100 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nA, 4, "BOUCLE (4) : body exécuté 4 fois")
+
+
+// ── 2. BOUCLE (1) — exactement 1 itération ──────────────────────────────
+nB est un entier = 0
+nGuardB est un entier = 0
+BOUCLE (1)
+	nB      = nB + 1
+	nGuardB = nGuardB + 1
+	SI nGuardB > 100 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nB, 1, "BOUCLE (1) : exactement 1 itération")
+
+
+// ── 3. BOUCLE (0) — zéro itération, pas d'erreur ────────────────────────
+nC est un entier = 0
+nGuardC est un entier = 0
+BOUCLE (0)
+	nC      = nC + 1
+	nGuardC = nGuardC + 1
+	SI nGuardC > 100 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nC, 0, "BOUCLE (0) : zéro itération")
+
+
+// ── 4. BOUCLE (-2) — N négatif accepté comme zéro itération ─────────────
+nD est un entier = 0
+nGuardD est un entier = 0
+BOUCLE (-2)
+	nD      = nD + 1
+	nGuardD = nGuardD + 1
+	SI nGuardD > 100 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nD, 0, "BOUCLE (-2) : N négatif → zéro itération, pas d'erreur")
+
+
+// ── 5. BOUCLE (Taille(tab)) — N figé à valeur initiale même si tab mute ─
+// La taille initiale du tableau (3) est figée comme borne. Les mutations
+// du tableau dans le body ne re-évaluent pas l'expression.
+tabMute est un tableau de entiers = [10, 20, 30]
+nIterMute est un entier = 0
+nGuardMute est un entier = 0
+BOUCLE (Taille(tabMute))
+	nIterMute  = nIterMute + 1
+	nGuardMute = nGuardMute + 1
+	SI nGuardMute > 100 ALORS
+		SORTIR
+	FIN
+	Ajoute(tabMute, 99)
+FIN
+dbgVérifieEgalité(nIterMute, 3, "BOUCLE (Taille(tab)) : N figé à 3 même si Ajoute() étend le tableau dans le body")
+
+
+// ── 6. BOUCLE (N) avec SORTIR early — non-régression contrôle de flux ──
+nE est un entier = 0
+nGuardE est un entier = 0
+BOUCLE (20)
+	nE = nE + 1
+	SI nE = 5 ALORS
+		SORTIR
+	FIN
+	nGuardE = nGuardE + 1
+	SI nGuardE > 100 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nE, 5, "BOUCLE (20) avec SORTIR à 5 : 5 itérations effectives")
+
+
+// ── 7. POUR DepuisFin nominal — i de 5 à 1 ──────────────────────────────
+sF est une chaîne = ""
+POUR i = 1 À 5 DepuisFin
+	sF = sF + i + "|"
+FIN
+dbgVérifieEgalité(sF, "5|4|3|2|1|", "POUR i = 1 A 5 DepuisFin : trace 5, 4, 3, 2, 1")
+
+
+// ── 8. POUR DepuisDébut explicite — no-op équivalent au défaut ──────────
+sG est une chaîne = ""
+POUR i = 1 À 4 DepuisDébut
+	sG = sG + i + "|"
+FIN
+dbgVérifieEgalité(sG, "1|2|3|4|", "POUR DepuisDébut : équivalent au défaut ascendant")
+
+
+// ── 9. POUR DepuisFin bornes égales — 1 itération seule ─────────────────
+nIterH est un entier = 0
+nVuH est un entier = -1
+POUR i = 7 À 7 DepuisFin
+	nIterH = nIterH + 1
+	nVuH   = i
+FIN
+dbgVérifieEgalité(nIterH, 1, "POUR i = 7 A 7 DepuisFin : 1 itération")
+dbgVérifieEgalité(nVuH, 7, "POUR i = 7 A 7 DepuisFin : i vaut 7")
+
+
+// ── 10. POUR DepuisFin avec _A_ — eval-unique préservée ────────────────
+// _A_ évalue la borne une seule fois au démarrage. DepuisFin n'altère pas
+// cette sémantique : l'expression de borne reste appelée 1 fois, puis le
+// sens est inversé.
+nAppelsBorne est un entier = 0
+nIterUnderscoreA est un entier = 0
+sOrdreUnderscoreA est une chaîne = ""
+
+PROCEDURE PRIVÉE DonneCinq() : entier
+	nAppelsBorne = nAppelsBorne + 1
+	RENVOYER 5
+FIN
+
+nAppelsBorne = 0
+POUR i = 1 _A_ DonneCinq() DepuisFin
+	nIterUnderscoreA  = nIterUnderscoreA + 1
+	sOrdreUnderscoreA = sOrdreUnderscoreA + i + "|"
+FIN
+dbgVérifieEgalité(nAppelsBorne, 1, "_A_ + DepuisFin : borne évaluée une seule fois")
+dbgVérifieEgalité(nIterUnderscoreA, 5, "_A_ + DepuisFin : 5 itérations")
+dbgVérifieEgalité(sOrdreUnderscoreA, "5|4|3|2|1|", "_A_ + DepuisFin : sens inversé, trace 5..1")
+
+
+// ── 11. NON-RÉGRESSION — BOUCLE simple sans (N) reste inchangé ──────────
+nReg est un entier = 0
+BOUCLE
+	nReg = nReg + 1
+	SI nReg >= 3 ALORS
+		SORTIR
+	FIN
+FIN
+dbgVérifieEgalité(nReg, 3, "Régression : BOUCLE classique sortie par SORTIR")
+
+
+// ── 12. NON-RÉGRESSION — POUR scalaire ascendant sans suffixe ───────────
+sRegPour est une chaîne = ""
+POUR i = 1 À 3
+	sRegPour = sRegPour + i + "|"
+FIN
+dbgVérifieEgalité(sRegPour, "1|2|3|", "Régression : POUR scalaire ascendant simple")
+
+
+// ── 13. NON-RÉGRESSION — POUR avec PAS explicite ────────────────────────
+sRegPas est une chaîne = ""
+POUR i = 0 À 10 PAS 2
+	sRegPas = sRegPas + i + "|"
+FIN
+dbgVérifieEgalité(sRegPas, "0|2|4|6|8|10|", "Régression : POUR avec PAS 2 explicite")
+
+
+// ── 14. NON-RÉGRESSION — POUR descendant via PAS -1 ─────────────────────
+sRegDesc est une chaîne = ""
+POUR i = 5 À 1 PAS -1
+	sRegDesc = sRegDesc + i + "|"
+FIN
+dbgVérifieEgalité(sRegDesc, "5|4|3|2|1|", "Régression : POUR descendant avec PAS -1 (forme historique)")
+
+
+dbgBilanTest()

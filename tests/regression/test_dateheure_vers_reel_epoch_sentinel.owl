@@ -1,0 +1,81 @@
+// Regression: DateHeureVersRéel et DateHeureVersEpoch retournent -1
+// (sentinel d'erreur) au lieu de 0 sur input invalide.
+//
+// Le retour 0 empechait de distinguer une valeur legitime (epoch 0 = 1970-01-01,
+// reel 0 = jour 0 base 1900) d'un parse en echec.
+//
+// Divergence OWL : DateHeureVersEpoch preserve l'epoch 0 legitime
+// (retourne 0 pour "19700101000000"), retourne -1 uniquement sur invalide.
+
+// --- DateHeureVersRéel : cas legitimes (preserves) ---
+
+dhMinuit1900 est un dateheure = "190001010000"
+resMin est un réel = DateHeureVersRéel(dhMinuit1900)
+dbgVérifieEgalité(resMin, 1.0, "DateHeureVersReel: 01/01/1900 minuit base 1900 = 1.0")
+
+dh1904base est un dateheure = "190401010000"
+res1904 est un réel = DateHeureVersRéel(dh1904base, Vrai)
+dbgVérifieEgalité(res1904, 0.0, "DateHeureVersReel: 01/01/1904 base 1904 = 0.0")
+
+// --- DateHeureVersRéel : cas invalides (sentinel -1.0) ---
+
+sBad est une chaîne = "999999999999"
+dhInv1 est un dateheure = sBad
+resInv1 est un réel = DateHeureVersRéel(dhInv1)
+dbgVérifieEgalité(resInv1,-1.0, "DateHeureVersReel: '999999999999' invalide = -1.0")
+
+sBad2 est une chaîne = "abcd"
+dhInv2 est un dateheure = sBad2
+resInv2 est un réel = DateHeureVersRéel(dhInv2)
+dbgVérifieEgalité(resInv2,-1.0, "DateHeureVersReel: 'abcd' invalide = -1.0")
+
+sBad3 est une chaîne = ""
+dhInv3 est un dateheure = sBad3
+resInv3 est un réel = DateHeureVersRéel(dhInv3)
+dbgVérifieEgalité(resInv3,-1.0, "DateHeureVersReel: '' invalide = -1.0")
+
+sBad4 est une chaîne = "20261301120000"
+dhInv4 est un dateheure = sBad4
+resInv4 est un réel = DateHeureVersRéel(dhInv4)
+dbgVérifieEgalité(resInv4,-1.0, "DateHeureVersReel: mois 13 invalide = -1.0")
+
+sBad5 est une chaîne = "20260605256100"
+dhInv5 est un dateheure = sBad5
+resInv5 est un réel = DateHeureVersRéel(dhInv5)
+dbgVérifieEgalité(resInv5,-1.0, "DateHeureVersReel: heure 25/minute 61 invalide = -1.0")
+
+// --- DateHeureVersEpoch : cas legitimes (preserves) ---
+
+dhEpoch0 est un dateheure = "19700101000000"
+dbgVérifieEgalité(EpochVersDateHeure(DateHeureVersEpoch(dhEpoch0)), dhEpoch0,
+"DateHeureVersEpoch/EpochVersDateHeure : round-trip identité sur 1970-01-01 (poste-agnostique)")
+
+// Verifie aussi qu'une dateheure standard ne degrade pas (regression check)
+dh2026 est un dateheure = "202606051430"
+ep2026 est un entier = DateHeureVersEpoch(dh2026)
+dbgVérifieVrai(ep2026 > 1780000000 ET ep2026 < 1781000000,
+"DateHeureVersEpoch: 2026-06-05 14:30 local -> epoch dans la plage attendue")
+
+// --- DateHeureVersEpoch : cas invalides (sentinel -1) ---
+
+sBadEp1 est une chaîne = "99999999999999"
+dhEpInv1 est un dateheure = sBadEp1
+epInv1 est un entier = DateHeureVersEpoch(dhEpInv1)
+dbgVérifieEgalité(epInv1,-1, "DateHeureVersEpoch: '99999999999999' invalide = -1")
+
+sBadEp2 est une chaîne = "abcd"
+dhEpInv2 est un dateheure = sBadEp2
+epInv2 est un entier = DateHeureVersEpoch(dhEpInv2)
+dbgVérifieEgalité(epInv2,-1, "DateHeureVersEpoch: 'abcd' invalide = -1")
+
+sBadEp3 est une chaîne = ""
+dhEpInv3 est un dateheure = sBadEp3
+epInv3 est un entier = DateHeureVersEpoch(dhEpInv3)
+dbgVérifieEgalité(epInv3,-1, "DateHeureVersEpoch: '' invalide = -1")
+
+sBadEp4 est une chaîne = "20260000120000"
+dhEpInv4 est un dateheure = sBadEp4
+epInv4 est un entier = DateHeureVersEpoch(dhEpInv4)
+dbgVérifieEgalité(epInv4,-1, "DateHeureVersEpoch: mois 00 invalide = -1")
+
+dbgBilanTest()

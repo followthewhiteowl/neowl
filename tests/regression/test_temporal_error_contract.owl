@@ -1,0 +1,121 @@
+// Bloc C — Error contract parity fixtures (axe 4.3)
+// Objectif : forcer les 4 natives non-conformes Q2 + samples autres natives
+// à poser ErreurDétectée sur invalide + sentinel cohérent avec .
+//
+//  phase 2 — RED attendu : 4 natives cassure Q2 silencieuses actuellement
+// (ChaîneVersDurée, DateVersMoisEnLettre, NuméroDeSemaine, AnnéeBissextile).
+
+// ===== Famille parse chaîne → type temporal (4 natives) =====
+
+PROCEDURE test_error_contract_ChaineVersDate()
+	ErreurRAZ()
+	sBad est une chaîne = "invalide"
+	ret est une date = ChaîneVersDate(sBad)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "ChaîneVersDate invalide pose ErreurDétectée")
+FIN
+
+PROCEDURE test_error_contract_ChaineVersHeure()
+	ErreurRAZ()
+	sBad est une chaîne = "invalide"
+	ret est une heure = ChaîneVersHeure(sBad)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "ChaîneVersHeure invalide pose ErreurDétectée")
+FIN
+
+PROCEDURE test_error_contract_ChaineVersDuree()
+	// CASSURE Q2 : désormais pose ErreurDétectée (vs silencieux avant)
+	ErreurRAZ()
+	sBad est une chaîne = "invalide"
+	ret est une durée = ChaîneVersDurée(sBad, duréeCentième)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "ChaîneVersDurée invalide pose ErreurDétectée (cassure Q2)")
+FIN
+
+// ===== Famille EntierVers* — supprimées (Phase 3bis coordinator) =====
+// Les 4 procédures EntierVersDate, EntierVersHeure, EntierVersJourEnLettre,
+// EntierVersMoisEnLettre testaient des bornes inventées hors référence.
+// EntierVersDate(999) = 1802-09-26 (valide), EntierVersMoisEnLettre(13) = 13/01/1800 → Janvier (valide).
+// EVJEL(8) bug  runtime (calcul JDN), pas parse/coerce → hors-scope Q2.
+
+// ===== Famille opérateurs temporal → chaîne (2 natives) =====
+
+PROCEDURE test_error_contract_DateVersJourEnLettre()
+	// Date invalide (sentinel)
+	ErreurRAZ()
+	sInvalid est une chaîne = "00/00/0000"
+	dInvalid est une date = sInvalid
+	ret est une chaîne = DateVersJourEnLettre(dInvalid)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "DateVersJourEnLettre invalide pose ErreurDétectée")
+FIN
+
+PROCEDURE test_error_contract_DateVersMoisEnLettre()
+	// CASSURE Q2 : désormais pose ErreurDétectée (vs NIL_VAL silencieux avant)
+	ErreurRAZ()
+	sInvalid est une chaîne = "00/00/0000"
+	dInvalid est une date = sInvalid
+	ret est une chaîne = DateVersMoisEnLettre(dInvalid)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "DateVersMoisEnLettre invalide pose ErreurDétectée (cassure Q2)")
+FIN
+
+// ===== Famille calendrier (5 natives) =====
+
+PROCEDURE test_error_contract_NumeroDeSemaine()
+	// CASSURE Q2 : désormais pose ErreurDétectée (vs 0 silencieux avant)
+	ErreurRAZ()
+	sInvalid est une chaîne = "00/00/0000"
+	dInvalid est une date = sInvalid
+	ret est un entier = NuméroDeSemaine(dInvalid)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "NuméroDeSemaine invalide pose ErreurDétectée (cassure Q2)")
+FIN
+
+PROCEDURE test_error_contract_AnneeBissextile()
+	// CASSURE Q2 : désormais pose ErreurDétectée (vs Faux silencieux avant)
+	ErreurRAZ()
+	ret est un booléen = AnnéeBissextile(999) // année hors-borne
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "AnnéeBissextile invalide pose ErreurDétectée (cassure Q2)")
+FIN
+
+PROCEDURE test_error_contract_Paques()
+	// Année hors-borne calendrier grégorien
+	ErreurRAZ()
+	ret est une date = Pâques(999)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Pâques invalide pose ErreurDétectée")
+FIN
+
+PROCEDURE test_error_contract_Age()
+	// Date naissance invalide
+	ErreurRAZ()
+	sInvalid est une chaîne = "00/00/0000"
+	dInvalid est une date = sInvalid
+	ret est un entier = Age(dInvalid)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Âge invalide pose ErreurDétectée")
+FIN
+
+// ===== Famille conversion epoch/reel — supprimées (Phase 3bis coordinator) =====
+// EpochVersDateHeure(-1) = 1969-12-31 23:59:59 UTC (pré-1970 légitime).
+// RéelVersDateHeure(-1.0) = Excel OLE Date 1899-12-30 (négatifs légitimes).
+// §9.2 doc canon : natives numériques pures, pas de borne arbitraire inventée.
+
+PROCEDURE PUBLIQUE test_temporal_error_contract()
+	// Famille parse chaîne → type temporal (3 sur 4, DateHeure via coerce seulement)
+	test_error_contract_ChaineVersDate()
+	test_error_contract_ChaineVersHeure()
+	test_error_contract_ChaineVersDuree()
+
+	// Famille opérateurs temporal → chaîne (2)
+	test_error_contract_DateVersJourEnLettre()
+	test_error_contract_DateVersMoisEnLettre()
+
+	// Famille calendrier (4 sur 5 samples)
+	test_error_contract_NumeroDeSemaine()
+	test_error_contract_AnneeBissextile()
+	test_error_contract_Paques()
+	test_error_contract_Age()
+FIN

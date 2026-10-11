@@ -1,0 +1,74 @@
+// @sujet : EnvoieTouche
+// @résumé : Injecte une frappe clavier vers la fenêtre active (ou le
+// champ qui a le focus). Permet de piloter par programme les interactions
+// clavier, notamment les touches sans caractère textuel (flèches, Echap,
+// Entrée) qui ne passent pas par TestSimuleSaisie. Les codes de touche
+// proviennent des constantes tk* ou de Asc("X") pour les lettres.
+//
+// La fenêtre voisine FEN_EnvoieTouche.owl expose LireEnvoiCompteur()
+// pour transmettre l'état observé via callback_envoie_etat.
+
+nEnvoiCountObs est un entier = 0
+nDerniereEnvoiObs est un entier = -1
+
+PROCEDURE callback_envoie_touche(nTouche est un entier)
+	nDerniereEnvoiObs = nTouche
+FIN
+
+PROCEDURE callback_envoie_etat(nCount est un entier, nDerniere est un entier)
+	nEnvoiCountObs    = nCount
+	nDerniereEnvoiObs = nDerniere
+FIN
+
+
+// Injection d'une flèche directionnelle vers la fenêtre.
+// surToucheAppuyee de la fenêtre doit tirer avec tkHaut comme code.
+PROCEDURE scenario_fleche_vers_fenetre()
+	TestModeHeadless(Faux)
+	nEnvoiCountObs    = 0
+	nDerniereEnvoiObs = -1
+
+	OuvreSoeur(FEN_EnvoieTouche)
+
+	EnvoieTouche(tkHaut)
+	LireEnvoiCompteur()
+	dbgVérifieEgalité(nEnvoiCountObs, 1, "EnvoieTouche(tkHaut) : surToucheAppuyee fenetre tire 1 fois")
+	dbgVérifieEgalité(nDerniereEnvoiObs, tkHaut, "EnvoieTouche(tkHaut) : code recu = tkHaut")
+
+	Ferme(FEN_EnvoieTouche)
+FIN
+
+
+// Touche Echap injectée.
+PROCEDURE scenario_echap()
+	TestModeHeadless(Faux)
+	nEnvoiCountObs    = 0
+	nDerniereEnvoiObs = -1
+
+	OuvreSoeur(FEN_EnvoieTouche)
+
+	EnvoieTouche(tkEchap)
+	LireEnvoiCompteur()
+	dbgVérifieEgalité(nEnvoiCountObs, 1, "EnvoieTouche(tkEchap) : 1 tir")
+	dbgVérifieEgalité(nDerniereEnvoiObs, tkEchap, "EnvoieTouche(tkEchap) : code = tkEchap")
+
+	Ferme(FEN_EnvoieTouche)
+FIN
+
+
+// Forme EN (SendKey) acceptée identiquement.
+PROCEDURE scenario_forme_en()
+	TestModeHeadless(Faux)
+	nEnvoiCountObs    = 0
+	nDerniereEnvoiObs = -1
+
+	OuvreSoeur(FEN_EnvoieTouche)
+
+	SendKey(tkBas)
+	LireEnvoiCompteur()
+	dbgVérifieEgalité(nEnvoiCountObs, 1, "SendKey (EN) : forme EN acceptee, 1 tir")
+
+	Ferme(FEN_EnvoieTouche)
+FIN
+
+dbgBilanTest()

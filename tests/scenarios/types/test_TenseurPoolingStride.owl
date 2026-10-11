@@ -1,0 +1,157 @@
+// @sujet : Tenseur.MaxPooling / .MoyennePooling — pas (stride) distinct de la fenêtre
+// @résumé : `TenseurMaxPooling(t, fenêtre, pas)` / `.MaxPooling(fenêtre, pas)`
+// (idem `TenseurMoyennePooling` / `.MoyennePooling`, formes anglaises
+// `TensorMaxPooling` / `TensorAveragePooling`) ajoutent un 3ᵉ argument
+// optionnel : le pas entre deux fenêtres consécutives, indépendant de la
+// taille de la fenêtre. Un pas < fenêtre produit des fenêtres chevauchantes.
+// Sortie : Hout = floor((H - fenêtre) / pas) + 1 (idem largeur). Toutes les
+// valeurs de ce fichier sont calculées à la main.
+//
+// Le 3ᵉ argument (pas) est optionnel : la forme à 2 arguments (receveur +
+// fenêtre) reste valide (cf. test_TenseurPoolingStrideDefaut.owl).
+
+// Entrée 1×1×4×4 :
+//    1  3  2  4
+//    5  6  8  7
+//    9 11 10 12
+//   13 14 16 15
+// MaxPooling fenêtre=3, pas=1 (chevauchant) -> sortie 2×2 :
+//   fenêtre[1][1] rangs 1-3, cols 1-3 = {1,3,2,5,6,8,9,11,10}   -> max = 11
+//   fenêtre[1][2] rangs 1-3, cols 2-4 = {3,2,4,6,8,7,11,10,12}  -> max = 12
+//   fenêtre[2][1] rangs 2-4, cols 1-3 = {5,6,8,9,11,10,13,14,16} -> max = 16
+//   fenêtre[2][2] rangs 2-4, cols 2-4 = {6,8,7,11,10,12,14,16,15} -> max = 16
+PROCEDURE PUBLIQUE scenario_maxpooling_stride_chevauchant_forward()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MaxPooling(3, 1)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "floor((4-3)/1)+1 = 2 fenêtres en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "floor((4-3)/1)+1 = 2 fenêtres en largeur")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 11.0, "max de la fenêtre[1][1] (rangs 1-3, cols 1-3) = 11")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 12.0, "max de la fenêtre[1][2] (rangs 1-3, cols 2-4) = 12")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 16.0, "max de la fenêtre[2][1] (rangs 2-4, cols 1-3) = 16")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 16.0, "max de la fenêtre[2][2] (rangs 2-4, cols 2-4) = 16")
+
+	sortieNative est un Tenseur = TenseurMaxPooling(entrée, 3, 1)
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], sortie..Valeur[1][1][1][1], "forme native (3 arguments) == forme méthode")
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][2][2], sortie..Valeur[1][1][2][2], "forme native (3 arguments) == forme méthode")
+FIN
+
+
+// Entrée 1×1×4×4 (valeurs 1..16 séquentielles) :
+//    1  2  3  4
+//    5  6  7  8
+//    9 10 11 12
+//   13 14 15 16
+// MoyennePooling fenêtre=3, pas=1 (chevauchant) -> sortie 2×2 :
+//   fenêtre[1][1] = {1,2,3,5,6,7,9,10,11}    somme=54 -> moyenne = 54/9 = 6.0
+//   fenêtre[1][2] = {2,3,4,6,7,8,10,11,12}   somme=63 -> moyenne = 63/9 = 7.0
+//   fenêtre[2][1] = {5,6,7,9,10,11,13,14,15} somme=90 -> moyenne = 90/9 = 10.0
+//   fenêtre[2][2] = {6,7,8,10,11,12,14,15,16} somme=99 -> moyenne = 99/9 = 11.0
+PROCEDURE PUBLIQUE scenario_moyennepooling_stride_chevauchant_forward()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MoyennePooling(3, 1)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "floor((4-3)/1)+1 = 2 fenêtres en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "floor((4-3)/1)+1 = 2 fenêtres en largeur")
+
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][1] - 6.0) < 0.0001, "moyenne de la fenêtre[1][1] = 54/9 = 6.0")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][2] - 7.0) < 0.0001, "moyenne de la fenêtre[1][2] = 63/9 = 7.0")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][2][1] - 10.0) < 0.0001, "moyenne de la fenêtre[2][1] = 90/9 = 10.0")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][2][2] - 11.0) < 0.0001, "moyenne de la fenêtre[2][2] = 99/9 = 11.0")
+
+	sortieNative est un Tenseur = TenseurMoyennePooling(entrée, 3, 1)
+	dbgVérifieVrai(Abs(sortieNative..Valeur[1][1][1][1] - sortie..Valeur[1][1][1][1]) < 0.0001, "forme native (3 arguments) == forme méthode")
+FIN
+
+
+// Entrée 1×1×5×5 (valeurs 1..25 séquentielles) :
+//    1  2  3  4  5
+//    6  7  8  9 10
+//   11 12 13 14 15
+//   16 17 18 19 20
+//   21 22 23 24 25
+// MaxPooling fenêtre=3, pas=2 -> sortie 2×2 (floor((5-3)/2)+1 = 2) :
+//   fenêtre[1][1] rangs 1-3, cols 1-3 -> max (coin bas-droit) = 13
+//   fenêtre[1][2] rangs 1-3, cols 3-5 -> max (coin bas-droit) = 15
+//   fenêtre[2][1] rangs 3-5, cols 1-3 -> max (coin bas-droit) = 23
+//   fenêtre[2][2] rangs 3-5, cols 3-5 -> max (coin bas-droit) = 25
+// (valeurs strictement croissantes en ligne et en colonne : le max de
+// chaque fenêtre est toujours son coin bas-droit)
+PROCEDURE PUBLIQUE scenario_maxpooling_stride_pas2_fenetre3_5x5()
+	brut est un tableau de réels
+	POUR k = 1 À 25
+		brut.Ajoute(k)
+	FIN
+	entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 5, 5])
+	sortie est un Tenseur = entrée.MaxPooling(3, 2)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "floor((5-3)/2)+1 = 2 fenêtres en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "floor((5-3)/2)+1 = 2 fenêtres en largeur")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 13.0, "max de la fenêtre[1][1] (rangs 1-3, cols 1-3) = 13")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 15.0, "max de la fenêtre[1][2] (rangs 1-3, cols 3-5) = 15")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], 23.0, "max de la fenêtre[2][1] (rangs 3-5, cols 1-3) = 23")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 25.0, "max de la fenêtre[2][2] (rangs 3-5, cols 3-5) = 25")
+FIN
+
+
+// LE test qui protège le backward chevauchant : en max-pooling chevauchant,
+// une cellule d'entrée peut être le max de PLUSIEURS fenêtres -> son
+// gradient est la SOMME des gradients de chaque fenêtre où elle gagne.
+//
+// Reprend l'entrée et le résultat forward de scenario_maxpooling_stride_chevauchant_forward
+// (fenêtre=3, pas=1) : sortie = [[11,12],[16,16]], avec les positions
+// gagnantes (1-based, [rang][col] dans l'entrée 4×4) :
+//   fenêtre[1][1] -> 11 gagne en entrée[3][2]
+//   fenêtre[1][2] -> 12 gagne en entrée[3][4]
+//   fenêtre[2][1] -> 16 gagne en entrée[4][3]
+//   fenêtre[2][2] -> 16 gagne en entrée[4][3]   <-- MÊME CELLULE que fenêtre[2][1] !
+// entrée[4][3] (valeur 16) est donc le maximum de DEUX fenêtres qui se
+// chevauchent (fenêtre[2][1] et fenêtre[2][2]).
+//
+// q = sortie*sortie -> grad_sortie = 2*sortie = [[22,24],[32,32]]
+//   grad_sortie[1][1]=22 -> entrée[3][2]
+//   grad_sortie[1][2]=24 -> entrée[3][4]
+//   grad_sortie[2][1]=32 -> entrée[4][3]  (fenêtre[2][1])
+//   grad_sortie[2][2]=32 -> entrée[4][3]  (fenêtre[2][2], MÊME cellule)
+// entrée[4][3] reçoit donc la SOMME : 32 + 32 = 64.0
+PROCEDURE PUBLIQUE scenario_maxpooling_stride_backward_chevauchant_cumule_gradient()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MaxPooling(3, 1)
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][2], 22.0, "cellule gagnante unique de fenêtre[1][1] : grad_sortie[1][1] = 2*11 = 22")
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][4], 24.0, "cellule gagnante unique de fenêtre[1][2] : grad_sortie[1][2] = 2*12 = 24")
+
+	// Le coeur du test : entrée[4][3] gagne dans DEUX fenêtres chevauchantes
+	// (fenêtre[2][1] ET fenêtre[2][2]) -> gradient = SOMME des deux, pas le
+	// dernier écrasant le premier (piège classique d'un backward naïf).
+	dbgVérifieEgalité(entrée..Gradient[1][1][4][3], 64.0, "cellule partagée par 2 fenêtres chevauchantes : gradient = SOMME 32+32 = 64, pas 32")
+
+	// Cellule jamais gagnante dans aucune fenêtre : gradient nul.
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][1], 0.0, "cellule jamais argmax d'aucune fenêtre chevauchante : gradient nul")
+FIN
+
+
+// Verrou de la forme anglaise : TensorMaxPooling / .MaxPooling(fenêtre, pas)
+// avec pas != fenêtre produit les mêmes valeurs que la forme française.
+PROCEDURE PUBLIQUE scenario_tensormaxpooling_stride_forme_anglaise()
+	input is a Tensor = Tensor([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+	output is a Tensor = TensorMaxPooling(input, 3, 1)
+
+	dbgCheckEqual(output..Valeur[1][1][1][1], 11.0, "English form: max of window[1][1] (rows 1-3, cols 1-3) = 11")
+	dbgCheckEqual(output..Valeur[1][1][2][2], 16.0, "English form: max of window[2][2] (rows 2-4, cols 2-4) = 16")
+FIN
+
+
+// Verrou de la forme anglaise pour la moyenne : TensorAveragePooling avec
+// pas != fenêtre.
+PROCEDURE PUBLIQUE scenario_tensoraveragepooling_stride_forme_anglaise()
+	input is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+	output is a Tensor = TensorAveragePooling(input, 3, 1)
+
+	dbgCheckTrue(Abs(output..Valeur[1][1][1][1] - 6.0) < 0.0001, "English form: average of window[1][1] = 54/9 = 6.0")
+	dbgCheckTrue(Abs(output..Valeur[1][1][2][2] - 11.0) < 0.0001, "English form: average of window[2][2] = 99/9 = 11.0")
+FIN

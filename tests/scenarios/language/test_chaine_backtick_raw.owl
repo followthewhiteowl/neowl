@@ -1,0 +1,52 @@
+// @sujet : chaine-backtick-brute-sans-doublage-guillemet
+// @résumé : Les chaînes délimitées par backticks sont brutes : une paire de guillemets doubles `""` y reste littérale (deux caractères), contrairement aux formes `"…"` et `%"…"` où `""` insère un seul guillemet. Seul le backtick ferme la chaîne backtick. L'interpolation `[%…%]` y reste active.
+
+// --- backtick : "" reste littéral (deux caractères) ------------------------
+PROCEDURE scenario_backtick_double_guillemet_litteral()
+	s est une chaîne = `x""y`
+	dbgVérifieEgalité(Taille(s), 4, "backtick : x deux-guillemets y fait 4 caractères")
+	dbgVérifieEgalité(s, "x" + `"` + `"` + "y", "backtick : les deux guillemets sont conservés")
+FIN
+
+
+// --- backtick : un mot entre guillemets simples ----------------------------
+PROCEDURE scenario_backtick_mot_entre_guillemets()
+	s est une chaîne = `un "mot" cite`
+	dbgVérifieEgalité(Taille(s), 13, "backtick : un guillemet = un caractère")
+	dbgVérifieEgalité(s, "un " + `"` + "mot" + `"` + " cite", "backtick : guillemets simples littéraux")
+FIN
+
+
+// --- backtick : JSON avec guillemets ---------------------------------------
+PROCEDURE scenario_backtick_json_guillemets()
+	config est une chaîne = `{"nom":"Alice"}`
+	dbgVérifieEgalité(config, "{" + `"` + "nom" + `"` + ":" + `"` + "Alice" + `"` + "}", "backtick : JSON brut, aucun doublage")
+	dbgVérifieEgalité(Taille(config), 15, "backtick : longueur JSON exacte")
+FIN
+
+
+// --- backtick : interpolation toujours active ------------------------------
+PROCEDURE scenario_backtick_interpolation_intacte()
+	nom est une chaîne = "Alice"
+	s est une chaîne = `Bonjour [%nom%] !`
+	dbgVérifieEgalité(s, "Bonjour Alice !", "backtick : interpolation intacte")
+FIN
+
+
+// --- NON-RÉGRESSION guillemets doubles "…" : "" -> " ----------------------
+PROCEDURE scenario_guillemets_doubles_conservent_doublage()
+	s est une chaîne = "a""b"
+	dbgVérifieEgalité(Taille(s), 3, "guillemets doubles : a deux-guillemets b -> 3 caractères")
+	dbgVérifieEgalité(s, "a" + `"` + "b", "guillemets doubles : doublage replié en un guillemet")
+FIN
+
+
+// --- NON-RÉGRESSION préfixe %"…" : "" -> " --------------------------------
+PROCEDURE scenario_prefixe_pourcent_conserve_doublage()
+	s est une chaîne = %"a""b"
+	dbgVérifieEgalité(Taille(s), 3, "préfixe %% : a deux-guillemets b -> 3 caractères")
+	dbgVérifieEgalité(s, "a" + `"` + "b", "préfixe %% : doublage replié en un guillemet")
+FIN
+
+
+dbgBilanTest()

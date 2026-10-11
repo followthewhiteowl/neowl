@@ -1,0 +1,149 @@
+// @sujet : IAModèle.ChargeONNX / .Infère — import et inférence d'un ResNet50
+// complet (classification ImageNet, 1000 classes) vérifiés contre une sortie
+// de référence capturée hors OWL (onnxruntime).
+// @résumé : un ResNet50 pré-entraîné (~100 Mo, ~50 couches : convolutions,
+// blocs résiduels avec raccourci, normalisation par lot, moyenne spatiale
+// globale, couche dense finale) est importé depuis son fichier ONNX, puis
+// interrogé sur l'entrée de référence [1,3,224,224]. La sortie [1000] (logits)
+// doit reproduire, à une tolérance flottante près, les logits de référence, et
+// désigner exactement la même classe gagnante (argmax top-1).
+//
+// Fixtures (volumineuses, NON versionnées — cf. resnet50-v1-7_LISEZMOI.md pour
+// la récupération) :
+//   - resnet50-v1-7.onnx          le modèle complet (~100 Mo)
+//   - resnet50-v1-7_input_0.pb    l'entrée de référence [1,3,224,224] (~600 Ko)
+// Fixture versionnée (oracle de référence, ~4 Ko) :
+//   - resnet50-v1-7_output_0.pb   les 1000 logits de référence [1,1000]
+// Les entrée/sortie de référence sont des TensorProto (le conteneur binaire
+// standard d'un tenseur ONNX). Un mini-lecteur ci-dessous en extrait le bloc de
+// flottants sans dépendance externe. Si le modèle ou l'entrée est absent, le
+// scénario s'ignore proprement (aucun faux rouge).
+//
+// Mesure de référence (onnxruntime) : écart maximal ~6,7e-06 sur les 1000
+// logits, classe gagnante identique (indice 489).
+
+// Longueur en octets d'un varint LEB128 lu à la position `pos` (base 1).
+PROCEDURE PRIVÉE pbTailleVarint(bufV est un buffer, pos est un entier) : entier
+	i est un entier = pos
+	fini est un booléen = Faux
+	TANTQUE PAS fini
+		b est un entier = BufferLitOctet(bufV, i)
+		i = i + 1
+		SI b < 128 ALORS
+			fini = Vrai
+		FIN
+	FIN
+	RENVOYER i - pos
+FIN
+
+// Valeur d'un varint LEB128 lu à la position `pos` (base 1).
+PROCEDURE PRIVÉE pbValeurVarint(bufV est un buffer, pos est un entier) : entier
+	resultat est un entier = 0
+	mult est un entier = 1
+	i est un entier = pos
+	fini est un booléen = Faux
+	TANTQUE PAS fini
+		b est un entier = BufferLitOctet(bufV, i)
+		resultat = resultat + (b MODULO 128) * mult
+		mult     = mult * 128
+		i        = i + 1
+		SI b < 128 ALORS
+			fini = Vrai
+		FIN
+	FIN
+	RENVOYER resultat
+FIN
+
+// Extrait les éléments flottants d'un TensorProto (.pb) float32 en tableau de
+// réels. Champs lus : data_type (2), name (8), raw_data (9, bloc float32
+// petit-boutiste). Les autres champs (dont dims=1) sont sautés selon leur type
+// de fil. Tags mono-octet (numéros de champ < 16, cas de ces fichiers).
+PROCEDURE PRIVÉE litReelsPB(chemin est une chaîne) : tableau de réels
+	bufV est un buffer = fChargeBuffer(chemin)
+	n est un entier = Taille(bufV)
+	rawPos est un entier = 0
+	rawLen est un entier = 0
+	p est un entier = 1
+	TANTQUE p <= n
+		tag est un entier = BufferLitOctet(bufV, p)
+		p = p + 1
+		fil est un entier = tag MODULO 8
+		SI fil = 0 ALORS
+			// varint : data_type, dims… — valeur sautée
+			p = p + pbTailleVarint(bufV, p)
+		SINON SI fil = 2 ALORS
+			// bloc à longueur préfixée : name, raw_data…
+			longueur est un entier = pbValeurVarint(bufV, p)
+			p = p + pbTailleVarint(bufV, p)
+			SI tag = 74 ALORS
+				// champ 9, raw_data : le bloc de flottants
+				rawPos = p
+				rawLen = longueur
+			FIN
+			p = p + longueur
+		SINON
+			// fil 1 (64 bits) / 5 (32 bits) : non attendus dans ces fichiers
+			p = p + 4
+		FIN
+	FIN
+
+	nbFlottants est un entier = rawLen / 4
+	donnees est un tableau de réels
+	POUR k = 0 À nbFlottants - 1
+		donnees.Ajoute(BufferVersRéel(bufV, rawPos + k * 4, 4))
+	FIN
+	RENVOYER donnees
+FIN
+
+// Cœur du contrat : import du ResNet50 complet, inférence sur l'entrée de
+// référence, sortie [1000] égale aux logits de référence (tolérance flottante)
+// et même classe gagnante (argmax top-1).
+PROCEDURE PUBLIQUE scenario_resnet50_complet_egale_reference()
+	cheminModele est une chaîne = "tests/internal_fixtures/onnx/resnet50-v1-7.onnx"
+	cheminEntree est une chaîne = "tests/internal_fixtures/onnx/resnet50-v1-7_input_0.pb"
+	cheminSortie est une chaîne = "tests/internal_fixtures/onnx/resnet50-v1-7_output_0.pb"
+
+	// Fixtures volumineuses non versionnées : si absentes, on s'ignore.
+	SI PAS fFichierExiste(cheminModele) OU PAS fFichierExiste(cheminEntree) ALORS
+		dbgVérifieVrai(Vrai, "ResNet50 : fixtures volumineuses absentes, scénario ignoré (cf. resnet50-v1-7_LISEZMOI.md)")
+		RETOUR
+	FIN
+
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX(cheminModele)
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "import du ResNet50 complet réussit")
+
+	SI PAS bImportEchoue ALORS
+		entreePlate est un tableau de réels = litReelsPB(cheminEntree)
+		dbgVérifieEgalité(Taille(entreePlate), 150528, "entrée de référence : 1*3*224*224 = 150528 flottants")
+		entree est un Tenseur = Tenseur(entreePlate).Redimensionne([1, 3, 224, 224])
+
+		sortie est un Tenseur = mon.Infère(entree)
+		dbgVérifieEgalité(sortie..Rang, 1, "image unique : sortie Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		ref est un tableau de réels = litReelsPB(cheminSortie)
+		dbgVérifieEgalité(Taille(ref), 1000, "logits de référence : 1000 classes ImageNet")
+
+		maxdiff est un réel = 0.0
+		imaxOwl est un entier = 1
+		imaxRef est un entier = 1
+		POUR i = 1 À 1000
+			d est un réel = Abs(val[i] - ref[i])
+			SI d > maxdiff ALORS
+				maxdiff = d
+			FIN
+			SI val[i] > val[imaxOwl] ALORS
+				imaxOwl = i
+			FIN
+			SI ref[i] > ref[imaxRef] ALORS
+				imaxRef = i
+			FIN
+		FIN
+
+		dbgVérifieVrai(maxdiff < 0.001, "sortie ResNet50 proche de la référence onnxruntime (écart max sur les 1000 logits sous tolérance)")
+		dbgVérifieEgalité(imaxOwl, imaxRef, "classe gagnante (argmax top-1) identique à la référence")
+	FIN
+FIN

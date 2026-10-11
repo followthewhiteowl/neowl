@@ -1,0 +1,103 @@
+// @sujet : TexteDistanceHamming
+// @résumé : Distance de Hamming entre deux chaînes de même longueur — nombre de positions où les caractères diffèrent. Retourne un entier >= 0. Insensible à la casse et aux accents par défaut. Lève une erreur runtime si les longueurs diffèrent. Utile pour comparer des codes binaires, codes postaux, identifiants de taille fixe.
+
+
+// Vecteur de référence canonique : "karolin" → "kathrin" = 3 positions
+// différentes (o→t, a→h, i→r). Référence classique de la littérature
+// académique pour valider l'implémentation de Hamming.
+PROCEDURE scenario_texte_distance_hamming_vecteur_canon()
+	dist est un entier = TexteDistanceHamming("karolin", "kathrin")
+
+	dbgVérifieEgalité(dist, 3, "Hamming karolin→kathrin = 3")
+FIN
+
+
+// Vecteur binaire classique : chaînes de bits de longueur égale. Cas
+// d'usage typique de Hamming (codes correcteurs d'erreurs, télécoms).
+PROCEDURE scenario_texte_distance_hamming_binaire()
+	dist est un entier = TexteDistanceHamming("1011101", "1001001")
+
+	dbgVérifieEgalité(dist, 2, "Hamming binaire = 2 positions différentes")
+FIN
+
+
+// Cas trivial : chaînes identiques → distance 0. Aucune position ne diffère.
+PROCEDURE scenario_texte_distance_hamming_identique()
+	dist est un entier = TexteDistanceHamming("test", "test")
+
+	dbgVérifieEgalité(dist, 0, "chaînes identiques → 0")
+FIN
+
+
+// Insensible casse+accents : folding préserve la longueur pour Hamming.
+// "Café" et "cafe" ont tous deux 4 codepoints après folding diacritique
+// simple (é→e, à→a) : longueurs égales, distance 0.
+PROCEDURE scenario_texte_distance_hamming_insensible_defaut()
+	dist est un entier = TexteDistanceHamming("Café", "cafe")
+
+	dbgVérifieEgalité(dist, 0, "accents + casse ignorés, longueurs égales après folding")
+FIN
+
+
+// Contrainte longueurs différentes : Hamming n'est pas défini sur
+// longueurs différentes. Doit lever une erreur runtime claire avec
+// message mentionnant la contrainte de longueur.
+PROCEDURE scenario_texte_distance_hamming_longueurs_differentes()
+	ErreurRAZ()
+
+	dist est un entier = TexteDistanceHamming("abc", "abcd")
+
+	dbgVérifieVrai(ErreurDétectée, "Hamming longueurs différentes → erreur runtime")
+	dbgVérifieVrai(Position(ErreurInfo(), "longueur") > 0,
+	"ErreurInfo mentionne contrainte longueur")
+FIN
+
+
+// Alias EN : TextDistanceHamming() équivalent à TexteDistanceHamming().
+// Vérifie la cohérence bilingue du langage.
+PROCEDURE scenario_text_distance_hamming_alias_en()
+	distFR est un entier = TexteDistanceHamming("karolin", "kathrin")
+	distEN est un entier = TextDistanceHamming("karolin", "kathrin")
+
+	dbgVérifieEgalité(distFR, distEN, "alias EN équivalent à FR")
+	dbgVérifieEgalité(distEN, 3, "alias EN calcule correctement")
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Tous les caractères différents : Hamming = longueur commune. Borne
+// supérieure de la distance pour une longueur donnée.
+PROCEDURE PRIVÉE scenario_texte_distance_hamming_tous_differents()
+	dist est un entier = TexteDistanceHamming("abc", "xyz")
+
+	dbgVérifieEgalité(dist, 3, "aucune position ne matche → distance = longueur")
+FIN
+
+
+// Chaînes vides : distance 0 (longueurs égales = 0). Cas limite cohérent.
+PROCEDURE PRIVÉE scenario_texte_distance_hamming_chaines_vides()
+	dist est un entier = TexteDistanceHamming("", "")
+
+	dbgVérifieEgalité(dist, 0, "deux chaînes vides → 0")
+FIN
+
+
+// Une seule différence en dernière position. Vérifie que Hamming scanne
+// bien toutes les positions, pas seulement les premières.
+PROCEDURE PRIVÉE scenario_texte_distance_hamming_une_diff()
+	dist est un entier = TexteDistanceHamming("test1", "test2")
+
+	dbgVérifieEgalité(dist, 1, "une seule position diffère")
+FIN
+
+
+// Caractères multibyte : l'umlaut replié conserve la longueur codepoint.
+// "Müller" et "Muller" ont tous deux 6 codepoints après folding (ü→u).
+PROCEDURE PRIVÉE scenario_texte_distance_hamming_umlaut()
+	dist est un entier = TexteDistanceHamming("Müller", "Muller")
+
+	dbgVérifieEgalité(dist, 0, "umlaut replié conserve longueur codepoint")
+FIN

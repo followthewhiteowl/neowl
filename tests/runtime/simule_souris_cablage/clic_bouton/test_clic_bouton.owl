@@ -1,0 +1,48 @@
+// Preuve de câblage réel : surClic / surDoubleClic sur un Champ Bouton.
+//
+// TestSimuleSouris poste un vrai QMouseEvent quand le widget est monté
+// (pas de raccourci vers le callback) : le clic n'a d'effet que si le
+// champ est réellement câblé côté backend. surDoubleClic est déclaré au
+// catalogue du Bouton mais n'est câblé nulle part — ce test rougit tant
+// que le câblage n'est pas posé.
+//
+// ROUGE ATTENDU : nBtnDoubleClic_obs reste à 0 après le double-clic
+// simulé. Les assertions sur surClic sont la non-régression du chemin
+// existant (signal `clicked`) : elles doivent être vertes des deux côtés.
+
+TestModeHeadless(Faux)
+
+bBtnPrete est un booléen = Faux
+nBtnClic_obs est un entier = -1
+nBtnDoubleClic_obs est un entier = -1
+
+PROCEDURE callback_btn_clic_prete()
+	bBtnPrete = Vrai
+FIN
+
+PROCEDURE callback_btn_clic_compteurs(nC est un entier, nD est un entier)
+	nBtnClic_obs       = nC
+	nBtnDoubleClic_obs = nD
+FIN
+
+OuvreSoeur(FEN_ClicBouton)
+dbgVérifieVrai(bBtnPrete, "FinInitialisation appelée : fenêtre prête")
+
+LireCompteursBtnClic()
+dbgVérifieEgalité(nBtnClic_obs, 0, "surClic Bouton : aucun tir avant interaction")
+dbgVérifieEgalité(nBtnDoubleClic_obs, 0, "surDoubleClic Bouton : aucun tir avant interaction")
+
+TestSimuleSouris(BTN_Cible, ClicGauche)
+LireCompteursBtnClic()
+dbgVérifieEgalité(nBtnClic_obs, 1, "surClic Bouton : 1 tir après clic simulé réel")
+dbgVérifieEgalité(nBtnDoubleClic_obs, 0, "surDoubleClic Bouton : pas tiré par un clic simple")
+
+// Un double-clic humain est une séquence appui/relâché/double-clic/relâché :
+// le bouton voit donc AUSSI passer des clics simples. Seul le compteur de
+// surDoubleClic est déterministe ici, et c'est celui qui prouve le câblage.
+TestSimuleSouris(BTN_Cible, DoubleClicGauche)
+LireCompteursBtnClic()
+dbgVérifieEgalité(nBtnDoubleClic_obs, 1, "surDoubleClic Bouton : 1 tir après double-clic simulé réel")
+
+Ferme(FEN_ClicBouton)
+dbgBilanTest()

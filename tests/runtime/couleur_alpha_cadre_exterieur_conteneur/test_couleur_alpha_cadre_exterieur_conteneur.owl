@@ -1,0 +1,32 @@
+//  (LOT 1) — opacité sur `Style..CadreExtérieur..CouleurFond` d'un
+// Champ Conteneur, rendu en QSS (background-color).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf. tests/runtime/couleur_alpha_fond : MESURER au pixel.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg = VERT PUR (0,255,0), bg = ROUGE PUR (255,0,0), a = 128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Numérateur multiple exact de 255 sur
+// chaque canal -> aucune tolérance nécessaire, le calcul tombe pile.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaCadreExtConteneur)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaCadreExtConteneur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque : CNT_Opaque [X=20..320,Y=20..120], centre=(170,70) --
+dbgVérifieEgalité(dPixelCouleur(img, 170, 70), RVB(0, 255, 0),
+"CNT_Opaque : Style..CadreExtérieur..CouleurFond = RVB(0,255,0) (entier nu opaque) : vert pur, non-régression")
+
+// --- 2. CNT_Alpha [X=20..320,Y=140..240], centre=(170,190) -----------------
+dbgVérifieEgalité(dPixelCouleur(img, 170, 190), RVB(127, 128, 0),
+"CNT_Alpha : Style..CadreExtérieur..CouleurFond = <Couleur Opacité=128> : centre mélangé avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaCadreExtConteneur)
+dbgBilanTest()

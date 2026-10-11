@@ -1,0 +1,48 @@
+//  — `Style..Libellé..CouleurFond` : sous-élément STATIQUE (le
+// libellé intégré du Saisie, QLabel séparé du QLineEdit — cf. ).
+// Choix de CouleurFond (fond) plutôt que Couleur (texte) : un aplat de fond
+// se vérifie par comptage de pixels fiable ; la couleur du texte dépend de
+// l'anti-crénelage des glyphes (pas un critère pixel robuste).
+//
+// ROUGE attendu : `Style..Libellé..X` ne compile pas encore (le sous-élément
+// Libellé n'existe pas sur styleSaisie — champ inconnu). Cf.
+// FEN_StyleElementLibelle.owl.
+
+TestModeHeadless(Faux)
+
+couleurLibelleFond est un entier = RVB(200, 0, 200)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementLibelle)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleElementLibelle)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// Le libellé occupe la zone [X=20..120, Y=20..80] (LargeurLibellé = 100,
+// Hauteur = 60) : échantillon intérieur pour éviter les bords/marges.
+nbFondLibelle est un entier = CompteCouleurZone(img, 30, 30, 110, 70, couleurLibelleFond)
+seuilFond est un entier = 480 // (110-30) * (70-30) * 0.15, arrondi (marge basse : glyphes/marges internes)
+dbgVérifieVrai(nbFondLibelle > seuilFond, "SAI_Zone : Style..Libellé..CouleurFond peint le fond du libellé intégré")
+
+// Contrôle négatif : la zone de saisie (QLineEdit, à droite du libellé) ne
+// doit PAS être peinte de la couleur du libellé.
+nbFondZoneSaisie est un entier = CompteCouleurZone(img, 150, 30, 500, 70, couleurLibelleFond)
+dbgVérifieVrai(nbFondZoneSaisie = 0, "SAI_Zone : la couleur du libellé ne déborde pas sur la zone de saisie")
+
+Ferme(FEN_StyleElementLibelle)
+dbgBilanTest()

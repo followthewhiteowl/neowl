@@ -1,0 +1,46 @@
+// Maximise / Iconise / Restaure — raccourcis de changement d'etat
+// d'une fenetre ouverte par programme.
+//
+// Les modes sont verifies par FenTaille (forme lecture) : chaque native
+// doit produire un mode different de l'etat initial et des autres etats.
+// Les assertions comparent uniquement des resultats de FenTaille entre
+// eux (pas les constantes elles-memes).
+
+TestModeHeadless(Vrai)
+
+bWindowStatePrete est un booléen = Faux
+
+PROCEDURE cb_fen_window_state_prete()
+	bWindowStatePrete = Vrai
+FIN
+
+PROCEDURE PUBLIQUE scenario_window_state()
+	OuvreSoeur(FEN_WindowState)
+	dbgVérifieVrai(bWindowStatePrete, "FinInitialisation : fenetre ouverte")
+
+	// Mode initial (TailleNormale attendu a l'ouverture)
+	nModeInitial est un entier = FenTaille(FEN_WindowState)
+
+	// --- Maximise ---
+	Maximise(FEN_WindowState)
+	nModeMax est un entier = FenTaille(FEN_WindowState)
+	dbgVérifieVrai(nModeMax <> nModeInitial, "Maximise : mode different du mode initial")
+
+	// --- Restaure depuis Maximise ---
+	Restaure(FEN_WindowState)
+	nModeRestaure est un entier = FenTaille(FEN_WindowState)
+	dbgVérifieEgalité(nModeRestaure, nModeInitial, "Restaure apres Maximise : mode egal au mode initial")
+
+	// --- Iconise ---
+	Iconise(FEN_WindowState)
+	nModeIcon est un entier = FenTaille(FEN_WindowState)
+	dbgVérifieVrai(nModeIcon <> nModeInitial, "Iconise : mode different du mode initial")
+	dbgVérifieVrai(nModeIcon <> nModeMax, "Iconise : mode different du mode Maximise")
+
+	// --- Restaure depuis Iconise ---
+	Restaure(FEN_WindowState)
+	nModeRestaure2 est un entier = FenTaille(FEN_WindowState)
+	dbgVérifieEgalité(nModeRestaure2, nModeInitial, "Restaure apres Iconise : mode egal au mode initial")
+
+	Ferme(FEN_WindowState)
+FIN

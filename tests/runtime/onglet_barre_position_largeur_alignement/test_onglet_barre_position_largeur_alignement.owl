@@ -1,0 +1,179 @@
+//  — les trois réglages de la barre d'un Champ Onglet (Position,
+// LargeurVolets, AlignementLibellé) doivent produire un rendu réellement
+// différent, à la déclaration ET par écriture après l'ouverture.
+//
+// Régression couverte : une écriture après l'ouverture était rangée dans le
+// casier de propriétés du champ (donc relue à l'identique) mais n'atteignait
+// jamais le widget — la barre ne bougeait pas d'un pixel.
+//
+// Méthode : le fond ROUGE de la languette active et le fond BLEU de la
+// languette inactive servent de règle graduée. On mesure sur l'image du champ
+// la bande rouge (où est la barre), sa largeur (mode de largeur) et la place du
+// texte noir dedans (alignement du libellé). Chaque réglage est écrit SEUL sur
+// ONG_Runtime, pour qu'aucune mesure ne soit confondue avec un autre réglage :
+// l'alignement se mesure notamment à largeur de languette constante.
+//
+// Widgets réels obligatoires : un Champ Onglet re-matérialisé en mode headless
+// rend une surface vide (pas de barre de languettes), donc aveugle à tout ça.
+
+TestModeHeadless(Faux)
+
+// Première ligne portant du rouge sur une colonne traversant la languette
+// active. -1 si la colonne ne rencontre jamais la languette.
+PROCEDURE yPremierRouge(imgO est une Image) : entier
+	nY est un entier = -1
+	POUR yScan = 0 À 179
+		SI nY = -1 ET dPixelCouleur(imgO, 20, yScan) = Rouge ALORS
+			nY = yScan
+		FIN
+	FIN
+	RENVOYER nY
+FIN
+
+// Nombre de pixels rouges sur une ligne : la largeur de la languette active
+// moins le texte qui la troue. Croît avec la largeur de la languette.
+PROCEDURE largeurRouge(imgO est une Image, yLigne est un entier) : entier
+	nLarg est un entier = 0
+	POUR xScan = 0 À 599
+		SI dPixelCouleur(imgO, xScan, yLigne) = Rouge ALORS
+			nLarg = nLarg + 1
+		FIN
+	FIN
+	RENVOYER nLarg
+FIN
+
+// Abscisse du premier pixel de texte : premier pixel non rouge rencontré APRÈS
+// le début de la bande rouge. Petit = libellé collé au début de la languette,
+// grand = collé à la fin.
+PROCEDURE xDebutTexte(imgO est une Image, yLigne est un entier) : entier
+	bDansRouge est un booléen = Faux
+	nX est un entier = -1
+	POUR xScan = 0 À 599
+		SI dPixelCouleur(imgO, xScan, yLigne) = Rouge ALORS
+			bDansRouge = Vrai
+		SINON
+			SI bDansRouge ET nX = -1 ALORS
+				nX = xScan
+			FIN
+		FIN
+	FIN
+	RENVOYER nX
+FIN
+
+OuvreSoeur(FEN_OngletBarre)
+
+// ---------------------------------------------------------------- référence
+// Aucun réglage posé : barre en haut, largeur proportionnelle, libellé centré.
+imgDefaut est une Image = dCopieImageChamp(ONG_Defaut)
+dbgVérifieEgalité(imgDefaut..Valide, Vrai, "ONG_Defaut : capture valide")
+
+yDefaut est un entier = yPremierRouge(imgDefaut)
+dbgVérifieEgalité(yDefaut, 0,
+"Aucun réglage posé : la barre reste en haut du champ")
+
+largDefaut est un entier = largeurRouge(imgDefaut, yDefaut + 10)
+dbgVérifieVrai(largDefaut > 0,
+"Aucun réglage posé : la languette active est rendue")
+
+// --------------------------------------------------- réglages à la déclaration
+imgRegle est une Image = dCopieImageChamp(ONG_Regle)
+dbgVérifieEgalité(imgRegle..Valide, Vrai, "ONG_Regle : capture valide")
+
+yRegle est un entier = yPremierRouge(imgRegle)
+dbgVérifieVrai(yRegle > 100,
+"Position = ongBas : la barre descend dans la moitié basse du champ")
+
+// La languette active porte le libellé court ("Ok"), l'inactive le long. En
+// largeur égale, la courte est calée sur la longue : elle grossit franchement.
+largRegle est un entier = largeurRouge(imgRegle, yRegle + 10)
+dbgVérifieVrai(largRegle > largDefaut + 40,
+"LargeurVolets = largeurÉgale : la languette courte s'aligne sur la plus large")
+
+xTexteRegle est un entier = xDebutTexte(imgRegle, yRegle + 10)
+
+// ------------------------------------------ mêmes réglages, après l'ouverture
+// ONG_Runtime est déclaré nu : il part du même rendu que ONG_Defaut.
+imgAvant est une Image = dCopieImageChamp(ONG_Runtime)
+yAvant est un entier = yPremierRouge(imgAvant)
+dbgVérifieEgalité(yAvant, 0,
+"ONG_Runtime avant écriture : même barre en haut que la référence")
+
+largAvant est un entier = largeurRouge(imgAvant, yAvant + 10)
+dbgVérifieEgalité(largAvant, largDefaut,
+"ONG_Runtime avant écriture : même largeur de languette que la référence")
+
+// -- Étape 1 : LargeurVolets seule. Seule la largeur doit bouger.
+ONG_Runtime..LargeurVolets = largeurÉgale
+Temporise(20)
+
+imgLarg est une Image = dCopieImageChamp(ONG_Runtime)
+dbgVérifieEgalité(imgLarg..Valide, Vrai, "ONG_Runtime : capture valide après écriture")
+
+yLarg est un entier = yPremierRouge(imgLarg)
+dbgVérifieEgalité(yLarg, 0,
+"..LargeurVolets écrite seule : la barre ne bouge pas")
+
+largLarg est un entier = largeurRouge(imgLarg, yLarg + 10)
+dbgVérifieVrai(largLarg > largAvant + 40,
+"..LargeurVolets écrite après l'ouverture : la languette s'élargit réellement")
+
+dbgVérifieEgalité(largLarg, largRegle,
+"Écriture après l'ouverture et déclaration donnent la même largeur de languette")
+
+// Libellé encore centré : point de comparaison de l'étape suivante, mesuré à
+// la MÊME largeur de languette que ONG_Regle.
+xTexteCentre est un entier = xDebutTexte(imgLarg, yLarg + 10)
+
+// À largeur de languette identique, alignFin place le texte nettement plus
+// loin que le centrage : la mesure isole bien l'alignement, pas la largeur.
+dbgVérifieVrai(xTexteRegle > xTexteCentre + 40,
+"AlignementLibellé = alignFin : à largeur égale, le libellé se décale vers la fin")
+
+// -- Étape 2 : AlignementLibellé seul. La largeur ne doit pas bouger.
+ONG_Runtime..AlignementLibellé = alignFin
+Temporise(20)
+
+imgAlign est une Image = dCopieImageChamp(ONG_Runtime)
+largAlign est un entier = largeurRouge(imgAlign, yLarg + 10)
+dbgVérifieEgalité(largAlign, largLarg,
+"..AlignementLibellé écrite seule : la largeur de languette ne bouge pas")
+
+xTexteFin est un entier = xDebutTexte(imgAlign, yLarg + 10)
+dbgVérifieVrai(xTexteFin > xTexteCentre + 40,
+"..AlignementLibellé écrite après l'ouverture : le libellé se décale réellement")
+
+dbgVérifieEgalité(xTexteFin, xTexteRegle,
+"Écriture après l'ouverture et déclaration placent le libellé au même pixel")
+
+// -- Étape 3 : Position seule. La barre descend, la largeur reste acquise.
+ONG_Runtime..Position = ongBas
+Temporise(20)
+
+imgPos est une Image = dCopieImageChamp(ONG_Runtime)
+yPos est un entier = yPremierRouge(imgPos)
+dbgVérifieEgalité(yPos, yRegle,
+"..Position écrite après l'ouverture : la barre descend au même pixel qu'en déclaration")
+
+dbgVérifieEgalité(largeurRouge(imgPos, yPos + 10), largRegle,
+"..Position écrite après l'ouverture : les réglages de largeur restent acquis")
+
+// -- Étape 4 : retour au défaut. La bascule est réversible dans les deux sens.
+ONG_Runtime..LargeurVolets     = largeurProportionnelle
+ONG_Runtime..AlignementLibellé = alignCentre
+ONG_Runtime..Position          = ongHaut
+Temporise(20)
+
+imgRetour est une Image = dCopieImageChamp(ONG_Runtime)
+yRetour est un entier = yPremierRouge(imgRetour)
+dbgVérifieEgalité(yRetour, 0,
+"Position = ongHaut réécrite : la barre remonte")
+
+dbgVérifieEgalité(largeurRouge(imgRetour, yRetour + 10), largDefaut,
+"LargeurVolets = largeurProportionnelle réécrite : retour à la largeur d'origine")
+
+dbgVérifieEgalité(xDebutTexte(imgRetour, yRetour + 10),
+xDebutTexte(imgDefaut, yDefaut + 10),
+"AlignementLibellé = alignCentre réécrit : le libellé revient au pixel d'origine")
+
+Ferme(FEN_OngletBarre)
+dbgBilanTest()

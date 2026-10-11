@@ -1,0 +1,33 @@
+// Paramètres de Fenêtre sans annotation de type — compile et portée.
+//
+// Vérifie que `FEN_X est une Fenêtre(message, priorite est un entier)` :
+//   1. accepte un param sans `est un <type>` (type optionnel, parité Etat) ;
+//   2. accepte le cas mixte (param sans type + param typé dans la même liste) ;
+//   3. rend `message` et `priorite` référençables dans le top-level fenêtre,
+//      les events et les procédures internes.
+//   4. injecte les valeurs passées à Ouvre(FEN_X, val1, val2) correctement.
+//
+// Attendu (rouge pré-impl) : erreur compile sur FEN_Param_SansType.owl
+// (`(params)` non parsé par window_declaration → 'message' variable inconnue
+// + cascade PROPRIETES manquant).
+
+TestModeHeadless(Vrai)
+
+res_sans_type est une chaîne = ""
+
+PROCEDURE callback_sans_type(s est une chaîne)
+	res_sans_type = s
+FIN
+
+Ouvre(FEN_Param_SansType, "bonjour", 7)
+
+dbgVérifieEgalité(res_sans_type, "ok:bonjour", "param sans type injecté et référençable depuis event")
+
+sLu est une chaîne = LireMessage()
+dbgVérifieEgalité(sLu, "bonjour", "procédure interne accède au param sans type")
+
+nLu est un entier = LirePriorite()
+dbgVérifieEgalité(nLu, 7, "cas mixte : param typé cohabite avec param sans type")
+
+Ferme(FEN_Param_SansType)
+dbgBilanTest()

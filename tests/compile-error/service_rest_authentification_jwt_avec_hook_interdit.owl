@@ -1,0 +1,46 @@
+// Contrat CIBLE  (lot 5) : contrairement à Bearer/Basique/CléAPI
+// ( et suivants), le schéma JWT déclaratif (Authentification =
+// httpAuthJWT) est ENTIÈREMENT pris en charge par le framework — validation
+// de signature, expiration, émetteur, dépôt de l'identité — sans code
+// applicatif. Fournir EN PLUS un crochet surAuthentification est donc
+// contradictoire (l'app ne peut pas remplacer une validation qu'elle ne
+// pilote pas) : ce fichier DOIT échouer à la compilation une fois httpAuthJWT
+// livré.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : httpAuthJWT et les
+// propriétés CléPubliqueJWT/ÉmetteurJWT ne sont reconnues nulle part avant
+//  — la compilation échoue déjà, mais sur un symbole inconnu, pas
+// sur la contradiction JWT+hook. Le golden ci-dessous sera régénéré une fois
+// httpAuthJWT livré (comme les fixtures compile-error précédentes du
+// cluster auth), pour porter le message de contradiction définitif.
+ServiceProtegeJWT est un ServiceREST
+	PROPRIETES
+		Authentification = httpAuthJWT
+		CléPubliqueJWT   = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtx+PRHZy5E5mCY32A0ey
+unUDImxklHs0+USkTtvNCSwFRvdoID+krNcKCEjGGWjAKUSV9BycP1mpcYslpHHV
+EoF6+XY5Ug+ff27JUSKEkY3E21n+Ym/5br5sR7+y+DtnBGondeT8YnoRxZwWH7Wc
+UdWX7UdvCDzW9Ej4Jh5aYrwyKketeytWRMFyguuxBW4zBp/OZgSAJG/r+f1eLvNy
+BYW+JnEluHqJ4nb8lyHJx5cftOeKnulXQt4BdYNqswIGnNuAlIScCKeoXiLB8n9/
+P0ZpHAtjryz8t/AMSDlTI4cH8OiU1CO1tMnBzBc/yRV+cgH1lF8QlTUk4m6fU5mC
+9QIDAQAB
+-----END PUBLIC KEY-----`
+		ÉmetteurJWT = "owl-test-emetteur"
+	FIN
+
+	PROCEDURE surAuthentification(jeton est une chaîne) : booléen
+		RENVOYER Vrai
+	FIN
+
+	OpProtegee est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["protegee"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête()
+			MoiMême..Réponse..CodeÉtat = httpOK
+		FIN
+	FIN
+FIN

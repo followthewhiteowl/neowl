@@ -1,0 +1,80 @@
+// @sujet : ExceptionInfo
+// @résumé : Lit un composant d'information sur l'exception en cours dans
+// un bloc QUAND EXCEPTION DANS ... FAIRE — message, code, pile, etc.
+
+
+// Forme complète : le handler lit le message (chaîne), le code (chaîne) et
+// l'information complémentaire levés par ExceptionDéclenche. errCode est une
+// chaîne, y compris pour un code numérique fourni par l'utilisateur.
+PROCEDURE PUBLIQUE scenario_lecture_message_code_info_dans_le_handler()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(42, "Paiement refusé par la banque.", "commande=CMD-9081")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Paiement refusé par la banque.", "errMessage restitue le message levé")
+		dbgVérifieEgalité(ExceptionInfo(errCode), "42", "errCode restitue le code levé, sous forme de chaîne")
+		dbgVérifieEgalité(TypeVar(ExceptionInfo(errCode)), owlChaine, "errCode est bien typé chaîne, pas entier")
+		dbgVérifieEgalité(ExceptionInfo(errInfo), "commande=CMD-9081", "errInfo restitue l'information complémentaire")
+	FIN
+FIN
+
+
+// Une exception déclenchée explicitement par l'utilisateur (pas par une
+// native) ne référence aucune fonction fautive : errFonction et errCodeNum
+// restent vides, à la différence d'une exception provoquée par une native.
+PROCEDURE PUBLIQUE scenario_errFonction_et_errCodeNum_vides_pour_une_levee_utilisateur()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(7, "Paiement refusé par la banque.")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errFonction), "", "errFonction reste vide : aucune native n'est en cause")
+		dbgVérifieEgalité(ExceptionInfo(errCodeNum), "", "errCodeNum reste vide : le code n'est pas un symbole du registre")
+	FIN
+FIN
+
+
+// Forme sans argument : un raccourci équivalent à errMessage, pratique
+// quand on ne s'intéresse qu'au libellé de l'exception.
+PROCEDURE PUBLIQUE scenario_forme_sans_argument_equivaut_a_errMessage()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche("Session expirée, reconnexion nécessaire.")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(), ExceptionInfo(errMessage), "La forme sans argument coïncide avec errMessage")
+		dbgVérifieEgalité(ExceptionInfo(), "Session expirée, reconnexion nécessaire.", "Et reprend bien le message levé")
+	FIN
+FIN
+
+
+// Cas limite : errPile retrace l'origine de la levée, jusqu'au nom de la
+// procédure où l'exception a été déclenchée — utile pour localiser un
+// traitement fautif dans une chaîne d'appels plus large.
+PROCEDURE PUBLIQUE scenario_composant_pile_localise_la_procedure_declenchante()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(1, "Echec du traitement de fond.")
+	FAIRE
+		dbgVérifieVrai(Contient(ExceptionInfo(errPile), "scenario_composant_pile_localise_la_procedure_declenchante"), "errPile mentionne la procédure d'origine")
+	FIN
+FIN
+
+
+// Cas limite (edge) : sans information complémentaire fournie à
+// ExceptionDéclenche, errInfo retombe sur une chaîne vide plutôt que sur
+// une valeur absente.
+PROCEDURE PRIVÉE scenario_edge_info_absente_reste_vide()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(5, "Traitement sans détail additionnel.")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errInfo), "", "Sans info fournie, errInfo retombe sur une chaîne vide")
+	FIN
+FIN
+
+
+// Cas limite (edge) : en dehors de tout bloc QUAND EXCEPTION actif, les
+// composants liés à une levée retombent sur une chaîne vide plutôt que sur
+// une valeur résiduelle d'une exception précédente.
+PROCEDURE PRIVÉE scenario_edge_hors_handler_composants_vides()
+	dbgVérifieEgalité(ExceptionInfo(errCode), "", "Hors handler, errCode est une chaîne vide")
+	dbgVérifieEgalité(ExceptionInfo(errFonction), "", "Hors handler, errFonction est une chaîne vide")
+	dbgVérifieEgalité(ExceptionInfo(errCodeNum), "", "Hors handler, errCodeNum est une chaîne vide")
+FIN
+
+
+dbgBilanTest()

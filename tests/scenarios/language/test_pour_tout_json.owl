@@ -1,0 +1,88 @@
+// @sujet : POUR TOUT — parcours d'un JSON objet (clé/valeur) et d'un JSON tableau (éléments)
+// @résumé : POUR TOUT distingue à l'exécution un JSON objet d'un JSON tableau. Sur un objet, la forme à deux variables `POUR TOUT valeur, cle DE obj` expose les vraies paires clé/valeur des membres, exactement comme un tableau associatif ; la forme mono-variable itère les valeurs des membres. Sur un tableau JSON, POUR TOUT parcourt les éléments (index positionnel). Les autres conteneurs (tableau associatif, tableau simple) sont inchangés.
+
+
+// JSON objet, forme clé/valeur : la variable secondaire reçoit le nom du
+// membre, la primaire sa valeur. L'ordre des membres suit l'ordre du
+// document source. Comportement calqué sur le tableau associatif.
+PROCEDURE PUBLIQUE scenario_json_objet_cle_valeur()
+	o est un JSON = ChaîneVersJSON(`{"a":10,"b":20,"c":30}`)
+	sTrace est une chaîne = ""
+	POUR TOUT valeur, cle DE o
+		sTrace = sTrace + cle + "=" + valeur + "|"
+	FIN
+	dbgVérifieEgalité(sTrace, "a=10|b=20|c=30|", "Objet JSON : vraies paires clé/valeur des membres")
+FIN
+
+
+// JSON objet, forme mono-variable : la variable d'itération reçoit la
+// valeur de chaque membre (pas la clé, pas un index vide).
+PROCEDURE PUBLIQUE scenario_json_objet_valeurs_seules()
+	o est un JSON = ChaîneVersJSON(`{"a":10,"b":20,"c":30}`)
+	nSomme est un entier = 0
+	POUR TOUT valeur DE o
+		nSomme = nSomme + valeur
+	FIN
+	dbgVérifieEgalité(nSomme, 60, "Objet JSON mono-variable : somme des valeurs des membres")
+FIN
+
+
+// JSON objet à valeurs texte : la valeur itérée est la vraie chaîne du
+// membre, non un index numérique ni une chaîne vide.
+PROCEDURE PUBLIQUE scenario_json_objet_valeurs_texte()
+	o est un JSON = ChaîneVersJSON(`{"nom":"owl","langue":"fr"}`)
+	sTrace est une chaîne = ""
+	POUR TOUT valeur, cle DE o
+		sTrace = sTrace + cle + ":" + valeur + "|"
+	FIN
+	dbgVérifieEgalité(sTrace, "nom:owl|langue:fr|", "Objet JSON : clés et valeurs texte réelles")
+FIN
+
+
+// NON-RÉGRESSION — JSON tableau : POUR TOUT parcourt les ÉLÉMENTS, pas
+// des paires clé/valeur. La variable d'itération reçoit chaque élément.
+PROCEDURE PUBLIQUE scenario_json_tableau_elements()
+	t est un JSON = ChaîneVersJSON(`[10,20,30]`)
+	nSomme est un entier = 0
+	POUR TOUT elem DE t
+		nSomme = nSomme + elem
+	FIN
+	dbgVérifieEgalité(nSomme, 60, "Tableau JSON : parcours des éléments (non-régression)")
+FIN
+
+
+// NON-RÉGRESSION — JSON tableau avec variable secondaire : la clé est
+// l'index positionnel 1..N (comportement tableau ordinal, pas objet).
+PROCEDURE PUBLIQUE scenario_json_tableau_index()
+	t est un JSON = ChaîneVersJSON(`["x","y","z"]`)
+	sTrace est une chaîne = ""
+	POUR TOUT elem, i DE t
+		sTrace = sTrace + i + ":" + elem + "|"
+	FIN
+	dbgVérifieEgalité(sTrace, "1:x|2:y|3:z|", "Tableau JSON : index positionnel en clé secondaire (non-régression)")
+FIN
+
+
+// NON-RÉGRESSION — tableau associatif : le comportement clé/valeur de
+// référence reste identique.
+PROCEDURE PUBLIQUE scenario_assoc_cle_valeur()
+	ta est un tableau associatif de entiers
+	Insère(ta, "un", 1)
+	Insère(ta, "deux", 2)
+	sTrace est une chaîne = ""
+	POUR TOUT v, cle DE ta
+		sTrace = sTrace + cle + "=" + v + "|"
+	FIN
+	dbgVérifieEgalité(sTrace, "un=1|deux=2|", "Tableau associatif : clé/valeur (non-régression)")
+FIN
+
+
+// NON-RÉGRESSION — tableau simple : parcours ordinal des éléments.
+PROCEDURE PUBLIQUE scenario_tableau_simple()
+	tabValeurs est un tableau de entiers = [5, 15, 25]
+	nSomme est un entier = 0
+	POUR TOUT v DE tabValeurs
+		nSomme = nSomme + v
+	FIN
+	dbgVérifieEgalité(nSomme, 45, "Tableau simple : parcours ordinal (non-régression)")
+FIN

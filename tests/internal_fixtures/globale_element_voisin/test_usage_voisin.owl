@@ -1,0 +1,32 @@
+// Trois formes d'usage cross-fichier d'une globale d'element, toutes par la
+// forme qualifiee FEN_X.<var> : lecture simple, mutation via une native,
+// lecture en cascade.
+//
+// La procedure du bas est le temoin d'anti-permissivite : elle mentionne
+// 'tabJamais' en NOM NU (variable locale homonyme). Un nom nu ne doit PAS
+// compter comme un usage de la globale d'element du meme nom.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_UsageVoisin)
+
+dbgVérifieEgalité(FEN_UsageVoisin.nLu, 0, "lecture qualifiee d'une globale d'element")
+
+req est un httpRequête
+TableauAjoute(FEN_UsageVoisin.tabMute, req)
+dbgVérifieEgalité(FEN_UsageVoisin.tabMute..Occurrence, 1,
+"mutation qualifiee d'une globale d'element")
+
+dbgVérifieEgalité(FEN_UsageVoisin.tabCascade..Occurrence, 0,
+"lecture en cascade d'une globale d'element")
+
+Ferme(FEN_UsageVoisin)
+
+PROCEDURE homonymeLocal()
+	tabJamais est un tableau de httpRequête
+	RENVOYER tabJamais..Occurrence
+FIN
+
+dbgVérifieEgalité(homonymeLocal(), 0, "le nom nu homonyme reste une locale")
+
+dbgBilanTest()

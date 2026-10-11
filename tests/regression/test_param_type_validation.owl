@@ -1,0 +1,47 @@
+// @sujet validation du type des parametres de procedure/fonction/methode
+// @résumé Un type inconnu en position de parametre est rejete au compile
+//          (cf. tests/compile-error/param_type_*). Ce fichier garde le versant
+//          positif : les types de parametres LEGITIMES compilent et executent
+//          normalement — primitifs (FR + EN), type builtin, classe user. But :
+//          detecter toute regression ou la validation deviendrait trop stricte
+//          et rejetterait un parametre pourtant valide.
+
+cPiece est une Classe
+	nValeur est un entier
+
+	PROCEDURE Constructeur(Valeur is entier)
+		:nValeur = Valeur
+	FIN
+
+	PROCEDURE Valeur() : entier
+		RENVOYER :nValeur
+	FIN
+FIN
+
+// Parametres primitifs, forme FR.
+PROCEDURE additionneFR(gauche est un entier, droite est un entier) : entier
+	RENVOYER gauche + droite
+FIN
+
+// Parametres primitifs, forme EN.
+PROCEDURE concatEN(prefix is a string, suffix is a string) : chaîne
+	RENVOYER prefix + suffix
+FIN
+
+// Parametre de type user (classe).
+PROCEDURE doubleValeur(piece is cPiece) : entier
+	RENVOYER piece.Valeur() * 2
+FIN
+
+PROCEDURE scenario_param_primitifs_fr()
+	dbgVérifieEgalité(additionneFR(4, 5), 9, "params entiers FR additionnes")
+FIN
+
+PROCEDURE scenario_param_primitifs_en()
+	dbgVérifieEgalité(concatEN("ab", "cd"), "abcd", "params chaine EN concatenes")
+FIN
+
+PROCEDURE scenario_param_classe_user()
+	p est un cPiece(21)
+	dbgVérifieEgalité(doubleValeur(p), 42, "param de type classe user accepte et utilise")
+FIN

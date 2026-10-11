@@ -1,0 +1,161 @@
+// @sujet : dSauveImageBMP
+// @résumé : Sauvegarder une image au format BMP (non compressé, canal alpha préservé)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_nominal_sauve_charge_bmp()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	cheminBMP est une chaîne = "test_nominal_bmp.bmp"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer une image en mémoire (20x15 pixels, fond rouge)
+	img = dCréeImage(20, 15, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+
+	// Sauvegarder l'image au format BMP
+	res = dSauveImageBMP(img, cheminBMP)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde BMP reussie")
+
+	// Recharger l'image pour vérifier la préservation
+	imgChargee = dChargeImage(cheminBMP)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image rechargee valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 20, "largeur preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 15, "hauteur preservee")
+
+	// Nettoyer
+	fSupprime(cheminBMP)
+FIN
+
+PROCEDURE PUBLIQUE scenario_canal_alpha_preserve()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	cheminBMP est une chaîne = "test_alpha_bmp.bmp"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer une image avec canal alpha (via dCréeImage qui crée RGBA par défaut)
+	img = dCréeImage(10, 10, couleurRouge)
+	dbgVérifieEgalité(img..AvecAlpha, Vrai, "image source avec canal alpha")
+
+	// Sauvegarder au format BMP (doit préserver le canal alpha)
+	res = dSauveImageBMP(img, cheminBMP)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde avec alpha reussie")
+
+	// Recharger et vérifier que le canal alpha est préservé
+	imgChargee = dChargeImage(cheminBMP)
+	dbgVérifieEgalité(imgChargee..AvecAlpha, Vrai, "canal alpha preserve apres sauvegarde BMP")
+
+	// Nettoyer
+	fSupprime(cheminBMP)
+FIN
+
+PROCEDURE PUBLIQUE scenario_image_invalide_renvoie_faux()
+	imgInvalide est une Image
+	cheminBMP est une chaîne = "test_invalide.bmp"
+	res est un booléen
+	erreurPresente est un booléen
+
+	// Tenter de sauvegarder une image invalide (non initialisée)
+	res = dSauveImageBMP(imgInvalide, cheminBMP)
+
+	// La sauvegarde doit échouer
+	dbgVérifieEgalité(res, Faux, "sauvegarde image invalide renvoie Faux")
+
+	// Une erreur doit être enregistrée
+	erreurPresente = (ErreurInfo() <> "")
+	dbgVérifieVrai(erreurPresente, "erreur enregistree apres sauvegarde invalide")
+
+	// Nettoyer (fichier ne doit pas exister, mais par sécurité)
+	fSupprime(cheminBMP)
+FIN
+
+PROCEDURE PUBLIQUE scenario_chemin_vide_renvoie_faux()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	img est une Image
+	res est un booléen
+	erreurPresente est un booléen
+
+	// Créer une image valide
+	img = dCréeImage(5, 5, couleurBleu)
+
+	// Tenter de sauvegarder avec un chemin vide
+	res = dSauveImageBMP(img, "")
+
+	// La sauvegarde doit échouer
+	dbgVérifieEgalité(res, Faux, "sauvegarde avec chemin vide renvoie Faux")
+
+	// Une erreur doit être enregistrée
+	erreurPresente = (ErreurInfo() <> "")
+	dbgVérifieVrai(erreurPresente, "erreur enregistree apres chemin vide")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	cheminBMP est une chaîne = "test_edge_1x1.bmp"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer une image minimale 1x1 pixel
+	img = dCréeImage(1, 1, couleurBlanc)
+	res = dSauveImageBMP(img, cheminBMP)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde 1x1 pixel BMP")
+
+	// Recharger et vérifier les dimensions
+	imgChargee = dChargeImage(cheminBMP)
+	dbgVérifieEgalité(imgChargee..Largeur, 1, "largeur 1 pixel preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 1, "hauteur 1 pixel preservee")
+
+	// Nettoyer
+	fSupprime(cheminBMP)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	cheminUTF8 est une chaîne = "test_éàü_ñ.bmp"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer et sauvegarder avec chemin contenant accents et caractères UTF-8
+	img = dCréeImage(8, 6, couleurJaune)
+	res = dSauveImageBMP(img, cheminUTF8)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde avec chemin UTF-8 accents")
+
+	// Recharger depuis le chemin UTF-8
+	imgChargee = dChargeImage(cheminUTF8)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "rechargement depuis chemin UTF-8 valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 8, "largeur preservee UTF-8")
+
+	// Nettoyer
+	fSupprime(cheminUTF8)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_grande_512x512()
+	couleurGris est un entier = RVB(128, 128, 128)
+	cheminBMP est une chaîne = "test_edge_512.bmp"
+	img est une Image
+	imgChargee est une Image
+	res est un booléen
+
+	// Créer une image plus grande (512x512 pixels)
+	img = dCréeImage(512, 512, couleurGris)
+	res = dSauveImageBMP(img, cheminBMP)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde image 512x512 BMP")
+
+	// Recharger et vérifier les dimensions
+	imgChargee = dChargeImage(cheminBMP)
+	dbgVérifieEgalité(imgChargee..Largeur, 512, "largeur 512 preservee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 512, "hauteur 512 preservee")
+
+	// Nettoyer
+	fSupprime(cheminBMP)
+FIN

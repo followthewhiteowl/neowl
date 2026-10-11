@@ -1,0 +1,25 @@
+//  — héritage projet -> champ. Champ `typSaisieMonétaire` SANS son
+// propre `FormatMonétaire`, sous un projet qui pose `FormatMonétaire = { ... }`
+// (symbole "€", séparateur de milliers, 2 décimales) : l'affichage doit suivre
+// le format PROJET.
+//
+// Discriminant central : 1234567.89 posé en ..Valeur est affiché avec le
+// symbole et le séparateur de milliers du PROJET (ex. "1 234 567,89 €"), relu
+// en ..Valeur DOIT rendre 1234567.89 exact — le symbole hérité du projet doit
+// être retiré au reparse ( Qt-first), pas laissé corrompre la valeur.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatMonétaire n'existe pas au catalogue (littéral inline rejeté).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatMonetaireHeritageChamp..FormatMonétaire..Symbole, "€", "Projet..FormatMonétaire : objet configuré, lisible en cascade")
+
+OuvreSoeur(FEN_HeritageChampMonetaire)
+
+SAI_Montant..Valeur = 0m1234567.89
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234567.89, "FormatMonétaire hérité du projet (symbole + séparateur de milliers) : round-trip SET->affiché formaté->GET rend 1234567.89 exact, symbole hérité retiré au reparse")
+
+Ferme(FEN_HeritageChampMonetaire)
+dbgBilanTest()

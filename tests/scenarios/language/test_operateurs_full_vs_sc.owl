@@ -1,0 +1,224 @@
+// @sujet : opérateurs full-eval vs short-circuit
+// @résumé : Les opérateurs ET, OU, DANS, A, PAS évaluent toujours l'ensemble de leurs opérandes (full-eval). Les formes soulignées _ET_, _OU_, _DANS_, _A_, _PAS_ optimisent par court-circuit ou évaluation unique. La distinction n'est observable qu'en présence d'effets de bord — appels de fonctions, mutations, écritures.
+
+
+// Compteur partagé d'observation. Réinitialisé en tête de chaque scénario
+// pour rester indépendant de l'ordre d'exécution.
+nAppels est un entier = 0
+
+
+// Fonctions sondes : elles incrémentent le compteur global et renvoient
+// une valeur fixée. C'est leur appel — pas leur résultat — qu'on mesure
+// pour distinguer full-eval et short-circuit.
+PROCEDURE EffetVrai() : booléen
+	nAppels++
+	RENVOYER Vrai
+FIN
+
+PROCEDURE EffetFaux() : booléen
+	nAppels++
+	RENVOYER Faux
+FIN
+
+PROCEDURE TagEval(nVal est un entier) : entier
+	nAppels++
+	RENVOYER nVal
+FIN
+
+PROCEDURE BorneCalc() : entier
+	nAppels++
+	RENVOYER 3
+FIN
+
+PROCEDURE PasCalc() : entier
+	nAppels++
+	RENVOYER 1
+FIN
+
+
+// ───────────────────────── ET / _ET_ ─────────────────────────
+
+// ET évalue les deux côtés systématiquement, même quand le résultat
+// est déjà déterminé par le côté gauche. C'est la forme à privilégier
+// quand on tient à ce que tous les effets s'appliquent.
+PROCEDURE scenario_et_full_eval_les_deux_appeles()
+	nAppels = 0
+	bRes est un booléen = EffetFaux() ET EffetVrai()
+	dbgVérifieEgalité(nAppels, 2, "ET : les deux opérandes sont évalués même si LHS faux")
+	dbgVérifieFaux(bRes, "Faux ET Vrai = Faux")
+FIN
+
+
+// _ET_ court-circuite dès que le côté gauche est faux : le côté droit
+// n'est pas évalué. À utiliser quand le RHS dépend du LHS (garde de
+// déréférencement, test de borne avant accès).
+PROCEDURE scenario_et_sc_arret_au_faux()
+	nAppels = 0
+	bRes est un booléen = EffetFaux() _ET_ EffetVrai()
+	dbgVérifieEgalité(nAppels, 1, "_ET_ : RHS ignoré si LHS faux")
+	dbgVérifieFaux(bRes, "Faux _ET_ ... = Faux")
+FIN
+
+
+// Quand le côté gauche de _ET_ est vrai, le côté droit doit être
+// évalué pour obtenir le résultat — comportement identique à ET dans
+// ce cas. La différence avec ET ne se voit que sur LHS faux.
+PROCEDURE scenario_et_sc_lhs_vrai_evalue_rhs()
+	nAppels = 0
+	bRes est un booléen = EffetVrai() _ET_ EffetFaux()
+	dbgVérifieEgalité(nAppels, 2, "_ET_ : LHS vrai → RHS évalué pour décider")
+	dbgVérifieFaux(bRes, "Vrai _ET_ Faux = Faux")
+FIN
+
+
+// ───────────────────────── OU / _OU_ ─────────────────────────
+
+// OU évalue systématiquement les deux côtés. Particulièrement utile
+// quand le RHS doit produire un effet (journalisation, notification)
+// indépendamment de la valeur du LHS.
+PROCEDURE scenario_ou_full_eval_les_deux_appeles()
+	nAppels = 0
+	bRes est un booléen = EffetVrai() OU EffetFaux()
+	dbgVérifieEgalité(nAppels, 2, "OU : les deux opérandes sont évalués même si LHS vrai")
+	dbgVérifieVrai(bRes, "Vrai OU Faux = Vrai")
+FIN
+
+
+// _OU_ court-circuite dès que le côté gauche est vrai : le côté droit
+// n'est pas évalué. Forme classique des gardes Null : `x = Null _OU_
+// x..champ = 0` évite le déréférencement d'un x nul.
+PROCEDURE scenario_ou_sc_arret_au_vrai()
+	nAppels = 0
+	bRes est un booléen = EffetVrai() _OU_ EffetFaux()
+	dbgVérifieEgalité(nAppels, 1, "_OU_ : RHS ignoré si LHS vrai")
+	dbgVérifieVrai(bRes, "Vrai _OU_ ... = Vrai")
+FIN
+
+
+// Quand le côté gauche de _OU_ est faux, le côté droit est évalué :
+// comportement identique à OU dans ce cas. La différence se voit
+// uniquement quand le LHS suffit à conclure.
+PROCEDURE scenario_ou_sc_lhs_faux_evalue_rhs()
+	nAppels = 0
+	bRes est un booléen = EffetFaux() _OU_ EffetVrai()
+	dbgVérifieEgalité(nAppels, 2, "_OU_ : LHS faux → RHS évalué pour décider")
+	dbgVérifieVrai(bRes, "Faux _OU_ Vrai = Vrai")
+FIN
+
+
+// ───────────────────────── DANS / _DANS_ ─────────────────────────
+
+// DANS évalue toutes les expressions de la liste — même celles qui
+// suivent un match. À utiliser quand chaque expression de la liste
+// porte un effet à appliquer.
+PROCEDURE scenario_dans_full_eval_toutes_evaluees()
+	nAppels = 0
+	nCible est un entier = 1
+	bRes est un booléen = nCible DANS (TagEval(1), TagEval(2), TagEval(3))
+	dbgVérifieEgalité(nAppels, 3, "DANS : toutes les expressions de la liste sont évaluées")
+	dbgVérifieVrai(bRes, "1 appartient à (1, 2, 3)")
+FIN
+
+
+// _DANS_ court-circuite au premier match : les expressions suivantes
+// ne sont pas évaluées. Forme plus économique quand la liste est
+// faite de valeurs pures et que seul le résultat compte.
+PROCEDURE scenario_dans_sc_arret_au_premier_match()
+	nAppels = 0
+	nCible est un entier = 1
+	bRes est un booléen = nCible _DANS_(TagEval(1), TagEval(2), TagEval(3))
+	dbgVérifieEgalité(nAppels, 1, "_DANS_ : évaluation stoppée dès qu'un match est trouvé")
+	dbgVérifieVrai(bRes, "1 appartient à la liste")
+FIN
+
+
+// Sans match, _DANS_ doit aller au bout de la liste pour conclure :
+// son comportement rejoint celui de DANS. La différence se voit
+// uniquement quand un match précoce permet l'optimisation.
+PROCEDURE scenario_dans_sc_sans_match_evalue_tout()
+	nAppels = 0
+	nCible est un entier = 99
+	bRes est un booléen = nCible _DANS_(TagEval(1), TagEval(2), TagEval(3))
+	dbgVérifieEgalité(nAppels, 3, "_DANS_ : sans match, parcourt toute la liste")
+	dbgVérifieFaux(bRes, "99 n'appartient pas à (1, 2, 3)")
+FIN
+
+
+// ───────────────────────── A / _A_ (borne POUR) ─────────────────
+
+// A re-évalue la borne à chaque itération : si la borne est un appel
+// de fonction, ce dernier est invoqué N+1 fois (N tours plus le test
+// d'arrêt). Pratique quand la borne dépend d'un tableau qui grandit
+// pendant la boucle.
+PROCEDURE scenario_a_reeval_borne_chaque_tour()
+	nAppels = 0
+	nIters est un entier = 0
+	POUR i = 1 À BorneCalc()
+		nIters++
+	FIN
+	dbgVérifieEgalité(nIters, 3, "BorneCalc renvoie 3 : la boucle effectue 3 tours")
+	dbgVérifieEgalité(nAppels, 4, "A : borne ré-évaluée à chaque itération (3 tours + 1 test d'arrêt)")
+FIN
+
+
+// _A_ évalue la borne une seule fois au début et la fige en local.
+// Forme à privilégier quand on veut être certain que la borne ne
+// changera pas pendant la boucle, ou pour la perf sur des bornes
+// coûteuses.
+PROCEDURE scenario_a_sc_borne_unique()
+	nAppels = 0
+	nIters est un entier = 0
+	POUR i = 1 _A_ BorneCalc()
+		nIters++
+	FIN
+	dbgVérifieEgalité(nIters, 3, "BorneCalc renvoie 3 : la boucle effectue 3 tours")
+	dbgVérifieEgalité(nAppels, 1, "_A_ : borne évaluée une seule fois au début")
+FIN
+
+
+// ───────────────────────── PAS / _PAS_ (step POUR) ───────────────
+
+// PAS re-évalue le pas à chaque itération avant incrémentation.
+// Modifier la valeur du pas pendant la boucle est exotique, mais
+// rester aligné sur le canon préserve la prédictibilité du runtime.
+PROCEDURE scenario_pas_reeval_step_chaque_tour()
+	nAppels = 0
+	nIters est un entier = 0
+	POUR i = 1 À 5 PAS PasCalc()
+		nIters++
+	FIN
+	dbgVérifieEgalité(nIters, 5, "PasCalc renvoie 1 : la boucle effectue 5 tours")
+	dbgVérifieEgalité(nAppels, 5, "PAS : step ré-évalué à chaque incrément (5 incréments)")
+FIN
+
+
+// _PAS_ évalue le pas une seule fois et le fige en local. Permet aux
+// optimisations compile-time (signe constant, détection d'incrément
+// fixe) de s'appliquer. Forme recommandée par défaut.
+PROCEDURE scenario_pas_sc_step_unique()
+	nAppels = 0
+	nIters est un entier = 0
+	POUR i = 1 À 5 _PAS_ PasCalc()
+		nIters++
+	FIN
+	dbgVérifieEgalité(nIters, 5, "PasCalc renvoie 1 : la boucle effectue 5 tours")
+	dbgVérifieEgalité(nAppels, 1, "_PAS_ : step évalué une seule fois au début")
+FIN
+
+
+// ───────────────────────── Cas pratique ─────────────────────────
+
+// Cas idiomatique : la forme courte _OU_ pour protéger un
+// déréférencement potentiellement nul. Sans le court-circuit,
+// l'accès à `..champ` planterait quand `nObjet = Null`.
+PROCEDURE scenario_garde_null_avec_ou_sc()
+	nAppels = 0
+	sValeur est une chaîne = ""
+
+	// _OU_ assure ici que TagEval(99) n'est pas évalué quand la
+	// condition de gauche suffit à conclure. C'est le pattern à
+	// utiliser dès qu'un côté peut être coûteux ou risqué.
+	bShortCircuit est un booléen = Vrai _OU_ (TagEval(99) > 0)
+	dbgVérifieVrai(bShortCircuit, "_OU_ avec LHS vrai : RHS court-circuité")
+	dbgVérifieEgalité(nAppels, 0, "TagEval n'a pas été appelée — le RHS a été sauté")
+FIN

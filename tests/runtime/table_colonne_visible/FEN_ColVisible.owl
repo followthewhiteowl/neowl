@@ -1,0 +1,71 @@
+// Ressource fenetre — Table avec une colonne masquee (Visible = Faux).
+// La colonne du milieu (COL_Cache) est declaree Visible = Faux : elle
+// reste dans le modele (les donnees ne se decalent pas), seule sa vue
+// est masquee. Les lectures de cellules par nom de colonne doivent
+// rester coherentes cote gauche ET droite de la colonne masquee.
+
+FEN_ColVisible est une Fenêtre
+	PROPRIETES
+		Titre       = "Table colonne masquee"
+		Disposition = dispLibre
+		Largeur     = 600
+		Hauteur     = 400
+	FIN
+
+	TBL est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 560
+			Hauteur = 340
+		FIN
+
+		COL_Id est une Colonne
+			PROPRIETES
+				Libellé = "Id"
+				Type    = colTypeNumerique
+				Largeur = 80
+			FIN
+		FIN
+
+		COL_Cache est une Colonne
+			PROPRIETES
+				Libellé = "Cachee"
+				Type    = colTypeTexte
+				Largeur = 120
+				Visible = Faux
+			FIN
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 240
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TBL, 1, "secret1", "Alice")
+		TableAjouteLigne(TBL, 2, "secret2", "Bob")
+		cb_colvis_init_done()
+	FIN
+
+	// PROCEDURE PUBLIQUE : lit la colonne AVANT la colonne masquee.
+	PROCEDURE LireId(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Id
+	FIN
+
+	// PROCEDURE PUBLIQUE : lit la colonne APRES la colonne masquee.
+	// Verifie que l'index de COL_Nom n'est pas decale par le masquage.
+	PROCEDURE LireNom(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Nom
+	FIN
+
+	// PROCEDURE PUBLIQUE : lit la colonne masquee elle-meme.
+	// Elle reste dans le modele : sa donnee est lisible par programme.
+	PROCEDURE LireCache(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Cache
+	FIN
+FIN

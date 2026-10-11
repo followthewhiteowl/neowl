@@ -1,0 +1,47 @@
+// Ressource fenêtre — voisin de test_event_bouton_touche.owl.
+//  lot B : surToucheAppuyée / surToucheRelâchée sur Champ Bouton.
+// DonneFocus en FinInitialisation pour capter le clavier dès l'ouverture
+// (même patron que le test Image existant, event_image_touche).
+
+FEN_BoutonTouche est une Fenêtre
+	PROPRIETES
+		Titre       = "BoutonTouche offscreen"
+		Largeur     = 300
+		Hauteur     = 150
+		Disposition = dispLibre
+	FIN
+
+	nAppuyeeCount est un entier = 0
+	nRelacheeCount est un entier = 0
+	nDerniereAppuyee est un entier = -1
+	nDerniereRelachee est un entier = -1
+
+	BTN_Cible est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 200
+			Hauteur = 40
+			Libellé = "Cible"
+		FIN
+
+		PROCEDURE surToucheAppuyée(nTouche est un entier)
+			nAppuyeeCount += 1
+			nDerniereAppuyee = nTouche
+		FIN
+
+		PROCEDURE surToucheRelâchée(nTouche est un entier)
+			nRelacheeCount += 1
+			nDerniereRelachee = nTouche
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		DonneFocus(BTN_Cible)
+		callback_fen_prete()
+	FIN
+
+	PROCEDURE LireCompteurs()
+		callback_lit_compteurs(nAppuyeeCount, nRelacheeCount, nDerniereAppuyee, nDerniereRelachee)
+	FIN
+FIN

@@ -1,0 +1,119 @@
+// ============================================
+// TEST: fo* / fr* options de fichier — câblage des 4 constantes
+// orphelines : frSansFichierCaché, frSansRépertoireCaché,
+// foSuppressionAutomatique, foBloqueEcriture.
+//
+// Convention "caché" cross-platform retenue par OWL :
+//   - POSIX : nom commençant par '.'
+//   - Windows : nom '.foo' OR attribut FILE_ATTRIBUTE_HIDDEN
+// Un fichier '.foo' est donc toujours considéré caché, quel que soit l'OS.
+// ============================================
+Trace("=== FICHIER FO/FR OPTIONS ===")
+
+tempDir est une chaîne = fRepTemp()
+testDir est une chaîne = tempDir + "/owl_test_fo_fr_xyz"
+
+// Reset éventuel reliquat d'une exécution précédente
+SI fRepExiste(testDir) ALORS
+	fRepSupprime(testDir, Vrai)
+FIN
+
+dbgVérifieVrai(fRepCree(testDir), "setup testDir")
+
+// ============================================
+// SECTION 1 — frSansFichierCaché
+// ============================================
+// Populer : 2 fichiers visibles + 1 fichier caché
+fSauveTexte(testDir + "/alpha.txt", "A")
+fSauveTexte(testDir + "/beta.txt", "B")
+fSauveTexte(testDir + "/.secret.cfg", "S")
+
+// Sans flag : les 3 fichiers apparaissent (caché compris)
+sAll est une chaîne = fListeFichier(testDir + "/*", frNonRécursif)
+tabAll est un tableau de chaînes = ChaîneVersTableau(sAll, CRLF)
+dbgVérifieEgalité(tabAll..Occurrence, 3, "Sans flag : 3 fichiers listés (caché inclus)")
+
+// Avec frSansFichierCaché : le .secret.cfg disparaît
+sVis est une chaîne = fListeFichier(testDir + "/*", frNonRécursif + frSansFichierCaché)
+tabVis est un tableau de chaînes = ChaîneVersTableau(sVis, CRLF)
+dbgVérifieEgalité(tabVis..Occurrence, 2, "Avec frSansFichierCaché : 2 fichiers visibles")
+dbgVérifieFaux(Position(sVis, ".secret.cfg") > 0, "Le fichier caché .secret.cfg est exclu")
+dbgVérifieVrai(Position(sVis, "alpha.txt") > 0, "alpha.txt reste listé")
+dbgVérifieVrai(Position(sVis, "beta.txt") > 0, "beta.txt reste listé")
+
+// ============================================
+// SECTION 2 — frSansRépertoireCaché
+// ============================================
+// Sous-répertoires : 1 visible + 1 caché
+dbgVérifieVrai(fRepCree(testDir + "/visible_sub"), "setup sous-rep visible")
+dbgVérifieVrai(fRepCree(testDir + "/.hidden_sub"), "setup sous-rep caché")
+
+// Sans flag : 2 sous-répertoires (caché inclus)
+sDirAll est une chaîne = fListeRépertoire(testDir, frNonRécursif)
+tabDirAll est un tableau de chaînes = ChaîneVersTableau(sDirAll, CRLF)
+dbgVérifieEgalité(tabDirAll..Occurrence, 2, "Sans flag : 2 sous-rep (caché inclus)")
+
+// Avec frSansRépertoireCaché : le .hidden_sub disparaît
+sDirVis est une chaîne = fListeRépertoire(testDir, frNonRécursif + frSansRépertoireCaché)
+tabDirVis est un tableau de chaînes = ChaîneVersTableau(sDirVis, CRLF)
+dbgVérifieEgalité(tabDirVis..Occurrence, 1, "Avec frSansRépertoireCaché : 1 sous-rep visible")
+dbgVérifieFaux(Position(sDirVis, ".hidden_sub") > 0, ".hidden_sub exclu")
+dbgVérifieVrai(Position(sDirVis, "visible_sub") > 0, "visible_sub reste listé")
+
+// ============================================
+// SECTION 3 — foSuppressionAutomatique
+// ============================================
+autoDelPath est une chaîne = testDir + "/autodel.tmp"
+h est un entier = fOuvre(autoDelPath, foCréation + foLectureEcriture + foSuppressionAutomatique)
+dbgVérifieVrai(h > 0, "fOuvre avec foSuppressionAutomatique réussit")
+dbgVérifieVrai(fFichierExiste(autoDelPath), "Fichier existe avant fFerme")
+fEcritLigne(h, "contenu temporaire")
+fFerme(h)
+dbgVérifieFaux(fFichierExiste(autoDelPath), "Fichier supprimé après fFerme (auto-delete)")
+
+// Contrôle négatif : sans le flag, le fichier persiste
+keepPath est une chaîne = testDir + "/keep.tmp"
+hk est un entier = fOuvre(keepPath, foCréation + foLectureEcriture)
+dbgVérifieVrai(hk > 0, "fOuvre sans flag réussit")
+fEcritLigne(hk, "à garder")
+fFerme(hk)
+dbgVérifieVrai(fFichierExiste(keepPath), "Fichier persistant sans foSuppressionAutomatique")
+
+// ============================================
+// SECTION 4 — foBloqueEcriture
+// ============================================
+// Ouvrir un fichier avec lock écriture exclusif, tenter de l'ouvrir
+// une seconde fois en écriture → doit échouer.
+lockPath est une chaîne = testDir + "/locked.dat"
+fSauveTexte(lockPath, "initial")
+
+hLock est un entier = fOuvre(lockPath, foLectureEcriture + foBloqueEcriture)
+dbgVérifieVrai(hLock > 0, "1ère ouverture avec foBloqueEcriture réussit")
+
+// Tentative concurrente d'ouverture en écriture : doit renvoyer -1
+hConcurrent est un entier = fOuvre(lockPath, foEcriture)
+dbgVérifieEgalité(hConcurrent,-1, "Ouverture concurrente en écriture refusée")
+
+// Lecture concurrente reste tolérée (pas un foBloqueLecture)
+hRead est un entier = fOuvre(lockPath, foLecture)
+dbgVérifieVrai(hRead > 0, "Ouverture concurrente en lecture seule tolérée")
+SI hRead > 0 ALORS
+	fFerme(hRead)
+FIN
+
+fFerme(hLock)
+
+// Après libération : nouvelle ouverture en écriture re-fonctionne
+hAfter est un entier = fOuvre(lockPath, foEcriture)
+dbgVérifieVrai(hAfter > 0, "Ouverture en écriture re-OK après fFerme du lock")
+SI hAfter > 0 ALORS
+	fFerme(hAfter)
+FIN
+
+// ============================================
+// Cleanup
+// ============================================
+dbgVérifieVrai(fRepSupprime(testDir, Vrai), "cleanup testDir")
+dbgVérifieFaux(fRepExiste(testDir), "testDir bien retiré")
+
+dbgBilanTest()

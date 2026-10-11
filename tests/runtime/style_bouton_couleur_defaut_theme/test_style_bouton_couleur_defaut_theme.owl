@@ -1,0 +1,34 @@
+//  — Style sans Couleur de texte sur un Champ Bouton : le texte
+// suit le thème (garde `> 0` partagée avec le Saisie/Libellé). Test
+// structurel (pas de capture-pixel : la couleur du texte dépend de
+// l'anti-crénelage des glyphes, pas un critère pixel robuste) via
+// __DebugFeuilleStyle.
+//
+// ROUGE attendu : `Style..Libellé..CouleurFond` ne compile pas encore
+// (styleBouton absent). Cf. FEN_StyleBoutonCouleurDefaut.owl.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleBoutonCouleurDefaut)
+
+// --- Champ stylé SANS Couleur (CouleurFond seul) ---
+feuilleFond est une chaîne = __DebugFeuilleStyle(BTN_FondSeul)
+
+dbgVérifieVrai(Contient(feuilleFond, "background-color: rgb(200,220,240)"),
+"CouleurFond seul : le fond du thème est émis dans la feuille")
+
+// PIVOT : aucune couleur de texte noire codée en dur. Le texte suit le thème.
+dbgVérifieFaux(Contient(feuilleFond, "color: rgb(0,0,0)"),
+"CouleurFond seul : PAS de color: rgb(0,0,0) codé en dur (texte suit le thème)")
+
+// --- Non-régression : Couleur explicite (> 0) prime toujours ---
+feuilleExpl est une chaîne = __DebugFeuilleStyle(BTN_CouleurExplicite)
+
+dbgVérifieVrai(Contient(feuilleExpl, "color: rgb(255,0,0)"),
+"Couleur explicite : ancrée sur le QPushButton (prime sur le thème)")
+
+dbgVérifieVrai(Contient(feuilleExpl, "background-color: rgb(200,220,240)"),
+"Couleur explicite : le fond coexiste avec la couleur de texte")
+
+Ferme(FEN_StyleBoutonCouleurDefaut)
+dbgBilanTest()

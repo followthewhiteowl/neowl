@@ -1,0 +1,51 @@
+//  — SI imbriqué dans SINON (cas basique, deux branches)
+// STATUT INITIAL : ROUGE (compile error "Expression attendue" avant fix)
+// Apres fix : VERT (les deux branches s'executent correctement)
+
+// Cas 1 : branche ALORS prise, SI imbriqué dans SINON non pris
+nBasique_alorsActif est un entier = 0
+SI Vrai ALORS
+	nBasique_alorsActif = 1
+SINON
+	SI Faux ALORS
+		nBasique_alorsActif = 2
+	FIN
+FIN
+dbgVérifieEgalité(nBasique_alorsActif, 1, "branche ALORS prise : nRes = 1, SI dans SINON ignore")
+
+// Cas 2 : branche SINON prise, SI imbriqué actif (condition vraie)
+nBasique_sinonActif est un entier = 0
+SI Faux ALORS
+	nBasique_sinonActif = 1
+SINON
+	SI Vrai ALORS
+		nBasique_sinonActif = 2
+	FIN
+FIN
+dbgVérifieEgalité(nBasique_sinonActif, 2, "branche SINON prise, SI imbriqué Vrai : nRes = 2")
+
+// Cas 3 : branche SINON prise, SI imbriqué inactif (condition fausse)
+nBasique_sinonInactif est un entier = 0
+SI Faux ALORS
+	nBasique_sinonInactif = 1
+SINON
+	SI Faux ALORS
+		nBasique_sinonInactif = 99
+	FIN
+FIN
+dbgVérifieEgalité(nBasique_sinonInactif, 0, "SI imbriqué dans SINON inactif : nRes reste 0")
+
+// Cas 4 : SI imbriqué dans SINON avec sa propre branche SINON
+nBasique_sinonAvecSinon est un entier = 0
+SI Faux ALORS
+	nBasique_sinonAvecSinon = 1
+SINON
+	SI Faux ALORS
+		nBasique_sinonAvecSinon = 2
+	SINON
+		nBasique_sinonAvecSinon = 3
+	FIN
+FIN
+dbgVérifieEgalité(nBasique_sinonAvecSinon, 3, "SI+SINON imbriqué dans SINON : branche SINON interne = 3")
+
+dbgBilanTest()

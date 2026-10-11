@@ -1,0 +1,39 @@
+// @sujet : emailEntête
+// @résumé : Type composé décrivant un en-tête additionnel d'un Email (nom et valeur libres,
+// par exemple une entête X-*), rangé dans le tableau Entête d'un Email.
+
+// Un en-tête custom se construit indépendamment du message, puis s'ajoute au
+// tableau Entête d'un Email (cf. test_email_entetes_custom.owl pour le
+// round-trip build/parse complet).
+
+
+// Cas nominal : Nom et Valeur posés puis relus.
+PROCEDURE PUBLIQUE scenario_nom_et_valeur_relus()
+	ent est un emailEntête
+	ent..Nom    = "X-Traqueur-Interne"
+	ent..Valeur = "abc123"
+
+	dbgVérifieEgalité(ent..Nom, "X-Traqueur-Interne", "nom de l'en-tête relu")
+	dbgVérifieEgalité(ent..Valeur, "abc123", "valeur de l'en-tête relue")
+FIN
+
+
+// Un second en-tête, pour vérifier que Nom/Valeur ne sont pas figés sur un
+// seul contenu.
+PROCEDURE PUBLIQUE scenario_second_entete_distinct()
+	ent est un emailEntête
+	ent..Nom    = "List-Unsubscribe"
+	ent..Valeur = "<mailto:unsubscribe@example.org>"
+
+	dbgVérifieEgalité(ent..Nom, "List-Unsubscribe", "nom du second en-tête relu")
+	dbgVérifieEgalité(ent..Valeur, "<mailto:unsubscribe@example.org>", "valeur du second en-tête relue")
+FIN
+
+
+// Cas limite : un en-tête fraîchement déclaré part sur des champs texte
+// vides.
+PROCEDURE PRIVÉE scenario_defauts_emailEntete_non_initialisee()
+	ent est un emailEntête
+	dbgVérifieEgalité(ent..Nom, "", "nom vide par défaut")
+	dbgVérifieEgalité(ent..Valeur, "", "valeur vide par défaut")
+FIN

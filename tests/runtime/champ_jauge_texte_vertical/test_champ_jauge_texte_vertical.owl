@@ -1,0 +1,23 @@
+// Runtime GUI (widgets montés, offscreen) : jauge verticale avec texte.
+// Le texte est pivoté -90° au rendu (validation visuelle = dev, non testable
+// en pixels offscreen). Ici on garantit : pas de crash au paint des deux
+// chemins verticaux (linéaire + symétrique) et round-trip de la Valeur.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_JaugeTexteVertical)
+
+// --- Chemin non-symétrique vertical (texte pivoté sur-dessiné) ---
+dbgVérifieEgalité(JAU_TxtLin..Valeur, 7, "JAU_TxtLin : valeur déclarée = 7")
+JAU_TxtLin..Valeur = 4
+dbgVérifieEgalité(JAU_TxtLin..Valeur, 4, "JAU_TxtLin : set puis get = 4 (repaint sans crash)")
+dbgVérifieEgalité(JAU_TxtLin..Vertical, Vrai, "JAU_TxtLin : orientation verticale")
+
+// --- Chemin symétrique vertical (custom paint, texte pivoté) ---
+dbgVérifieEgalité(JAU_TxtSym..Valeur, 20, "JAU_TxtSym : valeur déclarée = 20")
+dbgVérifieEgalité(JAU_TxtSym..Symétrique, Vrai, "JAU_TxtSym : symétrique déclaré")
+JAU_TxtSym..Valeur = -10
+dbgVérifieEgalité(JAU_TxtSym..Valeur,-10, "JAU_TxtSym : set négatif puis get = -10 (repaint sans crash)")
+
+Ferme(FEN_JaugeTexteVertical)
+dbgBilanTest()

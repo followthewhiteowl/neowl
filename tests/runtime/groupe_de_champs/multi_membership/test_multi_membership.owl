@@ -1,0 +1,31 @@
+// Test: un champ peut appartenir à plusieurs groupes simultanément.
+// Pattern : la fenêtre voisine FEN_DemoMulti.owl porte la déclaration.
+
+Ouvre(FEN_DemoMulti)
+
+// BTN_Partage dans 2 groupes
+dbgVérifieEgalité(BTN_Partage..Groupe..Occurrence, 2, "BTN_Partage dans 2 groupes")
+
+// Vérifier membership effectif
+dbgVérifieEgalité(GR_Actions..Occurrence, 2, "GR_Actions contient 2 boutons")
+dbgVérifieEgalité(GR_Essentiels..Occurrence, 1, "GR_Essentiels contient 1 bouton")
+
+// Broadcast via GR_Actions masque BTN_Partage et BTN_Autre
+GR_Actions..Visible = Faux
+dbgVérifieVrai(BTN_Partage..Visible = Faux, "BTN_Partage invisible via GR_Actions")
+dbgVérifieVrai(BTN_Autre..Visible = Faux, "BTN_Autre invisible")
+
+// Broadcast via GR_Essentiels re-montre BTN_Partage seul
+GR_Essentiels..Visible = Vrai
+dbgVérifieVrai(BTN_Partage..Visible, "BTN_Partage visible via GR_Essentiels")
+dbgVérifieVrai(BTN_Autre..Visible = Faux, "BTN_Autre reste invisible")
+
+// Retirer BTN_Partage de GR_Actions via Supprime
+nIndice est un entier = Cherche(GR_Actions, BTN_Partage)
+Supprime(GR_Actions, nIndice)
+dbgVérifieEgalité(GR_Actions..Occurrence, 1, "GR_Actions contient 1 bouton après suppression")
+dbgVérifieEgalité(BTN_Partage..Groupe..Occurrence, 1, "BTN_Partage dans 1 seul groupe désormais")
+
+Ferme(FEN_DemoMulti)
+
+dbgBilanTest()

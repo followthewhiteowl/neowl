@@ -1,0 +1,52 @@
+// @sujet : VecteurTanh
+// @résumé : Applique la tangente hyperbolique élément par élément à un Vecteur — écrase toute valeur réelle dans l'intervalle ouvert (-1, 1), disponible en native préfixée et en méthode fluente, forme identique en français et en anglais.
+
+
+// La tangente hyperbolique de 0 vaut exactement 0.0.
+PROCEDURE PUBLIQUE scenario_tanh_zero_exact()
+	v est un Vecteur = [0.0]
+	r est un Vecteur = VecteurTanh(v)
+	dbgVérifieEgalité(r[1], 0.0, "Tanh(0.0) = 0.0")
+FIN
+
+
+// Sur une grande valeur positive, Tanh sature au voisinage de 1 ; sur une
+// grande valeur négative, elle sature au voisinage de -1.
+PROCEDURE PUBLIQUE scenario_saturation_valeurs_extremes()
+	v est un Vecteur = [50.0,-50.0]
+	r est un Vecteur = VecteurTanh(v)
+	dbgVérifieVrai(Abs(r[1] - 1.0) < 0.0001, "Tanh(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(r[2] - (-1.0)) < 0.0001, "Tanh(-50.0) proche de -1.0")
+FIN
+
+
+// La méthode fluente .Tanh() produit exactement le même résultat que la
+// native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [1.0,-1.0]
+	rViaFluent est un Vecteur = v.Tanh()
+	rViaNatif est un Vecteur = VecteurTanh(v)
+	dbgVérifieVrai(Abs(rViaFluent[1] - rViaNatif[1]) < 0.0001, "v.Tanh()[1] == VecteurTanh(v)[1]")
+	dbgVérifieVrai(Abs(rViaFluent[2] - rViaNatif[2]) < 0.0001, "v.Tanh()[2] == VecteurTanh(v)[2]")
+FIN
+
+
+// Tanh est identique en français et en anglais : même nom de native et
+// même méthode fluente des deux côtés.
+PROCEDURE PUBLIQUE scenario_forme_identique_fr_en()
+	v est un Vecteur = [0.0]
+	rNatif est un Vecteur = VecteurTanh(v)
+	rFluent est un Vecteur = v.Tanh()
+	dbgVérifieEgalité(rNatif[1], 0.0, "VecteurTanh([0.0])[1] = 0.0")
+	dbgVérifieEgalité(rFluent[1], 0.0, "v.Tanh()[1] = 0.0")
+FIN
+
+
+// Tanh produit toujours une valeur strictement comprise entre -1 et 1,
+// même pour une entrée déjà proche de la saturation.
+PROCEDURE PRIVÉE scenario_edge_bornes_ouvertes()
+	v est un Vecteur = [10.0,-10.0]
+	r est un Vecteur = VecteurTanh(v)
+	dbgVérifieVrai(r[1] < 1.0, "Tanh(10.0) reste strictement < 1.0")
+	dbgVérifieVrai(r[2] > -1.0, "Tanh(-10.0) reste strictement > -1.0")
+FIN

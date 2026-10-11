@@ -1,0 +1,86 @@
+// Régression : fOuvre accepte les combinaisons de modes (canon de référence).
+//
+// Bug historique : les constantes fo* étaient des sentinelles INT32_MIN
+// séquentielles, donc `foCréation + foEcriture` donnait une somme
+// arbitraire qui tombait en `default` du switch → mode "r+b" sur fichier
+// inexistant → -1.
+//
+// Fix : refonte des fo* en bit-flags combinables (sentinels.h),
+// fn_fopen décompose les familles (accès, création, blocage)
+// et map vers les modes fopen() C correspondants.
+
+Trace("=== fOuvre modes combinés ===")
+
+sF est une chaîne = fRepTemp() + "/owl_test_fouvre_combines.txt"
+fSupprime(sF)
+
+// === foCréation + foEcriture : crée et ouvre en écriture seule ===
+n1 est un entier = fOuvre(sF, foCréation + foEcriture)
+dbgVérifieVrai(n1 <> -1, "foCréation + foEcriture : ouvre OK")
+fEcritLigne(n1, "ligne1")
+fFerme(n1)
+
+dbgVérifieVrai(fFichierExiste(sF), "fichier créé sur disque")
+
+// === foLecture seule sur existant ===
+n2 est un entier = fOuvre(sF, foLecture)
+dbgVérifieVrai(n2 <> -1, "foLecture seule sur existant")
+dbgVérifieEgalité(fLitLigne(n2), "ligne1", "lecture confirme contenu")
+fFerme(n2)
+
+// === foCréation + foLectureEcriture : crée pour R+W ===
+n3 est un entier = fOuvre(sF, foCréation + foLectureEcriture)
+dbgVérifieVrai(n3 <> -1, "foCréation + foLectureEcriture")
+fEcritLigne(n3, "réécrit")
+fFerme(n3)
+
+// === foCréationSiInexistant échoue si le fichier existe (canon de référence) ===
+n4 est un entier = fOuvre(sF, foCréationSiInexistant + foEcriture)
+dbgVérifieEgalité(n4,-1, "foCréationSiInexistant : refus si existe")
+
+// === foCréationSiInexistant accepte si absent ===
+fSupprime(sF)
+n5 est un entier = fOuvre(sF, foCréationSiInexistant + foEcriture)
+dbgVérifieVrai(n5 <> -1, "foCréationSiInexistant : accepte si absent")
+fFerme(n5)
+
+// === foAjout : crée si absent, position en fin ===
+fSupprime(sF)
+n6 est un entier = fOuvre(sF, foAjout)
+dbgVérifieVrai(n6 <> -1, "foAjout sur absent : crée")
+fEcritLigne(n6, "premier ajout")
+fFerme(n6)
+
+n7 est un entier = fOuvre(sF, foAjout)
+fEcritLigne(n7, "deuxième ajout")
+fFerme(n7)
+
+// Vérifier les 2 lignes présentes
+n8 est un entier = fOuvre(sF, foLecture)
+dbgVérifieEgalité(fLitLigne(n8), "premier ajout", "1ère ligne après 2 ajouts")
+dbgVérifieEgalité(fLitLigne(n8), "deuxième ajout", "2ème ligne après ajout")
+fFerme(n8)
+
+// === Combinaison avec flags no-op (accès séquentiel) ===
+n9 est un entier = fOuvre(sF, foLecture + foAccèsSéquentiel)
+dbgVérifieVrai(n9 <> -1, "foLecture + foAccèsSéquentiel : flags no-op acceptés")
+fFerme(n9)
+
+n10 est un entier = fOuvre(sF, foLecture + foBloqueLecture)
+dbgVérifieVrai(n10 <> -1, "foLecture + foBloqueLecture : combinaison libre")
+fFerme(n10)
+
+fSupprime(sF)
+
+// === Mode 0 (rien) : défaut de référence = lectureEcriture sur existant ===
+n11 est un entier = fOuvre(sF, foCréation)
+fEcritLigne(n11, "test default")
+fFerme(n11)
+
+n12 est un entier = fOuvre(sF)
+dbgVérifieVrai(n12 <> -1, "fOuvre sans mode = défaut de référence (lectureEcriture)")
+fFerme(n12)
+
+fSupprime(sF)
+
+dbgBilanTest()

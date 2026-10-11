@@ -1,0 +1,39 @@
+// @sujet : Table, Colonne, MasqueSaisie
+// @résumé : Déclarer un masque de saisie (MasqueSaisie) sur une colonne de Table.
+//
+// Une colonne de Table accepte la propriété MasqueSaisie (EN InputMask) dans
+// son bloc PROPRIETES, en miroir du champ Saisie. Le masque cadre la forme
+// des valeurs éditées dans les cellules de la colonne (ex. numéro de
+// téléphone). La propriété est déclarative : sa seule présence dans le bloc
+// Colonne doit compiler proprement.
+//
+// La déclaration complète (FEN_MasqueColonne.owl) :
+//
+//   COL_Tel est une Colonne
+//       PROPRIETES
+//           Libellé      = "Téléphone"
+//           Type         = colTypeTexte
+//           MasqueSaisie = "+99 99 999 99 99"
+//       FIN
+//   FIN
+//
+// Note technique : TestModeHeadless(Faux) monte le champ Table réel (hors
+// écran) ; la fenêtre ne se charge que si toutes ses propriétés de colonne
+// sont connues du catalogue — c'est ce qui verrouille l'exposition de
+// MasqueSaisie sur la colonne.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_colonne_masque_saisie()
+	OuvreSoeur(FEN_MasqueColonne)
+
+	// La fenêtre s'est chargée : la colonne portant MasqueSaisie est acceptée.
+	dbgVérifieEgalité(TableOccurrence(TABLE_Contacts), 1,
+	"la Table compte la ligne peuplée dans FinInitialisation")
+
+	// La cellule de la colonne masquée se lit par le nom de sa colonne.
+	dbgVérifieEgalité(TABLE_Contacts[1].COL_Tel, "+41 79 123 45 67",
+	"cellule de la colonne Téléphone, première ligne")
+
+	Ferme(FEN_MasqueColonne)
+FIN

@@ -1,0 +1,108 @@
+//  : une boîte de message ne peut plus avaler un argument.
+//
+// Verrou de CONTENU, pas de « ça n'a pas planté » : chaque appel est suivi
+// de la lecture du message réellement composé, via la sonde interne
+// __DebugDernierMessage. Le message est composé avant le court-circuit
+// headless, donc la mesure est la même qu'en interface réelle.
+//
+// La représentation attendue est celle de l'affichage (celle de Trace),
+// mesurée type par type — pas déduite.
+
+// --- Reproduction exacte du signalement d'origine ------------------------
+Info(sqlHFSQLClassic, sqlHFSQL, sqlODBC)
+dbgVérifieEgalité(__DebugDernierMessage(),
+	"-2147471096" + LF + "-2147471097" + LF + "-2147471098",
+	"trois constantes entières : trois lignes, trois valeurs visibles")
+
+// --- Un argument par type ------------------------------------------------
+Info(42)
+dbgVérifieEgalité(__DebugDernierMessage(), "42", "entier")
+
+Info(3.5)
+dbgVérifieEgalité(__DebugDernierMessage(), "3.5", "réel")
+
+mMontant est un monétaire = 12.34
+Info(mMontant)
+dbgVérifieEgalité(__DebugDernierMessage(), "12.34", "monétaire")
+
+nExact est un numérique = 7.25
+Info(nExact)
+dbgVérifieEgalité(__DebugDernierMessage(), "7.25", "numérique")
+
+Info(Vrai)
+dbgVérifieEgalité(__DebugDernierMessage(), "1", "booléen vrai")
+
+Info(Faux)
+dbgVérifieEgalité(__DebugDernierMessage(), "0", "booléen faux")
+
+Info(Null)
+dbgVérifieEgalité(__DebugDernierMessage(), "Null",
+	"Null est montré, pas rendu par une ligne vide ambiguë")
+
+dNaissance est une date = "20250101"
+Info(dNaissance)
+dbgVérifieEgalité(__DebugDernierMessage(), "20250101", "date")
+
+hRendezVous est une heure = "143000"
+Info(hRendezVous)
+dbgVérifieEgalité(__DebugDernierMessage(), "143000", "heure")
+
+dhHorodatage est une datehéure = "20250101143000"
+Info(dhHorodatage)
+dbgVérifieEgalité(__DebugDernierMessage(), "20250101143000", "date-heure")
+
+duEcoule est une durée = 90000
+Info(duEcoule)
+dbgVérifieEgalité(__DebugDernierMessage(), "00:01:30", "durée")
+
+tValeurs est un tableau de entiers = [1, 2, 3]
+Info(tValeurs)
+dbgVérifieEgalité(__DebugDernierMessage(), "[1, 2, 3]",
+	"tableau : le contenu, pas un libellé de type")
+
+taIndex est un tableau associatif de entiers
+taIndex["cle"] = 5
+Info(taIndex)
+dbgVérifieEgalité(__DebugDernierMessage(), "{""cle"": 5}", "tableau associatif")
+
+jConfig est un json = "{""a"":1,""b"":[1,2]}"
+Info(jConfig)
+dbgVérifieEgalité(__DebugDernierMessage(), "{""a"":1,""b"":[1,2]}", "json")
+
+// --- Mélange chaîne + valeur --------------------------------------------
+Info("Connecteur :", sqlHFSQLClassic)
+dbgVérifieEgalité(__DebugDernierMessage(), "Connecteur :" + LF + "-2147471096",
+	"une chaîne et une valeur : deux lignes")
+
+// --- Une chaîne reste inchangée -----------------------------------------
+Info("Opération réussie.")
+dbgVérifieEgalité(__DebugDernierMessage(), "Opération réussie.",
+	"chaîne simple : aucun changement de rendu")
+
+Info("Ligne 1", "Ligne 2")
+dbgVérifieEgalité(__DebugDernierMessage(), "Ligne 1" + LF + "Ligne 2",
+	"deux chaînes : séparateur de ligne inchangé")
+
+// --- Toute la famille partage le composeur -------------------------------
+Erreur("Code :", 404)
+dbgVérifieEgalité(__DebugDernierMessage(), "Code :" + LF + "404", "Erreur")
+
+Avertissement("Seuil :", 80)
+dbgVérifieEgalité(__DebugDernierMessage(), "Seuil :" + LF + "80", "Avertissement")
+
+nReponse est un entier = OuiNon("Supprimer ?", 12)
+dbgVérifieEgalité(__DebugDernierMessage(), "Supprimer ?" + LF + "12", "OuiNon")
+dbgVérifieEgalité(nReponse, 1, "OuiNon rend le bouton par défaut en mode test")
+
+nChoix est un entier = Confirmer("Enregistrer ?", 7)
+dbgVérifieEgalité(__DebugDernierMessage(), "Enregistrer ?" + LF + "7", "Confirmer")
+dbgVérifieEgalité(nChoix, 1, "Confirmer rend le bouton par défaut en mode test")
+
+// Le premier argument entier de OuiNon/Confirmer reste le bouton par défaut
+// et n'entre PAS dans le message.
+nDefaut est un entier = OuiNon(0, "Quitter ?")
+dbgVérifieEgalité(__DebugDernierMessage(), "Quitter ?",
+	"bouton par défaut consommé, pas affiché")
+dbgVérifieEgalité(nDefaut, 0, "le bouton par défaut demandé est bien rendu")
+
+dbgBilanTest()

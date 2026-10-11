@@ -1,0 +1,45 @@
+// Couverture de l'etat unifie AffichageSeulement (lecture seule).
+// AffichageSeulement est une valeur de l'Etat unifie d'un champ
+// (Actif / AffichageSeulement / Grise / Invisible), branchee dans le
+// runtime via owl_ui_control_set_etat -> ReadOnly sur les Saisie.
+//
+// L'EFFET Qt reel (QLineEdit::setReadOnly) n'est pas observable en mode
+// test headless : sans fenetre materialisee, le widget est NULL et l'etat
+// transite par le storage virtuel. On couvre donc :
+//   1. value-check des relations entre les valeurs de l'Etat unifie,
+//   2. AffichageSeulement == Inactif (alias canon, meme sentinel),
+//   3. round-trip d'ecriture/lecture de l'Etat sur un champ (storage virtuel),
+//   4. smoke : poser AffichageSeulement sur un champ ne leve pas.
+// Pattern : la fenêtre voisine FEN_Etat.owl porte la déclaration.
+
+// --- 1. Relations entre valeurs de l'Etat unifie (distinctes) ---
+dbgVérifieVrai(AffichageSeulement <> Actif, "AffichageSeulement distinct d'Actif")
+dbgVérifieVrai(AffichageSeulement <> Grisé, "AffichageSeulement distinct de Grise")
+dbgVérifieVrai(AffichageSeulement <> Invisible, "AffichageSeulement distinct d'Invisible")
+
+// --- 2. AffichageSeulement est l'alias canon d'Inactif (meme sentinel) ---
+// Inactif reste une constante compilable (fidelite canon) meme si l'enum
+// ne l'expose plus comme valeur distincte : meme sentinel qu'AffichageSeulement.
+dbgVérifieEgalité(AffichageSeulement, Inactif, "AffichageSeulement == Inactif (alias canon)")
+dbgVérifieVrai(Inactif <> Actif, "Inactif distinct d'Actif (compilable, sentinel affichage seul)")
+
+// --- 3 + 4. Round-trip Etat sur une Saisie via storage virtuel ---
+Ouvre(FEN_Etat)
+
+// Poser AffichageSeulement sur l'Etat unifie du champ (smoke : pas de levee)
+SAI_Champ..Etat = AffichageSeulement
+dbgVérifieEgalité(SAI_Champ..Etat, AffichageSeulement, "Etat = AffichageSeulement relu (storage virtuel)")
+
+// L'alias EN State doit pointer sur la meme valeur
+SAI_Champ..State = AffichageSeulement
+dbgVérifieEgalité(SAI_Champ..State, AffichageSeulement, "State (EN) = AffichageSeulement relu")
+
+// Repasser Actif puis re-AffichageSeulement (ecriture multiple)
+SAI_Champ..Etat = Actif
+dbgVérifieEgalité(SAI_Champ..Etat, Actif, "Etat repasse a Actif")
+SAI_Champ..Etat = AffichageSeulement
+dbgVérifieEgalité(SAI_Champ..Etat, AffichageSeulement, "Etat re-AffichageSeulement apres Actif")
+
+Ferme(FEN_Etat)
+
+dbgBilanTest()

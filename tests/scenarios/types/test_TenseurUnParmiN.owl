@@ -1,0 +1,68 @@
+// @sujet : TenseurUnParmiN / .UnParmiN
+// @résumé : Encode un Tenseur 1D d'indices de classe 0-based en une matrice
+// one-hot 2D lot × nbClasses (1.0 à la colonne de l'indice, 0 ailleurs).
+// C'est une cible : le Tenseur rendu est une feuille non différentiable.
+// Un indice hors de l'intervalle [0, nbClasses[ signale une erreur.
+
+// Lot de 2 exemples, 3 classes : indices [0, 2] -> [[1,0,0],[0,0,1]].
+PROCEDURE PUBLIQUE scenario_unparmin_lot_forme_valeurs()
+	tIndices est un Tenseur = Tenseur([0.0, 2.0])
+	tOH est un Tenseur = TenseurUnParmiN(tIndices, 3)
+	mOH est une Matrice = tOH..Valeur
+	dbgVérifieEgalité(mOH..Lignes, 2, "une ligne par exemple du lot")
+	dbgVérifieEgalité(mOH..Colonnes, 3, "une colonne par classe")
+	dbgVérifieEgalité(mOH[1][1], 1.0, "exemple 1 : classe 0 -> 1.0 en colonne 1")
+	dbgVérifieEgalité(mOH[1][2], 0.0, "exemple 1 : reste à 0")
+	dbgVérifieEgalité(mOH[1][3], 0.0, "exemple 1 : reste à 0")
+	dbgVérifieEgalité(mOH[2][1], 0.0, "exemple 2 : reste à 0")
+	dbgVérifieEgalité(mOH[2][2], 0.0, "exemple 2 : reste à 0")
+	dbgVérifieEgalité(mOH[2][3], 1.0, "exemple 2 : classe 2 -> 1.0 en colonne 3")
+FIN
+
+
+// Un seul exemple (lot de 1) : indice [1] sur 3 classes -> [[0,1,0]].
+PROCEDURE PUBLIQUE scenario_unparmin_un_exemple()
+	tIndices est un Tenseur = Tenseur([1.0])
+	tOH est un Tenseur = TenseurUnParmiN(tIndices, 3)
+	mOH est une Matrice = tOH..Valeur
+	dbgVérifieEgalité(mOH..Lignes, 1, "un exemple -> une seule ligne")
+	dbgVérifieEgalité(mOH..Colonnes, 3, "trois classes -> trois colonnes")
+	dbgVérifieEgalité(mOH[1][1], 0.0, "colonne 1 à 0")
+	dbgVérifieEgalité(mOH[1][2], 1.0, "classe 1 -> 1.0 en colonne 2")
+	dbgVérifieEgalité(mOH[1][3], 0.0, "colonne 3 à 0")
+FIN
+
+
+// La forme anglaise TensorOneHot / .OneHot désigne le même encodage.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	tIndices est un Tenseur = Tenseur([0.0, 2.0])
+	tOH est un Tenseur = TensorOneHot(tIndices, 3)
+	mOH est une Matrice = tOH..Valeur
+	dbgVérifieEgalité(mOH[1][1], 1.0, "TensorOneHot : même encodage que TenseurUnParmiN")
+	dbgVérifieEgalité(mOH[2][3], 1.0, "TensorOneHot : classe 2 en colonne 3")
+
+	tOH2 est un Tenseur = tIndices.OneHot(3)
+	mOH2 est une Matrice = tOH2..Valeur
+	dbgVérifieEgalité(mOH2[1][1], 1.0, ".OneHot : même encodage en méthode fluente")
+	dbgVérifieEgalité(mOH2[2][3], 1.0, ".OneHot : classe 2 en colonne 3")
+FIN
+
+
+// Un indice hors de [0, nbClasses[ (trop grand ou négatif) pose ErreurDétectée
+// et rend une valeur sentinelle, sans crasher.
+PROCEDURE PRIVÉE scenario_edge_indice_hors_bornes()
+	tIndicesTropGrand est un Tenseur = Tenseur([3.0])
+	ErreurRAZ()
+	sentinelleA est un Tenseur = TenseurUnParmiN(tIndicesTropGrand, 3)
+	dbgVérifieVrai(ErreurDétectée, "indice 3 hors de [0, 3[ signale une erreur")
+
+	tIndicesNegatif est un Tenseur = Tenseur([-1.0])
+	ErreurRAZ()
+	sentinelleB est un Tenseur = TenseurUnParmiN(tIndicesNegatif, 3)
+	dbgVérifieVrai(ErreurDétectée, "indice négatif signale une erreur")
+
+	tIndicesOK est un Tenseur = Tenseur([0.0])
+	ErreurRAZ()
+	sentinelleC est un Tenseur = TenseurUnParmiN(tIndicesOK, 0)
+	dbgVérifieVrai(ErreurDétectée, "nbClasses <= 0 signale une erreur")
+FIN

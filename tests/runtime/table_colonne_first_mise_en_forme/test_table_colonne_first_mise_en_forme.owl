@@ -1,0 +1,41 @@
+// Mise en forme conditionnelle par cellule, forme colonne-first
+// (TABLE_X.COL_A[ligne]..Prop), avec un indice paramètre plutôt qu'un
+// littéral — la graphie réelle d'une boucle de mise en forme.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColonneFirstMEF)
+
+// Graphie accentuée du nom de colonne, avec un indice qui est une variable.
+i est un entier = 1
+EcritCouleurGraphieAccentuée(i, 111)
+dbgVérifieEgalité(LireCouleurColFirst(i), 111,
+"colonne-first, graphie accentuée, indice variable : relu à l'identique")
+
+// Graphie nue en écriture, mixte en lecture.
+i = 2
+EcritCouleurGraphieNue(i, 222)
+dbgVérifieEgalité(LireCouleurColFirst(i), 222,
+"colonne-first, graphie nue, indice variable : relu à l'identique")
+
+// Cohérence croisée : écrit colonne-first, relu ligne-first.
+dbgVérifieEgalité(LireCouleurLigneFirst(1, 1), 111,
+"écrit par TABLE.COL_A[l]..Couleur, relu par TABLE[l][c]..Couleur : même casier")
+
+// Cohérence croisée dans l'autre sens : écrit ligne-first, relu colonne-first.
+EcritCouleurFondLigneFirst(1, 1, 333)
+dbgVérifieEgalité(LireCouleurFondColFirstEN(1), 333,
+"écrit par TABLE[l][c]..CouleurFond, relu par TABLE.COL_A[l]..BackgroundColor : même casier")
+
+// Formes EN : écriture colonne-first en anglais, relecture en français.
+EcritCouleurColFirstEN(2, 444)
+dbgVérifieEgalité(LireCouleurColFirst(2), 444,
+"écrit par TABLE.COL_A[l]..Color (EN), relu par ..Couleur (FR) : même casier")
+
+// La valeur de la cellule reste inchangée après toutes ces écritures de mise en forme.
+dbgVérifieEgalité(LireValeur(1), 100, "ligne 1 : la valeur de la cellule n'a pas bougé")
+dbgVérifieEgalité(LireValeur(2), 200, "ligne 2 : la valeur de la cellule n'a pas bougé")
+
+Ferme(FEN_ColonneFirstMEF)
+
+dbgBilanTest()

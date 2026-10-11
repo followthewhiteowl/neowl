@@ -1,0 +1,98 @@
+// Fenêtre voisine — ressource pour test_TestSimuleMenu.owl.
+//
+// MenuPrincipal avec deux SousMenu de premier niveau, un sous-menu imbriqué
+// à deux niveaux de profondeur, un MenuSéparateur, et des OptionMenu dont
+// surSélection() met à jour un compteur + le libellé d'un champ voisin
+// (LBL_Statut). Expose RemonteEtat()/RAZEtat() pour transmettre l'état
+// muté par les callbacks menu au script de test (le typage et le scope
+// des slots champs restent dans la fenêtre).
+
+FEN_TSimulMenu est une Fenêtre
+	PROPRIETES
+		Titre         = "Test TestSimuleMenu"
+		Disposition   = dispLibre
+		Largeur       = 400
+		Hauteur       = 200
+		MenuPrincipal = MNU_Principal
+	FIN
+
+	MNU_Principal est un MenuPrincipal
+		SM_Fichier est un SousMenu
+			PROPRIETES
+				Libellé = "&Fichier"
+			FIN
+
+			OPT_Nouveau est une OptionMenu
+				PROPRIETES
+					Libellé = "&Nouveau"
+				FIN
+
+				PROCEDURE surSélection()
+					nNouveauCount += 1
+					LBL_Statut..Libellé = "Nouveau déclenché"
+				FIN
+			FIN
+
+			SEP_Fichier1 est un MenuSéparateur
+			FIN
+
+			OPT_Quitter est une OptionMenu
+				PROPRIETES
+					Libellé = "&Quitter"
+				FIN
+
+				PROCEDURE surSélection()
+					nQuitterCount += 1
+				FIN
+			FIN
+		FIN
+
+		SM_Édition est un SousMenu
+			PROPRIETES
+				Libellé = "&Édition"
+			FIN
+
+			SM_Avancé est un SousMenu
+				PROPRIETES
+					Libellé = "Avancé"
+				FIN
+
+				OPT_Copier est une OptionMenu
+					PROPRIETES
+						Libellé = "&Copier"
+					FIN
+
+					PROCEDURE surSélection()
+						nCopierCount += 1
+					FIN
+				FIN
+			FIN
+		FIN
+	FIN
+
+	LBL_Statut est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 300
+			Libellé = "Aucune sélection"
+		FIN
+	FIN
+
+	nNouveauCount est un entier = 0
+	nQuitterCount est un entier = 0
+	nCopierCount est un entier = 0
+
+	// Remonte l'état courant au script de test via callback_etat, défini
+	// côté test (le script reste seul possesseur des variables observées).
+	PROCEDURE RemonteEtat()
+		callback_etat(nNouveauCount, nQuitterCount, nCopierCount, LBL_Statut..Libellé)
+	FIN
+
+	PROCEDURE RAZEtat()
+		nNouveauCount       = 0
+		nQuitterCount       = 0
+		nCopierCount        = 0
+		LBL_Statut..Libellé = "Aucune sélection"
+	FIN
+FIN

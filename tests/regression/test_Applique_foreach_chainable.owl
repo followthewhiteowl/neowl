@@ -1,0 +1,66 @@
+// Verrouillage semantique Applique apres  : forEach chainable
+// (extension OWL assumee — )
+//
+// 3 invariants :
+//  1. Applique retourne le tableau source (this/self return) → chainable
+//  2. La source N'EST PAS mutee (callback par valeur, effets de bord externes OK)
+//  3. Chainage syntaxique tab.Applique(...).Transforme(...) compile et tourne
+
+compteurEffetsDeBord est un entier = 0
+
+PROCEDURE callback_compteur(_v est un entier)
+	compteurEffetsDeBord = compteurEffetsDeBord + 1
+FIN
+
+FONCTION callback_doubler(v est un entier) : entier
+	RENVOYER v * 2
+FIN
+
+// Invariant 1 : retour chainable (meme tableau)
+PROCEDURE scenario_retour_chainable()
+	tabSource est un tableau d'entiers = [10, 20, 30]
+
+	tabRetour est un tableau d'entiers = Applique(tabSource, callback_compteur)
+
+	// tabRetour doit etre le meme tableau que tabSource (meme occurrence)
+	dbgVérifieEgalité(tabRetour..Occurrence, tabSource..Occurrence, "Applique retourne le tableau source (occurrence identique)")
+
+	// Verification robuste : meme si occurrence identique, on verifie aussi les valeurs
+	dbgVérifieEgalité(tabRetour[1], 10, "premiere valeur coherente")
+	dbgVérifieEgalité(tabRetour[2], 20, "deuxieme valeur coherente")
+	dbgVérifieEgalité(tabRetour[3], 30, "troisieme valeur coherente")
+FIN
+
+// Invariant 2 : source non mutee (forEach pur, effets de bord externes seulement)
+PROCEDURE scenario_source_non_mutee()
+	tabSource est un tableau d'entiers = [10, 20, 30]
+	compteurEffetsDeBord = 0
+
+	Applique(tabSource, callback_compteur)
+
+	// Le callback a ete invoque (compteur incremente)
+	dbgVérifieEgalité(compteurEffetsDeBord, 3, "callback invoque 3 fois (effets de bord observes)")
+
+	// MAIS la source n'est PAS mutee (semantique forEach preservee)
+	dbgVérifieEgalité(tabSource[1], 10, "source NON mutee : valeur 1 inchangee")
+	dbgVérifieEgalité(tabSource[2], 20, "source NON mutee : valeur 2 inchangee")
+	dbgVérifieEgalité(tabSource[3], 30, "source NON mutee : valeur 3 inchangee")
+FIN
+
+// Invariant 3 : chainage syntaxique avec autres natives fonctionnelles
+PROCEDURE scenario_chainage_syntaxique()
+	tabSource est un tableau d'entiers = [10, 20, 30]
+	compteurEffetsDeBord = 0
+
+	// Applique (forEach pour log) → Transforme (map) → verification coherence
+	tabResultat est un tableau d'entiers = tabSource.Applique(callback_compteur).Transforme(callback_doubler)
+
+	// Le Applique a bien execute (compteur incremente)
+	dbgVérifieEgalité(compteurEffetsDeBord, 3, "Applique dans la chaine a execute les 3 callbacks")
+
+	// Le Transforme a bien produit un nouveau tableau (source preservee)
+	dbgVérifieEgalité(tabSource[1], 10, "source preservee malgre chainage")
+	dbgVérifieEgalité(tabResultat[1], 20, "Transforme apres Applique : 10 → 20")
+	dbgVérifieEgalité(tabResultat[2], 40, "Transforme apres Applique : 20 → 40")
+	dbgVérifieEgalité(tabResultat[3], 60, "Transforme apres Applique : 30 → 60")
+FIN

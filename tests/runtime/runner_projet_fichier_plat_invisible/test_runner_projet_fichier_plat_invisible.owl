@@ -1,0 +1,17 @@
+// Caractérise l'alignement du lanceur `owl test` sur le modèle d'exécution
+//  : en mode PROJECT, un compagnon PLAT (companion_plat.owl,
+// aucun bloc DSL conteneur) est un script privé — invisible au projet, son
+// top-level ne doit pas tourner. Un compagnon CONTENEUR (COL_RunnerAlign.owl,
+// CollectionDeProcédures) reste lui visible et initialisé.
+//
+// ROUGE attendu avant  : `collect_companions` (testing.c) exécute
+// encore le top-level de TOUS les compagnons non-test, y compris les plats.
+// Le compagnon plat écrase la sentinelle à 99 avant que ce test ne lise sa
+// valeur. VERT attendu après  (exclusion via
+// prescan_source_is_dsl_block_file, même digue que project_run).
+
+Trace("=== runner owl test : compagnon plat invisible, compagnon conteneur visible ===")
+
+dbgVérifieEgalité(gSentinelleRunnerAlign, 41, "compagnon plat invisible : la sentinelle du conteneur voisin n'est pas écrasée")
+
+dbgBilanTest()

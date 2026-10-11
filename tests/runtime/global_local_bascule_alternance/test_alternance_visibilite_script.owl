@@ -1,0 +1,26 @@
+//  : GLOBAL/LOCAL sont des bascules « collantes » alternables au
+// top-level d'un script — elles basculent le mode des déclarations qui
+// SUIVENT, jusqu'à la prochaine bascule. Ici : GLOBAL nA / LOCAL nB / GLOBAL nC.
+// `nA` et `nC` (promus) doivent rester visibles depuis une procédure du
+// script, exactement comme le défaut avant toute bascule.
+//
+// ROUGE attendu aujourd'hui : `GLOBAL`/`LOCAL` en tête de ligne (hors
+// classe) ne sont câblés par aucune règle de parsing — erreur de
+// compilation générique sur la première occurrence.
+
+GLOBAL
+nA est un entier = 1
+
+LOCAL
+nB est un entier = 2
+
+GLOBAL
+nC est un entier = 3
+
+PROCEDURE LisAC()
+	dbgVérifieEgalité(nA, 1, "nA (GLOBAL avant la bascule LOCAL) visible depuis la procédure")
+	dbgVérifieEgalité(nC, 3, "nC (bascule GLOBAL après LOCAL) visible depuis la procédure")
+FIN
+
+LisAC()
+dbgBilanTest()

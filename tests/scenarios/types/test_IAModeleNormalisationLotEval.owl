@@ -1,0 +1,91 @@
+// @sujet : IAModèle — BatchNorm en mode éval (stats mobiles) à l'inférence
+// @résumé : Une couche de normalisation de lot accumule des statistiques
+// mobiles (moyenne/variance par canal) pendant l'entraînement et les UTILISE à
+// l'inférence, au lieu des statistiques du lot courant. Conséquence :
+//   1) l'inférence d'une image SEULE (lot de 1) est cohérente — elle donne
+//      exactement la même sortie que la ligne correspondante d'un lot, car la
+//      normalisation ne dépend plus de la composition du lot ;
+//   2) les statistiques mobiles survivent au round-trip .Sauve/.Charge.
+//
+// Modèle jouet : normalisation de lot (2 canaux) -> aplatissement -> dense
+// (8 -> 3). Entrée 4D lot×2×2×2. Aucune valeur en dur : on compare le modèle à
+// lui-même (image seule vs ligne de lot, avant vs après round-trip), l'init
+// aléatoire des poids denses n'influe donc pas sur le verdict.
+
+PROCEDURE construitEtEntraine()
+	mon est un IAModèle
+	mon.AjouteCoucheNormalisationLot(2)
+	mon.AjouteCoucheAplatissement()
+	mon.AjouteCoucheDense(8, 3)
+
+	// 4 images 2×2×2 (2 canaux, 2×2), valeurs variées pour que les stats
+	// mobiles s'écartent nettement du défaut (moyenne 0 / variance 1).
+	X est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 2.0, 1.0, 4.0, 3.0, 6.0, 5.0, 8.0, 7.0, 0.0, 3.0, 1.0, 2.0, 9.0, 4.0, 7.0, 5.0, 3.0, 0.0, 2.0, 1.0, 4.0, 9.0, 5.0, 7.0]).Redimensionne([4, 2, 2, 2])
+	Yidx est un Tenseur = Tenseur([0.0, 1.0, 2.0, 0.0])
+	Y est un Tenseur = TenseurUnParmiN(Yidx, 3)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.02
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteEntropieCroisée
+	mon.Entraîne(X, Y, opts)
+	RENVOYER mon
+FIN
+
+// Première image du lot d'entraînement, en tenseur 1×2×2×2 (lot de 1).
+PROCEDURE premièreImageSeule()
+	RENVOYER Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([1, 2, 2, 2])
+FIN
+
+PROCEDURE PUBLIQUE scenario_inference_image_seule_egale_ligne_de_lot()
+	mon est un IAModèle = construitEtEntraine()
+
+	// Le lot d'entraînement entier (mode éval : stats mobiles).
+	X est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 2.0, 1.0, 4.0, 3.0, 6.0, 5.0, 8.0, 7.0, 0.0, 3.0, 1.0, 2.0, 9.0, 4.0, 7.0, 5.0, 3.0, 0.0, 2.0, 1.0, 4.0, 9.0, 5.0, 7.0]).Redimensionne([4, 2, 2, 2])
+	sortieLot est un Tenseur = mon.Infère(X)
+	valLot est une Matrice = sortieLot..Valeur
+
+	// La PREMIÈRE image SEULE (lot de 1) -> sortie 1D (démotion d'un échantillon).
+	img0 est un Tenseur = premièreImageSeule()
+	sortieSeule est un Tenseur = mon.Infère(img0)
+	valSeule est un Vecteur = sortieSeule..Valeur
+
+	// En mode éval, la normalisation ne dépend pas de la composition du lot :
+	// la sortie de l'image seule DOIT égaler la ligne 1 du lot. Si la BatchNorm
+	// utilisait les stats du lot de 1 (bug d'origine), elle centrerait cette
+	// image sur elle-même et donnerait des valeurs totalement différentes.
+	POUR k = 1 À 3
+		dbgVérifieVrai(Abs(valSeule[k] - valLot[1][k]) < 0.000000001, "éval : image seule (lot 1) == ligne 1 du lot -> stats mobiles figées")
+	FIN
+FIN
+
+PROCEDURE PUBLIQUE scenario_stats_mobiles_persistees_round_trip()
+	mon est un IAModèle = construitEtEntraine()
+
+	img0 est un Tenseur = premièreImageSeule()
+	sortieAvant est un Tenseur = mon.Infère(img0)
+	valAvant est un Vecteur = sortieAvant..Valeur
+
+	chemin est une chaîne = fRepTemp() + "owl_test_1714_bn_stats_mobiles.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve d'un modèle avec normalisation de lot réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge dans un modèle frais réussit")
+
+	SI succèsCharge ALORS
+		sortieApres est un Tenseur = frais.Infère(img0)
+		valApres est un Vecteur = sortieApres..Valeur
+		// Si les stats mobiles n'étaient pas persistées, le modèle rechargé
+		// normaliserait avec le défaut (moyenne 0 / variance 1) et donnerait une
+		// inférence différente. L'égalité exacte prouve leur round-trip.
+		POUR k = 1 À 3
+			dbgVérifieVrai(Abs(valApres[k] - valAvant[k]) < 0.000000001, "stats mobiles round-trip : inférence identique après sauve/charge")
+		FIN
+	FIN
+
+	fSupprime(chemin)
+FIN

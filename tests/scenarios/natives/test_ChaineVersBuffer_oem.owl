@@ -1,0 +1,104 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Extension codepages console DOS historique. encCP850 (Europe de l'Ouest) et encCP437 (DOS US) encodent les codepoints Unicode vers des octets sur 1 octet. Tout caractère absent du codepage cible est remplacé par l'octet 63 ('?'). Les 128 premiers codepoints (ASCII) sont identiques dans les deux codepages.
+
+
+// Cas A : ASCII passthrough en CP850.
+// Les 128 premiers codepoints sont identiques à l'ASCII dans tout codepage DOS.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp850_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encCP850)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en CP850 = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en CP850")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en CP850")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en CP850")
+FIN
+
+
+// Cas B : ASCII passthrough en CP437.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp437_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encCP437)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en CP437 = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en CP437")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en CP437")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en CP437")
+FIN
+
+
+// Cas C : é (U+00E9) représentable en CP850 → octet 130 (0x82).
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp850_e_accent()
+	buf est un buffer = ChaîneVersBuffer("é", encCP850)
+	dbgVérifieEgalité(Taille(buf), 1, "é en CP850 = 1 octet")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 130, "é en CP850 = octet 130 (0x82)")
+FIN
+
+
+// Cas D : é (U+00E9) représentable en CP437 → octet 130 (0x82), même position qu'en CP850.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp437_e_accent()
+	buf est un buffer = ChaîneVersBuffer("é", encCP437)
+	dbgVérifieEgalité(Taille(buf), 1, "é en CP437 = 1 octet")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 130, "é en CP437 = octet 130 (0x82)")
+FIN
+
+
+// Cas E : Ç (U+00C7) représentable en CP850 → octet 128 (0x80).
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp850_C_cedille()
+	buf est un buffer = ChaîneVersBuffer("Ç", encCP850)
+	dbgVérifieEgalité(Taille(buf), 1, "Ç en CP850 = 1 octet")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 128, "Ç en CP850 = octet 128 (0x80)")
+FIN
+
+
+// Cas F : Ç (U+00C7) représentable en CP437 → octet 128 (0x80), même position qu'en CP850.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp437_C_cedille()
+	buf est un buffer = ChaîneVersBuffer("Ç", encCP437)
+	dbgVérifieEgalité(Taille(buf), 1, "Ç en CP437 = 1 octet")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 128, "Ç en CP437 = octet 128 (0x80)")
+FIN
+
+
+// Cas G : ø (U+00F8) représentable en CP850 → octet 155 (0x9B).
+// Ce caractère distingue CP850 de CP437 : il est présent uniquement dans CP850.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp850_o_barre()
+	buf est un buffer = ChaîneVersBuffer("ø", encCP850)
+	dbgVérifieEgalité(Taille(buf), 1, "ø en CP850 = 1 octet")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 155, "ø en CP850 = octet 155 (0x9B)")
+FIN
+
+
+// Cas H : ø (U+00F8) absent de CP437 → octet 63 ('?').
+// Montre la divergence concrète entre les deux codepages.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp437_o_barre_non_representable()
+	buf est un buffer = ChaîneVersBuffer("ø", encCP437)
+	dbgVérifieEgalité(Taille(buf), 1, "ø non représentable en CP437 → 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "ø en CP437 → octet 63 ('?')")
+FIN
+
+
+// Cas I : € (U+20AC) absent de CP850 → octet 63 ('?').
+// Le symbole euro n'existait pas lors de la création de ces codepages.
+PROCEDURE PUBLIQUE scenario_cvb_oem_cp850_euro_non_representable()
+	buf est un buffer = ChaîneVersBuffer("€", encCP850)
+	dbgVérifieEgalité(Taille(buf), 1, "€ non représentable en CP850 → 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "€ en CP850 → octet 63 ('?')")
+FIN
+
+
+// Edge case : € non représentable en CP437 → octet 63.
+PROCEDURE PRIVÉE scenario_cvb_oem_edge_cp437_euro_non_representable()
+	buf est un buffer = ChaîneVersBuffer("€", encCP437)
+	dbgVérifieEgalité(Taille(buf), 1, "€ non représentable en CP437 → 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "€ en CP437 → octet 63 ('?')")
+FIN
+
+
+// Edge case : chaîne vide → buffer de 0 octet en CP850.
+PROCEDURE PRIVÉE scenario_cvb_oem_edge_chaine_vide_cp850()
+	buf est un buffer = ChaîneVersBuffer("", encCP850)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide → buffer vide en CP850")
+FIN
+
+
+// Edge case : chaîne vide → buffer de 0 octet en CP437.
+PROCEDURE PRIVÉE scenario_cvb_oem_edge_chaine_vide_cp437()
+	buf est un buffer = ChaîneVersBuffer("", encCP437)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide → buffer vide en CP437")
+FIN

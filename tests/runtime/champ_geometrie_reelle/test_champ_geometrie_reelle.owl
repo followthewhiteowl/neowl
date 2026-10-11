@@ -1,0 +1,186 @@
+// Runtime GUI (widgets montés, offscreen) : ..Largeur / ..Hauteur / ..X / ..Y
+// d'un champ rendent sa géométrie RÉELLE, celle que le champ occupe à
+// l'écran, et non la valeur écrite dans le fichier de description.
+//
+// Repère de ..X / ..Y : le coin haut gauche de la zone client de la fenêtre,
+// PAS celui du conteneur ou du volet qui porte le champ. Un champ posé dans
+// un conteneur décalé de 100 rend donc 100, pas 0.
+//
+// Chaque mesure est recoupée par une source indépendante de la propriété
+// lue : la taille de l'image capturée du champ pour les dimensions, la
+// position du fond vert dans l'image de la fenêtre pour les positions.
+
+TestModeHeadless(Faux)
+
+// Relevés faits par FinInitialisation() de FEN_GeoAuto, c'est-à-dire AVANT
+// que la fenêtre soit affichée.
+gGeoLargeurFinInit est un entier = -1
+gGeoHauteurFinInit est un entier = -1
+gGeoYFinInit est un entier = -1
+
+PROCEDURE PremierY(im est une Image, x est un entier, couleur est un entier)
+	y est un entier = 0
+	TANTQUE y < 300
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER y
+		FIN
+		y = y + 1
+	FIN
+	RENVOYER -1
+FIN
+
+PROCEDURE PremierX(im est une Image, y est un entier, couleur est un entier)
+	x est un entier = 0
+	TANTQUE x < 400
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER x
+		FIN
+		x = x + 1
+	FIN
+	RENVOYER -1
+FIN
+
+vert est un entier = RVB(0, 200, 0)
+
+
+// --- 1. Fenêtre pas encore ouverte : aucun champ monté, donc rien à mesurer.
+// Le contrat est Null — une absence de valeur, jamais un 0 qui aurait l'air
+// d'une mesure.
+dbgVérifieVrai(BTN_Libre..Largeur = Null,
+"Avant ouverture : ..Largeur rend Null (le champ n'est pas monté)")
+dbgVérifieVrai(BTN_Libre..Hauteur = Null,
+"Avant ouverture : ..Hauteur rend Null")
+dbgVérifieVrai(BTN_Libre..X = Null,
+"Avant ouverture : ..X rend Null")
+dbgVérifieVrai(BTN_Libre..Y = Null,
+"Avant ouverture : ..Y rend Null")
+
+
+// ============================================================
+//  Disposition automatique (verticale) — FEN_GeoAuto
+// ============================================================
+
+OuvreSoeur(FEN_GeoAuto)
+Temporise(80)
+
+imAuto est une Image = dCopieImageFenêtre(FEN_GeoAuto)
+imEtire est une Image = dCopieImageChamp(BTN_Etire)
+imBoite est une Image = dCopieImageChamp(CONT_Boite)
+imDdns est une Image = dCopieImageChamp(LIB_Dedans)
+
+// --- 2. Champ étiré : sa largeur est celle que le layout lui donne (400),
+// alors qu'aucune Largeur n'est déclarée.
+dbgVérifieEgalité(BTN_Etire..Largeur, 400,
+"Étiré : ..Largeur rend la largeur imposée par la disposition (400)")
+dbgVérifieEgalité(BTN_Etire..Largeur, imEtire..Largeur,
+"Étiré : ..Largeur = largeur de l'image capturée du champ")
+dbgVérifieEgalité(BTN_Etire..Hauteur, 30,
+"Étiré : ..Hauteur rend 30")
+dbgVérifieEgalité(BTN_Etire..Hauteur, imEtire..Hauteur,
+"Étiré : ..Hauteur = hauteur de l'image capturée du champ")
+dbgVérifieEgalité(BTN_Etire..X, 0, "Étiré : ..X rend 0 (premier de la pile)")
+dbgVérifieEgalité(BTN_Etire..Y, 0, "Étiré : ..Y rend 0 (premier de la pile)")
+
+// --- 3. Conteneur placé par le layout : largeur figée 300, collé à droite
+// d'une fenêtre de 400 -> X = 100 ; posé sous un champ de 30 avec 4
+// d'espacement -> Y = 34.
+dbgVérifieEgalité(CONT_Boite..Largeur, 300, "Conteneur : ..Largeur rend 300")
+dbgVérifieEgalité(CONT_Boite..Hauteur, 100, "Conteneur : ..Hauteur rend 100")
+dbgVérifieEgalité(CONT_Boite..Largeur, imBoite..Largeur,
+"Conteneur : ..Largeur = largeur de l'image capturée")
+dbgVérifieEgalité(CONT_Boite..X, 100,
+"Conteneur : ..X rend la place que le layout lui donne (100)")
+dbgVérifieEgalité(CONT_Boite..Y, 34,
+"Conteneur : ..Y rend la place que le layout lui donne (34)")
+
+// --- 4. Champ DANS le conteneur : le repère est la zone client de la
+// fenêtre. Le champ est en (0, 0) dans son conteneur, donc en (100, 34)
+// dans la fenêtre. La sonde pixel confirme sans passer par la propriété.
+yDedans est un entier = PremierY(imAuto, 110, vert)
+xDedans est un entier = PremierX(imAuto, 40, vert)
+dbgVérifieEgalité(yDedans, 34, "Sonde pixel : le fond vert commence en y=34")
+dbgVérifieEgalité(xDedans, 100, "Sonde pixel : le fond vert commence en x=100")
+
+dbgVérifieEgalité(LIB_Dedans..X, 100,
+"Dans un conteneur : ..X est relatif à la fenêtre (100), pas au conteneur (0)")
+dbgVérifieEgalité(LIB_Dedans..Y, 34,
+"Dans un conteneur : ..Y est relatif à la fenêtre (34), pas au conteneur (0)")
+dbgVérifieEgalité(LIB_Dedans..X, xDedans,
+"Dans un conteneur : ..X = position mesurée au pixel")
+dbgVérifieEgalité(LIB_Dedans..Y, yDedans,
+"Dans un conteneur : ..Y = position mesurée au pixel")
+dbgVérifieEgalité(LIB_Dedans..Largeur, 120, "Dans un conteneur : ..Largeur rend 120")
+dbgVérifieEgalité(LIB_Dedans..Largeur, imDdns..Largeur,
+"Dans un conteneur : ..Largeur = largeur de l'image capturée")
+
+// --- 5. Lecture depuis FinInitialisation, donc avant l'affichage : la
+// géométrie rendue est déjà la géométrie finale, pas une taille provisoire.
+dbgVérifieEgalité(gGeoLargeurFinInit, 400,
+"FinInitialisation : ..Largeur rend déjà la largeur finale (400)")
+dbgVérifieEgalité(gGeoHauteurFinInit, 30,
+"FinInitialisation : ..Hauteur rend déjà 30")
+dbgVérifieEgalité(gGeoYFinInit, 34,
+"FinInitialisation : ..Y du conteneur rend déjà 34")
+dbgVérifieEgalité(gGeoLargeurFinInit, BTN_Etire..Largeur,
+"FinInitialisation : même largeur qu'après affichage")
+
+Ferme(FEN_GeoAuto)
+
+
+// ============================================================
+//  Disposition libre — FEN_GeoLibre
+// ============================================================
+
+OuvreSoeur(FEN_GeoLibre)
+Temporise(80)
+
+imLibre est une Image = dCopieImageFenêtre(FEN_GeoLibre)
+imBtn est une Image = dCopieImageChamp(BTN_Libre)
+imVolet est une Image = dCopieImageChamp(LIB_Volet)
+
+// --- 6. Disposition libre : la géométrie déclarée est la géométrie réelle.
+dbgVérifieEgalité(BTN_Libre..Largeur, 200, "Disposition libre : ..Largeur rend 200")
+dbgVérifieEgalité(BTN_Libre..Hauteur, 30, "Disposition libre : ..Hauteur rend 30")
+dbgVérifieEgalité(BTN_Libre..X, 50, "Disposition libre : ..X rend 50")
+dbgVérifieEgalité(BTN_Libre..Y, 40, "Disposition libre : ..Y rend 40")
+dbgVérifieEgalité(BTN_Libre..Largeur, imBtn..Largeur,
+"Disposition libre : ..Largeur = largeur de l'image capturée")
+dbgVérifieEgalité(BTN_Libre..Hauteur, imBtn..Hauteur,
+"Disposition libre : ..Hauteur = hauteur de l'image capturée")
+
+// --- 7. Champ dans un volet : le repère reste la zone client de la fenêtre.
+// Le champ est déclaré en (10, 10) dans son volet ; dans la fenêtre il est
+// décalé par la position de l'onglet, sa barre de languettes et son cadre.
+// La position exacte de ce décalage dépend du rendu des languettes : elle
+// est donc comparée à la sonde pixel plutôt qu'à un nombre écrit ici.
+yVolet est un entier = PremierY(imLibre, 60, vert)
+xVolet est un entier = PremierX(imLibre, yVolet + 5, vert)
+
+dbgVérifieEgalité(LIB_Volet..X, xVolet,
+"Dans un volet : ..X = position mesurée au pixel dans la fenêtre")
+dbgVérifieEgalité(LIB_Volet..Y, yVolet,
+"Dans un volet : ..Y = position mesurée au pixel dans la fenêtre")
+dbgVérifieVrai(LIB_Volet..X > ONG_Volets..X,
+"Dans un volet : ..X est décalé par l'onglet qui le porte")
+dbgVérifieVrai(LIB_Volet..Y > ONG_Volets..Y,
+"Dans un volet : ..Y est décalé par la barre de languettes")
+dbgVérifieEgalité(LIB_Volet..Largeur, 120, "Dans un volet : ..Largeur rend 120")
+dbgVérifieEgalité(LIB_Volet..Largeur, imVolet..Largeur,
+"Dans un volet : ..Largeur = largeur de l'image capturée")
+
+// --- 8. Non-régression : l'écriture continue de déplacer et de
+// redimensionner le champ, et la relecture rend la nouvelle géométrie.
+BTN_Libre..Largeur = 250
+BTN_Libre..X       = 70
+Temporise(80)
+imBtn2 est une Image = dCopieImageChamp(BTN_Libre)
+
+dbgVérifieEgalité(imBtn2..Largeur, 250,
+"Écriture : le champ mesure réellement 250 après ..Largeur = 250")
+dbgVérifieEgalité(BTN_Libre..Largeur, 250,
+"Écriture : ..Largeur relit 250")
+dbgVérifieEgalité(BTN_Libre..X, 70,
+"Écriture : ..X relit 70")
+
+Ferme(FEN_GeoLibre)
+dbgBilanTest()

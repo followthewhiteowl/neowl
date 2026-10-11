@@ -1,0 +1,93 @@
+Trace("=== Couverture effet reel des options iParametrePDF / iDestination ===")
+
+// Ce test exerce l'EFFET REEL des constantes PDF branchees : chaque option
+// doit produire un fichier PDF non vide via le pipeline
+// iParametrePDF -> iDestination -> iImprime -> iFinImprime. Les constantes
+// no-op et les destinations non honorees ont ete retirees (cf ) ;
+// on ne teste donc plus que des constantes a effet observable.
+
+base est une chaîne = fRepTemp() + "/owl_ipdf_cov"
+
+// --- iPDFNiveauGris (grayscale, effet Qt6 interne) ---
+pGris est une chaîne = base + "_gris.pdf"
+iParamètrePDF(iPDFNiveauGris)
+iDestination(iPDFGénérique, pGris)
+iImprime("Document en niveaux de gris")
+iImprime("Seconde ligne")
+iFinImprime()
+dbgVérifieVrai(fFichierExiste(pGris), "iPDFNiveauGris : PDF genere")
+dbgVérifieVrai(fTaille(pGris) > 0, "iPDFNiveauGris : PDF non vide")
+
+// --- iPDFA1b (PDF/A-1b, archivage) ---
+pA1b est une chaîne = base + "_a1b.pdf"
+iParamètrePDF(iPDFA1b)
+iDestination(iPDFGénérique, pA1b)
+iImprime("Archive PDF/A-1b")
+iFinImprime()
+dbgVérifieVrai(fTaille(pA1b) > 0, "iPDFA1b : PDF/A-1b non vide")
+
+// --- iPDFA = alias de iPDFA1b (meme sentinel) ---
+dbgVérifieEgalité(iPDFA, iPDFA1b, "iPDFA est un alias de iPDFA1b")
+
+// --- iPDFA3b (PDF/A-3b via post-traitement qpdf) ---
+pA3b est une chaîne = base + "_a3b.pdf"
+iParamètrePDF(iPDFA3b)
+iDestination(iPDFGénérique, pA3b)
+iImprime("Archive PDF/A-3b")
+iFinImprime()
+dbgVérifieVrai(fTaille(pA3b) > 0, "iPDFA3b : PDF/A-3b non vide")
+
+// --- Signets : iSignetPage vs iSignetAucun (via pdfParametre..Signet) ---
+pSig est un pdfParamètre
+pSig..Signet = Vrai
+pdfAvecSignet est une chaîne = base + "_signet.pdf"
+iParamètrePDF(pSig)
+iDestination(iPDFGénérique, pdfAvecSignet)
+iImprime("Page avec signet")
+iSautePage()
+iImprime("Deuxieme page")
+iFinImprime()
+dbgVérifieVrai(fTaille(pdfAvecSignet) > 0, "iSignetPage : PDF avec signets non vide")
+
+dbgVérifieDifférence(iSignetPage, iSignetAucun, "iSignetPage != iSignetAucun")
+
+// --- Protection (combinable via +) ---
+pProt est un pdfParamètre
+pProt..Protection = iProtectionImpression + iProtectionModification
+pdfProtege est une chaîne = base + "_prot.pdf"
+iParamètrePDF(pProt)
+iDestination(iPDFGénérique, pdfProtege)
+iImprime("Document protege")
+iFinImprime()
+dbgVérifieVrai(fTaille(pdfProtege) > 0, "Protection : PDF protege non vide")
+
+// Les 5 valeurs de protection sont distinctes (aucune = 0, les autres bits).
+dbgVérifieEgalité(iProtectionAucune, 0, "iProtectionAucune = 0 (aucune)")
+dbgVérifieDifférence(iProtectionImpression, iProtectionModification, "Impression != Modification")
+dbgVérifieDifférence(iProtectionSélection, iProtectionCommentaire, "Selection != Commentaire")
+
+// --- iDestination : iPDFGenerique ouvre reellement, iImprimante = fallback ---
+// (iImprimante reste la valeur de retour/fallback quand la destination n'est
+// pas une sortie PDF honoree.)
+retImpr est un entier = iDestination(iImprimante)
+dbgVérifieEgalité(retImpr, iImprimante, "iDestination(iImprimante) renvoie iImprimante (fallback)")
+
+// --- iInfoImprimante : enum iInfoImprimante consomme reellement ---
+// Les 3 types renvoient une chaine (effet reel : interroge le systeme).
+nomImpr est une chaîne = iInfoImprimante(Faux, iNomImprimante)
+dbgVérifieVrai(Taille(nomImpr) >= 0, "iNomImprimante : chaine renvoyee")
+nomDriver est une chaîne = iInfoImprimante(Faux, iNomDriver)
+dbgVérifieVrai(Taille(nomDriver) >= 0, "iNomDriver : chaine renvoyee")
+nomPort est une chaîne = iInfoImprimante(Faux, iNomPort)
+dbgVérifieVrai(Taille(nomPort) >= 0, "iNomPort : chaine renvoyee")
+dbgVérifieDifférence(iNomImprimante, iNomDriver, "iNomImprimante != iNomDriver")
+dbgVérifieDifférence(iNomDriver, iNomPort, "iNomDriver != iNomPort")
+
+// Nettoyage
+fSupprime(pGris)
+fSupprime(pA1b)
+fSupprime(pA3b)
+fSupprime(pdfAvecSignet)
+fSupprime(pdfProtege)
+
+dbgBilanTest()

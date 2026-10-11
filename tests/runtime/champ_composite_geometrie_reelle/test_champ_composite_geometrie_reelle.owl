@@ -1,0 +1,128 @@
+// Runtime GUI (widgets montés, offscreen) — géométrie réelle d'un champ
+// COMPOSITE, c'est-à-dire d'un champ dont le libellé est intégré à sa boîte
+// (Champ Saisie, Champ Combo).
+//
+// La boîte d'un tel champ contient son libellé ET sa zone de frappe. C'est
+// cette boîte que l'utilisateur déclare (Largeur / X), et c'est donc elle que
+// ..Largeur / ..Hauteur / ..X / ..Y doivent rendre. Rendre la seule zone de
+// frappe fait mentir la lecture de tout ce qui l'entoure : la largeur du
+// libellé est retranchée de la largeur, et ajoutée à l'abscisse.
+//
+// Le champ NU de même géométrie déclarée est l'oracle : il n'a pas de libellé
+// intégré, sa lecture ne peut pas dériver. Recoupement indépendant de la
+// propriété : le fond du libellé, capturé dans l'image de la fenêtre, situe le
+// bord gauche RÉEL de la boîte.
+//
+// Aucune métrique de rendu n'est écrite en dur ici : les valeurs attendues sont
+// celles que le fichier de description déclare.
+
+TestModeHeadless(Faux)
+
+cgFondFenetre est un entier = RVB(10, 10, 10)
+cgRouge      est un entier = RVB(255, 0, 0)
+
+// ---------------------------------------------------------------- 1. Placement
+// libre : la boîte déclarée 20 / 280 est la boîte du champ, libellé compris.
+OuvreSoeur(FEN_CompoLibre)
+
+dbgVérifieEgalité(CGLNu..Largeur, 280,
+"Champ nu, placement libre : Largeur 280 déclarée, 280 rendue (oracle)")
+dbgVérifieEgalité(CGLNu..X, 20,
+"Champ nu, placement libre : X 20 déclaré, 20 rendu (oracle)")
+
+dbgVérifieEgalité(CGLLbl..Largeur, 280,
+"Champ à libellé intégré, placement libre : Largeur 280 déclarée, 280 rendue")
+dbgVérifieEgalité(CGLLbl..X, 20,
+"Champ à libellé intégré, placement libre : X 20 déclaré, 20 rendu")
+dbgVérifieEgalité(CGLLbl..Hauteur, 30,
+"Champ à libellé intégré : le libellé ne change pas la hauteur déclarée")
+dbgVérifieEgalité(CGLLbl..Y, 70,
+"Champ à libellé intégré : Y 70 déclaré, 70 rendu")
+
+// Recoupement indépendant : le fond du libellé est peint dans la boîte du
+// champ. CGLLblFond est déclaré en X = 20, la ligne 125 traverse le haut de sa
+// boîte (Y = 120), au-dessus du texte du libellé.
+cgImg est une Image = dCopieImageFenêtre(FEN_CompoLibre)
+dbgVérifieEgalité(cgImg..Valide, Vrai, "capture de la fenêtre valide")
+dbgVérifieEgalité(dPixelCouleur(cgImg, 20, 125), cgRouge,
+"le libellé est peint dès l'abscisse déclarée : la boîte commence bien à 20")
+dbgVérifieEgalité(dPixelCouleur(cgImg, 18, 125), cgFondFenetre,
+"rien n'est peint à gauche de l'abscisse déclarée")
+dbgVérifieEgalité(dPixelCouleur(cgImg, 302, 125), cgFondFenetre,
+"la boîte ne dépasse pas les 280 px déclarés depuis l'abscisse 20")
+
+Ferme(FEN_CompoLibre)
+
+// -------------------------------------------------------------- 2. Pile
+// verticale : les deux champs sont à fleur du bord gauche de la fenêtre.
+OuvreSoeur(FEN_CompoPileV)
+
+dbgVérifieEgalité(CGVNu..X, 0,
+"Champ nu en pile verticale : à fleur du bord gauche (oracle)")
+dbgVérifieEgalité(CGVLbl..X, 0,
+"Champ à libellé intégré en pile verticale : à fleur du bord gauche")
+dbgVérifieEgalité(CGVNu..Largeur, 250,
+"Champ nu en pile verticale : Largeur 250 déclarée, 250 rendue (oracle)")
+dbgVérifieEgalité(CGVLbl..Largeur, 250,
+"Champ à libellé intégré en pile verticale : Largeur 250 déclarée, 250 rendue")
+
+Ferme(FEN_CompoPileV)
+
+// ------------------------------------------------------------- 3. Pile
+// horizontale : le premier champ de la pile est à fleur du bord gauche, et une
+// largeur déclarée y vaut autant qu'ailleurs.
+OuvreSoeur(FEN_CompoPileH)
+
+dbgVérifieEgalité(CGHLbl..X, 0,
+"Champ à libellé intégré en pile horizontale : premier de la pile, à fleur du bord gauche")
+dbgVérifieEgalité(CGHLbl..Largeur, 250,
+"Champ à libellé intégré en pile horizontale : Largeur 250 déclarée, 250 rendue")
+dbgVérifieEgalité(CGHCombo..Largeur, 250,
+"Champ Combo à libellé intégré en pile horizontale : Largeur 250 déclarée, 250 rendue")
+dbgVérifieVrai(CGHCombo..X >= CGHLbl..X + CGHLbl..Largeur,
+"les boîtes de deux champs voisins d'une pile horizontale ne se chevauchent pas")
+
+// Sans largeur déclarée, la boîte du composite est plus large que celle de son
+// jumeau nu : elle contient en plus le libellé.
+dbgVérifieVrai(CGHLblAuto..Largeur > CGHNuAuto..Largeur,
+"pile horizontale, largeur naturelle : la boîte du composite contient en plus son libellé")
+dbgVérifieEgalité(CGHLblAuto..Hauteur, CGHNuAuto..Hauteur,
+"pile horizontale : le libellé intégré ne change pas la hauteur du champ")
+
+Ferme(FEN_CompoPileH)
+
+// ---------------------------------------------------------- 4. Dans un
+// conteneur décalé : la position rendue est absolue dans la fenêtre, et le
+// champ est à fleur du bord gauche de son conteneur.
+OuvreSoeur(FEN_CompoBoite)
+
+dbgVérifieEgalité(CGBBoite..X, 40,
+"le conteneur est à l'abscisse déclarée (oracle)")
+dbgVérifieEgalité(CGBNu..Largeur, 200,
+"champ nu dans le conteneur : Largeur 200 déclarée, 200 rendue (oracle)")
+dbgVérifieEgalité(CGBLbl..X, 40,
+"champ à libellé intégré dans un conteneur : à fleur du bord gauche du conteneur")
+dbgVérifieEgalité(CGBLbl..Largeur, 250,
+"champ à libellé intégré dans un conteneur : Largeur 250 déclarée, 250 rendue")
+dbgVérifieEgalité(CGBLbl..Y, 30,
+"champ à libellé intégré dans un conteneur : ordonnée absolue du conteneur")
+
+Ferme(FEN_CompoBoite)
+
+// -------------------------------------------------------- 5. Pile horizontale
+// saturée : la rangée est trop étroite pour ses champs, la zone de frappe est
+// comprimée jusqu'à sa largeur minimale. La boîte du champ, elle, contient
+// toujours son libellé — c'est le cas où la lecture donnait une boîte carrée de
+// la taille d'une icône et laissait croire à un champ effondré.
+OuvreSoeur(FEN_CompoPileHEtroite)
+
+dbgVérifieEgalité(CGELbl..X, 0,
+"pile horizontale saturée : premier de la pile, à fleur du bord gauche")
+dbgVérifieVrai(CGELbl..Largeur >= 80,
+"pile horizontale saturée : la boîte du champ contient au moins son libellé de 80")
+dbgVérifieEgalité(CGELbl..Hauteur, CGENu..Hauteur,
+"pile horizontale saturée : composite et nu gardent la même hauteur")
+
+Ferme(FEN_CompoPileHEtroite)
+
+dbgBilanTest()

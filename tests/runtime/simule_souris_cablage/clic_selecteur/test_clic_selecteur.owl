@@ -1,0 +1,38 @@
+//  — preuve de câblage réel : surClic / surDoubleClic sur Sélecteur.
+//
+// TestSimuleSouris poste un vrai QMouseEvent quand le widget est monté
+// : le clic n'a d'effet que si le champ est réellement câblé
+// côté Qt. Aucun câblage n'existe pour Sélecteur ( lot 2) : ce test
+// rougit tant qu'il n'est pas posé.
+//
+// ROUGE ATTENDU : nSelClic_obs / nSelDoubleClic_obs restent à 0 après
+// TestSimuleSouris -- surClic/surDoubleClic déclarés mais jamais tirés.
+
+TestModeHeadless(Faux)
+
+bSelPrete est un booléen = Faux
+nSelClic_obs est un entier = -1
+nSelDoubleClic_obs est un entier = -1
+
+PROCEDURE callback_sel_clic_prete()
+	bSelPrete = Vrai
+FIN
+
+PROCEDURE callback_sel_clic_compteurs(nC est un entier, nD est un entier)
+	nSelClic_obs       = nC
+	nSelDoubleClic_obs = nD
+FIN
+
+OuvreSoeur(FEN_ClicSelecteur)
+dbgVérifieVrai(bSelPrete, "FinInitialisation appelée : fenêtre prête")
+
+TestSimuleSouris(SEL_Cible, ClicGauche)
+LireCompteursSelClic()
+dbgVérifieEgalité(nSelClic_obs, 1, "surClic Sélecteur : 1 tir après clic simulé réel")
+
+TestSimuleSouris(SEL_Cible, DoubleClicGauche)
+LireCompteursSelClic()
+dbgVérifieEgalité(nSelDoubleClic_obs, 1, "surDoubleClic Sélecteur : 1 tir après double-clic simulé réel")
+
+Ferme(FEN_ClicSelecteur)
+dbgBilanTest()

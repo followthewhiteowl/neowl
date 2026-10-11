@@ -1,0 +1,101 @@
+// @sujet : DernierJourDuMois
+// @résumé : Retourne le dernier jour du mois pour une date donnée, ou pour une paire (année, mois), ou pour le mois courant. Le résultat reflète la durée réelle du mois (28/29/30/31 jours selon le cas).
+
+
+// Cas canonique : dernier jour d'un mois depuis une date.
+// Retourne une nouvelle date ajustée au dernier jour du même mois.
+PROCEDURE scenario_depuis_date()
+	dateQuelconque est une date = ChaîneVersDate("20260512")
+	dernier est une date = DernierJourDuMois(dateQuelconque)
+	// Mai compte 31 jours, le dernier jour est le 31 mai 2026.
+	attendu est une date = ChaîneVersDate("20260531")
+	dbgVérifieEgalité(dernier, attendu, "dernier jour de mai 2026 = 31 mai")
+FIN
+
+
+// Signature (année, mois) : construit directement le dernier jour sans date intermédiaire.
+PROCEDURE scenario_depuis_annee_mois()
+	dernier est une date = DernierJourDuMois(2026, 4)
+	// Avril compte 30 jours.
+	attendu est une date = ChaîneVersDate("20260430")
+	dbgVérifieEgalité(dernier, attendu, "dernier jour d'avril 2026 = 30 avril")
+FIN
+
+
+// Signature sans argument : utilise le mois courant.
+// Le test vérifie la cohérence du résultat avec l'année et le mois actuels.
+PROCEDURE scenario_mois_courant()
+	dernier est une date = DernierJourDuMois()
+	aujourdhui est une date = DateDuJour()
+	// Le dernier jour du mois courant doit appartenir au même mois que la date du jour.
+	moisDernier est un entier = Mois(dernier)
+	moisActuel est un entier = Mois(aujourdhui)
+	dbgVérifieEgalité(moisDernier, moisActuel, "dernier jour du mois courant = même mois que date du jour")
+	// Le jour doit être >= 28 (février court) et <= 31 (mois longs).
+	jourDernier est un entier = Jour(dernier)
+	dbgVérifieVrai(jourDernier >= 28 ET jourDernier <= 31, "dernier jour du mois courant dans [28..31]")
+FIN
+
+
+// Février non bissextile : compte 28 jours.
+PROCEDURE scenario_fevrier_non_bissextile()
+	dernier est une date = DernierJourDuMois(2025, 2)
+	attendu est une date = ChaîneVersDate("20250228")
+	dbgVérifieEgalité(dernier, attendu, "février 2025 non bissextile = 28 jours")
+FIN
+
+
+// Février bissextile : compte 29 jours.
+PROCEDURE scenario_fevrier_bissextile()
+	dernier est une date = DernierJourDuMois(2024, 2)
+	attendu est une date = ChaîneVersDate("20240229")
+	dbgVérifieEgalité(dernier, attendu, "février 2024 bissextile = 29 jours")
+FIN
+
+
+// Mois de 30 jours : avril, juin, septembre, novembre.
+PROCEDURE scenario_mois_30_jours()
+	dernierAvril est une date = DernierJourDuMois(2026, 4)
+	dbgVérifieEgalité(Jour(dernierAvril), 30, "avril = 30 jours")
+	dernierJuin est une date = DernierJourDuMois(2026, 6)
+	dbgVérifieEgalité(Jour(dernierJuin), 30, "juin = 30 jours")
+	dernierSeptembre est une date = DernierJourDuMois(2026, 9)
+	dbgVérifieEgalité(Jour(dernierSeptembre), 30, "septembre = 30 jours")
+	dernierNovembre est une date = DernierJourDuMois(2026, 11)
+	dbgVérifieEgalité(Jour(dernierNovembre), 30, "novembre = 30 jours")
+FIN
+
+
+// Mois de 31 jours : janvier, mars, mai, juillet, août, octobre, décembre.
+PROCEDURE scenario_mois_31_jours()
+	dernierJanvier est une date = DernierJourDuMois(2026, 1)
+	dbgVérifieEgalité(Jour(dernierJanvier), 31, "janvier = 31 jours")
+	dernierMars est une date = DernierJourDuMois(2026, 3)
+	dbgVérifieEgalité(Jour(dernierMars), 31, "mars = 31 jours")
+	dernierMai est une date = DernierJourDuMois(2026, 5)
+	dbgVérifieEgalité(Jour(dernierMai), 31, "mai = 31 jours")
+	dernierJuillet est une date = DernierJourDuMois(2026, 7)
+	dbgVérifieEgalité(Jour(dernierJuillet), 31, "juillet = 31 jours")
+	dernierAout est une date = DernierJourDuMois(2026, 8)
+	dbgVérifieEgalité(Jour(dernierAout), 31, "août = 31 jours")
+	dernierOctobre est une date = DernierJourDuMois(2026, 10)
+	dbgVérifieEgalité(Jour(dernierOctobre), 31, "octobre = 31 jours")
+	dernierDecembre est une date = DernierJourDuMois(2026, 12)
+	dbgVérifieEgalité(Jour(dernierDecembre), 31, "décembre = 31 jours")
+FIN
+
+
+// Année bissextile lointaine : 2000 (multiple de 400 → bissextile).
+PROCEDURE PRIVÉE scenario_edge_bissextile_2000()
+	dernier est une date = DernierJourDuMois(2000, 2)
+	attendu est une date = ChaîneVersDate("20000229")
+	dbgVérifieEgalité(dernier, attendu, "février 2000 bissextile (multiple 400) = 29 jours")
+FIN
+
+
+// Année non bissextile : 1900 (multiple de 100 mais pas de 400 → non bissextile).
+PROCEDURE PRIVÉE scenario_edge_non_bissextile_1900()
+	dernier est une date = DernierJourDuMois(1900, 2)
+	attendu est une date = ChaîneVersDate("19000228")
+	dbgVérifieEgalité(dernier, attendu, "février 1900 non bissextile (multiple 100 pas 400) = 28 jours")
+FIN

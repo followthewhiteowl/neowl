@@ -1,0 +1,121 @@
+// @sujet : ChronoFin
+// @resume : Arreter un chronometre et recuperer la ms mesuree
+
+PROCEDURE scenario_nominal_global()
+	// Le chronometre global demarre, effectue des operations, puis s'arrete.
+	// ChronoFin retourne la ms ecoulee en millisecondes.
+	accumul est un entier = 0
+	ms est un entier = 0
+	ChronoDébut()
+	POUR i = 1 À 500
+		accumul = accumul + i
+	FIN
+	ms = ChronoFin()
+	dbgVérifieVrai(ms >= 0, "ms mesuree >= 0")
+FIN
+
+PROCEDURE scenario_instance_chrono()
+	// Utilisation d'une instance Chrono locale plutot que le global.
+	// Permet de gerer plusieurs chronometres independants.
+	chrono est un Chrono
+	s est un entier = 0
+	ms est un entier = 0
+	ChronoDébut(chrono)
+	POUR i = 1 À 300
+		s = s + 1
+	FIN
+	ms = ChronoFin(chrono)
+	dbgVérifieVrai(ms >= 0, "ChronoFin(chrono) retourne ms >= 0")
+	dbgVérifieFaux(chrono..Démarré, "chrono arrete apres Fin")
+FIN
+
+PROCEDURE scenario_forme_methode()
+	// Syntaxe prefixee : instance.Debut() et instance.Fin() sont equivalentes
+	// aux formes fonctionnelles ChronoDébut(instance) / ChronoFin(instance).
+	c est un Chrono
+	accumDummy est un entier = 0
+	elapsed est un entier = 0
+	c.Début()
+	POUR i = 1 À 100
+		accumDummy = accumDummy + 1
+	FIN
+	elapsed = c.Fin()
+	dbgVérifieVrai(elapsed >= 0, "syntaxe prefixee c.Fin() fonctionne")
+FIN
+
+PROCEDURE scenario_alias_en()
+	// Les noms anglais (ChronoStart/ChronoEnd) sont des alias bilingues.
+	tmp est un entier = 0
+	dur est un entier = 0
+	ChronoStart()
+	POUR i = 1 À 200
+		tmp = tmp + 1
+	FIN
+	dur = ChronoEnd()
+	dbgVérifieVrai(dur >= 0, "alias ChronoEnd retourne ms >= 0")
+FIN
+
+PROCEDURE scenario_edge_fin_sans_debut()
+	// ChronoFin appele sans ChronoDébut préalable retourne 0 (chrono non demarré).
+	resultat est un entier = 0
+	ChronoRAZ() // Assure un etat propre
+	resultat = ChronoFin()
+	dbgVérifieEgalité(resultat, 0, "ChronoFin sans Début = 0")
+FIN
+
+PROCEDURE scenario_edge_double_fin()
+	// Appeler ChronoFin deux fois de suite sur le meme chronometre (global).
+	// La seconde lecture retourne 0 car le chronometre est deja arrete.
+	accumX est un entier = 0
+	premiereFin est un entier = 0
+	deuxiemeFin est un entier = 0
+	ChronoDébut()
+	POUR i = 1 À 100
+		accumX = accumX + 1
+	FIN
+	premiereFin = ChronoFin()
+	dbgVérifieVrai(premiereFin >= 0, "premiere fin OK")
+	deuxiemeFin = ChronoFin()
+	dbgVérifieEgalité(deuxiemeFin, 0, "double fin = 0")
+FIN
+
+PROCEDURE scenario_edge_valeur_apres_fin()
+	// Apres ChronoFin, les appels a ChronoValeur retournent 0 (chronometre arrete).
+	accumY est un entier = 0
+	ms est un entier = 0
+	val est un entier = 0
+	ChronoDébut()
+	POUR i = 1 À 100
+		accumY = accumY + 1
+	FIN
+	ms = ChronoFin()
+	dbgVérifieVrai(ms >= 0, "chrono arrete")
+	val = ChronoValeur()
+	dbgVérifieEgalité(val, 0, "ChronoValeur apres Fin = 0")
+FIN
+
+PROCEDURE scenario_edge_instances_independantes()
+	// Plusieurs chronometres independants peuvent coexister sans interference.
+	// L'un finit tandis que l'autre continue.
+	c1 est un Chrono
+	c2 est un Chrono
+	accumZ est un entier = 0
+	accumW est un entier = 0
+	d1 est un entier = 0
+	d2 est un entier = 0
+	ChronoDébut(c1)
+	ChronoDébut(c2)
+	POUR i = 1 À 200
+		accumZ = accumZ + 1
+	FIN
+	d1 = ChronoFin(c1)
+	dbgVérifieVrai(d1 >= 0, "c1 arrete")
+	dbgVérifieVrai(c2..Démarré, "c2 tourne encore")
+	POUR i = 1 À 200
+		accumW = accumW + 1
+	FIN
+	d2 = ChronoFin(c2)
+	dbgVérifieVrai(d2 >= d1, "c2 a dure plus longtemps >= c1")
+FIN
+
+dbgBilanTest()

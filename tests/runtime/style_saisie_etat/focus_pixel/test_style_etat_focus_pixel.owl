@@ -1,0 +1,59 @@
+//  — Style[focus] : pivot (CouleurFond) + toutes-props (Cadre).
+//
+// Approche de vérification : PIXEL réel. Le focus clavier est un état qu'on
+// peut FORCER par programme (DonneFocus), contrairement au survol souris
+// (aucun événement Enter/HoverEnter n'est postable aujourd'hui en headless).
+// On monte donc un vrai widget Qt (TestModeHeadless(Faux) + OuvreSoeur),
+// on capture AVANT DonneFocus (contrôle négatif : pas encore la couleur de
+// focus) puis APRES (le fond ET le cadre doivent apparaître).
+//
+// ROUGE attendu : `Style[focus]..X` ne compile pas encore (nouvelle syntaxe
+// [état] absente du parser). Cf. FEN_StyleEtatFocus.owl.
+
+TestModeHeadless(Faux)
+
+couleurFocusFond est un entier = RVB(0, 255, 0)
+couleurFocusCadre est un entier = RVB(0, 128, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleEtatFocus)
+
+// Contrôle négatif : avant DonneFocus, le fond ne doit PAS être vert focus.
+imgAvant est une Image = dCopieImageFenêtre(FEN_StyleEtatFocus)
+dbgVérifieEgalité(imgAvant..Valide, Vrai, "capture avant focus valide")
+
+nbFondAvant est un entier = CompteCouleurZone(imgAvant, 30, 30, 510, 70, couleurFocusFond)
+seuilFond est un entier = 4800 // (510-30) * (70-30) * 0.30, arrondi
+dbgVérifieVrai(nbFondAvant <= seuilFond, "SAI_Focus sans focus : pas encore le fond de focus (contrôle négatif)")
+
+DonneFocus(SAI_Focus)
+
+imgApres est une Image = dCopieImageFenêtre(FEN_StyleEtatFocus)
+dbgVérifieEgalité(imgApres..Valide, Vrai, "capture après focus valide")
+
+// Pivot : Style[focus]..CouleurFond peint le fond une fois le focus donné.
+nbFondApres est un entier = CompteCouleurZone(imgApres, 30, 30, 510, 70, couleurFocusFond)
+dbgVérifieVrai(nbFondApres > seuilFond, "SAI_Focus focus donné : Style[focus]..CouleurFond peint le fond")
+
+// Toutes-props : Style[focus]..Cadre..Epaisseur/Couleur peint aussi la bordure.
+nbBordureApres est un entier = CompteCouleurZone(imgApres, 15, 15, 525, 75, couleurFocusCadre)
+seuilBordure est un entier = 60 // pourtour fin, seuil bas mais sur
+dbgVérifieVrai(nbBordureApres > seuilBordure, "SAI_Focus focus donné : Style[focus]..Cadre..Epaisseur/Couleur peint la bordure")
+
+Ferme(FEN_StyleEtatFocus)
+dbgBilanTest()

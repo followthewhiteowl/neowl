@@ -1,0 +1,100 @@
+// @sujet : ChaîneIncrémente
+// @résumé : Incrémentation de la partie numérique d'une chaîne (suffixe ou préfixe), préservant le zero-padding et détectant automatiquement la position des chiffres.
+
+// Cas nominal — incrémenter un suffixe numérique simple
+PROCEDURE PUBLIQUE scenario_increment_suffixe_simple()
+	doc est une chaîne = "fichier1"
+	resultat est une chaîne = ChaîneIncrémente(doc)
+	dbgVérifieEgalité(resultat, "fichier2", "Suffixe numérique incrémenté")
+FIN
+
+// Cas nominal — incrémenter avec zero-padding préservé
+PROCEDURE PUBLIQUE scenario_increment_avec_zero_padding()
+	nom est une chaîne = "IMG_0042"
+	resultat est une chaîne = ChaîneIncrémente(nom)
+	dbgVérifieEgalité(resultat, "IMG_0043", "Zero-padding préservé sur incrémentation")
+FIN
+
+// Cas nominal — incrémenter un préfixe numérique avec DepuisDébut
+PROCEDURE PUBLIQUE scenario_increment_prefixe_explicite()
+	code est une chaîne = "007bond"
+	resultat est une chaîne = ChaîneIncrémente(code, DepuisDébut)
+	dbgVérifieEgalité(resultat, "008bond", "Préfixe numérique incrémenté avec DepuisDébut")
+FIN
+
+// Cas nominal — incrémenter un suffixe avec DepuisFin explicite
+PROCEDURE PUBLIQUE scenario_increment_suffixe_explicite()
+	ref est une chaîne = "REF99"
+	resultat est une chaîne = ChaîneIncrémente(ref, DepuisFin)
+	dbgVérifieEgalité(resultat, "REF100", "Suffixe numérique incrémenté avec DepuisFin")
+FIN
+
+// Cas limite — chaîne sans chiffre, ajout de "1" à la fin par défaut
+PROCEDURE PUBLIQUE scenario_chaine_sans_chiffre_ajout_suffixe()
+	texte est une chaîne = "document"
+	resultat est une chaîne = ChaîneIncrémente(texte)
+	dbgVérifieEgalité(resultat, "document1", "Chaîne sans chiffre : ajout de '1' en fin")
+FIN
+
+// Cas limite — chaîne sans chiffre, ajout de "1" au début avec DepuisDébut
+PROCEDURE PUBLIQUE scenario_chaine_sans_chiffre_ajout_prefixe()
+	mot est une chaîne = "alpha"
+	resultat est une chaîne = ChaîneIncrémente(mot, DepuisDébut)
+	dbgVérifieEgalité(resultat, "1alpha", "Chaîne sans chiffre : ajout de '1' au début")
+FIN
+
+// Cas limite — chaîne entièrement numérique
+PROCEDURE PUBLIQUE scenario_chaine_entierement_numerique()
+	numero est une chaîne = "999"
+	resultat est une chaîne = ChaîneIncrémente(numero)
+	dbgVérifieEgalité(resultat, "1000", "Chaîne entièrement numérique incrémentée")
+FIN
+
+// Cas limite — overflow de zero-padding (débordement de largeur)
+PROCEDURE PUBLIQUE scenario_overflow_zero_padding()
+	id est une chaîne = "PROD099"
+	resultat est une chaîne = ChaîneIncrémente(id)
+	dbgVérifieEgalité(resultat, "PROD100", "Overflow zero-padding : largeur augmente")
+FIN
+
+// Cas limite — chaîne vide, devrait donner "1"
+PROCEDURE PRIVÉE scenario_chaine_vide_devient_un()
+	vide est une chaîne = ""
+	resultat est une chaîne = ChaîneIncrémente(vide)
+	dbgVérifieEgalité(resultat, "1", "Chaîne vide incrémentée donne '1'")
+FIN
+
+// Cas limite — préfixe et suffixe numériques, auto-detect favorise fin
+PROCEDURE PRIVÉE scenario_prefixe_et_suffixe_auto_detect()
+	mixte est une chaîne = "2023rapport05"
+	resultat est une chaîne = ChaîneIncrémente(mixte)
+	dbgVérifieEgalité(resultat, "2023rapport06", "Auto-detect privilégie suffixe numérique")
+FIN
+
+// Cas limite — incrémenter uniquement le préfixe quand suffixe absent
+PROCEDURE PRIVÉE scenario_prefixe_uniquement()
+	debut est une chaîne = "42ans"
+	resultat est une chaîne = ChaîneIncrémente(debut, DepuisDébut)
+	dbgVérifieEgalité(resultat, "43ans", "Préfixe seul incrémenté avec DepuisDébut")
+FIN
+
+// Cas limite — zero seul incrémenté
+PROCEDURE PRIVÉE scenario_zero_seul()
+	zero est une chaîne = "0"
+	resultat est une chaîne = ChaîneIncrémente(zero)
+	dbgVérifieEgalité(resultat, "1", "Zero seul incrémenté donne '1'")
+FIN
+
+// Cas limite — plusieurs zéros préservés tant que largeur respectée
+PROCEDURE PRIVÉE scenario_plusieurs_zeros_preserves()
+	zeros est une chaîne = "TEST0000"
+	resultat est une chaîne = ChaîneIncrémente(zeros)
+	dbgVérifieEgalité(resultat, "TEST0001", "Zero-padding multiple préservé")
+FIN
+
+// Cas limite — incrémenter "9" single digit avec zero-padding attendu
+PROCEDURE PRIVÉE scenario_single_digit_nine()
+	neuf est une chaîne = "page9"
+	resultat est une chaîne = ChaîneIncrémente(neuf)
+	dbgVérifieEgalité(resultat, "page10", "Single digit 9 incrémenté vers 10")
+FIN

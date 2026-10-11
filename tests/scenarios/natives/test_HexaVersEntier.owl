@@ -1,0 +1,108 @@
+// @sujet : HexaVersEntier
+// @résumé : Convertit une chaîne représentant un nombre hexadécimal en sa valeur
+// entière. La casse des chiffres hexadécimaux (a-f / A-F) est indifférente.
+// Les espaces de début et de fin sont ignorés, un préfixe 0x optionnel
+// est toléré. Tout caractère non hexadécimal dans la partie significative
+// produit une erreur.
+
+// ============================================
+// Cas pedagogiques (publics)
+// ============================================
+
+PROCEDURE PUBLIQUE scenario_base()
+	// Convertit une valeur hexadécimale simple en son entier.
+	n est un entier = HexaVersEntier("1F")
+	dbgVérifieEgalité(n, 31, "1F vaut 31")
+FIN
+
+PROCEDURE PUBLIQUE scenario_octet_plein()
+	// Convertit l'octet maximal.
+	n est un entier = HexaVersEntier("FF")
+	dbgVérifieEgalité(n, 255, "FF vaut 255")
+FIN
+
+PROCEDURE PUBLIQUE scenario_casse_indifferente()
+	// Les chiffres hexadécimaux en minuscules donnent le même résultat.
+	n est un entier = HexaVersEntier("ff")
+	dbgVérifieEgalité(n, 255, "ff en minuscules vaut aussi 255")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mot_hexa()
+	// Une suite de lettres hexadécimales valides se convertit entièrement.
+	n est un entier = HexaVersEntier("abc")
+	dbgVérifieEgalité(n, 2748, "abc vaut 2748")
+FIN
+
+PROCEDURE PUBLIQUE scenario_prefixe_0x()
+	// Un préfixe 0x optionnel est toléré et ignoré.
+	n est un entier = HexaVersEntier("0x1F")
+	dbgVérifieEgalité(n, 31, "0x1F vaut 31")
+FIN
+
+PROCEDURE PUBLIQUE scenario_invalide()
+	// Une chaîne contenant un caractère non hexadécimal produit une erreur.
+	ErreurRAZ()
+	n est un entier = HexaVersEntier("ZZ")
+	dbgVérifieVrai(ErreurDétectée, "erreur détectée sur chaîne non hexadécimale")
+	dbgVérifieEgalité(n, 0, "valeur nulle retournée sur chaîne invalide")
+FIN
+
+// ============================================
+// Cas limites (prives)
+// ============================================
+
+PROCEDURE PRIVÉE scenario_edge_zero()
+	// Le zéro hexadécimal se convertit sans erreur.
+	ErreurRAZ()
+	n est un entier = HexaVersEntier("0")
+	dbgVérifieFaux(ErreurDétectée, "aucune erreur sur zéro")
+	dbgVérifieEgalité(n, 0, "0 hexadécimal vaut 0")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_multi_octets()
+	// Une valeur sur plusieurs octets.
+	n est un entier = HexaVersEntier("100")
+	dbgVérifieEgalité(n, 256, "100 hexadécimal vaut 256")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_vide()
+	// Une chaîne vide ne contient aucun chiffre : elle vaut 0, sans erreur.
+	ErreurRAZ()
+	n est un entier = HexaVersEntier("")
+	dbgVérifieFaux(ErreurDétectée, "aucune erreur sur chaîne vide")
+	dbgVérifieEgalité(n, 0, "chaîne vide vaut 0")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_espaces()
+	// Les espaces de début et de fin sont ignorés.
+	n1 est un entier = HexaVersEntier(" 1F")
+	dbgVérifieEgalité(n1, 31, "espaces de tête ignorés")
+	n2 est un entier = HexaVersEntier("1F ")
+	dbgVérifieEgalité(n2, 31, "espaces de fin ignorés")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_parasites()
+	// Des caractères parasites après les chiffres valides ne sont pas
+	// tolérés : pas de conversion partielle.
+	ErreurRAZ()
+	n est un entier = HexaVersEntier("1FZZ")
+	dbgVérifieVrai(ErreurDétectée, "erreur sur parasites après les chiffres")
+	dbgVérifieEgalité(n, 0, "aucune valeur partielle retournée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_signe()
+	// Un signe négatif n'est pas un caractère hexadécimal valide.
+	ErreurRAZ()
+	n est un entier = HexaVersEntier("-1")
+	dbgVérifieVrai(ErreurDétectée, "erreur sur signe négatif")
+	dbgVérifieEgalité(n, 0, "aucune valeur retournée sur signe")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_depassement()
+	// Seize chiffres F désignent une valeur non représentable par un
+	// entier : le dépassement produit une erreur, sans valeur tronquée.
+	ErreurRAZ()
+	n est un entier = HexaVersEntier("FFFFFFFFFFFFFFFF")
+	dbgVérifieVrai(ErreurDétectée, "erreur sur dépassement de capacité")
+	dbgVérifieEgalité(n, 0, "aucune valeur retournée sur dépassement")
+FIN

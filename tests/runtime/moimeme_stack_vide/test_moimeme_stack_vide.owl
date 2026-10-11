@@ -1,0 +1,26 @@
+// Test runtime : MoiMême appelé hors handler (stack vide) doit poser
+// ErreurDetectee au runtime (pas un compile-error car la procédure peut
+// légitimement être appelée depuis un handler dans un autre contexte).
+
+
+// Procédure qui utilise MoiMême. Compile OK car peut être appelée depuis
+// un handler. Mais si appelée directement depuis main → erreur runtime.
+PROCEDURE UtiliseMoiMeme()
+	Trace("Titre du widget : ", MoiMême..Libellé)
+FIN
+
+
+// Appel direct hors handler → stack MoiMême vide → erreur runtime attendue
+ErreurRAZ()
+UtiliseMoiMeme()
+
+// Vérifier que l'erreur a été posée IMMÉDIATEMENT (avant tout autre OP_CALL)
+bErreur est un booléen = ErreurDétectée
+dbgVérifieVrai(bErreur, "ErreurDetectee après appel MoiMême hors handler")
+
+// Vérifier le message d'erreur contient une indication claire
+sMsg est une chaîne = ErreurInfo(errMessage)
+dbgVérifieVrai(
+Contient(sMsg, "MoiMême") OU Contient(sMsg, "widget"),
+"Message d'erreur mentionne MoiMême ou widget"
+)

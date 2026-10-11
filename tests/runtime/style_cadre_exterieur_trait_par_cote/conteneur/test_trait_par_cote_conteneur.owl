@@ -1,0 +1,40 @@
+//  — trait de cadre par côté sur un Champ Conteneur. Rig GUI réel
+// (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre + dPixelCouleur),
+// bordure épaisse (12px) pour échantillonner un pixel franc SUR chaque bord.
+//
+// ROUGE attendu : les 4 côtés (haut/bas/gauche/droite) de CNT_PerCote rendent
+// tous la couleur GLOBALE (Cadre..Couleur), jamais leur propre couleur
+// Trait* — l'émetteur Style/CadreExtérieur du Conteneur ignore les
+// surcharges par côté.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TraitParCoteConteneur)
+
+img est une Image = dCopieImageFenêtre(FEN_TraitParCoteConteneur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- CNT_PerCote [20,20]-[320,220], épaisseur 12 : bandes internes --------
+// haut y=20..32, bas y=208..220, gauche x=20..32, droite x=308..320.
+dbgVérifieEgalité(dPixelCouleur(img, 170, 26), RVB(0, 255, 0),
+"CNT_PerCote : bord haut = TraitHaut..Couleur RVB(0,255,0)")
+dbgVérifieEgalité(dPixelCouleur(img, 170, 214), RVB(0, 0, 255),
+"CNT_PerCote : bord bas = TraitBas..Couleur RVB(0,0,255)")
+dbgVérifieEgalité(dPixelCouleur(img, 26, 120), RVB(255, 255, 0),
+"CNT_PerCote : bord gauche = TraitGauche..Couleur RVB(255,255,0)")
+dbgVérifieEgalité(dPixelCouleur(img, 314, 120), RVB(255, 0, 255),
+"CNT_PerCote : bord droite = TraitDroite..Couleur RVB(255,0,255)")
+
+// --- CNT_Temoin [20,240]-[320,440], épaisseur 12 : bordure globale seule --
+// (non-régression : les 4 bords doivent rester la même couleur globale)
+dbgVérifieEgalité(dPixelCouleur(img, 170, 246), RVB(80, 80, 80),
+"CNT_Temoin : bord haut = Cadre..Couleur globale RVB(80,80,80), non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 170, 434), RVB(80, 80, 80),
+"CNT_Temoin : bord bas = Cadre..Couleur globale RVB(80,80,80), non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 26, 340), RVB(80, 80, 80),
+"CNT_Temoin : bord gauche = Cadre..Couleur globale RVB(80,80,80), non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 314, 340), RVB(80, 80, 80),
+"CNT_Temoin : bord droite = Cadre..Couleur globale RVB(80,80,80), non-régression")
+
+Ferme(FEN_TraitParCoteConteneur)
+dbgBilanTest()

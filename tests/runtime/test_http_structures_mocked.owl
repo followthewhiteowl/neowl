@@ -1,0 +1,161 @@
+Trace("=== HTTP STRUCTURES MOCKED (httpRequete / httpReponse) ===")
+
+HTTPParamètre(httpParamReinitialise, 0)
+
+// === Default template values ===
+req est un httpRequête
+dbgVérifieEgalité(req..URL, "", "URL default vide")
+dbgVérifieEgalité(req..Méthode, httpGet, "Methode default = httpGet")
+dbgVérifieEgalité(req..ContentType, "application/x-www-form-urlencoded", "ContentType default")
+dbgVérifieEgalité(req..Entête..Occurrence, 0, "Entete default vide (assoc)")
+dbgVérifieEgalité(req..DuréeNonRéponse, 20000, "DureeNonReponse default 20000ms (canon de référence)")
+dbgVérifieEgalité(req..TimeoutConnexion, 20000, "TimeoutConnexion default 20000ms (canon de référence)")
+dbgVérifieEgalité(Taille(req..Contenu), 0, "Contenu default taille=0")
+dbgVérifieEgalité(req..Utilisateur, "", "Utilisateur default vide")
+dbgVérifieEgalité(req..MotDePasse, "", "MotDePasse default vide")
+
+// === Method constants : valeurs sont des sentinelles INT32_MIN+offset
+// (anti-collision avec entiers naturels), donc on teste les invariants
+// (toutes distinctes, conversion via ..Methode) plutot que les valeurs brutes.
+dbgVérifieDifférence(httpGet, httpPost, "httpGet != httpPost")
+dbgVérifieDifférence(httpGet, httpPut, "httpGet != httpPut")
+dbgVérifieDifférence(httpPost, httpDelete, "httpPost != httpDelete")
+dbgVérifieDifférence(httpPut, httpHead, "httpPut != httpHead")
+dbgVérifieDifférence(httpHead, httpPatch, "httpHead != httpPatch")
+dbgVérifieDifférence(httpPatch, httpCopy, "httpPatch != httpCopy")
+
+// === Instances independantes ===
+r1 est un httpRequête
+r1..Entête["X-First"] = "one"
+r2 est un httpRequête
+dbgVérifieEgalité(r1..Entête..Occurrence, 1, "r1 a 1 header")
+dbgVérifieEgalité(r2..Entête..Occurrence, 0, "r2 independant")
+
+// === Setup mocks ===
+mockHTTP est un MockNative = MockCrée(HTTPEnvoie)
+
+// GET /get
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/get")
+mockResponse1 est une chaîne = [
+{
+  "origin": "127.0.0.1",
+  "url": "http://httpbin.org/get"
+}
+]
+MockRetourne(mockHTTP, mockResponse1)
+
+// Catch-all for other URLs
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, MockTout)
+mockResponseDefault est une chaîne = [
+{
+  "test": "ok"
+}
+]
+MockRetourne(mockHTTP, mockResponseDefault)
+
+MockActive(mockHTTP)
+
+// === HTTPEnvoie avec URL directe ===
+rep est un httpRéponse = HTTPEnvoie("http://httpbin.org/get")
+dbgVérifieVrai(rep <> Null, "HTTPEnvoie(url) retourne variant")
+
+// === HTTPEnvoie avec httpRequete struct ===
+req2 est un httpRequête
+req2..URL                     = "http://httpbin.org/get"
+req2..Entête["X-Test-Header"] = "owl-test"
+rep2 est un httpRéponse = HTTPEnvoie(req2)
+dbgVérifieVrai(rep2 <> Null, "HTTPEnvoie(struct) retourne variant")
+
+// === POST avec Contenu buffer ===
+reqPost est un httpRequête
+reqPost..URL     = "http://httpbin.org/post"
+reqPost..Méthode = httpPost
+reqPost..Contenu = ChaîneVersBuffer("payload=hello&world=1")
+repPost est un httpRéponse = HTTPEnvoie(reqPost)
+dbgVérifieVrai(repPost <> Null, "POST avec buffer OK")
+
+// === Custom headers ===
+reqHeaders est un httpRequête
+reqHeaders..URL                  = "http://httpbin.org/get"
+reqHeaders..Entête["X-Custom-1"] = "value1"
+reqHeaders..Entête["X-Custom-2"] = "value2"
+repHeaders est un httpRéponse = HTTPEnvoie(reqHeaders)
+dbgVérifieVrai(repHeaders <> Null, "req avec headers OK")
+
+// === PUT request ===
+reqPut est un httpRequête
+reqPut..URL     = "http://httpbin.org/put"
+reqPut..Méthode = httpPut
+reqPut..Contenu = ChaîneVersBuffer("updated=true")
+repPut est un httpRéponse = HTTPEnvoie(reqPut)
+dbgVérifieVrai(repPut <> Null, "PUT OK")
+
+// === DELETE request ===
+reqDel est un httpRequête
+reqDel..URL     = "http://httpbin.org/delete"
+reqDel..Méthode = httpDelete
+repDel est un httpRéponse = HTTPEnvoie(reqDel)
+dbgVérifieVrai(repDel <> Null, "DELETE OK")
+
+// === PATCH request ===
+reqPatch est un httpRequête
+reqPatch..URL     = "http://httpbin.org/patch"
+reqPatch..Méthode = httpPatch
+repPatch est un httpRéponse = HTTPEnvoie(reqPatch)
+dbgVérifieVrai(repPatch <> Null, "PATCH OK")
+
+// === HEAD request ===
+reqHead est un httpRequête
+reqHead..URL     = "http://httpbin.org/get"
+reqHead..Méthode = httpHead
+repHead est un httpRéponse = HTTPEnvoie(reqHead)
+dbgVérifieVrai(repHead <> Null, "HEAD OK")
+
+// === Basic auth ===
+reqAuth est un httpRequête
+reqAuth..URL         = "http://httpbin.org/basic-auth/alice/secret"
+reqAuth..Utilisateur = "alice"
+reqAuth..MotDePasse  = "secret"
+repAuth est un httpRéponse = HTTPEnvoie(reqAuth)
+dbgVérifieVrai(repAuth <> Null, "Basic auth OK")
+
+// === ContentType custom ===
+reqJSON est un httpRequête
+reqJSON..URL         = "http://httpbin.org/post"
+reqJSON..Méthode     = httpPost
+reqJSON..ContentType = "application/json"
+jsonPayload est une chaîne = [
+{
+  "user": "owl",
+  "action": "test"
+}
+]
+reqJSON..Contenu = ChaîneVersBuffer(jsonPayload)
+repJSON est un httpRéponse = HTTPEnvoie(reqJSON)
+dbgVérifieVrai(repJSON <> Null, "POST JSON avec buffer OK")
+
+// === Multiple requests in sequence ===
+batch1 est un httpRequête
+batch1..URL = "http://httpbin.org/get"
+batch2 est un httpRequête
+batch2..URL     = "http://httpbin.org/post"
+batch2..Méthode = httpPost
+rep_b1 est un httpRéponse = HTTPEnvoie(batch1)
+rep_b2 est un httpRéponse = HTTPEnvoie(batch2)
+dbgVérifieVrai(rep_b1 <> Null, "batch1 OK")
+dbgVérifieVrai(rep_b2 <> Null, "batch2 OK")
+
+// === Timeouts (constants available) ===
+reqTimeout est un httpRequête
+reqTimeout..URL              = "http://httpbin.org/get"
+reqTimeout..DuréeNonRéponse  = 5000
+reqTimeout..TimeoutConnexion = 3000
+repTimeout est un httpRéponse = HTTPEnvoie(reqTimeout)
+dbgVérifieVrai(repTimeout <> Null, "req avec timeouts OK")
+
+MockDésactive(mockHTTP)
+MockVérifieAppelé(mockHTTP)
+
+dbgBilanTest()

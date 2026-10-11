@@ -1,0 +1,30 @@
+//  — Non-regression DSL FR des widgets.
+//
+// Verrouille que la syntaxe FR canonique (est un Champ Libelle,
+// PROPRIETES/FIN, noms de proprietes FR) reste inchangee apres
+// l'impl du bilinguisme EN.
+//
+// Statut : VERT maintenant ET apres impl.
+//
+// Ressource DSL : FEN_WidgetFRNoregression.owl (voisin).
+
+PROCEDURE PUBLIQUE scenario_dsl_fr_inchange()
+	// Sentinelle : si la fenetre FR compile et s'ouvre, la non-regression est assuree.
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_WidgetFRNoregression)
+	dbgVérifieVrai(Vrai, "DSL FR (est un Champ Libelle / PROPRIETES FIN) inchange")
+	Ferme(FEN_WidgetFRNoregression)
+FIN
+
+PROCEDURE PRIVÉE scenario_assertions_props_fr()
+	// Verification post-ouverture des proprietes FR assignees au runtime.
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_WidgetFRNoregression)
+	LBL_Texte..Libellé   = "Bonjour"
+	BTN_Valider..Libellé = "Valider"
+	dbgVérifieEgalité(LBL_Texte..Libellé, "Bonjour", "Libelle widget Libelle (FR) lu correctement")
+	dbgVérifieEgalité(BTN_Valider..Libellé, "Valider", "Libelle widget Bouton (FR) lu correctement")
+	Ferme(FEN_WidgetFRNoregression)
+FIN
+
+dbgBilanTest()

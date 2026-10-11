@@ -1,0 +1,46 @@
+//  — le rename de la brique de sous-élément Libellé du Saisie
+// (styleLibellé → styleLibelléSaisie, décision dev) ne doit RIEN changer côté
+// surface utilisateur : `SAI_X..Style..Libellé..*` reste la façon d'écrire, à
+// travers le Saisie ET une variable typée `styleSaisie` autonome. Round-trip
+// complet du jeu de champs texte (Couleur/CouleurFond/Retraits/Police/Cadre),
+// pas seulement le CouleurFond déjà couvert par le test pixel voisin
+// (tests/runtime/style_saisie_elements/libelle_pixel).
+//
+// VERT attendu AVANT ET APRÈS le rename : ce test verrouille un comportement
+// qui fonctionne déjà aujourd'hui (via l'ex-styleLibellé) et qui doit
+// continuer de fonctionner à l'identique une fois la brique renommée.
+
+Trace("=== non-régression rename styleLibellé (Saisie) ===")
+
+STY_S est un styleSaisie
+STY_S..Libellé..Couleur          = Rouge
+STY_S..Libellé..CouleurFond      = Blanc
+STY_S..Libellé..RetraitGauche    = 3
+STY_S..Libellé..Police..Gras     = Vrai
+STY_S..Libellé..Cadre..Epaisseur = 1
+
+dbgVérifieEgalité(STY_S..Libellé..Couleur, Rouge, "styleSaisie : Libellé..Couleur posée")
+dbgVérifieEgalité(STY_S..Libellé..CouleurFond, Blanc, "styleSaisie : Libellé..CouleurFond posée")
+dbgVérifieEgalité(STY_S..Libellé..RetraitGauche, 3, "styleSaisie : Libellé..RetraitGauche posé")
+dbgVérifieEgalité(STY_S..Libellé..Police..Gras, Vrai, "styleSaisie : Libellé..Police..Gras (composé)")
+dbgVérifieEgalité(STY_S..Libellé..Cadre..Epaisseur, 1, "styleSaisie : Libellé..Cadre..Epaisseur (composé)")
+
+Ouvre(FEN_SaisieRenameNonRegression)
+
+SAI_X..Style..Libellé..Couleur = BleuFoncé
+dbgVérifieEgalité(SAI_X..Style..Libellé..Couleur, BleuFoncé, "SAI_X..Style..Libellé..Couleur round-trip")
+
+SAI_X..Style..Libellé..CouleurFond = JauneClair
+dbgVérifieEgalité(SAI_X..Style..Libellé..CouleurFond, JauneClair, "SAI_X..Style..Libellé..CouleurFond round-trip")
+
+SAI_X..Style..Libellé..RetraitHaut = 4
+dbgVérifieEgalité(SAI_X..Style..Libellé..RetraitHaut, 4, "SAI_X..Style..Libellé..RetraitHaut round-trip")
+
+SAI_X..Style..Libellé..Police..Italique = Vrai
+dbgVérifieEgalité(SAI_X..Style..Libellé..Police..Italique, Vrai, "SAI_X..Style..Libellé..Police..Italique round-trip")
+
+SAI_X..Style..Libellé..Cadre..Couleur = VertFoncé
+dbgVérifieEgalité(SAI_X..Style..Libellé..Cadre..Couleur, VertFoncé, "SAI_X..Style..Libellé..Cadre..Couleur round-trip")
+
+Ferme(FEN_SaisieRenameNonRegression)
+dbgBilanTest()

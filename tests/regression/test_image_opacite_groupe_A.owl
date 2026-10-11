@@ -1,0 +1,169 @@
+// @sujet : famille image - Groupe A opacité canon de référence (entier 0-255)
+// @resume : Tests régression opacité entier 0-255 pour dPoint, dStylo, dFond, dPixelOpacité (déjà aligné)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — Groupe A (opacité entier 0-255, canon de référence déjà aligné OWL)
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_255_opaque()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 255 (max) → pixel opaque complet
+	dPoint(img, 5, 5, RVB(255, 0, 0), 255)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint opacite 255 - canal rouge opaque")
+	dbgVérifieEgalité(c..Vert, 0, "dPoint opacite 255 - canal vert")
+	dbgVérifieEgalité(c..Bleu, 0, "dPoint opacite 255 - canal bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_0_transparent()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 0 (min) → pixel transparent (ROUGE ATTENDU runtime bug dPoint)
+	dPoint(img, 5, 5, RVB(255, 0, 0), 0)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Attendu : pixel reste blanc (couleur fond) + alpha 255 (blanc opaque)
+	// Actuellement BUG : écrit rouge opaque au lieu de transparent
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint opacite 0 - pixel reste blanc R")
+	dbgVérifieEgalité(c..Vert, 255, "dPoint opacite 0 - pixel reste blanc V")
+	dbgVérifieEgalité(c..Bleu, 255, "dPoint opacite 0 - pixel reste blanc B")
+	dbgVérifieEgalité(alpha, 255, "dPoint opacite 0 - alpha reste 255 blanc opaque")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_128_semi_transparent()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 128 (~50%) → pixel semi-transparent (ROUGE ATTENDU runtime bug)
+	dPoint(img, 5, 5, RVB(255, 0, 0), 128)
+
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Attendu : alpha ~128 (semi-transparent)
+	// Actuellement BUG : écrit opacité 255 (opaque complet) au lieu de 128
+	dbgVérifieVrai(alpha >= 120 ET alpha <= 136, "dPoint opacite 128 - alpha semi-transparent attendu ~128")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dstylo_opacite_255()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo avec opacité 255 → stylo opaque
+	dStylo(img, RVB(0, 255, 0), 0, 1, 255)
+	dLigne(img, 0, 0, 10, 10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	dbgVérifieEgalité(c..Vert, 255, "dStylo opacite 255 - trait vert opaque")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dstylo_opacite_128()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo avec opacité 128 → stylo semi-transparent
+	dStylo(img, RVB(0, 0, 255), 0, 1, 128)
+	dLigne(img, 0, 0, 10, 10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Trait bleu semi-transparent sur fond blanc → attendu bleu clair + alpha ~128
+	dbgVérifieVrai(c..Bleu > 0, "dStylo opacite 128 - trait bleu visible")
+	dbgVérifieVrai(alpha < 255, "dStylo opacite 128 - alpha partiel")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dfond_opacite_255()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dFond avec opacité 255 → fond opaque
+	dFond(img, RVB(255, 255, 0), FondPlein, 0, 255)
+	dRectangle(img, 0, 0, 10, 10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	dbgVérifieEgalité(c..Rouge, 255, "dFond opacite 255 - jaune opaque R")
+	dbgVérifieEgalité(c..Vert, 255, "dFond opacite 255 - jaune opaque V")
+	dbgVérifieEgalité(c..Bleu, 0, "dFond opacite 255 - jaune opaque B")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dfond_opacite_128()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dFond avec opacité 128 → fond semi-transparent
+	dFond(img, RVB(255, 0, 255), FondPlein, 0, 128)
+	dRectangle(img, 0, 0, 10, 10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Magenta semi-transparent sur blanc → attendu magenta clair + alpha ~128
+	dbgVérifieVrai(c..Rouge > 0, "dFond opacite 128 - magenta R visible")
+	dbgVérifieVrai(c..Bleu > 0, "dFond opacite 128 - magenta B visible")
+	dbgVérifieVrai(alpha < 255, "dFond opacite 128 - alpha partiel")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpixelopacite_lecture_255()
+	img est une Image = dCréeImage(10, 10, RVB(100, 100, 100))
+
+	// dPixelOpacité lecture pixel opaque → 255
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+	dbgVérifieEgalité(alpha, 255, "dPixelOpacite lecture pixel opaque = 255")
+FIN
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases Groupe A
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_dpoint_opacite_clamp_negatif()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// Opacité négative → clamp 0 (transparent)
+	dPoint(img, 5, 5, RVB(255, 0, 0),-10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	// Attendu : pixel reste blanc (transparent)
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint opacite negative - pixel inchange R")
+	dbgVérifieEgalité(c..Vert, 255, "dPoint opacite negative - pixel inchange V")
+	dbgVérifieEgalité(c..Bleu, 255, "dPoint opacite negative - pixel inchange B")
+FIN
+
+PROCEDURE PRIVÉE scenario_dpoint_opacite_clamp_superieur_255()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// Opacité > 255 → clamp 255 (opaque)
+	dPoint(img, 5, 5, RVB(0, 255, 0), 512)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	dbgVérifieEgalité(c..Vert, 255, "dPoint opacite >255 - vert opaque")
+	dbgVérifieEgalité(alpha, 255, "dPoint opacite >255 - alpha clamp 255")
+FIN
+
+PROCEDURE PRIVÉE scenario_dstylo_opacite_0_invisible()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo opacité 0 → trait invisible
+	dStylo(img, RVB(255, 0, 0), 0, 1, 0)
+	dLigne(img, 0, 0, 10, 10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	// Attendu : pixel reste blanc (trait transparent)
+	dbgVérifieEgalité(c..Rouge, 255, "dStylo opacite 0 - pixel inchange R")
+	dbgVérifieEgalité(c..Vert, 255, "dStylo opacite 0 - pixel inchange V")
+	dbgVérifieEgalité(c..Bleu, 255, "dStylo opacite 0 - pixel inchange B")
+FIN
+
+PROCEDURE PRIVÉE scenario_dfond_opacite_0_aucun_effet()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dFond opacité 0 → aucun effet
+	dFond(img, RVB(0, 0, 0), FondPlein, 0, 0)
+	dRectangle(img, 0, 0, 10, 10)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	// Attendu : pixel reste blanc (fond transparent)
+	dbgVérifieEgalité(c..Rouge, 255, "dFond opacite 0 - pixel inchange R")
+	dbgVérifieEgalité(c..Vert, 255, "dFond opacite 0 - pixel inchange V")
+	dbgVérifieEgalité(c..Bleu, 255, "dFond opacite 0 - pixel inchange B")
+FIN

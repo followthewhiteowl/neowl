@@ -1,0 +1,39 @@
+//  : canonisation des mots-cles homonymes consciente de la position
+// syntaxique. PROCEDURE/FONCTION et MODULO sont des keywords (canon MAJUSCULE
+// en position structurelle), mais ils ont une forme canon differente selon le
+// contexte :
+//
+//   - position de TYPE (apres est/est un/est une) : `procédure` / `fonction`
+//     en minuscule accentue, exactement comme les types primitifs `chaîne`,
+//     `entier`, `durée` (eux aussi keywords CAT_TYPE minuscules).
+//   - position d'APPEL (token suivi de `(`) pour `Modulo` : la native registry
+//     `Modulo` (Maths), pas l'operateur-mot-cle `MODULO`.
+//
+// Non-regressions verrouillees dans la meme fixture :
+//   - `7 modulo 3` infixe -> reste `MODULO` (operateur mot-cle).
+//   - `PROCEDURE Nom()` declarateur reel -> reste `PROCEDURE`.
+
+// --- Position TYPE : procédure / fonction minuscules accentues ---
+p est une procédure = () => Trace("x")
+f est une fonction = () => Trace("y")
+
+// Source ecrite en MAJUSCULE / sans accent en position type -> restauree
+// vers la forme minuscule accentuee (le formatter est gatekeeper canon).
+g est une PROCEDURE = () => Trace("z")
+h est une Fonction = () => Trace("w")
+
+// --- Position APPEL : Modulo native canon ---
+nReste est un entier = modulo(7, 3)
+nBis est un entier = MODULO(nReste, 2)
+
+// --- Non-regression : modulo infixe reste MODULO ---
+nInfixe est un entier = 7 modulo 3
+
+// --- Non-regression : declarateur PROCEDURE/FONCTION reel reste MAJUSCULE ---
+procedure Calcul()
+	RENVOYER 0
+FIN
+
+fonction Tripler(n est un entier) : entier
+	RENVOYER n * 3
+FIN

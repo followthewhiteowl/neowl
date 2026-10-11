@@ -1,0 +1,82 @@
+// Non-régression ( — dégel) : une prop PROPRIETES LITTÉRALE
+// (Libellé = "FIXE", pas une expression sur variable) rendue N fois par
+// bloc reste inchangée -- la ré-évaluation par rendu ne doit pas
+// introduire de divergence sur un rendu statique. La ressource
+// ETAT_ExprProprietesStatiqueRegression vit dans le voisin
+// ETAT_ExprProprietesStatiqueRegression.owl : 3 rendus du Corps
+// affichent tous "FIXE" (4 caractères).
+//
+// Assertion indirecte : le total de "Tj" doit valoir 3x4=12, stable dans
+// les deux mondes (gelé ou ré-évalué), car "FIXE" est un littéral, pas
+// une expression sur variable.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+// Extrait et décompresse le 1er flux de contenu (celui référencé par
+// /Contents) du PDF produit. Recherche purement en domaine Buffer
+// (BufferLitOctet) pour ne jamais tronquer sur un octet nul du flux
+// compressé.
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_expr_proprietes_statique_regression/temp.pdf")
+iImprimeEtat(ETAT_ExprProprietesStatiqueRegression)
+iFinImprime()
+
+sContenu est une chaîne = StreamContenuPDF("tests/runtime/etat_expr_proprietes_statique_regression/temp.pdf")
+nTj est un entier = Occurrence(sContenu, "Tj")
+
+dbgVérifieEgalité(nTj, 12,
+"un Libellé littéral (FIXE) reste identique sur les 3 rendus (3x4=12 caractères), non affecté par la ré-évaluation par rendu")
+
+dbgBilanTest()

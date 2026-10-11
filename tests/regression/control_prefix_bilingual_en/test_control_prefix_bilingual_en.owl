@@ -1,0 +1,22 @@
+//  famille 1 — le prefixe widget EN `Control` (nameEN canon de Champ)
+// doit etre reconnu par les trois depth-counters du compilo.
+//
+// ROUGE avant le fix : FEN_CtrlA / FEN_CtrlB ne compilent pas (forward-ref
+// `LBL_Shared : variable inconnue` faute de pre-enregistrement, et/ou faux
+// shadow cross-fenetre). La compilation echouant, Ouvre(...) rate.
+// VERT apres : les deux fenetres compilent, le forward-ref est resolu, et le
+// voisin homonyme ne declenche pas de faux shadow.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_CtrlA)
+dbgVérifieEgalité(FEN_CtrlA.LBL_Shared..Caption, "set A",
+"Forward-ref widget prefixe EN 'Control' : pre-enregistre et ecrit")
+Ferme(FEN_CtrlA)
+
+Ouvre(FEN_CtrlB)
+dbgVérifieEgalité(FEN_CtrlB.LBL_Shared..Caption, "depart B",
+"Voisin homonyme prefixe EN 'Control' : compile sans faux shadow")
+Ferme(FEN_CtrlB)
+
+dbgBilanTest()

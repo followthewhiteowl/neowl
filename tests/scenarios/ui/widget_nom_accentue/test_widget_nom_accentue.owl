@@ -1,0 +1,57 @@
+// Test résolution accent-insensible des noms de champs.
+//
+// Couvre le bug : un nom de champ accentué (ex: TAB_Données) dans le DSL
+// `Fenêtre` est enregistré avec sa forme brute dans vm.globals, mais la
+// résolution cherche la forme sans accent, causant un échec
+// "variable inconnue".
+//
+// Décision : le nom brut (accentué) est conservé dans ObjUiControl.name
+// pour l'affichage / objectName Qt. Seules les clés de résolution
+// (vm.globals) et les comparaisons internes sont normalisées (strip accent).
+//
+// La fenêtre voisine FEN_TestWidgets.owl porte la déclaration.
+// La fenêtre elle-même à nom accentué est testée dans
+// fenetre_nom_accentue/test_fenetre_nom_accentue.owl.
+
+PROCEDURE PUBLIQUE scenario_widget_nom_accentue()
+	Ouvre(FEN_TestWidgets)
+
+	// 1. Champ Table accentué : écriture puis relecture.
+	TAB_Données..Bulle = {langueFrançais: "Table de données", langueAnglais: "Data table"}
+	dbgVérifieEgalité(TAB_Données..Bulle[langueFrançais], "Table de données")
+	dbgVérifieEgalité(TAB_Données..Bulle[langueAnglais], "Data table")
+
+
+	// 2. Cross-form : déclaré TAB_Résultats (accent), accédé TAB_Resultats (sans accent).
+	TAB_Resultats..Bulle = {langueFrançais: "Résultats", langueAnglais: "Results"}
+	dbgVérifieEgalité(TAB_Resultats..Bulle[langueFrançais], "Résultats")
+	// Vérifie l'inverse : relire via la forme accentuée résout le même champ.
+	dbgVérifieEgalité(TAB_Résultats..Bulle[langueAnglais], "Results")
+
+
+	// 3. Cross-form inverse : déclaré TAB_Clients (sans accent), accédé TAB_Cliënts (tréma).
+	TAB_Cliënts..Bulle = {langueFrançais: "Liste clients", langueAnglais: "Client list"}
+	dbgVérifieEgalité(TAB_Cliënts..Bulle[langueFrançais], "Liste clients")
+	// Vérifie l'inverse : relire via la forme sans accent.
+	dbgVérifieEgalité(TAB_Clients..Bulle[langueAnglais], "Client list")
+
+
+	// 4. Champ Combo accentué (autre champ que Table).
+	CMB_Données..Bulle = {langueFrançais: "Sélectionnez", langueAnglais: "Select"}
+	dbgVérifieEgalité(CMB_Données..Bulle[langueFrançais], "Sélectionnez")
+	dbgVérifieEgalité(CMB_Données..Bulle[langueAnglais], "Select")
+
+
+	// 6. Non-régression : champs sans accent (doit continuer de marcher).
+	TAB_Produits..Bulle = {langueFrançais: "Liste produits", langueAnglais: "Product list"}
+	dbgVérifieEgalité(TAB_Produits..Bulle[langueFrançais], "Liste produits")
+
+	CMB_Statuts..Bulle = {langueFrançais: "Statut", langueAnglais: "Status"}
+	dbgVérifieEgalité(CMB_Statuts..Bulle[langueFrançais], "Statut")
+
+	// Non-régression fenêtre conteneur sans accent : écriture + relecture Titre.
+	FEN_TestWidgets..Titre = {langueFrançais: "Fenêtre test", langueAnglais: "Test window"}
+	dbgVérifieEgalité(FEN_TestWidgets..Titre[langueFrançais], "Fenêtre test")
+
+	Ferme(FEN_TestWidgets)
+FIN

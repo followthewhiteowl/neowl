@@ -1,0 +1,21 @@
+//  — non-régression : champ typSaisieMonétaire SANS FormatMonétaire
+// effectif (ni champ ni projet). Le focus-out ne doit RIEN reformater : le
+// comportement plat actuel (round-trip brut inchangé) doit rester identique
+// avant et après le câblage de la couche interactive monétaire (miroir
+//  reformat_num_frappe_blur_sans_format).
+//
+// VERT attendu dans les deux cas (avant/après implémentation) : c'est la
+// digue anti-régression du ticket.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MonetaireInteractifSansFormat)
+
+TestSimuleSaisie(SAI_Montant, "1234.56")
+DonneFocus(SAI_Autre)
+
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234.56, "sans FormatMonétaire effectif : focus-out n'altère pas l'affichage, round-trip brut inchangé (1234.56)")
+
+Ferme(FEN_MonetaireInteractifSansFormat)
+dbgBilanTest()

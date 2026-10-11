@@ -346,9 +346,20 @@ exécutant la commande `owl mcp`.
 
 > **Faire tourner l'IA en local, sans cloud ?** Un guide dédié explique comment brancher
 > un modèle qui tourne sur *votre* machine (choix du modèle selon la RAM, réglages,
-> avec ou sans VS Code) : **[Écrire du NeOwl avec une IA locale](LLM-LOCAL.md)**.
+> avec ou sans VS Code) : **[Écrire du NeOwl avec une IA locale](docs/LLM-LOCAL.md)**.
 
 ---
+
+## Distribuer votre application
+
+Pour transformer votre projet OWL en exécutable autonome, l'installateur **complet** (`neowl-full-setup`) fournit `owl-build` :
+
+```
+owl-build mon_projet                         # binaire pour votre plateforme
+owl-build --target linux-x86_64 mon_projet   # binaire Linux, depuis Windows
+```
+
+Vous obtenez un binaire **autonome** (runtime embarqué) à distribuer tel quel, sans rien à installer chez vos utilisateurs — et vous le produisez aussi bien pour **Windows que pour Linux, depuis la même machine**. L'installateur **léger** (`neowl-light-setup`) suffit pour écrire et exécuter du code — prenez le **complet** pour packager.
 
 ## Tests
 
@@ -357,6 +368,23 @@ owl test
 ```
 
 NeOwl découvre les fichiers `test_*.owl` et les exécute (répertoire courant, et tous les sous répertoires si présence d'un fichier projet.owl à la racine). Tous les fichiers qui respectent cette nomenclature sont considérés comme des fichiers de test. Un rapport d'execution s'affiche automatiquement à la fin.
+
+---
+
+## Licence
+
+NeOwl est **open source sous [AGPL-3.0-only](LICENSE)**, assortie de l'**[OWL Runtime Exception](LICENSE.RUNTIME-EXCEPTION)**.
+
+En clair : vous pouvez l'utiliser, l'étudier, le modifier et le forker librement, y compris en contexte professionnel ou commercial. **Les applications que vous écrivez avec OWL restent sous la licence de votre choix**, y compris propriétaire — le simple fait de les builder ou de les interpréter avec le runtime ne les place pas sous AGPL. Seules vos **modifications du runtime OWL lui-même**, si vous les distribuez ou les exposez en réseau, doivent être publiées sous AGPL.
+
+Détails : [`LICENSING.md`](LICENSING.md) · [`LICENSE`](LICENSE) · [`LICENSE.RUNTIME-EXCEPTION`](LICENSE.RUNTIME-EXCEPTION) · [`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES)
+
+---
+
+## Contribuer et sécurité
+
+- Contribuer : [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Signaler une vulnérabilité : [`SECURITY.md`](SECURITY.md)
 
 ---
 

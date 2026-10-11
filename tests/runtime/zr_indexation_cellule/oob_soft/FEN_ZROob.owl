@@ -1,0 +1,49 @@
+// Fenêtre ressource pour test_zr_oob_soft.owl.
+// FinInitialisation ajoute 2 lignes. Le script test lit ensuite des
+// indices hors-bornes (0, 99) qui doivent être des soft-errors
+// récupérables (ErreurDétectée=Vrai, pas de crash VM).
+
+FEN_ZROob est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR indexation hors-bornes"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 400
+	FIN
+
+	ZR_Liste est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 480
+			Hauteur           = 350
+			Sens              = zrVertical
+			HauteurRepetition = 40
+		FIN
+
+		LIB_Nom est un Champ Libellé
+			PROPRIETES
+				X       = 5
+				Y       = 8
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		i1 est un entier = ZoneRépétéeAjouteLigne(ZR_Liste)
+		ZR_Liste[i1].LIB_Nom = "Alice"
+
+		i2 est un entier = ZoneRépétéeAjouteLigne(ZR_Liste)
+		ZR_Liste[i2].LIB_Nom = "Bob"
+
+		cb_zroob_init_done()
+	FIN
+
+	// PROCEDURE PUBLIQUE : lit une cellule par index. En cas d'OOB,
+	// l'erreur est posée (soft) et le retour est une chaîne vide typée.
+	PROCEDURE LireNom(n est un entier)
+		RENVOYER ZR_Liste[n].LIB_Nom
+	FIN
+FIN

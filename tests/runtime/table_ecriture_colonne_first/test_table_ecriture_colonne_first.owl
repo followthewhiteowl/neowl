@@ -1,0 +1,47 @@
+// L'écriture d'une valeur de cellule en forme colonne d'abord
+// (TABLE.COLONNE[ligne] = v) doit atteindre exactement la même cellule que la
+// forme ligne d'abord (TABLE[ligne].COLONNE = v), déjà câblée. Les deux
+// graphies désignent la même cellule : écrire par l'une, relire par l'autre,
+// dans les deux sens, doit donner la même valeur.
+//
+// La résolution du nom de colonne ignore casse et accents (identifiant) : une
+// colonne déclarée accentuée reste atteignable en écriture par sa graphie nue.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_EcritCol)
+
+// Écrit colonne d'abord (indice littéral), relit par la même graphie.
+EcritColFirstLitteral("ecrit_cf_litt")
+dbgVérifieEgalité(LireColFirst(1), "ecrit_cf_litt",
+"écriture colonne d'abord (indice littéral) relue colonne d'abord")
+
+// Symétrie croisée : la même cellule relue en forme ligne d'abord.
+dbgVérifieEgalité(LireLigneFirst(1), "ecrit_cf_litt",
+"écriture colonne d'abord relue ligne d'abord (même cellule)")
+
+// Écrit colonne d'abord avec un indice variable, sur une autre ligne.
+EcritColFirstVar(2, "ecrit_cf_var")
+dbgVérifieEgalité(LireColFirst(2), "ecrit_cf_var",
+"écriture colonne d'abord (indice variable) relue colonne d'abord")
+dbgVérifieEgalité(LireLigneFirst(2), "ecrit_cf_var",
+"écriture colonne d'abord (indice variable) relue ligne d'abord")
+
+// Sens inverse : écrit ligne d'abord, relit colonne d'abord.
+EcritLigneFirst(1, "ecrit_lf")
+dbgVérifieEgalité(LireColFirst(1), "ecrit_lf",
+"écriture ligne d'abord relue colonne d'abord (même cellule)")
+
+// Accent-insensible : écrit dans la colonne accentuée via sa graphie nue,
+// relit par la graphie accentuée.
+EcritColAccentParNu(1, "ecrit_accent")
+dbgVérifieEgalité(LireColAccent(1), "ecrit_accent",
+"écriture colonne d'abord vers colonne accentuée par graphie nue")
+
+// Les deux lignes restent indépendantes : ligne 2 n'a pas bougé.
+dbgVérifieEgalité(LireColFirst(2), "ecrit_cf_var",
+"l'écriture d'une ligne ne déborde pas sur l'autre")
+
+Ferme(FEN_EcritCol)
+
+dbgBilanTest()

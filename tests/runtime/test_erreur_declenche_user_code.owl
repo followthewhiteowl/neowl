@@ -1,0 +1,40 @@
+// ============================================
+// TEST: ErreurDeclenche - preservation du code user-explicit
+//
+// Contrat : `ErreurDeclenche(N, "msg")` pose un soft-error avec
+// `ErreurInfo(errCode) = "N"` (chaine numerique de l'argument user)
+// et `ErreurInfo(errFonction) = "ErreurDeclenche"` (nom de la native).
+// `ErreurDeclenche("msg")` (sans code) pose code = "0".
+//
+// Garde-fou contre les regressions de la migration registry erreurs :
+// le transport user-explicit doit continuer a stocker la chaine
+// numerique brute, pas un code symbole canonique E_NATIVE_*.
+// ============================================
+Trace("=== ErreurDeclenche : code user-explicit ===")
+
+// ----- T1 : ErreurDeclenche avec code entier -----
+ErreurRAZ()
+ErreurDéclenche(42, "boom")
+dbgVérifieEgalité(ErreurInfo(errCode), "42", "T1: errCode = '42' (chaine du int user)")
+dbgVérifieEgalité(ErreurInfo(errMessage), "boom", "T1: errMessage = 'boom'")
+dbgVérifieEgalité(ErreurInfo(errFonction), "ErreurDéclenche", "T1: errFonction = 'ErreurDéclenche'")
+
+// ----- T2 : ErreurDeclenche avec code zero (sans arg) -----
+ErreurRAZ()
+ErreurDéclenche("juste un message")
+dbgVérifieEgalité(ErreurInfo(errCode), "0", "T2: errCode = '0' (defaut)")
+dbgVérifieEgalité(ErreurInfo(errMessage), "juste un message", "T2: errMessage preserve")
+
+// ----- T3 : ErreurDeclenche avec code negatif -----
+ErreurRAZ()
+ErreurDéclenche(-1, "argument invalide")
+dbgVérifieEgalité(ErreurInfo(errCode), "-1", "T3: errCode = '-1'")
+dbgVérifieEgalité(ErreurInfo(errFonction), "ErreurDéclenche", "T3: errFonction preserve")
+
+// ----- T4 : ErreurDeclenche sans argument du tout -----
+ErreurRAZ()
+ErreurDéclenche()
+dbgVérifieEgalité(ErreurInfo(errCode), "0", "T4: errCode = '0' par defaut")
+dbgVérifieEgalité(ErreurInfo(errMessage), "Erreur", "T4: errMessage = 'Erreur' par defaut")
+
+dbgBilanTest()

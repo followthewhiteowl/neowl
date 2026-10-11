@@ -1,0 +1,123 @@
+// @sujet : langue
+// @résumé : Type first-class qui matérialise une valeur de l'enum langueXxx. Comme httpMéthodes matérialise une méthode HTTP, langue permet de stocker et manipuler une référence à une langue de façon typée.
+
+
+// Déclaration variable typée langue : reçoit une valeur par défaut
+// (probablement la langue source "fr-FR" hardcodée, ou Null selon
+// design runtime). Le type est reconnu par le registry.
+PROCEDURE scenario_declaration_variable_langue()
+	lang est une langue
+	dbgVérifieVrai(Vrai, "déclaration langue ne plante pas")
+	lang = lang
+FIN
+
+
+// Affectation constante enum à variable langue : une constante
+// langueXxx peut être affectée à une variable de type langue. Permet
+// de stocker une référence typée (utile pour paramètres, retours).
+PROCEDURE scenario_affectation_constante_enum_vers_langue()
+	lang est une langue = langueFrançais
+
+	dbgVérifieEgalité(lang, langueFrançais)
+FIN
+
+
+// Utilisation variable langue pour indexer chaîneMultilingue : on peut
+// passer une variable de type langue comme clé d'indexation. Équivalent
+// à passer directement la constante enum.
+PROCEDURE scenario_indexation_avec_variable_langue()
+	lang est une langue = langueAnglais
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+
+	dbgVérifieEgalité(m[lang], "Hello")
+FIN
+
+
+// Comparaison entre variables langue : deux variables de type langue
+// peuvent être comparées. Égalité si elles pointent vers la même
+// valeur enum sous-jacente.
+PROCEDURE scenario_comparaison_variables_langue()
+	lang1 est une langue = langueFrançais
+	lang2 est une langue = langueFrançais
+	lang3 est une langue = langueAnglais
+
+	dbgVérifieEgalité(lang1, lang2)
+	dbgVérifieDifférence(lang1, lang3)
+FIN
+
+
+// Passage d'une variable langue en paramètre : une fonction peut
+// accepter un paramètre de type langue, permettant de rendre le code
+// générique sur la langue cible.
+PROCEDURE scenario_passage_langue_en_parametre()
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour",
+		langueAnglais: "Hello",
+		langueAllemand: "Hallo"
+	}
+
+	dbgVérifieEgalité(obtenirTraduction(m, langueFrançais), "Bonjour")
+	dbgVérifieEgalité(obtenirTraduction(m, langueAnglais), "Hello")
+	dbgVérifieEgalité(obtenirTraduction(m, langueAllemand), "Hallo")
+FIN
+
+FONCTION obtenirTraduction(m est une chaîneMultilingue, lang est une langue) : chaîne
+	RENVOYER m[lang]
+FIN
+
+
+// Affectation string BCP 47 à variable langue : si le type langue
+// accepte aussi une string BCP 47 libre (comme les tags custom), la
+// variable peut être initialisée avec une string. Utile pour
+// interopérabilité avec config externe.
+PROCEDURE scenario_affectation_string_bcp47_vers_langue()
+	lang est une langue = "fr-FR"
+
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour"}
+	dbgVérifieEgalité(m[lang], "Bonjour")
+FIN
+
+
+// Cas limite défensif : réaffectation variable langue change la valeur,
+// pas de problème de référence / copie. Le type langue est value-type
+// ou copie profonde selon design runtime, mais comportement utilisateur
+// est prévisible.
+PROCEDURE PRIVÉE scenario_reaffectation_variable_langue()
+	lang est une langue = langueFrançais
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+
+	dbgVérifieEgalité(m[lang], "Bonjour")
+
+	lang = langueAnglais
+	dbgVérifieEgalité(m[lang], "Hello")
+FIN
+
+
+// Cas limite défensif : variable langue utilisée en indexation écriture.
+// Doit fonctionner de la même façon qu'en lecture.
+PROCEDURE PRIVÉE scenario_indexation_ecriture_avec_variable_langue()
+	lang est une langue = langueEspagnol
+	m est une chaîneMultilingue
+
+	m[lang] = "Hola"
+
+	dbgVérifieEgalité(m[langueEspagnol], "Hola")
+	dbgVérifieEgalité(m["es-ES"], "Hola")
+FIN
+
+
+// Cas limite défensif : variable langue avec variante régionale.
+// langueFrançaisCanada est une valeur d'enum distincte de langueFrançais,
+// donc deux variables langue peuvent pointer vers chacune.
+PROCEDURE PRIVÉE scenario_variable_langue_variante_regionale()
+	langFR est une langue = langueFrançais
+	langCA est une langue = langueFrançaisCanada
+
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour France",
+		langueFrançaisCanada: "Bonjour Canada"
+	}
+
+	dbgVérifieEgalité(m[langFR], "Bonjour France")
+	dbgVérifieEgalité(m[langCA], "Bonjour Canada")
+FIN

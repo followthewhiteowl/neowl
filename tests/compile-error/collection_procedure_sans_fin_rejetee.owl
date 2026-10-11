@@ -1,0 +1,24 @@
+//  — 3e déclencheur de la désynchronisation pré-scan / parse réel
+// (les 2 premiers sont couverts par  et ) : une PROCEDURE
+// d'une CollectionDeProcédures qui n'a PAS son propre FIN, seul le FIN de
+// son bloc interne (ici un TANTQUE) est présent.
+//
+// AVANT ce fix, le compilateur pointait un 'FIN' attendu après le bloc
+// CollectionDeProcédures (EOF), sans jamais nommer la PROCEDURE réellement
+// non fermée, et 'Deuxieme' apparaissait en plus comme variable orpheline
+// jamais utilisée — deux symptômes trompeurs pour un seul vrai défaut.
+//
+// Snapshot CIBLE (proposé, à valider) : une SEULE erreur, sur la ligne de la
+// PROCEDURE non fermée, nommant explicitement la procédure et la collection.
+COL_Utils est une CollectionDeProcédures
+
+	PROCEDURE Premiere()
+		i est un entier = 0
+		TANTQUE i < 3
+			i = i + 1
+		FIN
+
+	PROCEDURE Deuxieme()
+		RENVOYER 42
+	FIN
+FIN

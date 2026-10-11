@@ -1,0 +1,31 @@
+// Contrat CIBLE  (lot 1) : un service qui déclare
+// Authentification = httpAuthBearer ET fournit le crochet
+// surAuthentification ne doit PLUS émettre le warning « déclarée mais pas
+// appliquée » — l'auth est désormais vivante. Ce fichier doit
+// compiler sans erreur ET sans warning.
+//
+// ROUGE ATTENDU tant que  n'est pas livré : le crochet
+// surAuthentification au niveau service n'est pas encore reconnu par le
+// parser DSL (seul <nom> est une OpérationHTTP l'est), donc ce fichier ne
+// compile pas proprement aujourd'hui.
+ServiceProtege est un ServiceREST
+	PROPRIETES
+		Authentification = httpAuthBearer
+	FIN
+
+	PROCEDURE surAuthentification(jeton est une chaîne) : booléen
+		RENVOYER Vrai
+	FIN
+
+	OpProtegee est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["protegee"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête()
+			MoiMême..Réponse..CodeÉtat = httpOK
+		FIN
+	FIN
+FIN

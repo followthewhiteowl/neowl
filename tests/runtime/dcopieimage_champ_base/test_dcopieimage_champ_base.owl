@@ -1,0 +1,40 @@
+//  — Lot 2 dCopieImageChamp (vraie capture Qt + headless build ad-hoc).
+// Lot 1 produisait du placeholder uniforme (0xF0F0F0). Lot 2 doit produire
+// un contenu pixel reel : le champ Qt est materialise puis grab().
+
+Ouvre(FEN_TestChamp)
+
+// --- Forme canon 1 arg ---
+img1 est une Image = dCopieImageChamp(LIB_Cible)
+dbgVérifieEgalité(img1..Valide, Vrai, "dCopieImageChamp(CHAMP) : Image valide")
+// Lot 2 : la taille reelle vient du widget Qt (peut differer du decl si
+// Qt impose un sizeHint plus grand pour le contenu).
+dbgVérifieVrai(img1..Largeur >= 1, "Largeur capturee > 0")
+dbgVérifieVrai(img1..Hauteur >= 1, "Hauteur capturee > 0")
+
+// --- Verification contenu pixel reel (Lot 2) ---
+// Apres grab Qt reel le centre du libelle contient du texte rendu : la
+// couleur n'est plus la couleur synthese 0xF0F0F0 du Lot 1.
+xMid est un entier = img1..Largeur / 2
+yMid est un entier = img1..Hauteur / 2
+couleurCentre est un entier = dPixelCouleur(img1, xMid, yMid)
+dbgVérifieVrai(couleurCentre <> 15790320, "Centre != 0xF0F0F0 (capture reelle, pas placeholder Lot 1)")
+
+// --- Forme canon 2 args ---
+img2 est une Image = dCopieImageChamp(LIB_Cible, themeDéfaut)
+dbgVérifieEgalité(img2..Valide, Vrai, "themeDefaut accepté : Image valide")
+dbgVérifieVrai(img2..Largeur >= 1, "themeDefaut : Largeur capturee > 0")
+
+img3 est une Image = dCopieImageChamp(LIB_Cible, themeSombre)
+dbgVérifieEgalité(img3..Valide, Vrai, "themeSombre accepté (no-op Lot 2)")
+
+// --- Alias EN ---
+img4 est une Image = dCopyFieldImage(LIB_Cible)
+dbgVérifieEgalité(img4..Valide, Vrai, "Alias EN dCopyFieldImage : Image valide")
+dbgVérifieVrai(img4..Largeur >= 1, "Alias EN : Largeur capturee > 0")
+
+img5 est une Image = dCopyFieldImage(LIB_Cible, themeDark)
+dbgVérifieEgalité(img5..Valide, Vrai, "Alias EN themeDark accepté")
+
+Ferme(FEN_TestChamp)
+dbgBilanTest()

@@ -1,0 +1,59 @@
+// Fenêtre voisine — ressource pour test_ordre_execution_headless.owl.
+//
+// Témoin ordre d'exécution du cycle de vie (headless) :
+// 1. matérialisation/seed du déclaratif (invisible)
+// 2. top-level FENÊTRE
+// 3. top-levels des CHAMPS (ordre d'écriture)
+// 4. [dessin/affichage — sauté en headless]
+// 5. FinInitialisation FENÊTRE (après dessin)
+//
+// La séquence finale est remontée au script test via callback_verifie
+// depuis FinInitialisation.
+
+FEN_Test_Ordre_HL est une Fenêtre
+	PROPRIETES
+		Titre       = "Témoin ordre headless"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 300
+	FIN
+
+	// --- TOP-LEVEL FENÊTRE (code d'init fenêtre, niveau 0)
+	// Variable globale fenêtre (portée FEN_Test_Ordre_HL — visible dans ses champs/events/procédures).
+	marqueurSeq est une chaîne = "1-TOP_FENETRE"
+
+	// --- Champ 1
+	BTN_Test1 est un Champ Bouton
+		PROPRIETES
+			X       = 50
+			Y       = 50
+			Largeur = 100
+			Hauteur = 30
+		FIN
+
+		// TOP-LEVEL CHAMP (code d'init du champ, niveau 0)
+		// Accès à la variable globale fenêtre (portée parent) : nom nu, pas FEN..
+		marqueurSeq += "2-TOP_CHAMP1"
+	FIN
+
+	// --- Champ 2 (ordre d'écriture après Champ 1)
+	BTN_Test2 est un Champ Bouton
+		PROPRIETES
+			X       = 50
+			Y       = 100
+			Largeur = 100
+			Hauteur = 30
+		FIN
+
+		// TOP-LEVEL CHAMP
+		// Accès à la variable globale fenêtre (portée parent) : nom nu, pas FEN..
+		marqueurSeq += "3-TOP_CHAMP2"
+	FIN
+
+	// --- FinInitialisation FENÊTRE (après dessin)
+	PROCEDURE FinInitialisation()
+		// Accès à la variable globale fenêtre (portée parent) : nom nu, pas FEN..
+		marqueurSeq += "4-FININIT"
+		callback_verifie(marqueurSeq)
+	FIN
+FIN

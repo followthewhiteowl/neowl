@@ -1,0 +1,123 @@
+// @sujet : ChargeImagesÉtiquetéesDepuisCSV
+// @résumé : Charge un manifeste CSV « chemin;étiquette » (une ligne par
+// exemple) en un Dataset de ImageÉtiquetée. Le séparateur de colonnes est
+// ";" par défaut, ou celui passé en 2e argument. L'ordre des lignes du CSV
+// est préservé dans le Dataset (pas de tri, pas de regroupement par classe).
+
+// Un manifeste à 3 lignes (2 exemples "bleu", 1 exemple "rouge") donne un
+// Dataset dont la taille = 3, le nombre de classes = 2, et l'ordre
+// d'indexation reflète l'ordre des lignes du CSV.
+PROCEDURE PUBLIQUE scenario_charge_csv_separateur_defaut_taille_classes_ordre()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_csv_defaut"
+	fRepCree(racine)
+
+	cheminBleu1 est une chaîne = racine + "\bleu1.png"
+	cheminBleu2 est une chaîne = racine + "\bleu2.png"
+	cheminRouge1 est une chaîne = racine + "\rouge1.png"
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 0, 255)), cheminBleu1)
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 0, 255)), cheminBleu2)
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 0, 0)), cheminRouge1)
+
+	contenuCSV est une chaîne = cheminBleu1 + ";bleu" + CRLF + cheminBleu2 + ";bleu" + CRLF + cheminRouge1 + ";rouge"
+	cheminCSV est une chaîne = racine + "\manifeste.csv"
+	fSauveTexte(cheminCSV, contenuCSV)
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisCSV(cheminCSV)
+
+	dbgVérifieEgalité(ds..Taille, 3, "3 lignes du manifeste -> 3 exemples")
+	dbgVérifieEgalité(ds..NbClasses, 2, "2 étiquettes distinctes -> 2 classes")
+	dbgVérifieEgalité(ds..Source, cheminCSV, "..Source = chemin du CSV passé au chargeur")
+
+	dbgVérifieEgalité(ds[1]..Chemin, cheminBleu1, "ordre du Dataset = ordre des lignes du CSV (1ère ligne)")
+	dbgVérifieEgalité(ds[1]..Étiquette, "bleu", "étiquette de la 1ère ligne")
+	dbgVérifieEgalité(ds[3]..Chemin, cheminRouge1, "ordre du Dataset = ordre des lignes du CSV (3e ligne)")
+	dbgVérifieEgalité(ds[3]..Étiquette, "rouge", "étiquette de la 3e ligne")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// Un séparateur explicite (ici la virgule) est respecté au lieu du
+// point-virgule par défaut.
+PROCEDURE PUBLIQUE scenario_charge_csv_separateur_explicite()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_csv_separateur"
+	fRepCree(racine)
+
+	cheminImage est une chaîne = racine + "\seule.png"
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), cheminImage)
+
+	contenuCSV est une chaîne = cheminImage + ",vert"
+	cheminCSV est une chaîne = racine + "\manifeste_virgule.csv"
+	fSauveTexte(cheminCSV, contenuCSV)
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisCSV(cheminCSV, ",")
+
+	dbgVérifieEgalité(ds..Taille, 1, "1 ligne -> 1 exemple")
+	dbgVérifieEgalité(ds[1]..Étiquette, "vert", "séparateur ',' respecté pour découper la ligne")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// La forme anglaise LoadLabeledImagesFromCSV désigne le même chargement.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	root est a string = fRepTemp() + "\owl_test_1675_csv_english"
+	fRepCree(root)
+
+	imgPath is a string = root + "\one.png"
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), imgPath)
+
+	csvContent is a string = imgPath + ";yellow"
+	csvPath is a string = root + "\manifest.csv"
+	fSauveTexte(csvPath, csvContent)
+
+	ds is a Dataset of LabeledImage = LoadLabeledImagesFromCSV(csvPath)
+
+	dbgVérifieEgalité(ds..Count, 1, "LoadLabeledImagesFromCSV : ..Count = 1")
+	dbgVérifieEgalité(ds[1]..Label, "yellow", "LoadLabeledImagesFromCSV : ..Label de la 1ère ligne")
+
+	fRepSupprime(root, frRécursif)
+FIN
+
+
+// Cas limite : un chemin de CSV inexistant est refusé proprement (pas de
+// plantage), signalé par une exception attrapable.
+PROCEDURE PRIVÉE scenario_edge_csv_inexistant_leve_exception()
+	cheminInexistant est une chaîne = fRepTemp() + "\owl_test_1675_csv_absent_xyzzy.csv"
+	dbgVérifieEgalité(fFichierExiste(cheminInexistant), Faux, "précondition : le fichier n'existe pas")
+
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisCSV(cheminInexistant)
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ChargeImagesÉtiquetéesDepuisCSV sur fichier inexistant lève une exception")
+FIN
+
+
+// Cas limite : une ligne du CSV qui référence un fichier image inexistant
+// n'empêche pas le chargement (matérialisation paresseuse) mais lève une
+// exception attrapable à la lecture de ..Image sur cet exemple précis.
+PROCEDURE PRIVÉE scenario_edge_ligne_csv_fichier_image_inexistant()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_csv_image_absente"
+	fRepCree(racine)
+
+	cheminManquant est une chaîne = racine + "\fichier_qui_n_existe_pas.png"
+	contenuCSV est une chaîne = cheminManquant + ";fantome"
+	cheminCSV est une chaîne = racine + "\manifeste_fantome.csv"
+	fSauveTexte(cheminCSV, contenuCSV)
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisCSV(cheminCSV)
+	dbgVérifieEgalité(ds..Taille, 1, "la ligne est listée comme exemple (matérialisation différée)")
+
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		largeur est un entier = ds[1]..Image..Largeur
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "la lecture paresseuse d'un chemin absent lève une exception")
+
+	fRepSupprime(racine, frRécursif)
+FIN

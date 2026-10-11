@@ -1,0 +1,23 @@
+// Regression : PositionOccurrence(..., DepuisFin) au-delà de 1024 occurrences.
+//
+// La branche DepuisFin collectait les positions dans un tableau borné puis
+// indexait depuis la fin. Au-delà du plafond, la collecte s'arrêtait
+// silencieusement et l'index depuis la fin renvoyait une mauvaise position.
+//
+// On construit "abab...ab" (1030 occurrences de "ab", non chevauchantes).
+// Occurrence k (base 1) à la position 1 + 2*(k-1). Total = 1030 occurrences.
+
+sBig est une chaîne = ""
+POUR i = 0 A 1029
+	sBig = sBig + "ab"
+FIN
+
+// Rang 1 depuis la fin = position de la dernière occurrence : 1 + 2*1029 = 2059.
+dbgVérifieEgalité(PositionOccurrence(sBig, "ab", 1, DepuisFin), 2059,
+	"PositionOccurrence rang 1 depuis la fin sur 1030 occurrences = dernière position")
+
+// Rang 5 depuis la fin = occurrence base 1 n°1026 : 1 + 2*1025 = 2051.
+dbgVérifieEgalité(PositionOccurrence(sBig, "ab", 5, DepuisFin), 2051,
+	"PositionOccurrence rang 5 depuis la fin sur 1030 occurrences")
+
+dbgBilanTest()

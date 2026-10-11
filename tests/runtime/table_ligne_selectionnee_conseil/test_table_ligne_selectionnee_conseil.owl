@@ -1,0 +1,30 @@
+// Garde « le message ne ment pas ».
+//
+// Indexer un Champ Table par un nom de champ (« TABLE[TABLE] ») est refusé à
+// la compilation, et le diagnostic oriente vers « TABLE[TableSelect(TABLE)] »
+// pour désigner la ligne sélectionnée. Ce test prouve que la forme conseillée
+// tient sa promesse de bout en bout : sur une fenêtre réellement montée, avec
+// une ligne sélectionnée, elle rend bien la valeur de cette ligne.
+//
+// Rig GUI réel obligatoire : en mode headless, TableAjouteLigne/TableSelect
+// sont des no-op (uici->widget == NULL), la Table reste vide et l'accès
+// tomberait à côté. Le conseil vise l'usage en fenêtre réelle — c'est donc là
+// qu'on le vérifie.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_LigneSelConseil)
+
+// Sélectionne la 2e ligne, comme le ferait un clic utilisateur.
+TableSelectPlus(TABLE_Synthese, 2)
+
+nLigne est un entier = TableSelect(TABLE_Synthese)
+dbgVérifieEgalité(nLigne, 2, "TableSelect rend l'indice de la ligne sélectionnée")
+
+// La forme exacte que propose le diagnostic E_SEM_TABLE_ROW_INDEX_NOT_NUMBER.
+sValeur est une chaîne = TABLE_Synthese[TableSelect(TABLE_Synthese)].COL_Nom
+dbgVérifieEgalité(sValeur, "Bravo",
+	"la forme conseillée « TABLE[TableSelect(TABLE)] » rend la valeur de la ligne sélectionnée")
+
+Ferme(FEN_LigneSelConseil)
+dbgBilanTest()

@@ -1,0 +1,60 @@
+// @sujet : ChaîneVersDurée
+// @résumé : Parse une chaîne en durée selon un format obligatoire. Le format peut être une constante (`duréeMillième` pour `JJHHMMSSCCC` à 11 chiffres, `duréeCentième` pour `JJHHMMSSCC` à 10 chiffres) ou une chaîne template avec tokens `J`, `HH`, `MM`, `SS`, `CCC`. Retourne une durée nulle si la chaîne ne matche pas le format.
+
+
+// Cas canonique : constante `duréeMillième` (`JJHHMMSSCCC` à 11 chiffres)
+// avec 1 heure 30 minutes. Le retour est une durée comparable à une durée
+// littérale équivalente exprimée en millisecondes.
+PROCEDURE PUBLIQUE scenario_format_digits_une_heure_trente()
+	dur est une durée = ChaîneVersDurée("+00013000000", duréeMillième)
+	attendu est une durée = 90 * 60 * 1000
+	dbgVérifieVrai(dur = attendu, "1h30 parsé correctement (90 minutes en millisecondes)")
+FIN
+
+
+// Constante `duréeMillième` avec composante jours non nulle.
+// Permet d'exprimer une durée supérieure à 24 heures (par ex. 1 jour).
+PROCEDURE PUBLIQUE scenario_format_digits_avec_jours()
+	dur est une durée = ChaîneVersDurée("+01000000000", duréeMillième)
+	attendu est une durée = 24 * 3600 * 1000
+	dbgVérifieVrai(dur = attendu, "1 jour parsé correctement (24 heures en millisecondes)")
+FIN
+
+
+// Constante `duréeMillième` avec une seule minute.
+// Vérifie que les composantes sont bien interprétées dans l'ordre
+// attendu (les millièmes sont en queue, pas en tête).
+PROCEDURE PUBLIQUE scenario_format_digits_une_minute()
+	dur est une durée = ChaîneVersDurée("+00000100000", duréeMillième)
+	attendu est une durée = 60 * 1000
+	dbgVérifieVrai(dur = attendu, "1 minute parsée correctement (60 secondes en millisecondes)")
+FIN
+
+
+// Cas limite : chaîne vide retourne durée nulle.
+// Permet de distinguer l'absence de valeur d'un parse réussi à zéro.
+PROCEDURE PUBLIQUE scenario_chaine_vide_duree_nulle()
+	dur est une durée = ChaîneVersDurée("", duréeMillième)
+	zero est une durée = 0
+	dbgVérifieVrai(dur = zero, "chaîne vide retourne durée nulle")
+FIN
+
+
+// Cas limite : tous les chiffres à zéro retourne durée nulle explicite.
+// Distinction par rapport à la chaîne vide : ici le format est valide
+// mais la durée encodée est volontairement nulle.
+PROCEDURE PUBLIQUE scenario_format_digits_tout_zero()
+	dur est une durée = ChaîneVersDurée("+00000000000", duréeMillième)
+	zero est une durée = 0
+	dbgVérifieVrai(dur = zero, "format zéro retourne durée nulle")
+FIN
+
+
+// Cas limite : chaîne mal formée retourne durée nulle silencieusement.
+// Note : la détection d'erreur explicite n'est pas activée pour cette
+// native, le retour vide est le marqueur d'échec de parse.
+PROCEDURE PRIVÉE scenario_chaine_invalide_duree_nulle()
+	dur est une durée = ChaîneVersDurée("xyzpas une duree", duréeMillième)
+	zero est une durée = 0
+	dbgVérifieVrai(dur = zero, "chaîne non parseable retourne durée nulle")
+FIN

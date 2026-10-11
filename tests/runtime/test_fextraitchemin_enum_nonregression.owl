@@ -1,0 +1,29 @@
+// Non-regression  : le durcissement du garde enum (rejet des noms de
+// natives hors-enum) ne doit pas casser les usages legitimes de fExtraitChemin.
+// Cas couverts : membres valides FR/EN, somme combinable, variable runtime.
+
+PROCEDURE PUBLIQUE test_membres_valides_fr()
+	chemin est une chaîne = "/a/b/c.txt"
+	dbgVérifieEgalité(fExtraitChemin(chemin, fFichier), "c", "fFichier donne nom sans extension")
+	dbgVérifieEgalité(fExtraitChemin(chemin, fExtension), ".txt", "fExtension donne extension")
+	dbgVérifieEgalité(fExtraitChemin(chemin, fRepertoire), "/a/b/", "fRepertoire donne dossier parent")
+FIN
+
+PROCEDURE PUBLIQUE test_membre_en()
+	chemin est une chaîne = "/a/b/c.txt"
+	dbgVérifieEgalité(fExtraitChemin(chemin, fFile), "c", "fFile (alias EN de fFichier) donne nom sans extension")
+FIN
+
+PROCEDURE PUBLIQUE test_combinable()
+	chemin est une chaîne = "/a/b/c.txt"
+	dbgVérifieEgalité(fExtraitChemin(chemin, fDisque + fRepertoire), "/a/b/", "fDisque + fRepertoire donne chemin sans nom")
+	dbgVérifieEgalité(fExtraitChemin(chemin, fFichier + fExtension), "c.txt", "fFichier + fExtension donne nom complet")
+FIN
+
+PROCEDURE PUBLIQUE test_variable_runtime()
+	// Une variable entiere portant la valeur d'un membre n'est pas validable au
+	// compile : le skip doit rester legitime et le runtime doit fonctionner.
+	chemin est une chaîne = "/a/b/c.txt"
+	mode est un entier = fFichier
+	dbgVérifieEgalité(fExtraitChemin(chemin, mode), "c", "variable entiere = fFichier fonctionne au runtime")
+FIN

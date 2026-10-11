@@ -1,0 +1,105 @@
+// @sujet : dCréeImage
+// @resume : Créer une nouvelle image vierge en mémoire avec dimensions et couleur de fond
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_creation_nominal()
+	img est une Image
+	couleurRouge est un entier
+
+	couleurRouge = RVB(255, 0, 0)
+
+	// Créer une image 100x50 pixels avec fond rouge
+	img = dCréeImage(100, 50, couleurRouge)
+
+	// Vérifier que l'image est valide et possède les dimensions demandées
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+	dbgVérifieEgalité(img..Largeur, 100, "largeur correcte")
+	dbgVérifieEgalité(img..Hauteur, 50, "hauteur correcte")
+	dbgVérifieEgalité(img..AvecAlpha, Vrai, "canal alpha present par defaut")
+FIN
+
+PROCEDURE PUBLIQUE scenario_creation_couleur_fond()
+	img est une Image
+	couleurVert est un entier
+	couleurDominante est un entier
+
+	couleurVert = RVB(0, 255, 0)
+
+	// Créer une image avec fond vert personnalisé
+	img = dCréeImage(50, 50, couleurVert)
+
+	// Vérifier que la couleur de fond a bien été appliquée
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurVert, "couleur de fond appliquee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_creation_dimensions_variees()
+	imgPetite est une Image
+	imgGrande est une Image
+
+	// Créer une petite image (10x10) et une grande image (500x300)
+	imgPetite = dCréeImage(10, 10, Blanc)
+	imgGrande = dCréeImage(500, 300, Noir)
+
+	// Vérifier que les dimensions sont respectées
+	dbgVérifieEgalité(imgPetite..Largeur, 10, "petite image largeur correcte")
+	dbgVérifieEgalité(imgPetite..Hauteur, 10, "petite image hauteur correcte")
+	dbgVérifieEgalité(imgGrande..Largeur, 500, "grande image largeur correcte")
+	dbgVérifieEgalité(imgGrande..Hauteur, 300, "grande image hauteur correcte")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisible dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_dimensions_minimales()
+	img est une Image
+
+	// Créer une image 1x1 pixel (dimension minimale)
+	img = dCréeImage(1, 1, Blanc)
+
+	dbgVérifieEgalité(img..Valide, Vrai, "image 1x1 valide")
+	dbgVérifieEgalité(img..Largeur, 1, "largeur minimale respectee")
+	dbgVérifieEgalité(img..Hauteur, 1, "hauteur minimale respectee")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_couleur_par_defaut_blanc()
+	img est une Image
+	couleurDominante est un entier
+
+	// Si on omet la couleur (défaut: Blanc selon registry), elle doit être Blanc
+	img              = dCréeImage(20, 20, Blanc)
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Blanc = RVB(255, 255, 255)
+	dbgVérifieEgalité(couleurDominante, RVB(255, 255, 255), "couleur par defaut blanc")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_dimensions_asymetriques()
+	imgHorizontale est une Image
+	imgVerticale est une Image
+
+	// Créer des images très asymétriques (1x100, 100x1)
+	imgHorizontale = dCréeImage(100, 1, Noir)
+	imgVerticale   = dCréeImage(1, 100, Noir)
+
+	dbgVérifieEgalité(imgHorizontale..Largeur, 100, "image horizontale largeur")
+	dbgVérifieEgalité(imgHorizontale..Hauteur, 1, "image horizontale hauteur")
+	dbgVérifieEgalité(imgVerticale..Largeur, 1, "image verticale largeur")
+	dbgVérifieEgalité(imgVerticale..Hauteur, 100, "image verticale hauteur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_couleur_noire()
+	img est une Image
+	couleurDominante est un entier
+
+	// Créer une image avec fond noir explicite
+	img              = dCréeImage(15, 15, Noir)
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Noir = RVB(0, 0, 0)
+	dbgVérifieEgalité(couleurDominante, RVB(0, 0, 0), "couleur noire appliquee")
+FIN

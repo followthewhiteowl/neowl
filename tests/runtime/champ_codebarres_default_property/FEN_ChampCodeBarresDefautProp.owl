@@ -1,0 +1,42 @@
+// Fenêtre voisine — ressource pour test_champ_codebarres_default_property.owl.
+// Témoin compile-time : `CBA = maVariableCodeBarres` est traduit en
+// `CBA..<defaultProperty> = maVariableCodeBarres` selon OwlControlKindInfo
+// (calque du Champ Image, cf. tests/regression/widget_default_property).
+//
+// Note runtime : en mode `owl test` (testing_is_unitaire), les widgets Qt
+// ne sont pas instanciés, donc l'exécution de `widget..<prop> = X` crashe
+// sur `Only struct instances have fields`. On contourne en plaçant
+// l'affectation dans une PROCEDURE event-handler jamais appelée par
+// `owl test` — la compilation valide la translation, le runtime ne
+// l'exécute pas.
+
+FEN_ChampCodeBarresDefautProp est une Fenêtre
+	PROPRIETES
+		Titre       = "Test defaultProperty Champ CodeBarres"
+		Largeur     = 300
+		Hauteur     = 300
+		Disposition = dispLibre
+	FIN
+
+	CBA_Cible est un Champ CodeBarres
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 100
+			Hauteur = 100
+		FIN
+	FIN
+
+	BTN_Assigne est un Champ Bouton
+		PROPRIETES
+			Libellé = "assigner"
+		FIN
+		PROCEDURE surClic()
+			maVariableCodeBarres est un CodeBarres
+			maVariableCodeBarres..TypeCodeBarres = CB_QRCODE
+			maVariableCodeBarres..Contenu        = "defaultProperty"
+
+			CBA_Cible = maVariableCodeBarres
+		FIN
+	FIN
+FIN

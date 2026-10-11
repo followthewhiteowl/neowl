@@ -1,0 +1,118 @@
+// @sujet : ChaîneVersBase64, ChaîneVersHexa
+// @résumé : Encode des données en base64 ou en hexadécimal — texte
+// transmissible ou stockable. Accepte indifféremment une chaîne OU un buffer
+// d'octets bruts (signature `chaîne | buffer`) ; l'opération inverse se fait
+// via Base64VersChaîne / HexaVersChaîne.
+
+// Cas nominal : encodage d'une chaîne et round-trip par le décodeur.
+PROCEDURE scenario_encode_decode_chaine()
+	dbgVérifieEgalité(ChaîneVersBase64("Man"), "TWFu", "base64 chaîne Man = TWFu")
+	dbgVérifieEgalité(Base64VersChaîne("TWFu"), "Man", "base64 decode -> Man")
+	dbgVérifieEgalité(ChaîneVersHexa("Man"), "4D616E", "hexa chaîne Man = 4D616E (majuscules)")
+	dbgVérifieEgalité(HexaVersChaîne("4D616E"), "Man", "hexa decode -> Man")
+FIN
+
+// Un buffer d'octets bruts est accepté : même résultat que la chaîne équivalente.
+PROCEDURE scenario_encode_buffer()
+	octets est un buffer = ChaîneVersBuffer("Man")
+	dbgVérifieEgalité(ChaîneVersBase64(octets), "TWFu", "base64 accepte un buffer")
+	dbgVérifieEgalité(ChaîneVersBase64(octets), ChaîneVersBase64("Man"), "base64 buffer == base64 chaîne")
+	dbgVérifieEgalité(ChaîneVersHexa(octets), "4D616E", "hexa accepte un buffer")
+FIN
+
+// Variante URL-safe : second paramètre encodeBASE64URL. L'alphabet standard
+// utilise '+' et '/' et complète avec '=' ; la variante URL-safe utilise '-' et
+// '_' et n'ajoute aucun caractère de remplissage — la sortie traverse donc une
+// URL ou un en-tête sans ré-encodage.
+PROCEDURE scenario_base64_url_safe()
+	octets est une chaîne = HexaVersChaîne("FBFFBF")
+	dbgVérifieEgalité(ChaîneVersBase64(octets), "+/+/", "alphabet standard : '+' et '/'")
+	dbgVérifieEgalité(ChaîneVersBase64(octets, encodeBASE64), "+/+/", "encodeBASE64 = comportement par défaut")
+	dbgVérifieEgalité(ChaîneVersBase64(octets, encodeBASE64URL), "-_-_", "alphabet URL-safe : '-' et '_'")
+
+	// Pas de caractère de remplissage en URL-safe.
+	dbgVérifieEgalité(ChaîneVersBase64("Ma", encodeBASE64), "TWE=", "standard : remplissage '='")
+	dbgVérifieEgalité(ChaîneVersBase64("Ma", encodeBASE64URL), "TWE", "URL-safe : pas de remplissage")
+	dbgVérifieEgalité(ChaîneVersBase64("M", encodeBASE64URL), "TQ", "URL-safe : pas de remplissage (2 octets manquants)")
+
+	// Décodage : le format se choisit du même côté.
+	dbgVérifieEgalité(Base64VersChaîne("-_-_", encodeBASE64URL), octets, "décodage URL-safe sans remplissage")
+	dbgVérifieEgalité(Base64VersChaîne("TWE", encodeBASE64URL), "Ma", "décodage URL-safe d'une entrée non complétée")
+	dbgVérifieEgalité(Base64VersChaîne("+/+/", encodeBASE64), octets, "décodage standard explicite")
+FIN
+
+// Les deux alphabets ne se mélangent pas : une entrée de l'un soumise au
+// décodeur de l'autre est refusée, jamais décodée en silence.
+PROCEDURE PRIVÉE scenario_edge_alphabet_croise()
+	ErreurRAZ()
+	r1 est une chaîne = Base64VersChaîne("-_-_", encodeBASE64)
+	dbgVérifieVrai(ErreurDétectée, "'-' et '_' refusés par le décodeur standard")
+	dbgVérifieEgalité(r1, "", "aucun résultat silencieux")
+
+	ErreurRAZ()
+	r2 est une chaîne = Base64VersChaîne("+/+/", encodeBASE64URL)
+	dbgVérifieVrai(ErreurDétectée, "'+' et '/' refusés par le décodeur URL-safe")
+	dbgVérifieEgalité(r2, "", "aucun résultat silencieux")
+
+	ErreurRAZ()
+	dbgVérifieEgalité(Base64VersChaîne("-_-_", encodeBASE64URL), HexaVersChaîne("FBFFBF"), "même alphabet : décodage nominal")
+	dbgVérifieFaux(ErreurDétectée, "aucune erreur sur le cas nominal")
+FIN
+
+// Entrées refusées et entrées vides.
+PROCEDURE PRIVÉE scenario_edge_entrees_invalides()
+	ErreurRAZ()
+	r1 est une chaîne = Base64VersChaîne("SGVsb")
+	dbgVérifieVrai(ErreurDétectée, "longueur invalide (5 caractères) refusée")
+	dbgVérifieEgalité(r1, "", "aucun résultat silencieux")
+
+	ErreurRAZ()
+	r2 est une chaîne = Base64VersChaîne("SGV*bA==")
+	dbgVérifieVrai(ErreurDétectée, "caractère hors alphabet refusé")
+	dbgVérifieEgalité(r2, "", "aucun résultat silencieux")
+
+	ErreurRAZ()
+	r3 est une chaîne = Base64VersChaîne("SGVsbA=====")
+	dbgVérifieVrai(ErreurDétectée, "remplissage surnuméraire refusé")
+	dbgVérifieEgalité(r3, "", "aucun résultat silencieux")
+
+	// Entrées vides : aller et retour, dans les deux formats.
+	ErreurRAZ()
+	dbgVérifieEgalité(ChaîneVersBase64("", encodeBASE64URL), "", "chaîne vide -> chaîne vide")
+	dbgVérifieEgalité(Base64VersChaîne("", encodeBASE64URL), "", "chaîne vide -> chaîne vide (décodage)")
+	dbgVérifieEgalité(Base64VersChaîne(""), "", "chaîne vide -> chaîne vide (décodage standard)")
+	dbgVérifieFaux(ErreurDétectée, "une entrée vide n'est pas une erreur")
+
+	// Remplissage absent en standard : toléré (l'information est complète).
+	dbgVérifieEgalité(Base64VersChaîne("SGVsbA"), "Hell", "standard : remplissage facultatif")
+FIN
+
+// Un jeton binaire complet fait l'aller-retour sans perte et reste transmissible.
+PROCEDURE PRIVÉE scenario_edge_jeton_binaire()
+	bin est un buffer = HasardSécuriséOctets(4096)
+	jeton est une chaîne = ChaîneVersBase64(bin, encodeBASE64URL)
+
+	dbgVérifieEgalité(Position(jeton, "+"), 0, "aucun '+' dans un jeton URL-safe")
+	dbgVérifieEgalité(Position(jeton, "/"), 0, "aucun '/' dans un jeton URL-safe")
+	dbgVérifieEgalité(Position(jeton, "="), 0, "aucun '=' dans un jeton URL-safe")
+
+	relu est un buffer = Base64VersChaîne(jeton, encodeBASE64URL)
+	dbgVérifieEgalité(Taille(relu), 4096, "aller-retour : taille conservée")
+	dbgVérifieVrai(relu = bin, "aller-retour : octets identiques")
+FIN
+
+// Cas limites : padding base64, round-trip binaire, entrée vide.
+PROCEDURE PRIVÉE scenario_edge_padding_binaire()
+	// Le padding base64 dépend du nombre d'octets restants.
+	dbgVérifieEgalité(ChaîneVersBase64(ChaîneVersBuffer("Ma")), "TWE=", "base64 padding 1 (=)")
+	dbgVérifieEgalité(ChaîneVersBase64(ChaîneVersBuffer("M")), "TQ==", "base64 padding 2 (==)")
+
+	// Octets non-ASCII : hexa round-trip stable sur du binaire (CSPRNG).
+	bin est un buffer = HasardSécuriséOctets(24)
+	h est une chaîne = ChaîneVersHexa(bin)
+	dbgVérifieEgalité(Taille(h), 48, "hexa de 24 octets -> 48 caractères")
+	dbgVérifieEgalité(ChaîneVersHexa(HexaVersChaîne(h)), h, "hexa binaire round-trip stable")
+
+	// Entrée vide -> chaîne vide.
+	dbgVérifieEgalité(ChaîneVersHexa(ChaîneVersBuffer("")), "", "hexa d'un buffer vide -> chaîne vide")
+FIN

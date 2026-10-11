@@ -1,0 +1,24 @@
+// Fichier ciblé par `owl openapi api.owl`. L'opération `Facture`
+// référence `ETAT_Facture`, déclaré dans le voisin `etat_facture.owl` —
+// résolu uniquement quand la frontière projet est prise en compte.
+ServiceFactures est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "factures"]
+	FIN
+
+	Facture est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["facture"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête()
+			iDestination(iPDFGénérique, "facture_generee.pdf")
+			iImprimeEtat(ETAT_Facture)
+			iFinImprime()
+			MoiMême..Réponse..CodeÉtat = httpOK
+			MoiMême..Réponse..Corps    = "facture générée"
+		FIN
+	FIN
+FIN

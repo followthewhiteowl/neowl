@@ -1,0 +1,97 @@
+//  — un fond demandé SANS cadre doit rendre l'aplat exact, en haut comme
+// en bas de la boîte.
+//
+// Mesure du défaut (sonde pixel, RVB(255, 0, 0) demandé, boîte de 40 px, points
+// à +8 et +32 px du haut) :
+//   Combo style typé   : #FE8282 en haut, #FB6363 en bas  -> dégradé, jamais le rouge
+//   Combo prop directe : #FE8282 en haut, #FB6363 en bas  -> même défaut
+//   Combo avec cadre   : #FF0000 partout                  -> déjà correct
+//   Saisie / Bouton / Libellé / Liste / Interrupteur / Sélecteur : #FF0000 partout
+// Le défaut ne concernait donc QUE le Champ Combo, mais sur ses DEUX chemins de
+// feuille (style typé et propriété directe). Les autres familles sont gardées
+// ici comme oracles : elles bornent la portée et détectent une régression.
+//
+// Le jumeau nu (aucun style) sert de témoin d'habillage d'origine : c'est lui que
+// le champ stylé peignait au lieu du fond demandé, teinté.
+
+TestModeHeadless(Faux)
+
+cfsRouge est un entier = RVB(255, 0, 0)
+cfsFondFenetre est un entier = RVB(10, 10, 10)
+
+OuvreSoeur(FEN_ComboFondSansCadre)
+
+cfsImg est une Image = dCopieImageFenêtre(FEN_ComboFondSansCadre)
+dbgVérifieEgalité(cfsImg..Valide, Vrai, "capture fenêtre valide")
+
+// ---- Contre-sonde : un point hors de tout champ reste au fond de fenêtre.
+// Sans elle, une sonde qui rate sa cible passerait sans rien vérifier.
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 470, 560), cfsFondFenetre,
+"contre-sonde : hors champ, la fenêtre garde son fond")
+
+// ---- 1. Le défaut : fond demandé sans cadre par le style typé.
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 28), cfsRouge,
+"Combo stylé sans cadre : aplat exact en haut de la boîte")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 52), cfsRouge,
+"Combo stylé sans cadre : aplat exact en bas de la boîte")
+
+// ---- 2. Même exigence par la propriété directe CouleurFond.
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 88), cfsRouge,
+"Combo CouleurFond directe : aplat exact en haut de la boîte")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 112), cfsRouge,
+"Combo CouleurFond directe : aplat exact en bas de la boîte")
+
+// ---- 3. Cas déjà correct : fond AVEC cadre. Ne pas le casser.
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 148), cfsRouge,
+"Combo cadré : aplat exact en haut (cas déjà correct)")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 172), cfsRouge,
+"Combo cadré : aplat exact en bas (cas déjà correct)")
+
+// ---- 4. Jumeau nu : aucun style demandé, le champ garde son habillage
+// d'origine — le fond demandé ne doit pas être inventé là où on ne le demande pas.
+dbgVérifieDifférence(dPixelCouleur(cfsImg, 100, 208), cfsRouge,
+"Combo nu : aucun fond demandé, aucun aplat rouge peint")
+dbgVérifieDifférence(dPixelCouleur(cfsImg, 100, 208), dPixelCouleur(cfsImg, 100, 232),
+"Combo nu : son habillage d'origine reste nuancé du haut vers le bas")
+
+// ---- 5. Dégradé explicitement demandé : fonctionnalité à ne pas sacrifier en
+// réparant l'aplat. Le champ ne peignait alors que son habillage d'origine (le
+// dégradé demandé était perdu, mesuré identique au jumeau nu au pixel près).
+// Seul « haut et bas diffèrent » ne suffit donc pas : l'habillage d'origine est
+// lui-même nuancé, cette assertion passait par hasard avant le correctif. Les
+// deux comparaisons au jumeau nu sont celles qui prouvent quelque chose.
+dbgVérifieDifférence(dPixelCouleur(cfsImg, 100, 268), dPixelCouleur(cfsImg, 100, 292),
+"Combo à dégradé : le haut et le bas diffèrent (le dégradé est bien peint)")
+dbgVérifieDifférence(dPixelCouleur(cfsImg, 100, 268), dPixelCouleur(cfsImg, 100, 208),
+"Combo à dégradé : ce n'est pas l'habillage d'origine du jumeau nu (haut)")
+dbgVérifieDifférence(dPixelCouleur(cfsImg, 100, 292), dPixelCouleur(cfsImg, 100, 232),
+"Combo à dégradé : ce n'est pas l'habillage d'origine du jumeau nu (bas)")
+
+// ---- 6. Oracles de portée : familles qui rendaient déjà l'aplat sans cadre.
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 328), cfsRouge,
+"Saisie sans cadre : aplat exact en haut")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 352), cfsRouge,
+"Saisie sans cadre : aplat exact en bas")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 388), cfsRouge,
+"Bouton sans cadre : aplat exact en haut")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 412), cfsRouge,
+"Bouton sans cadre : aplat exact en bas")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 448), cfsRouge,
+"Libellé sans cadre : aplat exact en haut")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 472), cfsRouge,
+"Libellé sans cadre : aplat exact en bas")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 508), cfsRouge,
+"Liste sans cadre : aplat exact en haut")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 100, 532), cfsRouge,
+"Liste sans cadre : aplat exact en bas")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 330, 28), cfsRouge,
+"Interrupteur sans cadre : aplat exact en haut")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 330, 52), cfsRouge,
+"Interrupteur sans cadre : aplat exact en bas")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 330, 88), cfsRouge,
+"Sélecteur sans cadre : aplat exact en haut")
+dbgVérifieEgalité(dPixelCouleur(cfsImg, 330, 112), cfsRouge,
+"Sélecteur sans cadre : aplat exact en bas")
+
+Ferme(FEN_ComboFondSansCadre)
+dbgBilanTest()

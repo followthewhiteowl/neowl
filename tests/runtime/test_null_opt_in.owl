@@ -1,0 +1,105 @@
+// ============================================
+// TEST: Null opt-in (Phase 2 durci)
+// Syntaxe: entier?, entier <nullable>
+// Opérateurs: ??, ??=, ?., ??*
+// Check compile-time strict sur Null -> non-nullable
+// TypeEstNullable résolu à la compilation
+// ============================================
+Trace("=== NULL OPT-IN ===")
+
+// --- Syntaxe: type? accepte la déclaration ---
+// OWL strict : nullable non-init = Null. Distinct de la zero-value du type.
+x est un entier?
+dbgVerifieVrai(EstNul(x),    "entier? défaut = Null")
+dbgVerifieFaux(x = 0,        "entier? défaut != 0 (strict : Null distinct)")
+
+s est une chaine?
+dbgVerifieVrai(EstNul(s),    "chaine? défaut = Null")
+dbgVerifieFaux(s = "",       "chaine? défaut != '' (strict)")
+
+// --- Syntaxe: type <nullable> (forme attribut d'extension) ---
+y est un entier <nullable>
+dbgVerifieVrai(EstNul(y),    "<nullable> défaut = Null")
+dbgVerifieFaux(y = 0,        "entier <nullable> != 0 (strict)")
+
+z est une chaine <nullable>
+dbgVerifieVrai(EstNul(z),    "chaine <nullable> défaut = Null")
+dbgVerifieFaux(z = "",       "chaine <nullable> défaut != ''")
+
+// --- Affectation Null sur nullable : OK ---
+x = Null
+dbgVerifieVrai(EstNul(x), "entier? = Null accepté")
+
+// --- TypeEstNullable (compile-time) ---
+vEntier est un entier
+vEntierOpt est un entier?
+vBoolOpt est un booleen <nullable>
+vChaine est une chaine
+
+dbgVerifieFaux(TypeEstNullable(vEntier), "entier -> non-nullable")
+dbgVerifieVrai(TypeEstNullable(vEntierOpt), "entier? -> nullable")
+dbgVerifieVrai(TypeEstNullable(vBoolOpt), "<nullable> -> nullable")
+dbgVerifieFaux(TypeEstNullable(vChaine), "chaine -> non-nullable")
+
+// --- Opérateur ?? (coalesce) ---
+dbgVerifieEgalite(42 ?? 99, 42, "Non-Null ?? garde la valeur")
+dbgVerifieEgalite(Null ?? 99, 99, "Null ?? fallback")
+dbgVerifieEgalite("hello" ?? "world", "hello", "Chaine non-Null")
+dbgVerifieEgalite(Null ?? "world", "world", "Null ?? chaine")
+
+// --- Chainage ?? ---
+dbgVerifieEgalite(Null ?? Null ?? 7, 7, "Chaine de coalesce")
+dbgVerifieEgalite(Null ?? 1 ?? 99, 1, "1er non-Null gagne")
+
+// --- Opérateur ??* (coalesce au default du type) ---
+nn est un entier? = Null
+dbgVerifieEgalite(nn ??*, 0, "entier? Null ??* = 0")
+
+ss est une chaine? = Null
+dbgVerifieEgalite(ss ??*, "", "chaine? Null ??* = ''")
+
+bb est un booleen? = Null
+dbgVerifieEgalite(bb ??*, Faux, "booleen? Null ??* = Faux")
+
+mm est un monetaire? = Null
+dbgVerifieEgalite(mm ??*, 0, "monetaire? Null ??* = 0")
+
+// ??* sur non-Null retourne la valeur
+vv est un entier? = 42
+dbgVerifieEgalite(vv ??*, 42, "Non-Null ??* = valeur")
+
+// --- Opérateur ?. (safe navigation) ---
+Point est une structure
+    px est un entier
+    py est un entier
+FIN
+
+p est un Point
+p.px = 10
+p.py = 20
+
+dbgVerifieEgalite(p?.px, 10, "?. sur struct non-Null")
+dbgVerifieEgalite(p?.py, 20, "?. autre champ")
+
+// --- Opérateur ??= (null-coalescing assignment) ---
+cc est un entier? = 7
+cc ??= 42
+dbgVerifieEgalite(cc, 7, "??= no-op si non-Null (7)")
+
+dd est un entier? = Null
+dd ??= 100
+dbgVerifieEgalite(dd, 100, "??= affecte si Null")
+
+// --- Comparaisons avec Null ---
+v est un entier = 5
+dbgVerifieFaux(v = Null,      "5 = Null -> Faux")
+dbgVerifieVrai(v <> Null,     "5 <> Null -> Vrai")
+dbgVerifieVrai(Null = Null,   "Null = Null -> Vrai")
+dbgVerifieFaux(Null <> Null,  "Null <> Null -> Faux")
+
+// --- EstNul cohérent ---
+dbgVerifieVrai(EstNul(Null),  "EstNul(Null) -> Vrai")
+dbgVerifieFaux(EstNul(0),     "EstNul(0) -> Faux")
+dbgVerifieFaux(EstNul(""),    "EstNul('') -> Faux")
+
+dbgBilanTest()

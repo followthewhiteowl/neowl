@@ -1,0 +1,30 @@
+// Top-level d'un sous-champ d'Etat peut acceder aux proprietes du
+// sous-champ par son nom (ex. LIB_X..Libelle).
+//
+// La ressource ETAT_AccesParNom vit dans le voisin etat_acces_par_nom.owl
+// (mode script : voisins du meme repertoire vus automatiquement). Le
+// top-level du sous-champ appelle callback_observe() pour remonter ce
+// qu'il a fait dans le scope du script test.
+
+TestModeHeadless(Vrai)
+
+// Observateur global alimente par le callback declenche dans le top-level
+// du sous-champ d'Etat.
+seqEtat est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqEtat += sEvenement
+FIN
+
+// Destination PDF muette : on n'utilise que l'effet de bord (exec du
+// top-level sous-champ pendant le pipeline d'impression).
+iDestination(iPDFGénérique, "tests/runtime/etat_lifecycle_top_level/acces_par_nom/temp.pdf")
+iImprimeEtat(ETAT_AccesParNom)
+iFinImprime()
+
+Trace("seqEtat obtenu : [" + seqEtat + "]")
+
+dbgVérifieEgalité(seqEtat, "Set:Valeur posee par top-level",
+"Acces par nom dans top-level sous-champ d'Etat : pose + relit la valeur")
+
+dbgBilanTest()

@@ -1,0 +1,43 @@
+// Filtrage d'une exception de flux de service par constante publique.
+// Deux constantes exposent le code des exceptions levées par FluxÉcrit :
+//   httpFluxDéconnecté   -> le client est parti mi-flux (ou expiry DélaiMax)
+//   httpFluxHorsContexte -> FluxÉcrit appelé hors d'un flux ouvert
+// Le handler QUAND EXCEPTION peut les comparer à ExceptionInfo(errCode)
+// pour distinguer « client parti » de « erreur de programmeur ».
+
+// 1. Les constantes sont connues et portent la valeur du code d'erreur.
+dbgVérifieEgalité(httpFluxDéconnecté, "E_NATIVE_HTTP_FLUX_DECONNECTE",
+	"httpFluxDéconnecté = symbole du code déconnexion")
+dbgVérifieEgalité(httpFluxHorsContexte, "E_NATIVE_HTTP_FLUX_HORS_CONTEXTE",
+	"httpFluxHorsContexte = symbole du code hors-contexte")
+
+// 2. Bilingue : les formes EN pointent sur la même valeur.
+dbgVérifieEgalité(httpStreamDisconnected, httpFluxDéconnecté,
+	"httpStreamDisconnected = httpFluxDéconnecté")
+dbgVérifieEgalité(httpStreamOutOfContext, httpFluxHorsContexte,
+	"httpStreamOutOfContext = httpFluxHorsContexte")
+
+// 3. Filtrage réel + discriminant. Hors d'un flux, FluxÉcrit lève
+//    httpFluxHorsContexte : le handler le rattrape par la constante, et
+//    vérifie qu'une AUTRE constante (déconnexion) ne matche pas.
+nRattrapeHorsContexte est un entier = 0
+nMatchDeconnecte est un entier = 0
+
+QUAND EXCEPTION DANS
+	FluxÉcrit("x")
+FAIRE
+	SI ExceptionInfo(errCode) = httpFluxHorsContexte ALORS
+		nRattrapeHorsContexte = 1
+	FIN
+	// Contrôle : la déconnexion ne doit PAS matcher cette exception-ci.
+	SI ExceptionInfo(errCode) = httpFluxDéconnecté ALORS
+		nMatchDeconnecte = 1
+	FIN
+FIN
+
+dbgVérifieEgalité(nRattrapeHorsContexte, 1,
+	"hors-contexte rattrapé par httpFluxHorsContexte")
+dbgVérifieEgalité(nMatchDeconnecte, 0,
+	"httpFluxDéconnecté ne matche PAS une exception hors-contexte")
+
+dbgBilanTest()

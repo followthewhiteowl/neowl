@@ -1,0 +1,148 @@
+// @sujet : fSélecteur
+// @résumé : Ouvre une boîte de dialogue système de sélection de fichier et retourne le chemin complet sélectionné, ou "" si annulé. Prend en charge la sélection simple (fselOuvre, fselCrée, fselExiste) et la sélection multiple (fselMulti, chemins séparés par CRLF).
+
+
+// Particularité des fonctions GUI bloquantes : en mode headless (owl test),
+// fSélecteur retourne "" sans ouvrir de dialogue. On peut aussi intercepter
+// via le mock-system pour simuler un choix utilisateur et vérifier que la
+// native a été appelée avec les bons paramètres.
+mockFSel est un MockNative = MockCrée(fSélecteur)
+
+
+PROCEDURE avantChaqueTest()
+	mockFSel = MockCrée(fSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+PROCEDURE aprèsChaqueTest()
+	mockFSel.Desactive()
+FIN
+
+
+// En mode headless, fSélecteur retourne "" sans ouvrir de dialogue.
+// Syntaxe 1 : <RépInitial>, <FichierDéfaut>, <Titre>, <TypesFichiers>, <ExtDéfaut>
+PROCEDURE scenario_headless_retourne_chaine_vide_syntaxe1()
+	sChemin est une chaîne = fSélecteur("C:\", "", "Choisir un fichier", "Fichiers texte" + TAB + " *.txt" + CRLF, "txt")
+	dbgVérifieEgalité(sChemin, "", "Headless retourne chaîne vide")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fSélecteur retourne "" sans ouvrir de dialogue.
+// Syntaxe 2 : <CheminCompletFichierDéfaut>, <Titre>, <TypesFichiers>, <ExtDéfaut>
+PROCEDURE scenario_headless_retourne_chaine_vide_syntaxe2()
+	sChemin est une chaîne = fSélecteur("C:\Documents\rapport.txt", "Choisir un fichier", "Fichiers texte" + TAB + "*.txt" + CRLF, "txt")
+	dbgVérifieEgalité(sChemin, "", "Headless retourne chaîne vide — syntaxe 2")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fSélecteur avec le mode fselOuvre retourne "".
+// fselOuvre est la constante de mode par défaut (ouvrir un fichier existant).
+PROCEDURE scenario_headless_mode_ouvre()
+	sChemin est une chaîne = fSélecteur("C:\", "", "Ouvrir", "TOUS fichiers" + TAB + " *. * " + CRLF, " * ", fselOuvre)
+	dbgVérifieEgalité(sChemin, "", "Headless retourne chaîne vide avec fselOuvre")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fSélecteur avec le mode fselCrée retourne "".
+// fselCrée sert à obtenir un chemin cible pour une sauvegarde.
+PROCEDURE scenario_headless_mode_cree()
+	sChemin est une chaîne = fSélecteur("C:\", "", "Enregistrer sous", "Fichiers texte" + TAB + " *.txt" + CRLF, "txt", fselCrée)
+	dbgVérifieEgalité(sChemin, "", "Headless retourne chaîne vide avec fselCrée")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fSélecteur avec le mode fselExiste retourne "".
+// fselExiste impose que le fichier sélectionné existe déjà sur le disque.
+PROCEDURE scenario_headless_mode_existe()
+	sChemin est une chaîne = fSélecteur("C:\", "", "Sélectionner", "TOUS fichiers" + TAB + " *. * " + CRLF, " * ", fselExiste)
+	dbgVérifieEgalité(sChemin, "", "Headless retourne chaîne vide avec fselExiste")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fSélecteur avec le mode fselMulti retourne "".
+// En run réel avec fselMulti, les chemins sélectionnés sont séparés par CRLF.
+PROCEDURE scenario_headless_mode_multi()
+	sChemin est une chaîne = fSélecteur("C:\", "", "Sélectionner plusieurs", "TOUS fichiers" + TAB + " *. * " + CRLF, " * ", fselMulti)
+	dbgVérifieEgalité(sChemin, "", "Headless retourne chaîne vide avec fselMulti")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// Le mock peut simuler un retour de chemin précis, permettant de tester
+// le code appelant sans ouvrir de dialogue. Le chemin mocké est retourné
+// tel quel par la native.
+PROCEDURE scenario_mock_retourne_chemin_fichier()
+	mockFSel.Desactive()
+	mockLocal est un MockNative = MockCrée(fSélecteur).Quand().Retourne("C:\Documents\rapport.pdf").Active()
+
+	sChemin est une chaîne = fSélecteur("C:\", "", "Ouvrir", "PDF" + TAB + " *.pdf" + CRLF, "pdf")
+	dbgVérifieEgalité(sChemin, "C:\Documents\rapport.pdf", "Mock retourne le chemin simulé")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Native interceptée une fois")
+
+	mockLocal.Desactive()
+	mockFSel = MockCrée(fSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+// Le mock peut simuler une annulation (retour "") pour tester le chemin
+// "l'utilisateur a annulé la sélection" dans le code appelant.
+PROCEDURE scenario_mock_retourne_chaine_vide_annulation()
+	sChemin est une chaîne = fSélecteur("C:\", "", "Ouvrir", "TOUS fichiers" + TAB + " *. * " + CRLF, " * ")
+	dbgVérifieEgalité(sChemin, "", "Simulation annulation utilisateur")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native interceptée une fois")
+FIN
+
+
+// fselMulti : le mock peut simuler la sélection de plusieurs fichiers.
+// Les chemins multiples sont séparés par CRLF (retour chariot).
+PROCEDURE scenario_mock_multi_selection()
+	mockFSel.Desactive()
+	sRetourMulti est une chaîne = "C:\docs\fichier1.txt" + CRLF + "C:\docs\fichier2.txt"
+	mockLocal est un MockNative = MockCrée(fSélecteur).Quand().Retourne(sRetourMulti).Active()
+
+	sChemin est une chaîne = fSélecteur("C:\", "", "Sélectionner", "Texte" + TAB + " *.txt" + CRLF, "txt", fselMulti)
+	dbgVérifieEgalité(sChemin, sRetourMulti, "Mock retourne les deux chemins séparés par CRLF")
+	dbgVérifieVrai(ChaîneOccurrence(sChemin, CRLF) > 0, "Résultat contient un séparateur CRLF")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Native interceptée une fois")
+
+	mockLocal.Desactive()
+	mockFSel = MockCrée(fSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+// La forme EN fSelect est un alias de fSélecteur : elle retourne ""
+// en mode headless de façon identique.
+PROCEDURE scenario_forme_en_fselect_headless()
+	mockFSel.Desactive()
+	mockEN est un MockNative = MockCrée(fSelect).Quand().Retourne("").Active()
+
+	sChemin est une chaîne = fSelect("C:\", "", "Open", "ALL files" + TAB + " *. * " + CRLF, " * ")
+	dbgVérifieEgalité(sChemin, "", "Forme EN retourne chaîne vide en headless")
+	dbgVérifieVrai(MockVérifieAppelé(mockEN, 1), "Alias EN intercepté une fois")
+
+	mockEN.Desactive()
+	mockFSel = MockCrée(fSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+// Cas limite : répertoire initial vide — argument légal, comportement
+// défini par le système (utilise le dernier répertoire visité).
+PROCEDURE PRIVÉE scenario_rep_initial_vide()
+	sChemin est une chaîne = fSélecteur("", "", "Ouvrir", "Tous fichiers" + TAB + "*.*" + CRLF, "*")
+	dbgVérifieEgalité(sChemin, "", "Headless retourne vide quelle que soit la valeur du répertoire initial")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN
+
+
+// Cas limite : titre vide — la boîte de dialogue n'affiche pas de titre
+// mais l'appel reste valide.
+PROCEDURE PRIVÉE scenario_titre_vide()
+	sChemin est une chaîne = fSélecteur("C:\", "", "", "TOUS fichiers" + TAB + " *. * " + CRLF, " * ")
+	dbgVérifieEgalité(sChemin, "", "Headless retourne vide avec titre vide")
+	dbgVérifieVrai(MockVérifieAppelé(mockFSel, 1), "Native appelée une fois")
+FIN

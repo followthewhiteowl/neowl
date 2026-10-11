@@ -1,0 +1,71 @@
+// @sujet : BufferVide
+// @résumé : Alloue un buffer de nbOctets octets tous initialisés à zéro. Permet de préparer un tampon de réception avant qu'une opération externe ne le remplisse. BufferVide(0) retourne un buffer vide valide. Un nombre d'octets négatif lève une exception.
+
+
+// Cas A : buffer de 260 octets — taille correcte et contenu nul aux positions clés.
+PROCEDURE PUBLIQUE scenario_buffervide_260_octets()
+	buf est un buffer = BufferVide(260)
+	dbgVérifieEgalité(Taille(buf), 260, "BufferVide(260) produit 260 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o130 est un entier = BufferLitOctet(buf, 130)
+	o260 est un entier = BufferLitOctet(buf, 260)
+	dbgVérifieEgalité(o1, 0, "octet 1 = 0 (initialisé à zéro)")
+	dbgVérifieEgalité(o130, 0, "octet 130 = 0 (milieu du buffer)")
+	dbgVérifieEgalité(o260, 0, "octet 260 = 0 (dernier octet)")
+FIN
+
+
+// Cas B : buffer de 0 octet — valide, Taille retourne 0.
+PROCEDURE PUBLIQUE scenario_buffervide_zero_octet()
+	buf est un buffer = BufferVide(0)
+	dbgVérifieEgalité(Taille(buf), 0, "BufferVide(0) retourne un buffer vide valide de 0 octet")
+FIN
+
+
+// Cas C : nombre d'octets négatif — exception attendue.
+PROCEDURE PUBLIQUE scenario_buffervide_negatif_erreur()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVide(-1)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "BufferVide(-1) lève une exception")
+FIN
+
+
+// Cas D : composition — un buffer vide de 2 octets concaténé à un octet de données.
+// Illustre le cas d'usage : réserver un tampon de padding dans un bloc binaire.
+PROCEDURE PUBLIQUE scenario_buffervide_composition()
+	debut est un buffer = EntierVersBuffer(255, 1)
+	pad est un buffer = BufferVide(2)
+	buf est un buffer = debut + pad
+	dbgVérifieEgalité(Taille(buf), 3, "1 octet de données + buffer vide de 2 = 3 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	o3 est un entier = BufferLitOctet(buf, 3)
+	dbgVérifieEgalité(o1, 255, "octet 1 = 255 (valeur initiale)")
+	dbgVérifieEgalité(o2, 0, "octet 2 = 0 (padding nul)")
+	dbgVérifieEgalité(o3, 0, "octet 3 = 0 (padding nul)")
+FIN
+
+
+// Edge case : buffer de 1 octet — le seul octet est nul.
+PROCEDURE PRIVÉE scenario_edge_buffervide_1_octet()
+	buf est un buffer = BufferVide(1)
+	dbgVérifieEgalité(Taille(buf), 1, "BufferVide(1) produit 1 octet")
+	o est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(o, 0, "octet unique = 0")
+FIN
+
+
+// Edge case : valeur négative grande — toute valeur négative lève une exception.
+PROCEDURE PRIVÉE scenario_edge_buffervide_negatif_grand()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVide(-32)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "BufferVide(-32) lève une exception (pas seulement -1)")
+FIN

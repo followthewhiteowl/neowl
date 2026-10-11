@@ -1,0 +1,34 @@
+//  — une PROCEDURE declaree au top-level du body Fenetre est
+// publique par construction (canon ) et peut etre referencee
+// depuis un fichier voisin. Pas de warning "declaree mais jamais
+// utilisee" sur ce symbole, meme s'il n'est jamais appele dans le
+// fichier courant.
+//
+// Le scenario reproduit le contexte des tests TestSimuleSouris :
+// Fenetre + variable + Champ Image avec callback + PROCEDURE top-level
+// helper. Sans le fix, la PROCEDURE top-level levait un faux positif
+// "declaree mais jamais utilisee" car le tracker des globals creait
+// une seconde entree non-initialisee qui shuntait le mark_initialized.
+
+FEN_X est une Fenetre
+	PROPRIETES
+		Titre       = "T"
+		Disposition = dispLibre
+	FIN
+
+	drapeau est un booleen = Faux
+
+	IMG_Canvas est un Champ Image
+		PROPRIETES
+			X       = 0
+			Y       = 50
+		FIN
+		PROCEDURE surMolette(mouvement est un entier)
+			drapeau = Vrai
+		FIN
+	FIN
+
+	PROCEDURE Helper()
+		Trace(drapeau)
+	FIN
+FIN

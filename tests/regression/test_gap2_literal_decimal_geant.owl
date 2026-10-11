@@ -1,0 +1,38 @@
+//  lot1 — GAP-2 : littéral décimal géant arrondi au lieu d'être exact
+// Un littéral numérique avec partie fractionnaire et magnitude > int64 est
+// parsé en lossy : le point décimal route vers le chemin double (IEEE754),
+// qui ne peut pas représenter plus de ~17 chiffres significatifs.
+// Résultat actuel : 99999999999999999999999999.75 → 100000000000000000000000000
+// (arrondi vers 10^26, perte totale de la partie fractionnaire ET de l'unité entière)
+//
+// Les tests R* ci-dessous sont ROUGES ; le test G* est une GARDE verte.
+
+// ===== ROUGE : littéral décimal géant doit être stocké exact =====
+
+// Bug confirmé : 99999999999999999999999999.75 → 100000000000000000000000000 aujourd'hui
+// Attendu après fix : valeur exacte = 99999999999999999999999999.75
+PROCEDURE PUBLIQUE test_r1_literal_decimal_geant_exact()
+	nLit est un numérique = 99999999999999999999999999.75
+	// Valeur exacte attendue : construite via littéral préfixé + fraction exacte
+	nExpected est un numérique = 0n99999999999999999999999999 + 0n0.75
+	dbgVérifieEgalité(nLit, nExpected, "littéral 99999999999999999999999999.75 stocké exact (pas arrondi)")
+FIN
+
+// Bug secondaire : le résultat actuel (10^26) est STRICTEMENT supérieur à la valeur correcte
+// Cette assertion est actuellement rouge car nLit = 10^26 qui est > 10^26 - 0.25
+PROCEDURE PUBLIQUE test_r2_literal_decimal_geant_inferieur_arrondi_errone()
+	nLit est un numérique = 99999999999999999999999999.75
+	// La valeur CORRECTE est inférieure à 10^26 (≈ 9.9999...×10^25 + 0.75)
+	dbgVérifieVrai(nLit < 0n100000000000000000000000000,
+	"littéral décimal géant doit être < 10^26 (pas arrondi vers 10^26)")
+FIN
+
+// ===== GARDE : le littéral entier géant (sans décimale) reste exact =====
+// Fix/0747 avait corrigé les littéraux entiers > int64. Ce fix ne doit pas régresser.
+
+PROCEDURE PUBLIQUE test_g1_literal_entier_geant_anti_regression()
+	nEntier est un numérique = 99999999999999999999999999
+	nPrefixe est un numérique = 0n99999999999999999999999999
+	dbgVérifieEgalité(nEntier, nPrefixe, "littéral entier sans décimale = 0n... équivalent (garde)")
+	dbgVérifieVrai(nEntier > 0, "littéral entier 26 chiffres est positif (anti-régression fix/0747)")
+FIN

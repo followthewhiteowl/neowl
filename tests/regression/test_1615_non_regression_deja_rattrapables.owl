@@ -1,0 +1,97 @@
+//  : non-régression. Ces familles sont DÉJÀ rattrapables aujourd'hui
+// et doivent le RESTER une fois les familles voisines (cf. les fichiers
+// test_1615_*.owl isolés) rendues rattrapables à leur tour. Bundlées dans un
+// même fichier : aucun de ces déclencheurs ne sort en exit 70 (déjà
+// intercepté par QUAND EXCEPTION), donc pas de risque de masquage.
+
+// Index lecture hors-limites 1D : déjà rattrapable.
+PROCEDURE PUBLIQUE test_non_regression_index_lecture_oob_1d()
+	vt est un tableau de 2 entiers
+	vt[1] = 1
+	vt[2] = 2
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un entier = vt[99]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau[hors limites] en lecture reste rattrapable")
+FIN
+
+// Index écriture hors-limites 1D : déjà rattrapable.
+PROCEDURE PUBLIQUE test_non_regression_index_ecriture_oob_1d()
+	vt est un tableau de 2 entiers
+	vt[1] = 1
+	vt[2] = 2
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		vt[99] = 5
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau[hors limites] = valeur en écriture reste rattrapable")
+FIN
+
+// Index écriture mauvais-type 1D : déjà rattrapable.
+PROCEDURE PUBLIQUE test_non_regression_index_ecriture_mauvais_type()
+	vt est un tableau de 2 entiers
+	vt[1] = 1
+	vt[2] = 2
+	clé est une chaîne = "x"
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		vt[clé] = 5
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau[chaîne] = valeur en écriture reste rattrapable")
+FIN
+
+// Division par zéro (diviseur runtime, pas littéral compile-time) : déjà rattrapable.
+PROCEDURE PUBLIQUE test_non_regression_division_par_zero()
+	diviseur est un entier = 0
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un entier = 5 / diviseur
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "division par zéro reste rattrapable")
+FIN
+
+// Propriété collection inconnue (Vecteur) : déjà rattrapable.
+PROCEDURE PUBLIQUE test_non_regression_vecteur_propriete_inconnue()
+	v est un Vecteur = [1.0, 2.0]
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un entier = v..Truc
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Vecteur..PropInconnue reste rattrapable")
+FIN
+
+// Arithmétique Vecteur, tailles différentes : déjà rattrapable.
+PROCEDURE PUBLIQUE test_non_regression_vecteur_tailles_differentes()
+	vCourt est un Vecteur = [1.0, 2.0]
+	vLong est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un Vecteur = vCourt + vLong
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Vecteur + Vecteur (tailles différentes) reste rattrapable")
+FIN

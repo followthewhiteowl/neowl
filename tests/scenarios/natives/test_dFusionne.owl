@@ -1,0 +1,138 @@
+// @sujet : dFusionne
+// @resume : Fusion alpha-blending source-over avec modulation opacite
+
+// ==============================================================================
+// PROCEDURE PUBLIQUE
+// ==============================================================================
+
+PROCEDURE scenario_fusion_nominale()
+	// Fusionne deux images avec opacite par defaut (100% = source opaque complete).
+	// L'image source est blendee sur la destination par compositing source-over.
+
+	couleurGris est un entier = RVB(128, 128, 128)
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	imgDest est une Image = dCréeImage(10, 10, couleurGris)
+	imgSrc est une Image = dCréeImage(10, 10, couleurRouge)
+
+	dFusionne(imgDest, imgSrc)
+
+	cApres est une Couleur = dPixelCouleur(imgDest, 5, 5)
+
+	// Fusion complete (opacite 100%) : dest devient rouge
+	dbgVérifieEgalité(cApres..Rouge, 255, "dFusionne - canal rouge apres fusion")
+	dbgVérifieEgalité(cApres..Vert, 0, "dFusionne - canal vert apres fusion")
+	dbgVérifieEgalité(cApres..Bleu, 0, "dFusionne - canal bleu apres fusion")
+FIN
+
+PROCEDURE scenario_opacite_zero()
+	// Opacite 0% = aucun effet sur destination (early return).
+
+	couleurGris est un entier = RVB(100, 100, 100)
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	imgDest est une Image = dCréeImage(10, 10, couleurGris)
+	imgSrc est une Image = dCréeImage(10, 10, couleurRouge)
+
+	dFusionne(imgDest, imgSrc, 0.0)
+
+	cApres est une Couleur = dPixelCouleur(imgDest, 5, 5)
+
+	// Destination inchangee
+	dbgVérifieEgalité(cApres..Rouge, 100, "dFusionne opacite=0 - R inchange")
+	dbgVérifieEgalité(cApres..Vert, 100, "dFusionne opacite=0 - G inchange")
+	dbgVérifieEgalité(cApres..Bleu, 100, "dFusionne opacite=0 - B inchange")
+FIN
+
+PROCEDURE scenario_opacite_partielle()
+	// Opacite 39.2% module l'alpha source, produisant blend partiel.
+
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	imgDest est une Image = dCréeImage(10, 10, couleurBlanc)
+	imgSrc est une Image = dCréeImage(10, 10, couleurRouge)
+
+	dFusionne(imgDest, imgSrc, 39.2)
+
+	cApres est une Couleur = dPixelCouleur(imgDest, 5, 5)
+
+	// Blend partiel : rouge module par opacite 39.2%
+	dbgVérifieVrai(cApres..Rouge >= 250, "dFusionne opacite=39.2 - R reste dominant")
+	dbgVérifieVrai(cApres..Vert >= 150 ET cApres..Vert <= 160, "dFusionne opacite=39.2 - G blend partiel")
+FIN
+
+PROCEDURE scenario_dimensions_differentes()
+	// Zone fusionnee = min(srcW, dstW) x min(srcH, dstH), alignement haut-gauche.
+	// Reste dest hors zone source inchange.
+
+	couleurGris est un entier = RVB(128, 128, 128)
+	couleurVert est un entier = RVB(0, 200, 0)
+
+	imgDest est une Image = dCréeImage(10, 10, couleurGris)
+	imgSrc est une Image = dCréeImage(5, 5, couleurVert)
+
+	dFusionne(imgDest, imgSrc)
+
+	// Pixel dans zone fusionnee : vert
+	cDansZone est une Couleur = dPixelCouleur(imgDest, 2, 2)
+	dbgVérifieEgalité(cDansZone..Vert, 200, "dFusionne dims diff - zone fusionnee vert")
+
+	// Pixel hors zone source : gris inchange
+	cHorsZone est une Couleur = dPixelCouleur(imgDest, 7, 7)
+	dbgVérifieEgalité(cHorsZone..Rouge, 128, "dFusionne dims diff - hors zone R inchange")
+FIN
+
+PROCEDURE scenario_erreurs_arguments()
+	// Type invalide (arg2 chaine au lieu d'Image) → erreur runtime E_NATIVE_ARG_TYPE_MISMATCH.
+	// Note : le cas arité-manquante (dFusionne avec 1 arg) est couvert par
+	// une fixture compile-error (tests/compile-error/dfusionne_un_arg.owl).
+	// Avec l'arité {2,3} cet appel est rejeté au compile-time, pas au runtime.
+
+	imgDest est une Image = dCréeImage(5, 5, Blanc)
+
+	ErreurRAZ()
+	dFusionne(imgDest, "invalide")
+	dbgVérifieVrai(ErreurInfo() <> "", "dFusionne type invalide - erreur levee")
+FIN
+
+// ==============================================================================
+// PROCEDURE PRIVE
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_opacite_negatif_clamp()
+	// Opacite negative clampee a 0% → aucun effet (meme comportement que opacite=0).
+
+	couleurGris est un entier = RVB(100, 100, 100)
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	imgDest est une Image = dCréeImage(5, 5, couleurGris)
+	imgSrc est une Image = dCréeImage(5, 5, couleurRouge)
+
+	dFusionne(imgDest, imgSrc,-50.0)
+
+	cApres est une Couleur = dPixelCouleur(imgDest, 2, 2)
+
+	dbgVérifieEgalité(cApres..Rouge, 100, "dFusionne opacite negative - R inchange")
+	dbgVérifieEgalité(cApres..Vert, 100, "dFusionne opacite negative - G inchange")
+	dbgVérifieEgalité(cApres..Bleu, 100, "dFusionne opacite negative - B inchange")
+FIN
+
+PROCEDURE PRIVÉE scenario_opacite_superieur_100_clamp()
+	// Opacite > 100% clampee a 100% → comportement identique a default (100%).
+
+	couleurGris est un entier = RVB(100, 100, 100)
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	imgDest est une Image = dCréeImage(5, 5, couleurGris)
+	imgSrc est une Image = dCréeImage(5, 5, couleurRouge)
+
+	dFusionne(imgDest, imgSrc, 150.0)
+
+	cApres est une Couleur = dPixelCouleur(imgDest, 2, 2)
+
+	// Meme resultat que opacite=100% (fusion complete)
+	dbgVérifieEgalité(cApres..Rouge, 255, "dFusionne opacite >100 - R fusionne complet")
+	dbgVérifieEgalité(cApres..Vert, 0, "dFusionne opacite >100 - G fusionne complet")
+	dbgVérifieEgalité(cApres..Bleu, 0, "dFusionne opacite >100 - B fusionne complet")
+FIN

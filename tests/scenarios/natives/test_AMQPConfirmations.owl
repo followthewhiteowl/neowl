@@ -1,0 +1,52 @@
+// @sujet : AMQPConfirmations
+// @résumé : Active le mode publisher-confirms (Confirm.Select) sur une connexion AMQP, pour garantir que le broker a bien accepté un message publié.
+
+// Activer les confirms sur une connexion qui n'a jamais été ouverte échoue
+// proprement : la native renvoie Faux et pose une erreur, sans émettre sur
+// le fil.
+PROCEDURE PUBLIQUE scenario_confirmations_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPConfirmations(cnx, Vrai)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bOk, "AMQPConfirmations renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+// Le drapeau d'activation doit être un booléen : une chaîne en 2e argument
+// est refusée avec le code d'erreur canonique de type d'argument invalide,
+// pas juste un Faux muet masqué derrière « connexion non ouverte ». Cette
+// validation de type DOIT être faite avant tout accès réseau (même sur une
+// connexion jamais ouverte, le code d'erreur attendu reste le type invalide).
+PROCEDURE PUBLIQUE scenario_confirmations_actif_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPConfirmations(cnx, "pas-un-booléen")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPConfirmations refuse un drapeau qui n'est pas un booléen")
+	dbgVérifieVrai(bErr, "une erreur est posée sur un drapeau de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+// Désactiver les confirms (drapeau Faux) sur une connexion qui n'a jamais été
+// ouverte échoue au même point que l'activation : la liveness de la connexion
+// est vérifiée avant toute décision sur le mode confirm, donc la native renvoie
+// Faux et pose l'erreur d'opération AMQP « connexion non ouverte ».
+//
+// Le comportement no-op renvoyant Vrai (drapeau Faux sur une connexion vivante
+// où le mode confirm n'a jamais été activé) n'est PAS observable ici : il est
+// situé après la barrière de liveness et nécessite un broker. Il relève des
+// tests de conformance avec broker vivant.
+PROCEDURE PUBLIQUE scenario_confirmations_desactivation_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPConfirmations(cnx, Faux)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPConfirmations(Faux) renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+	dbgVérifieEgalité(sCode, "E_NATIVE_AMQP_OP_FAILURE", "l'erreur est bien un échec d'opération AMQP")
+FIN
+
+dbgBilanTest()

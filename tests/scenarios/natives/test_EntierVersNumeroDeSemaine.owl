@@ -1,0 +1,161 @@
+// @sujet : EntierVersNuméroDeSemaine
+// @résumé : Conversion entier (jours depuis 01/01/1800) vers numéro de semaine
+
+// La fonction reçoit un entier représentant le nombre de jours écoulés
+// depuis le 01/01/1800 (base 1, aligné sur DateVersEntier) et renvoie
+// le numéro de semaine. Par défaut, convention canon : semaine 0 pour
+// un début janvier hors semaine 1 (jan1 vendredi-dimanche), semaine 53
+// pour une fin décembre qui bascule sur la semaine 1 de l'année
+// suivante. Avec la constante iso8601 en second argument, applique
+// ISO 8601 strict (semaine 1 = celle contenant le 1er jeudi de l'année).
+
+// ==============================================================================
+// PROCEDURES PUBLIQUES - Cas nominaux pour la doc utilisateur
+// ==============================================================================
+
+PROCEDURE PUBLIQUE scenario_milieu_annee()
+	// 16 avril 2026 (jeudi) = semaine 16 — canon et ISO sont identiques
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20260416"))
+	dbgVérifieEgalité(n, 16, "16 avril 2026 = semaine 16 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20260416"), iso8601)
+	dbgVérifieEgalité(nISO, 16, "16 avril 2026 = semaine 16 (ISO 8601)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_premier_janvier_lundi()
+	// 1er janvier 2024 est un lundi → semaine 1 dans les deux conventions
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20240101"))
+	dbgVérifieEgalité(n, 1, "1er janvier 2024 (lundi) = semaine 1 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20240101"), iso8601)
+	dbgVérifieEgalité(nISO, 1, "1er janvier 2024 (lundi) = semaine 1 (ISO 8601)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_premier_janvier_jeudi()
+	// 1er janvier 2026 est un jeudi → semaine 1 dans les deux conventions
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20260101"))
+	dbgVérifieEgalité(n, 1, "1er janvier 2026 (jeudi) = semaine 1 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20260101"), iso8601)
+	dbgVérifieEgalité(nISO, 1, "1er janvier 2026 (jeudi) = semaine 1 (ISO 8601)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dernier_decembre_bascule()
+	// 31 décembre 2024 (mardi) : en convention canon = semaine 53 de 2024 (la date
+	// reste dans son année calendaire), ISO 8601 = semaine 1 de 2025
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20241231"))
+	dbgVérifieEgalité(n, 53, "31 décembre 2024 = semaine 53 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20241231"), iso8601)
+	dbgVérifieEgalité(nISO, 1, "31 décembre 2024 = semaine 1 de 2025 (ISO 8601)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_coherence_dateversNumeroDeSemaine()
+	// Cohérence : EntierVersNuméroDeSemaine et DateVersNuméroDeSemaine
+	// renvoient la même valeur pour la même date (canon et ISO).
+
+	d est une date = ChaîneVersDate("20260416")
+	jours est un entier = DateVersEntier(d)
+
+	n1 est un entier = EntierVersNuméroDeSemaine(jours)
+	n2 est un entier = DateVersNuméroDeSemaine(d)
+	dbgVérifieEgalité(n1, n2, "Cohérence canon EntierVersNuméroDeSemaine vs DateVersNuméroDeSemaine")
+
+	n1ISO est un entier = EntierVersNuméroDeSemaine(jours, iso8601)
+	n2ISO est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n1ISO, n2ISO, "Cohérence ISO EntierVersNuméroDeSemaine vs DateVersNuméroDeSemaine")
+FIN
+
+// ==============================================================================
+// PROCEDURES PRIVEES - Cas limites et edge cases
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_canon_semaine_0()
+	// 1er janvier 2021 (vendredi) : en convention canon → semaine 0 (jan1 vendredi
+	// est antérieur au premier lundi de semaine 1). ISO 8601 → semaine 53
+	// de 2020 (la date appartient en ISO à l'année voisine).
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20210101"))
+	dbgVérifieEgalité(n, 0, "1er janvier 2021 (vendredi) = semaine 0 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20210101"), iso8601)
+	dbgVérifieEgalité(nISO, 53, "1er janvier 2021 (vendredi) = semaine 53 de 2020 (ISO 8601)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_canon_semaine_0_samedi()
+	// 2 janvier 2021 (samedi) : en convention canon → encore semaine 0.
+	// ISO 8601 → semaine 53 de 2020.
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20210102"))
+	dbgVérifieEgalité(n, 0, "2 janvier 2021 (samedi) = semaine 0 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20210102"), iso8601)
+	dbgVérifieEgalité(nISO, 53, "2 janvier 2021 (samedi) = semaine 53 de 2020 (ISO 8601)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_semaine_53()
+	// 31 décembre 2020 (jeudi) : semaine 53 dans les deux conventions
+	// (jeudi de S53 tombe en 2020, donc ISO 8601 conserve 53).
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20201231"))
+	dbgVérifieEgalité(n, 53, "31 décembre 2020 (jeudi) = semaine 53 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20201231"), iso8601)
+	dbgVérifieEgalité(nISO, 53, "31 décembre 2020 (jeudi) = semaine 53 (ISO 8601)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_annee_bissextile()
+	// 29 février 2024 (jeudi) : semaine 9 dans les deux conventions.
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20240229"))
+	dbgVérifieEgalité(n, 9, "29 février 2024 (jeudi) = semaine 9 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20240229"), iso8601)
+	dbgVérifieEgalité(nISO, 9, "29 février 2024 (jeudi) = semaine 9 (ISO 8601)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_fin_annee_bascule()
+	// 30 décembre 2024 (lundi) : en convention canon → semaine 53 de 2024.
+	// ISO 8601 → semaine 1 de 2025 (le jeudi de cette semaine est en 2025).
+
+	n est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20241230"))
+	dbgVérifieEgalité(n, 53, "30 décembre 2024 (lundi) = semaine 53 (canon)")
+
+	nISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("20241230"), iso8601)
+	dbgVérifieEgalité(nISO, 1, "30 décembre 2024 (lundi) = semaine 1 de 2025 (ISO 8601)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_coherence_dates_limites()
+	// Bornes calendrier grégorien usuel : 01/01/0001 → 31/12/9999.
+
+	n1 est un entier = EntierVersNuméroDeSemaine(DateVersEntier("99991231"))
+	dbgVérifieVrai(n1 >= 0 ET n1 <= 53, "31/12/9999 (canon) renvoie un numéro de semaine valide (0-53)")
+
+	n1ISO est un entier = EntierVersNuméroDeSemaine(DateVersEntier("99991231"), iso8601)
+	dbgVérifieVrai(n1ISO >= 1 ET n1ISO <= 53, "31/12/9999 (ISO 8601) renvoie un numéro de semaine valide (1-53)")
+FIN
+
+// ==============================================================================
+// POINT D'ENTREE
+// ==============================================================================
+
+// Procedures publiques (doc utilisateur)
+scenario_milieu_annee()
+scenario_premier_janvier_lundi()
+scenario_premier_janvier_jeudi()
+scenario_dernier_decembre_bascule()
+scenario_coherence_dateversNumeroDeSemaine()
+
+// Procedures privees (edge cases)
+scenario_edge_canon_semaine_0()
+scenario_edge_canon_semaine_0_samedi()
+scenario_edge_semaine_53()
+scenario_edge_annee_bissextile()
+scenario_edge_fin_annee_bascule()
+scenario_edge_coherence_dates_limites()
+
+dbgBilanTest()

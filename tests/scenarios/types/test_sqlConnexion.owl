@@ -1,0 +1,92 @@
+// @sujet : sqlConnexion
+// @résumé : Décrit une connexion à une base de données, l'ouvre, et récupère le détail complet quand l'ouverture échoue.
+
+// Descripteur de connexion à une base de données : le connecteur est choisi
+// par la propriété Provider, les autres propriétés décrivent la cible. Ouvre()
+// renvoie Vrai ou Faux — quand il renvoie Faux, le détail complet de l'échec
+// est lisible via ErreurInfo(), et c'est lui qui indique quoi corriger.
+
+
+// Une sqlConnexion déclarée sans initialisation part sur des valeurs prêtes à
+// l'emploi : connecteur SQLite (base locale, rien à installer), aucune cible
+// renseignée, et un transport chiffré exigé dès qu'un serveur est contacté.
+PROCEDURE PUBLIQUE scenario_valeurs_par_defaut()
+	cnx est une sqlConnexion
+	dbgVérifieEgalité(cnx..Provider, sqlSqlite, "connecteur par défaut : SQLite")
+	dbgVérifieEgalité(cnx..Source, "", "Source vide à la création")
+	dbgVérifieEgalité(cnx..Port, 0, "Port non imposé : le connecteur décide")
+	dbgVérifieEgalité(cnx..ModeTLS, tlsVerifieComplet, "TLS vérifié de bout en bout par défaut")
+FIN
+
+
+// Base locale : une seule propriété à renseigner, Source, qui porte le chemin
+// du fichier (":memory:" pour une base éphémère en mémoire). Ferme() est
+// idempotent, on peut l'appeler sans se demander si la base est encore ouverte.
+PROCEDURE PUBLIQUE scenario_ouverture_base_locale()
+	cnx est une sqlConnexion
+	cnx..Provider = sqlSqlite
+	cnx..Source   = ":memory:"
+
+	dbgVérifieEgalité(cnx.Ouvre(), Vrai, "base locale en mémoire ouverte")
+	dbgVérifieEgalité(cnx.Ferme(), Vrai, "fermeture confirmée")
+FIN
+
+
+// Connecteur réseau : la cible se décrit avec Serveur (forme "hôte" ou
+// "hôte:port"), BaseDeDonnées et les identifiants. Les propriétés se relisent
+// telles qu'elles ont été posées, ce qui permet de vérifier une configuration
+// assemblée dynamiquement avant même de tenter l'ouverture.
+PROCEDURE PUBLIQUE scenario_description_connexion_reseau()
+	cnx est une sqlConnexion
+	cnx..Provider      = sqlPostgres
+	cnx..Serveur       = "bdd.exemple.test:5432"
+	cnx..BaseDeDonnées = "facturation"
+	cnx..Utilisateur   = "app_facturation"
+	cnx..MotDePasse    = "secret42"
+
+	dbgVérifieEgalité(cnx..Serveur, "bdd.exemple.test:5432", "hôte et port relus")
+	dbgVérifieEgalité(cnx..BaseDeDonnées, "facturation", "base cible relue")
+	dbgVérifieEgalité(cnx..Utilisateur, "app_facturation", "identifiant relu")
+FIN
+
+
+// Le réflexe à prendre quand Ouvre() renvoie Faux : lire ErreurInfo() AVANT
+// d'afficher quoi que ce soit. Le message y est déjà complet — il nomme le
+// connecteur, la cible et la raison exacte. Un message générique écrit à la
+// place ("connexion impossible") remplacerait le seul diagnostic disponible.
+//
+// Sur une cible locale, le détail ajoute la piste la plus fréquente : un
+// serveur de développement n'expose souvent pas de transport chiffré, alors
+// que le défaut l'exige.
+PROCEDURE PUBLIQUE scenario_echec_ouverture_detail_recuperable()
+	cnx est une sqlConnexion
+	cnx..Provider      = sqlPostgres
+	cnx..Serveur       = "127.0.0.1:1"
+	cnx..BaseDeDonnées = "facturation"
+	cnx..Utilisateur   = "app_facturation"
+
+	bOuvert est un booléen = cnx.Ouvre()
+	// ErreurDétectée se lit en premier : c'est le drapeau de l'appel qui
+	// précède, tout autre appel intercalé le remet à zéro.
+	dbgVérifieVrai(ErreurDétectée, "l'échec d'ouverture est signalé")
+
+	sDétail est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieEgalité(bOuvert, Faux, "serveur injoignable : Ouvre renvoie Faux")
+	dbgVérifieVrai(Contient(sDétail, "SQLConnexionOuvre"), "le détail nomme l'opération")
+	dbgVérifieVrai(Contient(sDétail, "127.0.0.1:1"), "le détail nomme la cible contactée")
+	dbgVérifieVrai(Contient(sDétail, "tlsDesactive"), "le détail suggère le mode TLS du dev local")
+FIN
+
+
+// Configuration incomplète : le détail nomme la propriété qui manque, sans
+// tenter la moindre connexion. Utile pour valider une configuration lue depuis
+// un fichier avant de l'utiliser.
+PROCEDURE PUBLIQUE scenario_propriete_obligatoire_manquante()
+	cnx est une sqlConnexion
+	cnx..Provider      = sqlPostgres
+	cnx..BaseDeDonnées = "facturation"
+
+	dbgVérifieEgalité(cnx.Ouvre(), Faux, "sans Serveur, l'ouverture échoue")
+	sDétail est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieVrai(Contient(sDétail, "Serveur"), "le détail nomme la propriété manquante")
+FIN

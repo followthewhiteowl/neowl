@@ -1,0 +1,171 @@
+// @sujet : PrécisionMoyenne / MeanAveragePrecision — métrique mAP@seuilIoU
+// @résumé : `PrécisionMoyenne(détections, véritésTerrain, seuilIoU)` (FR) /
+// `MeanAveragePrecision(detections, groundTruth, iouThreshold)` (EN) calcule
+// la mean Average Precision d'un détecteur d'objets. `détections` est un
+// tableau de `[classe, score, x, y, largeur, hauteur]`, `véritésTerrain` un
+// tableau de `[classe, x, y, largeur, hauteur]` (boîtes en coin, même
+// espace que IoU/SuppressionNonMax). Par classe : les prédictions triées
+// par score décroissant sont appariées de façon gloutonne à la meilleure
+// vérité terrain non encore prise, avec IoU ≥ seuilIoU. L'aire sous la
+// courbe précision-rappel (interpolation "all-point") donne l'AP par
+// classe ; la moyenne sur les classes possédant au moins une vérité
+// terrain donne la mAP. Oracles calculés à la main (algo pur, pas de
+// fixture externe).
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Une seule vérité terrain, une seule prédiction de même classe sur la
+// boîte identique : IoU = 1.0 ≥ 0.5 → vrai positif → AP = 1.0 → mAP = 1.0.
+PROCEDURE PUBLIQUE scenario_map_detection_parfaite()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 1.0) < 0.0001, "Détection parfaite : mAP = 1.0")
+FIN
+
+// La vérité terrain est de classe 0, la prédiction (même boîte, très bon
+// score) est classée 1 : aucun vrai positif pour la classe 0 (sa GT reste
+// non détectée), et la classe 1 n'a aucune vérité terrain donc est exclue
+// de la moyenne. mAP = 0.0.
+PROCEDURE PUBLIQUE scenario_map_mauvaise_classe()
+	dets est un tableau = [[1.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.0) < 0.0001, "Mauvaise classe prédite : mAP = 0.0")
+FIN
+
+// La prédiction est bien classée mais sa boîte est disjointe de la vérité
+// terrain (IoU = 0 < seuil) : faux positif, la GT reste non appariée.
+// AP = 0.0 → mAP = 0.0.
+PROCEDURE PUBLIQUE scenario_map_iou_sous_seuil()
+	dets est un tableau = [[0.0, 0.9, 50.0, 50.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.0) < 0.0001, "IoU sous le seuil : mAP = 0.0")
+FIN
+
+// Deux classes indépendantes : la classe 0 est détectée parfaitement
+// (boîte identique, AP = 1.0), la classe 1 est ratée (boîte disjointe,
+// AP = 0.0). mAP = moyenne(1.0, 0.0) = 0.5.
+PROCEDURE PUBLIQUE scenario_map_moyenne_deux_classes()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0], [1.0, 0.8, 90.0, 90.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0], [1.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.5) < 0.0001, "Une classe parfaite, une classe ratée : mAP = 0.5")
+FIN
+
+// Une classe, 2 vérités terrain, 3 prédictions triées TP/FP/TP (calcul
+// détaillé, cf. commentaire ci-dessous) :
+// GT1 = [0,0,10,10] classe 0, GT2 = [100,100,10,10] classe 0.
+// P1 (score 0.9) = boîte GT1 exacte → IoU=1 → TP (apparie GT1).
+// P2 (score 0.8) = boîte GT1 exacte (doublon) → GT1 déjà appariée → FP.
+// P3 (score 0.7) = boîte GT2 exacte → IoU=1 → TP (apparie GT2).
+// Après P1 : précision=1/1=1.0, rappel=1/2=0.5.
+// Après P2 : précision=1/2=0.5, rappel=1/2=0.5.
+// Après P3 : précision=2/3≈0.6667, rappel=2/2=1.0.
+// p_interp(0.5) = max précision pour rappel≥0.5 = 1.0 (atteinte après P1).
+// p_interp(1.0) = max précision pour rappel≥1.0 = 2/3 (atteinte après P3).
+// AP = (0.5-0)·1.0 + (1.0-0.5)·(2/3) = 0.5 + 0.3333... ≈ 0.8333.
+PROCEDURE PUBLIQUE scenario_map_courbe_precision_rappel()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0], [0.0, 0.8, 0.0, 0.0, 10.0, 10.0], [0.0, 0.7, 100.0, 100.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0], [0.0, 100.0, 100.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.8333) < 0.001, "Courbe précision-rappel (TP,FP,TP) : AP ≈ 0.8333")
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : formes anglaises + cas limites
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Forme anglaise MeanAveragePrecision : même résultat que le scénario
+// "détection parfaite".
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise()
+	dets is an array = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts is an array = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r is a real = MeanAveragePrecision(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 1.0) < 0.0001, "MeanAveragePrecision (EN) : détection parfaite, mAP = 1.0")
+FIN
+
+// Aucune détection alors qu'il existe une vérité terrain : la classe a
+// une GT mais 0 prédiction, AP = 0.0 → mAP = 0.0.
+PROCEDURE PRIVÉE scenario_edge_zero_detection_avec_gt()
+	dets est un tableau = []
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.0) < 0.0001, "0 détection avec GT présente : mAP = 0.0")
+FIN
+
+// Aucune vérité terrain du tout : aucune classe éligible à la moyenne,
+// convention mAP = 0.0.
+PROCEDURE PRIVÉE scenario_edge_zero_verite_terrain()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = []
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.0) < 0.0001, "0 vérité terrain : mAP = 0.0 (convention)")
+FIN
+
+// Doublon : 2 prédictions ciblent la même vérité terrain, la seconde ne
+// peut plus s'apparier (glouton, GT prise une seule fois) → 1 TP + 1 FP.
+// GT1 = [0,0,10,10], GT2 = [100,100,10,10], classe 0.
+// P1 (score 0.9) = boîte GT1 exacte → TP (apparie GT1), rappel=0.5, précision=1.0.
+// P2 (score 0.8) = boîte GT1 exacte (doublon) → FP, rappel=0.5, précision=0.5.
+// GT2 jamais appariée (aucune prédiction dessus) : rappel plafonne à 0.5.
+// p_interp(0.5) = max précision pour rappel≥0.5 = 1.0 (atteinte après P1).
+// AP = (0.5-0)·1.0 = 0.5 → mAP = 0.5.
+PROCEDURE PRIVÉE scenario_edge_doublon_meme_gt()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0], [0.0, 0.8, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0], [0.0, 100.0, 100.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 0.5) < 0.0001, "Doublon sur 1 GT (glouton, appariement unique) : mAP = 0.5")
+FIN
+
+// Frontière IoU exactement égale au seuil (≥, donc TP). GT = [0,0,10,10]
+// (aire 100), prédiction = [0,0,20,10] (aire 200) qui contient
+// entièrement la GT : intersection = aire(GT) = 100, union = 100+200-100
+// = 200, IoU = 100/200 = 0.5 = seuilIoU exactement.
+PROCEDURE PRIVÉE scenario_edge_iou_frontiere_egale_seuil()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 20.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(Abs(r - 1.0) < 0.0001, "IoU exactement = seuil (0.5) : compte comme TP, mAP = 1.0")
+FIN
+
+// Seuil IoU au-delà de 1.0 : entrée invalide, erreur claire.
+PROCEDURE PRIVÉE scenario_edge_seuil_superieur_a_un()
+	ErreurRAZ()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 1.5)
+	dbgVérifieVrai(ErreurDétectée, "seuilIoU = 1.5 (hors [0,1]) doit poser ErreurDétectée")
+FIN
+
+// Seuil IoU négatif : entrée invalide, erreur claire.
+PROCEDURE PRIVÉE scenario_edge_seuil_negatif()
+	ErreurRAZ()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts,-0.1)
+	dbgVérifieVrai(ErreurDétectée, "seuilIoU = -0.1 (hors [0,1]) doit poser ErreurDétectée")
+FIN
+
+// Boîte de détection malformée (5 valeurs au lieu de 6) : erreur claire,
+// pas de crash silencieux.
+PROCEDURE PRIVÉE scenario_edge_boite_detection_malformee()
+	ErreurRAZ()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(ErreurDétectée, "Détection à 5 valeurs au lieu de 6 doit poser ErreurDétectée")
+FIN
+
+// Boîte de vérité terrain malformée (4 valeurs au lieu de 5) : erreur
+// claire, pas de crash silencieux.
+PROCEDURE PRIVÉE scenario_edge_boite_verite_terrain_malformee()
+	ErreurRAZ()
+	dets est un tableau = [[0.0, 0.9, 0.0, 0.0, 10.0, 10.0]]
+	gts est un tableau = [[0.0, 0.0, 0.0, 10.0]]
+	r est un réel = PrécisionMoyenne(dets, gts, 0.5)
+	dbgVérifieVrai(ErreurDétectée, "Vérité terrain à 4 valeurs au lieu de 5 doit poser ErreurDétectée")
+FIN

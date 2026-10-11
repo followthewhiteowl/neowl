@@ -1,0 +1,21 @@
+// Garde-fou majeur : la règle qui supprime le CR d'un littéral de code
+// source ne concerne QUE le texte source lu par le compilateur. Une valeur
+// construite à l'exécution (ici via la constante RC, puis écrite/relue sur
+// disque) ne passe jamais par cette étape et doit conserver son CR intact.
+
+chemin est une chaîne = "_tmp_eol_runtime_survit.txt"
+fSupprime(chemin)
+
+contenu est une chaîne = "ligne1" + CRLF + "ligne2"
+dbgVérifieEgalité(Taille(contenu), 14, "valeur construite à l'exécution avec RC = 14 octets")
+
+ok est un booléen = fSauveTexte(chemin, contenu)
+dbgVérifieVrai(ok, "fSauveTexte réussit")
+
+relu est une chaîne = fChargeTexte(chemin)
+dbgVérifieEgalité(Taille(relu), 14, "contenu relu depuis le disque = 14 octets, RC intact")
+dbgVérifieEgalité(relu, "ligne1" + CRLF + "ligne2", "contenu relu strictement identique à ligne1 + RC + ligne2")
+
+fSupprime(chemin)
+
+dbgBilanTest()

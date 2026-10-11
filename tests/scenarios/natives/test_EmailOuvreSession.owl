@@ -1,0 +1,18 @@
+// @sujet : EmailOuvreSession
+// @résumé : Ouvre une connexion vers un serveur d'envoi SMTP (connexion, EHLO, TLS,
+// authentification éventuelle). Couvre le chemin d'échec sans serveur joignable.
+
+
+// Cas A : serveur injoignable (port fermé sur la boucle locale) — la native ne
+// bloque pas indéfiniment et renvoie Faux proprement, sans planter.
+PROCEDURE PUBLIQUE scenario_eos_serveur_injoignable()
+	session est un emailSessionSMTP
+	session..AdresseServeur = "127.0.0.1"
+	session..Port           = 9
+	EmailChangeTimeOut(session, 2000)
+
+	ok est un booléen = EmailOuvreSession(session)
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieFaux(ok, "EmailOuvreSession renvoie Faux quand le serveur est injoignable")
+	dbgVérifieVrai(bErreur, "une erreur est détectée quand le serveur est injoignable")
+FIN

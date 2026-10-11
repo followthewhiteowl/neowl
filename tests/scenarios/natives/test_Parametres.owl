@@ -1,0 +1,183 @@
+// @sujet : ParamètreInitialise, ParamètreEnregistre, ParamètreCharge, ParamètreSupprime
+// @résumé : Lecture et écriture de valeurs persistantes (clé/valeur), avec choix
+// du support de stockage (JSON, XML, fichier ini, ou chaîne en mémoire).
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Enregistrer une valeur puis la relire restitue exactement ce qui a été
+// enregistré. Le support est explicitement redirigé vers un fichier de travail
+// pour ne pas dépendre de l'emplacement par défaut.
+PROCEDURE PUBLIQUE scenario_sauve_puis_charge()
+	chemin est une chaîne = fRepTemp() + "test_parametres_rt.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("Serveur", "prod-01")
+	valeur est une chaîne = ParamètreCharge("Serveur")
+
+	dbgVérifieEgalité(valeur, "prod-01", "la valeur relue correspond à la valeur sauvée")
+FIN
+
+// Une clé jamais sauvée renvoie la valeur par défaut fournie en second argument.
+PROCEDURE PUBLIQUE scenario_cle_absente_valeur_par_defaut()
+	chemin est une chaîne = fRepTemp() + "test_parametres_defaut.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	valeur est une chaîne = ParamètreCharge("JamaisEcrite", "valeur-repli")
+
+	dbgVérifieEgalité(valeur, "valeur-repli", "clé absente : valeur de repli restituée")
+FIN
+
+// Sans valeur de repli fournie, une clé absente renvoie la chaîne vide plutôt
+// qu'une valeur nulle ou une erreur.
+PROCEDURE PUBLIQUE scenario_cle_absente_sans_defaut()
+	chemin est une chaîne = fRepTemp() + "test_parametres_sansdefaut.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	valeur est une chaîne = ParamètreCharge("EncoreJamaisEcrite")
+
+	dbgVérifieEgalité(valeur, "", "clé absente sans repli : chaîne vide")
+FIN
+
+// ParamètreInitialise renvoie l'état qui était actif juste avant l'appel : le
+// changement de support laisse une trace exploitable pour restaurer l'ancien
+// contexte si besoin.
+PROCEDURE PUBLIQUE scenario_init_retourne_etat_anterieur()
+	cheminInitial est une chaîne = fRepTemp() + "test_parametres_etat1.json"
+	cheminSuivant est une chaîne = fRepTemp() + "test_parametres_etat2.xml"
+
+	ParamètreInitialise(paramJSON, cheminInitial)
+	étatAvant est une chaîne = ParamètreInitialise(paramXML, cheminSuivant)
+
+	dbgVérifieEgalité(étatAvant, "json" + TAB + cheminInitial, "l'état antérieur est le jeton de mode neutre, une tabulation, puis la source précédente")
+FIN
+
+// Le support XML produit un fichier texte relisible, avec la clé et la valeur
+// retrouvables dans son contenu brut.
+PROCEDURE PUBLIQUE scenario_support_xml_relisible()
+	chemin est une chaîne = fRepTemp() + "test_parametres_support.xml"
+	ParamètreInitialise(paramXML, chemin)
+
+	ParamètreEnregistre("Langue", "fr")
+
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "le fichier XML est créé sur disque")
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieVrai(Contient(contenu, "Langue"), "le nom du paramètre apparaît dans le fichier XML")
+	dbgVérifieVrai(Contient(contenu, "fr"), "la valeur apparaît dans le fichier XML")
+FIN
+
+// Le support fichier ini produit un fichier texte relisible dans son format
+// habituel section/clé=valeur.
+PROCEDURE PUBLIQUE scenario_support_ini_relisible()
+	chemin est une chaîne = fRepTemp() + "test_parametres_support.ini"
+	ParamètreInitialise(paramIni, chemin)
+
+	ParamètreEnregistre("Version", "3")
+
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "le fichier ini est créé sur disque")
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieVrai(Contient(contenu, "Version"), "le nom du paramètre apparaît dans le fichier ini")
+	dbgVérifieVrai(Contient(contenu, "3"), "la valeur apparaît dans le fichier ini")
+FIN
+
+// Le support chaîne garde les valeurs en mémoire : aucun fichier n'est créé, et
+// le contenu accumulé se récupère via l'état antérieur renvoyé par l'appel
+// ParamètreInitialise suivant.
+PROCEDURE PUBLIQUE scenario_support_chaine_en_memoire()
+	ParamètreInitialise(paramChaîne, "{}")
+
+	ParamètreEnregistre("Thème", "sombre")
+	valeur est une chaîne = ParamètreCharge("Thème")
+	dbgVérifieEgalité(valeur, "sombre", "relecture immédiate depuis le support en mémoire")
+
+	chemin est une chaîne = fRepTemp() + "test_parametres_apres_memoire.json"
+	étatAvant est une chaîne = ParamètreInitialise(paramJSON, chemin)
+	dbgVérifieVrai(Contient(étatAvant, "sombre"), "le contenu accumulé en mémoire est restitué par l'état antérieur")
+FIN
+
+// Une clé nommée peut être supprimée individuellement, sans toucher aux autres
+// clés du même support.
+PROCEDURE PUBLIQUE scenario_supprime_cle_nommee()
+	chemin est une chaîne = fRepTemp() + "test_parametres_suppr_cle.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("Alpha", "1")
+	ParamètreEnregistre("Beta", "2")
+	ParamètreSupprime("Alpha")
+
+	dbgVérifieEgalité(ParamètreCharge("Alpha", "disparu"), "disparu", "la clé supprimée retombe sur le repli")
+	dbgVérifieEgalité(ParamètreCharge("Beta"), "2", "la clé voisine n'est pas affectée")
+FIN
+
+// Appeler ParamètreSupprime sans argument efface la totalité des paramètres du
+// support actif.
+PROCEDURE PUBLIQUE scenario_supprime_totalite()
+	chemin est une chaîne = fRepTemp() + "test_parametres_suppr_tout.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("Un", "a")
+	ParamètreEnregistre("Deux", "b")
+	ParamètreSupprime()
+
+	dbgVérifieEgalité(ParamètreCharge("Un", "vide"), "vide", "premier paramètre effacé par la suppression totale")
+	dbgVérifieEgalité(ParamètreCharge("Deux", "vide"), "vide", "second paramètre effacé par la suppression totale")
+FIN
+
+// Un nom de paramètre est un chemin : les séparateurs `.`, `/` et `\` sont
+// équivalents et le découpent en segments. ParamètreSupprime("FEN_Client")
+// efface donc le paramètre nommé « FEN_Client » et tous ceux dont le nom
+// commence par le segment « FEN_Client » — c'est-à-dire tout ce qui appartient
+// à cet élément.
+//
+// La coupure se fait toujours sur une frontière de séparateur, jamais au
+// milieu d'un segment : « FEN_ClientBis.Nom » commence bien par les mêmes
+// caractères, mais son premier segment est « FEN_ClientBis », un autre
+// élément. Il survit à la suppression. Regrouper des paramètres sous un
+// préfixe commun revient donc à leur donner un espace de noms, effaçable d'un
+// seul appel, sans risque d'emporter un élément au nom simplement voisin.
+PROCEDURE PUBLIQUE scenario_supprime_element_hierarchique()
+	chemin est une chaîne = fRepTemp() + "test_parametres_suppr_prefixe.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("FEN_Client.Nom", "Dupont")
+	ParamètreEnregistre("FEN_Client/Age", "42")
+	ParamètreEnregistre("FEN_Client\Ville", "Lyon")
+	ParamètreEnregistre("FEN_ClientBis.Nom", "Martin")
+
+	ParamètreSupprime("FEN_Client")
+
+	dbgVérifieEgalité(ParamètreCharge("FEN_Client.Nom", "vide"), "vide", "séparateur point : paramètre effacé")
+	dbgVérifieEgalité(ParamètreCharge("FEN_Client/Age", "vide"), "vide", "séparateur slash : paramètre effacé")
+	dbgVérifieEgalité(ParamètreCharge("FEN_Client\Ville", "vide"), "vide", "séparateur backslash : paramètre effacé")
+	dbgVérifieEgalité(ParamètreCharge("FEN_ClientBis.Nom"), "Martin", "un nom qui coupe au milieu d'un segment (pas sur une frontière de séparateur) n'est pas affecté")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisible dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// ParamètreEnregistre accepte aussi bien un entier qu'une chaîne : la valeur est
+// stockée sous sa forme texte, et ParamètreCharge renvoie toujours une chaîne.
+PROCEDURE PRIVÉE scenario_edge_sauve_valeur_entiere()
+	chemin est une chaîne = fRepTemp() + "test_parametres_entier.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("Port", 8080)
+	valeur est une chaîne = ParamètreCharge("Port")
+
+	dbgVérifieEgalité(valeur, "8080", "la valeur entière est stockée et relue sous forme texte")
+FIN
+
+// Deux clés distinctes ne se recouvrent pas : chaque nom garde sa propre
+// valeur, y compris quand les valeurs se ressemblent.
+PROCEDURE PRIVÉE scenario_edge_ecrasement_meme_cle()
+	chemin est une chaîne = fRepTemp() + "test_parametres_ecrase.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("Compteur", "1")
+	ParamètreEnregistre("Compteur", "2")
+	valeur est une chaîne = ParamètreCharge("Compteur")
+
+	dbgVérifieEgalité(valeur, "2", "une seconde sauvegarde sur la même clé écrase la précédente")
+FIN

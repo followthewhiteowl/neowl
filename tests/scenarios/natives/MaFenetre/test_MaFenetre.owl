@@ -1,0 +1,75 @@
+// @sujet : MaFenêtre / MyWindow
+// @résumé : Keyword qui désigne SANS AMBIGUÏTÉ la fenêtre courante. C'est
+// la déclinaison « fenêtre » de MoiMême : contrairement à MoiMême (qui
+// résout au champ le plus proche s'il existe), MaFenêtre vise toujours la
+// fenêtre qui héberge le code en cours d'exécution.
+//
+// - dans le gestionnaire d'événement d'un champ, MaFenêtre est la fenêtre
+//   qui contient ce champ ;
+// - dans une procédure appelée depuis ce gestionnaire, MaFenêtre hérite de
+//   la même fenêtre (chaîne d'appel) ;
+// - MaFenêtre..Propriété permet de lire/écrire une propriété de la fenêtre.
+//
+// La fenêtre voisine FEN_MaFenetre.owl porte la déclaration. Les procédures
+// utilitaires appelées depuis les handlers de délégation sont définies ici.
+
+PROCEDURE ModifierTitreViaMaFenetre()
+	MaFenêtre..Titre = "Chain Modifié"
+FIN
+
+PROCEDURE ModifierTitreViaMyWindow()
+	MyWindow..Titre = "Chain EN Modifié"
+FIN
+
+
+// MaFenêtre..Titre depuis le handler d'un champ modifie la fenêtre parente.
+PROCEDURE scenario_propriete_modifiee_via_mafenetre()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MaFenetre)
+	dbgVérifieEgalité(FEN_MaFenetre..Titre, "Titre initial", "Titre initial")
+	TestSimuleSouris(BTN_Auto, ClicGauche)
+	dbgVérifieEgalité(FEN_MaFenetre..Titre, "Titre modifié", "MaFenêtre modifie la fenêtre courante")
+	Ferme(FEN_MaFenetre)
+FIN
+
+
+// Alias bilingue : MyWindow se comporte identiquement à MaFenêtre.
+PROCEDURE scenario_alias_mywindow_identique()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MaFenetre)
+	TestSimuleSouris(BTN_MyWindow, ClicGauche)
+	dbgVérifieEgalité(FEN_MaFenetre..Titre, "EN Titre modifié", "MyWindow se comporte comme MaFenêtre")
+	Ferme(FEN_MaFenetre)
+FIN
+
+
+// Edge case forme sans accent : MaFenetre fonctionne identiquement à
+// MaFenêtre. OWL est accent-insensible.
+PROCEDURE PRIVÉE test_forme_sans_accent_mafenetre()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MaFenetre)
+	TestSimuleSouris(BTN_Accent, ClicGauche)
+	dbgVérifieEgalité(FEN_MaFenetre..Titre, "Titre sans accent", "MaFenetre sans accent fonctionne comme MaFenêtre")
+	Ferme(FEN_MaFenetre)
+FIN
+
+
+// Edge case héritage chain : handler → procédure externe → MaFenêtre
+// résout à la même fenêtre (comme MoiMême dans une chaîne d'appel).
+PROCEDURE PRIVÉE test_heritage_chain_mafenetre()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MaFenetre)
+	TestSimuleSouris(BTN_Chain, ClicGauche)
+	dbgVérifieEgalité(FEN_MaFenetre..Titre, "Chain Modifié", "MaFenêtre hérite via une procédure externe")
+	Ferme(FEN_MaFenetre)
+FIN
+
+
+// Edge case héritage chain + alias EN combinés.
+PROCEDURE PRIVÉE test_heritage_chain_mywindow()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_MaFenetre)
+	TestSimuleSouris(BTN_ChainMyWindow, ClicGauche)
+	dbgVérifieEgalité(FEN_MaFenetre..Titre, "Chain EN Modifié", "MyWindow hérite via chaîne d'appel comme MaFenêtre")
+	Ferme(FEN_MaFenetre)
+FIN

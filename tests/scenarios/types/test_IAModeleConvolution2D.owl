@@ -1,0 +1,30 @@
+// @sujet : IAModèle.AjouteCoucheConvolution2D — cohérence couche ⇔ op
+// @résumé : Une couche de convolution empilée dans un IAModèle
+// (.AjouteCoucheConvolution2D) doit calculer EXACTEMENT le même résultat
+// que l'op Tenseur bas niveau (.Convolution2D) appliquée directement avec
+// les MÊMES poids/biais. Les poids d'une couche fraîchement créée sont
+// initialisés au hasard : on ne les devine pas, on les EXTRAIT du modèle
+// (comme pour les couches denses, cf. test_IAModele.owl) puis on refait le
+// calcul à la main avec les briques Tenseur bas niveau.
+//
+// Hypothèse (à confirmer par l'implémenteur) : les accesseurs .Poids(n) et
+// .Biais(n) existants (couches denses) sont réutilisés tel quel pour les
+// couches de convolution — .Poids(1) rend alors un Tenseur C_sortie×C_entrée
+// ×tailleNoyau×tailleNoyau, .Biais(1) un Tenseur de taille C_sortie. Si ce
+// n'est pas le cas, ce scénario n'est pas exécutable via la surface
+// actuelle et l'implémenteur devra fournir un accesseur dédié.
+PROCEDURE PUBLIQUE scenario_couche_convolution2d_egale_op_directe()
+	mon est un IAModèle
+	mon.AjouteCoucheConvolution2D(1, 1, 2, 1, 0)
+
+	poidsCouche est un Tenseur = mon.Poids(1)
+	biaisCouche est un Tenseur = mon.Biais(1)
+
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+
+	sortieManuelle est un Tenseur = entrée.Convolution2D(poidsCouche, 1, 0) + biaisCouche
+	sortieModèle est un Tenseur = mon.Infère(entrée)
+
+	dbgVérifieEgalité(sortieModèle..Valeur[1][1][1][1], sortieManuelle..Valeur[1][1][1][1], "cellule [1][1] : op directe + biais == .Infère de la couche")
+	dbgVérifieEgalité(sortieModèle..Valeur[1][1][2][2], sortieManuelle..Valeur[1][1][2][2], "cellule [2][2] : op directe + biais == .Infère de la couche")
+FIN

@@ -1,0 +1,82 @@
+//  — égalité `Icône` par contenu (pas par référence mémoire).
+// Aujourd'hui `icones.save = icones.save` renvoie Faux : chaque accès à
+// `icones.<nom>` fabrique une Icône fraîche, et `=` compare l'identité.
+// Attendu : deux Icône de même source catalogue + même customisation
+// (Couleur / Rotation / Forme) doivent être égales par contenu.
+
+// Cas 1 : même icône catalogue, deux accès distincts -> Vrai attendu.
+PROCEDURE scenario_meme_icone_catalogue_egale()
+	dbgVérifieVrai(icones.save = icones.save,
+	"icones.save = icones.save (même source catalogue -> égales par contenu)")
+FIN
+
+
+// Cas 2 : icônes catalogue différentes -> Faux.
+PROCEDURE scenario_icones_catalogue_differentes_inegales()
+	dbgVérifieFaux(icones.save = icones.close,
+	"icones.save = icones.close (sources différentes -> inégales)")
+FIN
+
+
+// Cas 3 : même source + même Couleur -> Vrai.
+PROCEDURE scenario_meme_source_meme_couleur_egale()
+	ICN_A est une Icône = {icones.save, Couleur = Rouge}
+	ICN_B est une Icône = {icones.save, Couleur = Rouge}
+	dbgVérifieVrai(ICN_A = ICN_B,
+	"{icones.save, Couleur=rouge} = {icones.save, Couleur=rouge} (contenu identique)")
+FIN
+
+
+// Cas 4 : même source, Couleur différente -> Faux.
+PROCEDURE scenario_meme_source_couleur_differente_inegale()
+	ICN_A est une Icône = {icones.save, Couleur = Rouge}
+	ICN_B est une Icône = {icones.save, Couleur = Bleu}
+	dbgVérifieFaux(ICN_A = ICN_B,
+	"{icones.save, Couleur=rouge} <> {icones.save, Couleur=bleu} (couleur différente)")
+FIN
+
+
+// Cas 5 : même source, Rotation différente -> Faux.
+PROCEDURE scenario_meme_source_rotation_differente_inegale()
+	ICN_A est une Icône = {icones.save, Rotation = 90}
+	ICN_B est une Icône = {icones.save, Rotation = 180}
+	dbgVérifieFaux(ICN_A = ICN_B,
+	"{icones.save, Rotation=90} <> {icones.save, Rotation=180} (rotation différente)")
+FIN
+
+
+// Cas 6 : même source, Forme différente -> Faux.
+PROCEDURE scenario_meme_source_forme_differente_inegale()
+	ICN_A est une Icône = {icones.save, Forme = formeCarree}
+	ICN_B est une Icône = {icones.save, Forme = formeCercle}
+	dbgVérifieFaux(ICN_A = ICN_B,
+	"{icones.save, Forme=formeCarree} <> {icones.save, Forme=formeCercle} (forme différente)")
+FIN
+
+
+// Cas 7 : même source + mêmes Couleur/Rotation/Forme (combinaison complète) -> Vrai.
+PROCEDURE scenario_meme_source_toutes_props_identiques_egale()
+	ICN_A est une Icône = {icones.save, Couleur = Vert, Rotation = 45, Forme = formeCercle}
+	ICN_B est une Icône = {icones.save, Couleur = Vert, Rotation = 45, Forme = formeCercle}
+	dbgVérifieVrai(ICN_A = ICN_B,
+	"deux Icône même source + Couleur/Rotation/Forme identiques -> égales")
+FIN
+
+
+// Non-régression : l'égalité par contenu des autres types n'est pas cassée.
+PROCEDURE scenario_non_regression_types_scalaires()
+	dbgVérifieVrai(1 = 1, "entier : 1 = 1")
+	dbgVérifieVrai("a" = "a", `chaîne : "a" = "a"`)
+	dbgVérifieFaux(1 = 2, "entier : 1 <> 2")
+	dbgVérifieFaux("a" = "b", `chaîne : "a" <> "b"`)
+FIN
+
+
+// Non-régression : Image bitmap identique à elle-même reste vraie (référence
+// stable ici puisqu'il s'agit de la même variable, pas de deux accès frais).
+PROCEDURE scenario_non_regression_image_meme_variable()
+	IMG_A est une Image = IconeVersImage(icones.save)
+	dbgVérifieVrai(IMG_A = IMG_A, "Image : même variable -> égale à elle-même")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,288 @@
+// @sujet : dFond
+// @resume : Définir la couleur et le style de fond (plein, transparent, hachuré) pour les opérations de dessin suivantes
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_fond_plein_rectangle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelInterieur est un entier
+
+	// Fond vert uni : un rectangle dessiné prendra ce fond
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurVert, FondPlein)
+	dRectangle(img, 20, 20, 80, 80)
+	dFinDessin(img)
+
+	// Le centre du rectangle (50,50) est rempli de fond vert
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurVert, "fond plein vert : centre rectangle est vert")
+FIN
+
+PROCEDURE PUBLIQUE scenario_fond_transparent_rectangle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentre est un entier
+
+	// Fond transparent : le rectangle aura un contour mais pas de remplissage
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurRouge, 0, 2)
+	dFond(img, couleurRouge, FondTransparent)
+	dRectangle(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	pixelCentre = dPixelCouleur(img, 50, 50)
+
+	// Le fond transparent : le centre du rectangle doit rester blanc (pas de remplissage)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "fond transparent : centre rectangle reste blanc")
+FIN
+
+PROCEDURE PUBLIQUE scenario_fond_hachure_horizontal()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Fond hachuré horizontal (type 0) : rectangle avec hachures horizontales bleues
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurBleu, FondHachuré, 0)
+	dRectangle(img, 15, 15, 85, 85)
+	dFinDessin(img)
+
+	// Échantillonnage colonne x=50, plusieurs y dans le rectangle : au moins une hachure
+	pixelA = dPixelCouleur(img, 50, 25)
+	pixelB = dPixelCouleur(img, 50, 35)
+	pixelC = dPixelCouleur(img, 50, 45)
+	pixelD = dPixelCouleur(img, 50, 55)
+	dbgVérifieVrai(pixelA = couleurBleu OU pixelB = couleurBleu OU pixelC = couleurBleu OU pixelD = couleurBleu, "fond hachuré horizontal : au moins un point d'échantillon est bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_fond_hachure_vertical()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Fond hachuré vertical (type 1)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurMagenta, FondHachuré, 1)
+	dRectangle(img, 15, 15, 85, 85)
+	dFinDessin(img)
+
+	// Échantillonnage ligne y=50, plusieurs x dans le rectangle : au moins une hachure
+	pixelA = dPixelCouleur(img, 25, 50)
+	pixelB = dPixelCouleur(img, 35, 50)
+	pixelC = dPixelCouleur(img, 45, 50)
+	pixelD = dPixelCouleur(img, 55, 50)
+	dbgVérifieVrai(pixelA = couleurMagenta OU pixelB = couleurMagenta OU pixelC = couleurMagenta OU pixelD = couleurMagenta, "fond hachuré vertical : au moins un point d'échantillon est magenta")
+FIN
+
+PROCEDURE PUBLIQUE scenario_fond_hachure_croise()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Fond hachuré croisé (type 4) : dense, doit bien se voir
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurCyan, FondHachuré, 4)
+	dRectangle(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	// Échantillonnage croisé sur le rectangle, hachures denses doivent toucher au moins un
+	pixelA = dPixelCouleur(img, 30, 30)
+	pixelB = dPixelCouleur(img, 50, 50)
+	pixelC = dPixelCouleur(img, 70, 70)
+	pixelD = dPixelCouleur(img, 40, 60)
+	dbgVérifieVrai(pixelA = couleurCyan OU pixelB = couleurCyan OU pixelC = couleurCyan OU pixelD = couleurCyan, "fond hachuré croisé : au moins un point d'échantillon est cyan")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_fond_opacite_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentre est un entier
+
+	// Opacité 0 (totalement transparent) : le fond ne doit pas apparaître
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img, dAvecOpacité)
+	dFond(img, couleurRouge, FondPlein, 0, 0)
+	dRectangle(img, 20, 20, 80, 80)
+	dFinDessin(img)
+
+	// Opacité 0 → fond invisible, centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "fond opacité=0 : invisible, centre rectangle reste blanc")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_opacite_partielle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCentre est un entier
+
+	// Opacité 128 (50%) : le fond doit être semi-transparent, visible mais atténué
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img, dAvecOpacité)
+	dFond(img, couleurVert, FondPlein, 0, 128)
+	dRectangle(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	// Fond semi-transparent vert : centre rectangle non blanc (mais pas vert pur non plus)
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieVrai(pixelCentre <> couleurBlanc, "fond opacité=128 : semi-transparent, centre non blanc")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_opacite_totale()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+
+	// Opacité 255 (100%, opacité complète)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img, dAvecOpacité)
+	dFond(img, couleurBleu, FondPlein, 0, 255)
+	dRectangle(img, 15, 15, 85, 85)
+	dFinDessin(img)
+
+	// Fond bleu totalement opaque : centre = bleu
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBleu, "fond opacité=255 : totalement opaque, centre bleu")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_multiples_appels_successifs()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCentre est un entier
+
+	// Changer le fond plusieurs fois : seul le dernier doit être actif
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurRouge, FondPlein)
+	dFond(img, couleurVert, FondPlein)
+	dRectangle(img, 20, 20, 80, 80)
+	dFinDessin(img)
+
+	// Le rectangle doit avoir le dernier fond défini (vert) au centre
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurVert, "multiples dFond : dernier fond (vert) appliqué")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_persistant_entre_rectangles()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixel1 est un entier
+	pixel2 est un entier
+
+	// Le fond défini par dFond persiste pour plusieurs rectangles successifs
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurJaune, FondPlein)
+	dRectangle(img, 10, 10, 40, 40)
+	dRectangle(img, 60, 60, 90, 90)
+	dFinDessin(img)
+
+	// Les deux rectangles ont le même fond jaune
+	pixel1 = dPixelCouleur(img, 25, 25)
+	pixel2 = dPixelCouleur(img, 75, 75)
+	dbgVérifieEgalité(pixel1, couleurJaune, "fond persiste : 1er rectangle est jaune")
+	dbgVérifieEgalité(pixel2, couleurJaune, "fond persiste : 2ème rectangle est jaune (même dFond)")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_hachure_diagonal_60()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Hachures diagonales 60° (type 2)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurOrange, FondHachuré, 2)
+	dRectangle(img, 15, 15, 85, 85)
+	dFinDessin(img)
+
+	// Échantillonnage diagonal : au moins un point doit toucher une hachure orange
+	pixelA = dPixelCouleur(img, 30, 30)
+	pixelB = dPixelCouleur(img, 40, 40)
+	pixelC = dPixelCouleur(img, 50, 50)
+	pixelD = dPixelCouleur(img, 60, 60)
+	dbgVérifieVrai(pixelA = couleurOrange OU pixelB = couleurOrange OU pixelC = couleurOrange OU pixelD = couleurOrange, "fond hachuré diagonal 60° : au moins un point d'échantillon est orange")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_hachure_diagonal_120()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurViolet est un entier = RVB(238, 130, 238)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Hachures diagonales 120° (type 3)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurViolet, FondHachuré, 3)
+	dRectangle(img, 15, 15, 85, 85)
+	dFinDessin(img)
+
+	// Échantillonnage anti-diagonal : au moins un point doit toucher une hachure
+	pixelA = dPixelCouleur(img, 30, 60)
+	pixelB = dPixelCouleur(img, 40, 50)
+	pixelC = dPixelCouleur(img, 50, 40)
+	pixelD = dPixelCouleur(img, 60, 30)
+	dbgVérifieVrai(pixelA = couleurViolet OU pixelB = couleurViolet OU pixelC = couleurViolet OU pixelD = couleurViolet, "fond hachuré diagonal 120° : au moins un point d'échantillon est violet")
+FIN
+
+PROCEDURE PRIVÉE scenario_fond_hachure_diagonal_croise()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMarron est un entier = RVB(165, 42, 42)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Hachures diagonales croisées (type 5)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dFond(img, couleurMarron, FondHachuré, 5)
+	dRectangle(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	// Échantillonnage dense : croisé doit toucher au moins un point
+	pixelA = dPixelCouleur(img, 25, 25)
+	pixelB = dPixelCouleur(img, 45, 45)
+	pixelC = dPixelCouleur(img, 65, 65)
+	pixelD = dPixelCouleur(img, 35, 55)
+	dbgVérifieVrai(pixelA = couleurMarron OU pixelB = couleurMarron OU pixelC = couleurMarron OU pixelD = couleurMarron, "fond hachuré diagonal croisé : au moins un point d'échantillon est marron")
+FIN

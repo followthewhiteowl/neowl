@@ -1,0 +1,26 @@
+// La puce d'un Champ Sélecteur (QRadioButton::indicator) doit rester RONDE
+// quand elle est stylée via CadrePuce sans arrondi explicite. Styler
+// l'indicator remplace le glyphe radio natif rond par une boîte QSS carrée par
+// défaut : le rendu doit forcer un border-radius = moitié de la taille pour
+// garder un cercle. Vérifié structurellement via __DebugFeuilleStyle (lecture
+// de la feuille effective, patron des tests de style QSS), plus robuste qu'un
+// comptage pixel sur une puce de ~20px.
+//
+// ROUGE attendu AVANT le fix : la règle QRadioButton::indicator porte la
+// bordure mais AUCUN border-radius (boîte carrée). VERT après.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleSelecteurPuceRonde)
+
+feuille est une chaîne = __DebugFeuilleStyle(SEL_Puce)
+Trace("=== SEL_Puce ===")
+Trace(feuille)
+
+dbgVérifieVrai(Contient(feuille, "::indicator"),
+"CadrePuce : la feuille QSS cible ::indicator")
+dbgVérifieVrai(Contient(feuille, "border-radius: 10px"),
+"Puce sans arrondi explicite : la feuille QSS force border-radius: 10px (cercle, 16px + 2*2px de bordure)")
+
+Ferme(FEN_StyleSelecteurPuceRonde)
+dbgBilanTest()

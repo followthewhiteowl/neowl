@@ -1,0 +1,55 @@
+// Sémantique COPIE à l'affectation d'un style à un widget.
+//
+// Affecter un style (résolu via `theme.X` ou toute instance de style) à la
+// prop `Style` d'un widget doit donner à CE widget SA PROPRE copie du style.
+// Une surcharge par widget (`X..Style..sous..feuille = ...`) reste
+// individuelle : elle n'affecte ni les autres widgets partageant le même
+// style source, ni la source elle-même (thème / style global).
+//
+// Deux chemins d'affectation testés :
+//   - BUILD   : Style posé en PROPRIETES (application à la construction).
+//   - RUNTIME : Style affecté par code (X..Style = theme.X).
+// Pour chacun : override d'un sous-élément profond sur A, vérif que B reste
+// à sa valeur d'origine (copie, pas référence partagée).
+
+Trace("=== Style affecté à un widget : sémantique COPIE (isolation) ===")
+
+Ouvre(FEN_CopieStyle)
+
+// -------------------------------------------------------------------
+// Chemin BUILD : les deux boutons reçoivent theme.boutonPrimaire en
+// PROPRIETES. Baseline Bleu de part et d'autre.
+// -------------------------------------------------------------------
+dbgVérifieEgalité(BTN_BuildA..Style..CadreExtérieur..CouleurFond, Bleu, "Build A : baseline Bleu depuis le thème")
+dbgVérifieEgalité(BTN_BuildB..Style..CadreExtérieur..CouleurFond, Bleu, "Build B : baseline Bleu depuis le thème")
+
+// Surcharge profonde sur A uniquement.
+BTN_BuildA..Style..CadreExtérieur..CouleurFond = Rouge
+
+dbgVérifieEgalité(BTN_BuildA..Style..CadreExtérieur..CouleurFond, Rouge, "Build A : surcharge appliquée (Rouge)")
+dbgVérifieEgalité(BTN_BuildB..Style..CadreExtérieur..CouleurFond, Bleu, "Build B : INCHANGÉ (copie, pas partage) — reste Bleu")
+
+// -------------------------------------------------------------------
+// Chemin RUNTIME : les deux boutons reçoivent le même style par code.
+// -------------------------------------------------------------------
+BTN_RunA..Style = theme.boutonPrimaire
+BTN_RunB..Style = theme.boutonPrimaire
+
+dbgVérifieEgalité(BTN_RunA..Style..CadreExtérieur..CouleurFond, Bleu, "Run A : baseline Bleu depuis le thème")
+dbgVérifieEgalité(BTN_RunB..Style..CadreExtérieur..CouleurFond, Bleu, "Run B : baseline Bleu depuis le thème")
+
+// Surcharge profonde sur A uniquement.
+BTN_RunA..Style..CadreExtérieur..CouleurFond = Rouge
+
+dbgVérifieEgalité(BTN_RunA..Style..CadreExtérieur..CouleurFond, Rouge, "Run A : surcharge appliquée (Rouge)")
+dbgVérifieEgalité(BTN_RunB..Style..CadreExtérieur..CouleurFond, Bleu, "Run B : INCHANGÉ (copie, pas partage) — reste Bleu")
+
+// -------------------------------------------------------------------
+// La source du thème ne doit pas avoir bougé : un 3e bouton qui reçoit
+// le style APRÈS les surcharges ci-dessus doit repartir de Bleu.
+// -------------------------------------------------------------------
+BTN_RunB..Style = theme.boutonPrimaire
+dbgVérifieEgalité(BTN_RunB..Style..CadreExtérieur..CouleurFond, Bleu, "Source thème intacte : re-affectation repart de Bleu")
+
+Ferme(FEN_CopieStyle)
+dbgBilanTest()

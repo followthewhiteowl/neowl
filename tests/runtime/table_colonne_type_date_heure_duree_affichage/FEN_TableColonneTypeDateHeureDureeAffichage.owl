@@ -1,0 +1,82 @@
+// Fenêtre voisine — ressource pour
+// test_table_colonne_type_date_heure_duree_affichage.owl ( lot 4,
+// câblage AFFICHAGE (masque hors édition) des colonnes colTypeDate /
+// colTypeHeure / colTypeDurée, symétrique de l'AFFICHAGE colTypeNumerique /
+// colTypeMonétaire posé par  lot 3).
+//
+// COL_Date      : Type = colTypeDate, AUCUN masque brut déclaré → affichage
+//                 hors édition piloté par FormatDate projet (JJ/MM/AAAA).
+// COL_Heure     : Type = colTypeHeure, idem, piloté par FormatHeure projet
+//                 (HH:MI).
+// COL_Duree     : Type = colTypeDurée, idem, piloté par FormatDurée projet
+//                 (HH:MI:SS).
+// COL_Numerique : Type = colTypeNumerique, AUCUN FormatNombre projet
+//                 configuré (ce projet ne configure que Date/Heure/Durée) →
+//                 non-régression du repli plat quand aucun
+//                 format actif n'est résolu.
+// COL_Texte     : Type = colTypeTexte, aucun masque/format → non-régression
+//                 (saisie et affichage inchangés).
+
+FEN_TableColonneTypeDateHeureDureeAffichage est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne type Date/Heure/Durée, affichage formaté"
+	FIN
+
+	TAB_ColTypes est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_Date est une Colonne
+			PROPRIETES
+				Libellé = "Date"
+				Type    = colTypeDate
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Heure est une Colonne
+			PROPRIETES
+				Libellé = "Heure"
+				Type    = colTypeHeure
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Duree est une Colonne
+			PROPRIETES
+				Libellé = "Durée"
+				Type    = colTypeDurée
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Numerique est une Colonne
+			PROPRIETES
+				Libellé = "Numérique"
+				Type    = colTypeNumerique
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_Texte est une Colonne
+			PROPRIETES
+				Libellé = "Texte"
+				Type    = colTypeTexte
+				Largeur = 140
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Ligne 1 : valeurs brutes PARSEABLES mais écrites dans une forme
+		// différente du masque d'affichage résolu (digue anti-tautologie).
+		//   Date    : ISO "2026-12-31" -> "31/12/2026" (FormatDate JJ/MM/AAAA)
+		//   Heure   : compact "0905"   -> "09:05"      (FormatHeure HH:MI)
+		//   Durée   : littéral signé canonique "+001300000" (1j=0, HH=01,
+		//             MI=30, SS=00, CC=00) -> "01:30:00" (FormatDurée HH:MI:SS)
+		TableAjouteLigne(TAB_ColTypes, "2026-12-31", "0905", "+001300000", "1234.56", "abc")
+
+		// Ligne 2 : valeurs brutes NON parseables -> repli plat (inchangées).
+		TableAjouteLigne(TAB_ColTypes, "pas-une-date", "pas-une-heure", "pas-une-duree", "pas-un-nombre", "xyz")
+	FIN
+FIN

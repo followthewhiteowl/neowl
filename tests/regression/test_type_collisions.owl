@@ -1,0 +1,38 @@
+// Test: types builtin (Definition / Chrono / httpRequête) + types user
+// Structure cohabitent avec des noms de variable distincts. Post +0299,
+// les noms case-insensitive identiques sont interdits → on utilise des
+// préfixes distinctifs.
+
+// Cas 1: Structure user — variable avec nom préfixé
+Personne est une Structure
+	nom est une chaîne
+FIN
+
+unePersonne est une Personne
+unePersonne.nom = "Alice"
+dbgVérifieEgalité(unePersonne.nom, "Alice", "struct Personne instanciée")
+
+// Cas 2: Definition (type builtin) — variable avec nom distinct
+d est une date
+defD est une Definition
+defD = RécupèreDéfinition(d)
+dbgVérifieEgalité(defD..Nom, "date", "Definition..Nom OK")
+dbgVérifieEgalité(defD..Type, owlDate, "Definition..Type OK")
+
+SI defD..Type = owlDate ALORS
+	defD = RécupèreDéfinition(42) // reassignment après lecture
+FIN
+
+// Cas 3: Chrono (type) — variable avec nom distinct
+// Note : ..Valeur est une propriété calculée lecture seule
+// (live depuis l'état interne du chrono), pas un slot scalaire écrivable.
+monChrono est un Chrono
+ChronoDébut(monChrono)
+dbgVérifieVrai(monChrono..Valeur >= 0, "chrono variable OK")
+
+// Cas 4: httpRequête (type) — variable avec nom distinct
+requete est une httpRequête
+requete..URL = "http://example.com"
+dbgVérifieEgalité(requete..URL, "http://example.com", "requete variable OK")
+
+dbgBilanTest()

@@ -1,0 +1,41 @@
+// ================================================================
+//  : facette (c) compile-time littéral valide
+// Vérification anti-faux-positif : les formats valides ne doivent
+// PAS être rejetés par le compile-time filter
+// ================================================================
+
+PROCEDURE PUBLIQUE test_date_literal_valide()
+	// Date valide AAAAMMJJ
+	d est une date = "20250601"
+	dbgVérifieEgalité(d..Année, 2025, "Année = 2025")
+	dbgVérifieEgalité(d..Mois, 6, "Mois = 6")
+	dbgVérifieEgalité(d..Jour, 1, "Jour = 1")
+FIN
+
+PROCEDURE PUBLIQUE test_heure_literal_valide()
+	// Heure valide HHMMSS
+	h est une heure = "143000"
+	dbgVérifieEgalité(h..Heure, 14, "Heure = 14")
+	dbgVérifieEgalité(h..Minute, 30, "Minute = 30")
+	dbgVérifieEgalité(h..Seconde, 0, "Seconde = 0")
+FIN
+
+PROCEDURE PUBLIQUE test_dateheure_literal_valide()
+	// DateHeure valide AAAAMMJJHHMMSS
+	dh est une dateheure = "20250601143000"
+	dbgVérifieEgalité(dh..Année, 2025, "Année = 2025")
+	dbgVérifieEgalité(dh..Mois, 6, "Mois = 6")
+	dbgVérifieEgalité(dh..Jour, 1, "Jour = 1")
+	dbgVérifieEgalité(dh..Heure, 14, "Heure = 14")
+	dbgVérifieEgalité(dh..Minute, 30, "Minute = 30")
+	dbgVérifieEgalité(dh..Seconde, 0, "Seconde = 0")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_literal_valide()
+	// Durée valide JHHMMSSCC (9 digits : J HH MM SS CC), signe obligatoire Q5-bis
+	dur est une durée = "+001300000" // 0j 01h 30min 00s 00centièmes
+	dbgVérifieEgalité(dur..EnMinutes, 90, "1h30 = 90 minutes")
+	dbgVérifieEgalité(dur..EnMillisecondes, 5400000, "1h30 = 5400000 ms")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,127 @@
+// ================================================================
+// Image natif — Lot I.3d : polygones, polylignes, remplissage
+//
+// Trois fonctions :
+//   - dPolygone([img,] n, x1, y1, ..., xn, yn [, fond [, trait]])
+//                ou avec tableau de coordonnées
+//   - dPolyligne([img,] n, x1, y1, ..., xn, yn [, couleur])
+//                ou avec tableau de coordonnées
+//   - dRemplissage([img,] x, y [, couleur [, bordure]])
+// ================================================================
+
+// ----- dPolygone : triangle plein avec contour -----
+img est une Image = dCréeImage(20, 20, Blanc)
+// Triangle (5,2) - (15,2) - (10,12)
+dPolygone(img, 3, 5, 2, 15, 2, 10, 12, BleuClair, Noir)
+
+// Sommets sur le contour
+dbgVérifieEgalité(dPixelCouleur(img, 5, 2), Noir, "dPolygone: sommet 1 sur trait")
+dbgVérifieEgalité(dPixelCouleur(img, 15, 2), Noir, "dPolygone: sommet 2 sur trait")
+dbgVérifieEgalité(dPixelCouleur(img, 10, 12), Noir, "dPolygone: sommet 3 sur trait")
+
+// Intérieur rempli
+dbgVérifieEgalité(dPixelCouleur(img, 10, 5), BleuClair, "dPolygone: intérieur rempli")
+dbgVérifieEgalité(dPixelCouleur(img, 10, 8), BleuClair, "dPolygone: intérieur rempli (bas)")
+
+// Hors triangle
+dbgVérifieEgalité(dPixelCouleur(img, 2, 2), Blanc, "dPolygone: hors zone (gauche)")
+dbgVérifieEgalité(dPixelCouleur(img, 18, 2), Blanc, "dPolygone: hors zone (droite)")
+dbgVérifieEgalité(dPixelCouleur(img, 10, 18), Blanc, "dPolygone: hors zone (bas-bas)")
+
+// ----- dPolygone via tableau de coordonnées -----
+img2 est une Image = dCréeImage(15, 15, Blanc)
+coords est un tableau d'entiers = [3, 3, 11, 3, 11, 11, 3, 11] // carré
+dPolygone(img2, coords, RougeClair, Noir)
+dbgVérifieEgalité(dPixelCouleur(img2, 7, 7), RougeClair, "dPolygone tableau: intérieur")
+dbgVérifieEgalité(dPixelCouleur(img2, 3, 7), Noir, "dPolygone tableau: bord gauche")
+
+// ----- dPolygone : FondTransparent (contour seul) -----
+img3 est une Image = dCréeImage(15, 15, Blanc)
+dStylo(img3, BleuClair)
+dFond(img3, RougeClair, FondTransparent)
+dPolygone(img3, 3, 3, 3, 11, 3, 7, 11) // triangle
+dbgVérifieEgalité(dPixelCouleur(img3, 3, 3), BleuClair,
+"FondTransparent polygone: contour")
+// (7, 7) est strictement à l'intérieur (segments à x=5 et x=9 à cette ligne y).
+dbgVérifieEgalité(dPixelCouleur(img3, 7, 7), Blanc,
+"FondTransparent polygone: intérieur intact")
+
+// ----- dPolyligne : ligne brisée non fermée -----
+img4 est une Image = dCréeImage(15, 15, Blanc)
+// Trois points formant un L : (2, 2) → (2, 12) → (12, 12)
+dPolyligne(img4, 3, 2, 2, 2, 12, 12, 12, RougeClair)
+// Les segments sont tracés
+dbgVérifieEgalité(dPixelCouleur(img4, 2, 7), RougeClair, "dPolyligne: 1er segment vertical")
+dbgVérifieEgalité(dPixelCouleur(img4, 7, 12), RougeClair, "dPolyligne: 2e segment horizontal")
+// PAS de fermeture entre dernier et premier point
+dbgVérifieEgalité(dPixelCouleur(img4, 7, 7), Blanc, "dPolyligne: pas de fermeture")
+
+// ----- dPolyligne via tableau -----
+img5 est une Image = dCréeImage(15, 15, Blanc)
+coords2 est un tableau d'entiers = [2, 2, 12, 2, 7, 12]
+dPolyligne(img5, coords2, BleuClair)
+dbgVérifieEgalité(dPixelCouleur(img5, 7, 2), BleuClair, "dPolyligne tableau: segment 1")
+
+// ----- dRemplissage : flood fill standard -----
+img6 est une Image = dCréeImage(10, 10, Blanc)
+dRectangle(img6, 2, 2, 7, 7, Blanc, Noir) // rectangle blanc avec contour noir
+// Flood fill au centre (3,3) avec VertClair, devrait remplir l'intérieur
+dRemplissage(img6, 3, 3, VertClair)
+dbgVérifieEgalité(dPixelCouleur(img6, 3, 3), VertClair, "dRemplissage: pixel d'origine")
+dbgVérifieEgalité(dPixelCouleur(img6, 5, 5), VertClair, "dRemplissage: propagation")
+// Le contour noir n'est pas écrasé
+dbgVérifieEgalité(dPixelCouleur(img6, 2, 2), Noir, "dRemplissage: contour noir préservé")
+// Pixels à l'extérieur du rectangle restent blancs
+dbgVérifieEgalité(dPixelCouleur(img6, 8, 8), Blanc, "dRemplissage: ne traverse pas le contour")
+
+// ----- dRemplissage avec bordure spécifique (boundary fill) -----
+img7 est une Image = dCréeImage(10, 10, Blanc)
+// On dessine plusieurs pixels rouges qui forment une frontière
+dPoint(img7, 0, 5, RougeClair)
+dPoint(img7, 1, 5, RougeClair)
+dPoint(img7, 2, 5, RougeClair)
+dPoint(img7, 3, 5, RougeClair)
+dPoint(img7, 4, 5, RougeClair)
+dPoint(img7, 5, 5, RougeClair)
+dPoint(img7, 6, 5, RougeClair)
+dPoint(img7, 7, 5, RougeClair)
+dPoint(img7, 8, 5, RougeClair)
+dPoint(img7, 9, 5, RougeClair)
+
+// Remplir la moitié haute (y < 5) en BleuClair, s'arrêter à la frontière rouge
+dRemplissage(img7, 5, 0, BleuClair, RougeClair)
+dbgVérifieEgalité(dPixelCouleur(img7, 5, 0), BleuClair, "Boundary fill: remplit haut")
+dbgVérifieEgalité(dPixelCouleur(img7, 5, 4), BleuClair, "Boundary fill: jusqu'à la bordure")
+// La ligne rouge est préservée
+dbgVérifieEgalité(dPixelCouleur(img7, 5, 5), RougeClair, "Boundary fill: bordure préservée")
+// Le bas n'est pas rempli
+dbgVérifieEgalité(dPixelCouleur(img7, 5, 7), Blanc, "Boundary fill: bas intact")
+
+// ----- Image courante + stylo -----
+img8 est une Image = dCréeImage(15, 15, Blanc)
+dDébutDessin(img8)
+dStylo(BleuClair)
+dFond(JauneOr)
+dPolygone(3, 3, 3, 11, 3, 7, 11) // triangle via image courante
+dbgVérifieEgalité(dPixelCouleur(img8, 7, 7), JauneOr,
+"Polygone via courante: intérieur fond courant")
+dFinDessin()
+
+// ----- Image invalide silencieuse -----
+imgVide est une Image
+dPolygone(imgVide, 3, 0, 0, 5, 0, 0, 5, RougeClair, Noir)
+dbgVérifieEgalité(imgVide..Valide, Faux, "Polygone sur image invalide: silencieux")
+
+// ----- Alias EN -----
+img9 est une Image = dCréeImage(15, 15, Blanc)
+dPolygon(img9, 3, 3, 3, 11, 3, 7, 11, BleuClair, Noir)
+dbgVérifieEgalité(dPixelColor(img9, 7, 7), BleuClair, "Alias EN: dPolygon")
+
+img10 est une Image = dCréeImage(15, 15, Blanc)
+dPolyline(img10, 3, 2, 2, 12, 2, 7, 12, RougeClair)
+dbgVérifieEgalité(dPixelColor(img10, 7, 2), RougeClair, "Alias EN: dPolyline")
+
+img11 est une Image = dCréeImage(10, 10, Blanc)
+dRect(img11, 2, 2, 7, 7, Blanc, Noir)
+dFloodFill(img11, 3, 3, VertClair)
+dbgVérifieEgalité(dPixelColor(img11, 5, 5), VertClair, "Alias EN: dFloodFill")

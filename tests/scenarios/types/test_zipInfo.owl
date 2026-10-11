@@ -1,0 +1,58 @@
+// @sujet : zipInfo
+// @résumé : Enum regroupant les métadonnées d'entrée interrogeables via zipInfoFichier : nom, taille décompressée, taille compressée, date, CRC-32 et attributs.
+
+
+// zipNom : récupère le nom d'une entrée ajoutée.
+PROCEDURE PUBLIQUE scenario_info_nom()
+	arch est une zipArchive = zipCrée("test_info_nom.zip")
+	contenu est un buffer = ChaîneVersBuffer("contenu test")
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "fichier.txt")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_info_nom.zip", zipLecture)
+	nom est une chaîne = zipInfoFichier(lecture, 1, zipNom)
+	dbgVérifieEgalité(nom, "fichier.txt", "zipInfoFichier avec zipNom renvoie le nom de l'entrée")
+	zipFerme(lecture)
+	fSupprime("test_info_nom.zip")
+FIN
+
+
+// zipTaille : récupère la taille décompressée d'une entrée.
+PROCEDURE PUBLIQUE scenario_info_taille()
+	arch est une zipArchive = zipCrée("test_info_taille.zip")
+	contenu est un buffer = ChaîneVersBuffer("douze octets")
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "donnee.txt")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_info_taille.zip", zipLecture)
+	taille est un entier = zipInfoFichier(lecture, 1, zipTaille)
+	dbgVérifieEgalité(taille, 12, "zipInfoFichier avec zipTaille renvoie la taille décompressée exacte")
+	zipFerme(lecture)
+	fSupprime("test_info_taille.zip")
+FIN
+
+
+// zipTailleCompressée : la taille compressée d'une entrée est > 0.
+PROCEDURE PUBLIQUE scenario_info_taille_compressée()
+	arch est une zipArchive = zipCrée("test_info_taillec.zip")
+	contenu est un buffer = ChaîneVersBuffer("owl owl owl owl owl owl")
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "repetitif.txt")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_info_taillec.zip", zipLecture)
+	tailleC est un entier = zipInfoFichier(lecture, 1, zipTailleCompressée)
+	dbgVérifieVrai(tailleC > 0, "zipInfoFichier avec zipTailleCompressée renvoie une taille > 0")
+	zipFerme(lecture)
+	fSupprime("test_info_taillec.zip")
+FIN
+
+
+// zipCRC : le CRC-32 d'une entrée est > 0 pour un contenu non vide.
+PROCEDURE PRIVÉE scenario_info_crc()
+	arch est une zipArchive = zipCrée("test_info_crc.zip")
+	contenu est un buffer = ChaîneVersBuffer("owl")
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "owl.txt")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_info_crc.zip", zipLecture)
+	crc est un entier = zipInfoFichier(lecture, 1, zipCRC)
+	dbgVérifieVrai(crc > 0, "zipInfoFichier avec zipCRC renvoie une valeur non nulle pour un contenu non vide")
+	zipFerme(lecture)
+	fSupprime("test_info_crc.zip")
+FIN

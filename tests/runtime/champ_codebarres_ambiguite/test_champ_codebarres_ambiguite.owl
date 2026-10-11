@@ -1,0 +1,20 @@
+//  — non-régression ambiguïté type-vs-widget : `cb est un
+// CodeBarres` (variable, ) et `CBA est un Champ CodeBarres`
+// (widget, ) doivent coexister dans le même fichier sans que le
+// compilateur ne confonde les deux formes (owl_control_kind_is_ambiguous).
+//
+// ROUGE attendu : le widget 'Champ CodeBarres' n'existe pas encore.
+
+cb est un CodeBarres
+cb..TypeCodeBarres = CB_QRCODE
+cb..Contenu        = "ambiguïté script"
+
+Ouvre(FEN_ChampCodeBarresAmbiguite)
+
+dbgVérifieEgalité(cb..TypeCodeBarres, CB_QRCODE,
+"cb (variable CodeBarres) : TypeCodeBarres intact hors widget")
+dbgVérifieEgalité(LireLargeurWidget(), 100,
+"CBA_Widget (widget Champ CodeBarres) : Largeur lisible sans conflit")
+
+Ferme(FEN_ChampCodeBarresAmbiguite)
+dbgBilanTest()

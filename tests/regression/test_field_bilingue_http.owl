@@ -1,0 +1,110 @@
+// Regression : valide l'invariant n°3 (bilingue FR<->EN) sur les fields
+// du type httpRequete. Couvre les 19 fields migres en B.1.
+//
+// Pour chaque field, on doit pouvoir :
+//  - ecrire en FR canon ou en EN canon,
+//  - lire en FR canon ou en EN canon,
+// et obtenir le meme storage dans les deux cas (un seul field cote runtime).
+
+req est une httpRequête
+
+// --- 1. URL : nameEN identique ---
+req..URL = "http://example.com"
+dbgVérifieEgalité(req..URL, "http://example.com", "URL")
+
+// --- 2. Methode <-> Method ---
+req..Method = httpPost
+dbgVérifieEgalité(req..Méthode, httpPost, "Method ecrit, Methode lit")
+req..Méthode = httpGet
+dbgVérifieEgalité(req..Method, httpGet, "Methode ecrit, Method lit")
+
+// --- 3. Entete <-> Headers (assoc array) ---
+req..Headers["X-Custom"] = "value"
+dbgVérifieEgalité(req..Entête["X-Custom"], "value", "Headers ecrit, Entete lit")
+req..Entête["Y-Other"] = "ok"
+dbgVérifieEgalité(req..Headers["Y-Other"], "ok", "Entête ecrit, Headers lit")
+
+// --- 4. DureeNonReponse <-> Timeout ---
+req..Timeout = 5000
+dbgVérifieEgalité(req..DuréeNonRéponse, 5000, "Timeout ecrit, DureeNonReponse lit")
+
+// --- 5. TimeoutConnexion <-> ConnectionTimeout ---
+req..ConnectionTimeout = 3000
+dbgVérifieEgalité(req..TimeoutConnexion, 3000, "ConnectionTimeout ecrit, TimeoutConnexion lit")
+
+// --- 6. Utilisateur <-> User, MotDePasse <-> Password ---
+req..User     = "alice"
+req..Password = "secret"
+dbgVérifieEgalité(req..Utilisateur, "alice", "User -> Utilisateur")
+dbgVérifieEgalité(req..MotDePasse, "secret", "Password -> MotDePasse")
+
+// --- 7. Contenu <-> Content ---
+req..Content = "request body"
+dbgVérifieEgalité(req..Contenu, "request body", "Content -> Contenu")
+
+// --- 8. AgentUtilisateur <-> UserAgent ---
+req..UserAgent = "OWL/1.0"
+dbgVérifieEgalité(req..AgentUtilisateur, "OWL/1.0", "UserAgent -> AgentUtilisateur")
+
+// --- 9. Destination <-> Destination ---
+req..Destination = "/tmp/out.bin"
+dbgVérifieEgalité(req..Destination, "/tmp/out.bin", "Destination identique")
+
+// --- 10. CertificatClient <-> ClientCertificate ---
+req..ClientCertificate = "/etc/cert.pem"
+dbgVérifieEgalité(req..CertificatClient, "/etc/cert.pem", "ClientCertificate -> CertificatClient")
+
+// --- 11. MotDePasseCertificatClient <-> ClientCertificatePassword ---
+req..ClientCertificatePassword = "p12-pass"
+dbgVérifieEgalité(req..MotDePasseCertificatClient, "p12-pass", "ClientCertificatePassword -> canon")
+
+// --- 12. VersionSSL <-> SSLVersion ---
+req..SSLVersion = 4 + 8 // bitmask : TLS 1.2 + TLS 1.3
+dbgVérifieEgalité(req..VersionSSL, 12, "SSLVersion -> VersionSSL")
+
+// --- 13. IgnoreErreur <-> IgnoreError ---
+req..IgnoreError = httpIgnoreCertificatInvalide
+dbgVérifieEgalité(req..IgnoreErreur, httpIgnoreCertificatInvalide, "IgnoreError -> IgnoreErreur")
+
+// --- 14. Storage UNIQUE : ecrire en EN ne cree pas de field parallele ---
+// Si on lit le contenu Methode apres avoir ecrit Method, ils doivent
+// etre la meme valeur (pas un Method=POST + Methode=GET parallels).
+req..Method  = httpDelete
+req..Méthode = httpPut // ecrase la meme key canon
+dbgVérifieEgalité(req..Method, httpPut, "Methode ecrase Method (storage unique)")
+dbgVérifieEgalité(req..Méthode, httpPut, "Methode self-consistent")
+
+
+// === httpReponse (B.2) ===
+
+rep est une httpRéponse
+
+// CodeEtat <-> StatusCode
+rep..StatusCode = 200
+dbgVérifieEgalité(rep..CodeEtat, 200, "StatusCode -> CodeEtat")
+
+// DescriptionCodeEtat <-> StatusText
+rep..StatusText = "OK"
+dbgVérifieEgalité(rep..DescriptionCodeEtat, "OK", "StatusText -> DescriptionCodeEtat")
+
+// Contenu <-> Content
+rep..Content = "<html/>"
+dbgVérifieEgalité(rep..Contenu, "<html/>", "Content -> Contenu (httpReponse)")
+
+// ContentType identique
+rep..ContentType = "text/html"
+dbgVérifieEgalité(rep..ContentType, "text/html", "ContentType identique")
+
+// Entete <-> Headers (assoc array)
+rep..Headers["Server"] = "nginx"
+dbgVérifieEgalité(rep..Entête["Server"], "nginx", "Headers -> Entete (httpReponse)")
+
+// EnteteBrut <-> RawHeaders
+rep..RawHeaders = "HTTP/1.1 200 OK\r\nServer: nginx\r\n"
+dbgVérifieEgalité(rep..EntêteBrut, "HTTP/1.1 200 OK\r\nServer: nginx\r\n", "RawHeaders -> EnteteBrut")
+
+// URL identique
+rep..URL = "http://example.com/redirected"
+dbgVérifieEgalité(rep..URL, "http://example.com/redirected", "URL identique (httpReponse)")
+
+dbgBilanTest()

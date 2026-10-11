@@ -1,0 +1,66 @@
+// =====================================================================
+// SigneExponentielle : affichage du signe de l'exposant en notation
+// exponentielle. fnsToujours (= défaut) montre le vrai signe de
+// l'exposant ; fnsMoinsSiNégatif et fnsParenthèsesSiNégatif suppriment
+// le signe de l'exposant (perte d'info assumée).
+// Le signe de la MANTISSE reste piloté par le champ Signe.
+// =====================================================================
+
+Trace("=== SigneExponentielle ===")
+OwlConfigureLocale(".", "'")
+
+// ---------------------------------------------------------------------
+// Défaut (SigneExponentielle non réglé) -> signe de l'exposant affiché
+// ---------------------------------------------------------------------
+fDef est un FormatNumérique
+fDef..Notation             = fnnExponentiel
+fDef..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, fDef), "1.23e+03", "défaut: exposant positif signé")
+dbgVérifieEgalité(NumériqueVersChaîne(0.0012345, fDef), "1.23e-03", "défaut: exposant négatif signé")
+
+// ---------------------------------------------------------------------
+// fnsToujours : vrai signe de l'exposant, sur les 4 combinaisons
+// ---------------------------------------------------------------------
+fTou est un FormatNumérique
+fTou..Notation             = fnnExponentiel
+fTou..ChiffresAprèsVirgule = 2
+fTou..SigneExponentielle   = fnsToujours
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, fTou), "1.23e+03", "fnsToujours: nombre+ exp+")
+dbgVérifieEgalité(NumériqueVersChaîne(0.0012345, fTou), "1.23e-03", "fnsToujours: nombre+ exp-")
+dbgVérifieEgalité(NumériqueVersChaîne(-1234.5, fTou), "-1.23e+03", "fnsToujours: nombre- exp+")
+dbgVérifieEgalité(NumériqueVersChaîne(-0.0012345, fTou), "-1.23e-03", "fnsToujours: nombre- exp-")
+
+// ---------------------------------------------------------------------
+// fnsMoinsSiNégatif : signe de l'exposant supprimé
+// ---------------------------------------------------------------------
+fMoins est un FormatNumérique
+fMoins..Notation             = fnnExponentiel
+fMoins..ChiffresAprèsVirgule = 2
+fMoins..SigneExponentielle   = fnsMoinsSiNégatif
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, fMoins), "1.23e03", "fnsMoinsSiNégatif: nombre+ exp+")
+dbgVérifieEgalité(NumériqueVersChaîne(0.0012345, fMoins), "1.23e03", "fnsMoinsSiNégatif: nombre+ exp-")
+dbgVérifieEgalité(NumériqueVersChaîne(-1234.5, fMoins), "-1.23e03", "fnsMoinsSiNégatif: nombre- exp+")
+dbgVérifieEgalité(NumériqueVersChaîne(-0.0012345, fMoins), "-1.23e03", "fnsMoinsSiNégatif: nombre- exp-")
+
+// ---------------------------------------------------------------------
+// fnsParenthèsesSiNégatif : identique à fnsMoinsSiNégatif sur l'exposant
+// ---------------------------------------------------------------------
+fPar est un FormatNumérique
+fPar..Notation             = fnnExponentiel
+fPar..ChiffresAprèsVirgule = 2
+fPar..SigneExponentielle   = fnsParenthèsesSiNégatif
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, fPar), "1.23e03", "fnsParenthèsesSiNégatif: nombre+ exp+")
+dbgVérifieEgalité(NumériqueVersChaîne(0.0012345, fPar), "1.23e03", "fnsParenthèsesSiNégatif: nombre+ exp-")
+dbgVérifieEgalité(NumériqueVersChaîne(-1234.5, fPar), "-1.23e03", "fnsParenthèsesSiNégatif: nombre- exp+")
+dbgVérifieEgalité(NumériqueVersChaîne(-0.0012345, fPar), "-1.23e03", "fnsParenthèsesSiNégatif: nombre- exp-")
+
+// ---------------------------------------------------------------------
+// Non-régression des champs voisins en notation exponentielle
+// ---------------------------------------------------------------------
+fVois est un FormatNumérique
+fVois..Notation             = fnnExponentiel
+fVois..ChiffresAprèsVirgule = 4
+fVois..SigneExponentielle   = fnsToujours
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, fVois), "1.2345e+03", "voisins: ChiffresApresVirgule respecté")
+
+Trace("=== SigneExponentielle OK ===")

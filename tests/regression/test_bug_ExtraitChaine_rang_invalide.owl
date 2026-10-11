@@ -1,0 +1,31 @@
+// Regression / lock canon : rang invalide sur la famille Extrait*.
+//
+// Pour un rang invalide (hors plage OU <= 0), ExtraitChaîne, ExtraitChaîneEntre et
+// ExtraitLigne renvoient le marqueur de fin de liste — la sentinelle Caract(4) (EOT),
+// une chaîne d'exactement 1 octet. Ce n'est PAS un octet parasite : c'est le
+// terminateur idiomatique du parcours d'une liste de taille inconnue (boucler jusqu'à
+// tomber sur Caract(4)).
+//
+// Comportement canon vérifié à l'oracle. NE PAS « corriger » vers une
+// chaîne vide "" : ce test verrouille explicitement la sentinelle sur les 3 natives.
+
+// --- ExtraitChaîne ---
+r1 est une chaîne = ExtraitChaîne("a,b,c", 5, ",")
+dbgVérifieEgalité(r1, Caract(4), "ExtraitChaîne(rang 5 hors plage) = marqueur de fin Caract(4)")
+dbgVérifieEgalité(Taille(r1), 1, "ExtraitChaîne(rang hors plage) : taille 1")
+
+r0 est une chaîne = ExtraitChaîne("a,b,c", 0, ",")
+dbgVérifieEgalité(r0, Caract(4), "ExtraitChaîne(rang 0 invalide) = marqueur de fin Caract(4)")
+dbgVérifieEgalité(Taille(r0), 1, "ExtraitChaîne(rang 0) : taille 1")
+
+// --- ExtraitChaîneEntre ---
+r2 est une chaîne = ExtraitChaîneEntre("<a><bb><ccc>", 9, "<", ">")
+dbgVérifieEgalité(r2, Caract(4), "ExtraitChaîneEntre(rang 9 hors plage) = marqueur de fin Caract(4)")
+dbgVérifieEgalité(Taille(r2), 1, "ExtraitChaîneEntre(rang hors plage) : taille 1")
+
+// --- ExtraitLigne ---
+r3 est une chaîne = ExtraitLigne("ligne1" + LF + "ligne2", 9)
+dbgVérifieEgalité(r3, Caract(4), "ExtraitLigne(rang 9 hors plage) = marqueur de fin Caract(4)")
+dbgVérifieEgalité(Taille(r3), 1, "ExtraitLigne(rang hors plage) : taille 1")
+
+dbgBilanTest()

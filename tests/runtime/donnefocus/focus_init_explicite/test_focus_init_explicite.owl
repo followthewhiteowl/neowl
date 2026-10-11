@@ -1,0 +1,34 @@
+//  — Focus explicite dans FinInitialisation vs focus initial auto
+//
+// Spec : si FinInitialisation pose explicitement le focus (DonneFocus(SAI_X)),
+// le focus initial automatique ne doit PAS écraser ce choix.
+//
+// FEN_InitExplicite : SAI_Premier (1er lexical), SAI_Deuxieme.
+// FinInitialisation appelle DonneFocus(SAI_Deuxieme).
+//
+// Après Ouvre() attendu :
+//   - SAI_Deuxieme a reçu le focus → surEntrée = 1.
+//   - SAI_Premier n'a JAMAIS reçu le focus → surEntrée = 0.
+//
+// Test ROUGE avant fix : l'auto-focus s'applique sans garde et redonne le
+// focus à SAI_Premier (surSortie SAI_Deuxieme + surEntrée SAI_Premier).
+
+TestModeHeadless(Vrai)
+
+nP_obs est un entier = 0
+nD_obs est un entier = 0
+
+PROCEDURE callback_entrees_explicite(p est un entier, d est un entier)
+	nP_obs = p
+	nD_obs = d
+FIN
+
+Ouvre(FEN_InitExplicite)
+
+RemonteEntrees()
+dbgVérifieEgalité(nD_obs, 1, "focus explicite : surEntree SAI_Deuxieme = 1")
+dbgVérifieEgalité(nP_obs, 0, "focus explicite : surEntree SAI_Premier = 0 (auto-focus n'ecrase pas)")
+
+Ferme(FEN_InitExplicite)
+
+dbgBilanTest()

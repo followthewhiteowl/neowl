@@ -1,0 +1,34 @@
+// Harnais convergence (déclaratif) — Cadre composé.
+//
+// État actuel : propriété Cadre posée en PROPRIETES est lue à 0 en mode test
+// (le stockage interne n'est pas alimenté depuis le déclaratif).
+// État cible : après convergence, la lecture retournera la valeur déclarée.
+//
+// Pattern : la fenêtre voisine FEN_DeclCadre.owl appelle callback_verifie
+// dans son FinInitialisation pour remonter les valeurs lues au script test.
+
+TestModeHeadless(Vrai)
+
+epais est un entier = -1
+coul est un entier = -1
+trait est un entier = -1
+
+PROCEDURE callback_verifie(e est un entier, c est un entier, t est un entier)
+	epais = e
+	coul  = c
+	trait = t
+FIN
+
+Ouvre(FEN_DeclCadre)
+
+Trace("=== Déclaratif Cadre (headless) ===")
+Trace("Epaisseur lue : " + epais + " (attendu : 5 après Lot 1)")
+Trace("Couleur lue   : " + coul + " (attendu : RVB(255,0,0) après Lot 1)")
+Trace("Trait lu      : " + trait + " (attendu : TraitContinu après Lot 1)")
+
+dbgVérifieEgalité(epais, 5, "Déclaratif Cadre : Epaisseur")
+dbgVérifieEgalité(coul, RVB(255, 0, 0), "Déclaratif Cadre : Couleur")
+dbgVérifieEgalité(trait, TraitContinu, "Déclaratif Cadre : Trait")
+
+Ferme(FEN_DeclCadre)
+dbgBilanTest()

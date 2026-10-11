@@ -1,0 +1,55 @@
+//  — Lot 2 (rendu runtime) : `Style..CadreExtérieur..Etats[état]`
+// doit produire des règles QSS `:hover/:focus/:pressed/:disabled` pour un
+// Champ Bouton. Le Lot 1 (modèle + round-trip) est acquis (17/17) ; ce test
+// vérifie que la feuille de style QSS EFFECTIVE contient les blocs d'état,
+// pas seulement que la lecture programmatique round-trippe.
+//
+// Vérification par lecture de la feuille QSS (__DebugFeuilleStyle), même
+// approche que style_bouton_etat_qss (Style..Libellé..Etats) et
+// style_saisie_etat (Style..Etats sur ZoneSaisie) : aucun moyen headless de
+// poster de vrais QEvent hover/press/focus, donc on lit la feuille générée
+// plutôt que de capturer des pixels d'état transitoire.
+//
+// Ombre par-état (élévation au survol) : HORS SCOPE de ce test. Une ombre
+// est un QGraphicsDropShadowEffect, pas une propriété QSS — illisible via
+// __DebugFeuilleStyle. Sa vérification (si implémentée via event filter,
+// cf. ticket Lot 2) nécessitera soit une capture pixel avec simulation
+// d'event réelle, soit une autre native de debug dédiée. Non couvert ici.
+//
+// ROUGE attendu : le CadreExtérieur ne rend AUCUN état aujourd'hui — la
+// feuille QSS ne doit contenir ni `:hover`, ni `:focus`, ni `:pressed`, ni
+// `:disabled` liés au CadreExtérieur (seul le Lot 1 — modèle/round-trip —
+// est fait, pas le rendu).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleCadreExterieurEtatsRendu)
+
+feuille est une chaîne = __DebugFeuilleStyle(BTN_Zone)
+
+Trace("=== feuille QSS BTN_Zone (CadreExtérieur..Etats) ===")
+Trace(feuille)
+
+// --- 1. Survol : bloc :hover avec le fond/dégradé de survol ---
+dbgVérifieVrai(Contient(feuille, ":hover"), "CadreExtérieur..Etats[survol] : la feuille QSS contient un bloc :hover")
+dbgVérifieVrai(Contient(feuille, "rgb(200,0,0)") OU Contient(feuille, "#c80000"), "CadreExtérieur..Etats[survol]..CouleurFond : couleur de fond survol présente dans la feuille")
+
+// --- 2. Focus : bloc :focus avec le cadre de focus ---
+dbgVérifieVrai(Contient(feuille, ":focus"), "CadreExtérieur..Etats[focus] : la feuille QSS contient un bloc :focus")
+dbgVérifieVrai(Contient(feuille, "rgb(0,128,255)") OU Contient(feuille, "#0080ff"), "CadreExtérieur..Etats[focus]..Cadre..Couleur : couleur de bordure focus présente dans la feuille")
+
+// --- 3. Appuyé : bloc :pressed avec le fond appuyé ---
+dbgVérifieVrai(Contient(feuille, ":pressed"), "CadreExtérieur..Etats[appuyé] : la feuille QSS contient un bloc :pressed")
+dbgVérifieVrai(Contient(feuille, "rgb(0,200,0)") OU Contient(feuille, "#00c800"), "CadreExtérieur..Etats[appuyé]..CouleurFond : couleur de fond appuyée présente dans la feuille")
+
+// --- 4. Grisé : bloc :disabled avec le fond grisé ---
+dbgVérifieVrai(Contient(feuille, ":disabled"), "CadreExtérieur..Etats[grisé] : la feuille QSS contient un bloc :disabled")
+dbgVérifieVrai(Contient(feuille, "rgb(120,120,120)") OU Contient(feuille, "#787878"), "CadreExtérieur..Etats[grisé]..CouleurFond : couleur de fond grisée présente dans la feuille")
+
+// --- 5. Base intacte : la règle de base (hors pseudo-classe) garde le
+// dégradé/fond de base — les états ne doivent pas écraser la base.
+dbgVérifieVrai(Contient(feuille, "rgb(10,10,10)") OU Contient(feuille, "#0a0a0a"), "CadreExtérieur base : CouleurDébut du dégradé de base toujours présente")
+dbgVérifieVrai(Contient(feuille, "rgb(20,20,20)") OU Contient(feuille, "#141414"), "CadreExtérieur base : CouleurFin du dégradé de base toujours présente")
+
+Ferme(FEN_StyleCadreExterieurEtatsRendu)
+dbgBilanTest()

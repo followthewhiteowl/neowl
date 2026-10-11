@@ -1,0 +1,145 @@
+// ================================================================
+// Image natif — Lot I.4 : transformations
+//
+//   - dRedimensionne(img, w, h [, options])
+//   - dRotation(img, angle [, options])
+//   - dDécoupe(img, x, y, w, h)
+//   - dCopie(src, dst [, sx, sy, sw, sh, dx, dy, dw, dh])
+//   - dFusionne(dst, src [, opacité])
+// ================================================================
+
+// ----- dRedimensionne : étirement basique -----
+img est une Image = dCréeImage(10, 10, BleuClair)
+ok est un booléen = dRedimensionne(img, 20, 20)
+dbgVérifieEgalité(ok, Vrai, "dRedimensionne: retour Vrai")
+dbgVérifieEgalité(img..Largeur, 20, "dRedimensionne: nouvelle Largeur")
+dbgVérifieEgalité(img..Hauteur, 20, "dRedimensionne: nouvelle Hauteur")
+// La couleur d'origine doit être préservée (étirement pixel par pixel)
+dbgVérifieEgalité(dPixelCouleur(img, 5, 5), BleuClair, "dRedimensionne: contenu préservé")
+dbgVérifieEgalité(dPixelCouleur(img, 19, 19), BleuClair, "dRedimensionne: bord opposé OK")
+
+// ----- dRedimensionne : drHomothétique préserve les proportions -----
+img2 est une Image = dCréeImage(20, 10, RougeClair)
+img2..CouleurRemplissage = Blanc
+dRedimensionne(img2, 40, 40, drHomothétique)
+dbgVérifieEgalité(img2..Largeur, 40, "drHomothétique: largeur cible")
+dbgVérifieEgalité(img2..Hauteur, 40, "drHomothétique: hauteur cible")
+// Image source 2:1 → ratio préservé, image scalée à 40x20 et centrée verticalement
+// Pixel central est dans la zone scalée
+dbgVérifieEgalité(dPixelCouleur(img2, 20, 20), RougeClair, "drHomothétique: zone image au centre")
+// Pixel en haut à 0,0 doit être Blanc (zone de remplissage hors ratio)
+dbgVérifieEgalité(dPixelCouleur(img2, 0, 0), Blanc, "drHomothétique: zone de remplissage")
+
+// ----- dDécoupe : crop (non-mutatif, retourne nouvelle image) -----
+imgSrc est une Image = dCréeImage(20, 20, BleuClair)
+// On marque un pixel pour vérifier la zone copiée
+dPoint(imgSrc, 7, 7, RougeClair)
+img3 est une Image = dDécoupe(imgSrc, 5, 5, 10, 10)
+dbgVérifieEgalité(img3..Largeur, 10, "dDécoupe: nouvelle largeur")
+dbgVérifieEgalité(img3..Hauteur, 10, "dDécoupe: nouvelle hauteur")
+// Le pixel rouge initialement en (7,7) est maintenant en (2,2) du résultat (-5,-5)
+dbgVérifieEgalité(dPixelCouleur(img3, 2, 2), RougeClair, "dDécoupe: pixel relocalisé")
+dbgVérifieEgalité(dPixelCouleur(img3, 5, 5), BleuClair, "dDécoupe: contenu préservé")
+
+// ----- dCopie : blit complet d'image source vers destination -----
+src est une Image = dCréeImage(5, 5, RougeClair)
+dst est une Image = dCréeImage(15, 15, Blanc)
+dCopie(src, dst)
+// La zone (0,0)-(4,4) du dst doit maintenant être RougeClair
+dbgVérifieEgalité(dPixelCouleur(dst, 0, 0), RougeClair, "dCopie: pixel (0,0)")
+dbgVérifieEgalité(dPixelCouleur(dst, 4, 4), RougeClair, "dCopie: pixel (4,4)")
+// Zone non couverte reste Blanche
+dbgVérifieEgalité(dPixelCouleur(dst, 10, 10), Blanc, "dCopie: hors zone source")
+
+// ----- dCopie : blit avec rectangle source et destination -----
+src2 est une Image = dCréeImage(20, 20, BleuClair)
+dPoint(src2, 5, 5, JauneOr)
+dst2 est une Image = dCréeImage(20, 20, Blanc)
+// Copier la sous-zone (3,3)-(8,8) du source vers (10,10)-(15,15) du dst
+dCopie(src2, dst2, 3, 3, 6, 6, 10, 10, 6, 6)
+// Le JauneOr était en (5,5) source, soit relativement (2,2) dans la sous-zone
+// Donc dans dst il atterrit en (10+2, 10+2) = (12, 12)
+dbgVérifieEgalité(dPixelCouleur(dst2, 12, 12), JauneOr, "dCopie sous-zone: JauneOr relocalisé")
+dbgVérifieEgalité(dPixelCouleur(dst2, 10, 10), BleuClair, "dCopie sous-zone: bleu")
+dbgVérifieEgalité(dPixelCouleur(dst2, 5, 5), Blanc, "dCopie sous-zone: hors copie inchangé")
+
+// ----- dFusionne : src dans dst avec opacité -----
+src3 est une Image = dCréeImage(10, 10, RougeClair)
+dst3 est une Image = dCréeImage(10, 10, Blanc)
+dFusionne(dst3, src3, 100.0) // opacité totale (échelle 0..100)
+dbgVérifieEgalité(dPixelCouleur(dst3, 5, 5), RougeClair, "dFusionne 255: src remplace dst")
+
+src4 est une Image = dCréeImage(10, 10, RougeClair)
+dst4 est une Image = dCréeImage(10, 10, Blanc)
+dFusionne(dst4, src4, 0.0) // transparence totale (échelle 0..100)
+dbgVérifieEgalité(dPixelCouleur(dst4, 5, 5), Blanc, "dFusionne 0: dst inchangé")
+
+// Opacité intermédiaire : la couleur résultante doit être entre src et dst
+src5 est une Image = dCréeImage(10, 10, Noir) // RGB(0, 0, 0)
+dst5 est une Image = dCréeImage(10, 10, Blanc) // RGB(255, 255, 255)
+dFusionne(dst5, src5, 50.0) // ~50% mélange (échelle 0..100)
+c est un entier = dPixelCouleur(dst5, 5, 5)
+// La couleur doit être grise (entre noir et blanc)
+dbgVérifieVrai(c <> Noir, "dFusionne 128: pas Noir pur")
+dbgVérifieVrai(c <> Blanc, "dFusionne 128: pas Blanc pur")
+
+// ----- dRotation : 90° à droite -----
+img4 est une Image = dCréeImage(10, 5, Blanc)
+dPoint(img4, 0, 0, RougeClair) // marque coin haut-gauche
+dRotation(img4, 90)
+// Après rotation 90° horaire, (0,0) original arrive en (4, 0) à droite (ou similaire selon agrandissement)
+// On vérifie juste que les dimensions ont basculé
+dbgVérifieVrai(img4..Largeur >= 5, "Rotation 90: largeur nouvelle dimension")
+dbgVérifieVrai(img4..Hauteur >= 5, "Rotation 90: hauteur nouvelle dimension")
+dbgVérifieEgalité(img4..Valide, Vrai, "Rotation 90: image reste valide")
+
+// ----- dRotation : 180° -----
+img5 est une Image = dCréeImage(10, 10, Blanc)
+dPoint(img5, 0, 0, RougeClair)
+dRotation(img5, 180)
+// Après 180°, (0,0) original devrait être en (W-1, H-1)
+dbgVérifieEgalité(dPixelCouleur(img5, 9, 9), RougeClair, "Rotation 180: pixel basculé")
+
+// ----- Image invalide silencieuse -----
+imgVide est une Image
+dRedimensionne(imgVide, 50, 50)
+dRotation(imgVide, 45)
+// dDécoupe sur image invalide : pose ErreurDétectée et retourne une image vide.
+// On capture le retour pour vérifier que la source reste intacte.
+imgVideOut est une Image = dDécoupe(imgVide, 0, 0, 5, 5)
+ErreurRAZ()
+dbgVérifieEgalité(imgVide..Valide, Faux, "Image invalide: opérations silencieuses")
+
+// ----- Alias EN -----
+imgA est une Image = dCréeImage(10, 10, BleuClair)
+dResize(imgA, 20, 20)
+dbgVérifieEgalité(imgA..Largeur, 20, "Alias EN: dResize")
+
+imgB est une Image = dCréeImage(10, 10, RougeClair)
+dPoint(imgB, 0, 0, Noir)
+dRotate(imgB, 180)
+dbgVérifieEgalité(dPixelCouleur(imgB, 9, 9), Noir, "Alias EN: dRotate")
+
+imgCsrc est une Image = dCréeImage(20, 20, BleuClair)
+imgC est une Image = dCrop(imgCsrc, 5, 5, 10, 10)
+dbgVérifieEgalité(imgC..Largeur, 10, "Alias EN: dCrop")
+
+imgD est une Image = dCréeImage(5, 5, RougeClair)
+imgE est une Image = dCréeImage(10, 10, Blanc)
+dCopy(imgD, imgE)
+dbgVérifieEgalité(dPixelColor(imgE, 0, 0), RougeClair, "Alias EN: dCopy")
+
+imgF est une Image = dCréeImage(5, 5, Noir)
+imgG est une Image = dCréeImage(5, 5, Blanc)
+dMerge(imgG, imgF, 255)
+dbgVérifieEgalité(dPixelColor(imgG, 2, 2), Noir, "Alias EN: dMerge")
+
+// ----- Roundtrip PNG : transformation préservée -----
+sChemin est une chaîne = "test_image_transfo_tmp.png"
+img6 est une Image = dCréeImage(20, 20, RougeClair)
+dRedimensionne(img6, 30, 30)
+dSauveImagePNG(img6, sChemin)
+img7 est une Image = dChargeImage(sChemin)
+dbgVérifieEgalité(img7..Largeur, 30, "Roundtrip: largeur préservée")
+dbgVérifieEgalité(dPixelCouleur(img7, 15, 15), RougeClair, "Roundtrip: contenu préservé")
+fSupprime(sChemin)

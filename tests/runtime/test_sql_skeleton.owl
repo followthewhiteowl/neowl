@@ -1,0 +1,36 @@
+// Verifie que les 3 types reifies (sqlConnexion / sqlRequete / sqlReponse)
+// sont declarables, que leurs champs sont accessibles avec et sans accent
+// (le compilateur OWL fait l'accent-strip au lookup, comme pour httpRequete),
+// et que les constantes sqlBackend sont disponibles globalement.
+
+// 1. sqlConnexion declarable + champs alignés sur le comportement de référence accessibles
+cnx est une sqlConnexion
+cnx..Provider      = sqlSqlite
+cnx..Source        = "./test.db"
+cnx..BaseDeDonnées = "ma_base"
+dbgVérifieEgalité(cnx..Provider, sqlSqlite, "Provider sqlSqlite")
+dbgVérifieEgalité(cnx..Source, "./test.db", "Source assignable")
+// Ecriture avec accent, lecture sans accent : un seul field cote runtime.
+dbgVérifieEgalité(cnx..BaseDeDonnées, "ma_base", "BaseDeDonnées lue sans accent")
+
+// Constantes sqlBackend : invariant = toutes distinctes (valeurs sentinels
+// internes, cf src/sentinels.h::OWL_SQL_BACKEND_BASE).
+dbgVérifieDifférence(sqlSqlite, sqlPostgres, "sqlSqlite != sqlPostgres")
+dbgVérifieDifférence(sqlPostgres, sqlMySQL, "sqlPostgres != sqlMySQL")
+
+// 2. sqlRequete declarable + Code/Parametres avec et sans accent
+req est une sqlRequête
+req..Code              = "SELECT * FROM x WHERE y = {p_y}"
+req..Paramètres["p_y"] = 42
+dbgVérifieEgalité(req..Code, "SELECT * FROM x WHERE y = {p_y}", "Code assignable")
+dbgVérifieEgalité(req..Paramètres["p_y"], 42, "Paramètres lue sans accent")
+
+// 3. sqlReponse declarable + champs par defaut
+rep est une sqlRéponse
+dbgVérifieEgalité(rep..Succès, Faux, "Succès initial = Faux")
+dbgVérifieEgalité(rep..Succès, Faux, "Succès lu sans accent")
+dbgVérifieEgalité(rep..Occurrence, 0, "Occurrence initiale = 0")
+dbgVérifieEgalité(rep..LignesAffectées, 0, "LignesAffectées initiale = 0")
+dbgVérifieEgalité(rep..LignesAffectées, 0, "LignesAffectées lue sans accent")
+
+dbgBilanTest()

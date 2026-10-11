@@ -1,0 +1,32 @@
+//  — repli quand ni le champ (pas de MasqueAffichage) ni le projet
+// (pas de FormatDurée) ne posent de format : la relecture doit suivre le défaut
+// en dur HH:MI:SS (comportement  préservé). Pour une durée de 14h30m45s
+// le défaut HH:MI:SS préserve les secondes -> "14:30:45" (à comparer au dossier
+// "pilote" où le projet HH:MI les tronque en "14:30:00").
+// Vérifie aussi que Projet..FormatDurée rend "" par défaut (jamais nil) quand le
+// champ n'est pas posé dans PROPRIETES.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que le champ
+// FormatDurée n'existe pas au catalogue manifeste Projet — même absent de
+// PROPRIETES ici, le CATALOGUE doit connaître le champ pour matérialiser sa
+// valeur par défaut dans l'ObjInstance (sinon MonApp..FormatDurée lève un
+// symbole inconnu à la lecture).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppSansFormatDuree..FormatDurée, "", "Projet..FormatDurée : chaîne vide par défaut quand non posé (jamais nil)")
+
+OuvreSoeur(FEN_ProjetSansFormatDuree)
+
+dRéférence est une durée = ChaîneVersDurée("14:30:45", "HH:MM:SS")
+SAI_Duree..Valeur = dRéférence
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Repli défaut : ..Valeur reste un owlDuree")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	sLue est une chaîne = SAI_Duree..Valeur
+	dbgVérifieEgalité(sLue, "14:30:45", "Repli HH:MI:SS (ni masque champ, ni FormatDurée projet) : secondes préservées (14:30:45)")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetSansFormatDuree)
+dbgBilanTest()

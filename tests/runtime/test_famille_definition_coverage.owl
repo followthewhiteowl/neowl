@@ -1,0 +1,96 @@
+// ============================================
+// TEST: Couverture des codes familleDéfinition (Definition..FamilleDéfinition)
+// ============================================
+// Les constantes famille* sont les valeurs de l'enum familleDéfinition,
+// renvoyees par l'introspection de type (RécupèreDéfinition /
+// RécupèreDéfinitionType) dans le champ ..FamilleDéfinition.
+// Chaque code est PRODUIT via une vraie valeur/type et asserte exact.
+// ============================================
+
+// Types user-defined declares au niveau module (classe/enum/combinaison
+// referencables par nom via RécupèreDéfinitionType).
+cVehicule est une Classe
+PUBLIC
+	sMarque est une chaîne
+FIN
+
+eCouleur est une Énumération
+	Rouge
+	Vert
+	Bleu
+FIN
+
+mDroits est une Combinaison
+	Lecture
+	Ecriture
+FIN
+
+PROCEDURE scenario_famille_definition()
+	Trace("=== FAMILLE DEFINITION ===")
+
+	// --- familleClasse : la classe elle-meme (OBJ_CLASS) ---
+	defCls est un Definition = RécupèreDéfinitionType("cVehicule")
+	dbgVérifieEgalité(defCls..Type, owlClasse, "Classe : Type = owlClasse")
+	dbgVérifieEgalité(defCls..FamilleDéfinition, familleClasse, "Classe : Famille = familleClasse")
+
+	// --- familleEnumeration ---
+	defEnum est un Definition = RécupèreDéfinitionType("eCouleur")
+	dbgVérifieEgalité(defEnum..Type, owlEnumeration, "Enum : Type = owlEnumeration")
+	dbgVérifieEgalité(defEnum..FamilleDéfinition, familleEnumeration, "Enum : Famille = familleEnumeration")
+
+	// --- familleCombinaison ---
+	defCmb est un Definition = RécupèreDéfinitionType("mDroits")
+	dbgVérifieEgalité(defCmb..Type, owlCombinaison, "Combinaison : Type = owlCombinaison")
+	dbgVérifieEgalité(defCmb..FamilleDéfinition, familleCombinaison, "Combinaison : Famille = familleCombinaison")
+
+	// --- familleCollection : File / Pile / Liste ---
+	maPile est une pile de entiers
+	Empile(maPile, 1)
+	defPile est un Definition = RécupèreDéfinition(maPile)
+	dbgVérifieEgalité(defPile..Type, owlPile, "Pile : Type = owlPile")
+	dbgVérifieEgalité(defPile..FamilleDéfinition, familleCollection, "Pile : Famille = familleCollection")
+
+	maFile est une file de entiers
+	Enfile(maFile, 1)
+	defFile est un Definition = RécupèreDéfinition(maFile)
+	dbgVérifieEgalité(defFile..FamilleDéfinition, familleCollection, "File : Famille = familleCollection")
+
+	// --- familleJSON ---
+	j est un JSON = ChaîneVersJSON(`{"nom": "OWL"}`)
+	defJ est un Definition = RécupèreDéfinition(j)
+	dbgVérifieEgalité(defJ..Type, owlJSON, "JSON : Type = owlJSON")
+	dbgVérifieEgalité(defJ..FamilleDéfinition, familleJSON, "JSON : Famille = familleJSON")
+
+	// --- familleProcedure ---
+	defProc est un Definition = RécupèreDéfinition(helper_proc_famille)
+	dbgVérifieEgalité(defProc..Type, owlProcedure, "Procedure : Type = owlProcedure")
+	dbgVérifieEgalité(defProc..FamilleDéfinition, familleProcedure, "Procedure : Famille = familleProcedure")
+
+	// --- familleTableau ---
+	arr est un tableau de entiers
+	Ajoute(arr, 1)
+	defArr est un Definition = RécupèreDéfinition(arr)
+	dbgVérifieEgalité(defArr..Type, owlTableau, "Tableau : Type = owlTableau")
+	dbgVérifieEgalité(defArr..FamilleDéfinition, familleTableau, "Tableau : Famille = familleTableau")
+
+	// --- familleTypeAvance : buffer et UUID mappent vers FAM_TYPE_AVANCE ---
+	buf est un buffer = ChaîneVersBuffer("octets")
+	defBuf est un Definition = RécupèreDéfinition(buf)
+	dbgVérifieEgalité(defBuf..Type, owlBuffer, "Buffer : Type = owlBuffer")
+	dbgVérifieEgalité(defBuf..FamilleDéfinition, familleTypeAvance, "Buffer : Famille = familleTypeAvance")
+
+	id est un UUID = DonneUUID()
+	defUUID est un Definition = RécupèreDéfinition(id)
+	dbgVérifieEgalité(defUUID..Type, owlUUID, "UUID : Type = owlUUID")
+	dbgVérifieEgalité(defUUID..FamilleDéfinition, familleTypeAvance, "UUID : Famille = familleTypeAvance")
+
+	// --- famillePasDefini : valeur nulle / type non identifie (fallback) ---
+	defNul est un Definition = RécupèreDéfinition(Null)
+	dbgVérifieEgalité(defNul..FamilleDéfinition, famillePasDefini, "Null : Famille = famillePasDefini")
+
+	dbgBilanTest()
+FIN
+
+PROCEDURE helper_proc_famille(n est un entier) : entier
+	RENVOYER n * 2
+FIN

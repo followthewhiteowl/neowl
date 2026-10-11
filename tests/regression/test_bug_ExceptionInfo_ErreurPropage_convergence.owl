@@ -1,0 +1,48 @@
+// @sujet : ExceptionInfo — convergence avec ErreurInfo après ErreurPropage
+// @résumé : Quand une erreur logicielle posée par une native est promue en
+// exception via ErreurPropage, le handler QUAND EXCEPTION doit restituer les
+// mêmes informations que celles déjà lisibles côté ErreurInfo avant la
+// propagation : le code canonique, le nom de la native fautive et son alias
+// numérique ne doivent pas se perdre au passage.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+PROCEDURE scenario_code_fonction_et_codeNum_survivent_a_la_propagation()
+	n est un entier = BufferLitOctet(42, 1)
+
+	sCodeAvant est une chaîne = ErreurInfo(errCode)
+	sFonctionAvant est une chaîne = ErreurInfo(errFonction)
+	sCodeNumAvant est une chaîne = ErreurInfo(errCodeNum)
+
+	sCodeApres est une chaîne = ""
+	sFonctionApres est une chaîne = ""
+	sCodeNumApres est une chaîne = ""
+
+	QUAND EXCEPTION DANS
+		ErreurPropage()
+	FAIRE
+		sCodeApres     = ExceptionInfo(errCode)
+		sFonctionApres = ExceptionInfo(errFonction)
+		sCodeNumApres  = ExceptionInfo(errCodeNum)
+	FIN
+
+	// Valeurs exactes attendues avant propagation, pour éviter une
+	// convergence trompeuse du type "chaîne vide == chaîne vide".
+	dbgVérifieEgalité(sCodeAvant, "E_NATIVE_ARG_TYPE_MISMATCH", "ErreurInfo(errCode) restitue le code canonique de la native fautive")
+	dbgVérifieEgalité(sFonctionAvant, "BufferLitOctet", "ErreurInfo(errFonction) restitue le nom de la native fautive")
+	// Format E0NNN, pas la valeur exacte (les numéros du registre glissent quand
+	// des erreurs sont ajoutées). La convergence ci-dessous verrouille l'égalité.
+	dbgVérifieVrai(CommencePar(sCodeNumAvant, "E0"), "ErreurInfo(errCodeNum) restitue un alias numérique (format E0NNN)")
+
+	// Convergence : la promotion en exception ne doit rien perdre.
+	dbgVérifieEgalité(sCodeApres, sCodeAvant, "ExceptionInfo(errCode) converge avec ErreurInfo(errCode) après ErreurPropage")
+	dbgVérifieEgalité(sFonctionApres, sFonctionAvant, "ExceptionInfo(errFonction) converge avec ErreurInfo(errFonction) après ErreurPropage")
+	dbgVérifieEgalité(sCodeNumApres, sCodeNumAvant, "ExceptionInfo(errCodeNum) converge avec ErreurInfo(errCodeNum) après ErreurPropage")
+FIN
+
+
+dbgBilanTest()

@@ -1,0 +1,171 @@
+// @sujet : DateVersEntier
+// @resume : Conversion date vers entier (nb jours depuis 1800-01-01 ou debut annee)
+
+// ==============================================================================
+// PROCEDURES PUBLIQUES - Cas nominaux pour la doc utilisateur
+// ==============================================================================
+
+PROCEDURE PUBLIQUE scenario_conversion_date_historique()
+	// DateVersEntier accepte Date, DateHeure, chaine AAAAMMJJ
+	// Par defaut : nb jours depuis 01/01/1800 (base 1)
+
+	d1 est une date = "18000101"
+	res1 est un entier = DateVersEntier(d1)
+	dbgVérifieEgalité(res1, 1, "01/01/1800 depuis 1800 → 1")
+
+	d2 est une date = "18000103"
+	res2 est un entier = DateVersEntier(d2)
+	dbgVérifieEgalité(res2, 3, "03/01/1800 depuis 1800 → 3")
+
+	// Exemple : 25/12/2001 → 73773
+	d3 est une date = "20011225"
+	res3 est un entier = DateVersEntier(d3)
+	dbgVérifieEgalité(res3, 73773, "25/12/2001 depuis 1800 → 73773")
+FIN
+
+PROCEDURE PUBLIQUE scenario_conversion_depuis_debut_annee()
+	// 2e parametre Vrai : nb jours depuis le 1er janvier de l'annee de la date
+
+	d1 est une date = "20040125"
+	res1 est un entier = DateVersEntier(d1, Vrai)
+	dbgVérifieEgalité(res1, 25, "25/01/2004 mode annee → 25")
+
+	d2 est une date = "20040101"
+	res2 est un entier = DateVersEntier(d2, Vrai)
+	dbgVérifieEgalité(res2, 1, "01/01/2004 mode annee → 1")
+
+	d3 est une date = "20041231"
+	res3 est un entier = DateVersEntier(d3, Vrai)
+	dbgVérifieEgalité(res3, 366, "31/12/2004 mode annee → 366 (annee bissextile)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_chaine_aaaammjj()
+	// Accepte chaine AAAAMMJJ directement (sans construire Date)
+
+	res1 est un entier = DateVersEntier("19000101")
+	dbgVérifieEgalité(res1, 36525, "01/01/1900 chaine AAAAMMJJ")
+
+	res2 est un entier = DateVersEntier("20000101")
+	dbgVérifieEgalité(res2, 73049, "01/01/2000 chaine AAAAMMJJ")
+
+	res3 est un entier = DateVersEntier("20001231", Vrai)
+	dbgVérifieEgalité(res3, 366, "31/12/2000 mode annee chaine → 366 (bissextile)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_dateheure()
+	// DateHeure accepte, partie temps ignoree
+
+	dh1 est un dateheure = "20150315120000"
+	res1 est un entier = DateVersEntier(dh1)
+	dbgVérifieVrai(res1 > 0, "DateHeure 2015-03-15 12h → nb jours > 0")
+
+	// Meme jour, heures differentes : meme entier
+	dh2 est un dateheure = "20150315180000"
+	res2 est un entier = DateVersEntier(dh2)
+	dbgVérifieEgalité(res1, res2, "DateHeure heure ignoree (meme jour = meme entier)")
+
+	// Mode annee
+	dh3 est un dateheure = "20150315000000"
+	res3 est un entier = DateVersEntier(dh3, Vrai)
+	dbgVérifieEgalité(res3, 74, "15/03/2015 mode annee → 74 (31+28+15)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_coherence_entierversdate()
+	// DateVersEntier et EntierVersDate sont inverses
+
+	d1 est une date = "19850425"
+	entier1 est un entier = DateVersEntier(d1)
+	retour1 est une date = EntierVersDate(entier1)
+	dbgVérifieEgalité(retour1..Année, 1985, "Coherence inverse annee")
+	dbgVérifieEgalité(retour1..Mois, 4, "Coherence inverse mois")
+	dbgVérifieEgalité(retour1..Jour, 25, "Coherence inverse jour")
+
+	d2 est une date = "20231231"
+	entier2 est un entier = DateVersEntier(d2)
+	retour2 est une date = EntierVersDate(entier2)
+	// Verifier la coherence avec format AAAAMMJJ
+	chaine2 est une chaîne = DateVersChaîne(retour2, "AAAAMMJJ")
+	dbgVérifieEgalité(chaine2, "20231231", "Coherence inverse date complete")
+FIN
+
+// ==============================================================================
+// PROCEDURES PRIVEES - Cas limites et edge cases
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_dates_limites()
+	// Limites documentees : 01/01/0001 a 31/12/9999 (fiabilite depuis 01/01/1583)
+
+	d1 est une date = "00010101"
+	res1 est un entier = DateVersEntier(d1)
+	dbgVérifieVrai(res1 < 0, "Date avant 1800 → entier negatif")
+
+	d2 est une date = "15830101"
+	res2 est un entier = DateVersEntier(d2)
+	dbgVérifieVrai(res2 < 0, "01/01/1583 avant 1800 → negatif")
+
+	d3 est une date = "99991231"
+	res3 est un entier = DateVersEntier(d3)
+	dbgVérifieVrai(res3 > 73773, "31/12/9999 depuis 1800 → tres grand entier")
+
+	// Mode annee : toujours positif
+	d4 est une date = "00010101"
+	res4 est un entier = DateVersEntier(d4, Vrai)
+	dbgVérifieEgalité(res4, 1, "01/01/0001 mode annee → 1")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_annee_bissextile()
+	// Annees bissextiles : 29/02 valide, impact sur nb jours
+
+	d1 est une date = "20000229"
+	res1 est un entier = DateVersEntier(d1, Vrai)
+	dbgVérifieEgalité(res1, 60, "29/02/2000 mode annee → 60 (31+29)")
+
+	d2 est une date = "20000301"
+	res2 est un entier = DateVersEntier(d2, Vrai)
+	dbgVérifieEgalité(res2, 61, "01/03/2000 mode annee → 61")
+
+	// Annee non-bissextile : pas de 29/02
+	d3 est une date = "19000301"
+	res3 est un entier = DateVersEntier(d3, Vrai)
+	dbgVérifieEgalité(res3, 60, "01/03/1900 mode annee → 60 (31+28+1)")
+
+	// 31/12 annee bissextile vs non-bissextile
+	d4 est une date = "20001231"
+	res4 est un entier = DateVersEntier(d4, Vrai)
+	dbgVérifieEgalité(res4, 366, "31/12/2000 bissextile → 366")
+
+	d5 est une date = "20011231"
+	res5 est un entier = DateVersEntier(d5, Vrai)
+	dbgVérifieEgalité(res5, 365, "31/12/2001 non-bissextile → 365")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaine_invalide()
+	// Chaines mal formees : retour 0 (comportement defensive)
+
+	res1 est un entier = DateVersEntier("abc")
+	dbgVérifieEgalité(res1, 0, "Chaine invalide 'abc' → 0")
+
+	res2 est un entier = DateVersEntier("2023")
+	dbgVérifieEgalité(res2, 0, "Chaine trop courte '2023' → 0")
+
+	res3 est un entier = DateVersEntier("")
+	dbgVérifieEgalité(res3, 0, "Chaine vide → 0")
+FIN
+
+// ==============================================================================
+// POINT D'ENTREE
+// ==============================================================================
+
+// Procedures publiques (doc utilisateur)
+scenario_conversion_date_historique()
+scenario_conversion_depuis_debut_annee()
+scenario_forme_chaine_aaaammjj()
+scenario_forme_dateheure()
+scenario_coherence_entierversdate()
+
+// Procedures privees (edge cases)
+scenario_edge_dates_limites()
+scenario_edge_annee_bissextile()
+scenario_edge_chaine_invalide()
+
+dbgBilanTest()

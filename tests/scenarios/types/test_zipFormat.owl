@@ -1,0 +1,66 @@
+// @sujet : zipFormat
+// @résumé : Enum regroupant les formats d'archive acceptés par le paramètre format de zipCrée et le paramètre mode de zipOuvre : ZIP, WDZ, CAB, RAR, 7z, TAR et TAR.GZ.
+
+
+// zipFormatZIP : création d'une archive au format ZIP.
+PROCEDURE PUBLIQUE scenario_creation_zip()
+	arch est une zipArchive = zipCrée("test_fmt_zip.zip", zipFormatZIP)
+	dbgVérifieVrai(arch <> Null, "zipCrée avec zipFormatZIP retourne une archive ouverte")
+	zipFerme(arch)
+	dbgVérifieVrai(zipExiste("test_fmt_zip.zip"), "le fichier ZIP a bien été créé sur disque")
+	fSupprime("test_fmt_zip.zip")
+FIN
+
+
+// zipFormatTAR : création d'une archive au format TAR.
+PROCEDURE PUBLIQUE scenario_creation_tar()
+	arch est une zipArchive = zipCrée("test_fmt_tar.tar", zipFormatTAR)
+	dbgVérifieVrai(arch <> Null, "zipCrée avec zipFormatTAR retourne une archive ouverte")
+	zipFerme(arch)
+	dbgVérifieVrai(zipExiste("test_fmt_tar.tar"), "le fichier TAR a bien été créé sur disque")
+	fSupprime("test_fmt_tar.tar")
+FIN
+
+
+// zipFormatTARGZ : création d'une archive TAR compressée gzip.
+PROCEDURE PUBLIQUE scenario_creation_targz()
+	arch est une zipArchive = zipCrée("test_fmt.tgz", zipFormatTARGZ)
+	dbgVérifieVrai(arch <> Null, "zipCrée avec zipFormatTARGZ retourne une archive ouverte")
+	zipAjouteFichier(arch, ChaîneVersBuffer("owl"), zipEnMémoire, "data.txt")
+	zipFerme(arch)
+	dbgVérifieVrai(zipExiste("test_fmt.tgz"), "le fichier TAR.GZ a bien été créé sur disque")
+	fSupprime("test_fmt.tgz")
+FIN
+
+
+// zipFormatWDZ : création d'une archive au format WDZ (moteur ZIP).
+PROCEDURE PUBLIQUE scenario_creation_wdz()
+	arch est une zipArchive = zipCrée("test_fmt.wdz", zipFormatWDZ)
+	dbgVérifieVrai(arch <> Null, "zipCrée avec zipFormatWDZ retourne une archive ouverte")
+	zipFerme(arch)
+	dbgVérifieVrai(zipExiste("test_fmt.wdz"), "le fichier WDZ a bien été créé sur disque")
+	fSupprime("test_fmt.wdz")
+FIN
+
+
+// Les formats CAB, RAR et 7z ne sont pas disponibles en création :
+// zipCrée retourne Null plutôt que de produire une archive invalide.
+PROCEDURE PRIVÉE scenario_formats_non_disponibles_en_creation()
+	dbgVérifieVrai(zipCrée("test.cab", zipFormatCAB) = Null, "création CAB indisponible : retourne Null")
+	dbgVérifieVrai(zipCrée("test.rar", zipFormatRAR) = Null, "création RAR indisponible : retourne Null")
+	dbgVérifieVrai(zipCrée("test.7z", zipFormat7Z) = Null, "création 7z indisponible : retourne Null")
+FIN
+
+
+// Ajout d'une entrée dans une archive ZIP et vérification du nombre d'entrées.
+PROCEDURE PRIVÉE scenario_zip_avec_entree()
+	arch est une zipArchive = zipCrée("test_fmt_entree.zip", zipFormatZIP)
+	contenu est un buffer = ChaîneVersBuffer("owl")
+	zipAjouteFichier(arch, contenu, zipEnMémoire, "data.txt")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_fmt_entree.zip", zipLecture)
+	nb est un entier = zipNbFichier(lecture)
+	dbgVérifieEgalité(nb, 1, "l'archive ZIP contient bien 1 entrée après ajout")
+	zipFerme(lecture)
+	fSupprime("test_fmt_entree.zip")
+FIN

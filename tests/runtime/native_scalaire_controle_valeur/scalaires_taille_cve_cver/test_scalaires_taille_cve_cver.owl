@@ -1,0 +1,46 @@
+// Rattrapage digue : tests PERMANENTS (impl déjà en place).
+// Verrouille la symétrie Native(SAI) == Native(SAI..Valeur) pour les natives
+// scalaires Taille, ChaîneVersEntier, ChaîneVersRéel, Majuscule.
+// owl_instance_default_unwrap deballe ObjUiControlRef → ..defaultProperty avant
+// dispatch scalaire.
+//
+// Frontière valeur/référence : la non-régression contrôle est verrouillée dans
+// tests/runtime/native_scalaire_controle_valeur/nonreg_controle_ref/test_nonreg_controle_ref.owl.
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Scalaires)
+
+// --- Bloc 1 : Taille ---
+// 1a. Taille(SAI nom nu) == 2 (chaine "42" -> longueur 2).
+TestSimuleSaisie(SAI, "42")
+dbgVérifieEgalité(Taille(SAI), 2, "Taille(SAI nom nu) == 2")
+
+// 1b. Taille(SAI..Valeur) == 2 (accès explicite, idem).
+dbgVérifieEgalité(Taille(SAI..Valeur), 2, "Taille(SAI..Valeur) == 2")
+
+// 1c. Symétrie stricte.
+dbgVérifieEgalité(Taille(SAI), Taille(SAI..Valeur), "Taille(SAI) == Taille(SAI..Valeur)")
+
+// --- Bloc 2 : ChaîneVersEntier ---
+// 2a. ChaîneVersEntier(SAI nom nu) == 42.
+dbgVérifieEgalité(ChaîneVersEntier(SAI), 42, "ChaîneVersEntier(SAI nom nu) == 42")
+
+// 2b. Symétrie stricte.
+dbgVérifieEgalité(ChaîneVersEntier(SAI), ChaîneVersEntier(SAI..Valeur), "ChaîneVersEntier(SAI) == ChaîneVersEntier(SAI..Valeur)")
+
+// --- Bloc 3 : ChaîneVersRéel ---
+// 3a. ChaîneVersRéel(SAI nom nu) sur "3.14" == 3.14.
+TestSimuleSaisie(SAI, "3.14")
+dbgVérifieVrai(Abs(ChaîneVersRéel(SAI) - 3.14) < 0.0001, "ChaîneVersRéel(SAI nom nu) ≈ 3.14")
+
+// 3b. Symétrie stricte.
+dbgVérifieVrai(Abs(ChaîneVersRéel(SAI) - ChaîneVersRéel(SAI..Valeur)) < 0.0001, "ChaîneVersRéel(SAI) == ChaîneVersRéel(SAI..Valeur)")
+
+// --- Bloc 4 (optionnel) : Majuscule — couverture via value_to_string ---
+// Confirme la coercion transitive via la branche value_to_string standard.
+TestSimuleSaisie(SAI, "42")
+dbgVérifieEgalité(Majuscule(SAI), "42", "Majuscule(SAI nom nu) == 42 (value_to_string transitif)")
+
+Ferme(FEN_Scalaires)
+
+dbgBilanTest()

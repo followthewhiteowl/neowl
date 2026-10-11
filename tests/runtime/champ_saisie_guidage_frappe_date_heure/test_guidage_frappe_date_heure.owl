@@ -1,0 +1,130 @@
+//  — un champ de saisie Date ou Heure guide la frappe : chiffres
+// seuls, séparateurs auto-insérés, via un masque de saisie Qt (setInputMask)
+// dérivé du format effectif du champ (MasqueAffichage posé > défaut).
+//
+// Nature : ROUGE avant impl sur les scénarios 1/2/3 (aucun masque de frappe
+// n'est appliqué au widget aujourd'hui). Le compile-check passe (les
+// symboles typSaisieDate/typSaisieHeure/MasqueAffichage existent déjà,
+// /2000/2004) : le rouge vient de la VALEUR observée, pas d'un
+// symbole inconnu.
+//
+// Discriminants choisis (vérifiés empiriquement avant dépôt) :
+//  - Date, chiffres seuls sans séparateur ("10092026") : aujourd'hui, le
+//    texte brut "10092026" n'est reconnu par AUCUN format générique
+//    (owl_parse_date_multi attend soit des séparateurs, soit un solide
+//    AAAAMMJJ dans CET ordre — "10092026" en AAAAMMJJ donnerait mois=92,
+//    invalide) -> ..Valeur retombe sur une chaîne vide. Avec le masque de
+//    frappe JJ/MM/AAAA appliqué, les chiffres sont routés vers "10/09/2026"
+//    pendant la frappe -> parse OK. C'est un vrai discriminant : la valeur
+//    observée change de nature (chaîne vide -> owlDate correct).
+//  - Rejet lettres : contrairement à Heure (cf. plus bas), aucun repli
+//    générique ne peut deviner une date à partir de texte mêlant lettres et
+//    chiffres. On vérifie que des lettres tapées AVANT les chiffres ("ab" +
+//    "10092026") n'empêchent PAS la date de se former correctement — preuve
+//    que les lettres sont bien IGNORÉES par le masque (pas insérées, pas de
+//    décalage de position), pas juste "acceptées puis rejetées au parsing".
+//    Aujourd'hui (sans masque), les 2 lettres restent dans le texte brut ->
+//    plus aucun format générique ne reconnaît "ab10092026" -> chaîne vide.
+//  - Heure : le repli générique (ChaîneVersHeure, forme solide HHMMSSCC)
+//    reconnaît DÉJÀ "143045" sans aucun masque de frappe (vérifié
+//    empiriquement — cf. observations du rapport test_writer). Le scénario
+//    "143045" seul n'est donc PAS discriminant pour Heure et n'est pas posé
+//    comme rouge ici (il l'est en non-régression, scénario 3bis). Le
+//    discriminant retenu est le même principe que Date : lettres en tête +
+//    chiffres ("ab143045"), qui échoue aujourd'hui (aucun format générique ne
+//    reconnaît ce mélange) et doit réussir une fois le masque de frappe posé.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_GuidageFrappeDateHeure)
+
+// ===== 1. Guidage date (cœur) : chiffres seuls -> séparateurs auto-insérés =====
+
+SAI_DateDefaut..Valeur = ""
+TestSimuleSaisie(SAI_DateDefaut, "10092026")
+dbgVérifieEgalité(TypeVar(SAI_DateDefaut..Valeur), owlDate, "Guidage date : 8 chiffres sans séparateur donnent un owlDate (masque JJ/MM/AAAA implicite insère les /)")
+SI TypeVar(SAI_DateDefaut..Valeur) = owlDate ALORS
+	sDateGuidee est une chaîne = SAI_DateDefaut..Valeur
+	dbgVérifieEgalité(sDateGuidee, "20260910", "Guidage date : « 10092026 » guidé vers 10/09/2026 (10 septembre 2026)")
+SINON
+	dbgVérifieVrai(Faux, "Guidage date : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 2. Rejet lettres : les lettres sont ignorées, pas insérées =====
+
+SAI_DateDefaut..Valeur = ""
+TestSimuleSaisie(SAI_DateDefaut, "ab10092026")
+dbgVérifieEgalité(TypeVar(SAI_DateDefaut..Valeur), owlDate, "Rejet lettres : les 2 lettres en tête sont ignorées par le masque, les 8 chiffres suivants forment quand même une date valide")
+SI TypeVar(SAI_DateDefaut..Valeur) = owlDate ALORS
+	sDateSansLettres est une chaîne = SAI_DateDefaut..Valeur
+	dbgVérifieEgalité(sDateSansLettres, "20260910", "Rejet lettres : résultat identique au cas sans lettres (10 septembre 2026)")
+SINON
+	dbgVérifieVrai(Faux, "Rejet lettres : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// Non-régression : uniquement des lettres -> aucune date valide, pas de
+// plantage. Déjà vrai aujourd'hui (chaîne vide en repli) et doit le rester.
+
+SAI_DateDefaut..Valeur = ""
+TestSimuleSaisie(SAI_DateDefaut, "abcd")
+dbgVérifieEgalité(TypeVar(SAI_DateDefaut..Valeur), owlChaîne, "Lettres pures : aucune date valide, ..Valeur retombe sur une chaîne vide (non-régression)")
+
+// ===== 3. Guidage heure : même principe (lettres en tête + chiffres) =====
+
+SAI_Heure..MasqueAffichage = "HH:MI:SS"
+SAI_Heure..Valeur          = ""
+TestSimuleSaisie(SAI_Heure, "ab143045")
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Guidage heure : les lettres en tête sont ignorées, les 6 chiffres suivants forment 14:30:45")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sHeureGuidee est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sHeureGuidee, "14304500", "Guidage heure : « ab143045 » guidé vers 14:30:45")
+SINON
+	dbgVérifieVrai(Faux, "Guidage heure : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 3bis. Non-régression : chiffres seuls (sans lettres) déjà reconnus
+// aujourd'hui par le repli générique solide HHMMSS — doit rester
+// vrai une fois le masque de frappe posé (le masque ne doit pas régresser un
+// cas déjà correct). =====
+
+SAI_Heure..Valeur = ""
+TestSimuleSaisie(SAI_Heure, "143045")
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Non-régression : chiffres seuls sans lettres restent reconnus (repli générique HHMMSS déjà existant)")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sHeureBrute est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sHeureBrute, "14304500", "Non-régression : « 143045 » toujours interprété comme 14:30:45")
+SINON
+	dbgVérifieVrai(Faux, "Non-régression heure : round-trip ignoré")
+FIN
+
+// ===== 4. Repli jetons nommés (mois en lettres) : pas de masque de guidage,
+// saisie libre, pas de plantage =====
+
+SAI_DateNommee..MasqueAffichage = "JJ MMMM AAAA"
+SAI_DateNommee..Valeur          = ""
+TestSimuleSaisie(SAI_DateNommee, "20260912")
+dbgVérifieEgalité(TypeVar(SAI_DateNommee..Valeur), owlDate, "Repli jetons nommés : saisie libre (chiffres ISO) toujours acceptée, pas de crash")
+SI TypeVar(SAI_DateNommee..Valeur) = owlDate ALORS
+	sDateNommee est une chaîne = SAI_DateNommee..Valeur
+	dbgVérifieEgalité(sDateNommee, "20260912", "Repli jetons nommés : round-trip fidèle en saisie libre (12 septembre 2026)")
+SINON
+	dbgVérifieVrai(Faux, "Repli jetons nommés : round-trip ignoré")
+FIN
+
+// ===== 5. Non-régression Numérique / Texte : le guidage ne doit affecter que
+// Date et Heure =====
+
+SAI_Num..Valeur = ""
+TestSimuleSaisie(SAI_Num, "12345")
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Numérique témoin : ..Valeur reste un owlRéel (non-régression, non affecté par le guidage)")
+SI TypeVar(SAI_Num..Valeur) = owlRéel ALORS
+	dbgVérifieVrai(Abs(SAI_Num..Valeur - 12345.0) < 0.0001, "Numérique témoin : valeur saisie fidèle (12345)")
+FIN
+
+SAI_Texte..Valeur = ""
+TestSimuleSaisie(SAI_Texte, "10092026")
+dbgVérifieEgalité(TypeVar(SAI_Texte..Valeur), owlChaîne, "Texte témoin : ..Valeur reste une chaîne (non-régression, non affecté par le guidage)")
+dbgVérifieEgalité(SAI_Texte..Valeur, "10092026", "Texte témoin : saisie brute conservée telle quelle (pas de guidage date sur un champ Texte)")
+
+Ferme(FEN_GuidageFrappeDateHeure)
+dbgBilanTest()

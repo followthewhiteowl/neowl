@@ -1,0 +1,22 @@
+// Verrou  — une variable Image declaree au top-level d'un Etat est
+// resolue dans la prop d'un sous-champ.
+//
+// Avant fix : owl_etat_prepare_props resolvait les props dynamiques des
+// CONTROLES avant le top-level de l'Etat -> la closure `Image = imgLogo`
+// echouait sur "Variable inconnue 'ETAT_VarTop$imgLogo'" -> PDF vide (0 octet).
+// Apres fix : resolution des props de controle deferree APRES le top-level
+// (parite avec le chemin Fenetre, ).
+
+TestModeHeadless(Vrai)
+
+ErreurRAZ()
+iDestination(iPDFGénérique, "build/etat_vartop.pdf")
+iImprimeEtat(ETAT_VarTop)
+iFinImprime()
+
+dbgVérifieVrai(ErreurInfo() = "",
+"Image via variable top-level Etat - aucune erreur de resolution")
+dbgVérifieVrai(fTaille("build/etat_vartop.pdf") > 2000,
+"PDF non vide : l'image alimentee par la variable top-level est rendue")
+
+dbgBilanTest()

@@ -1,0 +1,86 @@
+//  — PROCEDURE dans body de fenetre avec parametres a valeur par defaut.
+//
+// Ce test verrouille DEUX choses :
+//   1. Le PARSING : une fenetre avec PROCEDURE(x, y = defaut) compile sans erreur.
+//   2. L'OPTIONALITE REELLE : appeler la proc avec moins d'args applique le defaut ;
+//      appeler avec tous les args utilise la valeur passee.
+//      Ce test distingue un vrai fix (defaults/minArity wires) d'un pansement
+//      qui avale le "=" sans rendre le param reellement optionnel.
+//
+// Couverture : param entier defaut FR, param chaine defaut FR, param entier defaut EN.
+// Pattern : la fenetre voisine FEN_ParamDefaut.owl porte les declarations.
+
+TestModeHeadless(Vrai)
+
+// Observateurs alimentes par les callbacks declenches depuis la fenetre.
+nResultat0797 est un entier = -1
+sResultat0797 est une chaîne = ""
+nResultatEN0797 est un entier = -1
+
+PROCEDURE callback_entier(n est un entier)
+	nResultat0797 = n
+FIN
+
+PROCEDURE callback_chaine(s est une chaîne)
+	sResultat0797 = s
+FIN
+
+PROCEDURE callback_entier_en(n est un entier)
+	nResultatEN0797 = n
+FIN
+
+Ouvre(FEN_ParamDefaut)
+
+// ==========================================================================
+// Bloc 1 : param entier par defaut (FR) — PROCEDURE Calcule(base, marge=10)
+// ==========================================================================
+
+// Appel avec 1 arg : marge utilise son defaut (10).
+Calcule(5)
+dbgVérifieEgalité(nResultat0797, 15, "Calcule(5) : marge defaut 10 -> 5+10=15")
+
+// Appel avec 2 args : marge utilise la valeur passee (3).
+Calcule(5, 3)
+dbgVérifieEgalité(nResultat0797, 8, "Calcule(5, 3) : marge explicite 3 -> 5+3=8")
+
+// Edge case : base = 0 avec defaut.
+Calcule(0)
+dbgVérifieEgalité(nResultat0797, 10, "Calcule(0) : base 0 + marge defaut 10 = 10")
+
+// Edge case : valeur explicite = 0 (override du defaut avec zero).
+Calcule(5, 0)
+dbgVérifieEgalité(nResultat0797, 5, "Calcule(5, 0) : marge explicite 0 -> 5+0=5")
+
+// ==========================================================================
+// Bloc 2 : param chaine par defaut (FR) — PROCEDURE Formate(prefixe, suffixe="!")
+// ==========================================================================
+
+// Appel avec 1 arg : suffixe utilise son defaut ("!").
+Formate("Bonjour")
+dbgVérifieEgalité(sResultat0797, "Bonjour!", `Formate("Bonjour") : suffixe defaut "!" -> "Bonjour!"`)
+
+// Appel avec 2 args : suffixe utilise la valeur passee (".").
+Formate("Bonjour", ".")
+dbgVérifieEgalité(sResultat0797, "Bonjour.", `Formate("Bonjour", ".") : suffixe explicite "." -> "Bonjour."`)
+
+// Edge case : prefixe vide avec defaut.
+Formate("")
+dbgVérifieEgalité(sResultat0797, "!", `Formate("") : prefixe vide + suffixe defaut "!" -> "!"`)
+
+// Edge case : suffixe vide explicite (override du defaut).
+Formate("Test", "")
+dbgVérifieEgalité(sResultat0797, "Test", `Formate("Test", "") : suffixe vide explicite -> "Test"`)
+
+// ==========================================================================
+// Bloc 3 : param entier par defaut (EN) — PROCEDURE ComputeEN(base, extra=5)
+// ==========================================================================
+
+// Appel avec 1 arg : extra utilise son defaut (5).
+ComputeEN(7)
+dbgVérifieEgalité(nResultatEN0797, 12, "ComputeEN(7) : extra defaut 5 -> 7+5=12")
+
+// Appel avec 2 args : extra utilise la valeur passee (2).
+ComputeEN(7, 2)
+dbgVérifieEgalité(nResultatEN0797, 9, "ComputeEN(7, 2) : extra explicite 2 -> 7+2=9")
+
+dbgBilanTest()

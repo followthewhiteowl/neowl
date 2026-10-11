@@ -1,0 +1,36 @@
+//  — ZoneRépétée : non-régression ZoneRépétéeAjouteLigne + Occurrence
+//
+// VERT ATTENDU avant et après .
+// Ces chemins étaient opérationnels avant le fix — s'ils rougissent,
+// c'est une régression introduite par l'implémentation option A.
+//
+// Ce test verrouille :
+//   1. ZoneRépétéeAjouteLigne retourne 1, 2, 3 (indices 1-based)
+//   2. ZoneRépétéeOccurrence = 3 après 3 ajouts en FinInitialisation
+
+TestModeHeadless(Vrai)
+
+nr_r1 est un entier = 0
+nr_r2 est un entier = 0
+nr_r3 est un entier = 0
+
+PROCEDURE cb_nr_resultats(r1 est un entier, r2 est un entier, r3 est un entier)
+	nr_r1 = r1
+	nr_r2 = r2
+	nr_r3 = r3
+FIN
+
+Ouvre(FEN_ZRNonReg)
+
+// Retours ZoneRépétéeAjouteLigne : indices 1-based
+dbgVérifieEgalité(nr_r1, 1, "ZoneRépétéeAjouteLigne retourne 1 pour la 1re ligne")
+dbgVérifieEgalité(nr_r2, 2, "ZoneRépétéeAjouteLigne retourne 2 pour la 2e ligne")
+dbgVérifieEgalité(nr_r3, 3, "ZoneRépétéeAjouteLigne retourne 3 pour la 3e ligne")
+
+// Occurrence
+occ_nr est un entier = ZoneRépétéeOccurrence(ZR_NR)
+dbgVérifieEgalité(occ_nr, 3, "ZoneRépétéeOccurrence = 3 après 3 ajouts")
+
+Ferme(FEN_ZRNonReg)
+
+dbgBilanTest()

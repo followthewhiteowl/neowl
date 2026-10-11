@@ -1,0 +1,85 @@
+//  — ..Alignement branche au runtime sur l'axe transverse, et defaut
+// = alignDébut (compact a gauche), pas alignÉtire (remplit).
+//
+// Fenetre dispVerticale largeur 300, cinq Libelles largeur figee 100, fond
+// vert. On sonde le milieu vertical de chaque bande (chaque Libelle fait 30px
+// + 4px d'espacement). PremierX/DernierX = bord gauche/droit du fond vert
+// visible sur la ligne (le libelle d'1 caractere ne masque qu'une frange
+// centrale, donc le bord gauche et le bord droit du fond restent lisibles).
+//
+// Discriminants cles :
+//   alignDébut  -> bord gauche a 0, bord droit << largeur fenetre (compact).
+//   alignCentre -> bord gauche > 0 (widget pousse vers le centre).
+//   alignFin    -> bord droit proche du bord droit fenetre.
+//   alignÉtire  -> remplit toute la largeur (bord gauche 0, bord droit ~299).
+//   Defaut      -> DOIT se comporter comme alignDébut, PAS comme alignÉtire.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PremierX(im est une Image, y est un entier, couleur est un entier)
+	x est un entier = 0
+	TANTQUE x < 300
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER x
+		FIN
+		x = x + 1
+	FIN
+	RENVOYER -1
+FIN
+
+PROCEDURE DernierX(im est une Image, y est un entier, couleur est un entier)
+	x est un entier = 299
+	TANTQUE x >= 0
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER x
+		FIN
+		x = x - 1
+	FIN
+	RENVOYER -1
+FIN
+
+couleur est un entier = RVB(0, 200, 0)
+
+OuvreSoeur(FEN_Alignement)
+Temporise(80)
+
+im est une Image = dCopieImageFenêtre(FEN_Alignement)
+dbgVérifieEgalité(im..Valide, Vrai, "capture de FEN_Alignement valide")
+
+// Bandes verticales : y milieu de chaque Libelle (hauteur 30 + esp 4 = 34).
+yDebut est un entier = 15
+yCentre est un entier = 49
+yFin est un entier = 83
+yEtire est un entier = 117
+yDefaut est un entier = 151
+
+// --- alignDébut : accroche a gauche, compact (ne remplit pas la largeur). ---
+gDebut est un entier = PremierX(im, yDebut, couleur)
+dDebut est un entier = DernierX(im, yDebut, couleur)
+dbgVérifieEgalité(gDebut, 0, "alignDébut : bord gauche du fond a x=0")
+dbgVérifieVrai(dDebut < 200, "alignDébut : bord droit compact (largeur 100, pas d'etirement transverse)")
+
+// --- alignCentre : pousse vers le centre (bord gauche franchement > 0). ---
+gCentre est un entier = PremierX(im, yCentre, couleur)
+dbgVérifieVrai(gCentre > 80, "alignCentre : le widget est decale vers le centre (bord gauche > 80)")
+
+// --- alignFin : accroche a droite (bord droit proche du bord fenetre). ---
+dFin est un entier = DernierX(im, yFin, couleur)
+dbgVérifieVrai(dFin > 250, "alignFin : bord droit proche du bord droit de la fenetre")
+
+// --- alignÉtire : remplit toute la largeur transverse. ---
+gEtire est un entier = PremierX(im, yEtire, couleur)
+dEtire est un entier = DernierX(im, yEtire, couleur)
+dbgVérifieEgalité(gEtire, 0, "alignÉtire : bord gauche a x=0")
+dbgVérifieVrai(dEtire > 250, "alignÉtire : bord droit remplit la largeur (>250)")
+
+// --- Defaut (Alignement non pose) : DOIT se comporter comme alignDébut. ---
+// C'est le coeur du  : avant correction, le defaut remplissait toute
+// la largeur (comme Étire) ; il doit rester compact a gauche.
+gDefaut est un entier = PremierX(im, yDefaut, couleur)
+dDefaut est un entier = DernierX(im, yDefaut, couleur)
+dbgVérifieEgalité(gDefaut, 0, "Defaut : bord gauche du fond a x=0 (accroche a gauche)")
+dbgVérifieVrai(dDefaut < 200, "Defaut : compact comme alignDébut, NE remplit PAS la largeur (pas d'Étire implicite)")
+
+Ferme(FEN_Alignement)
+dbgBilanTest()

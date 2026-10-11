@@ -1,0 +1,188 @@
+// @sujet : Tenseur + / Tenseur * — diffusion (broadcasting) de formes différentes
+// @résumé : Quand deux Tenseurs n'ont pas exactement la même forme, + et *
+// alignent les axes par la droite et étirent silencieusement les axes de
+// taille 1 (et les axes manquants, traités comme des axes de taille 1) pour
+// produire une sortie à la forme commune — comme le cas déjà connu du biais
+// diffusé sur un lot (Tenseur 2D + Tenseur 1D). Cette famille de scénarios
+// couvre des combinaisons de formes plus variées, dans les deux sens (+, *).
+// Une paire de formes qui ne peut pas s'aligner (ni égalité ni taille 1 sur
+// un axe) reste refusée : une exception est levée plutôt qu'un résultat
+// silencieusement erroné.
+
+// (2×3) + (3) : le Tenseur à un seul axe est diffusé sur chacune des 2
+// lignes, comme un biais. a = [[1,2,3],[4,5,6]], b = [10,20,30]
+// -> [[11,22,33],[14,25,36]]
+PROCEDURE PUBLIQUE scenario_addition_broadcast_1d_sur_2d_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Rang, 2, "(2x3) + (3) -> sortie de rang 2")
+	dbgVérifieEgalité(tc..Forme[1], 2, "(2x3) + (3) -> forme[1] = 2")
+	dbgVérifieEgalité(tc..Forme[2], 3, "(2x3) + (3) -> forme[2] = 3")
+	dbgVérifieEgalité(tc..Valeur[1][1], 11.0, "1 + 10 = 11")
+	dbgVérifieEgalité(tc..Valeur[1][3], 33.0, "3 + 30 = 33")
+	dbgVérifieEgalité(tc..Valeur[2][1], 14.0, "4 + 10 = 14")
+	dbgVérifieEgalité(tc..Valeur[2][3], 36.0, "6 + 30 = 36")
+FIN
+
+
+// (2×3) + (1×3) : même diffusion que le cas précédent, mais l'opérande
+// diffusé garde explicitement son axe de lignes (taille 1) plutôt que d'en
+// manquer un — même résultat que la forme (3) seule.
+PROCEDURE PUBLIQUE scenario_addition_broadcast_ligne_unique_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0]).Redimensionne([1, 3])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Forme[1], 2, "(2x3) + (1x3) -> forme[1] = 2")
+	dbgVérifieEgalité(tc..Forme[2], 3, "(2x3) + (1x3) -> forme[2] = 3")
+	dbgVérifieEgalité(tc..Valeur[1][1], 11.0, "1 + 10 = 11")
+	dbgVérifieEgalité(tc..Valeur[2][3], 36.0, "6 + 30 = 36")
+FIN
+
+
+// (2×3) + (2×1) : l'axe des colonnes (taille 1) est diffusé sur les 3
+// colonnes, chaque ligne recevant sa propre valeur. a = [[1,2,3],[4,5,6]],
+// b = [[100],[200]] -> [[101,102,103],[204,205,206]]
+PROCEDURE PUBLIQUE scenario_addition_broadcast_colonne_unique_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([100.0, 200.0]).Redimensionne([2, 1])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Forme[1], 2, "(2x3) + (2x1) -> forme[1] = 2")
+	dbgVérifieEgalité(tc..Forme[2], 3, "(2x3) + (2x1) -> forme[2] = 3")
+	dbgVérifieEgalité(tc..Valeur[1][1], 101.0, "1 + 100 = 101")
+	dbgVérifieEgalité(tc..Valeur[1][3], 103.0, "3 + 100 = 103")
+	dbgVérifieEgalité(tc..Valeur[2][1], 204.0, "4 + 200 = 204")
+	dbgVérifieEgalité(tc..Valeur[2][3], 206.0, "6 + 200 = 206")
+FIN
+
+
+// (2×3) + (1×1) : un Tenseur à un seul élément se diffuse sur les 2 axes à
+// la fois, comme un scalaire. a = [[1,2,3],[4,5,6]], b = [[1000]]
+// -> [[1001,1002,1003],[1004,1005,1006]]
+PROCEDURE PUBLIQUE scenario_addition_broadcast_scalaire_2axes_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([1000.0]).Redimensionne([1, 1])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Valeur[1][1], 1001.0, "1 + 1000 = 1001")
+	dbgVérifieEgalité(tc..Valeur[2][3], 1006.0, "6 + 1000 = 1006")
+FIN
+
+
+// (2×3) + (1) : un Tenseur à un seul élément, sans même l'axe de lignes,
+// se diffuse aussi sur les 2 axes. a = [[1,2,3],[4,5,6]], b = [5]
+// -> [[6,7,8],[9,10,11]]
+PROCEDURE PUBLIQUE scenario_addition_broadcast_scalaire_1d_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([5.0])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Valeur[1][1], 6.0, "1 + 5 = 6")
+	dbgVérifieEgalité(tc..Valeur[2][3], 11.0, "6 + 5 = 11")
+FIN
+
+
+// (2×1×3) + (2×4×3) : l'axe du milieu (taille 1) est diffusé sur les 4
+// tranches de l'autre opérande. a[i][1][k] s'ajoute à chacune des 4 tranches
+// b[i][j][k]. Valeurs a = [[[1,2,3]], [[10,20,30]]] (forme 2x1x3), b =
+// 1..24 rangés dans l'ordre (forme 2x4x3, b[i][j][k] = (i-1)*12+(j-1)*3+k).
+PROCEDURE PUBLIQUE scenario_addition_broadcast_3d_axe_milieu_etire_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 10.0, 20.0, 30.0]).Redimensionne([2, 1, 3])
+	tb est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0]).Redimensionne([2, 4, 3])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Rang, 3, "(2x1x3) + (2x4x3) -> sortie de rang 3")
+	dbgVérifieEgalité(tc..Forme[1], 2, "(2x1x3) + (2x4x3) -> forme[1] = 2")
+	dbgVérifieEgalité(tc..Forme[2], 4, "(2x1x3) + (2x4x3) -> forme[2] = 4 (axe étiré)")
+	dbgVérifieEgalité(tc..Forme[3], 3, "(2x1x3) + (2x4x3) -> forme[3] = 3")
+
+	dbgVérifieEgalité(tc..Valeur[1][1][1], 2.0, "1 + 1 = 2")
+	dbgVérifieEgalité(tc..Valeur[1][4][3], 15.0, "3 + 12 = 15")
+	dbgVérifieEgalité(tc..Valeur[2][1][1], 23.0, "10 + 13 = 23")
+	dbgVérifieEgalité(tc..Valeur[2][4][3], 54.0, "30 + 24 = 54")
+FIN
+
+
+// (2×3) * (3) : diffusion du même genre que l'addition, mais avec le
+// produit élément par élément. a = [[1,2,3],[4,5,6]], b = [2,3,4]
+// -> [[2,6,12],[8,15,24]]
+PROCEDURE PUBLIQUE scenario_multiplication_broadcast_1d_sur_2d_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([2.0, 3.0, 4.0])
+	td est un Tenseur = ta * tb
+
+	dbgVérifieEgalité(td..Valeur[1][1], 2.0, "1 * 2 = 2")
+	dbgVérifieEgalité(td..Valeur[1][3], 12.0, "3 * 4 = 12")
+	dbgVérifieEgalité(td..Valeur[2][1], 8.0, "4 * 2 = 8")
+	dbgVérifieEgalité(td..Valeur[2][3], 24.0, "6 * 4 = 24")
+FIN
+
+
+// (2×3) * (2×1) : l'axe des colonnes (taille 1) est diffusé sur les 3
+// colonnes. a = [[1,2,3],[4,5,6]], b = [[10],[100]]
+// -> [[10,20,30],[400,500,600]]
+PROCEDURE PUBLIQUE scenario_multiplication_broadcast_colonne_unique_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([10.0, 100.0]).Redimensionne([2, 1])
+	td est un Tenseur = ta * tb
+
+	dbgVérifieEgalité(td..Valeur[1][1], 10.0, "1 * 10 = 10")
+	dbgVérifieEgalité(td..Valeur[1][3], 30.0, "3 * 10 = 30")
+	dbgVérifieEgalité(td..Valeur[2][1], 400.0, "4 * 100 = 400")
+	dbgVérifieEgalité(td..Valeur[2][3], 600.0, "6 * 100 = 600")
+FIN
+
+
+// Deux formes qui ne peuvent s'aligner sur aucun axe (2x3 et 4 : le dernier
+// axe vaut 3 d'un côté, 4 de l'autre, ni égal ni de taille 1) restent
+// refusées par + : une exception est levée plutôt qu'un résultat erroné.
+PROCEDURE PRIVÉE scenario_edge_formes_incompatibles_addition_refusee()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tbAutreForme est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		tc est un Tenseur = ta + tbAutreForme
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ta(2x3) + tbAutreForme(4) refusé : formes incompatibles")
+FIN
+
+
+// Même refus pour * : ni égalité de forme ni taille 1 sur le dernier axe.
+PROCEDURE PRIVÉE scenario_edge_formes_incompatibles_multiplication_refusee()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tbAutreForme est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		td est un Tenseur = ta * tbAutreForme
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ta(2x3) * tbAutreForme(4) refusé : formes incompatibles")
+FIN
+
+
+// Variante anglaise : mêmes formes incompatibles, syntaxe EN (Tensor /
+// Reshape / WHEN EXCEPTION IN ... DO ... END) pour vérifier que le refus
+// n'est pas spécifique au vocabulaire français.
+PROCEDURE PRIVATE scenario_edge_incompatible_shapes_refused_en()
+	ta is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Reshape([2, 3])
+	tOtherShape is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0])
+
+	caught is a string = ""
+	WHEN EXCEPTION IN
+		tc is a Tensor = ta + tOtherShape
+		caught = "no-throw"
+	DO
+		caught = "caught"
+	END
+	dbgVérifieEgalité(caught, "caught", "ta(2x3) + tOtherShape(4) refused: incompatible shapes")
+FIN

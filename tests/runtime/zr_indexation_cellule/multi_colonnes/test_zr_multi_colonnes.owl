@@ -1,0 +1,42 @@
+//  — ZoneRépétée : SET/GET sur Libellé ET Saisie en FinInitialisation
+//
+// ROUGE ATTENDU tant que  n'est pas implémenté (option A).
+// Raison du rouge : OP_ARRAY_GET/OP_ARRAY_SET ne résolvent pas ObjUiControlRef.
+//
+// Ce test verrouille :
+//   1. SET ZR[j].LIB_Label (Libellé) dans FinInitialisation
+//   2. SET ZR[j].SAI_Valeur (Saisie) dans FinInitialisation
+//   3. GET ZR[j].LIB_Label + ZR[j].SAI_Valeur : cohérence Libellé vs Saisie
+//   4. Indices 1 et 2 (premier + dernier de 2 lignes)
+
+TestModeHeadless(Vrai)
+
+multi_done est un booléen = Faux
+
+PROCEDURE cb_multi_done()
+	multi_done = Vrai
+FIN
+
+Ouvre(FEN_ZRMultiCol)
+
+dbgVérifieVrai(multi_done, "FinInitialisation FEN_ZRMultiCol exécutée")
+
+// Occurrence
+occ_multi est un entier = ZoneRépétéeOccurrence(ZR_Multi)
+dbgVérifieEgalité(occ_multi, 2, "ZoneRépétéeOccurrence = 2")
+
+// Ligne 1 — Libellé + Saisie
+lab1 est une chaîne = LireLabel(1)
+val1 est une chaîne = LireValeur(1)
+dbgVérifieEgalité(lab1, "Produit A", "ZR_Multi[1].LIB_Label = Produit A")
+dbgVérifieEgalité(val1, "100", "ZR_Multi[1].SAI_Valeur = 100")
+
+// Ligne 2 — Libellé + Saisie
+lab2 est une chaîne = LireLabel(2)
+val2 est une chaîne = LireValeur(2)
+dbgVérifieEgalité(lab2, "Produit B", "ZR_Multi[2].LIB_Label = Produit B")
+dbgVérifieEgalité(val2, "250", "ZR_Multi[2].SAI_Valeur = 250")
+
+Ferme(FEN_ZRMultiCol)
+
+dbgBilanTest()

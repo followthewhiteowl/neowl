@@ -1,0 +1,24 @@
+//  — verrou de la reconnaissance : cette reproduction est la plus
+// minimale trouvée pour la désynchronisation pré-scan / parse réel décrite
+// dans le ticket. Aucune modification de src/ n'a été nécessaire pour la
+// provoquer : une Interface membre d'une collection, suivie d'une autre
+// procédure, suffit.
+//
+// ROUGE ATTENDU AUJOURD'HUI (avant le garde de ) : `Suivante()` est
+// un membre bien réel de COL_AvecInterface côté parse réel (compile
+// propre), mais invisible du pré-scan lexical qui l'indexe pour la
+// résolution nom nu. L'appel ci-dessous échoue donc au RUNTIME avec
+// « Fonction ou procédure inconnue 'Suivante' » — exactement le symptôme
+// sans diagnostic que ce ticket doit éliminer.
+//
+// APRES  : le cross-check doit transformer ce symptôme en
+// diagnostic COMPILE-TIME explicite nommant COL_AvecInterface et Suivante.
+// Le message exact n'est pas de la responsabilité du test_writer (Règle 1) :
+// ce fichier reste le verrou qui prouve que le garde a une prise réelle sur
+// un cas concret et provocable.
+TestModeHeadless(Vrai)
+
+n est un entier = Suivante()
+dbgVérifieEgalité(n, 42, "1406 repro : Suivante() (déclarée après une Interface membre) doit être joignable en nom nu")
+
+dbgBilanTest()

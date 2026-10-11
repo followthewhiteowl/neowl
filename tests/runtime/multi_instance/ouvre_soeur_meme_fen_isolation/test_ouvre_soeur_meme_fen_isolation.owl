@@ -1,0 +1,26 @@
+// OuvreSoeur : 2 instances du MEME FEN en parallele, isolation state.
+// ( - LE cas qui justifie le chantier multi-instance)
+// Pattern : la fenêtre voisine FEN_Edit.owl porte la déclaration.
+
+// Premiere instance
+OuvreSoeur(FEN_Edit)
+SAI_Nom..Valeur = "client A"
+dbgVérifieEgalité(SAI_Nom..Valeur, "client A", "instance 1 : client A")
+
+// Deuxieme instance du MEME FEN_Edit, en parallele
+OuvreSoeur(FEN_Edit)
+SAI_Nom..Valeur = "client B"
+dbgVérifieEgalité(SAI_Nom..Valeur, "client B", "instance 2 (courante) : client B")
+
+// La 2eme instance est courante (top du stack). On verifie l'isolation :
+// l'instance courante a "client B", pas "client A".
+// (Acceder a l'instance 1 specifiquement = via MaFenetre* ou Ferme+pop.)
+
+Ferme(FEN_Edit) // ferme la courante (instance 2)
+
+// Apres fermeture instance 2, instance 1 redevient courante (pile LIFO)
+dbgVérifieEgalité(SAI_Nom..Valeur, "client A", "apres Ferme instance 2, instance 1 courante = client A")
+
+Ferme(FEN_Edit) // ferme instance 1
+
+dbgBilanTest()

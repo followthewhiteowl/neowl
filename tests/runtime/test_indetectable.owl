@@ -1,0 +1,74 @@
+// ============================================
+// TEST: Attribut <indétectable> sur les chaînes
+// ============================================
+// Vérifie le comportement fonctionnel : déclaration, lecture, concat,
+// substring. La protection runtime (memory dump) est validée à la main
+// via tools, pas dans cette suite.
+Trace("=== INDETECTABLE ===")
+
+// --- Déclaration et lecture directe ---
+sSecret est une chaîne < indétectable > = "secret_abc_123"
+dbgVérifieEgalité(sSecret, "secret_abc_123",
+"Lecture directe d'une chaine <indetectable> retourne la valeur en clair")
+dbgVérifieEgalité(Taille(sSecret), 14,
+"Taille() d'une chaine <indetectable> retourne la longueur reelle")
+
+// --- Reassignment ---
+sSecret = "nouvelle_valeur"
+dbgVérifieEgalité(sSecret, "nouvelle_valeur",
+"Reaffectation d'une chaine <indetectable>")
+
+// --- Concat avec une chaine normale (a gauche) ---
+sNormale est une chaîne = "prefix_"
+sConcatLeft est une chaîne = sNormale + sSecret
+dbgVérifieEgalité(sConcatLeft, "prefix_nouvelle_valeur",
+"Concat normale + indetectable affiche correctement")
+
+// --- Concat avec une chaine normale (a droite) ---
+sConcatRight est une chaîne = sSecret + "_suffix"
+dbgVérifieEgalité(sConcatRight, "nouvelle_valeur_suffix",
+"Concat indetectable + normale affiche correctement")
+
+// --- Substring (Gauche / Droite / Milieu) ---
+dbgVérifieEgalité(Gauche(sSecret, 8), "nouvelle",
+"Gauche() sur indetectable")
+dbgVérifieEgalité(Droite(sSecret, 6), "valeur",
+"Droite() sur indetectable")
+dbgVérifieEgalité(Milieu(sSecret, 10, 6), "valeur",
+"Milieu() sur indetectable")
+
+// --- Comparaison d'égalité ---
+sAutre est une chaîne < indétectable > = "nouvelle_valeur"
+dbgVérifieEgalité(sSecret = sAutre, Vrai,
+"Egalite entre deux <indetectable> de meme valeur")
+
+sDifferente est une chaîne < indétectable > = "autre_chose"
+dbgVérifieEgalité(sSecret = sDifferente, Faux,
+"Inegalite entre deux <indetectable> de valeur differente")
+
+// --- Mix avec une chaine normale ---
+dbgVérifieEgalité(sSecret = "nouvelle_valeur", Vrai,
+"Egalite entre <indetectable> et chaine normale de meme valeur")
+
+// --- Affectation d'une chaine ordinaire dans une <indetectable> ---
+sFromPlain est une chaîne < indétectable > = "valeur_simple"
+dbgVérifieEgalité(sFromPlain, "valeur_simple",
+"Affectation d'un litteral dans <indetectable>")
+
+// --- Concat de deux <indétectable> ---
+s1 est une chaîne < indétectable > = "Hello, "
+s2 est une chaîne < indétectable > = "World!"
+sCombined est une chaîne = s1 + s2
+dbgVérifieEgalité(sCombined, "Hello, World!",
+"Concat de deux <indetectable> donne le bon resultat")
+
+// --- Char-at et slice ---
+dbgVérifieEgalité(sSecret[[1]], "n",
+"Char-at sur <indetectable> base 1")
+dbgVérifieEgalité(sSecret[[10 À 15]], "valeur",
+"Slice sur <indetectable>")
+
+// --- Chaine vide <indetectable> ---
+sVide est une chaîne < indétectable > = ""
+dbgVérifieEgalité(sVide, "", "Chaine <indetectable> vide")
+dbgVérifieEgalité(Taille(sVide), 0, "Taille chaine <indetectable> vide")

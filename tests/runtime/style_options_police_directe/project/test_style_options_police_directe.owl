@@ -1,0 +1,105 @@
+// Runtime GUI (widgets montés, offscreen) : une taille de police écrite
+// DIRECTEMENT sur un bloc à options doit produire exactement la même géométrie
+// que la même police écrite par le style.
+//
+// La hauteur d'une ligne d'option se dérive de la police rendue
+// (cf. style_options_hauteur_ligne). Rien n'est gravé ici : chaque écriture
+// est comparée à l'étalon `Style` à police égale, et la seule chose affirmée
+// en absolu est la hauteur écrite sur le champ, qui doit continuer de gagner.
+//
+// Quatre écritures décrivent la même police :
+//   Style..TexteOptions..Police..Taille = 18   (étalon)
+//   PoliceTaille                        = 18   (raccourci plat)
+//   Police = { Taille = 18 }                   (littéral composé)
+//   Police..Taille                      = 18   (cascade explicite)
+//
+// Relevé au moment de la pose (police 18 pt, trois options) : l'étalon rend un
+// bloc de 108 px, les trois écritures directes restent à 72 px — la hauteur du
+// bloc à la police par défaut. Le texte grandit, la ligne non.
+
+TestModeHeadless(Faux)
+
+
+// ============================================================
+//  Sélecteur — l'indicateur est la puce
+// ============================================================
+
+OuvreSoeur(FEN_PoliceDirecteSelecteur)
+
+nSelNu est un entier = SEL_Nu..Hauteur
+
+// --- 1. L'étalon réagit : une police plus grande allonge la ligne, donc le
+// bloc. Sans cela, tout le reste du fichier comparerait deux immobilités.
+dbgVérifieVrai(SEL_Style18..Hauteur > nSelNu,
+"Sélecteur, police 18 pt par le style : le bloc est plus haut qu'à la police par défaut")
+
+// --- 2. Les trois écritures directes rendent la géométrie de l'étalon.
+dbgVérifieEgalité(SEL_Plat18..Hauteur, SEL_Style18..Hauteur,
+"Sélecteur, raccourci plat 18 pt : même hauteur de bloc que par le style")
+dbgVérifieEgalité(SEL_Litteral18..Hauteur, SEL_Style18..Hauteur,
+"Sélecteur, littéral composé 18 pt : même hauteur de bloc que par le style")
+dbgVérifieEgalité(SEL_Cascade18..Hauteur, SEL_Style18..Hauteur,
+"Sélecteur, cascade explicite 18 pt : même hauteur de bloc que par le style")
+
+// --- 3. Seconde taille : la hauteur suit la police, elle n'est pas tabulée.
+dbgVérifieEgalité(SEL_Cascade24..Hauteur, SEL_Style24..Hauteur,
+"Sélecteur, cascade explicite 24 pt : même hauteur de bloc que par le style")
+dbgVérifieVrai(SEL_Cascade24..Hauteur > SEL_Cascade18..Hauteur,
+"Sélecteur, écriture directe : 24 pt donne un bloc plus haut que 18 pt")
+
+// --- 4. Écriture après ouverture : la loi vaut aussi en cours d'exécution.
+SEL_Tardif..Police..Taille = 18
+dbgVérifieEgalité(SEL_Tardif..Hauteur, SEL_Style18..Hauteur,
+"Sélecteur, police écrite après ouverture : même hauteur de bloc que par le style")
+
+// --- 5. Une hauteur écrite au-dessus du contenu gagne, quel que soit le chemin.
+dbgVérifieEgalité(SEL_Haute..Hauteur, 300,
+"Sélecteur, hauteur écrite : elle prime sur la hauteur du contenu (police directe)")
+dbgVérifieEgalité(SEL_HauteStyle..Hauteur, 300,
+"Sélecteur, hauteur écrite : elle prime sur la hauteur du contenu (police par le style)")
+
+// --- 6. Le bloc sans police écrite n'a pas bougé.
+dbgVérifieEgalité(SEL_Nu..Hauteur, nSelNu,
+"Sélecteur sans police écrite : le bloc reste à sa hauteur par défaut")
+
+Ferme(FEN_PoliceDirecteSelecteur)
+
+
+// ============================================================
+//  Interrupteur — l'indicateur est la coche
+// ============================================================
+
+OuvreSoeur(FEN_PoliceDirecteInterrupteur)
+
+nIntNu est un entier = INT_Nu..Hauteur
+
+dbgVérifieVrai(INT_Style18..Hauteur > nIntNu,
+"Interrupteur, police 18 pt par le style : le bloc est plus haut qu'à la police par défaut")
+
+dbgVérifieEgalité(INT_Plat18..Hauteur, INT_Style18..Hauteur,
+"Interrupteur, raccourci plat 18 pt : même hauteur de bloc que par le style")
+dbgVérifieEgalité(INT_Litteral18..Hauteur, INT_Style18..Hauteur,
+"Interrupteur, littéral composé 18 pt : même hauteur de bloc que par le style")
+dbgVérifieEgalité(INT_Cascade18..Hauteur, INT_Style18..Hauteur,
+"Interrupteur, cascade explicite 18 pt : même hauteur de bloc que par le style")
+
+dbgVérifieEgalité(INT_Cascade24..Hauteur, INT_Style24..Hauteur,
+"Interrupteur, cascade explicite 24 pt : même hauteur de bloc que par le style")
+dbgVérifieVrai(INT_Cascade24..Hauteur > INT_Cascade18..Hauteur,
+"Interrupteur, écriture directe : 24 pt donne un bloc plus haut que 18 pt")
+
+INT_Tardif..PoliceTaille = 18
+dbgVérifieEgalité(INT_Tardif..Hauteur, INT_Style18..Hauteur,
+"Interrupteur, police écrite après ouverture : même hauteur de bloc que par le style")
+
+dbgVérifieEgalité(INT_Haute..Hauteur, 300,
+"Interrupteur, hauteur écrite : elle prime sur la hauteur du contenu (police directe)")
+dbgVérifieEgalité(INT_HauteStyle..Hauteur, 300,
+"Interrupteur, hauteur écrite : elle prime sur la hauteur du contenu (police par le style)")
+
+dbgVérifieEgalité(INT_Nu..Hauteur, nIntNu,
+"Interrupteur sans police écrite : le bloc reste à sa hauteur par défaut")
+
+Ferme(FEN_PoliceDirecteInterrupteur)
+
+dbgBilanTest()

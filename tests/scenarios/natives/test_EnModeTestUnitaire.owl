@@ -1,0 +1,81 @@
+// @sujet : EnModeTestUnitaire
+// @résumé : Détecte si le code tourne via le test runner pour adapter son comportement
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_detection_contexte_test_runner()
+	// Sous 'owl test', cette native renvoie Vrai
+	// Permet de skip les dialogs bloquantes ou activer des mocks
+
+	estEnTest est un booléen = EnModeTestUnitaire()
+
+	// Assertion légitime : valeur runtime dynamique, pas tautologie
+	dbgVérifieVrai(estEnTest, "Mode test detecte par le runner")
+FIN
+
+PROCEDURE PUBLIQUE scenario_pattern_adaptation_comportement()
+	// Pattern d'usage typique : adapter le comportement selon le contexte
+
+	SI EnModeTestUnitaire() ALORS
+		// Branche test : on skip les dialogs, on active les mocks
+		Trace("Mode test : dialogs desactives")
+	SINON
+		// Branche production : comportement normal avec UI bloquante
+		Trace("Mode production : UI normale")
+	FIN
+
+	// Vérifier qu'on est bien passé dans la bonne branche
+	dbgVérifieVrai(EnModeTestUnitaire(), "Branche test executee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stabilite_valeur_runtime()
+	// La valeur reste constante pendant toute l'exécution d'un test
+	// (le mode ne change pas en cours de route)
+
+	premier est un booléen = EnModeTestUnitaire()
+	deuxieme est un booléen = EnModeTestUnitaire()
+
+	// Deux appels consécutifs retournent la même valeur
+	dbgVérifieEgalité(premier, deuxieme, "Valeur stable dans le meme run")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que EnModeTestUnitaire et InUnitTestMode (alias EN) sont équivalents
+
+	valeurFR est un booléen = EnModeTestUnitaire()
+	valeurEN est un booléen = InUnitTestMode()
+
+	// Les deux formes doivent retourner la même valeur
+	dbgVérifieEgalité(valeurFR, valeurEN, "Alias FR/EN coherents")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_multiple_appels_cascade()
+	// Appels multiples dans une même expression : pas de side-effect
+
+	resultat est un booléen = EnModeTestUnitaire() ET EnModeTestUnitaire()
+
+	// Pas de modification d'état global entre les appels
+	dbgVérifieVrai(resultat, "Appels multiples sans side-effect")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_coercion_entier()
+	// Le booléen peut être coercé en entier (0/1) pour logs ou calculs
+
+	modeAsInt est un entier
+	SI EnModeTestUnitaire() ALORS
+		modeAsInt = 1
+	SINON
+		modeAsInt = 0
+	FIN
+
+	// Vérifier la valeur entière coercée
+	dbgVérifieEgalité(modeAsInt, 1, "Coercion entier correcte")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,67 @@
+//  lot 2 — câblage colTypeHeure sur le framework type-driven de
+// colonne posé par  (Date). Une colonne `Type = colTypeHeure` SANS
+// masque brut déclaré doit être pilotée par le format heure défaut/projet
+// (défaut mesuré : "HH:MI", cf. src/stdlib_ui.c L1745), qui dérive le masque
+// de frappe ET le validateur de plages — miroir exact de ce qui a été fait
+// pour colTypeDate.
+//
+// Masque attendu (mesuré via input_frappe_mask_from_format, stdlib_ui.c
+// L2795) : "HH:MI" -> "99:99" (2 chiffres HH, séparateur ':' littéral,
+// 2 chiffres MI).
+//
+// Validateur attendu (mesuré via owl_dt_parse_range_layout, ui_qt.cpp
+// L9652) : HH borné [01][0-9]|2[0-3] (00-23), MI borné [0-5][0-9] (00-59) —
+// "99:99" syntaxiquement complet mais heure 99 hors-plage -> rejeté ;
+// "14:30" accepté.
+//
+// Sondes réutilisées (, aucune native nouvelle nécessaire) :
+// __DebugTableCelluleMasque(champ, ligne, colonne) et
+// __DebugTableCelluleValideSaisie(champ, ligne, colonne, texte).
+//
+// ROUGE aujourd'hui : colTypeHeure n'existe pas dans l'enum colTypes (dégrade
+// en warning silencieux "expression dynamique non encore supportée", la
+// propriété Type de la colonne n'est jamais posée) -> le dispatch type-driven
+// ne s'active jamais -> masque dérivé vide et validateur absent. Rougit sur
+// les assertions 1, 4 et 5.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeHeure)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. Colonne colTypeHeure SANS masque brut : pilotée par le format
+// heure défaut projet (HH:MI) -> masque dérivé "99:99" =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 1), "99:99",
+"colonne Heure (colTypeHeure, sans masque brut) : éditeur de cellule piloté par le format heure défaut (HH:MI) -> masque 99:99")
+
+// ===== 2. Colonne colTypeHeure AVEC masque brut déclaré : l'override
+// bas-niveau reste appliqué tel quel, PAS la dérivation format =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 2), "99-99",
+"colonne Heure (colTypeHeure + MasqueSaisie brut) : le masque brut déclaré prime, non affecté par la dérivation format")
+
+// ===== 3. Non-régression : colonne Texte sans masque =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 3), "",
+"colonne Texte (colTypeTexte, sans masque) : aucun masque posé (non-régression)")
+
+// ===== 4. Heure syntaxiquement complète mais hors-plage (99 n'est pas une
+// heure valide 00-23) : rejetée =====
+
+dbgVérifieFaux(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "99:99"),
+"colonne Heure (colTypeHeure) : '99:99' rejeté par le validateur de plages dérivé du format (heure hors 00-23)")
+
+// ===== 5. Heure valide : acceptée =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "14:30"),
+"colonne Heure : '14:30' accepté par le validateur de plages")
+
+// ===== 6. Non-régression : colonne Texte sans validateur -> tout accepté =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 3, "99:99"),
+"colonne Texte (sans validateur) : aucune contrainte, saisie toujours acceptée")
+
+Ferme(FEN_TableColonneTypeHeure)
+
+dbgBilanTest()

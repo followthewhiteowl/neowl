@@ -1,0 +1,50 @@
+//  — verrouille le round-trip runtime de PLUSIEURS sous-blocs frères
+// dans un littéral d'instance imbriqué (`CadreExtérieur = { Cadre = {...},
+// Ombre = {...} }`). Bug pré-existant : dès qu'un champ de type bloc est
+// parsé, le type-cible du niveau courant est corrompu (aliasing d'un buffer
+// static partagé) -> tout champ frère SUIVANT (bloc ou scalaire) est validé
+// contre le mauvais type. Aujourd'hui : un seul champ-bloc toléré par
+// littéral imbriqué, et il doit être le dernier.
+//
+// ROUGE attendu (avant fix) : "Champ '<nom>' inconnu sur type <mauvais type>"
+// sur le champ frère qui suit le premier sous-bloc.
+
+Trace("=== Cas 1 : deux sous-blocs frères (Cadre puis Ombre) ===")
+
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreres..CadreExtérieur..Cadre..Arrondi, 8, "cas1 : Cadre..Arrondi round-trip")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreres..CadreExtérieur..Cadre..Epaisseur, 3, "cas1 : Cadre..Epaisseur round-trip")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreres..CadreExtérieur..Ombre..Flou, 14, "cas1 : Ombre..Flou round-trip (bloc frère suivant)")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreres..CadreExtérieur..Ombre..Couleur, Noir, "cas1 : Ombre..Couleur round-trip")
+
+Trace("=== Cas 2 : sous-bloc PUIS scalaire (Ombre avant CouleurFond) ===")
+
+dbgVérifieEgalité(theme.boutonBlocPuisScalaire..CadreExtérieur..Ombre..Flou, 20, "cas2 : Ombre..Flou round-trip")
+dbgVérifieEgalité(theme.boutonBlocPuisScalaire..CadreExtérieur..Ombre..Couleur, Bleu, "cas2 : Ombre..Couleur round-trip")
+dbgVérifieEgalité(theme.boutonBlocPuisScalaire..CadreExtérieur..CouleurFond, Rouge, "cas2 : CouleurFond round-trip (scalaire frère APRÈS un bloc)")
+
+Trace("=== Cas 3 : ordre mixte scalaire / bloc / scalaire ===")
+
+dbgVérifieEgalité(theme.boutonScalaireBlocScalaire..CadreExtérieur..CouleurFond, Vert, "cas3 : CouleurFond round-trip (scalaire avant le bloc)")
+dbgVérifieEgalité(theme.boutonScalaireBlocScalaire..CadreExtérieur..Cadre..Epaisseur, 5, "cas3 : Cadre..Epaisseur round-trip (bloc au milieu)")
+dbgVérifieEgalité(theme.boutonScalaireBlocScalaire..CadreExtérieur..RetraitGauche, 7, "cas3 : RetraitGauche round-trip (scalaire après le bloc)")
+
+Trace("=== Cas 4 : imbrication profonde via styleSaisie (deux sous-blocs frères) ===")
+
+dbgVérifieEgalité(theme.saisieDeuxBlocsFreres..CadreExtérieur..Cadre..Arrondi, 12, "cas4 : styleSaisie..CadreExtérieur..Cadre..Arrondi round-trip")
+dbgVérifieEgalité(theme.saisieDeuxBlocsFreres..CadreExtérieur..Ombre..Flou, 18, "cas4 : styleSaisie..CadreExtérieur..Ombre..Flou round-trip (bloc frère suivant)")
+dbgVérifieEgalité(theme.saisieDeuxBlocsFreres..CadreExtérieur..Ombre..Étendue, 4, "cas4 : styleSaisie..CadreExtérieur..Ombre..Étendue round-trip")
+
+Trace("=== Cas 5 : formes EN (Border/Shadow) ===")
+
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreresEN..CadreExtérieur..Border..Color, Noir, "cas5 EN : Border..Color round-trip")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreresEN..CadreExtérieur..Border..CornerRadius, 6, "cas5 EN : Border..CornerRadius round-trip")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreresEN..CadreExtérieur..Shadow..Color, CyanClair, "cas5 EN : Shadow..Color round-trip (bloc frère suivant)")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreresEN..CadreExtérieur..Shadow..OffsetY, 3, "cas5 EN : Shadow..OffsetY round-trip")
+dbgVérifieEgalité(theme.boutonDeuxBlocsFreresEN..CadreExtérieur..Shadow..Blur, 22, "cas5 EN : Shadow..Blur round-trip")
+
+Trace("=== Cas 6 : non-régression, un seul sous-bloc (dernier champ) ===")
+
+dbgVérifieEgalité(theme.boutonUnSeulBloc..CadreExtérieur..CouleurFond, Blanc, "cas6 : CouleurFond round-trip (scalaire avant l'unique bloc)")
+dbgVérifieEgalité(theme.boutonUnSeulBloc..CadreExtérieur..Cadre..Arrondi, 2, "cas6 : Cadre..Arrondi round-trip (un seul bloc, dernier champ)")
+
+dbgBilanTest()

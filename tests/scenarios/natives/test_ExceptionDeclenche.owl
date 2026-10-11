@@ -1,0 +1,78 @@
+// @sujet : ExceptionDéclenche
+// @résumé : Lève une exception avec code, message et information
+// complémentaire optionnels. Le 1er argument est discriminé par type — une
+// chaîne devient le message, un entier devient le code — d'où la
+// conséquence : la forme (message, info) n'existe pas.
+
+
+// Forme complète : code, message et info sont tous fournis explicitement.
+// C'est la seule façon de transmettre une info complémentaire, puisque le
+// code doit être posé en premier pour lever l'ambiguïté de type.
+PROCEDURE scenario_forme_complete_code_message_info()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(7, "Quota de requêtes dépassé.", "endpoint=/api/export")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errCode), 7, "Le code personnalisé est repris tel quel")
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Quota de requêtes dépassé.", "Le message personnalisé est repris tel quel")
+		dbgVérifieEgalité(ExceptionInfo(errInfo), "endpoint=/api/export", "L'information complémentaire est lisible via errInfo")
+	FIN
+FIN
+
+
+// Surcharge à un seul argument, variante entier : interprété comme un
+// code, le message retombe sur le libellé générique par défaut.
+PROCEDURE scenario_code_seul_message_par_defaut()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(404)
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errCode), 404, "Le code fourni est repris tel quel")
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Exception", "Sans message fourni, le message générique par défaut est utilisé")
+	FIN
+FIN
+
+
+// La distinction (code) vs (message) ne dépend pas de la position mais du
+// type du 1er argument : une chaîne devient toujours le message, un entier
+// devient toujours le code, jamais l'inverse.
+PROCEDURE scenario_discrimination_par_type_du_premier_argument()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche("Connexion refusée par le serveur distant.")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Connexion refusée par le serveur distant.", "Une chaîne en 1er argument devient le message")
+		dbgVérifieEgalité(ExceptionInfo(errCode), 0, "Sans code fourni, le code retombe à 0")
+	FIN
+
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(12)
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errCode), 12, "Un entier en 1er argument devient le code")
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Exception", "Sans message fourni, le message retombe sur le défaut générique")
+	FIN
+FIN
+
+
+// Forme sans argument : code 0 et message générique, la façon la plus
+// minimale de signaler qu'un traitement a échoué sans détail à transmettre.
+PROCEDURE scenario_forme_sans_argument_valeurs_par_defaut()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche()
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errCode), 0, "Le code par défaut est 0")
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Exception", "Le message par défaut est le libellé générique")
+		dbgVérifieEgalité(ExceptionInfo(errInfo), "", "Sans info fournie, le composant retombe sur une chaîne vide")
+	FIN
+FIN
+
+
+// Cas limite (quirk) : si le 1er argument est une chaîne, tout argument
+// suivant est ignoré silencieusement — la forme (message, info) sans code
+// n'existe pas. Pour transmettre une info, il faut poser le code en 1er.
+PROCEDURE PRIVÉE scenario_quirk_chaine_en_tete_ignore_les_arguments_suivants()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche("Message seul déclaré.", "info-qui-devrait-etre-ignoree")
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Message seul déclaré.", "Le message reste celui fourni en 1er argument")
+		dbgVérifieEgalité(ExceptionInfo(errCode), 0, "Le code reste à 0, l'argument suivant n'est pas récupéré comme code")
+		dbgVérifieEgalité(ExceptionInfo(errInfo), "", "L'argument suivant est ignoré silencieusement, pas promu en info")
+	FIN
+FIN

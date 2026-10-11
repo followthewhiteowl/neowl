@@ -1,0 +1,296 @@
+// Round-trip du générateur de modèles AWS : applique les procédures de
+// tools/aws/aws_models_gen.owl à la fixture (tools/aws/fixtures) et vérifie que
+// la table C produite décrit exactement les services échantillons.
+//
+// La fixture contient sept services couvrant les protocoles cibles :
+//   - dynamodb        (protocol json 1.0, targetPrefix, signingName explicite)
+//   - apigateway      (protocol rest-json, sans jsonVersion/targetPrefix/signingName)
+//   - bedrock-runtime (protocol rest-json, signingName explicite ≠ endpointPrefix,
+//                      action à placeholder de chemin {modelId})
+//   - route53         (protocol rest-xml, action de lecture GET sans placeholder)
+//   - sts             (protocol query, sans signingName → repli sur endpointPrefix)
+//   - ec2             (protocol ec2, sans signingName → repli sur endpointPrefix)
+//   - xmltest         (protocol rest-xml, action d'écriture PutStuff à input
+//                      structure + liste + structure imbriquée + espace de noms,
+//                      exerçant l'émission du descripteur de sérialisation)
+// Exécuté depuis la racine du dépôt par `owl test`.
+//
+// Note : les guillemets des littéraux C attendus sont construits via Caract(34)
+// (une paire de guillemets adjacents "" se replie en un seul dans un littéral).
+
+q est une chaîne = Caract(34)
+
+sCode est une chaîne = AwsGénèreTableC("tools/aws/fixtures")
+
+// --- En-tête de fichier généré ---
+dbgVérifieVrai(Position(sCode, "// SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-OWL-Runtime-Exception") = 1, "SPDX en tête")
+dbgVérifieVrai(Position(sCode, "/* GÉNÉRÉ — NE PAS ÉDITER À LA MAIN.") > 0, "bandeau généré présent")
+dbgVérifieVrai(Position(sCode, "#include " + q + "aws_service_models.h" + q) > 0, "include du header")
+
+// --- Nombre de services exact ---
+dbgVérifieVrai(Position(sCode, "const int AWS_SERVICE_COUNT = 7;") > 0, "compteur services = 7")
+
+// --- Service dynamodb : ligne exacte attendue ---
+ligneDynamo est une chaîne = "    { " + q + "dynamodb" + q + ", " + q + "DynamoDB" + q + ", " + q + "dynamodb" + q + ", AWS_PROTO_JSON, "
+ligneDynamo = ligneDynamo + q + "1.0" + q + ", " + q + "DynamoDB_20120810" + q + ", " + q + "dynamodb" + q + ", "
+ligneDynamo = ligneDynamo + q + "2012-08-10" + q + ", " + q + "v4" + q + ", " + q + q + ", " + q + q + ", aws_actions_dynamodb, 2 },"
+dbgVérifieVrai(Position(sCode, ligneDynamo) > 0, "ligne service dynamodb exacte")
+
+// --- Service apigateway : rest-json, symbole PascalCase sans espace, champs absents = "" ---
+ligneApi est une chaîne = "    { " + q + "apigateway" + q + ", " + q + "APIGateway" + q + ", " + q + "apigateway" + q + ", AWS_PROTO_REST_JSON, "
+ligneApi = ligneApi + q + q + ", " + q + q + ", " + q + "apigateway" + q + ", "
+ligneApi = ligneApi + q + "2015-07-09" + q + ", " + q + "v4" + q + ", " + q + q + ", " + q + q + ", aws_actions_apigateway, 2 },"
+dbgVérifieVrai(Position(sCode, ligneApi) > 0, "ligne service apigateway exacte (fallbacks)")
+
+// --- Service bedrock-runtime : rest-json, signingName explicite ≠ endpointPrefix ---
+ligneBed est une chaîne = "    { " + q + "bedrock-runtime" + q + ", " + q + "BedrockRuntime" + q + ", " + q + "bedrock-runtime" + q + ", AWS_PROTO_REST_JSON, "
+ligneBed = ligneBed + q + q + ", " + q + q + ", " + q + "bedrock" + q + ", "
+ligneBed = ligneBed + q + "2023-09-30" + q + ", " + q + "v4" + q + ", " + q + q + ", " + q + q + ", aws_actions_bedrock_runtime, 1 },"
+dbgVérifieVrai(Position(sCode, ligneBed) > 0, "ligne service bedrock-runtime exacte (signingName explicite)")
+
+// --- Action bedrock-runtime : URI avec placeholder de chemin {modelId} préservé ---
+dbgVérifieVrai(Position(sCode, "static const AwsAction aws_actions_bedrock_runtime[] = {") > 0, "bloc actions bedrock-runtime")
+actInvoke est une chaîne = "    { " + q + "InvokeModel" + q + ", " + q + "POST" + q + ", " + q + "/model/{modelId}/invoke" + q + " },"
+dbgVérifieVrai(Position(sCode, actInvoke) > 0, "action InvokeModel exacte (URI à placeholder)")
+
+// --- Actions dynamodb triées, méthode + URI exactes ---
+dbgVérifieVrai(Position(sCode, "static const AwsAction aws_actions_dynamodb[] = {") > 0, "bloc actions dynamodb")
+actGet est une chaîne = "    { " + q + "GetItem" + q + ", " + q + "POST" + q + ", " + q + "/" + q + " },"
+dbgVérifieVrai(Position(sCode, actGet) > 0, "action GetItem exacte")
+actPut est une chaîne = "    { " + q + "PutItem" + q + ", " + q + "POST" + q + ", " + q + "/" + q + " },"
+dbgVérifieVrai(Position(sCode, actPut) > 0, "action PutItem exacte")
+
+// --- Actions apigateway : URI avec paramètre de chemin préservé ---
+actCreate est une chaîne = "    { " + q + "CreateRestApi" + q + ", " + q + "POST" + q + ", " + q + "/restapis" + q + " },"
+dbgVérifieVrai(Position(sCode, actCreate) > 0, "action CreateRestApi exacte")
+actGetApi est une chaîne = "    { " + q + "GetRestApi" + q + ", " + q + "GET" + q + ", " + q + "/restapis/{restapi_id}" + q + " },"
+dbgVérifieVrai(Position(sCode, actGetApi) > 0, "action GetRestApi exacte (URI paramétrée)")
+
+// --- Ordre déterministe : tri des services puis des actions ---
+posApi est un entier = Position(sCode, q + "apigateway" + q + ", " + q + "APIGateway" + q)
+posBed est un entier = Position(sCode, q + "bedrock-runtime" + q + ", " + q + "BedrockRuntime" + q)
+posDynamo est un entier = Position(sCode, q + "dynamodb" + q + ", " + q + "DynamoDB" + q)
+dbgVérifieVrai(posApi < posBed, "services triés (apigateway avant bedrock-runtime)")
+dbgVérifieVrai(posBed < posDynamo, "services triés (bedrock-runtime avant dynamodb)")
+posCreate est un entier = Position(sCode, q + "CreateRestApi" + q)
+posGet est un entier = Position(sCode, q + "GetRestApi" + q)
+dbgVérifieVrai(posCreate < posGet, "actions triées (CreateRestApi avant GetRestApi)")
+
+// --- Header : types et déclarations externes ---
+sHeader est une chaîne = AwsGénèreHeader()
+dbgVérifieVrai(Position(sHeader, "typedef enum {") > 0, "header : enum protocole")
+dbgVérifieVrai(Position(sHeader, "AWS_PROTO_REST_JSON,") > 0, "header : valeur rest-json")
+dbgVérifieVrai(Position(sHeader, "} AwsAction;") > 0, "header : struct AwsAction")
+dbgVérifieVrai(Position(sHeader, "} AwsService;") > 0, "header : struct AwsService")
+dbgVérifieVrai(Position(sHeader, "extern const AwsService AWS_SERVICES[];") > 0, "header : extern table")
+dbgVérifieVrai(Position(sHeader, "extern const int AWS_SERVICE_COUNT;") > 0, "header : extern compteur")
+
+// --- Mapping protocole : valeurs exactes ---
+dbgVérifieEgalité(AwsProtocoleC("json"), "AWS_PROTO_JSON", "protocole json")
+dbgVérifieEgalité(AwsProtocoleC("rest-json"), "AWS_PROTO_REST_JSON", "protocole rest-json")
+dbgVérifieEgalité(AwsProtocoleC("query"), "AWS_PROTO_QUERY", "protocole query")
+dbgVérifieEgalité(AwsProtocoleC("ec2"), "AWS_PROTO_EC2", "protocole ec2")
+dbgVérifieEgalité(AwsProtocoleC("rest-xml"), "AWS_PROTO_REST_XML", "protocole rest-xml")
+dbgVérifieEgalité(AwsProtocoleC("smithy-rpc-v2-cbor"), "AWS_PROTO_UNKNOWN", "protocole inconnu → UNKNOWN")
+
+// --- Échappement C : guillemets et backslash ---
+attenduEch est une chaîne = "a\" + q + "b\\c"
+dbgVérifieEgalité(AwsEchappeC("a" + q + "b\c"), attenduEch, "échappement guillemet + backslash")
+
+// --- Identifiant C : caractères non alphanumériques remplacés ---
+dbgVérifieEgalité(AwsIdentifiantC("application-autoscaling"), "application_autoscaling", "identifiant C assaini")
+
+// --- Symbole de service : PascalCase préservé, séparateurs retirés ---
+dbgVérifieEgalité(AwsSymboleService("API Gateway"), "APIGateway", "symbole PascalCase sans espace")
+dbgVérifieEgalité(AwsSymboleService("DynamoDB"), "DynamoDB", "symbole déjà PascalCase inchangé")
+dbgVérifieEgalité(AwsSymboleService("EC2"), "EC2", "symbole avec chiffres préservés")
+
+// --- Header : champ symbolName présent ---
+dbgVérifieVrai(Position(sHeader, "const char* symbolName;") > 0, "header : champ symbolName")
+
+// --- Service sts : protocole query, champs absents = "", signingName = endpointPrefix ---
+ligneSts est une chaîne = "    { " + q + "sts" + q + ", " + q + "STS" + q + ", " + q + "sts" + q + ", AWS_PROTO_QUERY, "
+ligneSts = ligneSts + q + q + ", " + q + q + ", " + q + "sts" + q + ", "
+ligneSts = ligneSts + q + "2011-06-15" + q + ", " + q + "v4" + q + ", " + q + q + ", " + q + q + ", aws_actions_sts, 2 },"
+dbgVérifieVrai(Position(sCode, ligneSts) > 0, "ligne service sts exacte (protocole query)")
+
+// --- Service ec2 : protocole ec2, champs absents = "", signingName = endpointPrefix ---
+ligneEc2 est une chaîne = "    { " + q + "ec2" + q + ", " + q + "EC2" + q + ", " + q + "ec2" + q + ", AWS_PROTO_EC2, "
+ligneEc2 = ligneEc2 + q + q + ", " + q + q + ", " + q + "ec2" + q + ", "
+ligneEc2 = ligneEc2 + q + "2016-11-15" + q + ", " + q + "v4" + q + ", " + q + q + ", " + q + q + ", aws_actions_ec2, 2 },"
+dbgVérifieVrai(Position(sCode, ligneEc2) > 0, "ligne service ec2 exacte (protocole ec2)")
+
+// --- Actions sts triées : AssumeRole avant GetCallerIdentity ---
+dbgVérifieVrai(Position(sCode, "static const AwsAction aws_actions_sts[] = {") > 0, "bloc actions sts")
+actAssume est une chaîne = "    { " + q + "AssumeRole" + q + ", " + q + "POST" + q + ", " + q + "/" + q + " },"
+dbgVérifieVrai(Position(sCode, actAssume) > 0, "action AssumeRole exacte")
+actCaller est une chaîne = "    { " + q + "GetCallerIdentity" + q + ", " + q + "POST" + q + ", " + q + "/" + q + " },"
+dbgVérifieVrai(Position(sCode, actCaller) > 0, "action GetCallerIdentity exacte")
+
+// --- Actions ec2 triées : DescribeInstances avant RunInstances ---
+dbgVérifieVrai(Position(sCode, "static const AwsAction aws_actions_ec2[] = {") > 0, "bloc actions ec2")
+actDescribe est une chaîne = "    { " + q + "DescribeInstances" + q + ", " + q + "POST" + q + ", " + q + "/" + q + " },"
+dbgVérifieVrai(Position(sCode, actDescribe) > 0, "action DescribeInstances exacte")
+actRun est une chaîne = "    { " + q + "RunInstances" + q + ", " + q + "POST" + q + ", " + q + "/" + q + " },"
+dbgVérifieVrai(Position(sCode, actRun) > 0, "action RunInstances exacte")
+
+// --- Service route53 : protocole rest-xml, action de lecture GET sans placeholder ---
+ligneRoute53 est une chaîne = "    { " + q + "route53" + q + ", " + q + "Route53" + q + ", " + q + "route53" + q + ", AWS_PROTO_REST_XML, "
+ligneRoute53 = ligneRoute53 + q + q + ", " + q + q + ", " + q + "route53" + q + ", "
+ligneRoute53 = ligneRoute53 + q + "2013-04-01" + q + ", " + q + "v4" + q + ", " + q + q + ", " + q + q + ", aws_actions_route53, 1 },"
+dbgVérifieVrai(Position(sCode, ligneRoute53) > 0, "ligne service route53 exacte (protocole rest-xml)")
+
+dbgVérifieVrai(Position(sCode, "static const AwsAction aws_actions_route53[] = {") > 0, "bloc actions route53")
+actList est une chaîne = "    { " + q + "ListHostedZones" + q + ", " + q + "GET" + q + ", " + q + "/2013-04-01/hostedzone" + q + " },"
+dbgVérifieVrai(Position(sCode, actList) > 0, "action ListHostedZones exacte (URI de lecture)")
+
+// --- Ordre déterministe : services triés (dynamodb < ec2 < route53 < sts) ---
+posEc2 est un entier = Position(sCode, q + "ec2" + q + ", " + q + "EC2" + q)
+posRoute53 est un entier = Position(sCode, q + "route53" + q + ", " + q + "Route53" + q)
+posSts est un entier = Position(sCode, q + "sts" + q + ", " + q + "STS" + q)
+dbgVérifieVrai(posDynamo < posEc2, "services triés (dynamodb avant ec2)")
+dbgVérifieVrai(posEc2 < posRoute53, "services triés (ec2 avant route53)")
+dbgVérifieVrai(posRoute53 < posSts, "services triés (route53 avant sts)")
+
+// --- Enum awsService : valeurs générées (aws<symbolName>, triées, NULL final) ---
+sValues est une chaîne = "const char* const E_awsService_values[] = {" + RC
+sValues = sValues + "    " + q + "awsAPIGateway" + q + ", " + q + "awsBedrockRuntime" + q + ", "
+sValues = sValues + q + "awsDynamoDB" + q + ", " + q + "awsEC2" + q + ", " + q + "awsRoute53" + q + ", " + q + "awsSTS" + q + ", " + q + "awsXmltest" + q + ", NULL" + RC
+sValues = sValues + "};"
+dbgVérifieVrai(Position(sCode, sValues) > 0, "tableau E_awsService_values exact (aws<symbolName>, NULL final)")
+
+// --- Constantes générées : OwlConstDef par service, nom=aws<symbolName>, desc depuis serviceId ---
+// serviceId sans espace : desc dérivée directement du symbole.
+ligneConstDynamo est une chaîne = "    { " + q + "awsDynamoDB" + q + ", " + q + "AWS" + q + ", INTEGER_VAL(2), "
+ligneConstDynamo = ligneConstDynamo + q + "service DynamoDB" + q + ", " + q + "DynamoDB service" + q + ", " + q + "awsDynamoDB" + q + " },"
+dbgVérifieVrai(Position(sCode, ligneConstDynamo) > 0, "OwlConstDef awsDynamoDB exact (valeur = index table)")
+
+// serviceId avec espace : desc conserve l'espace, nom de const le retire.
+ligneConstBed est une chaîne = "    { " + q + "awsBedrockRuntime" + q + ", " + q + "AWS" + q + ", INTEGER_VAL(1), "
+ligneConstBed = ligneConstBed + q + "service Bedrock Runtime" + q + ", " + q + "Bedrock Runtime service" + q + ", " + q + "awsBedrockRuntime" + q + " },"
+dbgVérifieVrai(Position(sCode, ligneConstBed) > 0, "OwlConstDef awsBedrockRuntime exact (serviceId à espace)")
+
+// route53 s'insère entre ec2 (3) et sts : sa constante porte l'index 4.
+ligneConstRoute53 est une chaîne = "    { " + q + "awsRoute53" + q + ", " + q + "AWS" + q + ", INTEGER_VAL(4), "
+ligneConstRoute53 = ligneConstRoute53 + q + "service Route 53" + q + ", " + q + "Route 53 service" + q + ", " + q + "awsRoute53" + q + " },"
+dbgVérifieVrai(Position(sCode, ligneConstRoute53) > 0, "OwlConstDef awsRoute53 exact (serviceId à espace)")
+
+dbgVérifieVrai(Position(sCode, "const OwlConstDef AWS_CONSTS[] = {") > 0, "en-tête tableau AWS_CONSTS")
+dbgVérifieVrai(Position(sCode, "const int AWS_CONST_COUNT = 7;") > 0, "compteur consts = 7")
+
+// --- Header : include registre + déclarations externes de l'enum et des consts ---
+dbgVérifieVrai(Position(sHeader, "#include " + q + "owl_registry.h" + q) > 0, "header : include owl_registry.h")
+dbgVérifieVrai(Position(sHeader, "extern const char* const E_awsService_values[];") > 0, "header : extern E_awsService_values")
+dbgVérifieVrai(Position(sHeader, "extern const OwlConstDef AWS_CONSTS[];") > 0, "header : extern AWS_CONSTS")
+dbgVérifieVrai(Position(sHeader, "extern const int AWS_CONST_COUNT;") > 0, "header : extern AWS_CONST_COUNT")
+
+// --- Déduplication multi-version : un service présent dans plusieurs dossiers
+// de version ne produit qu'UNE entrée (la plus récente apiVersion), pas N.
+// La fixture fixtures_dedup contient le même service "svctest" en deux
+// versions (2010-01-01 et 2020-06-06). ---
+sCodeDedup est une chaîne = AwsGénèreTableC("tools/aws/fixtures_dedup")
+
+// Un seul service émis malgré deux dossiers de version.
+dbgVérifieVrai(Position(sCodeDedup, "const int AWS_SERVICE_COUNT = 1;") > 0, "dédup : un seul service malgré deux versions")
+
+// Un seul bloc d'actions C (pas de redéfinition qui casserait la compilation).
+posBloc1 est un entier = Position(sCodeDedup, "static const AwsAction aws_actions_svctest[] = {")
+dbgVérifieVrai(posBloc1 > 0, "dédup : bloc d'actions svctest présent")
+posBloc2 est un entier = Position(sCodeDedup, "static const AwsAction aws_actions_svctest[] = {", posBloc1 + 1)
+dbgVérifieEgalité(posBloc2, 0, "dédup : un seul bloc d'actions svctest (pas de symbole C dupliqué)")
+
+// La version retenue est la plus récente (2020), pas l'ancienne (2010),
+// indépendamment de l'ordre du glob.
+dbgVérifieVrai(Position(sCodeDedup, q + "2020-06-06" + q) > 0, "dédup : apiVersion la plus récente retenue")
+dbgVérifieEgalité(Position(sCodeDedup, q + "2010-01-01" + q), 0, "dédup : ancienne apiVersion écartée")
+
+// L'action de la version récente est émise, celle de l'ancienne est absente.
+dbgVérifieVrai(Position(sCodeDedup, q + "NewOnlyAction" + q) > 0, "dédup : action de la version récente émise")
+dbgVérifieEgalité(Position(sCodeDedup, q + "OldOnlyAction" + q), 0, "dédup : action de l'ancienne version écartée")
+
+// --- Déduplication par serviceId : deux dossiers de nom différent qui
+// exposent le MÊME serviceId (même API sous deux noms de dossier) ne
+// produisent qu'UNE constante (le symbole aws<Symbole> dérive du serviceId :
+// deux fois le même serviceId = collision nameEN au registry). La fixture
+// fixtures_dedup_serviceid contient "svc-alpha" (1 action) et "svc-beta"
+// (2 actions), tous deux serviceId "SharedSvc", même endpoint/apiVersion. ---
+sCodeDedupSid est une chaîne = AwsGénèreTableC("tools/aws/fixtures_dedup_serviceid")
+
+// Un seul service émis malgré deux dossiers au même serviceId.
+dbgVérifieVrai(Position(sCodeDedupSid, "const int AWS_SERVICE_COUNT = 1;") > 0, "dédup serviceId : un seul service malgré deux dossiers")
+dbgVérifieVrai(Position(sCodeDedupSid, "const int AWS_CONST_COUNT = 1;") > 0, "dédup serviceId : une seule constante")
+
+// Une seule constante awsSharedSvc (pas de collision de symbole).
+posConst1 est un entier = Position(sCodeDedupSid, q + "awsSharedSvc" + q + ", " + q + "AWS" + q)
+dbgVérifieVrai(posConst1 > 0, "dédup serviceId : constante awsSharedSvc présente")
+posConst2 est un entier = Position(sCodeDedupSid, q + "awsSharedSvc" + q + ", " + q + "AWS" + q, posConst1 + 1)
+dbgVérifieEgalité(posConst2, 0, "dédup serviceId : une seule constante awsSharedSvc (pas de doublon)")
+
+// Le superset d'actions est retenu (svc-beta, 2 actions), pas svc-alpha (1).
+dbgVérifieVrai(Position(sCodeDedupSid, q + "BetaActionOne" + q) > 0, "dédup serviceId : superset d'actions retenu (svc-beta)")
+dbgVérifieVrai(Position(sCodeDedupSid, q + "BetaActionTwo" + q) > 0, "dédup serviceId : deuxième action du superset présente")
+dbgVérifieEgalité(Position(sCodeDedupSid, q + "AlphaOnlyAction" + q), 0, "dédup serviceId : action du dossier écarté absente")
+
+// --- Service xmltest : protocole rest-xml, index 6 (dernier, trié après sts) ---
+posXmltest est un entier = Position(sCode, q + "xmltest" + q + ", " + q + "Xmltest" + q)
+dbgVérifieVrai(posXmltest > 0, "service xmltest présent")
+dbgVérifieVrai(posSts < posXmltest, "services triés (sts avant xmltest)")
+
+ligneConstXmltest est une chaîne = "    { " + q + "awsXmltest" + q + ", " + q + "AWS" + q + ", INTEGER_VAL(6), "
+ligneConstXmltest = ligneConstXmltest + q + "service Xmltest" + q + ", " + q + "Xmltest service" + q + ", " + q + "awsXmltest" + q + " },"
+dbgVérifieVrai(Position(sCode, ligneConstXmltest) > 0, "OwlConstDef awsXmltest exact (index 6)")
+
+// --- Actions xmltest triées : GetStuff (GET, lecture) avant PutStuff (PUT, écriture) ---
+actGetStuff est une chaîne = "    { " + q + "GetStuff" + q + ", " + q + "GET" + q + ", " + q + "/stuff" + q + " },"
+dbgVérifieVrai(Position(sCode, actGetStuff) > 0, "action GetStuff exacte (lecture)")
+actPutStuff est une chaîne = "    { " + q + "PutStuff" + q + ", " + q + "PUT" + q + ", " + q + "/stuff" + q + " },"
+dbgVérifieVrai(Position(sCode, actPutStuff) > 0, "action PutStuff exacte (écriture)")
+
+// --- Descripteur de sérialisation JSON→XML de l'opération d'écriture PutStuff ---
+// Table AWS_SER_DESCRS + compteur. Seule l'opération d'écriture à corps produit
+// un descripteur : GetStuff (lecture, output seul) n'en produit aucun.
+dbgVérifieVrai(Position(sCode, "const AwsXmlSerDescr AWS_SER_DESCRS[] = {") > 0, "en-tête table des descripteurs de sérialisation")
+dbgVérifieVrai(Position(sCode, "const int AWS_SER_DESCR_COUNT = 1;") > 0, "un seul descripteur (l'écriture PutStuff, pas la lecture GetStuff)")
+
+// Ligne de descripteur : service, action, élément racine (locationName de l'input
+// shape), espace de noms XML, tableau racine des membres, nombre de membres de corps.
+ligneDescr est une chaîne = "    { " + q + "xmltest" + q + ", " + q + "PutStuff" + q + ", " + q + "PutStuffRequest" + q + ", "
+ligneDescr = ligneDescr + q + "http://xmltest.example.com/doc/2020-01-01/" + q + ", " + q + q + ", aws_ser_xmltest_PutStuff_0, 3 },"
+dbgVérifieVrai(Position(sCode, ligneDescr) > 0, "descripteur PutStuff exact (racine + namespace + 3 membres de corps)")
+
+// Membre scalaire (Name → locationName "Name", kind 0) dans le tableau racine.
+membreName est une chaîne = "    { " + q + "Name" + q + ", " + q + "Name" + q + ", 0, NULL, 0, " + q + q + ", 0, 0, 0 },"
+dbgVérifieVrai(Position(sCode, membreName) > 0, "membre scalaire Name (kind 0)")
+
+// Membre liste (Tags → conteneur "TagSet" par locationName, kind 2, item "Tag",
+// non aplati, items scalaires).
+membreTags est une chaîne = "    { " + q + "Tags" + q + ", " + q + "TagSet" + q + ", 2, NULL, 0, " + q + "Tag" + q + ", 0, 0, 0 },"
+dbgVérifieVrai(Position(sCode, membreTags) > 0, "membre liste Tags (kind 2, item Tag, non aplati)")
+
+// Membre structure (Nested → locationName "Nested", kind 1) référençant le tableau
+// imbriqué de ses membres avec un compte de 1.
+membreNested est une chaîne = "    { " + q + "Nested" + q + ", " + q + "Nested" + q + ", 1, aws_ser_xmltest_PutStuff_1, 1, " + q + q + ", 0, 0, 0 },"
+dbgVérifieVrai(Position(sCode, membreNested) > 0, "membre structure Nested (kind 1, tableau imbriqué référencé)")
+
+// Le tableau imbriqué de Nested est défini AVANT le tableau racine qui le référence
+// (le C exige la définition avant l'usage).
+posNestedArr est un entier = Position(sCode, "static const AwsXmlMember aws_ser_xmltest_PutStuff_1[] = {")
+posRootArr est un entier = Position(sCode, "static const AwsXmlMember aws_ser_xmltest_PutStuff_0[] = {")
+dbgVérifieVrai(posNestedArr > 0, "tableau imbriqué des membres de Nested présent")
+dbgVérifieVrai(posNestedArr < posRootArr, "tableau imbriqué défini avant le tableau racine (ordre C valide)")
+
+// Membre de l'imbriqué : Value scalaire.
+membreValue est une chaîne = "    { " + q + "Value" + q + ", " + q + "Value" + q + ", 0, NULL, 0, " + q + q + ", 0, 0, 0 },"
+dbgVérifieVrai(Position(sCode, membreValue) > 0, "membre scalaire Value dans la structure imbriquée")
+
+// Membre porté par l'URI (AccountId, location=uri) EXCLU du corps sérialisé.
+dbgVérifieEgalité(Position(sCode, q + "AccountId" + q), 0, "membre porté par l'URI exclu du descripteur de corps")
+
+// --- Header : structs + externs du descripteur de sérialisation ---
+dbgVérifieVrai(Position(sHeader, "} AwsXmlMember;") > 0, "header : struct AwsXmlMember")
+dbgVérifieVrai(Position(sHeader, "    int scalarFmt;") > 0, "header : champ scalarFmt (format scalaire de corps : blob→base64)")
+dbgVérifieVrai(Position(sHeader, "} AwsXmlSerDescr;") > 0, "header : struct AwsXmlSerDescr")
+dbgVérifieVrai(Position(sHeader, "extern const AwsXmlSerDescr AWS_SER_DESCRS[];") > 0, "header : extern table des descripteurs")
+dbgVérifieVrai(Position(sHeader, "extern const int AWS_SER_DESCR_COUNT;") > 0, "header : extern compteur des descripteurs")
+
+dbgBilanTest()

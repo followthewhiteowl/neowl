@@ -1,0 +1,31 @@
+// Fenêtre voisine — ressource pour test_annulation.owl.
+//
+// AutorisationFermeture retourne Faux au 1er appel (annule la fermeture),
+// puis Vrai au 2e appel (laisse la fermeture se poursuivre). Le compteur
+// vit au niveau fenêtre : il survit tant que l'instance n'est pas détruite,
+// ce qui permet au script voisin de vérifier qu'un Ferme() annulé laisse
+// bien l'instance vivante pour un 2e essai.
+
+FEN_Annule est une Fenêtre
+	PROPRIETES
+		Titre       = "Annulation fermeture"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	compteur est un entier = 0
+
+	PROCEDURE AutorisationFermeture()
+		compteur += 1
+		callback_verifie("AF" + compteur + ";")
+		SI compteur = 1 ALORS
+			RENVOYER Faux
+		FIN
+		RENVOYER Vrai
+	FIN
+
+	PROCEDURE Fermeture()
+		callback_verifie("FER;")
+	FIN
+FIN

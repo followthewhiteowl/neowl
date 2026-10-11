@@ -1,0 +1,180 @@
+// @sujet : Dataset — découpage en sous-ensembles (.SousEnsemble / .Subset)
+// @résumé : .SousEnsemble(fractionDébut, fractionFin) rend un NOUVEAU Dataset
+// couvrant la tranche [fractionDébut, fractionFin[ des exemples (fractions
+// réelles dans [0, 1], début < fin). Le sous-Dataset partage les exemples de
+// la tranche, conserve les classes et la source du parent, et ne mélange
+// jamais : le découpage est déterministe, à charge de l'appelant de mélanger
+// (.Mélange()) au préalable s'il veut de l'aléatoire. Composé, il permet un
+// partage train/test étanche : train = ds.SousEnsemble(0, 0.8) et
+// test = ds.SousEnsemble(0.8, 1.0).
+
+// Découpe un Dataset de 10 exemples en train (0 -> 0.8) et test (0.8 -> 1.0) :
+// les tailles suivent les fractions (8 et 2), sans perte ni recouvrement de
+// comptage (8 + 2 = 10 = total).
+PROCEDURE PUBLIQUE scenario_decoupe_train_test_tailles()
+	racine est une chaîne = fRepTemp() + "\owl_test_1697_ss_tailles"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	POUR i = 1 À 5
+		dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c" + i + ".png")
+		dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dbgVérifieEgalité(ds..Taille, 10, "précondition : 10 exemples au total")
+
+	train est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0, 0.8)
+	test est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0.8, 1.0)
+
+	dbgVérifieEgalité(train..Taille, 8, "train = SousEnsemble(0, 0.8) sur 10 exemples -> 8")
+	dbgVérifieEgalité(test..Taille, 2, "test = SousEnsemble(0.8, 1.0) sur 10 exemples -> 2")
+	dbgVérifieEgalité(train..Taille + test..Taille, ds..Taille, "train + test couvre exactement le total")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// Les sous-ensembles sont étanches : l'union de train et test redonne
+// exactement l'ensemble des exemples du parent, sans recouvrement (aucun
+// exemple partagé entre train et test, aucun exemple perdu).
+PROCEDURE PUBLIQUE scenario_disjonction_union_egale_tout()
+	racine est une chaîne = fRepTemp() + "\owl_test_1697_ss_union"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	POUR i = 1 À 5
+		dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c" + i + ".png")
+		dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	train est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0, 0.8)
+	test est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0.8, 1.0)
+
+	// Multi-ensemble trié des chemins de tout le Dataset.
+	cheminsTout est un tableau de chaînes
+	POUR i = 1 À ds..Taille
+		cheminsTout.Ajoute(ds[i]..Chemin)
+	FIN
+	TableauTrie(cheminsTout)
+
+	// Multi-ensemble trié de l'union train ∪ test.
+	cheminsUnion est un tableau de chaînes
+	POUR i = 1 À train..Taille
+		cheminsUnion.Ajoute(train[i]..Chemin)
+	FIN
+	POUR i = 1 À test..Taille
+		cheminsUnion.Ajoute(test[i]..Chemin)
+	FIN
+	TableauTrie(cheminsUnion)
+
+	dbgVérifieEgalité(cheminsUnion..Occurrence, cheminsTout..Occurrence, "union train+test = même nombre d'exemples que le parent")
+
+	sTout est une chaîne = ""
+	sUnion est une chaîne = ""
+	POUR i = 1 À cheminsTout..Occurrence
+		sTout += cheminsTout[i] + "|"
+	FIN
+	POUR i = 1 À cheminsUnion..Occurrence
+		sUnion += cheminsUnion[i] + "|"
+	FIN
+	// Égalité des multi-ensembles triés : prouve à la fois union = tout ET
+	// disjonction (un recouvrement introduirait un doublon + un manquant, et
+	// la comparaison échouerait).
+	dbgVérifieEgalité(sUnion, sTout, "train et test partitionnent le parent (union = tout, sans recouvrement)")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// Le sous-Dataset conserve les classes (tableau trié complet) et la source du
+// parent : les indices de classe restent stables d'une tranche à l'autre, même
+// si une tranche ne contient pas d'exemple d'une classe donnée.
+PROCEDURE PUBLIQUE scenario_classes_et_source_preservees()
+	racine est une chaîne = fRepTemp() + "\owl_test_1697_ss_classes"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	POUR i = 1 À 5
+		dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c" + i + ".png")
+		dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	train est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0, 0.8)
+	test est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0.8, 1.0)
+
+	dbgVérifieEgalité(train..NbClasses, 2, "train conserve les 2 classes du parent")
+	dbgVérifieEgalité(test..NbClasses, 2, "test conserve les 2 classes du parent (même si ne contient qu'une classe)")
+	dbgVérifieEgalité(train..Classes[1], "chat", "classe 0 préservée (ordre alphabétique)")
+	dbgVérifieEgalité(train..Classes[2], "chien", "classe 1 préservée (ordre alphabétique)")
+	dbgVérifieEgalité(test..Source, ds..Source, "la source du parent est conservée")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// La forme anglaise .Subset(startFraction, endFraction) désigne la même
+// opération.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_subset()
+	root est a string = fRepTemp() + "\owl_test_1697_ss_english"
+	fRepCree(root + "\cat")
+	fRepCree(root + "\dog")
+	POUR i = 1 À 5
+		dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), root + "\cat\c" + i + ".png")
+		dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), root + "\dog\d" + i + ".png")
+	FIN
+
+	ds is a Dataset of LabeledImage = LoadLabeledImagesFromFolder(root)
+
+	train is a Dataset of LabeledImage = ds.Subset(0, 0.8)
+	test is a Dataset of LabeledImage = ds.Subset(0.8, 1.0)
+
+	dbgVérifieEgalité(train..Count, 8, "Subset(0, 0.8) -> 8")
+	dbgVérifieEgalité(test..Count, 2, "Subset(0.8, 1.0) -> 2")
+
+	fRepSupprime(root, frRécursif)
+FIN
+
+
+// Cas limite : des fractions hors [0, 1] ou début >= fin lèvent une exception
+// rattrapable (aucun sous-Dataset dégénéré rendu silencieusement).
+PROCEDURE PRIVÉE scenario_edge_fractions_invalides_levent_exception()
+	racine est une chaîne = fRepTemp() + "\owl_test_1697_ss_invalide"
+	fRepCree(racine + "\chat")
+	POUR i = 1 À 4
+		dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dbgVérifieEgalité(ds..Taille, 4, "précondition : 4 exemples")
+
+	// début >= fin (tranche vide / inversée)
+	bDebutApresFin est un booléen = Faux
+	QUAND EXCEPTION DANS
+		x est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0.8, 0.2)
+	FAIRE
+		bDebutApresFin = Vrai
+	FIN
+	dbgVérifieVrai(bDebutApresFin, "début >= fin lève une exception")
+
+	// fraction > 1
+	bHorsBorne est un booléen = Faux
+	QUAND EXCEPTION DANS
+		y est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0, 1.5)
+	FAIRE
+		bHorsBorne = Vrai
+	FIN
+	dbgVérifieVrai(bHorsBorne, "fraction > 1 lève une exception")
+
+	// fraction < 0
+	bNegatif est un booléen = Faux
+	QUAND EXCEPTION DANS
+		z est un Dataset de ImageÉtiquetée = ds.SousEnsemble(-0.1, 0.5)
+	FAIRE
+		bNegatif = Vrai
+	FIN
+	dbgVérifieVrai(bNegatif, "fraction < 0 lève une exception")
+
+	fRepSupprime(racine, frRécursif)
+FIN

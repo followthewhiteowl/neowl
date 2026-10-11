@@ -1,0 +1,48 @@
+// Équivalence props plates d'apparence ⇔ instance Style pour Libellé
+// (, réplique  depuis Saisie).
+//
+// ROUGE attendu aujourd'hui : le CouleurFond plat écrit directement au
+// widget (owl_ui_control_set_bg_color) sans passer par l'instance Style du
+// store -> double-stockage. Le fond réel d'un Libellé (widget mono-élément)
+// est porté par le sous-élément CadreExtérieur (cf. ,
+// apply_style_to_control kind==LABEL, QSS directe sur `w`), donc la
+// cartographie attendue après impl est :
+//   CouleurFond plat      <-> Style..CadreExtérieur..CouleurFond
+//   PoliceCouleur plat    <-> Style..Libellé..Couleur   (texte)
+// Après impl : les props plates deviennent des alias fins vers ces
+// sous-champs de l'instance Style du store, comme PoliceNom <-> Police..Nom
+// pour Saisie.
+//
+// Pattern : la fenêtre voisine FEN_UnifStyleLibelle.owl porte la déclaration.
+
+Ouvre(FEN_UnifStyleLibelle)
+
+// --- Test 1a : CouleurFond plat -> Style..CadreExtérieur..CouleurFond ---
+LIB_Unif..CouleurFond = Rouge
+dbgVérifieEgalité(LIB_Unif..Style..CadreExtérieur..CouleurFond, Rouge, "CouleurFond plat visible via Style..CadreExtérieur..CouleurFond")
+
+// --- Test 1b : Style..CadreExtérieur..CouleurFond -> CouleurFond plat ---
+LIB_Unif..Style..CadreExtérieur..CouleurFond = Vert
+dbgVérifieEgalité(LIB_Unif..CouleurFond, Vert, "Style..CadreExtérieur..CouleurFond visible via raccourci plat CouleurFond")
+
+// --- Test 2a : PoliceCouleur plat -> Style..Libellé..Couleur (texte) ---
+LIB_Unif..PoliceCouleur = Bleu
+dbgVérifieEgalité(LIB_Unif..Style..Libellé..Couleur, Bleu, "PoliceCouleur plat visible via Style..Libellé..Couleur")
+
+// --- Test 2b : Style..Libellé..Couleur -> PoliceCouleur plat ---
+LIB_Unif..Style..Libellé..Couleur = JauneClair
+dbgVérifieEgalité(LIB_Unif..PoliceCouleur, JauneClair, "Style..Libellé..Couleur visible via raccourci plat PoliceCouleur")
+
+// --- Test 3 : précédence dernier-écrit-gagne ---
+LIB_Unif..CouleurFond                        = Rouge
+LIB_Unif..Style..CadreExtérieur..CouleurFond = Vert
+dbgVérifieEgalité(LIB_Unif..CouleurFond, Vert, "précédence : dernier écrit (Style..CadreExtérieur..CouleurFond) gagne sur le plat")
+dbgVérifieEgalité(LIB_Unif..Style..CadreExtérieur..CouleurFond, Vert, "précédence : Style cohérent avec le plat après écriture Style")
+
+LIB_Unif..Style..CadreExtérieur..CouleurFond = Bleu
+LIB_Unif..CouleurFond                        = JauneClair
+dbgVérifieEgalité(LIB_Unif..Style..CadreExtérieur..CouleurFond, JauneClair, "précédence inverse : dernier écrit (plat CouleurFond) gagne sur Style")
+dbgVérifieEgalité(LIB_Unif..CouleurFond, JauneClair, "précédence inverse : le plat reste cohérent avec lui-même")
+
+Ferme(FEN_UnifStyleLibelle)
+dbgBilanTest()

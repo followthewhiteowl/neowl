@@ -1,0 +1,48 @@
+//  — surcharge PROFONDE de sous-propriété de Style perd les frères
+// d'un composite intermédiaire (suite incomplète de ).
+//
+// Bug : `Style = X` (X a `CadreExtérieur = { Cadre = {...}, Dégradé = {...},
+// Ombre = {...}, CouleurFond = ... }`) PUIS surcharge profonde
+// `Style..CadreExtérieur..Dégradé..CouleurDébut = Y` -> le composite
+// intermédiaire CadreExtérieur..Dégradé est reconstruit depuis les défauts du
+// TYPE, PAS depuis la valeur de base -> les frères (Cadre, Ombre, CouleurFond)
+// du CadreExtérieur repartent à leurs défauts (Arrondi relu = 0 au lieu de 20).
+//
+// Sémantique cible : la surcharge navigue dans la structure clonée de la
+// base et ne modifie QUE la feuille surchargée ; tous les frères, à chaque
+// niveau intermédiaire, sont préservés.
+//
+// ROUGE attendu (cas 1, 2, 4) : les frères du composite intermédiaire sont
+// perdus (relus à leur défaut au lieu de la valeur du thème/littéral).
+// Cas 3 (isolation) : déjà vert (le thème partagé n'est de toute façon pas
+// muté, bug ou pas).
+
+Trace("=== Surcharge profonde et frères de composite (fix/1034) ===")
+
+Ouvre(FEN_SurchargeProfonde)
+
+// --- Cas 1 : Style = theme.bp PUIS surcharge profonde Dégradé..CouleurDébut ---
+// Le frère Cadre..Arrondi (20 dans le thème) doit survivre à la reconstruction
+// du CadreExtérieur -- c'est LE bug  (relu à 0 sans le fix).
+dbgVérifieEgalité(BTN_ThemeDegradeProfond..Style..CadreExtérieur..Cadre..Arrondi, 20, "Surcharge profonde Dégradé : le frère Cadre..Arrondi du thème (20) est préservé")
+dbgVérifieEgalité(BTN_ThemeDegradeProfond..Style..CadreExtérieur..Ombre..Flou, 16, "Surcharge profonde Dégradé : le frère Ombre..Flou du thème (16) est préservé")
+dbgVérifieEgalité(BTN_ThemeDegradeProfond..Style..CadreExtérieur..CouleurFond, Blanc, "Surcharge profonde Dégradé : le frère scalaire CouleurFond du thème (Blanc) est préservé")
+dbgVérifieEgalité(BTN_ThemeDegradeProfond..Style..CadreExtérieur..Dégradé..CouleurDébut, RougeClair, "Surcharge profonde Dégradé : la feuille surchargée CouleurDébut vaut RougeClair")
+dbgVérifieEgalité(BTN_ThemeDegradeProfond..Style..CadreExtérieur..Dégradé..CouleurFin, RVB(94, 72, 150), "Surcharge profonde Dégradé : la feuille frère-non-surchargée CouleurFin reste la valeur du thème")
+
+// --- Cas 2 : surcharge d'un frère intermédiaire (Cadre..Arrondi) ---
+// Le Dégradé (frère de Cadre) ne doit pas être détruit par la reconstruction
+// du CadreExtérieur suite à la surcharge de Cadre.
+dbgVérifieEgalité(BTN_ThemeCadreProfond..Style..CadreExtérieur..Cadre..Arrondi, 8, "Surcharge profonde Cadre : la feuille surchargée Arrondi vaut 8")
+dbgVérifieEgalité(BTN_ThemeCadreProfond..Style..CadreExtérieur..Dégradé..CouleurDébut, RVB(126, 103, 187), "Surcharge profonde Cadre : le frère Dégradé..CouleurDébut du thème est préservé (pas détruit)")
+
+// --- Cas 3 : témoin isolation — même theme.bp, aucune surcharge ---
+dbgVérifieEgalité(BTN_ThemeTemoinProfond..Style..CadreExtérieur..Cadre..Arrondi, 20, "Témoin isolation : le thème partagé (Cadre..Arrondi) n'est pas muté par les surcharges des cas 1/2")
+dbgVérifieEgalité(BTN_ThemeTemoinProfond..Style..CadreExtérieur..Dégradé..CouleurDébut, RVB(126, 103, 187), "Témoin isolation : le thème partagé (Dégradé..CouleurDébut) n'est pas muté")
+
+// --- Cas 4 : Style = { littéral } PUIS surcharge profonde Dégradé..CouleurDébut ---
+dbgVérifieEgalité(BTN_LitteralDegradeProfond..Style..CadreExtérieur..Cadre..Arrondi, 12, "Littéral + surcharge profonde Dégradé : le frère Cadre..Arrondi du littéral (12) est préservé")
+dbgVérifieEgalité(BTN_LitteralDegradeProfond..Style..CadreExtérieur..Dégradé..CouleurDébut, RougeClair, "Littéral + surcharge profonde Dégradé : la feuille surchargée CouleurDébut vaut RougeClair")
+
+Ferme(FEN_SurchargeProfonde)
+dbgBilanTest()

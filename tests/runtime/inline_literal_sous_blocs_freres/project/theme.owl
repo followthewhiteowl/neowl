@@ -1,0 +1,58 @@
+//  — littéral d'instance imbriqué avec PLUSIEURS sous-blocs frères
+// (CadreExtérieur = { Cadre = {...}, Ombre = {...} }, ordre libre, mêlé à des
+// champs scalaires). Verrouille le round-trip runtime des DEUX (ou trois)
+// sous-champs, pas juste la compilation : un fix bâclé qui réordonne pourrait
+// "compiler" en perdant un champ frère silencieusement.
+ThèmeInlineLitteral est un Thème
+	// Cas 1 : deux sous-blocs frères, Cadre PUIS Ombre.
+	boutonDeuxBlocsFreres est un styleBouton = {
+		CadreExtérieur = {
+			Cadre = { Arrondi = 8, Epaisseur = 3 }
+			Ombre = { Flou = 14, Couleur = Noir }
+		}
+	}
+
+	// Cas 2 : sous-bloc PUIS scalaire (Ombre avant CouleurFond).
+	boutonBlocPuisScalaire est un styleBouton = {
+		CadreExtérieur = {
+			Ombre       = { Flou = 20, Couleur = Bleu }
+			CouleurFond = Rouge
+		}
+	}
+
+	// Cas 3 : ordre mixte scalaire / bloc / scalaire.
+	boutonScalaireBlocScalaire est un styleBouton = {
+		CadreExtérieur = {
+			CouleurFond   = Vert
+			Cadre         = { Epaisseur = 5 }
+			RetraitGauche = 7
+		}
+	}
+
+	// Cas 4 : imbrication profonde via un type composé différent
+	// (styleSaisie, pas styleBouton) pour vérifier que le fix ne dépend pas
+	// d'un type particulier : Thème -> styleSaisie -> CadreExtérieur ->
+	// {Cadre, Ombre}, deux sous-blocs frères.
+	saisieDeuxBlocsFreres est un styleSaisie = {
+		CadreExterieur = {
+			Cadre = { Arrondi = 12, Bords = BordTous }
+			Ombre = { Flou = 18, Étendue = 4 }
+		}
+	}
+
+	// Cas 5 : formes EN (Border/Shadow + Color/CornerRadius/OffsetY/Blur).
+	boutonDeuxBlocsFreresEN est un styleBouton = {
+		CadreExterieur = {
+			Border = { Color = Noir, CornerRadius = 6 }
+			Shadow = { Color = CyanClair, OffsetY = 3, Blur = 22 }
+		}
+	}
+
+	// Cas 6 : non-régression, un seul sous-bloc (Cadre seul, dernier champ).
+	boutonUnSeulBloc est un styleBouton = {
+		CadreExtérieur = {
+			CouleurFond = Blanc
+			Cadre       = { Arrondi = 2 }
+		}
+	}
+FIN

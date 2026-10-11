@@ -1,0 +1,20 @@
+// @sujet absence de warning quand les champs enfant/parent ont des noms distincts
+// @résumé garde-fou negatif : l'heritage nominal (extension par ajout de
+//   nouveaux champs) NE doit PAS faire emettre de warning de masquage.
+//   Validation indirecte : si un warning intrus est emis, il restera
+//   non-acknowledged et fera echouer le bilan global de owl test.
+
+PROCEDURE scenario_pas_de_warning_quand_noms_distincts()
+	oEnfant est un cEnfantDistinct()
+
+	// Champ herite intact.
+	dbgVérifieEgalité(oEnfant.nValeur, 10,
+	"Champ herite cBaseDistinct.nValeur accessible (10)")
+
+	// Champ propre intact.
+	dbgVérifieEgalité(oEnfant.sNomEnfant, "feuille",
+	"Champ propre cEnfantDistinct.sNomEnfant accessible")
+FIN
+
+// Pas d'__dbgAvertissementAttendu : un warning intrus serait detecte par
+// le runner global (warnings non-ack pollueraient le STATUS ALL CLEAR).

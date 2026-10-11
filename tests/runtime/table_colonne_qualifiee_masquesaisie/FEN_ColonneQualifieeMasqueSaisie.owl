@@ -1,0 +1,51 @@
+// Fenêtre voisine — ressource pour test_table_colonne_qualifiee_masquesaisie.owl.
+// (pattern split canon strict — cf.  / .)
+//
+//  Path B — la forme colonne-first QUALIFIÉE NON INDEXÉE
+// `TABLE_X.COL_A..MasqueSaisie` doit rester un VRAI receveur au runtime
+// (set-then-get symétrique), au même titre que `TABLE_X.COL_A..Couleur`
+//. C'est la forme conseillée par le message de refus historique
+// ( avant amendement ) : elle doit fonctionner.
+
+FEN_ColonneQualifieeMasqueSaisie est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne qualifiée masque de saisie"
+	FIN
+
+	TABLE_Receveur est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_Code est une Colonne
+			PROPRIETES
+				Libellé = "Code"
+				Type    = colTypeTexte
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Receveur, "")
+	FIN
+
+	// Écriture forme qualifiée, propriété FR.
+	PROCEDURE EcritMasqueSaisie(m est une chaîne)
+		TABLE_Receveur.COL_Code..MasqueSaisie = m
+	FIN
+
+	// Lecture forme qualifiée, propriété FR.
+	PROCEDURE LireMasqueSaisie()
+		RENVOYER TABLE_Receveur.COL_Code..MasqueSaisie
+	FIN
+
+	// Lecture forme qualifiée, propriété EN (bilingue, Règle 6.3).
+	PROCEDURE LireMasqueSaisieEN()
+		RENVOYER TABLE_Receveur.COL_Code..InputMask
+	FIN
+
+	// Écriture via la propriété EN qualifiée, relue en FR (parité croisée).
+	PROCEDURE EcritMasqueSaisieEN(m est une chaîne)
+		TABLE_Receveur.COL_Code..InputMask = m
+	FIN
+FIN

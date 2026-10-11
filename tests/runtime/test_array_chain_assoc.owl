@@ -1,0 +1,38 @@
+// Tests Filtre/Transforme sur tableaux associatifs (nouveauté de référence).
+// Distinct/Union/Intersection ne s'appliquent pas aux assoc dans la documentation de référence.
+Trace("=== ARRAY CHAIN ON ASSOC ===")
+
+FONCTION estPair(n est un entier) : booléen
+	RENVOYER n MODULO 2 = 0
+FIN
+
+FONCTION ajouteCle(v est un entier, c est une chaîne) : chaîne
+	RENVOYER c + "=" + NumériqueVersChaîne(v)
+FIN
+
+// ── Filtre sur tableau associatif ────────────────────────────────
+dictNum est un tableau associatif de entiers
+dictNum["A"] = 1
+dictNum["B"] = 2
+dictNum["C"] = 3
+dictNum["D"] = 4
+
+dictPairs est un tableau associatif de entiers = Filtre(dictNum, estPair)
+dbgVérifieEgalité(dictPairs..Occurrence, 2, "Filtre assoc -> 2 elements")
+dbgVérifieEgalité(dictPairs["B"], 2, "Filtre garde B=2")
+dbgVérifieEgalité(dictPairs["D"], 4, "Filtre garde D=4")
+dbgVérifieFaux(TableauCherche(dictPairs, "A"), "Filtre exclut A=1 (impair)")
+dbgVérifieFaux(TableauCherche(dictPairs, "C"), "Filtre exclut C=3 (impair)")
+
+// ── Transforme sur tableau associatif ────────────────────────────
+// Avec callback (val, cle) -> nouvelle valeur
+dictTransforme est un tableau associatif de chaînes = Transforme(dictNum, ajouteCle)
+dbgVérifieEgalité(dictTransforme["A"], "A=1", "Transforme assoc A -> 'A=1'")
+dbgVérifieEgalité(dictTransforme["B"], "B=2", "Transforme assoc B -> 'B=2'")
+dbgVérifieEgalité(dictTransforme["D"], "D=4", "Transforme assoc D -> 'D=4'")
+
+// ── Forme prefixee : taAssoc.Filtre(...) ─────────────────────────
+dictPairs2 est un tableau associatif de entiers = dictNum.Filtre(estPair)
+dbgVérifieEgalité(dictPairs2..Occurrence, 2, "prefixed assoc.Filtre OK")
+
+dbgBilanTest()

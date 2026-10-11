@@ -1,0 +1,66 @@
+// @sujet : objet — self-return, chainage, heritage
+// @resume : Verifie que le mot-cle 'objet' designe l'instance courante dans une methode de classe. Permet le self-return (RENVOYER objet) pour chainage de methodes et dispatch dynamique avec heritage.
+
+// Scenario 1 : self-return basique
+PROCEDURE PUBLIQUE scenario_self_return_basique()
+	o est un cChaineur()
+	o.sNom = "test"
+	o.nValeur = 42
+
+	oRetour est un cChaineur = o.Soi()
+	dbgVérifieVrai(oRetour <> Null, "self-return ne renvoie pas null")
+	dbgVérifieEgalité(oRetour.sNom, "test", "self-return donne acces aux champs de l'instance originale")
+	dbgVérifieEgalité(oRetour.nValeur, 42, "self-return preserve etat")
+FIN
+
+// Scenario 2 : chainage utilisateur multi-appel
+PROCEDURE PUBLIQUE scenario_chainage_multi_appel()
+	o est un cBuilder()
+	o.FixeNom("Alice").FixeAge(30).FixeVille("Paris")
+
+	dbgVérifieEgalité(o.sNom, "Alice", "chainage methode 1 appliquee")
+	dbgVérifieEgalité(o.nAge, 30, "chainage methode 2 appliquee")
+	dbgVérifieEgalité(o.sVille, "Paris", "chainage methode 3 appliquee")
+FIN
+
+// Scenario 3 : heritage avec dispatch dynamique
+PROCEDURE PUBLIQUE scenario_heritage_dispatch_dynamique()
+	o est un cFille()
+	o.nExtra = 999
+
+	oRetour est un cFille = o.Identifie()
+
+	dbgVérifieVrai(oRetour <> Null, "heritage self-return ne renvoie pas null")
+	dbgVérifieEgalité(oRetour.sNom, "base-init", "methode heritee execute bien")
+	dbgVérifieEgalité(oRetour.nExtra, 999, "objet designe l'instance fille reelle, pas classe parent")
+FIN
+
+// Scenario 4 : coherence objet vs :champ dans meme methode
+PROCEDURE PUBLIQUE scenario_coherence_objet_colon()
+	o est un cProbe()
+	oRetour est un cProbe = o.ModifieEtRetourne("coherent")
+
+	dbgVérifieEgalité(oRetour.sEtat, "coherent", "objet et :champ pointent bien la meme instance")
+	dbgVérifieEgalité(o.sEtat, "coherent", "instance originale modifiee via :champ")
+FIN
+
+// === Scenarios PRIVE (edge cases proactifs) ===
+
+// Scenario 5 : objet dans plusieurs niveaux imbriques
+PROCEDURE PRIVÉE scenario_objet_contexte_imbrique()
+	o est un cNiveaux()
+	o.nValeur = 0
+
+	oFinal est un cNiveaux = o.IncrementeEtRetourne()
+
+	dbgVérifieEgalité(oFinal.nValeur, 5, "objet stable dans contexte recursif")
+FIN
+
+// Scenario 6 : objet avec chaine vide / valeurs sentinel
+PROCEDURE PRIVÉE scenario_objet_valeurs_sentinel()
+	o est un cSentinel()
+	oRetour est un cSentinel = o.FixeVide()
+
+	dbgVérifieEgalité(oRetour.sTexte, "", "objet avec chaine vide OK")
+	dbgVérifieEgalité(oRetour.nNombre, 0, "objet avec valeur zero OK")
+FIN

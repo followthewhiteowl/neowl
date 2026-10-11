@@ -1,0 +1,65 @@
+// Ressource fenetre pour table_lecture_cellule — lecture cellule Table par programme.
+// Une Table a 2 colonnes typees : COL_Id (numerique) et COL_Nom (texte).
+// FinInitialisation peuple 2 lignes via TableAjouteLigne.
+// En headless, TableAjouteLigne est no-op (store absent) → lectures rouges attendues.
+
+FEN_TBL553 est une Fenêtre
+	PROPRIETES
+		Titre       = "Table lecture cellule"
+		Disposition = dispLibre
+		Largeur     = 600
+		Hauteur     = 400
+	FIN
+
+	TBL est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 560
+			Hauteur = 340
+		FIN
+
+		COL_Id est une Colonne
+			PROPRIETES
+				Libellé = "Id"
+				Type    = colTypeNumerique
+				Largeur = 80
+			FIN
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 240
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TBL, 1, "Alice")
+		TableAjouteLigne(TBL, 2, "Bob")
+		cb_0553_init_done()
+	FIN
+
+	// PROCEDURE PUBLIQUE : lit TBL[ligne].COL_Nom
+	PROCEDURE LireNom(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Nom
+	FIN
+
+	// PROCEDURE PUBLIQUE : lit TBL[ligne].COL_Id (type numerique)
+	PROCEDURE LireId(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Id
+	FIN
+
+	// PROCEDURE PUBLIQUE : modifie ligne 1 puis relit COL_Nom
+	PROCEDURE ModifierEtLireNom()
+		TableModifieLigne(TBL, 1, 99, "Charlie")
+		RENVOYER TBL[1].COL_Nom
+	FIN
+
+	// PROCEDURE PUBLIQUE : occurrence courante
+	PROCEDURE LireOccurrence()
+		RENVOYER TableOccurrence(TBL)
+	FIN
+FIN

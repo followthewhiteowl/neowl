@@ -1,0 +1,56 @@
+//  (L3.5) — le littéral couleur inline `{ Rouge=…, Opacité=… }`
+// posé DIRECTEMENT sur une propriété typée couleur (sans variable
+// intermédiaire) doit non seulement COMPILER mais aussi RENDRE le mélange
+// alpha correct (le point d'ingestion couleur, lui, marche déjà — L1+L2).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf ui-snapshot-testing + qt-owl-rendering-gotchas :
+// MESURER au pixel, pas de dbgVérifie sur un getter store.
+//
+// Fond de fenêtre ROUGE PUR opaque : RVB(255, 0, 0).
+// Couleur testée : BLANC translucide, Opacité = 128 -> {Rouge=255,
+// Vert=255, Bleu=255, Opacité=128}.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255),
+// repris de tests/runtime/couleur_alpha_fond/ (fg=BLANC sur bg=ROUGE tombe
+// pile, sans arrondi) :
+//   R : fg=255, bg=255 -> résultat = 255 (canal saturé)
+//   V : fg=255, bg=0   -> résultat = a = 128
+//   B : fg=255, bg=0   -> résultat = 128 (même calcul que V)
+// Mélange attendu : RVB(255, 128, 128).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurLitteralInlineFond)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurLitteralInlineFond)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Glassmorphisme via cascade de Style, littéral imbriqué DIRECT ---
+// CNT_Glass (X=20,Y=20,L=150,H=100) : centre = (95,70).
+dbgVérifieEgalité(dPixelCouleur(img, 95, 70), RVB(255, 128, 128),
+"CNT_Glass (littéral couleur imbriqué direct dans le thème, Opacité=128) : centre mélangé 50/50 avec le fond rouge")
+
+// --- 2. SET direct sur contrôle, littéral posé DIRECTEMENT sur la ---
+// --- propriété (pas de variable intermédiaire) -------------------------
+// SAI_Direct (X=200,Y=20,L=150,H=40) : centre = (275,40).
+SAI_Direct..CouleurFond = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 128}
+img                     = dCopieImageFenêtre(FEN_CouleurLitteralInlineFond)
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 128, 128),
+"SAI_Direct..CouleurFond = {Rouge=…, Opacité=128} (littéral inline direct) : centre mélangé 50/50 avec le fond rouge")
+
+// --- 3. Non-régression opaque : littéral inline direct avec Opacité=255
+// doit produire le même résultat qu'un entier nu (aucune régression sur
+// le chemin opaque introduite par la propagation de type cible).
+SAI_Direct..CouleurFond = RVB(255, 255, 255)
+img                     = dCopieImageFenêtre(FEN_CouleurLitteralInlineFond)
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 255, 255),
+"SAI_Direct..CouleurFond = RVB(255,255,255) (entier nu opaque) : blanc pur, non-régression")
+
+SAI_Direct..CouleurFond = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 255}
+img                     = dCopieImageFenêtre(FEN_CouleurLitteralInlineFond)
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 255, 255),
+"SAI_Direct..CouleurFond = {Rouge=…, Opacité=255} (littéral inline direct opaque) : blanc pur, identique à l'entier nu")
+
+Ferme(FEN_CouleurLitteralInlineFond)
+dbgBilanTest()

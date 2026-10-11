@@ -1,0 +1,41 @@
+//  — `Style..CadreExtérieur..X` sur un Champ Libellé autonome : le
+// conteneur (wrapper) qui enveloppe le widget. Vérifié via la bordure du
+// wrapper, dans le pourtour du champ (hors zone interne du QLabel).
+//
+// ROUGE attendu : `Style..CadreExtérieur..X` ne compile pas encore (la prop
+// 'Style' n'existe pas sur le champ Libellé). Cf.
+// FEN_StyleLibelleElementCadre.owl.
+
+TestModeHeadless(Faux)
+
+couleurCadreCouleur est un entier = RVB(0, 128, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleLibelleElementCadre)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleLibelleElementCadre)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// LIB_X occupe [20,20]-[320,80] ; le pourtour élargi [15,15]-[325,85] capte
+// la bordure du CadreExtérieur (épaisseur 5).
+nbBordure est un entier = CompteCouleurZone(img, 15, 15, 325, 85, couleurCadreCouleur)
+seuilBordure est un entier = 60 // pourtour fin, seuil bas mais sûr
+dbgVérifieVrai(nbBordure > seuilBordure, "LIB_X : Style..CadreExtérieur..Cadre..Couleur/Epaisseur peint la bordure du conteneur")
+
+Ferme(FEN_StyleLibelleElementCadre)
+dbgBilanTest()

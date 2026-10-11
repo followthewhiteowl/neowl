@@ -1,0 +1,64 @@
+// ============================================
+// TEST: String/buffer slice s[[i]] / s[[i À j]] / s[[i À]] / s[[À j]] / s[[i SUR n]]
+// Comportement de référence : opérateur d'extraction de sous-chaîne (documentation de référence).
+// ============================================
+Trace("=== STRING SLICE ===")
+
+s est une chaîne = "hello world"
+
+// --- Single char (base 1) ---
+dbgVérifieEgalité(s[[1]], "h", "1er caractere")
+dbgVérifieEgalité(s[[5]], "o", "5e caractere")
+dbgVérifieEgalité(s[[11]], "d", "dernier caractere")
+
+// --- Out of range -> empty string ---
+dbgVérifieEgalité(s[[0]], "", "Index 0 -> chaine vide")
+dbgVérifieEgalité(s[[12]], "", "Index depasse -> chaine vide")
+dbgVérifieEgalité(s[[-5]], "", "Index negatif -> chaine vide")
+
+// --- Range slice i À j (inclusif des deux côtés) ---
+dbgVérifieEgalité(s[[1 À 5]], "hello", "Tranche 1 À 5")
+dbgVérifieEgalité(s[[7 À 11]], "world", "Tranche 7 À 11")
+dbgVérifieEgalité(s[[1 À 11]], "hello world", "Tranche complete")
+
+// --- Range clipping ---
+dbgVérifieEgalité(s[[1 À 100]], "hello world", "Fin au-dela: clip")
+dbgVérifieEgalité(s[[-5 À 5]], "hello", "Debut negatif: clip a 1")
+dbgVérifieEgalité(s[[5 À 3]], "", "Range inverse: vide")
+
+// --- Single-char via slice i À i ---
+dbgVérifieEgalité(s[[1 À 1]], "h", "1 À 1 equivalent a [[1]]")
+dbgVérifieEgalité(s[[6 À 6]], " ", "6 À 6 sur espace")
+
+// --- Variante [[i À]] : jusqu'à la fin ---
+dbgVérifieEgalité(s[[7 À]], "world", "[[i À]] sans fin -> jusqu'à Taille(s)")
+dbgVérifieEgalité(s[[1 À]], "hello world", "[[1 À]] -> chaine complete")
+dbgVérifieEgalité(s[[12 À]], "", "[[i À]] avec i hors borne -> vide")
+
+// --- Variante [[À j]] : depuis le début ---
+dbgVérifieEgalité(s[[À 5]], "hello", "[[À j]] sans début -> depuis 1")
+dbgVérifieEgalité(s[[À 11]], "hello world", "[[À j]] avec j fin -> complete")
+dbgVérifieEgalité(s[[À 100]], "hello world", "[[À j]] avec j depasse -> clip")
+
+// --- Variante [[i SUR n]] : longueur n depuis i ---
+dbgVérifieEgalité(s[[1 SUR 5]], "hello", "[[1 SUR 5]] -> 5 chars depuis 1")
+dbgVérifieEgalité(s[[7 SUR 5]], "world", "[[7 SUR 5]] -> 5 chars depuis 7")
+dbgVérifieEgalité(s[[7 SUR 100]], "world", "[[7 SUR n]] n trop grand -> clip")
+dbgVérifieEgalité(s[[7 SUR 0]], "", "[[i SUR 0]] -> vide")
+
+// --- Expressions comme indices ---
+i est un entier = 3
+dbgVérifieEgalité(s[[i]], "l", "Index via variable")
+
+j est un entier = 5
+dbgVérifieEgalité(s[[i À j]], "llo", "Range via variables (i À j)")
+dbgVérifieEgalité(s[[i SUR 3]], "llo", "Longueur via variable (i SUR 3)")
+
+// --- Buffer slicing ---
+b est un buffer = ChaîneVersBuffer("abcdef")
+dbgVérifieEgalité(Taille(b[[2 À 4]]), 3, "Buffer slice 2 À 4 taille = 3")
+dbgVérifieEgalité(BufferVersChaîne(b[[2 À 4]]), "bcd", "Buffer slice vaut ""bcd""")
+dbgVérifieEgalité(BufferVersChaîne(b[[2 SUR 3]]), "bcd", "Buffer SUR 3 vaut ""bcd""")
+dbgVérifieEgalité(BufferVersChaîne(b[[3 À]]), "cdef", "Buffer [[3 À]] jusqu'à fin")
+
+dbgBilanTest()

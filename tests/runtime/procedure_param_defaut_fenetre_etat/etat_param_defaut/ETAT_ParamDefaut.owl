@@ -1,0 +1,39 @@
+// Ressource Etat pour procedure_param_defaut_fenetre_etat + etat_resolution_proc_variable : PROCEDURE avec parametres a valeur
+// par defaut dans un body d Etat. Renforce le test parsing-seul de  :
+// verifie maintenant l optionalite RUNTIME (appel avec moins d args depuis la
+// section, param par defaut applique, resultat observable via callback).
+// Depend du  (procs top-level d Etat doivent etre appelables depuis
+// le code de section) — ROUGE jusqu a la correction du .
+// Observation via callback_observe() (resolu par voisinage mode script).
+
+ETAT_ParamDefaut est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	// FR — param entier par defaut.
+	PROCEDURE Calcule(base est un entier, marge est un entier = 10)
+		RENVOYER base + marge
+	FIN
+
+	// FR — param chaine par defaut.
+	PROCEDURE Formate(prefixe est une chaîne, suffixe est une chaîne = "!")
+		RENVOYER prefixe + suffixe
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+
+		// Appel avec un seul argument : le parametre par defaut s applique.
+		// Calcule(5) : marge omis -> marge=10, resultat = 5+10 = 15.
+		rCalc est un entier = Calcule(5)
+		callback_observe("calc:" + rCalc)
+
+		// Formate("bonjour") : suffixe omis -> suffixe="!", resultat = "bonjour!".
+		rFmt est une chaîne = Formate("bonjour")
+		callback_observe("|fmt:" + rFmt)
+	FIN
+FIN

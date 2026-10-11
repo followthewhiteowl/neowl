@@ -1,0 +1,172 @@
+Trace("=== SINON SI ===")
+
+// --- Test 1: SINON SI basique - deuxieme branche ---
+nVal est un entier = 2
+sRes est une chaîne = ""
+SI nVal < 2 ALORS
+	sRes = "petit"
+SINON SI nVal < 3 ALORS
+	sRes = "moyen"
+SINON
+	sRes = "grand"
+FIN
+dbgVérifieEgalité(sRes, "moyen", "SINON SI basique: 2 -> moyen")
+
+// --- Test 2: premiere branche ---
+nVal2 est un entier = 0
+sRes2 est une chaîne = ""
+SI nVal2 < 2 ALORS
+	sRes2 = "petit"
+SINON SI nVal2 < 5 ALORS
+	sRes2 = "moyen"
+SINON
+	sRes2 = "grand"
+FIN
+dbgVérifieEgalité(sRes2, "petit", "Premiere branche: 0 -> petit")
+
+// --- Test 3: branche SINON (default) ---
+nVal3 est un entier = 99
+sRes3 est une chaîne = ""
+SI nVal3 < 2 ALORS
+	sRes3 = "petit"
+SINON SI nVal3 < 5 ALORS
+	sRes3 = "moyen"
+SINON
+	sRes3 = "grand"
+FIN
+dbgVérifieEgalité(sRes3, "grand", "Branche SINON: 99 -> grand")
+
+// --- Test 4: chaine de SINON SI multiples ---
+nNote est un entier = 14
+sMention est une chaîne = ""
+SI nNote >= 16 ALORS
+	sMention = "TB"
+SINON SI nNote >= 14 ALORS
+	sMention = "B"
+SINON SI nNote >= 12 ALORS
+	sMention = "AB"
+SINON SI nNote >= 10 ALORS
+	sMention = "Passable"
+SINON
+	sMention = "Insuffisant"
+FIN
+dbgVérifieEgalité(sMention, "B", "Chaine SINON SI: 14 -> B")
+
+// --- Test 5: chaine SINON SI - premier match ---
+nNote2 est un entier = 18
+sMention2 est une chaîne = ""
+SI nNote2 >= 16 ALORS
+	sMention2 = "TB"
+SINON SI nNote2 >= 14 ALORS
+	sMention2 = "B"
+SINON SI nNote2 >= 12 ALORS
+	sMention2 = "AB"
+FIN
+dbgVérifieEgalité(sMention2, "TB", "Chaine SINON SI: 18 -> TB")
+
+// --- Test 6: chaine SINON SI - derniere branche SINON SI ---
+nNote3 est un entier = 11
+sMention3 est une chaîne = ""
+SI nNote3 >= 16 ALORS
+	sMention3 = "TB"
+SINON SI nNote3 >= 14 ALORS
+	sMention3 = "B"
+SINON SI nNote3 >= 12 ALORS
+	sMention3 = "AB"
+SINON SI nNote3 >= 10 ALORS
+	sMention3 = "Passable"
+SINON
+	sMention3 = "Insuffisant"
+FIN
+dbgVérifieEgalité(sMention3, "Passable", "Chaine SINON SI: 11 -> Passable")
+
+// --- Test 7: sans SINON final, aucun match ---
+nVal7 est un entier = 100
+sRes7 est une chaîne = "inchange"
+SI nVal7 < 10 ALORS
+	sRes7 = "petit"
+SINON SI nVal7 < 20 ALORS
+	sRes7 = "moyen"
+FIN
+dbgVérifieEgalité(sRes7, "inchange", "Sans SINON final, aucun match: inchange")
+
+// --- Test 8: avec expressions complexes ---
+nC est un entier = 3
+nD est un entier = 4
+sRes8 est une chaîne = ""
+SI nC + nD > 20 ALORS
+	sRes8 = "grand"
+SINON SI nC + nD > 10 ALORS
+	sRes8 = "moyen"
+SINON SI nC + nD > 5 ALORS
+	sRes8 = "petit"
+SINON
+	sRes8 = "minuscule"
+FIN
+dbgVérifieEgalité(sRes8, "petit", "3+4=7 > 5 -> petit")
+
+// --- Test 9: SI simple (regression) ---
+nSimple est un entier = 42
+sSimple est une chaîne = ""
+SI nSimple > 0 ALORS
+	sSimple = "positif"
+FIN
+dbgVérifieEgalité(sSimple, "positif", "SI simple sans SINON: regression")
+
+// --- Test 10: SI/SINON simple (regression) ---
+nSimple2 est un entier = -1
+sSimple2 est une chaîne = ""
+SI nSimple2 > 0 ALORS
+	sSimple2 = "positif"
+SINON
+	sSimple2 = "negatif"
+FIN
+dbgVérifieEgalité(sSimple2, "negatif", "SI/SINON simple: regression")
+
+// --- Test 11: = comme comparaison dans SI (pas assignation!) ---
+nEq est un entier = 5
+sEq est une chaîne = ""
+SI nEq = 5 ALORS
+	sEq = "egal"
+SINON
+	sEq = "different"
+FIN
+dbgVérifieEgalité(sEq, "egal", "SI nEq = 5 : = est comparaison, pas assignation")
+dbgVérifieEgalité(nEq, 5, "nEq inchange apres SI (pas assigne)")
+
+// --- Test 12: = comparaison dans SINON SI ---
+nEq2 est un entier = 3
+sEq2 est une chaîne = ""
+SI nEq2 = 1 ALORS
+	sEq2 = "un"
+SINON SI nEq2 = 2 ALORS
+	sEq2 = "deux"
+SINON SI nEq2 = 3 ALORS
+	sEq2 = "trois"
+SINON
+	sEq2 = "autre"
+FIN
+dbgVérifieEgalité(sEq2, "trois", "SINON SI avec = : 3 -> trois")
+dbgVérifieEgalité(nEq2, 3, "nEq2 inchange apres SINON SI chaine")
+
+// --- Test 13: = comparaison dans TANTQUE ---
+nCount est un entier = 0
+nLimit est un entier = 3
+TANTQUE nCount <> nLimit
+	nCount = nCount + 1
+FIN
+dbgVérifieEgalité(nCount, 3, "TANTQUE avec <> : count atteint 3")
+
+// --- Test 14: branche SINON du SI/SINON dernier ---
+nVal11 est un entier = 5
+sRes11 est une chaîne = ""
+SI nVal11 > 100 ALORS
+	sRes11 = "enorme"
+SINON SI nVal11 > 50 ALORS
+	sRes11 = "grand"
+SINON SI nVal11 > 10 ALORS
+	sRes11 = "moyen"
+SINON
+	sRes11 = "petit"
+FIN
+dbgVérifieEgalité(sRes11, "petit", "Tombe dans SINON final: 5 -> petit")

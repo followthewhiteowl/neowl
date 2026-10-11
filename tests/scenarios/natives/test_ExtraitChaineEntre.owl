@@ -1,0 +1,91 @@
+// @sujet : ExtraitChaîneEntre
+// @résumé : Extrait la n-ième sous-chaîne (rang, base 1) située entre deux marqueurs.
+// ExtraitChaîneEntre(s, rang, sepDébut [, sepFin]) : si sepFin est omis, il vaut
+// sepDébut (extraction entre deux occurrences successives du même marqueur).
+
+
+// Cas A : extraction nominale avec marqueurs de début et de fin distincts.
+// Chaque paire d'angles délimite un jeton ; le rang sélectionne la n-ième occurrence.
+PROCEDURE PUBLIQUE scenario_extraction_nominale()
+	sListe est une chaîne = "<a><bb><ccc>"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sListe, 1, "<", ">"), "a", "ExtraitChaîneEntre(rang 1) = premier jeton")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sListe, 2, "<", ">"), "bb", "ExtraitChaîneEntre(rang 2) = jeton du milieu")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sListe, 3, "<", ">"), "ccc", "ExtraitChaîneEntre(rang 3) = dernier jeton")
+FIN
+
+
+// Cas B : sepFin omis — le même marqueur sert de début ET de fin.
+// Utile pour extraire entre deux occurrences successives d'un même délimiteur.
+PROCEDURE PUBLIQUE scenario_separateur_unique()
+	sListe est une chaîne = "|x|y|z|"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sListe, 1, "|"), "x", "ExtraitChaîneEntre(sepDébut seul, rang 1) = premier segment")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sListe, 2, "|"), "y", "ExtraitChaîneEntre(sepDébut seul, rang 2) = segment du milieu")
+FIN
+
+
+// Cas C : marqueurs au milieu d'un texte plus large, non collés aux bords.
+// Le contenu avant sepDébut et après sepFin n'est jamais inclus dans le résultat.
+PROCEDURE PUBLIQUE scenario_marqueur_au_milieu()
+	sTexte est une chaîne = "debut[TROU]fin"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sTexte, 1, "[", "]"), "TROU", "ExtraitChaîneEntre isole le contenu entre crochets sans les bords")
+FIN
+
+
+// Cas D : option SansCasse — les séparateurs matchent indépendamment de la casse.
+// Sans l'option, la casse des séparateurs doit correspondre exactement.
+PROCEDURE PUBLIQUE scenario_sans_casse()
+	sSrc est une chaîne = "DEBUTvaleurFIN"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc, 1, "debut", "fin"), Caract(4), "sans option, une casse différente entre séparateurs ne matche pas")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc, 1, "debut", "fin", SansCasse), "valeur", "avec SansCasse, la casse des séparateurs est ignorée")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc, 1, "DEBUT", "FIN"), "valeur", "casse exacte matche déjà sans option")
+FIN
+
+
+// Cas E : option MotComplet — le séparateur doit être un mot isolé (bordé par
+// ponctuation, espace ou bord de chaîne), pas un simple fragment d'un mot plus grand.
+// Note : le séparateur reste un jeton littéral ("DEB", pas "DEB ") — l'espace qui
+// sert de frontière au mot fait donc partie du contenu extrait, de part et d'autre.
+PROCEDURE PUBLIQUE scenario_mot_complet()
+	sSrc1 est une chaîne = "prefixDEB milieu STOP suffix"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc1, 1, "DEB", "STOP"), " milieu ", "sans option, DEB matche même en fragment de mot")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc1, 1, "DEB", "STOP", MotComplet), Caract(4), "avec MotComplet, DEB dans prefixDEB n'est pas un mot isolé")
+
+	sSrc2 est une chaîne = "le DEB milieu STOP bla"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc2, 1, "DEB", "STOP", MotComplet), " milieu ", "avec MotComplet, DEB et STOP isolés par des espaces matchent")
+FIN
+
+
+// Cas F : options combinées — MotComplet + SansCasse ensemble, et association avec
+// DepuisFin (sens de parcours déjà pris en charge par ailleurs) pour verrouiller
+// la non-régression de l'existant.
+PROCEDURE PUBLIQUE scenario_options_combinees()
+	sSrc1 est une chaîne = "le deb milieu stop bla"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc1, 1, "DEB", "STOP", MotComplet + SansCasse), " milieu ", "MotComplet + SansCasse : mot isolé, casse ignorée")
+
+	sSrc2 est une chaîne = "ledeb milieu stopla"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc2, 1, "DEB", "STOP", MotComplet + SansCasse), Caract(4), "MotComplet + SansCasse : fragment de mot toujours rejeté")
+
+	sSrc3 est une chaîne = "DEBUTaFINDEBUTbFIN"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc3, 1, "debut", "fin", SansCasse + DepuisFin), "b", "SansCasse + DepuisFin : dernier segment, casse ignorée")
+FIN
+
+
+// Edge : rang invalide (hors plage) — ExtraitChaîneEntre renvoie le marqueur de fin
+// de liste, la sentinelle Caract(4) (taille 1). Elle signale « aucun jeton à ce rang »
+// et permet d'arrêter proprement un parcours d'une liste de taille inconnue.
+PROCEDURE PRIVÉE scenario_rang_invalide()
+	sListe est une chaîne = "<a><bb><ccc>"
+	sRes est une chaîne = ExtraitChaîneEntre(sListe, 9, "<", ">")
+	dbgVérifieEgalité(sRes, Caract(4), "ExtraitChaîneEntre(rang hors plage) = marqueur de fin de liste")
+	dbgVérifieEgalité(Taille(sRes), 1, "ExtraitChaîneEntre(rang hors plage) : le marqueur de fin fait 1 octet")
+FIN
+
+
+// Edge : SansCasse ignore aussi les accents des séparateurs, pas seulement les
+// majuscules/minuscules — comportement aligné sur le comparateur de chaînes
+// insensible à la casse ET aux accents déjà utilisé ailleurs dans le langage.
+PROCEDURE PRIVÉE scenario_edge_sans_casse_accents()
+	sSrc est une chaîne = "DÉBUTvaleurFIN"
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc, 1, "DEBUT", "FIN"), Caract(4), "sans option, l'accent du séparateur source empêche le match")
+	dbgVérifieEgalité(ExtraitChaîneEntre(sSrc, 1, "DEBUT", "FIN", SansCasse), "valeur", "avec SansCasse, l'accent est également ignoré")
+FIN

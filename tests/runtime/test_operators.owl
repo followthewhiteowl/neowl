@@ -1,0 +1,106 @@
+// ============================================
+// TEST: Operateurs
+// ============================================
+Trace("=== OPERATEURS ===")
+
+// --- Arithmetique de base ---
+dbgVérifieEgalité(2 + 3, 5, "Addition entiers")
+dbgVérifieEgalité(10 - 4, 6, "Soustraction entiers")
+dbgVérifieEgalité(3 * 7, 21, "Multiplication entiers")
+dbgVérifieEgalité(15 / 3, 5, "Division entiers")
+dbgVérifieEgalité(17 % 5, 2, "Modulo")
+dbgVérifieEgalité(2 ^ 10, 1024.0, "Puissance")
+
+// --- Precedence ---
+dbgVérifieEgalité(2 + 3 * 4, 14, "Precedence * avant +")
+dbgVérifieEgalité((2 + 3) * 4, 20, "Parentheses changent precedence")
+dbgVérifieEgalité(10 - 2 - 3, 5, "Soustraction gauche-a-droite")
+dbgVérifieEgalité(2 ^ 3, 8.0, "Puissance simple")
+
+// --- Negation ---
+dbgVérifieEgalité(-5, 0 - 5, "Negation")
+dbgVérifieEgalité(-(-3), 3, "Double negation")
+
+// --- Division: / promeut en reel (compatibilite Python3/JS) ---
+dbgVérifieEgalité(7 / 2, 3.5, "Division promeut en reel")
+dbgVérifieEgalité(7.0 / 2, 3.5, "Division reelle explicite")
+dbgVérifieEgalité(PartieEntière(7 / 2), 3, "Division entiere via PartieEntiere")
+
+// --- Comparaison entiers ---
+dbgVérifieVrai(5 > 3, "5 > 3")
+dbgVérifieVrai(3 < 5, "3 < 5")
+dbgVérifieVrai(5 >= 5, "5 >= 5")
+dbgVérifieVrai(5 >= 4, "5 >= 4")
+dbgVérifieVrai(3 <= 3, "3 <= 3")
+dbgVérifieVrai(3 <= 4, "3 <= 4")
+dbgVérifieVrai(5 = 5, "5 = 5")
+dbgVérifieVrai(5 <> 4, "5 <> 4")
+
+// --- Comparaison chaines ---
+dbgVérifieVrai("abc" = "abc", "Chaines egales")
+dbgVérifieVrai("abc" <> "def", "Chaines differentes")
+dbgVérifieVrai("a" < "b", "Chaine a < b")
+dbgVérifieVrai("z" > "a", "Chaine z > a")
+
+// --- Comparaison mixte entier/reel ---
+dbgVérifieVrai(5 = 5.0, "Entier = reel equivalent")
+dbgVérifieVrai(3.14 > 3, "Reel > entier")
+
+// --- Logique ---
+dbgVérifieVrai(Vrai ET Vrai, "Vrai ET Vrai")
+dbgVérifieVrai(PAS (Vrai ET Faux), "PAS (Vrai ET Faux)")
+dbgVérifieVrai(Vrai OU Faux, "Vrai OU Faux")
+dbgVérifieVrai(PAS (Faux OU Faux), "PAS (Faux OU Faux)")
+dbgVérifieVrai(PAS Faux, "PAS Faux")
+
+// --- Short-circuit ---
+dbgVérifieVrai(Vrai _OU_ Faux, "_OU_ short-circuit")
+dbgVérifieVrai(PAS (Faux _ET_ Vrai), "_ET_ short-circuit")
+
+// --- Concatenation chaine ---
+dbgVérifieEgalité("Hello" + " " + "World", "Hello World", "Concat chaines")
+dbgVérifieEgalité("N=" + 42, "N=42", "Concat chaine+entier")
+
+// --- Increment / Decrement ---
+n est un entier = 10
+n++
+dbgVérifieEgalité(n, 11, "Increment ++")
+n--
+dbgVérifieEgalité(n, 10, "Decrement --")
+n += 5
+dbgVérifieEgalité(n, 15, "+= 5")
+n -= 3
+dbgVérifieEgalité(n, 12, "-= 3")
+
+// --- Division entière via PartieEntiere (regression: floor vs truncation) ---
+// Documentation de référence: PartieEntière(-3.5) = -4 (floor strict), pas -3 (truncation).
+// Bug historique OWL: faisait truncation. Cf docs/VISION.md §5bis.
+dbgVérifieEgalité(PartieEntière(7 / 3), 2, "div entière positive")
+dbgVérifieEgalité(PartieEntière(20 / 5), 4, "div entière exacte")
+dbgVérifieEgalité(PartieEntière(1 / 3), 0, "div entière < 1")
+dbgVérifieEgalité(PartieEntière(3.5), 3, "réel positif: floor = 3")
+dbgVérifieEgalité(PartieEntière(-3.5),-4, "REGRESSION: réel négatif floor = -4 (pas -3)")
+dbgVérifieEgalité(PartieEntière(-7 / 2),-4, "REGRESSION: -3.5 floor = -4")
+dbgVérifieEgalité(PartieEntière(0), 0, "zéro")
+
+// --- NumeriqueTronque (truncation vers zéro) — extension OWL ---
+// Pas de fonction de troncation native (seulement floor).
+// Cf docs/VISION.md §5bis. Comparaison directe avec PartieEntiere :
+dbgVérifieEgalité(NumériqueTronque(3.7), 3, "Tronque positif = floor positif")
+dbgVérifieEgalité(NumériqueTronque(-3.7),-3, "Tronque négatif = -3 (vs floor = -4)")
+dbgVérifieEgalité(NumériqueTronque(-3.2),-3, "Tronque négatif léger = -3 (vs floor = -4)")
+dbgVérifieEgalité(NumériqueTronque(0), 0, "Tronque zéro")
+dbgVérifieEgalité(NumériqueTronque(-0.0), 0, "Tronque -0.0")
+dbgVérifieEgalité(NumériqueTronque(7), 7, "Tronque(entier) = identité")
+
+// Différence floor vs trunc sur cas négatif (le piège classique)
+dbgVérifieEgalité(PartieEntière(-3.5) - NumériqueTronque(-3.5),-1, "delta floor-trunc négatif = -1")
+dbgVérifieEgalité(PartieEntière(3.5) - NumériqueTronque(3.5), 0, "delta floor-trunc positif = 0")
+
+// Méthodes sur entier et réel
+x est un réel = -7.8
+dbgVérifieEgalité(x.Tronque(),-7, "méthode reel.Tronque() = -7")
+dbgVérifieEgalité(x.PartieEntière(),-8, "méthode reel.PartieEntiere() = -8")
+m est un entier = 42
+dbgVérifieEgalité(m.Tronque(), 42, "méthode entier.Tronque() = identité")
+

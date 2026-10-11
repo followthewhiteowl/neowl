@@ -1,0 +1,39 @@
+// @sujet : fChargeTexte
+// @résumé : Pattern ErreurDetectee + ErreurInfo sur fichier absent ( RAZ-auto dispatch)
+
+Trace("=== fChargeTexte erreur fichier absent ===")
+
+// ── Cas 1 : pattern canonique avec capture + test immediat ──
+
+// Garantir l'absence du fichier cible avant l'appel.
+fSupprime("inexistant_xyz_test.owl_0059")
+
+c est une chaîne = fChargeTexte("inexistant_xyz_test.owl_0059")
+
+// ATTENTION : ne pas intercaler de Trace ou autre appel natif ici,
+// le dispatch RAZ-auto remettrait ErreurDetectee a Faux (c'est justement
+// le bug : OP_DEFINE_GLOBAL RAZ le flag avant le table_set).
+dbgVérifieVrai(ErreurDétectée, "fChargeTexte fichier absent : ErreurDetectee = Vrai immédiatement après capture")
+dbgVérifieEgalité(c, "", "fChargeTexte retourne chaîne vide sur fichier absent")
+
+// ErreurInfo() doit être accessible même après le RAZ-auto du flag.
+sMsg est une chaîne = ErreurInfo()
+dbgVérifieVrai(Taille(sMsg) > 0, "ErreurInfo() donne un message non vide")
+
+// ── Cas 2 : variante sans capture (appel direct + test) ──
+
+ErreurRAZ() // reset pour ne pas polluer le test suivant
+
+// Cette variante DOIT aussi détecter l'erreur : appel direct (OP_CALL seul)
+// sans passer par OP_DEFINE_GLOBAL, donc pas de RAZ par l'assignation.
+fChargeTexte("inexistant_xyz_test.owl_0059")
+dbgVérifieVrai(ErreurDétectée, "fChargeTexte (sans capture) : ErreurDetectee = Vrai")
+dbgVérifieVrai(Taille(ErreurInfo()) > 0, "ErreurInfo non vide après appel sans capture")
+
+// ── Cas 3 : ErreurRAZ() user-explicit ──
+
+ErreurRAZ()
+dbgVérifieVrai(PAS ErreurDétectée, "ErreurRAZ() remet le flag a Faux")
+dbgVérifieEgalité(ErreurInfo(), "", "ErreurRAZ() clear aussi l'info (canon de référence)")
+
+Trace("OK")

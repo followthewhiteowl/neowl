@@ -1,0 +1,126 @@
+//  : messages d'erreur de ProduitMatriciel enrichis des dimensions
+// réelles en cause. Un produit de formes incompatibles pose une erreur soft
+// (ErreurDétectée = Vrai), PAS une exception rattrapable par QUAND EXCEPTION
+// (contrat soft-error natif). Le message doit désormais nommer les dimensions
+// fautives (nombre de colonnes, taille du vecteur, nombre de lignes) plutôt
+// que le générique « tailles incompatibles ».
+//
+// Trois formes couvertes : 2D×1D (taille du vecteur ≠ colonnes de la matrice),
+// 2D×2D (colonnes de A ≠ lignes de B), 1D·1D (tailles des deux vecteurs
+// différentes). Non-régression des trois formes valides.
+//
+// Les cas incompatibles appellent la forme préfixée TenseurProduitMatriciel(a,b)
+// SANS l'affecter à un Tenseur déclaré : la coercion de déclaration
+// (« x est un Tenseur = <expr Null> ») réémet sa propre erreur générique et
+// masquerait le message enrichi de la native. La forme préfixée nue expose le
+// message réel de ProduitMatriciel, seul objet de ce ticket.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// ==================== FORMES INCOMPATIBLES → ErreurDétectée ====================
+
+// Matrice 2×3 × Vecteur de taille 2 : le nombre de colonnes de la matrice (3)
+// diffère de la taille du vecteur (2). Erreur soft, message avec les deux
+// dimensions réelles.
+PROCEDURE PUBLIQUE scenario_matrice_vecteur_incompatible()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 2.0])
+
+	TenseurProduitMatriciel(tW, tx)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Matrice(2x3) x Vecteur(2) : ErreurDétectée = Vrai")
+
+	sMsg est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieVrai(Contient(sMsg, "colonnes de la matrice (3)"),
+		"Message nomme le nombre de colonnes réel : 3")
+	dbgVérifieVrai(Contient(sMsg, "taille 2"),
+		"Message nomme la taille réelle du vecteur : 2")
+FIN
+
+
+// Matrice A(2×3) × Matrice B(2×2) : colonnes de A (3) ≠ lignes de B (2).
+PROCEDURE PUBLIQUE scenario_matrice_matrice_incompatible()
+	matA est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	matB est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	TenseurProduitMatriciel(tA, tB)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Matrice(2x3) x Matrice(2x2) : ErreurDétectée = Vrai")
+
+	sMsg est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieVrai(Contient(sMsg, "colonnes de A (3)"),
+		"Message nomme le nombre de colonnes de A réel : 3")
+	dbgVérifieVrai(Contient(sMsg, "B a 2 lignes"),
+		"Message nomme le nombre de lignes réel de B : 2")
+FIN
+
+
+// Vecteur(3) · Vecteur(2) : produit scalaire de tailles différentes.
+PROCEDURE PUBLIQUE scenario_vecteur_vecteur_incompatible()
+	tA est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	tB est un Tenseur = Tenseur([4.0, 5.0])
+
+	TenseurProduitMatriciel(tA, tB)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Vecteur(3) . Vecteur(2) : ErreurDétectée = Vrai")
+
+	sMsg est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieVrai(Contient(sMsg, "meme taille (3)"),
+		"Message nomme la taille du premier vecteur : 3")
+	dbgVérifieVrai(Contient(sMsg, "taille 2"),
+		"Message nomme la taille du second vecteur : 2")
+FIN
+
+
+// ==================== NON-RÉGRESSION FORMES VALIDES ====================
+
+// Vecteur(2) · Vecteur(2) → Tenseur scalaire, aucune erreur.
+PROCEDURE PUBLIQUE scenario_valide_vecteur_vecteur()
+	tA est un Tenseur = Tenseur([1.0, 2.0])
+	tB est un Tenseur = Tenseur([3.0, 4.0])
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Vecteur(2) . Vecteur(2) valide : aucune erreur")
+	dbgVérifieEgalité(tC..Valeur[1], 11.0, "1*3 + 2*4 = 11")
+FIN
+
+
+// Matrice(2×3) × Vecteur(3) → Tenseur 1D de taille 2, aucune erreur.
+PROCEDURE PUBLIQUE scenario_valide_matrice_vecteur()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 0.0, 2.0])
+
+	tY est un Tenseur = tW.ProduitMatriciel(tx)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Matrice(2x3) x Vecteur(3) valide : aucune erreur")
+	dbgVérifieEgalité(tY..Valeur[1], 7.0, "1*1 + 2*0 + 3*2 = 7")
+	dbgVérifieEgalité(tY..Valeur[2], 16.0, "4*1 + 5*0 + 6*2 = 16")
+FIN
+
+
+// Matrice(2×3) × Matrice(3×2) → Tenseur 2D (2×2), aucune erreur.
+PROCEDURE PUBLIQUE scenario_valide_matrice_matrice()
+	matA est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	matB est une Matrice = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Matrice(2x3) x Matrice(3x2) valide : aucune erreur")
+	// C[1][1] = 1*1 + 2*3 + 3*5 = 22
+	matC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(matC[1][1], 22.0, "C[1][1] = 1*1 + 2*3 + 3*5 = 22")
+FIN
+
+
+dbgBilanTest()

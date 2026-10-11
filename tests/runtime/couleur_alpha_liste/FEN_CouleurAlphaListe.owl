@@ -1,0 +1,90 @@
+// Fenêtre voisine — ressource pour test_couleur_alpha_liste.owl (
+// LOT 2 : opacité sur les couleurs d'affichage de données — Liste).
+//
+// 3 Champ Liste empilés verticalement, chacun stylé statiquement via
+// Style.. (LibelléLignes, LigneSélectionnée) :
+//
+//   LST_Temoin     : tous les sous-éléments en entier nu opaque (témoin
+//                    non-régression).
+//   LST_AlphaFond  : LigneSélectionnée..CouleurFond en instance Couleur
+//                    translucide (Opacité=128), le texte gardé en entier
+//                    nu opaque (découplé, pour isoler le bug fond).
+//   LST_AlphaTexte : LibelléLignes..Couleur ET LigneSélectionnée..Couleur
+//                    en instance Couleur translucide, le fond gardé en
+//                    entier nu opaque (découplé).
+//
+// Contrairement au Champ Table, le Champ Liste (owl_ui_liste_set_style,
+// pure QSS `QListWidget::item`/`::item:selected`) ne montre PAS le dégradé
+// "shine" Fusion mesuré sur la ligne sélectionnée d'une Table : mesuré
+// flat, exact, pas de tolérance nécessaire ici.
+//
+// CadreExtérieur..CouleurFond = RVB(255,0,0) (entier nu, opaque, HORS bug
+// lot 2) est le fond du QListWidget lui-même : les items sans fond propre
+// (ex. LibelléLignes non stylée) le montrent tel quel -> substrat rouge
+// déterministe pour le texte non-sélectionné. Le texte est testé sur un
+// fond BLANC opaque déclaré explicitement (mélange exact, sans arrondi).
+
+FEN_CouleurAlphaListe est une Fenêtre
+	PROPRIETES
+		Titre       = "Alpha Liste — affichage de données"
+		Largeur     = 500
+		Hauteur     = 560
+		Disposition = dispLibre
+		CouleurFond = RVB(255, 0, 0)
+	FIN
+
+	LST_Temoin est un Champ Liste
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 440
+			Hauteur = 150
+			Contenu = `Item 0
+Item 1
+Item 2`
+			Style..CadreExtérieur..CouleurFond    = RVB(255, 0, 0)
+			Style..LibelléLignes..CouleurFond     = RVB(255, 255, 255)
+			Style..LibelléLignes..Couleur         = RVB(0, 180, 0)
+			Style..LigneSélectionnée..CouleurFond = RVB(200, 200, 0)
+			Style..LigneSélectionnée..Couleur     = RVB(10, 10, 10)
+		FIN
+	FIN
+
+	LST_AlphaFond est un Champ Liste
+		PROPRIETES
+			X       = 20
+			Y       = 200
+			Largeur = 440
+			Hauteur = 150
+			Contenu = `Item 0
+Item 1
+Item 2`
+			Style..CadreExtérieur..CouleurFond    = RVB(255, 0, 0)
+			Style..LigneSélectionnée..CouleurFond = {Rouge = 0, Vert = 0, Bleu = 255, Opacité = 128}
+			Style..LigneSélectionnée..Couleur     = RVB(0, 0, 0)
+		FIN
+	FIN
+
+	LST_AlphaTexte est un Champ Liste
+		PROPRIETES
+			X       = 20
+			Y       = 380
+			Largeur = 440
+			Hauteur = 150
+			Contenu = `Item 0
+Item 1
+Item 2`
+			Style..CadreExtérieur..CouleurFond    = RVB(255, 0, 0)
+			Style..LibelléLignes..CouleurFond     = RVB(255, 255, 255)
+			Style..LibelléLignes..Couleur         = {Rouge = 0, Vert = 255, Bleu = 0, Opacité = 128}
+			Style..LigneSélectionnée..CouleurFond = RVB(255, 255, 255)
+			Style..LigneSélectionnée..Couleur     = {Rouge = 255, Vert = 0, Bleu = 0, Opacité = 128}
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		ListeSelectPlus(LST_Temoin, 2)
+		ListeSelectPlus(LST_AlphaFond, 2)
+		ListeSelectPlus(LST_AlphaTexte, 2)
+	FIN
+FIN

@@ -1,0 +1,87 @@
+// @sujet : coercion structurelle chaîne → JSON
+// @résumé : quand une chaîne est convertie vers une variable typée JSON (déclaration ou affectation), si la chaîne (après retrait des blancs de tête) commence par `{` ou `[`, elle est parsée comme JSON — document réel valide, ou erreur d'exécution si malformée. Toute autre chaîne (scalaire, texte libre) reste inchangée : pas de parse, pas d'erreur.
+
+
+// Une chaîne littérale objet ({...}) affectée à une variable JSON devient
+// un document réel : les membres sont accessibles par notation pointée.
+PROCEDURE PUBLIQUE scenario_objet_coerce()
+	o est un JSON = `{"a":1,"b":2}`
+	dbgVérifieEgalité(o.a, 1, "membre a du document coercé")
+	dbgVérifieEgalité(o.b, 2, "membre b du document coercé")
+FIN
+
+
+// Une chaîne littérale tableau ([...]) affectée à une variable JSON devient
+// un tableau réel : les éléments sont parcourables.
+PROCEDURE PUBLIQUE scenario_tableau_coerce()
+	p est un JSON = `[10,20,30]`
+	nSomme est un entier = 0
+	POUR TOUT e DE p
+		nSomme = nSomme + e
+	FIN
+	dbgVérifieEgalité(nSomme, 60, "somme des éléments du tableau coercé")
+FIN
+
+
+// Les blancs de tête n'empêchent pas la reconnaissance de la structure :
+// le test `{`/`[` s'applique après retrait de ces blancs.
+PROCEDURE PUBLIQUE scenario_blancs_de_tete()
+	o est un JSON = `  {"a":1}`
+	dbgVérifieEgalité(o.a, 1, "coercion malgré des blancs de tête")
+FIN
+
+
+// Un objet JSON imbriqué est entièrement navigable après coercion, pas
+// seulement son premier niveau.
+PROCEDURE PUBLIQUE scenario_objet_imbrique()
+	o est un JSON = `{"x":{"y":5}}`
+	dbgVérifieEgalité(o.x.y, 5, "membre imbriqué du document coercé")
+FIN
+
+
+// Une chaîne qui commence par `{` mais n'est pas un JSON valide n'est pas
+// stockée silencieusement : la coercion échoue en erreur d'exécution.
+PROCEDURE PUBLIQUE scenario_malforme_erreur()
+	o est un JSON = `{oops`
+	dbgVérifieVrai(ErreurDétectée, "structure malformée détectée comme erreur")
+	Trace(o)
+FIN
+
+
+// Quand la coercion échoue, l'erreur rapporte la position réelle de l'échec
+// dans la chaîne (ici l'octet 1, juste après `{`, où une clef était attendue),
+// pas une position factice de tête.
+PROCEDURE PUBLIQUE scenario_malforme_position_reelle()
+	o est un JSON = `{oops`
+	sMsg est une chaîne = ErreurInfo()
+	dbgVérifieVrai(Position(sMsg, "position 1") > 0, "position réelle 1 rapportée dans le message d'erreur")
+	dbgVérifieEgalité(Position(sMsg, "position 0"), 0, "pas de position factice 0")
+	Trace(o)
+FIN
+
+
+// NON-RÉGRESSION — une chaîne qui ne commence pas par `{`/`[` reste stockée
+// telle quelle : pas de parse, pas d'erreur.
+PROCEDURE PUBLIQUE scenario_non_regression_texte()
+	o est un JSON = "hello"
+	dbgVérifieFaux(ErreurDétectée, "aucune erreur sur un texte libre")
+	dbgVérifieEgalité(Taille(o), 5, "chaîne inchangée conservée telle quelle")
+FIN
+
+
+// NON-RÉGRESSION — un scalaire numérique en chaîne reste lui aussi inchangé,
+// même s'il est syntaxiquement valide comme valeur JSON isolée.
+PROCEDURE PUBLIQUE scenario_non_regression_numerique()
+	n est un JSON = "42"
+	dbgVérifieFaux(ErreurDétectée, "aucune erreur sur un scalaire numérique")
+	dbgVérifieEgalité(Taille(n), 2, "chaîne numérique inchangée conservée telle quelle")
+FIN
+
+
+// La règle vit au point de coercion commun : une affectation ultérieure
+// (pas seulement la déclaration initiale) déclenche la même coercion.
+PROCEDURE PUBLIQUE scenario_affectation_coerce()
+	o est un JSON
+	o = `{"z":9}`
+	dbgVérifieEgalité(o.z, 9, "coercion appliquée aussi lors d'une affectation")
+FIN

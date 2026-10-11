@@ -1,0 +1,200 @@
+// @sujet : dSauveImagePNG
+// @résumé : Sauvegarder une image au format PNG (compression sans perte, canal alpha préservé)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_sauvegarde_nominal()
+	img est une Image
+	chemin est une chaîne
+	succès est un booléen
+
+	// Créer une image 50x50 pixels avec fond bleu
+	img    = dCréeImage(50, 50, RVB(0, 0, 255))
+	chemin = fRepTemp() + "test_nominal.png"
+
+	// Sauvegarder l'image au format PNG
+	succès = dSauveImagePNG(img, chemin)
+
+	// Vérifier que la sauvegarde a réussi
+	dbgVérifieEgalité(succès, Vrai, "sauvegarde reussie")
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "fichier cree sur disque")
+FIN
+
+PROCEDURE PUBLIQUE scenario_round_trip_dimensions_preservees()
+	imgSource est une Image
+	imgChargée est une Image
+	chemin est une chaîne
+	couleurDominante est un entier
+
+	// Créer une image avec une couleur spécifique
+	imgSource = dCréeImage(100, 100, RVB(128, 64, 32))
+	chemin    = fRepTemp() + "test_round_trip.png"
+
+	// Sauvegarder puis recharger
+	dSauveImagePNG(imgSource, chemin)
+	imgChargée = dChargeImage(chemin)
+
+	// PNG sans perte : dimensions et couleur dominante doivent être préservées
+	dbgVérifieEgalité(imgChargée..Largeur, 100, "largeur preservee")
+	dbgVérifieEgalité(imgChargée..Hauteur, 100, "hauteur preservee")
+	couleurDominante = CouleurDominanteImage(imgChargée)
+	dbgVérifieEgalité(couleurDominante, RVB(128, 64, 32), "couleur dominante preservee PNG")
+FIN
+
+PROCEDURE PUBLIQUE scenario_transparence_optionnelle()
+	img est une Image
+	imgReloaded est une Image
+	chemin est une chaîne
+	couleurTransparente est un entier
+	succès est un booléen
+
+	couleurTransparente = RVB(255, 0, 255) // Magenta
+
+	// Créer une image avec fond magenta
+	img    = dCréeImage(40, 40, couleurTransparente)
+	chemin = fRepTemp() + "test_transparence.png"
+
+	// Sauvegarder avec couleur de transparence (magenta devient transparent)
+	succès      = dSauveImagePNG(img, chemin, couleurTransparente)
+	imgReloaded = dChargeImage(chemin)
+
+	// Vérifier que la sauvegarde a réussi et que le canal alpha est activé
+	dbgVérifieEgalité(succès, Vrai, "sauvegarde avec transparence reussie")
+	dbgVérifieEgalité(imgReloaded..AvecAlpha, Vrai, "canal alpha present apres reload")
+FIN
+
+PROCEDURE PUBLIQUE scenario_canal_alpha_preserve()
+	img est une Image
+	imgReloaded est une Image
+	chemin est une chaîne
+	succès est un booléen
+
+	// Créer une image avec canal alpha (défaut de dCréeImage)
+	img    = dCréeImage(30, 30, RVB(100, 150, 200))
+	chemin = fRepTemp() + "test_alpha.png"
+
+	// Sauvegarder l'image
+	succès      = dSauveImagePNG(img, chemin)
+	imgReloaded = dChargeImage(chemin)
+
+	// Le canal alpha doit être préservé par le format PNG
+	dbgVérifieEgalité(succès, Vrai, "sauvegarde avec canal alpha reussie")
+	dbgVérifieEgalité(imgReloaded..AvecAlpha, Vrai, "canal alpha preserve PNG")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dimensions_variees()
+	imgPetite est une Image
+	imgGrande est une Image
+	cheminPetite est une chaîne
+	cheminGrande est une chaîne
+	succèsPetite est un booléen
+	succèsGrande est un booléen
+
+	// Créer une petite (10x10) et une grande (200x150) image
+	imgPetite = dCréeImage(10, 10, RVB(100, 100, 100))
+	imgGrande = dCréeImage(200, 150, RVB(200, 200, 200))
+
+	cheminPetite = fRepTemp() + "test_petite.png"
+	cheminGrande = fRepTemp() + "test_grande.png"
+
+	// Sauvegarder les deux
+	succèsPetite = dSauveImagePNG(imgPetite, cheminPetite)
+	succèsGrande = dSauveImagePNG(imgGrande, cheminGrande)
+
+	// Vérifier que les deux sauvegardes ont réussi
+	dbgVérifieEgalité(succèsPetite, Vrai, "petite image sauvegardee")
+	dbgVérifieEgalité(succèsGrande, Vrai, "grande image sauvegardee")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisible dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_dimension_minimale()
+	img est une Image
+	chemin est une chaîne
+	succès est un booléen
+
+	// Image 1x1 pixel (dimension minimale)
+	img    = dCréeImage(1, 1, Blanc)
+	chemin = fRepTemp() + "test_1x1.png"
+
+	succès = dSauveImagePNG(img, chemin)
+
+	dbgVérifieEgalité(succès, Vrai, "sauvegarde 1x1 reussie")
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "fichier 1x1 cree")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_ecrasement_fichier_existant()
+	img1 est une Image
+	img2 est une Image
+	chemin est une chaîne
+	succès1 est un booléen
+	succès2 est un booléen
+
+	// Créer deux images différentes
+	img1 = dCréeImage(20, 20, RVB(255, 0, 0))
+	img2 = dCréeImage(20, 20, RVB(0, 255, 0))
+
+	chemin = fRepTemp() + "test_ecrase.png"
+
+	// Sauvegarder la première, puis écraser avec la seconde
+	succès1 = dSauveImagePNG(img1, chemin)
+	succès2 = dSauveImagePNG(img2, chemin)
+
+	// Les deux sauvegardes doivent réussir (écrasement silencieux)
+	dbgVérifieEgalité(succès1, Vrai, "premiere sauvegarde reussie")
+	dbgVérifieEgalité(succès2, Vrai, "ecrasement reussi")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chemin_relatif()
+	img est une Image
+	chemin est une chaîne
+	succès est un booléen
+
+	// Utiliser un chemin relatif (valide selon la doc)
+	img    = dCréeImage(25, 25, RVB(50, 50, 50))
+	chemin = "test_relatif.png"
+
+	succès = dSauveImagePNG(img, chemin)
+
+	dbgVérifieEgalité(succès, Vrai, "sauvegarde chemin relatif reussie")
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "fichier relatif cree")
+
+	// Nettoyage : le chemin relatif s'ecrit dans le cwd, ne pas polluer
+	fSupprime(chemin)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_sans_extension()
+	img est une Image
+	chemin est une chaîne
+	succès est un booléen
+
+	// La doc indique que l'extension n'est pas obligatoire
+	img    = dCréeImage(15, 15, RVB(111, 111, 111))
+	chemin = fRepTemp() + "test_sans_ext"
+
+	succès = dSauveImagePNG(img, chemin)
+
+	// Le système doit ajouter .png automatiquement ou gérer l'absence
+	dbgVérifieEgalité(succès, Vrai, "sauvegarde sans extension reussie")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_couleur_noire_transparente()
+	img est une Image
+	chemin est une chaîne
+	couleurNoir est un entier
+
+	couleurNoir = RVB(0, 0, 0)
+
+	// Créer une image noire et la rendre transparente
+	img    = dCréeImage(30, 30, couleurNoir)
+	chemin = fRepTemp() + "test_noir_transparent.png"
+
+	dSauveImagePNG(img, chemin, couleurNoir)
+
+	// Vérifier que le fichier est créé (le noir devient transparent)
+	dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "noir transparent sauvegarde")
+FIN

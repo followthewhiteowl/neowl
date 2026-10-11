@@ -1,0 +1,32 @@
+//  — type `FormatMonétaire` : instance CONFIGURÉE inline (littéral
+// `{ Symbole = "€", SéparateurMilliers = " ", ChiffresAprèsVirgule = 2 }`
+// posé directement sur le champ, sans passer par un projet). Vérifie l'accès
+// aux propriétés (`..Symbole`, `..SéparateurMilliers`) et l'effet observable
+// sur le round-trip d'affichage.
+//
+// Discriminant central (point d'attention #1 du ticket) : 1234567.89 posé en
+// ..Valeur est affiché AVEC le symbole et le séparateur de milliers
+// (ex. "1 234 567,89 €"). Relu en ..Valeur, il DOIT rendre 1234567.89 exact —
+// le symbole ET le séparateur de milliers doivent être retirés avant le
+// reparse en VAL_CURRENCY ( Qt-first), sinon la valeur relue serait
+// corrompue ou une erreur de coercion serait levée.
+//
+// ROUGE attendu : le type `FormatMonétaire` n'existe pas au catalogue —
+// compilation de la fenêtre voisine échoue (propriété/type inconnu).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatMonetaireTypeConfigure)
+
+sSymbole est une chaîne = SAI_Montant..FormatMonétaire..Symbole
+dbgVérifieEgalité(sSymbole, "€", "FormatMonétaire configuré : ..Symbole accessible et vaut la valeur posée inline")
+
+sSepMilliers est une chaîne = SAI_Montant..FormatMonétaire..SéparateurMilliers
+dbgVérifieEgalité(sSepMilliers, " ", "FormatMonétaire configuré : ..SéparateurMilliers accessible et vaut la valeur posée inline")
+
+SAI_Montant..Valeur = 0m1234567.89
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234567.89, "FormatMonétaire configuré (symbole + séparateur de milliers) : round-trip SET->affiché formaté avec symbole->GET rend 1234567.89 exact, symbole et séparateur retirés au reparse")
+
+Ferme(FEN_FormatMonetaireTypeConfigure)
+dbgBilanTest()

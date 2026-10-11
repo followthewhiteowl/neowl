@@ -1,0 +1,109 @@
+// @sujet : Compresse
+// @résumé : Compresse des données en mémoire avec gzip ou deflate. Retourne un buffer compressé à partir d'une chaîne ou d'un buffer source.
+
+
+// Cas canonique : compression par défaut (gzip niveau 6).
+// La chaîne répétitive se compresse significativement.
+PROCEDURE scenario_compression_defaut()
+	sTexte est une chaîne = "Hello world. Hello world. Hello world. Hello world."
+	bCompresse est un buffer = Compresse(sTexte)
+	dbgVérifieVrai(Taille(bCompresse) > 0, "Compresse produit un buffer non vide")
+	dbgVérifieVrai(Taille(bCompresse) < Taille(sTexte), "Compression réduit la taille")
+
+	// Vérification round-trip : décompression restaure la chaîne d'origine.
+	bDecompresse est un buffer = Décompresse(bCompresse)
+	sRestauree est une chaîne = BufferVersChaîne(bDecompresse)
+	dbgVérifieEgalité(sRestauree, sTexte, "Round-trip compression/décompression")
+FIN
+
+
+// Compression de données UTF-8 multi-octets : accents, caractères spéciaux.
+PROCEDURE scenario_utf8_multibytes()
+	sSource est une chaîne = "Données éàüç日本 répétées éàüç日本 éàüç日本"
+	bComp est un buffer = Compresse(sSource)
+	bDec est un buffer = Décompresse(bComp)
+	sRecupere est une chaîne = BufferVersChaîne(bDec)
+	dbgVérifieEgalité(sRecupere, sSource, "Round-trip UTF-8")
+FIN
+
+
+// Niveau de compression 0 : aucune compression appliquée, mais l'enveloppe
+// gzip est présente (overhead de structure). Niveau 9 : compression maximale.
+PROCEDURE scenario_niveaux_compression()
+	sRepetitif est une chaîne = Répète("A", 300)
+
+	bNiv0 est un buffer = Compresse(sRepetitif, compresseGZIP, 0)
+	bNiv9 est un buffer = Compresse(sRepetitif, compresseGZIP, 9)
+
+	dbgVérifieVrai(Taille(bNiv9) <= Taille(bNiv0), "Niveau 9 réduit davantage que niveau 0")
+
+	// Vérification round-trip sur les deux niveaux.
+	sRestau0 est une chaîne = BufferVersChaîne(Décompresse(bNiv0))
+	sRestau9 est une chaîne = BufferVersChaîne(Décompresse(bNiv9))
+	dbgVérifieEgalité(sRestau0, sRepetitif, "Niveau 0 round-trip OK")
+	dbgVérifieEgalité(sRestau9, sRepetitif, "Niveau 9 round-trip OK")
+FIN
+
+
+// compresseAucun : mode store (pas de compression effective). Les données
+// passent telles quelles dans l'enveloppe. Pratique pour forcer un format
+// d'archive sans pénalité de compression sur données déjà compressées.
+PROCEDURE scenario_compresse_aucun()
+	sOriginal est une chaîne = "xyz"
+	bStore est un buffer = Compresse(sOriginal, compresseAucun)
+	bRestau est un buffer = Décompresse(bStore, compresseAucun)
+	sRestau est une chaîne = BufferVersChaîne(bRestau)
+	dbgVérifieEgalité(sRestau, sOriginal, "compresseAucun passthrough OK")
+FIN
+
+
+// compresseLZW : alias de deflate dans l'implémentation actuelle (miniz ne
+// fait pas LZW stricto sensu, mais la constante est disponible pour compatibilité).
+PROCEDURE scenario_compresse_lzw()
+	sSource est une chaîne = "test"
+	bComp est un buffer = Compresse(sSource, compresseLZW)
+	bDec est un buffer = Décompresse(bComp, compresseLZW)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+	dbgVérifieEgalité(sRestau, sSource, "compresseLZW roundtrip OK")
+FIN
+
+
+// Cas limite : chaîne vide. Compresse retourne un buffer qui contient
+// uniquement l'overhead de structure (header gzip + trailer). Décompresse
+// retourne Null (comportement runtime actuel).
+PROCEDURE PRIVÉE scenario_chaine_vide()
+	bVide est un buffer = Compresse("")
+	dbgVérifieVrai(Taille(bVide) > 0, "Chaîne vide produit overhead structurel")
+
+	bRestau est un buffer = Décompresse(bVide)
+	dbgVérifieVrai(EstNul(bRestau), "Décompression chaîne vide retourne Null")
+FIN
+
+
+// Cas limite : données très répétitives. Ratio de compression élevé.
+PROCEDURE PRIVÉE scenario_repetitif_fort_ratio()
+	sLongue est une chaîne = Répète("X", 1000)
+	bComp est un buffer = Compresse(sLongue, compresseGZIP, 9)
+
+	// Ratio attendu : au moins 10x. On vérifie que le compressé est bien < 100 bytes.
+	dbgVérifieVrai(Taille(bComp) < 100, "Compression très répétitive < 100 octets")
+
+	sRestau est une chaîne = BufferVersChaîne(Décompresse(bComp))
+	dbgVérifieEgalité(Taille(sRestau), 1000, "Round-trip taille 1000")
+FIN
+
+
+// Cas limite : données aléatoires ou non compressibles. Le ratio de
+// compression est proche de 1 (aucune réduction significative).
+PROCEDURE PRIVÉE scenario_donnees_non_compressibles()
+	// Simulation de données "aléatoires" : chaque caractère est différent.
+	sAleatoire est une chaîne = "abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/~`"
+	bComp est un buffer = Compresse(sAleatoire)
+
+	// On ne peut pas gagner grand-chose : le compressé sera proche de l'original.
+	// Vérification : ratio < 2 (overhead gzip inclus), round-trip OK.
+	dbgVérifieVrai(Taille(bComp) <= Taille(sAleatoire) * 2, "Données non compressibles : ratio ~1")
+
+	sRestau est une chaîne = BufferVersChaîne(Décompresse(bComp))
+	dbgVérifieEgalité(sRestau, sAleatoire, "Round-trip données non compressibles OK")
+FIN

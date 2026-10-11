@@ -1,0 +1,78 @@
+// ============================================
+// TEST: Reflection (TypeVar, constantes wl*, RécupèreDéfinition*,
+//                   VariableExiste, EstNul, TypeEstNullable)
+// ============================================
+Trace("=== REFLECTION ===")
+
+// --- TypeVar retourne un entier (constantes wl*) ---
+n est un entier = 42
+r est un réel = 3.14
+b est un booléen = Vrai
+s est une chaîne = "hello"
+d est une date
+h est une heure
+arrT est un tableau de entiers
+mapassoc est un tableau associatif de chaînes
+
+dbgVérifieEgalité(TypeVar(n), owlEntier, "TypeVar entier")
+dbgVérifieEgalité(TypeVar(r), owlReel, "TypeVar reel")
+dbgVérifieEgalité(TypeVar(b), owlBooleen, "TypeVar booleen")
+dbgVérifieEgalité(TypeVar(s), owlChaine, "TypeVar chaine")
+dbgVérifieEgalité(TypeVar(d), owlDate, "TypeVar date")
+dbgVérifieEgalité(TypeVar(h), owlHeure, "TypeVar heure")
+dbgVérifieEgalité(TypeVar(arrT), owlTableau, "TypeVar tableau")
+dbgVérifieEgalité(TypeVar(mapassoc), owlTableauAssociatif, "TypeVar arrT assoc")
+/* TypeVar(Null) retourne 0 (placeholder runtime "type non identifié").
+ * Pas de constante canon de référence pour cette valeur — strict mode. */
+dbgVérifieEgalité(TypeVar(Null), 0, "TypeVar Null = 0 (sans label canon)")
+
+// --- TypeVar sur struct et builtin ---
+Point est une Structure
+	x est un entier
+	y est un entier
+FIN
+
+p est un Point
+dbgVérifieEgalité(TypeVar(p), owlStructure, "TypeVar struct = owlStructure")
+
+req est un httpRequête
+dbgVérifieEgalité(TypeVar(req), owlStructure, "TypeVar builtin = owlStructure")
+
+// --- TypeEstNullable (toujours Faux en v1) ---
+dbgVérifieFaux(TypeEstNullable(n), "Nullable Faux en v1")
+
+// --- EstNul ---
+dbgVérifieVrai(EstNul(Null), "EstNul Null")
+dbgVérifieFaux(EstNul(0), "EstNul 0 = Faux")
+dbgVérifieFaux(EstNul(""), "EstNul chaine vide = Faux")
+
+// --- VariableExiste ---
+dbgVérifieVrai(VariableExiste("n"), "n existe")
+dbgVérifieVrai(VariableExiste("Point"), "Point existe (type enregistré)")
+dbgVérifieFaux(VariableExiste("zzzzzz"), "zzzzzz n'existe pas")
+
+// --- RécupèreDéfinition ---
+defN est un Definition = RécupèreDéfinition(n)
+dbgVérifieEgalité(defN..Type, owlEntier, "RecDef..Type = owlEntier")
+dbgVérifieEgalité(defN..FamilleDéfinition, familleTypeSimple, "Famille simple")
+dbgVérifieEgalité(defN..Nom, "entier", "Def..Nom entier")
+dbgVérifieEgalité(defN..Nullable, Faux, "Nullable Faux")
+
+// Sur struct : ChampsNoms
+p.x = 1
+p.y = 2
+
+defP est un Definition = RécupèreDéfinition(p)
+dbgVérifieEgalité(defP..Nom, "Point", "Def struct nom")
+dbgVérifieEgalité(defP..FamilleDéfinition, familleStructure, "Famille struct")
+dbgVérifieEgalité(Taille(defP..ChampsNoms), 2, "2 champs")
+
+// --- RécupèreDéfinition also works on variables ---
+defV est un Definition = RécupèreDéfinition(p)
+dbgVérifieEgalité(defV..Nom, "Point", "Def variable nom")
+
+// --- RécupèreDéfinitionType — lookup par nom ---
+defHttp est un Definition = RécupèreDéfinitionType("httpRequete")
+dbgVérifieEgalité(defHttp..Nom, "httpRequete", "Def par nom type")
+
+dbgBilanTest()

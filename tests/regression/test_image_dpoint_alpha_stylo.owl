@@ -1,0 +1,168 @@
+// @sujet : dPoint runtime - intégration canal alpha + contexte dStylo
+// @resume : Tests régression bugs dPoint (opacité partielle ignorée, dStylo non appliqué)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — bugs dPoint runtime (test_0097 3 FAIL attendus)
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_partielle_128()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 128 (~50%) → pixel semi-transparent attendu
+	dPoint(img, 5, 5, RVB(255, 0, 0), 128)
+
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Attendu : alpha ~128 (semi-transparent)
+	// BUG actuel : écrit alpha 255 (opaque complet) au lieu de respecter param opacité
+	dbgVérifieVrai(alpha >= 120 ET alpha <= 136, "dPoint opacite 128 - alpha semi-transparent ~128")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_0_transparent()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 0 → pixel doit rester transparent (aucun effet)
+	dPoint(img, 5, 5, RVB(0, 255, 0), 0)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Attendu : pixel reste blanc (transparent) + alpha 255 (fond blanc opaque)
+	// BUG actuel : écrit vert opaque au lieu de transparent
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint opacite 0 - pixel reste blanc R")
+	dbgVérifieEgalité(c..Vert, 255, "dPoint opacite 0 - pixel reste blanc V")
+	dbgVérifieEgalité(c..Bleu, 255, "dPoint opacite 0 - pixel reste blanc B")
+	dbgVérifieEgalité(alpha, 255, "dPoint opacite 0 - alpha reste 255")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_64_faible()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 64 (~25%) → pixel très transparent
+	dPoint(img, 5, 5, RVB(0, 0, 255), 64)
+
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Attendu : alpha ~64
+	dbgVérifieVrai(alpha >= 56 ET alpha <= 72, "dPoint opacite 64 - alpha tres transparent ~64")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_apres_dstylo_couleur_stylo_appliquee()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo définit couleur rouge, puis dPoint SANS passer couleur explicite → doit prendre couleur stylo
+	dStylo(img, RVB(255, 0, 0), 0, 1, 255)
+	dPoint(img, 5, 5)
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+
+	// Attendu : pixel rouge (couleur définie par dStylo)
+	// BUG actuel : écrit noir au lieu de prendre couleur stylo
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint apres dStylo - pixel rouge R")
+	dbgVérifieEgalité(c..Vert, 0, "dPoint apres dStylo - pixel rouge V")
+	dbgVérifieEgalité(c..Bleu, 0, "dPoint apres dStylo - pixel rouge B")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_apres_dstylo_opacite_stylo_appliquee()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo définit opacité 128, puis dPoint SANS passer opacité explicite → doit prendre opacité stylo
+	dStylo(img, RVB(0, 255, 0), 0, 1, 128)
+	dPoint(img, 7, 7)
+
+	alpha est un entier = dPixelOpacité(img, 7, 7)
+
+	// Attendu : alpha ~128 (opacité définie par dStylo)
+	// BUG actuel : écrit opacité 255 au lieu de prendre opacité stylo
+	dbgVérifieVrai(alpha >= 120 ET alpha <= 136, "dPoint apres dStylo - alpha ~128 herite du stylo")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_apres_dstylo_couleur_et_opacite()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo définit couleur bleu + opacité 200, puis dPoint → doit hériter les deux
+	dStylo(img, RVB(0, 0, 255), 0, 1, 200)
+	dPoint(img, 3, 3)
+
+	c est une Couleur = dPixelCouleur(img, 3, 3)
+	alpha est un entier = dPixelOpacité(img, 3, 3)
+
+	// Attendu : pixel bleu + alpha ~200
+	dbgVérifieEgalité(c..Bleu, 255, "dPoint apres dStylo - pixel bleu B")
+	dbgVérifieVrai(alpha >= 192 ET alpha <= 208, "dPoint apres dStylo - alpha ~200")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_couleur_explicite_override_dstylo()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo définit rouge, mais dPoint passe couleur jaune explicite → doit utiliser jaune (pas stylo)
+	dStylo(img, RVB(255, 0, 0), 0, 1, 255)
+	dPoint(img, 5, 5, RVB(255, 255, 0))
+
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+
+	// Attendu : pixel jaune (couleur explicite prime sur stylo)
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint couleur explicite override - jaune R")
+	dbgVérifieEgalité(c..Vert, 255, "dPoint couleur explicite override - jaune V")
+	dbgVérifieEgalité(c..Bleu, 0, "dPoint couleur explicite override - jaune B")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dpoint_opacite_explicite_override_dstylo()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo définit opacité 200, mais dPoint passe opacité 100 explicite → doit utiliser 100
+	dStylo(img, RVB(0, 255, 0), 0, 1, 200)
+	dPoint(img, 5, 5, RVB(0, 255, 0), 100)
+
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	// Attendu : alpha ~100 (param explicite prime sur stylo)
+	dbgVérifieVrai(alpha >= 92 ET alpha <= 108, "dPoint opacite explicite override - alpha ~100")
+FIN
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases dPoint alpha+stylo
+// ══════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_dpoint_sans_dstylo_ni_couleur_erreur()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint sans dStylo préalable ET sans couleur explicite → erreur attendue
+	ErreurRAZ()
+	dPoint(img, 5, 5)
+
+	bErr est un booléen = ErreurDétectée
+	sInfo est une chaîne = ErreurInfo()
+
+	dbgVérifieVrai(bErr, "dPoint sans stylo ni couleur - erreur detectee")
+	dbgVérifieVrai(ChaîneOccurrence(sInfo, "couleur") > 0 OU ChaîneOccurrence(sInfo, "color") > 0 OU ChaîneOccurrence(sInfo, "stylo") > 0, "dPoint sans stylo ni couleur - message contient couleur/color/stylo")
+FIN
+
+PROCEDURE PRIVÉE scenario_dpoint_opacite_191()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dPoint avec opacité 191 (~75%) → pixel semi-transparent précis
+	dPoint(img, 5, 5, RVB(255, 128, 0), 191)
+
+	alpha est un entier = dPixelOpacité(img, 5, 5)
+
+	dbgVérifieVrai(alpha >= 183 ET alpha <= 199, "dPoint opacite 191 - alpha ~191")
+FIN
+
+PROCEDURE PRIVÉE scenario_dpoint_apres_dstylo_largeur_ignoree()
+	img est une Image = dCréeImage(10, 10, Blanc)
+
+	// dStylo définit largeur 5 (pour trait), mais dPoint ne dessine qu'un pixel (largeur ignorée)
+	dStylo(img, RVB(255, 0, 255), 0, 5, 255)
+	dPoint(img, 5, 5)
+
+	// Vérifier que seul le pixel (5,5) est magenta, pas ses voisins
+	c est une Couleur = dPixelCouleur(img, 5, 5)
+	cVoisin est une Couleur = dPixelCouleur(img, 6, 5)
+
+	dbgVérifieEgalité(c..Rouge, 255, "dPoint apres dStylo largeur - pixel central magenta R")
+	dbgVérifieEgalité(c..Bleu, 255, "dPoint apres dStylo largeur - pixel central magenta B")
+	dbgVérifieEgalité(cVoisin..Rouge, 255, "dPoint apres dStylo largeur - voisin reste blanc R")
+	dbgVérifieEgalité(cVoisin..Vert, 255, "dPoint apres dStylo largeur - voisin reste blanc V")
+	dbgVérifieEgalité(cVoisin..Bleu, 255, "dPoint apres dStylo largeur - voisin reste blanc B")
+FIN

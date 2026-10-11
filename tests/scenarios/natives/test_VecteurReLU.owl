@@ -1,0 +1,54 @@
+// @sujet : VecteurReLU
+// @résumé : Applique ReLU (max(0, x)) élément par élément à un Vecteur — écrase les valeurs négatives à zéro et laisse les positives inchangées, disponible en native préfixée et en méthode fluente, forme identique en français et en anglais.
+
+
+// ReLU écrase les négatifs à 0.0 et laisse les positifs et le zéro
+// inchangés, élément par élément.
+PROCEDURE PUBLIQUE scenario_relu_melange_signes()
+	v est un Vecteur = [-1.0, 0.0, 2.0]
+	r est un Vecteur = VecteurReLU(v)
+	dbgVérifieEgalité(r[1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(r[2], 0.0, "ReLU(0.0) = 0.0")
+	dbgVérifieEgalité(r[3], 2.0, "ReLU(2.0) = 2.0")
+FIN
+
+
+// La méthode fluente .ReLU() produit exactement le même résultat que la
+// native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [-3.0, 5.0]
+	rViaFluent est un Vecteur = v.ReLU()
+	rViaNatif est un Vecteur = VecteurReLU(v)
+	dbgVérifieEgalité(rViaFluent[1], rViaNatif[1], "v.ReLU()[1] == VecteurReLU(v)[1]")
+	dbgVérifieEgalité(rViaFluent[2], rViaNatif[2], "v.ReLU()[2] == VecteurReLU(v)[2]")
+FIN
+
+
+// ReLU est identique en français et en anglais : même nom de native et
+// même méthode fluente des deux côtés.
+PROCEDURE PUBLIQUE scenario_forme_identique_fr_en()
+	v est un Vecteur = [-2.0, 4.0]
+	rNatif est un Vecteur = VecteurReLU(v)
+	rFluent est un Vecteur = v.ReLU()
+	dbgVérifieEgalité(rNatif[1], 0.0, "VecteurReLU(v)[1] = 0.0")
+	dbgVérifieEgalité(rFluent[2], 4.0, "v.ReLU()[2] = 4.0")
+FIN
+
+
+// Sur un Vecteur entièrement négatif, ReLU produit un Vecteur de même
+// taille, entièrement nul.
+PROCEDURE PRIVÉE scenario_edge_tout_negatif()
+	v est un Vecteur = [-1.0,-5.0,-100.0]
+	r est un Vecteur = VecteurReLU(v)
+	dbgVérifieEgalité(r[1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(r[2], 0.0, "ReLU(-5.0) = 0.0")
+	dbgVérifieEgalité(r[3], 0.0, "ReLU(-100.0) = 0.0")
+FIN
+
+
+// Un Vecteur vide (taille 0) produit un Vecteur vide, sans exception.
+PROCEDURE PRIVÉE scenario_edge_vecteur_vide()
+	v est un Vecteur = []
+	r est un Vecteur = VecteurReLU(v)
+	dbgVérifieEgalité(r..Taille, 0, "ReLU d'un Vecteur vide = Vecteur vide")
+FIN

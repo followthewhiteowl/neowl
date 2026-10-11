@@ -1,0 +1,193 @@
+Trace("=== DATES / HEURES / DUREES ===")
+
+// --- DateSys retourne un objet Date ---
+maDate est une date = DateSys()
+dbgVérifieEgalité(TypeVar(maDate), owlDate, "DateSys retourne type date")
+dbgVérifieVrai(maDate..Année >= 2026, "DateSys annee >= 2026")
+dbgVérifieVrai(maDate..Mois >= 1, "DateSys mois >= 1")
+dbgVérifieVrai(maDate..Jour >= 1, "DateSys jour >= 1")
+
+// --- HeureSys retourne un objet Heure ---
+monHeure est une heure = HeureSys()
+dbgVérifieEgalité(TypeVar(monHeure), owlHeure, "HeureSys retourne type heure")
+dbgVérifieVrai(monHeure..Heure >= 0, "HeureSys heure >= 0")
+dbgVérifieVrai(monHeure..Minute >= 0, "HeureSys minute >= 0")
+
+// --- DateHeureSys ---
+maDH est une dateheure = DateHeureSys()
+dbgVérifieEgalité(TypeVar(maDH), owlDateHeure, "DateHeureSys retourne type dateheure")
+dbgVérifieVrai(maDH..Année >= 2026, "DateHeureSys annee")
+
+// --- ChaineVersDate / StringToDate ---
+dateAvril est une date = ChaîneVersDate("20260416")
+dbgVérifieEgalité(dateAvril..Année, 2026, "ChaineVersDate annee")
+dbgVérifieEgalité(dateAvril..Mois, 4, "ChaineVersDate mois")
+dbgVérifieEgalité(dateAvril..Jour, 16, "ChaineVersDate jour")
+
+// --- DateVersChaine / DateToString ---
+// Default de référence = "JJ/MM/AAAA" (documentation de référence)
+sDate est une chaîne = DateVersChaîne(dateAvril)
+dbgVérifieEgalité(sDate, "16/04/2026", "DateVersChaine default JJ/MM/AAAA")
+
+// --- DateVersChaine avec format ---
+sDateFmt est une chaîne = DateVersChaîne(dateAvril, "JJ/MM/AAAA")
+dbgVérifieEgalité(sDateFmt, "16/04/2026", "DateVersChaine JJ/MM/AAAA")
+
+// --- ChaineVersHeure / StringToTime ---
+heure1430 est une heure = ChaîneVersHeure("143025")
+dbgVérifieEgalité(heure1430..Heure, 14, "ChaineVersHeure heure")
+dbgVérifieEgalité(heure1430..Minute, 30, "ChaineVersHeure minute")
+dbgVérifieEgalité(heure1430..Seconde, 25, "ChaineVersHeure seconde")
+
+// --- Conversion implicite Date -> String (via Taille, Gauche, etc.) ---
+dbgVérifieEgalité(Taille(dateAvril), 8, "Taille(date) = 8")
+dbgVérifieEgalité(Gauche(dateAvril, 4), "2026", "Gauche(date, 4) = annee")
+dbgVérifieEgalité(Droite(dateAvril, 2), "16", "Droite(date, 2) = jour")
+
+// --- Date + entier (jours) ---
+datePlus10 est une date = dateAvril + 10
+dbgVérifieEgalité(datePlus10..Jour, 26, "Date + 10 jours = 26 avril")
+
+datePlus20 est une date = dateAvril + 20
+dbgVérifieEgalité(datePlus20..Mois, 5, "Date + 20 jours = mai")
+dbgVérifieEgalité(datePlus20..Jour, 6, "Date + 20 jours = 6 mai")
+
+// --- Date - entier (jours) ---
+dateMoins16 est une date = dateAvril - 16
+dbgVérifieEgalité(dateMoins16..Jour, 31, "Date - 16 jours = 31 mars")
+dbgVérifieEgalité(dateMoins16..Mois, 3, "Date - 16 jours = mars")
+
+// --- Date - Date = Duree ---
+dateDebut est une date = ChaîneVersDate("20260101")
+dateFin est une date = ChaîneVersDate("20260416")
+dureeResult est une durée = dateFin - dateDebut
+dbgVérifieEgalité(TypeVar(dureeResult), owlDuree, "Date - Date = duree")
+dbgVérifieEgalité(dureeResult..EnJours, 105, "16 avril - 1 janvier = 105 jours")
+
+// --- DateVersEntier / EntierVersDate ---
+nJours est un entier = DateVersEntier(dateAvril)
+dbgVérifieVrai(nJours > 0, "DateVersEntier > 0")
+dateRetour est une date = EntierVersDate(nJours)
+dbgVérifieEgalité(dateRetour..Année, 2026, "EntierVersDate roundtrip annee")
+dbgVérifieEgalité(dateRetour..Mois, 4, "EntierVersDate roundtrip mois")
+dbgVérifieEgalité(dateRetour..Jour, 16, "EntierVersDate roundtrip jour")
+
+// --- DateVersJourDeLaSemaine ---
+// 16 avril 2026 est un jeudi — convention de référence: 1=Lun, 2=Mar ... 4=Jeu, 7=Dim
+jds est un entier = DateVersJourDeLaSemaine(dateAvril)
+dbgVérifieEgalité(jds, 4, "16/04/2026 = jeudi = 4 (référence : 1=Lun)")
+
+// --- Extracteurs ---
+dbgVérifieEgalité(Année(dateAvril), 2026, "Annee(d)")
+dbgVérifieEgalité(Mois(dateAvril), 4, "Mois(d)")
+dbgVérifieEgalité(Jour(dateAvril), 16, "Jour(d)")
+
+// --- DateDifference ---
+diffJours est un entier = DateDifférence(dateDebut, dateFin)
+dbgVérifieEgalité(diffJours, 105, "DateDifference = 105")
+
+// --- Conversion string -> date via method chaining ---
+dateNoel est une date = "20261225".VersDate()
+dbgVérifieEgalité(dateNoel..Jour, 25, "method VersDate jour")
+dbgVérifieEgalité(dateNoel..Mois, 12, "method VersDate mois")
+
+// --- Concatenation Date + String ---
+msg est une chaîne = "Date: " + dateAvril
+dbgVérifieEgalité(msg, "Date: 20260416", "Date concat string")
+
+// --- Double dot syntax ---
+dateDDot est une date = "20260416"
+dbgVérifieEgalité(dateDDot..Année, 2026, "double dot Annee")
+dbgVérifieEgalité(dateDDot..Mois, 4, "double dot Mois")
+
+// --- Proprietes mutables ---
+dateMut est une date = "20260416"
+dateMut..Jour = 25
+dbgVérifieEgalité(dateMut..Jour, 25, "set Jour = 25")
+dateMut..Jour += 5
+dbgVérifieEgalité(dateMut..Jour, 30, "Jour += 5")
+dateMut..Mois -= 1
+dbgVérifieEgalité(dateMut..Mois, 3, "Mois -= 1")
+
+// --- Extension methods sur Date ---
+dbgVérifieEgalité(dateAvril.VersChaîne(), "16/04/2026", "date.VersChaine() default JJ/MM/AAAA")
+dbgVérifieEgalité(dateAvril.VersChaîne("JJ/MM/AAAA"), "16/04/2026", "date.VersChaine(format)")
+dbgVérifieEgalité(dateAvril.Annee(), 2026, "date.Annee()")
+dbgVérifieEgalité(dateAvril.Jour(), 16, "date.Jour()")
+dbgVérifieEgalité(dateAvril.JourDeLaSemaine(), 4, "date.JourDeLaSemaine()")
+dbgVérifieEgalité(dateAvril.JourEnLettre(), "Jeudi", "date.JourEnLettre()")
+dbgVérifieEgalité(dateAvril.MoisEnLettre(), "Avril", "date.MoisEnLettre()")
+
+// --- Chaining complet ---
+dbgVérifieEgalité("20261225".VersDate().VersChaîne("JJ/MM/AAAA"), "25/12/2026", "full chain")
+
+// --- Validation ---
+dbgVérifieEgalité(DateValide(dateAvril), Vrai, "DateValide ok")
+dbgVérifieEgalité(DateValide("20261301"), Faux, "DateValide mois 13 = faux")
+dbgVérifieEgalité(HeureValide(heure1430), Vrai, "HeureValide ok")
+
+// --- Annee bissextile ---
+dbgVérifieEgalité(AnnéeBissextile(2024), Vrai, "2024 bissextile")
+dbgVérifieEgalité(AnnéeBissextile(2026), Faux, "2026 pas bissextile")
+dbgVérifieEgalité(AnnéeBissextile(2000), Vrai, "2000 bissextile")
+dbgVérifieEgalité(AnnéeBissextile(1900), Faux, "1900 pas bissextile")
+
+// --- Epoch ---
+dateEpoch est une dateheure = "20260416120000"
+nEpoch est un entier = DateHeureVersEpoch(dateEpoch)
+dbgVérifieVrai(nEpoch > 0, "Epoch > 0")
+dateRetourEpoch est une dateheure = EpochVersDateHeure(nEpoch)
+dbgVérifieEgalité(dateRetourEpoch..Année, 2026, "Epoch roundtrip annee")
+dbgVérifieEgalité(dateRetourEpoch..Mois, 4, "Epoch roundtrip mois")
+dbgVérifieEgalité(dateRetourEpoch..Jour, 16, "Epoch roundtrip jour")
+dbgVérifieEgalité(dateRetourEpoch..Heure, 12, "Epoch roundtrip heure")
+
+// --- Bornes mois ---
+premJour est une date = PremierJourDuMois(dateAvril)
+dbgVérifieEgalité(premJour.Jour(), 1, "PremierJourDuMois = 1")
+derJour est une date = DernierJourDuMois(dateAvril)
+dbgVérifieEgalité(derJour.Jour(), 30, "DernierJourDuMois avril = 30")
+
+// --- Noms jours/mois ---
+dbgVérifieEgalité(DateVersJourEnLettre(dateAvril), "Jeudi", "JourEnLettre = Jeudi")
+dbgVérifieEgalité(DateVersMoisEnLettre(dateAvril), "Avril", "MoisEnLettre = Avril")
+
+// --- DateVersJourEnLettre : couverture etendue ---
+// 7 jours de la semaine (avril 2026 : 13=Lun -> 19=Dim), capitalises, langue FR fixe.
+dbgVérifieEgalité(DateVersJourEnLettre("20260413"), "Lundi", "13/04/2026 = Lundi")
+dbgVérifieEgalité(DateVersJourEnLettre("20260414"), "Mardi", "14/04/2026 = Mardi")
+dbgVérifieEgalité(DateVersJourEnLettre("20260415"), "Mercredi", "15/04/2026 = Mercredi")
+dbgVérifieEgalité(DateVersJourEnLettre("20260416"), "Jeudi", "16/04/2026 = Jeudi")
+dbgVérifieEgalité(DateVersJourEnLettre("20260417"), "Vendredi", "17/04/2026 = Vendredi")
+dbgVérifieEgalité(DateVersJourEnLettre("20260418"), "Samedi", "18/04/2026 = Samedi")
+dbgVérifieEgalité(DateVersJourEnLettre("20260419"), "Dimanche", "19/04/2026 = Dimanche")
+
+// Exemple canon documentation de référence : 25/12/2001 = Mardi.
+dbgVérifieEgalité(DateVersJourEnLettre("20011225"), "Mardi", "25/12/2001 = Mardi (canon de référence)")
+
+// Format AAAAMMJJHHmmSSCC (16 chars) accepte.
+dbgVérifieEgalité(DateVersJourEnLettre("2001122512000000"), "Mardi", "format 16 chars accepte")
+
+// Variable Date.
+dateNoel2001 est une date = "20011225"
+dbgVérifieEgalité(DateVersJourEnLettre(dateNoel2001), "Mardi", "variable Date acceptee")
+
+// Variable DateHeure.
+dhNoel2001 est une dateheure = "20011225120000"
+dbgVérifieEgalité(DateVersJourEnLettre(dhNoel2001), "Mardi", "variable DateHeure acceptee")
+
+// Chaine trop courte ou non-parsable -> erreur runtime, pas NIL silencieux.
+ErreurRAZ()
+jLettreCourt est une chaîne = DateVersJourEnLettre("2026")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+ErreurRAZ()
+jLettreAbc est une chaîne = DateVersJourEnLettre("abcdefgh")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// Type non supporte (entier) -> erreur runtime explicite.
+ErreurRAZ()
+jLettreInt est une chaîne = DateVersJourEnLettre(12345)
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+dbgBilanTest()

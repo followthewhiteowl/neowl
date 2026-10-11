@@ -1,0 +1,39 @@
+// Signature d'evenement bilingue : type de parametre EN accepte.
+//
+// Un handler d'event (onKeyDown) dont le parametre est typé en anglais
+// (`nTouche is an integer`) doit compiler (--check propre) exactement comme
+// la forme FR (`nTouche est un entier`), puis le code de la touche doit
+// circuler jusqu'au handler a l'execution.
+//
+// La validation de signature d'evenement resout le type bilingue : `integer`
+// est accepte comme equivalent EN de `entier` (resolution EN -> FR du type
+// d'event).
+//
+// Ressource DSL : FEN_EventParamTypeEN.owl (voisin).
+
+TestModeHeadless(Faux)
+
+bFenPrete is un booléen = Faux
+nAppuyeeCapture is un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bFenPrete = Vrai
+FIN
+
+PROCEDURE callback_appuyee(nTouche est un entier)
+	nAppuyeeCapture = nTouche
+FIN
+
+PROCEDURE PUBLIQUE scenario_event_param_type_en()
+	OuvreSoeur(FEN_EventParamTypeEN)
+
+	dbgVérifieVrai(bFenPrete, "FinInitialisation appelee : fenetre EN prete")
+
+	// Une frappe 'b' => onKeyDown(nTouche=Asc("b")=98).
+	TestSimuleSaisie(SAI_Texte, "b")
+
+	dbgVérifieEgalité(nAppuyeeCapture, 98, "onKeyDown(nTouche EN-typed) recoit le code 'b'")
+	dbgVérifieEgalité(nAppuyeeCapture, Asc("b"), "code touche EN-typed coherent avec Asc")
+
+	Ferme(FEN_EventParamTypeEN)
+FIN

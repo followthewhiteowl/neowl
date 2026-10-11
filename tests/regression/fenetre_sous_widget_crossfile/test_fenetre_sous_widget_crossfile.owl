@@ -1,0 +1,18 @@
+//  : une fenêtre déclarée dans un fichier voisin (FEN_2105.owl) doit
+// rester accessible depuis ce script pour deux affectations multilingues
+// distinctes : la propriété de la fenêtre elle-même (`..Titre`) et celle
+// d'un de ses sous-widgets (`BTN_2105..Libellé`). Les deux passent par le
+// pré-scan des voisins ; un refactor qui hisserait ce calcul hors de la
+// boucle par-fichier ne doit dévier ni l'un ni l'autre.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_2105)
+
+FEN_2105..Titre   = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+BTN_2105..Libellé = {langueFrançais: "Valider", langueAnglais: "Validate"}
+
+dbgVérifieEgalité(FEN_2105..Titre[langueFrançais], "Bonjour", "titre de la fenêtre voisine résolu")
+dbgVérifieEgalité(BTN_2105..Libellé[langueAnglais], "Validate", "libellé du sous-widget compagnon résolu")
+
+Ferme(FEN_2105)
+dbgBilanTest()

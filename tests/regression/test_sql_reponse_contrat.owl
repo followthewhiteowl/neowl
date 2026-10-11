@@ -1,0 +1,267 @@
+//  — contrat de sqlRéponse : chaque champ décrit la requête qui
+// vient d'être envoyée, jamais l'historique de la connexion.
+//
+//   Lignes            : les lignes rendues par la requête       -> vide sur une écriture
+//   Occurrence         : le nombre de lignes dans Lignes         -> 0 sur une écriture
+//   LignesAffectées   : lignes créées/modifiées/supprimées      -> 0 sur une lecture
+//
+// Violations mesurées à la sonde (voir ticket) :
+//   - SQLite laisse fuir LignesAffectées : un SELECT hérite du compteur
+//     de la dernière écriture envoyée sur la connexion.
+//   - DuckDB fabrique une ligne fantôme {Count: N} sur les écritures,
+//     ce qui gonfle Occurrence et Taille(..Lignes) au lieu de rester à 0.
+//
+// Ce test couvre les deux violations, le piège inverse (ne pas mettre
+// LignesAffectées à 0 partout), le cas neutre (CREATE TABLE), et surtout
+// l'uniformité : la même séquence doit produire les mêmes chiffres sur
+// les deux backends embarqués.
+
+PROCEDURE PRIVÉE sqlContrat1529_ouvre(nProvider1529 est un entier) : sqlConnexion
+	cnx1529 est une sqlConnexion
+	cnx1529..Provider = nProvider1529
+	cnx1529..Source   = ":memory:"
+	cnx1529.Ouvre()
+	RENVOYER cnx1529
+FIN
+
+
+// Rejoue la même séquence (create / insert 3 / select tout / delete 1 /
+// select rien) sur la connexion donnée et condense les métriques en une
+// chaîne "étape:Occurrence/LignesAffectées/Taille(Lignes)". Utilisée deux
+// fois (SQLite, DuckDB) avec exactement le même code — c'est la comparaison
+// réelle entre backends, pas une duplication de constante en dur.
+PROCEDURE PRIVÉE sqlContrat1529_sonde(cnx1529 est une sqlConnexion) : chaîne
+	reqCree1529 est une sqlRequête
+	reqCree1529..Code = "CREATE TABLE t_contrat1529 (id INTEGER, v TEXT)"
+	repCree1529 est une sqlRéponse = SQLEnvoie(cnx1529, reqCree1529)
+
+	reqIns1529 est une sqlRequête
+	reqIns1529..Code = "INSERT INTO t_contrat1529 (id, v) VALUES (1,'a'),(2,'b'),(3,'c')"
+	repIns1529 est une sqlRéponse = SQLEnvoie(cnx1529, reqIns1529)
+
+	reqSel1529 est une sqlRequête
+	reqSel1529..Code = "SELECT id, v FROM t_contrat1529"
+	repSel1529 est une sqlRéponse = SQLEnvoie(cnx1529, reqSel1529)
+
+	reqDel1529 est une sqlRequête
+	reqDel1529..Code = "DELETE FROM t_contrat1529 WHERE id = 1"
+	repDel1529 est une sqlRéponse = SQLEnvoie(cnx1529, reqDel1529)
+
+	reqSel0_1529 est une sqlRequête
+	reqSel0_1529..Code = "SELECT id, v FROM t_contrat1529 WHERE id = 999"
+	repSel0_1529 est une sqlRéponse = SQLEnvoie(cnx1529, reqSel0_1529)
+
+	sTrace1529 est une chaîne = ""
+	sTrace1529 += "create:" + repCree1529..Occurrence + "/" + repCree1529..LignesAffectées + "/" + Taille(repCree1529..Lignes) + ";"
+	sTrace1529 += "insert:" + repIns1529..Occurrence + "/" + repIns1529..LignesAffectées + "/" + Taille(repIns1529..Lignes) + ";"
+	sTrace1529 += "select:" + repSel1529..Occurrence + "/" + repSel1529..LignesAffectées + "/" + Taille(repSel1529..Lignes) + ";"
+	sTrace1529 += "delete:" + repDel1529..Occurrence + "/" + repDel1529..LignesAffectées + "/" + Taille(repDel1529..Lignes) + ";"
+	sTrace1529 += "select0:" + repSel0_1529..Occurrence + "/" + repSel0_1529..LignesAffectées + "/" + Taille(repSel0_1529..Lignes)
+
+	cnx1529.Ferme()
+	RENVOYER sTrace1529
+FIN
+
+
+// ===== SQLite : la lecture ne doit pas hériter du compteur d'écriture =====
+cnxSqlite1529 est une sqlConnexion = sqlContrat1529_ouvre(sqlSqlite)
+
+reqCreeS1529 est une sqlRequête
+reqCreeS1529..Code = "CREATE TABLE clients_1529 (id INTEGER, nom TEXT)"
+repCreeS1529 est une sqlRéponse = SQLEnvoie(cnxSqlite1529, reqCreeS1529)
+dbgVérifieEgalité(repCreeS1529..Occurrence, 0, "SQLite CREATE TABLE : rien lu")
+dbgVérifieEgalité(repCreeS1529..LignesAffectées, 0, "SQLite CREATE TABLE : rien écrit")
+
+reqInsS1529 est une sqlRequête
+reqInsS1529..Code = "INSERT INTO clients_1529 (id, nom) VALUES (1,'Alice'), (2,'Bob'), (3,'Chloé')"
+repInsS1529 est une sqlRéponse = SQLEnvoie(cnxSqlite1529, reqInsS1529)
+dbgVérifieEgalité(repInsS1529..LignesAffectées, 3, "SQLite INSERT de 3 lignes : LignesAffectées = 3 (piège inverse : ne doit pas retomber à 0)")
+
+reqSelS1529 est une sqlRequête
+reqSelS1529..Code = "SELECT id, nom FROM clients_1529"
+repSelS1529 est une sqlRéponse = SQLEnvoie(cnxSqlite1529, reqSelS1529)
+dbgVérifieEgalité(repSelS1529..Occurrence, 3, "SQLite SELECT : 3 lignes lues")
+dbgVérifieEgalité(repSelS1529..LignesAffectées, 0, "SQLite SELECT après un INSERT : LignesAffectées = 0 (ne hérite pas de l'écriture précédente)")
+
+reqDelS1529 est une sqlRequête
+reqDelS1529..Code = "DELETE FROM clients_1529 WHERE id = 1"
+repDelS1529 est une sqlRéponse = SQLEnvoie(cnxSqlite1529, reqDelS1529)
+dbgVérifieEgalité(repDelS1529..LignesAffectées, 1, "SQLite DELETE d'1 ligne : LignesAffectées = 1 (piège inverse)")
+dbgVérifieEgalité(repDelS1529..Occurrence, 0, "SQLite DELETE : Occurrence = 0")
+
+reqSel0S1529 est une sqlRequête
+reqSel0S1529..Code = "SELECT id, nom FROM clients_1529 WHERE id = 999"
+repSel0S1529 est une sqlRéponse = SQLEnvoie(cnxSqlite1529, reqSel0S1529)
+dbgVérifieEgalité(repSel0S1529..Occurrence, 0, "SQLite SELECT ne matchant rien : Occurrence = 0")
+dbgVérifieEgalité(repSel0S1529..LignesAffectées, 0, "SQLite SELECT après un DELETE : LignesAffectées = 0 (ne hérite pas du DELETE précédent)")
+
+cnxSqlite1529.Ferme()
+
+
+// ===== DuckDB : l'écriture ne doit pas fabriquer de ligne fantôme =====
+cnxDuck1529 est une sqlConnexion = sqlContrat1529_ouvre(sqlDuckDB)
+
+reqCreeD1529 est une sqlRequête
+reqCreeD1529..Code = "CREATE TABLE clients_1529 (id INTEGER, nom TEXT)"
+repCreeD1529 est une sqlRéponse = SQLEnvoie(cnxDuck1529, reqCreeD1529)
+dbgVérifieEgalité(repCreeD1529..Occurrence, 0, "DuckDB CREATE TABLE : rien lu")
+dbgVérifieEgalité(repCreeD1529..LignesAffectées, 0, "DuckDB CREATE TABLE : rien écrit")
+
+reqInsD1529 est une sqlRequête
+reqInsD1529..Code = "INSERT INTO clients_1529 (id, nom) VALUES (1,'Alice'), (2,'Bob'), (3,'Chloé')"
+repInsD1529 est une sqlRéponse = SQLEnvoie(cnxDuck1529, reqInsD1529)
+dbgVérifieEgalité(repInsD1529..Occurrence, 0, "DuckDB INSERT : Occurrence = 0 (la ligne {Count: 3} du moteur n'est pas une donnée utilisateur)")
+dbgVérifieEgalité(Taille(repInsD1529..Lignes), 0, "DuckDB INSERT : Lignes vide")
+dbgVérifieEgalité(repInsD1529..LignesAffectées, 3, "DuckDB INSERT de 3 lignes : LignesAffectées = 3 (piège inverse : ne doit pas retomber à 0)")
+
+reqDelD1529 est une sqlRequête
+reqDelD1529..Code = "DELETE FROM clients_1529 WHERE id = 1"
+repDelD1529 est une sqlRéponse = SQLEnvoie(cnxDuck1529, reqDelD1529)
+dbgVérifieEgalité(repDelD1529..Occurrence, 0, "DuckDB DELETE : Occurrence = 0")
+dbgVérifieEgalité(Taille(repDelD1529..Lignes), 0, "DuckDB DELETE : Lignes vide")
+dbgVérifieEgalité(repDelD1529..LignesAffectées, 1, "DuckDB DELETE d'1 ligne : LignesAffectées = 1 (piège inverse)")
+
+cnxDuck1529.Ferme()
+
+
+// ===== Uniformité : même séquence, même code, deux backends =====
+// sqlContrat1529_sonde() est appelée à l'identique sur SQLite et DuckDB.
+// Les deux traces sont d'abord confrontées à un contrat écrit en dur
+// (résiste à une dérive conjointe des deux backends vers une même valeur
+// fausse), puis confrontées l'une à l'autre (résiste à une correction
+// partielle qui ne toucherait qu'un seul connecteur).
+sAttendu1529 est une chaîne = "create:0/0/0;insert:0/3/0;select:3/0/3;delete:0/1/0;select0:0/0/0"
+
+sTraceSqlite1529 est une chaîne = sqlContrat1529_sonde(sqlContrat1529_ouvre(sqlSqlite))
+sTraceDuck1529 est une chaîne = sqlContrat1529_sonde(sqlContrat1529_ouvre(sqlDuckDB))
+
+dbgVérifieEgalité(sTraceSqlite1529, sAttendu1529, "SQLite respecte le contrat sqlRéponse sur toute la séquence")
+dbgVérifieEgalité(sTraceDuck1529, sAttendu1529, "DuckDB respecte le contrat sqlRéponse sur toute la séquence")
+dbgVérifieEgalité(sTraceSqlite1529, sTraceDuck1529, "SQLite et DuckDB produisent des valeurs identiques pour la même séquence")
+
+
+//  — RETURNING lit et écrit dans le même appel : les deux mesures
+// sont indépendantes. Lignes/Occurrence décrivent ce que la requête a
+// rendu, LignesAffectées ce qu'elle a écrit. Aucune des deux ne s'annule
+// au motif que l'autre est non nulle. Réutilise sqlContrat1529_ouvre (déjà
+// générique) pour ouvrir les connexions.
+
+// Rejoue insert/update/delete RETURNING puis un select pur, et condense
+// en une chaîne "étape:Occurrence/LignesAffectées/Taille(Lignes)". Même
+// principe que sqlContrat1529_sonde : appelée à l'identique sur les deux
+// backends pour la comparaison croisée.
+PROCEDURE PRIVÉE sqlContrat1539_sonde(cnx1539 est une sqlConnexion) : chaîne
+	reqCree1539 est une sqlRequête
+	reqCree1539..Code = "CREATE TABLE t_contrat1539 (id INTEGER, v INTEGER)"
+	repCree1539 est une sqlRéponse = SQLEnvoie(cnx1539, reqCree1539)
+
+	reqIns1539 est une sqlRequête
+	reqIns1539..Code = "INSERT INTO t_contrat1539 (id, v) VALUES (1,10),(2,20),(3,30) RETURNING id"
+	repIns1539 est une sqlRéponse = SQLEnvoie(cnx1539, reqIns1539)
+
+	reqUpd1539 est une sqlRequête
+	reqUpd1539..Code = "UPDATE t_contrat1539 SET v = v + 1 WHERE id < 3 RETURNING id"
+	repUpd1539 est une sqlRéponse = SQLEnvoie(cnx1539, reqUpd1539)
+
+	reqDel1539 est une sqlRequête
+	reqDel1539..Code = "DELETE FROM t_contrat1539 WHERE id = 1 RETURNING id"
+	repDel1539 est une sqlRéponse = SQLEnvoie(cnx1539, reqDel1539)
+
+	reqSel1539 est une sqlRequête
+	reqSel1539..Code = "SELECT id FROM t_contrat1539"
+	repSel1539 est une sqlRéponse = SQLEnvoie(cnx1539, reqSel1539)
+
+	sTrace1539 est une chaîne = ""
+	sTrace1539 += "insert:" + repIns1539..Occurrence + "/" + repIns1539..LignesAffectées + "/" + Taille(repIns1539..Lignes) + ";"
+	sTrace1539 += "update:" + repUpd1539..Occurrence + "/" + repUpd1539..LignesAffectées + "/" + Taille(repUpd1539..Lignes) + ";"
+	sTrace1539 += "delete:" + repDel1539..Occurrence + "/" + repDel1539..LignesAffectées + "/" + Taille(repDel1539..Lignes) + ";"
+	sTrace1539 += "select:" + repSel1539..Occurrence + "/" + repSel1539..LignesAffectées + "/" + Taille(repSel1539..Lignes)
+
+	cnx1539.Ferme()
+	RENVOYER sTrace1539
+FIN
+
+
+// ===== SQLite : RETURNING renseigne déjà les deux mesures =====
+cnxSqlite1539 est une sqlConnexion = sqlContrat1529_ouvre(sqlSqlite)
+
+reqCreeS1539 est une sqlRequête
+reqCreeS1539..Code = "CREATE TABLE t_ret1539 (id INTEGER, v INTEGER)"
+repCreeS1539 est une sqlRéponse = SQLEnvoie(cnxSqlite1539, reqCreeS1539)
+
+reqInsS1539 est une sqlRequête
+reqInsS1539..Code = "INSERT INTO t_ret1539 (id, v) VALUES (1,10),(2,20),(3,30) RETURNING id"
+repInsS1539 est une sqlRéponse = SQLEnvoie(cnxSqlite1539, reqInsS1539)
+dbgVérifieEgalité(repInsS1539..Occurrence, 3, "SQLite INSERT RETURNING : Occurrence = 3 (3 lignes rendues)")
+dbgVérifieEgalité(repInsS1539..LignesAffectées, 3, "SQLite INSERT RETURNING : LignesAffectées = 3 (3 lignes écrites, indépendant de Occurrence)")
+dbgVérifieEgalité(repInsS1539..Lignes[1]["id"], 1, "SQLite INSERT RETURNING : Lignes contient de vraies données (id=1 en premier)")
+
+reqUpdS1539 est une sqlRequête
+reqUpdS1539..Code = "UPDATE t_ret1539 SET v = v + 1 WHERE id < 3 RETURNING id"
+repUpdS1539 est une sqlRéponse = SQLEnvoie(cnxSqlite1539, reqUpdS1539)
+dbgVérifieEgalité(repUpdS1539..Occurrence, 2, "SQLite UPDATE RETURNING : Occurrence = 2")
+dbgVérifieEgalité(repUpdS1539..LignesAffectées, 2, "SQLite UPDATE RETURNING : LignesAffectées = 2")
+
+reqDelS1539 est une sqlRequête
+reqDelS1539..Code = "DELETE FROM t_ret1539 WHERE id = 1 RETURNING id"
+repDelS1539 est une sqlRéponse = SQLEnvoie(cnxSqlite1539, reqDelS1539)
+dbgVérifieEgalité(repDelS1539..Occurrence, 1, "SQLite DELETE RETURNING : Occurrence = 1")
+dbgVérifieEgalité(repDelS1539..LignesAffectées, 1, "SQLite DELETE RETURNING : LignesAffectées = 1")
+dbgVérifieEgalité(repDelS1539..Lignes[1]["id"], 1, "SQLite DELETE RETURNING : Lignes contient la vraie ligne supprimée (id=1)")
+
+reqSelS1539 est une sqlRequête
+reqSelS1539..Code = "SELECT id FROM t_ret1539"
+repSelS1539 est une sqlRéponse = SQLEnvoie(cnxSqlite1539, reqSelS1539)
+dbgVérifieEgalité(repSelS1539..Occurrence, 2, "SQLite SELECT après les RETURNING : Occurrence = 2 (2 lignes restantes)")
+dbgVérifieEgalité(repSelS1539..LignesAffectées, 0, "SQLite SELECT pur après des RETURNING : LignesAffectées = 0 (ne hérite pas d'une écriture précédente)")
+
+cnxSqlite1539.Ferme()
+
+
+// ===== DuckDB : LignesAffectées ne doit plus se taire quand la requête rend des lignes =====
+cnxDuck1539 est une sqlConnexion = sqlContrat1529_ouvre(sqlDuckDB)
+
+reqCreeD1539 est une sqlRequête
+reqCreeD1539..Code = "CREATE TABLE t_ret1539 (id INTEGER, v INTEGER)"
+repCreeD1539 est une sqlRéponse = SQLEnvoie(cnxDuck1539, reqCreeD1539)
+
+reqInsD1539 est une sqlRequête
+reqInsD1539..Code = "INSERT INTO t_ret1539 (id, v) VALUES (1,10),(2,20),(3,30) RETURNING id"
+repInsD1539 est une sqlRéponse = SQLEnvoie(cnxDuck1539, reqInsD1539)
+dbgVérifieEgalité(repInsD1539..Occurrence, 3, "DuckDB INSERT RETURNING : Occurrence = 3 (3 lignes rendues, ce sont de vraies données utilisateur)")
+dbgVérifieEgalité(repInsD1539..LignesAffectées, 3, "DuckDB INSERT RETURNING : LignesAffectées = 3 (pas 0 — le substitut column_count>0 ne doit plus écraser ce champ)")
+dbgVérifieEgalité(repInsD1539..Lignes[1]["id"], 1, "DuckDB INSERT RETURNING : Lignes contient de vraies données (id=1 en premier)")
+
+reqUpdD1539 est une sqlRequête
+reqUpdD1539..Code = "UPDATE t_ret1539 SET v = v + 1 WHERE id < 3 RETURNING id"
+repUpdD1539 est une sqlRéponse = SQLEnvoie(cnxDuck1539, reqUpdD1539)
+dbgVérifieEgalité(repUpdD1539..Occurrence, 2, "DuckDB UPDATE RETURNING : Occurrence = 2")
+dbgVérifieEgalité(repUpdD1539..LignesAffectées, 2, "DuckDB UPDATE RETURNING : LignesAffectées = 2 (pas 0)")
+
+reqDelD1539 est une sqlRequête
+reqDelD1539..Code = "DELETE FROM t_ret1539 WHERE id = 1 RETURNING id"
+repDelD1539 est une sqlRéponse = SQLEnvoie(cnxDuck1539, reqDelD1539)
+dbgVérifieEgalité(repDelD1539..Occurrence, 1, "DuckDB DELETE RETURNING : Occurrence = 1")
+dbgVérifieEgalité(repDelD1539..LignesAffectées, 1, "DuckDB DELETE RETURNING : LignesAffectées = 1 (pas 0)")
+dbgVérifieEgalité(repDelD1539..Lignes[1]["id"], 1, "DuckDB DELETE RETURNING : Lignes contient la vraie ligne supprimée (id=1)")
+
+reqSelD1539 est une sqlRequête
+reqSelD1539..Code = "SELECT id FROM t_ret1539"
+repSelD1539 est une sqlRéponse = SQLEnvoie(cnxDuck1539, reqSelD1539)
+dbgVérifieEgalité(repSelD1539..Occurrence, 2, "DuckDB SELECT après les RETURNING : Occurrence = 2 (2 lignes restantes)")
+dbgVérifieEgalité(repSelD1539..LignesAffectées, 0, "DuckDB SELECT pur après des RETURNING : LignesAffectées = 0 (pas de retour de bâton — une lecture pure reste à 0)")
+
+cnxDuck1539.Ferme()
+
+
+// ===== Uniformité : même séquence RETURNING, même code, deux backends =====
+sAttendu1539 est une chaîne = "insert:3/3/3;update:2/2/2;delete:1/1/1;select:2/0/2"
+
+sTraceSqlite1539 est une chaîne = sqlContrat1539_sonde(sqlContrat1529_ouvre(sqlSqlite))
+sTraceDuck1539 est une chaîne = sqlContrat1539_sonde(sqlContrat1529_ouvre(sqlDuckDB))
+
+dbgVérifieEgalité(sTraceSqlite1539, sAttendu1539, "SQLite respecte le contrat RETURNING sur toute la séquence")
+dbgVérifieEgalité(sTraceDuck1539, sAttendu1539, "DuckDB respecte le contrat RETURNING sur toute la séquence")
+dbgVérifieEgalité(sTraceSqlite1539, sTraceDuck1539, "SQLite et DuckDB produisent des valeurs identiques pour la même séquence RETURNING")
+
+dbgBilanTest()

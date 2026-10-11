@@ -1,0 +1,97 @@
+// @sujet : chaîneMultilingue (fallback)
+// @résumé : Lookup miss sur clé inconnue → fallback langue source (hardcodée "fr-FR" en v1). Pas de cascade hiérarchique BCP 47, pas d'exception runtime.
+
+
+// Fallback langue source : si on lit une langue non présente dans le
+// dictionnaire, le runtime retourne la valeur de la langue source
+// (hardcodée "fr-FR" en v1). Permet de garantir qu'on a toujours une
+// chaîne à afficher, même si la traduction demandée manque.
+PROCEDURE scenario_fallback_langue_source_sur_miss()
+	m est une chaîneMultilingue = {langueFrançais: "Bienvenue"}
+
+	// langueAnglais absent → fallback langue source "fr-FR"
+	dbgVérifieEgalité(m[langueAnglais], "Bienvenue")
+	dbgVérifieEgalité(m[langueAllemand], "Bienvenue")
+	dbgVérifieEgalité(m[langueEspagnol], "Bienvenue")
+FIN
+
+
+// Fallback avec plusieurs traductions présentes : seule la langue
+// source sert de fallback. Pas de cascade "si en-US absent, essayer
+// en-GB" — v1 simplifié, pas de hiérarchie BCP 47.
+PROCEDURE scenario_fallback_pas_de_cascade_hierarchique()
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour",
+		langueAnglais: "Hello"
+	}
+
+	// langueAnglaisRoyaumeUni absent, langueAnglais présent
+	// mais pas de cascade → retourne langue source "fr-FR"
+	dbgVérifieEgalité(m[langueAnglaisRoyaumeUni], "Bonjour")
+FIN
+
+
+// Fallback avec indexation string BCP 47 libre : même comportement,
+// miss sur tag custom → fallback langue source.
+PROCEDURE scenario_fallback_string_bcp47_custom_miss()
+	m est une chaîneMultilingue = {langueFrançais: "Salut"}
+
+	dbgVérifieEgalité(m["de-CH"], "Salut", "miss de-CH → fallback fr-FR")
+	dbgVérifieEgalité(m["ja-JP"], "Salut", "miss ja-JP → fallback fr-FR")
+FIN
+
+
+// Fallback quand langue source elle-même est absente : retourne chaîne
+// vide. Cas limite où on a créé une chaîneMultilingue sans jamais poser
+// la langue source "fr-FR".
+PROCEDURE scenario_fallback_langue_source_absente_retourne_vide()
+	m est une chaîneMultilingue
+	m[langueAnglais] = "Hello"
+	m[langueAllemand] = "Hallo"
+	// Pas de langueFrançais posé
+
+	// Lecture langue manquante → fallback langue source
+	// Langue source absente → chaîne vide
+	dbgVérifieEgalité(m[langueEspagnol], "")
+FIN
+
+
+// Cas limite défensif : fallback sur chaîneMultilingue vide (aucune
+// traduction). Tout lookup retourne chaîne vide, pas d'exception runtime.
+PROCEDURE PRIVÉE scenario_fallback_multilingue_vide_retourne_vide()
+	m est une chaîneMultilingue = {}
+
+	dbgVérifieEgalité(m[langueFrançais], "")
+	dbgVérifieEgalité(m[langueAnglais], "")
+	dbgVérifieEgalité(m["zh-CN"], "")
+FIN
+
+
+// Cas limite défensif : fallback après suppression explicite (si
+// l'indexation permet de poser une entrée vide distincte de l'absence
+// d'entrée). En v1, pas de distinction — entrée vide = chaîne vide.
+PROCEDURE PRIVÉE scenario_fallback_entree_vide_vs_absente()
+	m est une chaîneMultilingue = {langueFrançais: "Base"}
+	m[langueAnglais] = ""
+
+	// langueAnglais posé vide → retourne chaîne vide (pas fallback)
+	dbgVérifieEgalité(m[langueAnglais], "")
+
+	// langueAllemand absent → fallback langue source
+	dbgVérifieEgalité(m[langueAllemand], "Base")
+FIN
+
+
+// Cas limite défensif : fallback langue source conserve cohérence
+// même si plusieurs variantes régionales sont présentes. La règle
+// "défaut sans suffixe" impose langueFrançais = "fr-FR", donc
+// fallback pointe toujours vers cette clé.
+PROCEDURE PRIVÉE scenario_fallback_coherence_variantes_regionales()
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour France",
+		langueFrançaisCanada: "Bonjour Canada"
+	}
+
+	// langueAllemand absent → fallback "fr-FR" = langueFrançais
+	dbgVérifieEgalité(m[langueAllemand], "Bonjour France")
+FIN

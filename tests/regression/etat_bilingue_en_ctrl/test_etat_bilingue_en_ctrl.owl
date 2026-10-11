@@ -1,0 +1,91 @@
+// Verrou (axe 3, contrôles WYSIWYG) : un Libellé d'État déclaré en formes
+// anglaises de propriétés de contrôle (X/Y/Width/Height/Caption/
+// BackgroundColor) doit rendre un flux de contenu PDF identique à son jumeau
+// en formes françaises (X/Y/Largeur/Hauteur/Libellé/CouleurFond). Avant
+// correction, ces formes EN étaient ignorées par ctrl_find_prop (lookup
+// FR-only) : la géométrie du contrôle retombait sur des zones fallback et le
+// bandeau CouleurFond du champ était positionné différemment.
+//
+// Observable déterministe (calculé côté C, pas d'introspection Qt) : le flux
+// de contenu décompressé du PDF. Deux jumeaux FR/EN aux mêmes valeurs doivent
+// produire un flux byte-identique.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/regression/etat_bilingue_en_ctrl/temp_fr.pdf")
+iImprimeEtat(ETAT_CtrlAx3FR)
+iFinImprime()
+
+iDestination(iPDFGénérique, "tests/regression/etat_bilingue_en_ctrl/temp_en.pdf")
+iImprimeEtat(ETAT_CtrlAx3EN)
+iFinImprime()
+
+sFR est une chaîne = StreamContenuPDF("tests/regression/etat_bilingue_en_ctrl/temp_fr.pdf")
+sEN est une chaîne = StreamContenuPDF("tests/regression/etat_bilingue_en_ctrl/temp_en.pdf")
+
+dbgVérifieVrai(Taille(sFR) > 0,
+"FR : flux de contenu non vide")
+dbgVérifieEgalité(sEN, sFR,
+"EN (X/Y/Width/Height/Caption/BackgroundColor) : flux de contenu identique au jumeau FR")
+
+nRectFR est un entier = Occurrence(sFR, "re")
+nRectEN est un entier = Occurrence(sEN, "re")
+dbgVérifieVrai(nRectFR > 0,
+"FR : le bandeau CouleurFond du Libellé est peint (non-régression)")
+dbgVérifieEgalité(nRectEN, nRectFR,
+"EN (BackgroundColor) : bandeau peint autant de fois qu'en FR")
+
+dbgBilanTest()

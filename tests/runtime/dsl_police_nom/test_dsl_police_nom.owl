@@ -1,0 +1,34 @@
+// TEST: raccourci PoliceNom / FontName cable au runtime.
+//
+// On pose le nom de police via le raccourci (path imperatif LIB_X..PoliceNom)
+// et on relit la valeur exacte. Couvre FR canon (PoliceNom) et EN canon
+// (FontName), en ecriture ET relecture, avec assertion sur valeur exacte.
+//
+// Note infra : en mode test unitaire aucun widget Qt n'est instancie, donc
+// les set/get transitent par le storage virtuel headless (cle = nom de prop).
+// Ce test verrouille que PoliceNom/FontName sont des props writeable/readable
+// portant une valeur string exacte (anti-regression du no-op d'origine).
+// L'equivalence cross-nom Police <-> PoliceNom et l'application a la police
+// reelle relevent du path GUI (Qt attache) et sont cablees dans stdlib_ui.c
+// (build_control / real_ui_set_prop / real_ui_get_prop).
+//
+// Pattern : deux fenêtres voisines FEN_FontFR.owl + FEN_FontEN.owl.
+
+// --- FR canon : PoliceNom ---
+Ouvre(FEN_FontFR)
+
+LIB_FR..PoliceNom = "Arial"
+dbgVérifieEgalité(LIB_FR..PoliceNom, "Arial", "PoliceNom (FR) ecrit puis relu = Arial")
+
+LIB_FR..PoliceNom = "Verdana"
+dbgVérifieEgalité(LIB_FR..PoliceNom, "Verdana", "PoliceNom (FR) reecriture ecrase = Verdana")
+
+// --- EN canon : FontName ---
+Ouvre(FEN_FontEN)
+
+LIB_EN..FontName = "Courier New"
+dbgVérifieEgalité(LIB_EN..FontName, "Courier New", "FontName (EN) ecrit puis relu = Courier New")
+
+Ferme(FEN_FontFR)
+Ferme(FEN_FontEN)
+dbgBilanTest()

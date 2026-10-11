@@ -1,0 +1,52 @@
+//  — non-regression : les parametres TYPES explicitement (FR/EN,
+// avec ou sans valeur par defaut, mono ou multi-parametres) restent
+// acceptes a la compilation et executables normalement. Digue anti
+// sur-correction : la nouvelle erreur "parametre sans type" ne doit
+// JAMAIS se declencher sur ces formes valides.
+
+// --- FR : "est un" / "est une" ---
+PROCEDURE AdditionneFR(nA est un entier, nB est un entier)
+	RENVOYER nA + nB
+FIN
+
+FONCTION ConcatFR(s1 est une chaîne, s2 est une chaîne)
+	RENVOYER s1 + s2
+FIN
+
+resFR est un entier = AdditionneFR(3, 4)
+dbgVérifieEgalité(resFR, 7, "FR : param 'est un entier' compile et calcule")
+
+texteFR est une chaîne = ConcatFR("ab", "cd")
+dbgVérifieEgalité(texteFR, "abcd", "FR : param 'est une chaîne' compile et calcule")
+
+// --- EN : "is a" / "is an" ---
+PROCEDURE AddEN(nA is an integer, nB is an integer)
+	RENVOYER nA + nB
+FIN
+
+FONCTION ConcatEN(s1 is a string, s2 is a string)
+	RENVOYER s1 + s2
+FIN
+
+resEN est un entier = AddEN(10, 20)
+dbgVérifieEgalité(resEN, 30, "EN : param 'is an integer' compile et calcule")
+
+texteEN est une chaîne = ConcatEN("xy", "zw")
+dbgVérifieEgalité(texteEN, "xyzw", "EN : param 'is a string' compile et calcule")
+
+// --- Param type + valeur par defaut, multi-parametres mixte ---
+PROCEDURE Formate(prefixe est une chaîne, suffixe est une chaîne = "!")
+	RENVOYER prefixe + suffixe
+FIN
+
+dbgVérifieEgalité(Formate("Bonjour"), "Bonjour!", "Param type avec defaut : valeur par defaut appliquee")
+dbgVérifieEgalité(Formate("Salut", "?"), "Salut?", "Param type avec defaut : valeur explicite ecrase le defaut")
+
+// --- Multi-parametres tous types, arite 3 ---
+FONCTION Somme3(nA est un entier, nB est un entier, nC est un entier)
+	RENVOYER nA + nB + nC
+FIN
+
+dbgVérifieEgalité(Somme3(1, 2, 3), 6, "3 params types : somme correcte")
+
+dbgBilanTest()

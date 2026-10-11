@@ -1,0 +1,90 @@
+// @sujet : DécrypteStandard
+// @resume : Déchiffre un buffer produit par CrypteStandard (AES-256-CBC)
+
+// Scénario : native DécrypteStandard (déchiffrement standard)
+// Démonstration pédagogique : vérifier le comportement de déchiffrement
+// (clé correcte, mauvaise clé, buffer corrompu, message vide)
+
+// Cas nominal : déchiffrer un message texte simple avec la bonne clé
+PROCEDURE PUBLIQUE scenario_dechiffrement_simple()
+	// Chiffrer d'abord un message connu
+	messageClair est une chaîne = "Message confidentiel"
+	cle est une chaîne = "motdepasse123"
+	chiffre est un buffer = CrypteStandard(messageClair, cle)
+
+	// Déchiffrer avec la même clé
+	resultat est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(resultat, messageClair, "message déchiffré identique à l'original")
+FIN
+
+// Cas nominal : message avec accents et caractères UTF-8
+PROCEDURE PUBLIQUE scenario_utf8_avec_accents()
+	// Message comportant des accents et caractères spéciaux
+	messageClair est une chaîne = "Clé sécurisée : café, théâtre, œuvre"
+	cle est une chaîne = "pwd123"
+	chiffre est un buffer = CrypteStandard(messageClair, cle)
+
+	// Le déchiffrement doit préserver l'intégralité UTF-8
+	resultat est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(resultat, messageClair, "caractères UTF-8 préservés après déchiffrement")
+FIN
+
+// Cas nominal : message vide (round-trip sur chaîne vide)
+PROCEDURE PUBLIQUE scenario_message_vide()
+	// Un message vide chiffré produit un buffer non-vide (padding AES)
+	vide est une chaîne = ""
+	cle est une chaîne = "cle-valide"
+	chiffre est un buffer = CrypteStandard(vide, cle)
+
+	// Le déchiffrement doit restituer la chaîne vide
+	resultat est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(resultat, vide, "message vide restitué après déchiffrement")
+FIN
+
+// Cas limite : clé très courte (1 caractère)
+PROCEDURE PRIVÉE scenario_cle_courte()
+	// Une clé d'un seul caractère est dérivée en SHA-256, donc valide
+	message est une chaîne = "test"
+	cle est une chaîne = "k"
+	chiffre est un buffer = CrypteStandard(message, cle)
+
+	resultat est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(resultat, message, "clé courte fonctionne correctement")
+FIN
+
+// Cas limite : message long (> 1 bloc AES de 16 octets)
+PROCEDURE PRIVÉE scenario_message_long()
+	// Message dépassant un bloc AES (16 octets) pour vérifier le CBC multi-blocs
+	messageLong est une chaîne = "Ceci est un message assez long qui dépasse largement un seul bloc AES de 16 octets"
+	cle est une chaîne = "motdepasse"
+	chiffre est un buffer = CrypteStandard(messageLong, cle)
+
+	resultat est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(resultat, messageLong, "message long déchiffré intégralement")
+FIN
+
+// Cas erreur : mauvaise clé provoque une erreur au déchiffrement
+PROCEDURE PRIVÉE scenario_mauvaise_cle()
+	// Chiffrer avec une clé, tenter de déchiffrer avec une autre
+	message est une chaîne = "secret"
+	chiffre est un buffer = CrypteStandard(message, "bonne-cle")
+
+	ErreurRAZ()
+	mauvais est une chaîne = DécrypteStandard(chiffre, "mauvaise-cle")
+
+	// Une erreur doit être détectée (padding invalide ou HMAC échoué)
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur détectée après mauvaise clé")
+FIN
+
+// Cas erreur : buffer corrompu ou trop court
+PROCEDURE PRIVÉE scenario_buffer_corrompu()
+	// Un buffer invalide (non produit par CrypteStandard) doit provoquer une erreur
+	bufferInvalide est un buffer = ChaîneVersBuffer("data-invalid")
+	cle est une chaîne = "cle"
+
+	ErreurRAZ()
+	resultat est une chaîne = DécrypteStandard(bufferInvalide, cle)
+
+	// Erreur attendue car le buffer n'a pas la structure attendue
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur détectée sur buffer corrompu")
+FIN

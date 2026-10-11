@@ -1,0 +1,35 @@
+// Verrou  — les noms de PROCEDURE d'un Etat sont insensibles aux
+// accents comme le reste des identifiants du langage (invariant 2).
+//
+// Moitie "resolution" du verrou : une procedure declaree "noteAidé" est
+// appelee par la graphie "noteAide", et une procedure declaree "noteResume"
+// est appelee par la graphie "noteRésumé". La moitie "declaration" (doublon
+// accentue refuse) est verrouillee par les fixtures compile-error
+// etat_proc_doublon_accent / etat_proc_doublon_casse /
+// etat_proc_bloc_doublon_accent.
+//
+// La ressource ETAT_ProcAccent vit dans le voisin ETAT_ProcAccent.owl.
+
+TestModeHeadless(Vrai)
+
+resAccent est une chaîne = ""
+resNu est une chaîne = ""
+
+PROCEDURE callback_resultat_accent(s est une chaîne)
+	resAccent = s
+FIN
+
+PROCEDURE callback_resultat_nu(s est une chaîne)
+	resNu = s
+FIN
+
+iDestination(iPDFGénérique, "tests/regression/etat_proc_nom_accent/temp.pdf")
+iImprimeEtat(ETAT_ProcAccent)
+iFinImprime()
+
+dbgVérifieEgalité(resAccent, "noteAidé",
+`noteAide() atteint la procedure declaree "noteAidé"`)
+dbgVérifieEgalité(resNu, "noteResume",
+`noteRésumé() atteint la procedure declaree "noteResume"`)
+
+dbgBilanTest()

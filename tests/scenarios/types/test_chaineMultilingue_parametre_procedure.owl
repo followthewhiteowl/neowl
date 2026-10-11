@@ -1,0 +1,39 @@
+// @sujet : chaîneMultilingue — coercition cible sur paramètre de procédure utilisateur
+// @résumé : Un paramètre de procédure utilisateur typé chaine accepte un littéral colon-brace {langueXxx: valeur} en argument d'appel — le type déclaré du paramètre pilote la construction puis l'aplatissement à la langue active, exactement comme une variable typée chaine.
+
+
+PROCEDURE FormateAccueil(sTexte est une chaîne)
+	RENVOYER "Accueil: " + sTexte
+FIN
+
+
+PROCEDURE FormateDeuxTextes(sPrefixe est une chaîne, sCorps est une chaîne)
+	RENVOYER sPrefixe + sCorps
+FIN
+
+
+// Cas nominal : littéral multilingue passé en argument d'une procédure
+// utilisateur dont le paramètre est typé chaîne.
+PROCEDURE scenario_litteral_multilingue_argument_procedure_utilisateur()
+	s est une chaîne = FormateAccueil({langueFrançais: "bonjour", langueAnglais: "hello"})
+
+	dbgVérifieEgalité(s, "Accueil: bonjour", "paramètre typé chaîne aplatit le littéral reçu en argument")
+FIN
+
+
+// Cas limite : littéral mono-langue en argument, même mécanique.
+PROCEDURE scenario_litteral_une_langue_argument_procedure_utilisateur()
+	s est une chaîne = FormateAccueil({langueFrançais: "seul"})
+
+	dbgVérifieEgalité(s, "Accueil: seul", "littéral mono-langue aplati au passage en paramètre")
+FIN
+
+
+// Cas nominal : littéral multilingue en 2e position d'argument (le 1er
+// argument est une chaîne ordinaire). Le type déclaré du paramètre pilote
+// la coercition quelle que soit sa position dans la liste d'arguments.
+PROCEDURE scenario_litteral_multilingue_argument_position_deux()
+	s est une chaîne = FormateDeuxTextes("Info: ",{langueFrançais: "bonjour", langueAnglais: "hello"})
+
+	dbgVérifieEgalité(s, "Info: bonjour", "littéral multilingue en 2e position aplati comme en 1re")
+FIN

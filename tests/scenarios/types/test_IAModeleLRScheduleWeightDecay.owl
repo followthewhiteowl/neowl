@@ -1,0 +1,281 @@
+// @sujet : OptionsEntraînement — décroissance du taux (..PlanTaux) et
+// régularisation L2 (..DécroissancePoids)
+// @résumé : deux réglages d'hygiène d'un entraînement sérieux.
+// ..PlanTaux choisit comment le taux d'apprentissage évolue au fil des
+// époques : planConstant (défaut, taux fixe = comportement historique) ou
+// planCosinus (recuit cosinus, le taux décroît de sa valeur initiale vers
+// ~0 en suivant une demi-cosinus). ..DécroissancePoids (défaut 0.0, désactivé)
+// ajoute une pénalité L2 couplée à la mise à jour des poids, sous forme
+// classique gradient effectif = gradient + λ·poids, pour optimSGD comme pour
+// optimAdam. Les scénarios de trajectoire recalculent la mise à jour à la main
+// (réplication indépendante du forward, comme le test Adam multi-pas) pour
+// prouver que la formule est bien appliquée, et non déduite par coïncidence.
+
+
+// planConstant (défaut) et planCosinus se lisent tels qu'écrits dans
+// ..PlanTaux, diffèrent l'un de l'autre, et acceptent leur forme anglaise
+// (scheduleConstant / scheduleCosine).
+PROCEDURE PUBLIQUE scenario_plan_taux_reconnu_en_propriete()
+	opts est un OptionsEntraînement
+	dbgVérifieEgalité(opts..PlanTaux, planConstant, "PlanTaux par défaut = planConstant")
+
+	opts..PlanTaux = planCosinus
+	dbgVérifieEgalité(opts..PlanTaux, planCosinus, "PlanTaux relu = planCosinus écrit")
+	dbgVérifieDifférence(opts..PlanTaux, planConstant, "planCosinus diffère de planConstant")
+
+	opts..LRSchedule = scheduleConstant
+	dbgVérifieEgalité(opts..PlanTaux, planConstant, "forme EN scheduleConstant == planConstant")
+	opts..LRSchedule = scheduleCosine
+	dbgVérifieEgalité(opts..PlanTaux, planCosinus, "forme EN scheduleCosine == planCosinus")
+FIN
+
+
+// ..DécroissancePoids vaut 0.0 par défaut (régularisation désactivée) et se
+// relit exactement comme écrite (propriété réelle, forme EN ..WeightDecay).
+PROCEDURE PUBLIQUE scenario_decroissance_poids_defaut_zero()
+	opts est un OptionsEntraînement
+	dbgVérifieEgalité(opts..DécroissancePoids, 0.0, "DécroissancePoids par défaut = 0.0")
+
+	opts..DécroissancePoids = 0.25
+	dbgVérifieEgalité(opts..DécroissancePoids, 0.25, "DécroissancePoids relu = valeur écrite")
+
+	opts..WeightDecay = 0.5
+	dbgVérifieEgalité(opts..DécroissancePoids, 0.5, "forme EN WeightDecay écrit la même propriété")
+FIN
+
+
+// Cœur du contrat cosinus : sur 2 époques (E=2), le taux effectif est
+// recalculé au DÉBUT de chaque époque. À e=0 : taux·0.5·(1+cos(0)) = taux
+// (pas plein). À e=1 : taux·0.5·(1+cos(π/2)) = taux·0.5 (demi-pas). La
+// trajectoire des poids est recalculée à la main : forward indépendant à
+// chaque époque pour obtenir le gradient exact, puis mise à jour SGD avec le
+// taux décroissant. On prouve aussi que le résultat DIFFÈRE de ce que
+// planConstant donnerait à e=1 (taux plein) : la formule est bien appliquée.
+PROCEDURE PUBLIQUE scenario_cosinus_deux_epoques_trajectoire_exacte()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	valW0 est une Matrice = mon.Poids(1)..Valeur
+	valB0 est un Vecteur = mon.Biais(1)..Valeur
+	w0 est un réel = valW0[1][1]
+	b0 est un réel = valB0[1]
+
+	// Deux échantillons, un seul mini-lot par époque (lot plein = 2). Le
+	// modèle ne peut PAS ajuster une droite sur deux points en un pas : le
+	// gradient de l'époque 1 reste franc, ce qui rend le demi-pas cosinus
+	// distinguable d'un pas plein (garde anti-convergence-triviale).
+	matX est une Matrice = [[1.0], [2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[2.0], [1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.05
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 2
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+	opts..PlanTaux          = planCosinus
+
+	mon.Entraîne(tX, tY, opts)
+
+	// Époque 0 (taux plein) : forward manuel avec (w0, b0) pour g0.
+	matW0 est une Matrice = [[w0]]
+	vecB0 est un Vecteur = [b0]
+	tW0 est un Tenseur = Tenseur(matW0)
+	tb0 est un Tenseur = Tenseur(vecB0)
+	sortie0 est un Tenseur = tX.ProduitMatriciel(tW0)
+	sortie0b est un Tenseur = sortie0 + tb0
+	perte0 est un Tenseur = sortie0b.ErreurQuadratique(tY)
+	perte0.Rétropropage()
+	g0w est un réel = tW0..Gradient[1][1]
+	g0b est un réel = tb0..Gradient[1]
+
+	lr0 est un réel = taux
+	w1 est un réel = w0 - lr0 * g0w
+	b1 est un réel = b0 - lr0 * g0b
+
+	// Époque 1 (demi-taux) : forward manuel avec (w1, b1) pour g1.
+	matW1 est une Matrice = [[w1]]
+	vecB1 est un Vecteur = [b1]
+	tW1 est un Tenseur = Tenseur(matW1)
+	tb1 est un Tenseur = Tenseur(vecB1)
+	sortie1 est un Tenseur = tX.ProduitMatriciel(tW1)
+	sortie1b est un Tenseur = sortie1 + tb1
+	perte1 est un Tenseur = sortie1b.ErreurQuadratique(tY)
+	perte1.Rétropropage()
+	g1w est un réel = tW1..Gradient[1][1]
+	g1b est un réel = tb1..Gradient[1]
+
+	lr1 est un réel = taux * 0.5
+	w2 est un réel = w1 - lr1 * g1w
+	b2 est un réel = b1 - lr1 * g1b
+
+	valWfin est une Matrice = mon.Poids(1)..Valeur
+	valBfin est un Vecteur = mon.Biais(1)..Valeur
+
+	dbgVérifieVrai(Abs(valWfin[1][1] - w2) < 0.000001, "cosinus : poids final = trajectoire à taux décroissant (e0 plein, e1 demi)")
+	dbgVérifieVrai(Abs(valBfin[1] - b2) < 0.000001, "cosinus : biais final = trajectoire à taux décroissant")
+
+	// planConstant donnerait un pas plein à l'époque 1 : le résultat doit
+	// différer nettement (preuve que le cosinus a réduit le taux).
+	wConst est un réel = w1 - taux * g1w
+	dbgVérifieVrai(Abs(valWfin[1][1] - wConst) > 0.0001, "cosinus ≠ planConstant : l'époque 1 a utilisé un demi-pas")
+FIN
+
+
+// Weight decay couplé dans optimSGD : sur 1 pas (E=1, lot 1, 1 échantillon),
+// le poids se met à jour selon w' = w − taux·(g + λ·w). Le gradient brut g est
+// recalculé à la main par un forward indépendant sur les poids initiaux.
+PROCEDURE PUBLIQUE scenario_weight_decay_sgd_un_pas()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	valW0 est une Matrice = mon.Poids(1)..Valeur
+	valB0 est un Vecteur = mon.Biais(1)..Valeur
+	w0 est un réel = valW0[1][1]
+	b0 est un réel = valB0[1]
+
+	matX est une Matrice = [[2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.1
+	lambda est un réel = 0.5
+
+	// Gradient brut par forward indépendant.
+	matW0 est une Matrice = [[w0]]
+	vecB0 est un Vecteur = [b0]
+	tW0 est un Tenseur = Tenseur(matW0)
+	tb0 est un Tenseur = Tenseur(vecB0)
+	sortie est un Tenseur = tX.ProduitMatriciel(tW0)
+	sortieb est un Tenseur = sortie + tb0
+	perte est un Tenseur = sortieb.ErreurQuadratique(tY)
+	perte.Rétropropage()
+	gw est un réel = tW0..Gradient[1][1]
+	gb est un réel = tb0..Gradient[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+	opts..DécroissancePoids = lambda
+
+	mon.Entraîne(tX, tY, opts)
+
+	wAttendu est un réel = w0 - taux * (gw + lambda * w0)
+	bAttendu est un réel = b0 - taux * (gb + lambda * b0)
+
+	valWfin est une Matrice = mon.Poids(1)..Valeur
+	valBfin est un Vecteur = mon.Biais(1)..Valeur
+
+	dbgVérifieVrai(Abs(valWfin[1][1] - wAttendu) < 0.000001, "SGD weight decay : w' = w − taux·(g + λ·w)")
+	dbgVérifieVrai(Abs(valBfin[1] - bAttendu) < 0.000001, "SGD weight decay : biais mis à jour avec le terme λ·b")
+
+	// Sans weight decay le poids serait w0 − taux·g : doit différer.
+	wSansWd est un réel = w0 - taux * gw
+	dbgVérifieVrai(Abs(valWfin[1][1] - wSansWd) > 0.0001, "le terme λ·w a bien modifié la mise à jour SGD")
+FIN
+
+
+// Weight decay couplé dans optimAdam : sur 1 pas (m0=v0=0), le gradient
+// effectif g+λ·w passe dans la formule Adam simplifiée
+// w' = w − taux·ge/(|ge| + eps) avec ge = g + λ·w.
+PROCEDURE PUBLIQUE scenario_weight_decay_adam_un_pas()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	valW0 est une Matrice = mon.Poids(1)..Valeur
+	valB0 est un Vecteur = mon.Biais(1)..Valeur
+	w0 est un réel = valW0[1][1]
+	b0 est un réel = valB0[1]
+
+	matX est une Matrice = [[2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.1
+	lambda est un réel = 0.5
+	eps est un réel = 0.00000001
+
+	matW0 est une Matrice = [[w0]]
+	vecB0 est un Vecteur = [b0]
+	tW0 est un Tenseur = Tenseur(matW0)
+	tb0 est un Tenseur = Tenseur(vecB0)
+	sortie est un Tenseur = tX.ProduitMatriciel(tW0)
+	sortieb est un Tenseur = sortie + tb0
+	perte est un Tenseur = sortieb.ErreurQuadratique(tY)
+	perte.Rétropropage()
+	gw est un réel = tW0..Gradient[1][1]
+	gb est un réel = tb0..Gradient[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteErreurQuadratique
+	opts..DécroissancePoids = lambda
+
+	mon.Entraîne(tX, tY, opts)
+
+	geW est un réel = gw + lambda * w0
+	geB est un réel = gb + lambda * b0
+	wAttendu est un réel = w0 - taux * geW / (Abs(geW) + eps)
+	bAttendu est un réel = b0 - taux * geB / (Abs(geB) + eps)
+
+	valWfin est une Matrice = mon.Poids(1)..Valeur
+	valBfin est un Vecteur = mon.Biais(1)..Valeur
+
+	dbgVérifieVrai(Abs(valWfin[1][1] - wAttendu) < 0.000001, "Adam weight decay : ge = g + λ·w dans la formule Adam simplifiée")
+	dbgVérifieVrai(Abs(valBfin[1] - bAttendu) < 0.000001, "Adam weight decay : biais mis à jour avec ge = g + λ·b")
+FIN
+
+
+// Non-régression : λ = 0 (défaut) => aucun terme ajouté, la mise à jour SGD
+// reste w' = w − taux·g, strictement identique à l'absence de weight decay.
+PROCEDURE PRIVÉE scenario_edge_weight_decay_zero_egale_sans()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	valW0 est une Matrice = mon.Poids(1)..Valeur
+	w0 est un réel = valW0[1][1]
+	b0 est un réel = mon.Biais(1)..Valeur[1]
+
+	matX est une Matrice = [[2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	taux est un réel = 0.1
+
+	matW0 est une Matrice = [[w0]]
+	vecB0 est un Vecteur = [b0]
+	tW0 est un Tenseur = Tenseur(matW0)
+	tb0 est un Tenseur = Tenseur(vecB0)
+	sortie est un Tenseur = tX.ProduitMatriciel(tW0)
+	sortieb est un Tenseur = sortie + tb0
+	perte est un Tenseur = sortieb.ErreurQuadratique(tY)
+	perte.Rétropropage()
+	gw est un réel = tW0..Gradient[1][1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = taux
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+	// ..DécroissancePoids laissé à 0.0 (défaut)
+
+	mon.Entraîne(tX, tY, opts)
+
+	wAttendu est un réel = w0 - taux * gw
+	valWfin est une Matrice = mon.Poids(1)..Valeur
+	dbgVérifieVrai(Abs(valWfin[1][1] - wAttendu) < 0.000001, "λ=0 : mise à jour = w − taux·g (aucun terme L2)")
+FIN

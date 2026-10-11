@@ -1,0 +1,23 @@
+// @sujet : Linter règle 22 — mots terminant par "lot"/"phase" tolérés
+// @résumé : Vérifie que le linter `public_file_forbidden_mention` ne déclenche pas de faux positif sur des mots du jargon OWL qui se terminent par "lot" ou "phase" (slot, emphase, etc.), même quand ils sont suivis d'un identifiant en PascalCase comme c'est le cas pour les noms de slots DSL (Titre, Bulle, X, Y, Largeur, Disposition).
+
+// Régression historique : `find_lot_marker` cherchait sa sous-chaîne
+// case-insensitive sans word-boundary. Donc "slot Titre" matchait
+// faussement comme un marqueur chantier. Idem `find_phase_marker` sur
+// "emphase Apparente". Pattern correct copié de `find_version_marker`
+// qui a la garde word-boundary depuis le départ.
+//
+// Le contenu de ce fichier est conçu pour déclencher l'ancien
+// comportement et rester transparent pour le nouveau :
+//   - le slot Titre d'une Fenêtre est multilingue
+//   - affectation au slot Bulle d'un widget
+//   - les slots X et Y déterminent la Position
+//   - emphase Apparente sur le widget (cas find_phase_marker)
+//   - dephase Initiale d'un signal (autre cas find_phase_marker)
+//
+// Si ce fichier déclenche `--self-test-registry` violation_count > 0
+// avec un marqueur "Lot <X>" ou "Phase <X>", la régression est
+// flagrante.
+
+dbgVérifieEgalité(1, 1, "linter slot/phase keyword tolère le jargon OWL")
+dbgBilanTest()

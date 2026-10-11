@@ -1,0 +1,167 @@
+// @sujet : dPolygone
+// @resume : Dessiner un polygone fermé via coordonnées séparées ou tableau entrelacé
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Triangle simple avec 3 sommets (cas minimal pour polygone fermé) — fond rouge, trait bleu
+PROCEDURE PUBLIQUE scenario_triangle_3_sommets()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelInterieur est un entier
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPolygone(img, 3, 10, 90, 50, 10, 90, 90, couleurRouge, couleurBleu)
+	dFinDessin(img)
+
+	// Centroïde du triangle (10,90)(50,10)(90,90) ≈ (50, 63) — point intérieur garanti
+	pixelInterieur = dPixelCouleur(img, 50, 63)
+	dbgVérifieEgalité(pixelInterieur, couleurRouge, "triangle rouge 3 sommets : intérieur (centroïde) est rouge")
+FIN
+
+// Pentagone (5 sommets) via tableau entrelacé de coordonnées — démontre forme acceptée #2
+PROCEDURE PUBLIQUE scenario_pentagone_forme_tableau()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	coordsPentagone est un tableau d'entiers
+	pixelInterieur est un entier
+	// Sommets : (50,10), (90,40), (70,90), (30,90), (10,40)
+	coordsPentagone.Ajoute(50)
+	coordsPentagone.Ajoute(10)
+	coordsPentagone.Ajoute(90)
+	coordsPentagone.Ajoute(40)
+	coordsPentagone.Ajoute(70)
+	coordsPentagone.Ajoute(90)
+	coordsPentagone.Ajoute(30)
+	coordsPentagone.Ajoute(90)
+	coordsPentagone.Ajoute(10)
+	coordsPentagone.Ajoute(40)
+
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPolygone(img, coordsPentagone, couleurVert, couleurMagenta)
+	dFinDessin(img)
+
+	// Centre approximatif du pentagone (50, 54)
+	pixelInterieur = dPixelCouleur(img, 50, 54)
+	dbgVérifieEgalité(pixelInterieur, couleurVert, "pentagone forme tableau : intérieur est vert")
+FIN
+
+// Hexagone (6 sommets) sans couleur de trait explicite — utilise dStylo actif ou couleur fond
+PROCEDURE PUBLIQUE scenario_hexagone_sans_trait_explicite()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	pixelInterieur est un entier
+	// Sommets : (50,5), (85,25), (85,75), (50,95), (15,75), (15,25)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPolygone(img, 6, 50, 5, 85, 25, 85, 75, 50, 95, 15, 75, 15, 25, couleurCyan)
+	dFinDessin(img)
+
+	// Centre de l'hexagone (50, 50)
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurCyan, "hexagone cyan sans trait explicite : centre est cyan")
+FIN
+
+// Quadrilatère utilisant dStylo pour définir le contour — fond en argument, trait via dStylo
+PROCEDURE PUBLIQUE scenario_polygone_avec_dStylo()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelInterieur est un entier
+	// Sommets : (20,20), (80,20), (70,80), (30,80)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurOrange, 0, 3)
+	dPolygone(img, 4, 20, 20, 80, 20, 70, 80, 30, 80, couleurJaune)
+	dFinDessin(img)
+
+	// Centre du trapèze (50, 50) bien à l'intérieur
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurJaune, "polygone avec dStylo : intérieur est jaune")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+// Triangle dégénéré avec sommets colinéaires alignés horizontalement — vérifier comportement aire nulle
+PROCEDURE PRIVÉE scenario_edge_triangle_sommets_colineaires()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+
+	// Sommets colinéaires : (10,50), (50,50), (90,50) — aire nulle
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPolygone(img, 3, 10, 50, 50, 50, 90, 50, couleurBleu)
+	dFinDessin(img)
+
+	// Polygone plat (aire nulle) : hors ligne y=50, l'image reste blanche
+	pixelCentre = dPixelCouleur(img, 50, 20)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "triangle colinéaire : hors ligne, image blanche (aire nulle)")
+FIN
+
+// Polygone nombreux sommets (octogone régulier ~8 sommets) via tableau — vérifier montée en charge
+PROCEDURE PRIVÉE scenario_edge_nombreux_sommets()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurViolet est un entier = RVB(128, 0, 128)
+	coordsOctogone est un tableau d'entiers
+	pixelInterieur est un entier
+	// Sommets positionnés en cercle autour du centre (50,50) rayon ~40
+	coordsOctogone.Ajoute(50)
+	coordsOctogone.Ajoute(10)
+	coordsOctogone.Ajoute(82)
+	coordsOctogone.Ajoute(21)
+	coordsOctogone.Ajoute(90)
+	coordsOctogone.Ajoute(50)
+	coordsOctogone.Ajoute(82)
+	coordsOctogone.Ajoute(79)
+	coordsOctogone.Ajoute(50)
+	coordsOctogone.Ajoute(90)
+	coordsOctogone.Ajoute(18)
+	coordsOctogone.Ajoute(79)
+	coordsOctogone.Ajoute(10)
+	coordsOctogone.Ajoute(50)
+	coordsOctogone.Ajoute(18)
+	coordsOctogone.Ajoute(21)
+
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPolygone(img, coordsOctogone, couleurViolet)
+	dFinDessin(img)
+
+	// Centre de l'octogone à (50, 50)
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurViolet, "octogone 8 sommets : centre est violet")
+FIN
+
+// Triangle minuscule (bbox ~5x5 pixels) — vérifier polygone extrêmement petit tracé
+PROCEDURE PRIVÉE scenario_edge_polygone_tres_petit()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	// Sommets : (50,50), (52,50), (51,55)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPolygone(img, 3, 50, 50, 52, 50, 51, 55, couleurNoir)
+	dFinDessin(img)
+
+	// Échantillonnage proche des sommets du triangle minuscule (très petit, ~3 pixels d'aire)
+	pixelA = dPixelCouleur(img, 51, 52)
+	pixelB = dPixelCouleur(img, 51, 53)
+	pixelC = dPixelCouleur(img, 50, 50)
+	dbgVérifieVrai(pixelA = couleurNoir OU pixelB = couleurNoir OU pixelC = couleurNoir, "triangle minuscule : au moins un point est noir")
+FIN

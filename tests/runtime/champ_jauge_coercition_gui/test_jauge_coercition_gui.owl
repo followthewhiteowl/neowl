@@ -1,0 +1,29 @@
+//  — chemin widget réel (Qt offscreen) : la coercition réel -> entier
+// pousse bien la valeur au QProgressBar. Avant le correctif, un réel n'appelait
+// jamais setValue -> jauge figée. On lit ..Valeur sur le widget monté (pas le
+// store) pour confirmer que la barre reçoit l'entier coercé, et que NIL et
+// l'entier restent inchangés.
+//
+// Nature : ROUGE avant impl (setValue jamais appelé pour un réel), VERT après.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_JaugeCoercitionGui)
+
+// --- Valeur déclarée sur le widget ---
+dbgVérifieEgalité(JAU..Valeur, 40, "valeur déclarée = 40 (widget)")
+
+// --- Division => réel : le widget reçoit l'entier coercé ---
+JAU..Valeur = 100 / 3
+dbgVérifieEgalité(JAU..Valeur, 33, "100/3 (33.33) poussé au widget comme 33")
+
+// --- Entier inchangé (non-régression) ---
+JAU..Valeur = 75
+dbgVérifieEgalité(JAU..Valeur, 75, "entier 75 poussé tel quel")
+
+// --- Null retombe sur la borne min (non-régression) ---
+JAU..Valeur = Null
+dbgVérifieEgalité(JAU..Valeur, 0, "Null -> borne min (0), inchangé")
+
+Ferme(FEN_JaugeCoercitionGui)
+dbgBilanTest()

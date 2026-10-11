@@ -1,0 +1,20 @@
+//  — __CaptureFenetre(fen, chemin) : capture offscreen d'une fenetre
+// ouverte vers un fichier PNG. Native interne (OWL_NAT_INTERNAL), enabler de la
+// boucle de polissage visuel. Le grab() Qt rend off-screen (render()), donc
+// fonctionne sous QT_QPA_PLATFORM=offscreen.
+//
+// Verifie : retour Vrai + fichier ecrit sur disque + taille > 500 octets
+// (un PNG de fenetre 320x200 avec un libelle depasse largement ce seuil).
+
+Ouvre(FEN_Capture)
+
+chemin est une chaîne = fFichierTemp("owlcap")
+ok est un booléen = __CaptureFenetre(FEN_Capture, chemin)
+
+dbgVérifieEgalité(ok, Vrai, "__CaptureFenetre retourne Vrai (PNG ecrit)")
+dbgVérifieEgalité(fFichierExiste(chemin), Vrai, "le PNG existe sur disque")
+dbgVérifieVrai(fTaille(chemin) > 500, "le PNG fait plus de 500 octets (rendu non-vide)")
+
+Ferme(FEN_Capture)
+fSupprime(chemin)
+dbgBilanTest()

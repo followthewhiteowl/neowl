@@ -1,0 +1,122 @@
+// Test headless : repaint widget Image après mutation `..Image = nouvelle`
+//.
+//
+// Le dev a confirmé visuellement (examples/test_repaint_widget/) que le
+// repaint marche en GUI. Ce test vérifie que les propriétés du widget
+// reflètent bien la mutation **aussi en mode headless** (cohérence
+// GUI ↔ headless), pour que les tests automatiques puissent assert
+// correctement.
+
+PROCEDURE PUBLIQUE scenario_initial_image_valide()
+	Ouvre(FEN_RepaintHeadless)
+
+	// Après FinInitialisation, IMG_Cible..Image doit être icones.add.
+	dbgVérifieVrai(IMG_Cible..Image..Valide,
+	"Image initiale (icones.add) valide après FinInitialisation")
+
+	Ferme(FEN_RepaintHeadless)
+FIN
+
+PROCEDURE PUBLIQUE scenario_mutation_propage_a_propriete()
+	Ouvre(FEN_RepaintHeadless)
+
+	// Lecture initiale via path direct.
+	dbgVérifieVrai(IMG_Cible..Image..Valide,
+	"Image initiale valide (lecture path direct)")
+
+	// Mutation vers icones.close.
+	IMG_Cible..Image = icones.close
+
+	// Lecture post-mutation via path direct.
+	dbgVérifieVrai(IMG_Cible..Image..Valide,
+	"Image post-mutation valide (lecture path direct)")
+
+	Ferme(FEN_RepaintHeadless)
+FIN
+
+PROCEDURE PUBLIQUE scenario_bascule_repetee()
+	Ouvre(FEN_RepaintHeadless)
+
+	// 5 bascules successives : chaque mutation doit laisser un widget cohérent.
+	POUR i = 1 À 5
+		SI (i % 2) = 0 ALORS
+			IMG_Cible..Image = icones.add
+		SINON
+			IMG_Cible..Image = icones.close
+		FIN
+		dbgVérifieVrai(IMG_Cible..Image..Valide,
+		"Bascule itération " + i + " : image cohérente")
+	FIN
+
+	Ferme(FEN_RepaintHeadless)
+FIN
+
+// AUDIT CARTOGRAPHIQUE  — capture variable locale.
+//
+// Pattern qui FAIL sans fix : `imgX est une Image = IMG_Y..Image` perd
+// les propriétés. Pourquoi : `..Image` widget est typé VARIANT côté
+// catalogue. Le slot stocke la Value brute (ObjIcone si on assigne
+// icones.add). Au coerce __InstanceCoerce(v, "Image") via parse_to_image,
+// ObjIcone tombe sur la branche fallback → Image vide (toutes props 0/Faux).
+//
+// Cible : capture variable doit préserver Largeur/Hauteur/Valide
+// pour les 3 sources canon (Icone, Image native, chaine path).
+
+PROCEDURE PUBLIQUE scenario_capture_locale_source_icone()
+	Ouvre(FEN_RepaintHeadless)
+
+	// FinInitialisation pose icones.add.
+	imgCap est une Image = IMG_Cible..Image
+
+	dbgVérifieEgalité(imgCap..Valide, Vrai,
+	"capture<-Icone: Valide preserve")
+	dbgVérifieVrai(imgCap..Largeur > 0,
+	"capture<-Icone: Largeur > 0")
+	dbgVérifieVrai(imgCap..Hauteur > 0,
+	"capture<-Icone: Hauteur > 0")
+
+	Ferme(FEN_RepaintHeadless)
+FIN
+
+PROCEDURE PUBLIQUE scenario_capture_locale_source_image_native()
+	Ouvre(FEN_RepaintHeadless)
+
+	// Pose une Image native (dCréeImage) au widget.
+	imgSrc est une Image = dCréeImage(64, 48, RVB(10, 20, 30))
+	IMG_Cible..Image = imgSrc
+
+	imgCap est une Image = IMG_Cible..Image
+
+	dbgVérifieEgalité(imgCap..Valide, Vrai,
+	"capture<-Image: Valide preserve")
+	dbgVérifieEgalité(imgCap..Largeur, 64,
+	"capture<-Image: Largeur preservee (64)")
+	dbgVérifieEgalité(imgCap..Hauteur, 48,
+	"capture<-Image: Hauteur preservee (48)")
+
+	Ferme(FEN_RepaintHeadless)
+FIN
+
+PROCEDURE PUBLIQUE scenario_capture_locale_source_chaine_path()
+	Ouvre(FEN_RepaintHeadless)
+
+	// Pose un chemin de fichier au widget. parse_to_image route vers
+	// dChargeImage. Sans fichier réel, dChargeImage retourne Image
+	// invalide — c'est attendu. On vérifie quand même que la *forme*
+	// retournée est une Image (structName correct), pas un fallback
+	// arbitraire qui ferait planter le pattern.
+	IMG_Cible..Image = "chemin_inexistant.png"
+
+	imgCap est une Image = IMG_Cible..Image
+
+	// Image invalide (fichier absent) mais c'est bien une Image instance.
+	// La capture ne doit pas crasher ni renvoyer une instance bizarre.
+	// Valide = Faux acceptable, mais le simple fait que ..Valide soit
+	// lisible (pas un autre type) prouve la cohérence du coerce.
+	dbgVérifieEgalité(imgCap..Valide, Faux,
+	"capture<-chaine inexistante: Valide = Faux (attendu)")
+
+	Ferme(FEN_RepaintHeadless)
+FIN
+
+dbgBilanTest()

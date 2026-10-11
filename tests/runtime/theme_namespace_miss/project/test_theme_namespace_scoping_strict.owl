@@ -1,0 +1,25 @@
+// Le namespace `theme.<nom>` ne doit résoudre QUE les styles nommés déclarés
+// à l'intérieur du bloc `est un Thème` du fichier désigné par Projet..Thème.
+// Un style nommé déclaré hors de tout bloc `est un Thème` (styleOrphelin,
+// porté par la collection voisine COL_StylesHorsTheme.owl) reste un global
+// de style utilisable directement -- mais N'EST PAS résolu par
+// `theme.styleOrphelin`.
+//
+// ROUGE attendu : ce scénario verrouille le comportement CIBLE (scoping
+// strict). Tant que la résolution du namespace `theme` reste un fallback qui
+// résout n'importe quel global de style du projet, `theme.styleOrphelin`
+// résoudrait à tort -- ce test doit rougir jusqu'à ce que la résolution soit
+// scopée au seul bloc `est un Thème`.
+
+Trace("=== theme.X ne résout PAS un style global hors bloc est un Thème ===")
+
+// Le global direct reste lisible normalement (pas de régression).
+dbgVérifieEgalité(styleOrphelin..CadreExtérieur..CouleurFond, Vert, "styleOrphelin reste un global de style utilisable directement")
+
+// La résolution via le namespace, elle, doit être un miss.
+nCouleurBidon est un entier = theme.styleOrphelin..CadreExtérieur..CouleurFond
+bErreur est un booléen = ErreurDétectée
+
+dbgVérifieVrai(bErreur, "theme.styleOrphelin ne résout pas -- hors scope du bloc est un Thème")
+
+dbgBilanTest()

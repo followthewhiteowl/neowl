@@ -1,0 +1,111 @@
+// @sujet : Détection / Detection — type + IAModèle.Détecte / .Detect
+// @résumé : `.Détecte(image, seuilScore, seuilIoU)` (FR) / `.Detect(...)` (EN)
+// assemble en un appel le décodage de la tête de détection d'un modèle
+// importé, le filtre par score, et la suppression non-maximale (NMS) par
+// classe, puis remet chaque boîte à l'échelle de l'image d'origine. Chaque
+// résultat est un `Détection` (FR) / `Detection` (EN) : `..Boîte`/`..Box`
+// (4 réels [x, y, largeur, hauteur] en pixels image), `..Classe`/`..Class`
+// (index de classe, 0-based), `..Score`/`..Score` (réel [0,1]).
+//
+// Fixture utilisée par tous les scénarios de ce fichier :
+//   tests/internal_fixtures/onnx/fixture_detect_head.onnx — tête de
+//   détection jouet, entrée [1,3,8,8], sortie [1,84,4] (4 colonnes = 4
+//   candidats). La sortie est CONTRÔLÉE : construite via un nœud Constant
+//   (indépendante du contenu de l'image d'entrée, vérifié à la main via
+//   onnxruntime avant dépôt) — 4 colonnes préparées à la main :
+//     - colonne 1 : classe 0, score 0.9, boîte cx=4,cy=4,w=4,h=4 (espace 8×8)
+//     - colonne 2 : classe 0, score 0.8, boîte cx=4.2,cy=4.2,w=4,h=4
+//       (chevauche fortement la colonne 1, IoU ≈ 0.82 — supprimée par NMS
+//       à seuilIoU=0.45, conservée à seuilIoU=1)
+//     - colonne 3 : classe 1, score 0.7, boîte cx=1,cy=1,w=1,h=1 (disjointe)
+//     - colonne 4 : score max 0.1 (sous tout seuil raisonnable) — toujours
+//       écartée avant même la NMS
+// Boîtes hand-computed : x=cx-w/2, y=cy-h/2, largeur=w, hauteur=h, puis
+// remises à l'échelle de l'image d'origine (16×24) depuis l'espace 8×8 du
+// modèle : échelle x = 16/8 = 2.0, échelle y = 24/8 = 3.0 (facteurs
+// différents sur chaque axe, pour vérifier qu'ils ne sont pas confondus).
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Décodage + seuil de score + NMS par classe + remise à l'échelle : le seuil
+// de score (0.5) écarte la colonne 4, la NMS (seuilIoU 0.45) supprime la
+// colonne 2 (chevauchement fort avec la colonne 1, même classe). Restent 2
+// détections, triées par score décroissant.
+PROCEDURE PUBLIQUE scenario_detecte_decode_seuil_nms()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_detect_head.onnx")
+
+	image est une Image = dCréeImage(16, 24, RVB(120, 30, 200))
+
+	dets est un tableau de Détection = mon.Détecte(image, 0.5, 0.45)
+
+	dbgVérifieEgalité(dets..Occurrence, 2, "score 0.5 écarte la colonne 4, NMS 0.45 supprime la colonne 2 : 2 détections")
+
+	dbgVérifieEgalité(dets[1]..Classe, 0, "détection 1 (meilleur score) : classe 0")
+	dbgVérifieVrai(Abs(dets[1]..Score - 0.9) < 0.001, "détection 1 : score 0.9")
+	dbgVérifieVrai(Abs(dets[1]..Boîte[1] - 4.0) < 0.001, "détection 1 : x = (4-2)*2 = 4")
+	dbgVérifieVrai(Abs(dets[1]..Boîte[2] - 6.0) < 0.001, "détection 1 : y = (4-2)*3 = 6")
+	dbgVérifieVrai(Abs(dets[1]..Boîte[3] - 8.0) < 0.001, "détection 1 : largeur = 4*2 = 8")
+	dbgVérifieVrai(Abs(dets[1]..Boîte[4] - 12.0) < 0.001, "détection 1 : hauteur = 4*3 = 12")
+
+	dbgVérifieEgalité(dets[2]..Classe, 1, "détection 2 : classe 1 (colonne 3, disjointe de la colonne 1)")
+	dbgVérifieVrai(Abs(dets[2]..Score - 0.7) < 0.001, "détection 2 : score 0.7")
+	dbgVérifieVrai(Abs(dets[2]..Boîte[1] - 1.0) < 0.001, "détection 2 : x = (1-0.5)*2 = 1")
+	dbgVérifieVrai(Abs(dets[2]..Boîte[2] - 1.5) < 0.001, "détection 2 : y = (1-0.5)*3 = 1.5")
+	dbgVérifieVrai(Abs(dets[2]..Boîte[3] - 2.0) < 0.001, "détection 2 : largeur = 1*2 = 2")
+	dbgVérifieVrai(Abs(dets[2]..Boîte[4] - 3.0) < 0.001, "détection 2 : hauteur = 1*3 = 3")
+FIN
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : formes anglaises + cas limites
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Forme anglaise .Detect / type Detection / ..Box, ..Class, ..Score : même
+// fixture, mêmes seuils, mêmes résultats que le scénario FR.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_detect_head.onnx")
+
+	image is an Image = dCréeImage(16, 24, RVB(120, 30, 200))
+
+	dets is an array of Detection = mon.Detect(image, 0.5, 0.45)
+
+	dbgVérifieEgalité(dets..Occurrence, 2, "Detect (EN) : mêmes 2 détections que .Détecte")
+	dbgVérifieEgalité(dets[1]..Class, 0, "Detect (EN) : détection 1, classe 0")
+	dbgVérifieVrai(Abs(dets[1]..Score - 0.9) < 0.001, "Detect (EN) : détection 1, score 0.9")
+	dbgVérifieVrai(Abs(dets[1]..Box[3] - 8.0) < 0.001, "Detect (EN) : détection 1, largeur boîte = 8")
+FIN
+
+
+// Seuil de score très haut (0.95) : même la meilleure colonne (score 0.9)
+// est écartée. Aucune détection.
+PROCEDURE PRIVÉE scenario_edge_seuil_score_eleve_aucune_detection()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_detect_head.onnx")
+
+	image est une Image = dCréeImage(16, 24, RVB(120, 30, 200))
+
+	dets est un tableau de Détection = mon.Détecte(image, 0.95, 0.45)
+
+	dbgVérifieEgalité(dets..Occurrence, 0, "seuilScore=0.95 > tous les scores (max 0.9) : 0 détection")
+FIN
+
+
+// seuilIoU=1 : plus aucune suppression n'a lieu, même les colonnes 1 et 2
+// (chevauchement fort, IoU ≈ 0.82 < 1) sont conservées toutes les deux.
+PROCEDURE PRIVÉE scenario_edge_seuil_iou_un_aucune_suppression()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_detect_head.onnx")
+
+	image est une Image = dCréeImage(16, 24, RVB(120, 30, 200))
+
+	dets est un tableau de Détection = mon.Détecte(image, 0.5, 1.0)
+
+	dbgVérifieEgalité(dets..Occurrence, 3, "seuilIoU=1 : aucune suppression, les 3 colonnes au-dessus du seuil de score restent")
+	dbgVérifieVrai(Abs(dets[1]..Score - 0.9) < 0.001, "ordre décroissant : colonne 1 (0.9) en premier")
+	dbgVérifieVrai(Abs(dets[2]..Score - 0.8) < 0.001, "ordre décroissant : colonne 2 (0.8) en second (non supprimée)")
+	dbgVérifieVrai(Abs(dets[3]..Score - 0.7) < 0.001, "ordre décroissant : colonne 3 (0.7) en dernier")
+FIN

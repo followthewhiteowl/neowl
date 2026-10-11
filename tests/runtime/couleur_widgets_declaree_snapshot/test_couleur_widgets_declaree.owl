@@ -1,0 +1,119 @@
+//  — Couleur / CouleurFond DECLAREES doivent colorer le texte des
+// widgets a options/items (Selecteur, Liste, Combo, Interrupteur), pas
+// seulement le Libelle. Verrouille par capture pixel du rendu Qt reel.
+//
+// Methode : chaque widget porte un fond sombre RVB(20,20,20) et une couleur
+// de texte vive PURE (un/deux canaux a 255). On capture le rendu via
+// dCopieImageChamp (grab du vrai widget Qt, stylesheet inclus), on scanne
+// toute l'image et on compte :
+//   - les pixels EXACTEMENT egaux a la couleur de texte attendue
+//     (coeur des glyphes, preserve malgre l'antialiasing des bords) ;
+//   - les pixels EXACTEMENT egaux a la CouleurFond declaree.
+// Avant le fix la couleur de texte declaree est ignoree (texte blanc) :
+// nbTexte = 0 -> rouge. Apres le fix : nbTexte > seuil -> vert.
+//
+// Encoding : dPixelCouleur renvoie BGR 24-bit = R + V*256 + B*65536, donc
+// identique a RVB(R,V,B). Couleurs attendues :
+//   Selecteur    jaune   RVB(255,255,0)   = 65535
+//   Liste        vert    RVB(0,255,0)     = 65280
+//   Combo        magenta RVB(255,0,255)   = 16711935
+//   Interrupteur cyan    RVB(0,255,255)   = 16776960
+// Fond commun    sombre  RVB(20,20,20)    = 1315860
+
+CONSTANTE FOND_SOMBRE = 1315860 // RVB(20,20,20)
+CONSTANTE TXT_JAUNE = 65535 // RVB(255,255,0)  Selecteur
+CONSTANTE TXT_VERT = 65280 // RVB(0,255,0)    Liste
+CONSTANTE TXT_MAGENTA = 16711935 // RVB(255,0,255)  Combo
+CONSTANTE TXT_CYAN = 16776960 // RVB(0,255,255)  Interrupteur
+
+Ouvre(FEN_CouleurWidgets)
+
+// ---------- Selecteur : texte jaune ----------
+imgSel est une Image = dCopieImageChamp(SEL_Test)
+dbgVérifieEgalité(imgSel..Valide, Vrai, "Selecteur : capture valide")
+nbTxtSel est un entier = 0
+nbFondSel est un entier = 0
+ySel est un entier = 0
+TANTQUE ySel < imgSel..Hauteur
+	xSel est un entier = 0
+	TANTQUE xSel < imgSel..Largeur
+		cSel est un entier = dPixelCouleur(imgSel, xSel, ySel)
+		SI cSel = TXT_JAUNE ALORS
+			nbTxtSel = nbTxtSel + 1
+		FIN
+		SI cSel = FOND_SOMBRE ALORS
+			nbFondSel = nbFondSel + 1
+		FIN
+		xSel = xSel + 1
+	FIN
+	ySel = ySel + 1
+FIN
+dbgVérifieVrai(nbFondSel > 100, "Selecteur : CouleurFond sombre appliquee (fond present)")
+dbgVérifieVrai(nbTxtSel > 30, "Selecteur : Couleur texte jaune appliquee (glyphes jaunes)")
+
+// ---------- Liste : texte vert ----------
+imgLst est une Image = dCopieImageChamp(LST_Test)
+dbgVérifieEgalité(imgLst..Valide, Vrai, "Liste : capture valide")
+nbTxtLst est un entier = 0
+nbFondLst est un entier = 0
+yLst est un entier = 0
+TANTQUE yLst < imgLst..Hauteur
+	xLst est un entier = 0
+	TANTQUE xLst < imgLst..Largeur
+		cLst est un entier = dPixelCouleur(imgLst, xLst, yLst)
+		SI cLst = TXT_VERT ALORS
+			nbTxtLst = nbTxtLst + 1
+		FIN
+		SI cLst = FOND_SOMBRE ALORS
+			nbFondLst = nbFondLst + 1
+		FIN
+		xLst = xLst + 1
+	FIN
+	yLst = yLst + 1
+FIN
+dbgVérifieVrai(nbFondLst > 100, "Liste : CouleurFond sombre appliquee (fond present)")
+dbgVérifieVrai(nbTxtLst > 30, "Liste : Couleur texte vert appliquee (glyphes verts)")
+
+// ---------- Combo : texte magenta (ligne selectionnee affichee) ----------
+imgCmb est une Image = dCopieImageChamp(CMB_Test)
+dbgVérifieEgalité(imgCmb..Valide, Vrai, "Combo : capture valide")
+nbTxtCmb est un entier = 0
+yCmb est un entier = 0
+TANTQUE yCmb < imgCmb..Hauteur
+	xCmb est un entier = 0
+	TANTQUE xCmb < imgCmb..Largeur
+		cCmb est un entier = dPixelCouleur(imgCmb, xCmb, yCmb)
+		SI cCmb = TXT_MAGENTA ALORS
+			nbTxtCmb = nbTxtCmb + 1
+		FIN
+		xCmb = xCmb + 1
+	FIN
+	yCmb = yCmb + 1
+FIN
+dbgVérifieVrai(nbTxtCmb > 20, "Combo : Couleur texte magenta appliquee (texte affiche magenta)")
+
+// ---------- Interrupteur : texte cyan ----------
+imgInt est une Image = dCopieImageChamp(INT_Test)
+dbgVérifieEgalité(imgInt..Valide, Vrai, "Interrupteur : capture valide")
+nbTxtInt est un entier = 0
+nbFondInt est un entier = 0
+yInt est un entier = 0
+TANTQUE yInt < imgInt..Hauteur
+	xInt est un entier = 0
+	TANTQUE xInt < imgInt..Largeur
+		cInt est un entier = dPixelCouleur(imgInt, xInt, yInt)
+		SI cInt = TXT_CYAN ALORS
+			nbTxtInt = nbTxtInt + 1
+		FIN
+		SI cInt = FOND_SOMBRE ALORS
+			nbFondInt = nbFondInt + 1
+		FIN
+		xInt = xInt + 1
+	FIN
+	yInt = yInt + 1
+FIN
+dbgVérifieVrai(nbFondInt > 100, "Interrupteur : CouleurFond sombre appliquee (fond present)")
+dbgVérifieVrai(nbTxtInt > 30, "Interrupteur : Couleur texte cyan appliquee (glyphes cyan)")
+
+Ferme(FEN_CouleurWidgets)
+dbgBilanTest()

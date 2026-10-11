@@ -1,0 +1,42 @@
+// Regression : Null sur variable non-nullable = RAZ a la valeur "vide"
+// du type (canon de référence des types primitifs). Pas d'erreur compile ni
+// runtime, juste une remise a zero / chaine vide / Faux selon le type.
+//
+// Pendant une periode, un check compile-time "Impossible d'affecter
+// Null a une variable non-nullable" existait et levait une erreur.
+// Il a ete retire car il contredisait le canon de référence. Ce test verrouille
+// le comportement actuel et previent une future re-introduction par
+// erreur.
+//
+// Une variable explicitement nullable (`entier?`) conserve Null tel
+// quel — le RAZ ne s'applique qu'aux types non-nullables.
+
+// === Entier ===
+n_init est un entier = 42
+dbgVérifieEgalité(n_init, 42, "Entier init = 42")
+n_init = Null
+dbgVérifieEgalité(n_init, 0, "Entier = Null -> RAZ a 0")
+
+// === Chaine ===
+s_init est une chaîne = "hello"
+dbgVérifieEgalité(s_init, "hello", "Chaine init = 'hello'")
+s_init = Null
+dbgVérifieEgalité(s_init, "", "Chaine = Null -> RAZ a chaine vide")
+
+// === Reel ===
+r_init est un réel = 3.14
+r_init = Null
+dbgVérifieÉgalitéRéel(r_init, 0.0, "Reel = Null -> RAZ a 0.0", 0.0001)
+
+// === Booleen ===
+b_init est un booléen = Vrai
+dbgVérifieVrai(b_init, "Booleen init = Vrai")
+b_init = Null
+dbgVérifieFaux(b_init, "Booleen = Null -> RAZ a Faux")
+
+// === Type nullable preserve Null ===
+n_opt est un entier?
+n_opt = Null
+dbgVérifieNull(n_opt, "Entier? nullable = Null reste Null (pas de RAZ)")
+
+dbgBilanTest()

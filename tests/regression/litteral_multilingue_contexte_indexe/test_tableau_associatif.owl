@@ -1,0 +1,20 @@
+//  (support #226) : `tab["CLE"] = {"tag": "valeur", ...}` doit
+// construire une chaîneMultilingue exactement comme les 3 contextes qui
+// marchaient déjà (déclaration, affectation simple, argument d'appel).
+Trace("=== fix/1340 : littéral multilingue en affectation tableau associatif ===")
+
+messages est un tableau associatif de chaîneMultilingue
+
+messages["ERREUR_SAISIE"] = {"fr-FR": "Erreur de saisie", "en-GB": "Input error"}
+
+dbgVérifieEgalité(messages["ERREUR_SAISIE"][langueFrançais], "Erreur de saisie", "tableau associatif : lecture fr-FR")
+dbgVérifieEgalité(messages["ERREUR_SAISIE"]["en-GB"], "Input error", "tableau associatif : lecture en-GB")
+
+// Forme clé-constante (langueXxx) en plus de la forme chaîne BCP47 libre :
+// les deux doivent produire le même comportement une fois le fix posé.
+messages["ERREUR_RESEAU"] = {langueFrançais: "Erreur réseau", langueAnglais: "Network error"}
+
+dbgVérifieEgalité(messages["ERREUR_RESEAU"][langueFrançais], "Erreur réseau", "tableau associatif : clé-constante fr")
+dbgVérifieEgalité(messages["ERREUR_RESEAU"][langueAnglais], "Network error", "tableau associatif : clé-constante en")
+
+dbgBilanTest()

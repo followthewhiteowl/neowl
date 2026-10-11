@@ -1,0 +1,42 @@
+// @sujet : zipNbFichier
+// @résumé : Nombre d'entrées d'une archive, en forme fonction (zipNbFichier(archive))
+// et en forme méthode (archive.NbFichier()) — le mock doit intercepter les deux
+// formes de façon identique.
+
+// Forme fonction : référence. L'archive est réellement créée mais reste vide
+// (aucune entrée ajoutée) — sans mock, zipNbFichier renverrait 0, une valeur
+// distincte du témoin 42 imposé par le mock.
+PROCEDURE PUBLIQUE scenario_nbfichier_forme_fonction_intercepte()
+	arch est une zipArchive = zipCrée("test_zipnbfichier_fonction.zip")
+
+	mockNb est un MockNative = MockCrée(zipNbFichier)
+	mockNb.Quand().Retourne(42).Active()
+
+	nCompte est un entier = zipNbFichier(arch)
+
+	dbgVérifieEgalité(nCompte, 42, "la forme fonction retourne la valeur mockée")
+
+	mockNb.Desactive()
+	zipFerme(arch)
+	fSupprime("test_zipnbfichier_fonction.zip")
+FIN
+
+// Même mock, forme méthode : arch.NbFichier() doit être intercepté à
+// l'identique. L'archive vide renverrait réellement 0, distinct du témoin
+// 42 — l'assertion ne passe que si le mock a bien intercepté l'appel.
+PROCEDURE PUBLIQUE scenario_nbfichier_forme_methode_intercepte()
+	arch est une zipArchive = zipCrée("test_zipnbfichier_methode.zip")
+
+	mockNb est un MockNative = MockCrée(zipNbFichier)
+	mockNb.Quand().Retourne(42).Active()
+
+	nCompte est un entier = arch.NbFichier()
+
+	dbgVérifieEgalité(nCompte, 42, "la forme méthode retourne la même valeur mockée que la forme fonction")
+
+	mockNb.Desactive()
+	zipFerme(arch)
+	fSupprime("test_zipnbfichier_methode.zip")
+FIN
+
+dbgBilanTest()

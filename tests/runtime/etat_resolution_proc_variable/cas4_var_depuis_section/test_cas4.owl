@@ -1,0 +1,26 @@
+//  cas 4 — variable top-level d Etat lue depuis section (NON-REGRESSION).
+// VERT ATTENDU : ce comportement fonctionne deja (variables top-level
+// accessibles depuis section, contrairement aux PROCEDUREs).
+// Ce test verrouille le comportement pendant le chantier de scoping
+// pour detecter toute regression.
+// La ressource ETAT_Cas4 vit dans le voisin ETAT_Cas4.owl.
+
+TestModeHeadless(Vrai)
+
+seqCas4 est une chaîne = ""
+
+PROCEDURE callback_observe(s est une chaîne)
+	seqCas4 += s
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_resolution_proc_variable/cas4_var_depuis_section/temp.pdf")
+iImprimeEtat(ETAT_Cas4)
+iFinImprime()
+
+Trace("seqCas4 : [" + seqCas4 + "]")
+
+// coeffGlobal=6, res = 6 * 5 = 30.
+dbgVérifieEgalité(seqCas4, "c4:30",
+"Variable top-level d Etat lue depuis section : valeur correcte")
+
+dbgBilanTest()

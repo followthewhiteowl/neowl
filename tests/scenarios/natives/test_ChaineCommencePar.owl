@@ -1,0 +1,107 @@
+// @sujet : ChaîneCommencePar
+// @résumé : ChaîneCommencePar : vérifier si une chaîne débute par un préfixe donné.
+// Vitrine de ChaîneCommencePar : vérifier si une chaîne débute par un préfixe donné.
+// Retourne la taille (en caractères) du préfixe s'il matche, 0 sinon.
+
+// ============================================================================
+// PROCEDURES PUBLIQUES
+// ============================================================================
+
+// Cas nominal : la chaîne commence effectivement par le préfixe cherché.
+// Utilisation typique : valider un protocole (HTTP/1.1), une extension de fichier, un préfixe linguistique.
+PROCEDURE PUBLIQUE scenario_base_prefixe_present()
+	message est une chaîne = "Bonjour le monde"
+	taille est un entier = ChaîneCommencePar(message, "Bonjour")
+
+	dbgVérifieEgalité(taille, 7, "préfixe 'Bonjour' matche (7 caractères)")
+	dbgVérifieVrai(taille <> 0, "idiome SI <> 0 pour détection de match")
+
+	// Cas protocole réseau
+	reponse est une chaîne = "HTTP/1.1 200 OK"
+	dbgVérifieEgalité(ChaîneCommencePar(reponse, "HTTP"), 4, "protocole HTTP détecté")
+FIN
+
+// Le préfixe cherché n'apparaît pas au début de la chaîne.
+// ChaîneCommencePar retourne 0, même si le motif apparaît ailleurs dans la chaîne.
+PROCEDURE PUBLIQUE scenario_prefixe_absent()
+	texte est une chaîne = "Bonjour le monde"
+
+	// Le motif existe mais pas en début de chaîne
+	dbgVérifieEgalité(ChaîneCommencePar(texte, "monde"), 0, "motif présent mais pas au début")
+
+	// Le motif n'existe pas du tout
+	dbgVérifieEgalité(ChaîneCommencePar(texte, "Salut"), 0, "motif absent de la chaîne")
+
+	// Casse différente (sans option ccSansCasse)
+	dbgVérifieEgalité(ChaîneCommencePar(texte, "BONJOUR"), 0, "casse différente sans option")
+FIN
+
+// Forme méthode : on peut appeler .CommencePar() directement sur une chaîne littérale ou variable.
+// Pratique pour les chaînages et pipelines de traitement.
+PROCEDURE PUBLIQUE scenario_methode_sur_chaine()
+	extension est une chaîne = "projet.owl"
+
+	dbgVérifieEgalité(extension.CommencePar("projet"), 6, "méthode sur variable")
+	dbgVérifieEgalité("HTTP/2 204".CommencePar("HTTP/2"), 6, "méthode sur littéral")
+
+	// Idiome de validation simple
+	resultat est un entier = "https://owl-lang.org".CommencePar("https")
+	dbgVérifieEgalité(resultat, 5, "préfixe HTTPS = 5 chars")
+	SI resultat <> 0 ALORS
+		dbgVérifieVrai(Vrai, "idiome SI <> 0 utilisable pour validation")
+	SINON
+		dbgVérifieVrai(Faux, "validation HTTPS échouée")
+	FIN
+FIN
+
+// Cas limites : préfixe vide, chaîne vide, préfixe égal à la chaîne, préfixe plus long.
+PROCEDURE PUBLIQUE scenario_cas_limites()
+	// Préfixe vide → pas de match (par convention)
+	dbgVérifieEgalité(ChaîneCommencePar("hello", ""), 0, "préfixe vide = 0")
+
+	// Chaîne vide → pas de match
+	dbgVérifieEgalité(ChaîneCommencePar("", "x"), 0, "chaîne vide ne matche rien")
+
+	// Préfixe égal à la chaîne complète → match complet
+	dbgVérifieEgalité(ChaîneCommencePar("hello", "hello"), 5, "égalité = match complet")
+
+	// Préfixe plus long que la chaîne → pas de match
+	dbgVérifieEgalité(ChaîneCommencePar("hi", "hello world"), 0, "préfixe trop long")
+FIN
+
+// ============================================================================
+// PROCEDURES PRIVEES (edge cases proactifs, non-pédagogiques)
+// ============================================================================
+
+// Edge cases proactifs : accents, caractères multi-bytes UTF-8, combinaisons extrêmes.
+PROCEDURE PRIVÉE scenario_edge_utf8_et_extremes()
+	// UTF-8 : la taille retournée est en caractères, pas en bytes
+	dbgVérifieEgalité(ChaîneCommencePar("Été chaud", "Été"), 3, "UTF-8: 3 chars (é = 2 bytes)")
+
+	// Préfixe avec accents vs sans (sans option ccSansAccent)
+	dbgVérifieEgalité(ChaîneCommencePar("Élégant", "Elegant"), 0, "accents sans option")
+
+	// Très long préfixe (performance)
+	longPrefixe est une chaîne = Répète("a", 1000)
+	longChaine est une chaîne = Répète("a", 10000)
+	dbgVérifieEgalité(ChaîneCommencePar(longChaine, longPrefixe), 1000, "préfixe 1000 chars")
+
+	// Caractères spéciaux (emoji, symboles)
+	dbgVérifieEgalité(ChaîneCommencePar("🦉 hibou", "🦉"), 1, "emoji 1 caractère")
+FIN
+
+// Edge case : tableau de candidats (feature avancée, documentée en régression mais exemple minimal ici)
+PROCEDURE PRIVÉE scenario_edge_tableau_candidats()
+	candidats est un tableau de chaînes = ["http://", "https://", "ftp://"]
+
+	// Premier candidat qui matche
+	dbgVérifieEgalité(ChaîneCommencePar("https://owl-lang.org", candidats), 8, "2e candidat matche")
+
+	// Aucun candidat ne matche
+	dbgVérifieEgalité(ChaîneCommencePar("file:///local", candidats), 0, "aucun candidat")
+
+	// Méthode avec tableau
+	dbgVérifieEgalité("ftp://server.com".CommencePar(candidats), 6, "méthode + tableau")
+FIN
+
+dbgBilanTest()

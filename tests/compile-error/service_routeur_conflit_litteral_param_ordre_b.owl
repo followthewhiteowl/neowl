@@ -1,0 +1,36 @@
+// Même conflit que service_routeur_conflit_litteral_param_ordre_a.owl,
+// mais avec les deux OpérationHTTP déclarées dans l'ordre inverse. La
+// détection de conflit doit être symétrique : peu importe laquelle est
+// écrite en premier, [ressource, "latest"] et ["posts", id] se recouvrent
+// toujours sans spécificité tranchante (GET /posts/latest matche les deux).
+// DRAFT test_writer (chantier 2, ) — rouge à tort aujourd'hui
+// (compile sans erreur, l'analyseur n'existe pas encore).
+ServiceRouteurConflitOrdreB est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "v1"]
+	FIN
+
+	DernierElement est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = [ressource, "latest"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(ressource est une chaîne) : entier
+			RENVOYER 0
+		FIN
+	FIN
+
+	LitPost est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["posts", id]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(id est un entier) : entier
+			RENVOYER id
+		FIN
+	FIN
+FIN

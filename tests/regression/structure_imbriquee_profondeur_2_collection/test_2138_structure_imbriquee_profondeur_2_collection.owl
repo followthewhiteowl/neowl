@@ -1,0 +1,24 @@
+//  : verrou d'execution pour la collection voisine COL_Cave.owl. Deux
+// Structures membres de la meme CollectionDeProcédures ont chacune un type
+// imbrique de profondeur 2 de MEME nom (sMilieu -> sNoyau) avec des champs
+// differents. Ce test prouve que chaque type niche profond garde ses propres
+// champs et sa propre valeur, sans collision ni alias silencieux entre les
+// deux structures membres — meme au-dela de la profondeur 1.
+
+coffreA est un COL_Cave.stCoffreA
+coffreA.centre.coeur.valeur = 42
+coffreA.centre.label = "coffre a"
+coffreA.taille = 100
+
+coffreB est un COL_Cave.stCoffreB
+coffreB.centre.coeur.poids = 77
+coffreB.centre.note = "coffre b"
+coffreB.volume = 200
+
+dbgVérifieEgalité(coffreA.centre.coeur.valeur, 42, "sNoyau profond de stCoffreA garde son champ valeur independant")
+dbgVérifieEgalité(coffreA.centre.label, "coffre a", "champ scalaire de sMilieu de stCoffreA apres le type niche profond")
+dbgVérifieEgalité(coffreA.taille, 100, "champ scalaire de stCoffreA apres le type imbrique de profondeur 1")
+dbgVérifieEgalité(coffreB.centre.coeur.poids, 77, "sNoyau profond de stCoffreB garde son champ poids independant (pas ecrase par stCoffreA)")
+dbgVérifieEgalité(coffreB.centre.note, "coffre b", "champ scalaire de sMilieu de stCoffreB apres le type niche profond")
+dbgVérifieEgalité(coffreB.volume, 200, "champ scalaire de stCoffreB apres le type imbrique de profondeur 1")
+dbgBilanTest()

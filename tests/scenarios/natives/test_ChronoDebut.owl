@@ -1,0 +1,105 @@
+// @sujet : ChronoDébut
+// @resume : démarre un chronomètre pour mesurer le temps écoulé
+
+// Vitrine de ChronoDébut : démarre un chronomètre global ou une instance nommée,
+// associé à ChronoFin pour obtenir la durée mesurée en millisecondes.
+
+PROCEDURE PUBLIQUE scenario_nominal_global()
+	// Démarrer le chronomètre global, exécuter du travail léger, arrêter
+	ChronoDébut()
+	somme est un entier = 0
+	POUR i = 1 À 500
+		somme += i
+	FIN
+	ms est un entier = ChronoFin()
+
+	// La durée mesurée est positive (même si proche de 0)
+	dbgVérifieVrai(ms >= 0, "durée mesurée positive")
+	dbgVérifieEgalité(somme, 125250, "travail exécuté correctement")
+FIN
+
+PROCEDURE PUBLIQUE scenario_instance_nommee()
+	// Utiliser une instance Chrono explicite au lieu du chronomètre global
+	c est un Chrono
+	ChronoDébut(c)
+
+	// Travail léger entre début et fin
+	total est un entier = 0
+	POUR k = 1 À 300
+		total += k
+	FIN
+
+	msInstance est un entier = ChronoFin(c)
+	dbgVérifieVrai(msInstance >= 0, "instance chrono mesure durée >= 0")
+	dbgVérifieEgalité(total, 45150, "calcul correct pendant chronométrage")
+FIN
+
+PROCEDURE PUBLIQUE scenario_deux_chronos_paralleles()
+	// Démarrer deux chronos indépendants pour mesurer deux sections différentes
+	chronoA est un Chrono
+	chronoB est un Chrono
+
+	ChronoDébut(chronoA)
+	accum est un entier = 0
+	POUR i = 1 À 200
+		accum += i
+	FIN
+	msA est un entier = ChronoFin(chronoA)
+
+	ChronoDébut(chronoB)
+	POUR i = 1 À 400
+		accum += i
+	FIN
+	msB est un entier = ChronoFin(chronoB)
+
+	// Les deux durées sont indépendantes et positives
+	dbgVérifieVrai(msA >= 0, "chrono A >= 0")
+	dbgVérifieVrai(msB >= 0, "chrono B >= 0")
+	dbgVérifieEgalité(accum, 100300, "travail cumulé A+B correct")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_redemarrage_apres_fin()
+	// Redémarrer un chronomètre après l'avoir arrêté : le compteur repart de zéro
+	c2 est un Chrono
+	ChronoDébut(c2)
+	x est un entier = 0
+	POUR i = 1 À 100
+		x += 1
+	FIN
+	premiereMs est un entier = ChronoFin(c2)
+
+	// Redémarrer le même chronomètre
+	ChronoDébut(c2)
+	POUR i = 1 À 100
+		x += 1
+	FIN
+	deuxiemeMs est un entier = ChronoFin(c2)
+
+	// Les deux mesures sont indépendantes (pas cumulatives)
+	dbgVérifieVrai(premiereMs >= 0, "première mesure >= 0")
+	dbgVérifieVrai(deuxiemeMs >= 0, "deuxième mesure >= 0")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_bilingue()
+	// Vérifier que l'alias anglais ChronoStart est fonctionnel
+	ChronoStart()
+	valeur est un entier = 0
+	POUR i = 1 À 50
+		valeur += i
+	FIN
+	msEN est un entier = ChronoEnd()
+
+	dbgVérifieVrai(msEN >= 0, "alias EN ChronoStart/ChronoEnd fonctionne")
+	dbgVérifieEgalité(valeur, 1275, "calcul sous alias EN correct")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_sans_travail()
+	// Démarrer et arrêter immédiatement sans calcul intermédiaire
+	ChronoDébut()
+	msMin est un entier = ChronoFin()
+
+	// La durée est nulle ou très proche de zéro (overhead système minimal)
+	dbgVérifieVrai(msMin >= 0, "durée sans travail >= 0")
+FIN
+
+dbgBilanTest()

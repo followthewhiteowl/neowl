@@ -1,0 +1,211 @@
+Trace("=== HTTP MOCKED (Mock System) ===")
+
+// Setup: Create and configure HTTP mock
+mockHTTP est un MockNative = MockCrée(HTTPRequête)
+
+// Mock responses for all test cases
+// For now, we mock only return values. HTTPDernierStatut() will need separate handling.
+// TODO: add MockHttpStatus(mock, statusCode) helper when needed
+
+// GET /get - basic
+//mockHTTP.Quand().Avec("http://httpbin.org/get").Retourne("{""user-agent"":""OWL/0.1"",""url"":""http://httpbin.org/get""}")
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/get")
+MockRetourne(mockHTTP, "{""user-agent"":""OWL/0.1"",""url"":""http://httpbin.org/get""}")
+
+// Status 404
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/status/404")
+MockRetourne(mockHTTP, "")
+
+// Status 503
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/status/503")
+MockRetourne(mockHTTP, "")
+
+// POST with body
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/post", "POST", "foo=bar&baz=42")
+MockRetourne(mockHTTP, "{""data"":""foo=bar&baz=42""}")
+
+// GET with custom header
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/headers", MockTout(), MockTout, MockContient("X-Custom-Header"))
+MockRetourne(mockHTTP, "{""headers"":{""X-Custom-Header"":""OWL-Test""}}")
+
+// Invalid URL
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "not-a-url")
+MockRetourne(mockHTTP, Null)
+
+// HTTPS GET
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "https://httpbin.org/get")
+MockRetourne(mockHTTP, "{""user-agent"":""OWL/0.1"",""url"":""https://httpbin.org/get""}")
+
+// Bad HTTPS cert
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "https://expired.badssl.com/")
+MockRetourne(mockHTTP, Null)
+
+// User-agent custom
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/user-agent", MockTout)
+MockRetourne(mockHTTP, "{""user-agent"":""MonAppliOWL/1.2.3""}")
+
+// POST via options
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/post", MockTout)
+MockRetourne(mockHTTP, "{""data"":""42"",""headers"":{""Content-Type"":""application/x-www-form-urlencoded""}}")
+
+// Basic auth OK
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/basic-auth/alice/secret42", MockTout)
+MockRetourne(mockHTTP, "{""authenticated"":true,""user"":""alice""}")
+
+// Basic auth wrong
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/basic-auth/alice/secret42", MockTout)
+MockRetourne(mockHTTP, "")
+
+// Bearer absent (1 arg - must be first to avoid matching 2-arg calls)
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/bearer")
+MockRetourne(mockHTTP, "")
+
+// Bearer auth (2 args - more specific, must be after 1-arg rule)
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/bearer", MockTout)
+MockRetourne(mockHTTP, "{""authenticated"":true,""token"":""mon-token-secret""}")
+
+// Headers obj
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/headers", MockTout)
+MockRetourne(mockHTTP, "{""headers"":{""X-Custom-1"":""value-1"",""X-Custom-2"":""value-2""}}")
+
+// Redirects
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/redirect/3", MockTout)
+MockRetourne(mockHTTP, "{""url"":""http://httpbin.org/get""}")
+
+// No follow redirects
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/redirect/1", MockTout)
+MockRetourne(mockHTTP, "")
+
+// Max redirects
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, "http://httpbin.org/redirect/10", MockTout)
+MockRetourne(mockHTTP, "")
+
+// Default catch-all for any remaining calls
+MockQuand(mockHTTP)
+MockAvec(mockHTTP, MockTout)
+MockRetourne(mockHTTP, "{}")
+
+MockActive(mockHTTP)
+
+// ============================================================
+// LEGACY POSITIONAL API
+// ============================================================
+
+resp est une chaîne = HTTPRequête("http://httpbin.org/get")
+// TODO: HTTPDernierStatut() mock support needs implementation
+// // dbgVerifieEgalite(HTTPDernierStatut(), 200, "GET /get -> 200")
+dbgVérifieVrai(Taille(resp) > 10, "GET /get body non-trivial")
+dbgVérifieVrai(Position(resp, "OWL/0.1") > 0, "User-Agent OWL visible")
+
+HTTPRequête("http://httpbin.org/status/404")
+// // dbgVerifieEgalite(HTTPDernierStatut(), 404, "404 Not Found")
+
+HTTPRequête("http://httpbin.org/status/503")
+// // dbgVerifieVrai(HTTPDernierStatut() >= 500 ET HTTPDernierStatut() < 600,
+//     "5xx Server Error propage")
+
+postResp est une chaîne = HTTPRequête("http://httpbin.org/post", "POST", "foo=bar&baz=42")
+// dbgVerifieEgalite(HTTPDernierStatut(), 200, "POST 200")
+dbgVérifieVrai(Position(postResp, "foo=bar") > 0, "body echo dans reponse")
+
+withHdr est une chaîne = HTTPRequête(
+"http://httpbin.org/headers", "GET", "",
+"X-Custom-Header: OWL-Test[CR][LF]")
+dbgVérifieVrai(Position(withHdr, "X-Custom-Header") > 0
+OU Position(withHdr, "x-custom-header") > 0,
+"Header custom positionnel echoed")
+
+// ============================================================
+// URL / HTTPS BASICS
+// ============================================================
+
+badResp est un httpRéponse = HTTPRequête("not-a-url")
+dbgVérifieVrai(badResp = Null, "URL invalide -> null")
+
+httpsResp est une chaîne = HTTPRequête("https://httpbin.org/get")
+// dbgVerifieEgalite(HTTPDernierStatut(), 200, "HTTPS GET -> 200")
+dbgVérifieVrai(Taille(httpsResp) > 10, "HTTPS body non-trivial")
+
+badHttps est un httpRéponse = HTTPRequête("https://expired.badssl.com/")
+dbgVérifieVrai(badHttps = Null, "cert expire -> rejete")
+
+// ============================================================
+// JSON OPTIONS API
+// ============================================================
+
+// User-Agent custom
+optUA est un JSON = ChaîneVersJSON("{""user_agent"":""MonAppliOWL/1.2.3""}")
+respUA est une chaîne = HTTPRequête("http://httpbin.org/user-agent", optUA)
+dbgVérifieVrai(Position(respUA, "MonAppliOWL/1.2.3") > 0, "User-Agent custom via options")
+
+// Method + body + content_type
+optPost est un JSON = ChaîneVersJSON("{""method"":""POST"",""body"":""data=42"",""content_type"":""application/x-www-form-urlencoded""}")
+respPost est une chaîne = HTTPRequête("http://httpbin.org/post", optPost)
+// dbgVerifieEgalite(HTTPDernierStatut(), 200, "POST via options -> 200")
+dbgVérifieVrai(Position(respPost, "42") > 0, "body echoed via options")
+dbgVérifieVrai(Position(respPost, "application/x-www-form-urlencoded") > 0, "content_type sent")
+
+// Basic auth OK
+optBasic est un JSON = ChaîneVersJSON("{""auth_basic_user"":""alice"",""auth_basic_password"":""secret42""}")
+HTTPRequête("http://httpbin.org/basic-auth/alice/secret42", optBasic)
+// dbgVerifieEgalite(HTTPDernierStatut(), 200, "Basic auth OK -> 200")
+
+// Basic auth wrong
+optBadBasic est un JSON = ChaîneVersJSON("{""auth_basic_user"":""alice"",""auth_basic_password"":""wrong""}")
+HTTPRequête("http://httpbin.org/basic-auth/alice/secret42", optBadBasic)
+// dbgVerifieEgalite(HTTPDernierStatut(), 401, "Basic auth mauvais pass -> 401")
+
+// Bearer auth
+optBearer est un JSON = ChaîneVersJSON("{""auth_bearer"":""mon-token-secret""}")
+respBearer est une chaîne = HTTPRequête("http://httpbin.org/bearer", optBearer)
+// dbgVerifieEgalite(HTTPDernierStatut(), 200, "Bearer auth -> 200")
+dbgVérifieVrai(Position(respBearer, "mon-token-secret") > 0, "Bearer token dans reponse")
+
+HTTPRequête("http://httpbin.org/bearer")
+// dbgVerifieEgalite(HTTPDernierStatut(), 401, "Bearer absent -> 401")
+
+// headers_obj
+optHdrObj est un JSON = ChaîneVersJSON("{""headers_obj"":{""X-Custom-1"":""value-1"",""X-Custom-2"":""value-2""}}")
+respHdrObj est une chaîne = HTTPRequête("http://httpbin.org/headers", optHdrObj)
+dbgVérifieVrai(Position(respHdrObj, "X-Custom-1") > 0 OU Position(respHdrObj, "x-custom-1") > 0,
+"headers_obj[0] envoye")
+dbgVérifieVrai(Position(respHdrObj, "value-2") > 0, "headers_obj value-2 envoye")
+
+// follow_redirects (default true)
+respRedir est une chaîne = HTTPRequête("http://httpbin.org/redirect/3")
+// dbgVerifieEgalite(HTTPDernierStatut(), 200, "Follow 3 redirects -> 200 final")
+
+// follow_redirects false
+optNoRedir est un JSON = ChaîneVersJSON("{""follow_redirects"":false}")
+HTTPRequête("http://httpbin.org/redirect/1", optNoRedir)
+// dbgVerifieEgalite(HTTPDernierStatut(), 302, "follow_redirects=false -> 302 brut")
+
+// max_redirects
+optMaxRedir est un JSON = ChaîneVersJSON("{""max_redirects"":2}")
+HTTPRequête("http://httpbin.org/redirect/10", optMaxRedir)
+// dbgVerifieVrai(HTTPDernierStatut() = 302 OU HTTPDernierStatut() = 301, "max_redirects=2 on s'arrete sur un 3xx")
+
+MockDésactive(mockHTTP)
+
+// Verify mock was called
+MockVérifieAppelé(mockHTTP)
+
+dbgBilanTest()

@@ -1,0 +1,24 @@
+//  (couverture) — verrouille FormatNégatif = fmnParenthèses sur un
+// montant NÉGATIF. Le reviewer  a vérifié par probe que le montant
+// s'affiche entre parenthèses (ex. "(1 234,50 €)") ET que la relecture rend le
+// montant négatif EXACT, mais aucune assertion ne le protégeait.
+//
+// Discriminant CENTRAL : ..Valeur = 0m-1234.50, affiché "(1 234,50 €)", relu en
+// ..Valeur DOIT rendre 0m-1234.50 (négatif exact). Les parenthèses comptables
+// portent le signe : le reparse doit les convertir en '-'. Si ce chemin était
+// cassé, la valeur relue serait POSITIVE (+1234.50) — l'assertion échouerait.
+// C'est donc un vrai test de non-corruption du signe, pas une décoration.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatMonetaireNegatifParentheses)
+
+nNegatif est un entier = SAI_Montant..FormatMonétaire..FormatNégatif
+dbgVérifieEgalité(nNegatif, fmnParenthèses, "FormatMonétaire du champ : ..FormatNégatif relit fmnParenthèses, pas le défaut fmnMoins")
+
+SAI_Montant..Valeur = 0m-1234.50
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m-1234.50, "fmnParenthèses sur négatif : round-trip SET->affiché entre parenthèses->GET rend -1234.50 exact ; les parenthèses comptables sont reconverties en signe, la valeur reste NÉGATIVE")
+
+Ferme(FEN_FormatMonetaireNegatifParentheses)
+dbgBilanTest()

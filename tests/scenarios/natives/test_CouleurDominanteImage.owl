@@ -1,0 +1,162 @@
+// @sujet : CouleurDominanteImage
+// @resume : Extraire la couleur la plus fréquente dans une image bitmap en mémoire
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_image_monochrome_simple()
+	img est un Image
+	largeur est un entier = 100
+	hauteur est un entier = 100
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurDominante est un entier
+
+	// Créer une image de 100x100 pixels et la remplir entièrement en rouge
+	img = dCréeImage(largeur, hauteur)
+	dDébutDessin(img)
+	dFond(couleurRouge)
+	dRectangle(img, 0, 0, largeur, hauteur)
+	dFinDessin(img)
+
+	// Extraire la couleur dominante — doit correspondre au rouge appliqué
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Image monochrome rouge : couleur dominante doit correspondre
+	dbgVérifieVrai(couleurDominante = couleurRouge, "couleur dominante attendue")
+FIN
+
+PROCEDURE PUBLIQUE scenario_image_bi_couleur_majorite_claire()
+	img est un Image
+	largeur est un entier = 100
+	hauteur est un entier = 100
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurDominante est un entier
+
+	// Créer une image 100x100, remplir 90% en bleu et 10% en vert (rectangle en haut à gauche)
+	img = dCréeImage(largeur, hauteur)
+	dDébutDessin(img)
+	dFond(couleurBleu)
+	dRectangle(img, 0, 0, largeur, hauteur)
+	dFond(couleurVert)
+	dRectangle(img, 0, 0, 10, 10)
+	dFinDessin(img)
+
+	// La couleur dominante est bleu (majorité des pixels)
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Bi-couleur avec majorité bleue : dominante doit être bleu
+	dbgVérifieVrai(couleurDominante = couleurBleu, "couleur dominante attendue")
+FIN
+
+PROCEDURE PUBLIQUE scenario_couleur_orange_verifiee_directement()
+	img est un Image
+	largeur est un entier = 50
+	hauteur est un entier = 50
+	couleurOrange est un entier = RVB(255, 165, 0)
+	couleurDominante est un entier
+
+	// Créer une image monochrome orange et vérifier que la dominante est bien cette couleur
+	img = dCréeImage(largeur, hauteur)
+	dDébutDessin(img)
+	dFond(couleurOrange)
+	dRectangle(img, 0, 0, largeur, hauteur)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Image orange : couleur dominante doit correspondre à RVB(255, 165, 0)
+	dbgVérifieVrai(couleurDominante = couleurOrange, "couleur dominante attendue")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_image_tres_petite_1x1_pixel()
+	img est un Image
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Image minimale 1x1 pixel, remplie en cyan
+	img = dCréeImage(1, 1)
+	dDébutDessin(img)
+	dPoint(img, 0, 0, couleurCyan)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Image 1x1 pixel : dominante doit être couleur unique
+	dbgVérifieVrai(couleurDominante = couleurCyan, "couleur dominante attendue")
+FIN
+
+PROCEDURE PRIVÉE scenario_image_noir_et_blanc_extremes()
+	img est un Image
+	largeur est un entier = 80
+	hauteur est un entier = 80
+	couleurNoir est un entier = RVB(0, 0, 0)
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurDominante est un entier
+
+	// Moitié gauche noire (50%), moitié droite blanche (50%) — théoriquement ambigüe mais un des deux ressortira
+	img = dCréeImage(largeur, hauteur)
+	dDébutDessin(img)
+	dFond(couleurNoir)
+	dRectangle(img, 0, 0, largeur / 2, hauteur)
+	dFond(couleurBlanc)
+	dRectangle(img, largeur / 2, 0, largeur, hauteur)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// L'un des deux doit être dominant (on vérifie que c'est bien noir OU blanc, pas une valeur intermédiaire)
+	// Image moitié noir moitié blanc : dominante doit être l une des deux couleurs
+	dbgVérifieVrai(couleurDominante = couleurNoir OU couleurDominante = couleurBlanc, "image mi-noir mi-blanc : moyenne ou un des deux extrêmes")
+FIN
+
+PROCEDURE PRIVÉE scenario_image_multi_couleurs_une_seule_majoritaire()
+	img est un Image
+	largeur est un entier = 100
+	hauteur est un entier = 100
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Fond jaune (100x100 = 10000 pixels), puis carré magenta 10x10 (100 pixels), puis point cyan (1 pixel)
+	img = dCréeImage(largeur, hauteur)
+	dDébutDessin(img)
+	dFond(couleurJaune)
+	dRectangle(img, 0, 0, largeur, hauteur)
+	dFond(couleurMagenta)
+	dRectangle(img, 0, 0, 10, 10)
+	dPoint(img, 50, 50, couleurCyan)
+	dFinDessin(img)
+
+	// Jaune représente ~99% des pixels donc doit être dominant
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Image multi-couleurs avec majorité jaune écrasante : dominante doit être jaune
+	dbgVérifieVrai(couleurDominante = couleurJaune, "couleur dominante attendue")
+FIN
+
+PROCEDURE PRIVÉE scenario_image_composantes_rgb_maximales()
+	img est un Image
+	largeur est un entier = 60
+	hauteur est un entier = 60
+	couleurBlancPur est un entier = RVB(255, 255, 255)
+	couleurDominante est un entier
+
+	// Blanc pur = RGB(255, 255, 255) : valeurs maximales sur tous les canaux
+	img = dCréeImage(largeur, hauteur)
+	dDébutDessin(img)
+	dFond(couleurBlancPur)
+	dRectangle(img, 0, 0, largeur, hauteur)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Image blanc pur (RGB max) : dominante doit correspondre
+	dbgVérifieVrai(couleurDominante = couleurBlancPur, "couleur dominante attendue")
+FIN

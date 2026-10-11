@@ -1,0 +1,57 @@
+//  : le `]` de fermeture peut porter la ponctuation de la
+// structure qui englobe le bloc. Ce qui suit cette ponctuation est
+// indifférent — le cas le plus courant est un modèle de texte passé en
+// premier argument d'une fonction de formatage.
+
+// 1. Modèle multiligne + autres arguments sur la ligne de fermeture.
+sModele est une chaîne = ChaîneConstruit([
+Bonjour %1,
+Vous avez %2 messages.
+], "Alice", 3)
+dbgVérifieEgalité(sModele, "Bonjour Alice," + LF + "Vous avez 3 messages.",
+	"ChaîneConstruit : fermeture ], suivie des arguments de substitution")
+
+// 2. Bloc comme valeur d'une langue dans un littéral multilingue (`],`).
+mMulti est une chaîneMultilingue = {
+langueFrançais: [
+Bonjour
+Bienvenue
+],
+langueAnglais: "Hello"
+}
+dbgVérifieEgalité(mMulti[langueFrançais], "Bonjour" + LF + "Bienvenue",
+	"littéral multilingue : bloc fermé par ],")
+dbgVérifieEgalité(mMulti[langueAnglais], "Hello",
+	"littéral multilingue : l'entrée suivante est bien lue")
+
+// 3. Dernière entrée du littéral : fermeture `]}`.
+mFin est une chaîneMultilingue = {langueFrançais: [
+Fin de bloc
+]}
+dbgVérifieEgalité(mFin[langueFrançais], "Fin de bloc",
+	"littéral multilingue : bloc fermé par ]}")
+
+// 4. Bloc en argument de procédure (`])`).
+PROCEDURE Longueur1365(s est une chaîne) : entier
+	RENVOYER Taille(s)
+FIN
+
+nLong est un entier = Longueur1365([
+abcd
+])
+dbgVérifieEgalité(nLong, 4, "argument de procédure : bloc fermé par ])")
+
+// 5. Fermeture suivie d'espaces avant la ponctuation.
+sEspaces est une chaîne = ChaîneConstruit([
+%1 fini
+]   , "tout")
+dbgVérifieEgalité(sEspaces, "tout fini",
+	"espaces entre le ] et la ponctuation de structure")
+
+// 6. Imbrication d'appels : la ligne de fermeture porte `], "x"))`.
+nImbrique est un entier = Longueur1365(ChaîneConstruit([
+%1
+], "abc"))
+dbgVérifieEgalité(nImbrique, 3, "appels imbriqués : fermeture ], en cascade")
+
+dbgBilanTest()

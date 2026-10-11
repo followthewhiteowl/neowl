@@ -1,0 +1,27 @@
+// V1.5-D : watcher Cadre — sans widget en CLI (owl.exe), valide juste
+// que le tagging et les chained sets sur instances pures ne crashent
+// pas. Le re-apply Qt6 reel est validable via examples/inline_literal/
+// demo.owl en GUI mode.
+
+monCadre est un Cadre = {
+	Couleur   = RougeFoncé
+	Epaisseur = 2
+}
+
+// Modif chained 2 niveaux sur l'instance pure
+monCadre..Epaisseur = 5
+dbgVérifieEgalité(monCadre..Epaisseur, 5, "Modif chained 2-niveaux instance pure")
+
+// Modif chained 3 niveaux : sous-objet Coin
+monCadre..CoinHautGauche..Largeur = 8
+dbgVérifieEgalité(monCadre..CoinHautGauche..Largeur, 8, "Modif chained 3-niveaux Coin")
+
+// Modif chained 3 niveaux : sous-objet Trait
+monCadre..TraitBas..Type = TraitTiret
+dbgVérifieEgalité(monCadre..TraitBas..Type, TraitTiret, "Modif chained 3-niveaux Trait")
+
+// Le hook owl_ui_on_instance_modified doit etre no-op en CLI mode
+// (default impl) — pas de crash, pas d'effet observable cote OWL.
+dbgVérifieVrai(Vrai, "Hook OP_STRUCT_SET ne crashe pas en CLI mode")
+
+dbgBilanTest()

@@ -1,0 +1,40 @@
+// =====================================================================
+// TEST: propriété `Etat` déclarée dans PROPRIETES (rôle PROPRIÉTÉ vs rôle
+// mot-clé DSL de déclaration de fichier État).
+//
+// Bug  : le scanner tokenise `etat` en TOKEN_ETAT (mot-clé de
+// déclaration `<Nom> est un État`), donc le nom `Etat` est illisible comme
+// nom de propriété dans un bloc PROPRIETES — « Dans PROPRIETES : nom de
+// propriete attendu. » dès que `Etat = <valeur>` apparaît dans un champ.
+//
+// Ce test verrouille :
+//   1. `Etat = Actif` (et les autres valeurs de l'état unifié) compile
+//      dans un bloc PROPRIETES de champ (Saisie, Bouton).
+//   2. La valeur déclarée est relue correctement après matérialisation.
+//   3. La réaffectation runtime `SAI_x..Etat = ...` fonctionne toujours
+//      (déjà vert avant ce ticket — cf. tests/runtime/objuicontrol_headless/
+//      etat_affichage_seulement/, non cassé par le fix attendu).
+//
+// Tant que le fix (scanner/parser contextuel) n'est pas posé, ce fichier
+// NE COMPILE PAS (FEN_SaisieEtat.owl voisin échoue au --check) : rouge
+// attendu, "nom de propriete attendu" sur le token Etat.
+// =====================================================================
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_SaisieEtat)
+
+// 1 + 2 — valeurs déclarées dans PROPRIETES, relues après matérialisation.
+dbgVérifieEgalité(SAI_Actif..Etat, Actif, "Etat=Actif declaratif conserve")
+dbgVérifieEgalité(SAI_AffSeul..Etat, AffichageSeulement, "Etat=AffichageSeulement declaratif conserve")
+dbgVérifieEgalité(SAI_Grise..Etat, Grisé, "Etat=Grise declaratif conserve (Saisie)")
+dbgVérifieEgalité(SAI_Invis..Etat, Invisible, "Etat=Invisible declaratif conserve")
+dbgVérifieEgalité(BTN_Grise..Etat, Grisé, "Etat=Grise declaratif conserve (Bouton)")
+
+// 3 — réaffectation runtime + relecture (ne doit pas régresser).
+SAI_Actif..Etat = AffichageSeulement
+dbgVérifieEgalité(SAI_Actif..Etat, AffichageSeulement, "Etat reaffecte au runtime")
+
+Ferme(FEN_SaisieEtat)
+
+dbgBilanTest()

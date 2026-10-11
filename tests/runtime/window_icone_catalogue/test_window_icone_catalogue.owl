@@ -1,0 +1,50 @@
+//  — Icone catalogue (ObjIcone) sur une Fenetre.
+//
+// Bug : la prop Icone/Icon d'une Fenetre etait ignoree silencieusement
+// quand la valeur venait du catalogue integre (ObjIcone) ; seul un chemin
+// de fichier disque fonctionnait. Le Champ Bouton/Image rasterisait deja
+// correctement l'ObjIcone. Ce test replique le pattern aux DEUX chemins
+// (declaration build_window + runtime window_set_prop_qt).
+//
+// Mode GUI reel (TestModeHeadless(Faux) + OuvreSoeur) : les vrais widgets
+// Qt sont montes offscreen, donc setWindowIcon est reellement appele.
+// TestFenetreIconeLargeur lit la largeur de l'icone Qt effective :
+//   > 0  -> icone posee ; 0 -> aucune icone (no-op / QIcon nul).
+//
+// La validation du rendu visuel reste humaine (barre de titre). Ici on
+// verifie que l'affectation n'est plus un no-op silencieux.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_IconeCatalogue)
+
+// --- Chemin declaration (build_window) : Icone = icones.save en PROPRIETES.
+larg_decl est un entier = TestFenetreIconeLargeur(FEN_IconeCatalogue)
+dbgVérifieEgalité(larg_decl, 256,
+"CAS1 declaration : icone catalogue rasterisee a 256px (etait no-op avant fix)")
+
+// --- Chemin runtime (window_set_prop_qt) : FEN..Icone = icones.Delete.
+PoseIconeCatalogue()
+larg_rt est un entier = TestFenetreIconeLargeur(FEN_IconeCatalogue)
+dbgVérifieEgalité(larg_rt, 256,
+"CAS2 runtime : affectation icone catalogue rasterisee a 256px")
+
+// --- Non-regression chemin fichier disque : on genere un vrai PNG puis
+//     on l'affecte comme chaine chemin.
+imgTmp est une Image = IconeVersImage(icones.save)
+cheminPng est une chaîne = "test_fen_icone_0928.png"
+dSauveImagePNG(imgTmp, cheminPng)
+PoseIconeFichier(cheminPng)
+larg_fic est un entier = TestFenetreIconeLargeur(FEN_IconeCatalogue)
+dbgVérifieVrai(larg_fic > 0,
+"CAS3 non-regression : chemin fichier disque pose toujours l'icone")
+fSupprime(cheminPng)
+
+// --- Vidage : chaine vide -> plus d'icone.
+VideIcone()
+larg_vide est un entier = TestFenetreIconeLargeur(FEN_IconeCatalogue)
+dbgVérifieEgalité(larg_vide, 0,
+"CAS4 : chaine vide efface l'icone de la fenetre")
+
+Ferme(FEN_IconeCatalogue)
+dbgBilanTest()

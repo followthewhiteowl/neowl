@@ -1,0 +1,57 @@
+// La police des lignes d'une Liste stylée (Style..LibelléLignes..Police) doit
+// être RÉELLEMENT posée sur le widget (setFont), pas seulement écrite dans la
+// feuille QSS : Qt n'honore pas font-family / font-size en QSS sur
+// QListWidget::item (même classe que les items de menu). On lit la police
+// effective du widget monté (réel, offscreen) via __DebugPoliceChamp.
+//
+// Descripteur renvoyé : "famille|taille|gras|italique".
+//
+// ROUGE attendu AVANT le fix : la police n'est jamais posée par setFont -> le
+// widget garde sa police héritée (taille par défaut, ni Liberation Sans, ni
+// gras, ni italique) alors que le Style demande Nom / Taille=18 / Gras /
+// Italique.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ListePolice)
+dbgVérifieFaux(ErreurDétectée, "Liste stylée : ouverture sans erreur")
+
+// --- 1. Cœur du fix : Style..LibelléLignes..Police appliquée effectivement.
+// Nom volontairement DIFFÉRENT de la famille par défaut du widget (Liberation
+// Sans) : sinon l'assertion sur le nom passerait par coïncidence, même sans le
+// setFont (le défaut contiendrait déjà "Liberation Sans").
+STY_A est un styleListe
+STY_A..LibelléLignes..Police..Nom      = "Liberation Mono"
+STY_A..LibelléLignes..Police..Taille   = 18
+STY_A..LibelléLignes..Police..Gras     = Vrai
+STY_A..LibelléLignes..Police..Italique = Vrai
+LST_A..Style = STY_A
+
+descA est une chaîne = __DebugPoliceChamp(LST_A)
+Trace("=== liste A === " + descA)
+
+dbgVérifieVrai(Contient(descA, "Liberation Mono"),
+"LibelléLignes..Police..Nom : la liste porte réellement Liberation Mono (≠ défaut)")
+dbgVérifieVrai(Contient(descA, "|18|"),
+"LibelléLignes..Police..Taille = 18 : la taille est réellement appliquée au widget")
+dbgVérifieVrai(FinitPar(descA, "|1|1"),
+"LibelléLignes..Police Gras + Italique : réellement appliqués (bold|italic = 1|1)")
+
+// --- 2. Non-régression : police écrite DIRECTEMENT préservée par un Style
+// sans police de lignes (le Style ne clobbe pas la police existante).
+LST_B..Police..Taille = 22
+descAvant est une chaîne = __DebugPoliceChamp(LST_B)
+dbgVérifieVrai(Contient(descAvant, "|22|"),
+"Police directe (Taille=22) posée sur le widget")
+
+STY_B est un styleListe
+STY_B..CadreExtérieur..CouleurFond = JauneClair
+LST_B..Style = STY_B
+
+descApres est une chaîne = __DebugPoliceChamp(LST_B)
+Trace("=== liste B === " + descApres)
+dbgVérifieVrai(Contient(descApres, "|22|"),
+"Style sans police de lignes : la police directe (Taille=22) n'est pas clobbée")
+
+Ferme(FEN_ListePolice)
+dbgBilanTest()

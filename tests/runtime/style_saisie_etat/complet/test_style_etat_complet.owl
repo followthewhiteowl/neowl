@@ -1,0 +1,58 @@
+//  — affectation COMPLETE d'un état de la zone de saisie :
+// SAI..Style..ZoneSaisie..Etats[focus] = unStyleZoneSaisieBase (pas
+// seulement un sous-champ). Deux preuves combinées :
+//   1. Round-trip sur 2 champs distincts (CouleurFond ET Cadre..Couleur)
+//      lus depuis l'instance déclarée puis depuis ..Etats[focus] : prouve
+//      que TOUT l'objet transite, pas un unique champ par coïncidence.
+//   2. Rendu réel (pixel, focus forcé via DonneFocus) : prouve que
+//      l'affectation complète peint effectivement le widget.
+
+TestModeHeadless(Faux)
+
+couleurFond est un entier = RVB(255, 0, 255)
+couleurCadre est un entier = RVB(255, 165, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+STY_Complet est un styleZoneSaisieBase
+STY_Complet..CouleurFond      = couleurFond
+STY_Complet..Cadre..Couleur   = couleurCadre
+STY_Complet..Cadre..Epaisseur = 3
+
+OuvreSoeur(FEN_StyleEtatComplet)
+
+SAI_Complet..Style..ZoneSaisie..Etats[focus] = STY_Complet
+
+// 1. Round-trip : les DEUX champs distincts se retrouvent bien.
+dbgVérifieEgalité(SAI_Complet..Style..ZoneSaisie..Etats[focus]..CouleurFond, couleurFond, "Etats[focus] = STY : CouleurFond transféré")
+dbgVérifieEgalité(SAI_Complet..Style..ZoneSaisie..Etats[focus]..Cadre..Couleur, couleurCadre, "Etats[focus] = STY : Cadre..Couleur transféré")
+
+// 2. Rendu réel : le focus forcé doit peindre fond ET bordure.
+DonneFocus(SAI_Complet)
+img est une Image = dCopieImageFenêtre(FEN_StyleEtatComplet)
+dbgVérifieEgalité(img..Valide, Vrai, "capture focus valide")
+
+nbFond est un entier = CompteCouleurZone(img, 30, 30, 510, 70, couleurFond)
+seuilFond est un entier = 4800
+dbgVérifieVrai(nbFond > seuilFond, "Etats[focus] = STY : fond peint au focus (rendu réel)")
+
+nbBordure est un entier = CompteCouleurZone(img, 15, 15, 525, 75, couleurCadre)
+seuilBordure est un entier = 60
+dbgVérifieVrai(nbBordure > seuilBordure, "Etats[focus] = STY : bordure peinte au focus (rendu réel)")
+
+Ferme(FEN_StyleEtatComplet)
+dbgBilanTest()

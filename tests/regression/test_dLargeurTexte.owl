@@ -1,0 +1,91 @@
+// ================================================================
+// Régression dLargeurTexte / dHauteurTexte : mesure texte canvas
+//
+//  — Ajout des natives de mesure de texte sur canvas d* :
+//   dLargeurTexte(img, texte) : entier (pixels)
+//   dHauteurTexte(img, texte) : entier (pixels)
+//
+// Verrouille :
+//   1. Mesure déterministe (même input → même output)
+//   2. Largeur croît avec la longueur du texte
+//   3. Largeur croît avec la taille de police
+//   4. Largeur d'une chaîne vide = 0
+//   5. Hauteur indépendante du texte (dépend de la police)
+//   6. Hauteur croît avec la taille de police
+//   7. Erreur si police non chargée → retour 0
+// ================================================================
+
+// Propriété 1 : déterminisme
+img1 est une Image = dCréeImage(400, 200)
+dDébutDessin(img1)
+dPolice(img1, "assets/fonts/DejaVuSans-Regular.ttf", 14, iNormal, 0)
+
+nLargeurA est un entier = dLargeurTexte(img1, "Bonjour OWL")
+nLargeurB est un entier = dLargeurTexte(img1, "Bonjour OWL")
+dbgVérifieEgalité(nLargeurA, nLargeurB, "déterminisme: même mesure pour deux appels identiques")
+dbgVérifieVrai(nLargeurA > 0, "largeur d'un texte non vide est strictement positive")
+
+
+// Propriété 2 : largeur croît avec la longueur du texte
+nCourt est un entier = dLargeurTexte(img1, "A")
+nLong est un entier = dLargeurTexte(img1, "AAAAAAAAAA")
+dbgVérifieVrai(nLong > nCourt, "largeur(10 A) > largeur(1 A)")
+
+
+// Propriété 4 : chaîne vide → 0
+nVide est un entier = dLargeurTexte(img1, "")
+dbgVérifieEgalité(nVide, 0, "chaîne vide → largeur 0")
+
+
+// Propriété 5 : hauteur indépendante du texte
+nHauteurA est un entier = dHauteurTexte(img1, "A")
+nHauteurB est un entier = dHauteurTexte(img1, "Bonjour OWL")
+nHauteurC est un entier = dHauteurTexte(img1, "")
+dbgVérifieEgalité(nHauteurA, nHauteurB, "hauteur indépendante du contenu texte")
+dbgVérifieEgalité(nHauteurA, nHauteurC, "hauteur identique même pour chaîne vide")
+dbgVérifieVrai(nHauteurA > 0, "hauteur d'une police chargée est strictement positive")
+
+dFinDessin(img1)
+
+
+// Propriété 3 : largeur croît avec la taille de police
+img2 est une Image = dCréeImage(400, 200)
+dDébutDessin(img2)
+dPolice(img2, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+nLargeurPetit est un entier = dLargeurTexte(img2, "Bonjour")
+
+dPolice(img2, "assets/fonts/DejaVuSans-Regular.ttf", 36, iNormal, 0)
+nLargeurGrand est un entier = dLargeurTexte(img2, "Bonjour")
+
+dbgVérifieVrai(nLargeurGrand > nLargeurPetit, "largeur croît avec la taille de police")
+
+
+// Propriété 6 : hauteur croît avec la taille de police
+dPolice(img2, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+nHPetit est un entier = dHauteurTexte(img2, "Test")
+
+dPolice(img2, "assets/fonts/DejaVuSans-Regular.ttf", 36, iNormal, 0)
+nHGrand est un entier = dHauteurTexte(img2, "Test")
+
+dbgVérifieVrai(nHGrand > nHPetit, "hauteur croît avec la taille de police")
+
+dFinDessin(img2)
+
+
+// Propriété 7 : police non chargée → erreur + retour 0
+img3 est une Image = dCréeImage(100, 100)
+dDébutDessin(img3)
+
+ErreurRAZ()
+nLargeurSansPolice est un entier = dLargeurTexte(img3, "Sans police")
+bErrLargeur est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrLargeur, "erreur posée si dLargeurTexte appelé sans police chargée")
+dbgVérifieEgalité(nLargeurSansPolice, 0, "retour 0 si police non chargée (largeur)")
+
+ErreurRAZ()
+nHauteurSansPolice est un entier = dHauteurTexte(img3, "Sans police")
+bErrHauteur est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrHauteur, "erreur posée si dHauteurTexte appelé sans police chargée")
+dbgVérifieEgalité(nHauteurSansPolice, 0, "retour 0 si police non chargée (hauteur)")
+
+dFinDessin(img3)

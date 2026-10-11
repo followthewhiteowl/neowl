@@ -1,0 +1,58 @@
+//  — Style[lectureSeule] : pivot (CouleurFond) + toutes-props (Cadre).
+//
+// Approche de vérification : PIXEL réel, symétrique du cas grisé. L'état
+// AffichageSeulement est PERSISTANT — posé via `SAI..Etat = AffichageSeulement`,
+// il déclenche `setReadOnly(true)` côté Qt (Saisie) qui applique la
+// pseudo-classe `:read-only`. Capture AVANT (contrôle négatif) puis APRES.
+//
+// ROUGE attendu : `Style[lectureSeule]..X` ne compile pas encore
+// ("lectureSeule" hors palette étatsStyleSaisie phase 1 = {survol, focus}).
+// Cf. FEN_StyleEtatLectureSeulePixel.owl.
+
+TestModeHeadless(Faux)
+
+couleurLSFond est un entier = RVB(255, 0, 255)
+couleurLSCadre est un entier = RVB(255, 165, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleEtatLectureSeulePixel)
+
+// Contrôle négatif : avant Etat = AffichageSeulement, pas encore le fond lecture seule.
+imgAvant est une Image = dCopieImageFenêtre(FEN_StyleEtatLectureSeulePixel)
+dbgVérifieEgalité(imgAvant..Valide, Vrai, "capture avant Etat=AffichageSeulement valide")
+
+nbFondAvant est un entier = CompteCouleurZone(imgAvant, 30, 30, 510, 70, couleurLSFond)
+seuilFond est un entier = 4800 // (510-30) * (70-30) * 0.30, arrondi
+dbgVérifieVrai(nbFondAvant <= seuilFond, "SAI_Cible actif : pas encore le fond de l'état lecture seule (contrôle négatif)")
+
+SAI_Cible..Etat = AffichageSeulement
+
+imgApres est une Image = dCopieImageFenêtre(FEN_StyleEtatLectureSeulePixel)
+dbgVérifieEgalité(imgApres..Valide, Vrai, "capture après Etat=AffichageSeulement valide")
+
+// Pivot : Style[lectureSeule]..CouleurFond peint le fond une fois posé.
+nbFondApres est un entier = CompteCouleurZone(imgApres, 30, 30, 510, 70, couleurLSFond)
+dbgVérifieVrai(nbFondApres > seuilFond, "SAI_Cible Etat=AffichageSeulement : Style[lectureSeule]..CouleurFond peint le fond")
+
+// Toutes-props : Style[lectureSeule]..Cadre..Epaisseur/Couleur peint aussi la bordure.
+nbBordureApres est un entier = CompteCouleurZone(imgApres, 15, 15, 525, 75, couleurLSCadre)
+seuilBordure est un entier = 60 // pourtour fin, seuil bas mais sûr
+dbgVérifieVrai(nbBordureApres > seuilBordure, "SAI_Cible Etat=AffichageSeulement : Style[lectureSeule]..Cadre..Epaisseur/Couleur peint la bordure")
+
+Ferme(FEN_StyleEtatLectureSeulePixel)
+dbgBilanTest()

@@ -1,0 +1,132 @@
+// @sujet : Erreur
+// @résumé : Affiche une boîte de dialogue d'erreur modale avec icône critique. Variadique : les arguments sont concaténés sur des lignes successives.
+
+
+// Particularité des fonctions UI : le mock intercepte les appels pour
+// empêcher l'ouverture de dialogue pendant les tests automatisés. On vérifie
+// que la fonction a été appelée et combien de fois, sans jamais bloquer le
+// runner sur une boîte modale réelle.
+mockErreur est un MockNative = MockCrée(Erreur)
+
+
+PROCEDURE avantChaqueTest()
+	mockErreur = MockCrée(Erreur).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockErreur.Desactive()
+FIN
+
+
+// Cas canonique : un appel simple avec un message d'erreur bloquant.
+// L'utilisateur devra cliquer OK pour fermer la boîte de dialogue.
+PROCEDURE scenario_appel_simple()
+	Erreur("La connexion au serveur a échoué.")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 1), "Erreur doit être invoquée une fois")
+FIN
+
+
+// Erreur est variadique : plusieurs chaînes en arguments sont concaténées en
+// lignes successives dans le dialogue. Pratique pour structurer un message
+// d'erreur avec cause et détail sur des lignes distinctes.
+PROCEDURE scenario_arguments_multiples()
+	Erreur("Échec de l'enregistrement.", "Code retour : 500.", "Réessayez plus tard.")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 1), "Erreur variadique doit compter comme un seul appel")
+FIN
+
+
+// Le compteur du mock reflète fidèlement le nombre d'invocations sur la
+// durée du scénario. Utile pour vérifier des chemins qui déclenchent
+// plusieurs erreurs successives (boucle de traitement par exemple).
+PROCEDURE scenario_appels_repetes_compte_exact()
+	Erreur("Fichier 1 corrompu.")
+	Erreur("Fichier 2 corrompu.")
+	Erreur("Fichier 3 corrompu.")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 3), "3 appels distincts doivent être comptés")
+FIN
+
+
+// Un appel conditionnel non déclenché ne génère aucune invocation. Cas
+// miroir : tester l'absence d'effet vaut tester sa présence.
+PROCEDURE scenario_aucun_appel_si_condition_fausse()
+	nCodeRetour est un entier = 200
+	SI nCodeRetour >= 400 ALORS
+		Erreur("Requête en échec.")
+	FIN
+	dbgVérifieFaux(MockVérifieAppelé(mockErreur), "Aucun appel attendu quand la condition est fausse")
+FIN
+
+
+// MockRéinitialise remet à zéro les compteurs sans effacer les règles ni
+// désactiver le mock. Utile pour partitionner un scénario en plusieurs
+// phases dont on compte les appels indépendamment.
+PROCEDURE scenario_reinitialisation_des_compteurs()
+	Erreur("Avant la réinitialisation.")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 1), "Premier appel comptabilisé")
+
+	MockRéinitialise(mockErreur)
+	dbgVérifieFaux(MockVérifieAppelé(mockErreur), "Compteur remis à zéro après réinitialisation")
+
+	Erreur("Après.")
+	Erreur("Encore.")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 2), "Deux nouveaux appels comptés après réinitialisation")
+FIN
+
+
+// Pattern MockCommence : la règle ne s'applique que sur les appels dont le
+// premier argument commence par le préfixe spécifié. Utile pour catégoriser
+// les erreurs par domaine (réseau, disque, etc.).
+PROCEDURE scenario_pattern_par_prefixe()
+	mockLocal est un MockNative = MockCrée(Erreur)
+	mockLocal.Quand().Avec(MockCommence("Réseau :")).Retourne(0).Active()
+
+	Erreur("Réseau : délai d'attente dépassé.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Préfixe reconnu doit matcher")
+
+	mockLocal.Desactive()
+FIN
+
+
+// Pattern MockContient : la règle s'applique si le premier argument
+// contient la sous-chaîne, quelle que soit sa position. Utile pour des
+// assertions plus souples que MockCommence sur des messages composés.
+PROCEDURE scenario_pattern_par_substring()
+	mockLocal est un MockNative = MockCrée(Erreur)
+	mockLocal.Quand().Avec(MockContient("disque plein")).Retourne(0).Active()
+
+	Erreur("Écriture impossible : disque plein détecté.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Sous-chaîne reconnue doit matcher")
+
+	mockLocal.Desactive()
+FIN
+
+
+// Argument exact : si l'on connaît le texte attendu mot pour mot, on
+// passe directement la chaîne en argument de Avec(). La règle ne s'active
+// alors que sur ce texte précis.
+PROCEDURE scenario_argument_exact_via_chaine()
+	mockLocal est un MockNative = MockCrée(Erreur)
+	mockLocal.Quand().Avec("Licence invalide.").Retourne(0).Active()
+
+	Erreur("Licence invalide.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Texte exact doit matcher la règle")
+
+	mockLocal.Desactive()
+FIN
+
+
+// Cas limite : message avec caractères accentués et symboles spéciaux.
+// Le dialogue doit accepter ce type de contenu sans altération ni crash.
+PROCEDURE PRIVÉE scenario_message_avec_accents_et_symboles()
+	Erreur("Échec critique : impossible d'écrire « résultat.tmp » (café à 100%).")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 1), "Message accentué doit être accepté")
+FIN
+
+
+// Cas limite défensif : une chaîne vide passe sans erreur. Cas rare mais
+// autorisé, il ne doit pas faire planter le runtime ni le mock.
+PROCEDURE PRIVÉE scenario_message_vide()
+	Erreur("")
+	dbgVérifieVrai(MockVérifieAppelé(mockErreur, 1), "Message vide doit tout de même déclencher l'appel")
+FIN

@@ -1,0 +1,52 @@
+// ============================================
+// TEST: String matching operators
+// ~=, ~~, [=, =], [=], [~, ~], [~], [~~, ~~]
+// ============================================
+Trace("=== STRING MATCHING ===")
+
+// --- ~= : case-insensitive equality ---
+dbgVérifieVrai("hello" ~= "HELLO", "~= case-insensitive identique")
+dbgVérifieVrai("OWL" ~= "owl", "~= OWL vs owl")
+dbgVérifieVrai(PAS ("hello" ~= "world"), "~= differents => Faux")
+
+// --- ~~ : case + accent insensitive ---
+dbgVérifieVrai("Café" ~~ "CAFE", "~~ accent+case insensitive")
+dbgVérifieVrai("résumé" ~~ "RESUME", "~~ multiples accents")
+dbgVérifieVrai(PAS ("hello" ~~ "bonjour"), "~~ differents => Faux")
+
+// --- [= : starts with (case-sensitive) ---
+dbgVérifieVrai("hello world" [= "hello", "[= starts with")
+dbgVérifieVrai(PAS ("hello world" [= "HELLO"), "[= case sensitive")
+dbgVérifieVrai(PAS ("hello world" [= "world"), "[= pas au debut")
+
+// --- =] : ends with (case-sensitive) ---
+dbgVérifieVrai("hello world" =] "world", "=] ends with")
+dbgVérifieVrai(PAS ("hello world" =] "WORLD"), "=] case sensitive")
+dbgVérifieVrai(PAS ("hello world" =] "hello"), "=] pas a la fin")
+
+// --- [=] : contains (case-sensitive) ---
+dbgVérifieVrai("hello world" [=] "o wo", "[=] contains")
+dbgVérifieVrai("hello world" [=] "hello", "[=] contains debut")
+dbgVérifieVrai("hello world" [=] "world", "[=] contains fin")
+dbgVérifieVrai(PAS ("hello world" [=] "HELLO"), "[=] case sensitive")
+dbgVérifieVrai(PAS ("hello world" [=] "xyz"), "[=] absent")
+
+// --- [~ / ~] / [~] : flex (case-insensitive) ---
+dbgVérifieVrai("hello world" [~ "HELLO", "[~ starts with, case-insensitive")
+dbgVérifieVrai("hello world" ~] "WORLD", "~] ends with, case-insensitive")
+dbgVérifieVrai("hello world" [~] "O WOR", "[~] contains, case-insensitive")
+dbgVérifieVrai(PAS ("hello world" [~ "WORLD"), "[~ pas au debut")
+
+// --- [~~ / ~~] / [~~] : very flex (case + accent insensitive) ---
+dbgVérifieVrai("caféier rouge" [~~ "CAFE", "[~~ starts ci+ai")
+dbgVérifieVrai("un café noir" ~~] "NOIR", "~~] ends ci+ai")
+dbgVérifieVrai("un CAFÉ noir" [~~] "cafe n", "[~~] contains ci+ai")
+dbgVérifieVrai("Résumé complet" [~~ "resu", "[~~ starts accent")
+dbgVérifieVrai(PAS ("hello world" [~~ "bye"), "[~~ different")
+
+// --- Cas limites : chaine vide ---
+dbgVérifieVrai("abc" [=] "", "[=] sur chaine vide = Vrai")
+dbgVérifieVrai("abc" [= "", "[= sur chaine vide = Vrai")
+dbgVérifieVrai("" ~= "", "~= chaines vides")
+
+dbgBilanTest()

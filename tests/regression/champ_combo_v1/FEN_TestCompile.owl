@@ -1,0 +1,57 @@
+// Fenêtre voisine — ressource compile-only pour test_champ_combo_v1.owl.
+// Témoin DSL : syntaxe fluent + Champ Combo (avec et sans `Champ` explicite),
+// méthodes mutualisées ListeXXX, méthodes Combo-spécifiques (Ouvre/Ferme),
+// lectures de props et events.
+
+FEN_TestCompile est une Fenêtre
+	PROPRIETES
+		Disposition = dispLibre
+	FIN
+
+	// Champ optionnel — sans modifier
+	COMBO_Civil est un Champ Combo
+		PROPRIETES
+			X                  = 0
+			Y                  = 0
+			Largeur            = 200
+			EnSaisie           = Faux
+			Triée              = Vrai
+			MaxLignesAffichées = 8
+		FIN
+		// Reuse des methodes ListeXXX sur Combo
+		COMBO_Civil.Ajoute("Monsieur", "1")
+		COMBO_Civil.Ajoute("Madame", "2")
+		COMBO_Civil.Ajoute("Mademoiselle", "3")
+		n est un entier = COMBO_Civil..Occurrence()
+		i est un entier = COMBO_Civil.Cherche("Madame")
+		COMBO_Civil.Trie()
+		COMBO_Civil.Select(2)
+		j est un entier = COMBO_Civil.Select()
+		// Combo-specifique
+		COMBO_Civil.Ouvre()
+		COMBO_Civil.Ferme()
+		// Lecture props
+		v est une chaîne = COMBO_Civil..ValeurAffichée
+		r est une chaîne = COMBO_Civil..ValeurMémorisée
+		occ est un entier = COMBO_Civil..Occurrence
+		vide est un booléen = COMBO_Civil..Vide
+		PROCEDURE surSélection()
+			Trace("[Sel Combo] valeur memorisee = ", COMBO_Civil..ValeurMémorisée)
+		FIN
+		PROCEDURE surOuverture()
+			Trace("[Combo open]")
+		FIN
+		PROCEDURE surFermeture()
+			Trace("[Combo close]")
+		FIN
+	FIN
+
+	// Avec Champ explicite
+	COMBO_Pays est un Champ Combo
+		PROPRIETES
+			X       = 220
+			Y       = 0
+			Largeur = 200
+		FIN
+	FIN
+FIN

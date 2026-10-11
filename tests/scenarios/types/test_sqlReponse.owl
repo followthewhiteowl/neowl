@@ -1,0 +1,78 @@
+// @sujet : sqlRéponse
+// @résumé : Résultat d'un envoi SQL — Succès, Lignes à parcourir, Occurrence pour les lectures, LignesAffectées pour les écritures.
+
+// sqlRéponse est ce que renvoie SQLEnvoie : Succès dit si la requête a
+// abouti, Lignes porte le résultat d'une lecture, Occurrence et
+// LignesAffectées comptent — mais pas la même chose.
+
+PROCEDURE PRIVÉE connexion_test_ouverte()
+	cnx est une sqlConnexion
+	cnx..Provider = sqlSqlite
+	cnx..Source   = ":memory:"
+	cnx.Ouvre()
+	RENVOYER cnx
+FIN
+
+
+// Valeurs par défaut d'une sqlRéponse jamais utilisée : tout est à zéro,
+// rien n'a été lu ni écrit.
+PROCEDURE PUBLIQUE scenario_valeurs_par_defaut()
+	rep est une sqlRéponse
+	dbgVérifieEgalité(rep..Succès, Faux, "aucune requête envoyée : pas de succès")
+	dbgVérifieEgalité(rep..Occurrence, 0, "aucune ligne lue")
+	dbgVérifieEgalité(rep..LignesAffectées, 0, "aucune ligne écrite")
+FIN
+
+
+// Occurrence répond à « combien de lignes ai-je reçues ? » — le compteur
+// pertinent après une lecture. Lignes porte le détail, accessible par nom
+// de colonne.
+PROCEDURE PUBLIQUE scenario_occurrence_apres_lecture()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE produit (nom TEXT, prix INTEGER)"
+	SQLEnvoie(cnx, reqCree)
+
+	reqAjout est une sqlRequête
+	reqAjout..Code = "INSERT INTO produit (nom, prix) VALUES ('Casque audio', 45), ('Clavier', 30)"
+	SQLEnvoie(cnx, reqAjout)
+
+	reqLire est une sqlRequête
+	reqLire..Code = "SELECT nom, prix FROM produit ORDER BY prix"
+	repLire est une sqlRéponse = SQLEnvoie(cnx, reqLire)
+
+	dbgVérifieEgalité(repLire..Succès, Vrai, "la lecture aboutit")
+	dbgVérifieEgalité(repLire..Occurrence, 2, "deux lignes lues")
+	dbgVérifieEgalité(repLire..Lignes[1]["nom"], "Clavier", "la moins chère en premier")
+	dbgVérifieEgalité(repLire..LignesAffectées, 0, "une lecture ne modifie rien : LignesAffectées reste à 0")
+
+	cnx.Ferme()
+FIN
+
+
+// LignesAffectées répond à « combien de lignes ai-je modifiées ? » — le
+// compteur pertinent après une écriture (INSERT/UPDATE/DELETE), sans
+// rapport avec Occurrence qui reste à 0 tant qu'aucune lecture n'a eu lieu.
+PROCEDURE PUBLIQUE scenario_lignes_affectees_apres_ecriture()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE abonnement (client TEXT, actif INTEGER DEFAULT 1)"
+	SQLEnvoie(cnx, reqCree)
+
+	reqAjout est une sqlRequête
+	reqAjout..Code = "INSERT INTO abonnement (client) VALUES ('Nadia Fontaine'), ('Omar Saidi'), ('Elise Roy')"
+	SQLEnvoie(cnx, reqAjout)
+
+	reqResilie est une sqlRequête
+	reqResilie..Code                  = "UPDATE abonnement SET actif = 0 WHERE client <> {p_garde}"
+	reqResilie..Paramètres["p_garde"] = "Omar Saidi"
+	repResilie est une sqlRéponse = SQLEnvoie(cnx, reqResilie)
+
+	dbgVérifieEgalité(repResilie..Succès, Vrai, "la mise à jour aboutit")
+	dbgVérifieEgalité(repResilie..LignesAffectées, 2, "deux abonnements résiliés")
+	dbgVérifieEgalité(repResilie..Occurrence, 0, "un UPDATE ne lit aucune ligne")
+
+	cnx.Ferme()
+FIN

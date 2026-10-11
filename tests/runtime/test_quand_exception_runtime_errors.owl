@@ -1,0 +1,104 @@
+// ============================================
+// TEST: QUAND EXCEPTION attrape les erreurs runtime VM (div/0, modulo/0)
+// ============================================
+// Bug B1 (beta-test): div/0 dans QUAND EXCEPTION → exit 70, stderr vide, handler jamais executé.
+// Cause: OP_DIVIDE ne consulte pas exceptionStack (contrairement aux autres runtime errors).
+// OP_MODULO a le même trou.
+Trace("=== QUAND EXCEPTION runtime errors ===")
+
+// --- Division par zero attrapée (entier / entier) ---
+nDiv est un entier = 0
+sMsgDiv est une chaîne = ""
+bHandlerDiv est un booléen = Faux
+
+QUAND EXCEPTION DANS
+	nZ est un entier = 100 / nDiv
+	Trace("unreachable: code après div/0")
+FAIRE
+	bHandlerDiv = Vrai
+	sMsgDiv     = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bHandlerDiv, "Division par zero: handler FAIRE executé")
+dbgVérifieEgalité(sMsgDiv, "Division par zéro.", "Division par zero: message ExceptionInfo correct")
+
+// --- Modulo par zero attrapé ---
+nMod est un entier = 0
+sMsgMod est une chaîne = ""
+bHandlerMod est un booléen = Faux
+
+QUAND EXCEPTION DANS
+	nReste est un entier = 100 % nMod
+	Trace("unreachable: code après mod/0")
+FAIRE
+	bHandlerMod = Vrai
+	sMsgMod     = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bHandlerMod, "Modulo par zero: handler FAIRE executé")
+dbgVérifieEgalité(sMsgMod, "Division par zéro.", "Modulo par zero: message ExceptionInfo correct (meme message que div)")
+
+// --- Division numerique par zero (reel / reel) ---
+rDiv est un réel = 0.0
+sMsgReel est une chaîne = ""
+bHandlerReel est un booléen = Faux
+
+QUAND EXCEPTION DANS
+	rZ est un réel = 100.0 / rDiv
+FAIRE
+	bHandlerReel = Vrai
+	sMsgReel     = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bHandlerReel, "Division reel par zero: handler FAIRE executé")
+dbgVérifieEgalité(sMsgReel, "Division par zéro.", "Division reel par zero: message correct")
+
+// --- Modulo reel par zero ---
+rMod est un réel = 0.0
+sMsgModReel est une chaîne = ""
+bHandlerModReel est un booléen = Faux
+
+QUAND EXCEPTION DANS
+	rReste est un réel = 100.0 % rMod
+FAIRE
+	bHandlerModReel = Vrai
+	sMsgModReel     = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bHandlerModReel, "Modulo reel par zero: handler FAIRE executé")
+dbgVérifieEgalité(sMsgModReel, "Division par zéro.", "Modulo reel par zero: message correct")
+
+// --- Sanity: div/0 hors QUAND EXCEPTION reste une erreur fatale (regression) ---
+// On ne peut pas tester directement (crash le test), mais on documente le comportement attendu:
+// 100 / 0 hors handler → stderr "Erreur d'execution : Division par zéro." + exit 70.
+// Ce comportement existait avant le fix et DOIT rester inchangé.
+
+// --- Verification: autres runtime errors VM déjà rattrapables (array OOB) ---
+// Cette assertion verrouille que le fix div/0 n'a pas cassé les autres runtime errors.
+tabBorne est un tableau d'entiers
+Ajoute(tabBorne, 42)
+
+sOOB est une chaîne = ""
+bHandlerOOB est un booléen = Faux
+
+QUAND EXCEPTION DANS
+	x est un entier = tabBorne[99]
+FAIRE
+	bHandlerOOB = Vrai
+	sOOB        = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bHandlerOOB, "Array OOB: handler executé (regression des autres runtime errors)")
+dbgVérifieVrai(Taille(sOOB) > 0, "Array OOB: message non vide")
+
+// --- errCode pour runtime errors VM = 0 (pas de code distinct) ---
+nCode est un entier = -1
+nDivZero est un entier = 0
+
+QUAND EXCEPTION DANS
+	nErr est un entier = 100 / nDivZero
+FAIRE
+	nCode = ExceptionInfo(errCode)
+FIN
+
+dbgVérifieEgalité(nCode, 0, "Division par zero: errCode = 0 (runtime errors VM n'ont pas de code distinct)")

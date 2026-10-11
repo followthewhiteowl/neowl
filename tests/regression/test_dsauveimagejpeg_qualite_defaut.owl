@@ -1,0 +1,45 @@
+// Regression  : dSauveImageJPEG sans 3e argument doit utiliser
+// la qualité 80 par défaut (canon de référence).
+// Bug initial : OWL appliquait 90 par défaut → divergence canon.
+
+couleurMix est un entier = RVB(64, 192, 128)
+cheminDefaut est une chaîne = "test_jpeg_qdefaut_regression.jpg"
+chemin80 est une chaîne = "test_jpeg_q80_regression.jpg"
+chemin90 est une chaîne = "test_jpeg_q90_regression.jpg"
+
+img est une Image = dCréeImage(64, 64, couleurMix)
+dbgVérifieEgalité(img..Valide, Vrai, "image source valide")
+
+// Sauvegarde sans 3e argument : doit appliquer qualité 80 par défaut.
+resDefaut est un booléen = dSauveImageJPEG(img, cheminDefaut)
+dbgVérifieEgalité(resDefaut, Vrai, "sauvegarde défaut OK")
+
+// Sauvegarde explicite qualité 80 (référence canon).
+res80 est un booléen = dSauveImageJPEG(img, chemin80, 80)
+dbgVérifieEgalité(res80, Vrai, "sauvegarde explicite q=80 OK")
+
+// Sauvegarde explicite qualité 90 (ancien défaut non-canon).
+res90 est un booléen = dSauveImageJPEG(img, chemin90, 90)
+dbgVérifieEgalité(res90, Vrai, "sauvegarde explicite q=90 OK")
+
+tailleDefaut est un entier = fTailleFichier(cheminDefaut)
+taille80 est un entier = fTailleFichier(chemin80)
+taille90 est un entier = fTailleFichier(chemin90)
+
+dbgVérifieVrai(tailleDefaut > 0, "fichier défaut non vide")
+dbgVérifieVrai(taille80 > 0, "fichier q=80 non vide")
+dbgVérifieVrai(taille90 > 0, "fichier q=90 non vide")
+
+// Le défaut doit produire exactement le même fichier que q=80 explicite.
+dbgVérifieEgalité(tailleDefaut, taille80,
+"défaut == q=80 (canon de référence)")
+
+// Le défaut doit différer de q=90 (sinon le défaut est resté à 90).
+dbgVérifieVrai(tailleDefaut <> taille90,
+"défaut != q=90 (ancien comportement non-canon)")
+
+fSupprime(cheminDefaut)
+fSupprime(chemin80)
+fSupprime(chemin90)
+
+dbgBilanTest()

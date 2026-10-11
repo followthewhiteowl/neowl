@@ -1,0 +1,34 @@
+// Harnais convergence (impératif hook) — Police composé.
+//
+// État actuel : écriture dans le hook Initialisation du champ alimente le
+// stockage interne (lisible en mode test) mais n'atteint jamais l'affichage.
+// État cible : après convergence (Lot 2), l'écriture impérative est reflétée
+// à l'affichage également.
+//
+// Pattern : la fenêtre voisine FEN_HookPolice.owl appelle callback_verifie.
+
+TestModeHeadless(Vrai)
+
+nom est une chaîne = ""
+taille est un entier = -1
+italique est un booléen = Faux
+
+PROCEDURE callback_verifie(n est une chaîne, t est un entier, i est un booléen)
+	nom      = n
+	taille   = t
+	italique = i
+FIN
+
+Ouvre(FEN_HookPolice)
+
+Trace("=== Hook Police (headless) ===")
+Trace("Nom lu      : [" + nom + "] (attendu : Courier New)")
+Trace("Taille lue  : " + taille + " (attendu : 16)")
+Trace("Italique lu : " + italique + " (attendu : Vrai)")
+
+dbgVérifieEgalité(nom, "Courier New", "Hook Police : Nom")
+dbgVérifieEgalité(taille, 16, "Hook Police : Taille")
+dbgVérifieEgalité(italique, Vrai, "Hook Police : Italique")
+
+Ferme(FEN_HookPolice)
+dbgBilanTest()

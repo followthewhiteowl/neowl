@@ -1,0 +1,17 @@
+//  (extension) : un champ SCALAIRE de structure dont le type est un
+// type composé BUILTIN (httpRequête) doit accepter l'accès propriété `..`
+// sur ce champ, exactement comme pour une variable directe de ce type.
+// Bug préexistant : le validateur `.`/`..` retombe sur le type de la
+// VARIABLE RACINE (la structure) au lieu du champ courant, et refuse `..`
+// en pensant qu'on tente `..` sur la structure elle-même.
+
+stC1621 est une Structure
+	req est un httpRequête
+FIN
+
+s1621 est un stC1621
+s1621.req..URL = "https://exemple.test/api"
+dbgVérifieEgalité(s1621.req..URL, "https://exemple.test/api",
+"1621 : accès propriété `..` sur un champ scalaire de type composite builtin (structure) fonctionne")
+
+dbgBilanTest()

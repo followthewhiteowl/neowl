@@ -1,0 +1,37 @@
+// Verrouille les formes d'arite discretes de la famille erreur migrees
+// depuis une signature variadique masquee : chaque forme valide continue
+// de compiler ET de s'executer correctement, et la sous/sur-application est
+// desormais rejetee a la compilation (cf. tests/compile-error/erreur_*).
+//
+// ErreurInfo : formes 0/1/2 ([typeInfo [, indice sous-erreur]]).
+// ErreurDéclenche : formes 1/2 (code [, message]).
+
+PROCEDURE PUBLIQUE test_erreurinfo_formes()
+	ErreurRAZ()
+	// 0 arg : message de la derniere erreur (vide hors contexte d'erreur)
+	dbgVérifieEgalité(ErreurInfo(), "", "ErreurInfo 0 arg : message vide hors erreur")
+	// 1 arg : composant explicite (errMessage)
+	dbgVérifieEgalité(ErreurInfo(errMessage), "", "ErreurInfo 1 arg : errMessage vide")
+	// 2 args : composant + indice de sous-erreur (indice ignore, pas de
+	// sous-erreur en OWL ; la forme reste valide et n'echoue pas)
+	dbgVérifieEgalité(ErreurInfo(errMessage, 0), "", "ErreurInfo 2 args : sous-erreur 0")
+FIN
+
+PROCEDURE PUBLIQUE test_erreurdeclenche_formes()
+	// 1 arg entier : code seul
+	ErreurDéclenche(99)
+	dbgVérifieVrai(ErreurDétectée, "ErreurDéclenche 1 arg entier : erreur posee")
+	ErreurRAZ()
+
+	// 1 arg chaine : message seul
+	ErreurDéclenche("message seul")
+	dbgVérifieVrai(ErreurDétectée, "ErreurDéclenche 1 arg chaine : erreur posee")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "message seul", "ErreurDéclenche 1 arg chaine : message")
+	ErreurRAZ()
+
+	// 2 args : code + message
+	ErreurDéclenche(42, "boom")
+	dbgVérifieVrai(ErreurDétectée, "ErreurDéclenche 2 args : erreur posee")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "boom", "ErreurDéclenche 2 args : message")
+	ErreurRAZ()
+FIN

@@ -1,0 +1,36 @@
+// @sujet : MLKMeans — digue e2e tabulaire (CSV -> clustering -> structure retrouvée)
+// @résumé : Pipeline complet sur des données tabulaires brutes : une chaîne
+// CSV convertie en Matrice via CSVVersMatrice, un MLKMeans entraîné à graine
+// fixe sur cette Matrice seule (pas d'étiquette, non-supervisé). Vérifie que
+// les groupes présents dans le CSV source sont bien retrouvés : cohérence
+// intra-cluster et séparation inter-cluster, sans présumer de la
+// numérotation des labels (permutation-invariant).
+
+
+// 9 échantillons à une variable, trois groupes bien séparés dans le CSV
+// source (1-3 / 11-13 / 21-23). KMeans doit retrouver ces trois groupes de
+// bout en bout, en partant d'une chaîne CSV brute.
+PROCEDURE PUBLIQUE scenario_pipeline_csv_clustering_trois_groupes()
+	csvX est une chaîne = "1.0" + CRLF + "2.0" + CRLF + "3.0" + CRLF + "11.0" + CRLF + "12.0" + CRLF + "13.0" + CRLF + "21.0" + CRLF + "22.0" + CRLF + "23.0"
+	matX est une Matrice = CSVVersMatrice(csvX, ";", Faux)
+
+	km est un MLKMeans
+	km..NbClusters = 3
+	km..Graine     = 13
+	km.Entraîne(matX)
+
+	preds est un Tenseur = km.Prédit(matX)
+
+	// Cohérence intra-cluster.
+	dbgVérifieEgalité(preds..Valeur[1], preds..Valeur[2], "groupe A (1-3) : lignes 1 et 2 même label")
+	dbgVérifieEgalité(preds..Valeur[2], preds..Valeur[3], "groupe A (1-3) : lignes 2 et 3 même label")
+	dbgVérifieEgalité(preds..Valeur[4], preds..Valeur[5], "groupe B (11-13) : lignes 4 et 5 même label")
+	dbgVérifieEgalité(preds..Valeur[5], preds..Valeur[6], "groupe B (11-13) : lignes 5 et 6 même label")
+	dbgVérifieEgalité(preds..Valeur[7], preds..Valeur[8], "groupe C (21-23) : lignes 7 et 8 même label")
+	dbgVérifieEgalité(preds..Valeur[8], preds..Valeur[9], "groupe C (21-23) : lignes 8 et 9 même label")
+
+	// Séparation inter-cluster.
+	dbgVérifieVrai(preds..Valeur[1] <> preds..Valeur[4], "groupe A <> groupe B")
+	dbgVérifieVrai(preds..Valeur[4] <> preds..Valeur[7], "groupe B <> groupe C")
+	dbgVérifieVrai(preds..Valeur[1] <> preds..Valeur[7], "groupe A <> groupe C")
+FIN

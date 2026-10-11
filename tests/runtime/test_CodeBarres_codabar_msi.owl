@@ -1,0 +1,49 @@
+// Conformité chemin défaut :
+//  - Codabar : START/STOP 'A' ajouté automatiquement si absent (canon de référence ;
+//    zint refuserait un contenu sans caractère de garde A/B/C/D).
+//  - MSI : CB_Vérification pose la clé de contrôle (mod10, zint option_2=1).
+
+// ============================================================================
+// Codabar sans START/STOP : généré valide (A ajouté auto, plus d'erreur zint)
+// ============================================================================
+cbCB est un CodeBarres
+cbCB..TypeCodeBarres = CB_CODABAR
+cbCB..Contenu        = "123456"
+
+ErreurRAZ()
+imgCB est une Image = CodeBarreVersImage(cbCB)
+dbgVérifieVrai(ErreurInfo() = "", "Codabar sans START/STOP - généré sans erreur (A auto)")
+dbgVérifieVrai(imgCB..Valide, "Codabar sans START/STOP - Image valide")
+
+// ============================================================================
+// Codabar avec START/STOP explicite : même symbole que la garde auto
+// ("123456" -> "A123456A" == la forme explicite)
+// ============================================================================
+cbCBg est un CodeBarres
+cbCBg..TypeCodeBarres = CB_CODABAR
+cbCBg..Contenu        = "A123456A"
+
+ErreurRAZ()
+imgCBg est une Image = CodeBarreVersImage(cbCBg)
+dbgVérifieVrai(ErreurInfo() = "", "Codabar avec START/STOP explicite - généré sans erreur")
+dbgVérifieEgalité(imgCB..Largeur, imgCBg..Largeur, "Codabar : garde auto produit le même symbole que la garde explicite")
+
+// ============================================================================
+// MSI + CB_Vérification : clé de contrôle ajoutée (symbole plus large)
+// ============================================================================
+cbMSInu est un CodeBarres
+cbMSInu..TypeCodeBarres = CB_MSI
+cbMSInu..Contenu        = "12345678"
+
+cbMSIv est un CodeBarres
+cbMSIv..TypeCodeBarres = CB_MSI
+cbMSIv..Contenu        = "12345678"
+cbMSIv..Options        = CB_Vérification
+
+ErreurRAZ()
+imgMSInu est une Image = CodeBarreVersImage(cbMSInu)
+imgMSIv est une Image = CodeBarreVersImage(cbMSIv)
+dbgVérifieVrai(ErreurInfo() = "", "MSI + CB_Vérification - généré sans erreur")
+dbgVérifieVrai(imgMSIv..Largeur > imgMSInu..Largeur, "CB_Vérification ajoute la clé MSI (symbole plus large)")
+
+dbgBilanTest()

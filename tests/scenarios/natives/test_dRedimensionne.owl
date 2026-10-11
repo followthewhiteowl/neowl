@@ -1,0 +1,122 @@
+// @sujet : dRedimensionne
+// @résumé : Redimensionner une image en place (zoom/réduction, préservation proportions, haute qualité)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_redimension_agrandissement_simple()
+	img est une Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	ok est un booléen
+
+	// Créer une image 50x50 pixels, la redimensionner à 100x100 (zoom 2x)
+	img = dCréeImage(50, 50, couleurRouge)
+	ok  = dRedimensionne(img, 100, 100)
+
+	dbgVérifieVrai(ok, "redimension agrandissement : retour Vrai")
+	dbgVérifieEgalité(img..Largeur, 100, "largeur apres zoom 2x")
+	dbgVérifieEgalité(img..Hauteur, 100, "hauteur apres zoom 2x")
+FIN
+
+PROCEDURE PUBLIQUE scenario_redimension_reduction()
+	img est une Image
+	couleurVert est un entier = RVB(0, 255, 0)
+	ok est un booléen
+
+	// Créer une image 100x80 pixels, la réduire à 50x40 (réduction 0.5x)
+	img = dCréeImage(100, 80, couleurVert)
+	ok  = dRedimensionne(img, 50, 40)
+
+	dbgVérifieVrai(ok, "redimension reduction : retour Vrai")
+	dbgVérifieEgalité(img..Largeur, 50, "largeur apres reduction 0.5x")
+	dbgVérifieEgalité(img..Hauteur, 40, "hauteur apres reduction 0.5x")
+FIN
+
+PROCEDURE PUBLIQUE scenario_redimension_no_op_dimensions_identiques()
+	img est une Image
+	couleurBleu est un entier = RVB(0, 0, 255)
+	ok est un booléen
+
+	// Redimensionner à la même taille (no-op : 60x60 → 60x60)
+	img = dCréeImage(60, 60, couleurBleu)
+	ok  = dRedimensionne(img, 60, 60)
+
+	dbgVérifieVrai(ok, "redimension no-op : retour Vrai")
+	dbgVérifieEgalité(img..Largeur, 60, "largeur inchangee apres no-op")
+	dbgVérifieEgalité(img..Hauteur, 60, "hauteur inchangee apres no-op")
+FIN
+
+PROCEDURE PUBLIQUE scenario_redimension_options_drHomothetique_drHauteQualite()
+	img est une Image
+	couleurCyan est un entier = RVB(0, 255, 255)
+	ok est un booléen
+
+	// Options : drHomothétique préserve proportions, drHauteQualité améliore rendu
+	// Combiner les deux pour réduction 150x100 → 60x60 (homothétique + interpolation bilinéaire)
+	img = dCréeImage(150, 100, couleurCyan)
+	ok  = dRedimensionne(img, 60, 60, drHomothétique + drHauteQualité)
+
+	dbgVérifieVrai(ok, "redimension options combinees : retour Vrai")
+	dbgVérifieEgalité(img..Largeur, 60, "largeur boite combinaison")
+	dbgVérifieEgalité(img..Hauteur, 60, "hauteur boite combinaison")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_redimension_dimensions_zero()
+	img est une Image
+	couleurGris est un entier = RVB(128, 128, 128)
+	ok est un booléen
+
+	// Tenter de redimensionner à 0x0 (invalide)
+	img = dCréeImage(50, 50, couleurGris)
+	ok  = dRedimensionne(img, 0, 0)
+
+	dbgVérifieVrai(PAS ok, "redimension vers 0x0 : retour Faux attendu")
+	// Dimensions originales doivent rester intactes
+	dbgVérifieEgalité(img..Largeur, 50, "largeur preservee apres echec")
+	dbgVérifieEgalité(img..Hauteur, 50, "hauteur preservee apres echec")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_redimension_dimension_zero_partielle()
+	img est une Image
+	couleurOrange est un entier = RVB(255, 165, 0)
+	ok est un booléen
+
+	// Largeur 0 (invalide), hauteur valide → échec
+	img = dCréeImage(50, 50, couleurOrange)
+	ok  = dRedimensionne(img, 0, 100)
+	dbgVérifieVrai(PAS ok, "redimension largeur 0 : retour Faux attendu")
+
+	// Hauteur 0 (invalide), largeur valide → échec
+	img = dCréeImage(50, 50, couleurOrange)
+	ok  = dRedimensionne(img, 100, 0)
+	dbgVérifieVrai(PAS ok, "redimension hauteur 0 : retour Faux attendu")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_non_initialisee()
+	imgInvalide est une Image
+	ok est un booléen
+
+	// Tenter de redimensionner une image non initialisée (Valide = Faux)
+	ok = dRedimensionne(imgInvalide, 100, 100)
+
+	dbgVérifieVrai(PAS ok, "redimension image non init : retour Faux attendu")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_redimension_1x1_pixel()
+	img est une Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	ok est un booléen
+
+	// Réduire image 100x100 à 1x1 pixel (cas limite minimal)
+	img = dCréeImage(100, 100, couleurBlanc)
+	ok  = dRedimensionne(img, 1, 1)
+
+	dbgVérifieVrai(ok, "redimension vers 1x1 pixel : retour Vrai")
+	dbgVérifieEgalité(img..Largeur, 1, "largeur 1 pixel atteinte")
+	dbgVérifieEgalité(img..Hauteur, 1, "hauteur 1 pixel atteinte")
+FIN

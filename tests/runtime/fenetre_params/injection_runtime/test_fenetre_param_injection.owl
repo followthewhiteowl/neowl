@@ -1,0 +1,25 @@
+// Paramètres de Fenêtre sur première ligne — injection runtime.
+//
+// Vérifie que Ouvre(FEN_X, 42, "Bonjour") injecte 42→niveau et "Bonjour"→etiquette
+// AVANT l'exécution du top-level / FinInitialisation.
+//
+// Attendu (rouge pré-impl) : erreur compile sur FEN_Param_Injection.owl
+// (syntaxe `(params)` non parsée), ou pas d'injection si compile passe.
+
+TestModeHeadless(Vrai)
+
+niveauLu_inj est un entier = -1
+etiquetteLue_inj est une chaîne = ""
+
+PROCEDURE callback_injection(n est un entier, e est une chaîne)
+	niveauLu_inj     = n
+	etiquetteLue_inj = e
+FIN
+
+Ouvre(FEN_Param_Injection, 42, "Bonjour")
+
+dbgVérifieEgalité(niveauLu_inj, 42, "param entier injecté par Ouvre")
+dbgVérifieEgalité(etiquetteLue_inj, "Bonjour", "param chaîne injecté par Ouvre")
+
+Ferme(FEN_Param_Injection)
+dbgBilanTest()

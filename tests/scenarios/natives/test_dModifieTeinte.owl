@@ -1,0 +1,174 @@
+// @sujet : dModifieTeinte
+// @resume : Modifier la teinte (Hue) d'une image par décalage en degrés
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_decalage_nominal()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	cheminPNG est une chaîne = "test_teinte_tmp.png"
+	img est une Image
+	res est un booléen
+
+	// Créer une image rouge 10x10
+	img = dCréeImage(10, 10, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+
+	// Décaler la teinte de +120 degrés (rouge -> vert)
+	res = dModifieTeinte(img, 120)
+	dbgVérifieEgalité(res, Vrai, "decalage teinte reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide apres modification")
+
+	// Sauver pour vérifier le résultat visuel (optionnel)
+	dSauveImagePNG(img, cheminPNG)
+
+	// Nettoyer
+	fSupprime(cheminPNG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_decalage_240_degres()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image rouge
+	img = dCréeImage(8, 8, couleurRouge)
+
+	// Décaler de +240 degrés (rouge -> bleu)
+	res = dModifieTeinte(img, 240)
+	dbgVérifieEgalité(res, Vrai, "decalage +240 degres reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_decalage_negatif()
+	couleurVert est un entier = RVB(0, 255, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image verte
+	img = dCréeImage(6, 6, couleurVert)
+
+	// Décaler de -120 degrés (vert -> bleu)
+	res = dModifieTeinte(img,-120)
+	dbgVérifieEgalité(res, Vrai, "decalage negatif reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage negatif")
+FIN
+
+PROCEDURE PUBLIQUE scenario_decalage_zero()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	cheminPNG est une chaîne = "test_teinte_zero_tmp.png"
+	img est une Image
+	res est un booléen
+
+	// Créer une image bleue
+	img = dCréeImage(5, 5, couleurBleu)
+	dSauveImagePNG(img, cheminPNG)
+
+	// Décalage nul (no-op attendu)
+	res = dModifieTeinte(img, 0)
+	dbgVérifieEgalité(res, Vrai, "decalage zero reussi")
+
+	// L'image doit rester identique (teinte inchangée)
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage zero")
+
+	// Nettoyer
+	fSupprime(cheminPNG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_image_invalide()
+	imgInvalide est une Image
+	res est un booléen
+
+	// Tenter de modifier la teinte d'une image invalide
+	res = dModifieTeinte(imgInvalide, 90)
+	dbgVérifieEgalité(res, Faux, "echec attendu sur image invalide")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_decalage_360_degres()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image jaune
+	img = dCréeImage(4, 4, couleurJaune)
+
+	// Décalage de +360 degrés (cycle complet, idempotent attendu)
+	res = dModifieTeinte(img, 360)
+	dbgVérifieEgalité(res, Vrai, "decalage +360 degres reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres cycle complet 360")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_decalage_large_positif()
+	couleurCyan est un entier = RVB(0, 255, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image cyan
+	img = dCréeImage(3, 3, couleurCyan)
+
+	// Décalage large +720 degrés (2 cycles complets, modulo 360 attendu)
+	res = dModifieTeinte(img, 720)
+	dbgVérifieEgalité(res, Vrai, "decalage large +720 degres reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage +720")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_decalage_large_negatif()
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image magenta
+	img = dCréeImage(2, 2, couleurMagenta)
+
+	// Décalage large -540 degrés (1.5 cycle, modulo -360 attendu)
+	res = dModifieTeinte(img,-540)
+	dbgVérifieEgalité(res, Vrai, "decalage large -540 degres reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage -540")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_decalage_180_complementaires()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image rouge
+	img = dCréeImage(7, 7, couleurRouge)
+
+	// Décalage de +180 degrés (couleurs complémentaires attendues)
+	res = dModifieTeinte(img, 180)
+	dbgVérifieEgalité(res, Vrai, "decalage +180 degres reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage complementaire")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	img est une Image
+	res est un booléen
+
+	// Image minimale 1x1 pixel
+	img = dCréeImage(1, 1, couleurBlanc)
+
+	// Modifier la teinte d'un seul pixel
+	res = dModifieTeinte(img, 90)
+	dbgVérifieEgalité(res, Vrai, "decalage 1x1 pixel reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image 1x1 pixel reste valide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_decalage_negatif_180()
+	couleurVert est un entier = RVB(0, 255, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image verte
+	img = dCréeImage(5, 5, couleurVert)
+
+	// Décalage de -180 degrés (équivalent à +180, couleurs complémentaires)
+	res = dModifieTeinte(img,-180)
+	dbgVérifieEgalité(res, Vrai, "decalage -180 degres reussi")
+	dbgVérifieEgalité(img..Valide, Vrai, "image valide apres decalage -180")
+FIN

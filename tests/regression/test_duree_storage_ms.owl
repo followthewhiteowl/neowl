@@ -1,0 +1,107 @@
+// Regression  : OWL stockait `durée` en centièmes de seconde,
+// alors que canon de référence (documentation de référence) stocke en millisecondes.
+//
+// Décision dev : refacto storage interne en ms (alpha break-net, ADR à venir).
+//
+// Ce test VERROUILLE les 6 invariants post-refacto :
+//   1. Parse depuis chaîne format de référence JHHMMSSCCC (ms)
+//   2. Init depuis entier (ms)
+//   3. Cast en affectation `entier = durée` (ms)
+//   4. Comparaison non-régression `durée = entier` (ms)
+//   5. Format texte Trace (cosmétique, inchangé)
+//   6. Natives En* cohérentes ms
+//
+// Statut initial attendu (AVANT refacto runtime) :
+//   - Assertions 2, 3, 6 : ROUGES (bug × 10 centièmes)
+//   - Assertions 1, 4, 5 : VERTES (non-régression)
+
+// =========================================================================
+// Invariant 1 : Parse depuis chaîne format de référence "+JHHMMSSCCC" = millisecondes
+// =========================================================================
+// Format canon de référence strict : J + HH + MM + SS + CC (centièmes).
+// 9 chiffres + signe OBLIGATOIRE Q5-bis. Cf. .
+// Exemple : "+001300000" = 0j 01h 30m 00s 00cs = 1h30 = 5_400_000 ms.
+
+dur_parse est une durée = "+001300000"
+
+// La durée représente 1h30 = 5_400_000 ms.
+// Comparaison directe avec entier littéral ms (invariant 4, test de non-régression).
+dbgVérifieVrai(dur_parse = 5400000,
+"Parse '0013000000' = 1h30 = 5_400_000 ms (comparaison directe)")
+
+// Format affichage cosmétique (invariant 5).
+s_parse est une chaîne = DuréeVersChaîne(dur_parse)
+dbgVérifieVrai(Position(s_parse, "01:30:00") > 0,
+"Trace(dur_parse) contient '01:30:00' (format affichage HH:MM:SS)")
+
+// =========================================================================
+// Invariant 2 : Init depuis entier = millisecondes canon de référence
+// =========================================================================
+// Avant refacto : OWL supposait entier = centièmes, multipliait par 10.
+// canon de référence : entier = millisecondes directement (documentation de référence).
+
+d2 est une durée = 5400000
+
+// d2 doit représenter 5_400_000 ms = 1h30, PAS 15h (bug × 10).
+s2 est une chaîne = DuréeVersChaîne(d2)
+dbgVérifieVrai(Position(s2, "01:30:00") > 0,
+"Init durée = 5_400_000 → '01:30:00' (1h30), PAS '15:00:00' (bug × 10)")
+
+// =========================================================================
+// Invariant 3 : Cast en affectation `entier = durée` retourne millisecondes
+// =========================================================================
+// Bug historique OWL (ticket initial) : `n est un entier = dur` ne cast PAS,
+// coerce au type de droite (durée) au lieu de caster vers le type déclaré gauche (entier).
+// Comportement de référence : cast retourne les millisecondes (documentation de référence, mesuré empiriquement).
+
+n_cast_parse est un entier = dur_parse
+n_cast_d2 est un entier = d2
+
+// Vérifier que les variables sont VRAIMENT des entiers (pas durées déguisées).
+dbgVérifieEgalité(TypeVar(n_cast_parse), 8,
+"Cast entier = durée : n_cast_parse doit être entier (8), pas durée (33)")
+
+dbgVérifieEgalité(TypeVar(n_cast_d2), 8,
+"Cast entier = durée : n_cast_d2 doit être entier (8), pas durée (33)")
+
+// Après refacto : les casts doivent retourner les millisecondes.
+// dur_parse = 5_400_000 ms (parse correct), d2 = 54_000_000 ms (bug × 10).
+dbgVérifieEgalité(n_cast_parse, 5400000,
+"Cast entier = durée(parse '00013000000') retourne 5_400_000 ms")
+
+dbgVérifieEgalité(n_cast_d2, 5400000,
+"Cast entier = durée(init depuis entier) retourne 5_400_000 ms (PAS 54_000_000)")
+
+// =========================================================================
+// Invariant 4bis : Comparaison `durée = entier` non-régression (restait OK)
+// =========================================================================
+// Cette assertion MARCHAIT avant refacto (les deux côtés étaient × 10 faux
+// mais cohérents). Après refacto, doit rester VERTE (ms canon des deux côtés).
+
+SI d2 = 5400000 ALORS
+	// OK
+SINON
+	dbgVérifieVrai(Faux, "Comparaison d2 = 5_400_000 devrait être VRAIE")
+FIN
+
+// =========================================================================
+// Invariant 6 : Natives En* cohérentes avec storage ms
+// =========================================================================
+// dur_parse = 1h30 = 90 minutes = 5400 secondes = 5_400_000 ms.
+
+dbgVérifieEgalité(dur_parse..EnMillisecondes, 5400000,
+"..EnMillisecondes retourne 5_400_000 pour 1h30")
+
+dbgVérifieEgalité(dur_parse..EnSecondes, 5400,
+"..EnSecondes retourne 5_400 pour 1h30")
+
+dbgVérifieEgalité(dur_parse..EnMinutes, 90,
+"..EnMinutes retourne 90 pour 1h30")
+
+// EnHeures retourne un réel (1.5 pour 1h30).
+// Tolérance float 0.0001 pour éviter piège 1.4999999...
+heure_reel est un réel = dur_parse..EnHeures
+dbgVérifieVrai(Abs(heure_reel - 1.5) < 0.0001,
+"..EnHeures retourne 1.5 pour 1h30 (tolérance float)")
+
+dbgBilanTest()

@@ -1,0 +1,70 @@
+// @sujet : stompSession
+// @résumé : Type composé décrivant les paramètres de connexion à un courtier STOMP 1.2 (adresse, port, identifiants, hôte virtuel, options). Se passe à STOMPConnecte et aux natives de publication/abonnement.
+
+
+// Cas canonique : une session déclarée sans initialisation reçoit les
+// valeurs par défaut prêtes à l'emploi (port 61613 en clair, hôte virtuel
+// "/", aucune option).
+PROCEDURE PUBLIQUE scenario_creation_avec_defauts()
+	sess est un stompSession
+	dbgVérifieEgalité(sess..Adresse, "", "adresse vide par défaut")
+	dbgVérifieEgalité(sess..Port, 61613, "port STOMP en clair par défaut")
+	dbgVérifieEgalité(sess..Utilisateur, "", "utilisateur vide par défaut")
+	dbgVérifieEgalité(sess..MotDePasse, "", "mot de passe vide par défaut")
+	dbgVérifieEgalité(sess..HôteVirtuel, "/", "hôte virtuel « / » par défaut")
+	dbgVérifieEgalité(sess..Option, 0, "aucune option par défaut")
+	dbgVérifieEgalité(sess..TimeoutConnexion, 0, "délai de connexion par défaut (0 = valeur interne)")
+FIN
+
+
+// Le databinding est direct : on assigne aux propriétés avec la notation
+// `..`, on relit de la même façon.
+PROCEDURE PUBLIQUE scenario_configuration_connexion()
+	sess est un stompSession
+	sess..Adresse     = "broker.exemple.local"
+	sess..Port        = 61614
+	sess..Utilisateur = "alice"
+	sess..MotDePasse  = "secret42"
+	sess..HôteVirtuel = "/clients"
+
+	dbgVérifieEgalité(sess..Adresse, "broker.exemple.local", "adresse relue telle quelle")
+	dbgVérifieEgalité(sess..Port, 61614, "port relu tel quel")
+	dbgVérifieEgalité(sess..Utilisateur, "alice", "utilisateur relu tel quel")
+	dbgVérifieEgalité(sess..MotDePasse, "secret42", "mot de passe relu tel quel")
+	dbgVérifieEgalité(sess..HôteVirtuel, "/clients", "hôte virtuel relu tel quel")
+FIN
+
+
+// La propriété Option accepte la constante optionSSL pour demander une
+// connexion chiffrée au courtier.
+PROCEDURE PUBLIQUE scenario_option_ssl()
+	sess est un stompSession
+	sess..Option = optionSSL
+	dbgVérifieEgalité(sess..Option, optionSSL, "option SSL relue telle quelle")
+FIN
+
+
+// TimeoutConnexion et Heartbeat sont des entiers de configuration relus tels
+// quels — pas de valeur par défaut verrouillée ici pour Heartbeat (négociation
+// STOMP).
+PROCEDURE PUBLIQUE scenario_timeout_et_heartbeat()
+	sess est un stompSession
+	sess..TimeoutConnexion = 5000
+	sess..Heartbeat        = 10000
+	dbgVérifieEgalité(sess..TimeoutConnexion, 5000, "délai de connexion relu tel quel")
+	dbgVérifieEgalité(sess..Heartbeat, 10000, "heartbeat relu tel quel")
+FIN
+
+
+// Formes bilingues : HôteVirtuel (FR) et VirtualHost (EN) sont un seul et
+// même champ, quel que soit le nom utilisé pour écrire ou lire.
+PROCEDURE PUBLIQUE scenario_bilingue_hotevirtuel_virtualhost()
+	sess est un stompSession
+	sess..HôteVirtuel = "/fr"
+	dbgVérifieEgalité(sess..VirtualHost, "/fr", "VirtualHost (EN) relit ce qu'écrit HôteVirtuel (FR)")
+
+	sess..VirtualHost = "/en"
+	dbgVérifieEgalité(sess..HôteVirtuel, "/en", "HôteVirtuel (FR) relit ce qu'écrit VirtualHost (EN)")
+FIN
+
+dbgBilanTest()

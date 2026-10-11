@@ -1,0 +1,65 @@
+//  lot1 — GAP-1 : natives math cassées sur monétaire
+// Même cause racine que test_gap1_math_sur_numerique.owl :
+// to_double (stdlib_math.c:50) retourne 0.0 pour IS_MONETARY comme pour IS_NUMERIC.
+//
+// Tous les tests ROUGE ici échouent pour la bonne raison :
+// valeur attendue non nulle ≠ 0 obtenu aujourd'hui.
+// Vérifié empiriquement sur binaire pré-C (2026-06-28).
+
+// ===== NumériqueTronque sur monétaire =====
+
+// Bug confirmé : NumériqueTronque(12345.75 monétaire) = 0 (attendu 12345)
+PROCEDURE PUBLIQUE test_numerique_tronque_monetaire_positif()
+	mIn est un monétaire = 12345.75
+	nRes est un réel = NumériqueTronque(mIn)
+	dbgVérifieVrai(nRes > 12344.9, "NumériqueTronque(12345.75 mon) > 12344.9 (pas zéro)")
+	dbgVérifieVrai(nRes < 12345.1, "NumériqueTronque(12345.75 mon) ≈ 12345")
+FIN
+
+// ===== PartieEntière sur monétaire =====
+
+// Bug confirmé : PartieEntière(7.9 monétaire) = 0 (attendu 7)
+PROCEDURE PUBLIQUE test_partie_entiere_monetaire()
+	mIn est un monétaire = 7.9
+	nRes est un entier = PartieEntière(mIn)
+	dbgVérifieEgalité(nRes, 7, "PartieEntière(7.9 mon) = 7")
+FIN
+
+// ===== PartieDécimale sur monétaire =====
+
+// Bug confirmé : PartieDécimale(3.14 monétaire) = 0 (attendu ≈ 0.14)
+PROCEDURE PUBLIQUE test_partie_decimale_monetaire()
+	mIn est un monétaire = 3.14
+	nRes est un réel = PartieDécimale(mIn)
+	dbgVérifieVrai(nRes > 0.13, "PartieDécimale(3.14 mon) > 0.13 (pas zéro)")
+	dbgVérifieVrai(nRes < 0.15, "PartieDécimale(3.14 mon) ≈ 0.14")
+FIN
+
+// ===== Modulo sur monétaire =====
+
+// Bug confirmé : Modulo(10 mon, 3 mon) = 0 (attendu ≈ 1)
+PROCEDURE PUBLIQUE test_modulo_monetaire()
+	mA est un monétaire = 10.0
+	mB est un monétaire = 3.0
+	nRes est un réel = Modulo(mA, mB)
+	dbgVérifieVrai(nRes > 0.99 ET nRes < 1.01, "Modulo(10 mon, 3 mon) ≈ 1")
+FIN
+
+// ===== Arrondi sur monétaire =====
+
+// Bug confirmé : Arrondi(2.567 mon, 2) = 0 (attendu ≈ 2.57)
+PROCEDURE PUBLIQUE test_arrondi_monetaire_2dec()
+	mIn est un monétaire = 2.567
+	nRes est un réel = Arrondi(mIn, 2)
+	dbgVérifieVrai(nRes > 2.56 ET nRes < 2.58, "Arrondi(2.567 mon, 2) ≈ 2.57")
+FIN
+
+// ===== Abs sur monétaire =====
+
+// Bug confirmé : Abs(-42.5 mon) = 0 (attendu 42.5)
+PROCEDURE PUBLIQUE test_abs_monetaire_negatif()
+	mIn est un monétaire = -42.5
+	nRes est un réel = Abs(mIn)
+	dbgVérifieVrai(nRes > 0, "Abs(-42.5 mon) est positif (pas zéro)")
+	dbgVérifieVrai(nRes > 42.4 ET nRes < 42.6, "Abs(-42.5 mon) ≈ 42.5")
+FIN

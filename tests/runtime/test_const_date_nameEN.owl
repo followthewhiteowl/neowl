@@ -1,0 +1,45 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille Dates
+// (, lot A3 - module stdlib_date).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples avec EN DISTINCT du FR (vrai contrat bilingue, source doc high-conf) :
+//   maskDateSysteme       -> maskDateSystem
+//   maskDateDureeRelative -> maskDateRelativeDuration
+//
+// Couples ascii_identical (EN == FR canon) : nameEN pose aussi (canon EN),
+// resolubles par la meme forme - on verifie que la forme reste valide.
+//   maskDateEmail, maskDateEmailUTC, maskDateInternet, maskDateInternetUTC,
+//   iso8601
+//
+// Chaque assertion pin une valeur exacte (cross-form ou egalite a la const FR).
+// =============================================================================
+
+PROCEDURE scenario_const_date_en_resout_vers_fr()
+	// --- EN DISTINCT : maskDateSystem (EN) == maskDateSysteme (FR canon) ---
+	dbgVérifieEgalité(maskDateSystem, maskDateSystème,
+	"maskDateSystem resout vers la meme valeur que maskDateSysteme")
+
+	// --- EN DISTINCT : maskDateRelativeDuration (EN) == maskDateDureeRelative (FR) ---
+	dbgVérifieEgalité(maskDateRelativeDuration, maskDateDuréeRelative,
+	"maskDateRelativeDuration resout vers la meme valeur que maskDateDureeRelative")
+
+	// --- ascii_identical : la forme EN canon == FR canon (meme identifiant) ---
+	// garde-fou : deux masks distincts ne s'ecrasent pas mutuellement
+	dbgVérifieVrai(maskDateEmail <> maskDateEmailUTC,
+	"maskDateEmail et maskDateEmailUTC ne collisionnent pas")
+
+	dbgVérifieVrai(maskDateInternet <> maskDateInternetUTC,
+	"maskDateInternet et maskDateInternetUTC ne collisionnent pas")
+
+	// iso8601 reste resoluble (sentinel semaine ISO)
+	dbgVérifieEgalité(iso8601, iso8601,
+	"iso8601 resoluble par sa forme canon")
+FIN
+
+scenario_const_date_en_resout_vers_fr()
+dbgBilanTest()

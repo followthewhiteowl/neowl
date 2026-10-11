@@ -1,0 +1,47 @@
+//  — regression : un Champ Bouton qui combine une POSITION d'image
+// (Style..Image..Position, proxy de placement icone/texte) ET un style typé
+// portant une feuille QSS (Style..CadreExtérieur : fond + cadre arrondi,
+// Style..Libellé : couleur). C'est exactement le montage qui, en style
+// PAR-WIDGET, appariait QWidget::setStyle(proxy) + setStyleSheet sur le même
+// bouton — combinaison non supportée par Qt (recréation d'un QStyleSheetStyle
+// au show natif -> vtable corrompue -> use-after-free, cf.  sur les
+// menus). Le montage est désormais un proxy de placement au niveau
+// APPLICATION (hérité par tous les boutons), donc plus aucun setStyle
+// par-widget ne coexiste avec la feuille QSS.
+//
+// Le bouton est monté pour de vrai (headless=Faux) et capturé : la capture
+// force le show/polish natif, point de déclenchement de l'ancien UAF. Un
+// rendu capturé valide + une position toujours appliquée prouvent que le
+// combo tient sans crash et sans régression de placement.
+
+FEN_BoutonPositionImageStyle est une Fenêtre
+	PROPRIETES
+		Titre       = "Bouton position image + style"
+		Largeur     = 300
+		Hauteur     = 120
+		Disposition = dispLibre
+		CouleurFond = RVB(15, 15, 15)
+	FIN
+
+	BTN_Combo est un Champ Bouton
+		PROPRIETES
+			X       = 30
+			Y       = 30
+			Largeur = 200
+			Hauteur = 50
+			Libellé = "Valider"
+			Style   = {
+				Image          = { Image = icones.add, Position = posBtnImageSeule }
+				Libellé        = { Couleur = RVB(255, 255, 255) }
+				CadreExtérieur = {
+					CouleurFond = RVB(50, 50, 200)
+					Cadre       = { Epaisseur = 0, Arrondi = 20 }
+				}
+			}
+		FIN
+	FIN
+
+	PROCEDURE CaptureCombo()
+		RENVOYER dCopieImageChamp(BTN_Combo)
+	FIN
+FIN

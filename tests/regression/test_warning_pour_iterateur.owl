@@ -1,0 +1,46 @@
+// Verrouillage du fix faux positif "Variable 'i' declaree mais jamais
+// utilisee" sur le pattern `i est un entier ; POUR i = ... ; corps utilise i`.
+//
+// Avant fix : le `i` exterieur etait shadow par le local POUR, et le
+// tracker globals/locals englobant n'etait jamais marque utilise. Apres
+// fix : si le corps de la boucle reference `i`, la variable englobante
+// est marquee utilisee. Si le corps ne touche pas `i`, le warning reste.
+//
+// Verification du warning lui-meme : via `./build/owl.exe --check`. Ce
+// test regression verifie le comportement runtime (compilation OK +
+// resultat attendu).
+
+PROCEDURE scenario_pour_iterateur_marque_var_englobante_utilisee()
+	i est un entier
+	grandTableau est un tableau d'entiers
+	POUR i = 1 _A_ 5
+		grandTableau.Ajoute(i * 2)
+	FIN
+	dbgVérifieEgalité(grandTableau..Occurrence, 5, "5 elements ajoutes")
+	dbgVérifieEgalité(grandTableau[1], 2, "premier element = 2")
+	dbgVérifieEgalité(grandTableau[5], 10, "dernier element = 10")
+FIN
+
+PROCEDURE scenario_pour_sans_var_englobante_compile_OK()
+	// Cas canon : POUR i sans declaration prealable. Aucun warning attendu
+	// (l'iterateur seul n'a jamais ete warne, on verrouille la non-regression).
+	total est un entier = 0
+	POUR k = 1 _A_ 10
+		total = total + k
+	FIN
+	dbgVérifieEgalité(total, 55, "somme 1..10")
+FIN
+
+PROCEDURE scenario_pour_corps_n_utilise_pas_iterateur()
+	// Cas vrai positif : i declare exterieurement, POUR utilise i comme
+	// iterateur, mais le corps ne reference jamais i. Le warning "i jamais
+	// utilisee" doit etre conserve par le compilo.
+	i est un entier
+	compteur est un entier = 0
+	POUR i = 1 _A_ 3
+		compteur = compteur + 1
+	FIN
+	dbgVérifieEgalité(compteur, 3, "boucle executee 3 fois")
+	// Consomme le warning compile-time attendu (sinon il pollue le bilan suite)
+	__dbgAvertissementAttendu("Variable 'i' est déclarée mais jamais utilisée", "Warning intentionnel : pattern POUR sans usage de l'iterateur dans le corps")
+FIN

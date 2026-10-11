@@ -1,0 +1,24 @@
+//  : garde-fou. Le passage en strict des propriétés de collection
+// (tableau, Vecteur, Matrice, tableau associatif) ne doit PAS toucher la
+// résolution des membres JSON. Un membre JSON absent reste Null par design
+// (accès dynamique) — ni avant, ni après l'implémentation du ticket.
+
+PROCEDURE PUBLIQUE test_json_membre_absent_reste_null()
+	j est un JSON = ChaîneVersJSON(`{"a":1,"b":"deux"}`)
+	x est un JSON = j.champAbsent
+	dbgVérifieEgalité(x, Null, "membre JSON absent -> Null, jamais d'exception")
+FIN
+
+
+PROCEDURE PUBLIQUE test_json_membre_absent_dans_objet_imbrique_reste_null()
+	j est un JSON = ChaîneVersJSON(`{"user":{"nom":"Alice"}}`)
+	x est un JSON = j.user.champAbsent
+	dbgVérifieEgalité(x, Null, "membre absent dans un objet imbriqué -> Null")
+FIN
+
+
+PROCEDURE PUBLIQUE test_json_objet_vide_membre_absent_reste_null()
+	j est un JSON = ChaîneVersJSON(`{}`)
+	x est un JSON = j.quoiquecesoit
+	dbgVérifieEgalité(x, Null, "objet JSON vide, membre absent -> Null")
+FIN

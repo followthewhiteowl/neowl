@@ -1,0 +1,36 @@
+// =============================================================================
+// TEST : Résolution runtime EN→FR des constantes (, Lot 0)
+//
+// Ce test est ROUGE jusqu'à l'implémentation du Lot 0 de .
+// Il verrouille le contrat suivant : référencer une constante par son nom EN
+// doit produire exactement la même valeur entière que son nom FR canon.
+//
+// Constantes pilote — catégorie couleur (formes EN indiscutables) :
+//   Rouge  → Red    (255)
+//   Vert   → Green  (65280)
+//   Bleu   → Blue   (16711680)
+//   Blanc  → White  (16777215)
+//   Noir   → Black  (0)
+//
+// Valeurs FR ancrées sur sortie réelle de l'interpréteur (probe du 2026-06-15) :
+//   Rouge = 255, Vert = 65280, Bleu = 16711680, Blanc = 16777215, Noir = 0
+//
+// État attendu avant impl : rouge — les identifiants EN (Red, Green, Blue,
+// White, Black) sont inconnus du compilateur (aucun champ nameEN sur OwlConstDef).
+// =============================================================================
+
+// --- Contrat : forme EN == valeur exacte de la forme FR canon ---
+dbgVérifieEgalité(Red, Rouge, "Red résout vers la valeur de Rouge (255)")
+dbgVérifieEgalité(Green, Vert, "Green résout vers la valeur de Vert (65280)")
+dbgVérifieEgalité(Blue, Bleu, "Blue résout vers la valeur de Bleu (16711680)")
+dbgVérifieEgalité(White, Blanc, "White résout vers la valeur de Blanc (16777215)")
+dbgVérifieEgalité(Black, Noir, "Black résout vers la valeur de Noir (0)")
+
+// --- Contrat symétrie valeur brute : même résultat que la constante FR ---
+dbgVérifieEgalité(Red, 255, "Red = 255 (valeur packée BGR #FF0000)")
+dbgVérifieEgalité(Green, 65280, "Green = 65280 (valeur packée BGR #00FF00)")
+dbgVérifieEgalité(Blue, 16711680, "Blue = 16711680 (valeur packée BGR #0000FF)")
+dbgVérifieEgalité(White, 16777215, "White = 16777215 (valeur packée #FFFFFF)")
+dbgVérifieEgalité(Black, 0, "Black = 0 (valeur packée #000000)")
+
+dbgBilanTest()

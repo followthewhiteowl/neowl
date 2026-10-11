@@ -1,0 +1,161 @@
+// @sujet : Empile
+// @résumé : Empile un element au sommet d'une Pile (structure LIFO)
+
+// ============================================================
+// PROCEDURE PUBLIQUE — vitrine pedagogique
+// ============================================================
+
+PROCEDURE PUBLIQUE scenario_nominal_empilage_simple()
+	// Cas classique : empiler plusieurs elements et verifier l'ordre LIFO
+	maPile est une pile de entiers
+
+	// Empilage de 3 valeurs
+	Empile(maPile, 10)
+	Empile(maPile, 20)
+	Empile(maPile, 30)
+
+	// La pile contient maintenant 3 elements (le dernier empile : 30 au sommet)
+	dbgVérifieEgalité(maPile..Occurrence, 3, "label=Pile contient 3 elements apres empilage")
+
+	// Verification que le sommet est bien le dernier empile
+	valeur est un entier = Dépile(maPile)
+	dbgVérifieEgalité(valeur, 30, "label=Depile renvoie dernier empile (30)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	// Appel via forme methode prefixee
+	p est une pile de chaînes
+
+	p.Empile("Premier")
+	p.Empile("Deuxieme")
+	p.Empile("Troisieme")
+
+	dbgVérifieEgalité(p..Occurrence, 3, "label=Forme methode .Empile() fonctionne")
+
+	s est une chaîne = p.Depile()
+	dbgVérifieEgalité(s, "Troisieme", "label=Forme methode .Empile() respecte ordre LIFO")
+FIN
+
+PROCEDURE PUBLIQUE scenario_types_varies()
+	// Empile fonctionne avec differents types de donnees
+
+	// Pile de reels
+	pileReels est une pile de réels
+	Empile(pileReels, 3.14)
+	Empile(pileReels, 2.71)
+	Empile(pileReels, 1.41)
+
+	dbgVérifieEgalité(pileReels..Occurrence, 3, "label=Empile pile de reels: 3 elements")
+
+	r est un réel = Dépile(pileReels)
+	dbgVérifieEgalité(r, 1.41, "label=Depile pile reels renvoie 1.41")
+
+	// Pile de booleens
+	pileBool est une pile de booléens
+	Empile(pileBool, Vrai)
+	Empile(pileBool, Faux)
+
+	dbgVérifieEgalité(pileBool..Occurrence, 2, "label=Empile pile de booleens: 2 elements")
+
+	b est un booléen = Dépile(pileBool)
+	dbgVérifieEgalité(b, Faux, "label=Depile pile bool renvoie Faux")
+FIN
+
+PROCEDURE PUBLIQUE scenario_occurrence_incremente()
+	// Propriete ..Occurrence incremente correctement
+	p est une pile de entiers
+
+	dbgVérifieEgalité(p..Occurrence, 0, "label=Occurrence initiale zero")
+
+	Empile(p, 100)
+	dbgVérifieEgalité(p..Occurrence, 1, "label=Occurrence apres 1 empilage")
+
+	Empile(p, 200)
+	dbgVérifieEgalité(p..Occurrence, 2, "label=Occurrence apres 2 empilages")
+
+	Empile(p, 300)
+	dbgVérifieEgalité(p..Occurrence, 3, "label=Occurrence apres 3 empilages")
+FIN
+
+// ============================================================
+// PROCEDURES PRIVEES — edge cases techniques
+// ============================================================
+
+PROCEDURE PRIVÉE scenario_edge_alternance_empile_depile()
+	// Alternance empile/depile intensive (ordre LIFO respecte a chaque iteration)
+	p est une pile de entiers
+
+	Empile(p, 1)
+	v1 est un entier = Dépile(p)
+	dbgVérifieEgalité(v1, 1, "label=Alternance: depile(1)")
+
+	Empile(p, 2)
+	Empile(p, 3)
+	v2 est un entier = Dépile(p)
+	dbgVérifieEgalité(v2, 3, "label=Alternance: depile(3) en premier")
+
+	Empile(p, 4)
+	v3 est un entier = Dépile(p)
+	dbgVérifieEgalité(v3, 4, "label=Alternance: depile(4)")
+
+	v4 est un entier = Dépile(p)
+	dbgVérifieEgalité(v4, 2, "label=Alternance: depile(2) restant")
+
+	dbgVérifieVrai(p..Vide, "label=Pile vide apres alternance")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_utf8()
+	// Chaines avec accents et UTF-8 multibytes
+	p est une pile de chaînes
+
+	Empile(p, "café")
+	Empile(p, "été")
+	Empile(p, "🎯")
+
+	dbgVérifieEgalité(p..Occurrence, 3, "label=UTF-8: 3 chaines empilees")
+
+	s1 est une chaîne = Dépile(p)
+	dbgVérifieEgalité(s1, "🎯", "label=UTF-8: emoji depile en premier")
+
+	s2 est une chaîne = Dépile(p)
+	dbgVérifieEgalité(s2, "été", "label=UTF-8: chaine accentuee depilee")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_empilage_massif()
+	// Montee en charge : 1000 empilages successifs
+	p est une pile de entiers
+
+	i est un entier
+	POUR i = 1 À 1000
+		Empile(p, i)
+	FIN
+
+	dbgVérifieEgalité(p..Occurrence, 1000, "label=1000 elements empiles")
+
+	// Le dernier empile (1000) doit sortir en premier
+	v est un entier = Dépile(p)
+	dbgVérifieEgalité(v, 1000, "label=Dernier empile (1000) depile en premier")
+
+	dbgVérifieEgalité(p..Occurrence, 999, "label=Occurrence decremente apres depilage")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_pile_apres_suppression_tout()
+	// Empilage apres SupprimeTout doit fonctionner correctement
+	p est une pile de entiers
+
+	Empile(p, 1)
+	Empile(p, 2)
+	Empile(p, 3)
+
+	SupprimeTout(p)
+	dbgVérifieEgalité(p..Occurrence, 0, "label=SupprimeTout vide la pile")
+
+	// Re-empilage apres suppression
+	Empile(p, 10)
+	Empile(p, 20)
+
+	dbgVérifieEgalité(p..Occurrence, 2, "label=Re-empilage apres SupprimeTout")
+
+	v est un entier = Dépile(p)
+	dbgVérifieEgalité(v, 20, "label=Re-empilage respecte LIFO")
+FIN

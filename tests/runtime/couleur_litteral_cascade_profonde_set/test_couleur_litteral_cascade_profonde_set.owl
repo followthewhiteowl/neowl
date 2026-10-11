@@ -1,0 +1,59 @@
+//  (L3.6) — le littéral couleur inline `{ Rouge=…, Opacité=… }` posé
+// en CASCADE PROFONDE via une mutation SET au runtime (après ouverture de la
+// fenêtre, motif typique d'une PROCEDURE FinInitialisation ou d'un callback)
+// doit produire le même mélange alpha que le chemin flat (`..CouleurFond`)
+// déjà fonctionnel ( L1+L2).
+//
+// Constat mesuré (L3.6, instrument-first) : la forme cascade profonde COMPILE
+// déjà (contrairement à la forme flate posée en PROPRIETES, cf. les fixtures
+// compile-error voisines) mais son RENDU ignore l'instance Couleur — le fond
+// reste soit blanc opaque soit transparent (fond de fenêtre visible), jamais
+// le mélange attendu. Cette suite verrouille le rendu, pas la compilation.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf ui-snapshot-testing + qt-owl-rendering-gotchas :
+// MESURER au pixel, pas de dbgVérifie sur un getter store.
+//
+// Fond de fenêtre ROUGE PUR opaque : RVB(255, 0, 0).
+// Couleur testée : BLANC translucide, Opacité = 128 -> {Rouge=255,
+// Vert=255, Bleu=255, Opacité=128}.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255),
+// repris de tests/runtime/couleur_alpha_fond/ (fg=BLANC sur bg=ROUGE tombe
+// pile, sans arrondi) :
+//   R : fg=255, bg=255 -> résultat = 255 (canal saturé)
+//   V : fg=255, bg=0   -> résultat = a = 128
+//   B : fg=255, bg=0   -> résultat = 128 (même calcul que V)
+// Mélange attendu : RVB(255, 128, 128).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurCascadeProfondeSet)
+
+// --- 0. Témoin positif : SET direct flat (`..CouleurFond`), déjà vérifié
+// fonctionnel par  L1+L2. Doit rester VERT avant et après L3.6 —
+// prouve que le rig de mesure lui-même est fiable.
+// SAI_Baseline (X=20,Y=20,L=150,H=40) : centre = (95,40).
+SAI_Baseline..CouleurFond = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 128}
+img est une Image = dCopieImageFenêtre(FEN_CouleurCascadeProfondeSet)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+dbgVérifieEgalité(dPixelCouleur(img, 95, 40), RVB(255, 128, 128),
+"SAI_Baseline..CouleurFond = {littéral, Opacité=128} (SET flat, témoin) : centre mélangé 50/50 avec le fond rouge")
+
+// --- 1. Cascade profonde `..Style..ZoneSaisie..CouleurFond`, mutée au
+// runtime (motif designer typique). SAI_ZoneSaisie (X=200,Y=20,L=150,H=40) :
+// centre = (275,40).
+SAI_ZoneSaisie..Style..ZoneSaisie..CouleurFond = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 128}
+img                                            = dCopieImageFenêtre(FEN_CouleurCascadeProfondeSet)
+dbgVérifieEgalité(dPixelCouleur(img, 275, 40), RVB(255, 128, 128),
+"SAI_ZoneSaisie..Style..ZoneSaisie..CouleurFond = {littéral, Opacité=128} (cascade profonde SET) : centre mélangé 50/50 avec le fond rouge")
+
+// --- 2. Cascade profonde `..Style..CadreExtérieur..CouleurFond`, mutée au
+// runtime. SAI_CadreExterieur (X=20,Y=100,L=150,H=60) : centre = (95,130).
+SAI_CadreExterieur..Style..CadreExtérieur..CouleurFond = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 128}
+img                                                    = dCopieImageFenêtre(FEN_CouleurCascadeProfondeSet)
+dbgVérifieEgalité(dPixelCouleur(img, 95, 130), RVB(255, 128, 128),
+"SAI_CadreExterieur..Style..CadreExtérieur..CouleurFond = {littéral, Opacité=128} (cascade profonde SET) : centre mélangé 50/50 avec le fond rouge")
+
+Ferme(FEN_CouleurCascadeProfondeSet)
+dbgBilanTest()

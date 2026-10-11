@@ -1,0 +1,61 @@
+// @sujet : emailAttache
+// @résumé : Type composé décrivant une pièce jointe d'un Email : contenu binaire, type MIME, nom de fichier, description et identifiant de contenu.
+
+// Une pièce jointe se construit indépendamment du message, puis s'ajoute au
+// tableau Attache d'un Email (cf. test_email.owl). Contenu, type MIME et nom
+// suffisent au cas courant ; description et identifiant de contenu servent
+// aux pièces jointes référencées depuis le corps du message.
+
+
+// Cas nominal : contenu binaire, type MIME et nom de fichier posés puis
+// relus.
+PROCEDURE PUBLIQUE scenario_contenu_type_et_nom_relus()
+	att est un emailAttache
+	att..Contenu     = ChaîneVersBuffer("%PDF-1.4 contenu simulé")
+	att..ContentType = "application/pdf"
+	att..Nom         = "facture.pdf"
+
+	dbgVérifieEgalité(BufferVersChaîne(att..Contenu), "%PDF-1.4 contenu simulé", "contenu binaire relu")
+	dbgVérifieEgalité(att..ContentType, "application/pdf", "type MIME relu")
+	dbgVérifieEgalité(att..Nom, "facture.pdf", "nom de fichier relu")
+FIN
+
+
+// Une pièce jointe image, pour vérifier que le type MIME n'est pas figé sur
+// un seul format.
+PROCEDURE PUBLIQUE scenario_piece_jointe_image()
+	att est un emailAttache
+	att..Contenu     = ChaîneVersBuffer("donnees-image-simulees")
+	att..ContentType = "image/png"
+	att..Nom         = "logo.png"
+
+	dbgVérifieEgalité(att..ContentType, "image/png", "type MIME image relu")
+	dbgVérifieEgalité(att..Nom, "logo.png", "nom de fichier image relu")
+FIN
+
+
+// Une pièce jointe référencée depuis le corps du message porte une
+// description et un identifiant de contenu, posés puis relus.
+PROCEDURE PUBLIQUE scenario_piece_jointe_avec_description_et_identifiant()
+	att est un emailAttache
+	att..Contenu            = ChaîneVersBuffer("donnees-image-simulees")
+	att..ContentType        = "image/png"
+	att..Nom                = "logo.png"
+	att..ContentDescription = "Logo de l'entreprise"
+	att..Identifiant        = "logo-entreprise"
+
+	dbgVérifieEgalité(att..ContentDescription, "Logo de l'entreprise", "description du contenu relue")
+	dbgVérifieEgalité(att..Identifiant, "logo-entreprise", "identifiant de contenu relu")
+FIN
+
+
+// Cas limite : une pièce jointe fraîchement déclarée part sur un contenu
+// vide et des champs texte vides.
+PROCEDURE PRIVÉE scenario_defauts_emailAttache_non_initialisee()
+	att est un emailAttache
+	dbgVérifieEgalité(att..Nom, "", "nom vide par défaut")
+	dbgVérifieEgalité(att..ContentType, "", "type MIME vide par défaut")
+	dbgVérifieEgalité(Taille(att..Contenu), 0, "contenu vide par défaut")
+	dbgVérifieEgalité(att..ContentDescription, "", "description de contenu vide par défaut")
+	dbgVérifieEgalité(att..Identifiant, "", "identifiant de contenu vide par défaut")
+FIN

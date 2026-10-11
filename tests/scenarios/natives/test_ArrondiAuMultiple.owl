@@ -1,0 +1,50 @@
+// @sujet : ArrondiAuMultiple
+// @résumé : Arrondit une valeur au multiple le plus proche.
+// ArrondiAuMultiple(valeur, multiple [, mode]) = arrondi(valeur / multiple) × multiple.
+// Départage par défaut : demi-pair (banker's rounding), uniforme avec Arrondi.
+// 3ᵉ arg optionnel modeArrondi : arrondiDemiÉloigné restaure le départage demi-éloigné.
+
+
+// Cas A : multiple entier, départage demi-pair par défaut.
+// 25 / 10 = 2.5 (mi-chemin) → 2 (pair) → 20.  35 / 10 = 3.5 → 4 (pair) → 40.
+PROCEDURE PUBLIQUE scenario_demi_pair_defaut()
+	dbgVérifieEgalité(ArrondiAuMultiple(25, 10), 20, "ArrondiAuMultiple(25, 10) demi-pair = 20")
+	dbgVérifieEgalité(ArrondiAuMultiple(35, 10), 40, "ArrondiAuMultiple(35, 10) demi-pair = 40")
+FIN
+
+
+// Cas B : multiple = 1, mi-chemin sur réel — demi-pair par défaut.
+// 2.5 / 1 = 2.5 → 2 (pair) → 2.
+PROCEDURE PUBLIQUE scenario_demi_pair_multiple_un()
+	dbgVérifieEgalité(ArrondiAuMultiple(2.5, 1), 2, "ArrondiAuMultiple(2.5, 1) demi-pair = 2")
+FIN
+
+
+// Cas C : négatifs — symétrie du demi-pair autour de zéro.
+// -25 / 10 = -2.5 → -2 (pair) → -20.
+PROCEDURE PUBLIQUE scenario_negatifs_demi_pair()
+	dbgVérifieEgalité(ArrondiAuMultiple(-25, 10),-20, "ArrondiAuMultiple(-25, 10) demi-pair = -20")
+FIN
+
+
+// Cas D : mode demi-éloigné explicite — départage vers le plus loin de zéro.
+// 25 / 10 = 2.5 → 3 → 30.  -25 / 10 = -2.5 → -3 → -30.  2.5 / 1 = 2.5 → 3.
+PROCEDURE PUBLIQUE scenario_mode_demi_eloigne()
+	dbgVérifieEgalité(ArrondiAuMultiple(25, 10, arrondiDemiÉloigné), 30, "ArrondiAuMultiple(25, 10, demiÉloigné) = 30")
+	dbgVérifieEgalité(ArrondiAuMultiple(-25, 10, arrondiDemiÉloigné),-30, "ArrondiAuMultiple(-25, 10, demiÉloigné) = -30")
+	dbgVérifieEgalité(ArrondiAuMultiple(2.5, 1, arrondiDemiÉloigné), 3, "ArrondiAuMultiple(2.5, 1, demiÉloigné) = 3")
+FIN
+
+
+// Edge : forme EN bilingue — RoundToMultiple + roundHalfAwayFromZero.
+PROCEDURE PRIVÉE scenario_bilingue_en()
+	dbgVérifieEgalité(RoundToMultiple(25, 10), 20, "RoundToMultiple(25, 10) demi-pair = 20 (forme EN)")
+	dbgVérifieEgalité(RoundToMultiple(25, 10, roundHalfAwayFromZero), 30, "RoundToMultiple(25, 10, halfAway) = 30 (forme EN)")
+FIN
+
+
+// Edge : multiple fractionnaire — résultat non entier possible.
+// 2.3 / 0.5 = 4.6 → 5 → 2.5.
+PROCEDURE PRIVÉE scenario_multiple_fractionnaire()
+	dbgVérifieEgalité(ArrondiAuMultiple(2.3, 0.5), 2.5, "ArrondiAuMultiple(2.3, 0.5) = 2.5")
+FIN

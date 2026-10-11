@@ -1,0 +1,93 @@
+// Coverage ChaîneVersDurée (documentation de référence).
+// Signature 2-arg canon de référence stricte (cf. ). 2 formes de format :
+// constante (duréeCentième / duréeMillième) ou chaîne template.
+
+// =========================================================================
+// Forme A1 : constante duréeMillième (format "+JHHMMSSCCC" — 11 chars)
+// =========================================================================
+d1 est une durée = ChaîneVersDurée("+0130000000", duréeMillième)
+dbgVérifieEgalité(DuréeVersChaîne(d1), "13:00:00", "13 heures duréeMillième")
+
+d2 est une durée = ChaîneVersDurée("+0000000001", duréeMillième)
+dbgVérifieVrai(Position(DuréeVersChaîne(d2), "00:00:00") > 0, "1 ms duréeMillième")
+
+d3 est une durée = ChaîneVersDurée("+0000000500", duréeMillième)
+dbgVérifieVrai(Position(DuréeVersChaîne(d3), "00:00:00") > 0, "500 ms avec signe obligatoire Q5-bis")
+
+d4 est une durée = ChaîneVersDurée("+1000000000", duréeMillième)
+sD4 est une chaîne = DuréeVersChaîne(d4)
+dbgVérifieVrai(Position(sD4, "1") > 0, "1 jour dans sortie")
+
+// =========================================================================
+// Forme A2 : constante duréeCentième (format "+JHHMMSSCC" — 10 chars strict)
+// =========================================================================
+//  : 10 digits strict après signe, plus de greedy J.
+dC1b est une durée = ChaîneVersDurée("+013000000", duréeCentième)
+// J=0, HH=13, MM=00, SS=00, CC=00 → 13h
+dbgVérifieEgalité(DuréeVersChaîne(dC1b), "13:00:00",
+"duréeCentième 10 chars strict: J=0 HH=13")
+
+// 2 jours 3 heures 15 minutes 30 secondes 45 centièmes
+dC2 est une durée = ChaîneVersDurée("+0203153045", duréeCentième)
+dbgVérifieEgalité(DuréeVersChaîne(dC2), "2 j 03:15:30", "duréeCentième 2j3h15m")
+
+// Signe obligatoire Q5-bis  (plus optionnel comme )
+dC3 est une durée = ChaîneVersDurée("+0203153045", duréeCentième)
+dbgVérifieEgalité(DuréeVersChaîne(dC3), "2 j 03:15:30", "avec signe obligatoire")
+
+// Négatif
+dC4 est une durée = ChaîneVersDurée("-0203153045", duréeCentième)
+dbgVérifieVrai(Position(DuréeVersChaîne(dC4), "-") > 0, "durée négative")
+
+// =========================================================================
+// Forme A3 : constante duréeMillième sur input 12 chars (avec signe)
+// =========================================================================
+dM1 est une durée = ChaîneVersDurée("+02031530456", duréeMillième)
+dbgVérifieEgalité(DuréeVersChaîne(dM1), "2 j 03:15:30", "duréeMillième 2j3h15m (456ms ignorés dans fmt)")
+
+dM2 est une durée = ChaîneVersDurée("+00000000001", duréeMillième)
+dbgVérifieVrai(Position(DuréeVersChaîne(dM2), "00:00:00") > 0, "duréeMillième 1 ms")
+
+// =========================================================================
+// Forme B : chaîne template avec tokens
+// =========================================================================
+dP1 est une durée = ChaîneVersDurée("3 jours, 13 heures, 45 minutes",
+"J jours, HH heures, MM minutes")
+dbgVérifieEgalité(DuréeVersChaîne(dP1), "3 j 13:45:00", "format phrase")
+
+dP2 est une durée = ChaîneVersDurée("0 jours, 05 heures, 30 minutes",
+"J jours, HH heures, MM minutes")
+dbgVérifieEgalité(DuréeVersChaîne(dP2), "05:30:00", "0 jours = pas de 'X j'")
+
+// Format avec centièmes
+dP3 est une durée = ChaîneVersDurée("1-02:30:15.45",
+"J-HH:MM:SS.CC")
+dbgVérifieEgalité(DuréeVersChaîne(dP3), "1 j 02:30:15", "format avec séparateurs divers")
+
+// Format avec millisecondes (CCC)
+dP4 est une durée = ChaîneVersDurée("02:30:15.500",
+"HH:MM:SS.CCC")
+dbgVérifieEgalité(DuréeVersChaîne(dP4), "02:30:15", "format sans jours")
+
+// =========================================================================
+// Alias méthode: "s".VersDurée(format)
+// =========================================================================
+dMeth1 est une durée = "+0130000000".VersDurée(duréeMillième)
+dbgVérifieEgalité(DuréeVersChaîne(dMeth1), "13:00:00", "méthode .VersDurée(duréeMillième)")
+
+dMeth2 est une durée = "+0203153045".VersDurée(duréeCentième)
+dbgVérifieEgalité(DuréeVersChaîne(dMeth2), "2 j 03:15:30", "méthode avec duréeCentième")
+
+dMeth3 est une durée = "3 jours, 13 heures".VersDurée("J jours, HH heures")
+dbgVérifieEgalité(DuréeVersChaîne(dMeth3), "3 j 13:00:00", "méthode avec format phrase")
+
+// =========================================================================
+// Edge cases
+// =========================================================================
+d0 est une durée = ChaîneVersDurée("", duréeMillième)
+dbgVérifieVrai(Position(DuréeVersChaîne(d0), "00:00:00") > 0, "vide = 0")
+
+dBad est une durée = ChaîneVersDurée("pas une durée", "JJ:HH:MM")
+dbgVérifieVrai(Position(DuréeVersChaîne(dBad), "00:00:00") > 0, "parse fail = 0")
+
+dbgBilanTest()

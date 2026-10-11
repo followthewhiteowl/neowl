@@ -1,0 +1,45 @@
+// Regression : Null littéral écrit explicitement par l'utilisateur.
+// Couvre les coercions de NIL_VAL vers les types primitifs (canon de référence) :
+//   - Null en context numérique = 0
+//   - Null en context chaîne = "" (pas "0" comme avant)
+//   - Null en context booléen = Faux
+//
+// Bug d'origine : value_to_string(NIL) retournait "0" au lieu de "",
+// value_to_integer/real(NIL) renvoyaient un échec au lieu de 0.
+
+// Concat chaîne avec Null
+s est une chaîne = "[" + Null + "]"
+dbgVérifieEgalité(s, "[]", "concat Null en chaine = chaine vide")
+
+// Comparaisons avec Null — sémantique OWL stricte (divergence assumée vs la référence
+// canon classique) : Null = "absence", aucune valeur typée n'est égale à Null
+// par cast. Seul Null = Null est vrai. Le `?` postfix permet aux types
+// nullables de tenir vraiment Null et de le distinguer de leur zero-value.
+dbgVérifieFaux(Null = "", "Null != ''")
+dbgVérifieFaux(Null = 0, "Null != 0")
+dbgVérifieFaux(Null = 0.0, "Null != 0.0")
+dbgVérifieFaux(Null = Faux, "Null != Faux")
+dbgVérifieFaux(Null = "x", "Null != 'x'")
+dbgVérifieFaux(Null = 1, "Null != 1")
+dbgVérifieFaux(Null = Vrai, "Null != Vrai")
+
+// Cast Null → string via Trace-style concat
+dbgVérifieEgalité("avant" + Null + "apres", "avantapres", "concat Null entre 2 strings")
+
+// Cast Null → numérique via opérations
+dbgVérifieEgalité(Null + 5, 5, "Null + 5 = 5")
+dbgVérifieEgalité(Null * 7, 0, "Null * 7 = 0")
+dbgVérifieEgalité(Null + 1.5, 1.5, "Null + 1.5 = 1.5")
+
+// Affectation Null à une variable nullable explicite (canon de référence :
+// `?` ou `<nullable>` requis sur les types non-Variant, sinon le compilateur
+// rejette l'assignment. Voir compiler.c:typed_globals_*).
+n2 est un entier?
+n2 = Null
+dbgVérifieVrai(n2 = Null, "entier nullable peut tenir Null")
+n2 = 42
+dbgVérifieEgalité(n2, 42, "entier nullable affectable")
+
+// Variable nullable : non-init = Null (canon de référence : `?` ou `<nullable>`)
+vn est une chaîne?
+dbgVérifieVrai(vn = Null, "chaine? non-init = Null")

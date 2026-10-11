@@ -1,0 +1,164 @@
+// @sujet : ChaîneVersDate
+// @résumé : Convertit une chaîne en date ou en dateheure, par auto-détection ou selon un format imposé.
+
+
+// Cas canonique : la forme compacte AAAAMMJJ est auto-détectée et produit
+// un objet date dont on peut extraire les composantes individuellement.
+PROCEDURE scenario_format_auto_aaaammjj()
+	d est une date = ChaîneVersDate("20260512")
+	dbgVérifieEgalité(d..Année, 2026)
+	dbgVérifieEgalité(d..Mois, 5)
+	dbgVérifieEgalité(d..Jour, 12)
+FIN
+
+
+// Forme méthode équivalente : le receveur fournit la chaîne à parser.
+PROCEDURE scenario_forme_methode()
+	d est une date = "20260512".VersDate()
+	dbgVérifieEgalité(d..Mois, 5)
+FIN
+
+
+// Forme jour/mois/année séparée par des barres obliques, auto-détectée.
+PROCEDURE scenario_format_auto_jj_mm_aaaa()
+	d est une date = ChaîneVersDate("12/05/2026")
+	dbgVérifieEgalité(d..Jour, 12)
+	dbgVérifieEgalité(d..Mois, 5)
+FIN
+
+
+// Même format que ci-dessus mais avec des tirets — auto-détecté également.
+PROCEDURE scenario_format_auto_avec_tirets()
+	d est une date = ChaîneVersDate("12-05-2026")
+	dbgVérifieEgalité(d..Année, 2026)
+FIN
+
+
+// Un format explicite permet de parser une chaîne quelconque. Les tokens
+// reconnus sont AAAA (année 4 chiffres), MM (mois numérique), JJ (jour),
+// MMMM (mois en toutes lettres), etc.
+PROCEDURE scenario_format_personnalise_mois_en_lettres()
+	d est une date = ChaîneVersDate("12 mai 2026", "JJ MMMM AAAA")
+	dbgVérifieEgalité(d..Mois, 5)
+	dbgVérifieEgalité(d..Jour, 12)
+FIN
+
+
+// Quand le format contient des tokens d'heure (HH, MI, SS), la même fonction
+// retourne une dateheure au lieu d'une date. Aucune fonction dédiée n'est
+// nécessaire. La partie date reste accessible par les mêmes accesseurs ; la
+// partie heure se lit via le cast en chaîne sur 17 caractères
+// AAAAMMJJHHMMSSFFF (FFF = millièmes).
+PROCEDURE scenario_format_avec_heure_retourne_dateheure()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	dbgVérifieEgalité(dh..Jour, 12)
+	sCast est une chaîne = dh
+	dbgVérifieEgalité(sCast, "20260512143045000")
+FIN
+
+
+// La constante maskDateInternet correspond au format RFC-3339 utilisé
+// notamment dans les API et logs (date ISO + heure + fuseau).
+PROCEDURE scenario_mask_internet_rfc3339()
+	dh est une dateheure = ChaîneVersDate("2019-08-25T17:15:00+02:00", maskDateInternet)
+	dbgVérifieEgalité(dh..Année, 2019)
+	dbgVérifieEgalité(dh..Mois, 8)
+	dbgVérifieEgalité(dh..Jour, 25)
+FIN
+
+
+// La constante maskDateEmail correspond au format RFC-5322 utilisé dans les
+// en-têtes de courriels (jour de la semaine, mois en lettres, fuseau numérique).
+PROCEDURE scenario_mask_email_rfc5322()
+	dh est une dateheure = ChaîneVersDate("Mon, 25 Nov 2019 17:15:00 +0100", maskDateEmail)
+	dbgVérifieEgalité(dh..Mois, 11)
+	dbgVérifieEgalité(dh..Jour, 25)
+FIN
+
+
+// Cast à la volée : une variable typée chaîne récupère directement la
+// représentation canonique AAAAMMJJ. Utile pour sérialisation, pas pour
+// manipulation.
+PROCEDURE scenario_cast_chaine_a_la_volee()
+	sDate est une chaîne = ChaîneVersDate("12/05/2026")
+	dbgVérifieEgalité(sDate, "20260512")
+FIN
+
+
+// Une chaîne vide est explicitement gérée : la fonction retourne une chaîne
+// vide sans signaler d'erreur.
+PROCEDURE scenario_chaine_vide()
+	sRes est une chaîne = ChaîneVersDate("")
+	dbgVérifieEgalité(sRes, "")
+	dbgVérifieFaux(ErreurDétectée)
+FIN
+
+
+// Quand la chaîne n'est pas une date valide, la fonction retourne une chaîne
+// vide et positionne ErreurDétectée à Vrai pour signaler l'échec.
+PROCEDURE scenario_parse_invalide_signale_erreur()
+	sRes est une chaîne = ChaîneVersDate("pas une date")
+	dbgVérifieEgalité(sRes, "")
+	dbgVérifieVrai(ErreurInfo() <> "")
+FIN
+
+
+// Cas limite défensif : une date syntaxiquement bien formée mais inexistante
+// (32 mai n'existe pas) est rejetée comme une erreur de parse.
+PROCEDURE PRIVÉE scenario_date_inexistante()
+	sRes est une chaîne = ChaîneVersDate("32/05/2026")
+	dbgVérifieEgalité(sRes, "")
+	dbgVérifieVrai(ErreurInfo() <> "")
+FIN
+
+
+// Format ISO 8601 date seule avec tirets (AAAA-MM-JJ), auto-détecté.
+// Forme non ambiguë (4 chiffres en tête) à privilégier dans les nouveaux
+// scripts pour sa lisibilité et son adoption internationale.
+PROCEDURE scenario_iso_aaaa_mm_jj()
+	d est une date = ChaîneVersDate("2026-12-25")
+	dbgVérifieEgalité(d..Année, 2026)
+	dbgVérifieEgalité(d..Mois, 12)
+	dbgVérifieEgalité(d..Jour, 25)
+FIN
+
+
+// Variante ISO avec barres obliques au lieu de tirets — également
+// auto-détectée pour couvrir les usages régionaux qui préfèrent
+// AAAA/MM/JJ (moins fréquent mais cohérent avec JJ/MM/AAAA existant).
+PROCEDURE scenario_iso_slashes()
+	d est une date = ChaîneVersDate("2026/12/25")
+	dbgVérifieEgalité(d..Année, 2026)
+	dbgVérifieEgalité(d..Mois, 12)
+	dbgVérifieEgalité(d..Jour, 25)
+FIN
+
+
+// Non-régression : la forme européenne JJ/MM/AAAA reste correctement
+// auto-détectée après l'ajout du format ISO AAAA-MM-JJ. Le parser doit
+// distinguer sans ambiguïté les deux formes (4 chiffres en tête vs 1-2).
+PROCEDURE PRIVÉE scenario_non_regression_jj_mm_aaaa()
+	d est une date = ChaîneVersDate("25/12/2026")
+	dbgVérifieEgalité(d..Jour, 25)
+	dbgVérifieEgalité(d..Mois, 12)
+	dbgVérifieEgalité(d..Année, 2026)
+FIN
+
+
+// Non-régression : la forme JJ-MM-AAAA avec tirets reste auto-détectée.
+// Distinction avec AAAA-MM-JJ par le premier segment (1-2 chiffres vs 4).
+PROCEDURE PRIVÉE scenario_non_regression_jj_tiret_mm_aaaa()
+	d est une date = ChaîneVersDate("25-12-2026")
+	dbgVérifieEgalité(d..Jour, 25)
+	dbgVérifieEgalité(d..Mois, 12)
+	dbgVérifieEgalité(d..Année, 2026)
+FIN
+
+
+// Validation : format ISO avec un mois invalide (13) retourne une chaîne
+// vide et signale l'erreur via ErreurInfo. Le parser doit borner m >= 1 && m <= 12.
+PROCEDURE PRIVÉE scenario_validation_mois_invalide_iso()
+	sRes est une chaîne = ChaîneVersDate("2026-13-25")
+	dbgVérifieEgalité(sRes, "")
+	dbgVérifieVrai(ErreurInfo() <> "")
+FIN

@@ -1,0 +1,32 @@
+//  — DonneFocus(FEN_Multi.SAI_Cible) : forme qualifiée cross-fichier
+//
+// Vérifie que la forme qualifiée FEN_Multi.SAI_Cible est résolue et que
+// DonneFocus déclenche surEntrée sur le champ ciblé.
+//
+// Requiert projet.owl voisin pour activer la résolution cross-fichier.
+//
+// Test ROUGE attendu : DonneFocus n'existe pas encore.
+
+TestModeHeadless(Vrai)
+
+nEntreeCible_obs est un entier = 0
+
+PROCEDURE callback_entre_cible(n est un entier)
+	nEntreeCible_obs = n
+FIN
+
+Ouvre(FEN_Multi)
+
+// Etat initial : SAI_Source reçoit le focus initial (premier champ lexical).
+// SAI_Cible : surEntrée pas encore déclenchée.
+RemonteEntreeCible()
+dbgVérifieEgalité(nEntreeCible_obs, 0, "surEntree SAI_Cible = 0 avant DonneFocus qualifie")
+
+// Forme qualifiée cross-fichier.
+DonneFocus(FEN_Multi.SAI_Cible)
+RemonteEntreeCible()
+dbgVérifieEgalité(nEntreeCible_obs, 1, "surEntree SAI_Cible = 1 apres DonneFocus qualifie")
+
+Ferme(FEN_Multi)
+
+dbgBilanTest()

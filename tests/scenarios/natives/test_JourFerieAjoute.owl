@@ -1,0 +1,159 @@
+// @sujet : JourFériéAjoute
+// @résumé : Ajoute un jour férié au calendrier. Accepte les formats chaîne (référence langage source), les types date/dateheure (extension OWL), et les tableaux (extension OWL idiomatique). Retourne un booléen indiquant le succès.
+
+
+// Cas canonique : forme chaîne compacte "AAAAMMJJ" (8 chiffres) pour un jour
+// férié spécifique à une année donnée.
+PROCEDURE scenario_forme_chaine_aaaammjj()
+	résultat est un booléen = JourFériéAjoute("20260711")
+	dbgVérifieVrai(résultat)
+	d est une date = ChaîneVersDate("20260711")
+	dbgVérifieVrai(JourFérié(d))
+FIN
+
+
+// Forme chaîne compacte "MMJJ" (4 chiffres) pour un jour férié récurrent
+// annuel, valable toutes les années.
+PROCEDURE scenario_forme_chaine_mmjj_recurrent()
+	résultat est un booléen = JourFériéAjoute("0814")
+	dbgVérifieVrai(résultat)
+	d2026 est une date = ChaîneVersDate("20260814")
+	dbgVérifieVrai(JourFérié(d2026))
+	d2027 est une date = ChaîneVersDate("20270814")
+	dbgVérifieVrai(JourFérié(d2027))
+FIN
+
+
+// Forme chaîne invalide : la fonction retourne Faux sans ajouter à la liste.
+// Pas de crash, pas d'ErreurDétectée — retour booléen propre.
+PROCEDURE scenario_forme_chaine_invalide()
+	résultat est un booléen = JourFériéAjoute("garbage")
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Forme chaîne "MMJJ" invalide : mois hors plage (13). La fonction doit
+// valider le format et retourner Faux proprement.
+PROCEDURE scenario_forme_chaine_mois_invalide()
+	résultat est un booléen = JourFériéAjoute("1301")
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Extension OWL : accepte une variable typée date. La composante date est
+// extraite et utilisée pour enregistrer un jour férié spécifique à l'année.
+PROCEDURE scenario_forme_date_typee()
+	d est une date = ChaîneVersDate("20260912")
+	résultat est un booléen = JourFériéAjoute(d)
+	dbgVérifieVrai(résultat)
+	dbgVérifieVrai(JourFérié(d))
+FIN
+
+
+// Extension OWL : accepte une variable typée dateheure. La composante date est
+// utilisée, l'heure ignorée.
+PROCEDURE scenario_forme_dateheure_typee()
+	dh est une dateheure = ChaîneVersDate("2026-10-15 14:30:00", "AAAA-MM-JJ HH:MI:SS")
+	résultat est un booléen = JourFériéAjoute(dh)
+	dbgVérifieVrai(résultat)
+	d est une date = ChaîneVersDate("20261015")
+	dbgVérifieVrai(JourFérié(d))
+FIN
+
+
+// Extension OWL idiomatique : accepte un tableau de chaînes. Tous les jours
+// valides sont ajoutés ; la fonction retourne Vrai si tous ajoutés.
+PROCEDURE scenario_forme_tableau_de_chaines()
+	tabJours est un tableau de chaînes
+	tabJours.Ajoute("20261101")
+	tabJours.Ajoute("20261102")
+	résultat est un booléen = JourFériéAjoute(tabJours)
+	dbgVérifieVrai(résultat)
+	d1 est une date = ChaîneVersDate("20261101")
+	dbgVérifieVrai(JourFérié(d1))
+	d2 est une date = ChaîneVersDate("20261102")
+	dbgVérifieVrai(JourFérié(d2))
+FIN
+
+
+// Extension OWL idiomatique : accepte un tableau de dates typées. Même principe
+// que le tableau de chaînes.
+PROCEDURE scenario_forme_tableau_de_dates()
+	tabDates est un tableau de dates
+	tabDates.Ajoute(ChaîneVersDate("20261201"))
+	tabDates.Ajoute(ChaîneVersDate("20261202"))
+	résultat est un booléen = JourFériéAjoute(tabDates)
+	dbgVérifieVrai(résultat)
+	d1 est une date = ChaîneVersDate("20261201")
+	dbgVérifieVrai(JourFérié(d1))
+	d2 est une date = ChaîneVersDate("20261202")
+	dbgVérifieVrai(JourFérié(d2))
+FIN
+
+
+// Tableau mixte avec une chaîne invalide au milieu : la fonction doit
+// retourner Faux dès qu'un élément échoue.
+PROCEDURE scenario_forme_tableau_avec_element_invalide()
+	tabMixed est un tableau de chaînes
+	tabMixed.Ajoute("20260301")
+	tabMixed.Ajoute("garbage")
+	tabMixed.Ajoute("20260302")
+	résultat est un booléen = JourFériéAjoute(tabMixed)
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Préservation de l'API en aval : une fois des jours fériés ajoutés,
+// JourFérié(d) les retrouve correctement.
+PROCEDURE scenario_api_aval_intacte()
+	JourFériéAjoute("20260401")
+	JourFériéAjoute("0501")
+	d1 est une date = ChaîneVersDate("20260401")
+	dbgVérifieVrai(JourFérié(d1))
+	d2 est une date = ChaîneVersDate("20260501")
+	dbgVérifieVrai(JourFérié(d2))
+	d3 est une date = ChaîneVersDate("20270501")
+	dbgVérifieVrai(JourFérié(d3))
+FIN
+
+
+// Capacité maximale : quand la limite de 64 jours fériés est atteinte, un
+// ajout supplémentaire doit retourner Faux proprement.
+PROCEDURE PRIVÉE scenario_capacite_maximale()
+	POUR i = 1 À 64
+		jour est une chaîne = "2026" + Complète(i, 4, "0")
+		JourFériéAjoute(jour)
+	FIN
+	résultat est un booléen = JourFériéAjoute("20279999")
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Cas limite : jour inexistant (32 mai) doit être rejeté comme invalide.
+PROCEDURE PRIVÉE scenario_jour_inexistant()
+	résultat est un booléen = JourFériéAjoute("20260532")
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Cas limite : année invalide (année 0 dans format AAAAMMJJ) doit être rejetée.
+PROCEDURE PRIVÉE scenario_annee_invalide()
+	résultat est un booléen = JourFériéAjoute("00000101")
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Cas limite : chaîne vide retourne Faux proprement, sans crash.
+PROCEDURE PRIVÉE scenario_chaine_vide()
+	résultat est un booléen = JourFériéAjoute("")
+	dbgVérifieFaux(résultat)
+FIN
+
+
+// Note : les constantes mobiles jfLundiDePâques, jfJourDePâques, etc. ne sont
+// pas enregistrées dans OWL (vérifié via `owl search jfLundi`).
+//
+// JourFériéListe() et JourFériéSupprimeTout() existent mais ont des signatures
+// registry incohérentes (déclarées retour date|heure|dateheure via sig_no_arg
+// alors que impl retourne chaîne / NIL_VAL). Ces scénarios évitent ces
+// fonctions pour garantir le compile-check.

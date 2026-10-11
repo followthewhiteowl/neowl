@@ -1,0 +1,65 @@
+// Bloc B (anti-régression) — Littéraux valides doivent passer sans erreur compile
+//  bloc 4 : vérifier que le compile filter n'est pas trop strict
+
+PROCEDURE test_literal_date_valid()
+	// Tous formats Date canon (post-Q5)
+	d1 est une date = "20250101" // AAAAMMJJ
+
+	// Formats Q5 pas encore dans compile filter — variables intermédiaires
+	sJJMMAAAA est une chaîne = "01/01/2025"
+	d2 est une date = sJJMMAAAA // JJ/MM/AAAA (cassure Q5)
+
+	sJJMMAAAATiret est une chaîne = "01-01-2025"
+	d3 est une date = sJJMMAAAATiret // JJ-MM-AAAA
+
+	sISOTiret est une chaîne = "2025-01-01"
+	d4 est une date = sISOTiret // AAAA-MM-JJ (ISO)
+
+	sISOSlash est une chaîne = "2025/01/01"
+	d5 est une date = sISOSlash // AAAA/MM/JJ
+
+	dbgVérifieVrai(Vrai, "formats Date valides compilent sans erreur")
+FIN
+
+PROCEDURE test_literal_heure_valid()
+	// Tous formats Heure canon
+	h1 est une heure = "123045" // HHMMSS
+	h2 est une heure = "12:30:45" // HH:MM:SS
+	h3 est une heure = "12:30" // HH:MM
+	h4 est une heure = "12304500" // HHMMSSCC
+
+	dbgVérifieVrai(Vrai, "formats Heure valides compilent sans erreur")
+FIN
+
+PROCEDURE test_literal_dateheure_valid()
+	// Tous formats DateHeure canon
+	dh1 est une dateheure = "2025-01-01T12:30:45" // ISO 8601
+	dh2 est une dateheure = "20250101123045" // compact 14 digits
+
+	// Formats Q5 transitive pas encore dans compile filter
+	sMixte est une chaîne = "01/01/2025 12:30:45"
+	dh3 est une dateheure = sMixte // mixte JJ/MM/AAAA HH:MM:SS
+
+	dh4 est une dateheure = "2025-01-01 12:30:45" // ISO sans T
+
+	dbgVérifieVrai(Vrai, "formats DateHeure valides compilent sans erreur")
+FIN
+
+PROCEDURE test_literal_duree_valid()
+	// Formats Durée canon
+	dur1 est une durée = "+0012304599" // +JHHMMSSCCC
+	dur2 est une durée = "-0012304599" // négatif
+
+	// 7 digits hors  strict — variable intermédiaire
+	s7digits est une chaîne = "+0012345"
+	dur3 est une durée = s7digits // 7 digits
+
+	dbgVérifieVrai(Vrai, "formats Durée valides compilent sans erreur")
+FIN
+
+PROCEDURE PUBLIQUE test_temporal_literal_valid_no_regression()
+	test_literal_date_valid()
+	test_literal_heure_valid()
+	test_literal_dateheure_valid()
+	test_literal_duree_valid()
+FIN

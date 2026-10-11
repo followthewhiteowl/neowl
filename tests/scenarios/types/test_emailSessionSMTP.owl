@@ -1,0 +1,77 @@
+// @sujet : emailSessionSMTP
+// @résumé : Type composé décrivant une connexion à un serveur SMTP sortant : adresse, port, identifiants, options de chiffrement.
+
+// Une session SMTP se décrit entièrement avant ouverture : serveur cible,
+// port, identifiants d'authentification et options de transport chiffré.
+// Les propriétés se posent et se relisent avec la notation `..`.
+
+
+// Valeurs par défaut d'une session fraîchement déclarée : rien n'est
+// renseigné, le port standard SMTP est déjà en place, aucun chiffrement
+// n'est imposé.
+PROCEDURE PUBLIQUE scenario_valeurs_par_defaut()
+	ses est un emailSessionSMTP
+	dbgVérifieEgalité(ses..AdresseServeur, "", "adresse serveur vide à la création")
+	dbgVérifieEgalité(ses..Port, 25, "port SMTP standard par défaut")
+	dbgVérifieEgalité(ses..Nom, "", "nom d'utilisateur vide par défaut")
+	dbgVérifieEgalité(ses..MotDePasse, "", "mot de passe vide par défaut")
+	dbgVérifieEgalité(ses..Option, emailOptionDéfaut, "aucune option de chiffrement imposée par défaut")
+FIN
+
+
+// Description d'une connexion authentifiée classique : serveur, port,
+// identifiants. Les valeurs posées se relisent telles quelles.
+PROCEDURE PUBLIQUE scenario_connexion_authentifiee_relue()
+	ses est un emailSessionSMTP
+	ses..AdresseServeur = "smtp.example.org"
+	ses..Port           = 587
+	ses..Nom            = "compte@example.org"
+	ses..MotDePasse     = "secret42"
+
+	dbgVérifieEgalité(ses..AdresseServeur, "smtp.example.org", "adresse serveur relue")
+	dbgVérifieEgalité(ses..Port, 587, "port relu")
+	dbgVérifieEgalité(ses..Nom, "compte@example.org", "utilisateur relu")
+	dbgVérifieEgalité(ses..MotDePasse, "secret42", "mot de passe relu")
+FIN
+
+
+// Option de chiffrement STARTTLS explicite, sur le port dédié : posée puis
+// relue via la constante canon.
+PROCEDURE PUBLIQUE scenario_option_chiffrement_starttls()
+	ses est un emailSessionSMTP
+	ses..Port   = 587
+	ses..Option = emailOptionSécuriséTLS
+
+	dbgVérifieEgalité(ses..Port, 587, "port STARTTLS relu")
+	dbgVérifieEgalité(ses..Option, emailOptionSécuriséTLS, "option STARTTLS relue")
+FIN
+
+
+// Option de chiffrement SSL/TLS implicite, sur le port dédié : posée puis
+// relue via la constante canon.
+PROCEDURE PUBLIQUE scenario_option_chiffrement_ssl()
+	ses est un emailSessionSMTP
+	ses..Port   = 465
+	ses..Option = optionSSL
+
+	dbgVérifieEgalité(ses..Port, 465, "port SSL relu")
+	dbgVérifieEgalité(ses..Option, optionSSL, "option SSL relue")
+FIN
+
+
+// Certificat d'autorité additionnel : propriété de contrôle du transport
+// chiffré, posée puis relue.
+PROCEDURE PUBLIQUE scenario_certificat_autorite()
+	ses est un emailSessionSMTP
+	ses..CertificatCA = "/etc/ssl/certs/ca-interne.pem"
+
+	dbgVérifieEgalité(ses..CertificatCA, "/etc/ssl/certs/ca-interne.pem", "chemin du certificat d'autorité relu")
+FIN
+
+
+// Cas limite : sans propriété de chiffrement posée, le certificat
+// d'autorité reste sur son défaut inoffensif.
+PROCEDURE PRIVÉE scenario_defauts_certificat_autorite()
+	ses est un emailSessionSMTP
+	dbgVérifieEgalité(ses..CertificatCA, "", "aucun certificat d'autorité additionnel par défaut")
+FIN

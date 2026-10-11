@@ -1,0 +1,28 @@
+// Ressource Etat pure —  cas 4 (NON-REGRESSION).
+// Verifie qu une variable declaree au niveau top-level d un Etat est
+// lisible depuis le code d une section (corps).
+// Ce cas FONCTIONNE DEJA avant le fix (les variables top-level sont dans
+// le scope global, contrairement aux PROCEDUREs qui ne sont pas appelables).
+// Ce test verrouille ce comportement pour eviter toute regression
+// lors de la mise en place du scoping lexical.
+// Observation via callback_observe() (resolu par voisinage mode script).
+
+ETAT_Cas4 est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	// Variable top-level de l Etat : constante de calcul.
+	coeffGlobal est un entier = 6
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+
+		// Lecture de la variable top-level depuis la section.
+		res est un entier = coeffGlobal * 5
+		callback_observe("c4:" + res)
+	FIN
+FIN

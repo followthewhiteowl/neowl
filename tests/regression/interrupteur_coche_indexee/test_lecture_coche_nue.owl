@@ -1,0 +1,52 @@
+// Lecture de la coche d'une option d'Interrupteur via l'indexation NUE
+// (INT_X[i], sans ..Valeur). Le canon veut que la forme nue rende directement
+// le scalaire 0/1/-1, pas une struct d'option. Aujourd'hui l'indexation nue
+// rend encore la struct (Libellé/SousLibellé) : ces assertions sont donc
+// rouges pour la BONNE raison (struct comparée à un entier), pas pour une
+// erreur de syntaxe.
+//
+// Le réglage de l'option cochée passe par la propriété de champ existante
+// `..Valeur` (bitmask, option N -> bit N-1), déjà livrée et hors périmètre de
+// ce ticket — elle ne dépend pas du mécanisme nu par option qu'on teste ici.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Interrupteur)
+
+INT_Perms..Valeur = 1 // coche uniquement l'option 1 (bit 0)
+
+// --- Option cochée, indice littéral ---
+nCoche1 est un entier = INT_Perms[1]
+dbgVérifieEgalité(nCoche1, 1,
+"option cochée, indice littéral, la coche nue rend 1")
+
+// --- Option décochée, indice littéral ---
+nCoche2 est un entier = INT_Perms[2]
+dbgVérifieEgalité(nCoche2, 0,
+"option décochée, indice littéral, la coche nue rend 0")
+
+// --- Option cochée, indice variable ---
+i est un entier = 1
+nCoche1Var est un entier = INT_Perms[i]
+dbgVérifieEgalité(nCoche1Var, 1,
+"option cochée, indice variable, la coche nue rend 1")
+
+// --- Option décochée, indice variable ---
+j est un entier = 3
+nCoche3Var est un entier = INT_Perms[j]
+dbgVérifieEgalité(nCoche3Var, 0,
+"option décochée, indice variable, la coche nue rend 0")
+
+// --- Hors plage en lecture : soft-error déjà posée par le garde
+// d'indexation générique, indépendante du mécanisme coche testé
+// ici. Reste vraie une fois la coche implémentée. ---
+nCocheOob est un entier = INT_Perms[99]
+bErrOob est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrOob,
+"indice 99 sur 3 options pose ErreurDetectee en lecture nue")
+dbgVérifieEgalité(nCocheOob, 0,
+"option hors plage, la coche nue rend 0 (valeur neutre)")
+
+Ferme(FEN_Interrupteur)
+
+dbgBilanTest()

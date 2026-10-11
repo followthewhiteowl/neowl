@@ -1,0 +1,69 @@
+//  (LOT 4) — opacité sur `Style..LignesImpaires`/`LignesPaires`..
+// CouleurFond (fond alterné) et `Style..Séparateur..Couleur` (trait entre
+// répétitions) d'un Champ ZoneRépétée. Trou d'ingestion connu (mesuré aux
+// lots 1-3, même famille de bug) : `ui_qt.cpp::styleOneRep` peint fond et
+// séparateur via `owl_table_rgb_css` (pas la variante `_a` alpha-aware
+// utilisée par les familles déjà migrées), et `read_zr_style`
+// (`stdlib_ui.c`) lit ces sous-éléments via `instance_get_int(x,
+// "CouleurFond"/"Couleur", -1)`, qui rend -1 (« non posé ») sur une
+// instance Couleur -> le fond/trait translucide est totalement ignoré.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Cf. FEN_CouleurAlphaZrParite.owl.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255), fond
+// ROUGE (255,0,0) :
+//   VERT (0,255,0) sur ROUGE (255,0,0)    -> RVB(127, 128, 0)
+//   JAUNE (255,255,0) sur ROUGE (255,0,0) -> RVB(255, 128, 0)
+// Aucune tolérance nécessaire (calculs exacts, multiples de 255).
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertSurRouge est un entier = RVB(127, 128, 0)
+jauneOpaque est un entier = RVB(255, 255, 0)
+jauneSurRouge est un entier = RVB(255, 128, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CouleurAlphaZrParite)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaZrParite)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// === ZR_ParSepOpaque [X=20..420, Y=20..160] — non-régression ==============
+// LignesImpaires ET LignesPaires posées à la même couleur : fond vert plein
+// attendu sur toutes les répétitions.
+nbFondOpaque est un entier = CompteCouleurZone(img, 20, 20, 420, 160, vertOpaque)
+dbgVérifieVrai(nbFondOpaque > 15000,
+"ZR_ParSepOpaque : Style..LignesImpaires/LignesPaires..CouleurFond = RVB(0,255,0) (entier nu opaque) : fond vert sur les répétitions, non-régression")
+
+nbSepOpaque est un entier = CompteCouleurZone(img, 20, 20, 420, 160, jauneOpaque)
+dbgVérifieVrai(nbSepOpaque > 10,
+"ZR_ParSepOpaque : Style..Séparateur..Couleur = RVB(255,255,0) (entier nu opaque) : trait jaune visible entre répétitions, non-régression")
+
+// === ZR_ParSepAlpha [X=20..420, Y=180..320] — mélange attendu =============
+nbFondAlpha est un entier = CompteCouleurZone(img, 20, 180, 420, 320, vertSurRouge)
+dbgVérifieVrai(nbFondAlpha > 15000,
+"ZR_ParSepAlpha : Style..LignesImpaires/LignesPaires..CouleurFond = <Couleur Opacité=128> : fond des répétitions mélangé avec le rouge du CadreExtérieur")
+
+nbSepAlpha est un entier = CompteCouleurZone(img, 20, 180, 420, 320, jauneSurRouge)
+dbgVérifieVrai(nbSepAlpha > 10,
+"ZR_ParSepAlpha : Style..Séparateur..Couleur = <Couleur Opacité=128> : trait du séparateur mélangé avec le rouge du CadreExtérieur")
+
+Ferme(FEN_CouleurAlphaZrParite)
+dbgBilanTest()

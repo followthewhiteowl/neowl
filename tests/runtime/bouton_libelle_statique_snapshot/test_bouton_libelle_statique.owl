@@ -1,0 +1,50 @@
+//  scoping — Cas 2 : Libelle statique sur Champ Bouton.
+// Verifie que la prop Libelle declaree est bien appliquee au rendu.
+// Ce cas sert de scoping : si le Libelle est aussi touche par la
+// regression /0651, ce test le revele.
+//
+// Methode : comparer la capture d'un bouton avec Libelle "WWWW" vs
+// un bouton sans Libelle (reference). Si le texte est rendu, les
+// images different. Si le Libelle n'est pas applique -> identiques
+// -> rouge inattendu (regression plus large que l'icone).
+//
+// Attendu VERT (le dev voyait son label — le Libelle est probablement OK)
+// mais verrouille pour prevenir toute regression future.
+
+Ouvre(FEN_BoutonLibelle)
+
+imgAvecLib est une Image = dCopieImageChamp(BTN_AvecLibelle)
+dbgVérifieEgalité(imgAvecLib..Valide, Vrai, "BTN_AvecLibelle : capture valide")
+
+imgSansLib est une Image = dCopieImageChamp(BTN_SansLibelle)
+dbgVérifieEgalité(imgSansLib..Valide, Vrai, "BTN_SansLibelle : capture valide")
+
+// Compter les pixels differents entre les deux captures.
+nbDiffLib est un entier = 0
+wLib est un entier = imgAvecLib..Largeur
+hLib est un entier = imgAvecLib..Hauteur
+yyLib est un entier = 0
+TANTQUE yyLib < hLib
+	xxLib est un entier = 0
+	TANTQUE xxLib < wLib
+		cLib est un entier = dPixelCouleur(imgAvecLib, xxLib, yyLib)
+		cRef est un entier = dPixelCouleur(imgSansLib, xxLib, yyLib)
+		SI cLib <> cRef ALORS
+			nbDiffLib = nbDiffLib + 1
+		FIN
+		xxLib = xxLib + 1
+	FIN
+	yyLib = yyLib + 1
+FIN
+
+// VERT ATTENDU (scoping : Libelle probablement non regressee).
+// Si rouge -> regression plus large que l'icone, signaler au coordinator.
+dbgVérifieVrai(nbDiffLib > 10,
+"BTN Libelle WWWW vs BTN nu : captures different (Libelle statique rendu)")
+
+// Verifie aussi que la prop est materialisee.
+dbgVérifieEgalité(BTN_AvecLibelle..Libellé, "WWWW",
+"BTN_AvecLibelle..Libelle = WWWW (prop lue en retour)")
+
+Ferme(FEN_BoutonLibelle)
+dbgBilanTest()

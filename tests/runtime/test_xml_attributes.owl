@@ -1,0 +1,72 @@
+// Tests XML attributs : lecture, écriture, listing, test d'existence
+
+xml est une chaîne = "<?xml version=""1.0""?><catalogue lang=""fr"" version=""2""><livre id=""1"" disponible=""vrai""><titre>Dune</titre></livre><livre id=""2""><titre>Fondation</titre></livre></catalogue>"
+doc est un xmlDocument = XMLOuvre(xml, depuisChaîne)
+racine est un xmlNoeud = XMLRacine(doc)
+premier_livre est un xmlNoeud = XMLPremier(racine)
+second_livre est un xmlNoeud = XMLDernier(racine)
+
+// --- XMLAjouteAttribut / XMLLitAttribut ---
+dbgVérifieEgalité(XMLLitAttribut(racine, "lang"), "fr", "attribut lang = fr")
+dbgVérifieEgalité(XMLLitAttribut(racine, "version"), "2", "attribut version = 2")
+dbgVérifieEgalité(XMLLitAttribut(premier_livre, "id"), "1", "attribut id livre 1 = 1")
+dbgVérifieEgalité(XMLLitAttribut(premier_livre, "disponible"), "vrai", "attribut disponible = vrai")
+
+// attribut absent → ""
+dbgVérifieEgalité(XMLLitAttribut(premier_livre, "inexistant"), "", "attribut absent retourne vide")
+
+// --- Méthodes .LitAttribut() / .ReadAttribute() ---
+dbgVérifieEgalité(racine.LitAttribut("lang"), "fr", "méthode .LitAttribut()")
+dbgVérifieEgalité(premier_livre.ReadAttribute("id"), "1", "méthode .ReadAttribute()")
+
+// --- XMLAttributExiste ---
+dbgVérifieVrai(XMLAttributExiste(racine, "lang"), "XMLAttributExiste: lang existe")
+dbgVérifieVrai(PAS XMLAttributExiste(racine, "pays"), "XMLAttributExiste: pays absent")
+dbgVérifieVrai(premier_livre.AttributeExists("disponible"), "méthode .AttributeExists()")
+dbgVérifieVrai(PAS second_livre.AttributExiste("disponible"), "disponible absent sur livre 2")
+
+// --- XMLAjouteAttribut modifie une valeur existante ---
+XMLAjouteAttribut(racine, "lang", "en")
+dbgVérifieEgalité(XMLLitAttribut(racine, "lang"), "en", "XMLAjouteAttribut modifie la valeur")
+// Restaurer
+racine.AddAttribute("lang", "fr")
+dbgVérifieEgalité(racine.LitAttribut("lang"), "fr", "méthode .AddAttribute() restaure")
+
+// --- XMLAjouteAttribut ajoute un attribut nouveau ---
+attr_nouveau est un xmlAttribut = XMLAjouteAttribut(premier_livre, "format", "broché")
+dbgVérifieVrai(attr_nouveau <> Null, "XMLAjouteAttribut retourne un xmlAttribut")
+dbgVérifieEgalité(XMLLitAttribut(premier_livre, "format"), "broché", "nouvel attribut ajouté")
+
+// Méthode équivalente
+dbgVérifieEgalité(premier_livre.LitAttribut("format"), "broché", "méthode .LitAttribut() même résultat")
+
+// --- XMLAttributNom / XMLAttributValeur ---
+dbgVérifieEgalité(XMLAttributNom(attr_nouveau), "format", "XMLAttributNom")
+dbgVérifieEgalité(XMLAttributValeur(attr_nouveau), "broché", "XMLAttributValeur")
+
+// --- Méthodes sur xmlAttribut ---
+dbgVérifieEgalité(attr_nouveau..Nom(), "format", "méthode ..Nom() sur xmlAttribut")
+dbgVérifieEgalité(attr_nouveau.Value(), "broché", "méthode .Value() sur xmlAttribut")
+
+// --- XMLListeAttributs ---
+attrs est un tableau de xmlAttribut = XMLListeAttributs(racine)
+dbgVérifieEgalité(attrs..Occurrence, 2, "racine a 2 attributs (lang + version)")
+
+// Via méthode
+attrs2 est un tableau de xmlAttribut = premier_livre.ListeAttributs()
+dbgVérifieVrai(attrs2..Occurrence >= 3, "livre 1 a au moins 3 attributs (id+disponible+format)")
+
+// Vérification des noms
+noms est une chaîne = ""
+POUR i = 1 À attrs..Occurrence
+	noms = noms + XMLAttributNom(attrs[i]) + ";"
+FIN
+dbgVérifieVrai(Position(noms, "lang") > 0, "liste inclut lang")
+dbgVérifieVrai(Position(noms, "version") > 0, "liste inclut version")
+
+// --- Méthode .ListAttributes() ---
+attrs3 est un tableau de xmlAttribut = racine.ListAttributes()
+dbgVérifieEgalité(attrs3..Occurrence, 2, "méthode .ListAttributes() = 2")
+
+XMLTermine(doc)
+Trace("test_xml_attributes : OK")

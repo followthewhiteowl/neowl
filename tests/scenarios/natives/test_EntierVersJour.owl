@@ -1,0 +1,146 @@
+// @sujet : EntierVersJour
+// @résumé : Entier (nb jours depuis 01/01/1800) vers numéro de jour de semaine (1=lundi, 7=dimanche)
+
+// ==============================================================================
+// PROCEDURES PUBLIQUES - Cas nominaux pour la doc utilisateur
+// ==============================================================================
+
+PROCEDURE PUBLIQUE scenario_conversion_jour_epoque()
+	// EntierVersJour convertit un entier (nb jours depuis 01/01/1800) en numéro de jour de semaine.
+	// 01/01/1800 était un mercredi (jour 3), donc jour 1 → mercredi.
+
+	jour1 est un entier = EntierVersJour(1)
+	dbgVérifieEgalité(jour1, 3, "Jour 1 (01/01/1800) était un mercredi → 3")
+
+	// 02/01/1800 = jeudi (jour 4)
+	jour2 est un entier = EntierVersJour(2)
+	dbgVérifieEgalité(jour2, 4, "Jour 2 (02/01/1800) était un jeudi → 4")
+
+	// 03/01/1800 = vendredi (jour 5)
+	jour3 est un entier = EntierVersJour(3)
+	dbgVérifieEgalité(jour3, 5, "Jour 3 (03/01/1800) était un vendredi → 5")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cycle_semaine()
+	// Le cycle de la semaine se répète tous les 7 jours : 1 (lundi) à 7 (dimanche).
+	// 04/01/1800 = samedi (jour 6), 05/01/1800 = dimanche (jour 7),
+	// 06/01/1800 = lundi (jour 1), cycle recommence.
+
+	jour4 est un entier = EntierVersJour(4)
+	dbgVérifieEgalité(jour4, 6, "Jour 4 (04/01/1800) était un samedi → 6")
+
+	jour5 est un entier = EntierVersJour(5)
+	dbgVérifieEgalité(jour5, 7, "Jour 5 (05/01/1800) était un dimanche → 7")
+
+	jour6 est un entier = EntierVersJour(6)
+	dbgVérifieEgalité(jour6, 1, "Jour 6 (06/01/1800) était un lundi → 1, cycle recommence")
+
+	// 7 jours plus tard = même jour de semaine
+	jour13 est un entier = EntierVersJour(13)
+	dbgVérifieEgalité(jour13, 1, "Jour 13 (13/01/1800) était aussi un lundi → 1")
+FIN
+
+PROCEDURE PUBLIQUE scenario_coherence_dateversJour()
+	// EntierVersJour(X) et DateVersJour(EntierVersDate(X)) donnent le même résultat.
+	// Cohérence entre les conversions entier/date et jour de semaine.
+
+	entier1 est un entier = 73773 // 25/12/2001
+	jourEntier est un entier = EntierVersJour(73773)
+
+	d1 est une date = EntierVersDate(73773)
+	jourDate est un entier = DateVersJour(d1)
+
+	dbgVérifieEgalité(jourEntier, jourDate, "EntierVersJour(X) = DateVersJour(EntierVersDate(X))")
+
+	// 25/12/2001 était un mardi (jour 2)
+	dbgVérifieEgalité(jourEntier, 2, "25/12/2001 était un mardi → 2")
+FIN
+
+// ==============================================================================
+// PROCEDURES PRIVEES - Cas limites et edge cases
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_entier_zero()
+	// Entier 0 = 31/12/1799 (jour avant 01/01/1800 = jour 1).
+	// 31/12/1799 était un mardi (jour 2).
+
+	jour0 est un entier = EntierVersJour(0)
+	dbgVérifieEgalité(jour0, 2, "Jour 0 (31/12/1799) était un mardi → 2")
+FIN
+
+// Entiers négatifs : dates avant 31/12/1799 (cycle de 7 jours préservé).
+PROCEDURE PRIVÉE scenario_edge_entier_negatif()
+	// -1 = 30/12/1799 (lundi, jour 1)
+	// -2 = 29/12/1799 (dimanche, jour 7)
+
+	jourMoins1 est un entier = EntierVersJour(-1)
+	dbgVérifieEgalité(jourMoins1, 1, "Jour -1 (30/12/1799) était un lundi → 1")
+
+	jourMoins2 est un entier = EntierVersJour(-2)
+	dbgVérifieEgalité(jourMoins2, 7, "Jour -2 (29/12/1799) était un dimanche → 7")
+
+	jourMoins7 est un entier = EntierVersJour(-7)
+	dbgVérifieEgalité(jourMoins7, 2, "Jour -7 cycle de 7 jours avant 31/12/1799 → mardi")
+FIN
+
+// Limites documentées (01/01/0001 à 31/12/9999) : cohérence EntierVersJour avec DateVersJour.
+PROCEDURE PRIVÉE scenario_edge_dates_extremes()
+	// Calcul via DateVersEntier pour éviter approximations fausses.
+
+	d1 est une date = "99991231" // 31/12/9999
+	entierMax est un entier = DateVersEntier(d1)
+	jourMax est un entier = EntierVersJour(entierMax)
+	jourDateMax est un entier = DateVersJour(d1)
+	dbgVérifieEgalité(jourMax, jourDateMax, "Cohérence EntierVersJour max avec DateVersJour")
+
+	d2 est une date = "00010101" // 01/01/0001
+	entierMin est un entier = DateVersEntier(d2)
+	jourMin est un entier = EntierVersJour(entierMin)
+	jourDateMin est un entier = DateVersJour(d2)
+	dbgVérifieEgalité(jourMin, jourDateMin, "Cohérence EntierVersJour min avec DateVersJour")
+FIN
+
+// Le numéro de jour de semaine reste toujours dans [1..7] (test échantillon large).
+PROCEDURE PRIVÉE scenario_edge_bornes_modulo_sept()
+	// Pas de débordement ni de valeur hors domaine sur entiers extrêmes.
+
+	entier1 est un entier = 36525 // 01/01/1900
+	jour1 est un entier = EntierVersJour(entier1)
+	dbgVérifieVrai(jour1 >= 1 ET jour1 <= 7, "Jour 1900 dans [1..7]")
+
+	entier2 est un entier = 73049 // 01/01/2000
+	jour2 est un entier = EntierVersJour(entier2)
+	dbgVérifieVrai(jour2 >= 1 ET jour2 <= 7, "Jour 2000 dans [1..7]")
+
+	entier3 est un entier = 100000 // Date future arbitraire
+	jour3 est un entier = EntierVersJour(entier3)
+	dbgVérifieVrai(jour3 >= 1 ET jour3 <= 7, "Jour 100000 dans [1..7]")
+FIN
+
+// EntierVersJour accepte une chaîne numérique (conversion implicite vers entier).
+PROCEDURE PRIVÉE scenario_edge_chaine_numerique()
+	// "73773" (chaîne) → 73773 (entier) → jour de semaine.
+
+	jourChaine est un entier = EntierVersJour("73773")
+	jourEntier est un entier = EntierVersJour(73773)
+	dbgVérifieEgalité(jourChaine, jourEntier, "Chaîne numérique convertie implicitement")
+	dbgVérifieEgalité(jourChaine, 2, "Chaîne '73773' → jour 2 (mardi)")
+FIN
+
+// ==============================================================================
+// POINT D'ENTREE
+// ==============================================================================
+
+// Procedures publiques (doc utilisateur)
+scenario_conversion_jour_epoque()
+scenario_cycle_semaine()
+scenario_coherence_dateversJour()
+
+// Procedures privees (edge cases)
+scenario_edge_entier_zero()
+scenario_edge_entier_negatif()
+scenario_edge_dates_extremes()
+scenario_edge_bornes_modulo_sept()
+scenario_edge_chaine_numerique()
+
+dbgBilanTest()

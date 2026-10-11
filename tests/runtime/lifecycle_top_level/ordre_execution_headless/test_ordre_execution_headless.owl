@@ -1,0 +1,30 @@
+// Témoin ordre d'exécution du cycle de vie (headless).
+//
+// Attendu :
+// 1. matérialisation/seed du déclaratif (invisible, plomberie interne)
+// 2. top-level FENÊTRE
+// 3. top-levels des CHAMPS (ordre d'écriture)
+// 4. [dessin/affichage — sauté en headless]
+// 5. FinInitialisation FENÊTRE (après dessin)
+//
+// Pattern : la fenêtre voisine FEN_Test_Ordre_HL.owl appelle callback_verifie
+// dans son FinInitialisation pour remonter la séquence finale au script test.
+
+TestModeHeadless(Vrai)
+
+seq est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seq = s
+FIN
+
+Ouvre(FEN_Test_Ordre_HL)
+
+Trace("=== Ordre d'exécution cycle de vie (headless) ===")
+Trace("Séquence obtenue : [" + seq + "]")
+Trace("Séquence attendue : [1-TOP_FENETRE2-TOP_CHAMP13-TOP_CHAMP24-FININIT]")
+
+dbgVérifieEgalité(seq, "1-TOP_FENETRE2-TOP_CHAMP13-TOP_CHAMP24-FININIT", "Ordre exécution headless")
+
+Ferme(FEN_Test_Ordre_HL)
+dbgBilanTest()

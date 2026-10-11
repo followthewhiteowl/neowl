@@ -1,0 +1,40 @@
+//  (LOT 2) — opacité sur les couleurs d'affichage de données du
+// Champ Combo : LibelléLignes, LigneSélectionnée (items du popup déroulé).
+//
+// HORS pixel-mesure dans ce fichier (rig limitation constatée, mesurée
+// avant de figer) : le rendu de LibelléLignes/LigneSélectionnée d'un Combo
+// vit dans le POPUP (QComboBox QAbstractItemView::item), une fenêtre
+// top-level séparée de la fenêtre hôte. Mesuré : ComboOuvre() en mode réel
+// (TestModeHeadless(Faux) + OuvreSoeur) ouvre bien un vrai popup Qt, mais
+// dCopieImageFenêtre(fenêtre hôte) ne capture QUE le champ combo fermé
+// (l'item affiché "Alpha", pas le popup) — aucun contenu du popup
+// n'apparaît dans l'image capturée, avec ou sans Temporise() pour laisser
+// le popup se peindre. Aucune native de capture ciblant un popup combo
+// n'existe actuellement (dCopieImageChamp(CMB_x) grabbe le champ fermé).
+//
+// Faute de mesure pixel possible avec le rig actuel, ce fichier verrouille
+// le round-trip déclaratif (assignation d'une instance Couleur translucide
+// sur les 2 sous-éléments concernés + ouverture réelle du popup ne lève
+// aucune erreur), même patron que le cas Fenêtre..CouleurFond de
+// tests/runtime/couleur_alpha_fond (cas 4). Le bug d'ingestion alpha lui-
+// même (instance_get_int qui retourne -1 sur les couleurs translucides,
+// stdlib_ui.c ~L4178-4186, COMBO_READ_TEXT_BRICK) reste à vérifier au
+// niveau du code une fois le Lot 2 implémenté — sans garantie visuelle
+// automatisée pour ce champ précis tant qu'aucune capture de popup
+// n'existe.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaCombo)
+
+dbgVérifieEgalité(ErreurDétectée, Faux,
+"CMB_Alpha : Style..LibelléLignes/LigneSélectionnée = <Couleur Opacité=128> (déclaration) ne lève pas d'erreur")
+
+ComboOuvre(CMB_Alpha)
+dbgVérifieEgalité(ErreurDétectée, Faux,
+"CMB_Alpha : ComboOuvre() avec un style translucide sur les items ne lève pas d'erreur (pas de mesure pixel possible, cf. commentaire)")
+
+ComboFerme(CMB_Alpha)
+
+Ferme(FEN_CouleurAlphaCombo)
+dbgBilanTest()

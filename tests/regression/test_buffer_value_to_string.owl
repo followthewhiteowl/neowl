@@ -1,0 +1,73 @@
+// Regression : Buffer dans un contexte string doit caster en contenu, pas
+// rendre "<object>". Bug historique : value_to_string (vm.c) renvoyait
+// "<object>" pour tout ObjBuffer, alors que :
+//   - le comportement de référence caste implicitement (verifie)
+//   - print_value_to (stdlib_console.c) gerait deja Buffer correctement
+//     dans Trace, mais OP_ADD / OP_CONCAT / OP_STRING_MATCH / OP_APPEND_*
+//     passaient tous par value_to_string -> divergence.
+// Fix : ajouter case IS_BUFFER dans value_to_string (vm.c, branche VAL_OBJ),
+// symetrique avec __BufferVersChaine et print_value_to.
+
+Trace("=== BUFFER -> CHAINE COERCE EN CONTEXTE STRING ===")
+
+// === Concat string + Buffer (RHS) ===
+b1 est un buffer = ChaîneVersBuffer("Hello")
+sConcat est une chaîne = "prefix: " + b1
+dbgVérifieEgalité(sConcat, "prefix: Hello", "Concat string + Buffer (RHS)")
+
+// === Concat Buffer + string (LHS) ===
+sConcat2 est une chaîne = b1 + ", world"
+dbgVérifieEgalité(sConcat2, "Hello, world", "Concat Buffer (LHS) + string")
+dbgVérifieEgalité(Taille(sConcat2), 12, "Taille concat correcte")
+
+// === Concat Buffer + Buffer (deux operandes Buffer) ===
+// Comportement de référence vérifié : retourne le contenu concatene.
+// Couvert par l'extension de OP_ADD (vm.c:1268) qui declenche le path
+// string-concat aussi quand IS_BUFFER(a) && IS_BUFFER(b).
+b2 est un buffer = ChaîneVersBuffer(", world")
+sConcat3 est une chaîne = b1 + b2
+dbgVérifieEgalité(sConcat3, "Hello, world", "Concat Buffer + Buffer")
+dbgVérifieEgalité(Taille(sConcat3), 12, "Taille Buffer+Buffer")
+
+// === Divergence assumee : Buffer + primitive non-string-non-Buffer ===
+// canon de référence : serialise binairement la primitive (int32 LE / double LE) et
+// l'append au buffer. OWL ne reproduit pas (anti-portable UTF-8 vs UTF-16,
+// hors scope). L'operation leve une erreur VM bas-niveau "Operands must
+// be numbers or strings" -- pas une exception de référence catchable.
+//
+// Documentation : docs/VISION.md §5bis "Divergence assumee : Buffer +
+// primitive". Si un cas d'usage reel apparait, l'API explicite a ajouter
+// est BufferAjouteByte / BufferAjouteEntier / BufferAjouteReel.
+//
+// Pas d'assertion runtime ici (QUAND EXCEPTION ne catch pas les erreurs
+// VM). La regression serait detectee si une fois OP_ADD etendu maladroite-
+// ment a Buffer+int, la concat retournait silencieusement une string
+// fortuite -- a tester via un expected.txt si le harness le supporte.
+
+// === Self-append d'un Buffer dans une chaine en boucle ===
+// Important : cette concat passe par OP_APPEND_IN_PLACE qui re-appelle
+// value_to_string sur le RHS Buffer. Avant fix : "<object>" repete N fois.
+sLoop est une chaîne = ""
+bChunk est un buffer = ChaîneVersBuffer("X")
+POUR i = 1 _A_ 50
+	sLoop = sLoop + bChunk
+FIN
+dbgVérifieEgalité(Taille(sLoop), 50, "Self-append Buffer en boucle: 50 chars")
+dbgVérifieEgalité(Gauche(sLoop, 5), "XXXXX", "Contenu correct apres N self-append Buffer")
+
+// === Buffer dans interpolation ${...} si supporte (sinon concat) ===
+// (Skip si OWL n'a pas l'interpolation literal — couvert par concat ci-dessus)
+
+// === Mix : chaine = chaine + string + Buffer + string ===
+b3 est un buffer = ChaîneVersBuffer("WORLD")
+sMix est une chaîne = "Hello, " + b3 + "!"
+dbgVérifieEgalité(sMix, "Hello, WORLD!", "Concat triple : str + Buffer + str")
+
+// === Reaffectation Buffer -> chaine (deja couvert par sticky coerce, mais
+//     sanity check qu'on n'a pas casse la coerce pre-existante) ===
+sReassign est une chaîne = "init"
+sReassign = b1
+dbgVérifieEgalité(sReassign, "Hello", "Reaffect Buffer -> chaine reste OK")
+
+
+dbgBilanTest()

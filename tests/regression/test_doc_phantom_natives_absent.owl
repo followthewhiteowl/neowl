@@ -1,0 +1,50 @@
+// Regression  : verrouille l'absence de mentions de natives
+// fantomes dans la doc source (docs/public_documentation/*.md), qui est
+// aussi la source de la doc embarquee dans le binaire. Rouge tant que le
+// volet A (correction des 4 phrases) n'est pas fait ; vert une fois les
+// phrases reecrites avec des natives reelles.
+//
+// Complement hors perimetre .owl : apres rebuild, "owl search <fantome>"
+// ne doit plus renvoyer de hit de prose (verification build/CLI manuelle,
+// pas testable depuis le langage lui-meme).
+
+sOperateurs est une chaîne = fChargeTexte("docs/public_documentation/05_operateurs.md")
+bErrOperateurs est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrOperateurs, "05_operateurs.md se charge sans erreur")
+dbgVérifieVrai(Taille(sOperateurs) > 1000, "05_operateurs.md a un contenu substantiel (sanity lecture)")
+
+sApercu est une chaîne = fChargeTexte("docs/public_documentation/00_apercu_du_langage.md")
+bErrApercu est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrApercu, "00_apercu_du_langage.md se charge sans erreur")
+dbgVérifieVrai(Taille(sApercu) > 1000, "00_apercu_du_langage.md a un contenu substantiel (sanity lecture)")
+
+sCharte est une chaîne = fChargeTexte("docs/public_documentation/11_charte_de_test.md")
+bErrCharte est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrCharte, "11_charte_de_test.md se charge sans erreur")
+dbgVérifieVrai(Taille(sCharte) > 1000, "11_charte_de_test.md a un contenu substantiel (sanity lecture)")
+
+// --- Les 5 natives fantomes identifiees par l'audit ne doivent plus etre
+// citees comme natives dans ces 3 fiches. ---
+dbgVérifieEgalité(Contient(sOperateurs, "ChaineCommence"), 0,
+"05_operateurs.md ne cite plus la native fantome ChaineCommence")
+dbgVérifieEgalité(Contient(sOperateurs, "ChaineCherche"), 0,
+"05_operateurs.md ne cite plus la native fantome ChaineCherche")
+
+dbgVérifieEgalité(Contient(sApercu, "EstUneProcedure"), 0,
+"00_apercu_du_langage.md ne cite plus la native fantome EstUneProcedure")
+dbgVérifieEgalité(Contient(sApercu, "InfoProcedure"), 0,
+"00_apercu_du_langage.md ne cite plus la native fantome InfoProcedure")
+
+dbgVérifieEgalité(Contient(sCharte, "Toast"), 0,
+"11_charte_de_test.md ne cite plus la native fantome Toast (2 occurrences avant fix)")
+
+// --- Non-regression : les vraies natives voisines restent citees, pour
+// s'assurer que le fix ne les a pas retirees par erreur en meme temps. ---
+dbgVérifieVrai(Contient(sApercu, "TypeVar") > 0,
+"00_apercu_du_langage.md continue de citer TypeVar (native reelle)")
+dbgVérifieVrai(Contient(sApercu, "ExceptionInfo") > 0,
+"00_apercu_du_langage.md continue de citer ExceptionInfo (native reelle)")
+dbgVérifieVrai(Contient(sCharte, "Avertissement") > 0,
+"11_charte_de_test.md continue de citer Avertissement apres remplacement de Toast")
+
+dbgBilanTest()

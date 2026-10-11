@@ -1,0 +1,24 @@
+// État initial (Etat) sur les noeuds de menu : un arbre dont les OptionMenu et
+// SousMenu portent Etat = Actif / AffichageSeulement / Grisé compile et s'ouvre
+// sans erreur. Etat est l'enum unifié partagé avec les champs ; sur un noeud de
+// menu il pilote l'interactivité de l'item (Actif = cliquable, AffichageSeulement
+// et Grisé = non cliquable). Le compteur de surSélection de l'option active est
+// lu à l'ouverture, avant toute interaction : il vaut donc zéro.
+
+TestModeHeadless(Vrai)
+
+nActif_obs est un entier = -1
+
+PROCEDURE cb_menu_etat_compteur(nActif est un entier)
+	nActif_obs = nActif
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_etat_initial_compile_et_ouvre()
+	Ouvre(FEN_MenuEtat)
+	dbgVérifieFaux(ErreurDétectée, "menu avec Etat (Actif/AffichageSeulement/Grisé) sur OptionMenu et SousMenu : ouverture sans erreur")
+
+	LireCompteurActif()
+	dbgVérifieEgalité(nActif_obs, 0, "option Active : compteur surSélection à zéro avant toute interaction")
+
+	Ferme(FEN_MenuEtat)
+FIN

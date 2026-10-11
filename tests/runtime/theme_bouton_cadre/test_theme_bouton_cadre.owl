@@ -1,0 +1,38 @@
+//  — un Champ Bouton stylé avec un CadreExtérieur arrondi sans liseré
+// (Epaisseur=0, Arrondi>0) doit rendre ses coins RÉELLEMENT arrondis.
+//
+// Mode GUI réel (TestModeHeadless(Faux) + OuvreSoeur) : les vrais widgets Qt
+// sont montés (offscreen). On capture la fenêtre entière et on lit un pixel
+// dans le coin haut-gauche du bouton.
+//
+// Le bouton (fond RVB(50,50,200), 120x44) est posé à (30,30) sur un fond de
+// fenêtre contrasté RVB(15,15,15). Arrondi=24 dépasse la moitié de la hauteur
+// (22) : le rayon effectif est borné à la pilule. Le pixel (33,33) — à 3 px du
+// coin — tombe HORS de la forme arrondie : il doit montrer le fond de la
+// fenêtre. Le centre (90,52) du bouton montre son fond.
+//
+// ROUGE (bug) : le coin montrait le fond du bouton (rendu carré, arrondi ignoré
+// par le chrome natif du QPushButton). VERT (fix) : le coin montre le fond de
+// la fenêtre — les coins sont bien découpés.
+//
+// Le chemin de rendu du cadre est identique pour un style inline et un style
+// thémé (theme.<style>) : la valeur Arrondi atteint owl_ui_widget_set_cadre dans
+// les deux cas — d'où une couverture inline suffisante et déterministe.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_BoutonCadreArrondi)
+
+img est une Image = dCopieImageFenêtre(FEN_BoutonCadreArrondi)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// Contrôle : le centre du bouton porte bien son fond.
+dbgVérifieEgalité(dPixelCouleur(img, 90, 52), RVB(50, 50, 200),
+"centre du bouton = fond du bouton")
+
+// Cible : le coin haut-gauche (3 px) est HORS de la forme arrondie -> fond fenêtre.
+dbgVérifieEgalité(dPixelCouleur(img, 33, 33), RVB(15, 15, 15),
+"coin arrondi du bouton = fond fenêtre (coins réellement découpés)")
+
+Ferme(FEN_BoutonCadreArrondi)
+dbgBilanTest()

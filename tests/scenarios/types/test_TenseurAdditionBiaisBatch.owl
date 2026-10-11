@@ -1,0 +1,107 @@
+// @sujet : Tenseur + Tenseur — broadcast du biais sur un lot
+// @résumé : L'opérateur + entre un Tenseur 2D (B lignes × n) et un Tenseur
+// 1D (n) diffuse (broadcast) le second sur chacune des B lignes du premier,
+// comme un biais partagé entre tous les échantillons d'un lot. Rétropropage()
+// remonte le gradient tel quel vers l'opérande 2D, et vers le biais la somme
+// des gradients sur les B lignes.
+
+// X (2×2) + biais b (taille 2) -> chaque ligne de X reçoit b. Calcul à la
+// main : [[1,2],[3,4]] + [10,20] = [[11,22],[13,24]]
+PROCEDURE PUBLIQUE scenario_broadcast_biais_forward()
+	matX est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tb est un Tenseur = Tenseur([10.0, 20.0])
+
+	tY est un Tenseur = tX + tb
+	valY est une Matrice = tY..Valeur
+	dbgVérifieEgalité(valY..Lignes, 2, "Y garde la forme de X : 2 lignes")
+	dbgVérifieEgalité(valY..Colonnes, 2, "Y garde la forme de X : 2 colonnes")
+	dbgVérifieEgalité(valY[1][1], 11.0, "1 + 10 = 11")
+	dbgVérifieEgalité(valY[1][2], 22.0, "2 + 20 = 22")
+	dbgVérifieEgalité(valY[2][1], 13.0, "3 + 10 = 13")
+	dbgVérifieEgalité(valY[2][2], 24.0, "4 + 20 = 24")
+FIN
+
+
+// Rétropropage() direct sur Y (2×2) amorce le gradient à 1.0 partout.
+// Le gradient vers X reste tel quel (forme 2×2) ; le gradient vers le
+// biais est la somme colonne par colonne sur les 2 lignes : [1+1, 1+1] = [2, 2].
+PROCEDURE PUBLIQUE scenario_broadcast_biais_backward()
+	matX est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tb est un Tenseur = Tenseur([10.0, 20.0])
+
+	tY est un Tenseur = tX + tb
+	tY.Rétropropage()
+
+	gradX est une Matrice = tX..Gradient
+	dbgVérifieEgalité(gradX[1][1], 1.0, "Gradient vers X transmis tel quel")
+	dbgVérifieEgalité(gradX[1][2], 1.0, "Gradient vers X transmis tel quel")
+	dbgVérifieEgalité(gradX[2][1], 1.0, "Gradient vers X transmis tel quel")
+	dbgVérifieEgalité(gradX[2][2], 1.0, "Gradient vers X transmis tel quel")
+
+	gradB est un Vecteur = tb..Gradient
+	dbgVérifieEgalité(gradB[1], 2.0, "Gradient biais = somme colonne 1 sur les 2 lignes = 1+1 = 2")
+	dbgVérifieEgalité(gradB[2], 2.0, "Gradient biais = somme colonne 2 sur les 2 lignes = 1+1 = 2")
+FIN
+
+
+// Lot de taille 3 (B=3) : le gradient du biais somme sur les 3 lignes, pas
+// seulement les 2 premières — cas essentiel pour vérifier que la somme
+// n'est pas codée en dur sur B=2.
+// X = [[1,0],[0,1],[2,2]], b = [5,-5]
+// Y = [[6,-5],[5,-4],[7,-3]]
+// dSortie (amorce) = [[1,1],[1,1],[1,1]] -> gradB = [1+1+1, 1+1+1] = [3, 3]
+PROCEDURE PUBLIQUE scenario_broadcast_biais_backward_lot_taille_3()
+	matX est une Matrice = [[1.0, 0.0], [0.0, 1.0], [2.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tb est un Tenseur = Tenseur([5.0,-5.0])
+
+	tY est un Tenseur = tX + tb
+	valY est une Matrice = tY..Valeur
+	dbgVérifieEgalité(valY[1][1], 6.0, "1 + 5 = 6")
+	dbgVérifieEgalité(valY[2][2],-4.0, "1 + (-5) = -4")
+	dbgVérifieEgalité(valY[3][1], 7.0, "2 + 5 = 7")
+	dbgVérifieEgalité(valY[3][2],-3.0, "2 + (-5) = -3")
+
+	tY.Rétropropage()
+
+	gradB est un Vecteur = tb..Gradient
+	dbgVérifieEgalité(gradB[1], 3.0, "Somme sur les 3 lignes : 1+1+1 = 3")
+	dbgVérifieEgalité(gradB[2], 3.0, "Somme sur les 3 lignes : 1+1+1 = 3")
+
+	gradX est une Matrice = tX..Gradient
+	dbgVérifieEgalité(gradX[3][1], 1.0, "Gradient vers X transmis tel quel, ligne 3 comprise")
+FIN
+
+
+// Non-régression : + entre deux Tenseurs 1D de même taille reste une
+// addition élément par élément classique, sans broadcast.
+PROCEDURE PRIVÉE scenario_edge_1d_plus_1d_non_regression()
+	ta est un Tenseur = Tenseur([2.0, 3.0])
+	tb est un Tenseur = Tenseur([1.0, 1.0])
+	tc est un Tenseur = ta + tb
+	dbgVérifieEgalité(tc..Valeur[1], 3.0, "2.0 + 1.0 = 3.0")
+	dbgVérifieEgalité(tc..Valeur[2], 4.0, "3.0 + 1.0 = 4.0")
+FIN
+
+
+// Biais à une seule composante (n=1) : le broadcast reste valide même
+// quand la Matrice n'a qu'une colonne.
+// X = [[2],[5]] (2×1), b = [10] -> Y = [[12],[15]]
+// dSortie amorce = [[1],[1]] -> gradB = [1+1] = [2]
+PROCEDURE PRIVÉE scenario_edge_biais_une_seule_feature()
+	matX est une Matrice = [[2.0], [5.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tb est un Tenseur = Tenseur([10.0])
+
+	tY est un Tenseur = tX + tb
+	valY est une Matrice = tY..Valeur
+	dbgVérifieEgalité(valY[1][1], 12.0, "2 + 10 = 12")
+	dbgVérifieEgalité(valY[2][1], 15.0, "5 + 10 = 15")
+
+	tY.Rétropropage()
+
+	gradB est un Vecteur = tb..Gradient
+	dbgVérifieEgalité(gradB[1], 2.0, "Somme sur les 2 lignes : 1+1 = 2")
+FIN

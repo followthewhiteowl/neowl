@@ -1,0 +1,74 @@
+//  : le nom de type place apres `de`/`of` dans une declaration de
+// tableau associatif n'etait jamais resolu — tout nom inconnu retombait
+// silencieusement sur un tableau variant. Ce test verrouille les formes qui
+// DOIVENT rester valides une fois la resolution stricte en place :
+//   - les 6 primitifs, FR et EN, singulier et pluriel (valeur par defaut typee)
+//   - un type utilisateur declare (y compris en reference avant, single-pass)
+//   - la forme SANS `de`/`of` (tableau heterogene, lignes SQL)
+// Les formes rejetees sont verrouillees dans tests/compile-error/.
+
+Trace("=== fix/1137 : types de valeur resolus ===")
+
+// --- Reference AVANT declaration du type utilisateur (forward ref) ---
+r1137_avant est un tableau associatif de r1137Point
+
+// --- Primitifs FR, pluriel ---
+r1137_chaines est un tableau associatif de chaînes
+dbgVérifieEgalité(r1137_chaines["absent"], "", "de chaînes -> defaut chaine vide")
+
+r1137_entiers est un tableau associatif de entiers
+dbgVérifieEgalité(r1137_entiers["absent"], 0, "de entiers -> defaut 0")
+
+r1137_booleens est un tableau associatif de booléens
+dbgVérifieEgalité(r1137_booleens["absent"], Faux, "de booléens -> defaut Faux")
+
+r1137_reels est un tableau associatif de réels
+dbgVérifieEgalité(r1137_reels["absent"], 0, "de réels -> defaut 0")
+
+// --- Primitifs FR, singulier ---
+r1137_chaine est un tableau associatif de chaînes
+dbgVérifieEgalité(r1137_chaine["absent"], "", "de chaîne (singulier) -> defaut chaine vide")
+
+r1137_entier est un tableau associatif de entiers
+dbgVérifieEgalité(r1137_entier["absent"], 0, "de entier (singulier) -> defaut 0")
+
+r1137_monetaire est un tableau associatif de monétaires
+dbgVérifieEgalité(r1137_monetaire["absent"], 0, "de monétaire -> defaut 0")
+
+r1137_numerique est un tableau associatif de numériques
+dbgVérifieEgalité(r1137_numerique["absent"], 0, "de numérique -> defaut 0")
+
+// --- Primitifs EN (ordre naturel + calque) ---
+r1137_strings is associative array of strings
+dbgVérifieEgalité(r1137_strings["absent"], "", "of strings -> defaut chaine vide")
+
+r1137_integer is associative array of integer
+dbgVérifieEgalité(r1137_integer["absent"], 0, "of integer -> defaut 0")
+
+r1137_booleans is array associative of booleans
+dbgVérifieEgalité(r1137_booleans["absent"], Faux, "of booleans -> defaut Faux")
+
+// --- Sans accent (invariant 2) ---
+r1137_sansaccent est un tableau associatif de chaînes
+dbgVérifieEgalité(r1137_sansaccent["absent"], "", "de chaines (sans accent) -> defaut chaine vide")
+
+// --- Type utilisateur declare ---
+r1137Point est une Structure
+	x est un entier
+	y est un entier
+FIN
+
+r1137_points est un tableau associatif de r1137Point
+r1137_points["origine"] = Null
+dbgVérifieEgalité(r1137_points..Occurrence, 1, "assoc de type utilisateur : 1 entree")
+dbgVérifieVrai(r1137_avant..Occurrence = 0, "forward ref sur type utilisateur acceptee")
+
+// --- Forme SANS type : heterogene, doit rester valide (lignes SQL) ---
+r1137_libre est un tableau associatif
+r1137_libre["nb"] = 42
+r1137_libre["s"] = "hello"
+dbgVérifieEgalité(r1137_libre["nb"], 42, "sans type : stocke un entier")
+dbgVérifieEgalité(r1137_libre["s"], "hello", "sans type : stocke une chaine")
+dbgVérifieVrai(r1137_libre["absent"] = Null, "sans type : cle absente -> Null (non type)")
+
+dbgBilanTest()

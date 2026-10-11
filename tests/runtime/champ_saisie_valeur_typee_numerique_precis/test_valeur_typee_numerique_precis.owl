@@ -1,0 +1,86 @@
+//  — Lot E : Valeur d'un champ de saisie Numérique précis.
+//
+// Miroir de  (Num -> owlRéel / Monétaire -> owlMonétaire) mais pour
+// typSaisieNumériquePrécis -> owlNumérique (OBJ_NUMERIC, décimal EXACT via
+// mpdecimal, PAS de passage par double). C'est LA différence de fond avec
+// typSaisieNum : owlRéel est un double IEEE754 (précision finie, ~17 chiffres
+// significatifs) ; owlNumérique préserve un décimal arbitrairement long.
+//
+// Discriminant mesuré AVANT dépôt (cf. rapport test_writer) sur le champ
+// typSaisieNum déjà existant (/1995, donc mesurable aujourd'hui) :
+// assigner à ..Valeur un littéral numérique de 30 chiffres significatifs
+// (0n1.23456789012345678901234567890) puis le relire donne "1.2345678901234567"
+// (17 chiffres, arrondi double). C'est exactement ce que owlNumérique doit
+// EVITER sur SAI_NumPrecis.
+//
+// Nature : ROUGE avant impl. Aujourd'hui `typSaisieNumériquePrécis` n'existe
+// pas dans l'enum -> échec de compilation (symbole inconnu) sur la fenêtre
+// voisine et sur ce fichier (CRASH, pas d'exécution partielle). Après impl :
+// vert, round-trip exact sur SAI_NumPrecis, témoins Num/Monétaire/Texte
+// inchangés.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ValeurTypeeNumPrecis)
+
+// ===== 1. Non-régression : Texte / Num / Monétaire restent inchangés =====
+
+SAI_Texte..Valeur = "bonjour"
+dbgVérifieEgalité(TypeVar(SAI_Texte..Valeur), owlChaîne, "Texte : ..Valeur reste une chaîne (non-régression)")
+dbgVérifieEgalité(SAI_Texte..Valeur, "bonjour", "Texte : round-trip fidèle")
+
+SAI_Num..Valeur = 42.25
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Num (témoin) : ..Valeur reste un réel (non-régression)")
+dbgVérifieVrai(Abs(SAI_Num..Valeur - 42.25) < 0.0001, "Num (témoin) : round-trip fidèle à 42.25")
+
+SAI_Monetaire..Valeur = 0m1234.56
+dbgVérifieEgalité(TypeVar(SAI_Monetaire..Valeur), owlMonétaire, "Monétaire (témoin) : ..Valeur reste owlMonétaire (non-régression)")
+dbgVérifieEgalité(SAI_Monetaire..Valeur, 0m1234.56, "Monétaire (témoin) : round-trip fidèle à 1234.56")
+
+// ===== 2. Round-trip fidèle NumPrecis : décimal simple =====
+
+SAI_NumPrecis..Valeur = 0n42.25
+dbgVérifieEgalité(TypeVar(SAI_NumPrecis..Valeur), owlNumérique, "NumPrecis : ..Valeur est un owlNumérique (pas un réel, pas une chaîne)")
+dbgVérifieEgalité(SAI_NumPrecis..Valeur, 0n42.25, "NumPrecis : round-trip fidèle à 42.25")
+
+SAI_NumPrecis..Valeur = -0n17.5
+dbgVérifieEgalité(TypeVar(SAI_NumPrecis..Valeur), owlNumérique, "NumPrecis (négatif) : ..Valeur reste owlNumérique")
+dbgVérifieEgalité(SAI_NumPrecis..Valeur,-0n17.5, "NumPrecis (négatif) : round-trip fidèle à -17.5")
+
+// ===== 3. DISCRIMINANT PRÉCISION (le cœur du ticket) =====
+//
+// Un même littéral à 30 chiffres significatifs, posé sur les deux champs :
+// SAI_Num (owlRéel) l'arrondit en le faisant transiter par un double au SET
+// (input_typed_set force value_to_real -> REAL_VAL, mesuré ci-dessus sur le
+// code déjà en place) ; SAI_NumPrecis (owlNumérique) doit le préserver exact
+// de bout en bout (SET affiche le décimal exact, GET reparse via
+// numeric_from_string, jamais via strtod/double).
+
+nOriginal est un numérique = 0n1.23456789012345678901234567890
+
+SAI_NumPrecis..Valeur = nOriginal
+dbgVérifieEgalité(TypeVar(SAI_NumPrecis..Valeur), owlNumérique, "Discriminant : NumPrecis reste owlNumérique après un SET à 30 chiffres significatifs")
+dbgVérifieEgalité(SAI_NumPrecis..Valeur, nOriginal, "Discriminant : NumPrecis préserve les 30 chiffres significatifs EXACTEMENT (pas de passage par double)")
+
+SAI_Num..Valeur = nOriginal
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Discriminant (témoin) : Num reste owlRéel (non-régression, mesuré vrai dès aujourd'hui)")
+dbgVérifieDifférence(SAI_Num..Valeur, nOriginal, "Discriminant (témoin) : Num (double) ARRONDIT le même littéral à 30 chiffres — c'est précisément ce que owlNumérique doit éviter")
+
+// ===== 4. Édition utilisateur réelle : TestSimuleSaisie poste de
+// VRAIS QKeyEvents, le texte tapé doit rester exact au-delà de la précision
+// double (20 décimales, largement au-delà des ~17 chiffres significatifs
+// d'un double) =====
+
+SAI_NumPrecis..Valeur = 0n0
+TestSimuleSaisie(SAI_NumPrecis, "3.14159265358979323846")
+dbgVérifieEgalité(TypeVar(SAI_NumPrecis..Valeur), owlNumérique, "Édition utilisateur : ..Valeur reste owlNumérique")
+dbgVérifieEgalité(SAI_NumPrecis..Valeur, 0n3.14159265358979323846, "Édition utilisateur : saisie à 21 chiffres significatifs reflétée exactement (pas 0.0 périmé, pas d'arrondi double)")
+
+// ===== 5. Frappe non numérique rejetée (comme typSaisieNum, ) =====
+
+SAI_NumPrecis..Valeur = 0n0
+TestSimuleSaisie(SAI_NumPrecis, "abc")
+dbgVérifieEgalité(SAI_NumPrecis..Valeur, 0n0, "Frappe non numérique : « abc » rejeté, la valeur reste 0 (comme typSaisieNum)")
+
+Ferme(FEN_ValeurTypeeNumPrecis)
+dbgBilanTest()

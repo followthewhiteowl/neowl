@@ -1,0 +1,43 @@
+// @sujet : dIncrusteCouleur
+// @resume : Incruste une couleur dans une image avec une opacité optionnelle en pourcentage (0 à 100, défaut 100%).
+
+
+// Cas canonique : incrustation d'une couleur sur une image uniforme.
+// La couleur dominante après incrustation = couleur incrustée (à 100%).
+PROCEDURE PUBLIQUE scenario_incruste_couleur_pleine_opacite()
+	monImage est une Image = dCréeImage(50, 50, RVB(255, 255, 255))
+	dIncrusteCouleur(monImage, RVB(255, 0, 0))
+	dominante est un entier = CouleurDominanteImage(monImage)
+	dbgVérifieEgalité(dominante, RVB(255, 0, 0), "incrustation 100% remplace par la couleur")
+FIN
+
+
+// Opacité explicite : 100% = remplacement complet, 0% = aucun effet.
+// Vérification que l'opacité par défaut équivaut à 100%.
+PROCEDURE PUBLIQUE scenario_incruste_opacite_zero_no_op()
+	monImage est une Image = dCréeImage(50, 50, RVB(255, 255, 255))
+	dIncrusteCouleur(monImage, RVB(255, 0, 0), 0.0)
+	dominante est un entier = CouleurDominanteImage(monImage)
+	dbgVérifieEgalité(dominante, RVB(255, 255, 255), "opacité 0% : aucun effet, blanc préservé")
+FIN
+
+
+// Opacité intermédiaire : 50% mélange à parts égales source et incrustation.
+// Sur fond blanc + rouge à 50% = magenta clair attendu (approximation).
+PROCEDURE PUBLIQUE scenario_incruste_opacite_intermediaire()
+	monImage est une Image = dCréeImage(50, 50, RVB(255, 255, 255))
+	dIncrusteCouleur(monImage, RVB(255, 0, 0), 50.0)
+	dominante est un entier = CouleurDominanteImage(monImage)
+	// Composante rouge reste 255, vert/bleu autour de 127 (50% de 255)
+	dbgVérifieVrai(dominante <> RVB(255, 255, 255), "opacité 50% modifie la couleur")
+	dbgVérifieVrai(dominante <> RVB(255, 0, 0), "opacité 50% n'efface pas complètement")
+FIN
+
+
+// Cas limite : opacité omise (défaut canon = 100%).
+PROCEDURE PRIVÉE scenario_edge_opacite_par_defaut()
+	monImage est une Image = dCréeImage(20, 20, RVB(0, 0, 0))
+	dIncrusteCouleur(monImage, RVB(0, 255, 0))
+	dominante est un entier = CouleurDominanteImage(monImage)
+	dbgVérifieEgalité(dominante, RVB(0, 255, 0), "défaut 100% remplace par vert")
+FIN

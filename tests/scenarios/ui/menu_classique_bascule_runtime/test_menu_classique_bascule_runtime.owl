@@ -1,0 +1,30 @@
+// Un menu classique de fenêtre peut être remplacé à chaud : la fenêtre
+// s'ouvre avec un premier menu principal affecté, puis une procédure de la
+// fenêtre bascule vers un second menu principal préalablement déclaré.
+// L'ouverture, la bascule et la fermeture se déroulent sans erreur, et les
+// compteurs de sélection des deux arbres restent à zéro (aucune interaction
+// utilisateur simulée ici, seule la bascule est exercée).
+
+TestModeHeadless(Vrai)
+
+nInitialOuvrir_obs est un entier = -1
+nAlternéOptions_obs est un entier = -1
+
+PROCEDURE cb_menu_bascule_compteurs(nInitialOuvrir est un entier, nAlternéOptions est un entier)
+	nInitialOuvrir_obs  = nInitialOuvrir
+	nAlternéOptions_obs = nAlternéOptions
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_classique_bascule_runtime_sans_erreur()
+	Ouvre(FEN_MenuBasculeRuntime)
+	dbgVérifieFaux(ErreurDétectée, "menu principal initial affecté : ouverture sans erreur")
+
+	BasculeVersMenuAlterné()
+	dbgVérifieFaux(ErreurDétectée, "bascule vers le second menu principal déclaré : exécution sans erreur")
+
+	LireCompteursMenuBascule()
+	dbgVérifieEgalité(nInitialOuvrir_obs, 0, "menu initial : compteur de sélection à zéro (bascule sans interaction)")
+	dbgVérifieEgalité(nAlternéOptions_obs, 0, "menu alterné : compteur de sélection à zéro (bascule sans interaction)")
+
+	Ferme(FEN_MenuBasculeRuntime)
+FIN

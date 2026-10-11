@@ -1,0 +1,54 @@
+// Fenêtre voisine — ressource pour test_zr_champ_imbriquee.owl.
+// Verrouille la non-régression  : une ZoneRépétée imbriquée dans une
+// autre ZoneRépétée reste indexable sur SES PROPRES champs (LIB_A de
+// ZR_Inner), sans faux positif lié à l'imbrication.
+
+FEN_ZRImbriquee est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR imbriquée"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 300
+	FIN
+
+	ZR_Outer est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 480
+			Hauteur           = 250
+			Sens              = zrVertical
+			HauteurRepetition = 120
+		FIN
+
+		ZR_Inner est un Champ ZoneRépétée
+			PROPRIETES
+				X                 = 5
+				Y                 = 5
+				Largeur           = 400
+				Hauteur           = 100
+				Sens              = zrVertical
+				HauteurRepetition = 30
+			FIN
+
+			LIB_A est un Champ Libellé
+				PROPRIETES
+					X       = 5
+					Y       = 5
+					Largeur = 200
+					Libellé = ""
+				FIN
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		i est un entier = ZoneRépétéeAjouteLigne(ZR_Inner)
+		ZR_Inner[i].LIB_A = "valeur imbriquée"
+		cb_imbriquee_done()
+	FIN
+
+	PROCEDURE LireCellule(n est un entier)
+		RENVOYER ZR_Inner[n].LIB_A
+	FIN
+FIN

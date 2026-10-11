@@ -1,0 +1,43 @@
+// @sujet : ArrondiInférieur
+// @résumé : Arrondit un nombre à l'entier ou à la décimale inférieure (plancher vers -∞).
+// ArrondiInférieur(n [, décimales]) : plancher orienté vers les valeurs les plus basses.
+// Distinct de PartieEntière (sans décimales, → entier) : ici on accepte un nombre de
+// décimales et le résultat reste numérique.
+
+
+// Cas A : plancher à 1 décimale — positifs et négatifs.
+// Vers -∞ : 3.78 descend à 3.7, mais -3.78 descend à -3.8 (plus bas, pas plus proche de 0).
+PROCEDURE PUBLIQUE scenario_plancher_decimales()
+	dbgVérifieEgalité(ArrondiInférieur(3.78, 1), 3.7, "ArrondiInférieur(3.78, 1) = 3.7")
+	dbgVérifieEgalité(ArrondiInférieur(-3.78, 1),-3.8, "ArrondiInférieur(-3.78, 1) = -3.8 (vers -∞)")
+FIN
+
+
+// Cas B : plancher à l'entier (sans décimales) — défaut 0.
+// 3.78 → 3, -3.78 → -4 (l'entier inférieur ou égal).
+PROCEDURE PUBLIQUE scenario_plancher_entier()
+	dbgVérifieEgalité(ArrondiInférieur(3.78), 3, "ArrondiInférieur(3.78) = 3")
+	dbgVérifieEgalité(ArrondiInférieur(-3.78),-4, "ArrondiInférieur(-3.78) = -4 (vers -∞)")
+FIN
+
+
+// Cas C : valeur à mi-chemin — le plancher ignore la règle de départage.
+// 2.5 descend à 2 (entier inférieur), sans considération de parité.
+PROCEDURE PUBLIQUE scenario_mi_chemin()
+	dbgVérifieEgalité(ArrondiInférieur(2.5), 2, "ArrondiInférieur(2.5) = 2 (plancher)")
+FIN
+
+
+// Edge : forme EN bilingue — RoundFloor.
+PROCEDURE PRIVÉE scenario_bilingue_en()
+	dbgVérifieEgalité(RoundFloor(3.78, 1), 3.7, "RoundFloor(3.78, 1) = 3.7 (forme EN)")
+	dbgVérifieEgalité(RoundFloor(-3.78),-4, "RoundFloor(-3.78) = -4 (forme EN)")
+FIN
+
+
+// Edge : entier exact et zéro — retournés tels quels.
+PROCEDURE PRIVÉE scenario_edge_exact()
+	dbgVérifieEgalité(ArrondiInférieur(5.0), 5, "ArrondiInférieur(5.0) = 5")
+	dbgVérifieEgalité(ArrondiInférieur(0.0), 0, "ArrondiInférieur(0.0) = 0")
+	dbgVérifieEgalité(ArrondiInférieur(-5.0),-5, "ArrondiInférieur(-5.0) = -5")
+FIN

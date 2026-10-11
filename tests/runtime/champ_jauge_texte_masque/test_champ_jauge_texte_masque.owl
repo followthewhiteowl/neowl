@@ -1,0 +1,47 @@
+// Runtime GUI (widgets montés, offscreen) : masquage du texte % d'un Champ
+// Jauge aligné sur le canon.
+//   - TexteJauge NON posé  -> pourcentage automatique affiché (pixels d'encre).
+//   - TexteJauge = ""       -> texte masqué : AUCUN pixel d'encre (le cœur).
+//   - TexteJauge = "ABC"    -> texte personnalisé affiché (pixels d'encre).
+// Le texte est peint en jaune sur piste/remplissage gris ; on compte les pixels
+// jaunes dans la zone de chaque jauge via dCopieImageFenêtre + dPixelCouleur.
+
+TestModeHeadless(Faux)
+
+couleurTexte est un entier = RVB(255, 255, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_JaugeTexteMasque)
+
+img est une Image = dCopieImageFenêtre(FEN_JaugeTexteMasque)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// --- TexteJauge non posé : le pourcentage automatique s'affiche ---
+nbAuto est un entier = CompteCouleurZone(img, 20, 20, 320, 60, couleurTexte)
+dbgVérifieVrai(nbAuto > 30, "JAU_Auto : TexteJauge non posé -> pourcentage automatique affiché")
+
+// --- TexteJauge = "" : texte masqué, AUCUN pixel d'encre (le cœur du canon) ---
+nbMasque est un entier = CompteCouleurZone(img, 20, 90, 320, 130, couleurTexte)
+dbgVérifieEgalité(nbMasque, 0, `JAU_Masque : TexteJauge = "" -> texte masqué, 0 pixel d'encre`)
+
+// --- TexteJauge = "ABC" : texte personnalisé affiché ---
+nbCustom est un entier = CompteCouleurZone(img, 20, 160, 320, 200, couleurTexte)
+dbgVérifieVrai(nbCustom > 30, `JAU_Custom : TexteJauge = "ABC" -> texte personnalisé affiché`)
+
+Ferme(FEN_JaugeTexteMasque)
+dbgBilanTest()

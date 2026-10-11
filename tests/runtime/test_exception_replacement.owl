@@ -1,0 +1,86 @@
+// ============================================
+// TEST: QUAND EXCEPTION (forme generale) — replacement sequentiel.
+//
+// Canon : un seul handler general actif a la fois par frame.
+// La declaration d'un 2e handler remplace le 1er a partir de sa ligne.
+//
+// Architecture : la forme generale termine la frame apres execution
+// du handler (RENVOYER implicite). Pas de fall-through, pas de re-throw.
+// ============================================
+Trace("=== EXCEPTION REPLACEMENT ===")
+
+// --- T1.a : le 2e handler attrape, le 1er n'est jamais appele ---
+sLogT1a est une chaîne = ""
+
+FONCTION ProcReplacement() : chaîne
+	QUAND EXCEPTION
+		sLogT1a = sLogT1a + "HA;"
+		RENVOYER "A"
+	FIN
+	QUAND EXCEPTION
+		sLogT1a = sLogT1a + "HB;"
+		RENVOYER "B"
+	FIN
+	ExceptionDéclenche("boom")
+	RENVOYER "no_throw"
+FIN
+
+sResT1a est une chaîne = ProcReplacement()
+dbgVérifieEgalité(sResT1a, "B", "Replacement: le 2e handler attrape")
+dbgVérifieEgalité(sLogT1a, "HB;", "Replacement: handler A jamais appele")
+
+// --- T1.b : exception levee ENTRE les 2 declarations -> handler A attrape ---
+sLogT1b est une chaîne = ""
+
+FONCTION ProcAvantSecond() : chaîne
+	QUAND EXCEPTION
+		sLogT1b = sLogT1b + "HA;"
+		RENVOYER "A_caught"
+	FIN
+	ExceptionDéclenche("entre")
+	QUAND EXCEPTION
+		sLogT1b = sLogT1b + "HB;"
+		RENVOYER "B_caught"
+	FIN
+	RENVOYER "no_throw"
+FIN
+
+sResT1b est une chaîne = ProcAvantSecond()
+dbgVérifieEgalité(sResT1b, "A_caught", "Handler A actif avant declaration de B")
+dbgVérifieEgalité(sLogT1b, "HA;", "Seul handler A appele entre les 2 declarations")
+
+// --- T1.c : Arb 1 — code apres FIN du handler non execute ---
+// Le handler termine la frame implicitement. Le RENVOYER explicite dans
+// le handler est redondant (canon de référence recommande, OWL impose). Ici on
+// retire le RENVOYER pour verifier la terminaison implicite.
+nApresHandlerT1c est un entier = 0
+
+FONCTION ProcTermineFrame() : entier
+	QUAND EXCEPTION
+		// Pas de RENVOYER : la frame doit terminer ici.
+		nApresHandlerT1c = nApresHandlerT1c + 1
+	FIN
+	ExceptionDéclenche("boom")
+	// Le code suivant ne doit jamais s'executer (re-throw infini empeche).
+	nApresHandlerT1c = 9999
+	RENVOYER 42
+FIN
+
+ProcTermineFrame()
+dbgVérifieEgalité(nApresHandlerT1c, 1, "Code post-handler-FIN non execute (frame terminee)")
+
+// --- T1.d : sans exception, le handler n'est pas appele ---
+nNoExcT1d est un entier = 0
+
+FONCTION ProcSansExc() : entier
+	QUAND EXCEPTION
+		nNoExcT1d = -1
+	FIN
+	nNoExcT1d = nNoExcT1d + 1
+	RENVOYER nNoExcT1d
+FIN
+
+dbgVérifieEgalité(ProcSansExc(), 1, "Pas d'exception : handler non appele")
+dbgVérifieEgalité(nNoExcT1d, 1, "Pas d'exception : flux normal preserve")
+
+dbgBilanTest()

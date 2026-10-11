@@ -1,0 +1,52 @@
+// @sujet : PartieDécimale
+// @résumé : Renvoie la partie fractionnaire d'un nombre en préservant son signe.
+// Convention signée : PartieDécimale(x) = x - Tronque(x) (troncature vers zéro).
+// Sur un négatif, le résultat reste négatif : PartieDécimale(-3.75) = -0.75.
+// Identité préservée : x = Tronque(x) + PartieDécimale(x).
+// Les valeurs choisies (3.75, 0.75, 0.25) sont exactes en binaire → pas d'epsilon.
+
+
+// Cas A : signe préservé sur réel — positif et négatif.
+PROCEDURE PUBLIQUE scenario_signe_reel()
+	rpos est un réel = 3.75
+	rneg est un réel = -3.75
+	rpetit est un réel = -0.25
+	dbgVérifieEgalité(PartieDécimale(rpos), 0.75, "PartieDécimale(3.75r) = 0.75")
+	dbgVérifieEgalité(PartieDécimale(rneg),-0.75, "PartieDécimale(-3.75r) = -0.75 (signe préservé)")
+	dbgVérifieEgalité(PartieDécimale(rpetit),-0.25, "PartieDécimale(-0.25r) = -0.25")
+FIN
+
+
+// Cas B : signe préservé sur numérique — même convention que le réel.
+// Le numérique a une représentation décimale exacte ; le signe doit suivre.
+PROCEDURE PUBLIQUE scenario_signe_numerique()
+	npos est un numérique = 3.75
+	nneg est un numérique = -3.75
+	npetit est un numérique = -0.25
+	dbgVérifieEgalité(PartieDécimale(npos), 0.75, "PartieDécimale(3.75n) = 0.75")
+	dbgVérifieEgalité(PartieDécimale(nneg),-0.75, "PartieDécimale(-3.75n) = -0.75 (signe préservé)")
+	dbgVérifieEgalité(PartieDécimale(npetit),-0.25, "PartieDécimale(-0.25n) = -0.25")
+FIN
+
+
+// Cas C : identité x = Tronque(x) + PartieDécimale(x) sur un négatif.
+// C'est la conséquence directe de la convention signée : la somme reconstruit x.
+PROCEDURE PUBLIQUE scenario_identite_tronque()
+	x est un réel = -3.75
+	reconstruit est un réel = Tronque(x) + PartieDécimale(x)
+	dbgVérifieEgalité(reconstruit,-3.75, "Tronque(-3.75) + PartieDécimale(-3.75) = -3.75")
+FIN
+
+
+// Edge : zéro — aucune fraction, résultat nul (ni positif ni négatif).
+PROCEDURE PRIVÉE scenario_edge_zero()
+	dbgVérifieEgalité(PartieDécimale(0.0), 0, "PartieDécimale(0.0) = 0")
+	dbgVérifieEgalité(PartieDécimale(0), 0, "PartieDécimale(0) = 0 (entier exact)")
+FIN
+
+
+// Edge : entier exact — la fraction est nulle quel que soit le signe.
+PROCEDURE PRIVÉE scenario_edge_entier_exact()
+	dbgVérifieEgalité(PartieDécimale(42), 0, "PartieDécimale(42) = 0")
+	dbgVérifieEgalité(PartieDécimale(-5), 0, "PartieDécimale(-5) = 0")
+FIN

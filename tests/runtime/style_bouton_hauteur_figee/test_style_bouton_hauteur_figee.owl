@@ -1,0 +1,67 @@
+//  — ROUGE attendu : un Champ Bouton STYLÉ (Style présent) rend
+// ~10px plus court qu'un Bouton PLAT (aucune prop Style) déclarant la même
+// Hauteur=60. Le seed d'une Police par défaut sur le chemin Style ne doit
+// pas modifier la géométrie rendue du QPushButton.
+//
+// `..X/..Y/..Largeur/..Hauteur` renvoient 0/0 sur les widgets stylés (bug
+// connu, hors-scope ici) : la mesure passe exclusivement par capture pixel.
+// BTN_Plat (fond de fenêtre RVB(10,10,10) tout autour) est mesuré par
+// contraste (tout pixel ≠ fond de fenêtre dans sa colonne = le bouton).
+// BTN_Style est mesuré par la couleur connue de son CadreExtérieur, sondé
+// HORS du libellé centré ("Stylé", ~8px de glyphes autour du centre
+// horizontal x=170) pour ne pas percer le comptage de la bande verte via
+// des pixels de texte qui cassent la continuité de la couleur unie.
+
+TestModeHeadless(Faux)
+
+couleurFondFenetre est un entier = RVB(10, 10, 10)
+couleurFondStyle est un entier = RVB(0, 200, 0)
+
+PROCEDURE CompteHauteurDifferente(im est une Image, xSonde est un entier, y1 est un entier, y2 est un entier, couleurExclue est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		SI dPixelCouleur(im, xSonde, yy) <> couleurExclue ALORS
+			n = n + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+PROCEDURE CompteHauteurCouleur(im est une Image, xSonde est un entier, y1 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		SI dPixelCouleur(im, xSonde, yy) = couleur ALORS
+			n = n + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleBoutonHauteurFigee)
+Temporise(50)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleBoutonHauteurFigee)
+dbgVérifieEgalité(img..Valide, Vrai, "capture de la fenêtre valide")
+
+// BTN_Plat déclaré à Y=20, Hauteur=60 -> zone [20,80[. Sonde x=170 (centre
+// horizontal du bouton), scan large [10,90[ pour capter tout débordement
+// éventuel, comptage des pixels qui ne sont PAS le fond de la fenêtre.
+nHauteurPlat est un entier = CompteHauteurDifferente(img, 170, 10, 90, couleurFondFenetre)
+dbgVérifieVrai(nHauteurPlat >= 55 ET nHauteurPlat <= 65,
+"BTN_Plat (sans Style) rend à sa Hauteur déclarée de 60px")
+
+// BTN_Style déclaré à Y=100, Hauteur=60 -> zone [100,160[. Sonde x=40, en
+// dehors du libellé "Stylé" centré (qui traverse x=170 sur ~8px de
+// glyphes et casserait le comptage de la couleur unie), à l'intérieur du
+// bord gauche du bouton (X=20, Largeur=300). Scan large [90,170[,
+// comptage des pixels de la couleur connue du CadreExtérieur stylé.
+nHauteurStyle est un entier = CompteHauteurCouleur(img, 40, 90, 170, couleurFondStyle)
+dbgVérifieVrai(nHauteurStyle >= 55 ET nHauteurStyle <= 65,
+"BTN_Style (avec Style) rend à la MÊME Hauteur déclarée de 60px que BTN_Plat (pas de shrink dû au seed Police)")
+
+Ferme(FEN_StyleBoutonHauteurFigee)
+dbgBilanTest()

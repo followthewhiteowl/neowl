@@ -1,0 +1,87 @@
+// Accès direct aux bits (famille .BitLit / .BitActive / .BitDesactive /
+// .BitInverse). Indexation base 1, LSB d'abord. Documentation de référence §NOTE4
+// pour le comportement de référence (équivalent à `v[n]` côté de référence).
+Trace("=== ACCÈS AUX BITS ===")
+
+// --- BitLit : lecture ---
+n est un entier = 5 // binaire : 00000101 → bits 1 et 3 allumés
+dbgVérifieEgalité(n.BitLit(1), 1, "bit 1 de 5 = 1")
+dbgVérifieEgalité(n.BitLit(2), 0, "bit 2 de 5 = 0")
+dbgVérifieEgalité(n.BitLit(3), 1, "bit 3 de 5 = 1")
+dbgVérifieEgalité(n.BitLit(4), 0, "bit 4 de 5 = 0")
+
+// Hors range → 0 (aligné sur le comportement de référence)
+dbgVérifieEgalité(n.BitLit(100), 0, "bit 100 hors range = 0")
+dbgVérifieEgalité(n.BitLit(0), 0, "bit 0 invalide = 0")
+dbgVérifieEgalité(n.BitLit(-3), 0, "bit -3 invalide = 0")
+
+// --- BitActive : allume un bit ---
+v est un entier = 0
+v = v.BitActive(1)
+dbgVérifieEgalité(v, 1, "0.BitActive(1) = 1")
+
+v = v.BitActive(8)
+dbgVérifieEgalité(v, 129, "0|bit1|bit8 = 1+128 = 129")
+
+// Activer un bit déjà allumé est idempotent
+v = v.BitActive(1)
+dbgVérifieEgalité(v, 129, "BitActive idempotent")
+
+// Hors range : entier inchangé
+w est un entier = 42
+dbgVérifieEgalité(w.BitActive(100), 42, "BitActive hors range = n inchangé")
+
+// --- BitDesactive : éteint un bit ---
+flags est un entier = 255 // tous les 8 bits allumés
+flags = flags.BitDesactive(1)
+dbgVérifieEgalité(flags, 254, "255.BitDesactive(1) = 254")
+
+flags = flags.BitDesactive(8)
+dbgVérifieEgalité(flags, 126, "254.BitDesactive(8) = 126 (255-1-128)")
+
+// Désactiver un bit déjà éteint est idempotent
+flags = flags.BitDesactive(1)
+dbgVérifieEgalité(flags, 126, "BitDesactive idempotent")
+
+// Hors range : inchangé
+dbgVérifieEgalité(flags.BitDesactive(99), 126, "BitDesactive hors range = inchangé")
+
+// --- BitInverse : toggle ---
+t est un entier = 5 // 00000101
+t = t.BitInverse(2)
+dbgVérifieEgalité(t, 7, "5.BitInverse(2) = 7 (00000111)")
+
+t = t.BitInverse(2)
+dbgVérifieEgalité(t, 5, "BitInverse deux fois = identité")
+
+t = t.BitInverse(1)
+dbgVérifieEgalité(t, 4, "5.BitInverse(1) = 4 (extinction bit allumé)")
+
+// Hors range : inchangé
+dbgVérifieEgalité(t.BitInverse(0), 4, "BitInverse hors range = inchangé")
+
+// --- Use case : drapeaux de droits utilisateur ---
+droits est un entier = 0
+droits = droits.BitActive(1) // droit Lire
+droits = droits.BitActive(2) // droit Écrire
+dbgVérifieEgalité(droits, 3, "droits = 3 (Lire+Écrire)")
+dbgVérifieEgalité(droits.BitLit(1), 1, "peut Lire")
+dbgVérifieEgalité(droits.BitLit(2), 1, "peut Écrire")
+dbgVérifieEgalité(droits.BitLit(3), 0, "ne peut pas Supprimer")
+
+droits = droits.BitDesactive(2)
+dbgVérifieEgalité(droits, 1, "retrait droit Écrire → 1")
+
+// --- Cohérence FR/EN aliases ---
+dbgVérifieEgalité(n.BitRead(1), n.BitLit(1), ".BitRead = .BitLit")
+dbgVérifieEgalité(v.BitEnable(3), v.BitActive(3), ".BitEnable = .BitActive")
+dbgVérifieEgalité(v.BitDisable(1), v.BitDesactive(1), ".BitDisable = .BitDesactive")
+dbgVérifieEgalité(t.BitFlip(2), t.BitInverse(2), ".BitFlip = .BitInverse")
+
+// --- Forme fonction globale aussi disponible ---
+dbgVérifieEgalité(BitLit(5, 1), 1, "BitLit() forme fonction")
+dbgVérifieEgalité(BitActive(0, 3), 4, "BitActive() forme fonction")
+dbgVérifieEgalité(BitDesactive(7, 2), 5, "BitDesactive() forme fonction")
+dbgVérifieEgalité(BitInverse(5, 2), 7, "BitInverse() forme fonction")
+
+dbgBilanTest()

@@ -1,0 +1,56 @@
+// Le type Tenseur enveloppe une valeur numérique (ici un vecteur à un seul
+// élément) et lui associe un gradient : la brique de base pour entraîner un
+// modèle par différentiation automatique.
+
+// Construire un Tenseur donne accès à sa valeur et à son gradient. Le
+// gradient démarre à zéro tant qu'aucune rétropropagation n'a eu lieu.
+PROCEDURE PUBLIQUE scenario_construction_et_valeur()
+	ta est un Tenseur = Tenseur([3.0])
+	dbgVérifieEgalité(ta..Valeur[1], 3.0, "La valeur portée par le Tenseur est celle fournie à la construction")
+	dbgVérifieEgalité(ta..Gradient[1], 0.0, "Le gradient démarre à zéro avant toute rétropropagation")
+FIN
+
+
+// Les formes anglaises Tensor / Value désignent le même type et la même
+// propriété que leurs équivalents français.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	ta est un Tensor = Tensor([5.0])
+	dbgVérifieEgalité(ta..Value[1], 5.0, "ta..Value équivaut à ta..Valeur")
+	dbgVérifieEgalité(ta..Gradient[1], 0.0, "Gradient initial nul, forme anglaise")
+FIN
+
+
+// + et * entre deux Tenseur combinent leurs valeurs élément par élément,
+// comme pour un Vecteur — le graphe de calcul se construit en coulisse,
+// sans rien changer à l'écriture.
+PROCEDURE PUBLIQUE scenario_addition_et_multiplication_forward()
+	ta est un Tenseur = Tenseur([2.0])
+	tb est un Tenseur = Tenseur([3.0])
+
+	somme est un Tenseur = ta + tb
+	dbgVérifieEgalité(somme..Valeur[1], 5.0, "2.0 + 3.0 = 5.0")
+
+	produit est un Tenseur = ta * tb
+	dbgVérifieEgalité(produit..Valeur[1], 6.0, "2.0 * 3.0 = 6.0")
+FIN
+
+
+// Une valeur négative se manipule sans surprise : la construction et les
+// opérations restent cohérentes avec le signe.
+PROCEDURE PRIVÉE scenario_edge_valeur_negative()
+	ta est un Tenseur = Tenseur([-2.0])
+	tb est un Tenseur = Tenseur([3.0])
+	dbgVérifieEgalité(ta..Valeur[1],-2.0, "Valeur négative conservée")
+
+	produit est un Tenseur = ta * tb
+	dbgVérifieEgalité(produit..Valeur[1],-6.0, "-2.0 * 3.0 = -6.0")
+FIN
+
+
+// Un Tenseur construit à partir de zéro reste un cas valide, sans traitement
+// spécial.
+PROCEDURE PRIVÉE scenario_edge_valeur_zero()
+	ta est un Tenseur = Tenseur([0.0])
+	dbgVérifieEgalité(ta..Valeur[1], 0.0, "Valeur nulle conservée")
+	dbgVérifieEgalité(ta..Gradient[1], 0.0, "Gradient initial nul même pour une valeur nulle")
+FIN

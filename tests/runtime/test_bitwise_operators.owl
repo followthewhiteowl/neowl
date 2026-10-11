@@ -1,0 +1,47 @@
+// Opérateurs binaires (canon de référence).
+// On vérifie la cohérence opérateur ↔ fonction registry.
+Trace("=== OPÉRATEURS BINAIRES ===")
+
+// --- ET binaire : & ↔ ETBinaire ---
+dbgVérifieEgalité(5 & 3, ETBinaire(5, 3), "& cohérent ETBinaire")
+dbgVérifieEgalité(0xFF & 0x0F, 15, "0xFF & 0x0F = 15")
+dbgVérifieEgalité(12 & 10, 8, "12 & 10 = 8")
+
+// --- OU binaire : | ↔ OUBinaire ---
+dbgVérifieEgalité(5 | 3, OUBinaire(5, 3), "| cohérent OUBinaire")
+dbgVérifieEgalité(0x0F | 0xF0, 255, "0x0F | 0xF0 = 255")
+dbgVérifieEgalité(12 | 10, 14, "12 | 10 = 14")
+
+// --- OU exclusif : || ↔ OUExclusifBinaire ---
+dbgVérifieEgalité(5 || 3, OUExclusifBinaire(5, 3), "|| cohérent OUExclusifBinaire")
+dbgVérifieEgalité(12 || 10, 6, "12 || 10 = 6 (XOR)")
+dbgVérifieEgalité(0xFF || 0xFF, 0, "0xFF || 0xFF = 0")
+
+// --- NON binaire unaire : ~ ↔ NONBinaire ---
+dbgVérifieEgalité(~0, NONBinaire(0), "~ cohérent NONBinaire")
+dbgVérifieEgalité(~0,-1, "~0 = -1 (deux complément)")
+dbgVérifieEgalité(~(-1), 0, "~(-1) = 0")
+
+// --- Décalages : bitDécaleGauche / bitDécaleDroite ---
+// Forme infix
+dbgVérifieEgalité(4 bitDécaleGauche 1, 8, "4 << 1 = 8 (infix)")
+dbgVérifieEgalité(4 bitDécaleDroite 2, 1, "4 >> 2 = 1 (infix)")
+dbgVérifieEgalité(1 bitDécaleGauche 8, 256, "1 << 8 = 256")
+
+// Forme fonction
+dbgVérifieEgalité(bitDécaleGauche(4, 1), 8, "bitDécaleGauche(4,1) = 8 (fonction)")
+dbgVérifieEgalité(bitDécaleDroite(4, 2), 1, "bitDécaleDroite(4,2) = 1 (fonction)")
+
+// Documentation de référence : si n >= taille opérande, résultat = 0
+dbgVérifieEgalité(4 bitDécaleGauche 64, 0, "4 << 64 = 0 (clamp)")
+dbgVérifieEgalité(4 bitDécaleDroite 8, 0, "4 >> 8 = 0")
+
+// --- Précédence : & > || > | ---
+// (5 & 3) | (1 || 2) = 1 | 3 = 3
+dbgVérifieEgalité(5 & 3 | 1 || 2, 3, "Précédence & > || > |")
+
+// --- Combinaison opérateurs + comparaison ---
+// (5 & 3) = 1 → vrai
+dbgVérifieVrai((5 & 3) = 1, "(5&3) = 1 vrai")
+
+dbgBilanTest()

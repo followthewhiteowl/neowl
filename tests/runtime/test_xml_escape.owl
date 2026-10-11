@@ -1,0 +1,56 @@
+// Tests TexteVersXML / XMLVersTexte — couverture exhaustive des entités
+
+// --- Cas basiques ---
+dbgVérifieEgalité(TexteVersXML("a & b"), "a &amp; b", "& → &amp;")
+dbgVérifieEgalité(TexteVersXML("<tag>"), "&lt;tag&gt;", "< et > escapés")
+dbgVérifieEgalité(TexteVersXML("""valeur"""), "&quot;valeur&quot;", """ escapé")
+dbgVérifieEgalité(TexteVersXML("'valeur'"), "&apos;valeur&apos;", "' escapé")
+
+// Chaîne sans caractères spéciaux → inchangée
+dbgVérifieEgalité(TexteVersXML("bonjour monde"), "bonjour monde", "aucun escape si pas de spéciaux")
+
+// Chaîne vide
+dbgVérifieEgalité(TexteVersXML(""), "", "chaîne vide → vide")
+
+// Tous les spéciaux ensemble
+s est une chaîne = "< > & "" '"
+dbgVérifieEgalité(TexteVersXML(s), "&lt; &gt; &amp; &quot; &apos;", "tous les spéciaux")
+
+// --- Roundtrip ---
+original est une chaîne = "prix < 100 & catégorie = ""SF"" ou genre = 'polar'"
+dbgVérifieEgalité(XMLVersTexte(TexteVersXML(original)), original, "roundtrip TexteVersXML + XMLVersTexte")
+
+// --- XMLVersTexte seul ---
+dbgVérifieEgalité(XMLVersTexte("&amp;"), "&", "unescape amp")
+dbgVérifieEgalité(XMLVersTexte("&lt;"), "<", "unescape lt")
+dbgVérifieEgalité(XMLVersTexte("&gt;"), ">", "unescape gt")
+dbgVérifieEgalité(XMLVersTexte("&quot;"), """", "unescape quot")
+dbgVérifieEgalité(XMLVersTexte("&apos;"), "'", "unescape apos")
+
+// Entités numériques décimales
+dbgVérifieEgalité(XMLVersTexte("&#65;"), "A", "&#65; → A")
+dbgVérifieEgalité(XMLVersTexte("&#97;"), "a", "&#97; → a")
+dbgVérifieEgalité(XMLVersTexte("&#48;"), "0", "&#48; → 0")
+
+// Entités numériques hexadécimales
+dbgVérifieEgalité(XMLVersTexte("&#x41;"), "A", "&#x41; → A")
+dbgVérifieEgalité(XMLVersTexte("&#x61;"), "a", "&#x61; → a")
+dbgVérifieEgalité(XMLVersTexte("&#X41;"), "A", "&#X41; → A (majuscule X)")
+
+// UTF-8 multi-octets via entité numérique
+// &#233; = é (U+00E9)
+e_accent est une chaîne = XMLVersTexte("&#233;")
+dbgVérifieEgalité(e_accent, "é", "&#233; décode en é")
+
+// Entité inconnue → préservée telle quelle
+dbgVérifieEgalité(XMLVersTexte("&unknown;"), "&unknown;", "entité inconnue préservée")
+
+// Multiple entités
+dbgVérifieEgalité(XMLVersTexte("&lt;a&gt; &amp; &lt;b&gt;"),
+"<a> & <b>", "plusieurs entités dans une chaîne")
+
+// --- UTF-8 passthrough dans TexteVersXML ---
+dbgVérifieEgalité(TexteVersXML("café"), "café", "UTF-8 non-ASCII non escapé")
+dbgVérifieEgalité(TexteVersXML("日本語"), "日本語", "UTF-8 CJK non escapé")
+
+Trace("test_xml_escape : OK")

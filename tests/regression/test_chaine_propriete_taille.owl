@@ -1,0 +1,31 @@
+// Régression  — propriété ..Taille / ..Length sur chaîne.
+// Avant ce fix, `v..Taille` sur une chaîne (vide ou non) crashait avec
+// le message trompeur "Acces a un champ sur une valeur Null". Canon de référence
+// (vérifié) : `v..Taille` retourne la longueur, comme Taille(v).
+
+// ASCII basique : Taille = nombre de caractères
+v1 est une chaîne = "Hello"
+dbgVérifieEgalité(v1..Taille, 5, "ASCII basique : Hello = 5")
+
+// Chaîne vide : ne crash plus, retourne 0
+v2 est une chaîne = ""
+dbgVérifieEgalité(v2..Taille, 0, "chaîne vide = 0")
+
+// Alias EN (invariant 3 bilingue)
+dbgVérifieEgalité(v1..Length, 5, "alias EN ..Length = 5")
+dbgVérifieEgalité(v2..Length, 0, "alias EN ..Length sur chaîne vide = 0")
+
+// UTF-8 : code points, pas bytes (aligné sur Taille() canon OWL)
+v3 est une chaîne = "éàü"
+dbgVérifieEgalité(v3..Taille, 3, "UTF-8 : éàü = 3 code points")
+dbgVérifieEgalité(v3..Taille, Taille(v3), "..Taille = Taille() (cohérence)")
+
+// Littéral direct
+dbgVérifieEgalité("abc"..Taille, 3, "littéral abc = 3")
+dbgVérifieEgalité(""..Taille, 0, "littéral vide = 0")
+
+// Chaîne issue d'expression
+v4 est une chaîne = "foo" + "bar"
+dbgVérifieEgalité(v4..Taille, 6, "expression concat = 6")
+
+dbgBilanTest()

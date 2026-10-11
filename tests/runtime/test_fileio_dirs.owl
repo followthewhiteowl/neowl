@@ -1,0 +1,72 @@
+// ============================================
+// TEST: File system directory operations
+// ============================================
+Trace("=== FS DIR OPS ===")
+
+tempDir est une chaîne = fRepTemp()
+dbgVérifieVrai(Taille(tempDir) > 0, "fRepTemp() non vide")
+
+testDir est une chaîne = tempDir + "/owl_test_fs_xyz"
+
+// --- Create + exists ---
+dbgVérifieVrai(fRepCree(testDir), "fRepCree reussit")
+dbgVérifieVrai(fRepExiste(testDir), "fRepExiste apres creation")
+
+// --- Creation recursive (chemin imbrique) ---
+nested est une chaîne = testDir + "/a/b/c"
+dbgVérifieVrai(fRepCree(nested), "fRepCree recursif")
+dbgVérifieVrai(fRepExiste(nested), "nested existe")
+
+// --- Populer des fichiers ---
+fSauveTexte(testDir + "/alpha.txt", "A")
+fSauveTexte(testDir + "/beta.txt", "B")
+fSauveTexte(testDir + "/debug.log", "D")
+
+// --- fFichierExiste : fichier seul (Vrai sur fichier, Faux sur repertoire) ---
+dbgVérifieVrai(fFichierExiste(testDir + "/alpha.txt"), "fFichierExiste Vrai sur un fichier reel")
+dbgVérifieFaux(fFichierExiste(testDir), "fFichierExiste Faux sur un repertoire reel")
+dbgVérifieFaux(fFichierExiste(testDir + "/inexistant.zzz"), "fFichierExiste Faux sur chemin inexistant")
+
+// --- Lister fichiers (fListeFichier = canon de référence, retour string CRLF-séparée) ---
+sFichiers est une chaîne = fListeFichier(testDir + "/*", frNonRécursif)
+tabFichiers est un tableau de chaînes = ChaîneVersTableau(sFichiers, CRLF)
+dbgVérifieVrai(tabFichiers..Occurrence >= 3, "Au moins 3 fichiers")
+
+// --- Lister avec pattern ---
+sTxt est une chaîne = fListeFichier(testDir + "/*.txt", frNonRécursif)
+tabTxt est un tableau de chaînes = ChaîneVersTableau(sTxt, CRLF)
+dbgVérifieEgalité(tabTxt..Occurrence, 2, "2 fichiers .txt")
+
+sLog est une chaîne = fListeFichier(testDir + "/*.log", frNonRécursif)
+tabLog est un tableau de chaînes = ChaîneVersTableau(sLog, CRLF)
+dbgVérifieEgalité(tabLog..Occurrence, 1, "1 fichier .log")
+
+// --- Copie de fichier ---
+fCopieFichier(testDir + "/alpha.txt", testDir + "/alpha.copy")
+dbgVérifieVrai(fFichierExiste(testDir + "/alpha.copy"), "fCopieFichier")
+
+// --- Rename ---
+fRenomme(testDir + "/alpha.copy", testDir + "/alpha.renamed")
+dbgVérifieVrai(fFichierExiste(testDir + "/alpha.renamed"), "fRenomme dst")
+dbgVérifieFaux(fFichierExiste(testDir + "/alpha.copy"), "fRenomme src disparu")
+
+// --- Extraction de chemin ---
+p est une chaîne = "/home/user/file.txt"
+dbgVérifieEgalité(fExtraitChemin(p, fRepertoire), "/home/user/", "Chemin")
+dbgVérifieEgalité(fExtraitChemin(p, fFichier), "file", "Nom sans ext")
+dbgVérifieEgalité(fExtraitChemin(p, fExtension), ".txt", "Extension")
+dbgVérifieEgalité(fExtraitChemin(p, fFichier + fExtension), "file.txt", "Nom et ext")
+
+// --- Chemin sans extension ---
+dbgVérifieEgalité(fExtraitChemin("/tmp/readme", fExtension), "", "Sans ext = vide")
+dbgVérifieEgalité(fExtraitChemin("/tmp/readme", fFichier), "readme", "Juste nom")
+
+// --- CWD ---
+cwd est une chaîne = fRepEnCours()
+dbgVérifieVrai(Taille(cwd) > 0, "fRepEnCours non vide")
+
+// --- Cleanup ---
+dbgVérifieVrai(fRepSupprime(testDir, Vrai), "fRepSupprime recursif")
+dbgVérifieFaux(fRepExiste(testDir), "Dir bien supprime")
+
+dbgBilanTest()

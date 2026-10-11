@@ -1,0 +1,110 @@
+// @sujet : Cherche
+// @résumé : Recherche d'un élément dans un tableau et retour de sa position (base 1), -1 si absent.
+
+// Cas nominal — chercher un entier présent
+PROCEDURE PUBLIQUE scenario_recherche_entier_present()
+	nombres est un tableau d'entiers
+	nombres.Ajoute(10)
+	nombres.Ajoute(20)
+	nombres.Ajoute(30)
+	nombres.Ajoute(40)
+	position est un entier = Cherche(nombres, 30)
+	dbgVérifieEgalité(position, 3, "Élément trouvé au 3e index")
+FIN
+
+// Cas nominal — chercher une chaîne présente avec forme méthode
+PROCEDURE PUBLIQUE scenario_forme_methode_chaine()
+	mots est un tableau de chaînes
+	mots.Ajoute("alpha")
+	mots.Ajoute("beta")
+	mots.Ajoute("gamma")
+	position est un entier = mots.Cherche("beta")
+	dbgVérifieEgalité(position, 2, "Chaîne trouvée au 2e index")
+FIN
+
+// Cas limite — élément absent retourne -1
+PROCEDURE PUBLIQUE scenario_element_absent()
+	nombres est un tableau d'entiers
+	i est un entier
+	POUR i = 1 _A_ 5
+		nombres.Ajoute(i)
+	FIN
+	position est un entier = Cherche(nombres, 99)
+	dbgVérifieEgalité(position,-1, "Élément absent : -1 retourné")
+FIN
+
+// Cas limite — tableau vide retourne -1
+PROCEDURE PUBLIQUE scenario_tableau_vide()
+	vide est un tableau de chaînes
+	position est un entier = vide.Cherche("inexistant")
+	dbgVérifieEgalité(position,-1, "Tableau vide : -1 retourné")
+FIN
+
+// Cas limite — doublons : retourne la première occurrence
+PROCEDURE PUBLIQUE scenario_doublons_premiere_occurrence()
+	valeurs est un tableau d'entiers
+	valeurs.Ajoute(5)
+	valeurs.Ajoute(10)
+	valeurs.Ajoute(5)
+	valeurs.Ajoute(20)
+	valeurs.Ajoute(5)
+	position est un entier = Cherche(valeurs, 5)
+	dbgVérifieEgalité(position, 1, "Premier doublon trouvé (index 1)")
+FIN
+
+// Cas limite — élément unique dans un grand tableau
+PROCEDURE PUBLIQUE scenario_recherche_dans_grand_tableau()
+	grand est un tableau d'entiers
+	i est un entier
+	POUR i = 1 _A_ 100
+		grand.Ajoute(i * 2)
+	FIN
+	position est un entier = grand.Cherche(100)
+	dbgVérifieEgalité(position, 50, "Élément 100 trouvé à l'index 50 (50*2)")
+FIN
+
+// Cas limite — recherche aux extrémités du tableau
+PROCEDURE PUBLIQUE scenario_extremites()
+	couleurs est un tableau de chaînes
+	couleurs.Ajoute("rouge")
+	couleurs.Ajoute("vert")
+	couleurs.Ajoute("bleu")
+	position est un entier = Cherche(couleurs, "rouge")
+	dbgVérifieEgalité(position, 1, "Premier élément trouvé (index 1)")
+	position = Cherche(couleurs, "bleu")
+	dbgVérifieEgalité(position, 3, "Dernier élément trouvé (index 3)")
+FIN
+
+// Edge case PRIVEE — recherche sensible aux accents
+PROCEDURE PRIVÉE scenario_edge_accent_sensible()
+	mots est un tableau de chaînes
+	mots.Ajoute("été")
+	mots.Ajoute("hiver")
+	mots.Ajoute("automne")
+	position est un entier = mots.Cherche("ete")
+	dbgVérifieEgalité(position,-1, "Recherche sensible aux accents : ete ≠ été")
+	position = mots.Cherche("été")
+	dbgVérifieEgalité(position, 1, "Recherche avec accent exact : été trouvé")
+FIN
+
+// Edge case PRIVEE — recherche sensible à la casse
+PROCEDURE PRIVÉE scenario_edge_casse_sensible()
+	mots est un tableau de chaînes
+	mots.Ajoute("Alpha")
+	mots.Ajoute("Beta")
+	mots.Ajoute("Gamma")
+	position est un entier = Cherche(mots, "BETA")
+	dbgVérifieEgalité(position,-1, "Recherche sensible casse : BETA ≠ Beta")
+	position = Cherche(mots, "Beta")
+	dbgVérifieEgalité(position, 2, "Recherche avec casse exacte : Beta trouvé")
+FIN
+
+// Edge case PRIVEE — caractères UTF-8 multibytes
+PROCEDURE PRIVÉE scenario_edge_utf8_multibytes()
+	emojis est un tableau de chaînes
+	emojis.Ajoute("😀")
+	emojis.Ajoute("🚀")
+	emojis.Ajoute("🎯")
+	position est un entier = emojis.Cherche("🚀")
+	dbgVérifieEgalité(position, 2, "Emoji UTF-8 trouvé à l'index 2")
+FIN

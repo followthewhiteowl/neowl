@@ -1,0 +1,25 @@
+//  — focus-out doit reformater l'affichage d'un champ typSaisieNum
+// selon son FormatNombre effectif (ici hérité du projet, 2 décimales).
+//
+// Discriminant : frappe RÉELLE (TestSimuleSaisie, vrais QKeyEvents postés au
+// QLineEdit) de "1234567.891", puis focus-OUT réel : DonneFocus(SAI_Autre)
+// déplace le focus Qt (setFocus différé + pompe), ce qui déclenche un vrai
+// FocusOut relayé par l'eventFilter sur SAI_Num. ..Valeur doit relire
+// 1234567.89 (arrondi 2 décimales par le reformat au blur).
+//
+// ROUGE ATTENDU (HEAD) : aucun handler focus-out ne reformate l'affichage
+// pour l'instant -> le texte affiché reste le brut tapé "1234567.891",
+// reparsé tel quel -> ..Valeur relit 1234567.891 (pas 1234567.89).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ReformatNumFrappeBlur)
+
+TestSimuleSaisie(SAI_Num, "1234567.891")
+DonneFocus(SAI_Autre)
+
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234567.89) < 0.0001, "focus-out reformate l'affichage : frappe 1234567.891 relue 1234567.89 (arrondi FormatNombre projet 2 décimales)")
+
+Ferme(FEN_ReformatNumFrappeBlur)
+dbgBilanTest()

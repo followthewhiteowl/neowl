@@ -1,0 +1,50 @@
+// @sujet : ChaîneVersJSON
+// @résumé : Un Buffer (chaîne d'octets binaire) passé directement à ChaîneVersJSON
+//           est parsé comme une chaîne, avec le même résultat qu'en passant par une
+//           variable chaîne intermédiaire.
+
+
+// Un Buffer contenant du JSON, passé INLINE en argument, produit le même document
+// qu'en passant d'abord par une variable chaîne. Le Buffer est une valeur binaire
+// d'octets : le parser JSON le lit comme une suite d'octets, exactement comme une
+// chaîne. L'incohérence historique (résultat vide en inline, correct via variable)
+// est ainsi verrouillée.
+PROCEDURE scenario_buffer_inline_direct()
+	buf est un Buffer = ChaîneVersBuffer(`{"nom":"Alice","age":32}`)
+
+	// INLINE : le Buffer est passé tel quel à la native.
+	jInline est un JSON = ChaîneVersJSON(buf)
+	dbgVérifieEgalité(jInline.Nom, "Alice", "membre chaîne extrait (buffer inline)")
+	dbgVérifieEgalité(jInline.age, 32, "membre entier extrait (buffer inline)")
+
+	// VIA VARIABLE : le Buffer est d'abord coercé en chaîne, puis parsé.
+	s est une chaîne = buf
+	jVar est un JSON = ChaîneVersJSON(s)
+	dbgVérifieEgalité(JSONVersChaîne(jInline, psdMinifie), JSONVersChaîne(jVar, psdMinifie),
+	                  "inline == via-variable")
+FIN
+
+
+// Cas d'origine : le Buffer provient d'un accès ..propriété (ici le
+// contenu binaire d'une pièce jointe). L'accès ..propriété renvoyant un Buffer,
+// passé inline, se comporte comme n'importe quel Buffer.
+PROCEDURE scenario_buffer_inline_propriete()
+	att est un emailAttache
+	att..Contenu = ChaîneVersBuffer(`[10,20,30]`)
+
+	jInline est un JSON = ChaîneVersJSON(att..Contenu)
+	dbgVérifieEgalité(jInline[1], 10, "premier élément (prop buffer inline)")
+	dbgVérifieEgalité(jInline[2], 20, "deuxième élément (prop buffer inline)")
+	dbgVérifieEgalité(jInline[3], 30, "troisième élément (prop buffer inline)")
+FIN
+
+
+// Un Buffer contenant une structure malformée signale l'erreur de parse, comme
+// pour une chaîne : pas d'avalement silencieux du Buffer non-parsable.
+PROCEDURE PRIVÉE scenario_buffer_inline_malforme()
+	buf est un Buffer = ChaîneVersBuffer(`{"cle": }`)
+	ErreurRAZ()
+	j est un JSON = ChaîneVersJSON(buf)
+	dbgVérifieVrai(ErreurDétectée, "buffer JSON malformé signalé")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), "{}", "buffer malformé → pas de document")
+FIN

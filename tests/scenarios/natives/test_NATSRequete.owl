@@ -1,0 +1,76 @@
+// @sujet : NATSRequête
+// @résumé : Publie une requête vers un sujet avec un inbox de réponse dédié, attend la réponse pendant un délai borné et la renvoie sous forme de natsMessage.
+
+
+// Requêter depuis une session qui n'a jamais été connectée échoue proprement :
+// pas de réponse possible, la native renvoie un natsMessage vide et pose une
+// erreur, sans bloquer ni crasher (même parité que NATSPublie/NATSAbonne).
+PROCEDURE PUBLIQUE scenario_requete_sans_connexion()
+	sess est un natsConnexion
+	sess..Adresse = "nats.exemple.local"
+
+	requete est un natsMessage
+	requete..Corps = "ping"
+
+	ErreurRAZ()
+	rep est un natsMessage = NATSRequête(sess, "owl.service", requete, 200)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "requête sans connexion pose une erreur")
+	dbgVérifieEgalité(rep..Corps, "", "aucune réponse : le natsMessage renvoyé est vide")
+FIN
+
+
+// Validation d'argument AVANT toute tentative réseau : un sujet d'un autre
+// type qu'une chaîne est refusé avec le code canonique de type d'argument
+// invalide, même sur une session jamais connectée (parité AMQP/MQTT/STOMP).
+PROCEDURE PUBLIQUE scenario_sujet_type_invalide()
+	sess est un natsConnexion
+
+	requete est un natsMessage
+	requete..Corps = "ping"
+
+	ErreurRAZ()
+	rep est un natsMessage = NATSRequête(sess, 42, requete, 200)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieVrai(bErr, "sujet d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+	dbgVérifieEgalité(rep..Corps, "", "aucune réponse : le natsMessage renvoyé est vide")
+FIN
+
+
+// Même exigence pour le message : un argument qui n'est pas un natsMessage
+// (ici une chaîne brute) est refusé avec le code canonique de type invalide,
+// jamais publié en silence.
+PROCEDURE PUBLIQUE scenario_message_type_invalide()
+	sess est un natsConnexion
+
+	ErreurRAZ()
+	rep est un natsMessage = NATSRequête(sess, "owl.service", "corps-brut-refuse", 200)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieVrai(bErr, "message d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+	dbgVérifieEgalité(rep..Corps, "", "aucune réponse : le natsMessage renvoyé est vide")
+FIN
+
+
+// Même exigence pour le délai : un argument d'un autre type qu'un entier est
+// refusé avec le code canonique de type invalide, sans tenter le moindre
+// aller-retour réseau.
+PROCEDURE PUBLIQUE scenario_delai_type_invalide()
+	sess est un natsConnexion
+
+	requete est un natsMessage
+	requete..Corps = "ping"
+
+	ErreurRAZ()
+	rep est un natsMessage = NATSRequête(sess, "owl.service", requete, "pas-un-entier")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieVrai(bErr, "délai d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+	dbgVérifieEgalité(rep..Corps, "", "aucune réponse : le natsMessage renvoyé est vide")
+FIN
+
+dbgBilanTest()

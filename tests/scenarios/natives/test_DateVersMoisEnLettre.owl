@@ -1,0 +1,48 @@
+// @sujet : DateVersMoisEnLettre
+// @resume : Conversion d'une date en nom de mois (texte)
+
+PROCEDURE PUBLIQUE scenario_nominal()
+	// Conversion standard : 12 mois de l'annee
+
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250101"), "Janvier", "Mois janvier")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250215"), "Février", "Mois fevrier avec accent")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250320"), "Mars", "Mois mars")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250410"), "Avril", "Mois avril")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250512"), "Mai", "Mois mai")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250621"), "Juin", "Mois juin")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250715"), "Juillet", "Mois juillet")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250808"), "Août", "Mois aout avec accent circonflexe")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250930"), "Septembre", "Mois septembre")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20251005"), "Octobre", "Mois octobre")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20251111"), "Novembre", "Mois novembre")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20251225"), "Décembre", "Mois decembre avec accent")
+FIN
+
+PROCEDURE PUBLIQUE scenario_annee_variable()
+	// Meme mois sur differentes annees : resultat identique
+
+	dbgVérifieEgalité(DateVersMoisEnLettre("19900301"), "Mars", "Mars 1990")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20000301"), "Mars", "Mars 2000")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20500301"), "Mars", "Mars 2050")
+FIN
+
+PROCEDURE PUBLIQUE scenario_dates_speciales()
+	// Limites calendaires : debut/fin de mois
+
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250101"), "Janvier", "Premier jour annee")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250131"), "Janvier", "Dernier jour janvier")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20250228"), "Février", "28 fevrier non-bissextile")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20240229"), "Février", "29 fevrier bissextile")
+	dbgVérifieEgalité(DateVersMoisEnLettre("20251231"), "Décembre", "Dernier jour annee")
+FIN
+
+PROCEDURE PRIVÉE scenario_date_invalide()
+	// Donnee incoherente : mois 0 invalide.
+	// Le coerce strict rejette les composants hors plage, la native
+	// retourne "" + ErreurDétectée.
+	ErreurRAZ()
+	res est une chaîne = DateVersMoisEnLettre("20250001")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieEgalité(res, "", "Mois 00 invalide -> chaîne vide")
+	dbgVérifieVrai(bErr, "Mois 00 invalide -> ErreurDétectée")
+FIN

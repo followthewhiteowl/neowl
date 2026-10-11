@@ -1,0 +1,42 @@
+//  (LOT 1) — opacité sur `Style..CadreExtérieur..CouleurFond` d'un
+// Champ Bouton FLAT (aucun Dégradé).  a déplacé le rendu du
+// CadreExtérieur directement sur le QPushButton (fond + bordure, plus de
+// wrapper séparé) : le fond doit être visible AU CENTRE du bouton dès que
+// `bg >= 0`. Trou d'ingestion connu : `instance_get_int(cadreExt,
+// "CouleurFond", -1)` renvoie -1 sur une instance Couleur -> le fond n'est
+// JAMAIS posé (`bg >= 0` faux), le bouton garde son chrome natif au lieu du
+// mélange attendu.
+//
+// Échantillonnage décalé du centre géométrique (X+20,Y+25 relatif au bouton)
+// pour éviter le libellé texte centré ("Opaque"/"Alpha"), qui n'est pas de
+// la couleur de fond pure.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur).
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg = VERT PUR (0,255,0), bg = ROUGE PUR (255,0,0), a = 128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaCadreExtBoutonFlat)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaCadreExtBoutonFlat)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque : BTN_Opaque [X=20..320,Y=20..80], point=(40,35) ----
+// (décalé du centre géométrique (170,50) pour éviter le libellé texte)
+dbgVérifieEgalité(dPixelCouleur(img, 40, 35), RVB(0, 255, 0),
+"BTN_Opaque : Style..CadreExtérieur..CouleurFond = RVB(0,255,0) (entier nu opaque) : vert pur, non-régression")
+
+// --- 2. BTN_Alpha [X=20..320,Y=110..170], point=(40,125) -------------------
+dbgVérifieEgalité(dPixelCouleur(img, 40, 125), RVB(127, 128, 0),
+"BTN_Alpha : Style..CadreExtérieur..CouleurFond = <Couleur Opacité=128> (bouton flat, cas dev) : point mélangé avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaCadreExtBoutonFlat)
+dbgBilanTest()

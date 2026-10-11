@@ -1,0 +1,51 @@
+//  — Lot 2 dCopieImageFenêtre (vraie capture Qt + headless build ad-hoc).
+// Lot 1 produisait du placeholder uniforme (0xF0F0F0). Lot 2 doit produire
+// un contenu pixel reel : le widget Qt est materialise puis grab().
+// Le 2e param ThèmeSnapshot reste accepte mais no-op (activation Lot 3).
+
+Ouvre(FEN_Test)
+
+// --- Forme canon 1 arg ---
+img1 est une Image = dCopieImageFenêtre(FEN_Test)
+dbgVérifieEgalité(img1..Valide, Vrai, "dCopieImageFenêtre(FEN_X) : Image valide")
+// Lot 2 : la taille reelle est celle du widget Qt instancie (peut differer
+// des dimensions du decl si Qt impose un minimum via sizeHint / layout).
+// On verifie juste que c'est une taille raisonnable (au moins celle du decl).
+dbgVérifieVrai(img1..Largeur >= 320, "Largeur >= 320 (au moins celle du decl)")
+dbgVérifieVrai(img1..Hauteur >= 200, "Hauteur >= 200 (au moins celle du decl)")
+dbgVérifieVrai(img1..BitParPixel >= 24, "BitParPixel >= 24")
+
+// --- Verification contenu pixel reel (Lot 2) ---
+// Le placeholder Lot 1 etait uniforme 0xF0F0F0. Apres grab Qt reel, on
+// attend des differences entre zones. Centre (160,100) contient le libellé
+// "Capture me" rendu sur fond fenetre : suffisamment differencie du coin
+// haut-gauche pour distinguer uniforme vs rendu.
+// Lecture au centre image. La taille peut etre 320x200 ou plus grande
+// (Qt peut imposer un minimum) - on echantillonne au milieu reel.
+xMid est un entier = img1..Largeur / 2
+yMid est un entier = img1..Hauteur / 2
+couleurCentre est un entier = dPixelCouleur(img1, xMid, yMid)
+dbgVérifieVrai(couleurCentre <> 15790320, "Centre != 0xF0F0F0 (capture reelle, pas placeholder Lot 1)")
+// 15790320 = 0xF0F0F0 decimal — couleur synthese Lot 1.
+
+// --- Forme canon 2 args (enum ThèmeSnapshot) — no-op Lot 2 ---
+img2 est une Image = dCopieImageFenêtre(FEN_Test, themeDéfaut)
+dbgVérifieEgalité(img2..Valide, Vrai, "themeDefaut accepté : Image valide")
+dbgVérifieVrai(img2..Largeur >= 320, "themeDefaut : Largeur >= 320")
+
+img3 est une Image = dCopieImageFenêtre(FEN_Test, themeSombre)
+dbgVérifieEgalité(img3..Valide, Vrai, "themeSombre accepté (no-op Lot 2)")
+
+img4 est une Image = dCopieImageFenêtre(FEN_Test, themeClair)
+dbgVérifieEgalité(img4..Valide, Vrai, "themeClair accepté (no-op Lot 2)")
+
+// --- Alias EN ---
+img5 est une Image = dCopyWindowImage(FEN_Test)
+dbgVérifieEgalité(img5..Valide, Vrai, "Alias EN dCopyWindowImage : Image valide")
+dbgVérifieVrai(img5..Largeur >= 320, "Alias EN : Largeur >= 320")
+
+img6 est une Image = dCopieImageFenêtre(FEN_Test, themeDefault)
+dbgVérifieEgalité(img6..Valide, Vrai, "Alias EN themeDefault accepté")
+
+Ferme(FEN_Test)
+dbgBilanTest()

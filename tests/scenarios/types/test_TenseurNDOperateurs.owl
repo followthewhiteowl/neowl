@@ -1,0 +1,79 @@
+// @sujet : Tenseur + / Tenseur * (élément à élément, N-D)
+// @résumé : Les opérateurs + et * s'appliquent élément par élément sur
+// deux Tenseurs N-D de même forme (pas d'ajustement automatique de
+// forme différente). Les dérivées suivent la même règle que sur les
+// Tenseurs 1D/2D : 1 pour chaque terme d'une somme, l'autre terme pour
+// chaque facteur d'un produit.
+
+// ta + tb, élément par élément, sur deux Tenseurs 3D (2x2x2) de même
+// forme.
+PROCEDURE PUBLIQUE scenario_addition_nd_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]).Redimensionne([2, 2, 2])
+	tc est un Tenseur = ta + tb
+
+	dbgVérifieEgalité(tc..Forme[1], 2, "La somme conserve la forme de ses opérandes")
+	dbgVérifieEgalité(tc..Valeur[1][1][1], 11.0, "1.0+10.0 = 11.0")
+	dbgVérifieEgalité(tc..Valeur[1][2][2], 44.0, "4.0+40.0 = 44.0")
+	dbgVérifieEgalité(tc..Valeur[2][2][2], 88.0, "8.0+80.0 = 88.0")
+FIN
+
+
+// La dérivée de la somme par rapport à chacun des deux termes vaut 1,
+// case par case, comme en 1D/2D.
+PROCEDURE PUBLIQUE scenario_addition_nd_backward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]).Redimensionne([2, 2, 2])
+	tc est un Tenseur = ta + tb
+	tc.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1][1], 1.0, "Dérivée de la somme par rapport à ta = 1")
+	dbgVérifieEgalité(ta..Gradient[2][2][2], 1.0, "Dérivée de la somme par rapport à ta = 1")
+	dbgVérifieEgalité(tb..Gradient[1][1][1], 1.0, "Dérivée de la somme par rapport à tb = 1")
+	dbgVérifieEgalité(tb..Gradient[2][2][2], 1.0, "Dérivée de la somme par rapport à tb = 1")
+FIN
+
+
+// ta * tb, élément par élément.
+PROCEDURE PUBLIQUE scenario_multiplication_nd_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]).Redimensionne([2, 2, 2])
+	td est un Tenseur = ta * tb
+
+	dbgVérifieEgalité(td..Valeur[1][1][1], 10.0, "1.0*10.0 = 10.0")
+	dbgVérifieEgalité(td..Valeur[1][2][2], 160.0, "4.0*40.0 = 160.0")
+	dbgVérifieEgalité(td..Valeur[2][2][2], 640.0, "8.0*80.0 = 640.0")
+FIN
+
+
+// La dérivée du produit élément à élément par rapport à chaque terme
+// vaut la valeur de l'autre terme, case par case.
+PROCEDURE PUBLIQUE scenario_multiplication_nd_backward()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]).Redimensionne([2, 2, 2])
+	td est un Tenseur = ta * tb
+	td.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1][1], 10.0, "Dérivée de ta*tb par rapport à ta = tb[1][1][1] = 10.0")
+	dbgVérifieEgalité(ta..Gradient[2][2][2], 80.0, "Dérivée de ta*tb par rapport à ta = tb[2][2][2] = 80.0")
+	dbgVérifieEgalité(tb..Gradient[1][1][1], 1.0, "Dérivée de ta*tb par rapport à tb = ta[1][1][1] = 1.0")
+	dbgVérifieEgalité(tb..Gradient[2][2][2], 8.0, "Dérivée de ta*tb par rapport à tb = ta[2][2][2] = 8.0")
+FIN
+
+
+// Deux Tenseurs de formes différentes ne peuvent pas être additionnés
+// élément à élément (pas d'ajustement automatique de forme ici) : une
+// exception est levée plutôt qu'un résultat silencieusement erroné.
+PROCEDURE PRIVÉE scenario_edge_formes_incompatibles_addition_refusee()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	tbAutreForme est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		tc est un Tenseur = ta + tbAutreForme
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ta(2x2x2) + tbAutreForme(2x2x3) refusé : formes incompatibles")
+FIN

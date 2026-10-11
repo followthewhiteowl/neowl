@@ -1,0 +1,271 @@
+// @sujet : EntierVersJourEnLettre
+// @résumé : Retourne le nom du jour de la semaine (Lundi à Dimanche, capitalisé) pour un entier (nb jours depuis 01/01/1800), une chaîne numérique ou une date. Français uniquement.
+//
+// Contrat sémantique :
+//   - Bornes valides : 01/01/0001 < date <= 31/12/9999 (calendrier grégorien proleptique borné).
+//     Entrées hors plage (entier <= 0 correspondant à pré-1800, date pré-01/01/0001) → Null.
+//   - Conversion implicite chaîne / date invalide : retourne Null + positionne ErreurDétectée.
+//   - Cohérence stricte avec la famille EntierVers* (cf. EntierVersMoisEnLettre).
+
+// ==============================================================================
+// PROCEDURES PUBLIQUES - Cas nominaux pour la doc utilisateur
+// ==============================================================================
+
+PROCEDURE PUBLIQUE scenario_conversion_entier_direct()
+	// EntierVersJourEnLettre convertit un entier (nb jours depuis 01/01/1800) en nom de jour
+	// Base 1 : entier 1 = 01/01/1800 (Mercredi)
+	// Retour : chaîne capitalisée (Lundi, Mardi, ..., Dimanche)
+
+	j1 est une chaîne = EntierVersJourEnLettre(1)
+	dbgVérifieEgalité(j1, "Mercredi", "Entier 1 (01/01/1800) → Mercredi")
+
+	j2 est une chaîne = EntierVersJourEnLettre(2)
+	dbgVérifieEgalité(j2, "Jeudi", "Entier 2 (02/01/1800) → Jeudi")
+
+	j3 est une chaîne = EntierVersJourEnLettre(3)
+	dbgVérifieEgalité(j3, "Vendredi", "Entier 3 (03/01/1800) → Vendredi")
+
+	j4 est une chaîne = EntierVersJourEnLettre(4)
+	dbgVérifieEgalité(j4, "Samedi", "Entier 4 (04/01/1800) → Samedi")
+
+	j5 est une chaîne = EntierVersJourEnLettre(5)
+	dbgVérifieEgalité(j5, "Dimanche", "Entier 5 (05/01/1800) → Dimanche")
+
+	j6 est une chaîne = EntierVersJourEnLettre(6)
+	dbgVérifieEgalité(j6, "Lundi", "Entier 6 (06/01/1800) → Lundi")
+
+	j7 est une chaîne = EntierVersJourEnLettre(7)
+	dbgVérifieEgalité(j7, "Mardi", "Entier 7 (07/01/1800) → Mardi")
+
+	// Cycle de 7 jours : entier 8 = Mercredi (même jour que entier 1)
+	j8 est une chaîne = EntierVersJourEnLettre(8)
+	dbgVérifieEgalité(j8, "Mercredi", "Entier 8 (08/01/1800) → Mercredi (cycle 7 jours)")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_conversion_chaine_numerique()
+	// Entree sous forme de chaîne numérique (conversion implicite)
+
+	j1 est une chaîne = EntierVersJourEnLettre("1")
+	dbgVérifieEgalité(j1, "Mercredi", "Chaîne '1' → Mercredi")
+
+	j2 est une chaîne = EntierVersJourEnLettre("365")
+	// 365 jours depuis 01/01/1800 = 31/12/1800 (1800 non-bissextile)
+	dbgVérifieEgalité(j2, "Mercredi", "Chaîne '365' (31/12/1800) → Mercredi")
+
+	j3 est une chaîne = EntierVersJourEnLettre("73773")
+	// 73773 jours depuis 1800 = 25/12/2001 (Mardi)
+	dbgVérifieEgalité(j3, "Mardi", "Chaîne '73773' (25/12/2001) → Mardi")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_conversion_date()
+	// Entree sous forme de variable date
+
+	d1 est une date = "18000101"
+	j1 est une chaîne = EntierVersJourEnLettre(d1)
+	dbgVérifieEgalité(j1, "Mercredi", "Date 01/01/1800 → Mercredi")
+
+	d2 est une date = "20001231"
+	j2 est une chaîne = EntierVersJourEnLettre(d2)
+	dbgVérifieEgalité(j2, "Dimanche", "Date 31/12/2000 → Dimanche")
+
+	d3 est une date = "20260101"
+	j3 est une chaîne = EntierVersJourEnLettre(d3)
+	dbgVérifieEgalité(j3, "Jeudi", "Date 01/01/2026 → Jeudi")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_coherence_dateVersJourEnLettre()
+	// EntierVersJourEnLettre et DateVersJourEnLettre sont cohérents
+	// EntierVersJourEnLettre(N) = DateVersJourEnLettre(EntierVersDate(N))
+
+	entier1 est un entier = 1
+	d1 est une date = EntierVersDate(entier1)
+	j1a est une chaîne = EntierVersJourEnLettre(entier1)
+	j1b est une chaîne = DateVersJourEnLettre(d1)
+	dbgVérifieEgalité(j1a, j1b, "Entier 1 : cohérence EntierVersJourEnLettre vs DateVersJourEnLettre")
+
+	entier2 est un entier = 73773
+	d2 est une date = EntierVersDate(entier2)
+	j2a est une chaîne = EntierVersJourEnLettre(entier2)
+	j2b est une chaîne = DateVersJourEnLettre(d2)
+	dbgVérifieEgalité(j2a, j2b, "Entier 73773 : cohérence EntierVersJourEnLettre vs DateVersJourEnLettre")
+
+	entier3 est un entier = 36525 // 01/01/1900
+	d3 est une date = EntierVersDate(entier3)
+	j3a est une chaîne = EntierVersJourEnLettre(entier3)
+	j3b est une chaîne = DateVersJourEnLettre(d3)
+	dbgVérifieEgalité(j3a, j3b, "Entier 36525 (01/01/1900) : cohérence")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_capitalisation()
+	// Retour toujours capitalisé : première lettre majuscule, reste minuscule
+
+	j1 est une chaîne = EntierVersJourEnLettre(1)
+	dbgVérifieVrai(j1 = "Mercredi", "Capitalisation stricte : Mercredi")
+	dbgVérifieVrai(j1 <> "MERCREDI", "Pas de casse intégrale majuscule")
+	dbgVérifieVrai(j1 <> "mercredi", "Pas de casse intégrale minuscule")
+
+	j2 est une chaîne = EntierVersJourEnLettre(5)
+	dbgVérifieVrai(j2 = "Dimanche", "Capitalisation stricte : Dimanche")
+FIN
+
+
+// ==============================================================================
+// PROCEDURES PRIVEES - Cas limites et edge cases
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_entier_zero()
+	// Entier 0 : hors plage (la borne basse est 1 = 01/01/1800)
+
+	j1 est une chaîne = EntierVersJourEnLettre(0)
+	dbgVérifieNull(j1, "Entier 0 hors plage → Null")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_entier_negatif()
+	// Entiers négatifs : hors plage (pas de support pré-1800 via entier)
+
+	j1 est une chaîne = EntierVersJourEnLettre(-1)
+	dbgVérifieNull(j1, "Entier -1 hors plage → Null")
+
+	j2 est une chaîne = EntierVersJourEnLettre(-6)
+	dbgVérifieNull(j2, "Entier -6 hors plage → Null")
+
+	j3 est une chaîne = EntierVersJourEnLettre(-100)
+	dbgVérifieNull(j3, "Entier -100 hors plage → Null")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_annee_bissextile()
+	// Année bissextile : 29/02/2000 (entier 73049 + 59 = 73108)
+	// 73049 = 01/01/2000, +59 = 29/02/2000 (Mardi)
+
+	entier1 est un entier = 73049 + 59
+	j1 est une chaîne = EntierVersJourEnLettre(entier1)
+	dbgVérifieEgalité(j1, "Mardi", "29/02/2000 (année bissextile) → Mardi")
+
+	// Année 1800 non-bissextile (divisible par 100 mais pas par 400)
+	// 28/02/1800 = entier 1 + 58
+	entier2 est un entier = 1 + 58
+	j2 est une chaîne = EntierVersJourEnLettre(entier2)
+	dbgVérifieEgalité(j2, "Vendredi", "28/02/1800 (dernier jour février non-bissextile) → Vendredi")
+
+	// 01/03/1800 = entier 1 + 59
+	entier3 est un entier = 1 + 59
+	j3 est une chaîne = EntierVersJourEnLettre(entier3)
+	dbgVérifieEgalité(j3, "Samedi", "01/03/1800 (pas de 29/02 en 1800) → Samedi")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_entiers_extremes()
+	// Limite haute documentée : 31/12/9999. Limite basse stricte : 01/01/0001 refusé
+	// (grégorien valide à partir de 14/10/1582 ; OWL borne strictement > 0).
+
+	d1 est une date = "99991231"
+	entierMax est un entier = DateVersEntier(d1)
+	jMax est une chaîne = EntierVersJourEnLettre(entierMax)
+	dbgVérifieEgalité(jMax, "Vendredi", "Entier max (31/12/9999) → Vendredi")
+
+	d2 est une date = "00010101"
+	entierMin est un entier = DateVersEntier(d2)
+	jMin est une chaîne = EntierVersJourEnLettre(entierMin)
+	dbgVérifieNull(jMin, "Entier min 01/01/0001 hors plage → Null (pré-grégorien)")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_chaine_numerique_invalide()
+	// Chaîne numérique invalide : Null + ErreurDétectée
+
+	ErreurRAZ()
+	jInvalide est une chaîne = EntierVersJourEnLettre("abc")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Chaîne 'abc' non-numérique pose ErreurDétectée")
+	dbgVérifieNull(jInvalide, "Chaîne 'abc' invalide → Null")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_date_invalide()
+	// Date invalide : Null + ErreurDétectée
+
+	ErreurRAZ()
+	sBad est une chaîne = "99999999"
+	dInvalide est une date = sBad
+	jInvalide est une chaîne = EntierVersJourEnLettre(dInvalide)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Date '99999999' invalide pose ErreurDétectée")
+	dbgVérifieNull(jInvalide, "Date '99999999' invalide → Null")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_cycle_semaine()
+	// Vérifier le cycle de 7 jours sur un grand intervalle
+
+	j1 est une chaîne = EntierVersJourEnLettre(1)
+	j8 est une chaîne = EntierVersJourEnLettre(8)
+	j15 est une chaîne = EntierVersJourEnLettre(15)
+	j365 est une chaîne = EntierVersJourEnLettre(365)
+
+	dbgVérifieEgalité(j1, j8, "Cycle 7 jours : entier 1 = entier 8 (Mercredi)")
+	dbgVérifieEgalité(j1, j15, "Cycle 7 jours : entier 1 = entier 15 (Mercredi)")
+	dbgVérifieEgalité(j1, j365, "Cycle 7 jours : entier 1 = entier 365 (Mercredi)")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_alias_en()
+	// Alias EN IntegerToDayInAlpha fonctionne identiquement
+
+	j1 est une chaîne = IntegerToDayInAlpha(1)
+	dbgVérifieEgalité(j1, "Mercredi", "Alias IntegerToDayInAlpha(1) → Mercredi")
+
+	j2 est une chaîne = IntegerToDayInAlpha(73773)
+	dbgVérifieEgalité(j2, "Mardi", "Alias IntegerToDayInAlpha(73773) → Mardi")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_reperes_calendrier()
+	// Repères calendaires connus pour validation
+
+	// 01/01/1900 = Lundi (début du XXe siècle)
+	entier1900 est un entier = 36525
+	j1900 est une chaîne = EntierVersJourEnLettre(entier1900)
+	dbgVérifieEgalité(j1900, "Lundi", "01/01/1900 → Lundi")
+
+	// 01/01/2000 = Samedi (début du XXIe siècle)
+	entier2000 est un entier = 73049
+	j2000 est une chaîne = EntierVersJourEnLettre(entier2000)
+	dbgVérifieEgalité(j2000, "Samedi", "01/01/2000 → Samedi")
+
+	// 11/09/2001 = Mardi (repère historique)
+	// DateVersEntier("20010911") = 73668 (cf. probe runtime). 73652 = 26/08/2001 (Dimanche).
+	entier911 est un entier = 73668
+	j911 est une chaîne = EntierVersJourEnLettre(entier911)
+	dbgVérifieEgalité(j911, "Mardi", "11/09/2001 → Mardi")
+FIN
+
+
+// ==============================================================================
+// POINT D'ENTREE
+// ==============================================================================
+
+// Procédures publiques (doc utilisateur)
+scenario_conversion_entier_direct()
+scenario_conversion_chaine_numerique()
+scenario_conversion_date()
+scenario_coherence_dateVersJourEnLettre()
+scenario_capitalisation()
+
+// Procédures privées (edge cases)
+scenario_edge_entier_zero()
+scenario_edge_entier_negatif()
+scenario_edge_annee_bissextile()
+scenario_edge_entiers_extremes()
+scenario_edge_chaine_numerique_invalide()
+scenario_edge_date_invalide()
+scenario_edge_cycle_semaine()
+scenario_edge_alias_en()
+scenario_edge_reperes_calendrier()
+
+dbgBilanTest()

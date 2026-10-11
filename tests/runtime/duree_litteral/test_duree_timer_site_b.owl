@@ -1,0 +1,49 @@
+//  — Init littérale durée : Site B (assignation propriété Timer..Intervalle)
+// Rouge attendu : { } ciblant durée non câblé → erreur compile.
+// Ce test sera vert après impl (owl_implementer).
+//
+// Non-régression : Timer..Intervalle = <entier> (coercion) doit rester vert.
+
+PROCEDURE TickStub()
+FIN
+
+PROCEDURE test_timer_intervalle_entier_coerce()
+	t est un Timer
+	t..Procédure  = TickStub
+	t..Intervalle = 500
+	n est un entier = t..Intervalle
+	dbgVérifieEgalité(n, 500, "Timer..Intervalle = 500 (entier) relu correctement")
+FIN
+
+PROCEDURE test_timer_intervalle_entier_coerce_5000()
+	t est un Timer
+	t..Procédure  = TickStub
+	t..Intervalle = 5000
+	n est un entier = t..Intervalle
+	dbgVérifieEgalité(n, 5000, "Timer..Intervalle = 5000 (entier coerce) → 5000 ms")
+FIN
+
+// ROUGE ATTENDU jusqu'à impl 
+
+PROCEDURE test_timer_intervalle_litteral_seconde()
+	t est un Timer
+	t..Procédure  = TickStub
+	t..Intervalle = {Seconde = 5}
+	n est un entier = t..Intervalle
+	dbgVérifieEgalité(n, 5000, "Timer..Intervalle = { Seconde=5 } → 5000 ms")
+FIN
+
+PROCEDURE test_timer_intervalle_litteral_minute_seconde()
+	t est un Timer
+	t..Procédure  = TickStub
+	t..Intervalle = {Minute = 2, Seconde = 30}
+	n est un entier = t..Intervalle
+	dbgVérifieEgalité(n, 150000, "Timer..Intervalle = { Minute=2, Seconde=30 } → 150000 ms")
+FIN
+
+test_timer_intervalle_entier_coerce()
+test_timer_intervalle_entier_coerce_5000()
+test_timer_intervalle_litteral_seconde()
+test_timer_intervalle_litteral_minute_seconde()
+
+dbgBilanTest()

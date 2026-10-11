@@ -1,0 +1,37 @@
+//  — Event surToucheAppuyée / surToucheRelâchée sur Image (extension
+// OWL, canvas de jeu). L'Image devient focusable au runtime ; un clavier
+// envoye sur l'Image focusee declenche bien ses handlers.
+// Verifie le faux-silencieux d'origine : avant le fix, l'Image compilait le
+// handler mais ne se declenchait JAMAIS (compteurs restaient 0).
+
+TestModeHeadless(Faux)
+
+bFenPrete est un booléen = Faux
+nAppuyeeCapture est un entier = 0
+nRelacheeCapture est un entier = 0
+nDerniereAppuyeeCapture est un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bFenPrete = Vrai
+FIN
+
+PROCEDURE callback_lit_compteurs(nA est un entier, nR est un entier, nDA est un entier)
+	nAppuyeeCapture         = nA
+	nRelacheeCapture        = nR
+	nDerniereAppuyeeCapture = nDA
+FIN
+
+OuvreSoeur(FEN_ImageTouche)
+
+dbgVérifieVrai(bFenPrete, "FinInitialisation appelee : fenetre prete")
+
+// 2 frappes "ab" sur l'Image focusee => 2 appuyees + 2 relachees.
+TestSimuleSaisie(IMG_Canvas, "ab")
+
+LireCompteurs()
+dbgVérifieEgalité(nAppuyeeCapture, 2, "surToucheAppuyée sur Image : 2 frappes pour 'ab' (faux-silencieux corrige)")
+dbgVérifieEgalité(nRelacheeCapture, 2, "surToucheRelâchée sur Image : 2 relachements")
+dbgVérifieEgalité(nDerniereAppuyeeCapture, Asc("b"), "derniere touche appuyee sur Image = code 'b'")
+
+Ferme(FEN_ImageTouche)
+dbgBilanTest()

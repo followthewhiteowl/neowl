@@ -1,0 +1,31 @@
+// TestSimuleSouris(IMG, MoletteHaut|MoletteBas, x, y) declenche surMolette
+// avec mouvement = +1 (Haut) ou -1 (Bas) et les coordonnees fournies.
+TestModeHeadless(Vrai)
+
+mvtObs est un entier = 0
+xObs est un entier = -1
+yObs est un entier = -1
+
+PROCEDURE callback_etat(m est un entier, x est un entier, y est un entier)
+	mvtObs = m
+	xObs   = x
+	yObs   = y
+FIN
+
+Ouvre(FEN_Demo)
+
+TestSimuleSouris(IMG_Cible, MoletteHaut, 30, 40)
+RemonteEtat()
+dbgVérifieVrai(mvtObs = 1, `MoletteHaut -> mouvement = +1`)
+dbgVérifieVrai(xObs = 30, `x recu = 30 (MoletteHaut)`)
+dbgVérifieVrai(yObs = 40, `y recu = 40 (MoletteHaut)`)
+
+TestSimuleSouris(IMG_Cible, MoletteBas, 60, 80)
+RemonteEtat()
+dbgVérifieVrai(mvtObs = -1, `MoletteBas -> mouvement = -1`)
+dbgVérifieVrai(xObs = 60, `x recu = 60 (MoletteBas)`)
+dbgVérifieVrai(yObs = 80, `y recu = 80 (MoletteBas)`)
+
+Ferme(FEN_Demo)
+
+dbgBilanTest()

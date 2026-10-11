@@ -1,0 +1,107 @@
+// @sujet : ChaîneFinitPar
+// @résumé : ChaîneFinitPar : vérifier si une chaîne se termine par un suffixe donné.
+// Vitrine de ChaîneFinitPar : vérifier si une chaîne se termine par un suffixe donné.
+// Retourne la taille (en caractères) du suffixe s'il matche, 0 sinon.
+
+// ============================================================================
+// PROCEDURES PUBLIQUES
+// ============================================================================
+
+// Cas nominal : la chaîne se termine effectivement par le suffixe cherché.
+// Utilisation typique : valider une extension de fichier, un domaine TLD, un suffixe linguistique.
+PROCEDURE PUBLIQUE scenario_base_suffixe_present()
+	fichier est une chaîne = "document.pdf"
+	taille est un entier = ChaîneFinitPar(fichier, ".pdf")
+
+	dbgVérifieEgalité(taille, 4, "suffixe '.pdf' matche (4 caractères)")
+	dbgVérifieVrai(taille <> 0, "idiome SI <> 0 pour détection de match")
+
+	// Cas domaine web
+	url est une chaîne = "https://example.com"
+	dbgVérifieEgalité(ChaîneFinitPar(url, ".com"), 4, "TLD .com détecté")
+FIN
+
+// Le suffixe cherché n'apparaît pas à la fin de la chaîne.
+// ChaîneFinitPar retourne 0, même si le motif apparaît ailleurs dans la chaîne.
+PROCEDURE PUBLIQUE scenario_suffixe_absent()
+	texte est une chaîne = "Bonjour le monde"
+
+	// Le motif existe mais pas en fin de chaîne
+	dbgVérifieEgalité(ChaîneFinitPar(texte, "Bonjour"), 0, "motif présent mais pas à la fin")
+
+	// Le motif n'existe pas du tout
+	dbgVérifieEgalité(ChaîneFinitPar(texte, ".txt"), 0, "motif absent de la chaîne")
+
+	// Casse différente (sans option ccSansCasse)
+	dbgVérifieEgalité(ChaîneFinitPar(texte, "MONDE"), 0, "casse différente sans option")
+FIN
+
+// Forme méthode : on peut appeler .FinitPar() directement sur une chaîne littérale ou variable.
+// Pratique pour les chaînages et pipelines de traitement.
+PROCEDURE PUBLIQUE scenario_methode_sur_chaine()
+	fichier est une chaîne = "rapport.owl"
+
+	dbgVérifieEgalité(fichier.FinitPar(".owl"), 4, "méthode sur variable")
+	dbgVérifieEgalité("index.html".FinitPar(".html"), 5, "méthode sur littéral")
+
+	// Idiome de validation simple
+	resultat est un entier = "image.jpg".FinitPar(".jpg")
+	dbgVérifieEgalité(resultat, 4, "suffixe .jpg = 4 chars")
+	SI resultat <> 0 ALORS
+		dbgVérifieVrai(Vrai, "idiome SI <> 0 utilisable pour validation")
+	SINON
+		dbgVérifieVrai(Faux, "validation .jpg échouée")
+	FIN
+FIN
+
+// Cas limites : suffixe vide, chaîne vide, suffixe égal à la chaîne, suffixe plus long.
+PROCEDURE PUBLIQUE scenario_cas_limites()
+	// Suffixe vide → pas de match (par convention)
+	dbgVérifieEgalité(ChaîneFinitPar("hello", ""), 0, "suffixe vide = 0")
+
+	// Chaîne vide → pas de match
+	dbgVérifieEgalité(ChaîneFinitPar("", "x"), 0, "chaîne vide ne matche rien")
+
+	// Suffixe égal à la chaîne complète → match complet
+	dbgVérifieEgalité(ChaîneFinitPar("hello", "hello"), 5, "égalité = match complet")
+
+	// Suffixe plus long que la chaîne → pas de match
+	dbgVérifieEgalité(ChaîneFinitPar("hi", "hello world"), 0, "suffixe trop long")
+FIN
+
+// ============================================================================
+// PROCEDURES PRIVEES (edge cases proactifs, non-pédagogiques)
+// ============================================================================
+
+// Edge cases proactifs : accents, caractères multi-bytes UTF-8, combinaisons extrêmes.
+PROCEDURE PRIVÉE scenario_edge_utf8_et_extremes()
+	// UTF-8 : la taille retournée est en caractères, pas en bytes
+	dbgVérifieEgalité(ChaîneFinitPar("Chaud été", "été"), 3, "UTF-8: 3 chars (é = 2 bytes)")
+
+	// Suffixe avec accents vs sans (sans option ccSansAccent)
+	dbgVérifieEgalité(ChaîneFinitPar("Validé", "Valide"), 0, "accents sans option")
+
+	// Très long suffixe (performance)
+	longSuffixe est une chaîne = Répète("z", 1000)
+	longChaine est une chaîne = Répète("z", 10000)
+	dbgVérifieEgalité(ChaîneFinitPar(longChaine, longSuffixe), 1000, "suffixe 1000 chars")
+
+	// Caractères spéciaux (emoji, symboles)
+	dbgVérifieEgalité(ChaîneFinitPar("hibou 🦉", "🦉"), 1, "emoji 1 caractère")
+FIN
+
+// Edge case : tableau de candidats (feature avancée, documentée en régression mais exemple minimal ici)
+PROCEDURE PRIVÉE scenario_edge_tableau_candidats()
+	candidats est un tableau de chaînes = [".jpg", ".png", ".gif"]
+
+	// Premier candidat qui matche
+	dbgVérifieEgalité(ChaîneFinitPar("photo.png", candidats), 4, "2e candidat matche")
+
+	// Aucun candidat ne matche
+	dbgVérifieEgalité(ChaîneFinitPar("document.pdf", candidats), 0, "aucun candidat")
+
+	// Méthode avec tableau
+	dbgVérifieEgalité("icon.gif".FinitPar(candidats), 4, "méthode + tableau")
+FIN
+
+dbgBilanTest()

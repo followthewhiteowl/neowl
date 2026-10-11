@@ -1,0 +1,27 @@
+// @sujet : HasardSécuriséOctets, SecureRandomBytes
+// @résumé : Génère un buffer de N octets cryptographiquement sûrs (CSPRNG de
+// l'OS). Brique des jetons de session, clés et sels de taille arbitraire :
+// HasardSécuriséOctets(32) donne 256 bits d'entropie. Le buffer se rend
+// transmissible en texte via ChaîneVersBase64 / ChaîneVersHexa.
+
+// Cas nominal : taille respectée, imprévisibilité, encodage en jeton texte.
+PROCEDURE scenario_genere_octets_surs()
+	jeton est un buffer = HasardSécuriséOctets(32)
+	dbgVérifieEgalité(Taille(jeton), 32, "HasardSécuriséOctets(32) -> 32 octets (256 bits)")
+
+	// Entropie : deux tirages successifs diffèrent.
+	tir1 est un buffer = HasardSécuriséOctets(32)
+	tir2 est un buffer = HasardSécuriséOctets(32)
+	dbgVérifieVrai(tir1 <> tir2, "deux tirages CSPRNG successifs diffèrent")
+
+	// Jeton transmissible : 32 octets -> 44 caractères base64, 64 hexa.
+	dbgVérifieEgalité(Taille(ChaîneVersBase64(jeton)), 44, "jeton -> base64 (44 caractères)")
+	dbgVérifieEgalité(Taille(ChaîneVersHexa(jeton)), 64, "jeton -> hexa (64 caractères)")
+FIN
+
+// Cas limite : taille zéro -> buffer vide valide (pas d'erreur).
+PROCEDURE PRIVÉE scenario_edge_taille_zero()
+	vide est un buffer = HasardSécuriséOctets(0)
+	dbgVérifieEgalité(Taille(vide), 0, "HasardSécuriséOctets(0) -> buffer vide")
+	dbgVérifieEgalité(ChaîneVersBase64(vide), "", "base64 d'un buffer vide -> chaîne vide")
+FIN

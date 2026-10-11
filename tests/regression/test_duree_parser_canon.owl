@@ -1,0 +1,175 @@
+// Regression  : parser durée littéral format ambigu + durées négatives
+//
+// Audit coordinator révélé 3 bugs distincts parser durée `parse_wl_duration_digits` :
+//   1. Truncate silencieux : "10120000000" (11 digits) → perd digit leading → 12h au lieu de 1j12h
+//   2. Right-align ambigu : "013000000" (9 digits) ≡ "0013000000" (10 digits) ≡ 1h30 (zero-pad gauche)
+//   3. Signe négatif annihilé : abs(ms) forcé lignes 1548+1560 fn_duree_coerce → durée négative impossible
+//
+// Canon de référence : duréeMillième = "+JHHMMSSCCC" exact (10 digits + signe optionnel).
+// Affectation directe `dur = chaîne` ⟺ ChaîneVersDurée(s, duréeMillième).
+//
+// Décisions dev tranchées :
+//   1. Format strict canon : accepter UNIQUEMENT [+/-]JHHMMSSCCC (10 digits + signe opt).
+//   2. Formats invalides :
+//      - Littéral statique (compile-time check possible) → erreur compile.
+//      - Runtime dynamique (dur = fonction()) → fail silencieux + durée 0 + ErreurDétectée = Vrai.
+//   3. Supporter durées négatives (retirer abs(ms) lignes 1548+1560).
+//
+// Ce test VERROUILLE les invariants post-fix :
+//   A. Format canon strict accepté (10 digits exactement)
+//   B. Formats rejetés compile-time (9, 11, 12+ digits, non-digits)
+//   C. Durée négative : storage int64 négatif, cast int, arithmétique, format Trace
+//   D. Cas limite zéro (positif, négatif)
+//
+// Statut initial attendu (AVANT fix runtime) :
+//   - Groupe A assertions 1-6 : certaines ROUGES (bugs parser ambiguïté)
+//   - Groupe C assertions durée négative : ROUGES (abs forcé ligne 1548+1560)
+//   - Groupe D assertions zéro : probablement VERTES
+//
+// Statut post-fix attendu : TOUTES VERTES.
+
+// =========================================================================
+// Groupe A : Format canon strict accepté (10 digits exactement)
+// =========================================================================
+
+PROCEDURE PUBLIQUE test_format_canon_10_digits()
+	// Format JHHMMSSCC exact : 9 digits + signe obligatoire Q5-bis
+	dur est une durée = "+001300000"
+	n est un entier = dur
+	// 0j 01h 30m 00s 000ms = 1h30 = 5_400_000 ms
+	dbgVérifieEgalité(n, 5_400_000, "Format canon 10 digits : 0013000000 = 1h30")
+FIN
+
+PROCEDURE PUBLIQUE test_format_canon_signe_plus()
+	// Signe + explicite (obligatoire Q5-bis)
+	dur est une durée = "+001300000"
+	n est un entier = dur
+	dbgVérifieEgalité(n, 5_400_000, "Signe + explicite accepte")
+FIN
+
+PROCEDURE PUBLIQUE test_format_canon_signe_moins()
+	// Signe - (durée négative, obligatoire Q5-bis)
+	dur est une durée = "-001300000"
+	n est un entier = dur
+	// Post-fix abs() retiré : doit retourner -5_400_000
+	dbgVérifieEgalité(n,-5_400_000, "Signe - durée négative : -1h30 = -5_400_000 ms")
+FIN
+
+PROCEDURE PUBLIQUE test_format_canon_zero()
+	// Durée zéro canon, signe obligatoire Q5-bis
+	dur est une durée = "+000000000"
+	n est un entier = dur
+	dbgVérifieEgalité(n, 0, "Durée zéro canon")
+FIN
+
+PROCEDURE PUBLIQUE test_format_canon_max_jour()
+	// Max 9 jours (1 digit J) + 23h, signe obligatoire Q5-bis
+	dur est une durée = "+923000000"
+	n est un entier = dur
+	// 9j = 9 * 86400000 = 777_600_000
+	// 23h = 23 * 3600000 = 82_800_000
+	// Total = 860_400_000 ms
+	dbgVérifieEgalité(n, 860_400_000, "Format canon max : 9j 23h")
+FIN
+
+PROCEDURE PUBLIQUE test_format_canon_millisecondes()
+	// Centièmes non-zéro (CC), signe obligatoire Q5-bis (CCC millièmes via ChaîneVersDurée uniquement)
+	dur est une durée = "+000000012"
+	n est un entier = dur
+	dbgVérifieEgalité(n, 120, "Format canon centièmes : 12 cs = 120 ms")
+FIN
+
+// =========================================================================
+// Groupe C : Durée négative — invariants post-fix abs() retiré
+// =========================================================================
+
+PROCEDURE PUBLIQUE test_duree_negative_storage()
+	// Init depuis entier négatif
+	dur est une durée = -5_400_000
+	n est un entier = dur
+	// Post-fix : signe préservé (abs retiré ligne 1548)
+	dbgVérifieEgalité(n,-5_400_000, "Storage durée négative préserve signe")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_negative_comparaison()
+	// Comparaison durée négative
+	dur est une durée = -5_400_000
+	dbgVérifieVrai(dur < 0, "Comparaison durée négative < 0")
+	dbgVérifieVrai(dur = -5_400_000, "Comparaison durée négative = entier négatif")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_negative_arithmetique()
+	// Arithmétique sur durée négative
+	dur1 est une durée = -5_400_000
+	dur2 est une durée = dur1 + dur1
+	n est un entier = dur2
+	dbgVérifieEgalité(n,-10_800_000, "Arithmétique durée négative : -1h30 + -1h30 = -3h")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_negative_trace_format()
+	// Format Trace durée négative — vérifié empiriquement post-fix : "-01:30:00"
+	// (préfixe '-' devant la forme HH:MM:SS, cf. vm.c::value_to_string OBJ_DURATION).
+	dur est une durée = -5_400_000
+	s est une chaîne = dur
+	dbgVérifieEgalité(s, "-01:30:00", "Format Trace durée négative : -01:30:00")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_negative_avec_jour()
+	// Durée négative avec jour — vérifié empiriquement post-fix : "-1 j 12:00:00"
+	dur est une durée = -129_600_000
+	s est une chaîne = dur
+	n est un entier = dur
+	// -1j 12h = -36h = -129_600_000 ms
+	dbgVérifieEgalité(n,-129_600_000, "Durée négative avec jour : storage ms")
+	dbgVérifieEgalité(s, "-1 j 12:00:00", "Durée négative avec jour : format Trace")
+FIN
+
+// =========================================================================
+// Groupe D : Cas limite zéro
+// =========================================================================
+
+PROCEDURE PUBLIQUE test_duree_zero_positif()
+	// Durée zéro depuis entier positif
+	dur est une durée = 0
+	n est un entier = dur
+	dbgVérifieEgalité(n, 0, "Durée zéro positif")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_zero_negatif()
+	// Durée zéro "négatif" (arithmétique -0, devrait être identique à 0)
+	dur est une durée = -0
+	n est un entier = dur
+	dbgVérifieEgalité(n, 0, "Durée zéro négatif ≡ 0")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_zero_comparaison()
+	// Comparaisons zéro
+	dur1 est une durée = 0
+	dur2 est une durée = -0
+	dbgVérifieVrai(dur1 = dur2, "Durée 0 ≡ -0 en comparaison")
+	dbgVérifieVrai(dur1 = 0, "Durée 0 = entier 0")
+FIN
+
+// =========================================================================
+// Groupe E : Cas pathologiques arithmétique
+// =========================================================================
+
+PROCEDURE PUBLIQUE test_duree_negative_soustraction()
+	// Soustraction produisant durée négative
+	dur1 est une durée = 1_000_000
+	dur2 est une durée = 3_000_000
+	dur3 est une durée = dur1 - dur2
+	n est un entier = dur3
+	dbgVérifieEgalité(n,-2_000_000, "Soustraction produisant durée négative")
+FIN
+
+PROCEDURE PUBLIQUE test_duree_negative_addition_mixte()
+	// Addition durée positive + durée négative
+	dur1 est une durée = 5_000_000
+	dur2 est une durée = -2_000_000
+	dur3 est une durée = dur1 + dur2
+	n est un entier = dur3
+	dbgVérifieEgalité(n, 3_000_000, "Addition durée positive + négative")
+FIN
+
+dbgBilanTest()

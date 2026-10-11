@@ -1,0 +1,110 @@
+// @sujet : Tenseur.ProduitMatriciel (Matrice × Vecteur)
+// @résumé : ProduitMatriciel s'étend au cas poids (Tenseur 2D, m×n) contre
+// entrée (Tenseur 1D, taille n) : le résultat est un Tenseur 1D de taille
+// m, comme un vrai produit matrice-vecteur. Rétropropage() remonte le
+// gradient en Matrice m×n vers les poids (produit externe gradSortie⊗entrée)
+// et en Vecteur n vers l'entrée (Wᵀ @ gradSortie).
+
+// poids (2×3) × entrée (3) -> sortie (2). Valeurs calculées à la main :
+// y[1] = 1*1+2*0+3*2 = 7 ; y[2] = 4*1+5*0+6*2 = 16.
+PROCEDURE PUBLIQUE scenario_forward_matrice_non_carree_2x3()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 0.0, 2.0])
+
+	ty est un Tenseur = tW.ProduitMatriciel(tx)
+	dbgVérifieEgalité(ty..Valeur[1], 7.0, "1*1 + 2*0 + 3*2 = 7")
+	dbgVérifieEgalité(ty..Valeur[2], 16.0, "4*1 + 5*0 + 6*2 = 16")
+FIN
+
+
+// poids (3×2) × entrée (2) -> sortie (3), forme différente (plus de lignes
+// que de colonnes). Valeurs : y[1]=1*2+2*1=4 ; y[2]=3*2+4*1=10 ; y[3]=5*2+6*1=16.
+PROCEDURE PUBLIQUE scenario_forward_matrice_non_carree_3x2()
+	matW est une Matrice = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([2.0, 1.0])
+
+	ty est un Tenseur = tW.ProduitMatriciel(tx)
+	dbgVérifieEgalité(ty..Valeur[1], 4.0, "1*2 + 2*1 = 4")
+	dbgVérifieEgalité(ty..Valeur[2], 10.0, "3*2 + 4*1 = 10")
+	dbgVérifieEgalité(ty..Valeur[3], 16.0, "5*2 + 6*1 = 16")
+FIN
+
+
+// Cas central : matmul suivi d'une perte MSE puis Rétropropage(). Calcul
+// à la main :
+// y = [7, 16] ; cible = [5, 10] ; perte = ((7-5)²+(16-10)²)/2 = 20
+// gradSortie = 2*(y-cible)/2 = [2, 6]
+// gradW = gradSortie ⊗ entrée = [[2*1,2*0,2*2],[6*1,6*0,6*2]] = [[2,0,4],[6,0,12]]
+// gradEntrée = Wᵀ @ gradSortie = [1*2+4*6, 2*2+5*6, 3*2+6*6] = [26, 34, 42]
+// Le zéro en 2e composante de l'entrée se retrouve tel quel comme colonne
+// de zéros dans gradW (2e colonne), signature du produit externe.
+PROCEDURE PUBLIQUE scenario_backward_matmul_cas_central()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 0.0, 2.0])
+
+	ty est un Tenseur = tW.ProduitMatriciel(tx)
+	tcible est un Tenseur = Tenseur([5.0, 10.0])
+	tperte est un Tenseur = ty.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	dbgVérifieEgalité(tperte..Valeur[1], 20.0, "MSE = ((7-5)^2 + (16-10)^2) / 2 = 20")
+
+	gradW est une Matrice = tW..Gradient
+	dbgVérifieEgalité(gradW..Lignes, 2, "gradW garde la forme de W : 2 lignes")
+	dbgVérifieEgalité(gradW..Colonnes, 3, "gradW garde la forme de W : 3 colonnes")
+	dbgVérifieEgalité(gradW[1][1], 2.0, "gradW[1][1] = gradSortie[1]*entrée[1] = 2*1 = 2")
+	dbgVérifieEgalité(gradW[1][2], 0.0, "gradW[1][2] = gradSortie[1]*entrée[2] = 2*0 = 0 (colonne nulle, entrée[2]=0)")
+	dbgVérifieEgalité(gradW[1][3], 4.0, "gradW[1][3] = gradSortie[1]*entrée[3] = 2*2 = 4")
+	dbgVérifieEgalité(gradW[2][1], 6.0, "gradW[2][1] = gradSortie[2]*entrée[1] = 6*1 = 6")
+	dbgVérifieEgalité(gradW[2][2], 0.0, "gradW[2][2] = gradSortie[2]*entrée[2] = 6*0 = 0 (colonne nulle, entrée[2]=0)")
+	dbgVérifieEgalité(gradW[2][3], 12.0, "gradW[2][3] = gradSortie[2]*entrée[3] = 6*2 = 12")
+
+	gradX est un Vecteur = tx..Gradient
+	dbgVérifieEgalité(gradX..Taille, 3, "gradX garde la taille de l'entrée : 3")
+	dbgVérifieEgalité(gradX[1], 26.0, "gradX[1] = W[1][1]*2 + W[2][1]*6 = 2 + 24 = 26")
+	dbgVérifieEgalité(gradX[2], 34.0, "gradX[2] = W[1][2]*2 + W[2][2]*6 = 4 + 30 = 34")
+	dbgVérifieEgalité(gradX[3], 42.0, "gradX[3] = W[1][3]*2 + W[2][3]*6 = 6 + 36 = 42")
+FIN
+
+
+// Forme préfixée : TenseurProduitMatriciel(poids, entrée) calcule
+// exactement le même résultat que poids.ProduitMatriciel(entrée).
+PROCEDURE PUBLIQUE scenario_forme_prefixee()
+	matW est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([1.0, 0.0, 2.0])
+
+	ty est un Tenseur = TenseurProduitMatriciel(tW, tx)
+	dbgVérifieEgalité(ty..Valeur[1], 7.0, "Forme préfixée : 1*1 + 2*0 + 3*2 = 7")
+	dbgVérifieEgalité(ty..Valeur[2], 16.0, "Forme préfixée : 4*1 + 5*0 + 6*2 = 16")
+FIN
+
+
+// Autre cas de colonne d'entrée nulle, plus petit : W (1×2), entrée [0, 5].
+// y = 2*0 + 3*5 = 15 ; perte MSE (1 seul élément, n=1) = (15-10)^2 = 25 ;
+// gradSortie = 2*(15-10)/1 = 10 ; gradW = 10 ⊗ [0,5] = [0, 50] (1re colonne
+// nulle car entrée[1]=0) ; gradX = Wᵀ @ [10] = [2*10, 3*10] = [20, 30].
+PROCEDURE PRIVÉE scenario_edge_backward_colonne_nulle_1x2()
+	matW est une Matrice = [[2.0, 3.0]]
+	tW est un Tenseur = Tenseur(matW)
+	tx est un Tenseur = Tenseur([0.0, 5.0])
+
+	ty est un Tenseur = tW.ProduitMatriciel(tx)
+	tcible est un Tenseur = Tenseur([10.0])
+	tperte est un Tenseur = ty.ErreurQuadratique(tcible)
+	tperte.Rétropropage()
+
+	dbgVérifieEgalité(ty..Valeur[1], 15.0, "2*0 + 3*5 = 15")
+	dbgVérifieEgalité(tperte..Valeur[1], 25.0, "(15-10)^2 / 1 = 25")
+
+	gradW est une Matrice = tW..Gradient
+	dbgVérifieEgalité(gradW[1][1], 0.0, "gradW[1][1] = gradSortie*entrée[1] = 10*0 = 0 (colonne nulle)")
+	dbgVérifieEgalité(gradW[1][2], 50.0, "gradW[1][2] = gradSortie*entrée[2] = 10*5 = 50")
+
+	gradX est un Vecteur = tx..Gradient
+	dbgVérifieEgalité(gradX[1], 20.0, "gradX[1] = W[1][1]*gradSortie = 2*10 = 20")
+	dbgVérifieEgalité(gradX[2], 30.0, "gradX[2] = W[1][2]*gradSortie = 3*10 = 30")
+FIN

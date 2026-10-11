@@ -1,0 +1,84 @@
+// Affectation runtime `..Options = [{...}]` (littéral struct) sur un Champ
+// Sélecteur / Interrupteur, en mode headless. La forme déclarative
+// (bloc PROPRIETES) et la forme chaîne runtime (`..Options = ["a","b"]`)
+// marchent déjà — ce fichier verrouille le chemin impératif struct qui, lui,
+// est aujourd'hui refusé à la compilation ("Littéral { ... } sans type
+// cible.").
+//
+// Chaque réaffectation REMPLACE intégralement la liste précédente : les 3
+// options déclarées dans FEN_Options.owl ne doivent plus être visibles après
+// coup, et `..Occurrence` doit refléter la nouvelle taille exacte.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Options)
+
+// --- 1. Sélecteur, struct complète : remplace les 3 options initiales par 2 ---
+SEL_Livraison..Options = [{Libellé = "Jaune", SousLibellé = "J", ValeurRenvoyée = "jau"},{Libellé = "Violet", SousLibellé = "V", ValeurRenvoyée = "vio"}]
+
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 2,
+"Sélecteur, affectation struct complète : remplacement intégral (2, pas 3)")
+
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Jaune",
+"Sélecteur, struct complète, option 1, Libellé relu")
+dbgVérifieEgalité(SEL_Livraison[1]..SousLibellé, "J",
+"Sélecteur, struct complète, option 1, SousLibellé relu")
+dbgVérifieEgalité(SEL_Livraison[1]..ValeurRenvoyée, "jau",
+"Sélecteur, struct complète, option 1, ValeurRenvoyée relue")
+
+dbgVérifieEgalité(SEL_Livraison[2]..Libellé, "Violet",
+"Sélecteur, struct complète, option 2, Libellé relu")
+dbgVérifieEgalité(SEL_Livraison[2]..SousLibellé, "V",
+"Sélecteur, struct complète, option 2, SousLibellé relu")
+dbgVérifieEgalité(SEL_Livraison[2]..ValeurRenvoyée, "vio",
+"Sélecteur, struct complète, option 2, ValeurRenvoyée relue")
+
+// --- 2. Interrupteur, struct : Libellé/SousLibellé indexés uniquement ---
+INT_Perms..Options = [{Libellé = "Lecture", SousLibellé = "Voir"}]
+
+dbgVérifieEgalité(INT_Perms..Occurrence, 1,
+"Interrupteur, affectation struct : remplacement intégral (1, pas 3)")
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Lecture",
+"Interrupteur, struct, option 1, Libellé relu")
+dbgVérifieEgalité(INT_Perms[1]..SousLibellé, "Voir",
+"Interrupteur, struct, option 1, SousLibellé relu")
+
+// --- 3. Struct partielle : SousLibellé et ValeurRenvoyée absents -> défaut "" ---
+SEL_Livraison..Options = [{Libellé = "Seul"}]
+
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 1,
+"Sélecteur, struct partielle : une seule option en place")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Seul",
+"Sélecteur, struct partielle, Libellé relu")
+dbgVérifieEgalité(SEL_Livraison[1]..SousLibellé, "",
+"Sélecteur, struct partielle, SousLibellé absent rend la valeur par défaut")
+dbgVérifieEgalité(SEL_Livraison[1]..ValeurRenvoyée, "",
+"Sélecteur, struct partielle, ValeurRenvoyée absente rend la valeur par défaut")
+
+// --- 4. Non-régression : la forme chaîne impérative marche toujours ---
+SEL_Livraison..Options = ["Rouge", "Vert"]
+
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 2,
+"Sélecteur, forme chaîne : remplacement intégral (2)")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Rouge",
+"Sélecteur, forme chaîne, option 1, Libellé relu")
+dbgVérifieEgalité(SEL_Livraison[2]..Libellé, "Vert",
+"Sélecteur, forme chaîne, option 2, Libellé relu")
+
+// --- 5. Bilingue léger : clés EN du littéral struct convergent vers le
+// casier canon FR à la relecture (mêmes clés EN acceptées par la forme
+// déclarative, cf. Option..Label / SubLabel / ReturnedValue) ---
+SEL_Livraison..Options = [{Label = "Sunday", SubLabel = "Weekend", ReturnedValue = "sun"}]
+
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 1,
+"Sélecteur, struct EN : remplacement intégral (1)")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Sunday",
+"Sélecteur, struct EN (Label), relecture forme FR (Libellé) convergente")
+dbgVérifieEgalité(SEL_Livraison[1]..SousLibellé, "Weekend",
+"Sélecteur, struct EN (SubLabel), relecture forme FR (SousLibellé) convergente")
+dbgVérifieEgalité(SEL_Livraison[1]..ValeurRenvoyée, "sun",
+"Sélecteur, struct EN (ReturnedValue), relecture forme FR (ValeurRenvoyée) convergente")
+
+Ferme(FEN_Options)
+
+dbgBilanTest()

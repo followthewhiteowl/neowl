@@ -1,0 +1,80 @@
+// @sujet : Tenseur.EntropieCroisée — cible non normalisée (ligne de fond)
+// @résumé : Le gradient fusionné de l'entropie croisée est
+// softmax·(Σ cible) − cible, cohérent avec le forward −Σ cible·log(softmax)
+// pour n'importe quelle cible. Une ligne-cible toute nulle (Σ = 0), telle
+// une cellule de fond en détection, contribue 0 à la perte ET reçoit un
+// gradient exactement nul. Une cible normalisée (one-hot ou distribution,
+// Σ = 1) retrouve softmax − cible.
+
+// Non-batch, cible nulle [0,0] : softmax = [0.5,0.5], Σ cible = 0.
+// forward = -Σ cible·log(softmax) = 0 (aucun terme).
+// gradient = softmax·0 - cible = [0,0] EXACTEMENT (pas softmax).
+PROCEDURE PUBLIQUE scenario_ce_cible_nulle_backward()
+	tp est un Tenseur = Tenseur([0.0, 0.0])
+	tc est un Tenseur = Tenseur([0.0, 0.0])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	tperte.Rétropropage()
+	dbgVérifieEgalité(tperte..Valeur[1], 0.0, "cible nulle : la perte est 0")
+	dbgVérifieEgalité(tp..Gradient[1], 0.0, "cible nulle : gradient[1] = softmax·0 - 0 = 0 exact")
+	dbgVérifieEgalité(tp..Gradient[2], 0.0, "cible nulle : gradient[2] = softmax·0 - 0 = 0 exact")
+FIN
+
+
+// Batch : ligne1 one-hot [1,0], ligne2 cible nulle [0,0]. B = 2.
+// ligne1 : softmax=[0.5,0.5], Σ=1 -> grad = (0.5-1)/2, (0.5-0)/2 = [-0.25,0.25]
+// ligne2 : softmax=[0.5,0.5], Σ=0 -> grad = (0.5·0-0)/2, (0.5·0-0)/2 = [0,0] exact
+PROCEDURE PUBLIQUE scenario_ce_batch_ligne_nulle_backward()
+	matLogits est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	matCibles est une Matrice = [[1.0, 0.0], [0.0, 0.0]]
+	tLogits est un Tenseur = Tenseur(matLogits)
+	tCibles est un Tenseur = Tenseur(matCibles)
+
+	tPerte est un Tenseur = tLogits.EntropieCroisée(tCibles)
+	tPerte.Rétropropage()
+
+	gradLogits est une Matrice = tLogits..Gradient
+	dbgVérifieEgalité(gradLogits[1][1],-0.25, "ligne1 one-hot : (0.5-1.0)/2 = -0.25")
+	dbgVérifieEgalité(gradLogits[1][2], 0.25, "ligne1 one-hot : (0.5-0.0)/2 = 0.25")
+	dbgVérifieEgalité(gradLogits[2][1], 0.0, "ligne2 nulle : (0.5·0-0)/2 = 0 exact")
+	dbgVérifieEgalité(gradLogits[2][2], 0.0, "ligne2 nulle : (0.5·0-0)/2 = 0 exact")
+FIN
+
+
+// Non-régression one-hot (non-batch) : Σ cible = 1 -> softmax - cible inchangé.
+// logits=[0,0], cible=[1,0] : grad = [0.5-1, 0.5-0] = [-0.5, 0.5].
+PROCEDURE PUBLIQUE scenario_ce_one_hot_non_regression()
+	tp est un Tenseur = Tenseur([0.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tp..Gradient[1] - (-0.5)) < 0.0000001, "one-hot : softmax[1]·1 - 1 = -0.5")
+	dbgVérifieVrai(Abs(tp..Gradient[2] - 0.5) < 0.0000001, "one-hot : softmax[2]·1 - 0 = 0.5")
+FIN
+
+
+// Distribution douce valide (Σ = 1, non one-hot). logits=[1,2] ->
+// softmax=[0.2689414213699951, 0.7310585786300049], cible=[0.3, 0.7].
+// forward = -(0.3·log(0.2689414213699951) + 0.7·log(0.7310585786300049))
+//         ~= 0.6132616875182228
+// grad = softmax·1 - cible = [-0.0310585786300049, 0.0310585786300049]
+PROCEDURE PRIVÉE scenario_edge_ce_soft_label()
+	tp est un Tenseur = Tenseur([1.0, 2.0])
+	tc est un Tenseur = Tenseur([0.3, 0.7])
+	tperte est un Tenseur = tp.EntropieCroisée(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.6132616875182228) < 0.0000001, "-(0.3·log(p1)+0.7·log(p2)) ~= 0.6132616875182228")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - (-0.0310585786300049)) < 0.0000001, "soft : softmax[1] - 0.3 ~= -0.0310585786300049")
+	dbgVérifieVrai(Abs(tp..Gradient[2] - 0.0310585786300049) < 0.0000001, "soft : softmax[2] - 0.7 ~= 0.0310585786300049")
+FIN
+
+
+// Forme anglaise .CrossEntropy() : même correction sur cible nulle.
+PROCEDURE PUBLIQUE scenario_cross_entropy_null_target_backward()
+	tp est un Tenseur = Tenseur([0.0, 0.0])
+	tc est un Tenseur = Tenseur([0.0, 0.0])
+	tloss est un Tenseur = tp.CrossEntropy(tc)
+	tloss.Rétropropage()
+	dbgVérifieEgalité(tloss..Valeur[1], 0.0, "null target : loss is 0")
+	dbgVérifieEgalité(tp..Gradient[1], 0.0, "null target : gradient[1] = 0 exact")
+	dbgVérifieEgalité(tp..Gradient[2], 0.0, "null target : gradient[2] = 0 exact")
+FIN

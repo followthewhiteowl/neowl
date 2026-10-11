@@ -1,0 +1,78 @@
+// Verrou de mesure —  : une Table « affichage seulement » (colonne
+// ou table entière) ne doit plus s'ouvrir en édition texte au double-clic.
+//
+// L'effet Qt réel (Qt::ItemIsEditable de l'item + edit-triggers de la vue)
+// n'est PAS observable en mode headless (cf. tests/runtime/objuicontrol_headless/
+// etat_affichage_seulement/, qui le documente explicitement). On matérialise
+// donc une vraie fenêtre Qt (offscreen) et on lit l'état RÉEL via le hook
+// test-only __DebugTableCelluleEditable(champ, ligne, colonne) -> booléen,
+// Vrai SSI un double-clic sur cette cellule (ligne/colonne 1-based)
+// ouvrirait effectivement un éditeur (item éditable ET vue pas en
+// NoEditTriggers).
+//
+// Ce hook n'existe pas encore : ce test est ROUGE à la compilation (native
+// inconnue) tant que l'implementer ne l'a pas ajouté côté src/. Une fois le
+// hook ajouté mais le fix pas fait, il rougit sur les assertions (cellules
+// encore éditables alors qu'elles ne devraient plus l'être).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableAffichageSeulementEdition)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// --- 1. Table normale (défaut) : une cellule quelconque est éditable ---
+// Documente le défaut actuel (éditable par double-clic), ne le change pas.
+dbgVérifieVrai(__DebugTableCelluleEditable(TAB_Normal, 1, 1),
+"Table par défaut : cellule (1,1) éditable au double-clic")
+dbgVérifieVrai(__DebugTableCelluleEditable(TAB_Normal, 2, 2),
+"Table par défaut : cellule (2,2) éditable au double-clic")
+
+// --- 2. Colonne B en Etat = AffichageSeulement : seule cette colonne est bloquée ---
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_ColRO, 1, 2),
+"Colonne AffichageSeulement : cellule (1,2) non éditable")
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_ColRO, 2, 2),
+"Colonne AffichageSeulement : cellule (2,2) non éditable")
+dbgVérifieVrai(__DebugTableCelluleEditable(TAB_ColRO, 1, 1),
+"Colonne A (non concernée) : cellule (1,1) reste éditable")
+dbgVérifieVrai(__DebugTableCelluleEditable(TAB_ColRO, 2, 1),
+"Colonne A (non concernée) : cellule (2,1) reste éditable")
+
+// --- 3. Table entière en ..Etat = AffichageSeulement (runtime) ---
+TAB_Runtime..Etat = AffichageSeulement
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_Runtime, 1, 1),
+"Table AffichageSeulement (runtime) : cellule (1,1) non éditable")
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_Runtime, 1, 2),
+"Table AffichageSeulement (runtime) : cellule (1,2) non éditable")
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_Runtime, 2, 1),
+"Table AffichageSeulement (runtime) : cellule (2,1) non éditable")
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_Runtime, 2, 2),
+"Table AffichageSeulement (runtime) : cellule (2,2) non éditable")
+
+// La sélection par programmation doit rester possible malgré AffichageSeulement.
+dbgVérifieEgalité(TableSelectOccurrence(TAB_Runtime), 0,
+"AffichageSeulement : aucune ligne sélectionnée au départ")
+TableSelectPlus(TAB_Runtime, 2)
+dbgVérifieEgalité(TableSelectOccurrence(TAB_Runtime), 1,
+"AffichageSeulement : la sélection par programmation reste possible")
+dbgVérifieEgalité(TableSelect(TAB_Runtime), 2,
+"AffichageSeulement : la ligne sélectionnée par programmation est lue")
+
+// --- 4. Retour ..Etat = Actif : l'édition redevient possible ---
+TAB_Runtime..Etat = Actif
+dbgVérifieVrai(__DebugTableCelluleEditable(TAB_Runtime, 1, 1),
+"Retour à Actif : cellule (1,1) redevient éditable")
+dbgVérifieVrai(__DebugTableCelluleEditable(TAB_Runtime, 2, 2),
+"Retour à Actif : cellule (2,2) redevient éditable")
+
+// --- Bonus : Etat = AffichageSeulement déclaré en PROPRIETES (construction) ---
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_ConstructionRO, 1, 1),
+"Construction avec Etat = AffichageSeulement : cellule (1,1) non éditable")
+dbgVérifieFaux(__DebugTableCelluleEditable(TAB_ConstructionRO, 2, 1),
+"Construction avec Etat = AffichageSeulement : cellule (2,1) non éditable")
+TableSelectPlus(TAB_ConstructionRO, 1)
+dbgVérifieEgalité(TableSelect(TAB_ConstructionRO), 1,
+"Construction avec Etat = AffichageSeulement : la sélection par programmation reste possible")
+
+Ferme(FEN_TableAffichageSeulementEdition)
+
+dbgBilanTest()

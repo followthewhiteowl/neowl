@@ -1,0 +1,47 @@
+// Fenêtre voisine — ressource pour test_widget_default_property.owl.
+// Témoin compile-time : `WIDGET = X` est translate en `WIDGET..<defaultProperty> = X`
+// selon OwlControlKindInfo.defaultProperty. Conforme canon de référence : un widget scalaire
+// peut etre affecte directement, ca cible sa prop par defaut. Avant le fix :
+// creait silencieusement un global qui shadowait le widget.
+//
+// Note runtime : en mode `owl test` (testing_is_unitaire), les widgets Qt ne
+// sont pas instancies, donc l'execution de `widget..Valeur = X` crashe sur
+// `Only struct instances have fields`. On contourne en placant les affectations
+// dans une PROCEDURE event-handler qui n'est jamais appelee par owl test —
+// la compilation valide la translation, le runtime ne l'execute pas.
+
+FEN_Test est une Fenêtre
+	PROPRIETES
+		Titre = "Test default property"
+	FIN
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			Libellé = "init"
+		FIN
+	FIN
+	SAI_X est un Champ Saisie
+		PROPRIETES
+			Indication = "saisie test"
+		FIN
+	FIN
+	BTN_X est un Champ Bouton
+		PROPRIETES
+			Libellé = "click"
+		FIN
+		PROCEDURE surClic()
+			// Cas nominal : 4 widgets scalaires (Libelle, Saisie, Bouton, Image)
+			// acceptent l'affectation directe. Avant le fix le compilo emettait
+			// OP_SET_GLOBAL — apres : OP_GET_GLOBAL + RHS + OP_STRUCT_SET
+			// <defaultProperty>. La compilation propre ici garantit la translation.
+			LIB_X = "nouvelle valeur libelle"
+			SAI_X = "nouvelle valeur saisie"
+			BTN_X = "nouveau texte bouton"
+			IMG_X = "C:/tmp/test.png"
+		FIN
+	FIN
+	IMG_X est un Champ Image
+		PROPRIETES
+			Image = ""
+		FIN
+	FIN
+FIN

@@ -1,0 +1,65 @@
+// Fenêtre voisine — ressource pour test_champ_de_filler_conteneur.owl.
+//
+// Valide deux cas supplémentaires :
+// 1. Conteneur imbriqué : un sous-contrôle `Champ de X` dans un Conteneur.
+// 2. Forward-ref : un contrôle `Champ de X` déclaré APRÈS une procédure
+//    (le prescan doit skiper `de` pour résoudre le contrôle).
+
+FEN_ChampDeConteneur est une Fenêtre
+	PROPRIETES
+		Titre       = "Test Champ de conteneur"
+		Largeur     = 400
+		Hauteur     = 400
+		Disposition = dispLibre
+	FIN
+
+	// Cas 1 : Conteneur avec sous-contrôle `Champ de X`
+	CNT_Principal est un Champ Conteneur
+		PROPRIETES
+			X           = 10
+			Y           = 10
+			Largeur     = 200
+			Hauteur     = 100
+			Disposition = dispLibre
+		FIN
+
+		SAI_DansConteneur est un Champ de Saisie
+			PROPRIETES
+				X       = 5
+				Y       = 5
+				Largeur = 180
+				Hauteur = 30
+			FIN
+		FIN
+
+		BTN_DansConteneur est un Champ de Bouton
+			PROPRIETES
+				X       = 5
+				Y       = 45
+				Largeur = 100
+				Hauteur = 30
+				Libellé = "Dans conteneur"
+			FIN
+		FIN
+	FIN
+
+	// Cas 2 : forward-ref — procédure déclarée avant le contrôle
+	// Le prescan doit résoudre BTN_ForwardRef malgré `de`
+	PROCEDURE LireLibelleForward()
+		RENVOYER BTN_ForwardRef..Libellé
+	FIN
+
+	BTN_ForwardRef est un Champ de Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 120
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Forward ref"
+		FIN
+	FIN
+
+	PROCEDURE LireLibelleDansConteneur()
+		RENVOYER BTN_DansConteneur..Libellé
+	FIN
+FIN

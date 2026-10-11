@@ -1,0 +1,39 @@
+//  — L'ombre portée d'un Bouton stylé change au survol et à l'appui
+// quand le thème définit Etats.Survol.Ombre / Etats.Appuyé.Ombre.
+//
+// L'ombre est un QGraphicsDropShadowEffect (objet Qt), PAS une propriété QSS :
+// un :hover ne peut pas la piloter. Le swap se fait par event filter branché
+// sur les événements souris natifs. On monte donc les VRAIS widgets Qt
+// (TestModeHeadless(Faux) + OuvreSoeur), on pousse de vrais QEvent
+// (__SimuleInteraction) et on lit le rayon de flou de l'effet courant
+// (__DebugOmbreFlou) — base=20, survol=34, appuyé=8.
+//
+// ROUGE attendu : aujourd'hui apply_frame_state ignore l'Ombre d'état et aucun
+// event filter d'ombre n'existe — le flou reste bloqué sur la base (20) quel
+// que soit l'état simulé (et les natives de test n'existent pas encore).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OmbreEtat)
+
+// --- 1. Base : au repos, l'ombre de base est appliquée (Flou 20) ---
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Zone), 20, "base : rayon de flou de l'ombre de base")
+
+// --- 2. Survol (souris entre) : l'ombre passe à l'ombre de survol (Flou 34) ---
+__SimuleInteraction(BTN_Zone, 0)
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Zone), 34, "survol : l'ombre s'élargit vers Etats.Survol.Ombre")
+
+// --- 3. Appui (bouton pressé) : l'ombre se resserre (Flou 8) ---
+__SimuleInteraction(BTN_Zone, 2)
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Zone), 8, "appui : l'ombre s'enfonce vers Etats.Appuyé.Ombre")
+
+// --- 4. Relâché en restant survolé : retour à l'ombre de survol (Flou 34) ---
+__SimuleInteraction(BTN_Zone, 3)
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Zone), 34, "relâché survolé : retour à l'ombre de survol")
+
+// --- 5. Souris sort : retour à l'ombre de base (Flou 20) ---
+__SimuleInteraction(BTN_Zone, 1)
+dbgVérifieEgalité(__DebugOmbreFlou(BTN_Zone), 20, "quitté : retour à l'ombre de base")
+
+Ferme(FEN_OmbreEtat)
+dbgBilanTest()

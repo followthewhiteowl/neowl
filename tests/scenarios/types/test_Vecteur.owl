@@ -1,0 +1,121 @@
+// @sujet : Vecteur
+// @résumé : Type Vecteur — collection homogène de réels 1-based, construite par littéral, indexable en lecture/écriture, convertible depuis/vers un tableau de réels.
+
+
+// Construction par littéral : une suite de valeurs entre crochets fixe
+// aussitôt la taille du vecteur. Chaque position se lit avec un index
+// 1-based, comme un tableau.
+PROCEDURE PUBLIQUE scenario_construction_litterale()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	dbgVérifieEgalité(v..Taille, 3, "Littéral à 3 valeurs -> taille 3")
+	dbgVérifieEgalité(v[1], 1.0, "v[1] = première valeur du littéral")
+	dbgVérifieEgalité(v[2], 2.0, "v[2] = deuxième valeur")
+	dbgVérifieEgalité(v[3], 3.0, "v[3] = dernière valeur")
+FIN
+
+
+// Un littéral à éléments entiers est accepté : chaque élément est coercé
+// en réel dès la construction, exactement comme une variable réelle
+// affectée depuis un entier.
+PROCEDURE PUBLIQUE scenario_coercion_entiers_vers_reel()
+	v est un Vecteur = [1, 2, 3]
+	r1 est un réel = v[1]
+	r2 est un réel = v[2]
+	r3 est un réel = v[3]
+	dbgVérifieEgalité(r1, 1.0, "Élément issu d'un littéral entier lu comme réel")
+	dbgVérifieEgalité(r2, 2.0, "Deuxième élément coercé en réel")
+	dbgVérifieEgalité(r3, 3.0, "Troisième élément coercé en réel")
+FIN
+
+
+// L'écriture indexée modifie une position sans toucher aux autres.
+PROCEDURE PUBLIQUE scenario_ecriture_indexee()
+	v est un Vecteur = [10.0, 20.0, 30.0]
+	v[2] = 99.0
+	dbgVérifieEgalité(v[1], 10.0, "v[1] intact après écriture sur v[2]")
+	dbgVérifieEgalité(v[2], 99.0, "v[2] écrit avec la nouvelle valeur")
+	dbgVérifieEgalité(v[3], 30.0, "v[3] intact après écriture sur v[2]")
+FIN
+
+
+// ..Taille (propriété, double point) donne le nombre d'éléments. Sa
+// forme anglaise ..Length désigne exactement la même valeur.
+PROCEDURE PUBLIQUE scenario_taille_bilingue()
+	v est un Vecteur = [5.0, 6.0, 7.0, 8.0]
+	dbgVérifieEgalité(v..Taille, 4, "..Taille = nombre d'éléments")
+	dbgVérifieEgalité(v..Length, 4, "..Length = même valeur, forme anglaise")
+FIN
+
+
+// Le type se déclare aussi en anglais : "is a Vector" désigne le même
+// type que "est un Vecteur", pas un type distinct.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_vector()
+	vEN is a Vector = [1.0, 2.0]
+	dbgVérifieEgalité(vEN..Length, 2, "Vector (EN) construit comme Vecteur (FR)")
+	dbgVérifieEgalité(vEN[1], 1.0, "Indexation identique en forme anglaise")
+FIN
+
+
+// TypeVar distingue un Vecteur de tout autre type de collection ou de
+// scalaire, et reste stable entre deux appels sur la même variable.
+PROCEDURE PUBLIQUE scenario_typevar_distinct_stable()
+	v est un Vecteur = [1.0, 2.0]
+	arrTab est un tableau de réels = [1.0, 2.0]
+
+	nTagAppel1 est un entier = TypeVar(v)
+	nTagAppel2 est un entier = TypeVar(v)
+	dbgVérifieEgalité(nTagAppel1, nTagAppel2, "TypeVar(Vecteur) stable entre deux appels")
+
+	nTagTableau est un entier = TypeVar(arrTab)
+	dbgVérifieDifférence(nTagAppel1, nTagTableau, "TypeVar(Vecteur) distinct de TypeVar(tableau)")
+
+	nTagReel est un entier = TypeVar(v[1])
+	dbgVérifieDifférence(nTagAppel1, nTagReel, "TypeVar(Vecteur) distinct de TypeVar(un de ses éléments réel)")
+FIN
+
+
+// Un index hors borne (trop grand, nul ou négatif) est une erreur
+// récupérable : aucune valeur n'est renvoyée silencieusement et le
+// vecteur reste intact ensuite.
+PROCEDURE PRIVÉE scenario_edge_index_hors_borne()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturéTropGrand est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = v[100]
+		capturéTropGrand = "no-throw"
+	FAIRE
+		capturéTropGrand = "caught"
+	FIN
+	dbgVérifieEgalité(capturéTropGrand, "caught", "v[hors borne haute] est attrapé, pas de corruption")
+
+	capturéZéro est une chaîne = ""
+	QUAND EXCEPTION DANS
+		y est un réel = v[0]
+		capturéZéro = "no-throw"
+	FAIRE
+		capturéZéro = "caught"
+	FIN
+	dbgVérifieEgalité(capturéZéro, "caught", "v[0] est attrapé (indexation base 1)")
+
+	// Le vecteur reste utilisable après les tentatives hors borne.
+	dbgVérifieEgalité(v[1], 1.0, "v[1] toujours intact après tentatives hors borne")
+	dbgVérifieEgalité(v..Taille, 3, "..Taille inchangée après tentatives hors borne")
+FIN
+
+
+// Un vecteur vide est un littéral légal : taille 0, aucun élément
+// accessible.
+PROCEDURE PRIVÉE scenario_edge_vecteur_vide()
+	v est un Vecteur = []
+	dbgVérifieEgalité(v..Taille, 0, "Littéral vide -> taille 0")
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = v[1]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Accès à un vecteur vide est attrapé")
+FIN

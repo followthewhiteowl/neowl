@@ -1,0 +1,70 @@
+// ================================================================
+// Image natif — couverture additionnelle :
+//   - dPixelCouleur / dPixelOpacité / dPoint avec image courante
+//   - dPoint sans couleur (utilise stylo courant)
+//   - dSauveImagePNG avec couleur de transparence
+// ================================================================
+
+// ----- Forme courte sans <Image> via dDébutDessin -----
+img est une Image = dCréeImage(4, 3, RougeClair)
+dDébutDessin(img)
+
+// dPixelCouleur(x, y) — image courante implicite
+c1 est un entier = dPixelCouleur(0, 0)
+dbgVérifieEgalité(c1, RougeClair, "dPixelCouleur(x, y) lit via image courante")
+
+// dPixelOpacité(x, y)
+op1 est un entier = dPixelOpacité(2, 1)
+dbgVérifieEgalité(op1, 255, "dPixelOpacité(x, y) lit via image courante")
+
+// dPoint(x, y, couleur) — sans image explicite
+dPoint(1, 1, BleuClair)
+dbgVérifieEgalité(dPixelCouleur(1, 1), BleuClair, "dPoint(x, y, c) écrit via image courante")
+
+// dPoint(x, y) sans couleur — utilise le stylo courant
+dStylo(VertClair)
+dPoint(2, 2)
+dbgVérifieEgalité(dPixelCouleur(2, 2), VertClair, "dPoint(x, y) sans couleur utilise dStylo courant")
+
+dFinDessin()
+
+// ----- Après dFinDessin, dPoint sans image échoue -----
+ErreurRAZ()
+dPoint(0, 0, RougeClair)
+dbgVérifieEgalité(ErreurDétectée, Vrai, "dPoint sans image courante: erreur")
+
+// ----- Forme longue continue de marcher (régression) -----
+img2 est une Image = dCréeImage(2, 2, Blanc)
+dPoint(img2, 0, 0, Noir)
+dbgVérifieEgalité(dPixelCouleur(img2, 0, 0), Noir, "Forme longue régression: dPoint(img, ...)")
+dbgVérifieEgalité(dPixelOpacité(img2, 0, 0), 255, "Forme longue régression: dPixelOpacité")
+
+// ----- dSauveImagePNG avec couleur de transparence -----
+sChemin est une chaîne = "test_image_transp_tmp.png"
+
+img3 est une Image = dCréeImage(2, 2, BleuClair)
+dPoint(img3, 0, 0, RougeClair) // (0,0) = Rouge, le reste = Bleu
+
+// Sauve en marquant BleuClair comme couleur transparente
+dSauveImagePNG(img3, sChemin, BleuClair)
+
+// Recharge : les pixels bleus doivent avoir alpha=0
+img4 est une Image = dChargeImage(sChemin)
+dbgVérifieEgalité(img4..Valide, Vrai, "Roundtrip PNG transparence: valide")
+dbgVérifieEgalité(dPixelCouleur(img4, 0, 0), RougeClair, "Pixel rouge préservé")
+dbgVérifieEgalité(dPixelOpacité(img4, 0, 0), 255, "Pixel rouge reste opaque")
+dbgVérifieEgalité(dPixelOpacité(img4, 1, 0), 0, "Pixel bleu devient transparent")
+dbgVérifieEgalité(dPixelOpacité(img4, 1, 1), 0, "Pixel bleu (autre) transparent")
+
+// Vérifie que l'image source n'a pas été mutée par la sauvegarde
+dbgVérifieEgalité(dPixelOpacité(img3, 1, 0), 255,
+"Image source non mutée (alpha 1,0 reste 255 après save)")
+
+// Sauvegarde sans couleur de transparence : tout reste opaque
+sChemin2 est une chaîne = "test_image_no_transp_tmp.png"
+dSauveImagePNG(img3, sChemin2)
+img5 est une Image = dChargeImage(sChemin2)
+dbgVérifieEgalité(dPixelOpacité(img5, 1, 0), 255, "Sans couleur transparence: alpha préservé")
+
+fSupprime(sChemin)
+fSupprime(sChemin2)

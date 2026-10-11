@@ -1,0 +1,75 @@
+//  — un Champ Combo habillé d'un style jetait la hauteur qu'on lui
+// déclarait : il plafonnait à sa taille naturelle et se recentrait dans
+// l'emplacement réservé par la fenêtre. Mesure du défaut (Hauteur déclarée →
+// hauteur rendue) : nu 25 → 25, stylé 25 → 23, stylé 40 → 23, stylé 18 → 18.
+// Il n'obéissait que vers le bas.
+//
+// Le champ nu est l'oracle : à hauteur déclarée égale, le champ stylé rend la
+// même boîte, à la même place. Aucune valeur de taille naturelle n'est écrite
+// en dur ici — les hauteurs comparées sont celles que l'utilisateur a écrites.
+
+TestModeHeadless(Faux)
+
+chdRouge est un entier = RVB(255, 0, 0)
+chdFondFenetre est un entier = RVB(10, 10, 10)
+
+OuvreSoeur(FEN_ComboHauteurDeclaree)
+
+// ---- 1. Hauteur déclarée AU-DESSUS de la taille naturelle : le sens que le
+// champ stylé refusait.
+dbgVérifieEgalité(CHDNu40..Hauteur, 40,
+"Combo nu : Hauteur 40 déclarée, 40 rendue (oracle)")
+dbgVérifieEgalité(CHDStyle40..Hauteur, 40,
+"Combo stylé : Hauteur 40 déclarée, 40 rendue")
+dbgVérifieEgalité(CHDStyle40..Y, 20,
+"Combo stylé : reste au Y déclaré (pas de recentrage dans l'emplacement)")
+
+// ---- 2. Hauteur usuelle : le plafond valait exactement cette valeur, ce qui
+// a masqué le défaut pendant des mois.
+dbgVérifieEgalité(CHDNu25..Hauteur, 25,
+"Combo nu : Hauteur 25 déclarée, 25 rendue (oracle)")
+dbgVérifieEgalité(CHDStyle25..Hauteur, 25,
+"Combo stylé : Hauteur 25 déclarée, 25 rendue")
+dbgVérifieEgalité(CHDStyle25..Y, 90,
+"Combo stylé : Hauteur 25, aucun décalage vertical d'1 px")
+
+// ---- 3. Hauteur déclarée EN DESSOUS de la taille naturelle : déjà honorée,
+// ne pas la perdre en réparant l'autre sens.
+dbgVérifieEgalité(CHDNu18..Hauteur, 18,
+"Combo nu : Hauteur 18 déclarée, 18 rendue (oracle)")
+dbgVérifieEgalité(CHDStyle18..Hauteur, 18,
+"Combo stylé : Hauteur 18 déclarée, 18 rendue")
+dbgVérifieEgalité(CHDStyle18..Y, 140,
+"Combo stylé : Hauteur 18, reste au Y déclaré")
+
+// ---- 4. Sans hauteur déclarée : poser un style ne change pas la taille.
+dbgVérifieEgalité(CHDStyleLibre..Hauteur, CHDNuLibre..Hauteur,
+"Combo sans Hauteur déclarée : stylé et nu rendent la même hauteur")
+dbgVérifieEgalité(CHDStyleLibre..Y, CHDNuLibre..Y,
+"Combo sans Hauteur déclarée : stylé et nu sont à la même ordonnée")
+
+// ---- 5. Style qui enveloppe (CadreExtérieur + libellé intégré) : la hauteur
+// déclarée traverse aussi le conteneur composite.
+dbgVérifieEgalité(CHDStyleCadre..Hauteur, 40,
+"Combo à CadreExtérieur + libellé : Hauteur 40 déclarée, 40 rendue")
+
+// ---- 6. Sous layout : la hauteur figée par la pile vaut aussi pour le stylé.
+dbgVérifieEgalité(CHDEnPileNu..Hauteur, 40,
+"Combo nu en pile verticale : Hauteur 40 figée (oracle)")
+dbgVérifieEgalité(CHDEnPileStyle..Hauteur, 40,
+"Combo stylé en pile verticale : Hauteur 40 figée")
+
+// ---- 7. Pixel : le fond du champ occupe RÉELLEMENT la boîte déclarée. Une
+// hauteur correcte lue sur le champ ne prouve pas que le widget peint la boîte.
+// CHDStylePlein est déclaré en 530..569 ; on sonde une ligne que seule la boîte
+// pleine hauteur peut atteindre (566), puis une ligne juste en dessous (572),
+// qui doit rester au fond de fenêtre — sinon la sonde ne prouverait rien.
+chdImg est une Image = dCopieImageFenêtre(FEN_ComboHauteurDeclaree)
+dbgVérifieEgalité(chdImg..Valide, Vrai, "capture fenêtre valide")
+dbgVérifieEgalité(dPixelCouleur(chdImg, 100, 566), chdRouge,
+"Combo stylé : le fond est peint jusqu'au bas des 40 px déclarés")
+dbgVérifieEgalité(dPixelCouleur(chdImg, 100, 572), chdFondFenetre,
+"Combo stylé : le champ ne déborde pas sous les 40 px déclarés")
+
+Ferme(FEN_ComboHauteurDeclaree)
+dbgBilanTest()

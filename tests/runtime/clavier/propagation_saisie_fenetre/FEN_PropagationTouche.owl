@@ -1,0 +1,58 @@
+// Ressource fenetre — voisin de test_propagation_saisie_fenetre.owl.
+// Modele de propagation propose :
+//   1. La Saisie recoit la touche en premier (si elle a le focus).
+//   2. Si la Saisie n'a pas de handler surToucheAppuyee, la touche
+//      remonte a la Fenetre.
+//   3. Si la Saisie A un handler, la touche est consommee par la Saisie
+//      et NE remonte pas a la Fenetre.
+//
+// Ce fichier teste le cas "Saisie sans handler -> remonte a Fenetre"
+// et "Saisie avec handler -> ne remonte pas".
+
+FEN_PropagationTouche est une Fenêtre
+	PROPRIETES
+		Titre       = "PropagationTouche offscreen"
+		Largeur     = 400
+		Hauteur     = 300
+		Disposition = dispLibre
+	FIN
+
+	nFenAppuye est un entier = 0
+	nSaiAppuye est un entier = 0
+	nSaiAvecHandlerAppuye est un entier = 0
+
+	// Saisie SANS handler clavier (la touche doit remonter a la fenetre).
+	SAI_SansHandler est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 200
+		FIN
+	FIN
+
+	// Saisie AVEC handler clavier (consomme la touche, ne remonte pas).
+	SAI_AvecHandler est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 60
+			Largeur = 200
+		FIN
+		PROCEDURE surToucheAppuyee(nTouche est un entier)
+			nSaiAvecHandlerAppuye += 1
+			callback_sai_avec_handler(nTouche)
+		FIN
+	FIN
+
+	PROCEDURE surToucheAppuyee(nTouche est un entier)
+		nFenAppuye += 1
+		callback_fen_propagation(nTouche)
+	FIN
+
+	PROCEDURE FinInitialisation()
+		callback_propagation_prete()
+	FIN
+
+	PROCEDURE LirePropCompteurs()
+		callback_lit_prop_compteurs(nFenAppuye, nSaiAvecHandlerAppuye)
+	FIN
+FIN

@@ -1,0 +1,117 @@
+// Verrouillage : un meme CAS peut combiner plusieurs patterns heterogenes
+// separes par virgule (`CAS 1, 5 A 10, > 100`). Chaque pattern est teste
+// individuellement, le corps s'execute si au moins UN pattern matche.
+// Verification des combinaisons valeur+plage, valeur+comparateur,
+// plage+sandwich, et triplets complexes.
+
+PROCEDURE test_valeur_et_plage()
+	s est une chaîne = ""
+
+	n est un entier = 1
+	SELON n
+		CAS 1, 5 À 10 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "Valeur 1 matche le premier pattern (valeur exacte)")
+
+	n = 7
+	SELON n
+		CAS 1, 5 À 10 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "Valeur 7 matche le second pattern (plage 5 A 10)")
+
+	n = 50
+	SELON n
+		CAS 1, 5 À 10 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "no", "Valeur 50 ne matche aucun des deux patterns")
+FIN
+
+PROCEDURE test_valeur_et_comparateur()
+	s est une chaîne = ""
+
+	n est un entier = 0
+	SELON n
+		CAS 0, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "0 matche par valeur exacte")
+
+	n = 200
+	SELON n
+		CAS 0, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "200 matche par comparateur preffixe > 100")
+
+	n = 50
+	SELON n
+		CAS 0, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "no", "50 ne matche ni 0 ni > 100")
+FIN
+
+PROCEDURE test_triplet_complet()
+	s est une chaîne = ""
+
+	n est un entier = 1
+	SELON n
+		CAS 1, 5 À 10, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "1 matche le premier (valeur)")
+
+	n = 7
+	SELON n
+		CAS 1, 5 À 10, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "7 matche le second (plage)")
+
+	n = 200
+	SELON n
+		CAS 1, 5 À 10, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "200 matche le troisieme (comparateur)")
+
+	n = 50
+	SELON n
+		CAS 1, 5 À 10, > 100 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "no", "50 ne matche aucun des trois patterns heterogenes")
+FIN
+
+PROCEDURE test_plage_et_sandwich()
+	s est une chaîne = ""
+
+	n est un entier = 3
+	SELON n
+		CAS 1 À 5, 50 < * < 60 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "3 matche la plage [1, 5]")
+
+	n = 55
+	SELON n
+		CAS 1 À 5, 50 < * < 60 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "match", "55 matche le sandwich ]50, 60[")
+
+	n = 25
+	SELON n
+		CAS 1 À 5, 50 < * < 60 : s = "match"
+		AUTRE CAS : s = "no"
+	FIN
+	dbgVérifieEgalité(s, "no", "25 entre les deux patterns, ne matche aucun")
+FIN
+
+test_valeur_et_plage()
+test_valeur_et_comparateur()
+test_triplet_complet()
+test_plage_et_sandwich()

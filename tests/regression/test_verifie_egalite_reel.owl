@@ -1,0 +1,31 @@
+// Régression : dbgVérifieÉgalitéRéel (dbgCheckEqualReal)
+// Vérifie que la comparaison de réels se fait avec tolérance absolue.
+// Défaut: 1e-9. 4ème argument optionnel = tolérance explicite.
+
+// 1. Egalité exacte
+dbgVérifieÉgalitéRéel(1.0, 1.0, "1.0 == 1.0")
+dbgVérifieÉgalitéRéel(0.0, 0.0, "0.0 == 0.0")
+dbgVérifieÉgalitéRéel(-3.14,-3.14, "négatifs")
+
+// 2. Cas classiques d'erreur flottante
+dbgVérifieÉgalitéRéel(0.1 + 0.2, 0.3, "0.1 + 0.2 ~= 0.3")
+dbgVérifieÉgalitéRéel(4.51 + 16.23, 20.74, "somme imprécise")
+dbgVérifieÉgalitéRéel(1.0 / 3.0 * 3.0, 1.0, "division réciproque")
+
+// 3. Promotion entier -> réel
+dbgVérifieÉgalitéRéel(5, 5.0, "entier promu en réel")
+dbgVérifieÉgalitéRéel(2 + 3, 5.0, "addition d'entiers comparée à réel")
+
+// 4. Tolérance explicite
+dbgVérifieÉgalitéRéel(1.0, 1.0001, "écart 1e-4 avec tol 1e-3", 0.001)
+dbgVérifieÉgalitéRéel(100.0, 100.5, "écart 0.5 avec tol 1", 1.0)
+
+// 5. Hors tolérance -> fail (testé via dbgVerifieVrai et trace inversée)
+// On ne peut pas tester directement un FAIL sans framework mock, donc on
+// vérifie la condition mathématique manuellement :
+dbgVérifieVrai(Abs(1.0 - 1.01) > 0.001, "écart 0.01 dépasse 1e-3")
+
+// 6. Tolérance à zéro = strict bit-à-bit
+dbgVérifieÉgalitéRéel(1.5, 1.5, "strict bit-à-bit avec tol=0", "tolérance zéro", 0.0)
+
+dbgBilanTest()

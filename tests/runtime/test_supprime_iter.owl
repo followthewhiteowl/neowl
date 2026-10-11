@@ -1,0 +1,98 @@
+// =====================================================================
+// Test : Supprime canon de référence
+//   - Forme tableau 1D : Supprime(tab, indice)
+//   - Forme assoc      : Supprime(assoc, clé)
+//   - Sentinels        : ÉlémentCourant, PremierÉlément, DernierÉlément
+//   - Mot-clé ELEMENT optionnel dans POUR TOUT (canon de référence)
+// =====================================================================
+
+Trace("=== Supprime / POUR TOUT ELEMENT / ÉlémentCourant ===")
+
+// =====================================================================
+// Forme 1 : Supprime sur tableau 1D par indice
+// =====================================================================
+tab1 est un tableau de chaînes = ["a", "b", "c", "d"]
+tailleAvant1 est un entier = tab1..Occurrence
+Supprime(tab1, 2)
+dbgVérifieEgalité(tab1..Occurrence, tailleAvant1 - 1, "Supprime tableau 1D retire 1 element")
+dbgVérifieEgalité(tab1[2], "c", "tableau 1D : decalage post-suppression")
+
+// =====================================================================
+// Forme 2 : Supprime sur tableau associatif par clé
+// =====================================================================
+ta est un tableau associatif de chaînes
+Insère(ta, "alpha", "1")
+Insère(ta, "beta", "2")
+Insère(ta, "gamma", "3")
+tailleAvant2 est un entier = ta..Occurrence
+Supprime(ta, "beta")
+dbgVérifieEgalité(ta..Occurrence, tailleAvant2 - 1, "Supprime assoc retire 1 element")
+
+// Cle inconnue : ne supprime rien
+tailleAvant3 est un entier = ta..Occurrence
+Supprime(ta, "inexistant")
+dbgVérifieEgalité(ta..Occurrence, tailleAvant3, "Supprime cle inconnue : taille inchangee")
+
+// =====================================================================
+// Sentinels : PremierÉlément / DernierÉlément
+// =====================================================================
+tab2 est un tableau de chaînes = ["x", "y", "z"]
+Supprime(tab2, PremierÉlément)
+dbgVérifieEgalité(tab2..Occurrence, 2, "PremierElement : 1 supprime")
+dbgVérifieEgalité(tab2[1], "y", "PremierElement : decalage")
+
+Supprime(tab2, DernierÉlément)
+dbgVérifieEgalité(tab2..Occurrence, 1, "DernierElement : 1 supprime")
+dbgVérifieEgalité(tab2[1], "y", "DernierElement : reste 'y'")
+
+// Aliases ASCII
+tab3 est un tableau de chaînes = ["a", "b"]
+Supprime(tab3, PremierÉlément)
+dbgVérifieEgalité(tab3[1], "b", "alias ASCII PremierElement")
+
+// =====================================================================
+// POUR TOUT [ELEMENT] (mot-cle ELEMENT optionnel canon de référence)
+// =====================================================================
+total est un entier = 0
+ta2 est un tableau associatif de chaînes
+Insère(ta2, "k1", "v1")
+Insère(ta2, "k2", "v2")
+
+// Forme avec ELEMENT explicite
+POUR TOUT ELEMENT v, k DE ta2
+	total = total + 1
+FIN
+dbgVérifieEgalité(total, 2, "POUR TOUT ELEMENT iteration")
+
+// Forme sans ELEMENT (deja supportee, regression check)
+total = 0
+POUR TOUT v, k DE ta2
+	total = total + 1
+FIN
+dbgVérifieEgalité(total, 2, "POUR TOUT (sans ELEMENT) iteration")
+
+// =====================================================================
+// ÉlémentCourant pendant POUR TOUT (Supprime ciblé)
+// =====================================================================
+ta3 est un tableau associatif de chaînes
+Insère(ta3, "A", "1")
+Insère(ta3, "B", "2")
+Insère(ta3, "C", "3")
+POUR TOUT ELEMENT v, k DE ta3
+	SI k = "B" ALORS
+		Supprime(ta3, ÉlémentCourant)
+	FIN
+FIN
+dbgVérifieEgalité(ta3..Occurrence, 2, "ElementCourant : B supprime")
+
+// Sur tableau 1D
+tab4 est un tableau de chaînes = ["w", "x", "y", "z"]
+POUR TOUT e DE tab4
+	SI e = "x" ALORS
+		Supprime(tab4, ÉlémentCourant)
+	FIN
+FIN
+dbgVérifieEgalité(tab4..Occurrence, 3, "ElementCourant 1D : x supprime")
+dbgVérifieEgalité(tab4[2], "y", "ElementCourant 1D : decalage OK")
+
+dbgBilanTest()

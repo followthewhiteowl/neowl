@@ -1,0 +1,197 @@
+// @sujet : Icone
+// @résumé : Type first-class pour icônes SVG embarquées ou custom. Supporte les icônes du catalogue interne, les fichiers SVG custom, et le SVG inline. Permet customisation via props Couleur, Rotation, Forme.
+
+
+// Cas A : déclaration simple depuis le catalogue embarqué.
+// L'icône est chargée depuis le catalogue interne via l'espace de noms
+// 'icones.<nom>'. Le résultat est un objet Icone valide avec ses props par défaut.
+PROCEDURE scenario_declaration_simple_catalogue()
+	ICN_Save est une Icône = icones.save
+	dbgVérifieEgalité(ICN_Save..Type, "Icone", "Type est bien Icone")
+	dbgVérifieVrai(ICN_Save..Valide, "Icone catalogue est valide")
+FIN
+
+
+// Cas B : déclaration inline avec bloc {...} pour customiser les propriétés
+// dès l'initialisation. La syntaxe suit le pattern canon pour blocs inline.
+PROCEDURE scenario_declaration_inline_avec_props()
+	ICN_Custom est une Icône = {
+		icones.save,
+		Couleur  = rouge,
+		Rotation = 90,
+		Forme    = formeCercle
+	}
+	dbgVérifieVrai(ICN_Custom..Valide, "Icone inline initialisée valide")
+	dbgVérifieEgalité(ICN_Custom..Couleur, rouge, "Couleur appliquée dès init")
+	dbgVérifieEgalité(ICN_Custom..Rotation, 90, "Rotation appliquée dès init")
+	dbgVérifieEgalité(ICN_Custom..Forme, formeCercle, "Forme appliquée dès init")
+FIN
+
+
+// Cas C : SVG custom depuis un chemin disque. La coerce chaîne → Icone
+// charge le fichier SVG et initialise l'icône avec son contenu.
+PROCEDURE scenario_svg_depuis_chemin_disque()
+	ICN_Custom est une Icône = "./tests/runtime/fixtures/sample_icone.svg"
+	dbgVérifieVrai(ICN_Custom..Valide, "Icone chargée depuis path disque est valide")
+	dbgVérifieVrai(Contient(ICN_Custom..Icone, "<svg") OU Contient(ICN_Custom..Icone, "<path"), "SVG chargé contient markup attendu")
+	ICN_Custom..Couleur  = rouge
+	ICN_Custom..Rotation = 90
+	dbgVérifieEgalité(ICN_Custom..Couleur, rouge, "Couleur appliquée après chargement path")
+	dbgVérifieEgalité(ICN_Custom..Rotation, 90, "Rotation appliquée après chargement path")
+FIN
+
+
+// Cas D : SVG inline via chaîne contenant directement le markup SVG. La coerce
+// chaîne → Icone détecte le markup SVG et initialise l'icône directement.
+PROCEDURE scenario_svg_inline_via_chaine()
+	sSVG est une chaîne = `<svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><circle cx='12' cy='12' r='10' fill='currentColor'/></svg>`
+	ICN_Inline est une Icône = sSVG
+	dbgVérifieVrai(ICN_Inline..Valide, "Icone chargée depuis SVG inline est valide")
+	dbgVérifieVrai(Contient(ICN_Inline..Icone, "<svg") ET Contient(ICN_Inline..Icone, "<circle"), "SVG inline préservé")
+	ICN_Inline..Couleur = bleu
+	ICN_Inline..Forme   = formeCercle
+	dbgVérifieEgalité(ICN_Inline..Couleur, bleu, "Couleur appliquée après init inline")
+	dbgVérifieEgalité(ICN_Inline..Forme, formeCercle, "Forme appliquée après init inline")
+FIN
+
+
+// Cas E : copie d'une icône existante vers une autre variable. La copie
+// préserve l'état et les customisations de l'icône source.
+PROCEDURE scenario_copie_icone()
+	ICN_Source est une Icône = icones.save
+	ICN_Source..Couleur = bleu
+	ICN_Backup est une Icône = ICN_Source
+	dbgVérifieVrai(ICN_Backup..Valide, "Copie valide")
+	dbgVérifieEgalité(ICN_Backup..Couleur, bleu, "Couleur préservée lors de la copie")
+FIN
+
+
+// Cas F : réassignation d'une icône existante. La syntaxe '=' est un sucre
+// vers '..Icone', et préserve les customisations (Couleur, Rotation, Forme).
+PROCEDURE scenario_reassignation_preserve_customisations()
+	ICN_Save est une Icône = icones.save
+	ICN_Save..Couleur  = rouge
+	ICN_Save..Rotation = 45
+	ICN_Save           = icones.delete
+	dbgVérifieEgalité(ICN_Save..Couleur, rouge, "Couleur préservée après réassignation")
+	dbgVérifieEgalité(ICN_Save..Rotation, 45, "Rotation préservée après réassignation")
+FIN
+
+
+// Cas G : récupération du SVG brut via ..Icone (équivalent de Image..Image
+// pour buffer). Retourne le markup SVG complet sous forme de chaîne.
+PROCEDURE scenario_get_svg_raw_via_prop_icone()
+	ICN_Save est une Icône = icones.save
+	sSVG est une chaîne = ICN_Save..Icone
+	dbgVérifieVrai(Contient(sSVG, "<svg") OU Contient(sSVG, "<path") OU Contient(sSVG, "currentColor"), "SVG raw contient markup attendu")
+FIN
+
+
+// Cas H : mutation des propriétés d'une icône après création.
+// Les props Couleur, Rotation, Forme sont en lecture-écriture.
+PROCEDURE scenario_mutation_props_apres_creation()
+	ICN_Test est une Icône = icones.save
+	ICN_Test..Couleur  = bleu
+	ICN_Test..Rotation = 45
+	ICN_Test..Forme    = formeAucune
+	dbgVérifieEgalité(ICN_Test..Couleur, bleu, "Couleur muable")
+	dbgVérifieEgalité(ICN_Test..Rotation, 45, "Rotation muable")
+	dbgVérifieEgalité(ICN_Test..Forme, formeAucune, "Forme muable")
+FIN
+
+
+// Cas I : icône multi-color native — chargement et usage idiomatique.
+// L'icône embarque ses propres couleurs (PDF, dossier, etc.) et ne se
+// recolorie pas via ..Couleur. Le compilateur émet un warning si on
+// essaie d'assigner ..Couleur ; voir la doc utilisateur pour le détail.
+PROCEDURE scenario_icone_multi_color_chargement()
+	ICN_PDF est une Icône = icones.file_type_pdf2
+	dbgVérifieVrai(ICN_PDF..Valide, "Icone multi-color chargée et valide")
+	dbgVérifieFaux(ICN_PDF..CouleurModifiable, "Icone multi-color : CouleurModifiable est Faux")
+FIN
+
+
+// Note canon strict : le scenario "polymorphisme ..Image sur
+// Bouton" (Cas K) qui exerçait BTN_OK..Image cross-fichier a été retiré
+// (le pattern d'adressage cross-fichier des sous-champs n'est pas
+// supporté canon strict). À ré-introduire en pattern split dédié
+// (test_X.owl + FEN_X.owl voisin avec test in-block) si la couverture
+// devient nécessaire.
+
+
+// Cas L : conversion Icone vers Image via IconeVersImage.
+// Permet de rasteriser une icône pour ensuite la sauvegarder en PNG/JPEG.
+PROCEDURE scenario_icone_vers_image()
+	ICN_Save est une Icône = icones.save
+	IMG_Render est une Image = IconeVersImage(ICN_Save)
+	dbgVérifieVrai(IMG_Render..Valide, "IconeVersImage retourne Image valide")
+FIN
+
+
+// Edge case privé : rotation 0, 90, 180, 270 (valeurs canoniques).
+PROCEDURE PRIVÉE scenario_edge_rotation_canonique()
+	ICN_Test est une Icône = icones.save
+	ICN_Test..Rotation = 0
+	dbgVérifieEgalité(ICN_Test..Rotation, 0, "Rotation 0")
+	ICN_Test..Rotation = 90
+	dbgVérifieEgalité(ICN_Test..Rotation, 90, "Rotation 90")
+	ICN_Test..Rotation = 180
+	dbgVérifieEgalité(ICN_Test..Rotation, 180, "Rotation 180")
+	ICN_Test..Rotation = 270
+	dbgVérifieEgalité(ICN_Test..Rotation, 270, "Rotation 270")
+FIN
+
+
+// Edge case privé : rotation libre (valeur arbitraire).
+PROCEDURE PRIVÉE scenario_edge_rotation_libre()
+	ICN_Test est une Icône = icones.save
+	ICN_Test..Rotation = 45
+	dbgVérifieEgalité(ICN_Test..Rotation, 45, "Rotation libre 45")
+	ICN_Test..Rotation = 315
+	dbgVérifieEgalité(ICN_Test..Rotation, 315, "Rotation libre 315")
+FIN
+
+
+// Edge case privé : forme formeCarree, formeCercle, formeAucune.
+PROCEDURE PRIVÉE scenario_edge_forme_variantes()
+	ICN_Test est une Icône = icones.save
+	ICN_Test..Forme = formeCarree
+	dbgVérifieEgalité(ICN_Test..Forme, formeCarree, "Forme carrée")
+	ICN_Test..Forme = formeCercle
+	dbgVérifieEgalité(ICN_Test..Forme, formeCercle, "Forme cercle")
+	ICN_Test..Forme = formeAucune
+	dbgVérifieEgalité(ICN_Test..Forme, formeAucune, "Forme aucune")
+FIN
+
+
+// Edge case privé : couleur avec plusieurs valeurs prédéfinies.
+PROCEDURE PRIVÉE scenario_edge_couleur_variantes()
+	ICN_Test est une Icône = icones.save
+	ICN_Test..Couleur = rouge
+	dbgVérifieEgalité(ICN_Test..Couleur, rouge, "Couleur rouge")
+	ICN_Test..Couleur = bleu
+	dbgVérifieEgalité(ICN_Test..Couleur, bleu, "Couleur bleu")
+	ICN_Test..Couleur = vert
+	dbgVérifieEgalité(ICN_Test..Couleur, vert, "Couleur vert")
+	ICN_Test..Couleur = Noir
+	dbgVérifieEgalité(ICN_Test..Couleur, Noir, "Couleur noir")
+FIN
+
+
+// Edge case privé : ..CouleurModifiable en lecture seule (dérivé du SVG).
+PROCEDURE PRIVÉE scenario_edge_couleur_modifiable_readonly()
+	ICN_Test est une Icône = icones.save
+	bModifiable est un booléen = ICN_Test..CouleurModifiable
+	bResultat est un booléen = bModifiable OU PAS bModifiable
+	dbgVérifieVrai(bResultat, "CouleurModifiable est booléen")
+FIN
+
+
+// Edge case privé : copie multiple en chaîne (A -> B -> C).
+PROCEDURE PRIVÉE scenario_edge_copie_chaine()
+	ICN_A est une Icône = icones.save
+	ICN_A..Couleur = rouge
+	ICN_B est une Icône = ICN_A
+	ICN_C est une Icône = ICN_B
+	dbgVérifieEgalité(ICN_C..Couleur, rouge, "Couleur propagée via copie chaînée")
+FIN

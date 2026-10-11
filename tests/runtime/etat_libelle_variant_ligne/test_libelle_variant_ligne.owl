@@ -1,0 +1,81 @@
+// Verrou : un Libellé qui varie par ligne (posé avant chaque
+// iImprimeBloc depuis PROCEDURE Lecture) ne doit pas être gelé sur la
+// valeur de la 1re itération. La ressource ETAT_LibelleVariantLigne vit
+// dans le voisin ETAT_LibelleVariantLigne.owl : 3 rendus du Corps
+// ("A", "AA", "AAA" -- longueurs 1, 2, 3).
+//
+// Assertion indirecte : le nombre total d'opérateurs "Tj" (un par
+// caractère dessiné) cumulés sur les 3 rendus doit valoir 1+2+3=6. Si le
+// Libellé est gelé sur la 1re valeur ("A", longueur 1), chaque rendu
+// n'affiche qu'un caractère : le total tombe à 3, pas 6.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+// Extrait et décompresse le 1er flux de contenu (celui référencé par
+// /Contents) du PDF produit. Recherche purement en domaine Buffer
+// (BufferLitOctet) pour ne jamais tronquer sur un octet nul du flux
+// compressé.
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_libelle_variant_ligne/temp.pdf")
+iImprimeEtat(ETAT_LibelleVariantLigne)
+iFinImprime()
+
+sContenu est une chaîne = StreamContenuPDF("tests/runtime/etat_libelle_variant_ligne/temp.pdf")
+nTj est un entier = Occurrence(sContenu, "Tj")
+
+dbgVérifieEgalité(nTj, 6,
+"un Libellé posé avant chaque iImprimeBloc varie par ligne (1+2+3=6 caractères au total), pas gelé sur la 1re valeur")
+
+dbgBilanTest()

@@ -1,0 +1,31 @@
+// Régression-guard : Image, Liste et sections d'État n'exigent PAS le préfixe
+// Champ. Ces types ne sont pas des OwlControlKind posables.
+//
+// - `img est une Image` hors Fenêtre → variable raster (type Image), pas widget.
+// - `maListe est une Liste de entier` → collection, pas widget.
+// - `Corps`, `BasDePage`, `EnTêteDocument`, `HautDePage`, `FinDeDocument`
+//   dans un État → sections structurelles, jamais de Champ devant.
+// - `colonne` dans Table → sous-bloc structurel, jamais de Champ devant.
+// - `Fenêtre`, `Etat` → racines DSL, jamais de Champ devant.
+//
+// Statut : vert (comportement stable avant et après ).
+
+// --- Image variable (hors Fenêtre) ---
+// Convention `_` silence le warning "variable jamais utilisée".
+_img est une Image
+// _img n'est pas initialisée ici ; on vérifie juste que le compilateur
+// ne la traite pas comme un widget. La sentinelle compile-OK suffit.
+dbgVérifieVrai(Vrai, "img est une Image hors Fenetre = variable raster, pas widget")
+
+// --- Collection Liste ---
+// `Liste de entier` est une collection, pas un Champ Liste.
+// On vérifie juste que ça compile et s'exécute (digue régression).
+_maListe est une Liste de entiers
+dbgVérifieVrai(Vrai, "Liste de entier = collection, pas widget")
+
+// --- Sections d'État (Corps, etc.) sans préfixe Champ ---
+// ETAT_SectionsGarde.owl (voisin) compile sans erreur : Corps est un Corps,
+// pas un Champ Corps. La sentinelle ici prouve qu'on a atteint l'exécution.
+dbgVérifieVrai(Vrai, "sections Etat (Corps etc.) n exigent pas le prefixe Champ")
+
+dbgBilanTest()

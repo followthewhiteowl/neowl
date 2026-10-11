@@ -1,0 +1,92 @@
+// Runtime GUI (widgets montés, offscreen) — étirement d'un champ sur l'axe
+// TRANSVERSE d'une pile, dans les deux orientations.
+//
+// Deux leviers distincts, et il ne faut pas les confondre :
+//   - `Étire = Vrai`        absorbe l'espace restant sur l'axe PRINCIPAL ;
+//   - `Alignement = alignÉtire` remplit l'axe TRANSVERSE.
+// En pile verticale, l'axe transverse est la largeur ; en pile horizontale,
+// c'est la hauteur. Un champ dont la boîte ne grandit que sur un seul des deux
+// axes rend l'étirement dépendant de l'orientation, ce que rien n'annonce à la
+// lecture du fichier de description.
+//
+// La dimension attendue est celle que la fenêtre déclare : aucune métrique de
+// rendu n'est écrite en dur. Les tailles naturelles (dépendantes de la police)
+// ne sont jamais comparées à un littéral, seulement entre elles.
+
+TestModeHeadless(Faux)
+
+// -------------------------------------------------- 1. Pile horizontale : le
+// remplissage transverse est celui de la HAUTEUR.
+OuvreSoeur(FEN_EtirH)
+
+dbgVérifieEgalité(ETH_AlignEtire..Hauteur, 300,
+"pile horizontale, alignÉtire : le champ occupe les 300 px de hauteur déclarés")
+dbgVérifieEgalité(ETH_AlignEtire..Y, 0,
+"pile horizontale, alignÉtire : le champ part du haut, il n'est pas centré")
+
+dbgVérifieEgalité(ETH_Compo..Hauteur, 300,
+"pile horizontale, alignÉtire : le champ à libellé intégré s'étire comme le champ nu")
+
+// `Étire` ne touche PAS l'axe transverse : la hauteur reste la hauteur
+// naturelle du champ, celle de son voisin sans propriété.
+dbgVérifieEgalité(ETH_Etire..Hauteur, ETH_Nature..Hauteur,
+"pile horizontale : Étire ne joue pas sur la hauteur, qui reste la hauteur naturelle")
+dbgVérifieVrai(ETH_Nature..Hauteur < 300,
+"pile horizontale : un champ sans consigne garde sa hauteur naturelle")
+
+// ... mais il absorbe bien l'excédent sur l'axe principal (non-régression).
+dbgVérifieVrai(ETH_Etire..Largeur > ETH_Nature..Largeur,
+"pile horizontale : Étire absorbe la largeur restante sur l'axe principal")
+
+Ferme(FEN_EtirH)
+
+// ---------------------------------------------------- 2. Pile verticale : le
+// remplissage transverse est celui de la LARGEUR. Il fonctionne déjà, on le
+// verrouille.
+OuvreSoeur(FEN_EtirV)
+
+dbgVérifieEgalité(ETV_AlignEtire..Largeur, 400,
+"pile verticale, alignÉtire : le champ occupe les 400 px de largeur déclarés")
+dbgVérifieEgalité(ETV_Compo..Largeur, 400,
+"pile verticale, alignÉtire : le champ à libellé intégré s'étire comme le champ nu")
+dbgVérifieVrai(ETV_Nature..Largeur < 400,
+"pile verticale : un champ sans consigne garde sa largeur naturelle")
+
+// L'alignement transverse ne doit rien changer à l'axe principal.
+dbgVérifieEgalité(ETV_AlignEtire..Hauteur, ETV_Nature..Hauteur,
+"pile verticale : alignÉtire ne change pas la hauteur, qui est l'axe principal")
+
+Ferme(FEN_EtirV)
+
+// ------------------------------------------- 3. Pile horizontale, autres
+// natures de champ. Le remplissage transverse ne dépend pas de l'orientation de
+// la pile mais de la nature du champ : un Conteneur et un Libellé remplissent la
+// hauteur là où un champ de saisie ne la remplissait pas. C'est cette lecture
+// qui distingue les deux diagnostics possibles, elle mérite d'être verrouillée.
+//
+// Chaque champ étiré est comparé à un témoin de même nature placé dans la même
+// pile, qui ne demande rien : c'est le témoin qui donne son sens à la valeur 300
+// (sans lui, l'assertion passerait aussi dans une pile qui étirerait tout le
+// monde, y compris ce qui n'a rien demandé).
+OuvreSoeur(FEN_EtirHAutres)
+
+dbgVérifieEgalité(ETA_ConteneurEtire..Hauteur, 300,
+"pile horizontale, alignÉtire : le conteneur occupe les 300 px de hauteur déclarés")
+dbgVérifieEgalité(ETA_ConteneurTemoin..Hauteur, 40,
+"pile horizontale : un conteneur sans consigne garde la hauteur qu'il déclare")
+
+dbgVérifieEgalité(ETA_LibelleEtire..Hauteur, 300,
+"pile horizontale, alignÉtire : le libellé occupe les 300 px de hauteur déclarés")
+dbgVérifieVrai(ETA_LibelleTemoin..Hauteur < 300,
+"pile horizontale : un libellé sans consigne garde sa hauteur naturelle")
+
+// Le champ étiré part du haut : la place transverse lui est bien attribuée, il
+// n'y est pas simplement centré.
+dbgVérifieEgalité(ETA_ConteneurEtire..Y, 0,
+"pile horizontale, alignÉtire : le conteneur part du haut, il n'est pas centré")
+dbgVérifieEgalité(ETA_LibelleEtire..Y, 0,
+"pile horizontale, alignÉtire : le libellé part du haut, il n'est pas centré")
+
+Ferme(FEN_EtirHAutres)
+
+dbgBilanTest()

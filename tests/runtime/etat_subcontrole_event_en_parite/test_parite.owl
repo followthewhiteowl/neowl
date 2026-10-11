@@ -1,0 +1,31 @@
+// Parite FR/EN pour l'event AvantImpression / BeforePrint d'un
+// sous-controle d'Etat. Un handler declare en anglais (BeforePrint) doit
+// se cabler et se declencher exactement comme son equivalent francais
+// (AvantImpression). La ressource ETAT_Parite vit dans etat_parite.owl.
+
+TestModeHeadless(Vrai)
+
+cptFr est un entier = 0
+cptEn est un entier = 0
+
+PROCEDURE callback_fr()
+	cptFr += 1
+FIN
+
+PROCEDURE callback_en()
+	cptEn += 1
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_subcontrole_event_en_parite/temp.pdf")
+iImprimeEtat(ETAT_Parite)
+iFinImprime()
+
+Trace("cptFr : " + cptFr)
+Trace("cptEn : " + cptEn)
+
+// Temoin FR : AvantImpression declenche 1x (impression auto du Corps).
+dbgVérifieEgalité(cptFr, 1, "AvantImpression (FR) declenche 1x")
+// Cas testee : BeforePrint (EN) doit se declencher a parite avec le FR.
+dbgVérifieEgalité(cptEn, 1, "BeforePrint (EN) declenche 1x, a parite avec le FR")
+
+dbgBilanTest()

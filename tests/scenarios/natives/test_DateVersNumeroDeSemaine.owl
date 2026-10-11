@@ -1,0 +1,77 @@
+// @sujet : DateVersNuméroDeSemaine
+// @résumé : Calcul du numéro de semaine d'une date. Deux formats possibles : ISO 8601 strict (semaines 1-53, lundi = premier jour) ou par défaut (0-53, selon convention du langage).
+
+
+// Cas canonique : semaine au milieu de l'année, format par défaut.
+PROCEDURE scenario_milieu_annee_format_defaut()
+	d est une date = ChaîneVersDate("20260416")
+	n est un entier = DateVersNuméroDeSemaine(d)
+	dbgVérifieEgalité(n, 16, "16 avril 2026 = semaine 16")
+FIN
+
+
+// Même date avec format ISO 8601 explicite (devrait donner le même résultat au milieu de l'année).
+PROCEDURE scenario_milieu_annee_iso8601()
+	d est une date = ChaîneVersDate("20260416")
+	n est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n, 16, "16 avril 2026 = semaine 16 ISO")
+FIN
+
+
+// Premier janvier peut appartenir à la dernière semaine de l'année précédente selon ISO 8601.
+// 1er janvier 2024 est un lundi → semaine 1 de 2024.
+PROCEDURE scenario_premier_janvier_semaine_1()
+	d est une date = ChaîneVersDate("20240101")
+	n est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n, 1, "1er janvier 2024 (lundi) = semaine 1")
+FIN
+
+
+// 1er janvier 2026 est un jeudi → appartient encore à la semaine 1 de 2026.
+PROCEDURE scenario_premier_janvier_2026_jeudi()
+	d est une date = ChaîneVersDate("20260101")
+	n est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n, 1, "1er janvier 2026 (jeudi) = semaine 1")
+FIN
+
+
+// 31 décembre peut appartenir à la semaine 1 de l'année suivante selon ISO 8601.
+// 31 décembre 2024 est un mardi → semaine 1 de 2025 en ISO 8601.
+PROCEDURE scenario_dernier_decembre_bascule_annee_suivante()
+	d est une date = ChaîneVersDate("20241231")
+	n est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n, 1, "31 décembre 2024 (mardi) = semaine 1 de 2025")
+FIN
+
+
+// Forme méthode : la date possède une méthode NumeroDeSemaine() (mode défaut).
+PROCEDURE scenario_forme_methode()
+	d est une date = ChaîneVersDate("20260416")
+	n est un entier = d.NumeroDeSemaine()
+	dbgVérifieEgalité(n, 16, "forme méthode .NumeroDeSemaine()")
+FIN
+
+
+// Cast implicite chaîne AAAAMMJJ accepté en entrée sans variable date intermédiaire.
+PROCEDURE scenario_cast_implicite_chaine()
+	n est un entier = DateVersNuméroDeSemaine("20260416")
+	dbgVérifieEgalité(n, 16, "cast implicite chaine OK")
+FIN
+
+
+// PROCEDURE PRIVÉE : cas limite 1er janvier qui appartient à la semaine 52 ou 53 de l'année précédente.
+// 1er janvier 2021 est un vendredi → semaine 53 de 2020 en ISO 8601.
+PROCEDURE PRIVÉE scenario_edge_premier_janvier_semaine_precedente()
+	d est une date = ChaîneVersDate("20210101")
+	n est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n, 53, "1er janvier 2021 (vendredi) = semaine 53 de 2020")
+FIN
+
+
+// PROCEDURE PRIVÉE : semaine 53 possible dans une année ISO 8601.
+// 31 décembre 2020 est un jeudi → semaine 53 de 2020.
+PROCEDURE PRIVÉE scenario_edge_semaine_53()
+	d est une date = ChaîneVersDate("20201231")
+	n est un entier = DateVersNuméroDeSemaine(d, iso8601)
+	dbgVérifieEgalité(n, 53, "31 décembre 2020 (jeudi) = semaine 53")
+FIN

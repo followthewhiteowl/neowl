@@ -1,0 +1,119 @@
+// Runtime GUI (widgets montés, offscreen) : la marge intérieure déclarée sur
+// une Fenêtre écarte réellement son contenu du bord, y compris quand la
+// fenêtre est habillée par un Style.
+//
+// La marge est mesurée, pas supposée : le premier champ de la pile est collé
+// au coin haut gauche de la zone de contenu, donc sa position DANS la fenêtre
+// est exactement la marge appliquée. Une sonde pixel indépendante confirme la
+// mesure sans passer par la propriété lue.
+//
+// Deux valeurs de marge différentes (26 et 60) sont montées côte à côte : un
+// rendu identique pour les deux serait le défaut, pas une réussite.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PremierX(im est une Image, y est un entier, couleur est un entier)
+	x est un entier = 0
+	TANTQUE x < 400
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER x
+		FIN
+		x = x + 1
+	FIN
+	RENVOYER -1
+FIN
+
+PROCEDURE PremierY(im est une Image, x est un entier, couleur est un entier)
+	y est un entier = 0
+	TANTQUE y < 300
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER y
+		FIN
+		y = y + 1
+	FIN
+	RENVOYER -1
+FIN
+
+vert est un entier = RVB(0, 200, 0)
+
+
+// ============================================================
+//  1. Marge de 26 sur une fenêtre habillée
+// ============================================================
+
+OuvreSoeur(FEN_MargePetite)
+Temporise(80)
+
+imPetite est une Image = dCopieImageFenêtre(FEN_MargePetite)
+
+dbgVérifieEgalité(LIB_Petite..X, 26,
+"Marge 26 : le contenu commence à 26 du bord gauche, pas contre le bord")
+dbgVérifieEgalité(LIB_Petite..Y, 26,
+"Marge 26 : le contenu commence à 26 du bord haut")
+dbgVérifieEgalité(PremierX(imPetite, 30, vert), 26,
+"Sonde pixel : le fond vert du champ commence en x=26")
+dbgVérifieEgalité(PremierY(imPetite, 30, vert), 26,
+"Sonde pixel : le fond vert du champ commence en y=26")
+
+Ferme(FEN_MargePetite)
+
+
+// ============================================================
+//  2. Contre-épreuve : marge de 60 sur la même fenêtre
+// ============================================================
+
+OuvreSoeur(FEN_MargeGrande)
+Temporise(80)
+
+imGrande est une Image = dCopieImageFenêtre(FEN_MargeGrande)
+
+dbgVérifieEgalité(LIB_Grande..X, 60,
+"Marge 60 : le contenu commence à 60 du bord gauche")
+dbgVérifieEgalité(LIB_Grande..Y, 60,
+"Marge 60 : le contenu commence à 60 du bord haut")
+dbgVérifieEgalité(PremierX(imGrande, 70, vert), 60,
+"Sonde pixel : le fond vert du champ commence en x=60")
+dbgVérifieEgalité(PremierY(imGrande, 70, vert), 60,
+"Sonde pixel : le fond vert du champ commence en y=60")
+
+Ferme(FEN_MargeGrande)
+
+
+// ============================================================
+//  3. Marge par côté, et même effet sur un Conteneur habillé
+// ============================================================
+
+OuvreSoeur(FEN_MargeCotes)
+Temporise(80)
+
+dbgVérifieEgalité(CONT_Habille..X, 44,
+"Marge par côté : la marge gauche (44) prime sur la marge uniforme (10)")
+dbgVérifieEgalité(CONT_Habille..Y, 10,
+"Marge par côté : le haut garde la marge uniforme (10)")
+dbgVérifieEgalité(LIB_Dedans..X, 84,
+"Conteneur habillé : sa marge de 40 s'ajoute à celle de la fenêtre (44 + 40)")
+dbgVérifieEgalité(LIB_Dedans..Y, 50,
+"Conteneur habillé : 10 + 40 en partant du haut")
+dbgVérifieEgalité(LIB_Dedans..X - CONT_Habille..X, 40,
+"Conteneur habillé : le contenu est écarté de 40 du bord du conteneur")
+
+Ferme(FEN_MargeCotes)
+
+
+// ============================================================
+//  4. Arbitrage avec le Style et le liseré
+// ============================================================
+
+OuvreSoeur(FEN_MargeCadre)
+Temporise(80)
+
+dbgVérifieEgalité(LIB_Cadre..X, 63,
+"Côté sans retrait de Style : la marge de la fenêtre (60) s'applique, "
++ "plus l'épaisseur du liseré (3)")
+dbgVérifieEgalité(LIB_Cadre..Y, 11,
+"Côté avec retrait de Style : le retrait du Style (8) prime sur la marge "
++ "de la fenêtre, plus l'épaisseur du liseré (3)")
+
+Ferme(FEN_MargeCadre)
+
+dbgBilanTest()

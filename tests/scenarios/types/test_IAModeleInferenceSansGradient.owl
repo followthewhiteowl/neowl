@@ -1,0 +1,171 @@
+// @sujet : IAModèle — inférence sans gradient (parité forward exacte)
+// @résumé : .Infère exécute le forward SANS enregistrer le graphe autograd
+// (pas de nœud d'op, pas de buffer gradient) — l'inférence n'a aucun besoin
+// de la rétropropagation. Ce mode « sans gradient » ne change RIEN au calcul :
+// les valeurs de sortie sont identiques AU BIT PRÈS à celles obtenues par le
+// même forward via les briques Tenseur bas niveau (qui, elles, construisent
+// le graphe complet). Ces scénarios verrouillent cette parité exacte et
+// prouvent que le mode sans gradient est bien RELÂCHÉ après l'inférence
+// (l'entraînement, qui a besoin du graphe, reste pleinement fonctionnel).
+
+// Cœur du contrat : .Infère(X) (chemin sans gradient) rend EXACTEMENT le même
+// résultat, réel par réel, qu'un calcul manuel avec les mêmes poids extraits
+// et les briques Tenseur bas niveau (ProduitMatriciel, +, ReLU) — lesquelles
+// construisent, elles, le graphe autograd normal. Égalité EXACTE (pas de
+// tolérance) : le forward est bit-identique, seul l'enregistrement du graphe
+// est sauté sous .Infère.
+PROCEDURE PUBLIQUE scenario_infere_egale_bit_a_bit_forward_bas_niveau()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 4, initHe)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(4, 2, initXavier)
+
+	tW1 est un Tenseur = mon.Poids(1)
+	tb1 est un Tenseur = mon.Biais(1)
+	tW2 est un Tenseur = mon.Poids(2)
+	tb2 est un Tenseur = mon.Biais(2)
+
+	matX est une Matrice = [[1.0,-1.0, 2.0], [0.0, 2.0,-1.0], [3.0, 0.5,-2.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	// Chemin bas niveau : graphe autograd construit normalement (hors .Infère).
+	th1 est un Tenseur = tX.ProduitMatriciel(tW1)
+	th1b est un Tenseur = th1 + tb1
+	ta1 est un Tenseur = th1b.ReLU()
+	th2 est un Tenseur = ta1.ProduitMatriciel(tW2)
+	tManuel est un Tenseur = th2 + tb2
+
+	// Chemin .Infère : forward SANS gradient.
+	tInfere est un Tenseur = mon.Infère(tX)
+
+	valManuel est une Matrice = tManuel..Valeur
+	valInfere est une Matrice = tInfere..Valeur
+
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 2
+			dbgVérifieEgalité(valInfere[iLigne][iCol], valManuel[iLigne][iCol], ".Infère (sans gradient) égale le forward bas niveau AU BIT PRÈS")
+		FIN
+	FIN
+FIN
+
+
+// Le mode sans gradient est bien DÉSARMÉ après .Infère : un calcul autograd
+// bas niveau lancé APRÈS une inférence construit toujours le graphe complet,
+// donc .Rétropropage() propage un gradient non nul et .DescenteGradient
+// modifie effectivement les poids. Si le flag sans gradient avait fuité (resté
+// armé), le graphe ne serait pas construit et le pas de gradient laisserait les
+// poids inchangés — d'où l'assertion "au moins un poids a changé".
+PROCEDURE PUBLIQUE scenario_sans_gradient_relache_apres_infere()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	matX est une Matrice = [[1.0,-1.0, 2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.5,-0.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	// Une inférence AVANT le calcul autograd : arme puis désarme le mode.
+	sortie est un Tenseur = mon.Infère(tX)
+	dbgVérifieEgalité(sortie..Valeur..Lignes, 1, "L'inférence préalable produit bien une sortie")
+
+	// Calcul autograd bas niveau après l'inférence : le graphe DOIT se construire.
+	tW est un Tenseur = mon.Poids(1)
+	th est un Tenseur = tX.ProduitMatriciel(tW)
+	thb est un Tenseur = th + mon.Biais(1)
+	tperte est un Tenseur = thb.ErreurQuadratique(tY)
+	tperte.Rétropropage()
+	tWapres est un Tenseur = tW.DescenteGradient(0.1)
+
+	valAvant est une Matrice = tW..Valeur
+	valApres est une Matrice = tWapres..Valeur
+
+	auMoinsUnChange est un booléen = Faux
+	POUR iLigne = 1 À 3
+		POUR iCol = 1 À 2
+			SI Abs(valApres[iLigne][iCol] - valAvant[iLigne][iCol]) > 0.0000001 ALORS
+				auMoinsUnChange = Vrai
+			FIN
+		FIN
+	FIN
+	dbgVérifieVrai(auMoinsUnChange, "Après .Infère, le graphe autograd se construit de nouveau : le pas de gradient modifie les poids")
+FIN
+
+
+// L'entraînement complet reste pleinement fonctionnel APRÈS des inférences :
+// .Entraîne construit le graphe (il n'arme jamais le mode sans gradient) et
+// mute les poids. Vérrou : plusieurs .Infère puis .Entraîne, et les poids
+// changent effectivement.
+PROCEDURE PUBLIQUE scenario_entraine_fonctionne_apres_infere()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	matX est une Matrice = [[1.0,-1.0, 2.0], [0.0, 2.0, 1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	// Deux inférences successives avant l'entraînement.
+	i1 est un Tenseur = mon.Infère(tX)
+	i2 est un Tenseur = mon.Infère(tX)
+	v1 est une Matrice = i1..Valeur
+	v2 est une Matrice = i2..Valeur
+	dbgVérifieEgalité(v1[1][1], v2[1][1], "Deux inférences successives : sorties identiques (forward pur)")
+
+	wAvant est un réel = mon.Poids(1)..Valeur[1][1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 2
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+
+	mon.Entraîne(tX, tY, opts)
+
+	wApres est un réel = mon.Poids(1)..Valeur[1][1]
+	dbgVérifieVrai(Abs(wApres - wAvant) > 0.0000001, ".Entraîne après des inférences construit bien le graphe et met à jour les poids")
+
+	// Une inférence APRÈS l'entraînement égale encore le forward bas niveau.
+	tW1 est un Tenseur = mon.Poids(1)
+	tb1 est un Tenseur = mon.Biais(1)
+	thM est un Tenseur = tX.ProduitMatriciel(tW1)
+	tManuel est un Tenseur = thM + tb1
+	tInfere est un Tenseur = mon.Infère(tX)
+	vm est une Matrice = tManuel..Valeur
+	vi est une Matrice = tInfere..Valeur
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 2
+			dbgVérifieEgalité(vi[iLigne][iCol], vm[iLigne][iCol], "Inférence post-entraînement = forward bas niveau AU BIT PRÈS")
+		FIN
+	FIN
+FIN
+
+
+// Chemin échantillon unique (Tenseur 1D promu en 1×in en interne) : .Infère
+// sans gradient égale le forward bas niveau bit à bit, y compris la démotion
+// finale 1×out -> 1D.
+PROCEDURE PUBLIQUE scenario_echantillon_1d_parite_exacte()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(4, 3, initHe)
+	mon.AjouteCoucheReLU()
+
+	tW1 est un Tenseur = mon.Poids(1)
+	tb1 est un Tenseur = mon.Biais(1)
+
+	x est un Tenseur = Tenseur([1.0, 2.0,-1.0, 0.5])
+
+	// Manuel en 2D (1×in) puis lecture ligne 1, comme la promotion interne.
+	matX est une Matrice = [[1.0, 2.0,-1.0, 0.5]]
+	tX est un Tenseur = Tenseur(matX)
+	thb est un Tenseur = tX.ProduitMatriciel(tW1) + tb1
+	tManuel est un Tenseur = thb.ReLU()
+	valManuel est une Matrice = tManuel..Valeur
+
+	sortie est un Tenseur = mon.Infère(x)
+	valInfere est un Vecteur = sortie..Valeur
+
+	dbgVérifieEgalité(valInfere..Taille, 3, "Échantillon 1D -> sortie 1D de taille 3")
+	POUR i = 1 À 3
+		dbgVérifieEgalité(valInfere[i], valManuel[1][i], "Échantillon 1D : .Infère égale le forward bas niveau AU BIT PRÈS")
+	FIN
+FIN

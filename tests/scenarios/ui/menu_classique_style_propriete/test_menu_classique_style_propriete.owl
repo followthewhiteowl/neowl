@@ -1,0 +1,50 @@
+// Reprise canonique du Style menu : `Style` est désormais une
+// propriété DANS le bloc `PROPRIETES` d'un MenuPrincipal (comme sur un
+// champ), plus un bloc autonome (syntaxe inventée
+// retirée). Couvre la forme ligne-par-ligne, la forme inline littérale,
+// l'équivalent bilingue EN, et un scénario runtime qui vérifie que le
+// menu stylé reste fonctionnel (pas juste compilable).
+
+TestModeHeadless(Vrai)
+
+nNouveauCount_obs est un entier = -1
+
+PROCEDURE callback_etat(nNouveau est un entier)
+	nNouveauCount_obs = nNouveau
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_menu_style_propriete_ligne_compile_et_ouvre()
+	Ouvre(FEN_MenuStyleProprieteLigne)
+	dbgVérifieFaux(ErreurDétectée, "MenuPrincipal avec Style en propriété PROPRIETES (ligne-par-ligne) : ouverture sans erreur")
+	Ferme(FEN_MenuStyleProprieteLigne)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_menu_style_propriete_inline_compile_et_ouvre()
+	Ouvre(FEN_MenuStyleProprieteInline)
+	dbgVérifieFaux(ErreurDétectée, "MenuPrincipal avec Style en propriété PROPRIETES (littéral inline) : ouverture sans erreur")
+	Ferme(FEN_MenuStyleProprieteInline)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_menu_style_propriete_bilingue_en_compile_et_ouvre()
+	Ouvre(FEN_MenuStyleProprieteEN)
+	dbgVérifieFaux(ErreurDétectée, "MainMenu avec Style en propriété PROPERTIES (EN) : ouverture sans erreur")
+	Ferme(FEN_MenuStyleProprieteEN)
+FIN
+
+
+// Le menu stylé reste pleinement fonctionnel : sélectionner une OptionMenu
+// déclenche bien son surSélection(), la nouvelle syntaxe Style ne casse pas
+// le comportement runtime.
+PROCEDURE PUBLIQUE scenario_menu_style_propriete_selection_option_fonctionne()
+	Ouvre(FEN_MenuStyleProprieteRuntime)
+	RAZEtat()
+
+	TestSimuleMenu(FEN_MenuStyleProprieteRuntime, "OPT_Nouveau")
+	RemonteEtat()
+	dbgVérifieEgalité(nNouveauCount_obs, 1, "surSélection de OPT_Nouveau déclenché une fois sur un menu stylé via PROPRIETES")
+
+	Ferme(FEN_MenuStyleProprieteRuntime)
+FIN

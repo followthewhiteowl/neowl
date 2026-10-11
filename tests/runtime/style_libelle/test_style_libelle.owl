@@ -1,0 +1,38 @@
+//  — prop Style (type styleLibellé) sur le Champ Libellé. Vérifie
+// de bout en bout (backend headless) :
+//   1. Déclaration d'un styleLibellé + renseignement de ses sous-champs,
+//      read-back sur l'instance (le type compose correctement).
+//   2. Application au champ Libellé via LIB..Style ne casse pas.
+//   3. La prop Style typée sur Libellé : la cascade LIB..Style..SousChamp
+//      matérialise un styleLibellé et fait un round-trip.
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore sur le champ Libellé
+// (compile-fail : "Propriété 'Style' inconnue pour Libelle").
+
+Trace("=== styleLibellé : type composite + application Libellé ===")
+
+STY_Lib est un styleLibellé
+STY_Lib..Libellé..Couleur                 = BleuFoncé
+STY_Lib..Libellé..CouleurFond             = Blanc
+STY_Lib..Libellé..RetraitGauche           = 6
+STY_Lib..CadreExtérieur..CouleurFond      = GrisClair
+STY_Lib..CadreExtérieur..Cadre..Epaisseur = 2
+
+dbgVérifieEgalité(STY_Lib..Libellé..Couleur, BleuFoncé, "styleLibellé : Libellé..Couleur posée")
+dbgVérifieEgalité(STY_Lib..Libellé..CouleurFond, Blanc, "styleLibellé : Libellé..CouleurFond posée")
+dbgVérifieEgalité(STY_Lib..Libellé..RetraitGauche, 6, "styleLibellé : Libellé..RetraitGauche posé")
+dbgVérifieEgalité(STY_Lib..CadreExtérieur..CouleurFond, GrisClair, "styleLibellé : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Lib..CadreExtérieur..Cadre..Epaisseur, 2, "styleLibellé : CadreExtérieur..Cadre..Epaisseur posé")
+
+Ouvre(FEN_LibelleStyle)
+LIB_Style..Style = STY_Lib
+dbgVérifieVrai(Vrai, "styleLibellé appliqué à LIB..Style sans crash")
+
+LIB_Style..Style..Libellé..Couleur = VertFoncé
+dbgVérifieEgalité(LIB_Style..Style..Libellé..Couleur, VertFoncé, "LIB..Style..Libellé..Couleur round-trip")
+
+LIB_Style..Style..CadreExtérieur..CouleurFond = JauneClair
+dbgVérifieEgalité(LIB_Style..Style..CadreExtérieur..CouleurFond, JauneClair, "LIB..Style..CadreExtérieur..CouleurFond round-trip")
+
+Ferme(FEN_LibelleStyle)
+dbgBilanTest()

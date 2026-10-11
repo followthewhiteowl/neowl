@@ -1,0 +1,42 @@
+// @sujet : MQTTAbonne
+// @résumé : Abonne une procédure aux messages publiés sur un sujet du broker MQTT ; la procédure est appelée à chaque message reçu.
+
+
+// Procédure de réception passée en abonnement. Jamais appelée dans ces
+// scénarios puisque la session n'est pas connectée au broker.
+PROCEDURE reception_message(sess est un mqttSession, sujet est une chaîne, msg est un buffer)
+FIN
+
+
+// S'abonner depuis une session qui n'a jamais été connectée échoue
+// proprement : la native renvoie Faux et renseigne l'erreur courante
+// (même parité que la connexion et la publication).
+PROCEDURE scenario_abonnement_sans_connexion()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-01"
+
+	ErreurRAZ()
+	bRetour est un booléen = MQTTAbonne(sess, "capteurs/temperature", mqttQualitéAuMoinsUneFois, reception_message)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "abonnement sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "abonnement sans connexion renseigne l'erreur courante")
+	dbgVérifieEgalité(sCode, "E_NATIVE_MQTT_SUBSCRIBE_FAILURE", "code d'erreur dédié à l'abonnement")
+FIN
+
+
+// Même constat avec la qualité de service « au plus une fois ».
+PROCEDURE scenario_abonnement_sans_connexion_qualite_au_plus_une_fois()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-03"
+
+	ErreurRAZ()
+	bRetour est un booléen = MQTTAbonne(sess, "etat/porte", mqttQualitéAuPlusUneFois, reception_message)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "abonnement sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "abonnement sans connexion renseigne l'erreur courante")
+	dbgVérifieEgalité(sCode, "E_NATIVE_MQTT_SUBSCRIBE_FAILURE", "code d'erreur dédié à l'abonnement")
+FIN

@@ -1,0 +1,50 @@
+// Runtime : PositionOccurrence avec options combinables
+// (MotComplet / SansCasse / DepuisFin) post-unification enum.
+//
+// Couvre canon documentation de référence : option SansCasse englobe l'accent-insensibilité
+// pour PositionOccurrence (cf descFR enum), DepuisFin parcourt la chaîne
+// du dernier caractère au premier.
+
+// === Cas de base sans options ===
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 1), 1,
+"1ère occurrence position 1")
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 2), 4,
+"2e occurrence position 4")
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 3), 7,
+"3e occurrence position 7")
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "xyz", 1), 0,
+"Pattern absent -> 0")
+
+// === Option SansCasse ===
+dbgVérifieEgalité(PositionOccurrence("ABCabc", "abc", 1, SansCasse), 1,
+"SansCasse : 'ABC' match 'abc' à pos 1")
+dbgVérifieEgalité(PositionOccurrence("ABCabc", "abc", 2, SansCasse), 4,
+"SansCasse : 2e occurrence pos 4")
+dbgVérifieEgalité(PositionOccurrence("ABCabc", "abc", 1), 4,
+"Sans option : 'ABC' ne match pas 'abc', 1ère vraie occurrence pos 4")
+
+// === Option DepuisFin (parcours inverse) ===
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 1, DepuisFin), 7,
+"DepuisFin : 1ère occurrence (= la dernière) pos 7")
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 2, DepuisFin), 4,
+"DepuisFin : 2e occurrence (avant-dernière) pos 4")
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 3, DepuisFin), 1,
+"DepuisFin : 3e occurrence (la 1ère en ordre normal) pos 1")
+
+// === Options combinées : SansCasse + DepuisFin ===
+dbgVérifieEgalité(PositionOccurrence("ABCabc", "abc", 1, SansCasse + DepuisFin), 4,
+"SansCasse + DepuisFin : dernière occurrence pos 4")
+
+// === Option DepuisDébut explicite (= défaut, no-op) ===
+dbgVérifieEgalité(PositionOccurrence("abcabcabc", "abc", 1, DepuisDébut), 1,
+"DepuisDébut explicite = défaut, comportement nominal")
+dbgVérifieEgalité(PositionOccurrence("ABCabc", "abc", 1, SansCasse + DepuisDébut), 1,
+"DepuisDébut neutre dans le mask, SansCasse seul détermine")
+
+// === Option MotComplet ===
+dbgVérifieEgalité(PositionOccurrence("le chat et un chaton", "chat", 1, MotComplet), 4,
+"MotComplet : 'chat' isolé pos 4, 'chaton' ne compte pas")
+dbgVérifieEgalité(PositionOccurrence("le chat et un chaton", "chat", 1), 4,
+"Sans MotComplet : matche aussi 'chat' isolé en premier (pos 4)")
+
+dbgBilanTest()

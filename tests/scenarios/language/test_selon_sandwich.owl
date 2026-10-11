@@ -1,0 +1,144 @@
+// @sujet : SELON ... CAS <min> <op> * <op> <max> — sandwich numérique
+// @résumé : Le motif sandwich permet d'exprimer une plage avec un niveau d'inclusion contrôlé sur chaque borne. La forme `CAS 10 < * < 20` matche les valeurs strictement entre 10 et 20 (les deux bornes exclues). Les quatre combinaisons sont disponibles : `< * <` (strict des deux côtés), `<= * <=` (inclus des deux côtés), `< * <=` (min exclu, max inclus), `<= * <` (min inclus, max exclu). Le placeholder `*` représente la variable testée par le SELON. Plus expressif que `CAS min A max` quand on veut exclure explicitement une ou les deux bornes.
+
+
+// Cas canonique : créneaux strictement entre deux seuils. Forme la plus
+// fréquente du sandwich, c'est l'équivalent direct de `min < v < max` en
+// expression normale. Lisible « strictement entre 10 et 20 ».
+PROCEDURE scenario_sandwich_strict()
+	nValeur est un entier = 15
+	bDansCreneau est un booléen = Faux
+	SELON nValeur
+		CAS 10 < * < 20 : bDansCreneau = Vrai
+		AUTRE CAS       : bDansCreneau = Faux
+	FIN
+	dbgVérifieVrai(bDansCreneau, "15 est strictement entre 10 et 20")
+
+	nValeur = 10
+	SELON nValeur
+		CAS 10 < * < 20 : bDansCreneau = Vrai
+		AUTRE CAS       : bDansCreneau = Faux
+	FIN
+	dbgVérifieFaux(bDansCreneau, "10 n'est pas strictement supérieur à 10 (borne min exclue)")
+
+	nValeur = 20
+	SELON nValeur
+		CAS 10 < * < 20 : bDansCreneau = Vrai
+		AUTRE CAS       : bDansCreneau = Faux
+	FIN
+	dbgVérifieFaux(bDansCreneau, "20 n'est pas strictement inférieur à 20 (borne max exclue)")
+FIN
+
+
+// Sandwich inclusif. Les deux bornes sont touchables. Équivalent strict de
+// `CAS min A max` (la forme plage) en terme de matching — c'est juste une
+// écriture plus explicite quand on veut souligner les opérateurs choisis.
+PROCEDURE scenario_sandwich_inclusif()
+	nValeur est un entier = 10
+	bDans est un booléen = Faux
+	SELON nValeur
+		CAS 10 <= * <= 20 : bDans = Vrai
+		AUTRE CAS         : bDans = Faux
+	FIN
+	dbgVérifieVrai(bDans, "Borne min inclusive : 10 ∈ [10, 20]")
+
+	nValeur = 20
+	SELON nValeur
+		CAS 10 <= * <= 20 : bDans = Vrai
+		AUTRE CAS         : bDans = Faux
+	FIN
+	dbgVérifieVrai(bDans, "Borne max inclusive : 20 ∈ [10, 20]")
+
+	nValeur = 21
+	SELON nValeur
+		CAS 10 <= * <= 20 : bDans = Vrai
+		AUTRE CAS         : bDans = Faux
+	FIN
+	dbgVérifieFaux(bDans, "21 dépasse la borne max inclusive")
+FIN
+
+
+// Sandwich asymétrique — min exclu, max inclus. Forme idiomatique pour
+// les intervalles à la française type « plus de X, jusqu'à Y inclus » :
+// tranches d'imposition, paliers tarifaires, durées de séjour facturées.
+PROCEDURE scenario_sandwich_min_exclu_max_inclus()
+	nDuree est un entier = 20
+	sTarif est une chaîne = ""
+	SELON nDuree
+		CAS 0 < * <= 10  : sTarif = "court séjour"
+		CAS 10 < * <= 30 : sTarif = "moyen séjour"
+		CAS 30 < * <= 90 : sTarif = "long séjour"
+		AUTRE CAS        : sTarif = "très long"
+	FIN
+	dbgVérifieEgalité(sTarif, "moyen séjour", "20 ∈ ]10, 30]")
+
+	nDuree = 10
+	SELON nDuree
+		CAS 0 < * <= 10  : sTarif = "court séjour"
+		CAS 10 < * <= 30 : sTarif = "moyen séjour"
+		CAS 30 < * <= 90 : sTarif = "long séjour"
+		AUTRE CAS        : sTarif = "très long"
+	FIN
+	dbgVérifieEgalité(sTarif, "court séjour", "10 ∈ ]0, 10] : capté par le premier CAS, frontière inclusive à droite")
+FIN
+
+
+// Sandwich asymétrique — min inclus, max exclu. C'est la convention
+// utilisée par la plupart des structures de données ordonnées (intervalle
+// semi-ouvert à droite). Utile pour éviter les chevauchements entre tranches
+// consécutives sans recourir à des bornes décalées de 1.
+PROCEDURE scenario_sandwich_min_inclus_max_exclu()
+	nValeur est un entier = 10
+	sTranche est une chaîne = ""
+	SELON nValeur
+		CAS 0 <= * < 10  : sTranche = "première"
+		CAS 10 <= * < 20 : sTranche = "deuxième"
+		CAS 20 <= * < 30 : sTranche = "troisième"
+		AUTRE CAS        : sTranche = "au-delà"
+	FIN
+	dbgVérifieEgalité(sTranche, "deuxième", "10 ∈ [10, 20) : capté par la deuxième tranche, pas la première")
+
+	nValeur = 20
+	SELON nValeur
+		CAS 0 <= * < 10  : sTranche = "première"
+		CAS 10 <= * < 20 : sTranche = "deuxième"
+		CAS 20 <= * < 30 : sTranche = "troisième"
+		AUTRE CAS        : sTranche = "au-delà"
+	FIN
+	dbgVérifieEgalité(sTranche, "troisième", "20 ∉ [10, 20) mais ∈ [20, 30)")
+FIN
+
+
+// Sandwich combiné avec plage et comparateur dans le même SELON. Démontre
+// que les trois formes peuvent coexister naturellement dans un même
+// aiguillage métier. Chaque CAS choisit la forme la plus expressive
+// pour sa condition.
+PROCEDURE scenario_sandwich_avec_autres_formes()
+	nPression est un entier = 15
+	sAlerte est une chaîne = ""
+	SELON nPression
+		CAS À 5         : sAlerte = "trop basse"
+		CAS 5 <= * < 10 : sAlerte = "basse"
+		CAS 10 À 20     : sAlerte = "normale"
+		CAS > 20        : sAlerte = "haute"
+	FIN
+	dbgVérifieEgalité(sAlerte, "normale", "Plage et sandwich coexistent : 15 ∈ [10, 20]")
+
+	nPression = 7
+	SELON nPression
+		CAS À 5         : sAlerte = "trop basse"
+		CAS 5 <= * < 10 : sAlerte = "basse"
+		CAS 10 À 20     : sAlerte = "normale"
+		CAS > 20        : sAlerte = "haute"
+	FIN
+	dbgVérifieEgalité(sAlerte, "basse", "7 ∈ [5, 10) → sandwich basse")
+
+	nPression = 25
+	SELON nPression
+		CAS À 5         : sAlerte = "trop basse"
+		CAS 5 <= * < 10 : sAlerte = "basse"
+		CAS 10 À 20     : sAlerte = "normale"
+		CAS > 20        : sAlerte = "haute"
+	FIN
+	dbgVérifieEgalité(sAlerte, "haute", "25 > 20 → comparateur préfixe haute")
+FIN

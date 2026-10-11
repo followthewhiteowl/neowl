@@ -1,0 +1,22 @@
+// Alias MonChamp resout vers le self du sous-champ d'Etat dans son
+// top-level. La ressource ETAT_MonChampSousChamp vit dans le voisin
+// etat_monchamp_sous_champ.owl.
+
+TestModeHeadless(Vrai)
+
+seqEtat est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqEtat += sEvenement
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_lifecycle_top_level/monchamp_sous_champ/temp.pdf")
+iImprimeEtat(ETAT_MonChampSousChamp)
+iFinImprime()
+
+Trace("seqEtat obtenu : [" + seqEtat + "]")
+
+dbgVérifieEgalité(seqEtat, "MonChamp:via MonChamp",
+"MonChamp dans top-level sous-champ d'Etat : alias self + lecture-apres-ecriture")
+
+dbgBilanTest()

@@ -1,0 +1,38 @@
+// Le thème est correctement désigné par le projet : la référence non résolue
+// vient d'une faute de frappe sur le nom du style. Le programme doit tenir, et
+// les styles voisins correctement nommés doivent continuer à se résoudre —
+// autrement dit l'incident reste local à la référence fautive.
+
+TestModeHeadless(Vrai)
+
+Trace("=== Nom de style mal orthographié dans un thème pourtant désigné ===")
+
+Ouvre(FEN_ThemeTypo)
+
+// --- Référence fautive : dégradation, pas d'arrêt.
+dbgVérifieEgalité(SAI_Typo..CouleurFond, Rouge,
+"Le nom mal orthographié dégrade sans arrêt : la cascade posée reste lisible")
+
+// --- Références correctes du même fichier : résolution intacte.
+dbgVérifieEgalité(SAI_Correcte..CouleurFond, Bleu,
+"Un style correctement orthographié se résout toujours vers la valeur du thème")
+
+dbgVérifieEgalité(BTN_Correct..CouleurFond, OrangeClair,
+"La cascade par-dessus un style correctement résolu prend le pas sur le thème")
+
+// --- La correction du nom en cours de route rétablit la résolution.
+SAI_Typo..Style = theme.saisiePrincipale
+
+dbgVérifieEgalité(SAI_Typo..CouleurFond, Bleu,
+"Réaffecter le style avec le nom correct rétablit la valeur du thème")
+
+Ferme(FEN_ThemeTypo)
+
+// La faute de frappe est aussi signalée à la compilation, sur la seule
+// référence fautive. Le message exact est verrouillé côté snapshot
+// (tests/compile-error/style_theme_nom_inconnu) ; ici on verrouille sa
+// présence sur ce corpus, et on le retire du bilan.
+__dbgAvertissementAttendu("Style 'saisiePrincipal' introuvable",
+"la référence mal orthographiée est signalée dès la compilation")
+
+dbgBilanTest()

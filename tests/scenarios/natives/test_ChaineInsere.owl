@@ -1,0 +1,89 @@
+// @sujet : ChaîneInsère
+// @résumé : ChaîneInsère (insertion sous-chaîne à position donnée)
+// Scénario : native ChaîneInsère (insertion sous-chaîne à position donnée)
+
+// Insertion standard à différentes positions dans la chaîne
+PROCEDURE PUBLIQUE scenario_insertion_nominale()
+	s_source est une chaîne = "Bonjour"
+	resultat est une chaîne
+
+	// Insertion au début (position 1)
+	resultat = ChaîneInsère(s_source, "Hello ", 1)
+	dbgVérifieEgalité(resultat, "Hello Bonjour", "position 1 : insertion début chaîne")
+
+	// Insertion au milieu (position 4, entre 'n' et 'j')
+	resultat = ChaîneInsère(s_source, "***", 4)
+	dbgVérifieEgalité(resultat, "Bon***jour", "position milieu : découpe correcte")
+
+	// Insertion avant dernier caractère
+	resultat = ChaîneInsère(s_source, "!", 7)
+	dbgVérifieEgalité(resultat, "Bonjou!r", "position avant dernier caractère")
+FIN
+
+// Insertion en fin de chaîne (position = Taille + 1)
+PROCEDURE PUBLIQUE scenario_insertion_fin()
+	s_base est une chaîne = "ABC"
+	resultat est une chaîne
+
+	// Position = Taille(s_base) + 1 doit insérer à la fin
+	resultat = ChaîneInsère(s_base, "XYZ", 4)
+	dbgVérifieEgalité(resultat, "ABCXYZ", "insertion position Taille+1 : fin chaîne")
+
+	// Vérifier doublement avec chaîne vide comme base
+	s_vide est une chaîne = ""
+	resultat = ChaîneInsère(s_vide, "contenu", 1)
+	dbgVérifieEgalité(resultat, "contenu", "base vide + pos 1 : devient insertion")
+FIN
+
+// Cas limites : chaîne à insérer vide ne modifie pas la source
+PROCEDURE PUBLIQUE scenario_insertion_vide()
+	s_texte est une chaîne = "Original"
+	resultat est une chaîne
+
+	// Insérer chaîne vide ne modifie pas
+	resultat = ChaîneInsère(s_texte, "", 3)
+	dbgVérifieEgalité(resultat, "Original", "insertion vide : source inchangée")
+FIN
+
+// Insertion avec accents et caractères UTF-8
+PROCEDURE PRIVÉE scenario_insertion_accents()
+	s_avec_accents est une chaîne = "Éléphant"
+	resultat est une chaîne
+
+	// Insertion à la position 5 : insère AVANT le 5e caractère logique.
+	// Caractères 1-based de "Éléphant" : É(1) l(2) é(3) p(4) h(5) a(6) n(7) t(8).
+	// Insertion avant le 5e caractère ("h") → "Élép" + "ñ" + "hant" = "Élépñhant".
+	// Découpage codepoint-correct (multi-byte UTF-8) via str_byte_at_cp.
+	resultat = ChaîneInsère(s_avec_accents, "ñ", 5)
+	dbgVérifieEgalité(resultat, "Élépñhant", "accents : découpe multi-byte UTF-8 correcte (insertion avant 5e caractère)")
+
+	// Insérer chaîne accentuée complète (position > taille → fin par doc canon)
+	resultat = ChaîneInsère("test", "ça marché", 5)
+	dbgVérifieEgalité(resultat, "testça marché", "insertion chaîne accentuée complète")
+FIN
+
+// Insertion répétée : construction par accumulation séquentielle
+PROCEDURE PRIVÉE scenario_insertions_multiples()
+	s_base est une chaîne = "A__C"
+	resultat est une chaîne
+
+	// Première insertion
+	resultat = ChaîneInsère(s_base, "B", 2)
+	dbgVérifieEgalité(resultat, "AB__C", "première insertion : B en position 2")
+
+	// Deuxième insertion sur le résultat précédent
+	resultat = ChaîneInsère(resultat, "1", 6)
+	dbgVérifieEgalité(resultat, "AB__C1", "accumulation : insertion séquentielle")
+FIN
+
+// Cas de chaînes longues : vérification découpe et taille résultat
+PROCEDURE PRIVÉE scenario_chaine_longue()
+	s_longue est une chaîne = "AAAAAAAAAA"
+	s_motif est une chaîne = "***"
+	resultat est une chaîne
+
+	// Insertion au milieu d'une chaîne répétitive
+	resultat = ChaîneInsère(s_longue, s_motif, 6)
+	dbgVérifieEgalité(resultat, "AAAAA***AAAAA", "longue chaîne : découpe correcte")
+	dbgVérifieEgalité(Taille(resultat), 13, "taille résultat : 10 + 3 = 13")
+FIN

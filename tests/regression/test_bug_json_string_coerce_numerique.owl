@@ -1,0 +1,60 @@
+// Régression  : Désérialise(psdJSON) d'une valeur JSON de type
+// chaîne ("1234.50") vers un champ numérique (monétaire/entier/réel/
+// numérique) coerce désormais la chaîne en nombre au lieu de retomber
+// silencieusement à 0. Chaîne non numérique ("abc") continue de tomber
+// à 0 (fallback conservé, décision dev option b — pas d'erreur).
+
+Facture est une Structure
+	montant est un monétaire
+	qte est un entier
+	taux est un réel
+	total est un numérique
+	ref est une chaîne
+FIN
+
+// --- Cas à débloquer : chaîne numérique valide -> nombre coercé ---
+
+f1 est un Facture
+b1 est un booléen = Désérialise(f1, `{"montant":"1234.50","qte":"7","taux":"3.14","total":"42"}`, psdJSON)
+
+dbgVérifieEgalité(b1, Vrai, "désérialisation réussit (montant chaîne)")
+dbgVérifieEgalité(f1.montant, 1234.50, "chaîne JSON numérique valide coercée en monétaire exact")
+dbgVérifieEgalité(f1.qte, 7, "chaîne JSON numérique valide coercée en entier")
+dbgVérifieVrai(Abs(f1.taux - 3.14) < 0.0001, "chaîne JSON numérique valide coercée en réel")
+dbgVérifieEgalité(f1.total, 42, "chaîne JSON numérique valide coercée en numérique")
+
+// --- Cas à débloquer : négatif ---
+
+f2 est un Facture
+b2 est un booléen = Désérialise(f2, `{"qte":"-5"}`, psdJSON)
+
+dbgVérifieEgalité(b2, Vrai, "désérialisation réussit (qte négatif)")
+dbgVérifieEgalité(f2.qte,-5, "chaîne JSON numérique négative coercée en entier")
+
+// --- Non-régression : chaîne NON numérique -> 0 (fallback conservé, pas d'erreur) ---
+
+f3 est un Facture
+b3 est un booléen = Désérialise(f3, `{"montant":"abc","qte":"abc"}`, psdJSON)
+
+dbgVérifieEgalité(b3, Vrai, "désérialisation réussit même avec chaîne non numérique (pas d'erreur)")
+dbgVérifieEgalité(f3.montant, 0, "chaîne JSON non numérique retombe à 0 (fallback conservé)")
+dbgVérifieEgalité(f3.qte, 0, "chaîne JSON non numérique retombe à 0 (fallback conservé)")
+
+// --- Non-régression : JSON number -> champ numérique inchangé ---
+
+f4 est un Facture
+b4 est un booléen = Désérialise(f4, `{"montant":1234.50,"qte":7}`, psdJSON)
+
+dbgVérifieEgalité(b4, Vrai, "désérialisation réussit (JSON number)")
+dbgVérifieEgalité(f4.montant, 1234.50, "JSON number -> monétaire inchangé")
+dbgVérifieEgalité(f4.qte, 7, "JSON number -> entier inchangé")
+
+// --- Non-régression : JSON number -> champ chaîne inchangé (coercion inverse déjà en place) ---
+
+f5 est un Facture
+b5 est un booléen = Désérialise(f5, `{"ref":42}`, psdJSON)
+
+dbgVérifieEgalité(b5, Vrai, "désérialisation réussit (JSON number vers chaîne)")
+dbgVérifieEgalité(f5.ref, "42", "JSON number -> chaîne inchangé")
+
+dbgBilanTest()

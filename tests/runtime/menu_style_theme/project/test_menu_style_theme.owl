@@ -1,0 +1,99 @@
+// Un MenuPrincipal et un MenuContextuel consomment un style nommé du thème
+// (`Style = theme.<nom>`), au même titre qu'un champ. Vérification sur la
+// feuille de style effective des panneaux de menu (widgets Qt réels), teinte
+// par teinte : chaque couleur du thème est unique, donc sa présence dans la
+// feuille identifie la surface qu'elle habille.
+//
+// Trois cas par sorte de menu :
+//   1. thème seul                -> toutes les surfaces viennent du thème ;
+//   2. thème puis cascade        -> la cascade gagne, le reste du thème tient ;
+//   3. cascade puis thème        -> l'affectation entière remet à zéro, le
+//                                   thème gagne partout.
+//
+// Un menu contextuel n'existe qu'à l'instant du clic droit et son panneau est
+// modal : sa feuille est lue via la forme de contrôle dédiée, qui rejoue le
+// même calcul sans afficher le menu.
+
+TestModeHeadless(Faux)
+
+// --- 1. MenuPrincipal, thème seul.
+OuvreSoeur(FEN_MenuThemeBarre)
+dbgVérifieFaux(ErreurDétectée,
+"MenuPrincipal avec Style = theme.menuSombre : ouverture sans erreur")
+
+barre est une chaîne = __DebugFeuilleStyleMenu()
+
+dbgVérifieVrai(Contient(barre, "QMenuBar { background-color: rgb(88,41,0);"),
+"Barre..CouleurFond du thème (MarronFoncé) habille la bande horizontale")
+dbgVérifieVrai(Contient(barre, "QMenuBar::item { background: transparent; color: rgb(192,192,192);"),
+"Barre..Couleur du thème (Argent) colore le texte de la bande")
+dbgVérifieVrai(Contient(barre, "QMenu { background-color: rgb(0,0,128);"),
+"SousMenu..CouleurFond du thème (BleuFoncé) habille le panneau déroulant")
+dbgVérifieVrai(Contient(barre, "border: 1px solid rgb(205,127,50);"),
+"SousMenu..CouleurBordure du thème (Bronze) dessine le liseré du panneau")
+dbgVérifieVrai(Contient(barre, "QMenu::item { background: rgb(0,128,0);"),
+"OptionMenu..CouleurFond du thème (VertFoncé) habille la rangée de menu")
+dbgVérifieVrai(Contient(barre, "color: rgb(255,215,0);"),
+"OptionMenu..Couleur du thème (JauneOr) colore le libellé de la rangée")
+
+Ferme(FEN_MenuThemeBarre)
+
+// --- 2. MenuPrincipal, thème PUIS cascade : la cascade gagne, le thème tient.
+OuvreSoeur(FEN_MenuThemeSurcharge)
+surcharge est une chaîne = __DebugFeuilleStyleMenu()
+
+dbgVérifieVrai(Contient(surcharge, "QMenuBar { background-color: rgb(255,255,0);"),
+"Thème puis Style..Barre..CouleurFond = JauneClair : la cascade gagne sur la bande")
+dbgVérifieFaux(Contient(surcharge, "QMenuBar { background-color: rgb(88,41,0);"),
+"La couleur de bande du thème (MarronFoncé) ne subsiste pas sous la cascade")
+dbgVérifieVrai(Contient(surcharge, "QMenu { background-color: rgb(0,0,128);"),
+"Surface non surchargée : le panneau déroulant garde la teinte du thème")
+dbgVérifieVrai(Contient(surcharge, "QMenu::item { background: rgb(0,128,0);"),
+"Surface non surchargée : la rangée de menu garde la teinte du thème")
+
+Ferme(FEN_MenuThemeSurcharge)
+
+// --- 3. MenuPrincipal, cascade PUIS thème : l'affectation entière reset.
+OuvreSoeur(FEN_MenuThemeInverse)
+inverse est une chaîne = __DebugFeuilleStyleMenu()
+
+dbgVérifieVrai(Contient(inverse, "QMenuBar { background-color: rgb(88,41,0);"),
+"Cascade puis Style = theme.menuSombre : le thème remet la bande à sa teinte")
+dbgVérifieFaux(Contient(inverse, "rgb(255,255,0)"),
+"La cascade antérieure (JauneClair) est effacée par l'affectation entière")
+
+Ferme(FEN_MenuThemeInverse)
+
+// --- 4. MenuContextuel : mêmes trois cas.
+OuvreSoeur(FEN_MenuThemeContextuel)
+dbgVérifieFaux(ErreurDétectée,
+"MenuContextuel avec Style = theme.ctxSombre : ouverture sans erreur")
+
+ctx est une chaîne = __DebugFeuilleStyleMenuContextuel("MNU_Ctx")
+
+dbgVérifieVrai(Contient(ctx, "QMenu { background-color: rgb(128,0,128);"),
+"SousMenu..CouleurFond du thème (MagentaFoncé) habille le panneau contextuel")
+dbgVérifieVrai(Contient(ctx, "border: 1px solid rgb(255,209,220);"),
+"SousMenu..CouleurBordure du thème (RosePastel) dessine le liseré du panneau contextuel")
+dbgVérifieVrai(Contient(ctx, "QMenu::item { background: rgb(148,0,211);"),
+"OptionMenu..CouleurFond du thème (VioletFoncé) habille la rangée contextuelle")
+dbgVérifieVrai(Contient(ctx, "color: rgb(0,128,128);"),
+"OptionMenu..Couleur du thème (CyanFoncé) colore le libellé de la rangée contextuelle")
+
+ctxSurcharge est une chaîne = __DebugFeuilleStyleMenuContextuel("MNU_CtxSurcharge")
+
+dbgVérifieVrai(Contient(ctxSurcharge, "QMenu { background-color: rgb(255,255,0);"),
+"Thème puis Style..SousMenu..CouleurFond = JauneClair : la cascade gagne sur le panneau contextuel")
+dbgVérifieVrai(Contient(ctxSurcharge, "QMenu::item { background: rgb(148,0,211);"),
+"Surface non surchargée : la rangée contextuelle garde la teinte du thème")
+
+ctxInverse est une chaîne = __DebugFeuilleStyleMenuContextuel("MNU_CtxInverse")
+
+dbgVérifieVrai(Contient(ctxInverse, "QMenu { background-color: rgb(128,0,128);"),
+"Cascade puis Style = theme.ctxSombre : le thème remet le panneau contextuel à sa teinte")
+dbgVérifieFaux(Contient(ctxInverse, "rgb(255,255,0)"),
+"La cascade antérieure du menu contextuel est effacée par l'affectation entière")
+
+Ferme(FEN_MenuThemeContextuel)
+
+dbgBilanTest()

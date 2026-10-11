@@ -1,0 +1,24 @@
+//  — projet SANS `FormatMonétaire` posé : `Projet..FormatMonétaire`
+// doit quand même rendre un OBJET `FormatMonétaire` (jamais nil, jamais ""),
+// avec son propre défaut plat (`..Symbole` vide — même contrat que le test
+// type_defaut). L'affichage du champ Monétaire voisin (sans format propre)
+// doit rester identique à l'entrée (non-régression /1995/2036).
+//
+// ROUGE attendu : compilation échoue tant que le champ `FormatMonétaire`
+// n'existe pas au catalogue manifeste Projet.
+
+dbgVérifieVrai(MonAppFormatMonetaireDefautProjet..FormatMonétaire <> Null, "Projet..FormatMonétaire : jamais nil même non configuré (objet FormatMonétaire par défaut)")
+
+sSymboleDefaut est une chaîne = MonAppFormatMonetaireDefautProjet..FormatMonétaire..Symbole
+dbgVérifieEgalité(sSymboleDefaut, "", "Projet..FormatMonétaire non configuré : Symbole vide (défaut plat, pas de symbole imposé)")
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ProjetFormatMonetaireDefaut)
+
+SAI_Montant..Valeur = 0m1234.56
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234.56, "Repli défaut plat (ni champ ni projet configurés) : round-trip inchangé, 1234.56 relu tel quel")
+
+Ferme(FEN_ProjetFormatMonetaireDefaut)
+dbgBilanTest()

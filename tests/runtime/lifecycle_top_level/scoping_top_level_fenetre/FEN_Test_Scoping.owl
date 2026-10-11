@@ -1,0 +1,46 @@
+// Fenêtre voisine — ressource pour test_scoping_top_level_fenetre.owl.
+//
+// Témoin scoping : variable du top-level FENÊTRE visible dans les champs.
+// Une variable déclarée dans le top-level fenêtre devrait être visible dans
+// les events/procédures des champs (portée globale à la fenêtre).
+
+FEN_Test_Scoping est une Fenêtre
+	PROPRIETES
+		Titre       = "Témoin scoping top-level"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 300
+	FIN
+
+	// --- TOP-LEVEL FENÊTRE (code d'init fenêtre, niveau 0)
+	// Variable déclarée ici devrait être visible dans les champs.
+	variableFenetre est une chaîne = "VISIBLE_FENETRE"
+
+	// Trace de la valeur lue depuis un événement de champ, remontée callback.
+	valeurLueClic est une chaîne = ""
+
+	// --- Champ 1
+	BTN_Test est un Champ Bouton
+		PROPRIETES
+			X       = 50
+			Y       = 50
+			Largeur = 150
+			Hauteur = 40
+			Libellé = "Tester scoping"
+		FIN
+
+		PROCEDURE surClic()
+			// Référence à la variable du top-level fenêtre
+			// Aujourd'hui : erreur compile "variable inconnue"
+			// Attendu (Lot 1) : compile OK, lecture "VISIBLE_FENETRE"
+			valeur est une chaîne = variableFenetre
+			valeurLueClic = valeur
+			Trace("Variable fenêtre lue depuis champ : [" + valeur + "]")
+		FIN
+	FIN
+
+	// Procédure publique appelée par le script test après le clic simulé
+	PROCEDURE LireValeurClic()
+		callback_verifie(valeurLueClic)
+	FIN
+FIN

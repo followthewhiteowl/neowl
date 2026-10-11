@@ -1,0 +1,161 @@
+// @sujet : TexteSimilaritéJaccard
+// @résumé : Coefficient de Jaccard (Tanimoto) basé sur trigrammes (n=3) avec padding sentinelle — normalise par l'union des ensembles de trigrammes. Opère sur codepoints après repli casse+accents. Retourne un réel entre 0 (aucun recouvrement) et 1 (identiques). Formule : |A∩B|/|A∪B|. Utile pour comparaison stricte de similarité textuelle, détection de doublons.
+
+
+// Cas trivial : chaînes identiques → 1.0. "abc" → après folding "abc" →
+// paddé [⊥⊥abc⊥⊥] → trigrammes {⊥⊥a, ⊥ab, abc, bc⊥, c⊥⊥}.
+// A = B → |A∩B| = 5, |A∪B| = 5.
+// Jaccard = 5/5 = 1.0.
+PROCEDURE scenario_texte_similarite_jaccard_identiques()
+	sim est un réel = TexteSimilaritéJaccard("abc", "abc")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaînes identiques → Jaccard = 1.0", 0.001)
+FIN
+
+
+// Cas trivial : chaînes disjointes → 0.0. "abc" → [⊥⊥abc⊥⊥] → A = {⊥⊥a, ⊥ab, abc, bc⊥, c⊥⊥}.
+// "xyz" → [⊥⊥xyz⊥⊥] → B = {⊥⊥x, ⊥xy, xyz, yz⊥, z⊥⊥}.
+// A∩B = ∅ (aucun trigramme commun).
+// Jaccard = 0/(5+5-0) = 0/10 = 0.0.
+PROCEDURE scenario_texte_similarite_jaccard_disjoints()
+	sim est un réel = TexteSimilaritéJaccard("abc", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "codepoints disjoints → Jaccard = 0.0", 0.001)
+FIN
+
+
+// Recouvrement partiel : "abc" vs "abcd" (un char ajouté).
+// "abc" → [⊥⊥abc⊥⊥] → A = {⊥⊥a, ⊥ab, abc, bc⊥, c⊥⊥}.
+// "abcd" → [⊥⊥abcd⊥⊥] → B = {⊥⊥a, ⊥ab, abc, bcd, cd⊥, d⊥⊥}.
+// A∩B = {⊥⊥a, ⊥ab, abc} → |A∩B| = 3.
+// |A∪B| = 5+6-3 = 8.
+// Jaccard = 3/8 = 0.375.
+PROCEDURE scenario_texte_similarite_jaccard_recouvrement_partiel()
+	sim est un réel = TexteSimilaritéJaccard("abc", "abcd")
+
+	// Jaccard = 3/8 = 0.375.
+	dbgVérifieÉgalitéRéel(sim, 0.375, "recouvrement partiel abc/abcd → Jaccard = 0.375", 0.001)
+FIN
+
+
+// Insensible casse+accents : "CAFÉ" vs "cafe" (après folding → identiques "cafe").
+// Paddé [⊥⊥cafe⊥⊥] identique pour les deux.
+// A = B → Jaccard = 1.0.
+PROCEDURE scenario_texte_similarite_jaccard_insensible_defaut()
+	simMixte est un réel = TexteSimilaritéJaccard("CAFÉ", "cafe")
+
+	dbgVérifieÉgalitéRéel(simMixte, 1.0, "casse+accents ignorés → Jaccard = 1.0", 0.001)
+FIN
+
+
+// Bornes vides : deux vides → 1.0. "" → [⊥⊥⊥⊥] → ensemble {⊥⊥⊥}.
+// A = B = {⊥⊥⊥} → |A∩B| = 1, |A∪B| = 1.
+// Jaccard = 1/1 = 1.0.
+PROCEDURE scenario_texte_similarite_jaccard_deux_vides()
+	sim est un réel = TexteSimilaritéJaccard("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → Jaccard = 1.0", 0.001)
+FIN
+
+
+// Bornes vides : une vide vs non vide → 0.0.
+// "" → A = {⊥⊥⊥}.
+// "a" → [⊥⊥a⊥⊥] → B = {⊥⊥a, ⊥a⊥, a⊥⊥}.
+// A∩B = ∅.
+// Jaccard = 0/(1+3-0) = 0/4 = 0.0.
+PROCEDURE scenario_texte_similarite_jaccard_une_vide()
+	sim1 est un réel = TexteSimilaritéJaccard("abc", "")
+	sim2 est un réel = TexteSimilaritéJaccard("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → Jaccard = 0.0", 0.001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → Jaccard = 0.0", 0.001)
+FIN
+
+
+// Alias EN : TextSimilarityJaccard() équivalent à TexteSimilaritéJaccard().
+PROCEDURE scenario_text_similarity_jaccard_alias_en()
+	simFR est un réel = TexteSimilaritéJaccard("abc", "abcd")
+	simEN est un réel = TextSimilarityJaccard("abc", "abcd")
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR (Jaccard)", 0.001)
+	dbgVérifieÉgalitéRéel(simEN, 0.375, "alias EN calcule correctement", 0.001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Symétrie : Jaccard est symétrique (|A∩B| et |A∪B| sont symétriques).
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_symetrie()
+	sim1 est un réel = TexteSimilaritéJaccard("abc", "abcd")
+	sim2 est un réel = TexteSimilaritéJaccard("abcd", "abc")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "Jaccard symétrique", 0.001)
+FIN
+
+
+// Chaîne à 1 char : "a" vs "a" → identiques → 1.0.
+// "a" → [⊥⊥a⊥⊥] → A = {⊥⊥a, ⊥a⊥, a⊥⊥}.
+// A = B → Jaccard = 1.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_un_char_identique()
+	sim est un réel = TexteSimilaritéJaccard("a", "a")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaîne 1 char identique → Jaccard = 1.0", 0.001)
+FIN
+
+
+// Chaîne à 1 char : "a" vs "b" → disjoints → 0.0.
+// "a" → A = {⊥⊥a, ⊥a⊥, a⊥⊥}.
+// "b" → B = {⊥⊥b, ⊥b⊥, b⊥⊥}.
+// A∩B = ∅ → Jaccard = 0.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_un_char_different()
+	sim est un réel = TexteSimilaritéJaccard("a", "b")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "chaînes 1 char différent → Jaccard = 0.0", 0.001)
+FIN
+
+
+// Accents multibyte : "café" vs "cafè" (é vs è, mais après folding → identiques "cafe").
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_multibyte_accents()
+	sim est un réel = TexteSimilaritéJaccard("café", "cafè")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "accents foldés → Jaccard = 1.0", 0.001)
+FIN
+
+
+// Recouvrement faible : "nuit" vs "nuits" (un 's' ajouté à la fin).
+// "nuit" → [⊥⊥nuit⊥⊥] → A = {⊥⊥n, ⊥nu, nui, uit, it⊥, t⊥⊥}.
+// "nuits" → [⊥⊥nuits⊥⊥] → B = {⊥⊥n, ⊥nu, nui, uit, its, ts⊥, s⊥⊥}.
+// A∩B = {⊥⊥n, ⊥nu, nui, uit} → |A∩B| = 4.
+// |A∪B| = 6+7-4 = 9.
+// Jaccard = 4/9 ≈ 0.444444...
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_nuit_nuits()
+	sim est un réel = TexteSimilaritéJaccard("nuit", "nuits")
+
+	// Jaccard = 4/9 ≈ 0.444444.
+	dbgVérifieÉgalitéRéel(sim, 0.444444, "nuit vs nuits → Jaccard ≈ 0.444", 0.001)
+FIN
+
+
+// Chaînes longues : vérifier bornes [0, 1] sans crash.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_chaines_longues()
+	s1 est une chaîne = "Le rapide renard brun saute par-dessus le chien paresseux"
+	s2 est une chaîne = "Le renard brun rapide bondit au-dessus du chien endormi"
+
+	sim est un réel = TexteSimilaritéJaccard(s1, s2)
+
+	dbgVérifieVrai(sim >= 0.0, "Jaccard >= 0 (chaînes longues)")
+	dbgVérifieVrai(sim <= 1.0, "Jaccard <= 1 (bornes respectées)")
+	dbgVérifieVrai(sim > 0.3, "chaînes longues similaires → Jaccard plausible > 0.3")
+FIN
+
+
+// Trigrammes dédupliqués : "aaa" → [⊥⊥aaa⊥⊥] → {⊥⊥a, ⊥aa, aaa, aa⊥, a⊥⊥}.
+// "aaaa" → [⊥⊥aaaa⊥⊥] → {⊥⊥a, ⊥aa, aaa, aa⊥, a⊥⊥} (trigramme 'aaa' dupliqué fusionné).
+// A = B → Jaccard = 1.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaccard_deduplication()
+	sim est un réel = TexteSimilaritéJaccard("aaa", "aaaa")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "trigrammes dédupliqués aaa/aaaa → Jaccard = 1.0", 0.001)
+FIN

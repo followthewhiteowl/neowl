@@ -1,0 +1,110 @@
+// ============================================
+// TEST (Qt réel, offscreen) : filtre checklist « valeurs distinctes »
+//
+// $tblfilters gagne un filtre multi-valeurs IN {set} par colonne, en plus du
+// op+valeur existant (TableActiveFiltre). Ligne visible ssi elle satisfait
+// TOUS les filtres actifs de la Table (ET), IN {set} inclus. Le calcul des
+// valeurs distinctes d'une colonne (avec seuil de cardinalité au-delà duquel
+// aucune checklist n'est proposée) est un helper backend pur.
+//
+// Ces trois hooks test-only n'existent pas encore côté src/ : ce test est
+// ROUGE à la compilation (natives inconnues) tant que l'implementer ne les a
+// pas ajoutés. Une fois ajoutés mais le comportement pas branché sur le vrai
+// chemin de filtrage/recompute, il rougit sur les assertions.
+//
+//   __DebugTableFiltreIN(TAB.COL, valeursRC) -> rien
+//     Pose un filtre IN {set} sur la colonne (valeursRC = valeurs à retenir,
+//     jointes par RC), via le MÊME store $tblfilters + le MÊME recompute Qt
+//     que TableActiveFiltre (convergence avec le chemin utilisateur réel).
+//     Le retrait passe par TableDésactiveFiltre(TAB.COL) — pas de convention
+//     de valeur vide propre à ce hook.
+//
+//   __DebugTableColonneVisible(TAB.COL) -> chaîne
+//     Lit l'état Qt RÉEL (rowHidden du QTableView monté) : rend les valeurs
+//     de cette colonne pour les lignes NON masquées, jointes par RC, dans
+//     l'ordre des lignes du store. Chaîne vide si le champ est introuvable
+//     ou non monté.
+//
+//   __DebugTableValeursDistinctes(TAB.COL) -> chaîne
+//     Backend pur (pas de widget requis) : valeurs distinctes de la colonne,
+//     jointes par RC, dans l'ordre de première apparition. Chaîne vide si la
+//     colonne dépasse le seuil interne de cardinalité (~50-100, pas de
+//     checklist possible) — et aussi si la colonne est vide.
+//
+// Pattern : la fenêtre voisine FEN_FiltreChecklist.owl porte la déclaration
+// (TAB_Filtre : COL_Nom, COL_Ville — TAB_Grande : COL_V à forte cardinalité).
+// ============================================
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FiltreChecklist)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// --- Remplissage TAB_Filtre : 6 lignes, cardinalité Ville faible (3) ---
+TableAjouteLigne(TAB_Filtre, "Dupont", "Paris")
+TableAjouteLigne(TAB_Filtre, "Martin", "Lyon")
+TableAjouteLigne(TAB_Filtre, "Durand", "Paris")
+TableAjouteLigne(TAB_Filtre, "Petit", "Nice")
+TableAjouteLigne(TAB_Filtre, "Bernard", "Lyon")
+TableAjouteLigne(TAB_Filtre, "Moreau", "Paris")
+
+// --- 1. Valeurs distinctes (faible cardinalité) : liste exacte, 1ère apparition ---
+sDistinctVille est une chaîne = __DebugTableValeursDistinctes(TAB_Filtre.COL_Ville)
+dbgVérifieEgalité(sDistinctVille, "Paris" + CRLF + "Lyon" + CRLF + "Nice",
+"valeurs distinctes de Ville, dans l'ordre de 1ère apparition")
+
+// --- 2. IN {set} à 1 valeur : seules les lignes Ville=Paris restent visibles ---
+__DebugTableFiltreIN(TAB_Filtre.COL_Ville, "Paris")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Nom),
+"Dupont" + CRLF + "Durand" + CRLF + "Moreau",
+"IN {Paris} : seules les lignes Paris restent visibles (Nom)")
+dbgVérifieVrai(Contient(TableColonnesFiltrées(TAB_Filtre), "COL_Ville"),
+"le filtre IN se reflète dans TableColonnesFiltrees comme les autres filtres")
+
+// --- 3. IN {set} à 2 valeurs (sous-ensemble des 3 distinctes) : union correcte ---
+__DebugTableFiltreIN(TAB_Filtre.COL_Ville, "Paris" + CRLF + "Nice")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Nom),
+"Dupont" + CRLF + "Durand" + CRLF + "Petit" + CRLF + "Moreau",
+"IN {Paris, Nice} : union des deux valeurs cochées (Nom)")
+
+// --- 4. Intersection : IN {Paris, Nice} ET filtreCommencePar("D") sur Nom ---
+TableActiveFiltre(TAB_Filtre.COL_Nom, filtreCommencePar, "D")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Nom),
+"Dupont" + CRLF + "Durand",
+"intersection IN{Paris,Nice} ET commence par D : seules Dupont/Durand passent les DEUX filtres")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Ville),
+"Paris" + CRLF + "Paris",
+"intersection : la colonne Ville des lignes restantes est cohérente (les deux sont Paris)")
+
+// --- 5. Retrait ciblé du filtre op+valeur (Nom) : le IN{set} restant s'applique seul ---
+TableDésactiveFiltre(TAB_Filtre.COL_Nom)
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Nom),
+"Dupont" + CRLF + "Durand" + CRLF + "Petit" + CRLF + "Moreau",
+"après retrait du filtre Nom : le IN{Paris,Nice} seul redonne ses 4 lignes")
+
+// --- 6. Retrait global : toutes les lignes redeviennent visibles ---
+TableDésactiveFiltre(TAB_Filtre)
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Nom),
+"Dupont" + CRLF + "Martin" + CRLF + "Durand" + CRLF + "Petit" + CRLF + "Bernard" + CRLF + "Moreau",
+"TableDesactiveFiltre(TAB) global : les 6 lignes redeviennent visibles")
+dbgVérifieEgalité(TableColonnesFiltrées(TAB_Filtre), "",
+"plus aucun filtre actif après retrait global (IN{set} compris)")
+
+// --- 6bis. IN {} (ensemble vide, ex-« Aucun ») : table vide, filtre actif ---
+__DebugTableFiltreIN(TAB_Filtre.COL_Ville, "")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Filtre.COL_Nom), "",
+"IN {} : aucune valeur retenue -> aucune ligne visible (table vide, symétrique de Tout)")
+dbgVérifieVrai(Contient(TableColonnesFiltrées(TAB_Filtre), "COL_Ville"),
+"IN {} reste un filtre ACTIF sur la colonne (pas un retrait de filtre)")
+TableDésactiveFiltre(TAB_Filtre)
+
+// --- 7. Seuil de cardinalité : au-delà, pas de checklist (chaîne vide) ---
+POUR i = 1 À 150
+	TableAjouteLigne(TAB_Grande, "v" + i)
+FIN
+dbgVérifieEgalité(__DebugTableValeursDistinctes(TAB_Grande.COL_V), "",
+"150 valeurs distinctes (> seuil ~50-100) : pas de checklist, chaîne vide")
+
+Ferme(FEN_FiltreChecklist)
+
+dbgBilanTest()

@@ -1,0 +1,43 @@
+//  — non-régression : les formes de tableau qui fonctionnent déjà
+// doivent continuer de fonctionner après la pré-instanciation des cellules.
+// Ce fichier est vert avant comme après le correctif.
+ST_NR est une Structure
+	Msg est une chaîne
+	N est un entier
+FIN
+
+// Tableaux de scalaires dimensionnés
+tChaines est un tableau de 3 chaînes
+tEntiers est un tableau de 3 entiers
+tReels est un tableau de 3 réels
+tBooleens est un tableau de 3 booléens
+
+dbgVérifieEgalité(tChaines..Occurrence, 3, "1398 : tableau dimensionné de chaînes, occurrence")
+dbgVérifieEgalité(tChaines[2], "", "1398 : chaîne dimensionnée par défaut vide")
+dbgVérifieEgalité(tEntiers[2], 0, "1398 : entier dimensionné par défaut à zéro")
+dbgVérifieVrai(Abs(tReels[2] - 0.0) < 0.0001, "1398 : réel dimensionné par défaut à zéro")
+dbgVérifieEgalité(tBooleens[2], Faux, "1398 : booléen dimensionné par défaut à Faux")
+tChaines[2] = "écrit"
+dbgVérifieEgalité(tChaines[2], "écrit", "1398 : écriture dans un tableau de scalaires dimensionné")
+dbgVérifieEgalité(tChaines[1], "", "1398 : les autres cellules scalaires ne bougent pas")
+
+// Tableau dynamique sans taille + TableauAjoute sur structure
+tDyn est un tableau de ST_NR
+dbgVérifieEgalité(tDyn..Occurrence, 0, "1398 : tableau dynamique sans taille démarre vide")
+elem est un ST_NR
+elem.Msg = "ajouté"
+elem.N = 5
+TableauAjoute(tDyn, elem)
+dbgVérifieEgalité(tDyn..Occurrence, 1, "1398 : TableauAjoute augmente l'occurrence")
+dbgVérifieEgalité(tDyn[1].Msg, "ajouté", "1398 : TableauAjoute sur structure, champ chaîne")
+dbgVérifieEgalité(tDyn[1].N, 5, "1398 : TableauAjoute sur structure, champ entier")
+
+// Affectation de la cellule entière d'un tableau dimensionné
+tCell est un tableau de 2 ST_NR
+remplacant est un ST_NR
+remplacant.Msg = "cellule entière"
+tCell[1] = remplacant
+dbgVérifieEgalité(tCell[1].Msg, "cellule entière", "1398 : affectation de la cellule entière")
+dbgVérifieEgalité(tCell..Occurrence, 2, "1398 : affecter une cellule ne change pas l'occurrence")
+
+dbgBilanTest()

@@ -1,0 +1,33 @@
+//  — Champ Liste : la propriété "nombre d'éléments" est bilingue.
+//
+// La forme FR (..Occurrence) renvoyait déjà le nombre d'éléments. La forme
+// EN (..Count) était rejetée au compile ("Propriété 'Count' inconnue") car
+// l'entrée catalogue portait un nameEN faux ("Occurrence" au lieu de
+// "Count"). Ce test verrouille la parité FR/EN sur une liste peuplée.
+//
+// Pattern : la fenêtre voisine FEN_OccCount.owl porte la déclaration.
+
+Ouvre(FEN_OccCount)
+
+// Liste vide : les deux formes valent 0.
+dbgVérifieEgalité(LISTE_OC..Occurrence, 0, "Occurrence (FR) = 0 sur liste vide")
+dbgVérifieEgalité(LISTE_OC..Occurrence, 0, "Count (EN) = 0 sur liste vide")
+
+// Peuplement de 3 éléments.
+ListeAjoute(LISTE_OC, "alpha")
+ListeAjoute(LISTE_OC, "beta")
+ListeAjoute(LISTE_OC, "gamma")
+
+// Non-régression FR : la forme historique renvoie bien 3.
+occFR est un entier = LISTE_OC..Occurrence
+dbgVérifieEgalité(occFR, 3, "Occurrence (FR) = 3 après 3 ajouts")
+
+// Trou comblé : la forme EN compile ET renvoie la même valeur que FR.
+occEN est un entier = LISTE_OC..Occurrence
+dbgVérifieEgalité(occEN, 3, "Count (EN) = 3 après 3 ajouts")
+
+dbgVérifieEgalité(occEN, occFR, "Count (EN) et Occurrence (FR) convergent")
+
+Ferme(FEN_OccCount)
+
+dbgBilanTest()

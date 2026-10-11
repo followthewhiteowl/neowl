@@ -1,0 +1,29 @@
+// MonChamp dans event champ : lecture + ecriture propriete
+// MonChamp doit etre cable comme alias vers ObjUiControlRef du champ courant
+// dans le contexte d'un event.
+//
+// Pattern : la fenetre voisine FEN_Test.owl expose une procedure LireLibelleBTN
+// qui appelle callback_verifie. Le script declenche 2 clics puis demande la
+// lecture (les champs ne sont pas accessibles directement depuis un voisin).
+
+TestModeHeadless(Vrai)
+
+valLibelle est une chaîne = ""
+
+PROCEDURE callback_verifie(t est une chaîne)
+	valLibelle = t
+FIN
+
+Ouvre(FEN_Test)
+
+// Declencher 2 clics sur BTN_X (resolu via le contexte de la fenetre ouverte)
+TestSimuleSouris(BTN_X, ClicGauche)
+TestSimuleSouris(BTN_X, ClicGauche)
+
+// Remontee de la valeur via la procedure publique de la fenetre
+LireLibelleBTN()
+
+dbgVérifieEgalité(valLibelle, "Clic 2", "MonChamp..Libelle dans event ecrit la propriete")
+
+Ferme(FEN_Test)
+dbgBilanTest()

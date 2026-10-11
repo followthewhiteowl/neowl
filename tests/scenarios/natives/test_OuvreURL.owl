@@ -1,0 +1,74 @@
+// @sujet : OuvreURL
+// @résumé : Ouvre une URL dans le gestionnaire par défaut du système (navigateur pour http/https, application associée pour mailto:, etc.). Retourne Vrai si le lancement a réussi, Faux sinon.
+
+
+// Particularité : un appel réel ouvrirait un navigateur ou un client mail.
+// Tous les scénarios mockent OuvreURL pour NE PAS lancer d'application
+// externe pendant la suite automatisée. La vérification réelle du lancement
+// est faite manuellement, hors suite. La fixture pose un catch-all qui
+// simule un lancement réussi.
+mOuvre est un MockNative = MockCrée(OuvreURL)
+
+
+PROCEDURE avantChaqueTest()
+	mOuvre = MockCrée(OuvreURL).Quand().Avec(MockTout).Retourne(Vrai).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mOuvre.Desactive()
+FIN
+
+
+// Cas canonique : une URL http est passée, le lancement réussit, la fonction
+// retourne Vrai et l'appel est intercepté une fois.
+PROCEDURE PUBLIQUE scenario_ouverture_http_succes()
+	bOk est un booléen = OuvreURL("https://exemple.owl")
+	dbgVérifieVrai(bOk, "retour Vrai quand le lancement réussit")
+	dbgVérifieVrai(MockVérifieAppelé(mOuvre, 1), "OuvreURL appelé une fois")
+FIN
+
+
+// Échec du lancement : quand le système ne peut ouvrir aucun gestionnaire,
+// la fonction retourne Faux. Le mock local simule ce cas.
+PROCEDURE PUBLIQUE scenario_echec_lancement_retourne_faux()
+	mOuvre.Desactive()
+	mLocal est un MockNative = MockCrée(OuvreURL)
+	mLocal.Quand().Avec(MockTout).Retourne(Faux).Active()
+
+	bOk est un booléen = OuvreURL("https://injoignable.owl")
+	dbgVérifieFaux(bOk, "retour Faux quand le lancement échoue")
+
+	mLocal.Desactive()
+FIN
+
+
+// Schéma mailto: l'URL est transmise telle quelle au gestionnaire associé
+// (client mail). Le mock ciblé sur l'URL exacte confirme que l'argument
+// n'est pas altéré avant le lancement.
+PROCEDURE PUBLIQUE scenario_mailto_handler_associe()
+	mOuvre.Desactive()
+	mLocal est un MockNative = MockCrée(OuvreURL)
+	mLocal.Quand().Avec("mailto:contact@exemple.owl").Retourne(Vrai).Active()
+
+	bOk est un booléen = OuvreURL("mailto:contact@exemple.owl")
+	dbgVérifieVrai(bOk, "mailto: ouvre l'application associée")
+	dbgVérifieVrai(MockVérifieAppelé(mLocal, 1), "règle ciblée sur l'URL mailto a matché")
+
+	mLocal.Desactive()
+FIN
+
+
+// L'URL exacte passée est préservée : une règle ciblée sur une URL http
+// avec chemin et paramètres de requête matche l'appel correspondant.
+PROCEDURE PUBLIQUE scenario_url_avec_chemin_et_query()
+	mOuvre.Desactive()
+	mLocal est un MockNative = MockCrée(OuvreURL)
+	mLocal.Quand().Avec("https://exemple.owl/page?ref=42").Retourne(Vrai).Active()
+
+	bOk est un booléen = OuvreURL("https://exemple.owl/page?ref=42")
+	dbgVérifieVrai(bOk, "URL avec chemin et query préservée")
+	dbgVérifieVrai(MockVérifieAppelé(mLocal, 1), "règle ciblée sur l'URL complète a matché")
+
+	mLocal.Desactive()
+FIN

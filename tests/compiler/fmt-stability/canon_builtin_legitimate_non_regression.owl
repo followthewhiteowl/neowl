@@ -1,0 +1,27 @@
+// Test fix 0330 : non-regression canon builtin legitime (props type compose
+// avec `..`, natives fonctions).
+//
+// Ces cas doivent RESTER canonises vers le canon builtin :
+// - dDef..Nom (prop Definition.Nom, double-point)
+// - dDef..Type (prop Definition.Type, double-point)
+// - Age(dNaissance) (native fonction Age)
+//
+// Oracle : le formatter preserve ces formes canoniques (deja OK pre-fix).
+
+dDef est une Definition
+s est une chaîne = dDef..Nom
+n est un entier = dDef..Type
+
+dNaissance est une date = "1980-05-15"
+nAge est un entier = Age(dNaissance)
+
+// Cas trou de couverture : Structure user avec champ homonyme d'une native
+// fonction + appel de la native ailleurs.
+// La declaration user `age est un entier` doit rester minuscule (champ user).
+// L'appel native `Age(...)` doit rester `Age` majuscule (canon natif preserve).
+Personne est une Structure
+	nom est une chaîne
+	age est un entier
+FIN
+
+sAge est une chaîne = Age("1980-05-15")

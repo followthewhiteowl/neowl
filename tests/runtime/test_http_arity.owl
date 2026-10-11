@@ -1,0 +1,31 @@
+// test_http_arity.owl
+// Verrouille les formes d'arite discretes des natives HTTP
+// migrees depuis une signature variadique masquee. On exerce les natives
+// HTTP purement locales (cookie jar en memoire, pas de requete reseau) :
+// chaque forme valide continue de compiler ET de s'executer correctement.
+
+PROCEDURE PUBLIQUE test_httpcookiegere_formes()
+	// HTTPCookieGere : 0 ou 1 arg.
+	// 1 arg : active la gestion automatique, retourne le nouvel etat.
+	dbgVérifieEgalité(HTTPCookieGère(Vrai), Vrai, "HTTPCookieGere 1 arg active")
+	// 0 arg : retourne l'etat courant.
+	dbgVérifieEgalité(HTTPCookieGère(), Vrai, "HTTPCookieGere 0 arg etat courant")
+	// 1 arg : desactive.
+	dbgVérifieEgalité(HTTPCookieGère(Faux), Faux, "HTTPCookieGere 1 arg desactive")
+	dbgVérifieEgalité(HTTPCookieGère(), Faux, "HTTPCookieGere 0 arg etat apres desactivation")
+FIN
+
+PROCEDURE PUBLIQUE test_httpcookie_formes()
+	HTTPVideCookies()
+	// 1 arg : lecture d'un cookie absent -> chaine vide.
+	dbgVérifieEgalité(HTTPCookie("absent"), "", "HTTPCookie 1 arg lecture absente")
+	// 2 args : ecriture nom/valeur -> succes.
+	dbgVérifieEgalité(HTTPCookie("session", "abc123"), Vrai, "HTTPCookie 2 args ecriture")
+	// 1 arg : relecture du cookie ecrit.
+	dbgVérifieEgalité(HTTPCookie("session"), "abc123", "HTTPCookie 1 arg relecture")
+	// 3 args : ecriture avec domaine.
+	dbgVérifieEgalité(HTTPCookie("pref", "fr", "example.test"), Vrai, "HTTPCookie 3 args domaine")
+	// 4 args : ecriture avec domaine et chemin.
+	dbgVérifieEgalité(HTTPCookie("auth", "tok", "example.test", "/api"), Vrai, "HTTPCookie 4 args domaine+chemin")
+	HTTPVideCookies()
+FIN

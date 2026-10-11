@@ -1,0 +1,27 @@
+// Test: storage virtuel des props sans widget Qt attache.
+// Pattern : la fenêtre voisine FEN_X.owl porte la déclaration.
+
+Ouvre(FEN_X)
+
+// Modele C  : Ouvre d'abord, puis acces champs
+// Ecrire/relire des props sur ObjUiControl headless
+// Les valeurs doivent etre stockees dans headless_store et relues correctement
+
+BTN_OK..Visible = Faux
+dbgVérifieVrai(BTN_OK..Visible = Faux, "BTN_OK..Visible ecrit/relu via storage virtuel")
+
+SAI_Nom..Valeur = "Marc"
+dbgVérifieEgalité(SAI_Nom..Valeur, "Marc", "SAI_Nom..Valeur ecrit/relu via storage virtuel")
+
+LBL_Info..Libellé = "Informations"
+dbgVérifieEgalité(LBL_Info..Libellé, "Informations", "LBL_Info..Libelle ecrit/relu via storage virtuel")
+
+// Modification multiple de la meme prop
+BTN_OK..Libellé = "Valider"
+dbgVérifieEgalité(BTN_OK..Libellé, "Valider", "Premiere ecriture Libelle")
+BTN_OK..Libellé = "Confirmer"
+dbgVérifieEgalité(BTN_OK..Libellé, "Confirmer", "Deuxieme ecriture Libelle ecrase la premiere")
+
+Ferme(FEN_X)
+
+dbgBilanTest()

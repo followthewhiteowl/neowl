@@ -1,0 +1,26 @@
+// @sujet : MLRégressionLinéaire — digue e2e tabulaire (CSV -> régression -> métrique)
+// @résumé : Pipeline complet sur des données tabulaires brutes : une
+// chaîne CSV convertie en Matrice via CSVVersMatrice, une
+// MLRégressionLinéaire entraînée dessus, puis la qualité des
+// prédictions mesurée par le coefficient de détermination. Jeu
+// synthétique strictement linéaire pour garder l'assertion exacte.
+
+
+// 6 échantillons à une variable, cible y = 5·x + 2 sans bruit : la
+// forme close retrouve la droite exactement, coefficient de
+// détermination très proche de 1.
+PROCEDURE PUBLIQUE scenario_pipeline_csv_regression()
+	csvX est une chaîne = "1.0" + CRLF + "2.0" + CRLF + "3.0" + CRLF + "4.0" + CRLF + "5.0" + CRLF + "6.0"
+	matX est une Matrice = CSVVersMatrice(csvX, ";", Faux)
+
+	csvY est une chaîne = "7.0" + CRLF + "12.0" + CRLF + "17.0" + CRLF + "22.0" + CRLF + "27.0" + CRLF + "32.0"
+	matY est une Matrice = CSVVersMatrice(csvY, ";", Faux)
+	y est un Tenseur = Tenseur(matY)
+
+	reg est une MLRégressionLinéaire
+	reg.Entraîne(matX, y)
+
+	preds est un Tenseur = reg.Prédit(matX)
+	r2 est un réel = CoefficientDétermination(preds, y)
+	dbgVérifieVrai(r2 > 0.999999, "droite exacte sans bruit (y=5x+2) : R² proche de 1, forme close exacte")
+FIN

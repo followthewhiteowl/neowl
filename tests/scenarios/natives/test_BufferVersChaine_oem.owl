@@ -1,0 +1,84 @@
+// @sujet : BufferVersChaîne
+// @résumé : Extension codepages console DOS historique. encCP850 (Europe de l'Ouest) et encCP437 (DOS US) décodent des octets vers des codepoints Unicode. Opération symétrique de ChaîneVersBuffer avec les mêmes codepages. Les 128 premiers octets (ASCII) sont identiques dans les deux codepages.
+
+
+// Cas A : octet 130 (0x82) décodé en CP850 → é (U+00E9).
+PROCEDURE PUBLIQUE scenario_bvc_oem_cp850_decode_e_accent()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 130)
+	s est une chaîne = BufferVersChaîne(buf, encCP850)
+	dbgVérifieEgalité(s, "é", "octet 130 décodé en CP850 → é")
+FIN
+
+
+// Cas B : octet 130 (0x82) décodé en CP437 → é (U+00E9).
+PROCEDURE PUBLIQUE scenario_bvc_oem_cp437_decode_e_accent()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 130)
+	s est une chaîne = BufferVersChaîne(buf, encCP437)
+	dbgVérifieEgalité(s, "é", "octet 130 décodé en CP437 → é")
+FIN
+
+
+// Cas C : octet 128 (0x80) décodé en CP850 → Ç (U+00C7).
+PROCEDURE PUBLIQUE scenario_bvc_oem_cp850_decode_C_cedille()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 128)
+	s est une chaîne = BufferVersChaîne(buf, encCP850)
+	dbgVérifieEgalité(s, "Ç", "octet 128 décodé en CP850 → Ç")
+FIN
+
+
+// Cas D : octet 128 (0x80) décodé en CP437 → Ç (U+00C7).
+PROCEDURE PUBLIQUE scenario_bvc_oem_cp437_decode_C_cedille()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 128)
+	s est une chaîne = BufferVersChaîne(buf, encCP437)
+	dbgVérifieEgalité(s, "Ç", "octet 128 décodé en CP437 → Ç")
+FIN
+
+
+// Cas E : octet 155 (0x9B) décodé en CP850 → ø (U+00F8).
+// Ce codepoint est propre à CP850 ; l'octet 155 en CP437 donne un caractère différent.
+PROCEDURE PUBLIQUE scenario_bvc_oem_cp850_decode_o_barre()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 155)
+	s est une chaîne = BufferVersChaîne(buf, encCP850)
+	dbgVérifieEgalité(s, "ø", "octet 155 décodé en CP850 → ø")
+FIN
+
+
+// Cas F : round-trip CP850 sur une séquence representative de la zone 0x80-0xFF.
+// "éÇø" : é=0x82, Ç=0x80, ø=0x9B en CP850. Encode puis décode sans perte.
+PROCEDURE PUBLIQUE scenario_bvc_oem_roundtrip_cp850()
+	s0 est une chaîne = "éÇø"
+	buf est un buffer = ChaîneVersBuffer(s0, encCP850)
+	s1 est une chaîne = BufferVersChaîne(buf, encCP850)
+	dbgVérifieEgalité(s1, s0, "round-trip CP850 restitue éÇø sans perte")
+FIN
+
+
+// Cas G : round-trip CP437 sur une séquence entièrement représentable.
+// "éÇ" : é=0x82, Ç=0x80 en CP437. ø exclu (absent de CP437).
+PROCEDURE PUBLIQUE scenario_bvc_oem_roundtrip_cp437()
+	s0 est une chaîne = "éÇ"
+	buf est un buffer = ChaîneVersBuffer(s0, encCP437)
+	s1 est une chaîne = BufferVersChaîne(buf, encCP437)
+	dbgVérifieEgalité(s1, s0, "round-trip CP437 restitue éÇ sans perte")
+FIN
+
+
+// Edge case : buffer vide → chaîne vide en CP850.
+PROCEDURE PRIVÉE scenario_bvc_oem_edge_buffer_vide_cp850()
+	buf est un buffer = ""
+	s est une chaîne = BufferVersChaîne(buf, encCP850)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en CP850 → chaîne vide")
+FIN
+
+
+// Edge case : buffer vide → chaîne vide en CP437.
+PROCEDURE PRIVÉE scenario_bvc_oem_edge_buffer_vide_cp437()
+	buf est un buffer = ""
+	s est une chaîne = BufferVersChaîne(buf, encCP437)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en CP437 → chaîne vide")
+FIN

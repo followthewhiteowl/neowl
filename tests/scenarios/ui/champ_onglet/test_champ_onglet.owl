@@ -1,0 +1,62 @@
+// Un Champ Onglet statique organise du contenu en pages ("volets") : un
+// seul volet est visible à la fois, l'utilisateur navigue en cliquant sur
+// les onglets. Chaque volet est un sous-bloc Volet portant un Libellé et
+// ses propres champs.
+//
+// Ce scénario vérifie que la fenêtre compile et s'ouvre proprement avec un
+// Onglet à 3 volets imbriqués (dont un Conteneur dans le 3e volet). Les
+// comportements runtime (changement de volet visible au clic, event
+// surChangementVolet déclenché, isolation des enfants par volet) sont
+// couverts séparément une fois le rendu graphique en place.
+//
+// Ressource DSL : FEN_Onglet.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_onglet_ouvre_et_ferme_proprement()
+	Ouvre(FEN_Onglet)
+
+	// Etat initial : aucun changement de volet déclenché avant interaction.
+	nCompteur est un entier = LireCompteurChangement()
+	dbgVérifieEgalité(nCompteur, 0, "Onglet : aucun changement de volet avant interaction")
+
+	Ferme(FEN_Onglet)
+FIN
+
+// Le volet actif déclaré à l'ouverture (Valeur) est bien celui exposé en
+// lecture, et l'affecter au runtime à une autre valeur bascule le volet
+// affiché ET déclenche l'événement de changement de volet. Réaffecter la
+// même valeur ne redéclenche pas l'événement (pas de changement réel).
+PROCEDURE PUBLIQUE scenario_onglet_changement_volet_declenche_event()
+	Ouvre(FEN_Onglet)
+
+	dbgVérifieEgalité(LireVoletActif(), 1, "volet actif au démarrage = Valeur déclarée")
+
+	ChangeVoletActif(2)
+	dbgVérifieEgalité(LireVoletActif(), 2, "volet actif basculé après affectation runtime")
+	dbgVérifieEgalité(LireCompteurChangement(), 1, "événement de changement de volet déclenché une fois")
+
+	ChangeVoletActif(2)
+	dbgVérifieEgalité(LireCompteurChangement(), 1, "réaffecter le même volet ne redéclenche pas l'événement")
+
+	ChangeVoletActif(3)
+	dbgVérifieEgalité(LireVoletActif(), 3, "volet actif basculé vers un 3e volet")
+	dbgVérifieEgalité(LireCompteurChangement(), 2, "événement de changement de volet déclenché une 2e fois")
+
+	Ferme(FEN_Onglet)
+FIN
+
+// Chaque volet possède ses propres champs enfants, isolés des autres
+// volets : un champ d'un volet non actif reste lisible avec sa propre
+// valeur, sans collision avec un champ de même rôle dans un autre volet
+// (y compris un champ imbriqué dans un conteneur du 3e volet).
+PROCEDURE PUBLIQUE scenario_onglet_isolation_enfants_par_volet()
+	Ouvre(FEN_Onglet)
+
+	// Volet actif = 1 (Profil) ; les champs des volets 2 et 3 restent
+	// lisibles et correctement rattachés à leur volet d'origine.
+	dbgVérifieEgalité(LireLibelleBoutonNotif(), "Activer les notifications", "champ du volet 2 lisible avec son propre libellé")
+	dbgVérifieEgalité(LireLibelleBoutonReinit(), "Réinitialiser", "champ imbriqué du volet 3 lisible avec son propre libellé")
+
+	Ferme(FEN_Onglet)
+FIN

@@ -1,0 +1,59 @@
+// Regression : la coerce Buffer<->Chaine doit rester active hors du
+// pattern self-append (ou la peephole OP_APPEND_IN_PLACE prend le relai).
+// Bug 2026-04-25 (commit bb37f80) : la coerce __BufferVersChaine systematique
+// avait casse la peephole. Le fix (peephole d'abord, coerce en fallback via
+// chunk_insert_before) doit preserver les deux comportements.
+
+Trace("=== STRING/BUFFER COERCE COEXIST ===")
+
+// === Buffer -> Chaine : init typee ===
+b1 est un buffer = ChaîneVersBuffer("ABC")
+s1 est une chaîne = b1
+dbgVérifieEgalité(s1, "ABC", "Buffer init -> chaine via init typee")
+dbgVérifieEgalité(Taille(s1), 3, "Taille apres coerce init")
+
+// === Buffer -> Chaine : split decl + reaffect ===
+s2 est une chaîne
+s2 = b1
+dbgVérifieEgalité(s2, "ABC", "Buffer reaffect (split decl) -> chaine")
+
+// === Buffer -> Chaine : reaffect apres init string ===
+s3 est une chaîne = "hi"
+s3 = b1
+dbgVérifieEgalité(s3, "ABC", "Buffer reaffect ecrase chaine init")
+
+// === Pattern self-append (la peephole doit produire OP_APPEND_IN_PLACE) ===
+sLoop est une chaîne = ""
+POUR i = 1 _A_ 100
+	sLoop = sLoop + "x"
+FIN
+dbgVérifieEgalité(Taille(sLoop), 100, "self-append: 100 iterations OK")
+dbgVérifieEgalité(Gauche(sLoop, 5), "xxxxx", "Contenu self-append correct")
+
+// === Coerce active hors pattern self-append (apres une boucle peephole) ===
+b3 est un buffer = ChaîneVersBuffer("data")
+sCoerce est une chaîne = "prefix:"
+sCoerce = sCoerce + "x"
+dbgVérifieEgalité(sCoerce, "prefix:x", "self-append simple OK")
+// Reaffect non-self-append : coerce __BufferVersChaine doit s'appliquer.
+sCoerce = b3
+dbgVérifieEgalité(sCoerce, "data", "Buffer reaffect post-loop = coerce active")
+
+// === Date sticky type preservee par le refacto ===
+d1 est une date
+d1 = "20191225"
+dbgVérifieEgalité(d1.VersChaîne(), "25/12/2019", "Date sticky split decl")
+d1 = "20210615"
+dbgVérifieEgalité(d1.VersChaîne(), "15/06/2021", "Date sticky reaffect")
+
+// === Variante combinee : init buffer puis self-append puis reaffect buffer ===
+sCombo est une chaîne = ChaîneVersBuffer("init")
+dbgVérifieEgalité(sCombo, "init", "Init via Buffer coerce")
+POUR i = 1 _A_ 10
+	sCombo = sCombo + "+"
+FIN
+dbgVérifieEgalité(Taille(sCombo), 14, "Build apres init Buffer = 4 + 10")
+sCombo = ChaîneVersBuffer("reset")
+dbgVérifieEgalité(sCombo, "reset", "Reaffect Buffer apres builder loop")
+
+dbgBilanTest()

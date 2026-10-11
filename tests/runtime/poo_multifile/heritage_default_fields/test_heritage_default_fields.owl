@@ -1,0 +1,26 @@
+// @sujet heritage cross-file : valeurs par defaut des champs herites
+// @résumé un enfant cross-file doit recevoir les valeurs par defaut declarees dans le parent
+
+PROCEDURE scenario_default_heritage_simple()
+	o est un cEnfant()
+	dbgVérifieEgalité(o.nValeur, 42, "default entier herite du parent cross-file")
+	dbgVérifieEgalité(o.sNom, "default", "default chaine heritee du parent cross-file")
+	dbgVérifieEgalité(o.bExtra, Vrai, "default propre a l enfant")
+FIN
+
+PROCEDURE scenario_default_heritage_instances_independantes()
+	o1 est un cEnfant()
+	o2 est un cEnfant()
+	o1.nValeur = 99
+	dbgVérifieEgalité(o1.nValeur, 99, "instance 1 modifiee")
+	dbgVérifieEgalité(o2.nValeur, 42, "instance 2 garde le default")
+FIN
+
+PROCEDURE scenario_default_heritage_chaine_3_niveaux()
+	// cBase -> cMid -> cPetitEnfant : tous les defaults doivent remonter
+	o est un cPetitEnfant()
+	dbgVérifieEgalité(o.nValeur, 42, "default grand-parent (cBase.nValeur)")
+	dbgVérifieEgalité(o.sNom, "default", "default grand-parent (cBase.sNom)")
+	dbgVérifieEgalité(o.nMid, 7, "default parent intermediaire (cMid.nMid)")
+	dbgVérifieEgalité(o.sLibelle, "petit", "default propre (cPetitEnfant.sLibelle)")
+FIN

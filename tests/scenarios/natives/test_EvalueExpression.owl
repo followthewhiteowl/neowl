@@ -1,0 +1,50 @@
+// @sujet : EvalueExpression
+// @résumé : Évalue dynamiquement une expression fournie sous forme de chaîne et retourne le résultat, typé selon l'expression évaluée.
+
+
+// Cas nominal : précédence arithmétique standard (multiplication avant addition).
+PROCEDURE PUBLIQUE scenario_evalue_arithmetique_precedence()
+	n est un entier = EvalueExpression("2 + 3 * 4")
+	dbgVérifieEgalité(n, 14, "2 + 3 * 4 respecte la précédence = 14")
+FIN
+
+
+// Cas nominal : comparaison retourne un booléen.
+PROCEDURE PUBLIQUE scenario_evalue_comparaison_booleenne()
+	b est un booléen = EvalueExpression("5 > 2")
+	dbgVérifieVrai(b, "5 > 2 s'évalue en Vrai")
+FIN
+
+
+// Cas nominal : appel d'une native à l'intérieur de l'expression évaluée.
+// Les guillemets internes sont doublés (convention OWL) pour former le littéral "abc".
+PROCEDURE PUBLIQUE scenario_evalue_appel_native_imbrique()
+	s est une chaîne = EvalueExpression("Majuscule(""abc"")")
+	dbgVérifieEgalité(s, "ABC", "Majuscule appliqué à abc dans l'expression = ABC")
+FIN
+
+
+// Cas nominal : concaténation de deux littéraux chaîne dans l'expression.
+PROCEDURE PUBLIQUE scenario_evalue_concatenation_chaines()
+	s est une chaîne = EvalueExpression("""a"" + ""b""")
+	dbgVérifieEgalité(s, "ab", "a et b concaténés dans l'expression = ab")
+FIN
+
+
+// Cas limite : expression vide se dégrade en résultat Null, sans erreur posée.
+PROCEDURE PUBLIQUE scenario_evalue_expression_vide()
+	v est une chaîne? = EvalueExpression("")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "expression vide → résultat Null")
+	dbgVérifieVrai(PAS bErreur, "expression vide ne pose pas d'erreur")
+FIN
+
+
+// Cas limite : expression syntaxiquement incomplète se dégrade en Null, sans crash,
+// et signale l'échec via le canal d'erreur standard.
+PROCEDURE PUBLIQUE scenario_evalue_expression_invalide()
+	v est une chaîne? = EvalueExpression("2 +")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(EstNul(v), "expression incomplète '2 +' → résultat Null")
+	dbgVérifieVrai(bErreur, "expression incomplète signale ErreurDétectée")
+FIN

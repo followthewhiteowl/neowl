@@ -1,0 +1,149 @@
+// @sujet : dCercle
+// @resume : Dessiner un cercle (ou ellipse selon bbox) avec couleur fond et trait dans une image
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_cercle_fond_jaune_trait_bleu()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelInterieur est un entier
+
+	// Cercle simple (bbox carrée 100x100) : fond jaune, contour bleu
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 10, 10, 90, 90, couleurJaune, couleurBleu)
+	dFinDessin(img)
+
+	// Le centre du cercle est à (50,50), bien dans le fond jaune
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurJaune, "cercle fond jaune : centre du cercle est jaune")
+FIN
+
+PROCEDURE PUBLIQUE scenario_ellipse_large()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelInterieur est un entier
+
+	// Ellipse (bbox rectangulaire 150x80) : fond rouge, contour vert
+	img = dCréeImage(150, 80, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 0, 0, 150, 80, couleurRouge, couleurVert)
+	dFinDessin(img)
+
+	// Le centre de l'ellipse est à (75,40), dans le fond rouge
+	pixelInterieur = dPixelCouleur(img, 75, 40)
+	dbgVérifieEgalité(pixelInterieur, couleurRouge, "ellipse fond rouge : centre de l'ellipse est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cercle_sans_contour()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	pixelInterieur est un entier
+
+	// Cercle sans couleur de trait spécifiée → utilise dStylo ou couleur du fond
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 10, 10, 90, 90, couleurCyan)
+	dFinDessin(img)
+
+	// Le centre du cercle est à (50,50), dans le fond cyan
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurCyan, "cercle fond cyan sans trait explicite : centre est cyan")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cercle_avec_dStylo()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelInterieur est un entier
+
+	// Cercle utilisant dStylo pour définir le contour, fond défini en arg
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurOrange, 0, 3)
+	dCercle(img, 10, 10, 90, 90, couleurMagenta)
+	dFinDessin(img)
+
+	// Le centre du cercle est à (50,50), dans le fond magenta
+	pixelInterieur = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelInterieur, couleurMagenta, "cercle avec dStylo : centre est magenta")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_cercle_bbox_degeneree_largeur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : largeur 0 (x1=x2) → cercle non dessinable, image reste blanche
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 50, 10, 50, 90, couleurJaune)
+	dFinDessin(img)
+
+	// Pas de cercle tracé (bbox plate) → centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "cercle bbox largeur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_cercle_bbox_degeneree_hauteur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : hauteur 0 (y1=y2) → cercle non dessinable
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 10, 50, 90, 50, couleurOrange)
+	dFinDessin(img)
+
+	// Pas de cercle tracé → centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "cercle bbox hauteur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_cercle_bbox_inversee()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+
+	// Bbox inversée : x2 < x1 ou y2 < y1 → doit corriger automatiquement ou ne rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 90, 90, 10, 10, couleurVert)
+	dFinDessin(img)
+
+	// Selon impl : peut tracer (correction auto) ou ignorer (bbox invalide)
+	// Test vérifie que ça ne crash pas au minimum
+	dbgVérifieVrai(Vrai, "cercle bbox inversée : pas de crash")
+FIN
+
+PROCEDURE PRIVÉE scenario_cercle_tres_petit()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentre est un entier
+
+	// Cercle très petit (bbox 2x2 pixels) : vérifier qu'il est quand même tracé
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCercle(img, 50, 50, 52, 52, couleurRouge)
+	dFinDessin(img)
+
+	// Le centre approximatif du minuscule cercle est à (51,51)
+	pixelCentre = dPixelCouleur(img, 51, 51)
+	dbgVérifieEgalité(pixelCentre, couleurRouge, "cercle 2x2 : trace quand même, centre rouge")
+FIN

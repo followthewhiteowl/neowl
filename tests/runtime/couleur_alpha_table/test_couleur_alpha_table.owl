@@ -1,0 +1,156 @@
+//  (LOT 2) — opacité sur les couleurs d'affichage de données du
+// Champ Table : TitreColonne (texte), LignesImpaires/LignesPaires (fond
+// alterné), LigneSélectionnée (fond + texte).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf. tests/runtime/couleur_alpha_fond : MESURER au pixel.
+// Fenêtre voisine FEN_CouleurAlphaTable.owl : 3 Champ Table empilés,
+// détail des couleurs dans son en-tête de commentaire.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+//
+// HORS pixel-mesure dans ce fichier (rig limitation constatée, mesurée
+// avant de figer) :
+//   - TitreColonne..CouleurFond : le style natif Fusion applique un DÉGRADÉ
+//     (biseau) sur QHeaderView::section même avec un background-color QSS
+//     flat explicite — mesuré : un témoin opaque RVB(0,180,0) rend une
+//     bande y=22..40 dont les pixels varient (50-53,198-213,50-53) au lieu
+//     d'un flat (0,180,0). Impossible de dériver un mélange alpha exact ou
+//     même tolérant fiable sur ce sous-élément. Le texte du header (peint
+//     par-dessus, opaque au cœur des glyphes) reste testable, cf. plus bas.
+//   - LigneSurvolée..CouleurFond : aucun moyen headless de forcer le survol
+//     réel (confirmé par le commentaire source ui_qt.cpp:4795 — TestSimuleSouris
+//     ActionSurvol invoque seulement le callback applicatif, ne poste pas
+//     de vrai QHoverEvent qui piloterait le survol row-wide de la table).
+//
+// LigneSélectionnée..CouleurFond ET ..Couleur : le style natif Fusion
+// applique aussi un léger dégradé "shine" sur la ligne sélectionnée, même
+// avec notre propre fillRect, qui affecte aussi le cœur des glyphes du
+// texte par composition (jamais de noir plat exact mesuré). TOLÉRANCE
+// (±40/canal fond, ±60/canal texte) appliquée aux 2 sous-cas.
+//
+// LignesImpaires (rôle Qt Base, recouvert par le QSS CadreExtérieur=ROUGE)
+// et LignesPaires (rôle Qt AlternateBase, PAS recouvert par le QSS widget)
+// sont plats/fiables : LignesImpaires mélange exactement avec le rouge
+// (255,0,0) ; LignesPaires mélange avec le gris par défaut Qt mesuré
+// empiriquement sur ce build, RVB(247,247,247) (tolérance ±3, non garanti
+// stable sur un autre thème Qt).
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+PROCEDURE CompteCouleurZoneTolerance(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, r0 est un entier, v0 est un entier, b0 est un entier, tol est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			c est un entier = dPixelCouleur(img, xx, yy)
+			r est un entier = c % 256
+			v est un entier = (c / 256) % 256
+			b est un entier = (c / 65536) % 256
+			SI Abs(r - r0) <= tol ET Abs(v - v0) <= tol ET Abs(b - b0) <= tol ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+seuilFond est un entier = 300
+seuilTexte est un entier = 5
+
+OuvreSoeur(FEN_CouleurAlphaTable)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaTable)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// ===================== TAB_Temoin (Y=20, témoin opaque) ====================
+// Header texte : "Col" blanc sur fond vert, zone x=280..370,y=22..40.
+nbHeaderTexteTemoin est un entier = CompteCouleurZone(img, 280, 22, 370, 40, RVB(255, 255, 255))
+dbgVérifieVrai(nbHeaderTexteTemoin > seuilTexte,
+"TAB_Temoin : TitreColonne..Couleur = RVB(255,255,255) (entier nu opaque) rendu, non-régression")
+
+// LignesImpaires (row0, y=46..66) fond vert (0,200,0) exact/flat.
+nbImpaireTemoin est un entier = CompteCouleurZone(img, 100, 46, 600, 66, RVB(0, 200, 0))
+dbgVérifieVrai(nbImpaireTemoin > seuilFond,
+"TAB_Temoin : LignesImpaires..CouleurFond = RVB(0,200,0) (entier nu opaque) rendu, non-régression")
+
+// LignesPaires (row1, y=74..98) fond bleu (0,0,200) exact/flat.
+nbPaireTemoin est un entier = CompteCouleurZone(img, 100, 74, 600, 98, RVB(0, 0, 200))
+dbgVérifieVrai(nbPaireTemoin > seuilFond,
+"TAB_Temoin : LignesPaires..CouleurFond = RVB(0,0,200) (entier nu opaque) rendu, non-régression")
+
+// LigneSélectionnée (row2, y=104..128) fond jaune (200,200,0), tolérant (shine Fusion).
+nbSelFondTemoin est un entier = CompteCouleurZoneTolerance(img, 100, 104, 600, 110, 200, 200, 0, 40)
+dbgVérifieVrai(nbSelFondTemoin > 0,
+"TAB_Temoin : LigneSélectionnée..CouleurFond = RVB(200,200,0) (entier nu opaque) rendu (haut de ligne, tolérant au shine natif), non-régression")
+
+// LigneSélectionnée texte noir (10,10,10), glyphes x=22..150,y=104..128. Le
+// glyphe compose avec le dégradé "shine" du fond sélectionné (mesuré : cœur
+// de glyphe le plus sombre ~(23,34,34), jamais un noir plat exact) -> tolérant.
+nbSelTexteTemoin est un entier = CompteCouleurZoneTolerance(img, 22, 104, 150, 128, 10, 10, 10, 60)
+dbgVérifieVrai(nbSelTexteTemoin > 0,
+"TAB_Temoin : LigneSélectionnée..Couleur = RVB(10,10,10) (entier nu opaque) rendu (glyphe le plus sombre, tolérant au shine natif), non-régression")
+
+// ================= TAB_AlphaFond (Y=240, décalage +220) — LE BUG ==========
+mixVertSurRouge est un entier = RVB(127, 128, 0)
+mixRougeSurGris est un entier = RVB(251, 123, 123)
+mixBleuSurRouge est un entier = RVB(127, 0, 128)
+
+// LignesImpaires : vert Opacité=128 sur fond rouge CadreExtérieur -> mélange exact.
+nbImpaireAlpha est un entier = CompteCouleurZone(img, 100, 266, 600, 286, mixVertSurRouge)
+dbgVérifieVrai(nbImpaireAlpha > seuilFond,
+"TAB_AlphaFond : LignesImpaires..CouleurFond = <Couleur Opacité=128> mélange avec le rouge (127,128,0), pas ignoré")
+
+// LignesPaires : rouge Opacité=128 sur fond gris Qt par défaut (247,247,247, mesuré) -> tolérant.
+nbPaireAlpha est un entier = CompteCouleurZoneTolerance(img, 100, 294, 600, 318, 251, 123, 123, 4)
+dbgVérifieVrai(nbPaireAlpha > seuilFond,
+"TAB_AlphaFond : LignesPaires..CouleurFond = <Couleur Opacité=128> mélange avec le gris par défaut (251,123,123), pas ignoré")
+
+// LigneSélectionnée fond : bleu Opacité=128 — NON testé au pixel. Le style
+// natif Fusion peint son propre halo de sélection (~RVB(48,140,199)) SOUS la
+// cellule avant composition de l'alpha applicatif ; le résultat mesuré
+// (~RVB(24,70,227)) ne dérive d'aucun backdrop prévisible (dépend du thème
+// Qt/plateforme), donc aucune assertion pixel fiable n'est possible ici. La
+// migration du lecteur de fond alpha est déjà couverte par LignesImpaires/
+// LignesPaires ci-dessus (fond exact/tolérant) et par la sélection fond de
+// la Liste (tests/runtime/couleur_alpha_liste, QSS pur, exacte).
+
+// ================= TAB_AlphaTexte (Y=460, décalage +440) — LE BUG =========
+mixBleuSurBlanc est un entier = RVB(127, 127, 255)
+mixRougeSurBlanc est un entier = RVB(255, 127, 127)
+
+// Header texte : bleu Opacité=128 sur fond blanc opaque déclaré -> mélange
+// attendu (127,127,255), tolérance ±3/canal (le texte compose sur le
+// substrat de header Fusion, léger dégradé, mesuré ~253 au lieu de 255 pur).
+nbHeaderTexteAlpha est un entier = CompteCouleurZoneTolerance(img, 280, 462, 370, 480, 127, 127, 255, 3)
+dbgVérifieVrai(nbHeaderTexteAlpha > seuilTexte,
+"TAB_AlphaTexte : TitreColonne..Couleur = <Couleur Opacité=128> mélange le texte avec le blanc (127,127,255), pas ignoré")
+
+// LigneSélectionnée texte : rouge Opacité=128 sur fond blanc opaque déclaré,
+// même dégradé "shine" sur la ligne sélectionnée -> tolérant (cf. TAB_Temoin).
+nbSelTexteAlpha est un entier = CompteCouleurZoneTolerance(img, 22, 544, 150, 568, 255, 127, 127, 60)
+dbgVérifieVrai(nbSelTexteAlpha > 0,
+"TAB_AlphaTexte : LigneSélectionnée..Couleur = <Couleur Opacité=128> mélange le texte avec le blanc (255,127,127), pas ignoré")
+
+Ferme(FEN_CouleurAlphaTable)
+dbgBilanTest()

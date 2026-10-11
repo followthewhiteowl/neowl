@@ -1,0 +1,42 @@
+//  — `Style..Libellé..CouleurFond` peint le fond du QPushButton
+// lui-même (sous-élément Libellé = le widget, pas un enfant séparé comme
+// pour le Saisie). Choix de CouleurFond (aplat de fond, comptage de pixels
+// fiable) plutôt que Couleur (texte, sujet à l'anti-crénelage).
+//
+// ROUGE attendu : `Style..Libellé..CouleurFond` ne compile pas encore (la
+// prop 'Style' n'existe pas sur le champ Bouton / le type styleBouton
+// n'existe pas). Cf. FEN_StyleBoutonElementBase.owl.
+
+TestModeHeadless(Faux)
+
+couleurBoutonFond est un entier = RVB(200, 0, 200)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleBoutonElementBase)
+
+img est une Image = dCopieImageChamp(BTN_X)
+dbgVérifieEgalité(img..Valide, Vrai, "capture BTN_X valide")
+
+// BTN_X occupe 300x60 : échantillon intérieur pour éviter le pourtour/marges
+// que Qt peut peindre différemment (arrondis, bordure native).
+nbFondBouton est un entier = CompteCouleurZone(img, 10, 10, 290, 50, couleurBoutonFond)
+seuilFond est un entier = 2240 // (290-10) * (50-10) * 0.20, arrondi (marge basse : texte/marges internes)
+dbgVérifieVrai(nbFondBouton > seuilFond, "BTN_X : Style..Libellé..CouleurFond peint le fond du bouton")
+
+Ferme(FEN_StyleBoutonElementBase)
+dbgBilanTest()

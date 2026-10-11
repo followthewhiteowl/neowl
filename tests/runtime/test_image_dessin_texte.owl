@@ -1,0 +1,144 @@
+// ================================================================
+// Image natif — Lot I.3e : texte (dPolice + dTexte)
+//
+// Note : ces tests dépendent d'une police TTF système.
+// Sur Windows : C:/Windows/Fonts/arial.ttf est utilisée.
+// La suite est conditionnelle : si la police n'existe pas, les
+// assertions de rendu sont skippées (comportement neutre).
+// ================================================================
+
+sPolice est une chaîne = "C:/Windows/Fonts/arial.ttf"
+SI PAS fFichierExiste(sPolice) ALORS
+	Trace("test_image_dessin_texte: police système absente, suite ignorée")
+	RETOUR
+FIN
+
+// ----- dTexte sans dPolice → erreur -----
+img1 est une Image = dCréeImage(100, 50, Blanc)
+ErreurRAZ()
+dTexte(img1, 5, 5, "Hello")
+dbgVérifieEgalité(ErreurDétectée, Vrai, "dTexte sans dPolice: erreur")
+
+// ----- dPolice : chargement nominal -----
+ok est un booléen = dPolice(img1, sPolice, 16)
+dbgVérifieEgalité(ok, Vrai, "dPolice: chargement police TTF système OK")
+
+// ----- dTexte : rendu de "OWL" en noir -----
+img2 est une Image = dCréeImage(100, 30, Blanc)
+dPolice(img2, sPolice, 20)
+dTexte(img2, 5, 5, "OWL", Noir)
+
+// On vérifie qu'AU MOINS UN pixel non-blanc apparaît dans la zone du texte
+// (rasterizer génère des pixels gris/noirs anti-aliasés)
+nbPixelsModifies est un entier = 0
+POUR x = 0 _A_ 99
+	POUR y = 0 _A_ 29
+		SI dPixelCouleur(img2, x, y) <> Blanc ALORS
+			nbPixelsModifies = nbPixelsModifies + 1
+		FIN
+	FIN
+FIN
+dbgVérifieVrai(nbPixelsModifies > 10, "dTexte: rendu produit des pixels (>10)")
+
+// ----- dPolice avec attributs (iSouligné) -----
+img3 est une Image = dCréeImage(100, 30, Blanc)
+dPolice(img3, sPolice, 16, iSouligné)
+dTexte(img3, 5, 5, "test", Noir)
+
+// Avec souligné, on doit avoir plus de pixels qu'avec une version normale
+img3b est une Image = dCréeImage(100, 30, Blanc)
+dPolice(img3b, sPolice, 16, iNormal)
+dTexte(img3b, 5, 5, "test", Noir)
+
+nbSouligne est un entier = 0
+nbNormal est un entier = 0
+POUR x = 0 _A_ 99
+	POUR y = 0 _A_ 29
+		SI dPixelCouleur(img3, x, y) <> Blanc ALORS
+			nbSouligne = nbSouligne + 1
+		FIN
+		SI dPixelCouleur(img3b, x, y) <> Blanc ALORS
+			nbNormal = nbNormal + 1
+		FIN
+	FIN
+FIN
+dbgVérifieVrai(nbSouligne > nbNormal, "iSouligné ajoute des pixels par rapport à iNormal")
+
+// ----- dPolice avec chemin invalide -----
+ErreurRAZ()
+ok2 est un booléen = dPolice(img1, "fichier_inexistant_xyz.ttf", 12)
+dbgVérifieEgalité(ok2, Faux, "dPolice fichier absent: retourne Faux")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// ----- Texte via image courante + stylo -----
+img4 est une Image = dCréeImage(100, 30, Blanc)
+dDébutDessin(img4)
+dPolice(sPolice, 16)
+dStylo(RougeClair)
+dTexte(5, 5, "abc") // utilise stylo courant comme couleur
+dFinDessin()
+
+// On cherche au moins un pixel ayant la teinte rouge dominante
+// (alpha-blending peut atténuer mais R doit rester majoritaire)
+nbPixelsRouges est un entier = 0
+POUR x = 0 _A_ 99
+	POUR y = 0 _A_ 29
+		c est un entier = dPixelCouleur(img4, x, y)
+		SI c <> Blanc ALORS
+			// R = c & 0xFF (low byte en BGR)
+			r est un entier = Modulo(c, 256)
+			SI r > 100 ALORS
+				nbPixelsRouges = nbPixelsRouges + 1
+			FIN
+		FIN
+	FIN
+FIN
+dbgVérifieVrai(nbPixelsRouges > 5, "dTexte via stylo courant: pixels rouges présents")
+
+// ----- Texte avec nombre auto-converti -----
+img5 est une Image = dCréeImage(100, 30, Blanc)
+dPolice(img5, sPolice, 16)
+dTexte(img5, 5, 5, 42, Noir) // entier, doit être converti en "42"
+nbPixels est un entier = 0
+POUR x = 0 _A_ 99
+	POUR y = 0 _A_ 29
+		SI dPixelCouleur(img5, x, y) <> Blanc ALORS
+			nbPixels = nbPixels + 1
+		FIN
+	FIN
+FIN
+dbgVérifieVrai(nbPixels > 5, "dTexte avec entier: rendu OK")
+
+// ----- Image invalide silencieuse -----
+imgVide est une Image
+dTexte(imgVide, 0, 0, "x", Noir)
+dbgVérifieEgalité(imgVide..Valide, Faux, "dTexte sur image invalide: silencieux")
+
+// ----- Alias EN -----
+img6 est une Image = dCréeImage(100, 30, Blanc)
+dFont(img6, sPolice, 16)
+dText(img6, 5, 5, "EN", Noir)
+nbAlias est un entier = 0
+POUR x = 0 _A_ 99
+	POUR y = 0 _A_ 29
+		SI dPixelCouleur(img6, x, y) <> Blanc ALORS
+			nbAlias = nbAlias + 1
+		FIN
+	FIN
+FIN
+dbgVérifieVrai(nbAlias > 5, "Alias EN: dFont + dText fonctionnent")
+
+// ----- Roundtrip PNG : texte rendu préservé -----
+sChemin est une chaîne = "test_image_texte_tmp.png"
+dSauveImagePNG(img2, sChemin)
+img7 est une Image = dChargeImage(sChemin)
+nbApresLoad est un entier = 0
+POUR x = 0 _A_ 99
+	POUR y = 0 _A_ 29
+		SI dPixelCouleur(img7, x, y) <> Blanc ALORS
+			nbApresLoad = nbApresLoad + 1
+		FIN
+	FIN
+FIN
+dbgVérifieVrai(nbApresLoad > 10, "Roundtrip PNG: texte préservé")
+fSupprime(sChemin)

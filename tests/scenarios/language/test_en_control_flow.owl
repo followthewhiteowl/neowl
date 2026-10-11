@@ -1,0 +1,128 @@
+// @subject: English control flow — IF/FOR/WHILE/LOOP/SWITCH/BREAK/CONTINUE
+// @summary: Programs using English keywords for all major control structures.
+// Verifies that IF/THEN/ELSE/END, FOR/TO/END, WHILE/END, LOOP/END,
+// SWITCH/CASE/OTHER/END, BREAK, and CONTINUE compile, execute, and produce
+// the expected results.
+
+PROCEDURE PUBLIQUE scenario_if_then_else()
+	nResult is an integer = 0
+	x is an integer = 10
+	IF x > 5 THEN
+		nResult = 1
+	ELSE
+		nResult = 2
+	END
+	dbgCheckEqual(nResult, 1, "IF branch taken when condition is true")
+
+	y is an integer = 3
+	IF y > 5 THEN
+		nResult = 1
+	ELSE
+		nResult = 2
+	END
+	dbgCheckEqual(nResult, 2, "ELSE branch taken when condition is false")
+FIN
+
+PROCEDURE PUBLIQUE scenario_for_to()
+	nSum is an integer = 0
+	i is an integer
+	FOR i = 1 TO 5
+		nSum = nSum + i
+	END
+	dbgCheckEqual(nSum, 15, "FOR i = 1 TO 5 sums to 15")
+FIN
+
+PROCEDURE PUBLIQUE scenario_for_to_step()
+	nCount is an integer = 0
+	FOR k = 0 TO 10 STEP 2
+		nCount = nCount + 1
+	END
+	dbgCheckEqual(nCount, 6, "FOR k = 0 TO 10 STEP 2 iterates 6 times (0,2,4,6,8,10)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_while()
+	nVal is an integer = 0
+	nGuard is an integer = 0
+	WHILE nVal < 5
+		nVal   = nVal + 1
+		nGuard = nGuard + 1
+		IF nGuard > 100 THEN
+			BREAK
+		END
+	END
+	dbgCheckEqual(nVal, 5, "WHILE loop increments until condition becomes false")
+FIN
+
+PROCEDURE PUBLIQUE scenario_loop_break()
+	nIter is an integer = 0
+	LOOP
+		nIter = nIter + 1
+		IF nIter >= 4 THEN
+			BREAK
+		END
+	END
+	dbgCheckEqual(nIter, 4, "LOOP with BREAK exits after 4 iterations")
+FIN
+
+PROCEDURE PUBLIQUE scenario_loop_n()
+	nCount is an integer = 0
+	LOOP (5)
+		nCount = nCount + 1
+	END
+	dbgCheckEqual(nCount, 5, "LOOP (5) executes exactly 5 times")
+FIN
+
+PROCEDURE PUBLIQUE scenario_for_continue()
+	nEvens is an integer = 0
+	j is an integer
+	FOR j = 1 TO 6
+		IF j % 2 <> 0 THEN
+			CONTINUE
+		END
+		nEvens = nEvens + 1
+	END
+	dbgCheckEqual(nEvens, 3, "CONTINUE skips odd iterations, 3 even numbers in 1..6")
+FIN
+
+PROCEDURE PUBLIQUE scenario_switch_case_other()
+	nResult is an integer = 0
+	v is an integer = 2
+	SWITCH v
+		CASE 1
+		nResult = 10
+		CASE 2
+		nResult = 20
+		CASE 3
+		nResult = 30
+		OTHER
+		nResult = 99
+	END
+	dbgCheckEqual(nResult, 20, "SWITCH CASE 2 assigns 20")
+
+	v       = 5
+	nResult = 0
+	SWITCH v
+		CASE 1
+		nResult = 10
+		CASE 2
+		nResult = 20
+		OTHER
+		nResult = 99
+	END
+	dbgCheckEqual(nResult, 99, "OTHER branch taken when no CASE matches")
+FIN
+
+PROCEDURE PUBLIQUE scenario_nested_if()
+	nResult is an integer = 0
+	num is an integer = 7
+	IF num > 0 THEN
+		IF num > 5 THEN
+			nResult = 2
+		ELSE
+			nResult = 1
+		END
+	ELSE
+		nResult = 0
+	END
+	dbgCheckEqual(nResult, 2, "nested IF picks inner branch correctly")
+FIN

@@ -1,0 +1,22 @@
+// @sujet : xlsDocument, xlsOuvre
+// @résumé : Lecture d'un classeur au format binaire historique (.xls) : texte à diacritiques et valeurs numériques relus depuis un fichier réel.
+
+
+// Une cellule texte à diacritiques doit se relire à l'identique, octet pour octet.
+PROCEDURE PUBLIQUE scenario_lecture_texte_diacritiques()
+	doc est un xlsDocument = xlsOuvre("./tests/scenarios/types/fixtures/vietnamese-utf8.xls")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErreur, "l'ouverture d'un classeur .xls réel n'échoue pas")
+	dbgVérifieEgalité(doc[1, 1], "Mô tả", "la première cellule texte à diacritiques est relue à l'identique")
+	dbgVérifieEgalité(xlsNbFeuille(doc), 1, "le classeur relu conserve sa feuille unique")
+FIN
+
+
+// Une valeur numérique et son en-tête de colonne doivent se relire tels qu'écrits dans le fichier.
+PROCEDURE PUBLIQUE scenario_lecture_valeurs_numeriques()
+	doc est un xlsDocument = xlsOuvre("./tests/scenarios/types/fixtures/mtcars.xls")
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErreur, "l'ouverture d'un classeur .xls réel n'échoue pas")
+	dbgVérifieEgalité(doc[1, 1], "mpg", "l'en-tête de colonne texte est relu tel quel")
+	dbgVérifieEgalité(doc[2, 1], "21", "la valeur numérique de la première ligne de données est relue")
+FIN

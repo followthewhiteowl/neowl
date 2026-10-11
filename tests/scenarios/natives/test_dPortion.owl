@@ -1,0 +1,158 @@
+// @sujet : dPortion
+// @resume : Dessiner une portion de tarte (secteur de cercle/ellipse) dans une image avec fond et contour
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_portion_quart_cercle_90_degres()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Portion classique : secteur (90° vu en horaire) dans bbox 100x100
+	// Arc défini par bbox (10,10)-(90,90), départ (50,10) haut, arrivée (90,50) droite
+	// Fond rouge, contour bleu — le sens trigonométrique couvre 3 quadrants
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPortion(img, 10, 10, 90, 90, 50, 10, 90, 50, couleurRouge, couleurBleu)
+	dFinDessin(img)
+
+	// Échantillonnage dans les 4 quadrants : au moins un point doit être rouge
+	pixelA = dPixelCouleur(img, 65, 30)
+	pixelB = dPixelCouleur(img, 65, 65)
+	pixelC = dPixelCouleur(img, 35, 65)
+	pixelD = dPixelCouleur(img, 35, 30)
+	dbgVérifieVrai(pixelA = couleurRouge OU pixelB = couleurRouge OU pixelC = couleurRouge OU pixelD = couleurRouge, "portion 90° fond rouge : au moins un point du secteur est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_portion_large_270_degres()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Portion : départ droite (90,50), arrivée haut (50,10), bbox 100x100
+	// Sens trigonométrique (anti-horaire) couvre un quadrant ou les 3 autres
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPortion(img, 10, 10, 90, 90, 90, 50, 50, 10, couleurVert, couleurOrange)
+	dFinDessin(img)
+
+	// Échantillonnage dans les 4 quadrants : au moins un point doit être vert
+	pixelA = dPixelCouleur(img, 65, 30)
+	pixelB = dPixelCouleur(img, 65, 65)
+	pixelC = dPixelCouleur(img, 35, 65)
+	pixelD = dPixelCouleur(img, 35, 30)
+	dbgVérifieVrai(pixelA = couleurVert OU pixelB = couleurVert OU pixelC = couleurVert OU pixelD = couleurVert, "portion 270° fond vert : au moins un quadrant est vert")
+FIN
+
+PROCEDURE PUBLIQUE scenario_portion_complete_360_degres()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelCentre est un entier
+
+	// Portion complète (360°) : départ = arrivée au même point (50,10)
+	// Doit se comporter comme dCercle (cercle plein), bbox 100x100
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPortion(img, 10, 10, 90, 90, 50, 10, 50, 10, couleurCyan, couleurMagenta)
+	dFinDessin(img)
+
+	// Centre du cercle complet (50,50) → cyan
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurCyan, "portion 360° : centre du cercle complet est cyan")
+FIN
+
+PROCEDURE PUBLIQUE scenario_portion_avec_dStylo_contour_epais()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Portion avec dStylo pour définir un contour épais (3 pixels)
+	// Demi-cercle, bbox 100x100, départ haut (50,10), arrivée bas (50,90)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurNoir, 0, 3)
+	dPortion(img, 10, 10, 90, 90, 50, 10, 50, 90, couleurJaune)
+	dFinDessin(img)
+
+	// Échantillonnage des 2 demi-disques : au moins un point doit être jaune
+	pixelA = dPixelCouleur(img, 70, 50)
+	pixelB = dPixelCouleur(img, 30, 50)
+	pixelC = dPixelCouleur(img, 50, 30)
+	pixelD = dPixelCouleur(img, 50, 70)
+	dbgVérifieVrai(pixelA = couleurJaune OU pixelB = couleurJaune OU pixelC = couleurJaune OU pixelD = couleurJaune, "portion 180° avec dStylo : au moins un point du demi-disque est jaune")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_portion_zero_degre_arc_degenere()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	// Portion 0° : départ = arrivée au même point avec angle nul
+	// Arc dégénéré → selon impl peut tracer une ligne radiale ou rien du tout
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPortion(img, 10, 10, 90, 90, 50, 10, 50, 10, couleurRouge)
+	dFinDessin(img)
+
+	// Test vérifie surtout l'absence de crash (comportement impl-specific)
+	dbgVérifieVrai(Vrai, "portion 0° : pas de crash")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_portion_bbox_degeneree_largeur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : largeur 0 (x1=x2=50) → portion non dessinable
+	// Image doit rester blanche (aucune portion tracée)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPortion(img, 50, 10, 50, 90, 50, 10, 50, 50, couleurVert)
+	dFinDessin(img)
+
+	// Bbox plate largeur=0 : pas de portion tracée, centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "portion bbox largeur=0 : rien tracé")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_portion_bbox_degeneree_hauteur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : hauteur 0 (y1=y2=50) → portion non dessinable
+	// Image doit rester blanche (aucune portion tracée)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dPortion(img, 10, 50, 90, 50, 50, 50, 90, 50, couleurBleu)
+	dFinDessin(img)
+
+	// Bbox plate hauteur=0 : pas de portion tracée, centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "portion bbox hauteur=0 : rien tracé")
+FIN

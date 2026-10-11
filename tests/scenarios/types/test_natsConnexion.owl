@@ -1,0 +1,117 @@
+// @sujet : natsConnexion
+// @résumé : Type composé décrivant les paramètres de connexion à un serveur NATS (adresse, port, identifiants, options). Se passe à NATSConnecte et aux natives de publication/abonnement.
+
+
+// Cas canonique : une session déclarée sans initialisation reçoit les
+// valeurs par défaut prêtes à l'emploi (port 4222 en clair, aucune option).
+PROCEDURE PUBLIQUE scenario_creation_avec_defauts()
+	sess est un natsConnexion
+	dbgVérifieEgalité(sess..Adresse, "", "adresse vide par défaut")
+	dbgVérifieEgalité(sess..Port, 4222, "port NATS par défaut")
+	dbgVérifieEgalité(sess..Utilisateur, "", "utilisateur vide par défaut")
+	dbgVérifieEgalité(sess..MotDePasse, "", "mot de passe vide par défaut")
+	dbgVérifieEgalité(sess..Option, 0, "aucune option par défaut")
+	dbgVérifieEgalité(sess..TimeoutConnexion, 0, "délai de connexion par défaut (0 = valeur interne)")
+FIN
+
+
+// Le databinding est direct : on assigne aux propriétés avec la notation
+// `..`, on relit de la même façon.
+PROCEDURE PUBLIQUE scenario_configuration_connexion()
+	sess est un natsConnexion
+	sess..Adresse          = "nats.exemple.local"
+	sess..Port             = 4223
+	sess..Utilisateur      = "alice"
+	sess..MotDePasse       = "secret42"
+	sess..TimeoutConnexion = 5000
+
+	dbgVérifieEgalité(sess..Adresse, "nats.exemple.local", "adresse relue telle quelle")
+	dbgVérifieEgalité(sess..Port, 4223, "port relu tel quel")
+	dbgVérifieEgalité(sess..Utilisateur, "alice", "utilisateur relu tel quel")
+	dbgVérifieEgalité(sess..MotDePasse, "secret42", "mot de passe relu tel quel")
+	dbgVérifieEgalité(sess..TimeoutConnexion, 5000, "délai de connexion relu tel quel")
+FIN
+
+
+// La propriété Option accepte la constante optionSSL (connexion chiffrée),
+// relisible dès à présent.
+PROCEDURE PUBLIQUE scenario_option_ssl()
+	sess est un natsConnexion
+	sess..Option = optionSSL
+	dbgVérifieEgalité(sess..Option, optionSSL, "option SSL relue telle quelle")
+FIN
+
+
+// Formes bilingues : Adresse (FR) et Address (EN) sont un seul et même champ
+// (pair canon déjà établie côté STOMP/AMQP/MQTT).
+PROCEDURE PUBLIQUE scenario_bilingue_adresse_address()
+	sess est un natsConnexion
+	sess..Adresse = "fr.exemple.local"
+	dbgVérifieEgalité(sess..Address, "fr.exemple.local", "Address (EN) relit ce qu'écrit Adresse (FR)")
+
+	sess..Address = "en.exemple.local"
+	dbgVérifieEgalité(sess..Adresse, "en.exemple.local", "Adresse (FR) relit ce qu'écrit Address (EN)")
+FIN
+
+
+// Formes bilingues : Utilisateur (FR) et User (EN).
+PROCEDURE PUBLIQUE scenario_bilingue_utilisateur_user()
+	sess est un natsConnexion
+	sess..Utilisateur = "bob-fr"
+	dbgVérifieEgalité(sess..User, "bob-fr", "User (EN) relit ce qu'écrit Utilisateur (FR)")
+
+	sess..User = "bob-en"
+	dbgVérifieEgalité(sess..Utilisateur, "bob-en", "Utilisateur (FR) relit ce qu'écrit User (EN)")
+FIN
+
+
+// Formes bilingues : MotDePasse (FR) et Password (EN).
+PROCEDURE PUBLIQUE scenario_bilingue_motdepasse_password()
+	sess est un natsConnexion
+	sess..MotDePasse = "pass-fr"
+	dbgVérifieEgalité(sess..Password, "pass-fr", "Password (EN) relit ce qu'écrit MotDePasse (FR)")
+
+	sess..Password = "pass-en"
+	dbgVérifieEgalité(sess..MotDePasse, "pass-en", "MotDePasse (FR) relit ce qu'écrit Password (EN)")
+FIN
+
+
+// Formes bilingues : TimeoutConnexion (FR) et ConnectionTimeout (EN).
+PROCEDURE PUBLIQUE scenario_bilingue_timeoutconnexion_connectiontimeout()
+	sess est un natsConnexion
+	sess..TimeoutConnexion = 3000
+	dbgVérifieEgalité(sess..ConnectionTimeout, 3000, "ConnectionTimeout (EN) relit ce qu'écrit TimeoutConnexion (FR)")
+
+	sess..ConnectionTimeout = 7000
+	dbgVérifieEgalité(sess..TimeoutConnexion, 7000, "TimeoutConnexion (FR) relit ce qu'écrit ConnectionTimeout (EN)")
+FIN
+
+
+// La propriété CertificatCA porte le chemin d'un fichier PEM utilisé pour
+// valider le serveur en TLS ; vide par défaut (autorités publiques).
+PROCEDURE PUBLIQUE scenario_certificat_ca_defaut()
+	sess est un natsConnexion
+	dbgVérifieEgalité(sess..CertificatCA, "", "CertificatCA vide par défaut")
+FIN
+
+
+// Lecture/écriture directe, comme les autres champs chaîne.
+PROCEDURE PUBLIQUE scenario_certificat_ca_configuration()
+	sess est un natsConnexion
+	sess..CertificatCA = "/etc/owl/certs/ca-interne.pem"
+	dbgVérifieEgalité(sess..CertificatCA, "/etc/owl/certs/ca-interne.pem", "CertificatCA relu tel quel")
+FIN
+
+
+// Formes bilingues : CertificatCA (FR) et CACertificate (EN) — même champ,
+// pair canon déjà établie côté AMQP/MQTT/STOMP.
+PROCEDURE PUBLIQUE scenario_bilingue_certificatca_cacertificate()
+	sess est un natsConnexion
+	sess..CertificatCA = "/etc/owl/certs/fr.pem"
+	dbgVérifieEgalité(sess..CACertificate, "/etc/owl/certs/fr.pem", "CACertificate (EN) relit ce qu'écrit CertificatCA (FR)")
+
+	sess..CACertificate = "/etc/owl/certs/en.pem"
+	dbgVérifieEgalité(sess..CertificatCA, "/etc/owl/certs/en.pem", "CertificatCA (FR) relit ce qu'écrit CACertificate (EN)")
+FIN
+
+dbgBilanTest()

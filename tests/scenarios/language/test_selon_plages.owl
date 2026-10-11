@@ -1,0 +1,162 @@
+// @sujet : SELON ... CAS <min> A <max> — plages numériques et chaîne dans un aiguillage
+// @résumé : Dans un SELON, un CAS peut tester l'appartenance à une plage avec la forme `CAS min A max`. Les deux bornes sont inclusives. Les formes ouvertes existent aussi : `CAS A max` signifie « inférieur ou égal à max », et `CAS min A` signifie « supérieur ou égal à min ». La plage fonctionne sur tout type ordonné — entiers, réels et chaînes (comparaison lexicographique). Si min est strictement supérieur à max, le CAS ne matche jamais sans erreur — la responsabilité du sens des bornes appartient au code, pas au compilateur.
+
+
+// Cas canonique : tranches de notes scolaires. Les bornes des trois plages
+// se touchent sans se chevaucher (0-9, 10-12, 13-20). Le premier CAS qui
+// matche est exécuté ; pas de fall-through possible, donc on peut écrire
+// les tranches dans l'ordre naturel sans se soucier des intersections.
+PROCEDURE scenario_tranches_de_notes()
+	nNote est un entier = 14
+	sMention est une chaîne = ""
+	SELON nNote
+		CAS 0 À 9   : sMention = "ajourné"
+		CAS 10 À 12 : sMention = "passable"
+		CAS 13 À 20 : sMention = "mention"
+	FIN
+	dbgVérifieEgalité(sMention, "mention", "14 tombe dans la plage 13 A 20")
+
+	nNote = 10
+	SELON nNote
+		CAS 0 À 9   : sMention = "ajourné"
+		CAS 10 À 12 : sMention = "passable"
+		CAS 13 À 20 : sMention = "mention"
+	FIN
+	dbgVérifieEgalité(sMention, "passable", "Borne inférieure inclusive : 10 ∈ [10, 12]")
+
+	nNote = 12
+	SELON nNote
+		CAS 0 À 9   : sMention = "ajourné"
+		CAS 10 À 12 : sMention = "passable"
+		CAS 13 À 20 : sMention = "mention"
+	FIN
+	dbgVérifieEgalité(sMention, "passable", "Borne supérieure inclusive : 12 ∈ [10, 12]")
+FIN
+
+
+// Forme ouverte à droite : `CAS A 8` signifie « toute valeur ≤ 8 ». Idiomatique
+// pour ouvrir une plage par le bas, par exemple pour catégoriser « petites »
+// quantités sans avoir à choisir une borne basse arbitraire (zéro, valeur
+// négative ?). L'absence de borne inférieure est explicite.
+PROCEDURE scenario_plage_ouverte_a_gauche()
+	nStock est un entier = 3
+	sNiveau est une chaîne = ""
+	SELON nStock
+		CAS À 5     : sNiveau = "critique"
+		CAS 6 À 50  : sNiveau = "normal"
+		AUTRE CAS   : sNiveau = "abondant"
+	FIN
+	dbgVérifieEgalité(sNiveau, "critique", "3 ≤ 5 → critique")
+
+	nStock = 5
+	SELON nStock
+		CAS À 5     : sNiveau = "critique"
+		CAS 6 À 50  : sNiveau = "normal"
+		AUTRE CAS   : sNiveau = "abondant"
+	FIN
+	dbgVérifieEgalité(sNiveau, "critique", "Borne sup de la plage ouverte est inclusive")
+
+	nStock = 6
+	SELON nStock
+		CAS À 5     : sNiveau = "critique"
+		CAS 6 À 50  : sNiveau = "normal"
+		AUTRE CAS   : sNiveau = "abondant"
+	FIN
+	dbgVérifieEgalité(sNiveau, "normal", "Juste au-dessus de la plage ouverte")
+FIN
+
+
+// Forme ouverte à gauche : `CAS 100 A` signifie « toute valeur ≥ 100 ».
+// Symétrique de la forme précédente, utile pour ouvrir vers le haut.
+// Particulièrement lisible avec un AUTRE CAS final qui capture les
+// petites valeurs.
+PROCEDURE scenario_plage_ouverte_a_droite()
+	nMontant est un entier = 250
+	sCategorie est une chaîne = ""
+	SELON nMontant
+		CAS 100 À   : sCategorie = "grande"
+		AUTRE CAS   : sCategorie = "petite"
+	FIN
+	dbgVérifieEgalité(sCategorie, "grande", "250 ≥ 100 → grande")
+
+	nMontant = 100
+	SELON nMontant
+		CAS 100 À   : sCategorie = "grande"
+		AUTRE CAS   : sCategorie = "petite"
+	FIN
+	dbgVérifieEgalité(sCategorie, "grande", "Borne inf inclusive : 100 ∈ [100, +∞)")
+
+	nMontant = 99
+	SELON nMontant
+		CAS 100 À   : sCategorie = "grande"
+		AUTRE CAS   : sCategorie = "petite"
+	FIN
+	dbgVérifieEgalité(sCategorie, "petite", "99 < 100 → AUTRE CAS")
+FIN
+
+
+// Plage ponctuelle : `CAS 5 A 5` est légal et équivaut à `CAS 5`. Pas un
+// piège à éviter, juste une forme dégénérée parfois produite par génération
+// automatique de code. Le compilateur ne complique rien : min == max est
+// une plage valide d'un seul élément.
+PROCEDURE scenario_plage_point()
+	nCible est un entier = 5
+	bAtteint est un booléen = Faux
+	SELON nCible
+		CAS 5 À 5 : bAtteint = Vrai
+		AUTRE CAS : bAtteint = Faux
+	FIN
+	dbgVérifieVrai(bAtteint, "Plage point [5, 5] est équivalente à CAS 5")
+FIN
+
+
+// Bornes inversées (min > max) : aucun match silencieux, pas d'erreur.
+// Comportement délibéré et conforme au canon : c'est au code de garantir
+// le sens des bornes. Permet d'utiliser sans crainte des bornes calculées
+// dynamiquement où l'inversion est sémantiquement « plage vide ».
+PROCEDURE scenario_bornes_inversees_silencieuses()
+	nValeur est un entier = 7
+	sResultat est une chaîne = ""
+	SELON nValeur
+		CAS 10 À 5 : sResultat = "matché"
+		AUTRE CAS  : sResultat = "non matché"
+	FIN
+	dbgVérifieEgalité(sResultat, "non matché", "10 A 5 (min > max) n'attrape aucune valeur")
+FIN
+
+
+// Les plages fonctionnent aussi sur les chaînes par comparaison
+// lexicographique. Idiomatique pour des regroupements alphabétiques —
+// listings, annuaires, classements par initiale.
+PROCEDURE scenario_plage_chaine()
+	sNom est une chaîne = "Dupont"
+	sGroupe est une chaîne = ""
+	SELON sNom
+		CAS "A" À "F" : sGroupe = "premier tiers"
+		CAS "G" À "M" : sGroupe = "second tiers"
+		CAS "N" À "Z" : sGroupe = "dernier tiers"
+		AUTRE CAS     : sGroupe = "hors plage"
+	FIN
+	dbgVérifieEgalité(sGroupe, "premier tiers", "« Dupont » ∈ [« A », « F »] lexicographiquement")
+FIN
+
+
+// Plages combinées avec d'autres patterns dans le même CAS via la virgule.
+// Permet de regrouper « valeurs isolées + plages » sous une même action,
+// sans dupliquer le corps. Lisible et concis pour les règles métier riches.
+PROCEDURE scenario_plages_combinees_avec_virgule()
+	nJour est un entier = 6
+	sType est une chaîne = ""
+	SELON nJour
+		CAS 1, 2, 3, 4, 5 : sType = "ouvrable"
+		CAS 6, 7          : sType = "week-end"
+	FIN
+	dbgVérifieEgalité(sType, "week-end", "6 ∈ {6, 7}")
+
+	nJour = 3
+	SELON nJour
+		CAS 1, 2, 3, 4, 5 : sType = "ouvrable"
+		CAS 6, 7          : sType = "week-end"
+	FIN
+	dbgVérifieEgalité(sType, "ouvrable", "3 ∈ {1, 2, 3, 4, 5}")
+FIN

@@ -1,0 +1,58 @@
+// Fenêtre voisine — ressource pour test_prop_expression_composee.owl.
+//
+// Valide qu'une valeur de propriété dans un bloc PROPRIETES accepte une
+// EXPRESSION COMPOSÉE (concaténation `+`, soustraction `-`, etc.), au même
+// titre que l'affectation directe `CHAMP..Prop = <expression>`. Une valeur
+// simple (littéral, référence, énum) et les formes spéciales (littéral
+// multilingue inline `{}`, cascade `Prop..Sous`) restent inchangées.
+
+FEN_PropExprComposee est une Fenêtre
+	PROPRIETES
+		Titre = "Expressions composées"
+		// Composée numérique const-foldable (reste sur le chemin littéral).
+		Largeur     = 800 - 300
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	// Concaténation de chaînes sur un slot Valeur : "x" + LF + "y".
+	SAI_V est un Champ Saisie
+		PROPRIETES
+			Valeur = "x" + LF + "y"
+			// Somme d'entiers en position de propriété entière.
+			X          = 100 + 25
+			Y          = 10
+			TypeSaisie = typSaisieTexte
+		FIN
+	FIN
+
+	// Concaténation sur le Libellé + cascade avec expression composée.
+	LIB_C est un Champ Libellé
+		PROPRIETES
+			Libellé        = "a" + LF + "b"
+			Police..Taille = 6 + 6
+			X              = 10
+			Y              = 60
+		FIN
+	FIN
+
+	// Non-régression : littéral multilingue inline sur le même slot Libellé.
+	LIB_M est un Champ Libellé
+		PROPRIETES
+			Libellé = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+			X       = 10
+			Y       = 90
+		FIN
+	FIN
+
+	// Slot chaîne scalaire (ContenuInitial du Combo) : la valeur composée doit
+	// compiler proprement.
+	CMB_X est un Champ Combo
+		PROPRIETES
+			ContenuInitial = "un" + LF + "deux"
+			X              = 10
+			Y              = 120
+			Largeur        = 100
+		FIN
+	FIN
+FIN

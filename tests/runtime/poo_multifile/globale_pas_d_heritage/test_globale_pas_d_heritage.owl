@@ -1,0 +1,44 @@
+// @sujet membres GLOBAL ne sont PAS herites
+// @resume verifie que chaque classe a ses propres staticFields,
+//         independants de la chaine d'heritage. Le membre nCompte
+//         du parent reste accessible via cBaseGlobale.nCompte mais
+//         PAS via cDeriveeGlobale.nCompte.
+
+PROCEDURE scenario_global_parent_accessible_direct()
+	// Le parent expose nCompte = 7 via son propre nom.
+	dbgVérifieEgalité(cBaseGlobale.nCompte, 7,
+	"Membre GLOBAL parent accessible via cBaseGlobale.nCompte")
+FIN
+
+PROCEDURE scenario_global_derivee_distinct()
+	// La derivee a son propre staticField nLocal, distinct du parent.
+	dbgVérifieEgalité(cDeriveeGlobale.nLocal, 99,
+	"Membre GLOBAL de la derivee distinct du parent")
+FIN
+
+PROCEDURE scenario_global_modification_parent_isolee()
+	// Modifier nCompte via le parent ne cree PAS une copie dans la derivee.
+	// La forme cDeriveeGlobale.nCompte n'est pas legitime (non heritee).
+	// On teste l'inverse positif : on modifie via parent, le membre du
+	// parent change, mais l'isolation est preservee.
+	nAvant est un entier = cBaseGlobale.nCompte
+	cBaseGlobale.nCompte = 42
+	dbgVérifieEgalité(cBaseGlobale.nCompte, 42,
+	"Modification GLOBAL parent visible via son propre nom")
+	// On remet pour ne pas perturber d'autres scenarios eventuels.
+	cBaseGlobale.nCompte = nAvant
+FIN
+
+PROCEDURE scenario_instances_partagent_global_classe()
+	// Deux instances de la derivee : leur lecture du staticField passe par
+	// le nom de classe propre (nLocal), pas via le nom du parent.
+	o1 est un cDeriveeGlobale("un")
+	o2 est un cDeriveeGlobale("deux")
+	dbgVérifieEgalité(o1.sNom, "un",
+	"Instance derivee : field d'instance herite OK")
+	dbgVérifieEgalité(o2.sNom, "deux",
+	"Instance derivee : field d'instance herite OK (2)")
+	// Le staticField propre a la derivee est partage entre o1 et o2.
+	dbgVérifieEgalité(cDeriveeGlobale.nLocal, 99,
+	"staticField derivee partage entre instances")
+FIN

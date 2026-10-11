@@ -1,0 +1,110 @@
+// @sujet : dModifieOpacité
+// @resume : Modifier l'opacité (canal alpha) d'une image par facteur pourcentage
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_reduction_opacite_50_pourcent()
+	imgBase est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	// Réduction de 50% de l'opacité → canal alpha multiplié par 0.5
+	imgBase = dCréeImage(100, 100, couleurRouge)
+	dModifieOpacité(imgBase, 50.0)
+
+	// Vérification : image toujours valide après modification
+	dbgVérifieVrai(imgBase..Hauteur = 100, "reduction 50% : hauteur conservee")
+	dbgVérifieVrai(imgBase..Largeur = 100, "reduction 50% : largeur conservee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_opacite_zero_transparent_total()
+	imgBase est un Image
+	couleurVert est un entier = RVB(0, 255, 0)
+
+	// Facteur 0.0 → transparence totale (canal alpha annulé)
+	imgBase = dCréeImage(80, 60, couleurVert)
+	dModifieOpacité(imgBase, 0.0)
+
+	// Image reste structurellement valide (dimensions, objet)
+	dbgVérifieVrai(imgBase..Hauteur = 60, "opacite zero : hauteur conservee")
+	dbgVérifieVrai(imgBase..Largeur = 80, "opacite zero : largeur conservee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_opacite_cent_pourcent_inchangee()
+	imgBase est un Image
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurDominante1 est un entier
+	couleurDominante2 est un entier
+
+	// Facteur 100.0 → opacité 100%, image inchangée (no-op)
+	imgBase           = dCréeImage(50, 50, couleurBleu)
+	couleurDominante1 = CouleurDominanteImage(imgBase)
+
+	dModifieOpacité(imgBase, 100.0)
+	couleurDominante2 = CouleurDominanteImage(imgBase)
+
+	dbgVérifieEgalité(couleurDominante1, couleurDominante2, "opacite 100% : dominante inchangee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_combinaison_reductions_successives()
+	imgBase est un Image
+	couleurJaune est un entier = RVB(255, 255, 0)
+
+	// Deux réductions successives 50% + 50% → facteur cumulatif 0.5 * 0.5 = 0.25
+	imgBase = dCréeImage(70, 70, couleurJaune)
+	dModifieOpacité(imgBase, 50.0)
+	dModifieOpacité(imgBase, 50.0)
+
+	// Image reste valide après transformations successives
+	dbgVérifieVrai(imgBase..Hauteur = 70, "reductions successives : hauteur conservee")
+	dbgVérifieVrai(imgBase..Largeur = 70, "reductions successives : largeur conservee")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisibles dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_facteur_decimal_fin()
+	imgBase est un Image
+	couleurCyan est un entier = RVB(0, 255, 255)
+
+	// Facteur décimal précis (33.33% → 1/3 de l'opacité originale)
+	imgBase = dCréeImage(100, 100, couleurCyan)
+	dModifieOpacité(imgBase, 33.33)
+
+	dbgVérifieVrai(imgBase..Hauteur = 100, "facteur decimal fin : image valide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_facteur_limite_haute()
+	imgBase est un Image
+	couleurMagenta est un entier = RVB(255, 0, 255)
+
+	// Facteur exactement 100.0 (limite haute de la plage)
+	imgBase = dCréeImage(50, 50, couleurMagenta)
+	dModifieOpacité(imgBase, 100.0)
+
+	dbgVérifieVrai(imgBase..Hauteur = 50, "facteur limite haute : image valide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_facteur_limite_basse()
+	imgBase est un Image
+	couleurGris est un entier = RVB(128, 128, 128)
+
+	// Facteur exactement 0.0 (limite basse de la plage)
+	imgBase = dCréeImage(40, 40, couleurGris)
+	dModifieOpacité(imgBase, 0.0)
+
+	dbgVérifieVrai(imgBase..Hauteur = 40, "facteur limite basse : image valide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_pixel_unique()
+	imgBase est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+
+	// Image minimale 1x1 pixel, réduction 50%
+	imgBase = dCréeImage(1, 1, couleurBlanc)
+	dModifieOpacité(imgBase, 50.0)
+
+	dbgVérifieVrai(imgBase..Hauteur = 1, "image 1x1 : modification supportee")
+FIN

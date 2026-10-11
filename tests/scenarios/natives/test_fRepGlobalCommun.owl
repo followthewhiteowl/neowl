@@ -1,0 +1,29 @@
+// @sujet : fRepGlobalCommun
+// @résumé : Renvoie la racine des données applicatives partagées par tous
+// les utilisateurs de la machine.
+
+PROCEDURE PUBLIQUE scenario_non_vide()
+	rep est une chaîne = fRepGlobalCommun()
+	dbgVérifieVrai(Taille(rep) > 0, "non vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chemin_absolu()
+	rep est une chaîne = fRepGlobalCommun()
+	dbgVérifieVrai(Position(rep, fSep()) > 0, "chemin absolu (contient un séparateur)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stable()
+	rep1 est une chaîne = fRepGlobalCommun()
+	rep2 est une chaîne = fRepGlobalCommun()
+	dbgVérifieEgalité(rep1, rep2, "appels successifs stables")
+FIN
+
+PROCEDURE PUBLIQUE scenario_bilingue()
+	dbgVérifieEgalité(fRepGlobalCommun(), fGlobalDirCommon(), "fRepGlobalCommun() = fGlobalDirCommon()")
+FIN
+
+PROCEDURE PUBLIQUE scenario_distinct_du_repertoire_utilisateur()
+	// Le répertoire commun (tous-utilisateurs) n'a aucune raison de coïncider
+	// avec le répertoire par-utilisateur : ce sont deux racines différentes.
+	dbgVérifieVrai(fRepGlobalCommun() <> fRepGlobalUtilisateur(), "commun distinct de utilisateur")
+FIN

@@ -1,0 +1,86 @@
+// Fixture  — variante de service_clients.owl pour le critère
+// « dérivation » : UNE seule différence assumée (Ping passe de GET à POST),
+// tout le reste identique. Le doc OpenAPI généré doit refléter ce changement
+// mécaniquement, sans seconde déclaration à maintenir.
+ServiceClientsVariante est un ServiceREST
+stClientCreationVariante est une Structure
+	nom est une chaîne
+FIN
+
+PROPRIETES
+	UrlBase          = ["api"]
+	Authentification = httpAuthBearer
+FIN
+
+PROCEDURE surAuthentification(jeton est une chaîne) : booléen
+	RENVOYER jeton = "valide"
+FIN
+
+ListeClients est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpGet
+		Chemin   = ["clients"]
+		Requête  = [page]
+		Réponses = [httpOK]
+		CodeÉtat = httpOK
+	FIN
+	PROCEDURE surRequête(page est un entier = 1)
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = "" + page
+	FIN
+FIN
+
+LitClient est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpGet
+		Chemin   = ["clients", id]
+		Réponses = [httpOK, httpNonTrouvé]
+		CodeÉtat = httpOK
+	FIN
+	PROCEDURE surRequête(id est un entier)
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = "" + id
+	FIN
+FIN
+
+CréeClient est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpPost
+		Chemin   = ["clients"]
+		Réponses = [httpCréé]
+		CodeÉtat = httpCréé
+	FIN
+	PROCEDURE surRequête(client est une stClientCreationVariante)
+		MoiMême..Réponse..CodeÉtat = httpCréé
+		MoiMême..Réponse..Corps    = client.nom
+	FIN
+FIN
+
+Ping est une OpérationHTTP
+	PROPRIETES
+		Méthode          = httpPost
+		Chemin           = ["ping"]
+		Réponses         = [httpOK]
+		CodeÉtat         = httpOK
+		Authentification = httpAuthAucune
+	FIN
+	PROCEDURE surRequête()
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = "pong"
+	FIN
+FIN
+
+TéléverseAvatar est une OpérationHTTP
+	PROPRIETES
+		Méthode     = httpPost
+		Chemin      = ["clients", id, "avatar"]
+		Réponses    = [httpOK]
+		CodeÉtat    = httpOK
+		ContentType = typeMimeFormulaireMultiPartie
+	FIN
+	PROCEDURE surRequête(id est un entier, avatar est un FichierTéléversé)
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = avatar..NomFichier
+	FIN
+FIN
+FIN

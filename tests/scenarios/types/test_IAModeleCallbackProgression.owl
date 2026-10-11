@@ -1,0 +1,264 @@
+// @sujet : IAModèle — callback de progression par époque (OptionsEntraînement..SurÉpoque)
+// @résumé : ..SurÉpoque (FR) / ..OnEpoch (EN) reçoit une référence de
+// procédure utilisateur, affectée au nom nu (comme un Timer..Procédure).
+// .Entraîne rappelle cette procédure une fois à la fin de chaque époque,
+// avec le numéro d'époque courant, le nombre total d'époques et la perte
+// moyenne de l'époque écoulée — de quoi reconstruire une jauge de
+// progression sans dérouler la boucle d'entraînement à la main. Quand la
+// propriété n'est pas affectée, .Entraîne se comporte comme avant : aucun
+// appel, aucune différence observable.
+
+compteurAppels est un entier = 0
+dernierNumEpoque est un entier = 0
+flagOrdreCroissant est un booléen = Vrai
+nEpoquesAttendues est un entier = 0
+flagTotalCoherent est un booléen = Vrai
+premierePerte est un réel = 0.0
+dernierePerte est un réel = 0.0
+sommeNumEpoques est un entier = 0
+
+// Callback de démonstration : compte les appels, vérifie l'ordre croissant
+// du numéro d'époque et le nombre total d'époques annoncé, capture la
+// première et la dernière perte reçues.
+PROCEDURE MajProgression(numÉpoque est un entier, totalÉpoques est un entier, perte est un réel)
+	compteurAppels = compteurAppels + 1
+	SI numÉpoque < dernierNumEpoque ALORS
+		flagOrdreCroissant = Faux
+	FIN
+	dernierNumEpoque = numÉpoque
+	SI totalÉpoques <> nEpoquesAttendues ALORS
+		flagTotalCoherent = Faux
+	FIN
+	SI compteurAppels = 1 ALORS
+		premierePerte = perte
+	FIN
+	dernierePerte = perte
+FIN
+
+// Callback qui prouve la lecture-écriture de l'état englobant : accumule
+// une somme des numéros d'époque reçus (lit la somme courante, ajoute,
+// réécrit).
+PROCEDURE AccumuleNumEpoque(numÉpoque est un entier, _totalÉpoques est un entier, _perte est un réel)
+	sommeNumEpoques = sommeNumEpoques + numÉpoque
+FIN
+
+// Callback forme anglaise, mêmes signaux que MajProgression.
+PROCEDURE UpdateProgress(epochNum est un entier, totalEpochs est un entier, _loss est un réel)
+	compteurAppels   = compteurAppels + 1
+	dernierNumEpoque = epochNum
+	SI totalEpochs <> nEpoquesAttendues ALORS
+		flagTotalCoherent = Faux
+	FIN
+FIN
+
+// Le callback affecté à ..SurÉpoque est appelé exactement une fois par
+// époque : opts..Époques = N → compteurAppels == N après .Entraîne.
+PROCEDURE PUBLIQUE scenario_callback_appele_une_fois_par_epoque()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+	opts..SurÉpoque         = MajProgression
+
+	compteurAppels    = 0
+	nEpoquesAttendues = 5
+
+	mon.Entraîne(tX, tY, opts)
+
+	dbgVérifieEgalité(compteurAppels, 5, "callback appelé exactement Époques fois")
+FIN
+
+// Le numéro d'époque reçu par le callback croît de 1 à N, et le nombre
+// total d'époques annoncé reste égal à opts..Époques à chaque appel.
+PROCEDURE PUBLIQUE scenario_callback_numepoque_croissant_et_total_coherent()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 6
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+	opts..SurÉpoque         = MajProgression
+
+	compteurAppels     = 0
+	dernierNumEpoque   = 0
+	flagOrdreCroissant = Vrai
+	flagTotalCoherent  = Vrai
+	nEpoquesAttendues  = 6
+
+	mon.Entraîne(tX, tY, opts)
+
+	dbgVérifieEgalité(dernierNumEpoque, 6, "dernier numÉpoque reçu = Époques (6)")
+	dbgVérifieVrai(flagOrdreCroissant, "numÉpoque reçu en ordre strictement croissant à chaque appel")
+	dbgVérifieVrai(flagTotalCoherent, "totalÉpoques reçu = opts..Époques à chaque appel")
+FIN
+
+// La perte moyenne reçue par le callback à la dernière époque est plus
+// basse que celle reçue à la première : l'entraînement apprend.
+PROCEDURE PUBLIQUE scenario_callback_perte_decroissante()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 100
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+	opts..SurÉpoque         = MajProgression
+
+	compteurAppels    = 0
+	premierePerte     = 0.0
+	dernierePerte     = 0.0
+	nEpoquesAttendues = 100
+
+	mon.Entraîne(tX, tY, opts)
+
+	dbgVérifieVrai(dernierePerte < premierePerte, "perte moyenne de la dernière époque < perte moyenne de la première époque")
+FIN
+
+// Sans affectation de ..SurÉpoque, .Entraîne se comporte exactement comme
+// avant : aucun appel de callback, et l'entraînement fonctionne quand
+// même (la perte diminue).
+PROCEDURE PUBLIQUE scenario_sans_callback_comportement_inchange()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	valPerteAvant est un réel = sortieAvant.EntropieCroisée(tY)..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 100
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+
+	compteurAppels = 0
+
+	mon.Entraîne(tX, tY, opts)
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	valPerteApres est un réel = sortieApres.EntropieCroisée(tY)..Valeur[1]
+
+	dbgVérifieEgalité(compteurAppels, 0, "..SurÉpoque non affecté : aucun appel de callback")
+	dbgVérifieVrai(valPerteApres < valPerteAvant, "l'entraînement fonctionne quand même : la perte diminue")
+FIN
+
+// Le callback peut à la fois lire et écrire l'état d'une variable de
+// portée englobante : accumuler la somme des numéros d'époque reçus donne
+// exactement la somme triangulaire 1+2+...+N.
+PROCEDURE PUBLIQUE scenario_callback_lit_ecrit_etat_englobant()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 8
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+	opts..SurÉpoque         = AccumuleNumEpoque
+
+	sommeNumEpoques = 0
+
+	mon.Entraîne(tX, tY, opts)
+
+	dbgVérifieEgalité(sommeNumEpoques, 36, "somme des numÉpoque reçus = 1+2+...+8 (accumulée depuis le callback)")
+FIN
+
+// Forme anglaise : TrainingOptions..OnEpoch se comporte identiquement à
+// OptionsEntraînement..SurÉpoque.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_onepoch()
+	mon is an AIModel
+	mon.AddDenseLayer(2, 2)
+
+	matX is a Matrix = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX is a Tensor = Tensor(matX)
+	matY is a Matrix = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY is a Tensor = Tensor(matY)
+
+	opts is a TrainingOptions
+	opts..Epochs       = 5
+	opts..BatchSize    = 4
+	opts..LearningRate = 0.5
+	opts..Optimizer    = optimSGD
+	opts..Loss         = perteEntropieCroisée
+	opts..OnEpoch      = UpdateProgress
+
+	compteurAppels    = 0
+	dernierNumEpoque  = 0
+	flagTotalCoherent = Vrai
+	nEpoquesAttendues = 5
+
+	mon.Train(tX, tY, opts)
+
+	dbgVérifieEgalité(compteurAppels, 5, "OnEpoch : callback appelé exactement Epochs fois")
+	dbgVérifieEgalité(dernierNumEpoque, 5, "OnEpoch : dernier epochNum reçu = Epochs (5)")
+	dbgVérifieVrai(flagTotalCoherent, "OnEpoch : totalEpochs reçu = opts..Epochs à chaque appel")
+FIN
+
+// Résolution forward : le helper de callback est défini PLUS BAS dans ce
+// fichier que l'affectation ..SurÉpoque qui le référence — même
+// comportement que la prise de référence forward d'un Timer..Procédure.
+PROCEDURE PUBLIQUE scenario_resolution_forward_helper_defini_plus_bas()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	matX est une Matrice = [[3.0, 1.0], [2.0,-1.0], [-3.0, 1.0], [-2.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 4
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.5
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteEntropieCroisée
+	opts..SurÉpoque         = HelperCallbackDéfiniPlusBas
+
+	compteurAppels = 0
+
+	mon.Entraîne(tX, tY, opts)
+
+	dbgVérifieEgalité(compteurAppels, 4, "référence forward vers un helper défini plus bas : résolue, callback appelé Époques fois")
+FIN
+
+// ======== HELPER DÉFINI APRÈS SON USAGE (résolution forward) ========
+
+PROCEDURE HelperCallbackDéfiniPlusBas(_numÉpoque est un entier, _totalÉpoques est un entier, _perte est un réel)
+	compteurAppels = compteurAppels + 1
+FIN

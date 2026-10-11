@@ -1,0 +1,100 @@
+// Un identifiant utilisateur reste un identifiant utilisateur PARTOUT : le
+// formateur ne le canonise ni a la declaration, ni a l'usage, meme quand ce
+// nom est l'homonyme d'un genre integre a la casse pres (corps, bouton,
+// colonne, saisie...). Seule la position de TYPE releve du canon.
+// Miroir de type_homonyme_user/, qui couvre le meme attendu pour un type
+// declare par l'utilisateur.
+
+ETAT_Homonyme est un État
+	PROPRIETES
+		Format = formatA4
+	FIN
+
+	hautDePage est un hautDePage
+		PROPRIETES
+			Hauteur = 15
+		FIN
+	FIN
+
+	corps est un corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+	FIN
+
+	basDePage est un BasDePage
+		PROPRIETES
+			Hauteur = 10
+		FIN
+	FIN
+FIN
+
+FEN_Homonyme est une Fenêtre
+	PROPRIETES
+		Titre = "Homonymes"
+	FIN
+
+	bouton est un Champ Bouton
+		PROPRIETES
+			Libellé = "Valider"
+		FIN
+	FIN
+
+	// Position de TYPE malgre l'homonymie : `bouton` est declare juste au
+	// dessus comme nom de bloc, le canon s'applique quand meme ici.
+	btnSecondaire est un Champ bouton
+		PROPRIETES
+			Libellé = "Annuler"
+		FIN
+	FIN
+
+	saisie est un Champ saisie
+		PROPRIETES
+			Valeur = ""
+		FIN
+	FIN
+
+	interrupteur est un Champ Interrupteur
+		PROPRIETES
+			Libellé = "Actif"
+		FIN
+	FIN
+
+	table est un Champ Table
+		PROPRIETES
+			Largeur = 200
+		FIN
+
+		colonne est une colonne
+			PROPRIETES
+				Titre = "Nom"
+			FIN
+		FIN
+	FIN
+FIN
+
+// Les memes noms a l'USAGE. Sans cette moitie, la meme variable sortait sous
+// deux orthographes dans un meme fichier : preservee a la declaration,
+// renommee des qu'on s'en sert.
+PROCEDURE utiliseLesHomonymes()
+	table est un tableau de chaînes
+	Ajoute(table, "a")
+	Trace(Taille(table))
+
+	bouton est une chaîne = "ok"
+	SI bouton <> "" ALORS
+		Trace(bouton)
+	FIN
+
+	saisie est un entier = 3
+	POUR TOUT elt DE table
+		Trace(elt + saisie)
+	FIN
+
+	interrupteur est un booléen = Vrai
+	Trace(interrupteur)
+
+	// Temoin non-homonyme : rien a preserver, rien a canoniser.
+	truc est un entier = 7
+	Trace(truc)
+FIN

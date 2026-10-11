@@ -1,0 +1,50 @@
+// @sujet : MLArbreDécision — digue e2e tabulaire (CSV -> arbre -> métrique)
+// @résumé : Pipeline complet sur des données tabulaires brutes : une
+// chaîne CSV convertie en Matrice via CSVVersMatrice, un MLArbreDécision
+// entraîné dessus, puis la qualité des prédictions mesurée par la
+// métrique adaptée à l'objectif (Exactitude en classification,
+// CoefficientDétermination en régression). Jeux synthétiques
+// parfaitement séparables par un arbre pour garder l'assertion exacte.
+
+
+// 8 échantillons à une variable, deux groupes bien séparés (1..4 vs
+// 11..14) : le split naturel isole totalement les deux classes,
+// exactitude 1.0 exacte sur les données d'entraînement.
+PROCEDURE PUBLIQUE scenario_pipeline_csv_classification()
+	csvX est une chaîne = "1.0" + CRLF + "2.0" + CRLF + "3.0" + CRLF + "4.0" + CRLF + "11.0" + CRLF + "12.0" + CRLF + "13.0" + CRLF + "14.0"
+	matX est une Matrice = CSVVersMatrice(csvX, ";", Faux)
+
+	csvY est une chaîne = "0.0" + CRLF + "0.0" + CRLF + "0.0" + CRLF + "0.0" + CRLF + "1.0" + CRLF + "1.0" + CRLF + "1.0" + CRLF + "1.0"
+	matY est une Matrice = CSVVersMatrice(csvY, ";", Faux)
+	y est un Tenseur = Tenseur(matY)
+
+	arbre est un MLArbreDécision
+	arbre..Objectif = objClassification
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	taux est un réel = Exactitude(preds, y)
+	dbgVérifieEgalité(taux, 1.0, "deux clusters bien séparés (1-4 vs 11-14) : exactitude 1.0")
+FIN
+
+
+// 8 échantillons à une variable, cible en marche d'escalier (10 pour
+// x<=4, 30 pour x>4) : un CART peut représenter cette marche sans résidu
+// avec un seul split, le coefficient de détermination doit être proche
+// de 1.
+PROCEDURE PUBLIQUE scenario_pipeline_csv_regression()
+	csvX est une chaîne = "1.0" + CRLF + "2.0" + CRLF + "3.0" + CRLF + "4.0" + CRLF + "5.0" + CRLF + "6.0" + CRLF + "7.0" + CRLF + "8.0"
+	matX est une Matrice = CSVVersMatrice(csvX, ";", Faux)
+
+	csvY est une chaîne = "10.0" + CRLF + "10.0" + CRLF + "10.0" + CRLF + "10.0" + CRLF + "30.0" + CRLF + "30.0" + CRLF + "30.0" + CRLF + "30.0"
+	matY est une Matrice = CSVVersMatrice(csvY, ";", Faux)
+	y est un Tenseur = Tenseur(matY)
+
+	arbre est un MLArbreDécision
+	arbre..Objectif = objRégression
+	arbre.Entraîne(matX, y)
+
+	preds est un Tenseur = arbre.Prédit(matX)
+	r2 est un réel = CoefficientDétermination(preds, y)
+	dbgVérifieVrai(r2 > 0.99, "marche d'escalier représentable sans résidu par un seul split : R² proche de 1")
+FIN

@@ -1,0 +1,234 @@
+// ============================================================
+// TEST: famille zip — couverture des constantes (modes, formats,
+// niveaux, portions de chemin, éléments d'info) via de vraies
+// opérations d'archive. Complète test_compression.owl / test_zip_methodes.owl
+// sans dupliquer leurs scénarios.
+// ============================================================
+
+Trace("=== zip constantes — modes d'ouverture ===")
+
+// Les constantes de mode résolvent vers leurs sentinelles documentées.
+dbgVérifieEgalité(zipLecture, 1, "zipLecture = 1")
+dbgVérifieEgalité(zipEcriture, 2, "zipEcriture = 2")
+dbgVérifieEgalité(zipCréationSiInexistant, 4, "zipCréationSiInexistant = 4")
+
+// Mode lecture explicite : on rouvre une archive et on relit son contenu.
+arch0 est un zipArchive = zipCrée("/tmp/owl_cst_modes.zip")
+zipAjouteFichier(arch0, "contenu mode", zipEnMémoire, "m.txt")
+zipFerme(arch0)
+
+rLect est un zipArchive = zipOuvre("/tmp/owl_cst_modes.zip", zipLecture)
+dbgVérifieEgalité(zipNbFichier(rLect), 1, "zipOuvre(zipLecture) relit l'archive")
+bufM est un buffer = zipExtraitFichier(rLect, 1, zipEnMémoire)
+dbgVérifieEgalité(BufferVersChaîne(bufM), "contenu mode", "Lecture restitue le contenu exact")
+zipFerme(rLect)
+
+// Mode écriture explicite : (re)ouvre en écriture (tronque), ajoute, relit.
+wEcr est un zipArchive = zipOuvre("/tmp/owl_cst_modes.zip", zipEcriture)
+zipAjouteFichier(wEcr, "ecrit en mode ecriture", zipEnMémoire, "w.txt")
+zipFerme(wEcr)
+rApres est un zipArchive = zipOuvre("/tmp/owl_cst_modes.zip", zipLecture)
+dbgVérifieEgalité(zipNbFichier(rApres), 1, "zipEcriture a réécrit l'archive (1 entrée)")
+dbgVérifieEgalité(BufferVersChaîne(zipExtraitFichier(rApres, "w.txt", zipEnMémoire)), "ecrit en mode ecriture", "Contenu écrit relu")
+zipFerme(rApres)
+
+Trace("=== zip constantes — zipEnMémoire (buffer) ===")
+
+// zipEnMémoire en mode ajout buffer ET en mode extraction buffer.
+archMem est un zipArchive = zipCrée("/tmp/owl_cst_mem.zip")
+zipAjouteFichier(archMem, "payload mémoire éàü", zipEnMémoire, "mem.txt")
+zipFerme(archMem)
+rMem est un zipArchive = zipOuvre("/tmp/owl_cst_mem.zip")
+bMem est un buffer = zipExtraitFichier(rMem, "mem.txt", zipEnMémoire)
+dbgVérifieEgalité(BufferVersChaîne(bMem), "payload mémoire éàü", "zipEnMémoire : add+extract buffer roundtrip")
+zipFerme(rMem)
+
+Trace("=== zip constantes — portions de chemin (zipAucun/zipRépertoire/zipDisque) ===")
+
+// zipAjouteFichier depuis disque : la portion de chemin conservée dépend
+// de la constante. On écrit un fichier réel puis on l'ajoute 3 fois.
+chemDisque est une chaîne = fRepTemp() + "/owl_cst_portion.txt"
+fSauveTexte(chemDisque, "données portion")
+
+dbgVérifieEgalité(zipAucun, 0, "zipAucun = 0")
+dbgVérifieEgalité(zipRépertoire, 1, "zipRépertoire = 1")
+dbgVérifieEgalité(zipDisque, 2, "zipDisque = 2")
+
+archP est un zipArchive = zipCrée("/tmp/owl_cst_portion.zip")
+zipAjouteFichier(archP, chemDisque, zipAucun)
+zipFerme(archP)
+rP est un zipArchive = zipOuvre("/tmp/owl_cst_portion.zip")
+// zipAucun = basename seul → l'entrée stockée est "owl_cst_portion.txt".
+dbgVérifieEgalité(zipInfoFichier(rP, 1, zipNom), "owl_cst_portion.txt", "zipAucun stocke le basename seul")
+dbgVérifieEgalité(BufferVersChaîne(zipExtraitFichier(rP, 1, zipEnMémoire)), "données portion", "Contenu disque ajouté lisible")
+zipFerme(rP)
+
+// zipRépertoire et zipDisque conservent davantage de chemin (relatif / absolu
+// normalisé). On vérifie qu'un nom NON réduit au basename est stocké.
+archR est un zipArchive = zipCrée("/tmp/owl_cst_portion_r.zip")
+zipAjouteFichier(archR, chemDisque, zipRépertoire)
+zipFerme(archR)
+rR est un zipArchive = zipOuvre("/tmp/owl_cst_portion_r.zip")
+nomR est une chaîne = zipInfoFichier(rR, 1, zipNom)
+dbgVérifieVrai(Position(nomR, "owl_cst_portion.txt") > 0, "zipRépertoire conserve le nom de fichier")
+zipFerme(rR)
+
+archD est un zipArchive = zipCrée("/tmp/owl_cst_portion_d.zip")
+zipAjouteFichier(archD, chemDisque, zipDisque)
+zipFerme(archD)
+rD est un zipArchive = zipOuvre("/tmp/owl_cst_portion_d.zip")
+nomD est une chaîne = zipInfoFichier(rD, 1, zipNom)
+dbgVérifieVrai(Position(nomD, "owl_cst_portion.txt") > 0, "zipDisque conserve le chemin (nom présent)")
+zipFerme(rD)
+fSupprime(chemDisque)
+
+Trace("=== zip constantes — niveaux de compression ===")
+
+dbgVérifieEgalité(zipCompressionRapide, 1, "zipCompressionRapide = 1")
+dbgVérifieEgalité(zipCompressionNormale, 6, "zipCompressionNormale = 6")
+dbgVérifieEgalité(zipCompressionMaximale, 9, "zipCompressionMaximale = 9")
+
+// Chaque niveau est accepté par zipNiveauCompression sur une archive ouverte.
+archN est un zipArchive = zipCrée("/tmp/owl_cst_niv.zip")
+dbgVérifieEgalité(zipNiveauCompression(archN, zipCompressionRapide), Vrai, "Niveau rapide accepté")
+dbgVérifieEgalité(zipNiveauCompression(archN, zipCompressionMaximale), Vrai, "Niveau maximal accepté")
+dbgVérifieEgalité(zipNiveauCompression(archN, zipCompressionNormale), Vrai, "Niveau normal accepté")
+zipAjouteFichier(archN, Répète("Z", 400), zipEnMémoire, "z.txt")
+zipFerme(archN)
+rN est un zipArchive = zipOuvre("/tmp/owl_cst_niv.zip")
+dbgVérifieEgalité(zipInfoFichier(rN, 1, zipTaille), 400, "Entrée compressée niveau max relue (taille décompressée)")
+zipFerme(rN)
+
+Trace("=== zip constantes — éléments zipInfoFichier ===")
+
+// Une entrée réelle (contenu connu) pour lire date/CRC/attributs/tailleC.
+archI est un zipArchive = zipCrée("/tmp/owl_cst_info.zip")
+zipAjouteFichier(archI, Répète("ABCD", 250), zipEnMémoire, "info.txt") // 1000 octets
+zipFerme(archI)
+rI est un zipArchive = zipOuvre("/tmp/owl_cst_info.zip")
+
+// zipTailleCompressée : strictement inférieure à la taille décompressée sur
+// 1000 octets très répétitifs.
+tailleC est un entier = zipInfoFichier(rI, 1, zipTailleCompressée)
+dbgVérifieVrai(tailleC > 0, "zipTailleCompressée > 0")
+dbgVérifieVrai(tailleC < 1000, "zipTailleCompressée < taille décompressée (texte répétitif)")
+
+// zipCRC : CRC-32 d'un contenu connu, déterministe et non nul.
+crc est un entier = zipInfoFichier(rI, 1, zipCRC)
+dbgVérifieVrai(crc <> 0, "zipCRC non nul sur contenu non vide")
+
+// zipDate : horodatage de modification (>= 0, entier).
+dateMod est un entier = zipInfoFichier(rI, 1, zipDate)
+dbgVérifieVrai(dateMod >= 0, "zipDate renvoie un horodatage >= 0")
+
+// zipAttributs : attributs fichier (entier exposé sans erreur).
+attr est un entier = zipInfoFichier(rI, 1, zipAttributs)
+dbgVérifieVrai(attr >= 0, "zipAttributs renvoie un entier >= 0")
+zipFerme(rI)
+
+Trace("=== zip constantes — formats supportés (create + read) ===")
+
+dbgVérifieEgalité(zipFormatZIP, 0, "zipFormatZIP = 0")
+dbgVérifieEgalité(zipFormatWDZ, 3, "zipFormatWDZ = 3")
+dbgVérifieEgalité(zipFormatTAR, 5, "zipFormatTAR = 5")
+dbgVérifieEgalité(zipFormatTARGZ, 6, "zipFormatTARGZ = 6")
+
+// Pour chaque format supporté : créer avec le format explicite, ajouter,
+// fermer, rouvrir, relire le contenu exact. L'extension correspond au format
+// pour que la réouverture (qui détecte le format depuis le chemin) recharge
+// le bon backend.
+
+// -- zipFormatZIP --
+aZip est un zipArchive = zipCrée("/tmp/owl_cst_fmt.zip", zipFormatZIP)
+dbgVérifieVrai(PAS EstNul(aZip), "ZIP : zipCrée(format) renvoie un handle")
+zipAjouteFichier(aZip, "contenu ZIP", zipEnMémoire, "f.txt")
+zipFerme(aZip)
+rZip est un zipArchive = zipOuvre("/tmp/owl_cst_fmt.zip")
+dbgVérifieEgalité(zipNbFichier(rZip), 1, "ZIP : relecture 1 entrée")
+dbgVérifieEgalité(BufferVersChaîne(zipExtraitFichier(rZip, "f.txt", zipEnMémoire)), "contenu ZIP", "ZIP : contenu exact relu")
+zipFerme(rZip)
+
+// -- zipFormatWDZ (moteur ZIP partagé, sentinel distinct) --
+aWdz est un zipArchive = zipCrée("/tmp/owl_cst_fmt.wdz", zipFormatWDZ)
+dbgVérifieVrai(PAS EstNul(aWdz), "WDZ : zipCrée(format) renvoie un handle")
+zipAjouteFichier(aWdz, "contenu WDZ", zipEnMémoire, "f.txt")
+zipFerme(aWdz)
+rWdz est un zipArchive = zipOuvre("/tmp/owl_cst_fmt.wdz")
+dbgVérifieEgalité(zipNbFichier(rWdz), 1, "WDZ : relecture 1 entrée")
+dbgVérifieEgalité(BufferVersChaîne(zipExtraitFichier(rWdz, "f.txt", zipEnMémoire)), "contenu WDZ", "WDZ : contenu exact relu")
+zipFerme(rWdz)
+
+// -- zipFormatTAR --
+aTar est un zipArchive = zipCrée("/tmp/owl_cst_fmt.tar", zipFormatTAR)
+dbgVérifieVrai(PAS EstNul(aTar), "TAR : zipCrée(format) renvoie un handle")
+zipAjouteFichier(aTar, "contenu TAR", zipEnMémoire, "f.txt")
+zipFerme(aTar)
+rTar est un zipArchive = zipOuvre("/tmp/owl_cst_fmt.tar")
+dbgVérifieEgalité(zipNbFichier(rTar), 1, "TAR : relecture 1 entrée")
+dbgVérifieEgalité(BufferVersChaîne(zipExtraitFichier(rTar, "f.txt", zipEnMémoire)), "contenu TAR", "TAR : contenu exact relu")
+zipFerme(rTar)
+
+// -- zipFormatTARGZ --
+aTgz est un zipArchive = zipCrée("/tmp/owl_cst_fmt.tar.gz", zipFormatTARGZ)
+dbgVérifieVrai(PAS EstNul(aTgz), "TARGZ : zipCrée(format) renvoie un handle")
+zipAjouteFichier(aTgz, "contenu TARGZ", zipEnMémoire, "f.txt")
+zipFerme(aTgz)
+rTgz est un zipArchive = zipOuvre("/tmp/owl_cst_fmt.tar.gz")
+dbgVérifieEgalité(zipNbFichier(rTgz), 1, "TARGZ : relecture 1 entrée")
+dbgVérifieEgalité(BufferVersChaîne(zipExtraitFichier(rTgz, "f.txt", zipEnMémoire)), "contenu TARGZ", "TARGZ : contenu exact relu")
+zipFerme(rTgz)
+
+Trace("=== zip constantes — zipFormat7Z (read-only, pas de write) ===")
+
+// Le backend 7z est en lecture seule : aucun writer disponible. On ne crée
+// donc PAS de 7z. On vérifie la valeur de la constante et que la création
+// échoue proprement (erreur capturée), reflétant l'absence de write.
+dbgVérifieEgalité(zipFormat7Z, 4, "zipFormat7Z = 4")
+a7z est un zipArchive = zipCrée("/tmp/owl_cst_7z.bin", zipFormat7Z)
+// Capturer drapeau + message AVANT toute native (les dbgVérifie* font une RAZ auto).
+err7zDet est un booléen = ErreurDétectée
+err7zMsg est une chaîne = ErreurInfo()
+dbgVérifieEgalité(EstNul(a7z), Vrai, "zipCrée(zipFormat7Z) refusé (write indisponible)")
+dbgVérifieVrai(err7zDet, "zipFormat7Z create : erreur détectée")
+dbgVérifieVrai(Position(err7zMsg, "7z") > 0, "Erreur 7z mentionne le format")
+ErreurRAZ()
+
+Trace("=== zip constantes — compresseChaîneCourte ===")
+
+// Alias deflate optimisé chaînes courtes : roundtrip via Compresse/Décompresse.
+cCourt est un buffer = Compresse("abc abc abc abc", compresseChaîneCourte)
+dbgVérifieVrai(Taille(cCourt) > 0, "compresseChaîneCourte produit un buffer non vide")
+dCourt est un buffer = Décompresse(cCourt, compresseChaîneCourte)
+dbgVérifieEgalité(BufferVersChaîne(dCourt), "abc abc abc abc", "compresseChaîneCourte roundtrip (alias deflate)")
+
+Trace("=== zip constantes — formats placeholder CAB/RAR (erreur propre) ===")
+
+// CAB et RAR sont des formats placeholder : pas de backend. La création doit
+// lever une erreur propre (capturée), pas crasher ni renvoyer une archive.
+aCab est un zipArchive = zipCrée("/tmp/owl_cst_cab.bin", zipFormatCAB)
+errCabDet est un booléen = ErreurDétectée
+errCabMsg est une chaîne = ErreurInfo()
+dbgVérifieEgalité(EstNul(aCab), Vrai, "zipCrée(zipFormatCAB) refusé")
+dbgVérifieVrai(errCabDet, "zipFormatCAB : erreur détectée")
+dbgVérifieVrai(Position(errCabMsg, "CAB") > 0, "Erreur CAB mentionne le format")
+ErreurRAZ()
+
+aRar est un zipArchive = zipCrée("/tmp/owl_cst_rar.bin", zipFormatRAR)
+errRarDet est un booléen = ErreurDétectée
+errRarMsg est une chaîne = ErreurInfo()
+dbgVérifieEgalité(EstNul(aRar), Vrai, "zipCrée(zipFormatRAR) refusé")
+dbgVérifieVrai(errRarDet, "zipFormatRAR : erreur détectée")
+dbgVérifieVrai(Position(errRarMsg, "RAR") > 0, "Erreur RAR mentionne le format")
+ErreurRAZ()
+
+// Même rejet propre à l'ouverture (zipOuvre) : une extension de format
+// placeholder (.rar) est rejetée par le format, pas par l'absence de fichier.
+aRarOuvre est un zipArchive = zipOuvre("/tmp/owl_cst_inexistant.rar")
+errOuvDet est un booléen = ErreurDétectée
+errOuvMsg est une chaîne = ErreurInfo()
+dbgVérifieEgalité(EstNul(aRarOuvre), Vrai, "zipOuvre format placeholder refusé")
+dbgVérifieVrai(errOuvDet, "zipOuvre placeholder : erreur détectée")
+dbgVérifieVrai(Position(errOuvMsg, "RAR") > 0, "zipOuvre .rar mentionne le format")
+ErreurRAZ()
+
+Trace("OK - couverture constantes zip terminée")

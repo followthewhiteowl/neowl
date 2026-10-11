@@ -1,0 +1,42 @@
+//  — verrouille la forme canon `tableau de T` cote runtime. La
+// forme generique `tableau<T>` est rejetee par le compiler (couvert par
+// la fixture `tests/compile-error/tableau_generic_syntax.owl`). Ici on
+// verifie que les formes canon compilent et fonctionnent comme prevu :
+//   - `tableau d'entiers`        (apostrophe elision)
+//   - `tableau de chaînes`       (de + type)
+//   - `tableau <agrandissement> de N entiers`  (forme avec attribut)
+//
+// Ces formes coexistent avec la forme bracketee `tableau<agrandissement>`
+// (NE PAS confondre avec `tableau<entier>` qui, elle, n'est pas valide).
+
+PROCEDURE scenario_tableau_de_entiers_canon()
+	nombres est un tableau d'entiers
+	nombres.Ajoute(10)
+	nombres.Ajoute(20)
+	nombres.Ajoute(30)
+	dbgVérifieEgalité(nombres..Occurrence, 3, "trois elements ajoutes")
+	dbgVérifieEgalité(nombres[1], 10, "premier element = 10")
+	dbgVérifieEgalité(nombres[3], 30, "dernier element = 30")
+FIN
+
+PROCEDURE scenario_tableau_de_chaines_canon()
+	mots est un tableau de chaînes
+	mots.Ajoute("alpha")
+	mots.Ajoute("beta")
+	dbgVérifieEgalité(mots..Occurrence, 2, "deux chaines ajoutees")
+	dbgVérifieEgalité(mots[1], "alpha", "premier = alpha")
+	dbgVérifieEgalité(mots[2], "beta", "second = beta")
+FIN
+
+PROCEDURE scenario_tableau_agrandissement_attribut_legitime()
+	// `<agrandissement>` est l'attribut canon, a NE PAS confondre avec
+	// la syntaxe generique rejetee `tableau<T>`. Ici T n'apparait pas
+	// dans les chevrons : ils encadrent uniquement le mot-cle attribut.
+	tDyn est un tableau <agrandissement=n> d'entiers
+	tDyn.Ajoute(1)
+	tDyn.Ajoute(2)
+	tDyn.Ajoute(3)
+	tDyn.Ajoute(4)
+	dbgVérifieEgalité(tDyn..Occurrence, 4, "4 elements en mode dynamique")
+	dbgVérifieEgalité(tDyn[4], 4, "dernier = 4")
+FIN

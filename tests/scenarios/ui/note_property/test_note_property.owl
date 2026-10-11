@@ -1,0 +1,118 @@
+// @sujet : ..Note — propriété universelle de stockage libre sur champs/fenêtre
+// @résumé : ..Note est un emplacement texte libre, lisible et écrivable au
+// runtime, disponible sur la Fenêtre et tous les kinds de champs. Défaut
+// avant toute écriture : chaîne vide (jamais nil, jamais d'erreur). Chaque
+// champ porte sa propre valeur, indépendante des autres. Accessible aussi
+// via indirection ({"nomChamp"}..Note).
+//
+// La fenêtre voisine FEN_Note.owl porte la déclaration (Fenêtre + Bouton +
+// Libellé + 2 Saisies).
+
+PROCEDURE PUBLIQUE scenario_note_ecriture_lecture_fenetre()
+	Ouvre(FEN_Note)
+
+	FEN_Note..Note = "Fenêtre de test pour le contact"
+	dbgVérifieEgalité(FEN_Note..Note, "Fenêtre de test pour le contact", "..Note écrit sur la Fenêtre se relit à l'identique")
+
+	Ferme(FEN_Note)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_note_ecriture_lecture_bouton()
+	Ouvre(FEN_Note)
+
+	BTN_NoteTest..Note = "Déclenche la validation du formulaire"
+	dbgVérifieEgalité(BTN_NoteTest..Note, "Déclenche la validation du formulaire", "..Note écrit sur un Bouton se relit à l'identique")
+
+	Ferme(FEN_Note)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_note_ecriture_lecture_libelle()
+	Ouvre(FEN_Note)
+
+	LIB_NoteTest..Note = "Affiche le nom du contact"
+	dbgVérifieEgalité(LIB_NoteTest..Note, "Affiche le nom du contact", "..Note écrit sur un Libellé se relit à l'identique")
+
+	Ferme(FEN_Note)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_note_ecriture_lecture_saisie()
+	Ouvre(FEN_Note)
+
+	SAI_NoteTest..Note = "Désigne la personne à contacter dans la société"
+	dbgVérifieEgalité(SAI_NoteTest..Note, "Désigne la personne à contacter dans la société", "..Note écrit sur une Saisie se relit à l'identique")
+
+	Ferme(FEN_Note)
+FIN
+
+
+// Écrire la Note d'un champ ne doit avoir aucun effet sur celle d'un autre
+// champ : le stockage est par instance, pas partagé au niveau du kind ni
+// de la fenêtre.
+PROCEDURE PUBLIQUE scenario_note_persistance_independante_par_champ()
+	Ouvre(FEN_Note)
+
+	BTN_NoteTest..Note = "Note du bouton"
+	SAI_NoteTest..Note = "Note de la première saisie"
+
+	dbgVérifieEgalité(BTN_NoteTest..Note, "Note du bouton", "La Note du Bouton n'est pas affectée par l'écriture sur la Saisie")
+	dbgVérifieEgalité(SAI_NoteTest..Note, "Note de la première saisie", "La Note de la Saisie reste distincte de celle du Bouton")
+	dbgVérifieEgalité(SAI_NoteAutre..Note, "", "La seconde Saisie, jamais écrite, garde sa Note indépendante des autres champs")
+
+	Ferme(FEN_Note)
+FIN
+
+
+// Avant toute écriture, ..Note vaut la chaîne vide — jamais nil, jamais
+// d'erreur de lecture.
+PROCEDURE PUBLIQUE scenario_note_defaut_vide_avant_ecriture()
+	Ouvre(FEN_Note)
+
+	dbgVérifieEgalité(FEN_Note..Note, "", "Défaut de ..Note sur la Fenêtre avant toute écriture : chaîne vide")
+	dbgVérifieEgalité(LIB_NoteTest..Note, "", "Défaut de ..Note sur un Libellé avant toute écriture : chaîne vide")
+	dbgVérifieFaux(ErreurDétectée, "La lecture de ..Note avant écriture ne pose aucune erreur")
+
+	Ferme(FEN_Note)
+FIN
+
+
+// L'indirection {"nomChamp"}..Note doit fonctionner en écriture ET en
+// lecture, avec un résultat cohérent avec l'accès direct par nom.
+PROCEDURE PUBLIQUE scenario_note_indirection_ecriture_lecture()
+	Ouvre(FEN_Note)
+
+	{"BTN_NoteTest"}..Note = "Écrite par indirection"
+	dbgVérifieEgalité({"BTN_NoteTest"}..Note, "Écrite par indirection", "Lecture par indirection après écriture par indirection")
+	dbgVérifieEgalité(BTN_NoteTest..Note, "Écrite par indirection", "L'accès direct par nom voit la même valeur que celle posée par indirection")
+
+	Ferme(FEN_Note)
+FIN
+
+
+// --- Cas limites (PRIVÉ, hors surface documentaire) ---
+
+// Réaffecter ..Note doit écraser la valeur précédente, pas l'accumuler.
+PROCEDURE PRIVÉE scenario_note_reaffectation_ecrase_ancienne_valeur()
+	Ouvre(FEN_Note)
+
+	SAI_NoteTest..Note = "Première valeur"
+	SAI_NoteTest..Note = "Seconde valeur"
+	dbgVérifieEgalité(SAI_NoteTest..Note, "Seconde valeur", "La réaffectation de ..Note écrase l'ancienne valeur, sans concaténation")
+
+	Ferme(FEN_Note)
+FIN
+
+
+// Réaffecter explicitement une chaîne vide doit rendre exactement "" —
+// pas de distinction cachée entre "jamais écrit" et "écrit avec vide".
+PROCEDURE PRIVÉE scenario_note_reaffectation_chaine_vide_explicite()
+	Ouvre(FEN_Note)
+
+	BTN_NoteTest..Note = "Une valeur"
+	BTN_NoteTest..Note = ""
+	dbgVérifieEgalité(BTN_NoteTest..Note, "", "Écrire explicitement une chaîne vide dans ..Note rend bien une chaîne vide")
+
+	Ferme(FEN_Note)
+FIN

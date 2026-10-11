@@ -1,0 +1,54 @@
+//  — Libellé intégré + LargeurLibellé sur champ Combo (headless).
+// Calqué sur tests/runtime/saisie_libelle_integre ( Phase 1).
+//
+// ROUGE ATTENDU : Libellé et LargeurLibellé ne sont pas encore dans
+// PROPS_COMBO_FIELD (src/ui_catalog.c). Le compilateur émet :
+//   Propriété 'Libellé' inconnue pour Combo.
+//   Propriété 'LargeurLibellé' inconnue pour Combo.
+// Bonne raison : prop inconnue au compile-time (et dans FEN voisine).
+//
+// Couverture :
+//   - Défauts : Libellé vide (""), LargeurLibellé = 0 (INT non initialisé)
+//   - DSL littéral dans PROPRIETES : relu correctement après Ouvre
+//   - Set/get runtime headless via store virtuel
+//   - Formes EN bilingues : Caption ↔ Libellé, LabelWidth ↔ LargeurLibellé
+//   - Cohérence alias : set FR → get EN et set EN → get FR
+
+Ouvre(FEN_ComboLibelleIntegre)
+
+// --- Défauts (COMBO_Vide : aucun Libellé/LargeurLibellé dans PROPRIETES) ---
+dbgVérifieEgalité(COMBO_Vide..Libellé, "", "Libellé intégré : défaut = chaîne vide")
+dbgVérifieEgalité(COMBO_Vide..Caption, "", "Caption (EN) : défaut = chaîne vide")
+dbgVérifieEgalité(COMBO_Vide..LargeurLibellé, 0, "LargeurLibellé : défaut = 0 (INT store non initialisé)")
+dbgVérifieEgalité(COMBO_Vide..LabelWidth, 0, "LabelWidth (EN) : défaut = 0")
+
+// --- DSL littéral : valeurs relues depuis PROPRIETES après Ouvre ---
+dbgVérifieEgalité(COMBO_Avec..Libellé, "Ville :", "DSL littéral Libellé vaut Ville : relu après Ouvre")
+dbgVérifieEgalité(COMBO_Avec..Caption, "Ville :", "Caption (EN) lit la même prop que Libellé")
+dbgVérifieEgalité(COMBO_Avec..LargeurLibellé, 80, "DSL LargeurLibellé = 80 relu après Ouvre")
+dbgVérifieEgalité(COMBO_Avec..LabelWidth, 80, "LabelWidth (EN) lit la même prop que LargeurLibellé")
+
+// --- Set/get runtime : Libellé (FR) ---
+COMBO_Avec..Libellé = "Pays :"
+dbgVérifieEgalité(COMBO_Avec..Libellé, "Pays :", "Libellé setter/getter headless")
+
+// --- Alias EN Caption → lecture FR ---
+COMBO_Avec..Caption = "Country:"
+dbgVérifieEgalité(COMBO_Avec..Caption, "Country:", "Caption setter/getter headless")
+dbgVérifieEgalité(COMBO_Avec..Libellé, "Country:", "set Caption → get Libellé : alias cohérent")
+
+// --- Set/get runtime : LargeurLibellé (FR) ---
+COMBO_Avec..LargeurLibellé = 120
+dbgVérifieEgalité(COMBO_Avec..LargeurLibellé, 120, "LargeurLibellé setter/getter headless")
+
+// --- Alias EN LabelWidth → lecture FR ---
+COMBO_Avec..LabelWidth = 100
+dbgVérifieEgalité(COMBO_Avec..LabelWidth, 100, "LabelWidth setter/getter headless")
+dbgVérifieEgalité(COMBO_Avec..LargeurLibellé, 100, "set LabelWidth → get LargeurLibellé : alias cohérent")
+
+// --- Libellé réinitialisé à vide ---
+COMBO_Avec..Libellé = ""
+dbgVérifieEgalité(COMBO_Avec..Libellé, "", "Libellé réinitialisé à chaîne vide")
+
+Ferme(FEN_ComboLibelleIntegre)
+dbgBilanTest()

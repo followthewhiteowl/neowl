@@ -1,0 +1,99 @@
+// Runtime GUI (widgets montés, offscreen) : la hauteur d'une ligne d'option
+// d'un bloc Interrupteur / Sélecteur suit UNE seule loi, qu'un style soit posé
+// ou non.
+//
+//     ligne = max(15, hauteur du texte) + 5
+//     bloc  = 8 + N x ligne + (N-1) x 2        (marges 4+4, espacement 2)
+//
+// Poser un style ne doit rien changer à cette loi : un style change
+// l'apparence, pas la géométrie. C'est ce que vérifie chaque paire ci-dessous
+// — même police, avec et sans cadre sur l'indicateur (coche ou puce).
+//
+// Les six blocs de chaque fenêtre font 6 options, sans hauteur déclarée : la
+// hauteur mesurée est donc entièrement dérivée de la ligne, et une divergence
+// de 1 px par ligne se lit en 6 px sur le bloc.
+
+TestModeHeadless(Faux)
+
+// Hauteur d'une ligne déduite de la hauteur du bloc, à 6 options.
+PROCEDURE HauteurLigne(hauteurBloc est un entier)
+	RENVOYER (hauteurBloc - 18) / 6
+FIN
+
+
+// ============================================================
+//  Interrupteur — l'indicateur est la coche
+// ============================================================
+
+OuvreSoeur(FEN_LigneInterrupteur)
+
+// --- 1. Référence : aucun style. C'est la loi de base, à la police de
+// l'application (10 pt) : ligne = max(15, 15) + 5 = 20.
+dbgVérifieEgalité(INT_Nu..Hauteur, 138,
+"Interrupteur sans style : 6 options de 20 px")
+dbgVérifieEgalité(HauteurLigne(INT_Nu..Hauteur), 20,
+"Interrupteur sans style : la ligne mesure 20 px")
+
+// --- 2. Police de style égale à celle de l'application : rien ne bouge.
+dbgVérifieEgalité(INT_P10..Hauteur, 138,
+"Interrupteur, police de style 10 pt : même hauteur que sans style")
+dbgVérifieEgalité(INT_P10Cadre..Hauteur, 138,
+"Interrupteur, police 10 pt + cadre de coche : la ligne reste à 20 px")
+
+// --- 3. Police 14 pt. La ligne suit le texte : max(15, 21) + 5 = 26.
+dbgVérifieEgalité(INT_P14..Hauteur, 174,
+"Interrupteur, police de style 14 pt : 6 lignes de 26 px")
+dbgVérifieEgalité(INT_P14Cadre..Hauteur, 174,
+"Interrupteur, police 14 pt + cadre de coche : même hauteur, le cadre ne mange pas les marges")
+
+// --- 4. Police 18 pt. max(15, 27) + 5 = 32.
+dbgVérifieEgalité(INT_P18..Hauteur, 210,
+"Interrupteur, police de style 18 pt : 6 lignes de 32 px")
+dbgVérifieEgalité(INT_P18Cadre..Hauteur, 210,
+"Interrupteur, police 18 pt + cadre de coche : même hauteur, les 5 px de marge subsistent")
+dbgVérifieEgalité(HauteurLigne(INT_P18Cadre..Hauteur), 32,
+"Interrupteur, police 18 pt + cadre de coche : la ligne mesure bien 32 px")
+
+// --- 5. Sans police déclarée. La valeur absolue dépend de la police effective
+// du texte des options ; ce qui est vérifié ici, c'est que le cadre de coche ne
+// la déplace pas.
+dbgVérifieEgalité(INT_CoulCadre..Hauteur, INT_CoulSeule..Hauteur,
+"Interrupteur, sans police déclarée : le cadre de coche ne change pas la hauteur")
+
+Ferme(FEN_LigneInterrupteur)
+
+
+// ============================================================
+//  Sélecteur — l'indicateur est la puce
+// ============================================================
+
+OuvreSoeur(FEN_LigneSelecteur)
+
+dbgVérifieEgalité(SEL_Nu..Hauteur, 138,
+"Sélecteur sans style : 6 options de 20 px")
+dbgVérifieEgalité(HauteurLigne(SEL_Nu..Hauteur), 20,
+"Sélecteur sans style : la ligne mesure 20 px")
+
+dbgVérifieEgalité(SEL_P10..Hauteur, 138,
+"Sélecteur, police de style 10 pt : même hauteur que sans style")
+dbgVérifieEgalité(SEL_P10Cadre..Hauteur, 138,
+"Sélecteur, police 10 pt + cadre de puce : la ligne reste à 20 px")
+
+dbgVérifieEgalité(SEL_P14..Hauteur, 174,
+"Sélecteur, police de style 14 pt : 6 lignes de 26 px")
+dbgVérifieEgalité(SEL_P14Cadre..Hauteur, 174,
+"Sélecteur, police 14 pt + cadre de puce : même hauteur, le cadre ne mange pas les marges")
+
+dbgVérifieEgalité(SEL_P18..Hauteur, 210,
+"Sélecteur, police de style 18 pt : 6 lignes de 32 px")
+dbgVérifieEgalité(SEL_P18Cadre..Hauteur, 210,
+"Sélecteur, police 18 pt + cadre de puce : même hauteur, les 5 px de marge subsistent")
+dbgVérifieEgalité(HauteurLigne(SEL_P18Cadre..Hauteur), 32,
+"Sélecteur, police 18 pt + cadre de puce : la ligne mesure bien 32 px")
+
+dbgVérifieEgalité(SEL_CoulCadre..Hauteur, SEL_CoulSeule..Hauteur,
+"Sélecteur, sans police déclarée : le cadre de puce ne change pas la hauteur")
+
+Ferme(FEN_LigneSelecteur)
+
+dbgBilanTest()

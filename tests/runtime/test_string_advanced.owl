@@ -1,0 +1,187 @@
+Trace("=== FONCTIONS STRING AVANCEES ===")
+
+// --- Caract (entier -> caractere) ---
+dbgVérifieEgalité(Caract(65), "A", "Caract(65) = A")
+dbgVérifieEgalité(Caract(97), "a", "Caract(97) = a")
+dbgVérifieEgalité(Caract(48), "0", "Caract(48) = 0")
+dbgVérifieEgalité(Charact(32), " ", "Charact(32) = espace")
+
+// --- Asc (caractere -> entier) ---
+dbgVérifieEgalité(Asc("A"), 65, "Asc(A) = 65")
+dbgVérifieEgalité(Asc("z"), 122, "Asc(z) = 122")
+// Asc is the official name; CharCode was an invented alias, removed
+dbgVérifieEgalité("Hello".Asc(), 72, "method Asc = 72")
+
+// --- Round-trip Caract/Asc ---
+dbgVérifieEgalité(Caract(Asc("X")), "X", "roundtrip Caract(Asc(X)) = X")
+
+// --- ChaineConstruit / StringBuild ---
+dbgVérifieEgalité(ChaîneConstruit("Hello %1!", "World"), "Hello World!", "StringBuild 1 param")
+dbgVérifieEgalité(ChaîneConstruit("%1 + %2 = %3", 1, 2, 3), "1 + 2 = 3", "StringBuild 3 entiers")
+dbgVérifieEgalité(ChaîneConstruit("Nom: %1, Age: %2", "Roger", 46), "Nom: Roger, Age: 46", "StringBuild mixed")
+dbgVérifieEgalité(ChaîneConstruit("No params"), "No params", "StringBuild sans param")
+dbgVérifieEgalité(StringBuild("Hello %1", "EN"), "Hello EN", "alias EN")
+
+// --- CommencePar / StartsWith ---
+// spécification de référence: retourne la taille du match (>0) ou 0. Se comporte bien dans SI ... ALORS
+// (tout non-zero est vrai).
+dbgVérifieEgalité(CommencePar("hello world", "hello"), 5, "CommencePar taille")
+dbgVérifieEgalité(CommencePar("hello world", "world"), 0, "CommencePar no match")
+dbgVérifieEgalité(CommencePar("", "x"), 0, "CommencePar sur vide")
+dbgVérifieEgalité("hello".CommencePar("he"), 2, "method CommencePar")
+dbgVérifieEgalité(StartsWith("abc", "a"), 1, "alias EN StartsWith")
+
+// --- FinitPar / EndsWith ---
+dbgVérifieEgalité(FinitPar("hello world", "world"), 5, "FinitPar taille")
+dbgVérifieEgalité(FinitPar("hello world", "hello"), 0, "FinitPar no match")
+dbgVérifieEgalité(FinitPar("test.owl", ".owl"), 4, "FinitPar extension")
+dbgVérifieEgalité("hello".FinitPar("lo"), 2, "method FinitPar")
+
+// --- Contient / Contains ---
+dbgVérifieEgalité(Contient("hello world", "lo wo"), Vrai, "Contient true")
+dbgVérifieEgalité(Contient("hello world", "xyz"), Faux, "Contient false")
+dbgVérifieEgalité(Contient("any string", ""), Vrai, "Contient vide = vrai")
+dbgVérifieEgalité("abcdef".Contient("cde"), Vrai, "method Contient")
+
+// --- Complet / Complete (padding) ---
+dbgVérifieEgalité(Complète("abc", 6), "abc   ", "Complet right pad espaces")
+dbgVérifieEgalité(Complète("abc", 6, "0"), "abc000", "Complet right pad zeros")
+dbgVérifieEgalité(Complète("42", 5, "0", 1), "00042", "Complet left pad")
+dbgVérifieEgalité(Complète("hello", 3), "hel", "Complet tronque (documentation de référence)")
+dbgVérifieEgalité("42".Complète(5, "0", 1), "00042", "method Complet")
+
+// --- Repete / RepeatString ---
+dbgVérifieEgalité(Répète("ab", 3), "ababab", "Repete 3x")
+dbgVérifieEgalité(Répète("-", 10), "----------", "Repete tirets")
+dbgVérifieEgalité(Répète("x", 0), "", "Repete 0 fois = vide")
+dbgVérifieEgalité("ha".Repete(4), "hahahaha", "method Repete")
+
+// --- Inverse sur chaine (documentation de référence: inverse l'ordre des caractères) ---
+dbgVérifieEgalité("".Inverse(), "", "Inverse vide")
+dbgVérifieEgalité("ABC".Inverse(), "CBA", "Inverse ASCII")
+dbgVérifieEgalité("hello".Inverse(), "olleh", "Inverse mot")
+dbgVérifieEgalité("hello".Inverse().Inverse(), "hello", "Inverse involutif")
+dbgVérifieEgalité("Lorem ipsum".Inverse().Inverse(), "Lorem ipsum", "Inverse involutif (avec espaces)")
+dbgVérifieEgalité("café".Inverse(), "éfac", "Inverse UTF-8 (codepoint-safe)")
+
+// --- Chainage complex ---
+dbgVérifieEgalité("  hello  ".SansEspace().Majuscule(), "HELLO", "chain SansEspace+Majuscule")
+dbgVérifieEgalité("42".Complète(5, "0", 1).FinitPar("042"), 3, "chain Complet+FinitPar")
+
+// --- SansEspace avec position (sscDroite/sscGauche/sscIntérieur/sscTout) ---
+// Documentation de référence. Par défaut = sscExtérieur (gauche + droite).
+dbgVérifieEgalité(SansEspace("  abc  def  "), "abc  def", "défaut = sscExtérieur")
+dbgVérifieEgalité(SansEspace("  abc  def  ", sscDroite), "  abc  def", "sscDroite seul")
+dbgVérifieEgalité(SansEspace("  abc  def  ", sscGauche), "abc  def  ", "sscGauche seul")
+dbgVérifieEgalité(SansEspace("  abc  def  ", sscIntérieur), "  abcdef  ", "sscIntérieur garde edges, drop interne")
+dbgVérifieEgalité(SansEspace("  abc  def  ", sscTout), "abcdef", "sscTout = tout supprimer")
+// Edge cases
+dbgVérifieEgalité(SansEspace("noespace"), "noespace", "rien à supprimer")
+dbgVérifieEgalité(SansEspace("    "), "", "que des espaces -> vide")
+dbgVérifieEgalité(SansEspace(""), "", "chaîne vide")
+// Tab/newline NE doivent PAS être supprimés (trim ASCII space-only strict)
+dbgVérifieEgalité(SansEspace(Caract(9) + "x" + Caract(10)), Caract(9) + "x" + Caract(10),
+"tab/newline préservés (trim espace strict)")
+
+// --- Tronque (string) — documentation de référence ---
+// Défaut = nombreDeCaracteresAConserver : garde les n premiers
+dbgVérifieEgalité(Tronque("Turlututu", 4), "Turl", "Tronque défaut : conserve 4 chars")
+dbgVérifieEgalité(Tronque("Turlututu", 4, nombreDeCaractèresAConserver), "Turl", "Tronque conserve explicite")
+dbgVérifieEgalité(Tronque("Turlututu", 4, nombreDeCaractèresASupprimer), "Turlu", "Tronque supprime 4 chars en queue")
+dbgVérifieEgalité(Tronque("abc", 0), "", "Tronque conserve 0 = vide")
+dbgVérifieEgalité(Tronque("abc", 0, nombreDeCaractèresASupprimer), "abc", "Tronque supprime 0 = inchangé")
+dbgVérifieEgalité(Tronque("abc", 10), "abc", "Tronque n > Taille = inchangé")
+dbgVérifieEgalité(Tronque("abc", 10, nombreDeCaractèresASupprimer), "", "Tronque supprime > Taille = vide")
+dbgVérifieEgalité(Tronque("", 5), "", "Tronque chaîne vide")
+// n négatif → EOT (Caract(4))
+dbgVérifieEgalité(Tronque("abc",-1), Caract(4), "Tronque n négatif renvoie EOT")
+// Méthode chaînable
+dbgVérifieEgalité("Bonjour le monde".Tronque(7), "Bonjour", "méthode .Tronque(n)")
+
+// --- Tronque polymorphe (numérique) — dispatch vers NumeriqueTronque ---
+dbgVérifieEgalité(Tronque(7.8), 7, "Tronque(réel) = troncation vers 0")
+dbgVérifieEgalité(Tronque(-7.8),-7, "Tronque(réel négatif) = -7 (vs floor = -8)")
+dbgVérifieEgalité(Tronque(42), 42, "Tronque(entier) = identité")
+
+// --- UTF-8 codepoint semantics (Taille/Gauche/Droite/Milieu/Position) ---
+// OWL stocke en UTF-8 mais l'API publique parle codepoints.
+// Cf docs/VISION.md §5bis (section Encoding interne).
+
+// Taille = nombre de codepoints, pas bytes
+dbgVérifieEgalité(Taille("abc"), 3, "Taille ASCII")
+dbgVérifieEgalité(Taille("éàü"), 3, "Taille accents (3 cp, 6 bytes UTF-8)")
+dbgVérifieEgalité(Taille("héllo"), 5, "Taille mixte ASCII+accent")
+dbgVérifieEgalité(Taille("日本語"), 3, "Taille CJK (3 cp, 9 bytes UTF-8)")
+dbgVérifieEgalité(Taille("café"), 4, "Taille café = 4 cp")
+dbgVérifieEgalité(Taille(""), 0, "Taille chaîne vide")
+
+// Gauche = N premiers codepoints
+dbgVérifieEgalité(Gauche("héllo", 2), "hé", "Gauche garde codepoint complet")
+dbgVérifieEgalité(Gauche("éàü", 1), "é", "Gauche 1 cp accentué")
+dbgVérifieEgalité(Gauche("日本語", 2), "日本", "Gauche CJK")
+
+// Droite = N derniers codepoints
+dbgVérifieEgalité(Droite("héllo", 3), "llo", "Droite ASCII")
+dbgVérifieEgalité(Droite("éàü", 2), "àü", "Droite 2 cp accentués")
+dbgVérifieEgalité(Droite("日本語", 1), "語", "Droite 1 cp CJK")
+
+// Milieu(s, pos, n) — pos et n en codepoints (base 1)
+dbgVérifieEgalité(Milieu("héllo", 2, 3), "éll", "Milieu démarre sur cp accentué")
+dbgVérifieEgalité(Milieu("éàü", 1, 2), "éà", "Milieu 2 cp accentués")
+dbgVérifieEgalité(Milieu("éàü", 2, 1), "à", "Milieu 1 cp au milieu")
+dbgVérifieEgalité(Milieu("café latte", 6, 5), "latte", "Milieu après accent")
+
+// Position retourne codepoint position (pas byte)
+dbgVérifieEgalité(Position("héllo", "ll"), 3, "Position après cp accentué (3 cp, pas 4 bytes)")
+dbgVérifieEgalité(Position("éàü", "à"), 2, "Position cp accentué")
+dbgVérifieEgalité(Position("café latte", "l"), 6, "Position après accent en milieu de chaîne")
+dbgVérifieEgalité(Position("héllo", "z"), 0, "Position non trouvée")
+
+// --- UTF-8 codepoint cache: invalidation on mutation ---
+// Le cache lazy (cp_count, ascii_state, last_cp_index) est sur ObjString.
+// Une mutation via OP_APPEND_IN_PLACE doit l'invalider.
+sBuf est une chaîne = "abc"
+dbgVérifieEgalité(Taille(sBuf), 3, "Taille pré-mutation cache miss")
+sBuf = sBuf + "déf"
+dbgVérifieEgalité(Taille(sBuf), 6, "Taille post-mutation: cache invalidé (3 ASCII + 3 codepoints)")
+sBuf = sBuf + "ghi"
+dbgVérifieEgalité(Taille(sBuf), 9, "Taille re-mutation : cache invalidé encore")
+dbgVérifieEgalité(Milieu(sBuf, 4, 1), "d", "Milieu post-mutation: cache last-pos invalidé")
+
+// --- Cache last-position : appels Milieu en boucle ascendante ---
+sScan est une chaîne = "ABCDEFGHIJ"
+sCollect est une chaîne = ""
+POUR i = 1 _A_ Taille(sScan)
+	sCollect = sCollect + Milieu(sScan, i, 1)
+FIN
+dbgVérifieEgalité(sCollect, "ABCDEFGHIJ", "Milieu balayage ASCII reconstruit la source")
+
+sScanU est une chaîne = "éàüç日本"
+sCollectU est une chaîne = ""
+POUR i = 1 _A_ Taille(sScanU)
+	sCollectU = sCollectU + Milieu(sScanU, i, 1)
+FIN
+dbgVérifieEgalité(sCollectU, "éàüç日本", "Milieu balayage non-ASCII reconstruit la source")
+
+// ============================================================
+// COERCION NUMERIQUE -> CHAINE DANS LES NATIVES DE STDLIB_STRING
+// ============================================================
+// Regression : un `to_string` local dans stdlib_string.c avait derivé
+// de value_to_string (vm.c) et renvoyait NIL sur les numeriques. Les
+// natives de chaine doivent accepter int/reel/booleen/Null
+// transparemment (sémantique de référence).
+
+dbgVérifieEgalité(Majuscule(4), "4", "Majuscule(entier) coerce en chaine")
+dbgVérifieEgalité(Majuscule(3.14), "3.14", "Majuscule(reel) coerce en chaine")
+dbgVérifieEgalité(Minuscule(42), "42", "Minuscule(entier) coerce en chaine")
+dbgVérifieEgalité(Gauche(12345, 3), "123", "Gauche(entier, n) coerce")
+dbgVérifieEgalité(Droite(12345, 2), "45", "Droite(entier, n) coerce")
+// Taille(42) intentionally NOT tested: fn_taille rejette explicitement
+// les numeriques (polymorphe sur string/tableau/file/etc.), comportement
+// a re-verifier dans un autre chantier.
+dbgVérifieEgalité(Position(123456, "34"), 3, "Position(entier, sub) coerce")
+dbgVérifieEgalité(Remplace(3.14, ".", ","), "3,14", "Remplace sur reel rendu")
+dbgVérifieEgalité(Majuscule(Vrai), "1", "Majuscule(booleen) -> 1")
+dbgVérifieEgalité(Majuscule(Null), "", "Majuscule(Null) -> '' (canon de référence)")
+
+dbgBilanTest()

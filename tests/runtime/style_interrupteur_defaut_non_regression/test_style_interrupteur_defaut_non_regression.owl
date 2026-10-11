@@ -1,0 +1,29 @@
+//  — non-régression du Champ Interrupteur après ajout de la prop
+// Style typée styleInterrupteur :
+//   1. Les propriétés top-level pré-existantes (CouleurFond, Couleur, Options)
+//      continuent de fonctionner sans Style du tout.
+//   2. Un Champ Interrupteur avec SEULEMENT Style..CadreExtérieur stylé ne
+//      casse pas (round-trip sur l'instance).
+//
+// ROUGE attendu : `Style..CadreExtérieur..CouleurFond` ne compile pas encore
+// sur le Champ Interrupteur (le type styleInterrupteur n'existe pas). Cf.
+// FEN_InterrupteurStyleDefaut.owl.
+
+Ouvre(FEN_InterrupteurStyleDefaut)
+
+// --- Non-régression : props top-level pré-existantes (avant ce ticket) ---
+dbgVérifieEgalité(INT_SansStyle..CouleurFond, RVB(50, 50, 50),
+"non-régression : CouleurFond direct du Champ Interrupteur reste lisible sans Style")
+
+dbgVérifieEgalité(INT_SansStyle..Couleur, RVB(0, 0, 0),
+"non-régression : Couleur directe (texte des options) reste lisible sans Style")
+
+dbgVérifieEgalité(Taille(INT_SansStyle..Options), 2,
+"non-régression : Options (prop existante, la répétition du champ) reste lisible sans Style")
+
+// --- Style..CadreExtérieur seul, round-trip sur l'instance ---
+dbgVérifieEgalité(INT_CadreSeul..Style..CadreExtérieur..CouleurFond, RVB(220, 220, 220),
+"INT_CadreSeul..Style..CadreExtérieur..CouleurFond lu depuis l'instance")
+
+Ferme(FEN_InterrupteurStyleDefaut)
+dbgBilanTest()

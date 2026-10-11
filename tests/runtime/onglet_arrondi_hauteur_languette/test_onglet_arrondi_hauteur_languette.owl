@@ -1,0 +1,48 @@
+//  — poser un arrondi sur les languettes d'un Champ Onglet ne doit pas
+// écraser leur hauteur. Régression observée : dès qu'une règle de style force
+// le rendu de la boîte de la languette, les retraits du thème disparaissent et
+// la languette se réduit à la taille du texte (mesuré 15px au lieu de 27px).
+//
+// Méthode : deux Onglets identiques (mêmes couleurs, mêmes libellés), l'un
+// arrondi, l'autre non. On mesure le bas de la bande rouge (fond du volet
+// actif) en haut de chaque capture : c'est la hauteur de la languette rendue.
+//
+// Widgets réels obligatoires : la capture d'un Champ Onglet re-matérialisé en
+// mode headless rend une surface vide (pas de barre de languettes), donc
+// aveugle à cette régression.
+
+TestModeHeadless(Faux)
+
+// Hauteur de la languette = position du dernier pixel de fond du volet actif
+// (rouge = 255 en BGR) sur une colonne traversant la première languette. Le
+// texte du libellé coupe la bande en deux : on cherche donc le dernier pixel
+// rouge, pas le premier changement de couleur.
+PROCEDURE hauteurLanguetteRouge(imgOnglet est une Image) : entier
+	nBas est un entier = 0
+	POUR yScan = 0 À 59
+		SI dPixelCouleur(imgOnglet, 30, yScan) = 255 ALORS
+			nBas = yScan + 1
+		FIN
+	FIN
+	RENVOYER nBas
+FIN
+
+OuvreSoeur(FEN_OngletArrondiHauteur)
+
+imgArrondi est une Image = dCopieImageChamp(ONG_HautArrondi)
+dbgVérifieEgalité(imgArrondi..Valide, Vrai, "ONG_HautArrondi : capture valide")
+
+imgPlat est une Image = dCopieImageChamp(ONG_HautPlat)
+dbgVérifieEgalité(imgPlat..Valide, Vrai, "ONG_HautPlat : capture valide")
+
+hArrondi est un entier = hauteurLanguetteRouge(imgArrondi)
+hPlat est un entier = hauteurLanguetteRouge(imgPlat)
+
+dbgVérifieVrai(hPlat > 20,
+"Languette sans arrondi : hauteur de référence du thème (> 20px)")
+
+dbgVérifieEgalité(hArrondi, hPlat,
+"Languette arrondie : même hauteur que la languette sans arrondi")
+
+Ferme(FEN_OngletArrondiHauteur)
+dbgBilanTest()

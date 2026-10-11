@@ -1,0 +1,35 @@
+// @sujet interpolation `[%:membre%]` dans une methode de classe
+// @résumé Le parser d'interpolation doit reconnaitre le prefixe `:` comme
+//         acces au membre de l'instance courante, equivalent a `:membre`
+//         hors interpolation. Avant  : erreur compile
+//         "variable inconnue ou inaccessible".
+
+PROCEDURE PUBLIC scenario_interp_colon_double()
+	c est un cCompte("Dupont", 1234.50)
+	s est une chaîne = c.Resume()
+	dbgVérifieEgalité(s, "Dupont : 1234.5", "interpolation :sProprietaire + :mSolde")
+FIN
+
+PROCEDURE PUBLIC scenario_interp_colon_mixte_locale()
+	c est un cCompte("Martin", 0)
+	s est une chaîne = c.ResumeAvecLocale("CLIENT")
+	dbgVérifieEgalité(s, "CLIENT/Martin", "interpolation locale + :membre dans meme chaine")
+FIN
+
+PROCEDURE PUBLIC scenario_interp_colon_entoure_litteraux()
+	c est un cCompte("Alice", 0)
+	s est une chaîne = c.NomEntreCrochets()
+	dbgVérifieEgalité(s, "<Alice>", "interpolation :membre entoure de litteraux")
+FIN
+
+PROCEDURE PUBLIC scenario_interp_classique_non_regression()
+	// Garde-fou : les formes d'interpolation existantes restent OK.
+	nom est une chaîne = "Bob"
+	age est un entier = 42
+	s1 est une chaîne = %"[%nom%] a [%age%] ans"
+	dbgVérifieEgalité(s1, "Bob a 42 ans", "interpolation variable locale (non regression)")
+
+	c est un cCompte("Eve", 100)
+	s2 est une chaîne = %"[%c.sProprietaire%]"
+	dbgVérifieEgalité(s2, "Eve", "interpolation obj.field (non regression)")
+FIN

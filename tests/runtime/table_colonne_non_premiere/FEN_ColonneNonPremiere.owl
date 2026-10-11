@@ -1,0 +1,66 @@
+// Fenêtre voisine — ressource pour test_table_colonne_non_premiere.owl.
+// (pattern split canon strict — cf.  / .)
+//
+// Verrouille  Lot A-bis : le receveur nu `COL..Couleur` doit se résoudre
+// pour TOUTE colonne, quelle que soit sa position dans la Table. Les fixtures des
+// Lots A/B n'avaient qu'UNE colonne (donc toujours première) ; une colonne en 2e
+// position ou plus retombait à tort comme globale d'élément (`FEN$COL`), le nom nu
+// réécrit court-circuitait l'intercept receveur et la compilation échouait
+// (« variable inconnue »). Ici la cible est la SECONDE colonne.
+
+FEN_ColonneNonPremiere est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne non première"
+	FIN
+
+	TABLE_NonPremiere est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_Etiquette est une Colonne
+			PROPRIETES
+				Libellé = "Étiquette"
+				Type    = colTypeTexte
+				Largeur = 100
+			FIN
+		FIN
+
+		COL_Montant est une Colonne
+			PROPRIETES
+				Libellé = "Montant"
+				Type    = colTypeNumerique
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_NonPremiere, "a", 10)
+	FIN
+
+	// Receveur sur la SECONDE colonne (forme nue).
+	PROCEDURE EcritCouleurSeconde(c est un entier)
+		COL_Montant..Couleur = c
+	FIN
+
+	PROCEDURE LireCouleurSeconde()
+		RENVOYER COL_Montant..Couleur
+	FIN
+
+	PROCEDURE EcritCouleurFondSeconde(c est un entier)
+		COL_Montant..CouleurFond = c
+	FIN
+
+	PROCEDURE LireCouleurFondSeconde()
+		RENVOYER COL_Montant..CouleurFond
+	FIN
+
+	// Contrôle : la PREMIÈRE colonne reste résoluble elle aussi.
+	PROCEDURE EcritCouleurPremiere(c est un entier)
+		COL_Etiquette..Couleur = c
+	FIN
+
+	PROCEDURE LireCouleurPremiere()
+		RENVOYER COL_Etiquette..Couleur
+	FIN
+FIN

@@ -1,0 +1,77 @@
+Trace("=== fxxx new ===")
+
+tmp est une chaîne = fRepTemp() + "/owl_cc_test"
+fRepCree(tmp)
+
+// fCree + fAjouteTexte + fFichierExiste + fTaille + fDate
+// Note: fCree ouvre le fichier (comportement de référence), on ferme le handle renvoyé.
+idTmp est un entier = fCree(tmp + "/a.txt")
+fFerme(idTmp)
+dbgVérifieVrai(fFichierExiste(tmp + "/a.txt"), "fCree + existe")
+dbgVérifieEgalité(fTaille(tmp + "/a.txt"), 0, "fCree = 0 bytes")
+
+fAjouteTexte(tmp + "/a.txt", "hello")
+fAjouteTexte(tmp + "/a.txt", " world")
+dbgVérifieEgalité(fTaille(tmp + "/a.txt"), 11, "Append -> 11 bytes")
+dbgVérifieEgalité(fChargeTexte(tmp + "/a.txt"), "hello world", "Texte concatene")
+
+// Dates
+d est une chaîne = fDate(tmp + "/a.txt")
+dbgVérifieEgalité(Taille(d), 8, "fDate = YYYYMMDD (8 chars)")
+dh est une chaîne = fDateHeure(tmp + "/a.txt")
+dbgVérifieEgalité(Taille(dh), 14, "fDateHeure = 14 chars")
+
+// Binary I/O
+buf est un buffer = ChaîneVersBuffer("binary-data")
+fSauveBuffer(tmp + "/bin.dat", buf)
+loaded est un buffer = fChargeBuffer(tmp + "/bin.dat")
+dbgVérifieEgalité(Taille(loaded), 11, "Load buffer = 11 bytes")
+dbgVérifieEgalité(BufferVersChaîne(loaded), "binary-data", "Round-trip buffer")
+
+// Positioning + read bytes
+h est un entier = fOuvre(tmp + "/a.txt", 0) // read
+chunk est une chaîne = fLit(h, 5)
+dbgVérifieEgalité(chunk, "hello", "fLit(h, 5)")
+dbgVérifieEgalité(fPositionne(h, 6, 0), 6, "fPositionne seek")
+rest est une chaîne = fLit(h, 5)
+dbgVérifieEgalité(rest, "world", "fLit apres seek")
+fFerme(h)
+
+// fCherche
+h = fOuvre(tmp + "/a.txt", 0)
+pos est un entier = fCherche(h, "world")
+dbgVérifieEgalité(pos, 6, "fCherche position")
+fFerme(h)
+
+// fSep + fConstruitChemin
+sep est une chaîne = fSep()
+dbgVérifieVrai(sep = "/" OU sep = "\", "fSep separator valide")
+p est une chaîne = fConstruitChemin("a", "b", "c")
+dbgVérifieEgalité(Taille(p), 5, "a/b/c ou a\b\c = 5 chars")
+
+// fNomFichier + fRepParent + fChangeExtension
+dbgVérifieEgalité(fNomFichier("/tmp/foo/bar.txt"), "bar.txt", "basename")
+dbgVérifieEgalité(fRepParent("/tmp/foo/bar.txt"), "/tmp/foo", "parent")
+dbgVérifieEgalité(fChangeExtension("doc.txt", "pdf"), "doc.pdf", "swap ext")
+dbgVérifieEgalité(fChangeExtension("doc", ".md"), "doc.md", "add ext")
+
+// fCompare
+fSauveTexte(tmp + "/c1.txt", "same")
+fSauveTexte(tmp + "/c2.txt", "same")
+fSauveTexte(tmp + "/c3.txt", "diff")
+dbgVérifieEgalité(fCompare(tmp + "/c1.txt", tmp + "/c2.txt"), 0, "Files identiques")
+dbgVérifieEgalité(fCompare(tmp + "/c1.txt", tmp + "/c3.txt"), 1, "Files differents (référence : 1=diff)")
+
+// fRepTaille + fRepCopie
+sz est un entier = fRepTaille(tmp)
+dbgVérifieVrai(sz > 0, "fRepTaille > 0")
+
+fRepCopie(tmp, tmp + "_copy")
+dbgVérifieVrai(fRepExiste(tmp + "_copy"), "fRepCopie cree le dst")
+dbgVérifieVrai(fFichierExiste(tmp + "_copy/a.txt"), "Fichiers copies recursivement")
+
+// Cleanup
+fRepSupprime(tmp, Vrai)
+fRepSupprime(tmp + "_copy", Vrai)
+
+dbgBilanTest()

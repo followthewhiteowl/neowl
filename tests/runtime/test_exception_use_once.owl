@@ -1,0 +1,57 @@
+// ============================================
+// TEST: QUAND EXCEPTION (forme generale) — use-once par terminaison de frame.
+//
+// Canon OWL (Arb 1) : un handler general qui a attrape une exception
+// execute son body puis termine la frame. Il ne peut donc pas etre
+// reentre dans le meme scope, et le code apres ExceptionDéclenche
+// n'est pas execute.
+//
+// Les tests ci-dessous verrouillent :
+//   - le handler s'execute exactement une fois (use-once par terminaison)
+//   - aucun fall-through vers le code post-exception
+//   - deux frames distinctes attrapent independamment leur exception
+// ============================================
+Trace("=== EXCEPTION USE-ONCE ===")
+
+// --- T2.a : 1 handler + 1 exception -> attrape 1 fois -> frame termine ---
+nHandlerCalls est un entier = 0
+sLogT2a est une chaîne = ""
+
+FONCTION ProcUseOnce() : chaîne
+	QUAND EXCEPTION
+		nHandlerCalls = nHandlerCalls + 1
+		sLogT2a       = sLogT2a + "H;"
+	FIN
+	sLogT2a = sLogT2a + "before;"
+	ExceptionDéclenche("boom1")
+	// Sous Arb 1, ce code n'est pas atteint apres exception attrapee.
+	sLogT2a = sLogT2a + "after_boom1;"
+	ExceptionDéclenche("boom2")
+	sLogT2a = sLogT2a + "after_boom2;"
+	RENVOYER "end"
+FIN
+
+ProcUseOnce()
+dbgVérifieEgalité(nHandlerCalls, 1, "Handler execute exactement 1 fois (use-once)")
+dbgVérifieEgalité(sLogT2a, "before;H;",
+"Pas de fall-through : code apres exception non execute")
+
+// --- T2.b : 2 exceptions dans des frames distinctes -> chaque handler attrape ---
+nProcAppels est un entier = 0
+
+FONCTION ProcAttrape(sMsg est une chaîne) : chaîne
+	QUAND EXCEPTION
+		nProcAppels = nProcAppels + 1
+		RENVOYER "caught:" + ExceptionInfo(errMessage)
+	FIN
+	ExceptionDéclenche(sMsg)
+	RENVOYER "no_throw"
+FIN
+
+s1 est une chaîne = ProcAttrape("boom_one")
+s2 est une chaîne = ProcAttrape("boom_two")
+dbgVérifieEgalité(s1, "caught:boom_one", "1er appel attrape boom_one")
+dbgVérifieEgalité(s2, "caught:boom_two", "2e appel attrape boom_two")
+dbgVérifieEgalité(nProcAppels, 2, "Handler execute une fois par appel de frame")
+
+dbgBilanTest()

@@ -1,0 +1,59 @@
+//  — `Style..ZoneSaisie..Couleur` peint réellement le TEXTE de la zone
+// de saisie. Test pixel : grosse police grasse sur fond blanc, on compte les
+// pixels de coeur des glyphes à la couleur exacte attendue (l'anti-crénelage
+// n'affecte que les bords ; le coeur d'un glyphe gras 40pt est plein).
+//
+// ROUGE attendu avant le fix : la Police imbriquée du Style seed Couleur = 0
+// (noir) et écrase la Couleur directe -> SAI_Rouge affiche du texte NOIR
+// (0 pixel rouge). SAI_Defaut reste vert (déjà noir). SAI_Bleu peut passer
+// (Police..Couleur explicite déjà appliquée), mais l'assertion "rouge absent"
+// vérifie que la Police prime bien sur la Couleur directe.
+//
+// Cible sémantique : Police.Couleur explicite prime ; sinon Couleur directe
+// tient ; sinon défaut (noir).
+
+TestModeHeadless(Faux)
+
+rouge est un entier = RVB(255, 0, 0)
+bleu est un entier = RVB(0, 0, 255)
+noir est un entier = RVB(0, 0, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementZoneSaisieTexte)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleElementZoneSaisieTexte)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// --- SAI_Rouge : zone texte [25..530, 25..85] ---
+nbRouge est un entier = CompteCouleurZone(img, 25, 25, 530, 85, rouge)
+dbgVérifieVrai(nbRouge > 30, "SAI_Rouge : Style..ZoneSaisie..Couleur peint le texte en rouge")
+
+// --- SAI_Bleu : zone texte [25..530, 115..175]. Police..Couleur bleu prime. ---
+nbBleu est un entier = CompteCouleurZone(img, 25, 115, 530, 175, bleu)
+dbgVérifieVrai(nbBleu > 30, "SAI_Bleu : Style..ZoneSaisie..Police..Couleur peint le texte en bleu")
+nbRougeSurBleu est un entier = CompteCouleurZone(img, 25, 115, 530, 175, rouge)
+dbgVérifieEgalité(nbRougeSurBleu, 0, "SAI_Bleu : la Police explicite prime, aucun pixel rouge résiduel")
+
+// --- SAI_Defaut : zone texte [25..530, 205..265]. Défaut noir. ---
+nbNoir est un entier = CompteCouleurZone(img, 25, 205, 530, 265, noir)
+dbgVérifieVrai(nbNoir > 30, "SAI_Defaut : texte défaut peint en noir")
+nbRougeSurDefaut est un entier = CompteCouleurZone(img, 25, 205, 530, 265, rouge)
+dbgVérifieEgalité(nbRougeSurDefaut, 0, "SAI_Defaut : aucun pixel rouge (pas de couleur parasite)")
+
+Ferme(FEN_StyleElementZoneSaisieTexte)
+dbgBilanTest()

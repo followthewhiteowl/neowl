@@ -1,0 +1,111 @@
+// @sujet : dbgVérifieÉgalitéRéel
+// @resume : Vérifie l'égalité de deux réels avec tolérance epsilon (évite les pièges IEEE 754)
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_egalite_stricte_avec_tolerance_defaut()
+	// Deux valeurs strictement égales passent avec la tolérance par défaut (1e-9)
+	// Utile pour les comparaisons réels issus de calculs directs
+
+	val1 est un réel = 42.0
+	val2 est un réel = 42.0
+
+	dbgVérifieÉgalitéRéel(val1, val2, "Egalite stricte avec tolerance par defaut")
+FIN
+
+PROCEDURE PUBLIQUE scenario_piege_ieee754_classique()
+	// Le piège classique : 0.1 + 0.2 ≠ 0.3 en représentation binaire IEEE 754
+	// dbgVérifieÉgalitéRéel corrige ce problème avec epsilon
+
+	resultat est un réel = 0.1 + 0.2
+
+	// Sans tolérance epsilon, ce test échouerait (resultat = 0.30000000000000004)
+	dbgVérifieÉgalitéRéel(resultat, 0.3, "0.1 + 0.2 egal 0.3 avec epsilon")
+FIN
+
+PROCEDURE PUBLIQUE scenario_calcul_mathematique_avec_accumulation()
+	// Calculs répétés peuvent accumuler des erreurs d'arrondi
+	// La tolérance epsilon absorbe ces micro-différences
+
+	somme est un réel = 0.0
+
+	POUR i = 1 À 10
+		somme = somme + 0.1
+	FIN
+
+	// Résultat attendu : 1.0, mais la représentation binaire introduit des erreurs
+	dbgVérifieÉgalitéRéel(somme, 1.0, "Accumulation 10x 0.1 = 1.0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_tolerance_explicite_large()
+	// Cas limite : spécifier une tolérance plus large pour des comparaisons approximatives
+	// Exemple : mesures physiques, capteurs, arrondis volontaires
+
+	mesure1 est un réel = 99.999
+	mesure2 est un réel = 100.001
+
+	// Tolérance de 0.01 accepte cette variation
+	dbgVérifieÉgalitéRéel(mesure1, mesure2, "Tolerance large 0.01", 0.01)
+FIN
+
+PROCEDURE PUBLIQUE scenario_tolerance_explicite_stricte()
+	// Tolérance très serrée pour des calculs haute précision
+	// Exemple : calculs financiers, crypto, scientifique
+
+	valeur1 est un réel = 3.14159265358979
+	valeur2 est un réel = 3.14159265358978
+
+	// Tolérance 1e-12 : détecte les différences au 12e décimal
+	dbgVérifieÉgalitéRéel(valeur1, valeur2, "Tolerance stricte 1e-12", 1e-12)
+FIN
+
+PROCEDURE PUBLIQUE scenario_cas_limite_zero()
+	// Cas limite : comparaison avec zéro
+	// La tolérance epsilon traite 1e-10 comme ~égal à 0.0
+
+	quasiZero est un réel = 1e-10
+
+	dbgVérifieÉgalitéRéel(quasiZero, 0.0, "Quasi-zero avec tolerance par defaut")
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeurs_negatives()
+	// La tolérance fonctionne aussi pour les valeurs négatives
+	// Utile pour les calculs avec résultats négatifs (pertes, écarts)
+
+	negatif1 est un réel = -42.000000001
+	negatif2 est un réel = -42.0
+
+	dbgVérifieÉgalitéRéel(negatif1, negatif2, "Valeurs negatives avec epsilon")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_valeurs_extremes()
+	// Valeurs très grandes : la tolérance relative doit rester pertinente
+	// Exemple : calculs astronomiques, grandes bases financières
+
+	grand1 est un réel = 1.23456789e15
+	grand2 est un réel = 1.23456789e15 + 0.1
+
+	// Tolérance 1.0 absorbe la différence de 0.1 sur échelle 1e15
+	dbgVérifieÉgalitéRéel(grand1, grand2, "Valeurs extremes avec tolerance 1.0", 1.0)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_bilingue()
+	// Vérifier que la forme EN (dbgCheckEqualReal) fonctionne identiquement
+
+	valA est un réel = 0.1 + 0.2
+	valB est un réel = 0.3
+
+	// Forme FR
+	dbgVérifieÉgalitéRéel(valA, valB, "Forme FR OK")
+
+	// Forme EN (alias canon)
+	dbgCheckEqualReal(valA, valB, "Forme EN alias")
+FIN
+
+dbgBilanTest()

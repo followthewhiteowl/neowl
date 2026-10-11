@@ -1,0 +1,62 @@
+// @sujet : ChaîneConstruit
+// @résumé : ChaîneConstruit (construction chaîne via format)
+// Scénario : native ChaîneConstruit (construction chaîne via format)
+// Démonstration pédagogique : placeholders %1 %2 remplacés par arguments
+
+// Construction simple avec 1 placeholder %1
+PROCEDURE PUBLIQUE scenario_simple_un_parametre()
+	resultat est une chaîne = ChaîneConstruit("Bonjour %1", "Alice")
+
+	dbgVérifieEgalité(resultat, "Bonjour Alice", "placeholder %1 remplacé par Alice")
+FIN
+
+// Construction avec plusieurs placeholders %1 %2 %3
+PROCEDURE PUBLIQUE scenario_multi_parametres()
+	resultat est une chaîne = ChaîneConstruit("Bonjour %1, tu as %2 ans et tu habites %3", "Roger", 42, "Langley")
+
+	dbgVérifieEgalité(resultat, "Bonjour Roger, tu as 42 ans et tu habites Langley", "3 placeholders remplacés")
+FIN
+
+// Forme alternative avec tableau de paramètres spread via array literal
+PROCEDURE PUBLIQUE scenario_tableau_literal()
+	resultat est une chaîne = ChaîneConstruit("Ordre : %1 %2 %3", ["alpha", "beta", "gamma"])
+
+	dbgVérifieEgalité(resultat, "Ordre : alpha beta gamma", "tableau inline spread")
+FIN
+
+// Forme alternative avec tableau de paramètres spread via variable
+PROCEDURE PUBLIQUE scenario_tableau_variable()
+	params est un tableau de chaînes = ["delta", "epsilon", "zeta"]
+	resultat est une chaîne = ChaîneConstruit("Séquence : %1 %2 %3", params)
+
+	dbgVérifieEgalité(resultat, "Séquence : delta epsilon zeta", "tableau variable spread")
+FIN
+
+// Cas limite : placeholder %1 répété plusieurs fois dans le format
+PROCEDURE PRIVÉE scenario_placeholder_repete()
+	resultat est une chaîne = ChaîneConstruit("%1 et encore %1 puis %2", "A", "B")
+
+	dbgVérifieEgalité(resultat, "A et encore A puis B", "%1 répété deux fois avant %2")
+FIN
+
+// Cas limite : format sans placeholder retourne la chaîne telle quelle
+PROCEDURE PRIVÉE scenario_sans_placeholder()
+	resultat est une chaîne = ChaîneConstruit("Texte fixe sans substitution")
+
+	dbgVérifieEgalité(resultat, "Texte fixe sans substitution", "format sans %N renvoie tel quel")
+FIN
+
+// Cas limite : types mixtes (entier converti en chaîne)
+PROCEDURE PRIVÉE scenario_conversion_entier()
+	age est un entier = 99
+	resultat est une chaîne = ChaîneConstruit("Tu as %1 ans", age)
+
+	dbgVérifieEgalité(resultat, "Tu as 99 ans", "entier converti implicitement")
+FIN
+
+// Cas extrême : placeholder %2 avant %1 (ordre non séquentiel)
+PROCEDURE PRIVÉE scenario_ordre_non_sequentiel()
+	resultat est une chaîne = ChaîneConstruit("Second : %2, premier : %1", "FIRST", "SECOND")
+
+	dbgVérifieEgalité(resultat, "Second : SECOND, premier : FIRST", "%2 avant %1 respecté")
+FIN

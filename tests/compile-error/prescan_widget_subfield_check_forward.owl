@@ -1,0 +1,39 @@
+// =====================================================================
+// Test : prescan widgets - compile-check sous-champ en forward-ref
+// =====================================================================
+// CRUCIAL : le prescan enregistre nom + TYPE/KIND du widget, PAS juste
+// le nom. Une procedure AVANT le widget qui fait une typo sur un
+// sous-champ (`..Police..Nomm` au lieu de `..Police..Nom`) doit produire
+// l'erreur de compilation nominative "Champ 'Nomm' inconnu sur type
+// Police", PAS un "LIB_X inconnu" generique.
+//
+// Ce test prouve que le prescan enregistre le TYPE du widget (pas juste
+// le nom NIL placeholder), preservant le compile-check des sous-champs
+// bati en 0143/0159.
+//
+// Actuellement ROUGE pour la MAUVAISE raison : 'LIB_X' inconnu (le
+// prescan n'existe pas encore).
+// Apres prescan widgets : ROUGE pour la BONNE raison : "Champ 'Nomm'
+// inconnu sur type Police".
+
+FEN_CheckSubfield est une Fenetre
+    PROPRIETES
+        Disposition = dispLibre
+        Largeur     = 200
+        Hauteur     = 100
+    FIN
+
+    // Procedure AVANT le widget
+    PROCEDURE TesterTypo()
+        // Typo : Police..Nomm au lieu de Police..Nom
+        LIB_X..Police..Nomm = "Arial"
+    FIN
+
+    LIB_X est un Champ Libelle
+        PROPRIETES
+            X       = 10
+            Y       = 10
+            Libelle = "test"
+        FIN
+    FIN
+FIN

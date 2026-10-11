@@ -1,0 +1,78 @@
+//  (LOT 3) — opacité sur les couleurs du Champ Interrupteur stylé.
+// Trou d'ingestion connu : CadreCoche..CouleurFond, TexteOptions..Couleur et
+// Coche..Couleur sont tous lus via `instance_get_int(x, "...", -1)`, qui
+// renvoie -1 (« non posé ») sur une instance Couleur -> la couleur translucide
+// est totalement ignorée (case/texte/marque gardent leur rendu par défaut) au
+// lieu du mélange attendu.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Comptage de pixels à la couleur exacte sur une zone large
+// (patron  test_style_interrupteur_options_rendu.owl /
+// test_style_interrupteur_texte_pixel.owl), plus robuste qu'un point unique
+// sur un petit indicator.
+//
+// Fond de fenêtre ROUGE PUR (255,0,0). Couleur testée : VERT translucide,
+// Opacité=128 -> {Rouge=0, Vert=255, Bleu=0, Opacité=128}.
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg=VERT (0,255,0), bg=ROUGE (255,0,0), a=128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertMelange est un entier = RVB(127, 128, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CouleurAlphaInterrupteur)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaInterrupteur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. CadreCoche..CouleurFond : témoin opaque + alpha --------------------
+nbCocheOpaque est un entier = CompteCouleurZone(img, 20, 20, 540, 80, vertOpaque)
+dbgVérifieVrai(nbCocheOpaque > 5,
+"INT_CocheOpaque : Style..CadreCoche..CouleurFond = RVB(0,255,0) (entier nu opaque) : case verte, non-régression")
+
+nbCocheAlpha est un entier = CompteCouleurZone(img, 20, 90, 540, 150, vertMelange)
+dbgVérifieVrai(nbCocheAlpha > 5,
+"INT_CocheAlpha : Style..CadreCoche..CouleurFond = <Couleur Opacité=128> : case mélangée avec le fond rouge de la fenêtre")
+
+// --- 2. TexteOptions..Couleur : témoin opaque + alpha -----------------------
+nbTexteOpaque est un entier = CompteCouleurZone(img, 20, 160, 540, 220, vertOpaque)
+dbgVérifieVrai(nbTexteOpaque > 30,
+"INT_TexteOpaque : Style..TexteOptions..Couleur = RVB(0,255,0) (entier nu opaque) : texte vert, non-régression")
+
+nbTexteAlpha est un entier = CompteCouleurZone(img, 20, 230, 540, 290, vertMelange)
+dbgVérifieVrai(nbTexteAlpha > 30,
+"INT_TexteAlpha : Style..TexteOptions..Couleur = <Couleur Opacité=128> : texte mélangé avec le fond rouge de la fenêtre")
+
+// --- 3. Coche..Couleur (marque cochée) : témoin opaque + alpha -------------
+nbMarqueOpaque est un entier = CompteCouleurZone(img, 20, 300, 540, 360, vertOpaque)
+dbgVérifieVrai(nbMarqueOpaque > 5,
+"INT_MarqueOpaque : Style..Coche..Couleur = RVB(0,255,0) (entier nu opaque, option cochée) : marque verte, non-régression")
+
+nbMarqueAlpha est un entier = CompteCouleurZone(img, 20, 370, 540, 410, vertMelange)
+dbgVérifieVrai(nbMarqueAlpha > 5,
+"INT_MarqueAlpha : Style..Coche..Couleur = <Couleur Opacité=128> (option cochée) : marque mélangée avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaInterrupteur)
+dbgBilanTest()

@@ -1,0 +1,52 @@
+//  — le CADRE d'ÉTAT (focus) d'un Champ Bouton doit suivre l'arrondi.
+//
+// Mode GUI réel (TestModeHeadless(Faux) + OuvreSoeur) : les vrais widgets Qt
+// sont montés (offscreen). On force le focus sur BTN_Focus (DonneFocus) puis on
+// capture la fenêtre et on lit des pixels.
+//
+// Le bouton (fond RVB(50,50,200), 120x44) est posé à (30,30) sur un fond de
+// fenêtre RVB(15,15,15). L'état Focus pose un cadre 3px violet RVB(150,0,200)
+// avec Arrondi=24 (> moitié hauteur = 22).
+//
+// - Centre (90,52) : fond du bouton (contrôle, toujours vrai).
+// - Bord gauche milieu (31,52) : dans le cadre 3px → violet APRÈS focus
+//   (prouve que le focus a bien pris et que le cadre d'état est peint).
+// - Coin (31,31) : 1 px du coin, HORS de la pilule arrondie.
+//     * ROUGE (bug) : le cadre focus rend CARRÉ → (31,31) est dans le cadre
+//       violet → RVB(150,0,200).
+//     * VERT (fix) : le cadre focus suit la pilule → (31,31) montre le fond
+//       de la fenêtre RVB(15,15,15).
+
+TestModeHeadless(Faux)
+
+couleurCadre est un entier = RVB(150, 0, 200)
+fondFenetre est un entier = RVB(15, 15, 15)
+fondBouton est un entier = RVB(50, 50, 200)
+
+OuvreSoeur(FEN_BoutonCadreEtat)
+
+// Contrôle négatif : avant DonneFocus, le bord ne porte pas encore le cadre focus.
+imgAvant est une Image = dCopieImageFenêtre(FEN_BoutonCadreEtat)
+dbgVérifieEgalité(imgAvant..Valide, Vrai, "capture avant focus valide")
+dbgVérifieVrai(dPixelCouleur(imgAvant, 31, 52) <> couleurCadre,
+"BTN_Focus sans focus : pas encore de cadre violet (contrôle négatif)")
+
+DonneFocus(BTN_Focus)
+
+img est une Image = dCopieImageFenêtre(FEN_BoutonCadreEtat)
+dbgVérifieEgalité(img..Valide, Vrai, "capture après focus valide")
+
+// Contrôle : le centre du bouton porte bien son fond.
+dbgVérifieEgalité(dPixelCouleur(img, 90, 52), fondBouton,
+"centre du bouton = fond du bouton")
+
+// Le cadre focus est peint (prouve que le focus a pris) : bord gauche = violet.
+dbgVérifieEgalité(dPixelCouleur(img, 31, 52), couleurCadre,
+"bord gauche du bouton focus = cadre violet (état focus peint)")
+
+// Cible : le coin (1 px) est HORS de la pilule -> fond fenêtre (cadre arrondi).
+dbgVérifieEgalité(dPixelCouleur(img, 31, 31), fondFenetre,
+"coin du cadre focus = fond fenêtre (cadre d'état suit l'arrondi)")
+
+Ferme(FEN_BoutonCadreEtat)
+dbgBilanTest()

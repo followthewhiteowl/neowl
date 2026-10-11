@@ -1,0 +1,38 @@
+//  — Style[survol] : pivot (CouleurFond) + toutes-props (Police..Gras).
+//
+// Approche de vérification RETENUE (repli documenté, cf. FEN voisine) :
+// lecture de la feuille QSS générée pour le champ, PAS capture-pixel. Aucun
+// moyen headless de forcer l'état hover Qt (:hover) n'existe aujourd'hui :
+// TestSimuleSouris(champ, Survol, x, y) déclenche seulement le callback
+// utilisateur, sans poster de vrai QEvent Enter/HoverEnter (vérifié
+// stdlib_ui.c::fn_test_simule_souris). Une capture-pixel donnerait donc
+// toujours l'état NON survolé, quel que soit l'état réel du style — un faux
+// négatif permanent, pas un test.
+//
+// __DebugFeuilleStyle(champ) est une PROPOSITION de native test-only (à
+// ajouter par l'implémenteur, symétrique du __AE2Encrypt/__AE2Decrypt déjà
+// existants ailleurs) qui renvoie la feuille de style Qt courante du champ
+// (le contenu passé à QWidget::setStyleSheet). Elle n'existe PAS encore :
+// ce test est ROUGE pour DEUX raisons cumulées tant que rien n'est fait :
+//   1. `Style[survol]..X` ne compile pas (nouvelle syntaxe absente).
+//   2. `__DebugFeuilleStyle` est un symbole inconnu.
+// Une fois les deux ajoutés, la substring recherchée doit être adaptée au
+// format RÉEL émis (cf. remarque dans le rapport test_writer : le format
+// exact de la feuille QSS n'est pas encore fixé, cette assertion est un
+// gabarit à affiner par l'implémenteur, pas un contrat gravé).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleEtatSurvol)
+
+feuille est une chaîne = __DebugFeuilleStyle(SAI_Survol)
+
+// Pivot : la feuille doit contenir un bloc :hover avec la couleur de fond.
+dbgVérifieVrai(Contient(feuille, ":hover"), "Style[survol] : la feuille QSS contient un bloc :hover")
+dbgVérifieVrai(Contient(feuille, "0, 255, 0") OU Contient(feuille, "#00ff00"), "Style[survol]..CouleurFond : couleur de fond survol présente dans la feuille")
+
+// Toutes-props : Police..Gras au survol doit apparaître (font-weight bold).
+dbgVérifieVrai(Contient(feuille, "bold") OU Contient(feuille, "font-weight"), "Style[survol]..Police..Gras : gras présent dans la feuille au survol")
+
+Ferme(FEN_StyleEtatSurvol)
+dbgBilanTest()

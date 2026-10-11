@@ -1,0 +1,74 @@
+// ============================================
+// TEST: Famille Erreur* (soft errors, parallèle aux exceptions)
+// ============================================
+Trace("=== ERREUR ===")
+
+// --- Etat initial ---
+dbgVérifieFaux(ErreurDétectée, "ErreurDetectee = Faux a l'init")
+
+// --- ErreurDeclenche + ErreurInfo ---
+//  : errCode retourne desormais une chaine canonique. Le legacy
+// path ErreurDeclenche(int, msg) stocke la representation string de l'int
+// en attendant que ce site soit migre vers owl_emit_native_error.
+ErreurDéclenche(42, "quelque chose a foire")
+dbgVérifieVrai(ErreurDétectée, "ErreurDetectee = Vrai apres declenche")
+dbgVérifieEgalité(ErreurInfo(errCode), "42", "errCode")
+dbgVérifieEgalité(ErreurInfo(errMessage), "quelque chose a foire", "errMessage")
+dbgVérifieEgalité(ErreurInfo(), "quelque chose a foire", "default errMessage")
+dbgVérifieVrai(ErreurInfo(errLigne) > 0, "errLigne > 0")
+dbgVérifieVrai(Taille(ErreurInfo(errPile)) > 0, "errPile populé")
+dbgVérifieVrai(Taille(ErreurInfo(errComplet)) > 0, "errComplet populé")
+
+// --- ErreurRAZ ---
+ErreurRAZ()
+dbgVérifieFaux(ErreurDétectée, "ErreurDetectee = Faux apres RAZ")
+dbgVérifieEgalité(ErreurInfo(errCode), "", "Code reset (chaine vide)")
+dbgVérifieEgalité(ErreurInfo(errMessage), "", "Message reset")
+
+// --- Surcharges ErreurDeclenche ---
+ErreurDéclenche(99) // code seul
+dbgVérifieEgalité(ErreurInfo(errCode), "99", "code seul")
+
+ErreurDéclenche("msg seul")
+dbgVérifieEgalité(ErreurInfo(errMessage), "msg seul", "msg seul")
+dbgVérifieEgalité(ErreurInfo(errCode), "0", "code=0 par defaut (chaine '0')")
+
+// --- ErreurConstruit (canon de référence : %n substitution, documentation de référence) ---
+msg est une chaîne = ErreurConstruit("principal: %1 / %2", "detail 1", "detail 2")
+dbgVérifieVrai(Position(msg, "principal") > 0, "principal present")
+dbgVérifieVrai(Position(msg, "detail 1") > 0, "detail 1 present (%1 sub)")
+dbgVérifieVrai(Position(msg, "detail 2") > 0, "detail 2 present (%2 sub)")
+
+// --- ErreurPropage : erreur soft -> exception ---
+// Le code numerique de l'erreur soft est transporte jusqu'a l'exception.
+// Les codes symboliques (E_NATIVE_...) restent non-transportes car g_exc_code
+// est un int : la migration const char* complete est hors scope (sous-ticket
+// eventuel pour coherence registry).
+ErreurDéclenche(7, "soft error")
+
+QUAND EXCEPTION DANS
+	ErreurPropage()
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 7, "Propage: code numerique transporte")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "soft error", "Propage: msg transfere")
+FIN
+
+// --- Pattern typique : tester ErreurDetectee ---
+FONCTION PeutEchouer(mode est un entier) : entier
+	SI mode = 1 ALORS
+		ErreurDéclenche(404, "not found")
+		RENVOYER -1
+	FIN
+	RENVOYER 42
+FIN
+
+resultat est un entier = PeutEchouer(1)
+dbgVérifieEgalité(resultat,-1, "Retour d'echec")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+dbgVérifieEgalité(ErreurInfo(errCode), "404", "Code 404 (string canonique)")
+
+resultat = PeutEchouer(0)
+dbgVérifieEgalité(resultat, 42, "Retour succes")
+dbgVérifieFaux(ErreurDétectée, "Pas d'erreur si succes")
+
+dbgBilanTest()

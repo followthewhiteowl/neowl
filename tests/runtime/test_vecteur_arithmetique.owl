@@ -1,0 +1,89 @@
+// test_vecteur_arithmetique.owl — 
+// Complément technique aux scénarios pédagogiques de
+// tests/scenarios/types/test_VecteurArithmetique.owl : cas limites de
+// l'arithmétique Vecteur (chaînage fluent, vecteurs à un élément,
+// zéros multiples au dénominateur, valeurs négatives extrêmes,
+// non-corruption des opérandes après exception).
+
+Trace("=== VECTEUR ARITHMETIQUE NOYAU ===")
+
+// --- Chaînage fluent successif (chaque étape produit un nouveau Vecteur) ---
+// Opérandes déclarés Vecteur : l'arithmétique Vecteur refuse un opérande
+// tableau (littéral ou variable) — pas d'inférence tableau/Vecteur.
+vBase est un Vecteur = [1.0, 2.0, 3.0]
+vUnites est un Vecteur = [1.0, 1.0, 1.0]
+vDeux est un Vecteur = [2.0, 2.0, 2.0]
+vChaine est un Vecteur = vBase.Ajoute(vUnites).Multiplie(vDeux)
+dbgVérifieEgalité(vChaine[1], 4.0, "chaînage (1+1)*2 = 4")
+dbgVérifieEgalité(vChaine[2], 6.0, "chaînage (2+1)*2 = 6")
+dbgVérifieEgalité(vChaine[3], 8.0, "chaînage (3+1)*2 = 8")
+dbgVérifieEgalité(vBase[1], 1.0, "vBase intact après chaînage fluent")
+
+// --- Vecteur à un seul élément : opérateurs et broadcast dégénérés ---
+vUn1 est un Vecteur = [5.0]
+vUn2 est un Vecteur = [3.0]
+vUnSomme est un Vecteur = vUn1 + vUn2
+dbgVérifieEgalité(vUnSomme..Taille, 1, "addition de deux Vecteur à 1 élément -> taille 1")
+dbgVérifieEgalité(vUnSomme[1], 8.0, "5.0 + 3.0 = 8.0 (vecteur à 1 élément)")
+
+vUnBroadcast est un Vecteur = vUn1 * 4.0
+dbgVérifieEgalité(vUnBroadcast[1], 20.0, "broadcast sur vecteur à 1 élément")
+
+// --- Zéros multiples au dénominateur : chaque position lève ---
+vDenomZeroDouble est un Vecteur = [0.0, 5.0, 0.0]
+vNumerateur est un Vecteur = [1.0, 1.0, 1.0]
+
+capturéZeroDouble est une chaîne = ""
+QUAND EXCEPTION DANS
+	x est un Vecteur = vNumerateur / vDenomZeroDouble
+	capturéZeroDouble = "no-throw"
+FAIRE
+	capturéZeroDouble = "caught"
+FIN
+dbgVérifieEgalité(capturéZeroDouble, "caught", "division par vecteur à deux zéros attrapée")
+
+// Les opérandes source restent intacts après l'exception.
+dbgVérifieEgalité(vDenomZeroDouble[1], 0.0, "vDenomZeroDouble[1] intact après exception")
+dbgVérifieEgalité(vDenomZeroDouble[2], 5.0, "vDenomZeroDouble[2] intact après exception")
+dbgVérifieEgalité(vNumerateur[1], 1.0, "vNumerateur intact après exception")
+
+// --- Broadcast par un scalaire nul : division lève aussi ---
+vPourDivisionScalaire est un Vecteur = [2.0, 4.0]
+nDiviseurNul est un réel = 0.0
+capturéDivisionScalaireZero est une chaîne = ""
+QUAND EXCEPTION DANS
+	y est un Vecteur = vPourDivisionScalaire / nDiviseurNul
+	capturéDivisionScalaireZero = "no-throw"
+FAIRE
+	capturéDivisionScalaireZero = "caught"
+FIN
+dbgVérifieEgalité(capturéDivisionScalaireZero, "caught", "division par le scalaire 0.0 attrapée")
+
+// --- Valeurs négatives extrêmes : combinaison de signes ---
+vSignesMixtes est un Vecteur = [-1.0, 1.0,-1.0]
+vNegSignesMixtes est un Vecteur = -vSignesMixtes
+dbgVérifieEgalité(vNegSignesMixtes[1], 1.0, "-(-1.0) = 1.0")
+dbgVérifieEgalité(vNegSignesMixtes[2],-1.0, "-(1.0) = -1.0")
+dbgVérifieEgalité(vNegSignesMixtes[3], 1.0, "-(-1.0) = 1.0 (troisième position)")
+
+// --- Vecteur vide : opérations dégénérées légales, résultat vide ---
+vVideA est un Vecteur = []
+vVideB est un Vecteur = []
+vVideMul est un Vecteur = vVideA * vVideB
+dbgVérifieEgalité(vVideMul..Taille, 0, "multiplication de deux Vecteur vides -> vide")
+
+vVideBroadcast est un Vecteur = vVideA * 5.0
+dbgVérifieEgalité(vVideBroadcast..Taille, 0, "broadcast scalaire sur Vecteur vide -> vide")
+
+// --- Mismatch de taille avec un vecteur vide contre un non-vide : exception ---
+vNonVide est un Vecteur = [1.0, 2.0]
+capturéMismatchVide est une chaîne = ""
+QUAND EXCEPTION DANS
+	z est un Vecteur = vVideA + vNonVide
+	capturéMismatchVide = "no-throw"
+FAIRE
+	capturéMismatchVide = "caught"
+FIN
+dbgVérifieEgalité(capturéMismatchVide, "caught", "Vecteur vide + Vecteur non-vide (tailles 0 vs 2) attrapé")
+
+dbgBilanTest()

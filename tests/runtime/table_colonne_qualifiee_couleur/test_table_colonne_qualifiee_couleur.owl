@@ -1,0 +1,36 @@
+//  — la forme colonne-first QUALIFIÉE NON INDEXÉE
+// `TABLE_X.COL_A..Couleur` / `..CouleurFond` reste un VRAI receveur au runtime
+// (set-then-get symétrique), et n'est PAS refusée par le nouveau garde
+// prop-allowlist. C'est la forme que le message de refus conseille : elle est
+// éprouvée ici comme du code (critère 2 du ticket).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColonneQualifieeCouleur)
+
+// Couleur : set-then-get symétrique via la forme qualifiée.
+EcritCouleur(RVB(255, 0, 0))
+dbgVérifieEgalité(LireCouleur(), RVB(255, 0, 0),
+"TABLE_X.COL_A..Couleur écrite en forme qualifiée est relue à l'identique")
+
+// CouleurFond : set-then-get symétrique, indépendant de Couleur.
+EcritCouleurFond(RVB(0, 0, 255))
+dbgVérifieEgalité(LireCouleurFond(), RVB(0, 0, 255),
+"TABLE_X.COL_A..CouleurFond écrite en forme qualifiée est relue à l'identique")
+dbgVérifieEgalité(LireCouleur(), RVB(255, 0, 0),
+"CouleurFond posée ensuite : Couleur reste inchangée")
+
+// Parité bilingue : la même valeur est lisible sous sa forme EN qualifiée.
+dbgVérifieEgalité(LireCouleurEN(), RVB(255, 0, 0),
+"la Couleur posée en FR est relue à l'identique sous ..Color (EN)")
+dbgVérifieEgalité(LireCouleurFondEN(), RVB(0, 0, 255),
+"la CouleurFond posée en FR est relue à l'identique sous ..BackgroundColor (EN)")
+
+// Écriture croisée : posée en EN qualifiée, relue en FR.
+EcritCouleurEN(RVB(0, 255, 0))
+dbgVérifieEgalité(LireCouleur(), RVB(0, 255, 0),
+"écrite via ..Color (EN), relue à l'identique via ..Couleur (FR)")
+
+Ferme(FEN_ColonneQualifieeCouleur)
+
+dbgBilanTest()

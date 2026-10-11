@@ -1,0 +1,45 @@
+// @sujet : Noms de champ de structure — déclarateurs comme identifiants
+// @résumé : Vérifie qu'un nom de type déclarable (Fenêtre, Libellé, Bouton, Saisie, Table, Colonne, Conteneur, État) est accepté comme nom de champ de structure ordinaire, en écriture et en lecture. Un enregistrement métier avec un « Libellé » et un « État » est le cas médian, pas l'exception : le mot garde son rôle de déclarateur là où il l'a, mais devient un identifiant ordinaire en position de nom de champ.
+
+Rub est une Structure
+	Fenêtre est une chaîne
+	Libellé est une chaîne
+	Bouton est une chaîne
+	Saisie est une chaîne
+	Table est une chaîne
+	Colonne est une chaîne
+	Conteneur est une chaîne
+	État est une chaîne
+FIN
+
+// Chaque champ nommé par un déclarateur doit s'écrire puis se relire sans
+// perte. On verrouille la valeur exacte pour que le test capture réellement
+// l'aller-retour (pas juste un « non-Null »).
+PROCEDURE PUBLIQUE scenario_champ_declarateur_ecriture_lecture()
+	r est un Rub
+	r.Fenêtre = "fen"
+	r.Libellé = "lib"
+	r.Bouton = "bou"
+	r.Saisie = "sai"
+	r.Table = "tab"
+	r.Colonne = "col"
+	r.Conteneur = "con"
+	r.État = "eta"
+
+	dbgVérifieEgalité(r.Fenêtre, "fen", "champ Fenêtre lu")
+	dbgVérifieEgalité(r.Libellé, "lib", "champ Libellé lu")
+	dbgVérifieEgalité(r.Bouton, "bou", "champ Bouton lu")
+	dbgVérifieEgalité(r.Saisie, "sai", "champ Saisie lu")
+	dbgVérifieEgalité(r.Table, "tab", "champ Table lu")
+	dbgVérifieEgalité(r.Colonne, "col", "champ Colonne lu")
+	dbgVérifieEgalité(r.Conteneur, "con", "champ Conteneur lu")
+	dbgVérifieEgalité(r.État, "eta", "champ État lu")
+FIN
+
+// Le défaut zéro-typé d'une chaîne reste la chaîne vide : le champ existe sur
+// l'instance fraîche même sans écriture préalable.
+PROCEDURE PUBLIQUE scenario_champ_declarateur_defaut_vide()
+	r est un Rub
+	dbgVérifieEgalité(r.Libellé, "", "champ Libellé auto-initialisé à vide")
+	dbgVérifieEgalité(r.État, "", "champ État auto-initialisé à vide")
+FIN

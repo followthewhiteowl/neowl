@@ -1,0 +1,105 @@
+// @sujet : TableCherche, TableSearch
+// @résumé : recherche programmatique d'un élément dans une colonne de Table (indice 1-based de la première ligne correspondante, -1 si rien ne correspond), avec type de recherche et ligne de départ optionnels.
+//
+// Sur un champ Table peuplé par programmation, TableCherche parcourt une
+// colonne et renvoie l'indice 1-based de la première ligne correspondante
+// (-1 si aucune ligne ne correspond). Le type de recherche (identique /
+// commence par / contient / défaut) et la ligne de départ sont optionnels.
+// TableSearch est la forme anglaise, strictement équivalente.
+//
+// La déclaration complète (FEN_TableCherche.owl) : une colonne "Produit"
+// peuplée de 5 lignes dans FinInitialisation.
+
+TestModeHeadless(Vrai)
+
+
+PROCEDURE PUBLIQUE scenario_tableCherche_identique_premiere_occurrence()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "Chemise")
+	dbgVérifieEgalité(iTrouve, 1, "recherche identique (défaut) : indice de la première occurrence")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherche_non_trouve_rend_moins_un()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "Bottes")
+	dbgVérifieEgalité(iTrouve,-1, "aucune ligne ne correspond : -1")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherche_ligne_depart_trouve_occurrence_suivante()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "Chemise", rechercheIdentique, 2)
+	dbgVérifieEgalité(iTrouve, 4, "recherche reprise à la ligne 2 : trouve la seconde 'Chemise' (ligne 4)")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherche_commence_par()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "Che", rechercheCommencePar)
+	dbgVérifieEgalité(iTrouve, 1, "recherche 'commence par' : première ligne dont la valeur débute par 'Che'")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherche_contient()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "emis", rechercheContient)
+	dbgVérifieEgalité(iTrouve, 1, "recherche 'contient' : première ligne dont la valeur contient 'emis'")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherche_rechercheDefaut_egale_identique()
+	Ouvre(FEN_TableCherche)
+
+	iDefaut est un entier = TableCherche(TAB_Produits.COL_Produit, "Pantalon", rechercheDéfaut)
+	iIdentique est un entier = TableCherche(TAB_Produits.COL_Produit, "Pantalon", rechercheIdentique)
+	dbgVérifieEgalité(iDefaut, iIdentique, "rechercheDéfaut se comporte comme rechercheIdentique (canon)")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherche_bilingue_tableSearch()
+	Ouvre(FEN_TableCherche)
+
+	iFR est un entier = TableCherche(TAB_Produits.COL_Produit, "Veste")
+	iEN est un entier = TableSearch(TAB_Produits.COL_Produit, "Veste")
+	dbgVérifieEgalité(iFR, iEN, "TableCherche et TableSearch résolvent identiquement")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherche_ligne_depart_hors_plage_rend_moins_un()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "Chemise", rechercheIdentique, 10)
+	dbgVérifieEgalité(iTrouve,-1, "ligne de départ au-delà du nombre de lignes : -1")
+
+	Ferme(FEN_TableCherche)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherche_casse_insensible()
+	Ouvre(FEN_TableCherche)
+
+	iTrouve est un entier = TableCherche(TAB_Produits.COL_Produit, "chemise")
+	dbgVérifieEgalité(iTrouve, 1, "recherche programmatique insensible à la casse")
+
+	Ferme(FEN_TableCherche)
+FIN

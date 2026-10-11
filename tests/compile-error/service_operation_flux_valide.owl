@@ -1,0 +1,36 @@
+//  P1 — surface DSL statique du streaming : une OpérationHTTP peut
+// déclarer Flux = fluxSSE (framing SSE) ou fluxOctets (octets bruts) et une
+// borne DélaiMax en secondes. En P1 ces propriétés PARSENT, sont VALIDÉES et
+// STOCKÉES (portées jusqu'à la route runtime) mais ne déclenchent AUCUN
+// comportement de flux à l'exécution. Ce contrôle positif doit compiler sans
+// erreur (errors:[]).
+DiffusionEvenements est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	DiffuseNotifications est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["notifications"]
+			Requête  = [depuis]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+			Flux     = fluxSSE
+			DélaiMax = 300
+		FIN
+		PROCEDURE surRequête(depuis est un entier) : entier
+			RENVOYER depuis
+		FIN
+	FIN
+
+	DiffuseOctets est une OpérationHTTP
+		PROPRIETES
+			Méthode = httpGet
+			Chemin  = ["octets"]
+			Flux    = fluxOctets
+		FIN
+		PROCEDURE surRequête()
+		FIN
+	FIN
+FIN

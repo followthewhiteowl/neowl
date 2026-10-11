@@ -1,0 +1,96 @@
+// @sujet : IAModèle — persistance des couches convolutives (.Sauve / .Charge)
+// @résumé : Un IAModèle qui empile des couches convolutives/pooling/
+// aplatissement doit, comme un modèle purement dense, survivre à un
+// aller-retour .Sauve(chemin) puis .Charge(chemin) dans un modèle frais :
+// même nombre de couches, mêmes poids/biais des couches convolutives, et
+// surtout .Infère(x) qui rend EXACTEMENT la même sortie qu'avant la
+// sauvegarde sur la même entrée.
+//
+// Le fichier généré vit dans le répertoire temporaire (fRepTemp()), jamais
+// dans le dépôt, et est supprimé en fin de scénario.
+
+// Cœur du contrat : un modèle conv (convolution -> ReLU -> max-pooling ->
+// aplatissement -> dense) entraîné quelques pas, sauvé puis rechargé dans un
+// modèle frais, redonne EXACTEMENT la même sortie de .Infère sur la même
+// entrée que l'original.
+PROCEDURE PUBLIQUE scenario_charge_round_trip_fidelite_exacte_modele_convolutif()
+	mon est un IAModèle
+	mon.AjouteCoucheConvolution2D(1, 2, 2, 1, 0)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheMaxPooling(2)
+	mon.AjouteCoucheAplatissement()
+	mon.AjouteCoucheDense(2, 2)
+
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+	cibleIndices est un Tenseur = Tenseur([1.0])
+	cibleOneHot est un Tenseur = TenseurUnParmiN(cibleIndices, 2)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 3
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.05
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteEntropieCroisée
+
+	// Entraînement : les poids conv s'éloignent de l'initialisation
+	// aléatoire, c'est ce qu'on veut round-tripper (pas des valeurs triviales).
+	mon.Entraîne(entrée, cibleOneHot, opts)
+
+	chemin est une chaîne = fRepTemp() + "owl_test_1677_iamodele_conv_roundtrip.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve d'un modèle convolutif réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge d'un modèle convolutif dans un modèle frais réussit")
+
+	dbgVérifieEgalité(frais..NbCouches, mon..NbCouches, "NbCouches identique après .Charge")
+
+	// Si .Charge a échoué (cas actuel : persistance conv non livrée), le
+	// modèle "frais" reste vide — inspecter sa sortie planterait sur une
+	// valeur Null plutôt que de produire un FAIL propre. On ne pousse
+	// l'assertion de fidélité .Infère que si le chargement a réellement
+	// reconstruit un modèle.
+	SI succèsCharge ALORS
+		sortieOrigine est un Tenseur = mon.Infère(entrée)
+		sortieFraiche est un Tenseur = frais.Infère(entrée)
+		valOrigine est un Vecteur = sortieOrigine..Valeur
+		valFraiche est un Vecteur = sortieFraiche..Valeur
+		POUR i = 1 À 2
+			dbgVérifieVrai(Abs(valFraiche[i] - valOrigine[i]) < 0.000000001, ".Infère(x) sur le modèle conv rechargé égale exactement .Infère(x) sur l'original")
+		FIN
+	FIN
+
+	fSupprime(chemin)
+FIN
+
+
+// Les poids de la couche de convolution elle-même (accessibles via .Poids(n)
+// / .Biais(n), cf. test_IAModeleConvolution2D.owl) doivent aussi survivre au
+// round-trip, pas seulement la sortie finale du pipeline.
+PROCEDURE PUBLIQUE scenario_poids_couche_convolution_survivent_au_round_trip()
+	mon est un IAModèle
+	mon.AjouteCoucheConvolution2D(1, 2, 2, 1, 0)
+
+	chemin est une chaîne = fRepTemp() + "owl_test_1677_iamodele_conv_poids.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve d'une couche convolutive seule réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge d'une couche convolutive seule réussit")
+
+	// Même garde que le scénario précédent : ne pas indexer un modèle resté
+	// vide suite à un .Charge en échec (cas actuel, persistance conv pas
+	// encore livrée).
+	SI succèsCharge ALORS
+		poidsOrigine est un Tenseur = mon.Poids(1)
+		poidsFrais est un Tenseur = frais.Poids(1)
+		dbgVérifieEgalité(poidsFrais..Forme[1], poidsOrigine..Forme[1], "forme du noyau conv identique après .Charge (Cout)")
+		dbgVérifieEgalité(poidsFrais..Forme[2], poidsOrigine..Forme[2], "forme du noyau conv identique après .Charge (Cin)")
+		dbgVérifieEgalité(poidsFrais..Forme[3], poidsOrigine..Forme[3], "forme du noyau conv identique après .Charge (k)")
+		dbgVérifieEgalité(poidsFrais..Forme[4], poidsOrigine..Forme[4], "forme du noyau conv identique après .Charge (k)")
+	FIN
+
+	fSupprime(chemin)
+FIN

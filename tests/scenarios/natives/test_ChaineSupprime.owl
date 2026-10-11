@@ -1,0 +1,65 @@
+// @sujet : ChaîneSupprime
+// @résumé : Supprime une sous-chaîne (toutes occurrences) ou n caractères à la position donnée.
+
+
+// Forme positionnelle canonique : suppression de n caractères à partir d'une position (base 1).
+// Retourne une nouvelle chaîne sans modifier la source.
+PROCEDURE scenario_position_longueur()
+	s est une chaîne = "Bonjour"
+	res est une chaîne = ChaîneSupprime(s, 4, 2) // supprime "jo"
+	dbgVérifieEgalité(res, "Bonur")
+	dbgVérifieEgalité(s, "Bonjour", "chaîne source non modifiée")
+FIN
+
+
+// Suppression en début de chaîne : position 1 supprime depuis le premier caractère.
+PROCEDURE scenario_debut_chaine()
+	res est une chaîne = ChaîneSupprime("Bonjour", 1, 3) // supprime "Bon"
+	dbgVérifieEgalité(res, "jour")
+FIN
+
+
+// Suppression en fin de chaîne : si position + longueur dépasse la taille, suppression jusqu'à la fin.
+PROCEDURE scenario_fin_chaine()
+	res est une chaîne = ChaîneSupprime("Bonjour", 5, 10) // supprime "our" (3 chars restants)
+	dbgVérifieEgalité(res, "Bonj")
+FIN
+
+
+// Suppression complète : si position = 1 et longueur >= taille, retourne chaîne vide.
+PROCEDURE scenario_suppression_complete()
+	res est une chaîne = ChaîneSupprime("test", 1, 100)
+	dbgVérifieEgalité(res, "")
+FIN
+
+
+// Forme 1 : suppression par sous-chaîne (toutes occurrences).
+// Supprime chaque occurrence exacte de la sous-chaîne trouvée dans la source.
+PROCEDURE scenario_suppression_sous_chaine()
+	s est une chaîne = "le chat et le chien"
+	res est une chaîne = ChaîneSupprime(s, "le ")
+	dbgVérifieEgalité(res, "chat et chien", "toutes les occurrences de 'le ' supprimées")
+FIN
+
+
+// Position invalide : position < 1 ou position > taille + 1 retourne la chaîne source inchangée.
+PROCEDURE PRIVÉE scenario_position_invalide()
+	res est une chaîne = ChaîneSupprime("test", 0, 2)
+	dbgVérifieEgalité(res, "test")
+	res = ChaîneSupprime("test", 10, 2)
+	dbgVérifieEgalité(res, "test")
+FIN
+
+
+// Longueur zéro : ne supprime rien, retourne la chaîne source inchangée.
+PROCEDURE PRIVÉE scenario_longueur_zero()
+	res est une chaîne = ChaîneSupprime("Bonjour", 3, 0)
+	dbgVérifieEgalité(res, "Bonjour")
+FIN
+
+
+// Chaîne vide en entrée : retourne toujours chaîne vide, quelle que soit la position ou longueur.
+PROCEDURE PRIVÉE scenario_chaine_vide()
+	res est une chaîne = ChaîneSupprime("", 1, 5)
+	dbgVérifieEgalité(res, "")
+FIN

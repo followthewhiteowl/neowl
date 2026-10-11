@@ -1,0 +1,28 @@
+//  — modèle strict config (miroir  côté num, porté au
+// monétaire) : dans un champ typSaisieMonétaire configuré décimal "," /
+// milliers ".", TOUTE touche décimale tapée (le "." OU le ",") doit être
+// traitée comme le séparateur décimal CONFIGURÉ. L'utilisateur tape
+// "1234.56" (point, réflexe pavé numérique) : le "." tapé doit être traité
+// comme DÉCIMAL, pas comme milliers.
+//
+// ROUGE ATTENDU (HEAD) : aucune saisie stricte n'est câblée pour le monétaire
+// (input_num_apply_format_validator reste gardé `typeSaisie ==
+// OWL_TYPESAISIE_NUM` seul, stdlib_ui.c ~1600) -> le "." tapé reste littéral
+// dans le widget, et fmn_deformat_to_decimal (stdlib_ui.c ~3141) le
+// reconnaît comme séparateur de MILLIERS configuré -> le retire au lieu de
+// le normaliser en décimal -> valeur corrompue 0m123456.00 (au lieu de
+// 0m1234.56). Discriminant fort : facteur 100, ne peut pas passer par
+// accident.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MonetaireInteractifSaisieSepDecimal)
+
+TestSimuleSaisie(SAI_Montant, "1234.56")
+DonneFocus(SAI_Autre)
+
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234.56, "point tapé (pavé num) traité comme décimal configuré : 1234.56 relu, pas 123456")
+
+Ferme(FEN_MonetaireInteractifSaisieSepDecimal)
+dbgBilanTest()

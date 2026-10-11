@@ -1,0 +1,38 @@
+// @sujet : Info
+// @résumé : Coercition cible chaine pour un littéral multilingue en argument. Le paramètre d'Info est typé chaine, donc un littéral colon-brace {langueXxx: valeur} est accepté en argument — construit puis aplati sur la langue active avant l'appel. Fichier dédié (pas d'ajout dans test_Info.owl existant) car le sujet est la coercition cible, pas Info elle-même.
+
+
+mockInfo est un MockNative = MockCrée(Info)
+
+
+PROCEDURE avantChaqueTest()
+	mockInfo = MockCrée(Info).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockInfo.Desactive()
+FIN
+
+
+// Cas nominal : littéral multilingue passé directement en argument d'une
+// native à paramètre typé chaine. Le paramètre d'Info reçoit la traduction
+// de la langue active, pas l'objet multilingue brut.
+PROCEDURE scenario_litteral_multilingue_argument_native_typee()
+	Info({langueFrançais: "bonjour", langueAnglais: "hello"})
+
+	dbgVérifieVrai(MockVérifieAppelé(mockInfo, 1))
+FIN
+
+
+// Vérifie la valeur exacte reçue par Info via un pattern d'argument exact :
+// l'aplatissement doit avoir eu lieu AVANT l'appel (langue active = fr-FR).
+PROCEDURE scenario_argument_native_recoit_traduction_langue_active()
+	mockLocal est un MockNative = MockCrée(Info)
+	mockLocal.Quand().Avec("bonjour").Retourne(0).Active()
+
+	Info({langueFrançais: "bonjour", langueAnglais: "hello"})
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN

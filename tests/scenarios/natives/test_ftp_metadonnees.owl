@@ -1,0 +1,314 @@
+// @sujet : FTPTaille
+// @résumé : Métadonnées d'un fichier distant sur une connexion FTP typée (ftpClient) : taille, dates (création/modification/accès), attributs et envoi d'une commande FTP brute — toujours à fichier explicite, jamais sur un curseur « dernier fichier consulté ». Formes fonction (cnx en premier paramètre) ou méthode (cnx.Xxx()).
+
+// Chaque native est mockée individuellement, comme pour les opérations de
+// transfert (cf. test_ftp_clair.owl) : le serveur distant est une dépendance
+// externe. Les scénarios construisent l'objet ftpClient directement, sans
+// repasser par FTPConnecte (lui-même testé à part) : seule sa présence en
+// premier paramètre importe pour ces natives-là.
+
+// Taille du fichier distant, forme fonction.
+PROCEDURE PUBLIQUE scenario_taille_fichier_distant()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockTaille est un MockNative = MockCrée(FTPTaille)
+	mockTaille.Quand().Retourne(48213).Active()
+
+	nTaille est un entier = FTPTaille(cnx, "/depot/rapport.zip")
+
+	dbgVérifieEgalité(nTaille, 48213, "taille du fichier distant en octets")
+
+	mockTaille.Desactive()
+FIN
+
+// Même mesure, forme méthode.
+PROCEDURE PUBLIQUE scenario_taille_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockTaille est un MockNative = MockCrée(FTPTaille)
+	mockTaille.Quand().Retourne(48213).Active()
+
+	nTaille est un entier = cnx.Taille("/depot/rapport.zip")
+
+	dbgVérifieEgalité(nTaille, 48213, "la forme méthode relit la même taille")
+
+	mockTaille.Desactive()
+FIN
+
+// Fichier introuvable : -1 signale l'erreur, distinct d'une taille nulle.
+PROCEDURE PUBLIQUE scenario_taille_fichier_introuvable_retourne_moins_un()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockTaille est un MockNative = MockCrée(FTPTaille)
+	mockTaille.Quand().Retourne(-1).Active()
+
+	nTaille est un entier = FTPTaille(cnx, "/depot/absent.zip")
+
+	dbgVérifieEgalité(nTaille,-1, "fichier introuvable signalé par -1")
+
+	mockTaille.Desactive()
+FIN
+
+// Date de dernière modification (valeur par défaut du type de date), forme
+// fonction. Le résultat est un objet date typé, pas une chaîne à parser.
+PROCEDURE PUBLIQUE scenario_date_modification_par_defaut()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	dateAttendue est une date = ChaîneVersDate("20260315")
+
+	mockDate est un MockNative = MockCrée(FTPDate)
+	mockDate.Quand().Retourne(dateAttendue).Active()
+
+	d est une date = FTPDate(cnx, "/depot/rapport.zip")
+
+	dbgVérifieEgalité(d..Année, 2026, "date de modification : année")
+	dbgVérifieEgalité(d..Mois, 3, "date de modification : mois")
+	dbgVérifieEgalité(d..Jour, 15, "date de modification : jour")
+
+	mockDate.Desactive()
+FIN
+
+// Date de création, type de date explicite.
+PROCEDURE PUBLIQUE scenario_date_creation_explicite()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	dateAttendue est une date = ChaîneVersDate("20250101")
+
+	mockDate est un MockNative = MockCrée(FTPDate)
+	mockDate.Quand().Retourne(dateAttendue).Active()
+
+	d est une date = FTPDate(cnx, "/depot/rapport.zip", ftpCréation)
+
+	dbgVérifieEgalité(d..Année, 2025, "date de création : année")
+	dbgVérifieEgalité(d..Mois, 1, "date de création : mois")
+	dbgVérifieEgalité(d..Jour, 1, "date de création : jour")
+
+	mockDate.Desactive()
+FIN
+
+// Même lecture (date de modification), forme méthode.
+PROCEDURE PUBLIQUE scenario_date_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	dateAttendue est une date = ChaîneVersDate("20260315")
+
+	mockDate est un MockNative = MockCrée(FTPDate)
+	mockDate.Quand().Retourne(dateAttendue).Active()
+
+	d est une date = cnx.Date("/depot/rapport.zip")
+
+	dbgVérifieEgalité(d..Jour, 15, "la forme méthode relit le même jour")
+
+	mockDate.Desactive()
+FIN
+
+// Heure de dernière modification, forme fonction.
+PROCEDURE PUBLIQUE scenario_heure_modification_par_defaut()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	heureAttendue est une heure = ChaîneVersHeure("143045")
+
+	mockHeure est un MockNative = MockCrée(FTPHeure)
+	mockHeure.Quand().Retourne(heureAttendue).Active()
+
+	h est une heure = FTPHeure(cnx, "/depot/rapport.zip")
+
+	dbgVérifieEgalité(h..Heure, 14, "heure de modification : heures")
+	dbgVérifieEgalité(h..Minute, 30, "heure de modification : minutes")
+	dbgVérifieEgalité(h..Seconde, 45, "heure de modification : secondes")
+
+	mockHeure.Desactive()
+FIN
+
+// Même lecture, forme méthode.
+PROCEDURE PUBLIQUE scenario_heure_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	heureAttendue est une heure = ChaîneVersHeure("143045")
+
+	mockHeure est un MockNative = MockCrée(FTPHeure)
+	mockHeure.Quand().Retourne(heureAttendue).Active()
+
+	h est une heure = cnx.Heure("/depot/rapport.zip")
+
+	dbgVérifieEgalité(h..Minute, 30, "la forme méthode relit les mêmes minutes")
+
+	mockHeure.Desactive()
+FIN
+
+// Date et heure du dernier accès, forme fonction avec type de date explicite.
+PROCEDURE PUBLIQUE scenario_dateheure_acces_explicite()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	dhAttendue est une dateheure = ChaîneVersDate("2026-03-15 09:45:30", "AAAA-MM-JJ HH:MI:SS")
+
+	mockDateHeure est un MockNative = MockCrée(FTPDateHeure)
+	mockDateHeure.Quand().Retourne(dhAttendue).Active()
+
+	dh est une dateheure = FTPDateHeure(cnx, "/depot/rapport.zip", ftpAccès)
+
+	sCast est une chaîne = dh
+	dbgVérifieEgalité(sCast, "20260315094530000", "date et heure du dernier accès")
+
+	mockDateHeure.Desactive()
+FIN
+
+// Même lecture (dernier accès), forme méthode.
+PROCEDURE PUBLIQUE scenario_dateheure_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	dhAttendue est une dateheure = ChaîneVersDate("2026-03-15 09:45:30", "AAAA-MM-JJ HH:MI:SS")
+
+	mockDateHeure est un MockNative = MockCrée(FTPDateHeure)
+	mockDateHeure.Quand().Retourne(dhAttendue).Active()
+
+	dh est une dateheure = cnx.DateHeure("/depot/rapport.zip", ftpAccès)
+
+	dbgVérifieEgalité(dh..Heure, 9, "la forme méthode relit la même heure")
+
+	mockDateHeure.Desactive()
+FIN
+
+// Attributs d'un fichier distant, forme fonction : une combinaison de
+// lettres identifie chaque attribut ("A" = archivable).
+PROCEDURE PUBLIQUE scenario_attribut_fichier_archivable()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockAttribut est un MockNative = MockCrée(FTPAttribut)
+	mockAttribut.Quand().Retourne("A").Active()
+
+	sAttr est une chaîne = FTPAttribut(cnx, "/depot/rapport.zip")
+
+	dbgVérifieEgalité(sAttr, "A", "attribut archivable du fichier distant")
+
+	mockAttribut.Desactive()
+FIN
+
+// Même lecture, forme méthode.
+PROCEDURE PUBLIQUE scenario_attribut_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockAttribut est un MockNative = MockCrée(FTPAttribut)
+	mockAttribut.Quand().Retourne("D").Active()
+
+	sAttr est une chaîne = cnx.Attribut("/depot/archives")
+
+	dbgVérifieEgalité(sAttr, "D", "la forme méthode signale un répertoire")
+
+	mockAttribut.Desactive()
+FIN
+
+// Envoi d'une commande FTP brute, forme fonction : Vrai si le serveur l'a
+// exécutée.
+PROCEDURE PUBLIQUE scenario_commande_syst_reussie()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockCommande est un MockNative = MockCrée(FTPCommande)
+	mockCommande.Quand().Retourne(Vrai).Active()
+
+	bExecutee est un booléen = FTPCommande(cnx, "SYST")
+
+	dbgVérifieVrai(bExecutee, "commande FTP brute exécutée")
+
+	mockCommande.Desactive()
+FIN
+
+// Même envoi, forme méthode.
+PROCEDURE PUBLIQUE scenario_commande_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockCommande est un MockNative = MockCrée(FTPCommande)
+	mockCommande.Quand().Retourne(Vrai).Active()
+
+	bExecutee est un booléen = cnx.Commande("SYST")
+
+	dbgVérifieVrai(bExecutee, "la forme méthode exécute la même commande")
+
+	mockCommande.Desactive()
+FIN
+
+// Commande refusée par le serveur : Faux, sans lever d'exception.
+PROCEDURE PUBLIQUE scenario_commande_refusee_par_serveur()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockCommande est un MockNative = MockCrée(FTPCommande)
+	mockCommande.Quand().Retourne(Faux).Active()
+
+	bExecutee est un booléen = FTPCommande(cnx, "SITE EXEC inconnue")
+
+	dbgVérifieFaux(bExecutee, "commande refusée par le serveur")
+
+	mockCommande.Desactive()
+FIN
+
+// Cas limite : "ERR" signale une erreur d'attribut, distinct d'une chaîne
+// d'attributs vide.
+PROCEDURE PRIVÉE scenario_edge_attribut_erreur()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockAttribut est un MockNative = MockCrée(FTPAttribut)
+	mockAttribut.Quand().Retourne("ERR").Active()
+
+	sAttr est une chaîne = FTPAttribut(cnx, "/depot/absent")
+
+	dbgVérifieEgalité(sAttr, "ERR", "erreur d'attribut signalée par ERR")
+
+	mockAttribut.Desactive()
+FIN
+
+// Cas limite : taille nulle (fichier vide), distincte du sentinel -1
+// d'erreur.
+PROCEDURE PRIVÉE scenario_edge_taille_fichier_vide()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockTaille est un MockNative = MockCrée(FTPTaille)
+	mockTaille.Quand().Retourne(0).Active()
+
+	nTaille est un entier = FTPTaille(cnx, "/depot/vide.txt")
+
+	dbgVérifieEgalité(nTaille, 0, "fichier vide : taille nulle distincte d'une erreur")
+
+	mockTaille.Desactive()
+FIN
+
+// Cas limite : le type de date création diffère bien du type modification.
+// Un seul mock, deux règles distinguées par filtrage sur l'argument
+// typeDate (3e position) : c'est FTPDate lui-même qui doit varier son
+// résultat selon ftpCréation / ftpModification, pas juste le dernier
+// Retourne() posé qui écraserait le précédent.
+PROCEDURE PRIVÉE scenario_edge_date_creation_distincte_de_modification()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockDate est un MockNative = MockCrée(FTPDate)
+	mockDate.Quand().Avec(MockTout, MockTout, ftpCréation).Retourne(ChaîneVersDate("20200101")).Active()
+	mockDate.Quand().Avec(MockTout, MockTout, ftpModification).Retourne(ChaîneVersDate("20260315")).Active()
+
+	dCreation est une date = FTPDate(cnx, "/depot/rapport.zip", ftpCréation)
+	dModification est une date = FTPDate(cnx, "/depot/rapport.zip", ftpModification)
+
+	dbgVérifieEgalité(dCreation..Année, 2020, "date de création : année")
+	dbgVérifieEgalité(dModification..Année, 2026, "date de modification : année")
+	dbgVérifieVrai(dCreation..Année <> dModification..Année, "création et modification restent des dates distinctes")
+
+	mockDate.Desactive()
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,24 @@
+//  (support #214) — Collection dont le CODE D'INIT appelle une
+// procédure déclarée PLUS BAS dans la même collection.
+//
+// Deux pièges couverts par ce fichier :
+//   1. Le bloc CONSTANTE placé AVANT l'appel : le prescan des membres de
+//      collection ne consommait pas le bloc, son FIN faisait un depth--
+//      non apparié → contexte collection perdu → `Configure` n'était plus
+//      enregistrée comme membre → appel non manglé.
+//   2. Le forward-ref lui-même : sans hoisting du corps, l'OP de définition
+//      de `Configure` tournait APRÈS l'appel → "Fonction ou procédure
+//      inconnue" au runtime.
+COL_InitForward est une CollectionDeProcédures
+
+	CONSTANTE
+		cBase = 40
+	FIN
+
+	gValeur est un entier
+	Configure()
+
+	PROCEDURE Configure()
+		gValeur = cBase + 2
+	FIN
+FIN

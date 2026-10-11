@@ -1,0 +1,64 @@
+// @sujet : AWSSession
+// @résumé : Type composé décrivant des identifiants AWS statiques (région, clé d'accès, clé secrète, jeton de session optionnel, endpoint optionnel). Passé en premier paramètre d'AWSRequête.
+
+
+// Cas canonique : une AWSSession déclarée sans initialisation reçoit des
+// valeurs par défaut vides, prêtes à être renseignées avant tout appel.
+PROCEDURE scenario_creation_avec_defauts()
+	sess est une AWSSession
+	dbgVérifieEgalité(sess..Région, "")
+	dbgVérifieEgalité(sess..CléAccès, "")
+	dbgVérifieEgalité(sess..CléSecrète, "")
+	dbgVérifieEgalité(sess..Jeton, "")
+	dbgVérifieEgalité(sess..Endpoint, "")
+FIN
+
+
+// Le databinding est direct : on assigne aux propriétés avec la notation
+// `..`, on relit de la même façon. Cas d'usage nominal : credentials
+// statiques sans jeton de session ni endpoint personnalisé.
+PROCEDURE scenario_databinding_credentials_statiques()
+	sess est une AWSSession
+	sess..Région     = "eu-west-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	dbgVérifieEgalité(sess..Région, "eu-west-1", "région relue telle qu'affectée")
+	dbgVérifieEgalité(sess..CléAccès, "AKIAIOSFODNN7EXAMPLE", "clé d'accès relue")
+	dbgVérifieEgalité(sess..CléSecrète, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "clé secrète relue")
+FIN
+
+
+// Le jeton de session (credentials temporaires, type STS AssumeRole) est
+// une propriété optionnelle distincte des clés statiques.
+PROCEDURE scenario_databinding_avec_jeton_session()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "ASIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	sess..Jeton      = "AQoDYXdzEJr...EXAMPLETOKEN"
+
+	dbgVérifieEgalité(sess..Jeton, "AQoDYXdzEJr...EXAMPLETOKEN", "jeton de session relu")
+FIN
+
+
+// L'endpoint est surchargeable explicitement (ex. service compatible AWS
+// auto-hébergé, LocalStack). Vide par défaut : le calcul d'URL retombe sur
+// le template standard du service.
+PROCEDURE scenario_databinding_endpoint_personnalise()
+	sess est une AWSSession
+	sess..Région   = "us-east-1"
+	sess..Endpoint = "http://localhost:4566"
+
+	dbgVérifieEgalité(sess..Endpoint, "http://localhost:4566", "endpoint personnalisé relu")
+FIN
+
+
+// Cas limite défensif : une région vide reste acceptée à la construction
+// (validée seulement à l'appel d'AWSRequête, pas à l'affectation).
+PROCEDURE PRIVÉE scenario_region_vide_acceptee_a_la_construction()
+	sess est une AWSSession
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "secret"
+	dbgVérifieEgalité(sess..Région, "", "région vide encore non validée à ce stade")
+FIN

@@ -1,0 +1,48 @@
+// Fenetre voisine — ordre-independant helpers FEN avec chaine elif.
+//
+// Verrou de regression : un helper contenant une chaine `SINON SI` (elif)
+// est suivi d'un AUTRE helper declare PLUS BAS, appele depuis un handler.
+// Le pre-scan ordre-independant (prepass_block_collect_procs) comptait le
+// `SI` de `SINON SI` comme un ouvreur de bloc sans FIN apparie -> desync de
+// profondeur -> SecondHelper (declare apres) jamais pre-enregistre ->
+// "SecondHelper : fonction/procedure inconnue". Symptome reel : projet echecs
+// (handler de clic appelant un helper place apres une procedure a elif).
+
+FEN_ElifAvantHelper est une Fenêtre
+	PROPRIETES
+		Largeur = 200
+		Hauteur = 100
+	FIN
+
+	BTN_Go est un Champ Bouton
+		PROPRIETES
+			Libellé = "Go"
+		FIN
+		PROCEDURE surClic()
+			SecondHelper(2)
+		FIN
+	FIN
+
+	// Helper AVEC chaine elif (SINON SI) + SI imbrique : reproduit la
+	// structure exacte qui desyncait le pre-scan.
+	PROCEDURE PremierHelper(n est un entier) : entier
+		SI n = 1 ALORS
+			x est un entier = 0
+			SI x = 0 ALORS
+				RENVOYER 11
+			FIN
+			RENVOYER 10
+		SINON SI n = 2 ALORS
+			RENVOYER 20
+		SINON SI n = 3 ALORS
+			RENVOYER 30
+		SINON
+			RENVOYER 0
+		FIN
+	FIN
+
+	// Declare APRES le helper a elif : sans le fix, jamais pre-enregistre.
+	PROCEDURE SecondHelper(n est un entier)
+		callback_observe("second", PremierHelper(n))
+	FIN
+FIN

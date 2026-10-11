@@ -1,0 +1,50 @@
+//  — ZoneRépétée : lecture cellule hors-bornes = SOFT-error.
+//
+// ROUGE ATTENDU tant que  n'est pas implémenté : aujourd'hui
+// ZR_Liste[oob].champ déclenche un hard-stop (crash VM,
+// E_RT_ARRAY_INDEX_OOB) au lieu d'une erreur récupérable. Le crash
+// interrompt le script → les dbgVérifie suivants ne s'exécutent pas →
+// bilan rouge.
+//
+// Ce test verrouille l'harmonisation avec la Table :
+//   1. ZR[0]  (borne basse)  → ErreurDétectée=Vrai, pas de crash
+//   2. ZR[99] (borne haute)  → ErreurDétectée=Vrai, pas de crash
+//   3. retour OOB = chaîne vide typée (lisible, comparable)
+//   4. exécution continue après l'OOB (lecture valide ZR[1] OK)
+
+TestModeHeadless(Vrai)
+
+zroob_init_done est un booléen = Faux
+
+PROCEDURE cb_zroob_init_done()
+	zroob_init_done = Vrai
+FIN
+
+Ouvre(FEN_ZROob)
+
+dbgVérifieVrai(zroob_init_done, "FinInitialisation FEN_ZROob exécutée")
+
+// --- Cas 1 : OOB borne basse (ligne 0) = soft ---
+ErreurRAZ()
+sBas est une chaîne = LireNom(0)
+bBas est un booléen = ErreurDétectée
+dbgVérifieVrai(bBas, "ZR[0].LIB_Nom → ErreurDétectée (borne basse OOB, soft)")
+dbgVérifieEgalité(sBas, "", "ZR[0].LIB_Nom → chaîne vide typée (récupérable)")
+
+// --- Cas 2 : OOB borne haute (ligne 99 sur 2 lignes) = soft ---
+ErreurRAZ()
+sHaut est une chaîne = LireNom(99)
+bHaut est un booléen = ErreurDétectée
+dbgVérifieVrai(bHaut, "ZR[99].LIB_Nom → ErreurDétectée (borne haute OOB, soft)")
+dbgVérifieEgalité(sHaut, "", "ZR[99].LIB_Nom → chaîne vide typée (récupérable)")
+
+// --- Cas 3 : exécution continue, lecture valide toujours OK ---
+ErreurRAZ()
+sNom1 est une chaîne = LireNom(1)
+dbgVérifieEgalité(sNom1, "Alice", "ZR[1].LIB_Nom == Alice (lecture valide après OOB)")
+bNoErr est un booléen = ErreurDétectée
+dbgVérifieVrai(bNoErr = Faux, "lecture valide ZR[1] → pas d'ErreurDétectée")
+
+Ferme(FEN_ZROob)
+
+dbgBilanTest()

@@ -1,0 +1,38 @@
+//  : le marqueur de fatale-VM (débordement de pile) ne doit pas FUIR
+// au-delà d'un appel réentrant. Un débordement survenu au POINT D'ENTRÉE d'un
+// appel réentrant (le comparateur d'un TableauTrie ttFonction, un callback
+// UI/PDF/LLM, TableauFiltre/TableauApplique...) arme le marqueur sans passer
+// par le pont de rattrapage du dispatch. Le consommateur C avale l'échec et
+// rend la main ; si le marqueur restait armé, il fataliserait à tort la
+// PROCHAINE erreur utilisateur du même contexte d'exécution — alors qu'elle
+// est parfaitement rattrapable.
+//
+// Calibration : cmpFuite se rappelle indirectement en triant un sous-tableau à
+// chaque comparaison. Chaque niveau ajoute une frame via la frontière
+// réentrante elle-même ; le débordement se produit donc NÉCESSAIREMENT au point
+// d'entrée réentrant (et pas à un OP_CALL ordinaire, déjà couvert par le pont),
+// quel que soit le niveau de pile de départ. L'échec est avalé par le tri, le
+// tri externe se termine, puis n() (variable non-appelable) DOIT être rattrapé.
+//
+// ROUGE avant le fix (marqueur fuit → n() refusé au rattrapage → sortie fatale).
+// VERT après (marqueur effacé à la frontière → n() rattrapé).
+PROCEDURE cmpFuite(g est un entier, d est un entier)
+	sousTableau est un tableau de 2 entiers = [2, 1]
+	TableauTrie(sousTableau, ttFonction, cmpFuite)
+	RENVOYER g - d
+FIN
+
+PROCEDURE PUBLIQUE test_marqueur_fatale_ne_fuit_pas_apres_reentrant()
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		données est un tableau de 3 entiers = [3, 1, 2]
+		TableauTrie(données, ttFonction, cmpFuite)
+		nonAppelable est un entier = 5
+		r est un entier = nonAppelable()
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught",
+	"erreur USER après débordement au point d'entrée réentrant reste rattrapable")
+FIN

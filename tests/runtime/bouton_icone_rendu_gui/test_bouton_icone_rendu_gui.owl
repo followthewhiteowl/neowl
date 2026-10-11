@@ -1,0 +1,52 @@
+//  — Rendu icone sur Champ Bouton en mode GUI reel.
+//
+// Ce test utilise TestModeHeadless(Faux) + OuvreSoeur pour monter
+// les vrais widgets Qt (offscreen via QT_QPA_PLATFORM=offscreen).
+// dCopieImageChamp capture alors le rendu reel du widget Qt, y compris
+// l'application de l'icone par QPushButton::setIcon.
+//
+// Difference cle avec bouton_icone_statique_snapshot : ce dossier utilise
+// le VRAI widget (uici->widget != NULL), ce qui couvre le chemin bug/0658.
+// L'autre test (headless) utilise copie_headless_build_window qui rebuilde
+// de zero a chaque capture — chemin different qui masquait la regression.
+//
+// ROUGE ATTENDU (bug actif) : BTN_GuiAvecIcone et BTN_GuiSansIcone ont
+// le meme rendu (nbDiff = 0) car l'icone n'est pas appliquee au QPushButton
+// lors du build_window initial (regression /0651).
+// VERT APRES FIX : nbDiff > 50 (icone visible dans la capture).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_BoutonIconeGui)
+
+imgAvec est une Image = CaptureAvecIcone()
+dbgVérifieEgalité(imgAvec..Valide, Vrai, "GUI : capture BTN_GuiAvecIcone valide")
+
+imgSans est une Image = CaptureSansIcone()
+dbgVérifieEgalité(imgSans..Valide, Vrai, "GUI : capture BTN_GuiSansIcone valide")
+
+// Comparer les deux captures pixel par pixel.
+nbDiff est un entier = 0
+wG est un entier = imgAvec..Largeur
+hG est un entier = imgAvec..Hauteur
+yyG est un entier = 0
+TANTQUE yyG < hG
+	xxG est un entier = 0
+	TANTQUE xxG < wG
+		cAvecG est un entier = dPixelCouleur(imgAvec, xxG, yyG)
+		cSansG est un entier = dPixelCouleur(imgSans, xxG, yyG)
+		SI cAvecG <> cSansG ALORS
+			nbDiff = nbDiff + 1
+		FIN
+		xxG = xxG + 1
+	FIN
+	yyG = yyG + 1
+FIN
+
+// ROUGE ATTENDU : regression  -> nbDiff = 0 (captures identiques).
+// L'assertion echoue tant que le bug est present.
+dbgVérifieVrai(nbDiff > 50,
+"CAS1-BUG-GUI : BTN+icones.add vs BTN nu (mode reel) : captures different (icone rendue)")
+
+Ferme(FEN_BoutonIconeGui)
+dbgBilanTest()

@@ -1,0 +1,34 @@
+// @sujet : fRepDonnéesUtilisateur
+// @résumé : Dossier de données de l'application courante pour l'utilisateur
+// en cours (sous-dossier applicatif de fRepGlobalUtilisateur).
+
+PROCEDURE PUBLIQUE scenario_non_vide()
+	rep est une chaîne = fRepDonnéesUtilisateur()
+	dbgVérifieVrai(Taille(rep) > 0, "non vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_prefixe_repertoire_global()
+	// Ne jamais asserter un chemin en dur : l'invariant structurel est que
+	// fRepDonnéesUtilisateur COMMENCE par fRepGlobalUtilisateur, avec un
+	// séparateur puis exactement un segment supplémentaire (l'application).
+	racineGlobale est une chaîne = fRepGlobalUtilisateur()
+	data est une chaîne = fRepDonnéesUtilisateur()
+	dbgVérifieVrai(ChaîneCommencePar(data, racineGlobale) <> 0, "commence par le répertoire global utilisateur")
+
+	separateur est une chaîne = Milieu(data, Taille(racineGlobale) + 1, 1)
+	dbgVérifieEgalité(separateur, fSep(), "un séparateur suit immédiatement le répertoire global")
+
+	segment est une chaîne = Milieu(data, Taille(racineGlobale) + 2, Taille(data))
+	dbgVérifieVrai(Taille(segment) > 0, "le segment application n'est pas vide")
+	dbgVérifieEgalité(Position(segment, fSep()), 0, "un seul niveau de sous-dossier (pas de séparateur dans le segment application)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_bilingue()
+	dbgVérifieEgalité(fRepDonnéesUtilisateur(), fDataDirUser(), "fRepDonnéesUtilisateur() = fDataDirUser()")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stable()
+	rep1 est une chaîne = fRepDonnéesUtilisateur()
+	rep2 est une chaîne = fRepDonnéesUtilisateur()
+	dbgVérifieEgalité(rep1, rep2, "appels successifs stables")
+FIN

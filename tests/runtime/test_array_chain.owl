@@ -1,0 +1,77 @@
+// Tests des chain operations LINQ-like : Filtre, Transforme, Distinct,
+// Union, Intersection. Phases 1+2 : tableaux 1D + tableaux associatifs
+// (nouveauté de référence pour Filtre/Transforme).
+Trace("=== ARRAY CHAIN OPS ===")
+
+// ── Procedures callbacks (lambdas pas encore supportes en OWL) ──
+FONCTION estPair(n est un entier) : booléen
+	RENVOYER n MODULO 2 = 0
+FIN
+
+FONCTION double(n est un entier) : entier
+	RENVOYER n * 2
+FIN
+
+FONCTION valPlusCle(v est un entier, c est un entier) : entier
+	RENVOYER v + c
+FIN
+
+// ── Filtre 1D ─────────────────────────────────────────────────────
+arrT est un tableau d'entiers = [1, 2, 3, 4, 5, 6]
+pairs est un tableau d'entiers = Filtre(arrT, estPair)
+dbgVérifieEgalité(Taille(pairs), 3, "Filtre garde 3 pairs")
+dbgVérifieEgalité(pairs[1], 2, "Filtre[1] = 2")
+dbgVérifieEgalité(pairs[2], 4, "Filtre[2] = 4")
+dbgVérifieEgalité(pairs[3], 6, "Filtre[3] = 6")
+
+// Forme prefixee : arrT.Filtre(cb)
+pairs2 est un tableau d'entiers = arrT.Filtre(estPair)
+dbgVérifieEgalité(Taille(pairs2), 3, "arrT.Filtre prefixe = 3 pairs")
+
+// ── Transforme 1D ─────────────────────────────────────────────────
+tab2 est un tableau d'entiers = [1, 2, 3]
+doubles est un tableau d'entiers = Transforme(tab2, double)
+dbgVérifieEgalité(doubles[1], 2, "Transforme double[1] = 2")
+dbgVérifieEgalité(doubles[2], 4, "Transforme double[2] = 4")
+dbgVérifieEgalité(doubles[3], 6, "Transforme double[3] = 6")
+
+// Callback 2 args (valeur, cle indice base 1)
+indices est un tableau d'entiers = Transforme(tab2, valPlusCle)
+dbgVérifieEgalité(indices[1], 2, "Transforme(v,c): 1+1=2")
+dbgVérifieEgalité(indices[2], 4, "Transforme(v,c): 2+2=4")
+dbgVérifieEgalité(indices[3], 6, "Transforme(v,c): 3+3=6")
+
+// ── Distinct ──────────────────────────────────────────────────────
+brut est un tableau d'entiers = [1, 2, 1, 3, 2, 4]
+unique est un tableau d'entiers = Distinct(brut)
+dbgVérifieEgalité(Taille(unique), 4, "Distinct -> 4 elements")
+dbgVérifieEgalité(unique[1], 1, "Distinct ordre stable [1]=1")
+dbgVérifieEgalité(unique[2], 2, "Distinct [2]=2")
+dbgVérifieEgalité(unique[3], 3, "Distinct [3]=3")
+dbgVérifieEgalité(unique[4], 4, "Distinct [4]=4")
+
+// ── Union ─────────────────────────────────────────────────────────
+t1 est un tableau d'entiers = [1, 6, 1, 3]
+t2 est un tableau d'entiers = [3, 5, 8, 2]
+u est un tableau d'entiers = t1.Union(t2)
+dbgVérifieEgalité(Taille(u), 6, "Union: 6 elements (1,6,3,5,8,2)")
+dbgVérifieEgalité(u[1], 1, "Union[1]=1")
+dbgVérifieEgalité(u[2], 6, "Union[2]=6")
+dbgVérifieEgalité(u[3], 3, "Union[3]=3")
+dbgVérifieEgalité(u[4], 5, "Union[4]=5")
+
+// ── Intersection ──────────────────────────────────────────────────
+ia est un tableau d'entiers = [1, 2, 1, 3]
+ib est un tableau d'entiers = [3, 5, 8, 1]
+inter est un tableau d'entiers = ia.Intersection(ib)
+dbgVérifieEgalité(Taille(inter), 2, "Intersection: 2 elements (3, 1)")
+
+// ── Chain : Filtre + Transforme + Distinct ───────────────────────
+src est un tableau d'entiers = [1, 2, 3, 4, 5, 6]
+chain est un tableau d'entiers = src.Filtre(estPair).Transforme(double).Distinct()
+dbgVérifieEgalité(Taille(chain), 3, "chain pairs->doubles->distinct: 3 elem")
+dbgVérifieEgalité(chain[1], 4, "chain[1] = double(2) = 4")
+dbgVérifieEgalité(chain[2], 8, "chain[2] = double(4) = 8")
+dbgVérifieEgalité(chain[3], 12, "chain[3] = double(6) = 12")
+
+dbgBilanTest()

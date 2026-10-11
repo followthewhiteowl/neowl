@@ -1,0 +1,291 @@
+// Bloc A — Parser parity fixtures (axe 4.1)
+// Objectif : forcer cohérence dispatcher unique entre coerce implicite
+// et natives explicites sur TOUS formats canon acceptés.
+//
+//  phase 2 — RED attendu : 8+ paires invalides actuellement
+// silencieuses (incohérence parse_date_string vs parse_date_auto).
+
+PROCEDURE test_temporal_parser_parity_date()
+	// ===== Formats valides — cohérence coerce ↔ ChaîneVersDate =====
+
+	// Format AAAAMMJJ (8 digits strict)
+	d1 est une date = "20250101"
+	d2 est une date = ChaîneVersDate("20250101")
+	dbgVérifieEgalité(d1, d2, "AAAAMMJJ valide — cohérence coerce/explicite")
+
+	// Format JJ/MM/AAAA (cassure Q5 — compile filter pas encore étendu)
+	sJJMMAAAA est une chaîne = "01/01/2025"
+	d3 est une date = sJJMMAAAA
+	d4 est une date = ChaîneVersDate(sJJMMAAAA)
+	dbgVérifieEgalité(d3, d4, "JJ/MM/AAAA valide — cohérence post-Q5")
+
+	// Format JJ-MM-AAAA (extension Q5 — compile filter pas encore étendu)
+	sJJMMAAAATiret est une chaîne = "01-01-2025"
+	d5 est une date = sJJMMAAAATiret
+	d6 est une date = ChaîneVersDate(sJJMMAAAATiret)
+	dbgVérifieEgalité(d5, d6, "JJ-MM-AAAA valide — cohérence")
+
+	// Format AAAA-MM-JJ (ISO 8601 — extension Q5, compile filter pas encore étendu)
+	sISOTiret est une chaîne = "2025-01-01"
+	d7 est une date = sISOTiret
+	d8 est une date = ChaîneVersDate(sISOTiret)
+	dbgVérifieEgalité(d7, d8, "AAAA-MM-JJ ISO valide — cohérence")
+
+	// Format AAAA/MM/JJ (extension Q5 — compile filter pas encore étendu)
+	sISOSlash est une chaîne = "2025/01/01"
+	d9 est une date = sISOSlash
+	d10 est une date = ChaîneVersDate(sISOSlash)
+	dbgVérifieEgalité(d9, d10, "AAAA/MM/JJ valide — cohérence")
+
+	// ===== Formats invalides — ErreurDétectée symétrique =====
+
+	// Format US non supporté (MM/JJ/AAAA)
+	ErreurRAZ()
+	sInvalidUS est une chaîne = "12/31/2025"
+	d11 est une date = sInvalidUS
+	bErr1 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr1, "MM/JJ/AAAA invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	d12 est une date = ChaîneVersDate(sInvalidUS)
+	bErr2 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr2, "MM/JJ/AAAA invalide — native pose ErreurDétectée")
+
+	// Format littéral texte (non-numérique)
+	ErreurRAZ()
+	sTexteMois est une chaîne = "01-Jan-2025"
+	d13 est une date = sTexteMois
+	bErr3 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr3, "texte mois invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	d14 est une date = ChaîneVersDate(sTexteMois)
+	bErr4 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr4, "texte mois invalide — native pose ErreurDétectée")
+
+	// Mois hors-borne (13)
+	ErreurRAZ()
+	sMois13 est une chaîne = "01/13/2025"
+	d15 est une date = sMois13
+	bErr5 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr5, "mois 13 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	d16 est une date = ChaîneVersDate(sMois13)
+	bErr6 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr6, "mois 13 invalide — native pose ErreurDétectée")
+
+	// Jour hors-borne (32)
+	ErreurRAZ()
+	sJour32 est une chaîne = "32/01/2025"
+	d17 est une date = sJour32
+	bErr7 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr7, "jour 32 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	d18 est une date = ChaîneVersDate(sJour32)
+	bErr8 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr8, "jour 32 invalide — native pose ErreurDétectée")
+FIN
+
+PROCEDURE test_temporal_parser_parity_heure()
+	// ===== Formats valides Heure — cohérence coerce ↔ ChaîneVersHeure =====
+
+	// Format HHMMSS (6 digits strict)
+	h1 est une heure = "123045"
+	h2 est une heure = ChaîneVersHeure("123045")
+	dbgVérifieEgalité(h1, h2, "HHMMSS valide — cohérence coerce/explicite")
+
+	// Format HH:MM:SS
+	h3 est une heure = "12:30:45"
+	h4 est une heure = ChaîneVersHeure("12:30:45")
+	dbgVérifieEgalité(h3, h4, "HH:MM:SS valide — cohérence")
+
+	// Format HH:MM
+	h5 est une heure = "12:30"
+	h6 est une heure = ChaîneVersHeure("12:30")
+	dbgVérifieEgalité(h5, h6, "HH:MM valide — cohérence")
+
+	// Format HHMMSSCC (8 digits avec centièmes)
+	h7 est une heure = "12304500"
+	h8 est une heure = ChaîneVersHeure("12304500")
+	dbgVérifieEgalité(h7, h8, "HHMMSSCC valide — cohérence")
+
+	// ===== Formats invalides Heure — ErreurDétectée symétrique =====
+
+	// HH hors-borne (24)
+	ErreurRAZ()
+	sInvalidHH est une chaîne = "24:00:00"
+	h9 est une heure = sInvalidHH
+	bErr1 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr1, "HH=24 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	h10 est une heure = ChaîneVersHeure(sInvalidHH)
+	bErr2 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr2, "HH=24 invalide — native pose ErreurDétectée")
+
+	// MM hors-borne (60)
+	ErreurRAZ()
+	sInvalidMM est une chaîne = "12:60:00"
+	h11 est une heure = sInvalidMM
+	bErr3 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr3, "MM=60 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	h12 est une heure = ChaîneVersHeure(sInvalidMM)
+	bErr4 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr4, "MM=60 invalide — native pose ErreurDétectée")
+
+	// SS hors-borne (60)
+	ErreurRAZ()
+	sInvalidSS est une chaîne = "12:30:60"
+	h13 est une heure = sInvalidSS
+	bErr5 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr5, "SS=60 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	h14 est une heure = ChaîneVersHeure(sInvalidSS)
+	bErr6 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr6, "SS=60 invalide — native pose ErreurDétectée")
+
+	// Format texte invalide
+	ErreurRAZ()
+	sInvalidTexte est une chaîne = "midi"
+	h15 est une heure = sInvalidTexte
+	bErr7 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr7, "texte invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	h16 est une heure = ChaîneVersHeure(sInvalidTexte)
+	bErr8 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr8, "texte invalide — native pose ErreurDétectée")
+FIN
+
+PROCEDURE test_temporal_parser_parity_dateheure()
+	// ===== Formats valides DateHeure — cohérence multi-formats coerce =====
+	// NOTE : ChaîneVersDateHeure n'existe pas publiquement (coerce uniquement)
+
+	// Format ISO 8601 complet
+	dh1 est une dateheure = "2025-01-01T12:30:45"
+	dbgVérifieVrai(Vrai, "ISO 8601 valide accepté par coerce")
+
+	// Format compact AAAAMMJJHHMMSS (14 digits)
+	dh3 est une dateheure = "20250101123045"
+	dbgVérifieVrai(Vrai, "compact 14 digits valide accepté par coerce")
+
+	// Format mixte JJ/MM/AAAA HH:MM:SS (extension Q5 transitive)
+	// NOTE : sera testé post-impl dispatcher si extension propagée à DateHeure
+	// dh5 est une dateheure = "01/01/2025 12:30:45"
+
+	// Format ISO sans 'T' (espace séparateur)
+	dh7 est une dateheure = "2025-01-01 12:30:45"
+	dbgVérifieVrai(Vrai, "ISO sans T valide accepté par coerce")
+
+	// ===== Formats invalides DateHeure — ErreurDétectée =====
+
+	// Date invalide (mois 13)
+	ErreurRAZ()
+	sInvalid1 est une chaîne = "2025-13-01T12:30:45"
+	dh9 est une dateheure = sInvalid1
+	bErr1 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr1, "mois 13 invalide — coerce pose ErreurDétectée")
+
+	// Heure invalide (HH=24)
+	ErreurRAZ()
+	sInvalid2 est une chaîne = "2025-01-01T24:00:00"
+	dh11 est une dateheure = sInvalid2
+	bErr3 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr3, "HH=24 invalide — coerce pose ErreurDétectée")
+
+	// Format incomplet (date seule sans heure)
+	ErreurRAZ()
+	sInvalid3 est une chaîne = "2025-01-01"
+	dh13 est une dateheure = sInvalid3
+	bErr5 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr5, "date seule invalide — coerce pose ErreurDétectée")
+
+	// Format texte invalide
+	ErreurRAZ()
+	sInvalid4 est une chaîne = "maintenant"
+	dh15 est une dateheure = sInvalid4
+	bErr7 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr7, "texte invalide — coerce pose ErreurDétectée")
+FIN
+
+PROCEDURE test_temporal_parser_parity_duree()
+	// ===== Formats valides Durée — cohérence coerce ↔ ChaîneVersDurée =====
+
+	// Format +JHHMMSSCCC (10 digits, )
+	dur1 est une durée = "+0012304599"
+	dur2 est une durée = ChaîneVersDurée("+0012304599", duréeCentième)
+	dbgVérifieEgalité(dur1, dur2, "durée +10digits valide — cohérence")
+
+	// Format -JHHMMSSCCC (négatif)
+	dur3 est une durée = "-0012304599"
+	dur4 est une durée = ChaîneVersDurée("-0012304599", duréeCentième)
+	dbgVérifieEgalité(dur3, dur4, "durée -10digits valide — cohérence")
+
+	// Format sans millisecondes (7 digits — hors  strict, test dispatcher)
+	s7digits est une chaîne = "+0012345"
+	dur5 est une durée = s7digits
+	dur6 est une durée = ChaîneVersDurée(s7digits, duréeCentième)
+	dbgVérifieEgalité(dur5, dur6, "durée 7digits valide — cohérence")
+
+	// ===== Formats invalides Durée — ErreurDétectée symétrique =====
+
+	// HH hors-borne (24)
+	ErreurRAZ()
+	sInvalid1 est une chaîne = "+0024000000"
+	dur7 est une durée = sInvalid1
+	bErr1 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr1, "HH=24 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	dur8 est une durée = ChaîneVersDurée(sInvalid1, duréeCentième)
+	bErr2 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr2, "HH=24 invalide — native pose ErreurDétectée")
+
+	// MM hors-borne (60)
+	ErreurRAZ()
+	sInvalid2 est une chaîne = "+0012600000"
+	dur9 est une durée = sInvalid2
+	bErr3 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr3, "MM=60 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	dur10 est une durée = ChaîneVersDurée(sInvalid2, duréeCentième)
+	bErr4 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr4, "MM=60 invalide — native pose ErreurDétectée")
+
+	// SS hors-borne (60)
+	ErreurRAZ()
+	sInvalid3 est une chaîne = "+0012306000"
+	dur11 est une durée = sInvalid3
+	bErr5 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr5, "SS=60 invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	dur12 est une durée = ChaîneVersDurée(sInvalid3, duréeCentième)
+	bErr6 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr6, "SS=60 invalide — native pose ErreurDétectée")
+
+	// Format sans signe (invalide )
+	ErreurRAZ()
+	sInvalid4 est une chaîne = "0012304599"
+	dur13 est une durée = sInvalid4
+	bErr7 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr7, "sans signe invalide — coerce pose ErreurDétectée")
+
+	ErreurRAZ()
+	dur14 est une durée = ChaîneVersDurée(sInvalid4, duréeCentième)
+	bErr8 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr8, "sans signe invalide — native pose ErreurDétectée")
+FIN
+
+PROCEDURE PUBLIQUE test_temporal_parser_parity()
+	test_temporal_parser_parity_date()
+	test_temporal_parser_parity_heure()
+	test_temporal_parser_parity_dateheure()
+	test_temporal_parser_parity_duree()
+FIN

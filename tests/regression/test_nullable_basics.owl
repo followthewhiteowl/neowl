@@ -1,0 +1,62 @@
+// Regression : sémantique nullable de référence (`?` postfix et `<nullable>`).
+// Couvre :
+//   - `var = Null` doit etre accepte sur var declaree nullable -> stocke Null
+//   - `var = Null` doit etre accepte sur var non-nullable -> reset zero-typed
+//   - Comparaisons : Null = 0 numérique seulement (pas chaîne ni booléen)
+
+// Postfix `?`
+sNull est une chaîne?
+sNull = Null
+dbgVérifieVrai(sNull = Null, "chaine? acceptee Null via assignment")
+sNull = "abc"
+dbgVérifieFaux(sNull = Null, "chaine? = 'abc' != Null")
+sNull = ""
+dbgVérifieFaux(sNull = Null, "chaine? = '' != Null (canon de référence strict, distincts)")
+
+nNull est un entier?
+nNull = Null
+dbgVérifieVrai(nNull = Null, "entier? acceptee Null")
+nNull = 5
+dbgVérifieFaux(nNull = Null, "entier? = 5 != Null")
+nNull = 0
+dbgVérifieFaux(nNull = Null, "entier? = 0 != Null (sémantique stricte : 0 distinct de Null)")
+
+// Attribut `<nullable>` (forme longue de référence)
+rNull est un réel < nullable >
+rNull = Null
+dbgVérifieVrai(rNull = Null, "reel <nullable> acceptee Null")
+rNull = 3.14
+dbgVérifieFaux(rNull = Null, "reel <nullable> = 3.14 != Null")
+
+// Variant supprime — voir VISION.md §5bis "Pourquoi pas de Variant".
+// La nullabilité passe par `?` postfix ou `<nullable>` exclusivement.
+
+// Combinaison `<nullable, indetectable>` (chaine seulement)
+sSecret est une chaîne < nullable, indetectable >
+sSecret = Null
+dbgVérifieVrai(sSecret = Null, "chaine <nullable,indetectable> acceptee Null")
+
+// Etat NON-INIT — sémantique OWL stricte :
+//   - var non-nullable typée : zero-typed ("", 0, Faux, ...). Compare Null = FAUX.
+//   - var nullable (`?` ou `<nullable>`) : Null. Compare Null = VRAI.
+// La distinction est nette : seul un nullable peut tenir Null.
+
+sStrict est une chaîne
+sNullableInit est une chaîne?
+nStrict est un entier
+nNullableInit est un entier?
+bStrict est un booléen
+bNullableInit est un booléen?
+
+dbgVérifieFaux(sStrict = Null, "strict chaine non-init != Null")
+dbgVérifieVrai(sNullableInit = Null, "nullable chaine non-init = Null")
+dbgVérifieFaux(nStrict = Null, "strict entier non-init (=0) != Null")
+dbgVérifieVrai(nNullableInit = Null, "nullable entier non-init = Null")
+dbgVérifieFaux(bStrict = Null, "strict booleen non-init (=Faux) != Null")
+dbgVérifieVrai(bNullableInit = Null, "nullable booleen non-init = Null")
+
+// Reaffecter zero-value puis Null sur nullable : transitions doivent marcher
+sNullableInit = "x"
+dbgVérifieFaux(sNullableInit = Null, "nullable assigne 'x' != Null")
+sNullableInit = Null
+dbgVérifieVrai(sNullableInit = Null, "nullable reassigne Null")

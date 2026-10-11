@@ -1,0 +1,957 @@
+// @sujet : AWSRequête
+// @résumé : Signe (AWS4-HMAC-SHA256) et envoie une requête vers un service AWS quelconque, à partir d'une AWSSession, d'un service (∈ awsService) et d'une action. Retourne la réponse décodée en JSON.
+
+
+// Mock partagé : AWSRequête signe puis délègue l'envoi réseau à HTTPEnvoie.
+// On intercepte cette dépendance externe pour rester déterministe (pas de
+// vrai appel AWS en test), exactement comme pour httpRequête. Le mock est
+// volontairement un catch-all : il ne vérifie pas ici le contenu exact de
+// la requête signée (en-têtes SigV4, cadrage protocole) — cette vérification
+// est hors de portée de ce fichier.
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat            = 200
+	rep..DescriptionCodeEtat = "OK"
+	rep..ContentType         = "application/x-amz-json-1.0"
+	// Corps en Buffer : c'est la forme que restitue l'envoi réseau réel pour
+	// un corps de réponse. La native doit décoder aussi bien un Buffer qu'une
+	// chaîne, sans quoi la réponse revient null.
+	rep..Contenu             = ChaîneVersBuffer(`{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:user/Alice","UserId":"AIDACKCEVSQ6C2EXAMPLE"}`)
+
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Desactive()
+FIN
+
+
+// Cas canonique : un appel STS GetCallerIdentity (protocole query) délègue à
+// HTTPEnvoie et restitue la réponse décodée. STS répond en XML (protocole
+// query), la réponse est donc décodée en JSON générique, accessible via le
+// chemin d'éléments imbriqués.
+PROCEDURE scenario_appel_sts_getcalleridentity()
+	// Le corps partagé d'avantChaqueTest est du JSON : valable pour un service
+	// json (DynamoDB) mais pas pour STS, qui répond en XML. On re-mocke ici
+	// localement une réponse XML réaliste.
+	repSts est un httpRéponse
+	repSts..CodeEtat = 200
+	repSts..Contenu  = ChaîneVersBuffer(`<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/"><GetCallerIdentityResult><Arn>arn:aws:iam::123456789012:user/Alice</Arn><UserId>AIDACKCEVSQ6C2EXAMPLE</UserId><Account>123456789012</Account></GetCallerIdentityResult><ResponseMetadata><RequestId>r1</RequestId></ResponseMetadata></GetCallerIdentityResponse>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repSts).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	rep est un JSON = AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	dbgVérifieEgalité(rep.GetCallerIdentityResponse.GetCallerIdentityResult.Account, "123456789012", "compte AWS restitué depuis la réponse XML STS décodée")
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 1), "AWSRequête délègue exactement une fois à HTTPEnvoie")
+FIN
+
+
+// Repli chaîne libre : une action non résolue via la table de symboles
+// reste utilisable telle quelle (validée au littéral, pas au symbole).
+PROCEDURE scenario_action_chaine_libre()
+	sess est une AWSSession
+	sess..Région     = "eu-west-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"TableName":"Clients","Key":{"id":{"S":"42"}}}`)
+	rep est un JSON = AWSRequête(sess, awsDynamoDB, "GetItem", corps)
+
+	dbgVérifieEgalité(rep.Account, "123456789012", "réponse mockée restituée telle quelle")
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 1), "action en repli chaîne libre délègue tout de même à HTTPEnvoie")
+FIN
+
+
+// Un jeton de session présent sur l'AWSSession n'empêche pas l'appel
+// d'aboutir (le jeton part en en-tête X-Amz-Security-Token — non vérifiable
+// dans ce fichier faute de mécanisme d'introspection, cf. rapport ticket).
+// STS répond en XML : on re-mocke localement une réponse XML réaliste.
+PROCEDURE scenario_appel_avec_jeton_session()
+	repSts est un httpRéponse
+	repSts..CodeEtat = 200
+	repSts..Contenu  = ChaîneVersBuffer(`<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/"><GetCallerIdentityResult><Arn>arn:aws:iam::123456789012:user/Alice</Arn><UserId>AIDACKCEVSQ6C2EXAMPLE</UserId><Account>123456789012</Account></GetCallerIdentityResult><ResponseMetadata><RequestId>r1</RequestId></ResponseMetadata></GetCallerIdentityResponse>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repSts).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "ASIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	sess..Jeton      = "AQoDYXdzEJr...EXAMPLETOKEN"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	rep est un JSON = AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	dbgVérifieEgalité(rep.GetCallerIdentityResponse.GetCallerIdentityResult.Account, "123456789012", "réponse XML STS restituée malgré la présence d'un jeton de session")
+FIN
+
+
+// Décodage query : un service au protocole query (IAM) répond en XML, comme
+// STS. La réponse, corps XML en Buffer, est décodée en JSON générique et
+// accessible via le chemin d'éléments imbriqués — même traitement que rest-xml.
+PROCEDURE scenario_protocole_query_decode()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<ListUsersResponse xmlns="https://iam.amazonaws.com/doc/2010-05-08/"><ListUsersResult><IsTruncated>false</IsTruncated><Users><member><UserName>alice</UserName></member></Users></ListUsersResult><ResponseMetadata><RequestId>r2</RequestId></ResponseMetadata></ListUsersResponse>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	rep est un JSON = AWSRequête(sess, awsIAM, "ListUsers", corps)
+
+	dbgVérifieEgalité(rep.ListUsersResponse.ListUsersResult.IsTruncated, "false", "élément à texte seul de la réponse query XML décodé en valeur JSON")
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 1), "AWSRequête query délègue exactement une fois à HTTPEnvoie")
+FIN
+
+
+// Cas limite défensif : deux appels successifs comptent bien deux
+// délégations distinctes à HTTPEnvoie (pas de mise en cache implicite).
+PROCEDURE PRIVÉE scenario_deux_appels_successifs()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 2), "deux appels AWSRequête, deux délégations HTTPEnvoie")
+FIN
+
+
+// Signature SigV4 complète : Authorization porte l'algorithme, les
+// identifiants, les en-têtes signés et la signature ; X-Amz-Date est au
+// format horodaté AAAAMMJJTHHMMSSZ ; X-Amz-Content-Sha256 est renseigné.
+PROCEDURE scenario_entetes_sigv4_presents()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+
+	sAutorisation est une chaîne = req..Entête["Authorization"]
+	dbgVérifieVrai(Contient(sAutorisation, "AWS4-HMAC-SHA256"), "algorithme SigV4 annoncé dans Authorization")
+	dbgVérifieVrai(Contient(sAutorisation, "Credential="), "identifiants présents dans Authorization")
+	dbgVérifieVrai(Contient(sAutorisation, "SignedHeaders="), "liste des en-têtes signés présente dans Authorization")
+	dbgVérifieVrai(Contient(sAutorisation, "Signature="), "signature présente dans Authorization")
+
+	sDate est une chaîne = req..Entête["X-Amz-Date"]
+	dbgVérifieEgalité(Taille(sDate), 16, "X-Amz-Date au format AAAAMMJJTHHMMSSZ")
+	dbgVérifieVrai(Contient(sDate, "T"), "séparateur entre date et heure dans X-Amz-Date")
+	dbgVérifieEgalité(Droite(sDate, 1), "Z", "suffixe Z de X-Amz-Date")
+
+	dbgVérifieDifférence(req..Entête["X-Amz-Content-Sha256"], "", "empreinte du corps présente sur la requête signée")
+FIN
+
+
+// Jeton de session : présent sur l'AWSSession, il part en en-tête
+// X-Amz-Security-Token avec sa valeur exacte.
+PROCEDURE scenario_jeton_session_ajoute_entete()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "ASIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	sess..Jeton      = "AQoDYXdzEJr...EXAMPLETOKEN"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Entête["X-Amz-Security-Token"], "AQoDYXdzEJr...EXAMPLETOKEN", "jeton de session transmis en en-tête")
+FIN
+
+
+// Sans jeton de session sur l'AWSSession, aucun en-tête
+// X-Amz-Security-Token n'est émis.
+PROCEDURE scenario_sans_jeton_pas_entete_token()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Entête["X-Amz-Security-Token"], "", "aucun jeton de session, aucun en-tête émis")
+FIN
+
+
+// Cadrage protocole JSON (DynamoDB) : Content-Type dédié et cible
+// annoncée dans X-Amz-Target sous la forme <préfixe>.<Action>.
+PROCEDURE scenario_protocole_json_dynamodb()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"TableName":"Clients","Key":{"id":{"S":"42"}}}`)
+	AWSRequête(sess, awsDynamoDB, awsDynamoDBGetItem, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..ContentType, "application/x-amz-json-1.0", "protocole JSON 1.0 pour DynamoDB")
+
+	sCible est une chaîne = req..Entête["X-Amz-Target"]
+	dbgVérifieVrai(Contient(sCible, "."), "X-Amz-Target combine un préfixe de cible et l'action")
+	dbgVérifieEgalité(Droite(sCible, Taille("GetItem")), "GetItem", "X-Amz-Target se termine par le nom de l'action")
+FIN
+
+
+// Cadrage protocole query (STS) : le corps part en
+// application/x-www-form-urlencoded, pas en JSON.
+PROCEDURE scenario_protocole_query_sts()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..ContentType, "application/x-www-form-urlencoded", "protocole query en form-urlencoded pour STS")
+FIN
+
+
+// Endpoint par défaut : dérivé du service et de la région, sans
+// override sur la session.
+PROCEDURE scenario_endpoint_par_defaut()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "sts.us-east-1.amazonaws.com"), "endpoint par défaut dérivé du service et de la région")
+FIN
+
+
+// Endpoint personnalisé : un override posé sur ..Endpoint remplace le
+// calcul par défaut.
+PROCEDURE scenario_endpoint_override_utilise()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	sess..Endpoint   = "https://sts.local-test.example.com"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "sts.local-test.example.com"), "endpoint personnalisé utilisé au lieu du défaut")
+FIN
+
+
+// Cadrage protocole query pour EC2 : comme STS, le corps part en
+// application/x-www-form-urlencoded sous la forme Action=...&Version=...,
+// pas en JSON. L'argument corps n'est pas sérialisé dans ce mode.
+PROCEDURE scenario_protocole_ec2_query()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsEC2, awsEC2DescribeInstances, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..ContentType, "application/x-www-form-urlencoded", "protocole query en form-urlencoded pour EC2")
+	dbgVérifieVrai(CommencePar(req..Contenu, "Action=DescribeInstances"), "corps EC2 encodé en query, action en tête")
+	dbgVérifieVrai(Contient(req..Contenu, "Version=2016-11-15"), "version d'API EC2 présente dans le corps query")
+FIN
+
+
+// Cadrage protocole rest-json pour API Gateway : méthode et URI portées par
+// l'action (CreateRestApi = POST /restapis), corps sérialisé en JSON avec le
+// Content-Type application/json.
+PROCEDURE scenario_protocole_rest_json_apigateway()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"name":"demo"}`)
+	AWSRequête(sess, awsAPIGateway, awsAPIGatewayCreateRestApi, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..ContentType, "application/json", "protocole rest-json en application/json pour API Gateway")
+	dbgVérifieVrai(FinitPar(req..URL, "/restapis"), "URI de l'action portée par la table de modèles")
+	dbgVérifieVrai(CommencePar(req..Contenu, "{"), "corps rest-json sérialisé en JSON")
+FIN
+
+
+// Chemin paramétré rest-json : une action à URI `{param}` (GetRestApi =
+// GET /restapis/{restapi_id}) substitue le placeholder par la valeur du
+// champ homonyme du corps, URI-encodée. Le champ consommé est retiré du
+// corps sérialisé (il n'apparaît pas dans le body JSON).
+PROCEDURE scenario_rest_json_placeholder_substitue()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"restapi_id":"abc123"}`)
+	AWSRequête(sess, awsAPIGateway, awsAPIGatewayGetRestApi, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "/restapis/abc123"), "placeholder de chemin substitué par la valeur du corps")
+	dbgVérifieFaux(Contient(req..URL, "{restapi_id}"), "placeholder littéral absent de l'URL finale")
+	dbgVérifieFaux(Contient(req..Contenu, "restapi_id"), "champ consommé par le chemin retiré du corps sérialisé")
+FIN
+
+
+// Encodage URI d'une valeur de placeholder contenant un caractère réservé :
+// une valeur `a b/c` produit un segment pourcent-encodé (%20, %2F).
+PROCEDURE scenario_rest_json_placeholder_encode()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"restapi_id":"a b/c"}`)
+	AWSRequête(sess, awsAPIGateway, awsAPIGatewayGetRestApi, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "/restapis/a%20b%2Fc"), "valeur de placeholder URI-encodée dans l'URL")
+FIN
+
+
+// Non-régression : une action rest-json SANS placeholder (CreateRestApi =
+// POST /restapis) produit l'URI telle quelle, sans altération.
+PROCEDURE scenario_rest_json_sans_placeholder_inchange()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"name":"demo"}`)
+	AWSRequête(sess, awsAPIGateway, awsAPIGatewayCreateRestApi, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(FinitPar(req..URL, "/restapis"), "URI sans placeholder inchangée")
+	dbgVérifieFaux(Contient(req..URL, "{"), "aucun placeholder résiduel dans l'URL")
+FIN
+
+
+// Cas d'erreur : un placeholder de chemin requis sans valeur correspondante
+// dans le corps remonte une erreur détectable, sans délégation réseau.
+PROCEDURE scenario_rest_json_placeholder_manquant_erreur()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	ErreurRAZ()
+	AWSRequête(sess, awsAPIGateway, awsAPIGatewayGetRestApi, corps)
+
+	dbgVérifieVrai(ErreurDétectée, "placeholder de chemin sans valeur remonte une erreur")
+FIN
+
+
+// L'en-tête Host n'est pas posé manuellement dans la requête : la couche
+// d'envoi le dérive de l'URL. La native ne le duplique pas dans ..Entête.
+PROCEDURE scenario_host_non_duplique_dans_entete()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsSTS, awsSTSGetCallerIdentity, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Entête["Host"], "", "Host non dupliqué dans les en-têtes de la requête")
+FIN
+
+
+// Cadrage rest-json avec identité de signature dédiée : Bedrock Runtime signe
+// sous le service « bedrock » (distinct de son préfixe d'endpoint), l'endpoint
+// est dérivé du préfixe et de la région, et l'identifiant de modèle porté par
+// le corps est substitué au placeholder de chemin {modelId} de l'action
+// InvokeModel (POST /model/{modelId}/invoke).
+PROCEDURE scenario_bedrock_runtime_invoke_model()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"modelId":"anthropic.claude-v2","prompt":"Bonjour"}`)
+	AWSRequête(sess, awsBedrockRuntime, awsBedrockRuntimeInvokeModel, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "bedrock-runtime.us-east-1.amazonaws.com"), "endpoint dérivé du préfixe bedrock-runtime et de la région")
+	dbgVérifieVrai(Contient(req..URL, "/model/anthropic.claude-v2/invoke"), "identifiant de modèle substitué au placeholder de chemin")
+	dbgVérifieFaux(Contient(req..URL, "{modelId}"), "placeholder littéral absent de l'URL finale")
+	dbgVérifieEgalité(req..ContentType, "application/json", "protocole rest-json en application/json pour Bedrock Runtime")
+	dbgVérifieFaux(Contient(req..Contenu, "modelId"), "champ consommé par le chemin retiré du corps sérialisé")
+	dbgVérifieVrai(Contient(req..Contenu, "prompt"), "champs restants conservés dans le corps JSON")
+
+	sAutorisation est une chaîne = req..Entête["Authorization"]
+	dbgVérifieVrai(Contient(sAutorisation, "/bedrock/aws4_request"), "portée de signature sur le service bedrock")
+FIN
+
+
+// Cadrage et décodage rest-xml : un service rest-xml (Route 53) est utilisable
+// via le générique. La réponse, dont le corps est un Buffer XML, est décodée en
+// JSON générique — élément à texte seul → valeur, enfants de même nom répétés →
+// tableau — accessible comme un document JSON quelconque.
+PROCEDURE scenario_protocole_rest_xml_decode()
+	repXml est un httpRéponse
+	repXml..CodeEtat            = 200
+	repXml..DescriptionCodeEtat = "OK"
+	repXml..ContentType         = "application/xml"
+	repXml..Contenu             = ChaîneVersBuffer(`<Result><Item>a</Item><Item>b</Item><Name>x</Name></Result>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	rep est un JSON = AWSRequête(sess, awsRoute53, awsRoute53ListHostedZones, corps)
+
+	dbgVérifieEgalité(rep.Result.Name, "x", "élément à texte seul décodé en valeur JSON")
+	dbgVérifieEgalité(rep.Result.Item[1], "a", "premier élément répété décodé en entrée de tableau JSON")
+	dbgVérifieEgalité(rep.Result.Item[2], "b", "second élément répété décodé en entrée de tableau JSON")
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 1), "AWSRequête rest-xml délègue exactement une fois à HTTPEnvoie")
+FIN
+
+
+// Cadrage requête rest-xml : la méthode et l'URI de l'action sont portées par la
+// table de modèles (ListHostedZones = GET /2013-04-01/hostedzone), l'endpoint est
+// dérivé du préfixe et de la région, et le Content-Type est adapté au protocole.
+PROCEDURE scenario_protocole_rest_xml_cadrage()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<Result><Name>x</Name></Result>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsRoute53, awsRoute53ListHostedZones, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(FinitPar(req..URL, "/2013-04-01/hostedzone"), "URI de l'action portée par la table de modèles")
+	// Route 53 est un service global : hôte unique sans segment de région.
+	dbgVérifieVrai(Contient(req..URL, "route53.amazonaws.com"), "endpoint global adressé sur son hôte unique")
+	dbgVérifieFaux(Contient(req..URL, "route53.us-east-1"), "aucun segment de région dans l'hôte d'un service global")
+	dbgVérifieEgalité(req..ContentType, "application/xml", "Content-Type adapté au protocole rest-xml")
+FIN
+
+
+// Sérialisation du corps d'une écriture rest-xml (S3 PutBucketTagging) : une
+// opération à input structuré (structure imbriquée + liste de structures)
+// produit un corps XML (au lieu du corps vide des lectures). Le placeholder de
+// chemin {Bucket} est consommé depuis le corps (il finit dans l'URL, pas dans le
+// corps XML). Quand l'input désigne un membre porteur du corps, la racine XML
+// est ce membre (ici Tagging), pas un conteneur au nom de la requête : ses
+// propres membres deviennent les enfants directs de la racine. La liste sort en
+// éléments répétés (Tag) sous son conteneur (TagSet), les membres scalaires sous
+// leur nom XML, et la racine porte l'espace de noms par défaut exigé par le
+// service. L'empreinte du corps signée (X-Amz-Content-Sha256) porte sur ce corps.
+PROCEDURE scenario_rest_xml_ecriture_serialise_corps()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<PutBucketTaggingResponse/>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau","Tagging":{"TagSet":[{"Key":"env","Value":"prod"},{"Key":"team","Value":"core"}]}}`)
+	AWSRequête(sess, awsS3, awsS3PutBucketTagging, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps est une chaîne = req..Contenu
+
+	dbgVérifieEgalité(req..ContentType, "application/xml", "Content-Type rest-xml pour l'écriture")
+	dbgVérifieVrai(CommencePar(sCorps, `<Tagging xmlns="http://s3.amazonaws.com/doc/2006-03-01/">`), "racine = membre payload (Tagging) porteur de l'espace de noms par défaut")
+	dbgVérifieVrai(Contient(sCorps, `xmlns="http://s3.amazonaws.com/doc/2006-03-01/"`), "espace de noms S3 émis sur l'élément racine")
+	dbgVérifieEgalité(Contient(sCorps, "PutBucketTaggingRequest"), Faux, "pas de conteneur au nom du request-shape : la racine est le membre payload")
+	dbgVérifieVrai(Contient(sCorps, "<TagSet><Tag><Key>env</Key><Value>prod</Value></Tag><Tag><Key>team</Key><Value>core</Value></Tag></TagSet>"), "liste sérialisée en éléments répétés (Tag) sous son conteneur (TagSet)")
+	dbgVérifieVrai(Contient(sCorps, "<Key>env</Key>"), "membre scalaire sous son nom XML")
+	dbgVérifieVrai(FinitPar(sCorps, "</Tagging>"), "fermeture de l'élément racine (membre payload)")
+	dbgVérifieEgalité(Contient(sCorps, "mon-seau"), Faux, "le placeholder de chemin {Bucket} ne fuit pas dans le corps XML")
+	dbgVérifieDifférence(req..Entête["X-Amz-Content-Sha256"], "", "empreinte du corps XML présente sur la requête signée")
+FIN
+
+
+// Non-régression rest-xml LECTURE : une opération sans input (S3
+// GetBucketTagging, GET) n'a pas de descripteur de sérialisation et conserve un
+// corps vide, même quand le corps JSON porte le placeholder de chemin {Bucket}.
+PROCEDURE scenario_rest_xml_lecture_corps_vide()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<Tagging><TagSet/></Tagging>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau"}`)
+	AWSRequête(sess, awsS3, awsS3GetBucketTagging, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Contenu, "", "lecture rest-xml sans input : corps vide (pas de descripteur)")
+FIN
+
+
+// Méthode HTTP d'une écriture rest-xml : une action PUT (S3 PutBucketTagging =
+// PUT /{Bucket}?tagging) est envoyée avec le verbe PUT, pas replié sur POST. La
+// sous-ressource `?tagging` de l'URI est conservée dans l'URL réellement émise.
+PROCEDURE scenario_rest_xml_put_methode_et_sous_ressource()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<PutBucketTaggingResponse/>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau","Tagging":{"TagSet":[{"Key":"env","Value":"prod"}]}}`)
+	AWSRequête(sess, awsS3, awsS3PutBucketTagging, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Méthode, httpPut, "méthode PUT préservée (non repliée sur POST)")
+	dbgVérifieVrai(Contient(req..URL, "?tagging"), "sous-ressource ?tagging conservée dans l'URL émise")
+FIN
+
+
+// Méthode HTTP d'une suppression rest-xml : une action DELETE (S3 DeleteBucket =
+// DELETE /{Bucket}) est envoyée avec le verbe DELETE, pas replié sur POST.
+PROCEDURE scenario_rest_xml_delete_methode()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<Response/>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau"}`)
+	AWSRequête(sess, awsS3, awsS3DeleteBucket, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Méthode, httpDelete, "méthode DELETE préservée (non repliée sur POST)")
+FIN
+
+
+// Non-régression LECTURE rest-xml : une action GET (S3 ListBuckets = GET /) reste
+// envoyée avec le verbe GET après la correction du mappage des méthodes.
+PROCEDURE scenario_rest_xml_get_methode()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<ListAllMyBucketsResult><Buckets/></ListAllMyBucketsResult>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsS3, awsS3ListBuckets, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Méthode, httpGet, "méthode GET préservée (non-régression lecture)")
+FIN
+
+
+// Empreinte de corps rest-xml : une écriture à corps non vide (S3
+// PutBucketTagging) porte un en-tête Content-MD5, exigé par le service pour
+// cette classe d'écritures. L'en-tête est présent et non vide sur la requête
+// signée réellement émise.
+PROCEDURE scenario_rest_xml_ecriture_content_md5_present()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<PutBucketTaggingResponse/>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau","Tagging":{"TagSet":[{"Key":"env","Value":"prod"}]}}`)
+	AWSRequête(sess, awsS3, awsS3PutBucketTagging, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieDifférence(req..Entête["Content-MD5"], "", "empreinte Content-MD5 présente sur l'écriture rest-xml à corps non vide")
+FIN
+
+
+// Non-régression : une lecture rest-xml sans corps (S3 GetBucketTagging, GET)
+// ne porte pas d'en-tête Content-MD5 — on ne signe pas de checksum de corps
+// quand il n'y a pas de corps.
+PROCEDURE scenario_rest_xml_lecture_pas_de_content_md5()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<Tagging><TagSet/></Tagging>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau"}`)
+	AWSRequête(sess, awsS3, awsS3GetBucketTagging, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Entête["Content-MD5"], "", "lecture rest-xml sans corps : aucun Content-MD5 émis")
+FIN
+
+
+// Format blob à l'écriture rest-xml : un membre de corps de type blob (CloudFront
+// CreateFunction porte FunctionCode) est sérialisé encodé en base64 dans le corps
+// XML, pas en texte brut. Les scalaires ordinaires du même corps (Name) restent
+// en texte brut. base64("hello") = "aGVsbG8=".
+PROCEDURE scenario_rest_xml_ecriture_blob_base64()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<CreateFunctionResult/>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Name":"maFonction","FunctionCode":"hello"}`)
+	AWSRequête(sess, awsCloudFront, awsCloudFrontCreateFunction, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps est une chaîne = req..Contenu
+
+	dbgVérifieVrai(Contient(sCorps, "<FunctionCode>aGVsbG8=</FunctionCode>"), "membre blob sérialisé en base64 dans le corps XML")
+	dbgVérifieEgalité(Contient(sCorps, "<FunctionCode>hello</FunctionCode>"), Faux, "le blob n'est pas émis en texte brut")
+	dbgVérifieVrai(Contient(sCorps, "<Name>maFonction</Name>"), "scalaire ordinaire du même corps reste en texte brut")
+FIN
+
+
+// Blob VIDE à l'écriture rest-xml : un membre blob à chaîne vide doit produire un
+// élément vide, jamais de la mémoire non initialisée. base64("") == "", donc
+// l'encodeur ne touche pas son buffer de sortie — le cas vide est court-circuité
+// en amont pour émettre directement un contenu vide.
+PROCEDURE scenario_rest_xml_ecriture_blob_vide()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<CreateFunctionResult/>`)
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Name":"maFonction","FunctionCode":""}`)
+	AWSRequête(sess, awsCloudFront, awsCloudFrontCreateFunction, corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps est une chaîne = req..Contenu
+
+	dbgVérifieVrai(Contient(sCorps, "<FunctionCode></FunctionCode>"), "blob vide sérialisé en élément vide, sans mémoire non initialisée")
+	dbgVérifieVrai(Contient(sCorps, "<Name>maFonction</Name>"), "scalaire ordinaire du même corps reste en texte brut")
+FIN
+
+
+// Service global (IAM) : l'endpoint ne porte pas la région. Quelle que soit la
+// région de la session, un service global s'adresse à son hôte unique
+// (iam.amazonaws.com), sans segment de région dans le nom d'hôte.
+PROCEDURE scenario_service_global_endpoint_sans_region()
+	sess est une AWSSession
+	sess..Région     = "eu-central-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsIAM, "ListRoles", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "iam.amazonaws.com"), "service global adressé sur son hôte unique sans région")
+	dbgVérifieFaux(Contient(req..URL, "eu-central-1"), "aucun segment de région dans l'hôte d'un service global")
+FIN
+
+
+// Portée de signature d'un service global : les services globaux de la partition
+// aws signent dans la portée us-east-1, indépendamment de la région de la
+// session. Le scope de credentials porté par Authorization le reflète.
+PROCEDURE scenario_service_global_scope_signature_us_east_1()
+	sess est une AWSSession
+	sess..Région     = "eu-central-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsIAM, "ListRoles", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sAutorisation est une chaîne = req..Entête["Authorization"]
+	dbgVérifieVrai(Contient(sAutorisation, "/us-east-1/iam/aws4_request"), "portée de signature forcée sur us-east-1 pour un service global")
+	dbgVérifieFaux(Contient(sAutorisation, "/eu-central-1/"), "la région de session n'apparaît pas dans la portée de signature d'un service global")
+FIN
+
+
+// Sérialisation query — champ scalaire : une opération query à corps non vide
+// (IAM CreateUser) sérialise ses paramètres dans le corps form-urlencoded, en
+// plus des paires Action et Version toujours présentes en tête.
+PROCEDURE scenario_query_corps_scalaire()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"UserName":"bob"}`)
+	AWSRequête(sess, awsIAM, "CreateUser", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(CommencePar(req..Contenu, "Action=CreateUser"), "action en tête du corps query")
+	dbgVérifieVrai(Contient(req..Contenu, "Version=2010-05-08"), "version d'API IAM présente dans le corps query")
+	dbgVérifieVrai(Contient(req..Contenu, "UserName=bob"), "paramètre scalaire sérialisé dans le corps query")
+FIN
+
+
+// Sérialisation query — objet imbriqué : un champ objet {A:{B:v}} est aplati en
+// une clé de chemin pointée A.B, sans point de tête au niveau racine.
+PROCEDURE scenario_query_corps_objet_imbrique()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"A":{"B":"v"}}`)
+	AWSRequête(sess, awsIAM, "CreateUser", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..Contenu, "A.B=v"), "objet imbriqué aplati en clé de chemin pointée")
+FIN
+
+
+// Sérialisation query — liste de scalaires : une liste [x,y] devient une suite
+// de clés indexées 1-based sous le conteneur .member (convention query).
+PROCEDURE scenario_query_corps_liste_scalaires()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"L":["x","y"]}`)
+	AWSRequête(sess, awsIAM, "CreateUser", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..Contenu, "L.member.1=x"), "premier élément de liste indexé sous .member")
+	dbgVérifieVrai(Contient(req..Contenu, "L.member.2=y"), "second élément de liste indexé sous .member")
+FIN
+
+
+// Sérialisation query — liste de structures : chaque entrée porte ses membres
+// scalaires sous son index .member.<i>.<Membre>.
+PROCEDURE scenario_query_corps_liste_structures()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Filters":[{"Name":"n","Value":"v"}]}`)
+	AWSRequête(sess, awsIAM, "CreateUser", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..Contenu, "Filters.member.1.Name=n"), "membre de structure listée sous index .member")
+	dbgVérifieVrai(Contient(req..Contenu, "Filters.member.1.Value=v"), "second membre de la structure listée")
+FIN
+
+
+// Sérialisation ec2 — liste de structures : le protocole ec2 aplatit les listes
+// SANS le conteneur .member (index directement sur le préfixe).
+PROCEDURE scenario_ec2_corps_liste_sans_member()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Filters":[{"Name":"n"}]}`)
+	AWSRequête(sess, awsEC2, "DescribeInstances", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..Contenu, "Filters.1.Name=n"), "liste ec2 indexée directement, sans .member")
+	dbgVérifieFaux(Contient(req..Contenu, ".member."), "aucun conteneur .member en protocole ec2")
+FIN
+
+
+// Sérialisation query — encodage RFC3986 : une valeur porteuse de caractères
+// réservés (espace, slash) est pourcent-encodée dans le corps.
+PROCEDURE scenario_query_corps_encodage_valeur()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Path":"/a b"}`)
+	AWSRequête(sess, awsIAM, "CreateUser", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..Contenu, "Path=%2Fa%20b"), "valeur pourcent-encodée dans le corps query")
+FIN
+
+
+// Non-régression query — corps vide : une opération sans paramètre conserve un
+// corps réduit aux seules paires Action et Version, sans paire supplémentaire.
+PROCEDURE scenario_query_corps_vide_inchange()
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsIAM, "CreateUser", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Contenu, "Action=CreateUser&Version=2010-05-08", "corps réduit à Action et Version sans paramètre")
+FIN
+
+
+// Non-régression régional : un service régional (DynamoDB) conserve l'endpoint
+// dérivé du préfixe et de la région de session, et signe dans cette même région.
+PROCEDURE scenario_service_regional_non_regression()
+	sess est une AWSSession
+	sess..Région     = "eu-central-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	AWSRequête(sess, awsDynamoDB, "ListTables", corps)
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(Contient(req..URL, "dynamodb.eu-central-1.amazonaws.com"), "service régional : endpoint dérivé du préfixe et de la région")
+	sAutorisation est une chaîne = req..Entête["Authorization"]
+	dbgVérifieVrai(Contient(sAutorisation, "/eu-central-1/dynamodb/"), "service régional : signature dans la région de session")
+FIN
+
+
+// Décodage rest-xml d'une liste à UN SEUL élément : le membre TagSet (liste de
+// structures Tag) doit décoder DIRECTEMENT en tableau à 1 entrée — pas en objet
+// intermédiaire portant une clé "Tag". Comparaison sur la sérialisation minifiée
+// exacte : discrimine sans ambiguïté le tableau ciblé de l'objet-conteneur
+// aujourd'hui produit par le décodage schéma-less (`{"Tag":{...}}`), pour lequel
+// une comparaison de taille seule serait trompeuse (un objet à 1 clé a aussi
+// une taille de 1).
+PROCEDURE scenario_rest_xml_liste_un_element_decode_tableau()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<Tagging xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><TagSet><Tag><Key>env</Key><Value>prod</Value></Tag></TagSet></Tagging>`)
+	mockHttp         = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau"}`)
+	rep est un JSON = AWSRequête(sess, awsS3, awsS3GetBucketTagging, corps)
+
+	dbgVérifieEgalité(JSONVersChaîne(rep.Tagging.TagSet, psdMinifie), `[{"Key":"env","Value":"prod"}]`, "TagSet à un seul Tag décode en tableau direct, pas en objet-conteneur")
+FIN
+
+
+// Décodage rest-xml d'une liste à DEUX éléments : même exigence de forme que le
+// cas à 1 élément — TagSet doit être le tableau lui-même, pas un objet-conteneur
+// `{"Tag":[...]}`. Le fix qui rend le cas à 1 élément conforme doit produire la
+// MÊME forme quel que soit le nombre d'entrées.
+PROCEDURE scenario_rest_xml_liste_deux_elements_decode_tableau()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<Tagging xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><TagSet><Tag><Key>env</Key><Value>prod</Value></Tag><Tag><Key>team</Key><Value>core</Value></Tag></TagSet></Tagging>`)
+	mockHttp         = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON(`{"Bucket":"mon-seau"}`)
+	rep est un JSON = AWSRequête(sess, awsS3, awsS3GetBucketTagging, corps)
+
+	dbgVérifieEgalité(JSONVersChaîne(rep.Tagging.TagSet, psdMinifie), `[{"Key":"env","Value":"prod"},{"Key":"team","Value":"core"}]`, "TagSet à deux Tag décode en tableau direct à 2 éléments")
+FIN
+
+
+// Décodage query (IAM ListUsers) d'une liste à UN SEUL élément : le membre-liste
+// Users décode DIRECTEMENT en tableau (forme boto3 « hoist »), le nom
+// d'élément répété `member` étant consommé — pas `{"member":{...}}` ni
+// `{"member":[...]}`. Même piège schéma-less que rest-xml, sur le protocole
+// query — comparaison exacte pour ne pas se faire piéger par une taille d'objet
+// à 1 clé qui coïnciderait avec la taille de tableau attendue.
+PROCEDURE scenario_query_liste_un_element_decode_tableau()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<ListUsersResponse xmlns="https://iam.amazonaws.com/doc/2010-05-08/"><ListUsersResult><IsTruncated>false</IsTruncated><Users><member><UserName>alice</UserName></member></Users></ListUsersResult><ResponseMetadata><RequestId>r2</RequestId></ResponseMetadata></ListUsersResponse>`)
+	mockHttp         = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	rep est un JSON = AWSRequête(sess, awsIAM, "ListUsers", corps)
+
+	dbgVérifieEgalité(JSONVersChaîne(rep.ListUsersResponse.ListUsersResult.Users, psdMinifie), `[{"UserName":"alice"}]`, "Users à un seul membre décode en tableau direct (forme boto3), pas en objet-conteneur")
+FIN
+
+
+// Décodage query (IAM ListUsers) d'une liste VIDE : Users sans aucun <member>
+// décode en tableau vide `[]`, pas en chaîne vide "" ni null — même forme que
+// les cas à 1 et N éléments (Users EST le tableau, forme boto3 « hoist »),
+// juste avec 0 entrée.
+PROCEDURE scenario_query_liste_vide_decode_tableau_vide()
+	repXml est un httpRéponse
+	repXml..CodeEtat = 200
+	repXml..Contenu  = ChaîneVersBuffer(`<ListUsersResponse xmlns="https://iam.amazonaws.com/doc/2010-05-08/"><ListUsersResult><IsTruncated>false</IsTruncated><Users></Users></ListUsersResult><ResponseMetadata><RequestId>r2</RequestId></ResponseMetadata></ListUsersResponse>`)
+	mockHttp         = MockCrée(HTTPEnvoie).Quand().Retourne(repXml).Active()
+
+	sess est une AWSSession
+	sess..Région     = "us-east-1"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+	corps est un JSON = ChaîneVersJSON("{}")
+	rep est un JSON = AWSRequête(sess, awsIAM, "ListUsers", corps)
+
+	dbgVérifieEgalité(JSONVersChaîne(rep.ListUsersResponse.ListUsersResult.Users, psdMinifie), `[]`, "Users vide décode en tableau direct vide, pas en chaîne vide ni null")
+FIN

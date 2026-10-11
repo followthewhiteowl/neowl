@@ -1,0 +1,58 @@
+// Test du contrat SQL côté OWL via mocks — déterministe, zéro réseau,
+// rapide (<100ms). Vérifie que :
+//   1. SQLConnexionOuvre/SQLEnvoie peuvent être mockés via MockCrée
+//   2. Le contrat de retour est respecté (booleen pour Ouvre, sqlReponse
+//      pour Envoie)
+//   3. Le code OWL peut tester ses propres chemins erreur sans avoir un
+//      vrai serveur PG up.
+//
+// La validation transport réelle (TCP, SSL, auth, wire protocol) vit dans
+// owl --self-test-net (C).
+//
+// Note d'usage : le mock OWL intercepte les fonctions par leur nom canon
+// (SQLConnexionOuvre, SQLEnvoie) mais PAS les formes méthode équivalentes
+// (.Ouvre(), .Envoie()). On utilise donc la forme fonction.
+
+// --- 1. Mock SQLConnexionOuvre → simule un échec (serveur indispo) ---
+// Le mock intercepte par nom canon ; on n'a donc PAS besoin d'un vrai
+// serveur. Le test reste rapide (<100ms) sans toucher au réseau.
+mockOuvre est un MockNative = MockCrée(SQLConnexionOuvre)
+MockQuand(mockOuvre)
+MockAvec(mockOuvre, MockTout)
+MockRetourne(mockOuvre, Faux)
+MockActive(mockOuvre)
+
+cnx est une sqlConnexion
+cnx..Provider      = sqlPostgres
+cnx..Serveur       = "10.255.255.1" // adresse arbitraire — mock ignore
+cnx..Utilisateur   = "alice"
+cnx..MotDePasse    = "secret"
+cnx..BaseDeDonnées = "test"
+
+res est un booléen = SQLConnexionOuvre(cnx)
+dbgVérifieEgalité(res, Faux, "mock SQLConnexionOuvre retourne Faux")
+MockVérifieAppelé(mockOuvre)
+MockDésactive(mockOuvre)
+
+
+// --- 3. Vérifie le contrat des fields cnx — Provider/Serveur/Utilisateur ---
+dbgVérifieEgalité(cnx..Provider, sqlPostgres, "Provider lu")
+dbgVérifieEgalité(cnx..Serveur, "10.255.255.1", "Serveur lu")
+dbgVérifieEgalité(cnx..Utilisateur, "alice", "Utilisateur lu")
+dbgVérifieEgalité(cnx..MotDePasse, "secret", "MotDePasse lu")
+dbgVérifieEgalité(cnx..BaseDeDonnées, "test", "BaseDeDonnees lu")
+
+
+// --- 4. Vérifie le contrat sqlRequete ---
+req est une sqlRequête
+req..Code = "SELECT 1"
+dbgVérifieEgalité(req..Code, "SELECT 1", "sqlRequete.Code lu")
+
+
+// --- 5. SQLEnvoie sur cnx non-ouverte (sans mock) — chemin direct ---
+// La cnx n'est pas réellement ouverte (les mocks ont juste retourné
+// Vrai/Faux sans toucher au runtime). SQLEnvoie doit échouer proprement.
+rep est une sqlRéponse = SQLEnvoie(cnx, req)
+dbgVérifieEgalité(rep..Succès, Faux, "SQLEnvoie sans cnx ouverte echec")
+
+dbgBilanTest()

@@ -1,0 +1,87 @@
+// @sujet : DateHeureVersRéel
+// @resume : Convertit une DateHeure en réel (Excel days — partie entière = jour, décimale = heure)
+
+// ============================================================================
+// PROCEDURES PUBLIQUES (vitrine owl examples)
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_nominal_1900()
+	// Base 1900 (défaut) : 01/01/1900 minuit = 1.0
+	// 03/01/1900 06h00 = jour 3 + 6h/24h = 3.25
+
+	dh est un dateheure = "190001030600"
+	res est un réel = DateHeureVersRéel(dh)
+
+	// Vérification partie entière (jour)
+	dbgVérifieVrai(Abs(res - 3.25) < 0.0001, "03 janvier 1900 06h00 donne 3.25 en base 1900")
+FIN
+
+PROCEDURE PUBLIQUE scenario_base_1904()
+	// Base 1904 : 01/01/1904 minuit = 0.0
+	// 03/01/1904 12h00 = jour 2 + 12h/24h = 2.5
+
+	dh est un dateheure = "190401031200"
+	res est un réel = DateHeureVersRéel(dh, Vrai)
+
+	dbgVérifieVrai(Abs(res - 2.5) < 0.0001, "03 janvier 1904 12h00 donne 2.5 en base 1904")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	// Variante forme méthode : <dateheure>.DateHeureVersReel()
+
+	dh est un dateheure = "190001050900"
+	res est un réel = dh.DateHeureVersRéel()
+
+	// 05/01/1900 09h00 = jour 5 + 9h/24h = 5.375
+	dbgVérifieVrai(Abs(res - 5.375) < 0.0001, "forme methode donne 5.375")
+FIN
+
+// ============================================================================
+// PROCEDURES PRIVEES (edge cases verrouillés)
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_invalide()
+	// Date invalide → -1
+
+	sBad est une chaîne = "999999999999"
+	dhInv est un dateheure = sBad
+	res est un réel = DateHeureVersRéel(dhInv)
+
+	dbgVérifieEgalité(res,-1.0, "date invalide retourne -1")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_partie_decimale()
+	// Vérifier précision de la partie décimale (temps)
+	// Minuit = 0.0, midi = 0.5, 18h = 0.75
+
+	dhMinuit est un dateheure = "190001100000"
+	dhMidi est un dateheure = "190001101200"
+	dh18h est un dateheure = "190001101800"
+
+	resMinuit est un réel = DateHeureVersRéel(dhMinuit)
+	resMidi est un réel = DateHeureVersRéel(dhMidi)
+	res18h est un réel = DateHeureVersRéel(dh18h)
+
+	// 10/01/1900 minuit = 10.0
+	dbgVérifieVrai(Abs(resMinuit - 10.0) < 0.0001, "minuit donne partie decimale 0.0")
+
+	// 10/01/1900 midi = 10.5
+	dbgVérifieVrai(Abs(resMidi - 10.5) < 0.0001, "midi donne partie decimale 0.5")
+
+	// 10/01/1900 18h = 10.75
+	dbgVérifieVrai(Abs(res18h - 10.75) < 0.0001, "18h donne partie decimale 0.75")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_premier_jour()
+	// Premier jour base 1900 : 01/01/1900 minuit = 1.0
+	// Premier jour base 1904 : 01/01/1904 minuit = 0.0
+
+	dh1900 est un dateheure = "190001010000"
+	dh1904 est un dateheure = "190401010000"
+
+	res1900 est un réel = DateHeureVersRéel(dh1900, Faux)
+	res1904 est un réel = DateHeureVersRéel(dh1904, Vrai)
+
+	dbgVérifieVrai(Abs(res1900 - 1.0) < 0.0001, "premier jour 1900 donne 1.0")
+	dbgVérifieVrai(Abs(res1904 - 0.0) < 0.0001, "premier jour 1904 donne 0.0")
+FIN

@@ -1,0 +1,131 @@
+//  : une propriété inconnue sur une collection (tableau, Vecteur,
+// Matrice, tableau associatif) doit lever une exception récupérable — comme
+// les chaînes — au lieu de renvoyer Null en silence. La faute de frappe sur
+// une propriété (..Occurence au lieu de ..Occurrence) devient détectable.
+
+
+// ==================== CAS 1 : propriété inconnue -> exception ====================
+// ROUGE tant que le Null muet n'est pas remplacé par le comportement strict.
+
+PROCEDURE PUBLIQUE test_tableau_propriete_inconnue_leve_exception()
+	t est un tableau de 2 réels
+	t[1] = 1.0
+	t[2] = 2.0
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est un réel = t..Nimporte
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau..PropInconnue lève une exception")
+FIN
+
+
+PROCEDURE PUBLIQUE test_vecteur_propriete_inconnue_leve_exception()
+	v est un Vecteur = [1.0, 2.0]
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est un réel = v..Typo
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Vecteur..PropInconnue lève une exception")
+FIN
+
+
+PROCEDURE PUBLIQUE test_tableau_associatif_propriete_inconnue_leve_exception()
+	assoc est un tableau associatif de entiers
+	assoc["a"] = 1
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est un entier = assoc..Bidon
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau associatif..PropInconnue lève une exception")
+FIN
+
+
+// --- Edge cases proactifs (mandat fort en tests/regression, cf. skill
+//     what-test-to-write §2bis) ---
+
+PROCEDURE PUBLIQUE test_matrice_propriete_inconnue_leve_exception()
+	arrTab est un tableau = [[1.0, 2.0], [3.0, 4.0]]
+	m est une Matrice = TableauVersMatrice(arrTab)
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est un entier = m..Bidon
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Matrice..PropInconnue lève une exception")
+FIN
+
+
+PROCEDURE PUBLIQUE test_tableau_vide_propriete_inconnue_leve_exception()
+	t est un tableau de réels = []
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est un réel = t..Nimporte
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau vide..PropInconnue lève une exception aussi")
+FIN
+
+
+PROCEDURE PUBLIQUE test_tableau_associatif_vide_propriete_inconnue_leve_exception()
+	assoc est un tableau associatif de chaînes
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est une chaîne = assoc..Bidon
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau associatif vide..PropInconnue lève une exception aussi")
+FIN
+
+
+// ==================== NON-RÉGRESSION : propriétés valides inchangées ====================
+// VERT dès maintenant, doit rester VERT après l'implémentation du strict.
+
+PROCEDURE PUBLIQUE test_non_regression_tableau_proprietes_valides()
+	t est un tableau de 2 réels
+	t[1] = 1.0
+	t[2] = 2.0
+	dbgVérifieEgalité(t..Occurrence, 2, "tableau..Occurrence toujours valide")
+	dbgVérifieFaux(t..Vide, "tableau..Vide toujours valide")
+FIN
+
+
+PROCEDURE PUBLIQUE test_non_regression_vecteur_proprietes_valides()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	dbgVérifieEgalité(v..Taille, 3, "Vecteur..Taille toujours valide")
+	dbgVérifieFaux(v..Vide, "Vecteur..Vide toujours valide")
+
+	arrVide est un tableau de réels = []
+	vVide est un Vecteur = TableauVersVecteur(arrVide)
+	dbgVérifieVrai(vVide..Vide, "Vecteur vide ..Vide = Vrai toujours valide")
+FIN
+
+
+PROCEDURE PUBLIQUE test_non_regression_tableau_associatif_proprietes_valides()
+	assoc est un tableau associatif de chaînes
+	assoc["x"] = "y"
+	dbgVérifieEgalité(assoc..Occurrence, 1, "tableau associatif..Occurrence toujours valide")
+	dbgVérifieFaux(assoc..Vide, "tableau associatif..Vide toujours valide")
+FIN
+
+
+PROCEDURE PUBLIQUE test_non_regression_matrice_proprietes_valides()
+	arrTab est un tableau = [[1.0, 2.0], [3.0, 4.0]]
+	m est une Matrice = TableauVersMatrice(arrTab)
+	dbgVérifieEgalité(m..Lignes, 2, "Matrice..Lignes toujours valide")
+	dbgVérifieEgalité(m..Colonnes, 2, "Matrice..Colonnes toujours valide")
+FIN

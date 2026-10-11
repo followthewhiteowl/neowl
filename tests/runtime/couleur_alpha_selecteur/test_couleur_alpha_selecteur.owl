@@ -1,0 +1,78 @@
+//  (LOT 3) — opacité sur les couleurs du Champ Sélecteur stylé.
+// Trou d'ingestion connu : CadrePuce..CouleurFond, TexteOptions..Couleur et
+// Puce..Couleur sont tous lus via `instance_get_int(x, "...", -1)`, qui
+// renvoie -1 (« non posé ») sur une instance Couleur -> la couleur translucide
+// est totalement ignorée (rond/texte/marque gardent leur rendu par défaut) au
+// lieu du mélange attendu.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Comptage de pixels à la couleur exacte sur une zone large
+// (patron  test_style_interrupteur_options_rendu.owl /
+// test_style_interrupteur_texte_pixel.owl), plus robuste qu'un point unique
+// sur une petite puce ronde de 16px.
+//
+// Fond de fenêtre ROUGE PUR (255,0,0). Couleur testée : VERT translucide,
+// Opacité=128 -> {Rouge=0, Vert=255, Bleu=0, Opacité=128}.
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg=VERT (0,255,0), bg=ROUGE (255,0,0), a=128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertMelange est un entier = RVB(127, 128, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CouleurAlphaSelecteur)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaSelecteur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. CadrePuce..CouleurFond : témoin opaque + alpha ----------------------
+nbPuceOpaque est un entier = CompteCouleurZone(img, 20, 20, 540, 80, vertOpaque)
+dbgVérifieVrai(nbPuceOpaque > 5,
+"SEL_PuceOpaque : Style..CadrePuce..CouleurFond = RVB(0,255,0) (entier nu opaque) : rond vert, non-régression")
+
+nbPuceAlpha est un entier = CompteCouleurZone(img, 20, 90, 540, 150, vertMelange)
+dbgVérifieVrai(nbPuceAlpha > 5,
+"SEL_PuceAlpha : Style..CadrePuce..CouleurFond = <Couleur Opacité=128> : rond mélangé avec le fond rouge de la fenêtre")
+
+// --- 2. TexteOptions..Couleur : témoin opaque + alpha -----------------------
+nbTexteOpaque est un entier = CompteCouleurZone(img, 20, 160, 540, 220, vertOpaque)
+dbgVérifieVrai(nbTexteOpaque > 30,
+"SEL_TexteOpaque : Style..TexteOptions..Couleur = RVB(0,255,0) (entier nu opaque) : texte vert, non-régression")
+
+nbTexteAlpha est un entier = CompteCouleurZone(img, 20, 230, 540, 290, vertMelange)
+dbgVérifieVrai(nbTexteAlpha > 30,
+"SEL_TexteAlpha : Style..TexteOptions..Couleur = <Couleur Opacité=128> : texte mélangé avec le fond rouge de la fenêtre")
+
+// --- 3. Puce..Couleur (marque sélectionnée) : témoin opaque + alpha --------
+nbMarqueOpaque est un entier = CompteCouleurZone(img, 20, 300, 540, 360, vertOpaque)
+dbgVérifieVrai(nbMarqueOpaque > 5,
+"SEL_MarqueOpaque : Style..Puce..Couleur = RVB(0,255,0) (entier nu opaque, option sélectionnée) : marque verte, non-régression")
+
+nbMarqueAlpha est un entier = CompteCouleurZone(img, 20, 370, 540, 410, vertMelange)
+dbgVérifieVrai(nbMarqueAlpha > 5,
+"SEL_MarqueAlpha : Style..Puce..Couleur = <Couleur Opacité=128> (option sélectionnée) : marque mélangée avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaSelecteur)
+dbgBilanTest()

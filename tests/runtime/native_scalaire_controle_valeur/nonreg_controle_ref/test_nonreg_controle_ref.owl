@@ -1,0 +1,38 @@
+//  — NON-RÉGRESSION : les contextes RÉFÉRENCE reçoivent le contrôle,
+// jamais la valeur déballée.
+//
+// Le déballage owl_instance_default_unwrap ne doit pas affecter :
+//   1. TestSimuleSouris(BTN_Ok552)   → ref contrôle, déclenche Clic()
+//   2. TestSimuleSaisie(SAI_Input552, "...")  → ref contrôle, écrit ..Valeur
+//
+// Symétrique du pattern tests/runtime/controle_propriete_defaut/nonreg_controle_ref/.
+TestModeHeadless(Vrai)
+
+nClicObs552 est un entier = 0
+
+PROCEDURE cb_clic552(n est un entier)
+	nClicObs552 = n
+FIN
+
+Ouvre(FEN_RefCtrl)
+
+// Pré-condition : aucun clic.
+LireClicCount552()
+dbgVérifieEgalité(nClicObs552, 0, "Aucun clic initial")
+
+// 1. TestSimuleSouris : reçoit le contrôle BTN_Ok552, pas sa valeur.
+TestSimuleSouris(BTN_Ok552, ClicGauche)
+LireClicCount552()
+dbgVérifieEgalité(nClicObs552, 1, "TestSimuleSouris reçoit le contrôle : Clic() déclenché")
+
+// 2. TestSimuleSaisie : reçoit le contrôle SAI_Input552, écrit ..Valeur.
+TestSimuleSaisie(SAI_Input552, "ref_ok")
+dbgVérifieEgalité(SAI_Input552..Valeur, "ref_ok", "TestSimuleSaisie écrit via ref contrôle")
+
+// 3. Assignation ..Valeur explicite inchangée.
+SAI_Input552..Valeur = "explicit"
+dbgVérifieEgalité(SAI_Input552..Valeur, "explicit", "Assignation ..Valeur explicite inchangée")
+
+Ferme(FEN_RefCtrl)
+
+dbgBilanTest()

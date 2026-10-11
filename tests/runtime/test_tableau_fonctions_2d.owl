@@ -1,0 +1,73 @@
+// Coverage Dimension() et fonctions stdlib tableau sur 2D nested.
+// Documentation de référence (Dimension).
+//
+// Sémantique OWL (nested): Dimension(tab) = ..Occurrence (nb lignes).
+// Pour le total éléments 2D, utiliser tab..Occurrence * tab[1]..Occurrence ou
+// itérer manuellement.
+
+// ============================================================================
+// Dimension(tab) — 1D : équivalent à ..Occurrence
+// ============================================================================
+t1 est un tableau de 5 entiers
+dbgVérifieEgalité(Dimension(t1), 5, "Dimension 1D fixe")
+
+t2 est un tableau de chaînes
+Ajoute(t2, "a")
+Ajoute(t2, "b")
+dbgVérifieEgalité(Dimension(t2), 2, "Dimension 1D dyn après 2 Ajoute")
+
+// ============================================================================
+// Dimension(tab) — 2D : nombre TOTAL d'éléments (conforme au comportement de référence)
+// "Pour un tableau de 5 par 3 entiers, le résultat sera 15 (5 * 3)"
+// ============================================================================
+t3 est un tableau de 3 par 4 entiers
+dbgVérifieEgalité(Dimension(t3), 12, "Dimension 2D = total = 3*4 = 12 (documentation de référence)")
+dbgVérifieEgalité(Dimension(t3[1]), 4, "Dimension ligne = nb cols = 4")
+
+// Pour obtenir lignes/cols séparément : TableauInfo avec tiNombreLignes/Colonnes
+dbgVérifieEgalité(TableauInfo(t3, tiNombreLignes), 3, "tiNombreLignes = 3")
+dbgVérifieEgalité(TableauInfo(t3, tiNombreColonnes), 4, "tiNombreColonnes = 4")
+
+// ============================================================================
+// Dimension(tab, r, c) — redim 2D
+// ============================================================================
+t4 est un tableau de 2 par 3 entiers
+t4[1, 1] = 1
+t4[1, 2] = 2
+Dimension(t4, 4, 5)
+// Après resize : 4 lignes × 5 cols = 20 cellules total
+dbgVérifieEgalité(Dimension(t4), 20, "resize: 4*5 = 20 cellules totales")
+dbgVérifieEgalité(TableauInfo(t4, tiNombreLignes), 4, "4 lignes")
+dbgVérifieEgalité(TableauInfo(t4, tiNombreColonnes), 5, "5 cols")
+dbgVérifieEgalité(t4[1, 1], 1, "valeur préservée après resize up")
+dbgVérifieEgalité(t4[1, 2], 2, "valeur préservée après resize up")
+
+// Redim down
+t5 est un tableau de 5 par 5 entiers
+t5[1, 1] = 99
+Dimension(t5, 2, 2)
+dbgVérifieEgalité(Dimension(t5), 4, "resize down: 2*2 = 4 total")
+dbgVérifieEgalité(TableauInfo(t5, tiNombreLignes), 2, "2 lignes")
+dbgVérifieEgalité(t5[1, 1], 99, "valeur [1,1] préservée")
+
+// ============================================================================
+// Dimension(tab, n) — redim 1D
+// ============================================================================
+t6 est un tableau de chaînes
+Ajoute(t6, "a")
+Dimension(t6, 5)
+dbgVérifieEgalité(Dimension(t6), 5, "resize 1D à 5")
+
+// ============================================================================
+// Autres fonctions stdlib sur tableau 2D (opèrent sur la dim externe)
+// ============================================================================
+t7 est un tableau de 3 par 2 entiers
+t7[1, 1] = 10
+t7[1, 2] = 20
+t7[2, 1] = 30
+t7[3, 1] = 50
+
+// ..Occurrence = lignes
+dbgVérifieEgalité(t7..Occurrence, 3, "..Occurrence = lignes")
+
+dbgBilanTest()

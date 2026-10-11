@@ -1,0 +1,72 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille Etats/impression
+// (, Track A - module ui_catalog, enums i*).
+//
+// Verrouille le contrat bilingue : referencer une constante d'enum
+// Etats/impression par sa forme EN canon (nameEN pose dans le registre)
+// resout vers EXACTEMENT la meme valeur sentinelle que la forme FR canon.
+// La forme EN est un alias runtime-only (mirror de l'alias ASCII), pas une
+// 2e entree de registre.
+//
+// Formes EN issues du canon documentaire (PAS inventees) — plusieurs sont
+// contre-intuitives (iBarre->iStrikeOut, iContinu->iContinuous,
+// iPDFGenerique->iGenericPDF, iAffichageNormal->iNormalDisplay).
+//
+// Couples couverts (FR canon -> nameEN), un par enum cible :
+//   iStyle       : iGras        -> iBold
+//   iStyle       : iBarré       -> iStrikeOut
+//   iTrait       : iContinu     -> iContinuous
+//   iBord        : iBordGauche  -> iBorderLeft
+//   iAlignement  : iDroite      -> iRight
+//   iEchelle     : iAffichageNormal -> iNormalDisplay
+//   iDestination : iPDFGénérique -> iGenericPDF
+//
+// Deux couches d'assertion par couple : EN == FR, ET EN == valeur exacte.
+// =============================================================================
+
+PROCEDURE scenario_const_etats_en_resout_vers_fr()
+	// --- iStyle (combinable bitwise, ancrage par ecart base-independant) ---
+	dbgVérifieEgalité(iBold, iGras,
+	"iBold resout vers la meme valeur que iGras")
+	// iGras = base+1, iNormal = base+0 : ecart stable a 1.
+	dbgVérifieEgalité(iBold - iNormal, 1,
+	"iBold ancre la sentinelle base+1 par rapport a iNormal")
+
+	dbgVérifieEgalité(iStrikeOut, iBarré,
+	"iStrikeOut resout vers la meme valeur que iBarré")
+	// iStyle est combinable bitwise : Gras=+1, Italique=+2, Souligné=+4,
+	// Barré=+8. L'ecart Barré-Normal vaut donc le bit 8.
+	dbgVérifieEgalité(iStrikeOut - iNormal, 8,
+	"iStrikeOut ancre le bit bitwise 8 par rapport a iNormal")
+
+	// --- iTrait ---
+	dbgVérifieEgalité(iContinuous, iContinu,
+	"iContinuous resout vers la meme valeur que iContinu")
+	// iTiret = base+1, iContinu = base+0 : ecart stable a 1.
+	dbgVérifieEgalité(iDashed - iContinuous, 1,
+	"iDashed ancre la sentinelle base+1 par rapport a iContinuous")
+
+	// --- iBord ---
+	dbgVérifieEgalité(iBorderLeft, iBordGauche,
+	"iBorderLeft resout vers la meme valeur que iBordGauche")
+	// iBordGauche = base+3 (Tous/Haut/Bas/Gauche).
+	dbgVérifieEgalité(iBorderLeft - iBordTous, 3,
+	"iBorderLeft ancre la sentinelle base+3 par rapport a iBordTous")
+
+	// --- iAlignement (bitmask absolu) ---
+	dbgVérifieEgalité(iRight, iDroite,
+	"iRight resout vers la meme valeur que iDroite")
+	dbgVérifieEgalité(iRight, 2,
+	"iRight ancre la valeur bitmask 0x02")
+
+	// --- iEchelle ---
+	dbgVérifieEgalité(iNormalDisplay, iAffichageNormal,
+	"iNormalDisplay resout vers la meme valeur que iAffichageNormal")
+
+	// --- iDestination ---
+	dbgVérifieEgalité(iGenericPDF, iPDFGénérique,
+	"iGenericPDF resout vers la meme valeur que iPDFGénérique")
+	// iPDFGénérique = base+1, iImprimante = base+0 : ecart stable a 1.
+	dbgVérifieEgalité(iGenericPDF - iImprimante, 1,
+	"iGenericPDF ancre la sentinelle base+1 par rapport a iImprimante")
+FIN

@@ -1,0 +1,44 @@
+// Repro  : events de champ EN non câblés au runtime.
+//
+// Le compilateur accepte onLeftButtonDown/onClick sur Control Image/Button
+// (reconnaissance bilingue OK, cf. diagnostic ticket), mais le câblage/
+// dispatch runtime ne les branche pas : TestSimuleSouris reste no-op.
+// Le témoin FR équivalent (test_fr/test_event_champ_bilingue_fr.owl) est
+// vert avec la même structure.
+//
+// Statut attendu (pré-impl) : PARTIEL —
+//   - onLeftButtonDown (coordonnées) : ROUGE. gX/gY restent à -99 (callback
+//     jamais invoqué), PAS de crash ni d'erreur compile.
+//   - onClick (sans coordonnées, Bouton) : déjà VERT aujourd'hui — ce
+//     chemin passe par une résolution FR/EN littérale distincte qui, pour
+//     ce cas précis, matche par coïncidence de nommage. Conservé comme
+//     témoin de non-régression, pas comme repro du bug.
+// Statut attendu (post-impl) : VERT sur toute la ligne, à parité stricte
+// avec le FR.
+
+TestModeHeadless(Vrai)
+
+gX est un entier = -99
+gY est un entier = -99
+gBoutonClique est un booléen = Faux
+
+PROCEDURE callback_image_clic(nX est un entier, nY est un entier)
+	gX = nX
+	gY = nY
+FIN
+
+PROCEDURE callback_bouton_clic()
+	gBoutonClique = Vrai
+FIN
+
+Ouvre(FEN_EventChampEN)
+
+TestSimuleSouris(IMG_Canvas, BoutonGauche, 12, 34)
+dbgVérifieEgalité(gX, 12, "onLeftButtonDown (EN) reçoit x")
+dbgVérifieEgalité(gY, 34, "onLeftButtonDown (EN) reçoit y")
+
+TestSimuleSouris(BTN_OK, ClicGauche)
+dbgVérifieVrai(gBoutonClique, "onClick (EN) déclenché")
+
+Ferme(FEN_EventChampEN)
+dbgBilanTest()

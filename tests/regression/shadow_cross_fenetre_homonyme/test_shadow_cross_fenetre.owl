@@ -1,0 +1,33 @@
+//  — REGRESSION : deux fenetres voisines avec controles homonymes.
+//
+// BUG : la passe shadow cross-fichier (, compiler.c ~3494-3563)
+// emet faussement E_SEM_VAR_SHADOWS_OUTER_SCOPE quand deux fichiers-fenetre
+// voisins declarent un controle de meme nom (ex: LIB_Statut, BTN_Rejouer).
+// Chaque fenetre a son propre espace de noms de controles — la collision est
+// fictive. Le trigger le plus net : controle presente apres une PROCEDURE
+// (forward-ref prescan) dans l'un ou l'autre fichier.
+//
+// ETAT ATTENDU :
+//   ROUGE jusqu'au  (compilateur rejette LIB_Statut / BTN_Rejouer
+//   comme masquant les controles homonymes de la fenetre voisine).
+//   VERT apres le fix.
+//
+// GARDE-FOU : ne pas confondre avec le cas LEGITIME (controle masquant une
+// vraie VARIABLE globale top-level voisine) couvert par
+// tests/compile-error/var_shadows_global_by_fen_field/ — celui-la doit
+// rester rouge.
+
+TestModeHeadless(Vrai)
+
+// Ouverture de FENF_A : doit compiler proprement ({"errors":[]}).
+// Rouge actuellement : "La declaration de 'LIB_Statut' masque l'identifiant
+// 'LIB_Statut' declare au top-level (ligne X)" — faux positif.
+Ouvre(FENF_A)
+Ferme(FENF_A)
+
+// Ouverture de FENF_B : meme symptome.
+Ouvre(FENF_B)
+Ferme(FENF_B)
+
+dbgVérifieVrai(Vrai, "Les deux fenetres avec controles homonymes compilent sans erreur shadow")
+dbgBilanTest()

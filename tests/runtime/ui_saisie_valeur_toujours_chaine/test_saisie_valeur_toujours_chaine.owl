@@ -1,0 +1,56 @@
+// ..Valeur d'un Champ de Saisie est figee chaine au runtime. Quel que soit
+// le type ecrit par programme (entier, reel, booleen, chaine), la relecture
+// renvoie TOUJOURS une chaine — coherent avec le type chaine declare au
+// catalogue et avec la saisie utilisateur (qui rend deja une chaine).
+//
+// Piege historique : `SAI..Valeur = 42` conservait l'entier brut dans le
+// store, donc `SAI..Valeur + 1` valait 43 (arithmetique) alors que la meme
+// Saisie alimentee au clavier rendait "42" et `+ 1` concatenait en "421".
+// Mismatch leve ici : la valeur stockee/relue est coercee en chaine.
+//
+// Sonde de type non ambigue : l'operateur `+` est dispatche au runtime selon
+// le type des operandes. `chaine + 1` concatene ("421"), `entier + 1` additionne
+// (43). L'egalite OWL coerce string<->nombre, donc comparer la valeur brute a
+// "42" ne distinguerait pas l'entier 42 de la chaine "42" ; on passe par `+ 1`.
+//
+// Decision booleen : la coercion suit la chaine OWL standard (ce que produit
+// `"" + Vrai`), soit "1" / "0" — pas "Vrai" / "Faux".
+
+TestModeHeadless(Vrai)
+
+Trace("=== fix/0549 — Saisie ..Valeur toujours chaine ===")
+
+Ouvre(FEN_S)
+
+// --- Cas 1 : entier par programme ---
+SAI_S..Valeur = 42
+dbgVérifieEgalité(SAI_S..Valeur + 1, "421", "entier ecrit -> relu chaine, pas additionne")
+dbgVérifieEgalité(SAI_S..Valeur, "42", "entier ecrit -> valeur chaine 42")
+dbgVérifieEgalité(Val(SAI_S..Valeur), 42, "Val() reste le moyen explicite vers le nombre")
+
+// --- Cas 2 : reel par programme ---
+SAI_S..Valeur = 3.14
+dbgVérifieEgalité(SAI_S..Valeur + "x", "3.14x", "reel ecrit -> relu chaine 3.14")
+
+// --- Cas 3 : booleen par programme (coercion chaine OWL : Vrai -> "1") ---
+SAI_S..Valeur = Vrai
+dbgVérifieEgalité(SAI_S..Valeur + "x", "1x", "booleen Vrai ecrit -> chaine 1")
+SAI_S..Valeur = Faux
+dbgVérifieEgalité(SAI_S..Valeur + "x", "0x", "booleen Faux ecrit -> chaine 0")
+
+// --- Cas 4 : chaine inchangee (deja chaine) ---
+SAI_S..Valeur = "abc"
+dbgVérifieEgalité(SAI_S..Valeur + "1", "abc1", "chaine ecrite -> inchangee")
+
+// --- Cas 5 : vide inchange (non-regression ) ---
+SAI_S..Valeur = ""
+v est une chaîne = SAI_S..Valeur
+dbgVérifieEgalité(v, "", "vidage -> chaine vide")
+dbgVérifieVrai(v = "", "vidage compare egal a la chaine vide")
+dbgVérifieEgalité(Taille(v), 0, "vidage : Taille 0")
+
+Ferme(FEN_S)
+
+Trace("=== Fin fix/0549 ===")
+
+dbgBilanTest()

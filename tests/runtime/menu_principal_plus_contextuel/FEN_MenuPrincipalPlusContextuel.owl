@@ -1,0 +1,87 @@
+// Ressource fenetre — voisin de test_menu_principal_plus_contextuel.owl.
+// Combo : une MEME fenetre porte a la fois une barre de menu (MenuPrincipal)
+// ET deux menus contextuels (un attache au FOND de la fenetre, un attache a un
+// champ Saisie avec raccourci). C'est la configuration qui plante au show()
+// natif (validee cote dev) et qu'aucune ressource de test ne couvrait :
+// menu_contextuel_raccourci a les deux contextuels mais PAS de MenuPrincipal.
+
+FEN_MenuPrincipalPlusContextuel est une Fenêtre
+	PROPRIETES
+		Titre          = "Combo barre + contextuel"
+		Largeur        = 400
+		Hauteur        = 220
+		Disposition    = dispLibre
+		MenuContextuel = MNU_Fond
+		MenuPrincipal  = MNU_Barre
+	FIN
+
+	// Barre de menu classique, avec un survol stylé (le point sensible du
+	// rendu natif) et un sous-menu porteur d'une option.
+	MNU_Barre est un MenuPrincipal
+		PROPRIETES
+			Style..Barre..Etats[survol]..CouleurFond = RougeClair
+			Style..SousMenu..CouleurFond             = RougeClair
+			Style..OptionMenu..Couleur               = OrangeClair
+		FIN
+		SM_Fichier est un SousMenu
+			PROPRIETES
+				Libellé = "Fichier"
+			FIN
+			OPT_Quitter est une OptionMenu
+				PROPRIETES
+					Libellé = "Quitter"
+				FIN
+				PROCEDURE surSélection()
+					callback_barre()
+				FIN
+			FIN
+		FIN
+	FIN
+
+	// Menu contextuel attaché au champ Saisie (raccourci persistant F4).
+	MNU_Edition est un MenuContextuel
+		PROPRIETES
+			Style..SousMenu..CouleurFond = Blanc
+			Style..SousMenu..Arrondi     = 8
+		FIN
+		OPT_Action est une OptionMenu
+			PROPRIETES
+				Libellé   = "Action"
+				Raccourci = "F4"
+			FIN
+			PROCEDURE surSélection()
+				callback_champ(MoiMême..Nom)
+			FIN
+		FIN
+	FIN
+
+	// Menu contextuel attaché au FOND de la fenêtre (raccourci F6).
+	MNU_Fond est un MenuContextuel
+		PROPRIETES
+			Style..SousMenu..CouleurFond = Blanc
+			Style..SousMenu..Arrondi     = 8
+		FIN
+		OPT_ActionFond est une OptionMenu
+			PROPRIETES
+				Libellé   = "ActionFond"
+				Raccourci = "F6"
+			FIN
+			PROCEDURE surSélection()
+				callback_fond()
+			FIN
+		FIN
+	FIN
+
+	ZS_Zone est un Champ Saisie
+		PROPRIETES
+			X              = 20
+			Y              = 20
+			Largeur        = 200
+			MenuContextuel = MNU_Edition
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		callback_fen_prete()
+	FIN
+FIN

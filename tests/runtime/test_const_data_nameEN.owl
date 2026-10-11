@@ -1,0 +1,97 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de donnees Track B
+// ( - souris / TLS / UUID / SQL / sens d'ecriture).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Les valeurs sont des sentinelles opaques (non stables entre builds) : on
+// ancre l'egalite EN == FR (la forme FR canon EST la valeur exacte de
+// reference). Une assertion ordinale supplementaire borne le contrat la ou
+// les sentinelles sont contigues.
+// =============================================================================
+
+PROCEDURE scenario_actionsouris_en_resout_vers_fr()
+	dbgVérifieEgalité(LeftClick, ClicGauche,
+	"LeftClick resout vers la meme valeur que ClicGauche")
+	dbgVérifieEgalité(RightClick, ClicDroit,
+	"RightClick resout vers la meme valeur que ClicDroit")
+	dbgVérifieEgalité(LeftDoubleClick, DoubleClicGauche,
+	"LeftDoubleClick resout vers la meme valeur que DoubleClicGauche")
+	dbgVérifieEgalité(RightDoubleClick, DoubleClicDroit,
+	"RightDoubleClick resout vers la meme valeur que DoubleClicDroit")
+	dbgVérifieEgalité(LeftButton, BoutonGauche,
+	"LeftButton resout vers la meme valeur que BoutonGauche")
+	dbgVérifieEgalité(RightButton, BoutonDroit,
+	"RightButton resout vers la meme valeur que BoutonDroit")
+	dbgVérifieEgalité(MouseHover, SurvolSouris,
+	"MouseHover resout vers la meme valeur que SurvolSouris")
+	dbgVérifieEgalité(WheelUp, MoletteHaut,
+	"WheelUp resout vers la meme valeur que MoletteHaut")
+	dbgVérifieEgalité(WheelDown, MoletteBas,
+	"WheelDown resout vers la meme valeur que MoletteBas")
+FIN
+
+PROCEDURE scenario_tlsmodes_en_resout_vers_fr()
+	dbgVérifieEgalité(tlsDisabled, tlsDesactive,
+	"tlsDisabled resout vers la meme valeur que tlsDesactive")
+	dbgVérifieEgalité(tlsAcceptAll, tlsAccepteTout,
+	"tlsAcceptAll resout vers la meme valeur que tlsAccepteTout")
+	dbgVérifieEgalité(tlsVerifyCA, tlsVerifieCA,
+	"tlsVerifyCA resout vers la meme valeur que tlsVerifieCA")
+	dbgVérifieEgalité(tlsVerifyFull, tlsVerifieComplet,
+	"tlsVerifyFull resout vers la meme valeur que tlsVerifieComplet")
+FIN
+
+PROCEDURE scenario_uuid_en_resout_vers_fr()
+	// uuidV4/uuidV7/uuidFormatStandard/uuidFormatCompact : EN == FR (proper nouns).
+	dbgVérifieEgalité(uuidV4, uuidV4,
+	"uuidV4 (EN == FR) resout vers lui-meme")
+	dbgVérifieEgalité(uuidV7, uuidV7,
+	"uuidV7 (EN == FR) resout vers lui-meme")
+	dbgVérifieEgalité(uuidFormatStandard, uuidFormatStandard,
+	"uuidFormatStandard (EN == FR) resout vers lui-meme")
+	// uuidFormatBraces -> uuidFormatAccolades (seul nom EN distinct).
+	dbgVérifieEgalité(uuidFormatBraces, uuidFormatAccolades,
+	"uuidFormatBraces resout vers la meme valeur que uuidFormatAccolades")
+	// Borne ordinale : standard et accolades sont distincts.
+	dbgVérifieVrai(uuidFormatBraces <> uuidFormatStandard,
+	"uuidFormatBraces (Microsoft) differe du format standard RFC")
+FIN
+
+PROCEDURE scenario_sql_en_resout_vers_fr()
+	// sqlSQLite -> sqlSqlite (seule difference de casse canon).
+	dbgVérifieEgalité(sqlSqlite, sqlSqlite,
+	"sqlSQLite resout vers la meme valeur que sqlSqlite")
+	// Backends EN == FR (proper nouns) : verrouille la non-collision.
+	dbgVérifieEgalité(sqlPostgres, sqlPostgres,
+	"sqlPostgres (EN == FR) resout vers lui-meme")
+	dbgVérifieEgalité(sqlMySQL, sqlMySQL,
+	"sqlMySQL (EN == FR) resout vers lui-meme")
+	dbgVérifieEgalité(sqlMSSQL, sqlMSSQL,
+	"sqlMSSQL (EN == FR) resout vers lui-meme")
+	// Borne ordinale : SQLite et Postgres sont des backends distincts.
+	dbgVérifieVrai(sqlSqlite <> sqlPostgres,
+	"sqlSQLite et sqlPostgres sont des backends distincts")
+FIN
+
+PROCEDURE scenario_sensecriture_en_resout_vers_fr()
+	dbgVérifieEgalité(sensDefault, sensDéfaut,
+	"sensDefault resout vers la meme valeur que sensDefaut")
+	dbgVérifieEgalité(sensLeftRight, sensGaucheDroite,
+	"sensLeftRight resout vers la meme valeur que sensGaucheDroite")
+	dbgVérifieEgalité(sensRightLeft, sensDroiteGauche,
+	"sensRightLeft resout vers la meme valeur que sensDroiteGauche")
+	// Borne ordinale : LTR et RTL sont des sens distincts.
+	dbgVérifieVrai(sensLeftRight <> sensRightLeft,
+	"sensLeftRight (LTR) et sensRightLeft (RTL) sont distincts")
+FIN
+
+scenario_actionsouris_en_resout_vers_fr()
+scenario_tlsmodes_en_resout_vers_fr()
+scenario_uuid_en_resout_vers_fr()
+scenario_sql_en_resout_vers_fr()
+scenario_sensecriture_en_resout_vers_fr()
+dbgBilanTest()

@@ -1,0 +1,124 @@
+// @sujet : CodeBarreVersImage
+// @résumé : Déclare un CodeBarres (contenu + symbologie), génère une Image
+// exploitable via CodeBarreVersImage. Couvre QR Code, Code128, EAN13 et DataMatrix.
+
+// Note granularité : le type CodeBarres n'a de sens qu'accompagné
+// de sa native de génération — combinaison indissociable, un seul fichier PUB.
+
+// Cas A : QR Code, contenu texte simple.
+PROCEDURE PUBLIQUE scenario_genere_qrcode()
+	cb est un CodeBarres
+	cb..TypeCodeBarres = CB_QRCODE
+	cb..TypeContenu    = cbTypeTexte
+	cb..Contenu        = "https://www.example.com"
+
+	IMG est une Image = CodeBarreVersImage(cb)
+
+	dbgVérifieVrai(IMG..Valide, "CodeBarreVersImage QR - Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0, "CodeBarreVersImage QR - Largeur > 0")
+	dbgVérifieVrai(IMG..Hauteur > 0, "CodeBarreVersImage QR - Hauteur > 0")
+FIN
+
+// Cas B : Code128, texte alphanumérique.
+PROCEDURE PUBLIQUE scenario_genere_code128()
+	cb est un CodeBarres
+	cb..TypeCodeBarres = CB_CODE128
+	cb..TypeContenu    = cbTypeTexte
+	cb..Contenu        = "COLIS-2026-00042"
+
+	IMG est une Image = CodeBarreVersImage(cb)
+
+	dbgVérifieVrai(IMG..Valide, "CodeBarreVersImage Code128 - Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0, "CodeBarreVersImage Code128 - Largeur > 0")
+	dbgVérifieVrai(IMG..Hauteur > 0, "CodeBarreVersImage Code128 - Hauteur > 0")
+FIN
+
+// Cas C : EAN13, code produit numérique 13 chiffres (checksum valide).
+PROCEDURE PUBLIQUE scenario_genere_ean13()
+	cb est un CodeBarres
+	cb..TypeCodeBarres = CB_EAN13
+	cb..TypeContenu    = cbTypeTexte
+	cb..Contenu        = "400638133393" // 12 chiffres : le caractère de contrôle (13e) est calculé
+
+	IMG est une Image = CodeBarreVersImage(cb)
+
+	dbgVérifieVrai(IMG..Valide, "CodeBarreVersImage EAN13 - Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0, "CodeBarreVersImage EAN13 - Largeur > 0")
+	dbgVérifieVrai(IMG..Hauteur > 0, "CodeBarreVersImage EAN13 - Hauteur > 0")
+FIN
+
+// Cas D : DataMatrix, contenu texte compact.
+PROCEDURE PUBLIQUE scenario_genere_datamatrix()
+	cb est un CodeBarres
+	cb..TypeCodeBarres = CB_DATAMATRIX
+	cb..TypeContenu    = cbTypeTexte
+	cb..Contenu        = "REF-DM-9981"
+
+	IMG est une Image = CodeBarreVersImage(cb)
+
+	dbgVérifieVrai(IMG..Valide, "CodeBarreVersImage DataMatrix - Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0, "CodeBarreVersImage DataMatrix - Largeur > 0")
+	dbgVérifieVrai(IMG..Hauteur > 0, "CodeBarreVersImage DataMatrix - Hauteur > 0")
+FIN
+
+// Cas E : dimensions maximales explicites (largeurMax, hauteurMax).
+PROCEDURE PUBLIQUE scenario_genere_avec_dimensions_max()
+	cb est un CodeBarres
+	cb..TypeCodeBarres = CB_QRCODE
+	cb..TypeContenu    = cbTypeTexte
+	cb..Contenu        = "https://www.example.com/dimensions"
+
+	IMG est une Image = CodeBarreVersImage(cb, 200, 200)
+
+	dbgVérifieVrai(IMG..Valide, "CodeBarreVersImage avec dimensions max - Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Largeur <= 200, "Largeur respecte largeurMax")
+	dbgVérifieVrai(IMG..Hauteur > 0 ET IMG..Hauteur <= 200, "Hauteur respecte hauteurMax")
+FIN
+
+// Cas F (bilingue) : type BarCodes (EN) + native BarCodeToImage (EN), propriétés FR
+// (nommage EN des propriétés non encore verrouillé côté doc, cf rapport test_writer).
+PROCEDURE PUBLIQUE scenario_bilingue_barcodes()
+	cb est un BarCodes
+	cb..TypeCodeBarres = CB_QRCODE
+	cb..TypeContenu    = cbTypeTexte
+	cb..Contenu        = "https://www.example.com/en"
+
+	IMG est une Image = BarCodeToImage(cb)
+
+	dbgVérifieVrai(IMG..Valide, "BarCodeToImage (EN) - Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "BarCodeToImage (EN) - dimensions non-nulles")
+FIN
+
+// Cas G : forme fluente cb.VersImage() / cb.ToImage() (point simple = méthode
+// préfixe), équivalente à la fonction globale CodeBarreVersImage(cb).
+PROCEDURE PUBLIQUE scenario_fluent_vers_image()
+	cb est un CodeBarres
+	cb..TypeCodeBarres = CB_QRCODE
+	cb..Contenu        = "https://www.example.com/fluent"
+
+	imgGlobale est une Image = CodeBarreVersImage(cb)
+	imgFluente est une Image = cb.VersImage()
+
+	dbgVérifieVrai(imgFluente..Valide, "cb.VersImage() - Image valide")
+	dbgVérifieEgalité(imgFluente..Largeur, imgGlobale..Largeur, "cb.VersImage() - même largeur que la forme globale")
+	dbgVérifieEgalité(imgFluente..Hauteur, imgGlobale..Hauteur, "cb.VersImage() - même hauteur que la forme globale")
+FIN
+
+// Cas H : propriété Options (génération) — CB_SansTexte masque le texte lisible
+// sous un code 1D, réduisant la hauteur du rendu.
+PROCEDURE PUBLIQUE scenario_options_sans_texte()
+	cbAvec est un CodeBarres
+	cbAvec..TypeCodeBarres = CB_CODE128
+	cbAvec..Contenu        = "OPTIONS-HRT"
+
+	cbSans est un CodeBarres
+	cbSans..TypeCodeBarres = CB_CODE128
+	cbSans..Contenu        = "OPTIONS-HRT"
+	cbSans..Options        = CB_SansTexte
+
+	imgAvec est une Image = CodeBarreVersImage(cbAvec)
+	imgSans est une Image = CodeBarreVersImage(cbSans)
+
+	dbgVérifieVrai(imgAvec..Valide ET imgSans..Valide, "Options - images valides")
+	dbgVérifieVrai(imgSans..Hauteur <> imgAvec..Hauteur, "CB_SansTexte modifie la hauteur du rendu (HRT masqué)")
+FIN

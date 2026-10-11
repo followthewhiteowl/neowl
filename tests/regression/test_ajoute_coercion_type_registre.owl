@@ -1,0 +1,69 @@
+// Régression : Ajoute(tab, [v1, v2, ...]) sur un tableau typé par un type
+// composé du registre (Police, Cadre, Style…) doit produire une instance,
+// exactement comme sur une structure déclarée dans le code — et non retomber
+// silencieusement sur une concaténation.
+
+// --- Type composé du registre : coercion positionnelle ---
+tbPolice est un tableau de Police
+Ajoute(tbPolice, ["Arial", 12])
+dbgVérifieEgalité(tbPolice..Occurrence, 1, "un seul élément ajouté (pas 2 par concaténation)")
+dbgVérifieEgalité(TypeVar(tbPolice[1]), 50, "l'élément est une instance, pas une chaîne")
+dbgVérifieEgalité(tbPolice[1]..Nom, "Arial", "champ 1 = Nom")
+dbgVérifieEgalité(tbPolice[1]..Taille, 12, "champ 2 = Taille")
+dbgVérifieEgalité(tbPolice[1]..Gras, Faux, "champ non fourni = défaut du modèle")
+
+// --- Autre type du registre : le comportement n'est pas propre à Police ---
+tbCadre est un tableau de Cadre
+Ajoute(tbCadre, [255, 3])
+dbgVérifieEgalité(tbCadre..Occurrence, 1, "un seul Cadre ajouté")
+dbgVérifieEgalité(TypeVar(tbCadre[1]), 50, "le Cadre est une instance")
+dbgVérifieEgalité(tbCadre[1]..Couleur, 255, "Cadre : champ 1 = Couleur")
+dbgVérifieEgalité(tbCadre[1]..Epaisseur, 3, "Cadre : champ 2 = Epaisseur")
+dbgVérifieEgalité(tbCadre[1]..Arrondi, 0, "Cadre : champ non fourni = défaut")
+
+// --- Tolérance casse/accents sur le nom de type (invariants 1 et 2) ---
+tbMinuscules est un tableau de Police
+Ajoute(tbMinuscules, ["Verdana", 9])
+dbgVérifieEgalité(tbMinuscules..Occurrence, 1, "casse basse : un seul élément")
+dbgVérifieEgalité(TypeVar(tbMinuscules[1]), 50, "casse basse : instance produite")
+dbgVérifieEgalité(tbMinuscules[1]..Nom, "Verdana", "casse basse : Nom = Verdana")
+
+// --- Chaque élément possède ses propres sous-objets ---
+tbStyle est un tableau de Style
+Ajoute(tbStyle, [16])
+Ajoute(tbStyle, [32])
+dbgVérifieEgalité(tbStyle..Occurrence, 2, "deux Styles distincts")
+dbgVérifieEgalité(tbStyle[1]..Couleur, 16, "Style 1 : Couleur = 16")
+dbgVérifieEgalité(tbStyle[2]..Couleur, 32, "Style 2 : Couleur = 32")
+//  — le temoin d'isolation est desormais 0 : dans un Style, la Police
+// est une surcharge, sa taille n'est pas renseignee tant que rien n'y est
+// ecrit. Ce qui est verifie ici reste l'isolation des sous-objets, pas la
+// valeur de defaut elle-meme.
+tbStyle[1]..Police..Taille = 30
+dbgVérifieEgalité(tbStyle[2]..Police..Taille, 0, "sous-objet non partagé entre éléments")
+styTemoin est un Style
+dbgVérifieEgalité(styTemoin..Police..Taille, 0, "modèle du type resté intact")
+
+// --- Non-régression : structure déclarée dans le code ---
+STPoint1352 est une Structure
+	Abscisse est un entier
+	Ordonnee est un entier
+FIN
+
+tbStruct est un tableau de STPoint1352
+Ajoute(tbStruct, [7, 8])
+dbgVérifieEgalité(tbStruct..Occurrence, 1, "structure OWL : un seul élément")
+dbgVérifieEgalité(TypeVar(tbStruct[1]), 50, "structure OWL : instance produite")
+dbgVérifieEgalité(tbStruct[1].Abscisse, 7, "structure OWL : champ 1")
+dbgVérifieEgalité(tbStruct[1].Ordonnee, 8, "structure OWL : champ 2")
+
+// --- Une coercion qui ne peut pas aboutir le dit ---
+// Plus de valeurs que le type n'a de champs : les valeurs en trop seraient
+// perdues sans un mot. Le défaut visé par ce test est le silence.
+tbTrop est un tableau de STPoint1352
+ErreurRAZ()
+Ajoute(tbTrop, [1, 2, 3])
+dbgVérifieVrai(ErreurDétectée, "coercion impossible : erreur signalée")
+dbgVérifieEgalité(tbTrop..Occurrence, 0, "coercion impossible : rien n'est ajouté")
+
+dbgBilanTest()

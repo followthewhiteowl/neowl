@@ -1,0 +1,184 @@
+// ============================================
+// TEST: ErreurDétectée RAZ auto (canon de référence)
+// Alignement sémantique de référence : le flag global ErreurDétectée est remis à Faux
+// automatiquement après chaque dispatch d'instruction réussie (appel native,
+// appel proc user, affectation, manipulation champ/propriété).
+// ============================================
+Trace("=== ERREUR RAZ AUTO ===")
+
+// ----- T1 : cas du dev (ticket verbatim) -----
+// fOuvre fail → flag=1, Trace réussit → RAZ → flag=0, second Trace voit 0.
+fOuvre("////", foLecture) // chemin invalide → erreur
+resTrace1 est un booléen = ErreurDétectée
+dbgVérifieVrai(resTrace1, "T1: flag=1 juste après fOuvre fail")
+
+// Le Trace ci-dessus a réussi → dispatch RAZ automatique → flag désormais Faux
+resTrace2 est un booléen = ErreurDétectée
+dbgVérifieFaux(resTrace2, "T1: flag=0 après Trace réussi (RAZ auto)")
+
+// ----- T2 : affectation simple RAZ -----
+ErreurRAZ() // sanity reset
+fOuvre("////", foLecture)
+dbgVérifieVrai(ErreurDétectée, "T2: erreur posée")
+n est un entier = 42 // affectation simple → dispatch OP_SET → RAZ
+dbgVérifieFaux(ErreurDétectée, "T2: flag RAZ après affectation simple")
+
+// ----- T4 : ErreurInfo() RAZ flag (aligné sur le comportement de référence) -----
+ErreurRAZ()
+ErreurDéclenche(99, "test message")
+dbgVérifieVrai(ErreurDétectée, "T4: erreur posée")
+msg est une chaîne = ErreurInfo() // lecture info → dispatch réussi → RAZ
+dbgVérifieEgalité(msg, "test message", "T4: info préservée dans msg")
+dbgVérifieFaux(ErreurDétectée, "T4: flag RAZ après ErreurInfo (canon de référence)")
+// Seconde lecture ErreurInfo() retourne encore la même info (elle reste mémorisée)
+msg2 est une chaîne = ErreurInfo()
+dbgVérifieEgalité(msg2, "test message", "T4: info toujours mémorisée après RAZ flag")
+
+// ----- T5 : ErreurPropage re-set flag -----
+ErreurRAZ()
+ErreurDéclenche(404, "not found")
+n2 est un entier = 42 // affectation pure ne RAZ pas (cf. )
+// La sentinelle « erreur fraîche » protège le flag pendant 1 cran de dispatch,
+// et les opcodes d'assignation pure (OP_DEFINE_GLOBAL/OP_SET_*) ne RAZ plus
+// du tout. Le flag survit donc à `n2 = 42` ; le pattern user canonique
+// `c = fNative(...) ; SI ErreurDétectée ALORS ...` est ainsi fiable.
+dbgVérifieVrai(ErreurDétectée, "T5: flag survit à affectation pure (sentinelle erreur fraîche)")
+// ErreurPropage re-set le flag à partir de l'info mémorisée
+QUAND EXCEPTION DANS
+	ErreurPropage()
+	// ErreurPropage a lancé exception, on ne devrait jamais atteindre ici
+	dbgVérifieFaux(Vrai, "T5: ErreurPropage aurait dû lever exception")
+FAIRE
+	// Exception levée = OK. Pas d'assertion ici, juste sortir proprement.
+FIN
+// Après FAIRE, le flag est à nouveau Faux (le throw exception ne le touche pas)
+// Mais l'info reste mémorisée. Si on appelle encore ErreurInfo, on retrouve.
+msgPropage est une chaîne = ErreurInfo()
+dbgVérifieEgalité(msgPropage, "not found", "T5: info mémorisée après Propage/exception")
+
+// ----- T6 : SI ErreurDétectée ... lecture pendant éval, RAZ après FIN -----
+// Note : `compteur est un entier = 0` est une affectation -> RAZ. Donc on
+// le déclare AVANT l'erreur pour ne pas RAZ entre l'erreur et le SI.
+compteur est un entier = 0
+ErreurRAZ()
+ErreurDéclenche(7, "soft error")
+SI ErreurDétectée ALORS
+	// Pendant évaluation condition : flag lu = Vrai (lecture pure ne RAZ pas)
+	compteur = 1 // cette affectation RAZ le flag
+FIN
+dbgVérifieEgalité(compteur, 1, "T6: bloc SI exécuté (flag était Vrai pendant éval)")
+dbgVérifieFaux(ErreurDétectée, "T6: flag RAZ après FIN (affectation compteur=1 a RAZ)")
+
+// ----- T7 : chaîne d'erreurs sans succès intermédiaire -----
+ErreurRAZ()
+fOuvre("////", foLecture) // erreur 1
+dbgVérifieVrai(ErreurDétectée, "T7: première erreur")
+// Sans instruction réussie intermédiaire, la seconde erreur écrase la première
+fOuvre("???", foLecture) // erreur 2
+dbgVérifieVrai(ErreurDétectée, "T7: flag toujours Vrai (seconde erreur écrase)")
+// Le message contient la trace de la dernière erreur (la 2e)
+msgChaine est une chaîne = ErreurInfo()
+dbgVérifieVrai(Position(msgChaine, "fOuvre") > 0, "T7: message contient fOuvre")
+
+// ----- Edge case : lecture pure ne RAZ pas -----
+// Lecture d'une variable globale simple (sans dispatch instruction active) ne RAZ pas.
+// Ici on pose erreur, on lit une variable autre que ErreurDétectée, flag reste.
+ErreurRAZ()
+ErreurDéclenche(8, "edge pure read")
+varAutre est un entier = 123 // lecture d'un littéral → affectation → RAZ
+// STOP : l'affectation ci-dessus RAZ, donc ce test ne prouve rien. Reformulons.
+// On veut tester "lecture pure d'un global ne RAZ pas".
+// Mais toute affectation RAZ. Donc il faut poser erreur, puis faire un check
+// du flag sans autre instruction intermédiaire. Mais le check lui-même est
+// un dispatch dbgVerifieVrai... qui RAZ. **Paradoxe**.
+// Reformulons : le seul vrai "lecture pure" visible est dans l'évaluation
+// d'une condition (IF) ou d'une expression arith (mais le Trace de résultat RAZ).
+// On teste donc : erreur posée, évaluation d'une expression arith qui lit globals,
+// puis affectation résultat → la lecture arith intermédiaire ne devrait pas RAZ,
+// mais l'affectation finale si.
+ErreurRAZ()
+globA est un entier = 10
+globB est un entier = 20
+ErreurDéclenche(9, "test read pure")
+// Évaluation pure : globA + globB (lecture 2 globals). Mais assignment RAZ.
+// Donc on ne peut pas capturer flag avant. On teste juste que ça ne crash pas.
+somme est un entier = globA + globB
+dbgVérifieEgalité(somme, 30, "Edge: calcul arith fonctionne malgré erreur posée avant")
+dbgVérifieFaux(ErreurDétectée, "Edge: affectation final RAZ flag")
+
+// ----- Edge case : opérateur arithmétique seul ne RAZ pas (mais affectation si) -----
+// Même paradoxe : opérateurs arith évalués inline, puis affectation RAZ.
+// Sémantique : l'ADD/SUB bytecode ne fait pas owl_clear_error, c'est le OP_SET qui RAZ.
+// On ne peut pas tester "l'arith seul ne RAZ pas" sans affectation, car impossible
+// d'observer sans side-effect (Trace = dispatch). Donc skip ce cas — sémantique
+// claire côté implementer : seuls les dispatches instructions actives RAZ.
+
+// ----- Edge case : appel proc user RAZ -----
+ErreurRAZ()
+PROCEDURE ProcUser() : entier
+	RENVOYER 42
+FIN
+ErreurDéclenche(10, "avant proc user")
+resProc est un entier = ProcUser() // dispatch proc user → RAZ
+dbgVérifieEgalité(resProc, 42, "Edge: proc user exécutée")
+dbgVérifieFaux(ErreurDétectée, "Edge: appel proc user RAZ flag")
+
+// ----- Edge case : manipulation propriété type composé RAZ -----
+// Type composé avec propriété (ex: Date.Jour). Le OP_GET_PROPERTY dispatch RAZ.
+ErreurRAZ()
+ErreurDéclenche(11, "avant get property")
+dateTest est une date = "20260521"
+j est un entier = dateTest..Jour // lecture propriété → dispatch OP_GET_PROPERTY → RAZ
+dbgVérifieEgalité(j, 21, "Edge: propriété lue correctement")
+dbgVérifieFaux(ErreurDétectée, "Edge: lecture propriété RAZ flag")
+
+// ----- Edge case : Trace post-erreur — sentinelle protège le flag -----
+ErreurRAZ()
+ErreurDéclenche(12, "avant Trace")
+Trace("output console") // OP_CALL → consomme la sentinelle, ne RAZ pas le flag
+// Sémantique  : le 1er OP_CALL post-owl_set_error consomme la
+// sentinelle « erreur fraîche » sans toucher au flag. Le flag survit donc à
+// ce Trace. Il faudrait un SECOND OP_CALL pour RAZ effectivement.
+dbgVérifieVrai(ErreurDétectée, "Edge: Trace consomme sentinelle, flag survit (1er OP_CALL post-erreur)")
+Trace("output 2eme call") // 2e OP_CALL : sentinelle déjà consommée → RAZ effectif
+dbgVérifieFaux(ErreurDétectée, "Edge: 2e Trace RAZ effectivement (sentinelle déjà consommée)")
+
+// ----- Edge case : dbgVerifieVrai consomme aussi la sentinelle -----
+ErreurRAZ()
+ErreurDéclenche(13, "avant assertion")
+dbgVérifieVrai(Vrai, "assertion dummy (consomme sentinelle)") // 1er OP_CALL post-erreur
+// Le flag SURVIT à cette première assertion (sentinelle protège). Le
+// dbgVérifieVrai ci-dessous est le 2e OP_CALL post-erreur, qui RAZ
+// effectivement. Mais le dbgVérifieVrai capture son argument AVANT son
+// propre OP_CALL → on lit ErreurDétectée=Vrai à ce moment-là.
+dbgVérifieVrai(ErreurDétectée, "Edge: assertion 1 consomme sentinelle, flag survit pour assertion 2")
+
+// ----- Edge case : boucle POUR chaque itération RAZ -----
+// Boucle POUR dispatch chaque itération (test condition + incr). Donc chaque tour RAZ.
+ErreurRAZ()
+ErreurDéclenche(14, "avant boucle")
+compteurBoucle est un entier = 0
+POUR i = 1 À 3
+	compteurBoucle = compteurBoucle + 1 // affectation → RAZ
+FIN
+// Après 1ère itération (i=1), affectation RAZ → flag Faux. Donc fin boucle flag=Faux.
+dbgVérifieEgalité(compteurBoucle, 3, "Edge: boucle exécutée 3 fois")
+dbgVérifieFaux(ErreurDétectée, "Edge: boucle RAZ flag dès 1ère affectation")
+
+// ----- Edge case : SELON (dispatch case match) RAZ -----
+ErreurRAZ()
+val est un entier = 2
+ErreurDéclenche(15, "avant SELON")
+resSelon est une chaîne = ""
+SELON val
+	CAS 1:
+		resSelon = "un"
+	CAS 2:
+		resSelon = "deux" // affectation ici → RAZ
+	AUTRE CAS:
+		resSelon = "autre"
+FIN
+dbgVérifieEgalité(resSelon, "deux", "Edge: SELON branche exécutée")
+dbgVérifieFaux(ErreurDétectée, "Edge: SELON RAZ flag (dispatch + affectation)")
+
+dbgBilanTest()

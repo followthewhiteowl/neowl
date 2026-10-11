@@ -1,0 +1,27 @@
+// Paramètres de Fenêtre sur première ligne — compile et portée.
+//
+// Vérifie que `FEN_X est une Fenêtre(p1 est un entier, p2 est une chaîne)` :
+//   1. compile sans erreur ;
+//   2. rend p1 et p2 référençables dans le top-level fenêtre, les events
+//      et les procédures internes.
+//
+// Attendu (rouge pré-impl) : erreur compile sur FEN_Param_Basique.owl
+// (syntaxe `(params)` non parsée par window_declaration).
+
+TestModeHeadless(Vrai)
+
+appele_basique est un booléen = Faux
+
+PROCEDURE callback_basique(s est une chaîne)
+	appele_basique = (s = "ok")
+FIN
+
+Ouvre(FEN_Param_Basique, 1, "test")
+
+dbgVérifieVrai(appele_basique, "FinInitialisation appelé — params de Fenêtre compilés sans erreur")
+
+nLu est un entier = LireNiveau()
+dbgVérifieEgalité(nLu, 1, "procédure interne accède au param niveau")
+
+Ferme(FEN_Param_Basique)
+dbgBilanTest()

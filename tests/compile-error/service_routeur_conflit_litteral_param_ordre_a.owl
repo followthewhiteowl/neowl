@@ -1,0 +1,37 @@
+// Deux motifs de même méthode qui se recouvrent sans qu'aucun ne soit plus
+// spécifique partout : ["posts", id] (littéral puis paramètre) contre
+// [ressource, "latest"] (paramètre puis littéral). Aucune requête ne permet
+// de trancher par spécificité globale (ex. GET /posts/latest matche les
+// deux) : conflit refusé à la compilation, avec un chemin d'exemple.
+// DRAFT test_writer (chantier 2, ) — l'analyseur de conflits
+// n'existe pas encore : ce fichier compile à tort aujourd'hui (aucune
+// détection), il doit basculer en erreur une fois l'analyseur posé.
+ServiceRouteurConflitOrdreA est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "v1"]
+	FIN
+
+	LitPost est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["posts", id]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(id est un entier) : entier
+			RENVOYER id
+		FIN
+	FIN
+
+	DernierElement est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = [ressource, "latest"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(ressource est une chaîne) : entier
+			RENVOYER 0
+		FIN
+	FIN
+FIN

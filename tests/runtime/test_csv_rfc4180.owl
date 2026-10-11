@@ -1,0 +1,206 @@
+// @sujet : TableauVersCSV et CSVVersTableau
+// @résumé : Conformité RFC-4180 pour sérialisation et parsing CSV — quoting automatique des champs contenant séparateur, guillemets ou retours-ligne, et parsing RFC-aware préservant les retours-ligne intra-champ. Non-régression : les champs propres restent non quotés.
+
+Trace("=== CSV RFC-4180 : NON-REGRESSION champs propres ===")
+
+// Un champ simple sans séparateur, guillemets, CRLF ou LF n'est PAS quoté
+// en sortie. Sortie octet-pour-octet identique au comportement actuel naïf.
+// Tableau 2D : lignes séparées par CRLF, colonnes par séparateur (défaut ";").
+tableau2d_propre est un tableau = [["A","B","C"],["D","E","F"]]
+csv_2d_propre est une chaîne = TableauVersCSV(tableau2d_propre, ";")
+attendu_2d_propre est une chaîne = "A;B;C" + CRLF + "D;E;F"
+dbgVérifieEgalité(csv_2d_propre, attendu_2d_propre, "2D champs propres : non quotés")
+
+// Round-trip 2D champs propres : parsing avec séparateur restitue la structure.
+tableau2d_restitue_propre est un tableau = CSVVersTableau(csv_2d_propre, ";")
+dbgVérifieEgalité(tableau2d_restitue_propre..Occurrence, 2, "2D propre : 2 lignes restituées")
+SI tableau2d_restitue_propre..Occurrence >= 2 ALORS
+	ligne1_restituee est un tableau de chaînes = tableau2d_restitue_propre[1]
+	ligne2_restituee est un tableau de chaînes = tableau2d_restitue_propre[2]
+	dbgVérifieEgalité(ligne1_restituee..Occurrence, 3, "2D propre : ligne1 a 3 colonnes")
+	dbgVérifieEgalité(ligne1_restituee[1], "A", "2D propre : [1][1] = A")
+	dbgVérifieEgalité(ligne2_restituee[1], "D", "2D propre : [2][1] = D")
+FIN
+
+Trace("=== CSV RFC-4180 : QUOTING champ avec séparateur ===")
+
+// Champ contenant le séparateur : encadré de guillemets pour empêcher
+// coupure au parsing. Le séparateur interne reste intact.
+tableau2d_sep est un tableau = [["tenant42", "B;C", "D"]]
+csv_sep est une chaîne = TableauVersCSV(tableau2d_sep, ";")
+dbgVérifieVrai(Contient(csv_sep, """B;C"""), "Champ avec séparateur : quoté")
+
+// Round-trip : parsing restitue 3 colonnes, dont la 2e contient le séparateur.
+tableau2d_sep_restitue est un tableau = CSVVersTableau(csv_sep, ";")
+dbgVérifieEgalité(tableau2d_sep_restitue..Occurrence, 1, "Champ sep : 1 ligne restituée")
+SI tableau2d_sep_restitue..Occurrence >= 1 ALORS
+	ligne_sep est un tableau de chaînes = tableau2d_sep_restitue[1]
+	dbgVérifieEgalité(ligne_sep..Occurrence, 3, "Champ sep : 3 colonnes restituées")
+	SI ligne_sep..Occurrence >= 2 ALORS
+		dbgVérifieEgalité(ligne_sep[2], "B;C", "Champ sep : colonne 2 intacte")
+	FIN
+FIN
+
+Trace("=== CSV RFC-4180 : QUOTING champ avec guillemet ===")
+
+// Champ contenant un guillemet : le guillemet est doublé ("") ET le
+// champ entier est encadré de guillemets.
+tableau2d_quote est un tableau = [["Il dit ""oui"""]]
+csv_quote est une chaîne = TableauVersCSV(tableau2d_quote, ";")
+dbgVérifieVrai(Contient(csv_quote, "Il dit"), "CSV contient le texte")
+dbgVérifieVrai(Contient(csv_quote, """"""), "CSV contient 4 guillemets (doublement)")
+
+// Round-trip : parsing restitue le guillemet unique.
+tableau2d_quote_restitue est un tableau = CSVVersTableau(csv_quote, ";")
+SI tableau2d_quote_restitue..Occurrence >= 1 ALORS
+	ligne_quote est un tableau de chaînes = tableau2d_quote_restitue[1]
+	SI ligne_quote..Occurrence >= 1 ALORS
+		dbgVérifieEgalité(ligne_quote[1], "Il dit ""oui""", "Guillemet unique restitué")
+	FIN
+FIN
+
+Trace("=== CSV RFC-4180 : QUOTING champ avec retour-ligne ===")
+
+// Champ contenant CRLF ou LF : encadré de guillemets, le retour-ligne reste
+// DANS le champ quoté (pas de coupure de ligne logique).
+tableau2d_rc est un tableau = [["ligne1" + CRLF + "ligne2"]]
+csv_rc est une chaîne = TableauVersCSV(tableau2d_rc, ";")
+premier_char est une chaîne = Gauche(csv_rc, 1)
+dernier_char est une chaîne = Droite(csv_rc, 1)
+dbgVérifieEgalité(premier_char, """", "CSV commence par guillemet ouvrant")
+dbgVérifieEgalité(dernier_char, """", "CSV finit par guillemet fermant")
+dbgVérifieVrai(Contient(csv_rc, "ligne1"), "CSV contient ligne1")
+dbgVérifieVrai(Contient(csv_rc, "ligne2"), "CSV contient ligne2")
+
+// Round-trip : parsing restitue 1 ligne avec 1 colonne contenant CRLF.
+tableau2d_rc_restitue est un tableau = CSVVersTableau(csv_rc, ";")
+dbgVérifieEgalité(tableau2d_rc_restitue..Occurrence, 1, "Champ CRLF : 1 ligne logique")
+SI tableau2d_rc_restitue..Occurrence >= 1 ALORS
+	ligne_rc est un tableau de chaînes = tableau2d_rc_restitue[1]
+	SI ligne_rc..Occurrence >= 1 ALORS
+		dbgVérifieEgalité(ligne_rc[1], "ligne1" + CRLF + "ligne2", "Champ CRLF : intact")
+	FIN
+FIN
+
+Trace("=== CSV RFC-4180 : ROUND-TRIP cas complexe (besoin origine) ===")
+
+// Cas d'usage à l'origine : une table avec une colonne charge_utile contenant
+// un JSON avec séparateurs et retours-ligne. La structure 2D doit survivre
+// au round-trip sérialisation→parsing.
+champ_json_sale est une chaîne = [
+{"a":1;"b":2}
+ligne2
+]
+// NB : littéral tableau sur une seule ligne (un `[ ... ]` étalé sur
+// plusieurs lignes est un bloc chaîne, pas un littéral tableau).
+tableau2d_complexe est un tableau = [["identifiant", "statut", "charge"], ["tenant42", "actif", champ_json_sale]]
+csv_complexe est une chaîne = TableauVersCSV(tableau2d_complexe, ";")
+
+// Parsing : doit restituer 2 lignes, chacune avec 3 colonnes.
+tableau2d_complexe_restitue est un tableau = CSVVersTableau(csv_complexe, ";")
+dbgVérifieEgalité(tableau2d_complexe_restitue..Occurrence, 2, "Complexe : 2 lignes restituées")
+
+SI tableau2d_complexe_restitue..Occurrence >= 2 ALORS
+	ligne_header est un tableau de chaînes = tableau2d_complexe_restitue[1]
+	ligne_data est un tableau de chaînes = tableau2d_complexe_restitue[2]
+
+	dbgVérifieEgalité(ligne_header..Occurrence, 3, "Complexe : header 3 colonnes")
+	dbgVérifieEgalité(ligne_data..Occurrence, 3, "Complexe : data 3 colonnes")
+
+	SI ligne_data..Occurrence >= 3 ALORS
+		dbgVérifieEgalité(ligne_data[1], "tenant42", "Complexe : colonne 1 intacte")
+		dbgVérifieEgalité(ligne_data[2], "actif", "Complexe : colonne 2 intacte")
+		dbgVérifieEgalité(ligne_data[3], champ_json_sale, "Complexe : charge_utile JSON sale intacte")
+	FIN
+FIN
+
+Trace("=== CSV RFC-4180 : SEPARATEUR custom ===")
+
+// Le quoting ne se déclenche QUE si le champ contient CE séparateur-là.
+// Un champ contenant ";" mais séparateur "," n'est PAS quoté.
+tableau2d_custom_sep est un tableau = [["A;B", "C,D", "E"]]
+csv_custom_sep est une chaîne = TableauVersCSV(tableau2d_custom_sep, ",")
+dbgVérifieVrai(Contient(csv_custom_sep, "A;B"), "Sep custom , : ; interne non quoté")
+dbgVérifieVrai(Contient(csv_custom_sep, """C,D"""), "Sep custom , : , interne quoté")
+
+// Round-trip avec séparateur custom.
+tableau2d_custom_sep_restitue est un tableau = CSVVersTableau(csv_custom_sep, ",")
+SI tableau2d_custom_sep_restitue..Occurrence >= 1 ALORS
+	ligne_custom est un tableau de chaînes = tableau2d_custom_sep_restitue[1]
+	dbgVérifieEgalité(ligne_custom..Occurrence, 3, "Sep custom : 3 colonnes")
+	SI ligne_custom..Occurrence >= 3 ALORS
+		dbgVérifieEgalité(ligne_custom[1], "A;B", "Sep custom : col 1 avec ; intact")
+		dbgVérifieEgalité(ligne_custom[2], "C,D", "Sep custom : col 2 avec , intact")
+	FIN
+FIN
+
+Trace("=== CSV RFC-4180 : EDGE CASES ===")
+
+// Champ vide préservé au round-trip.
+tableau2d_vide est un tableau = [["A", "", "C"]]
+csv_vide est une chaîne = TableauVersCSV(tableau2d_vide, ";")
+tableau2d_vide_restitue est un tableau = CSVVersTableau(csv_vide, ";")
+SI tableau2d_vide_restitue..Occurrence >= 1 ALORS
+	ligne_vide est un tableau de chaînes = tableau2d_vide_restitue[1]
+	dbgVérifieEgalité(ligne_vide..Occurrence, 3, "Champ vide : 3 colonnes")
+	SI ligne_vide..Occurrence >= 2 ALORS
+		dbgVérifieEgalité(ligne_vide[2], "", "Champ vide : préservé")
+	FIN
+FIN
+
+// Champ tout-espaces préservé (RFC-4180 ne trim pas automatiquement).
+tableau2d_espaces est un tableau = [["A", "   ", "C"]]
+csv_espaces est une chaîne = TableauVersCSV(tableau2d_espaces, ";")
+tableau2d_espaces_restitue est un tableau = CSVVersTableau(csv_espaces, ";")
+SI tableau2d_espaces_restitue..Occurrence >= 1 ALORS
+	ligne_espaces est un tableau de chaînes = tableau2d_espaces_restitue[1]
+	SI ligne_espaces..Occurrence >= 2 ALORS
+		dbgVérifieEgalité(ligne_espaces[2], "   ", "Champ espaces : préservé")
+	FIN
+FIN
+
+// Champ contenant LF seul (sans CR) : quoté et préservé.
+lf_char est une chaîne = Caract(10)
+tableau2d_lf est un tableau = [["avant" + lf_char + "après"]]
+csv_lf est une chaîne = TableauVersCSV(tableau2d_lf, ";")
+tableau2d_lf_restitue est un tableau = CSVVersTableau(csv_lf, ";")
+SI tableau2d_lf_restitue..Occurrence >= 1 ALORS
+	ligne_lf est un tableau de chaînes = tableau2d_lf_restitue[1]
+	SI ligne_lf..Occurrence >= 1 ALORS
+		dbgVérifieVrai(Contient(ligne_lf[1], lf_char), "LF seul : préservé")
+	FIN
+FIN
+
+// Guillemets multiples : chacun doublé au quoting, parsing restitue corrects.
+tableau2d_multiquote est un tableau = [["Il dit ""oui"" puis ""non"""]]
+csv_multiquote est une chaîne = TableauVersCSV(tableau2d_multiquote, ";")
+tableau2d_multiquote_restitue est un tableau = CSVVersTableau(csv_multiquote, ";")
+SI tableau2d_multiquote_restitue..Occurrence >= 1 ALORS
+	ligne_multiquote est un tableau de chaînes = tableau2d_multiquote_restitue[1]
+	SI ligne_multiquote..Occurrence >= 1 ALORS
+		dbgVérifieEgalité(ligne_multiquote[1], "Il dit ""oui"" puis ""non""", "Multiquotes : intact")
+	FIN
+FIN
+
+// Champ avec espaces leading/trailing + séparateur : quoté et espaces préservés.
+tableau2d_espaces_sep est un tableau = [["  A;B  "]]
+csv_espaces_sep est une chaîne = TableauVersCSV(tableau2d_espaces_sep, ";")
+tableau2d_espaces_sep_restitue est un tableau = CSVVersTableau(csv_espaces_sep, ";")
+SI tableau2d_espaces_sep_restitue..Occurrence >= 1 ALORS
+	ligne_espaces_sep est un tableau de chaînes = tableau2d_espaces_sep_restitue[1]
+	SI ligne_espaces_sep..Occurrence >= 1 ALORS
+		dbgVérifieEgalité(ligne_espaces_sep[1], "  A;B  ", "Espaces+sep : préservés")
+	FIN
+FIN
+
+// Tableau 2D vide : produit une chaîne vide, parsing restitue tableau vide.
+tableau2d_vide_complet est un tableau = []
+csv_vide_complet est une chaîne = TableauVersCSV(tableau2d_vide_complet, ";")
+dbgVérifieEgalité(csv_vide_complet, "", "Tableau 2D vide : CSV vide")
+tableau2d_vide_complet_restitue est un tableau = CSVVersTableau("", ";")
+dbgVérifieEgalité(tableau2d_vide_complet_restitue..Occurrence, 0, "CSV vide : restitue tableau vide")
+
+// Séparateur multi-caractères : quoting si champ contient la sous-chaîne séparateur.
+tableau2d_multisep est un tableau = [["A||B", "C"]]
+csv_multisep est une chaîne = TableauVersCSV(tableau2d_multisep, "||")
+dbgVérifieVrai(Contient(csv_multisep, """A||B"""), "Sep multi-chars : quoté si contient")

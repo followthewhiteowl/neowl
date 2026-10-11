@@ -1,0 +1,116 @@
+// @sujet : AMQPSupprimeQueue / AMQPPurgeQueue / AMQPDélie / AMQPSupprimeÉchange
+// @résumé : Défait une topologie AMQP (supprime une queue, la vide, défait une liaison, supprime un échange).
+
+// --- AMQPSupprimeQueue ------------------------------------------------------
+
+// Sur une connexion qui n'a jamais été ouverte, la suppression échoue
+// proprement : Faux + erreur posée, symétrique de AMQPDéclareQueue.
+PROCEDURE PUBLIQUE scenario_supprime_queue_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPSupprimeQueue(cnx, "q-non-ouverte")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bOk, "AMQPSupprimeQueue renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+// Le nom de la queue doit être une chaîne : un entier en 2e argument est
+// refusé avec le code d'erreur canonique de type d'argument invalide, avant
+// même de vérifier l'état de la connexion.
+PROCEDURE PUBLIQUE scenario_supprime_queue_nom_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPSupprimeQueue(cnx, 42)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPSupprimeQueue refuse un nom qui n'est pas une chaîne")
+	dbgVérifieVrai(bErr, "une erreur est posée sur un nom de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+// --- AMQPPurgeQueue ----------------------------------------------------------
+
+// Sur une connexion qui n'a jamais été ouverte, la purge échoue proprement :
+// entier négatif sentinelle (aucun message purgé, opération invalide) + erreur
+// posée. Un entier négatif distingue l'échec d'une purge réussie sur une
+// queue déjà vide (0 message purgé).
+PROCEDURE PUBLIQUE scenario_purge_queue_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	nPurge est un entier = AMQPPurgeQueue(cnx, "q-non-ouverte")
+	bErr est un booléen = ErreurDétectée
+	nAttenduEchec est un entier = -1
+	dbgVérifieEgalité(nPurge, nAttenduEchec, "AMQPPurgeQueue renvoie -1 sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+// Le nom de la queue doit être une chaîne : un entier en 2e argument est
+// refusé avec le code d'erreur canonique de type d'argument invalide, avant
+// même de vérifier l'état de la connexion.
+PROCEDURE PUBLIQUE scenario_purge_queue_nom_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	nPurge est un entier = AMQPPurgeQueue(cnx, 42)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	nAttenduEchec est un entier = -1
+	dbgVérifieEgalité(nPurge, nAttenduEchec, "AMQPPurgeQueue renvoie -1 quand le nom n'est pas une chaîne")
+	dbgVérifieVrai(bErr, "une erreur est posée sur un nom de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+// --- AMQPDélie ----------------------------------------------------------------
+
+// Sur une connexion qui n'a jamais été ouverte, le délier échoue proprement :
+// Faux + erreur posée, symétrique de AMQPLie.
+PROCEDURE PUBLIQUE scenario_delie_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPDélie(cnx, "q-non-ouverte", "x-non-ouvert", "cle")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bOk, "AMQPDélie renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+// Le nom de la queue doit être une chaîne : un entier en 2e argument est
+// refusé avec le code d'erreur canonique de type d'argument invalide, avant
+// même de vérifier l'état de la connexion.
+PROCEDURE PUBLIQUE scenario_delie_queue_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPDélie(cnx, 42, "x-non-ouvert", "cle")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPDélie refuse une queue qui n'est pas une chaîne")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une queue de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+// --- AMQPSupprimeÉchange -------------------------------------------------------
+
+// Sur une connexion qui n'a jamais été ouverte, la suppression échoue
+// proprement : Faux + erreur posée, symétrique de AMQPDéclareÉchange.
+PROCEDURE PUBLIQUE scenario_supprime_echange_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPSupprimeÉchange(cnx, "x-non-ouvert")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bOk, "AMQPSupprimeÉchange renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+// Le nom de l'échange doit être une chaîne : un entier en 2e argument est
+// refusé avec le code d'erreur canonique de type d'argument invalide, avant
+// même de vérifier l'état de la connexion.
+PROCEDURE PUBLIQUE scenario_supprime_echange_nom_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPSupprimeÉchange(cnx, 42)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPSupprimeÉchange refuse un nom qui n'est pas une chaîne")
+	dbgVérifieVrai(bErr, "une erreur est posée sur un nom de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

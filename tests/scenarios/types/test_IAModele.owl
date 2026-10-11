@@ -1,0 +1,349 @@
+// @sujet : IAModèle — socle de l'API réseau de neurones haut-niveau
+// @résumé : IAModèle empile des couches fluentes (.AjouteCoucheDense,
+// .AjouteCoucheReLU, .AjouteCoucheSigmoïde, .AjouteCoucheTanh) puis
+// .Infère(x) fait passer une entrée (1 échantillon ou un lot) à travers
+// toutes les couches empilées, dans l'ordre. Les poids d'une couche dense
+// sont initialisés à la création (initHe par défaut, ou initXavier). Pas
+// d'entraînement à ce stade : uniquement construction + forward.
+//
+// Pour vérifier que .Infère calcule exactement le même résultat qu'un
+// calcul à la main avec les briques Tenseur bas niveau (ProduitMatriciel +
+// biais + activation), ces scénarios s'appuient sur deux méthodes
+// d'introspection :
+//   - mon.Poids(indiceCoucheDense) / mon.Weights(n) : Tenseur 2D
+//     (entrées×sorties) de la n-ième couche dense ajoutée (index base-1,
+//     ne compte que les couches denses, pas les activations).
+//   - mon.Biais(indiceCoucheDense) / mon.Bias(n) : Tenseur 1D (sorties)
+//     de la n-ième couche dense ajoutée.
+//   - mon..NbCouches / mon..LayerCount : entier, nombre total de couches
+//     empilées (denses + activations).
+// Sans ces primitives, le forward ne serait vérifiable qu'en forme et en
+// déterminisme (poids initialisés au hasard, valeurs inconnues d'avance).
+
+// Un modèle vide n'a aucune couche. Empiler dense + ReLU + dense porte le
+// compte à 3 (chaque .AjouteCouche* ajoute une entrée, activations
+// comprises).
+PROCEDURE PUBLIQUE scenario_construction_vide_puis_empilement_couches()
+	monVide est un IAModèle
+	dbgVérifieEgalité(monVide..NbCouches, 0, "Un IAModèle fraîchement construit n'a aucune couche")
+
+	mon est un IAModèle
+	mon.AjouteCoucheDense(4, 3)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(3, 2)
+	dbgVérifieEgalité(mon..NbCouches, 3, "2 couches denses + 1 ReLU = 3 couches empilées, dans l'ordre d'ajout")
+FIN
+
+
+// .Infère sur un échantillon unique (Tenseur 1D) traverse toutes les
+// couches et rend un Tenseur 1D dont la taille est celle de la dernière
+// couche dense (784→128→10 dans l'API cible ; ici 4→3→2 pour rester
+// rapide à exécuter).
+PROCEDURE PUBLIQUE scenario_forme_sortie_echantillon_unique()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(4, 3)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(3, 2)
+
+	x est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	sortie est un Tenseur = mon.Infère(x)
+
+	valSortie est un Vecteur = sortie..Valeur
+	dbgVérifieEgalité(valSortie..Taille, 2, "Un modèle 4→3→2 rend un Tenseur 1D de taille 2 pour un échantillon unique")
+FIN
+
+
+// .Infère sur un lot (Tenseur 2D, B échantillons × entrées) rend un
+// Tenseur 2D B × sorties : la dimension de lot traverse toutes les
+// couches sans être altérée.
+PROCEDURE PUBLIQUE scenario_forme_sortie_lot()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(4, 3)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(3, 2)
+
+	matX est une Matrice = [[1.0, 2.0, 3.0, 4.0], [0.0, -1.0, 2.0, 1.0], [5.0, 0.0, 0.0, -2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	sortie est un Tenseur = mon.Infère(tX)
+
+	valSortie est une Matrice = sortie..Valeur
+	dbgVérifieEgalité(valSortie..Lignes, 3, "3 échantillons dans le lot -> 3 lignes en sortie")
+	dbgVérifieEgalité(valSortie..Colonnes, 2, "Dernière couche dense a 2 sorties -> 2 colonnes en sortie")
+FIN
+
+
+// Cœur du contrat : .Infère(X) sur un modèle dense→ReLU→dense doit
+// calculer EXACTEMENT le même résultat qu'un calcul à la main avec les
+// mêmes poids (extraits via .Poids/.Biais) et les briques Tenseur bas
+// niveau (ProduitMatriciel, +, ReLU). Les poids sont initialisés au
+// hasard : on ne connaît pas leurs valeurs à l'avance, donc on les
+// EXTRAIT du modèle plutôt que de les deviner.
+PROCEDURE PUBLIQUE scenario_forward_egal_calcul_manuel_deux_couches()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 4, initHe)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(4, 2, initXavier)
+
+	tW1 est un Tenseur = mon.Poids(1)
+	tb1 est un Tenseur = mon.Biais(1)
+	tW2 est un Tenseur = mon.Poids(2)
+	tb2 est un Tenseur = mon.Biais(2)
+
+	valW1 est une Matrice = tW1..Valeur
+	dbgVérifieEgalité(valW1..Lignes, 3, "Poids(1) : orientation data-first, (entrées×sorties) = (3×4) -> 3 lignes")
+	dbgVérifieEgalité(valW1..Colonnes, 4, "Poids(1) : (entrées×sorties) = (3×4) -> 4 colonnes")
+
+	valB1 est un Vecteur = tb1..Valeur
+	dbgVérifieEgalité(valB1..Taille, 4, "Biais(1) : taille = sorties de la 1re couche dense = 4")
+
+	valW2 est une Matrice = tW2..Valeur
+	dbgVérifieEgalité(valW2..Lignes, 4, "Poids(2) : (entrées×sorties) = (4×2) -> 4 lignes")
+	dbgVérifieEgalité(valW2..Colonnes, 2, "Poids(2) : (entrées×sorties) = (4×2) -> 2 colonnes")
+
+	matX est une Matrice = [[1.0, -1.0, 2.0], [0.0, 2.0, -1.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	th1 est un Tenseur = tX.ProduitMatriciel(tW1)
+	th1b est un Tenseur = th1 + tb1
+	ta1 est un Tenseur = th1b.ReLU()
+	th2 est un Tenseur = ta1.ProduitMatriciel(tW2)
+	tlogitsManuel est un Tenseur = th2 + tb2
+
+	sortieModele est un Tenseur = mon.Infère(tX)
+
+	valManuel est une Matrice = tlogitsManuel..Valeur
+	valModele est une Matrice = sortieModele..Valeur
+
+	dbgVérifieEgalité(valModele..Lignes, 2, ".Infère rend 2 lignes (2 échantillons dans le lot)")
+	dbgVérifieEgalité(valModele..Colonnes, 2, ".Infère rend 2 colonnes (2 sorties de la dernière couche dense)")
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 2
+			dbgVérifieVrai(Abs(valModele[iLigne][iCol] - valManuel[iLigne][iCol]) < 0.000001, "mon.Infère(X) égale le calcul manuel avec les mêmes poids extraits")
+		FIN
+	FIN
+FIN
+
+
+// .Infère est un forward pur : appeler deux fois avec la même entrée rend
+// exactement la même sortie (pas d'aléa réintroduit à chaque appel, les
+// poids sont fixés une fois pour toutes à la construction de la couche).
+PROCEDURE PUBLIQUE scenario_determinisme_meme_entree()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(5, 3)
+	mon.AjouteCoucheReLU()
+
+	x est un Tenseur = Tenseur([1.0, 2.0,-1.0, 0.5, 3.0])
+
+	sortie1 est un Tenseur = mon.Infère(x)
+	sortie2 est un Tenseur = mon.Infère(x)
+
+	val1 est un Vecteur = sortie1..Valeur
+	val2 est un Vecteur = sortie2..Valeur
+
+	POUR i = 1 À 3
+		dbgVérifieEgalité(val1[i], val2[i], "Deux appels à .Infère avec la même entrée rendent exactement la même sortie")
+	FIN
+FIN
+
+
+// Une couche ReLU seule, sans couche dense, laisse passer les valeurs
+// positives et écrase les négatives à zéro — testable avec des valeurs
+// d'entrée connues, sans dépendre de poids aléatoires.
+PROCEDURE PUBLIQUE scenario_couche_relu_seule_zappe_negatifs()
+	mon est un IAModèle
+	mon.AjouteCoucheReLU()
+
+	x est un Tenseur = Tenseur([-1.0, 2.0])
+	sortie est un Tenseur = mon.Infère(x)
+
+	val est un Vecteur = sortie..Valeur
+	dbgVérifieEgalité(val[1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(val[2], 2.0, "ReLU(2.0) = 2.0")
+FIN
+
+
+// Une couche Sigmoïde seule : Sigmoïde(0.0) = 0.5 exactement, et le point
+// asymptotique (entrées très positives/négatives) approche 1.0 / 0.0.
+PROCEDURE PUBLIQUE scenario_couche_sigmoide_seule_valeurs_connues()
+	mon est un IAModèle
+	mon.AjouteCoucheSigmoïde()
+
+	x est un Tenseur = Tenseur([0.0, 20.0,-20.0])
+	sortie est un Tenseur = mon.Infère(x)
+
+	val est un Vecteur = sortie..Valeur
+	dbgVérifieEgalité(val[1], 0.5, "Sigmoïde(0.0) = 0.5 exactement")
+	dbgVérifieVrai(Abs(val[2] - 1.0) < 0.0001, "Sigmoïde(20.0) proche de 1.0 (asymptote)")
+	dbgVérifieVrai(Abs(val[3] - 0.0) < 0.0001, "Sigmoïde(-20.0) proche de 0.0 (asymptote)")
+FIN
+
+
+// Une couche Tanh seule : Tanh(0.0) = 0.0 exactement, et le point
+// asymptotique approche 1.0 / -1.0.
+PROCEDURE PUBLIQUE scenario_couche_tanh_seule_valeurs_connues()
+	mon est un IAModèle
+	mon.AjouteCoucheTanh()
+
+	x est un Tenseur = Tenseur([0.0, 20.0,-20.0])
+	sortie est un Tenseur = mon.Infère(x)
+
+	val est un Vecteur = sortie..Valeur
+	dbgVérifieEgalité(val[1], 0.0, "Tanh(0.0) = 0.0 exactement")
+	dbgVérifieVrai(Abs(val[2] - 1.0) < 0.0001, "Tanh(20.0) proche de 1.0 (asymptote)")
+	dbgVérifieVrai(Abs(val[3] - (-1.0)) < 0.0001, "Tanh(-20.0) proche de -1.0 (asymptote)")
+FIN
+
+
+// Init He (défaut, sans 3e argument) : variance cible 2/entrées, donc
+// écart-type cible = Racine(2/entrées). Contrôle statistique sur un
+// grand nombre de poids (150×90 = 13500), pas de valeur exacte (aléa).
+// Vérifie aussi l'orientation data-first : Poids(1) est (entrées×sorties).
+PROCEDURE PUBLIQUE scenario_init_he_par_defaut_ecart_type_conforme()
+	nEntrees est un entier = 150
+	nSorties est un entier = 90
+
+	mon est un IAModèle
+	mon.AjouteCoucheDense(nEntrees, nSorties)
+
+	tW est un Tenseur = mon.Poids(1)
+	matW est une Matrice = tW..Valeur
+
+	dbgVérifieEgalité(matW..Lignes, nEntrees, "Poids(1) : (entrées×sorties), sans 3e argument -> orientation data-first inchangée")
+	dbgVérifieEgalité(matW..Colonnes, nSorties, "Poids(1) : (entrées×sorties)")
+
+	somme est un réel = 0.0
+	sommeCarres est un réel = 0.0
+	POUR iLigne = 1 À nEntrees
+		POUR iCol = 1 À nSorties
+			somme       = somme + matW[iLigne][iCol]
+			sommeCarres = sommeCarres + matW[iLigne][iCol] * matW[iLigne][iCol]
+		FIN
+	FIN
+
+	n est un réel = nEntrees * nSorties
+	moyenne est un réel = somme / n
+	variance est un réel = sommeCarres / n - moyenne * moyenne
+	ecartType est un réel = Racine(variance)
+	ecartTypeAttendu est un réel = Racine(2.0 / nEntrees)
+	ratio est un réel = ecartType / ecartTypeAttendu
+
+	dbgVérifieVrai(ratio > 0.8 ET ratio < 1.2, "He (défaut) : écart-type empirique des poids proche de Racine(2/entrées) à ±20%")
+FIN
+
+
+// Init Xavier (3e argument explicite) : bornes uniformes ±Racine(6/(entrées+sorties)) —
+// contrôle exhaustif de la borne, pas de valeur exacte (aléa).
+PROCEDURE PUBLIQUE scenario_init_xavier_explicite_bornes_respectees()
+	nEntrees est un entier = 120
+	nSorties est un entier = 80
+
+	mon est un IAModèle
+	mon.AjouteCoucheDense(nEntrees, nSorties, initXavier)
+
+	tW est un Tenseur = mon.Poids(1)
+	matW est une Matrice = tW..Valeur
+
+	dbgVérifieEgalité(matW..Lignes, nEntrees, "Poids(1) : (entrées×sorties) même avec initXavier explicite")
+	dbgVérifieEgalité(matW..Colonnes, nSorties, "Poids(1) : (entrées×sorties)")
+
+	borne est un réel = Racine(6.0 / (nEntrees + nSorties))
+	borneAvecMarge est un réel = borne * 1.01
+
+	toutesLesValeursDansLaBorne est un booléen = Vrai
+	POUR iLigne = 1 À nEntrees
+		POUR iCol = 1 À nSorties
+			SI Abs(matW[iLigne][iCol]) > borneAvecMarge ALORS
+				toutesLesValeursDansLaBorne = Faux
+			FIN
+		FIN
+	FIN
+
+	dbgVérifieVrai(toutesLesValeursDansLaBorne, "Xavier : tous les poids restent dans ±Racine(6/(entrées+sorties))")
+FIN
+
+
+// Les formes anglaises (AIModel, .AddDenseLayer, .AddReLULayer, .Infer)
+// produisent le même comportement observable que leurs équivalents
+// français.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_meme_comportement()
+	mon is an AIModel
+	mon.AddReLULayer()
+
+	x is a Tensor = Tensor([-1.0, 2.0])
+	sortie is a Tensor = mon.Infer(x)
+
+	val is a Vector = sortie..Value
+	dbgCheckEqual(val[1], 0.0, "AIModel.Infer, English form: ReLU(-1.0) = 0.0")
+	dbgCheckEqual(val[2], 2.0, "AIModel.Infer, English form: ReLU(2.0) = 2.0")
+FIN
+
+
+// La pile complète (AddDenseLayer→AddReLULayer→AddDenseLayer) en anglais
+// produit une forme de sortie identique à son équivalent français.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_pile_complete_forme()
+	mon is an AIModel
+	mon.AddDenseLayer(3, 4, initHe)
+	mon.AddReLULayer()
+	mon.AddDenseLayer(4, 2, initXavier)
+
+	x is a Tensor = Tensor([1.0,-1.0, 2.0])
+	output is a Tensor = mon.Infer(x)
+
+	val is a Vector = output..Value
+	dbgCheckEqual(val..Length, 2, "AIModel.Infer, English form: 1D sample through 3->4->2 layers gives 2 outputs")
+FIN
+
+
+// Cas limite : couche dense 1×1 (le plus petit format possible). Le
+// calcul manuel avec les poids extraits reste vérifiable même dans ce
+// cas dégénéré.
+PROCEDURE PRIVÉE scenario_edge_couche_dense_1x1()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	tW est un Tenseur = mon.Poids(1)
+	tb est un Tenseur = mon.Biais(1)
+	valW est une Matrice = tW..Valeur
+	valB est un Vecteur = tb..Valeur
+
+	x est un Tenseur = Tenseur([5.0])
+	sortie est un Tenseur = mon.Infère(x)
+	val est un Vecteur = sortie..Valeur
+
+	attendu est un réel = valW[1][1] * 5.0 + valB[1]
+	dbgVérifieVrai(Abs(val[1] - attendu) < 0.000001, "Couche dense 1x1 : sortie = poids*entrée + biais, comme à la main")
+FIN
+
+
+// Cas limite : un lot d'un seul échantillon reste un Tenseur 2D
+// (1 ligne), pas une bascule silencieuse vers un Tenseur 1D.
+PROCEDURE PRIVÉE scenario_edge_lot_taille_1()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	matX est une Matrice = [[1.0, 2.0, 3.0]]
+	tX est un Tenseur = Tenseur(matX)
+	sortie est un Tenseur = mon.Infère(tX)
+
+	val est une Matrice = sortie..Valeur
+	dbgVérifieEgalité(val..Lignes, 1, "Lot d'1 échantillon : la sortie reste un Tenseur 2D avec 1 ligne")
+	dbgVérifieEgalité(val..Colonnes, 2, "Lot d'1 échantillon : 2 colonnes (sorties de la couche dense)")
+FIN
+
+
+// Cas limite : deux couches d'activation empilées sans aucune couche
+// dense entre elles. Composition simple, vérifiable avec des valeurs
+// connues (0.0 est un point fixe de ReLU et de Tanh).
+PROCEDURE PRIVÉE scenario_edge_activations_empilees_sans_dense()
+	mon est un IAModèle
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheTanh()
+
+	x est un Tenseur = Tenseur([-1.0, 0.0])
+	sortie est un Tenseur = mon.Infère(x)
+	val est un Vecteur = sortie..Valeur
+
+	dbgVérifieEgalité(val[1], 0.0, "ReLU(-1.0)=0.0 puis Tanh(0.0)=0.0")
+	dbgVérifieEgalité(val[2], 0.0, "ReLU(0.0)=0.0 puis Tanh(0.0)=0.0")
+FIN

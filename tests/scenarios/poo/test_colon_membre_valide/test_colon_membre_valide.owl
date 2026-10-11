@@ -1,0 +1,26 @@
+// @sujet : Acces :membre valide — anti-faux-positifs pour le check compile-time
+// @resume : Verifie que les acces :membre legitimes (reference-avant, heritage, cas nominal) restent autorises apres l'ajout du check compile-time des membres inconnus. Ces tests doivent passer au vert aussi bien avant qu'apres l'impl.
+
+// Cas nominal : champ et methode declares et utilises normalement
+PROCEDURE scenario_acces_nominal()
+	o est un cEnfant()
+	dbgVérifieEgalité(o.LireLocal(), 50, "champ nLocal accessible via :nLocal dans methode")
+FIN
+
+// Reference-avant : une methode lit :champTardif declare plus bas dans le corps de la classe
+PROCEDURE scenario_reference_avant()
+	o est un cEnfant()
+	dbgVérifieEgalité(o.LireTardif(), 999, "champTardif declare apres constructeur mais accessible via reference-avant")
+FIN
+
+// Heritage : une methode de classe fille lit :nParent declare dans cBase
+PROCEDURE scenario_heritage_champ()
+	o est un cEnfant()
+	dbgVérifieEgalité(o.LireParentViaHeritage(), 100, "champ herite nParent accessible via :nParent dans classe fille")
+FIN
+
+// Heritage : une methode de classe fille appelle :LireParent() declaree dans cBase
+PROCEDURE scenario_heritage_methode()
+	o est un cEnfant()
+	dbgVérifieEgalité(o.AppelMethodeParente(), 100, "methode heritee LireParent accessible via :LireParent() dans classe fille")
+FIN

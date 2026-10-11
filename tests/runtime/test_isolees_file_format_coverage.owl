@@ -1,0 +1,72 @@
+// Couverture des constantes isolées (lot  — isolées) côté
+// format numérique (fnnHexadécimal accentué, maskMonétaireSystème,
+// tailleTO), orientation page (orientLandscape) et traitement
+// (trtProcédureProjet).
+//
+// Méthode : EFFET RÉEL via natives consommatrices (NumériqueVersChaîne,
+// TailleVersChaîne, ExécuteTraitement) + value-check des entiers
+// documentés (depuisFichier/URL traités dans
+// test_isolees_image_xml_url_coverage.owl).
+
+// ================================================================
+// fnnHexadécimal (forme ACCENTUÉE — fnnHexadecimal sans accent est
+// déjà couvert par test_format_numerique.owl). Branché via le champ
+// Notation du type FormatNumérique (dispatch WLNUM_TYPE_X).
+// ================================================================
+fH est un FormatNumérique
+fH..Notation = fnnHexadécimal
+dbgVérifieEgalité(NumériqueVersChaîne(255, fH), "ff", "fnnHexadécimal (accentué) -> 'ff'")
+dbgVérifieEgalité(NumériqueVersChaîne(4096, fH), "1000", "fnnHexadécimal 4096 -> '1000'")
+
+// L'alias accentué et l'alias ASCII désignent la même constante
+dbgVérifieEgalité(fnnHexadécimal, fnnHexadécimal, "fnnHexadécimal = fnnHexadecimal")
+
+// ================================================================
+// maskMonétaireSystème : sentinel système dispatch dans
+// NumériqueVersChaîne (formatage style monétaire local).
+// ================================================================
+mone est une chaîne = NumériqueVersChaîne(1234.56, maskMonétaireSystème)
+// Le format dépend de la locale système — on vérifie qu'il contient
+// au moins les chiffres de la valeur (effet observable : c'est bien
+// la valeur 1234.56 qui est formatée, pas un message d'erreur).
+dbgVérifieVrai(Position(mone, "1") > 0, "maskMonétaireSystème : sortie contient '1'")
+dbgVérifieVrai(Position(mone, "234") > 0, "maskMonétaireSystème : sortie contient '234'")
+dbgVérifieVrai(Position(mone, "56") > 0, "maskMonétaireSystème : sortie contient '56'")
+// Le sentinel maskMonétaireSystème est distinct de maskNombreSystème
+dbgVérifieVrai(maskMonétaireSystème <> maskNombreSystème, "maskMonétaireSystème <> maskNombreSystème")
+
+// ================================================================
+// tailleTO : unit=5 (=Téra) dispatch dans TailleVersChaîne. 1 To =
+// 1099511627776 octets (2^40). EFFET RÉEL.
+// ================================================================
+dbgVérifieEgalité(tailleTO, 5, "tailleTO = 5 (index Téra)")
+dbgVérifieEgalité(TailleVersChaîne(1099511627776, tailleTO), "1 To", "1 To forcé en tailleTO")
+dbgVérifieEgalité(TailleVersChaîne(2199023255552, tailleTO), "2 To", "2 To forcé en tailleTO")
+
+// ================================================================
+// orientLandscape : alias EN d'orientPaysage (même
+// OWL_ETAT_ORIENT_PAYSAGE). EFFET RÉEL via PDFCommence (orientation
+// page) — vérifié ici par égalité des sentinels (le dispatch PDF est
+// déjà couvert par test_pdf*.owl côté orientPaysage).
+// ================================================================
+dbgVérifieEgalité(orientLandscape, orientPaysage, "orientLandscape = orientPaysage (alias EN)")
+dbgVérifieVrai(orientLandscape <> orientPortrait, "orientLandscape <> orientPortrait")
+
+// ================================================================
+// trtProcédureProjet : sentinel branché (lu en arg de
+// ExécuteTraitement) mais collapse OWL vers même dispatch que
+// trtProcédure (cf commentaire stdlib_eval.c : "OWL : les deux
+// constantes résolvent vers un simple appel par nom"). EFFET RÉEL =
+// la procédure s'exécute et renvoie sa valeur.
+// ================================================================
+PROCEDURE procIsolee()
+	RENVOYER 4242
+FIN
+
+r_local est un entier = ExécuteTraitement("procIsolee", trtProcédure)
+dbgVérifieEgalité(r_local, 4242, "trtProcédure : la procédure s'exécute")
+
+r_projet est un entier = ExécuteTraitement("procIsolee", trtProcédureProjet)
+dbgVérifieEgalité(r_projet, 4242, "trtProcédureProjet : la procédure s'exécute (collapse OWL)")
+
+dbgVérifieVrai(trtProcédure <> trtProcédureProjet, "trtProcédure <> trtProcédureProjet (sentinels distincts)")

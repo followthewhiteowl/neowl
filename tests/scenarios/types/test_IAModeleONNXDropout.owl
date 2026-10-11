@@ -1,0 +1,90 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — import d'un modèle ONNX contenant
+// un node Dropout (couche de régularisation).
+// @résumé : le Dropout est une couche d'entraînement : à l'inférence il n'a
+// aucun effet, il transmet son entrée telle quelle (identité). À l'import, un
+// node Dropout est donc ignoré proprement — aucune couche n'est créée, et le
+// chaînage est préservé : la couche qui consomme la sortie du Dropout reçoit
+// exactement l'entrée du Dropout. Le scénario central importe un petit réseau
+// (Conv → ReLU → MaxPool → Flatten → Dropout → Dense) et compare l'inférence
+// à une sortie de référence (oracle) capturée hors OWL, à une tolérance
+// flottante près : l'oracle est identique avec ou sans Dropout, ce qui prouve
+// l'identité à l'inférence.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_dropout.onnx — CNN exporté
+// depuis PyTorch avec un node Dropout d'inférence inséré entre l'aplatissement
+// et la couche dense (une seule entrée / une seule sortie = identité).
+// Entrée [1,1,8,8], sortie [1,3]. L'oracle vit dans
+// tests/internal_fixtures/onnx/fixture_dropout_oracle.json ; la digue
+// reconstruit l'entrée à la main (flat[k] = k/64.0) pour ne dépendre d'aucune
+// lecture JSON.
+
+// Cœur du contrat : .ChargeONNX importe un réseau contenant un Dropout, l'ignore
+// (identité), puis .Infère sur l'entrée oracle [1,1,8,8] reproduit la sortie
+// [1,3] capturée par onnxruntime, à une tolérance flottante près.
+PROCEDURE PUBLIQUE scenario_charge_onnx_dropout_est_identite()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_dropout.onnx")
+	// Capture immédiate : la RAZ-auto consomme la sentinelle d'erreur au 1er
+	// appel natif suivant, lire ErreurDétectée avant tout autre appel
+	// (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un réseau contenant un node Dropout réussit (Dropout ignoré, chaînage préservé)")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 63
+			brut.Ajoute(k / 64.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 8, 8])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [classes]
+		// (sémantique d'import ONNX).
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = 0.12899403274059296
+		attendu2 est un réel = -0.22088323533535004
+		attendu3 est un réel = 0.1781103014945984
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (Dropout = identité à l'inférence)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (Dropout = identité à l'inférence)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (Dropout = identité à l'inférence)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le même
+// comportement observable que .ChargeONNX (mêmes valeurs, même tolérance).
+PROCEDURE PUBLIQUE scenario_load_onnx_dropout_is_identity()
+	mon is an AIModel
+	ErreurRAZ()
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_dropout.onnx")
+	// Immediate capture: the auto-reset mechanism consumes the error sentinel
+	// on the next native call (cf. skill test-writing-pitfalls §6).
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a network containing a Dropout node succeeds (Dropout skipped, chaining preserved)")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 63
+			raw.Ajoute(k / 64.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 1, 8, 8])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = 0.12899403274059296
+		expected2 is a real = -0.22088323533535004
+		expected3 is a real = 0.1781103014945984
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the oracle (Dropout = identity at inference)")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the oracle (Dropout = identity at inference)")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the oracle (Dropout = identity at inference)")
+	FIN
+FIN

@@ -1,0 +1,205 @@
+// @sujet : dLigne
+// @resume : Tracer une ligne entre deux points avec couleur et largeur personnalisables
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_ligne_horizontale()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelTrace est un entier
+
+	// Ligne horizontale rouge simple
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurRouge, 0, 2)
+	dLigne(img, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la trace horizontale y=50
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurRouge, "ligne horizontale rouge : pixel sur la trace est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_ligne_verticale()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelTrace est un entier
+
+	// Ligne verticale bleue
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurBleu, 0, 2)
+	dLigne(img, 50, 10, 50, 90)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la trace verticale x=50
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurBleu, "ligne verticale bleue : pixel sur la trace est bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_ligne_diagonale()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelTrace est un entier
+
+	// Ligne diagonale du coin supérieur gauche vers coin inférieur droit
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurVert, 0, 2)
+	dLigne(img, 0, 0, 100, 100)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la diagonale principale
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurVert, "ligne diagonale verte : pixel sur la diagonale est vert")
+FIN
+
+PROCEDURE PUBLIQUE scenario_ligne_avec_couleur_largeur_explicites()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelTrace est un entier
+
+	// Ligne avec couleur et largeur spécifiées en arguments (sans dStylo)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dLigne(img, 20, 30, 80, 70, couleurMagenta, 5)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la trace (milieu géométrique du segment)
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurMagenta, "ligne avec args couleur+largeur : pixel central est magenta")
+FIN
+
+PROCEDURE PUBLIQUE scenario_ligne_courte()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelTrace est un entier
+
+	// Ligne très courte (5 pixels horizontaux)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurOrange, 0, 3)
+	dLigne(img, 45, 50, 50, 50)
+	dFinDessin(img)
+
+	// Le point (47,50) est au milieu du court segment
+	pixelTrace = dPixelCouleur(img, 47, 50)
+	dbgVérifieEgalité(pixelTrace, couleurOrange, "ligne courte orange : pixel sur la trace est orange")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_ligne_point_longueur_zero()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+
+	// Ligne de longueur 0 (x1=x2, y1=y2) : comportement point unique ou rien
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurJaune, 0, 5)
+	dLigne(img, 50, 50, 50, 50)
+	dFinDessin(img)
+
+	// Vérifier que ça ne crash pas — pixel unique possible selon impl
+	dbgVérifieVrai(Vrai, "ligne longueur=0 : pas de crash")
+FIN
+
+PROCEDURE PRIVÉE scenario_ligne_sortie_image_partiellement()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	pixelTrace est un entier
+
+	// Ligne partiellement hors image : départ dans l'image, arrivée hors limites
+	// Portion visible doit être tracée
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurCyan, 0, 3)
+	dLigne(img, 50, 50, 200, 200)
+	dFinDessin(img)
+
+	// Le point (50,50) est le point de départ, garanti dans l'image
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurCyan, "ligne sortie image partielle : point de départ tracé")
+FIN
+
+PROCEDURE PRIVÉE scenario_ligne_entierement_hors_image()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentre est un entier
+
+	// Ligne entièrement hors des limites de l'image : rien ne doit être tracé
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurRouge, 0, 2)
+	dLigne(img, 150, 150, 200, 200)
+	dFinDessin(img)
+
+	// Rien tracé → centre de l'image reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "ligne hors image : rien tracé, image reste blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_ligne_coords_negatives()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurViolet est un entier = RVB(128, 0, 128)
+	pixelTrace est un entier
+
+	// Ligne avec coordonnées négatives (clip automatique attendu)
+	// Départ hors image à gauche, arrivée dans l'image
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurViolet, 0, 2)
+	dLigne(img,-20, 50, 80, 50)
+	dFinDessin(img)
+
+	// Le point (40,50) est dans la portion visible clippée de la ligne horizontale
+	pixelTrace = dPixelCouleur(img, 40, 50)
+	dbgVérifieEgalité(pixelTrace, couleurViolet, "ligne coords négatives : clip auto, portion visible tracée")
+FIN
+
+PROCEDURE PRIVÉE scenario_ligne_tres_epaisse()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurIndigo est un entier = RVB(75, 0, 130)
+	pixelTrace est un entier
+
+	// Ligne très épaisse (15 pixels) : vérifier que la largeur est respectée
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dLigne(img, 10, 50, 90, 50, couleurIndigo, 15)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur l'axe central de la ligne épaisse
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurIndigo, "ligne très épaisse : pixel sur l'axe central est indigo")
+FIN
+
+PROCEDURE PRIVÉE scenario_ligne_largeur_un_pixel()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	pixelTrace est un entier
+
+	// Ligne fine (1 pixel) : vérifier qu'elle est quand même tracée
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dLigne(img, 20, 20, 80, 80, couleurNoir, 1)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la diagonale tracée
+	pixelTrace = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelTrace, couleurNoir, "ligne 1 pixel : trace quand même, pixel diagonal noir")
+FIN

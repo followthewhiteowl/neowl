@@ -1,0 +1,80 @@
+Trace("=== JSON NATIF ===")
+
+// --- Test 1: Parse basique ---
+jDoc est un JSON = ChaineVersJSON("{""nom"":""Roger"",""age"":45,""actif"":true}")
+dbgVerifieVrai(jDoc <> Null, "JSON parse non null")
+
+// --- Test 2: Acces par dot ---
+dbgVerifieEgalite(jDoc.nom, "Roger", "JSON dot access string")
+dbgVerifieEgalite(jDoc.age, 45, "JSON dot access int")
+dbgVerifieEgalite(jDoc.actif, Vrai, "JSON dot access bool")
+
+// --- Test 3: Membre inexistant ---
+dbgVerifieEgalite(jDoc.email, Null, "JSON membre inexistant = Null")
+
+// --- Test 4: Modification ---
+jDoc.ville = "Paris"
+dbgVerifieEgalite(jDoc.ville, "Paris", "JSON set nouveau membre")
+
+jDoc.age = 46
+dbgVerifieEgalite(jDoc.age, 46, "JSON modifier membre existant")
+
+// --- Test 5: Proprietes ---
+dbgVerifieEgalite(jDoc..Occurrence, 4, "JSON ..Occurrence = 4 apres ajout")
+dbgVerifieEgalite(jDoc..Type, "objet", "JSON ..Type = objet")
+dbgVerifieVrai(PAS jDoc..Vide, "JSON non vide")
+
+// --- Test 6: JSON Array ---
+jArr est un JSON = ChaineVersJSON("[10, 20, 30, ""hello""]")
+dbgVerifieEgalite(jArr[1], 10, "JSON array[1] = 10 (base 1)")
+dbgVerifieEgalite(jArr[4], "hello", "JSON array[4] = hello")
+dbgVerifieEgalite(jArr..Occurrence, 4, "JSON array ..Occurrence = 4")
+dbgVerifieEgalite(jArr..Type, "tableau", "JSON array ..Type = tableau")
+
+// --- Test 7: JSON nested ---
+jNested est un JSON = ChaineVersJSON("{""personne"":{""nom"":""Michel"",""adresse"":{""ville"":""Lyon""}}}")
+dbgVerifieEgalite(jNested.personne.nom, "Michel", "JSON nested dot access")
+dbgVerifieEgalite(jNested.personne.adresse.ville, "Lyon", "JSON deep nested access")
+
+// --- Test 8: Generation ---
+sJSON est une chaine = JSONVersChaine(jDoc, psdMinifie)
+dbgVerifieVrai(Taille(sJSON) > 10, "JSONVersChaine produit du texte")
+Trace("Compact: " + sJSON)
+
+// --- Test 9: Generation formatee ---
+sFormatted est une chaine = JSONVersChaine(jDoc)
+dbgVerifieVrai(Position(sFormatted, LF) > 0, "JSONVersChaine formate contient des newlines")
+
+// --- Test 10: Validation ---
+dbgVerifieVrai(JSONValide("{""ok"":true}"), "JSONValide sur JSON valide")
+dbgVerifieVrai(PAS JSONValide("{broken"), "JSONValide sur JSON invalide")
+
+// --- Test 11: Existence ---
+dbgVerifieVrai(JSONExiste(jDoc, "nom"), "JSONExiste: nom existe")
+dbgVerifieVrai(PAS JSONExiste(jDoc, "telephone"), "JSONExiste: telephone n'existe pas")
+
+// --- Test 12: Suppression ---
+JSONSupprime(jDoc, "ville")
+dbgVerifieVrai(PAS JSONExiste(jDoc, "ville"), "JSONSupprime: ville supprimee")
+dbgVerifieEgalite(jDoc..Occurrence, 3, "JSON ..Occurrence = 3 apres suppression")
+
+// --- Test 13: Types JSON ---
+jTypes est un JSON = ChaineVersJSON("{""s"":""hello"",""n"":42,""r"":3.14,""b"":true,""nil"":null}")
+dbgVerifieEgalite(jTypes.s, "hello", "JSON string value")
+dbgVerifieEgalite(jTypes.n, 42, "JSON int value")
+dbgVerifieEgalite(jTypes.b, Vrai, "JSON bool value")
+dbgVerifieEgalite(jTypes.nil, Null, "JSON null value")
+
+// --- Test 14: Acces bracket sur objet ---
+dbgVerifieEgalite(jTypes["s"], "hello", "JSON bracket access objet")
+dbgVerifieEgalite(jTypes["n"], 42, "JSON bracket access objet int")
+
+// --- Test 15: Roundtrip ---
+sOriginal est une chaine = "{""a"":1,""b"":[2,3],""c"":{""d"":true}}"
+jRound est un JSON = ChaineVersJSON(sOriginal)
+sResult est une chaine = JSONVersChaine(jRound, psdMinifie)
+dbgVerifieEgalite(sResult, sOriginal, "JSON roundtrip compact")
+
+// --- Test 16: Unicode \u escapes ---
+jUni est un JSON = ChaineVersJSON("{""msg"":""hello\u0021""}")
+dbgVerifieEgalite(jUni.msg, "hello!", "JSON unicode \u0021 -> !")

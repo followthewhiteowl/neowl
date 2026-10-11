@@ -1,0 +1,105 @@
+// @sujet : coercion-chaine-vers-numerique-prefixe
+// @résumé : L'affectation d'une chaîne à une variable `entier` ou `réel` parse le préfixe numérique valide (espaces de tête, signe, chiffres, décimale/exposant pour le réel) et ignore la suite non numérique, au lieu de retomber à 0 dès qu'un caractère non numérique traîne. L'entier tronque (pas d'arrondi), n'accepte ni scientifique ni hexadécimal ; le réel parse un flottant complet. Préfixe non numérique ou chaîne vide -> 0, silencieux.
+
+
+// --- chaîne -> entier : initialisation -------------------------------------
+PROCEDURE scenario_chaine_vers_entier_init()
+	res1 est un entier = "42"
+	dbgVérifieEgalité(res1, 42, "entier pur")
+
+	res2 est un entier = "42test"
+	dbgVérifieEgalité(res2, 42, "préfixe suivi de lettres")
+
+	res3 est un entier = "3.14"
+	dbgVérifieEgalité(res3, 3, "décimale tronquée")
+
+	res4 est un entier = "3.99"
+	dbgVérifieEgalité(res4, 3, "troncature, pas d'arrondi")
+
+	res5 est un entier = "-5"
+	dbgVérifieEgalité(res5,-5, "négatif")
+
+	res6 est un entier = "-5abc"
+	dbgVérifieEgalité(res6,-5, "négatif avec suffixe")
+
+	res7 est un entier = "+7"
+	dbgVérifieEgalité(res7, 7, "signe plus explicite")
+
+	res8 est un entier = "  -3.9x"
+	dbgVérifieEgalité(res8,-3, "espaces de tête + signe + troncature")
+
+	res9 est un entier = "1e3"
+	dbgVérifieEgalité(res9, 1, "pas de scientifique en entier")
+
+	res10 est un entier = "0x1F"
+	dbgVérifieEgalité(res10, 0, "pas d'hexadécimal")
+
+	res11 est un entier = "test42"
+	dbgVérifieEgalité(res11, 0, "préfixe non numérique")
+
+	res12 est un entier = ""
+	dbgVérifieEgalité(res12, 0, "chaîne vide")
+
+	res13 est un entier = "  "
+	dbgVérifieEgalité(res13, 0, "espaces uniquement")
+FIN
+
+
+// --- chaîne -> entier : réaffectation --------------------------------------
+PROCEDURE scenario_chaine_vers_entier_reaffectation()
+	compteur est un entier = 99
+
+	compteur = "42test"
+	dbgVérifieEgalité(compteur, 42, "réaffectation préfixe + lettres")
+
+	compteur = "  -3.9x"
+	dbgVérifieEgalité(compteur,-3, "réaffectation espaces + signe + troncature")
+
+	compteur = "test42"
+	dbgVérifieEgalité(compteur, 0, "réaffectation préfixe non numérique -> 0")
+FIN
+
+
+// --- chaîne -> réel : initialisation ---------------------------------------
+PROCEDURE scenario_chaine_vers_reel_init()
+	rel1 est un réel = "42test"
+	dbgVérifieEgalité(rel1, 42, "préfixe entier suivi de lettres")
+
+	rel2 est un réel = "3.14xyz"
+	dbgVérifieEgalité(rel2, 3.14, "décimale suivie de lettres")
+
+	rel3 est un réel = "-2.5e2"
+	dbgVérifieEgalité(rel3,-250, "notation scientifique")
+
+	rel4 est un réel = "3.14"
+	dbgVérifieEgalité(rel4, 3.14, "décimale pure")
+
+	rel5 est un réel = "test"
+	dbgVérifieEgalité(rel5, 0, "préfixe non numérique -> 0")
+FIN
+
+
+// --- chaîne -> réel : réaffectation ----------------------------------------
+PROCEDURE scenario_chaine_vers_reel_reaffectation()
+	valeur est un réel = 1.0
+
+	valeur = "3.14xyz"
+	dbgVérifieEgalité(valeur, 3.14, "réaffectation décimale + lettres")
+
+	valeur = "-2.5e2"
+	dbgVérifieEgalité(valeur,-250, "réaffectation scientifique")
+
+	valeur = "bonjour"
+	dbgVérifieEgalité(valeur, 0, "réaffectation non numérique -> 0")
+FIN
+
+
+// --- cohérence avec Val() (référence du parsing atoi-style) -----------------
+PROCEDURE scenario_coherence_avec_val()
+	nCoerce est un entier = "42test"
+	nVal est un entier = Val("42test")
+	dbgVérifieEgalité(nCoerce, nVal, "coercion entier alignée sur Val")
+FIN
+
+
+dbgBilanTest()

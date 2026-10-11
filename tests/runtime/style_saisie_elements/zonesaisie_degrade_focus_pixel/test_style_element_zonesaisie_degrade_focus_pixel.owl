@@ -1,0 +1,121 @@
+//  — pixel-tests des deux régressions du Dégradé de la ZoneSaisie.
+//
+// Bug B (CouleurFin non définie -> transparent, pas noir) :
+//   - feuille QSS : 2e arrêt = `rgba(255,0,0,0)` (transparent), PAS `rgb(0,0,0)`.
+//   - pixel droit du champ : le fond BLEU de la fenêtre transparaît (b domine),
+//     ce n'est pas du noir opaque.
+// Distinction (CouleurFin = Noir explicite -> noir opaque) :
+//   - feuille QSS : 2e arrêt = `rgb(0,0,0)` opaque ; pixel droit ≈ noir.
+// Bug A (dégradé persiste au focus) :
+//   - DonneFocus(SAI_Focus) puis capture : le fond gauche reste ROUGE (le dégradé
+//     survit), il ne vire pas au blanc de l'état focus.
+//
+// ROUGE attendu avant fix :
+//   - cas 1 : feuille contient `stop:1 rgb(0,0,0)` (clamp noir) ; pixel droit noir.
+//   - cas 3 : au focus, `*:focus { background-color: rgb(255,255,255) }` écrase le
+//     dégradé -> fond gauche BLANC au lieu de rouge.
+
+TestModeHeadless(Faux)
+
+// Compte les pixels où le rouge domine nettement le bleu dans une zone.
+PROCEDURE CompteRougeDomine(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			c est un entier = dPixelCouleur(img, xx, yy)
+			r est un entier = c MODULO 256
+			b est un entier = (c / 65536) MODULO 256
+			SI r - b > 60 ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+// Compte les pixels où le bleu domine nettement le rouge dans une zone.
+PROCEDURE CompteBleuDomine(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			c est un entier = dPixelCouleur(img, xx, yy)
+			r est un entier = c MODULO 256
+			b est un entier = (c / 65536) MODULO 256
+			SI b - r > 60 ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+// Compte les pixels quasi-noirs (R, V, B tous faibles) dans une zone.
+PROCEDURE CompteNoir(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			c est un entier = dPixelCouleur(img, xx, yy)
+			r est un entier = c MODULO 256
+			v est un entier = (c / 256) MODULO 256
+			b est un entier = (c / 65536) MODULO 256
+			SI r < 60 ET v < 60 ET b < 60 ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementZoneSaisieDegradeFocus)
+
+// ---- Bug B : CouleurFin non définie -> transparent (SAI_FinAbsente) ----
+feuilleAbsente est une chaîne = __DebugFeuilleStyle(SAI_FinAbsente)
+dbgVérifieVrai(Contient(feuilleAbsente, "stop:1 rgba(255,0,0,0)"), "CouleurFin non définie : 2e arrêt transparent (rgba alpha 0)")
+dbgVérifieVrai(PAS Contient(feuilleAbsente, "stop:1 rgb(0,0,0)"), "CouleurFin non définie : PAS de virage noir opaque")
+
+img est une Image = dCopieImageFenêtre(FEN_StyleElementZoneSaisieDegradeFocus)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// Bord droit du champ 1 : la CouleurFin transparente laisse transparaître le
+// fond BLEU de la fenêtre (b domine), ce n'est pas du noir opaque.
+nbBleuDroite est un entier = CompteBleuDomine(img, 360, 22, 395, 38)
+dbgVérifieVrai(nbBleuDroite > 100, "CouleurFin transparente : le fond bleu transparaît à droite (pas de noir)")
+
+// ---- Distinction : CouleurFin = Noir explicite -> noir opaque (SAI_FinNoir) ----
+feuilleNoir est une chaîne = __DebugFeuilleStyle(SAI_FinNoir)
+dbgVérifieVrai(Contient(feuilleNoir, "stop:1 rgb(0,0,0)"), "CouleurFin = Noir explicite : 2e arrêt noir OPAQUE (distinction préservée)")
+
+// Bord droit du champ 2 : noir opaque (aucune transparence, le bleu ne perce pas).
+nbNoirDroite est un entier = CompteNoir(img, 360, 72, 395, 88)
+dbgVérifieVrai(nbNoirDroite > 100, "CouleurFin = Noir explicite : bord droit noir opaque")
+
+// ---- Bug A : le dégradé persiste au FOCUS (SAI_Focus) ----
+DonneFocus(SAI_Focus)
+Temporise(1)
+
+imgFocus est une Image = dCopieImageFenêtre(FEN_StyleElementZoneSaisieDegradeFocus)
+dbgVérifieEgalité(imgFocus..Valide, Vrai, "capture focus valide")
+
+// Bord gauche du champ 3 au focus : le dégradé survit -> reste ROUGE (pas blanc).
+nbRougeGaucheFocus est un entier = CompteRougeDomine(imgFocus, 25, 122, 60, 138)
+dbgVérifieVrai(nbRougeGaucheFocus > 100, "Dégradé persiste au focus : bord gauche reste rouge (pas le blanc de l'état focus)")
+
+// La feuille QSS d'état focus doit porter le dégradé (background), pas seulement
+// un background-color plat qui l'écraserait.
+feuilleFocus est une chaîne = __DebugFeuilleStyle(SAI_Focus)
+dbgVérifieVrai(Contient(feuilleFocus, ":focus"), "SAI_Focus : la feuille contient un bloc :focus")
+
+Ferme(FEN_StyleElementZoneSaisieDegradeFocus)
+dbgBilanTest()

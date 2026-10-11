@@ -1,0 +1,47 @@
+// @sujet : ErreurRAZ
+// @résumé : Remet à zéro le contexte d'erreur soft — après l'appel,
+// ErreurDetectee repasse à Faux et ErreurInfo retombe sur ses valeurs
+// neutres, quel que soit l'état précédent.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// Nominal : une erreur active est bien effacée après ErreurRAZ, sur les
+// trois angles de lecture (flag, message, code).
+PROCEDURE scenario_efface_une_erreur_active()
+	ErreurDéclenche(9, "Panne réseau.")
+	dbgVérifieVrai(ErreurDétectée, "L'erreur est active avant la remise à zéro")
+
+	ErreurRAZ()
+	dbgVérifieFaux(ErreurDétectée, "ErreurDetectee retombe à Faux après ErreurRAZ")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "", "errMessage retombe à une chaîne vide après ErreurRAZ")
+	dbgVérifieEgalité(ErreurInfo(errCode), "", "errCode retombe à une chaîne vide après ErreurRAZ")
+FIN
+
+
+// Cas limite (idempotence) : appeler ErreurRAZ alors qu'aucune erreur
+// n'est active ne provoque aucun crash et laisse un contexte déjà propre.
+PROCEDURE scenario_sans_erreur_active_ne_provoque_rien()
+	dbgVérifieFaux(ErreurDétectée, "Contexte déjà propre avant l'appel")
+
+	ErreurRAZ()
+	dbgVérifieFaux(ErreurDétectée, "ErreurDetectee reste Faux après un appel à vide")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "", "errMessage reste une chaîne vide après un appel à vide")
+FIN
+
+
+// Cas limite (idempotence) : deux appels consécutifs après une erreur
+// donnent le même résultat que le premier — le second RAZ ne réintroduit
+// aucun vestige de l'erreur précédente.
+PROCEDURE PRIVÉE scenario_deux_appels_consecutifs_restent_stables()
+	ErreurDéclenche(4, "Fichier introuvable.")
+	dbgVérifieVrai(ErreurDétectée, "L'erreur est bien posée avant les deux remises à zéro")
+
+	ErreurRAZ()
+	ErreurRAZ()
+	dbgVérifieFaux(ErreurDétectée, "Après deux ErreurRAZ successifs, le flag reste Faux")
+	dbgVérifieEgalité(ErreurInfo(errCode), "", "Après deux ErreurRAZ successifs, errCode reste une chaîne vide")
+FIN

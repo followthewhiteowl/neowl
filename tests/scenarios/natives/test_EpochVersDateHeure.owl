@@ -1,0 +1,99 @@
+// @sujet : EpochVersDateHeure
+// @résumé : Convertit un timestamp Unix en date+heure locale
+
+PROCEDURE PUBLIQUE scenario_conversion_standard()
+	// Conversion epoch zero (1970-01-01 00:00:00 UTC -> heure locale)
+	dh est une dateheure = EpochVersDateHeure(0)
+	dbgVérifieVrai(DateHeureValide(dh), "Epoch 0 produit dateheure valide")
+
+	// Coherence aller-retour : epoch -> dh -> epoch
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 0, "Aller-retour epoch 0 preserve la valeur")
+
+	// Verification de l'unite : secondes, pas millisecondes
+	dh    = EpochVersDateHeure(86400)
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 86400, "Aller-retour epoch 86400 (1 jour) preserve la valeur")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_limite_basse_negatif()
+	// Epochs negatifs (dates avant 1970-01-01 00:00:00 UTC)
+	dh est une dateheure = EpochVersDateHeure(-86400)
+	dbgVérifieVrai(DateHeureValide(dh), "Epoch negatif -86400 produit dateheure valide")
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch,-86400, "Aller-retour epoch negatif preserve la valeur")
+
+	// Epoch juste avant zero
+	dh    = EpochVersDateHeure(-60)
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch,-60, "Aller-retour epoch -60 preserve la valeur")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_limite_haute_2038()
+	// Date au-dela de la limite INT32 Unix (2038-01-19 03:14:07)
+	dh est une dateheure = EpochVersDateHeure(1893495600)
+	dbgVérifieVrai(DateHeureValide(dh), "Epoch 2030 produit dateheure valide")
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 1893495600, "Aller-retour epoch 2030 preserve la valeur")
+
+	// Date proche limite 2038
+	dh    = EpochVersDateHeure(2147483647)
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 2147483647, "Aller-retour INT32_MAX preserve la valeur")
+
+	// Date bien au-dela de 2038
+	dh = EpochVersDateHeure(2500000000)
+	dbgVérifieVrai(DateHeureValide(dh), "Epoch > INT32_MAX produit dateheure valide")
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 2500000000, "Aller-retour epoch > INT32_MAX preserve la valeur")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_roundtrip_coherence()
+	// Verifier que la paire EpochVersDateHeure / DateHeureVersEpoch est coherente
+	// pour plusieurs valeurs representatives
+
+	// Y2K
+	dh est une dateheure = EpochVersDateHeure(946684800)
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 946684800, "Aller-retour epoch Y2K 2000-01-01")
+
+	// Date recente 2025
+	dh    = EpochVersDateHeure(1735689600)
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 1735689600, "Aller-retour epoch 2025-01-01")
+
+	// Timestamp recent 2020
+	dh    = EpochVersDateHeure(1577876400)
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 1577876400, "Aller-retour epoch 2020-01-01 12:00")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_epoch_invalide()
+	// Epoch extremement negatif (avant limites calendrier)
+	dh est une dateheure = EpochVersDateHeure(-62167219200)
+	bValide est un booléen = DateHeureValide(dh)
+	dbgVérifieVrai(bValide, "Epoch tres negatif produit dateheure valide ou sentinel")
+
+	// Epoch extremement positif (tres loin dans le futur)
+	dh      = EpochVersDateHeure(253402300799)
+	bValide = DateHeureValide(dh)
+	dbgVérifieVrai(bValide, "Epoch 9999-12-31 23:59:59 reste valide")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_transitions_annees()
+	// Transitions d'annees bissextiles
+	dh est une dateheure = EpochVersDateHeure(951782400)
+	dbgVérifieVrai(DateHeureValide(dh), "Epoch 29 fevrier 2000 (bissextile) produit dateheure valide")
+	epoch est un entier = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 951782400, "Aller-retour epoch 29 fevrier 2000 preserve la valeur")
+
+	// Dernier jour de fevrier annee non-bissextile
+	dh    = EpochVersDateHeure(920160000)
+	epoch = DateHeureVersEpoch(dh)
+	dbgVérifieEgalité(epoch, 920160000, "Aller-retour epoch 28 fevrier 1999 preserve la valeur")
+FIN

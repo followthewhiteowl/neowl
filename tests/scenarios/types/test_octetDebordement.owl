@@ -1,0 +1,65 @@
+// @sujet : octetDébordement
+// @résumé : Enum de mode de débordement pour EntierVersOctet et BufferÉcritOctet. Quatre membres : débordementErreur (défaut, lève une exception si hors [0,255]), débordementCyclique (repli modulo dans [0,255]), débordementBorne (clamp vers 0 ou 255), débordementOctetFaible (garde les 8 bits faibles : valeur & 0xFF). Seul cet enum autorise débordementOctetFaible — l'enum entierDébordement (pour EntierDansPlage) ne l'inclut pas.
+
+
+// débordementErreur : EntierVersOctet lève une exception pour une valeur hors [0, 255].
+PROCEDURE PUBLIQUE scenario_erreur_hors_plage_octet()
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		r est un entier = EntierVersOctet(300, débordementErreur)
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "débordementErreur : 300 hors [0,255] lève une exception")
+FIN
+
+
+// débordementCyclique : repli modulo 256 dans [0, 255].
+PROCEDURE PUBLIQUE scenario_cyclique_octet()
+	r est un entier = EntierVersOctet(256, débordementCyclique)
+	dbgVérifieEgalité(r, 0, "débordementCyclique : 256 modulo 256 donne 0")
+	r2 est un entier = EntierVersOctet(257, débordementCyclique)
+	dbgVérifieEgalité(r2, 1, "débordementCyclique : 257 modulo 256 donne 1")
+FIN
+
+
+// débordementBorne : clamp à 255 pour une valeur trop grande.
+PROCEDURE PUBLIQUE scenario_borne_octet()
+	r est un entier = EntierVersOctet(300, débordementBorne)
+	dbgVérifieEgalité(r, 255, "débordementBorne : 300 clampé à 255")
+	r2 est un entier = EntierVersOctet(-1, débordementBorne)
+	dbgVérifieEgalité(r2, 0, "débordementBorne : -1 clampé à 0")
+FIN
+
+
+// débordementOctetFaible : conservation des 8 bits faibles (valeur & 0xFF).
+PROCEDURE PUBLIQUE scenario_octet_faible()
+	r est un entier = EntierVersOctet(0x1FF, débordementOctetFaible)
+	dbgVérifieEgalité(r, 255, "débordementOctetFaible : 0x1FF & 0xFF = 255")
+	r2 est un entier = EntierVersOctet(-1, débordementOctetFaible)
+	dbgVérifieEgalité(r2, 255, "débordementOctetFaible : -1 en complément à 2 donne 255")
+FIN
+
+
+// Formes EN bilingues : overflowWrap, overflowClamp et overflowLowByte sont utilisables.
+PROCEDURE PUBLIQUE scenario_formes_en_bilingues()
+	rWrap est un entier = EntierVersOctet(256, overflowWrap)
+	dbgVérifieEgalité(rWrap, 0, "overflowWrap (alias EN de débordementCyclique) : 256 donne 0")
+	rClamp est un entier = EntierVersOctet(300, overflowClamp)
+	dbgVérifieEgalité(rClamp, 255, "overflowClamp (alias EN de débordementBorne) : 300 donne 255")
+	rLow est un entier = EntierVersOctet(0x1FF, overflowLowByte)
+	dbgVérifieEgalité(rLow, 255, "overflowLowByte (alias EN de débordementOctetFaible) : 0x1FF donne 255")
+FIN
+
+
+// Valeur dans [0, 255] : tous les modes restituent la valeur inchangée.
+PROCEDURE PRIVÉE scenario_valeur_dans_plage_octet()
+	rErr est un entier = EntierVersOctet(128, débordementErreur)
+	rCyc est un entier = EntierVersOctet(128, débordementCyclique)
+	rBrn est un entier = EntierVersOctet(128, débordementBorne)
+	rFbl est un entier = EntierVersOctet(128, débordementOctetFaible)
+	dbgVérifieEgalité(rErr, 128, "128 dans [0,255] inchangé (erreur)")
+	dbgVérifieEgalité(rCyc, 128, "128 dans [0,255] inchangé (cyclique)")
+	dbgVérifieEgalité(rBrn, 128, "128 dans [0,255] inchangé (borné)")
+	dbgVérifieEgalité(rFbl, 128, "128 dans [0,255] inchangé (octetFaible)")
+FIN

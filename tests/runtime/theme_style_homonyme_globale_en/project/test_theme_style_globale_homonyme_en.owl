@@ -1,0 +1,35 @@
+// A theme style has no bare name: reading it that way is refused, and the
+// refusal names the owning theme. That refusal has one exception -- the only
+// one -- when an ordinary GLOBAL already carries that name: the bare name then
+// denotes that global, as it always has, and the refusal falls silent.
+//
+// EN mirror of the FR fixture theme_style_globale_homonyme (invariant 3,
+// bilingual). The two core facts of  are locked in EN canonical forms:
+//   1. the bare name yields the value of the ordinary global;
+//   2. it does NOT yield the theme style value of the same name;
+//   3. the style stays reachable through its qualified form.
+
+Trace("=== theme style homonym of an ordinary global (EN) ===")
+
+// --- 1. The bare name yields the ORDINARY global ---
+dbgCheckEqual(stAmbiance..InputZone..BackgroundColor, RGB(250, 250, 250),
+"bare homonym name: yields the ordinary global value")
+
+// --- 2. It does not yield the theme style (no leak) ---
+dbgCheckDifferent(stAmbiance..InputZone..BackgroundColor, RGB(200, 10, 10),
+"bare homonym name: the theme style value does not leak")
+
+// --- 3. The theme style stays readable through its qualified form ---
+dbgCheckEqual(theme.stAmbiance..InputZone..BackgroundColor, RGB(200, 10, 10),
+"qualified form: yields the theme style value, despite the homonym")
+dbgCheckDifferent(theme.stAmbiance..InputZone..BackgroundColor, RGB(250, 250, 250),
+"qualified form: the ordinary global does not mask the style")
+
+// --- 4. Counter-check: without a homonym, the bare name stays closed ---
+// `stNoHomonym` has no ordinary global to carry it: its bare name is refused
+// at COMPILE time, so there is nothing to read here. What we verify is that
+// the exception above did not open the general case.
+dbgCheckEqual(theme.stNoHomonym..InputZone..BackgroundColor, RGB(20, 180, 20),
+"style without homonym: readable via the theme namespace")
+
+dbgTestSummary()

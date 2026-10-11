@@ -1,0 +1,100 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — import d'un graphe combinant
+// les cinq op-familles encore manquantes pour la tête DFL des détecteurs
+// d'objets modernes : `Transpose` (permutation quelconque), `Softmax`
+// (axe donné), `Slice` (sous-plage sur un axe), `Sub` puis `Div`
+// (arithmétique élément-par-élément avec diffusion / broadcast) et
+// `Concat` sur un axe autre que le batch (axe=2 ici).
+// @résumé : le scénario central importe un petit réseau qui transpose son
+// entrée, applique un softmax sur l'axe de distribution, en extrait une
+// sous-plage, soustrait puis divise par des constantes diffusées
+// (broadcast), et recombine le résultat par concaténation sur un axe
+// non-canal — puis compare l'inférence à une sortie de référence capturée
+// hors OWL (onnxruntime), à une tolérance flottante près.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_dfl_ops.onnx — graphe
+// Transpose(perm=[0,2,1]), Softmax(axis=2), Slice(starts/ends/axes/steps
+// en initializers INT64, motif des exports récents), Sub (diffusion d'un
+// vecteur de taille 2 sur le dernier axe), Div (diffusion d'un scalaire),
+// Concat(axis=2, non-canal — vérifié via onnx.load : les 18 autres Concat
+// du réseau réel sont sur l'axe canal, celui-ci ne l'est pas). Entrée
+// [1,4,6] (flat[k] = 0.1*(k+1)), sortie [1,6,4].
+// Oracle : tests/internal_fixtures/onnx/fixture_dfl_ops_oracle.json.
+
+PROCEDURE PUBLIQUE scenario_charge_onnx_dfl_ops_infere_egale_oracle()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_dfl_ops.onnx")
+	// Capture immédiate : la RAZ-auto consomme la sentinelle d'erreur au 1er
+	// appel natif suivant, lire ErreurDétectée avant tout autre appel
+	// (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un réseau avec Transpose/Softmax/Slice/Sub/Div/Concat-axe2 (tête DFL) réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 1 À 24
+			brut.Ajoute(k / 10.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 4, 6])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Sortie de rang 3 [1,6,4] : pas de rétrogradation en 1D (celle-ci ne
+		// s'applique qu'à une sortie 2D lot=1, sémantique d'import ONNX).
+		dbgVérifieEgalité(sortie..Rang, 3, "sortie Transpose/Softmax/Slice/Sub/Div/Concat : Tenseur de rang 3")
+		dbgVérifieEgalité(sortie..Forme[1], 1, "Forme[1] = 1 (lot)")
+		dbgVérifieEgalité(sortie..Forme[2], 6, "Forme[2] = 6")
+		dbgVérifieEgalité(sortie..Forme[3], 4, "Forme[3] = 4 (Slice 2 + Concat axe=2 x2)")
+
+		attendu11 est un réel = 0.049726709723472595
+		attendu12 est un réel = 0.08616094291210175
+		attendu31 est un réel = 0.04972671717405319
+		attendu64 est un réel = 0.08616094291210175
+
+		dbgVérifieVrai(Abs(sortie..Valeur[1][1][1] - attendu11) < 0.0001, "sortie[1][1][1] proche de l'oracle onnxruntime")
+		dbgVérifieVrai(Abs(sortie..Valeur[1][1][2] - attendu12) < 0.0001, "sortie[1][1][2] proche de l'oracle onnxruntime")
+		dbgVérifieVrai(Abs(sortie..Valeur[1][3][1] - attendu31) < 0.0001, "sortie[1][3][1] proche de l'oracle onnxruntime")
+		dbgVérifieVrai(Abs(sortie..Valeur[1][6][4] - attendu64) < 0.0001, "sortie[1][6][4] proche de l'oracle onnxruntime")
+	SINON
+		// Si l'exécuteur de graphe ne gère pas ces op-familles, le détail
+		// nomme l'opération ONNX non reconnue (Transpose, la première du
+		// graphe), pas une syntaxe cassée côté test.
+		sDétail est une chaîne = ErreurInfo(errMessage)
+		dbgVérifieVrai(Contient(sDétail, "non supportee") OU Contient(sDétail, "non supportée"), "le détail nomme une opération ONNX non reconnue (tête DFL)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le
+// même comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_dfl_ops_infer_equals_oracle()
+	mon is an AIModel
+	ErrorReset()
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_dfl_ops.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a network with Transpose/Softmax/Slice/Sub/Div/Concat-axis2 (DFL head) succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 1 À 24
+			raw.Ajoute(k / 10.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 4, 6])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 3, "output rank 3, not squeezed to 1D")
+		dbgCheckEqual(output..Shape[1], 1, "Shape[1] = 1 (batch)")
+		dbgCheckEqual(output..Shape[2], 6, "Shape[2] = 6")
+		dbgCheckEqual(output..Shape[3], 4, "Shape[3] = 4")
+
+		expected11 is a real = 0.049726709723472595
+		expected64 is a real = 0.08616094291210175
+
+		dbgCheckTrue(Abs(output..Value[1][1][1] - expected11) < 0.0001, "AIModel.LoadONNX, English form: output[1][1][1] within tolerance of the DFL-ops oracle")
+		dbgCheckTrue(Abs(output..Value[1][6][4] - expected64) < 0.0001, "AIModel.LoadONNX, English form: output[1][6][4] within tolerance of the DFL-ops oracle")
+	SINON
+		sDetail is a string = ErrorInfo(errMessage)
+		dbgCheckTrue(Contient(sDetail, "non supportee") OU Contient(sDetail, "non supportée"), "the detail names an unrecognized ONNX operation (DFL head)")
+	FIN
+FIN

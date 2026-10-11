@@ -1,0 +1,59 @@
+//  — Event surToucheAppuyee / surToucheRelachee sur Saisie.
+// Utilise OuvreSoeur + TestSimuleSaisie qui poste de vrais QKeyEvents
+// (mode non-headless, pipeline Qt reel).
+//
+// ROUGE ATTENDU : surToucheAppuyee / surToucheRelachee non cablees dans
+// le runtime -> les callbacks ne tirent jamais -> assertions sur compteurs
+// et codes touches echouent.
+//
+// NB : a ce stade, le compilateur n'invalide pas les noms de PROCEDURE
+// dans un bloc Fenetre/Saisie (pas de check_event_signature sur ces
+// noms). La rougeur apparait donc a l'EXECUTION (compteurs restent 0).
+
+TestModeHeadless(Faux)
+
+bFenPrete_ste est un booléen = Faux
+nAppuyeeCapture est un entier = 0
+nRelacheeCapture est un entier = 0
+nDerniereAppuyeeCapture est un entier = -1
+nDerniereRelacheeCapture est un entier = -1
+nDerniereAppuyeeImmediat est un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bFenPrete_ste = Vrai
+FIN
+
+PROCEDURE callback_saisie_appuyee(nTouche est un entier)
+	nAppuyeeCapture += 1
+	nDerniereAppuyeeCapture = nTouche
+FIN
+
+PROCEDURE callback_saisie_relachee(nTouche est un entier)
+	nRelacheeCapture += 1
+	nDerniereRelacheeCapture = nTouche
+FIN
+
+PROCEDURE callback_lit_compteurs(nA est un entier, nR est un entier, nDA est un entier, nDR est un entier)
+	nAppuyeeCapture          = nA
+	nRelacheeCapture         = nR
+	nDerniereAppuyeeCapture  = nDA
+	nDerniereRelacheeCapture = nDR
+FIN
+
+OuvreSoeur(FEN_SaisieTouche)
+
+dbgVérifieVrai(bFenPrete_ste, "FinInitialisation appelee : fenetre prete")
+
+// TestSimuleSaisie("ab") => 2 frappes = 2 surToucheAppuyee + 2 surToucheRelachee.
+TestSimuleSaisie(SAI_Texte, "ab")
+
+LireCompteurs()
+dbgVérifieEgalité(nAppuyeeCapture, 2, "surToucheAppuyee : 2 frappes pour 'ab'")
+dbgVérifieEgalité(nRelacheeCapture, 2, "surToucheRelachee : 2 relachements pour 'ab'")
+
+// Code de la touche 'b' : Asc("b") = 98
+dbgVérifieEgalité(nDerniereAppuyeeCapture, Asc("b"), "derniere touche appuyee = code 'b'")
+dbgVérifieEgalité(nDerniereRelacheeCapture, Asc("b"), "derniere touche relachee = code 'b'")
+
+Ferme(FEN_SaisieTouche)
+dbgBilanTest()

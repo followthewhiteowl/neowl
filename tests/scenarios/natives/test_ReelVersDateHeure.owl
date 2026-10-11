@@ -1,0 +1,24 @@
+// @sujet : RéelVersDateHeure
+// @résumé : Convertit un nombre (réel ou entier) en dateheure selon une convention de sérialisation. Retourne une dateheure invalide si l'argument n'est pas convertible.
+
+
+// Cas canonique : conversion d'un réel en dateheure (format exact dépend de
+// l'implémentation runtime, on vérifie juste que le résultat est non-vide).
+PROCEDURE scenario_reel_vers_dateheure_defaut()
+	dh est une dateheure = RéelVersDateHeure(44000.5)
+	sCast est une chaîne = dh
+	dbgVérifieVrai(Taille(sCast) > 0, "réel valide retourne dateheure non vide")
+FIN
+
+
+// Type invalide (ni entier ni réel) : retourne dateheure invalide et
+// signale l'erreur via ErreurDétectée. Cohérence avec le principe
+// général OWL : toute valeur invalide sur erreur est accompagnée d'un
+// marqueur détectable.
+PROCEDURE PRIVÉE scenario_type_invalide_signale_erreur()
+	ErreurRAZ()
+	dh est une dateheure = RéelVersDateHeure("not a number")
+	// On ne peut pas tester directement si une dateheure est "invalide" sans
+	// convention claire, donc on vérifie simplement que l'erreur est détectée.
+	dbgVérifieVrai(ErreurDétectée, "RéelVersDateHeure type invalide doit poser ErreurDétectée")
+FIN

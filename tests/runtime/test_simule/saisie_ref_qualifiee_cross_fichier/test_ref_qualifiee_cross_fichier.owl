@@ -1,0 +1,27 @@
+// Référence qualifiée Fenetre.Champ depuis un fichier voisin :
+// TestSimuleSaisie(FEN_Form.SAI_Nom, ...) doit écrire dans le champ et la
+// lecture qualifiée FEN_Form.SAI_Nom..Valeur doit relire la valeur.
+// Régression : le nom qualifié ne doit PAS être traité comme un appel
+// procédural cross-fichier (FEN_Form$SAI_Nom), qui échouait au runtime.
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Form)
+
+// Lecture qualifiée avant saisie : champ vide.
+dbgVérifieEgalité(FEN_Form.SAI_Nom..Valeur, "",
+"Champ vide au depart via ref qualifiee")
+
+// Saisie via référence qualifiée cross-fichier.
+TestSimuleSaisie(FEN_Form.SAI_Nom, "Marc")
+
+// Relecture via la même référence qualifiée.
+dbgVérifieEgalité(FEN_Form.SAI_Nom..Valeur, "Marc",
+"Valeur ecrite puis relue via ref qualifiee cross-fichier")
+
+// L'accès nu doit donner la même valeur (cohérence des deux chemins).
+dbgVérifieEgalité(SAI_Nom..Valeur, "Marc",
+"Acces nu coherent avec ref qualifiee")
+
+Ferme(FEN_Form)
+
+dbgBilanTest()

@@ -1,0 +1,22 @@
+// Regression : cells d'un tableau pre-sized lues avant write doivent
+// se comporter comme la valeur zéro typée (lazy zero rule, vm.c:2298).
+// Avant le fix B4, value_to_integer(NIL)/value_to_real(NIL) renvoyaient
+// un échec, ce qui sabotait silencieusement la promesse.
+
+// Tableau d'entiers pre-sized : cells initiales = 0 (via Null lazy)
+ti est un tableau de 3 entiers
+dbgVérifieEgalité(ti[1] + ti[2] + ti[3], 0, "somme entiers non-init = 0")
+dbgVérifieEgalité(ti[1] + 7, 7, "0 + 7 = 7")
+
+// Tableau de chaînes pre-sized : cells = ""
+ts est un tableau de 3 chaînes
+dbgVérifieEgalité(ts[1], "", "chaine cell[1] non-init = ''")
+dbgVérifieEgalité(ts[1] + "ok", "ok", "concat chaine cell + 'ok' = 'ok'")
+
+// Tableau de réels
+tr est un tableau de 2 réels
+dbgVérifieEgalité(tr[1] + 1.5, 1.5, "reel cell[1] + 1.5 = 1.5")
+
+// Tableau de booléens
+tb est un tableau de 2 booléens
+dbgVérifieFaux(tb[1], "booleen cell[1] non-init = Faux")

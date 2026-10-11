@@ -1,0 +1,29 @@
+// Contrôle positif bilingue (, invariant 3) : formes FR et EN
+// mélangées dans le même ServiceREST, accent/casse tolérés côté FR
+// (« methode », « réponses » en minuscules) doivent toutes compiler.
+//
+// Statut aujourd'hui : ROUGE — migré  vers la forme imbriquée
+// `MoiMeme..Réponse..StatusCode` (l'ancienne forme plate `MoiMeme..StatusCode`
+// est cassée net). Tant que Réponse n'est pas reconnue au 1er niveau,
+// .expected.json capture l'erreur "Réponse inconnue".
+//
+// Statut attendu après impl : {"errors":[],"warnings":[]}.
+ServiceMixteFREN est un ServiceREST
+	PROPRIETES
+		BaseUrl           = ["api", "mixte"]
+		Authentification  = httpAuthAucune
+	FIN
+
+	OperationMixte est une OpérationHTTP
+		PROPRIETES
+			methode    = httpGet
+			Chemin     = ["mixte", id]
+			réponses   = [httpOK]
+			StatusCode = httpOK
+		FIN
+		PROCEDURE surRequête(id est un entier) : entier
+			MoiMeme..Réponse..StatusCode = httpOK
+			RENVOYER id
+		FIN
+	FIN
+FIN

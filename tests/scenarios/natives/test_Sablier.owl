@@ -1,0 +1,65 @@
+// @sujet : Sablier
+// @résumé : Bascule le curseur souris en curseur d'attente pour signaler un traitement long. Sans argument ou Vrai : active ; Faux : restitue le curseur précédent. Les activations s'empilent.
+
+
+// Particularité des fonctions liées au curseur : on ne peut pas observer la
+// forme du curseur dans un test automatisé (mode headless, aucun écran). On
+// vérifie donc, via le mock, que la fonction a été appelée et combien de
+// fois. La fixture pose un catch-all qui neutralise tout effet réel ; un
+// scénario dédié désactive le mock pour exercer le no-op réel headless.
+mSablier est un MockNative = MockCrée(Sablier)
+
+
+PROCEDURE avantChaqueTest()
+	mSablier = MockCrée(Sablier).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mSablier.Desactive()
+FIN
+
+
+// Cas canonique : un appel sans argument active le sablier. Une seule
+// invocation est interceptée.
+PROCEDURE PUBLIQUE scenario_activation_simple()
+	Sablier()
+	dbgVérifieVrai(MockVérifieAppelé(mSablier, 1), "Sablier() intercepté une fois")
+FIN
+
+
+// Cycle complet : une activation explicite (Vrai) suivie d'une restitution
+// (Faux) produit exactement deux invocations.
+PROCEDURE PUBLIQUE scenario_activation_puis_restitution()
+	Sablier(Vrai)
+	Sablier(Faux)
+	dbgVérifieVrai(MockVérifieAppelé(mSablier, 2), "activation puis restitution = 2 appels")
+FIN
+
+
+// Imbrication : deux activations empilées puis deux restitutions. Le compteur
+// reflète fidèlement les quatre appels — sémantique de pile où chaque Faux
+// dépile la dernière activation.
+PROCEDURE PUBLIQUE scenario_imbrication_compte_exact()
+	Sablier(Vrai)
+	Sablier(Vrai)
+	Sablier(Faux)
+	Sablier(Faux)
+	dbgVérifieVrai(MockVérifieAppelé(mSablier, 4), "deux activations imbriquées puis deux restitutions")
+FIN
+
+
+// No-op réel en mode headless : sans mock, l'appel réel ne touche aucun
+// curseur écran et ne pose aucune erreur, que ce soit à l'activation ou à
+// la restitution.
+PROCEDURE PUBLIQUE scenario_headless_sans_erreur()
+	mSablier.Desactive()
+
+	ErreurRAZ()
+	Sablier(Vrai)
+	dbgVérifieFaux(ErreurDétectée, "activation valide ne pose pas d'erreur")
+
+	ErreurRAZ()
+	Sablier(Faux)
+	dbgVérifieFaux(ErreurDétectée, "restitution valide ne pose pas d'erreur")
+FIN

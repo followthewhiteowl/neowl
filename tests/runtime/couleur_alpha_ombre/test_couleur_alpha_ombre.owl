@@ -1,0 +1,41 @@
+//  (LOT 3) — opacité sur `Style..CadreExtérieur..Ombre..Couleur`.
+// Trou d'ingestion connu : `apply_shadow_from_ombre` lit la couleur via
+// `instance_get_int(ombre, "Couleur", 0)`, qui renvoie le défaut 0 (noir) sur
+// une instance Couleur (au lieu d'en extraire bgr/alpha) — et
+// `owl_ui_control_set_shadow` n'a de toute façon aucun paramètre alpha
+// (« Alpha implicite opaque », cf. commentaire ui_qt.cpp) : la couleur ET
+// l'opacité de l'ombre sont ignorées dès qu'une instance Couleur est posée.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Ombre DURE (Flou=0) pour un oracle net.
+//
+// Widget [X=20,Y=y0,L=100,H=50], décalage (40,40) -> ombre décalée occupe
+// approximativement [60,160]x[y0+40,y0+90]. Point d'échantillonnage
+// (140, y0+70) : dans le rectangle d'ombre, hors du widget lui-même
+// (x=140 > 120 = bord droit du widget).
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg = BLEU PUR (0,0,255), bg = ROUGE PUR (255,0,0), a = 128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=0,   bg=0   -> résultat = 0
+//   B : fg=255, bg=0   -> résultat = fg*a/255        = 128
+// Mélange attendu : RVB(127, 0, 128). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaOmbre)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaOmbre)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque : BTN_Opaque, ombre à (140, 90) ----------------------
+dbgVérifieEgalité(dPixelCouleur(img, 140, 90), RVB(0, 0, 255),
+"BTN_Opaque : Style..CadreExtérieur..Ombre..Couleur = RVB(0,0,255) (entier nu opaque) : ombre bleu pur, non-régression")
+
+// --- 2. BTN_Alpha, ombre à (140, 210) --------------------------------------
+dbgVérifieEgalité(dPixelCouleur(img, 140, 210), RVB(127, 0, 128),
+"BTN_Alpha : Style..CadreExtérieur..Ombre..Couleur = <Couleur Opacité=128> : ombre mélangée avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaOmbre)
+dbgBilanTest()

@@ -1,0 +1,208 @@
+// @sujet : dEfface
+// @resume : Effacer une image en la remplissant d'une couleur unie
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_effacement_couleur_explicite()
+	img est une Image
+	couleurRouge est un entier
+	couleurBleu est un entier
+	couleurDominante est un entier
+
+	couleurRouge = RVB(255, 0, 0)
+	couleurBleu  = RVB(0, 0, 255)
+
+	// Créer une image rouge, puis l'effacer en bleu
+	img = dCréeImage(50, 50, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+
+	dEfface(img, couleurBleu)
+
+	// Vérifier que l'image est désormais bleue
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurBleu, "image effacee vers couleur bleue")
+FIN
+
+PROCEDURE PUBLIQUE scenario_effacement_sans_couleur_utilise_remplissage()
+	img est une Image
+	couleurRouge est un entier
+	couleurVert est un entier
+	couleurDominante est un entier
+
+	couleurRouge = RVB(255, 0, 0)
+	couleurVert  = RVB(0, 255, 0)
+
+	// Créer une image rouge avec CouleurRemplissage = vert
+	img                     = dCréeImage(50, 50, couleurRouge)
+	img..CouleurRemplissage = couleurVert
+
+	// Effacer sans préciser de couleur (utilise CouleurRemplissage)
+	dEfface(img)
+
+	// Vérifier que l'image a été effacée vers vert
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurVert, "effacement sans couleur utilise CouleurRemplissage")
+FIN
+
+PROCEDURE PUBLIQUE scenario_effacement_dans_session_dessin()
+	img est une Image
+	couleurRouge est un entier
+	couleurBleu est un entier
+	couleurDominante est un entier
+	res est un booléen
+
+	couleurRouge = RVB(255, 0, 0)
+	couleurBleu  = RVB(0, 0, 255)
+
+	// Créer une image rouge
+	img = dCréeImage(60, 60, couleurRouge)
+
+	// Débuter une session de dessin
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "session dessin initialisee")
+
+	// Effacer pendant la session active
+	dEfface(img, couleurBleu)
+
+	// Terminer la session
+	dFinDessin(img)
+
+	// Vérifier que l'effacement a bien eu lieu
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurBleu, "effacement dans session active fonctionne")
+FIN
+
+PROCEDURE PUBLIQUE scenario_effacement_images_multiples()
+	img1 est une Image
+	img2 est une Image
+	couleurRouge est un entier
+	couleurVert est un entier
+	couleurBleu est un entier
+	couleurDominante1 est un entier
+	couleurDominante2 est un entier
+
+	couleurRouge = RVB(255, 0, 0)
+	couleurVert  = RVB(0, 255, 0)
+	couleurBleu  = RVB(0, 0, 255)
+
+	// Créer deux images distinctes
+	img1 = dCréeImage(30, 30, couleurRouge)
+	img2 = dCréeImage(30, 30, couleurVert)
+
+	// Effacer chaque image vers une couleur différente
+	dEfface(img1, couleurBleu)
+	dEfface(img2, Blanc)
+
+	// Vérifier que chaque image a sa propre couleur
+	couleurDominante1 = CouleurDominanteImage(img1)
+	couleurDominante2 = CouleurDominanteImage(img2)
+
+	dbgVérifieEgalité(couleurDominante1, couleurBleu, "img1 effacee vers bleu")
+	dbgVérifieEgalité(couleurDominante2, RVB(255, 255, 255), "img2 effacee vers blanc")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_effacement_noir()
+	img est une Image
+	couleurRouge est un entier
+	couleurDominante est un entier
+
+	couleurRouge = RVB(255, 0, 0)
+
+	// Créer une image rouge et effacer vers noir
+	img = dCréeImage(40, 40, couleurRouge)
+	dEfface(img, Noir)
+
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, RVB(0, 0, 0), "effacement vers noir")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_effacement_blanc()
+	img est une Image
+	couleurNoir est un entier
+	couleurDominante est un entier
+
+	couleurNoir = RVB(0, 0, 0)
+
+	// Créer une image noire et effacer vers blanc
+	img = dCréeImage(40, 40, couleurNoir)
+	dEfface(img, Blanc)
+
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, RVB(255, 255, 255), "effacement vers blanc")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_effacement_couleur_personnalisee()
+	img est une Image
+	couleurCyan est un entier
+	couleurDominante est un entier
+
+	couleurCyan = RVB(0, 255, 255)
+
+	// Créer une image et effacer vers une couleur personnalisée (cyan)
+	img = dCréeImage(25, 25, Blanc)
+	dEfface(img, couleurCyan)
+
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurCyan, "effacement vers couleur personnalisee cyan")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_effacement_image_1x1()
+	img est une Image
+	couleurVert est un entier
+	couleurDominante est un entier
+
+	couleurVert = RVB(0, 255, 0)
+
+	// Créer une image 1x1 et effacer
+	img = dCréeImage(1, 1, Blanc)
+	dEfface(img, couleurVert)
+
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurVert, "effacement image 1x1")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_effacement_successifs()
+	img est une Image
+	couleurRouge est un entier
+	couleurVert est un entier
+	couleurBleu est un entier
+	couleurDominante est un entier
+
+	couleurRouge = RVB(255, 0, 0)
+	couleurVert  = RVB(0, 255, 0)
+	couleurBleu  = RVB(0, 0, 255)
+
+	// Créer une image et effectuer plusieurs effacements successifs
+	img = dCréeImage(30, 30, Blanc)
+
+	dEfface(img, couleurRouge)
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurRouge, "premier effacement vers rouge")
+
+	dEfface(img, couleurVert)
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurVert, "deuxieme effacement vers vert")
+
+	dEfface(img, couleurBleu)
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurBleu, "troisieme effacement vers bleu")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_invalide()
+	imgInvalide est une Image
+
+	// Tenter d'effacer une image invalide (pas initialisée)
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "image invalide au depart")
+
+	// Effacer une image invalide doit échouer silencieusement (ou erreur)
+	dEfface(imgInvalide, Blanc)
+
+	// Vérifier qu'une erreur est enregistrée
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur enregistree apres tentative effacement image invalide")
+FIN

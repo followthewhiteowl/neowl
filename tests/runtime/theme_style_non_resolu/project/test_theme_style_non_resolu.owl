@@ -1,0 +1,64 @@
+// Une référence `theme.<nom>` qui ne se résout pas doit rester un incident
+// signalé, jamais un arrêt brutal du programme — y compris quand une cascade
+// `Style..<brique>..<feuille>` s'appuie dessus.
+//
+// La navigation par défaut rend un jalon neutre à chaque niveau. Ce jalon doit
+// être distinct à chaque sous-accès : rendre toujours le même objet permet à
+// l'écriture en cascade de le refermer sur lui-même, et la copie du style à
+// l'affectation ne termine alors jamais.
+
+TestModeHeadless(Vrai)
+
+Trace("=== Référence de style de thème non résolue : dégradation sans arrêt ===")
+
+// --- 1. La référence non résolue se signale, elle ne se tait pas.
+ErreurRAZ()
+styleOrphelin est un styleSaisie = theme.saisiePrincipale
+
+dbgVérifieEgalité(ErreurDétectée, Vrai,
+"Une référence theme.<nom> introuvable pose une erreur détectable")
+
+dbgVérifieVrai(Position(ErreurInfo(), "saisiePrincipale") > 0,
+"Le message d'erreur nomme le style introuvable")
+
+// --- 2. La navigation reste possible et chaque niveau rend un jalon DISTINCT.
+dbgVérifieEgalité(styleOrphelin..ZoneSaisie = styleOrphelin, Faux,
+"Le sous-accès sur une référence non résolue rend un jalon distinct du parent")
+
+// --- 3. Ouverture de la fenêtre : c'est ici que le programme s'arrêtait net.
+Ouvre(FEN_ThemeNonResolu)
+
+dbgVérifieEgalité(SAI_Orpheline..CouleurFond, Rouge,
+"Champ Saisie : la cascade posée par-dessus le style non résolu reste lisible")
+
+dbgVérifieEgalité(BTN_Orphelin..CouleurFond, Bleu,
+"Champ Bouton : autre famille, même dégradation propre de la cascade")
+
+dbgVérifieEgalité(LIB_Orphelin..Libellé, "Sans cascade",
+"Champ Libellé : un style non résolu sans cascade laisse le champ intact")
+
+dbgVérifieEgalité(LIB_Sain..CouleurFond, JauneClair,
+"Un champ voisin sans style n'est pas affecté par la référence non résolue")
+
+// --- 4. Le champ reste pilotable après coup (l'incident n'a rien figé).
+SAI_Orpheline..CouleurFond = Vert
+
+dbgVérifieEgalité(SAI_Orpheline..CouleurFond, Vert,
+"Une écriture postérieure sur le champ au style non résolu est prise en compte")
+
+Ferme(FEN_ThemeNonResolu)
+
+// --- 5. Les trois références non résolues sont aussi signalées à la
+// compilation, une par référence. Le message exact et sa position sont
+// verrouillés côté snapshot (tests/compile-error/style_theme_aucun_theme_declare) ;
+// ici on verrouille leur présence sur ce corpus, et on les retire du bilan.
+__dbgAvertissementAttendu("Style 'saisiePrincipale' introuvable",
+"la référence de Champ Saisie non résolue est signalée dès la compilation")
+
+__dbgAvertissementAttendu("Style 'boutonPrimaire' introuvable",
+"la référence de Champ Bouton non résolue est signalée dès la compilation")
+
+__dbgAvertissementAttendu("Style 'libelléTitre' introuvable",
+"la référence de Champ Libellé non résolue est signalée dès la compilation")
+
+dbgBilanTest()

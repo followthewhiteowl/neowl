@@ -1,0 +1,178 @@
+// @sujet : TexteSimilaritéDice
+// @résumé : Coefficient de Sørensen-Dice basé sur trigrammes (n=3) avec padding sentinelle — pondère l'intersection des ensembles de trigrammes. Opère sur codepoints après repli casse+accents. Retourne un réel entre 0 (aucun recouvrement) et 1 (identiques). Formule : 2|A∩B|/(|A|+|B|). Utile pour comparaison phonétique, rapprochement de noms avec variations orthographiques.
+
+
+// Cas trivial : chaînes identiques → 1.0. "abc" → après folding "abc" →
+// paddé [⊥⊥abc⊥⊥] → trigrammes {⊥⊥a, ⊥ab, abc, bc⊥, c⊥⊥}.
+// A = B → |A∩B| = 5, |A| = |B| = 5.
+// Dice = 2·5/(5+5) = 10/10 = 1.0.
+PROCEDURE scenario_texte_similarite_dice_identiques()
+	sim est un réel = TexteSimilaritéDice("abc", "abc")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaînes identiques → Dice = 1.0", 0.001)
+FIN
+
+
+// Cas trivial : chaînes disjointes → 0.0. "abc" → [⊥⊥abc⊥⊥] → A = {⊥⊥a, ⊥ab, abc, bc⊥, c⊥⊥}.
+// "xyz" → [⊥⊥xyz⊥⊥] → B = {⊥⊥x, ⊥xy, xyz, yz⊥, z⊥⊥}.
+// A∩B = ∅ (aucun trigramme commun).
+// Dice = 2·0/(5+5) = 0/10 = 0.0.
+PROCEDURE scenario_texte_similarite_dice_disjoints()
+	sim est un réel = TexteSimilaritéDice("abc", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "codepoints disjoints → Dice = 0.0", 0.001)
+FIN
+
+
+// Recouvrement partiel : "abc" vs "abcd" (un char ajouté).
+// "abc" → [⊥⊥abc⊥⊥] → A = {⊥⊥a, ⊥ab, abc, bc⊥, c⊥⊥}.
+// "abcd" → [⊥⊥abcd⊥⊥] → B = {⊥⊥a, ⊥ab, abc, bcd, cd⊥, d⊥⊥}.
+// A∩B = {⊥⊥a, ⊥ab, abc} → |A∩B| = 3.
+// |A| = 5, |B| = 6.
+// Dice = 2·3/(5+6) = 6/11 ≈ 0.545454...
+PROCEDURE scenario_texte_similarite_dice_recouvrement_partiel()
+	sim est un réel = TexteSimilaritéDice("abc", "abcd")
+
+	// Dice = 6/11 ≈ 0.545454.
+	dbgVérifieÉgalitéRéel(sim, 0.545454, "recouvrement partiel abc/abcd → Dice ≈ 0.545", 0.001)
+FIN
+
+
+// Relation Dice ≥ Jaccard : sur le même couple "abc"/"abcd", vérifier Dice > Jaccard.
+// Dice pondère l'intersection (favorise les correspondances), Jaccard normalise
+// par l'union (plus strict). Dice est toujours >= Jaccard.
+PROCEDURE scenario_texte_similarite_dice_vs_jaccard_relation()
+	dice est un réel = TexteSimilaritéDice("abc", "abcd")
+	jaccard est un réel = TexteSimilaritéJaccard("abc", "abcd")
+
+	dbgVérifieVrai(dice > jaccard, "Dice ≥ Jaccard (ici Dice ≈ 0.545 > Jaccard = 0.375)")
+FIN
+
+
+// Insensible casse+accents : "CAFÉ" vs "cafe" (après folding → identiques "cafe").
+// Paddé [⊥⊥cafe⊥⊥] identique pour les deux.
+// A = B → Dice = 1.0.
+PROCEDURE scenario_texte_similarite_dice_insensible_defaut()
+	simMaj est un réel = TexteSimilaritéDice("CAFÉ", "CAFÉ")
+	simMin est un réel = TexteSimilaritéDice("cafe", "cafe")
+	simMixte est un réel = TexteSimilaritéDice("CAFÉ", "cafe")
+
+	dbgVérifieÉgalitéRéel(simMixte, 1.0, "CAFÉ vs cafe → identiques après folding → 1.0", 0.001)
+	dbgVérifieÉgalitéRéel(simMixte, simMaj, "casse+accents ignorés (Dice)", 0.001)
+FIN
+
+
+// Bornes vides : deux vides → 1.0. "" → [⊥⊥⊥⊥] → ensemble {⊥⊥⊥}.
+// A = B = {⊥⊥⊥} → |A∩B| = 1, |A| = |B| = 1.
+// Dice = 2·1/(1+1) = 2/2 = 1.0.
+PROCEDURE scenario_texte_similarite_dice_deux_vides()
+	sim est un réel = TexteSimilaritéDice("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → Dice = 1.0", 0.001)
+FIN
+
+
+// Bornes vides : une vide vs non vide → 0.0.
+// "" → A = {⊥⊥⊥}.
+// "a" → [⊥⊥a⊥⊥] → B = {⊥⊥a, ⊥a⊥, a⊥⊥}.
+// A∩B = ∅ (⊥⊥⊥ n'est pas dans B car "a" a 1 codepoint, donc padding 2 sentinelles
+// avant ET après, mais le trigramme "⊥⊥⊥" ne se forme pas — position 0-1-2 donne ⊥⊥a).
+// Dice = 2·0/(1+3) = 0/4 = 0.0.
+PROCEDURE scenario_texte_similarite_dice_une_vide()
+	sim1 est un réel = TexteSimilaritéDice("abc", "")
+	sim2 est un réel = TexteSimilaritéDice("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → Dice = 0.0", 0.001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → Dice = 0.0", 0.001)
+FIN
+
+
+// Alias EN : TextSimilarityDice() équivalent à TexteSimilaritéDice().
+PROCEDURE scenario_text_similarity_dice_alias_en()
+	simFR est un réel = TexteSimilaritéDice("abc", "abcd")
+	simEN est un réel = TextSimilarityDice("abc", "abcd")
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR (Dice)", 0.001)
+	dbgVérifieÉgalitéRéel(simEN, 0.545454, "alias EN calcule correctement", 0.001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Symétrie : Dice est symétrique (|A∩B| est symétrique).
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_symetrie()
+	sim1 est un réel = TexteSimilaritéDice("abc", "abcd")
+	sim2 est un réel = TexteSimilaritéDice("abcd", "abc")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "Dice symétrique", 0.001)
+FIN
+
+
+// Chaîne à 1 char : "a" vs "a" → identiques → 1.0.
+// "a" → [⊥⊥a⊥⊥] → A = {⊥⊥a, ⊥a⊥, a⊥⊥}.
+// A = B → Dice = 1.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_un_char_identique()
+	sim est un réel = TexteSimilaritéDice("a", "a")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaîne 1 char identique → Dice = 1.0", 0.001)
+FIN
+
+
+// Chaîne à 1 char : "a" vs "b" → disjoints → 0.0.
+// "a" → A = {⊥⊥a, ⊥a⊥, a⊥⊥}.
+// "b" → B = {⊥⊥b, ⊥b⊥, b⊥⊥}.
+// A∩B = ∅ → Dice = 0.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_un_char_different()
+	sim est un réel = TexteSimilaritéDice("a", "b")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "chaînes 1 char différent → Dice = 0.0", 0.001)
+FIN
+
+
+// Accents multibyte : "café" vs "cafè" (é vs è, mais après folding → identiques "cafe").
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_multibyte_accents()
+	sim est un réel = TexteSimilaritéDice("café", "cafè")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "accents foldés → Dice = 1.0", 0.001)
+FIN
+
+
+// Recouvrement faible : "nuit" vs "nuits" (un 's' ajouté à la fin).
+// "nuit" → [⊥⊥nuit⊥⊥] → A = {⊥⊥n, ⊥nu, nui, uit, it⊥, t⊥⊥}.
+// "nuits" → [⊥⊥nuits⊥⊥] → B = {⊥⊥n, ⊥nu, nui, uit, its, ts⊥, s⊥⊥}.
+// A∩B = {⊥⊥n, ⊥nu, nui, uit} → |A∩B| = 4.
+// |A| = 6, |B| = 7.
+// Dice = 2·4/(6+7) = 8/13 ≈ 0.615384...
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_nuit_nuits()
+	sim est un réel = TexteSimilaritéDice("nuit", "nuits")
+
+	// Dice = 8/13 ≈ 0.615384.
+	dbgVérifieÉgalitéRéel(sim, 0.615384, "nuit vs nuits → Dice ≈ 0.615", 0.001)
+FIN
+
+
+// Chaînes longues : vérifier bornes [0, 1] sans crash.
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_chaines_longues()
+	s1 est une chaîne = "Le rapide renard brun saute par-dessus le chien paresseux"
+	s2 est une chaîne = "Le renard brun rapide bondit au-dessus du chien endormi"
+
+	sim est un réel = TexteSimilaritéDice(s1, s2)
+
+	dbgVérifieVrai(sim >= 0.0, "Dice >= 0 (chaînes longues)")
+	dbgVérifieVrai(sim <= 1.0, "Dice <= 1 (bornes respectées)")
+	dbgVérifieVrai(sim > 0.5, "chaînes longues similaires → Dice plausible > 0.5")
+FIN
+
+
+// Trigrammes dédupliqués : "aaa" → [⊥⊥aaa⊥⊥] → {⊥⊥a, ⊥aa, aaa, aa⊥, a⊥⊥}.
+// "aaaa" → [⊥⊥aaaa⊥⊥] → {⊥⊥a, ⊥aa, aaa, aa⊥, a⊥⊥} (trigramme 'aaa' dupliqué fusionné).
+// A = B → Dice = 1.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_dice_deduplication()
+	sim est un réel = TexteSimilaritéDice("aaa", "aaaa")
+
+	// Après déduplication, les ensembles sont identiques (même si "aaaa" génère
+	// un trigramme 'aaa' dupliqué en interne, il est fusionné en ensemble).
+	dbgVérifieÉgalitéRéel(sim, 1.0, "trigrammes dédupliqués aaa/aaaa → Dice = 1.0", 0.001)
+FIN

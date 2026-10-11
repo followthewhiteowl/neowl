@@ -1,0 +1,49 @@
+// Regression  : un nom de type widget (Colonne, Libellé, Bouton,
+// Saisie, Table, Fenêtre) est utilisable comme nom de variable, au meme
+// titre qu'un nom de type registry (image, Tenseur). Aligne la cohérence
+// d'ACCEPTATION amorcée par  : certains de ces noms compilaient
+// deja (image, Tenseur, Fenêtre via demote), d'autres échouaient avec un
+// message cryptique (« Expression attendue » pour Colonne, garde
+// widget-token pour Libellé/Bouton/Saisie/Table).
+//
+// La declaration `<nom> est un/une <type> [= ...]` demote le widget-token de
+// tete en identifiant : la variable prend le nom source (Colonne, Libellé…).
+
+// --- Widget-tokens du scanner, auparavant rejetés en tete de statement ---
+
+Colonne est un entier = 5
+dbgVérifieEgalité(Colonne, 5, "Colonne (TOKEN_COLONNE) comme nom de variable = 5")
+
+Libellé est un entier = 3
+dbgVérifieEgalité(Libellé, 3, "Libellé (TOKEN_LIBELLE) comme nom de variable = 3")
+
+Bouton est un entier = 7
+dbgVérifieEgalité(Bouton, 7, "Bouton (TOKEN_BOUTON) comme nom de variable = 7")
+
+Saisie est un entier = 2
+dbgVérifieEgalité(Saisie, 2, "Saisie (TOKEN_SAISIE) comme nom de variable = 2")
+
+Table est un entier = 9
+dbgVérifieEgalité(Table, 9, "Table (TOKEN_TABLE) comme nom de variable = 9")
+
+// Autre type que entier : chaine, pour prouver que le type declaré est
+// respecté (pas un fallback silencieux).
+Column est une chaîne = "abc"
+dbgVérifieEgalité(Column, "abc", "Column (alias EN de TOKEN_COLONNE) chaine = abc")
+
+// --- Non-régression : ces noms compilaient deja (ne pas casser) ---
+
+Fenêtre est un entier = 4
+dbgVérifieEgalité(Fenêtre, 4, "Fenêtre (TOKEN_FENETRE) non-régression = 4")
+
+image est un booléen = Vrai
+dbgVérifieVrai(image, "image (type registry) non-régression = Vrai")
+
+Tenseur est un entier = 8
+dbgVérifieEgalité(Tenseur, 8, "Tenseur (type registry) non-régression = 8")
+
+// Les widget-tokens restent utilisables en arithmétique une fois déclarés.
+dbgVérifieEgalité(Colonne + Libellé + Bouton + Saisie + Table, 26,
+"Somme des widget-noms déclarés = 5+3+7+2+9 = 26")
+
+dbgBilanTest()

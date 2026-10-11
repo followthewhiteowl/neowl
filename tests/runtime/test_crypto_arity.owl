@@ -1,0 +1,55 @@
+// test_crypto_arity.owl
+// Verrouille les formes d'arite discretes des natives crypto
+// migrees depuis une signature variadique masquee : chaque forme valide
+// continue de compiler ET de s'executer correctement.
+
+PROCEDURE PUBLIQUE test_hashchaine_formes()
+	// 1 arg : SHA-256 par defaut sur les donnees
+	h1 est une chaîne = HashChaîne("hello")
+	dbgVérifieVrai(h1 <> "", "HashChaine 1 arg non vide")
+	// 2 args : algo explicite, meme resultat que la forme 1-arg defaut
+	h2 est une chaîne = HashChaîne(HA_SHA_256, "hello")
+	dbgVérifieEgalité(h2, h1, "HashChaine 2 args = forme defaut")
+	// 3 args : variante HMAC (algo HMAC, donnees, cle)
+	h3 est une chaîne = HashChaîne(HA_HMAC_SHA_256, "hello", "secret")
+	dbgVérifieVrai(h3 <> "", "HashChaine 3 args HMAC non vide")
+FIN
+
+PROCEDURE PUBLIQUE test_hashfichier_formes()
+	chemin est une chaîne = "test_crypto_arity_tmp.bin"
+	fSauveTexte(chemin, "contenu")
+	// 1 arg : SHA-256 par defaut
+	f1 est une chaîne = HashFichier(chemin)
+	dbgVérifieVrai(f1 <> "", "HashFichier 1 arg non vide")
+	// 2 args : algo explicite
+	f2 est une chaîne = HashFichier(HA_SHA_256, chemin)
+	dbgVérifieEgalité(f2, f1, "HashFichier 2 args = forme defaut")
+	fSupprime(chemin)
+FIN
+
+PROCEDURE PUBLIQUE test_hmacchaine_formes()
+	// 2 args : msg, cle (SHA-256 par defaut)
+	m1 est une chaîne = HMACChaîne("msg", "key")
+	dbgVérifieVrai(m1 <> "", "HMACChaine 2 args non vide")
+	// 3 args : algo, msg, cle
+	m2 est une chaîne = HMACChaîne(HA_HMAC_SHA_256, "msg", "key")
+	dbgVérifieEgalité(m2, m1, "HMACChaine 3 args = forme defaut")
+FIN
+
+PROCEDURE PUBLIQUE test_hashverifie_formes()
+	h est une chaîne = HashChaîne(HA_SHA_256, "data")
+	// 3 args : algo, chaine, hash attendu
+	dbgVérifieEgalité(HashVérifieChaîne(HA_SHA_256, "data", h), Vrai, "HashVerifieChaine 3 args match")
+	dbgVérifieEgalité(HashVérifieChaîne(HA_SHA_256, "autre", h), Faux, "HashVerifieChaine 3 args mismatch")
+	// 4 args : variante HMAC (algo, msg, cle, hashAttendu)
+	hm est une chaîne = HashChaîne(HA_HMAC_SHA_256, "data", "cle")
+	dbgVérifieEgalité(HashVérifieChaîne(HA_HMAC_SHA_256, "data", "cle", hm), Vrai, "HashVerifieChaine 4 args HMAC match")
+FIN
+
+PROCEDURE PUBLIQUE test_cryptestandard_formes()
+	// 2 args : message, cle -> roundtrip
+	chiffre est un buffer = CrypteStandard("message secret", "motdepasse")
+	dbgVérifieVrai(Taille(chiffre) > 16, "CrypteStandard 2 args produit buffer")
+	clair est un buffer = DécrypteStandard(chiffre, "motdepasse")
+	dbgVérifieEgalité(ChaîneVersBuffer(clair), "message secret", "DecrypteStandard 2 args roundtrip")
+FIN

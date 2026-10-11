@@ -1,0 +1,66 @@
+//  — corpus de non-régression : cette collection combine dans un
+// seul fichier toutes les formes de membres légitimes que le futur garde de
+// désync pré-scan / parse réel NE DOIT JAMAIS signaler comme perdues.
+// Notamment `gConfiné` (LOCAL) est délibérément absent de la liste des
+// membres EXPOSÉS des deux côtés — un cross-check naïf le compterait à tort
+// comme « perdu par le pré-scan » et casserait cette compilation pourtant
+// correcte. Le confinement LOCAL limite `gConfiné` au flux top-level de la
+// collection (pas de PROCEDURE), donc l'usage ci-dessous reste une
+// instruction inline, jamais un appel depuis une PROCEDURE membre.
+//
+// `iForme` (Interface) est placée en DERNIER délibérément : une signature
+// `PROCEDURE ... FIN`-less dans un bloc Interface fait déjà perdre au
+// pré-scan tout membre déclaré APRÈS elle (cf. le repro dédié
+// repro_interface_signature_perd_membre_suivant/ voisin) — bug distinct,
+// hors périmètre de ce corpus qui doit rester 100% vert.
+COL_Corpus est une CollectionDeProcédures
+	GLOBAL
+	gEntier est un entier
+	gRequêteObjet est un httpRequête
+	gTableau est un tableau de chaînes
+
+	LOCAL
+	gConfiné est un entier = 100
+	gConfiné = gConfiné + 1
+
+	Couleur est une Énumération
+		Rouge = 1
+		Vert  = 2
+	FIN
+
+	stPoint est une Structure
+		x est un entier
+		y est un entier
+	FIN
+
+	Options est une Combinaison
+		OptionA
+		OptionB
+	FIN
+
+	PROCEDURE Initialise()
+		gEntier            = 7
+		gRequêteObjet..URL = "https://example.org/corpus"
+		Ajoute(gTableau, "a")
+	FIN
+
+	PROCEDURE LitEntier() : entier
+		RENVOYER gEntier
+	FIN
+
+	PROCEDURE LitURL() : chaîne
+		RENVOYER gRequêteObjet..URL
+	FIN
+
+	PROCEDURE LitTailleTableau() : entier
+		RENVOYER Taille(gTableau)
+	FIN
+
+	PROCEDURE LitCouleurRouge() : Couleur
+		RENVOYER Rouge
+	FIN
+
+	iForme est une Interface
+		PROCEDURE Aire() : entier
+	FIN
+FIN

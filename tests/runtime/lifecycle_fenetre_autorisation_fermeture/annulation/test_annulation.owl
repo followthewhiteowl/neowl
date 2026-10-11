@@ -1,0 +1,29 @@
+//  — AutorisationFermeture : Faux annule la fermeture, Vrai la
+// laisse se poursuivre. Chemin réel (Ferme()), jamais DéclencheÉvénement.
+//
+// ROUGE ATTENDU (pré-impl) : AutorisationFermeture n'est câblé nulle part
+// (catalogue seul). Le 1er Ferme() ferme la fenêtre sans poser la question,
+// donc "FER;" apparaît trop tôt et le 2e Ferme() ne trouve plus d'instance
+// à fermer.
+//
+// Pattern : la fenêtre voisine FEN_Annule.owl remonte chaque appel via
+// callback_verifie (seq accumulée au niveau script, donc lisible même après
+// que l'instance ait été détruite par la 2e fermeture réussie).
+
+TestModeHeadless(Vrai)
+
+seq est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seq += s
+FIN
+
+Ouvre(FEN_Annule)
+
+Ferme(FEN_Annule)
+dbgVérifieEgalité(seq, "AF1;", "1er Ferme() : AutorisationFermeture=Faux annule, Fermeture ne tire pas")
+
+Ferme(FEN_Annule)
+dbgVérifieEgalité(seq, "AF1;AF2;FER;", "2e Ferme() : AutorisationFermeture=Vrai laisse Fermeture tirer, dans l'ordre")
+
+dbgBilanTest()

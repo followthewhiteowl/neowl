@@ -1,0 +1,30 @@
+// @sujet : Cadrage runtime d'un champ à image régénérable
+// @résumé : Non-régression du cadrage (CadrageHorizontal/CadrageVertical) d'un
+// Champ CodeBarres lors d'un changement de contenu au runtime : la régénération
+// de l'image ne doit ni faire échouer l'exécution ni perdre la valeur de cadrage
+// relue. Le positionnement visuel réel du pixmap (comportement partagé avec le
+// Champ Image) n'est pas observable en test automatisé — sa validation est
+// visuelle/humaine.
+
+PROCEDURE PUBLIQUE scenario_cadrage_stable_apres_changement_contenu_runtime()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_CadrageRuntime)
+
+	// L'alignement déclaré est bien exposé à l'ouverture.
+	dbgVérifieEgalité(LireCadrageH(), chDroite,
+	"Cadrage horizontal déclaré exposé à l'ouverture")
+	dbgVérifieEgalité(LireCadrageV(), cvHaut,
+	"Cadrage vertical déclaré exposé à l'ouverture")
+
+	// Changement de contenu au runtime -> régénère l'image du code-barres.
+	// Ne doit pas faire échouer l'exécution.
+	ChangeContenu("REF-RUNTIME-999")
+
+	// La valeur de cadrage relue reste stable après la régénération.
+	dbgVérifieEgalité(LireCadrageH(), chDroite,
+	"Cadrage horizontal stable après changement de contenu runtime")
+	dbgVérifieEgalité(LireCadrageV(), cvHaut,
+	"Cadrage vertical stable après changement de contenu runtime")
+
+	Ferme(FEN_CadrageRuntime)
+FIN

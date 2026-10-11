@@ -1,0 +1,47 @@
+//  — styleLibellé (widget) = struct {Libellé: styleLibelléSaisie,
+// CadreExtérieur: styleCadreExtérieur}. Renommage associé : la brique du
+// sous-élément texte du Saisie, jusqu'ici nommée styleLibellé, devient
+// styleLibelléSaisie (même forme, nouveau nom).
+//
+// ROUGE attendu : à ce jour, `styleLibellé` désigne encore l'ancienne
+// brique à plat (Couleur/CouleurFond/Retraits/Police/Cadre) — pas de
+// sous-champ Libellé/CadreExtérieur. `styleLibelléSaisie` n'existe pas
+// encore comme type. Compile-fail attendu tant que le rename + le nouveau
+// type composite ne sont pas posés.
+
+Trace("=== styleLibellé (widget) : struct {Libellé, CadreExtérieur} ===")
+
+STY_Lib est un styleLibellé
+
+STY_Lib..Libellé..Couleur          = Rouge
+STY_Lib..Libellé..CouleurFond      = Blanc
+STY_Lib..Libellé..RetraitGauche    = 6
+STY_Lib..Libellé..Police..Gras     = Vrai
+STY_Lib..Libellé..Cadre..Epaisseur = 2
+
+dbgVérifieEgalité(STY_Lib..Libellé..Couleur, Rouge, "styleLibellé..Libellé..Couleur posée")
+dbgVérifieEgalité(STY_Lib..Libellé..CouleurFond, Blanc, "styleLibellé..Libellé..CouleurFond posée")
+dbgVérifieEgalité(STY_Lib..Libellé..RetraitGauche, 6, "styleLibellé..Libellé..RetraitGauche posé")
+dbgVérifieEgalité(STY_Lib..Libellé..Police..Gras, Vrai, "styleLibellé..Libellé..Police..Gras (composé)")
+dbgVérifieEgalité(STY_Lib..Libellé..Cadre..Epaisseur, 2, "styleLibellé..Libellé..Cadre..Epaisseur (composé)")
+
+STY_Lib..CadreExtérieur..CouleurFond      = GrisClair
+STY_Lib..CadreExtérieur..Cadre..Couleur   = Noir
+STY_Lib..CadreExtérieur..Cadre..Epaisseur = 3
+
+dbgVérifieEgalité(STY_Lib..CadreExtérieur..CouleurFond, GrisClair, "styleLibellé..CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Lib..CadreExtérieur..Cadre..Couleur, Noir, "styleLibellé..CadreExtérieur..Cadre..Couleur (composé)")
+dbgVérifieEgalité(STY_Lib..CadreExtérieur..Cadre..Epaisseur, 3, "styleLibellé..CadreExtérieur..Cadre..Epaisseur (composé)")
+
+// La brique renommée existe comme type autonome, avec le même jeu de champs
+// texte que l'ex-styleLibellé (avant rename).
+STY_LibSaisie est un styleLibelléSaisie
+STY_LibSaisie..Couleur     = Vert
+STY_LibSaisie..CouleurFond = JauneClair
+STY_LibSaisie..RetraitHaut = 4
+
+dbgVérifieEgalité(STY_LibSaisie..Couleur, Vert, "styleLibelléSaisie : Couleur posée")
+dbgVérifieEgalité(STY_LibSaisie..CouleurFond, JauneClair, "styleLibelléSaisie : CouleurFond posée")
+dbgVérifieEgalité(STY_LibSaisie..RetraitHaut, 4, "styleLibelléSaisie : RetraitHaut posé")
+
+dbgBilanTest()

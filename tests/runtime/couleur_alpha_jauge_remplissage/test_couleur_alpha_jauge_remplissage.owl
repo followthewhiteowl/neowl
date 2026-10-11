@@ -1,0 +1,49 @@
+//  (LOT GARDE-FOU) — opacité sur `Style..Remplissage..CouleurFond`
+// (barre remplie d'un Champ Jauge). `read_jauge_style` (stdlib_ui.c) lit ce
+// champ via `instance_get_int(rempl, "CouleurFond", -1)`, qui rend -1 sur
+// une instance Couleur -> `spec->fill` reste négatif -> aucune QSS
+// `QProgressBar::chunk` n'est posée : le remplissage retombe sur le bleu
+// `QPalette::Highlight` par défaut (mesuré RVB(53,154,217)) au lieu du vert
+// demandé, mélangé ou non — la valeur est totalement ignorée, pas juste son
+// alpha.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Fenêtre voisine FEN_CouleurAlphaJaugeRemplissage.owl : 2
+// Champ Jauge empilés, Valeur=100/BorneMax=100 (remplissage à 100% : la
+// barre couvre tout le widget, sampling simple sur toute sa largeur).
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   fg=VERT (0,255,0), bg=ROUGE piste (255,0,0), a=128/255
+//   R : fg=0,   bg=255 -> résultat = 255*(255-128)/255 = 127
+//   V : fg=255, bg=0   -> résultat = 255*128/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 200, 0)
+vertSurRouge est un entier = RVB(127, 128, 0)
+
+OuvreSoeur(FEN_CouleurAlphaJaugeRemplissage)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaJaugeRemplissage)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque (JAU_RemplissageOpaque, Y=20) : vert plat -----------
+dbgVérifieEgalité(dPixelCouleur(img, 25, 45), vertOpaque,
+"JAU_RemplissageOpaque : Style..Remplissage..CouleurFond = RVB(0,200,0) (entier nu opaque) : remplissage vert, non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 150, 45), vertOpaque,
+"JAU_RemplissageOpaque : Style..Remplissage..CouleurFond = RVB(0,200,0) (entier nu opaque) : remplissage vert (centre), non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 290, 45), vertOpaque,
+"JAU_RemplissageOpaque : Style..Remplissage..CouleurFond = RVB(0,200,0) (entier nu opaque) : remplissage vert (bord droit), non-régression")
+
+// --- 2. JAU_RemplissageAlpha (Y=100) : mélange attendu avec la piste rouge -
+dbgVérifieEgalité(dPixelCouleur(img, 25, 125), vertSurRouge,
+"JAU_RemplissageAlpha : Style..Remplissage..CouleurFond = <Couleur Opacité=128> mélange le remplissage avec le rouge (127,128,0), pas ignoré")
+dbgVérifieEgalité(dPixelCouleur(img, 150, 125), vertSurRouge,
+"JAU_RemplissageAlpha : Style..Remplissage..CouleurFond = <Couleur Opacité=128> mélange le remplissage avec le rouge (centre), pas ignoré")
+dbgVérifieEgalité(dPixelCouleur(img, 290, 125), vertSurRouge,
+"JAU_RemplissageAlpha : Style..Remplissage..CouleurFond = <Couleur Opacité=128> mélange le remplissage avec le rouge (bord droit), pas ignoré")
+
+Ferme(FEN_CouleurAlphaJaugeRemplissage)
+dbgBilanTest()

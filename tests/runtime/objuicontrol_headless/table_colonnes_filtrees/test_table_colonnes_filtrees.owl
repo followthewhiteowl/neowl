@@ -1,0 +1,53 @@
+// ============================================
+// TEST (headless): TableColonnesFiltrees / TableFilteredColumn
+//
+// TableColonnesFiltrees(TAB) rend la liste des colonnes ayant un filtre
+// utilisateur actif (poses via TableActiveFiltre(TAB.COL, type, valeur),
+// forme proxy-colonne ). Canon de référence : chaine vide ("")
+// si aucun filtre n'est actif, sinon une liste "<colonne>;<type>;<valeur>"
+// par entree separee par RC. C'est l'etat interrogeable HEADLESS vise par
+// le socle (pas de rendu Qt requis) : cette suite lit exclusivement le
+// retour de la native, jamais un widget.
+//
+// On evite d'asserter le digit brut du <type> (representation interne du
+// sentinel filtre*, cf. piege errCodeNum / Regle 8) : seule la presence
+// du nom de colonne et de la valeur est verifiee via Contient, en plus de
+// l'etat vide/non-vide qui, lui, est verifiable exactement.
+// Pattern : la fenêtre voisine FEN_Filtre.owl porte la déclaration
+// (2 colonnes : COL_Nom, COL_Ville).
+// ============================================
+
+Ouvre(FEN_Filtre)
+
+// --- aucun filtre actif : chaine vide -------------------------------
+sListe0 est une chaîne = TableColonnesFiltrees(TAB_Donnees)
+dbgVérifieEgalité(sListe0, "", "aucun filtre actif : TableColonnesFiltrees rend une chaine vide")
+
+// --- un filtre actif : reflete (colonne + valeur presentes) --------
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreEgal, "Dupont")
+sListe1 est une chaîne = TableColonnesFiltrees(TAB_Donnees)
+dbgVérifieVrai(sListe1 <> "", "un filtre actif : TableColonnesFiltrees ne rend plus une chaine vide")
+dbgVérifieVrai(Contient(sListe1, "COL_Nom"), "la colonne filtree (COL_Nom) apparait dans le retour")
+dbgVérifieVrai(Contient(sListe1, "Dupont"), "la valeur du filtre (Dupont) apparait dans le retour")
+
+// --- deux filtres actifs : les deux colonnes apparaissent, une RC --
+TableActiveFiltre(TAB_Donnees.COL_Ville, filtreCommencePar, "Pa")
+sListe2 est une chaîne = TableColonnesFiltrees(TAB_Donnees)
+dbgVérifieVrai(Contient(sListe2, "COL_Nom"), "COL_Nom toujours present parmi les colonnes filtrees")
+dbgVérifieVrai(Contient(sListe2, "COL_Ville"), "COL_Ville present parmi les colonnes filtrees")
+dbgVérifieEgalité(Occurrence(sListe2, CRLF), 1, "deux entrees filtrees : une seule separation RC")
+
+// --- valeur vide retire le filtre : ne reste que l'autre colonne ---
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreEgal, "")
+sListe3 est une chaîne = TableColonnesFiltrees(TAB_Donnees)
+dbgVérifieVrai(Contient(sListe3, "COL_Ville"), "COL_Ville encore filtree apres retrait de COL_Nom")
+dbgVérifieVrai(PAS Contient(sListe3, "COL_Nom"), "COL_Nom retire (valeur vide) : n'apparait plus")
+
+// --- bilingue : TableFilteredColumn resout identiquement -----------
+sFR est une chaîne = TableColonnesFiltrees(TAB_Donnees)
+sEN est une chaîne = TableFilteredColumn(TAB_Donnees)
+dbgVérifieEgalité(sFR, sEN, "TableColonnesFiltrees et TableFilteredColumn resolvent identiquement")
+
+Ferme(FEN_Filtre)
+
+dbgBilanTest()

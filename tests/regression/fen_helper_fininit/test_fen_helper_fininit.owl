@@ -1,0 +1,28 @@
+// Regression  — helpers FEN appelables depuis FinInitialisation.
+//
+// Scenario : Ouvre(FEN_HelperFinInit) declenche FinInitialisation, qui
+// appelle HelperB(), qui appelle HelperA(). Chaque etape ecrit dans une
+// variable globale dediee. Apres l'ouverture, le test verifie que les
+// trois marqueurs sont positionnes a la bonne valeur, prouvant que :
+//  1. FinInitialisation a bien tourne
+//  2. HelperB est resolu depuis FinInitialisation (cas direct)
+//  3. HelperA est resolu depuis HelperB (cas transitif helper -> helper)
+//
+// Avant le fix, la VM crashait avec "Seules les fonctions et procedures
+// peuvent etre appelees." parce que le chemin headless de open_window_instance
+// n'enregistrait pas les user_procs dans vm.globals avant FinInitialisation.
+
+marqueur_fininit est une chaîne = ""
+marqueur_helper_b est une chaîne = ""
+marqueur_helper_a est une chaîne = ""
+
+Ouvre(FEN_HelperFinInit)
+
+dbgVérifieEgalité(marqueur_fininit, "via FinInit",
+"FinInitialisation doit avoir tourne")
+dbgVérifieEgalité(marqueur_helper_b, "via HelperB",
+"HelperB doit avoir ete resolu depuis FinInitialisation (direct)")
+dbgVérifieEgalité(marqueur_helper_a, "via HelperA",
+"HelperA doit avoir ete resolu depuis HelperB (transitif)")
+
+dbgBilanTest()

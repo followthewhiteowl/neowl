@@ -1,0 +1,67 @@
+// @sujet : ChaîneVersEntier
+// @résumé : ============================================
+// ============================================
+// Test scenario : ChaîneVersEntier
+// ============================================
+// Conversion d'une chaîne de caractères en valeur entière.
+// Cette native parse une représentation textuelle d'un nombre entier
+// et produit la valeur numérique correspondante.
+
+// ============================================
+// Cas pedagogiques (publics)
+// ============================================
+
+PROCEDURE PUBLIQUE scenario_base()
+	// Parse une chaîne contenant un nombre entier positif simple.
+	n est un entier = ChaîneVersEntier("42")
+	dbgVérifieEgalité(n, 42, "parse entier positif simple")
+FIN
+
+PROCEDURE PUBLIQUE scenario_negatif()
+	// Parse une chaîne contenant un nombre entier négatif avec signe explicite.
+	n est un entier = ChaîneVersEntier("-123")
+	dbgVérifieEgalité(n,-123, "parse entier négatif avec signe")
+FIN
+
+PROCEDURE PUBLIQUE scenario_zero()
+	// Parse la représentation textuelle du zéro, cas sentinel courant.
+	n est un entier = ChaîneVersEntier("0")
+	dbgVérifieEgalité(n, 0, "parse zéro explicite")
+FIN
+
+PROCEDURE PUBLIQUE scenario_invalide_lettres()
+	// Tente de parser une chaîne contenant des lettres, ce qui doit produire une erreur.
+	ErreurRAZ()
+	n est un entier = ChaîneVersEntier("abc")
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur détectée sur chaîne invalide avec lettres")
+FIN
+
+// ============================================
+// Cas limites (prives)
+// ============================================
+
+PROCEDURE PRIVÉE scenario_edge_vide()
+	// Parse une chaîne vide, qui ne contient aucun caractère de chiffre valide.
+	ErreurRAZ()
+	n est un entier = ChaîneVersEntier("")
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur détectée sur chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_espaces_autour()
+	// Parse une chaîne avec espaces avant et après les chiffres, comportement tolérant potentiel.
+	n est un entier = ChaîneVersEntier("  456  ")
+	dbgVérifieEgalité(n, 456, "espaces autour du nombre tolérés")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_mixte_invalide()
+	// Parse une chaîne mixte chiffres + lettres, extraction partielle jusqu'au premier caractère non-chiffre.
+	n est un entier = ChaîneVersEntier("123abc")
+	dbgVérifieEgalité(n, 123, "parse partiel extrait 123 avant le 'a' invalide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_signe_seul()
+	// Parse une chaîne ne contenant qu'un signe sans chiffre suiveur, invalide.
+	ErreurRAZ()
+	n est un entier = ChaîneVersEntier("-")
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur détectée sur signe isolé sans chiffres")
+FIN

@@ -1,0 +1,38 @@
+// Régression  (support #340) : verrou de non-régression pour deux
+// usages qui doivent rester au vert pendant que le compilateur apprend à
+// diagnostiquer clairement un mot-clé réservé au sein d'une déclaration
+// groupée (`a, b est un entier`).
+//
+// 1. Le cas utilisateur exact — `i, n, Report, V, cpt est un entier` —
+//    compile déjà aujourd'hui : aucun de ces noms n'est un mot-clé
+//    strictement réservé (`Report` est un widget-kind démotable, couvert
+//    par ailleurs par ). Le fix visé par ce ticket ne doit PAS
+//    casser cette forme valide.
+// 2. La boucle `POUR i = 1 À 10` (plage `À`) doit continuer à s'exécuter
+//    normalement : le fix touche la désambiguïsation décl-groupée vs
+//    plage, donc ce cas est le filet anti-régression le plus direct.
+//    Voir aussi tests/regression/test_a_keyword_ascii.owl pour la
+//    couverture approfondie des 5 formes A/a/À/à/to.
+
+PROCEDURE test2025_declaration_groupee_cas_utilisateur()
+	i, n, Report, v, cpt est un entier
+	i      = 1
+	n      = 2
+	Report = 3
+	v      = 4
+	cpt    = 5
+	dbgVérifieEgalité(i + n + Report + v + cpt, 15,
+	"i, n, Report, V, cpt est un entier : déclaration groupée valide")
+FIN
+
+PROCEDURE test2025_boucle_pour_i_a_10()
+	total est un entier = 0
+	POUR i = 1 À 10
+		total = total + i
+	FIN
+	dbgVérifieEgalité(total, 55, "POUR i = 1 À 10 : somme 1..10 = 55")
+FIN
+
+test2025_declaration_groupee_cas_utilisateur()
+test2025_boucle_pour_i_a_10()
+dbgBilanTest()

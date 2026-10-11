@@ -1,0 +1,20 @@
+//  — reproduction fidèle du cas support #226 : un tableau associatif
+// de chaîneMultilingue déclaré en GLOBAL d'une collection de procédures,
+// rempli par littéral colon-brace. Snapshot attendu : {"errors":[],"warnings":[]}.
+// (L'exécution runtime de ce cas relève d'un bug indépendant, .)
+CPR_MessTranslate is a ProcedureCollection
+	GLOBAL
+	gpraasMessages is associative array of multilingualString
+
+	PROCEDURE MessagesInit()
+		gpraasMessages["CLEX_ERROR/5000"] = {"en-GB":"Error found %1", "fr-FR":"Erreur recontrée %1"}
+	END
+
+	PROCEDURE MessTranslate(spar_ElementName is string, ipar_MessageNumber is integer)
+		RESULT gpraasMessages[Upper(spar_ElementName + "/" + NumToString(ipar_MessageNumber))]
+	END
+
+	PROCEDURE Termination()
+		// release the resources at project close
+	END
+END

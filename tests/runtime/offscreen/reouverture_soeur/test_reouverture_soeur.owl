@@ -1,0 +1,63 @@
+//  — re-ouverture de fenetre soeur : handlers vivants apres cycle Ferme
+//
+// ROUGE ATTENDU : apres OuvreSoeur + Ferme + re-OuvreSoeur, la seconde
+// instance doit avoir ses propres handlers fonctionnels.
+//
+// Classe de bug : /0522 — bindings Qt zombies apres re-ouverture.
+// En mode non-headless : le dispatcher Qt doit etre purge lors de Ferme
+// ( purge_dispatcher_for) puis recree pour la seconde instance.
+//
+// Rougeur attendue aujourd'hui :
+//   - En mode headless : le test passe car le store est reinitialise
+//     proprement (headless n'a pas de bindings Qt zombies).
+//   - En mode non-headless : les bindings Qt de la premiere
+//     instance peuvent interagir avec la seconde si le cycle
+//     OuvreSoeur/Ferme ne purge pas le dispatcher proprement.
+//
+// Scenario :
+//   1. OuvreSoeur cycle 1 -> TestSimuleSaisie("x") -> attend nModif >= 1
+//   2. Ferme cycle 1
+//   3. OuvreSoeur cycle 2 -> FinInitialisation reset nModifInstance = 0
+//   4. TestSimuleSaisie("yz") -> nModif doit refleter uniquement le cycle 2
+//   5. ..Valeur = "yz" (pas de residus du cycle 1)
+
+TestModeHeadless(Faux)
+
+nModifCapture est un entier = 0
+bPrete est un booléen = Faux
+
+PROCEDURE callback_reouv_prete()
+	bPrete = Vrai
+FIN
+
+PROCEDURE callback_modif_reouv(n est un entier)
+	nModifCapture = n
+FIN
+
+// --- Cycle 1 ---
+bPrete = Faux
+OuvreSoeur(FEN_Reouv)
+dbgVérifieVrai(bPrete, "cycle 1 : FinInitialisation appelee")
+
+TestSimuleSaisie(SAI_Champ, "x")
+dbgVérifieEgalité(SAI_Champ..Valeur, "x", "cycle 1 : ..Valeur = x apres saisie reelle")
+
+Ferme(FEN_Reouv)
+
+// --- Cycle 2 : re-ouverture ---
+bPrete        = Faux
+nModifCapture = 0
+OuvreSoeur(FEN_Reouv)
+dbgVérifieVrai(bPrete, "cycle 2 : FinInitialisation appelee sur nouvelle instance")
+
+// Le compteur d'instance doit etre a zero (FinInitialisation reset).
+// Si des bindings zombies de l'instance 1 tirent : nModifCapture serait > 0
+// avant toute saisie.
+dbgVérifieEgalité(nModifCapture, 0, "cycle 2 : pas de tic residuel des bindings cycle 1 avant saisie")
+
+TestSimuleSaisie(SAI_Champ, "yz")
+dbgVérifieEgalité(SAI_Champ..Valeur, "yz", "cycle 2 : ..Valeur = yz (pas de residus cycle 1)")
+
+Ferme(FEN_Reouv)
+
+dbgBilanTest()

@@ -1,0 +1,80 @@
+//  — CAS 1 : icone dans un Bouton doit s'adapter a la hauteur du controle.
+// Avant fix : owl_icone_rasterize_rgba appele avec target_size=64 fixe.
+// Apres fix  : target_size derive de la hauteur du bouton.
+//
+// Methode : 4 boutons (H80 avec/sans icone, H150 avec/sans icone).
+// La diff pixel entre btn-avec et btn-nu de meme hauteur isole les pixels d'icone.
+// Avant fix (64px fixe) : nbDiff_H80 ≈ nbDiff_H150 (icone 64px dans les deux).
+// Apres fix (adaptatif) : nbDiff_H80 << nbDiff_H150 (80px vs 150px).
+//
+// Assertion cle : nbDiff_H150 > nbDiff_H80 * 1.4 (seuil conservateur, ratio
+// theorique surface ≈ (150/80)^2 = 3.5, meme en 1D ratio > 1.4).
+//
+// Les deux hauteurs sont > 64px pour eviter le clipping Qt qui masquerait le bug
+// (si H < 64, Qt clippe → bbox == H dans les deux cas → faux positif).
+
+Ouvre(FEN_IcoBtnAdaptatif)
+
+// ---- Captures ----
+imgAvecH80 est une Image = dCopieImageChamp(BTN_AvecH80)
+dbgVérifieEgalité(imgAvecH80..Valide, Vrai, "BTN_AvecH80 : capture valide")
+
+imgNuH80 est une Image = dCopieImageChamp(BTN_NuH80)
+dbgVérifieEgalité(imgNuH80..Valide, Vrai, "BTN_NuH80 : capture valide")
+
+imgAvecH150 est une Image = dCopieImageChamp(BTN_AvecH150)
+dbgVérifieEgalité(imgAvecH150..Valide, Vrai, "BTN_AvecH150 : capture valide")
+
+imgNuH150 est une Image = dCopieImageChamp(BTN_NuH150)
+dbgVérifieEgalité(imgNuH150..Valide, Vrai, "BTN_NuH150 : capture valide")
+
+// ---- Compter pixels differents : H80 avec vs H80 nu ----
+// Les deux boutons ont meme geometrie → la diff = pixels de l'icone.
+nbDiffH80 est un entier = 0
+wH80 est un entier = imgAvecH80..Largeur
+hH80 est un entier = imgAvecH80..Hauteur
+yyH80 est un entier = 0
+TANTQUE yyH80 < hH80
+	xxH80 est un entier = 0
+	TANTQUE xxH80 < wH80
+		cAvec80 est un entier = dPixelCouleur(imgAvecH80, xxH80, yyH80)
+		cNu80 est un entier = dPixelCouleur(imgNuH80, xxH80, yyH80)
+		SI cAvec80 <> cNu80 ALORS
+			nbDiffH80 = nbDiffH80 + 1
+		FIN
+		xxH80 = xxH80 + 1
+	FIN
+	yyH80 = yyH80 + 1
+FIN
+dbgVérifieVrai(nbDiffH80 > 50,
+"BTN_AvecH80 vs BTN_NuH80 : pixels differents detectes (icone presente)")
+
+// ---- Compter pixels differents : H150 avec vs H150 nu ----
+nbDiffH150 est un entier = 0
+wH150 est un entier = imgAvecH150..Largeur
+hH150 est un entier = imgAvecH150..Hauteur
+yyH150 est un entier = 0
+TANTQUE yyH150 < hH150
+	xxH150 est un entier = 0
+	TANTQUE xxH150 < wH150
+		cAvec150 est un entier = dPixelCouleur(imgAvecH150, xxH150, yyH150)
+		cNu150 est un entier = dPixelCouleur(imgNuH150, xxH150, yyH150)
+		SI cAvec150 <> cNu150 ALORS
+			nbDiffH150 = nbDiffH150 + 1
+		FIN
+		xxH150 = xxH150 + 1
+	FIN
+	yyH150 = yyH150 + 1
+FIN
+dbgVérifieVrai(nbDiffH150 > 50,
+"BTN_AvecH150 vs BTN_NuH150 : pixels differents detectes (icone presente)")
+
+// ---- Assertion cle : grand bouton → zone icone plus grande ----
+// ROUGE ATTENDU avec 64px fixe : icone 64px dans H80 et H150 → nbDiff quasi-egaux.
+// Apres fix : icone 80px dans H80, 150px dans H150 → nbDiff_H150 >> nbDiff_H80.
+seuil140pct est un entier = (nbDiffH80 * 14) / 10
+dbgVérifieVrai(nbDiffH150 > seuil140pct,
+"CAS1-ADAPTATIF : zone icone BTN_H150 > 1.4x zone icone BTN_H80 (icone suit la hauteur du bouton)")
+
+Ferme(FEN_IcoBtnAdaptatif)
+dbgBilanTest()

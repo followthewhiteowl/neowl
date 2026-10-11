@@ -1,0 +1,67 @@
+// @sujet : CaractUnicode
+// @résumé : Renvoie le caractère correspondant à un point de code Unicode.
+// Le caractère est produit dans son encodage octet natif : un point de code
+// au-delà de l'ASCII occupe donc plusieurs octets.
+
+// ============================================
+// Cas pedagogiques (publics)
+// ============================================
+
+PROCEDURE PUBLIQUE scenario_ascii()
+	// Un point de code ASCII produit le caractère attendu sur un seul octet.
+	c est une chaîne = CaractUnicode(49)
+	dbgVérifieEgalité(c, "1", "point de code 49 donne le chiffre 1")
+FIN
+
+PROCEDURE PUBLIQUE scenario_ascii_lettre()
+	// Autre point de code ASCII, une lettre majuscule.
+	c est une chaîne = CaractUnicode(87)
+	dbgVérifieEgalité(c, "W", "point de code 87 donne la lettre W")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lettre_accentuee()
+	// Un point de code au-delà de l'ASCII occupe plusieurs octets.
+	c est une chaîne = CaractUnicode(233)
+	dbgVérifieEgalité(c, "é", "point de code 233 donne le e accent aigu")
+	dbgVérifieEgalité(Taille(ChaîneVersBuffer(c)), 2, "le caractère accentué occupe 2 octets")
+FIN
+
+PROCEDURE PUBLIQUE scenario_aller_retour()
+	// Le point de code se retrouve intact après un aller-retour via Asc.
+	code est un entier = 35501
+	dbgVérifieEgalité(Asc(CaractUnicode(code)), code, "aller-retour Asc conserve le point de code")
+FIN
+
+// ============================================
+// Cas limites (prives)
+// ============================================
+
+PROCEDURE PRIVÉE scenario_edge_hors_plage()
+	// Un point de code au-delà de la borne Unicode maximale est refusé.
+	ErreurRAZ()
+	c est une chaîne = CaractUnicode(1114112)
+	dbgVérifieVrai(ErreurDétectée, "erreur détectée sur point de code hors plage")
+	dbgVérifieEgalité(c, "", "chaîne vide retournée sur point de code hors plage")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_surrogate()
+	// Les points de code de la zone surrogate ne correspondent à aucun caractère.
+	ErreurRAZ()
+	c est une chaîne = CaractUnicode(55296)
+	dbgVérifieVrai(ErreurDétectée, "erreur détectée sur point de code de zone surrogate")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_negatif()
+	// Un point de code négatif est invalide.
+	ErreurRAZ()
+	c est une chaîne = CaractUnicode(-1)
+	dbgVérifieVrai(ErreurDétectée, "erreur détectée sur point de code négatif")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_limite_max()
+	// Le dernier point de code valide est accepté sans erreur.
+	ErreurRAZ()
+	c est une chaîne = CaractUnicode(1114111)
+	dbgVérifieFaux(ErreurDétectée, "point de code maximal valide accepté")
+	dbgVérifieEgalité(Taille(ChaîneVersBuffer(c)), 4, "le point de code maximal occupe 4 octets")
+FIN

@@ -1,0 +1,36 @@
+// @sujet : ExceptionInfo — errFonction et code canonique pour une exception
+// levée directement par une native
+// @résumé : Quand une native lève une exception d'elle-même (sans passer par
+// ExceptionDéclenche), le handler doit pouvoir identifier la native fautive
+// (errFonction) et disposer d'un code référençable (errCode / errCodeNum),
+// exactement comme pour une erreur logicielle classique (ErreurInfo).
+
+CatalogueCouleur est une Énumération
+	Rouge = "R"
+	Vert  = "V"
+FIN
+
+
+PROCEDURE scenario_exception_native_expose_errFonction_et_code_canonique()
+	sFonction est une chaîne = ""
+	sCode est une chaîne = ""
+	sCodeNum est une chaîne = ""
+
+	QUAND EXCEPTION DANS
+		m est un CatalogueCouleur = EnumérationDepuisValeur(CatalogueCouleur, "Z")
+	FAIRE
+		sFonction = ExceptionInfo(errFonction)
+		sCode     = ExceptionInfo(errCode)
+		sCodeNum  = ExceptionInfo(errCodeNum)
+	FIN
+
+	dbgVérifieEgalité(sFonction, "EnumérationDepuisValeur", "errFonction restitue le nom de la native qui a levé l'exception")
+	dbgVérifieEgalité(sCode, "E_RT_ENUM_VALUE_NOT_FOUND", "errCode restitue le code canonique de la native")
+	// errCodeNum = alias numérique E0NNN du code. On teste le FORMAT, pas la
+	// valeur exacte : les numéros du registre glissent quand des erreurs sont
+	// ajoutées (non stables en alpha). errCode (symbolique) verrouille l'identité.
+	dbgVérifieVrai(CommencePar(sCodeNum, "E0"), "errCodeNum restitue un alias numérique du registre (format E0NNN)")
+FIN
+
+
+dbgBilanTest()

@@ -1,0 +1,196 @@
+// @sujet : NumériqueVersChaîne
+// @résumé : Conversion d'un montant monétaire vers chaîne via masque, sentinel ou struct de format. `NumériqueVersChaîne` doit traiter la valeur monétaire comme une grandeur décimale, jamais comme l'entier interne échelonné. Couvre les masques printf-like, les masques système (sentinels), la struct `FormatNumérique` et la forme brute par défaut, en confrontant chaque branche à une valeur connue pour verrouiller l'échelle.
+
+
+// La conversion d'un montant monétaire avec masque `.2f` produit la forme décimale attendue, et non l'entier scaled interne.
+// Cas typique : affichage d'un prix arrondi à deux décimales.
+PROCEDURE scenario_masque_f2_coeur_du_bug()
+	prix est un monétaire = 100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".2f"), "100.50")
+FIN
+
+
+// Masque `.0f` : arrondi à zéro décimale d'un montant à fraction nulle après troncature.
+// Cas typique : montant en unités pleines.
+PROCEDURE scenario_masque_f0()
+	prix est un monétaire = 100.4
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".0f"), "100")
+FIN
+
+
+// Masque `.6f` : précision étendue, conservation complète de la fraction décimale du montant.
+// Couvre que les 6 décimales scaled du monétaire restent accessibles après la division par l'échelle interne.
+PROCEDURE scenario_masque_f6_precision_etendue()
+	prix est un monétaire = 100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".6f"), "100.500000")
+FIN
+
+
+// Masque `8.2f` : padding à droite (alignement par défaut), largeur minimale 8.
+// Cas typique : alignement en colonne dans un rapport texte.
+PROCEDURE scenario_masque_largeur_padding_droite()
+	prix est un monétaire = 100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, "8.2f"), "  100.50")
+FIN
+
+
+// Masque `08.2f` : zero-padding à gauche jusqu'à la largeur 8.
+// Cas typique : numéro de pièce comptable.
+PROCEDURE scenario_masque_zero_padding()
+	prix est un monétaire = 100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, "08.2f"), "00100.50")
+FIN
+
+
+// Masque `+.2f` : signe forcé devant un montant positif.
+// Cas typique : variation budgétaire signée.
+PROCEDURE scenario_masque_signe_force()
+	prix est un monétaire = 100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, "+.2f"), "+100.50")
+FIN
+
+
+// Masque `.2f` sur le zéro monétaire : produit "0.00" et non un entier scaled.
+// Cas limite défensif.
+PROCEDURE scenario_masque_f2_zero()
+	prix est un monétaire = 0
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".2f"), "0.00")
+FIN
+
+
+// Masque `.2f` sur un montant négatif : signe préservé, échelle correcte.
+// Cas limite défensif.
+PROCEDURE scenario_masque_f2_negatif()
+	prix est un monétaire = -100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".2f"), "-100.50")
+FIN
+
+
+// Sentinelle `maskNombreSystème` : la sortie reste à l'échelle décimale humaine, jamais à l'échelle interne.
+// Vérification robuste à la locale : on cherche les chiffres significatifs du montant 1500.50 sans dépendre du séparateur des milliers.
+PROCEDURE scenario_sentinelle_nombre_systeme()
+	montant est un monétaire = 1500.5
+	res est une chaîne = NumériqueVersChaîne(montant, maskNombreSystème)
+	dbgVérifieVrai(Contient(res, "1"))
+	dbgVérifieVrai(Contient(res, "500"))
+	dbgVérifieVrai(Contient(res, "50"))
+	// Garde-fou anti-régression : la sortie ne doit pas contenir l'entier scaled "1500500000".
+	dbgVérifieEgalité(Contient(res, "500000"), Faux)
+FIN
+
+
+// Sentinelle `maskMonétaireSystème` : sortie locale-comptable, même contrat d'échelle que la sentinelle nombre.
+// Le symbole devise dépend de la locale système et n'est pas vérifié ; seule l'échelle correcte du nombre est verrouillée.
+PROCEDURE scenario_sentinelle_monetaire_systeme()
+	montant est un monétaire = 1500.5
+	res est une chaîne = NumériqueVersChaîne(montant, maskMonétaireSystème)
+	dbgVérifieVrai(Contient(res, "500"))
+	dbgVérifieVrai(Contient(res, "50"))
+	dbgVérifieEgalité(Contient(res, "500000"), Faux)
+FIN
+
+
+// Struct `FormatNumérique` avec Notation = `fnnDécimal` et `ChiffresAprèsVirgule = 2` : équivalent typé du masque `.2f`.
+// Cas typique : configuration validée à la compil via le type composé.
+PROCEDURE scenario_struct_decimal_2()
+	prix est un monétaire = 100.5
+	fmt est un FormatNumérique
+	fmt..Notation             = fnnDécimal
+	fmt..ChiffresAprèsVirgule = 2
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, fmt), "100.50")
+FIN
+
+
+// Struct `FormatNumérique` avec `ChiffresAprèsVirgule = 0` sur un montant à fraction nulle après troncature.
+// Verrouille que la branche struct partage l'échelle correcte (et non l'entier interne).
+PROCEDURE scenario_struct_decimal_0()
+	prix est un monétaire = 100.4
+	fmt est un FormatNumérique
+	fmt..Notation             = fnnDécimal
+	fmt..ChiffresAprèsVirgule = 0
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, fmt), "100")
+FIN
+
+
+// Struct `FormatNumérique` avec Notation `fnnExponentiel` : la mantisse reflète l'échelle humaine du montant.
+// Le résultat "1.00e+02" pour 100.5 confirme que la valeur entrée dans la routine de format vaut bien 100.5 et non 100500000.
+PROCEDURE scenario_struct_exponentiel()
+	prix est un monétaire = 100.5
+	fmt est un FormatNumérique
+	fmt..Notation             = fnnExponentiel
+	fmt..ChiffresAprèsVirgule = 2
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, fmt), "1.00e+02")
+FIN
+
+
+// Struct `FormatNumérique` avec séparateur de milliers explicite : sortie pleinement déterministe indépendamment de la locale.
+// Verrouille branche struct + grouping post-fix d'échelle.
+PROCEDURE scenario_struct_separateur_milliers()
+	montant est un monétaire = 1234.567
+	fmt est un FormatNumérique
+	fmt..ChiffresAprèsVirgule = 2
+	fmt..SéparateurMilliers   = "_"
+	dbgVérifieEgalité(NumériqueVersChaîne(montant, fmt), "1_234.57")
+FIN
+
+
+// Non-régression branche par défaut : sans masque, le rendu emprunte `currency_to_str` (exact, 6 décimales scaled).
+// La forme brute "100.5" doit être conservée — pas de zéro de droite ajouté ni de surinflation à six chiffres.
+PROCEDURE scenario_default_sans_masque_brut()
+	prix est un monétaire = 100.5
+	dbgVérifieEgalité(NumériqueVersChaîne(prix), "100.5")
+FIN
+
+
+// Non-régression : la concaténation chaîne d'un monétaire reste alignée sur la forme brute.
+// Important : ce test ne doit PAS basculer à "100.500000" ou autre forme.
+PROCEDURE scenario_concat_chaine_monetaire()
+	prix est un monétaire = 100.5
+	s est une chaîne = "x = " + prix
+	dbgVérifieEgalité(s, "x = 100.5")
+FIN
+
+
+// Cas limite précision : la valeur scaled `1.234567` reste fidèle après division par l'échelle, masque `.2f` arrondit standard.
+PROCEDURE scenario_precision_interne_f2()
+	prix est un monétaire = 1.234567
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".2f"), "1.23")
+FIN
+
+
+// Cas limite précision : masque `.6f` expose les 6 décimales scaled complètes après division.
+PROCEDURE scenario_precision_interne_f6()
+	prix est un monétaire = 1.234567
+	dbgVérifieEgalité(NumériqueVersChaîne(prix, ".6f"), "1.234567")
+FIN
+
+
+// Arithmétique mixte préservée : la soustraction monétaire reste à l'échelle interne correcte ; le masque `.2f` la rend en clair.
+// Garantit que le fix n'introduit pas de double-division (ex : déjà divisée par la VM puis re-divisée ici).
+PROCEDURE scenario_arithmetique_mixte_masque()
+	mA est un monétaire = 150.00
+	mB est un monétaire = 49.50
+	res est un monétaire = mA - mB
+	dbgVérifieEgalité(NumériqueVersChaîne(res, ".2f"), "100.50")
+FIN
+
+
+// Arithmétique mixte préservée : même opération, branche par défaut.
+// Forme brute = "100.5", confirme que la VM stocke bien 100500000 internement et que la branche default sort 100.5 via currency_to_str.
+PROCEDURE scenario_arithmetique_mixte_default()
+	mA est un monétaire = 150.00
+	mB est un monétaire = 49.50
+	res est un monétaire = mA - mB
+	dbgVérifieEgalité(NumériqueVersChaîne(res), "100.5")
+FIN
+
+
+// Non-régression sérialisation JSON : un monétaire dans un document JSON garde sa représentation décimale exacte.
+// Garde-fou — la chaîne de sérialisation passe par `value_to_json`, non impactée par le masque. Test défensif inter-surfaces.
+PROCEDURE scenario_json_serialisation_monetaire()
+	prix est un monétaire = 100.5
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.prix = prix
+	res est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(res, `"prix":100.5`))
+FIN

@@ -1,0 +1,25 @@
+//  cas 3 — PROCEDURE top-level d Etat appelee depuis une autre proc top-level.
+// ROUGE ATTENDU : le runtime ne resout pas les procs top-level d Etat
+// lorsqu elles appellent d autres procs top-level du meme Etat.
+// Lecture() est appelee par le moteur d impression (evenement de parcours).
+// La ressource ETAT_Cas3 vit dans le voisin ETAT_Cas3.owl.
+
+TestModeHeadless(Vrai)
+
+seqCas3 est une chaîne = ""
+
+PROCEDURE callback_observe(s est une chaîne)
+	seqCas3 += s
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_resolution_proc_variable/cas3_proc_depuis_proc/temp.pdf")
+iImprimeEtat(ETAT_Cas3)
+iFinImprime()
+
+Trace("seqCas3 : [" + seqCas3 + "]")
+
+// Apres fix : Lecture() appelle Somme(3, 4) = 7. Lecture est appelee 1x.
+dbgVérifieEgalité(seqCas3, "c3:7",
+"Proc top-level Etat (Somme) appelee depuis une autre proc top-level (Lecture)")
+
+dbgBilanTest()

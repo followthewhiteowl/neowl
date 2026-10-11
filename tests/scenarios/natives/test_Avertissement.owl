@@ -1,0 +1,141 @@
+// @sujet : Avertissement
+// @résumé : Affiche une boîte de dialogue d'avertissement modale avec icône point d'exclamation. Variadique : les arguments sont concaténés sur des lignes successives.
+
+
+// Particularité des fonctions UI : le mock intercepte les appels pour
+// empêcher l'ouverture de dialogue pendant les tests automatisés. On vérifie
+// que la fonction a été appelée et combien de fois.
+mockAvert est un MockNative = MockCrée(Avertissement)
+
+
+PROCEDURE avantChaqueTest()
+	mockAvert = MockCrée(Avertissement).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockAvert.Desactive()
+FIN
+
+
+// Cas canonique : un appel simple avec un message d'avertissement.
+// L'utilisateur devra cliquer OK pour fermer la boîte de dialogue.
+PROCEDURE scenario_appel_simple()
+	Avertissement("Cette manipulation n'a pas été validée.")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+FIN
+
+
+// Avertissement est variadique : plusieurs chaînes en arguments sont
+// concaténées en lignes successives dans le dialogue. Pratique pour
+// structurer un message d'avertissement multi-lignes.
+PROCEDURE scenario_arguments_multiples()
+	Avertissement("Cette manipulation n'a pas été validée.", "Contactez le responsable de l'application.")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+FIN
+
+
+// L'interpolation [%var%] fonctionne dans le message comme dans toute
+// chaîne. Forme idiomatique pour insérer des valeurs variables.
+PROCEDURE scenario_avec_interpolation()
+	sUtilisateur est une chaîne = "Alice"
+	Avertissement("L'utilisateur [%sUtilisateur%] n'a pas les droits requis.")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+FIN
+
+
+// Le compteur du mock reflète fidèlement le nombre d'invocations sur la
+// durée du scénario. Utile pour vérifier les chemins conditionnels qui
+// émettent plusieurs avertissements.
+PROCEDURE scenario_appels_repetes_compte_exact()
+	Avertissement("Fichier 1 non trouvé.")
+	Avertissement("Fichier 2 non trouvé.")
+	Avertissement("Fichier 3 non trouvé.")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 3))
+FIN
+
+
+// Un appel conditionnel non déclenché ne génère aucune invocation. Cas
+// miroir : tester l'absence d'effet vaut tester sa présence.
+PROCEDURE scenario_aucun_appel_si_condition_fausse()
+	nValeur est un entier = 10
+	SI nValeur < 0 ALORS
+		Avertissement("Valeur négative détectée.")
+	FIN
+	dbgVérifieFaux(MockVérifieAppelé(mockAvert))
+FIN
+
+
+// MockRéinitialise remet à zéro les compteurs sans effacer les règles ni
+// désactiver le mock. Utile pour partitionner un scénario en plusieurs
+// phases dont on compte les appels indépendamment.
+PROCEDURE scenario_reinitialisation_des_compteurs()
+	Avertissement("Avant la réinitialisation.")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+
+	MockRéinitialise(mockAvert)
+	dbgVérifieFaux(MockVérifieAppelé(mockAvert))
+
+	Avertissement("Après.")
+	Avertissement("Encore.")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 2))
+FIN
+
+
+// Pattern MockCommence : la règle ne s'applique que sur les appels dont le
+// premier argument commence par le préfixe spécifié. Utile pour catégoriser
+// les avertissements par type.
+PROCEDURE scenario_pattern_par_prefixe()
+	mockLocal est un MockNative = MockCrée(Avertissement)
+	mockLocal.Quand().Avec(MockCommence("Attention :")).Retourne(0).Active()
+
+	Avertissement("Attention : connexion instable.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Pattern MockContient : la règle s'applique si le premier argument
+// contient la sous-chaîne, quelle que soit sa position. Utile pour des
+// assertions plus souples que MockCommence.
+PROCEDURE scenario_pattern_par_substring()
+	mockLocal est un MockNative = MockCrée(Avertissement)
+	mockLocal.Quand().Avec(MockContient("expiration")).Retourne(0).Active()
+
+	Avertissement("Votre session arrive à expiration dans 5 minutes.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Argument exact : si l'on connaît le texte attendu mot pour mot, on
+// passe directement la chaîne en argument de Avec(). La règle ne s'active
+// alors que sur ce texte précis.
+PROCEDURE scenario_argument_exact_via_chaine()
+	mockLocal est un MockNative = MockCrée(Avertissement)
+	mockLocal.Quand().Avec("Veuillez réessayer plus tard.").Retourne(0).Active()
+
+	Avertissement("Veuillez réessayer plus tard.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// Cas limite défensif : une chaîne vide passe sans erreur. Pratique rare
+// mais autorisée (affiche une boîte de dialogue vide).
+PROCEDURE PRIVÉE scenario_message_vide()
+	Avertissement("")
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+FIN
+
+
+// Cas limite : message très long (proche de la limite 4096 caractères).
+// Le runtime gère la troncature silencieusement si dépassement.
+PROCEDURE PRIVÉE scenario_message_long()
+	sLong est une chaîne = Répète("A", 4000)
+	Avertissement(sLong)
+	dbgVérifieVrai(MockVérifieAppelé(mockAvert, 1))
+FIN

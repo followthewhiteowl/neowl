@@ -1,0 +1,97 @@
+// test_compression_arity.owl
+// Verrouille les formes d'arite discretes des natives compression
+// migrees depuis une signature variadique masquee : chaque forme valide
+// continue de compiler ET de s'executer correctement.
+
+PROCEDURE PUBLIQUE test_compresse_formes()
+	donnees est une chaîne = "payload répété payload répété payload répété"
+	// 1 arg : gzip niveau 6 par defaut
+	c1 est un buffer = Compresse(donnees)
+	dbgVérifieVrai(Taille(c1) > 0, "Compresse 1 arg produit un buffer")
+	dbgVérifieEgalité(BufferVersChaîne(Décompresse(c1)), donnees, "Compresse 1 arg roundtrip")
+	// 2 args : algo explicite
+	c2 est un buffer = Compresse(donnees, compresseGZIP)
+	dbgVérifieEgalité(BufferVersChaîne(Décompresse(c2, compresseGZIP)), donnees, "Compresse 2 args roundtrip")
+	// 3 args : algo + niveau
+	c3 est un buffer = Compresse(donnees, compresseGZIP, zipCompressionMaximale)
+	dbgVérifieEgalité(BufferVersChaîne(Décompresse(c3)), donnees, "Compresse 3 args roundtrip")
+FIN
+
+PROCEDURE PUBLIQUE test_decompresse_formes()
+	source est une chaîne = "contenu à compresser puis décompresser"
+	comp est un buffer = Compresse(source, compresseGZIP)
+	// 1 arg : auto-detection du format
+	d1 est un buffer = Décompresse(comp)
+	dbgVérifieEgalité(BufferVersChaîne(d1), source, "Decompresse 1 arg auto-detect")
+	// 2 args : format explicite
+	d2 est un buffer = Décompresse(comp, compresseGZIP)
+	dbgVérifieEgalité(BufferVersChaîne(d2), source, "Decompresse 2 args explicite")
+FIN
+
+PROCEDURE PUBLIQUE test_zipcree_ouvre_formes()
+	// zipCrée : 1 arg (format deduit de l'extension) et 2 args (format explicite)
+	a1 est un zipArchive = zipCrée("/tmp/owl_arity_1.zip")
+	dbgVérifieVrai(PAS EstNul(a1), "zipCrée 1 arg")
+	zipAjouteFichier(a1, "x", zipEnMémoire, "x.txt")
+	zipFerme(a1)
+
+	a2 est un zipArchive = zipCrée("/tmp/owl_arity_2.zip", zipFormatZIP)
+	dbgVérifieVrai(PAS EstNul(a2), "zipCrée 2 args")
+	zipAjouteFichier(a2, "y", zipEnMémoire, "y.txt")
+	zipFerme(a2)
+
+	// zipOuvre : 1 arg (lecture par defaut) et 2 args (mode explicite)
+	r1 est un zipArchive = zipOuvre("/tmp/owl_arity_1.zip")
+	dbgVérifieEgalité(zipNbFichier(r1), 1, "zipOuvre 1 arg lecture")
+	zipFerme(r1)
+
+	r2 est un zipArchive = zipOuvre("/tmp/owl_arity_2.zip", zipLecture)
+	dbgVérifieEgalité(zipNbFichier(r2), 1, "zipOuvre 2 args mode")
+	zipFerme(r2)
+FIN
+
+PROCEDURE PUBLIQUE test_zipajoutefichier_formes()
+	arch est un zipArchive = zipCrée("/tmp/owl_arity_add.zip")
+	// forme buffer 4 args : archive, contenu, zipEnMémoire, chemin
+	zipAjouteFichier(arch, "contenu buffer", zipEnMémoire, "buf.txt")
+	dbgVérifieEgalité(zipNbFichier(arch), 1, "zipAjouteFichier 4 args buffer")
+	zipFerme(arch)
+FIN
+
+PROCEDURE PUBLIQUE test_zipextrait_taille_formes()
+	arch est un zipArchive = zipCrée("/tmp/owl_arity_ext.zip")
+	zipAjouteFichier(arch, "abcde", zipEnMémoire, "data.txt")
+	zipFerme(arch)
+
+	r est un zipArchive = zipOuvre("/tmp/owl_arity_ext.zip")
+	// zipExtraitFichier 3 args : archive, nom, destination (zipEnMémoire -> buffer)
+	buf est un buffer = zipExtraitFichier(r, "data.txt", zipEnMémoire)
+	dbgVérifieEgalité(BufferVersChaîne(buf), "abcde", "zipExtraitFichier 3 args en mémoire")
+
+	// zipTailleFichier 2 args : archive, nom (taille décompressée par defaut)
+	t2 est un entier = zipTailleFichier(r, "data.txt")
+	dbgVérifieEgalité(t2, 5, "zipTailleFichier 2 args décompressée")
+	// zipTailleFichier 3 args : + type
+	t3 est un entier = zipTailleFichier(r, "data.txt", 0)
+	dbgVérifieEgalité(t3, 5, "zipTailleFichier 3 args type=0")
+	zipFerme(r)
+FIN
+
+PROCEDURE PUBLIQUE test_zipextraittout_formes()
+	arch est un zipArchive = zipCrée("/tmp/owl_arity_all.zip")
+	zipAjouteFichier(arch, "un", zipEnMémoire, "f1.txt")
+	zipAjouteFichier(arch, "deux", zipEnMémoire, "f2.txt")
+	zipFerme(arch)
+
+	r est un zipArchive = zipOuvre("/tmp/owl_arity_all.zip")
+	// zipExtraitTout 2 args : archive, destination
+	dbgVérifieEgalité(zipExtraitTout(r, "/tmp/owl_arity_out"), Vrai, "zipExtraitTout 2 args destination")
+	zipFerme(r)
+FIN
+
+test_compresse_formes()
+test_decompresse_formes()
+test_zipcree_ouvre_formes()
+test_zipajoutefichier_formes()
+test_zipextrait_taille_formes()
+test_zipextraittout_formes()

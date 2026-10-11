@@ -1,0 +1,38 @@
+// =====================================================================
+// TEST: CouleurFond sur le champ Saisie (parité avec les contrôles frères).
+//
+// Avant ce câblage, CouleurFond n'existait pas sur Saisie : le --check
+// rejetait la propriété (seul champ dépourvu). Elle est maintenant
+// déclarée au catalogue Saisie, conservée dans le store de l'instance
+// (relisible via ..CouleurFond) et appliquée au widget par la post-passe
+// runtime commune à tous les widgets.
+//
+// Ce test verrouille :
+//   1. L'acceptation déclarative de CouleurFond (sinon la fenêtre
+//      voisine ne compilerait pas).
+//   2. La valeur exacte relue depuis le store après matérialisation.
+//   3. La réaffectation runtime SAI..CouleurFond = ... + relecture.
+//   4. Le montage offscreen réel sans crash (chemin Qt set_bg_color).
+//
+// Les instances de contrôle sont matérialisées à l'ouverture de la
+// fenêtre voisine : la valeur déclarée est donc relue APRÈS OuvreSoeur.
+// =====================================================================
+
+TestModeHeadless(Faux)
+
+Trace("=== Saisie : CouleurFond ===")
+
+// 4 — montage offscreen réel : matérialise l'instance + applique le fond.
+OuvreSoeur(FEN_SaisieCouleurFond)
+
+// 1 + 2 — la valeur déclarée (RVB(200,220,240)) est lisible.
+dbgVérifieEgalité(SAI_Test..CouleurFond, RVB(200, 220, 240),
+"CouleurFond déclaratif conservé dans le store")
+
+// 3 — réaffectation runtime + relecture.
+SAI_Test..CouleurFond = RVB(10, 20, 30)
+dbgVérifieEgalité(SAI_Test..CouleurFond, RVB(10, 20, 30),
+"CouleurFond réaffecté au runtime")
+
+Ferme(FEN_SaisieCouleurFond)
+dbgBilanTest()

@@ -1,0 +1,36 @@
+// Régression : déclaration `tableau de N type` (taille fixe).
+// Spec OWL_SPEC §3.2: tableau de 10 entiers / tableau de 3 par 4 entiers.
+// Comportement de référence (doc Ajoute §"Ajout d'un élément dans un tableau"):
+//   "le tableau contient N éléments vides; Ajoute remplit la position suivante".
+
+// 1. Taille fixe simple, valeur par défaut (Null = zero-value du type)
+t1 est un tableau de 3 chaînes
+dbgVérifieEgalité(t1..Occurrence, 3, "3 slots pré-alloués")
+
+// 2. Accès direct indices 1..N
+t2 est un tableau de 5 entiers
+t2[3] = 42
+dbgVérifieEgalité(t2..Occurrence, 5, "taille inchangée")
+dbgVérifieEgalité(t2[3], 42, "set-get sur slot pré-alloué")
+
+// 3. Ajoute après taille fixe -> nouvel index = N+1
+t3 est un tableau de 2 chaînes
+Ajoute(t3, "X")
+dbgVérifieEgalité(t3..Occurrence, 3, "Ajoute étend")
+dbgVérifieEgalité(t3[3], "X", "nouvel élément en position 3")
+
+// 4. Syntaxe 2D  `tableau de N par M` : le parser l'accepte (pré-allocation 2D
+//    pas encore implémentée, on vérifie juste que ça compile)
+t4 est un tableau de 3 par 4 entiers
+dbgVérifieVrai(t4..Occurrence >= 0, "parser accepte `N par M`")
+
+// 5. Syntaxe  `tableau de * par N` : parser accepte le * comme "dynamique"
+t5 est un tableau de * par 2 entiers
+dbgVérifieVrai(t5..Occurrence >= 0, "parser accepte `* par N`")
+
+// 6. Forme dynamique usuelle toujours OK
+t6 est un tableau de entiers
+Ajoute(t6, 10)
+dbgVérifieEgalité(t6..Occurrence, 1, "tableau dynamique 1D")
+
+dbgBilanTest()

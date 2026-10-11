@@ -1,0 +1,27 @@
+//  : le marqueur catch-all `*` (segment glouton) d'un Chemin n'est
+// autorisé qu'en DERNIÈRE position — règle de conflit Smithy (un seul
+// wildcard, en dernier). Une occurrence non finale doit être refusée à la
+// compilation avec un message dédié.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : le parseur ne reconnaît
+// pas encore `*ident` en position de segment de Chemin ; il échoue dès le
+// premier `*` rencontré avec une erreur syntaxique générique (nom de
+// propriété attendu dans PROPRIETES), pas encore avec le message dédié
+// « wildcard non final ». À régénérer une fois  livré.
+ServiceFichiers est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	ServiFichier est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["a", * reste, "b"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(reste est une chaîne) : chaîne
+			RENVOYER reste
+		FIN
+	FIN
+FIN

@@ -1,0 +1,36 @@
+// Fenetre voisine — repro .
+//
+// Une prop dynamique (Libelle a evaluateur) lit une globale top-level fenetre
+// qui change entre deux ouvertures. Le top-level re-tourne a chaque Ouvre
+// (modele "une vie par ouverture" ) et reconstruit gTexte a partir
+// du compteur persistant __dbgNombreExecutions (1 par Ouvre).
+//
+// Attendu : a la 2e ouverture, gTexte = "v2", la prop dynamique Libelle = "v2".
+// Bug  (avant fix) : la prop dynamique est memoisee (is_constant
+// fige sur le decl PARTAGE des la 1re ouverture) -> elle reste "v1".
+
+FEN_ReopenProp est une Fenêtre
+	PROPRIETES
+		Titre       = "ReopenProp"
+		Disposition = dispLibre
+		Largeur     = 200
+		Hauteur     = 100
+	FIN
+
+	// top-level fenetre : tourne 1x par Ouvre. Incremente le
+	// compteur persistant, puis DECLARE gTexte avec la valeur courante. Le
+	// top-level re-tourne a chaque Ouvre, donc gTexte est recalculee a chaque
+	// ouverture. Pose AVANT le seed des props dynamiques (cf.
+	// open_window_instance : phase DYNAMIC posee apres le top-level fenetre).
+	__dbgNoteExecution("reopenprop")
+	gTexte est une chaîne = "v" + __dbgNombreExecutions("reopenprop")
+
+	LIB_Compteur est un Champ Libellé
+		PROPRIETES
+			X = 10
+			Y = 10
+			// prop DYNAMIQUE : evaluee a l'ouverture, lit la globale top-level.
+			Libellé = gTexte
+		FIN
+	FIN
+FIN

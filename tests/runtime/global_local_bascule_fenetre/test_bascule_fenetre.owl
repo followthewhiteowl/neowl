@@ -1,0 +1,23 @@
+//  : GLOBAL explicite au top-level du corps d'une Fenêtre a le
+// même effet que le défaut (promotion en globale d'élément) — accessible
+// depuis les procédures locales de la fenêtre (FinInitialisation,
+// LireGPromu). ROUGE attendu aujourd'hui : `GLOBAL` en tête de ligne dans
+// un corps de Fenêtre n'est câblé par aucune règle de parsing hors classe.
+
+TestModeHeadless(Vrai)
+
+seqVu est une chaîne = ""
+
+PROCEDURE callback_observe(s est une chaîne)
+	seqVu += s
+FIN
+
+Ouvre(FEN_BasculeLocal)
+
+dbgVérifieEgalité(seqVu, "init:7", "gPromu (GLOBAL explicite) visible depuis FinInitialisation")
+
+nLu est un entier = LireGPromu()
+dbgVérifieEgalité(nLu, 7, "gPromu lisible via procédure publique de la fenêtre après Ouvre")
+
+Ferme(FEN_BasculeLocal)
+dbgBilanTest()

@@ -1,0 +1,31 @@
+// Prise de reference (valeur procedure) d'un helper fenetre defini PLUS BAS.
+//
+// Symetrie avec les APPELS deja ordre-independants : prendre la reference
+// d'un helper (affectation propriete, variable typee procedure, corps de
+// lambda) doit resoudre quelle que soit la position de la declaration du
+// helper dans le bloc fenetre.
+
+TestModeHeadless(Vrai)
+
+marqueur_variable est une chaîne = ""
+marqueur_lambda est une chaîne = ""
+
+PROCEDURE callback_observe(val est une chaîne)
+	SI val = "via variable procedure" ALORS
+		marqueur_variable = val
+	FIN
+	SI val = "via lambda body" ALORS
+		marqueur_lambda = val
+	FIN
+FIN
+
+Ouvre(FEN_ProcRefApres)
+
+// FinInitialisation a invoque les helpers via la variable procedure et la
+// lambda (les deux references resolues vers le helper defini plus bas).
+dbgVérifieEgalité(marqueur_variable, "via variable procedure",
+"variable procedure = helper defini apres -> reference resolue")
+dbgVérifieEgalité(marqueur_lambda, "via lambda body",
+"lambda body appelant helper defini apres -> reference resolue")
+
+dbgBilanTest()

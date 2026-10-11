@@ -1,0 +1,61 @@
+// @sujet : ErreurConstruit
+// @résumé : Construit un message en substituant les marqueurs %1, %2, ... par
+// les arguments fournis, dans l'ordre. Fonction pure et déterministe.
+
+
+// Cas nominal : un message sans marqueur passe tel quel, un seul argument
+// suffit. Utile pour les messages fixes qui n'ont pas besoin de paramètres.
+PROCEDURE scenario_message_simple_sans_marqueur()
+	sMessage est une chaîne = ErreurConstruit("Connexion au serveur impossible.")
+	dbgVérifieEgalité(sMessage, "Connexion au serveur impossible.", "Un message sans marqueur est retourné tel quel")
+FIN
+
+
+// Cas courant : plusieurs marqueurs %1, %2 sont remplacés dans l'ordre par
+// les arguments qui suivent le format. Pratique pour construire un message
+// d'erreur détaillé sans concaténation manuelle.
+PROCEDURE scenario_plusieurs_marqueurs_substitues_dans_l_ordre()
+	sMessage est une chaîne = ErreurConstruit("Code %1 - montant %2", 42, 3.5)
+	dbgVérifieEgalité(sMessage, "Code 42 - montant 3.5", "Les marqueurs %1 et %2 sont remplacés par les arguments correspondants")
+FIN
+
+
+// Types mixtes : les paramètres numériques (entier, réel négatif) sont
+// automatiquement convertis en texte lors de la substitution.
+PROCEDURE scenario_types_numeriques_convertis_en_texte()
+	sMessage est une chaîne = ErreurConstruit("Solde négatif détecté : %1",-7)
+	dbgVérifieEgalité(sMessage, "Solde négatif détecté : -7", "Un entier négatif est converti en texte dans le message")
+FIN
+
+
+// Cas limite : un marqueur sans argument correspondant est remplacé par une
+// chaîne vide plutôt que de provoquer une erreur. Le message reste cohérent
+// même en cas de paramètre manquant.
+PROCEDURE PRIVÉE scenario_marqueur_sans_argument_devient_vide()
+	sMessage est une chaîne = ErreurConstruit("Utilisateur %1, solde %2", "Alice")
+	dbgVérifieEgalité(sMessage, "Utilisateur Alice, solde ", "Un marqueur sans argument correspondant est remplacé par du vide")
+FIN
+
+
+// Cas limite : les arguments en surplus par rapport aux marqueurs présents
+// dans le format sont simplement ignorés, sans erreur.
+PROCEDURE PRIVÉE scenario_arguments_surnumeraires_ignores()
+	sMessage est une chaîne = ErreurConstruit("Résultat : %1 puis %2", "premier", "second", "surplus")
+	dbgVérifieEgalité(sMessage, "Résultat : premier puis second", "Les arguments en trop par rapport aux marqueurs sont ignorés")
+FIN
+
+
+// Cas limite : %% est l'échappement du symbole pourcentage littéral, à ne
+// pas confondre avec un marqueur de substitution.
+PROCEDURE PRIVÉE scenario_pourcentage_litteral_echappe()
+	sMessage est une chaîne = ErreurConstruit("Ratio : %1%%", 50)
+	dbgVérifieEgalité(sMessage, "Ratio : 50%", "La séquence %% produit un symbole pourcentage littéral")
+FIN
+
+
+// Cas limite : une chaîne vide en argument unique doit être acceptée sans
+// erreur et retourner une chaîne vide.
+PROCEDURE PRIVÉE scenario_message_vide()
+	sMessage est une chaîne = ErreurConstruit("")
+	dbgVérifieEgalité(sMessage, "", "Un format vide retourne une chaîne vide")
+FIN

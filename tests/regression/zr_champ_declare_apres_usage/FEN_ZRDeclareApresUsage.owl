@@ -1,0 +1,49 @@
+// Fenêtre voisine — ressource pour test_zr_champ_declare_apres_usage.owl.
+// Verrouille la non-régression  : les procédures qui accèdent à
+// ZR_X[i].LIB_A sont déclarées AVANT le bloc ZoneRépétée lui-même dans le
+// fichier. Le pré-scan des champs doit malgré tout résoudre 'LIB_A' comme
+// champ valide (pas de faux positif lié à l'ordre textuel).
+
+FEN_ZRDeclareApresUsage est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR champ déclaré après usage"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 300
+	FIN
+
+	// Procédures définies AVANT la déclaration de ZR_X plus bas dans le fichier.
+	PROCEDURE EcritCellule(n est un entier, texte est une chaîne)
+		ZR_X[n].LIB_A = texte
+	FIN
+
+	PROCEDURE LireCellule(n est un entier)
+		RENVOYER ZR_X[n].LIB_A
+	FIN
+
+	ZR_X est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 480
+			Hauteur           = 250
+			Sens              = zrVertical
+			HauteurRepetition = 40
+		FIN
+
+		LIB_A est un Champ Libellé
+			PROPRIETES
+				X       = 5
+				Y       = 8
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		i est un entier = ZoneRépétéeAjouteLigne(ZR_X)
+		EcritCellule(i, "valeur ordre inverse")
+		cb_declare_apres_usage_done()
+	FIN
+FIN

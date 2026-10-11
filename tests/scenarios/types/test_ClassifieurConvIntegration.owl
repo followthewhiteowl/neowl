@@ -1,0 +1,97 @@
+// @sujet : Classifieur convolutif — assemblage bout en bout
+// @résumé : Preuve que les briques livrées séparément (Dataset, couches
+// convolutives d'un IAModèle, split train/test, cible one-hot ou indices,
+// entraînement, métriques) se connectent en un pipeline cohérent : charger
+// des images étiquetées, découper train/test, construire un petit CNN
+// (convolution → ReLU → pooling → aplatissement → dense), l'entraîner
+// quelques époques, puis vérifier que la perte a diminué et que
+// l'exactitude dépasse largement le hasard sur un jeu à 2 classes
+// trivialement séparables (deux couleurs unies).
+//
+// Aucune valeur exacte n'est vérifiée sur les poids ou la perte finale :
+// l'initialisation est aléatoire, seules les TENDANCES (perte qui baisse,
+// exactitude au-dessus du hasard) sont robustes d'une exécution à l'autre.
+// Les images générées et le modèle ne sont pas persistés : tout vit dans un
+// dossier temporaire nettoyé en fin de scénario.
+
+PROCEDURE PUBLIQUE scenario_pipeline_conv_dataset_entrainement_bout_en_bout()
+	// 1. Dataset synthétique : 2 classes trivialement séparables (rouge
+	// uni vs vert uni), 10 images de 4x4 par classe.
+	racine est une chaîne = fRepTemp() + "\owl_test_1677_classifieur_conv"
+	fRepCree(racine + "\classeA")
+	fRepCree(racine + "\classeB")
+	POUR i = 1 À 10
+		dSauveImagePNG(dCréeImage(4, 4, RVB(255, 0, 0)), racine + "\classeA\a" + i + ".png")
+		dSauveImagePNG(dCréeImage(4, 4, RVB(0, 255, 0)), racine + "\classeB\b" + i + ".png")
+	FIN
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dbgVérifieEgalité(ds..Taille, 20, "précondition : 20 images au total (10 + 10)")
+	dbgVérifieEgalité(ds..NbClasses, 2, "précondition : 2 classes")
+
+	// 2. Split train/test étanche (mélange préalable pour ne pas figer les
+	// classes en blocs contigus dans la tranche d'entraînement).
+	ds.Mélange()
+	train est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0, 0.7)
+	test est un Dataset de ImageÉtiquetée = ds.SousEnsemble(0.7, 1.0)
+	dbgVérifieEgalité(train..Taille, 14, "train = 70% de 20 -> 14")
+	dbgVérifieEgalité(test..Taille, 6, "test = 30% de 20 -> 6")
+
+	// 3. Petit CNN : convolution (3 canaux RGB -> 4 canaux, noyau 3, pas 1,
+	// remplissage 1 -> même résolution 4x4) -> ReLU -> max-pooling 2x2
+	// (4x4 -> 2x2) -> aplatissement (4*2*2 = 16) -> dense vers 2 classes.
+	mon est un IAModèle
+	mon.AjouteCoucheConvolution2D(3, 4, 3, 1, 1)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheMaxPooling(2)
+	mon.AjouteCoucheAplatissement()
+	mon.AjouteCoucheDense(16, 2)
+
+	// 4. Lots complets train/test : X en B×C×H×W (.LotEntrées), cibles en
+	// indices de classe (.LotCibles) — la cible one-hot pour .Entraîne est
+	// construite via TenseurUnParmiN, la perte de contrôle via
+	// EntropieCroiséeIndices directement sur les indices.
+	tXTrain est un Tenseur = train.LotEntrées(train..Taille, 1)
+	tYTrainIndices est un Tenseur = train.LotCibles(train..Taille, 1)
+	tYTrainOneHot est un Tenseur = TenseurUnParmiN(tYTrainIndices, 2)
+
+	tXTest est un Tenseur = test.LotEntrées(test..Taille, 1)
+	tYTestIndices est un Tenseur = test.LotCibles(test..Taille, 1)
+
+	// 5. Perte AVANT entraînement (poids d'initialisation aléatoire).
+	// ErreurDétectée est lu IMMÉDIATEMENT dans une variable : tout autre
+	// appel intercalé (même dbgVérifie*) consommerait la sentinelle fraîche.
+	ErreurRAZ()
+	logitsAvant est un Tenseur = mon.Infère(tXTrain)
+	bErreurForward est un booléen = ErreurDétectée
+	dbgVérifieEgalité(bErreurForward, Faux, "le forward initial ne signale aucune erreur")
+	perteAvant est un Tenseur = logitsAvant.EntropieCroiséeIndices(tYTrainIndices)
+
+	// 6. Entraînement : quelques époques, petit lot, Adam.
+	opts est un OptionsEntraînement
+	opts..Époques           = 40
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.05
+	opts..Optimiseur        = optimAdam
+	opts..Perte             = perteEntropieCroisée
+
+	ErreurRAZ()
+	mon.Entraîne(tXTrain, tYTrainOneHot, opts)
+	bErreurEntraine est un booléen = ErreurDétectée
+	dbgVérifieEgalité(bErreurEntraine, Faux, ".Entraîne sur le pipeline conv->pool->aplatissement->dense ne signale aucune erreur")
+
+	// 7. Perte APRÈS entraînement : doit avoir diminué (pas de valeur
+	// exacte, l'init est aléatoire — seule la tendance est vérifiée).
+	logitsApres est un Tenseur = mon.Infère(tXTrain)
+	perteApres est un Tenseur = logitsApres.EntropieCroiséeIndices(tYTrainIndices)
+	dbgVérifieVrai(perteApres..Valeur[1] < perteAvant..Valeur[1], "la perte d'entraînement a diminué après 40 époques")
+
+	// 8. Exactitude au-dessus du hasard (0.5 pour 2 classes) sur train ET
+	// sur test — le problème est trivialement séparable (couleur unie).
+	tauxTrain est un réel = Exactitude(mon.Infère(tXTrain), tYTrainIndices)
+	tauxTest est un réel = Exactitude(mon.Infère(tXTest), tYTestIndices)
+	dbgVérifieVrai(tauxTrain > 0.6, "exactitude sur train nettement au-dessus du hasard (0.5)")
+	dbgVérifieVrai(tauxTest > 0.6, "exactitude sur test nettement au-dessus du hasard (0.5)")
+
+	fRepSupprime(racine, frRécursif)
+FIN

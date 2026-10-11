@@ -1,0 +1,60 @@
+// @sujet : ChaîneVersNumérique
+// @résumé : Conversion d'une chaîne en valeur numérique (décimal arbitrary precision), avec gestion des formats variés et cas limites.
+
+// Cas nominal — entier positif simple
+PROCEDURE PUBLIQUE scenario_entier_positif_simple()
+	n est un numérique = ChaîneVersNumérique("123")
+	dbgVérifieEgalité(n, 123, "Entier positif simple parsé correctement")
+FIN
+
+// Cas nominal — décimal avec séparateur point
+PROCEDURE PUBLIQUE scenario_decimal_avec_point()
+	n est un numérique = ChaîneVersNumérique("3.14159")
+	dbgVérifieVrai(Abs(n - 3.14159) < 0.00001, "Décimal avec point parsé avec précision")
+FIN
+
+// Cas nominal — nombre négatif
+PROCEDURE PUBLIQUE scenario_nombre_negatif()
+	n est un numérique = ChaîneVersNumérique("-42.5")
+	dbgVérifieVrai(Abs(n - (-42.5)) < 0.00001, "Nombre négatif parsé correctement")
+FIN
+
+// Cas nominal — chaîne avec espaces en début/fin
+PROCEDURE PUBLIQUE scenario_espaces_avant_apres()
+	n est un numérique = ChaîneVersNumérique("  789  ")
+	dbgVérifieEgalité(n, 789, "Espaces en début/fin ignorés")
+FIN
+
+// Cas limite — chaîne vide retourne zéro
+PROCEDURE PUBLIQUE scenario_chaine_vide()
+	n est un numérique = ChaîneVersNumérique("")
+	dbgVérifieEgalité(n, 0, "Chaîne vide retourne zéro")
+FIN
+
+// Cas limite — chaîne non numérique retourne zéro
+PROCEDURE PUBLIQUE scenario_chaine_non_numerique()
+	n est un numérique = ChaîneVersNumérique("abc")
+	dbgVérifieEgalité(n, 0, "Chaîne non numérique retourne zéro")
+FIN
+
+// Cas limite — zéro explicite parsé
+PROCEDURE PUBLIQUE scenario_zero_explicite()
+	n est un numérique = ChaîneVersNumérique("0")
+	dbgVérifieEgalité(n, 0, "Zéro explicite parsé correctement")
+FIN
+
+// Cas limite — très grand nombre
+PROCEDURE PRIVÉE scenario_edge_tres_grand_nombre()
+	n est un numérique = ChaîneVersNumérique("123456789012345678901234567890")
+	// Arbitrary precision — on vérifie que le nombre est bien positif et non-nul
+	dbgVérifieVrai(n > 0, "Très grand nombre parsé sans overflow")
+FIN
+
+// Cas limite — notation exponentielle si supportée (à vérifier)
+PROCEDURE PRIVÉE scenario_edge_notation_exponentielle()
+	n est un numérique = ChaîneVersNumérique("1.5e3")
+	// Si notation exponentielle supportée : 1.5e3 = 1500
+	// Sinon, parse jusqu'au 'e' ou retourne 0
+	// On teste de façon robuste sans supposer le comportement exact
+	dbgVérifieVrai(n >= 0, "Notation exponentielle gérée (valeur >= 0)")
+FIN

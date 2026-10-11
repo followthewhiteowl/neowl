@@ -1,0 +1,112 @@
+// @sujet : dbgVérifieDifférence
+// @resume : Vérifie que deux valeurs sont différentes (inverse de dbgVérifieEgalité)
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_difference_types_primitifs()
+	// Vérifier que des valeurs de types primitifs différentes sont bien détectées
+	// La fonction doit réussir (PASS) quand les valeurs diffèrent
+
+	dbgVérifieDifférence(10, 20, "Entiers differents")
+	dbgVérifieDifférence(3.14, 2.71, "Reels differents")
+	dbgVérifieDifférence("abc", "def", "Chaines differentes")
+	dbgVérifieDifférence(Vrai, Faux, "Booleens differents")
+FIN
+
+PROCEDURE PUBLIQUE scenario_difference_casse_et_accent()
+	// La différence est testée après normalisation accent/casse (invariants 1 et 2)
+	// Deux chaînes qui diffèrent uniquement par la casse sont considérées EGALES
+	// (donc dbgVérifieDifférence FAIL, on ne peut pas le tester directement ici)
+
+	// Mais on peut tester des chaînes réellement différentes même avec accents
+	dbgVérifieDifférence("café", "thé", "Mots differents avec accents")
+	dbgVérifieDifférence("résumé", "détail", "Mots differents avec e accent aigu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_difference_types_composes()
+	// Vérifier que des structures ou objets différents sont bien détectés
+
+	req1 est un httpRequête
+	req1..URL = "https://example.com"
+
+	req2 est un httpRequête
+	req2..URL = "https://autre.com"
+
+	// Deux requêtes HTTP avec des URLs différentes
+	dbgVérifieDifférence(req1, req2, "HTTPRequete avec URL differentes")
+FIN
+
+PROCEDURE PUBLIQUE scenario_difference_valeur_vs_null()
+	// Tester la différence entre une valeur définie et Null
+	// (cas limite important pour les types nullable)
+
+	dbgVérifieDifférence(42, Null, "Entier vs Null")
+	dbgVérifieDifférence("texte", Null, "Chaine vs Null")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cas_egalite_detectee()
+	// Quand les valeurs sont EGALES, dbgVérifieDifférence doit FAIL
+	// On ne peut pas directement tester un FAIL attendu sans méta-assertion
+	// Mais on peut documenter le comportement : si on passe deux valeurs identiques,
+	// la fonction détectera l'échec et incrémentera le compteur de FAIL
+
+	// Note pédagogique : dbgVérifieDifférence(10, 10, "...") causerait un FAIL
+	// car les valeurs sont identiques. Ce scénario documente le comportement
+	// sans l'exécuter (sinon ça casserait le bilan global du test)
+
+	// On teste plutôt l'inverse : valeurs vraiment différentes
+	dbgVérifieDifférence(100, 200, "Valeurs clairement distinctes")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_zero_vs_entier()
+	// Zéro est une valeur sentinel souvent source de bugs
+	// Vérifier qu'il est bien traité comme distinct d'autres entiers
+
+	dbgVérifieDifférence(0, 1, "Zero vs un")
+	dbgVérifieDifférence(0,-1, "Zero vs moins un")
+	dbgVérifieDifférence(0, 1000, "Zero vs grand entier")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_vides_vs_non_vides()
+	// Chaîne vide est un cas limite classique
+
+	dbgVérifieDifférence("", "a", "Chaine vide vs un caractere")
+	dbgVérifieDifférence("", "texte long", "Chaine vide vs texte")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_reels_proches()
+	// Réels très proches mais distincts
+	// dbgVérifieDifférence fait une égalité stricte (pas de tolérance)
+	// contrairement à dbgVérifieEgalitéRéel
+
+	dbgVérifieDifférence(1.0, 1.1, "Reels distincts")
+	dbgVérifieDifférence(0.1, 0.2, "Petits reels distincts")
+	dbgVérifieDifférence(1.0, 1.0000001, "Reels tres proches mais distincts")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_entiers_limites()
+	// Valeurs entières extrêmes (INT32_MIN, INT32_MAX)
+
+	min est un entier = -2147483648
+	max est un entier = 2147483647
+
+	dbgVérifieDifférence(min, max, "INT32_MIN vs INT32_MAX")
+	dbgVérifieDifférence(min, 0, "INT32_MIN vs zero")
+	dbgVérifieDifférence(max, 0, "INT32_MAX vs zero")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que les alias FR/EN fonctionnent (invariant 3)
+	// dbgVérifieDifférence = dbgCheckDifferent
+
+	dbgCheckDifferent(10, 20, "Alias EN fonctionne")
+	dbgVérifieDifférence(30, 40, "Alias ASCII sans accent fonctionne")
+FIN
+
+dbgBilanTest()

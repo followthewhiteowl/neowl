@@ -1,0 +1,39 @@
+// Compile-time error : deux blocs surSélection sur le meme noeud de menu.
+// Un seul est cable au runtime (le premier) ; le second est du code mort
+// qui ne s'executerait jamais.
+FEN_MenuEventDoublon est une Fenêtre
+	PROPRIETES
+		Titre         = "Doublon d'evenement de menu"
+		MenuPrincipal = MNU_EventDoublon
+	FIN
+
+	MNU_EventDoublon est un MenuPrincipal
+		SM_Fichier est un SousMenu
+			PROPRIETES
+				Libellé = "&Fichier"
+			FIN
+
+			OPT_Ouvrir est une OptionMenu
+				PROPRIETES
+					Libellé = "&Ouvrir"
+				FIN
+
+				PROCEDURE surSélection()
+					Trace("premier")
+				FIN
+
+				PROCEDURE surSélection()
+					Trace("second")
+				FIN
+			FIN
+
+			// Une option saine APRES le doublon : la faute ne doit pas
+			// desynchroniser le parcours du reste de l'arbre de menu.
+			OPT_Suite est une OptionMenu
+				PROPRIETES
+					Libellé = "&Suite"
+				FIN
+			FIN
+		FIN
+	FIN
+FIN

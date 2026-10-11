@@ -1,0 +1,48 @@
+// @sujet : NumériqueVersChaîne
+// @résumé : Un masque de format chaîne qui ne correspond à aucune forme reconnue (masque printf-like SANS le « % », ex. `.2f`) ne doit jamais produire une chaîne vide en silence. `NumériqueVersChaîne` signale une erreur claire nommant le masque fautif, de sorte qu'une faute de frappe (un « % » de trop, une chaîne non-format) soit détectable via `ErreurDétectée` au lieu de renvoyer un résultat faux muet. Verrouille aussi la non-régression des masques valides et des deux formes bilingues (`NumériqueVersChaîne` / `NumToString`).
+
+
+// Non-régression : les masques printf-like valides (écrits SANS le « % ») restent inchangés.
+PROCEDURE scenario_masques_valides_inchanges()
+	dbgVérifieEgalité(NumériqueVersChaîne(48.199, ".1f"), "48.2")
+	dbgVérifieEgalité(NumériqueVersChaîne(48.199, ".2f"), "48.20")
+	dbgVérifieEgalité(NumériqueVersChaîne(48.199, ".0f"), "48")
+	dbgVérifieEgalité(NumériqueVersChaîne(7, "2f"), "7.000000")
+FIN
+
+
+// Un masque contenant un « % » (faute classique de style printf) est refusé :
+// aucune spec valide n'est reconnue, erreur claire au lieu d'une chaîne vide muette.
+PROCEDURE scenario_masque_avec_pourcent_refuse()
+	ErreurRAZ()
+	r est une chaîne = NumériqueVersChaîne(48.199, "%.1f")
+	dbgVérifieVrai(ErreurDétectée, "un masque avec « % » doit lever une erreur")
+	dbgVérifieEgalité(r, "", "aucun résultat silencieux")
+FIN
+
+
+// Une chaîne quelconque non-format est refusée de la même manière.
+PROCEDURE scenario_masque_charabia_refuse()
+	ErreurRAZ()
+	r est une chaîne = NumériqueVersChaîne(48.199, "xyz")
+	dbgVérifieVrai(ErreurDétectée, "un masque non-format doit lever une erreur")
+	dbgVérifieEgalité(r, "", "aucun résultat silencieux")
+FIN
+
+
+// La forme bilingue anglaise `NumToString` partage le même contrat de rejet.
+PROCEDURE scenario_forme_anglaise_refuse()
+	ErreurRAZ()
+	r est une chaîne = NumToString(48.199, "%f")
+	dbgVérifieVrai(ErreurDétectée, "NumToString refuse aussi le masque invalide")
+	dbgVérifieEgalité(r, "", "aucun résultat silencieux")
+FIN
+
+
+// Après un masque valide, aucune erreur n'est posée (garde-fou anti faux-positif).
+PROCEDURE scenario_masque_valide_pas_d_erreur()
+	ErreurRAZ()
+	r est une chaîne = NumériqueVersChaîne(48.199, ".2f")
+	dbgVérifieFaux(ErreurDétectée, "un masque valide ne pose pas d'erreur")
+	dbgVérifieEgalité(r, "48.20", "résultat correct")
+FIN

@@ -1,0 +1,24 @@
+//  : toute erreur runtime de niveau utilisateur doit être
+// rattrapable par QUAND EXCEPTION (comme l'est déjà tableau[99] en lecture).
+// Isolé dans son propre fichier : tant que la famille n'est pas rendue
+// rattrapable, le déclencheur sort en exit 70 (mort du process) et
+// tuerait tout fichier voisin qui partagerait la même exécution.
+
+// ROUGE tant que l'arithmétique tableau + tableau n'est pas rattrapable.
+PROCEDURE PUBLIQUE test_arith_tableau_plus_tableau_leve_exception()
+	v1 est un tableau de 2 entiers
+	v2 est un tableau de 2 entiers
+	v1[1] = 1
+	v1[2] = 2
+	v2[1] = 3
+	v2[2] = 4
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		r est un tableau de 2 entiers = v1 + v2
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tableau + tableau lève une exception récupérable")
+FIN

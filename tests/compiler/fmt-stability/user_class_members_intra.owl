@@ -1,0 +1,35 @@
+// Test : membres de classe (champs + constantes) declares dans
+// le MEME fichier. L'acces doit etre canonise vers la casse declaree.
+//
+// NOTE : aujourd'hui le formatter ne collecte PAS les membres de classe
+// (skip delibere "too risky"). Ce test est ROUGE attendu pour le Lot 1.
+
+cConfig est une Classe
+PUBLIC
+	// Champs avec casses specifiques
+	VERSION est une chaîne = "1.0"
+	nLargeur est un entier = 800
+	rTempsMaximumAttenteRéponse est un réel = 30.0
+	
+	CONSTANTE
+		NOM_APPLICATION = "OWL Editor"
+		URL_DEFAUT = "http://localhost"
+	FIN
+FIN
+
+PROCEDURE TestUsageMembresMemefichier()
+	cfg est un cConfig
+	
+	// Acces aux champs en casse divergente : doit etre canonise
+	Trace(cfg.version)          // → cfg.VERSION
+	Trace(cfg.VERSION)          // deja canon
+	Trace(cfg.NLARGEUR)         // → cfg.nLargeur
+	Trace(cfg.nlargeur)         // → cfg.nLargeur
+	
+	// Acces sans accent : doit etre canonise vers forme accentuee
+	Trace(cfg.rTempsMaximumAttenteReponse)  // → cfg.rTempsMaximumAttenteRéponse
+	
+	// Constantes de classe : idem
+	Trace(cConfig.nom_application)  // → cConfig.NOM_APPLICATION
+	Trace(cConfig.url_defaut)       // → cConfig.URL_DEFAUT
+FIN

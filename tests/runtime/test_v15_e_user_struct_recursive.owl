@@ -1,0 +1,33 @@
+// V1.5-E : recursivite generique pour types user-defined Structure.
+// Le sous-type est resolu via vm.globals[outer] -> template -> field
+// -> ObjInstance::structName, sans heuristique hardcodee.
+
+Adresse est une Structure
+	rue est une chaîne
+	ville est une chaîne
+	codePostal est une chaîne
+FIN
+
+Personne est une Structure
+	nom est une chaîne
+	age est un entier
+	addr est une Adresse
+FIN
+
+p est une Personne = {
+	nom  = "Dupont"
+	age  = 42
+	addr = {
+		rue        = "12 rue du Test"
+		ville      = "Paris"
+		codePostal = "75001"
+	}
+}
+
+dbgVérifieEgalité(p.nom, "Dupont", "user struct field")
+dbgVérifieEgalité(p.age, 42, "user struct int field")
+dbgVérifieEgalité(p.addr.rue, "12 rue du Test", "user struct sub.rue (recursif)")
+dbgVérifieEgalité(p.addr.ville, "Paris", "user struct sub.ville")
+dbgVérifieEgalité(p.addr.codePostal, "75001", "user struct sub.cp")
+
+dbgBilanTest()

@@ -1,0 +1,89 @@
+// test_matrice_arithmetique.owl — 
+// Complément technique aux scénarios pédagogiques de
+// tests/scenarios/types/test_MatriceArithmetique.owl : cas limites de
+// l'arithmétique Matrice (chaînage fluent, matrice 1x1, zéros multiples
+// au dénominateur, valeurs négatives extrêmes, non-corruption des
+// opérandes après exception, mismatch lignes vs colonnes distincts).
+
+Trace("=== MATRICE ARITHMETIQUE NOYAU ===")
+
+// --- Chaînage fluent successif (chaque étape produit une nouvelle Matrice) ---
+mBase est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+mUnites est une Matrice = [[1.0, 1.0], [1.0, 1.0]]
+mDeux est une Matrice = [[2.0, 2.0], [2.0, 2.0]]
+mChaine est une Matrice = mBase.Ajoute(mUnites).Multiplie(mDeux)
+dbgVérifieEgalité(mChaine[1][1], 4.0, "chaînage (1+1)*2 = 4")
+dbgVérifieEgalité(mChaine[1][2], 6.0, "chaînage (2+1)*2 = 6")
+dbgVérifieEgalité(mChaine[2][1], 8.0, "chaînage (3+1)*2 = 8")
+dbgVérifieEgalité(mChaine[2][2], 10.0, "chaînage (4+1)*2 = 10")
+dbgVérifieEgalité(mBase[1][1], 1.0, "mBase intact après chaînage fluent")
+
+// --- Matrice 1x1 : opérateurs et broadcast dégénérés ---
+mUn1 est une Matrice = [[5.0]]
+mUn2 est une Matrice = [[3.0]]
+mUnSomme est une Matrice = mUn1 + mUn2
+dbgVérifieEgalité(mUnSomme..Lignes, 1, "addition de deux Matrice 1x1 -> 1 ligne")
+dbgVérifieEgalité(mUnSomme..Colonnes, 1, "addition de deux Matrice 1x1 -> 1 colonne")
+dbgVérifieEgalité(mUnSomme[1][1], 8.0, "5.0 + 3.0 = 8.0 (matrice 1x1)")
+
+mUnBroadcast est une Matrice = mUn1 * 4.0
+dbgVérifieEgalité(mUnBroadcast[1][1], 20.0, "broadcast sur matrice 1x1")
+
+// --- Zéros multiples au dénominateur : chaque position lève ---
+mDenomZeroDouble est une Matrice = [[0.0, 5.0], [0.0, 2.0]]
+mNumerateur est une Matrice = [[1.0, 1.0], [1.0, 1.0]]
+
+capturéZeroDouble est une chaîne = ""
+QUAND EXCEPTION DANS
+	x est une Matrice = mNumerateur / mDenomZeroDouble
+	capturéZeroDouble = "no-throw"
+FAIRE
+	capturéZeroDouble = "caught"
+FIN
+dbgVérifieEgalité(capturéZeroDouble, "caught", "division par matrice à deux zéros attrapée")
+
+// Les opérandes source restent intacts après l'exception.
+dbgVérifieEgalité(mDenomZeroDouble[1][1], 0.0, "mDenomZeroDouble[1][1] intact après exception")
+dbgVérifieEgalité(mDenomZeroDouble[1][2], 5.0, "mDenomZeroDouble[1][2] intact après exception")
+dbgVérifieEgalité(mNumerateur[1][1], 1.0, "mNumerateur intact après exception")
+
+// --- Broadcast par un scalaire nul : division lève aussi ---
+mPourDivisionScalaire est une Matrice = [[2.0, 4.0]]
+nDiviseurNul est un réel = 0.0
+capturéDivisionScalaireZero est une chaîne = ""
+QUAND EXCEPTION DANS
+	y est une Matrice = mPourDivisionScalaire / nDiviseurNul
+	capturéDivisionScalaireZero = "no-throw"
+FAIRE
+	capturéDivisionScalaireZero = "caught"
+FIN
+dbgVérifieEgalité(capturéDivisionScalaireZero, "caught", "division par le scalaire 0.0 attrapée")
+
+// --- Valeurs négatives extrêmes : combinaison de signes ---
+mSignesMixtes est une Matrice = [[-1.0, 1.0], [-1.0, 1.0]]
+mNegSignesMixtes est une Matrice = -mSignesMixtes
+dbgVérifieEgalité(mNegSignesMixtes[1][1], 1.0, "-(-1.0) = 1.0")
+dbgVérifieEgalité(mNegSignesMixtes[1][2],-1.0, "-(1.0) = -1.0")
+dbgVérifieEgalité(mNegSignesMixtes[2][1], 1.0, "-(-1.0) = 1.0 (troisième position)")
+
+// --- Mismatch lignes identiques mais colonnes différentes : exception dédiée ---
+mLigneOK1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+mLigneOK2 est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+capturéColonnes est une chaîne = ""
+QUAND EXCEPTION DANS
+	z est une Matrice = mLigneOK1 * mLigneOK2
+	capturéColonnes = "no-throw"
+FAIRE
+	capturéColonnes = "caught"
+FIN
+dbgVérifieEgalité(capturéColonnes, "caught", "même nombre de lignes mais colonnes différentes attrapé")
+
+// --- Matrice rectangulaire non-carrée (1 ligne, 3 colonnes) : opérations légales ---
+mRectA est une Matrice = [[1.0, 2.0, 3.0]]
+mRectB est une Matrice = [[4.0, 5.0, 6.0]]
+mRectSomme est une Matrice = mRectA + mRectB
+dbgVérifieEgalité(mRectSomme..Lignes, 1, "matrice rectangulaire 1x3 : addition conserve 1 ligne")
+dbgVérifieEgalité(mRectSomme..Colonnes, 3, "matrice rectangulaire 1x3 : addition conserve 3 colonnes")
+dbgVérifieEgalité(mRectSomme[1][3], 9.0, "3.0 + 6.0 = 9.0 (rectangulaire)")
+
+dbgBilanTest()

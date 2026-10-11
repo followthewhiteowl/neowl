@@ -1,0 +1,30 @@
+// @sujet membre GLOBAL partage entre toutes les instances d'une classe
+// @resume cree N instances, verifie que le compteur global s'incremente
+//         et reste accessible via cClasse.nMembre sans instance
+
+PROCEDURE scenario_global_partage_relatif()
+	// Mesure relative : on capture l'etat avant, on cree N instances,
+	// on verifie l'increment exact. Robuste a l'ordre des scenarios.
+	nAvant est un entier = cCompteur.nTotal
+
+	o1 est un cCompteur("un")
+	dbgVérifieEgalité(cCompteur.nTotal, nAvant + 1, "Apres 1 instance : +1")
+
+	o2 est un cCompteur("deux")
+	o3 est un cCompteur("trois")
+	dbgVérifieEgalité(cCompteur.nTotal, nAvant + 3, "Apres 3 instances : +3")
+
+	// Le membre global n'est PAS un field d'instance.
+	dbgVérifieEgalité(o1.sNom, "un", "Field d'instance reste independant")
+	dbgVérifieEgalité(o3.sNom, "trois", "Field d'instance reste independant (3)")
+FIN
+
+PROCEDURE scenario_global_ecriture_externe()
+	// Reset manuel via le nom de classe (membre global accessible sans instance).
+	cCompteur.nTotal = 100
+	dbgVérifieEgalité(cCompteur.nTotal, 100, "Ecriture directe via cClasse.nMembre")
+
+	// Nouvelle instance : le compteur continue depuis 100.
+	o est un cCompteur("apres-reset")
+	dbgVérifieEgalité(cCompteur.nTotal, 101, "Increment apres ecriture directe")
+FIN

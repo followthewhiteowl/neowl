@@ -1,0 +1,34 @@
+// @sujet : ErreurPropage — non-régression transport du code d'erreur
+// @résumé : Une erreur soft posée avec un code numérique (ErreurDéclenche(42,
+// "msg")) puis promue en exception par ErreurPropage() doit transporter le
+// code jusqu'à l'exception : ExceptionInfo(errCode) vaut "42", pas 0. Le
+// message reste conservé (non-régression déjà acquise).
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// Le code numérique de l'erreur soft d'origine traverse la promotion en
+// exception : ExceptionInfo(errCode) restitue 42 dans le handler.
+PROCEDURE scenario_code_numerique_transporte_a_la_propagation()
+	nCodeRattrape est une chaîne = ""
+	sMessageRattrape est une chaîne = ""
+
+	ErreurDéclenche(42, "msg")
+
+	QUAND EXCEPTION DANS
+		ErreurPropage()
+	FAIRE
+		nCodeRattrape    = ExceptionInfo(errCode)
+		sMessageRattrape = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieEgalité(nCodeRattrape, "42", "Le code numérique de l'erreur soft est transporté dans l'exception")
+	dbgVérifieEgalité(TypeVar(ExceptionInfo(errCode)), owlChaine, "errCode est typé chaîne")
+	dbgVérifieEgalité(sMessageRattrape, "msg", "Le message de l'erreur soft d'origine reste conservé (non-régression)")
+FIN
+
+
+dbgBilanTest()

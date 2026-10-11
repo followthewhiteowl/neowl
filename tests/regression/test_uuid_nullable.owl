@@ -1,0 +1,149 @@
+// Regression : comportements précis d'affectation, nullable et coercion
+// du type UUID. Pas un scénario pédagogique — c'est un verrou exhaustif
+// sur les cas limites qui doivent rester stables.
+//
+// Couvre :
+//   - UUID nullable explicite (?), init Null
+//   - UUID strict (sans ?) affecté à Null → comportement coercion
+//   - UUID? réaffecté depuis DonneUUID()
+//   - Coercion chaîne valide : standard, accolades, compact, casse mixte
+//   - Coercion chaîne invalide : longueur, caractères non-hex
+//   - Comparaison entre deux UUID identiques (round-trip)
+//   - Valeurs sentinelles uuidV4/uuidV7 distinctes et hors zone
+//     entiers utilisateur (zone OWL_SENTINEL_OFFSET)
+
+
+// --- Nullable ----------------------------------------------------------
+
+// Un UUID? = Null démarre bien à Null (pas UUID nul).
+idNullableInit est un UUID? = Null
+dbgVérifieNull(idNullableInit, "UUID? = Null démarre à Null")
+
+// Un UUID? réaffecté depuis DonneUUID() devient non-Null et expose
+// .VersChaîne() comme un UUID strict.
+idNullableAffecte est un UUID? = DonneUUID()
+dbgVérifieNonNull(idNullableAffecte, "UUID? = DonneUUID() devient non-Null")
+sNullableAffecte est une chaîne = idNullableAffecte.VersChaîne()
+dbgVérifieEgalité(Taille(sNullableAffecte), 36,
+"UUID? non-Null .VersChaîne() produit 36 chars")
+
+// Un UUID strict (sans ?) sans initialiseur = UUID nul, pas Null.
+idStrictDefaut est un UUID
+dbgVérifieEgalité(idStrictDefaut.VersChaîne(),
+"00000000-0000-0000-0000-000000000000",
+"UUID strict sans init = UUID nul (16 octets zéro)")
+
+// Un UUID strict affecté à Null : la coercion attrape, retourne UUID
+// nul + positionne ErreurDétectée. Pas de crash, pas de propagation
+// Null (le slot reste typé UUID).
+ErreurRAZ()
+idStrictNull est un UUID = Null
+dbgVérifieVrai(ErreurInfo() <> "",
+"UUID strict = Null : ErreurDétectée positionnée")
+dbgVérifieEgalité(idStrictNull.VersChaîne(),
+"00000000-0000-0000-0000-000000000000",
+"UUID strict = Null retombe sur UUID nul")
+
+
+// --- Coercion chaîne valide -------------------------------------------
+
+// Format standard (référence canonique).
+ErreurRAZ()
+idCoStd est un UUID = "31aad81b-0a3f-47ad-ab1a-5935d7c34cde"
+dbgVérifieFaux(ErreurDétectée, "Coercion chaîne standard : sans erreur")
+dbgVérifieEgalité(idCoStd.VersChaîne(),
+"31aad81b-0a3f-47ad-ab1a-5935d7c34cde",
+"Coercion standard : round-trip identique")
+
+// Format compact (32 hex sans tirets).
+ErreurRAZ()
+idCoCompact est un UUID = "31aad81b0a3f47adab1a5935d7c34cde"
+dbgVérifieFaux(ErreurDétectée, "Coercion chaîne compact : sans erreur")
+dbgVérifieEgalité(idCoCompact.VersChaîne(),
+"31aad81b-0a3f-47ad-ab1a-5935d7c34cde",
+"Coercion compact : sérialisation revient au format standard à tirets")
+
+// Format accolades (legacy Microsoft).
+ErreurRAZ()
+idCoAccolades est un UUID = "{31aad81b-0a3f-47ad-ab1a-5935d7c34cde}"
+dbgVérifieFaux(ErreurDétectée, "Coercion chaîne accolades : sans erreur")
+dbgVérifieEgalité(idCoAccolades.VersChaîne(),
+"31aad81b-0a3f-47ad-ab1a-5935d7c34cde",
+"Coercion accolades : { } absorbés par le parser")
+
+// Casse mixte tolérée — la sortie reste lowercase canonique.
+ErreurRAZ()
+idCoMaj est un UUID = "31AAD81B-0A3F-47AD-AB1A-5935D7C34CDE"
+dbgVérifieFaux(ErreurDétectée, "Coercion chaîne casse mixte : sans erreur")
+dbgVérifieEgalité(idCoMaj.VersChaîne(),
+"31aad81b-0a3f-47ad-ab1a-5935d7c34cde",
+"Coercion MAJUSCULES → canonique lowercase")
+
+
+// --- Coercion chaîne invalide -----------------------------------------
+
+// Chaîne trop courte : pas un UUID, retour UUID nul + erreur.
+ErreurRAZ()
+idCoCourt est un UUID = "abc"
+dbgVérifieVrai(ErreurInfo() <> "",
+"Coercion chaîne trop courte : ErreurDétectée")
+dbgVérifieEgalité(idCoCourt.VersChaîne(),
+"00000000-0000-0000-0000-000000000000",
+"Coercion chaîne trop courte : retombe sur UUID nul")
+
+// Caractères non-hex à l'intérieur d'une forme par ailleurs correcte.
+ErreurRAZ()
+idCoZ est un UUID = "31aad81b-0a3f-47ad-ab1a-5935d7c34czz"
+dbgVérifieVrai(ErreurInfo() <> "",
+"Coercion chaîne non-hex : ErreurDétectée")
+dbgVérifieEgalité(idCoZ.VersChaîne(),
+"00000000-0000-0000-0000-000000000000",
+"Coercion chaîne non-hex : retombe sur UUID nul")
+
+// Format presque correct mais longueur fausse (33 chars hex compact).
+ErreurRAZ()
+idCoLg est un UUID = "31aad81b0a3f47adab1a5935d7c34cdef"
+dbgVérifieVrai(ErreurInfo() <> "",
+"Coercion chaîne longueur incorrecte : ErreurDétectée")
+
+
+// --- Comparaison ------------------------------------------------------
+
+// Deux UUID provenant de la même chaîne source ont le même contenu
+// d'octets et sont égaux au sens de la sérialisation.
+sRef est une chaîne = "31aad81b-0a3f-47ad-ab1a-5935d7c34cde"
+idA est un UUID = sRef
+idB est un UUID = sRef
+dbgVérifieEgalité(idA.VersChaîne(), idB.VersChaîne(),
+"Deux UUID coercés depuis la même chaîne : .VersChaîne() identique")
+
+// Round-trip via .VersChaîne() puis re-coercion donne un UUID
+// strictement identique au premier.
+idGen est un UUID = DonneUUID()
+idRoundTrip est un UUID = idGen.VersChaîne()
+dbgVérifieEgalité(idRoundTrip.VersChaîne(), idGen.VersChaîne(),
+"Round-trip UUID → chaîne → UUID préserve le contenu")
+
+
+// --- Constantes sentinelles -------------------------------------------
+
+// uuidV4 et uuidV7 sont des valeurs sentinelles distinctes (zone
+// INT32_MIN+offset), pas des petits entiers 0/1. Aucune collision
+// possible avec un entier littéral utilisateur.
+dbgVérifieVrai(uuidV4 <> uuidV7, "uuidV4 et uuidV7 sont distincts")
+dbgVérifieVrai(uuidV4 < -1000000000,
+"uuidV4 est en zone sentinelle (< -1e9)")
+dbgVérifieVrai(uuidV7 < -1000000000,
+"uuidV7 est en zone sentinelle (< -1e9)")
+
+// Idem pour les trois constantes de uuidFormat.
+dbgVérifieVrai(uuidFormatStandard <> uuidFormatCompact,
+"uuidFormatStandard et uuidFormatCompact distincts")
+dbgVérifieVrai(uuidFormatStandard <> uuidFormatAccolades,
+"uuidFormatStandard et uuidFormatAccolades distincts")
+dbgVérifieVrai(uuidFormatCompact <> uuidFormatAccolades,
+"uuidFormatCompact et uuidFormatAccolades distincts")
+dbgVérifieVrai(uuidFormatStandard < -1000000000,
+"uuidFormatStandard est en zone sentinelle (< -1e9)")
+
+dbgBilanTest()

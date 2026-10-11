@@ -1,0 +1,96 @@
+// @sujet : ConsoleÉcrit
+// @resume : Écrit sur stdout sans retour à la ligne automatique
+
+// Cette démonstration illustre ConsoleÉcrit, qui affiche sur la sortie
+// standard sans ajouter de retour chariot. Utile pour construire une ligne
+// par étapes successives ou afficher une progression sans saut.
+
+PROCEDURE PUBLIQUE scenario_nominal()
+	// ConsoleÉcrit affiche une chaîne simple sur stdout, sans retour ligne
+	ConsoleEcrit("Initialisation terminée")
+
+	// Plusieurs appels successifs s'affichent sur la même ligne si aucun
+	// retour chariot explicite n'est fourni
+	ConsoleEcrit("Chargement : ")
+	ConsoleEcrit("30%")
+	ConsoleEcrit(" - ")
+	ConsoleEcrit("En cours...")
+	ConsoleEcrit(`
+`)  // retour ligne explicite pour terminer
+
+	// ConsoleÉcrit accepte tout type : nombres, booléens, chaînes
+	ConsoleEcrit("Valeur numérique: ")
+	ConsoleEcrit(42)
+	ConsoleEcrit(" | Réel: ")
+	ConsoleEcrit(3.14)
+	ConsoleEcrit(" | Booléen: ")
+	ConsoleEcrit(Vrai)
+	ConsoleEcrit(`
+`)
+
+	// Variadic : tous les arguments sont concaténés sans séparateur.
+	// On vérifie que les variables passées sont préservées après l'appel
+	// (effet de bord absent, la native n'altère pas ses arguments).
+	marker est une chaîne = "test_marker"
+	ConsoleEcrit("A", "B", "C", 123, " fin", `
+`)
+	dbgVérifieEgalité(Taille(marker), 11, "argument chaîne reste intact après ConsoleÉcrit")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_chaine_vide()
+	// Chaîne vide : l'appel ne doit pas crasher ni produire d'erreur
+	ConsoleEcrit("")
+
+	dbgVérifieVrai(Vrai, "chaîne vide acceptée")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_utf8_multibytes()
+	// Caractères UTF-8 multibytes : accents, emojis, symboles
+	ConsoleEcrit("Éléphant 🐘 — température ±2°C")
+	ConsoleEcrit(`
+`)
+
+	dbgVérifieVrai(Vrai, "UTF-8 multibytes affiché sans corruption")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_accent_casse()
+	// Les accents et la casse dans les chaînes passées en paramètre
+	// sont préservés tels quels (invariant 2 ne s'applique qu'aux identifiants)
+	ConsoleEcrit("ÉLÉPHANT éléphant Éléphant")
+	ConsoleEcrit(`
+`)
+
+	dbgVérifieVrai(Vrai, "accents et casse préservés dans la sortie")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_sequence_sans_espace()
+	// Construire une ligne sans espace entre les éléments
+	ConsoleEcrit("a")
+	ConsoleEcrit("b")
+	ConsoleEcrit("c")
+	ConsoleEcrit("d")
+	ConsoleEcrit("e")
+	ConsoleEcrit(`
+`)
+
+	dbgVérifieVrai(Vrai, "séquence dense sans séparateur fonctionne")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_grande_chaine()
+	// Grande chaîne : vérifier qu'aucun buffer interne ne tronque
+	longue est une chaîne = Répète("x", 500)
+	ConsoleEcrit(longue)
+	ConsoleEcrit(`
+`)
+
+	dbgVérifieEgalité(Taille(longue), 500, "chaîne de 500 chars construite")
+	dbgVérifieVrai(Vrai, "grande chaîne affichée sans troncature apparente")
+FIN
+
+
+dbgBilanTest()

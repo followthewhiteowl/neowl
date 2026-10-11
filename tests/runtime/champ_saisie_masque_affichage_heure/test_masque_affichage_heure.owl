@@ -1,0 +1,95 @@
+//  — propriété canon MasqueAffichage (EN DisplayMask, doc
+// 1000020008) appliquée au type Heure (miroir de  sur Date) : pilote
+// le format d'affichage/relecture au lieu d'un repli codé en dur.
+//
+// Nature : ROUGE avant impl, y compris à la compilation — typSaisieHeure
+// n'existe pas encore (cf. test_type_heure.owl). Le compile-check échoue donc
+// pour la BONNE raison : symbole inconnu, pas une faute de syntaxe `.`/`..`.
+//
+// Jetons masque HEURE : canon confirmé dans le moteur de format partagé
+// (format_date_time_tokens / parse_date_with_format, ) : les minutes
+// se notent "MI" (ou "mm" minuscule) — PAS "MM" qui désigne le MOIS (jeton
+// déjà pris, testé avant le bloc heure dans le moteur). Ce fichier utilise
+// donc "HH:MI:SS", pas "HH:MM:SS" (piège de collision de jeton à éviter).
+//
+// Stratégie discriminant (cf. note test_writer du ticket) : contrairement à
+// Date (ambiguïté d'ORDRE JJ/MM vs MM/JJ), Heure n'a pas de composants
+// permutables de façon réaliste. Le vrai discriminant ici est double :
+//   1. PRÉCISION : le repli par défaut (sans masque posé, cf. décision
+//      ticket "ex HH:MM"/HH:MI) n'affiche que HH:MI -> une valeur avec
+//      secondes non-nulles est tronquée au round-trip programmatique SET/GET,
+//      alors qu'un masque "HH:MI:SS" préserve les secondes. Ce n'est PAS un
+//      vert par coïncidence : sans le câblage du masque, aucun champ ne peut
+//      préserver les secondes puisque rien n'existe encore (rouge compile).
+//   2. JETONS LITTÉRAUX ARBITRAIRES : un masque "HHhMImSSs" (séparateurs
+//      lettres, pas deux-points) ne peut être relu correctement QUE si la
+//      relecture est réellement dirigée par les jetons du masque -- un
+//      détecteur générique (type ChaîneVersHeure) ne comprend pas ce format
+//      et échouerait. Ce cas isole le comportement piloté-par-masque de tout
+//      fallback générique qui pourrait accidentellement "deviner juste".
+//
+// Point de testabilité (miroir ) : aucun accesseur headless du
+// TEXTE AFFICHÉ brut n'existe indépendamment de ..Valeur (owlHeure
+// format-agnostique, contrat ). L'effet VISUEL du masque reste donc
+// une vérification manuelle (cf. notes test_writer du ticket) ; ce fichier
+// couvre le round-trip get/set de la propriété et la relecture (parsing)
+// dirigée par masque, tout ce qui est headless-testable.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MasqueAffichageHeure)
+
+// ===== 1. Round-trip get/set de MasqueAffichage =====
+
+sDéfaut est une chaîne = SAI_MasqueHHMISS..MasqueAffichage
+dbgVérifieEgalité(sDéfaut, "", "MasqueAffichage : chaîne vide avant toute configuration")
+
+SAI_MasqueHHMISS..MasqueAffichage = "HH:MI:SS"
+sLu est une chaîne = SAI_MasqueHHMISS..MasqueAffichage
+dbgVérifieEgalité(sLu, "HH:MI:SS", "MasqueAffichage : round-trip get/set fidèle")
+
+// ===== 2. Repli sans masque : précision tronquée aux minutes (défaut HH:MI) =====
+//
+// Valeur AVEC secondes non-nulles pour discriminer réellement le repli
+// défaut (pas de vert par coïncidence : sans câblage, TypeVar n'est jamais
+// owlHeure).
+
+hPrécision est une heure = ChaîneVersHeure("143045")
+SAI_SansMasque..Valeur = hPrécision
+dbgVérifieEgalité(TypeVar(SAI_SansMasque..Valeur), owlHeure, "Repli défaut : ..Valeur est un owlHeure (contrat ADR_0205 préservé)")
+SI TypeVar(SAI_SansMasque..Valeur) = owlHeure ALORS
+	sLueDefaut est une chaîne = SAI_SansMasque..Valeur
+	dbgVérifieEgalité(sLueDefaut, "14300000", "Repli défaut : secondes tronquées (14:30:00, pas 14:30:45) — format HH:MI implicite")
+SINON
+	dbgVérifieVrai(Faux, "Repli défaut : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 3. Masque HH:MI:SS posé : précision secondes préservée =====
+
+SAI_MasqueHHMISS..Valeur = hPrécision
+dbgVérifieEgalité(TypeVar(SAI_MasqueHHMISS..Valeur), owlHeure, "Masque HH:MI:SS posé : ..Valeur reste un owlHeure")
+SI TypeVar(SAI_MasqueHHMISS..Valeur) = owlHeure ALORS
+	sLueMasquee est une chaîne = SAI_MasqueHHMISS..Valeur
+	dbgVérifieEgalité(sLueMasquee, "14304500", "Masque HH:MI:SS posé : secondes préservées (14:30:45), discriminant vs repli défaut")
+SINON
+	dbgVérifieVrai(Faux, "Masque HH:MI:SS posé : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 4. Masque à séparateurs littéraux arbitraires pilote la RELECTURE =====
+//
+// "14h30m45s" n'est reconnu par aucun format générique de ChaîneVersHeure
+// (deux-points ou solide uniquement). Seule une relecture dirigée par les
+// jetons du masque "HHhMImSSs" peut l'interpréter correctement.
+
+SAI_MasqueCustom..MasqueAffichage = "HHhMImSSs"
+TestSimuleSaisie(SAI_MasqueCustom, "14h30m45s")
+dbgVérifieEgalité(TypeVar(SAI_MasqueCustom..Valeur), owlHeure, "Masque custom : saisie utilisateur relue comme owlHeure")
+SI TypeVar(SAI_MasqueCustom..Valeur) = owlHeure ALORS
+	sLueCustom est une chaîne = SAI_MasqueCustom..Valeur
+	dbgVérifieEgalité(sLueCustom, "14304500", "Masque custom : « 14h30m45s » interprété comme 14:30:45 via les jetons du masque")
+SINON
+	dbgVérifieVrai(Faux, "Masque custom : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_MasqueAffichageHeure)
+dbgBilanTest()

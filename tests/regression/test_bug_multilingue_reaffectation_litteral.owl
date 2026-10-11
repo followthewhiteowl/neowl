@@ -1,0 +1,67 @@
+// @sujet : chaîneMultilingue — réaffectation littérale après déclaration séparée
+// @résumé : Une chaîneMultilingue déclarée séparément accepte une réaffectation
+// par littéral dict (`m = {langueXxx: "..."}`). Sémantique : REMPLACEMENT — le
+// dict remplace intégralement la valeur, les langues absentes du littéral sont
+// écrasées. La réaffectation scalaire (`m = "texte"`) garde son comportement
+// historique : pose la langue source, préserve les autres langues.
+
+
+// Cœur du sujet : déclaration séparée puis réaffectation par littéral dict.
+// Avant correction, cette forme levait « littéral { } sans type cible » car le
+// type déclaré de la variable n'était pas câblé au littéral à l'affectation nue.
+PROCEDURE scenario_reaffectation_litteral_decl_separee()
+	m est une chaîneMultilingue
+	m = {langueFrançais: "x", langueAnglais: "y"}
+
+	dbgVérifieEgalité(m[langueFrançais], "x", "langue française posée par le littéral")
+	dbgVérifieEgalité(m[langueAnglais], "y", "langue anglaise posée par le littéral")
+FIN
+
+
+// Sémantique remplacement — variante 1 : le littéral ne contient que la langue
+// source (français). L'anglais présent avant est écrasé ; sa lecture retombe
+// donc sur la langue source (fallback), preuve que l'ancien "y" a disparu.
+PROCEDURE scenario_remplacement_ecrase_langue_source_seule()
+	m est une chaîneMultilingue = {langueFrançais: "x", langueAnglais: "y"}
+	m = {langueFrançais: "z"}
+
+	dbgVérifieEgalité(m[langueFrançais], "z", "langue source remplacée")
+	dbgVérifieEgalité(m[langueAnglais], "z", "anglais écrasé : lecture retombe sur la source (plus de ""y"")")
+FIN
+
+
+// Sémantique remplacement — variante 2 : le littéral ne contient que l'anglais
+// (pas de langue source). Le français présent avant est écrasé, et comme la
+// langue source est désormais absente du dictionnaire, sa lecture rend vide.
+PROCEDURE scenario_remplacement_ecrase_source_absente()
+	m est une chaîneMultilingue = {langueFrançais: "x", langueAnglais: "y"}
+	m = {langueAnglais: "z"}
+
+	dbgVérifieEgalité(m[langueAnglais], "z", "anglais remplacé")
+	dbgVérifieEgalité(m[langueFrançais], "", "français écrasé, source absente : lecture vide")
+FIN
+
+
+// Non-régression scalaire : `m = "texte"` conserve le comportement historique.
+// La chaîne pose la langue source ; les autres langues déjà présentes restent
+// intactes (pas de remplacement, contrairement au littéral dict).
+PROCEDURE scenario_non_regression_scalaire_preserve_autres_langues()
+	m est une chaîneMultilingue = {langueFrançais: "a", langueAnglais: "b"}
+	m = "Salut"
+
+	dbgVérifieEgalité(m[langueFrançais], "Salut", "langue source mise à jour par la chaîne")
+	dbgVérifieEgalité(m[langueAnglais], "b", "langue anglaise préservée (comportement scalaire historique)")
+FIN
+
+
+// Non-régression init même-ligne : la déclaration typée avec littéral inline
+// reste inchangée (le câblage du type cible à la déclaration fonctionnait déjà).
+PROCEDURE scenario_non_regression_init_meme_ligne()
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+
+	dbgVérifieEgalité(m[langueFrançais], "Bonjour", "init même-ligne français")
+	dbgVérifieEgalité(m[langueAnglais], "Hello", "init même-ligne anglais")
+FIN
+
+
+dbgBilanTest()

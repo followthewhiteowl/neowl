@@ -1,0 +1,28 @@
+//  — surcharge : `FormatMonétaire` du CHAMP (inline, symbole "$")
+// l'emporte sur `FormatMonétaire` du PROJET (symbole "€"). Preuve directe par
+// lecture des deux objets distincts en cascade : le champ expose SON PROPRE
+// symbole configuré, différent de celui du projet — pas un repli sur le
+// projet malgré la présence d'un format local.
+//
+// Discriminant secondaire : round-trip SET->GET reste exact quel que soit le
+// symbole affiché (le symbole du champ ne corrompt pas plus la valeur que
+// celui du projet).
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatMonétaire n'existe pas au catalogue.
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatMonetaireSurchargeChamp..FormatMonétaire..Symbole, "€", "Projet..FormatMonétaire : objet configuré à symbole €, lisible en cascade")
+
+OuvreSoeur(FEN_SurchargeChampMonetaire)
+
+sSymboleChamp est une chaîne = SAI_Montant..FormatMonétaire..Symbole
+dbgVérifieEgalité(sSymboleChamp, "$", "FormatMonétaire du champ (symbole $) distinct de celui du projet (€) : le champ expose bien SON PROPRE objet configuré")
+
+SAI_Montant..Valeur = 0m1234567.89
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234567.89, "FormatMonétaire du champ (symbole $) l'emporte sur celui du projet (€) : round-trip rend 1234567.89 exact, pas de corruption")
+
+Ferme(FEN_SurchargeChampMonetaire)
+dbgBilanTest()

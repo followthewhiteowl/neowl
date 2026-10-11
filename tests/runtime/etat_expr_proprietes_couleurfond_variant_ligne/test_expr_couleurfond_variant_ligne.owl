@@ -1,0 +1,87 @@
+// Verrou ( — dégel) : une expression PROPRIETES sur une prop
+// NON-textuelle (CouleurFond = cVal, PAS une écriture impérative
+// ..CouleurFond =) doit aussi se ré-évaluer à CHAQUE rendu de bloc. La
+// ressource ETAT_ExprCouleurFondVariantLigne vit dans le voisin
+// ETAT_ExprCouleurFondVariantLigne.owl : 3 rendus du Corps peignent
+// Rouge, Vert, Bleu.
+//
+// Assertion différentielle sur les triplets couleur non-stroking "scn"
+// (Rouge = "1 0 0 scn", Vert = "0 1 0 scn", Bleu = "0 0 1 scn") : les 3
+// doivent apparaître dans le flux. Si CouleurFond est gelée sur la 1re
+// résolution (Rouge), seul "1 0 0 scn" apparaît (3 fois), "0 1 0 scn" et
+// "0 0 1 scn" sont absents.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+// Extrait et décompresse le 1er flux de contenu (celui référencé par
+// /Contents) du PDF produit. Recherche purement en domaine Buffer
+// (BufferLitOctet) pour ne jamais tronquer sur un octet nul du flux
+// compressé.
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_expr_proprietes_couleurfond_variant_ligne/temp.pdf")
+iImprimeEtat(ETAT_ExprCouleurFondVariantLigne)
+iFinImprime()
+
+sContenu est une chaîne = StreamContenuPDF("tests/runtime/etat_expr_proprietes_couleurfond_variant_ligne/temp.pdf")
+
+nVert est un entier = Occurrence(sContenu, "0 1 0 scn")
+nBleu est un entier = Occurrence(sContenu, "0 0 1 scn")
+
+dbgVérifieVrai(nVert > 0,
+"une expression PROPRIETES (CouleurFond = cVal) rend le Vert de la 2e ligne, pas gelée sur le Rouge de la 1re")
+dbgVérifieVrai(nBleu > 0,
+"une expression PROPRIETES (CouleurFond = cVal) rend le Bleu de la 3e ligne, pas gelée sur le Rouge de la 1re")
+
+dbgBilanTest()

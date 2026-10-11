@@ -1,0 +1,24 @@
+// Bloqueur remonté par le reviewer (chantier 3, ) : le sous-parseur
+// de OpérationHTTP ne porte pas encore le garde d'ordre des paramètres à
+// défaut que le reste du langage applique (E_SEM_REQUIRED_PARAM_AFTER_DEFAULT,
+// cf. fen_decl_required_param_after_default.owl / etat_decl_.../compiler.c).
+// "filtre" (sans défaut) suit "tri" (avec défaut) -> doit être rejeté au
+// compile, comme pour une PROCEDURE top-level.
+ServiceBindingRequisApresOptionnel est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "v1", "articles"]
+	FIN
+
+	ListeArticles est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["articles"]
+			Requête  = [tri, filtre]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(tri est une chaîne = "nom", filtre est une chaîne) : entier
+			RENVOYER 1
+		FIN
+	FIN
+FIN

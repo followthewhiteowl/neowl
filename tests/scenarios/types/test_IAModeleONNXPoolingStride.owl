@@ -1,0 +1,80 @@
+// @sujet : IAModèle.ChargeONNX — import d'un MaxPool à pas (stride) distinct
+// de la fenêtre
+// @résumé : les vrais réseaux ONNX (ResNet-50, SqueezeNet) utilisent
+// couramment un pooling à pas != fenêtre (ex. MaxPool 3×3 pas 2). Ce
+// scénario importe une fixture Conv → ReLU → MaxPool(3, pas 2) → Flatten →
+// Gemm et compare l'inférence à un oracle capturé hors OWL (onnxruntime),
+// avec une tolérance flottante.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_pool_strided.onnx.
+// Oracle : tests/internal_fixtures/onnx/fixture_pool_strided_oracle.json —
+// entrée [1,1,8,8] (flat[k] = k/64.0 pour k=0..63, reconstruite à la main
+// ci-dessous plutôt que lue depuis le JSON, pour ne dépendre d'aucune
+// lecture JSON dans la digue), sortie attendue [-0.105179, 0.148748, 0.062979].
+//
+// Si le pooling à pas distinct de la fenêtre n'est pas supporté par le
+// runtime, l'import échoue proprement (ErreurDétectée), PAS un crash —
+// message runtime attendu : "MaxPool avec pas different de la fenetre non
+// supporte".
+PROCEDURE PUBLIQUE scenario_charge_onnx_maxpool_strie_infere_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_pool_strided.onnx")
+	// Capture immédiate : la sentinelle d'erreur est consommée au 1er appel
+	// natif suivant (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un MaxPool à pas distinct de la fenêtre réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 63
+			brut.Ajoute(k / 64.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 8, 8])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [classes],
+		// même sémantique que les autres digues d'import ONNX.
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = -0.1051788479089737
+		attendu2 est un réel = 0.14874759316444397
+		attendu3 est un réel = 0.06297934055328369
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (MaxPool strié, tolérance flottante)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (MaxPool strié, tolérance flottante)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (MaxPool strié, tolérance flottante)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le
+// même comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_maxpool_strie_infer_egale_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_pool_strided.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a MaxPool with a stride distinct from its window succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 63
+			raw.Ajoute(k / 64.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 1, 8, 8])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = -0.1051788479089737
+		expected2 is a real = 0.14874759316444397
+		expected3 is a real = 0.06297934055328369
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the strided-MaxPool oracle")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the strided-MaxPool oracle")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the strided-MaxPool oracle")
+	FIN
+FIN

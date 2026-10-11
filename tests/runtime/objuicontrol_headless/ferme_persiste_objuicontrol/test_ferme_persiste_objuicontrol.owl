@@ -1,0 +1,26 @@
+// Test: Modele C - Ferme() libere instance, acces apres Ferme = erreur.
+// Pattern : la fenêtre voisine FEN_X.owl porte la déclaration.
+
+// Modele C  : Ouvre d'abord, puis acces.
+Ouvre(FEN_X)
+
+BTN_OK..Visible = Faux
+SAI_Nom..Valeur = "Avant Ferme"
+
+dbgVérifieVrai(BTN_OK..Visible = Faux, "BTN_OK..Visible = Faux avant Ferme")
+dbgVérifieEgalité(SAI_Nom..Valeur, "Avant Ferme", "SAI_Nom..Valeur avant Ferme")
+
+// Ferme libere l'instance
+Ferme(FEN_X)
+
+// Apres Ferme : acces aux champs doit lever erreur (modele C : instance liberee)
+ErreurRAZ()
+t est une chaîne = SAI_Nom..Valeur
+dbgVérifieVrai(ErreurDétectée, "lecture champ apres Ferme leve erreur runtime")
+dbgVérifieVrai(Position(ErreurInfo(), "aucune fenetre ouverte") > 0 OU Position(ErreurInfo(), "Ferme") > 0 OU Taille(ErreurInfo()) > 0, "message erreur apres Ferme")
+
+ErreurRAZ()
+BTN_OK..Libellé = "Apres Ferme"
+dbgVérifieVrai(ErreurDétectée, "ecriture champ apres Ferme leve erreur runtime")
+
+dbgBilanTest()

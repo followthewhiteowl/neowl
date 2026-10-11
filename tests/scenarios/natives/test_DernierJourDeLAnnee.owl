@@ -1,0 +1,77 @@
+// @sujet : DernierJourDeLAnnée
+// @résumé : Retourne le 31 décembre de l'année d'une date donnée. Signature sans paramètre retourne le 31 décembre de l'année courante.
+
+
+// Cas standard : milieu d'année retourne 31 décembre de la même année.
+PROCEDURE scenario_milieu_annee()
+	d est une date = ChaîneVersDate("20260512")
+	dernierJour est une date = DernierJourDeLAnnée(d)
+	attendu est une date = ChaîneVersDate("20261231")
+	dbgVérifieEgalité(dernierJour, attendu, "12 mai 2026 doit donner 31 décembre 2026")
+FIN
+
+
+// Premier jour de l'année : 1er janvier retourne 31 décembre de la même année.
+PROCEDURE scenario_premier_jour_annee()
+	d est une date = ChaîneVersDate("20270101")
+	dernierJour est une date = DernierJourDeLAnnée(d)
+	attendu est une date = ChaîneVersDate("20271231")
+	dbgVérifieEgalité(dernierJour, attendu, "1er janvier 2027 doit donner 31 décembre 2027")
+FIN
+
+
+// Dernier jour de l'année : 31 décembre est idempotent (retourne lui-même).
+PROCEDURE scenario_idempotent_31_decembre()
+	d est une date = ChaîneVersDate("20251231")
+	dernierJour est une date = DernierJourDeLAnnée(d)
+	attendu est une date = ChaîneVersDate("20251231")
+	dbgVérifieEgalité(dernierJour, attendu, "31 décembre 2025 doit donner 31 décembre 2025")
+FIN
+
+
+// Année bissextile : 29 février 2024 retourne 31 décembre 2024.
+PROCEDURE scenario_annee_bissextile()
+	d est une date = ChaîneVersDate("20240229")
+	dernierJour est une date = DernierJourDeLAnnée(d)
+	attendu est une date = ChaîneVersDate("20241231")
+	dbgVérifieEgalité(dernierJour, attendu, "29 février 2024 doit donner 31 décembre 2024")
+FIN
+
+
+// Signature sans paramètre : retourne 31 décembre de l'année courante.
+PROCEDURE scenario_annee_courante()
+	// Récupère l'année courante via DateSys, extrait l'année en entier.
+	dateCourante est une date = DateSys()
+	chaineAnnee est une chaîne = DateVersChaîne(dateCourante, "AAAA")
+	anneeCourante est un entier = ChaîneVersEntier(chaineAnnee)
+	dernierJour est une date = DernierJourDeLAnnée()
+	// Construit le 31 décembre de l'année courante via signature entier.
+	attendu est une date = DernierJourDeLAnnée(anneeCourante)
+	dbgVérifieEgalité(dernierJour, attendu, "DernierJourDeLAnnée() doit donner 31 décembre de l'année courante")
+FIN
+
+
+// Entrée chaîne AAAAMMJJ : cast implicite accepté.
+PROCEDURE scenario_entree_chaine_compacte()
+	dernierJour est une date = DernierJourDeLAnnée("20260815")
+	attendu est une date = ChaîneVersDate("20261231")
+	dbgVérifieEgalité(dernierJour, attendu, "15 août 2026 (chaîne) doit donner 31 décembre 2026")
+FIN
+
+
+// Année haute : 2100 (non bissextile car divisible par 100 mais pas par 400).
+PROCEDURE scenario_annee_haute_2100()
+	d est une date = ChaîneVersDate("21000601")
+	dernierJour est une date = DernierJourDeLAnnée(d)
+	attendu est une date = ChaîneVersDate("21001231")
+	dbgVérifieEgalité(dernierJour, attendu, "1er juin 2100 doit donner 31 décembre 2100")
+FIN
+
+
+// Année basse : 1800.
+PROCEDURE scenario_annee_basse_1800()
+	d est une date = ChaîneVersDate("18000315")
+	dernierJour est une date = DernierJourDeLAnnée(d)
+	attendu est une date = ChaîneVersDate("18001231")
+	dbgVérifieEgalité(dernierJour, attendu, "15 mars 1800 doit donner 31 décembre 1800")
+FIN

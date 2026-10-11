@@ -1,0 +1,92 @@
+// ================================================================
+// Couverture des 10 formes EN des composants ErreurInfo.
+//
+// errLine / errFullDetails / errFunction / errProcess / errStack / errSummary /
+// errDateTime / errNumberSubError / errSystemCode / errSystemMessage sont
+// les alias anglais des composants FR (errLigne, errComplet, errFonction,
+// errTraitement, errPile, errResume, errDateHeure, errNombreSousErreur,
+// errCodeSysteme, errMessageSysteme).
+//
+// Mecanisme : les noms EN sont declares dans E_errInfo_values (enum
+// errInfo) et resolus par le compilateur vers les memes sentinels
+// OWL_ERR_* que leurs jumeaux FR. Le switch fn_erreur_info (stdlib_erreur.c)
+// route chaque sentinel sur la meme branche -> meme valeur retournee
+// quelle que soit la forme utilisee.
+//
+// Strategie test :
+//   1) provoquer une erreur runtime concrete (parse entier)
+//   2) value-check chaque accesseur EN sur le contenu attendu
+//   3) cross-check : forme EN == forme FR pour 4 paires representatives
+//      (preuve directe que ce sont bien des alias du meme sentinel).
+// ================================================================
+
+PROCEDURE provoqueErreur()
+	ChaîneVersEntier("abc") // leve E_NATIVE_PARSE_ERROR
+FIN
+
+provoqueErreur()
+
+dbgVérifieVrai(ErreurDétectée, "une erreur a bien été détectée")
+
+// ---- 1. errLine : ligne source de la levee, > 0, dans le fichier ----
+nLine est un entier = ErreurInfo(errLine)
+dbgVérifieVrai(nLine > 0, "errLine > 0 (ligne source posee)")
+dbgVérifieVrai(nLine < 60, "errLine dans le fichier (< 60)")
+
+// ---- 2. errFunction : nom de la native C fautive ----
+dbgVérifieEgalité(ErreurInfo(errFunction), "ChaineVersEntier",
+"errFunction = native fautive")
+
+// ---- 3. errProcess : nom de la procedure courante ----
+dbgVérifieEgalité(ErreurInfo(errProcess), "provoqueErreur",
+"errProcess = procedure ou la levee a eu lieu")
+
+// ---- 4. errNumberSubError : pas de mecanisme sous-erreur -> 0 ----
+dbgVérifieEgalité(ErreurInfo(errNumberSubError), 0,
+"errNumberSubError = 0 (pas de sous-erreur)")
+
+// ---- 5. errSystemCode : OWL n'expose pas d'erreur systeme separee ----
+dbgVérifieEgalité(ErreurInfo(errSystemCode), 0,
+"errSystemCode = 0 (pas d'errno systeme expose)")
+
+// ---- 6. errSystemMessage : idem, chaine vide ----
+dbgVérifieEgalité(ErreurInfo(errSystemMessage), "",
+"errSystemMessage = chaine vide")
+
+// ---- 7. errSummary : resume court, non vide, mentionne la valeur fautive ----
+sSummary est une chaîne = ErreurInfo(errSummary)
+dbgVérifieVrai(Taille(sSummary) > 0, "errSummary non vide")
+dbgVérifieVrai(Position(sSummary, "abc") > 0,
+"errSummary mentionne la valeur fautive 'abc'")
+
+// ---- 8. errStack : pile d'appels formatee, non vide ----
+sStack est une chaîne = ErreurInfo(errStack)
+dbgVérifieVrai(Taille(sStack) > 0, "errStack non vide")
+
+// ---- 9. errFullDetails : rapport complet multi-ligne, contient les entetes ----
+sFull est une chaîne = ErreurInfo(errFullDetails)
+dbgVérifieVrai(Taille(sFull) > Taille(sSummary),
+"errFullDetails plus long que errSummary")
+dbgVérifieVrai(Position(sFull, "Message:") > 0,
+"errFullDetails contient l'entete Message")
+dbgVérifieVrai(Position(sFull, "Ligne:") > 0,
+"errFullDetails contient l'entete Ligne")
+dbgVérifieVrai(Position(sFull, "Pile:") > 0,
+"errFullDetails contient l'entete Pile")
+
+// ---- 10. errDateTime : horodatage ms, posterieur a 2020 ----
+nDate est un entier = ErreurInfo(errDateTime)
+dbgVérifieVrai(nDate > 1577836800000,
+"errDateTime = horodatage ms recent (> 2020-01-01)")
+
+// ---- Cross-check : alias EN == alias FR (meme sentinel) ----
+// Preuve que les formes EN ne sont pas un chemin parallele : elles
+// resolvent vers les memes sentinels OWL_ERR_* que les formes FR.
+dbgVérifieEgalité(ErreurInfo(errLine), ErreurInfo(errLigne),
+"errLine == errLigne (meme sentinel)")
+dbgVérifieEgalité(ErreurInfo(errFunction), ErreurInfo(errFonction),
+"errFunction == errFonction (meme sentinel)")
+dbgVérifieEgalité(ErreurInfo(errProcess), ErreurInfo(errTraitement),
+"errProcess == errTraitement (meme sentinel)")
+dbgVérifieEgalité(ErreurInfo(errStack), ErreurInfo(errPile),
+"errStack == errPile (meme sentinel)")

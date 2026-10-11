@@ -1,0 +1,60 @@
+//  — Style[grisé] : pivot (CouleurFond) + toutes-props (Cadre).
+//
+// Approche de vérification : PIXEL réel. Contrairement au survol (transitoire,
+// aucun event Qt postable en headless), l'état Grisé est PERSISTANT — posé
+// via `SAI..Etat = Grisé`, il déclenche `setEnabled(false)` côté Qt qui
+// applique la pseudo-classe `:disabled`. On capture AVANT (contrôle négatif :
+// pas encore le style d'état) puis APRES avoir posé l'état.
+//
+// ROUGE attendu : `Style[grisé]..X` ne compile pas encore ("grisé" hors
+// palette étatsStyleSaisie phase 1 = {survol, focus}). Cf.
+// FEN_StyleEtatGrisePixel.owl et tests/compile-error/style_etat_grise/
+// (message ciblé déjà capturé pour ce cas précis).
+
+TestModeHeadless(Faux)
+
+couleurGriseFond est un entier = RVB(0, 255, 0)
+couleurGriseCadre est un entier = RVB(0, 128, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleEtatGrisePixel)
+
+// Contrôle négatif : avant Etat = Grisé, le fond ne doit PAS être le fond grisé.
+imgAvant est une Image = dCopieImageFenêtre(FEN_StyleEtatGrisePixel)
+dbgVérifieEgalité(imgAvant..Valide, Vrai, "capture avant Etat=Grisé valide")
+
+nbFondAvant est un entier = CompteCouleurZone(imgAvant, 30, 30, 510, 70, couleurGriseFond)
+seuilFond est un entier = 4800 // (510-30) * (70-30) * 0.30, arrondi
+dbgVérifieVrai(nbFondAvant <= seuilFond, "SAI_Cible non grisé : pas encore le fond de l'état grisé (contrôle négatif)")
+
+SAI_Cible..Etat = Grisé
+
+imgApres est une Image = dCopieImageFenêtre(FEN_StyleEtatGrisePixel)
+dbgVérifieEgalité(imgApres..Valide, Vrai, "capture après Etat=Grisé valide")
+
+// Pivot : Style[grisé]..CouleurFond peint le fond une fois Etat = Grisé posé.
+nbFondApres est un entier = CompteCouleurZone(imgApres, 30, 30, 510, 70, couleurGriseFond)
+dbgVérifieVrai(nbFondApres > seuilFond, "SAI_Cible Etat=Grisé : Style[grisé]..CouleurFond peint le fond")
+
+// Toutes-props : Style[grisé]..Cadre..Epaisseur/Couleur peint aussi la bordure.
+nbBordureApres est un entier = CompteCouleurZone(imgApres, 15, 15, 525, 75, couleurGriseCadre)
+seuilBordure est un entier = 60 // pourtour fin, seuil bas mais sûr
+dbgVérifieVrai(nbBordureApres > seuilBordure, "SAI_Cible Etat=Grisé : Style[grisé]..Cadre..Epaisseur/Couleur peint la bordure")
+
+Ferme(FEN_StyleEtatGrisePixel)
+dbgBilanTest()

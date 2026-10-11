@@ -1,0 +1,52 @@
+// Regression : le prescan ne doit PAS poser kind=STRUCTURE pour les
+// types user declares plus bas dans le fichier — sinon le strict-check
+// "Champ X inexistant" trippe avant que user_type_add_field ait peuple
+// les fields.
+//
+// Bug introduit pendant le refacto knownClasses[] → kind field typé :
+// le prescan source-unified (compiler.c::prescan_source_unified) et le
+// cross-file project prescan (compile_in_project) posaient kind=STRUCTURE
+// upfront via register_user_type_kind. Le strict-check au site d'usage
+// (`stP.X` ligne 22 ci-dessous) consultait kind==STRUCTURE → entrait
+// dans le path field-check → fieldCount==0 → erreur compile "Champ 'X'
+// inexistant".
+//
+// Fix : prescan registre le NOM uniquement (kind reste UNKNOWN). CLASSE
+// peut etre tagged car pas de strict-check field-based dessus. STRUCTURE
+// et ENUMERATION attendent que leur body soit parse pour poser le kind.
+//
+// Si ce test casse avec "Champ inexistant" / "aucun champ declare", c'est
+// que quelqu'un a re-introduit le tagging upfront en prescan.
+//
+// Note : le cas CLASSE (forward-ref intra-fichier vers une classe)
+// disparait avec l'enforce OWL 1 classe = 1 fichier — un fichier classe
+// ne peut pas contenir de struct/enum/runtime. Cas 3 retire ; la
+// regression STRUCTURE/ENUMERATION reste pleinement couverte ci-dessous.
+
+// Cas 1 : STRUCTURE declaree apres usage, acces single-dot
+stP est un stPoint
+stP.X = 42
+stP.Y = 84
+dbgVérifieEgalité(stP.X, 42, "Forward ref STRUCTURE : .X accessible avant decl")
+dbgVérifieEgalité(stP.Y, 84, "Forward ref STRUCTURE : .Y accessible avant decl")
+
+// Cas 2 : ENUMERATION declaree apres usage qualifie
+col est un eCouleur = eCouleur.Rouge
+dbgVérifieEgalité(col..Nom, "Rouge", "Forward ref ENUMERATION : nom accessible")
+
+// =====================================================================
+// Declarations placees APRES les statements (forward refs ci-dessus)
+// =====================================================================
+
+stPoint est une Structure
+	X est un entier
+	Y est un entier
+FIN
+
+eCouleur est une Énumération
+	Rouge
+	Vert
+	Bleu
+FIN
+
+dbgBilanTest()

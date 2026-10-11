@@ -1,0 +1,121 @@
+//  : le nom de type place apres `de`/`of` dans une declaration de
+// collection (tableau, file, pile, liste) n'etait jamais resolu — tout nom
+// inconnu etait avale en silence. Ce test verrouille les formes qui DOIVENT
+// rester valides une fois la resolution stricte en place :
+//   - les primitifs, FR et EN, singulier et pluriel, avec ou sans accent
+//   - un type utilisateur declare, y compris en reference AVANT sa declaration
+//   - un type builtin du catalogue
+//   - les formes taille fixe / multi-dim / crochets / elision `d'`
+//   - la forme SANS type d'element (collection heterogene)
+// Les formes rejetees sont verrouillees dans tests/compile-error/.
+
+Trace("=== fix/1141 : type d'element des collections resolu ===")
+
+// --- Reference AVANT declaration du type utilisateur (forward ref) ---
+r1141_avant est un tableau de r1141Point
+r1141_fileAvant est une file de r1141Point
+
+// --- tableau : primitifs FR pluriel ---
+r1141_chaines est un tableau de 2 chaînes
+dbgVérifieEgalité(r1141_chaines[1], "", "tableau de chaînes -> defaut chaine vide")
+
+r1141_entiers est un tableau de 2 entiers
+dbgVérifieEgalité(r1141_entiers[1], 0, "tableau de entiers -> defaut 0")
+
+r1141_reels est un tableau de 2 réels
+dbgVérifieEgalité(r1141_reels[1], 0, "tableau de réels -> defaut 0")
+
+r1141_booleens est un tableau de 2 booléens
+dbgVérifieEgalité(r1141_booleens[1], Faux, "tableau de booléens -> defaut Faux")
+
+// --- tableau : primitifs FR singulier + sans accent (invariant 2) ---
+r1141_chaine est un tableau de 1 chaîne
+dbgVérifieEgalité(r1141_chaine[1], "", "tableau de chaîne (singulier) -> defaut chaine vide")
+
+r1141_sansAccent est un tableau de 1 chaîne
+dbgVérifieEgalité(r1141_sansAccent[1], "", "tableau de chaine (sans accent) -> defaut chaine vide")
+
+r1141_monetaire est un tableau de 1 monétaire
+dbgVérifieEgalité(r1141_monetaire[1], 0, "tableau de monétaire -> defaut 0")
+
+r1141_numerique est un tableau de 1 numérique
+dbgVérifieEgalité(r1141_numerique[1], 0, "tableau de numérique -> defaut 0")
+
+// --- tableau : primitifs EN ---
+r1141_strings is an array of 2 strings
+dbgVérifieEgalité(r1141_strings[1], "", "array of strings -> defaut chaine vide")
+
+r1141_integers is an array of 2 integers
+dbgVérifieEgalité(r1141_integers[1], 0, "array of integers -> defaut 0")
+
+// --- tableau : elision `d'` ---
+r1141_elision est un tableau d'entiers
+Ajoute(r1141_elision, 7)
+dbgVérifieEgalité(r1141_elision[1], 7, "tableau d'entiers : element ajoute")
+
+// --- tableau : crochets et multi-dim ---
+r1141_crochets est un tableau[2] chaînes
+dbgVérifieEgalité(Taille(r1141_crochets), 2, "tableau [2] chaînes : taille 2")
+
+r1141_2d est un tableau de 2 par 3 entiers
+dbgVérifieEgalité(Taille(r1141_2d), 2, "tableau de 2 par 3 entiers : 2 lignes")
+
+// --- tableau : type builtin du catalogue ---
+r1141_styles est un tableau de styleSaisie
+dbgVérifieEgalité(Taille(r1141_styles), 0, "tableau de styleSaisie : vide a la declaration")
+
+// --- tableau : type utilisateur declare (apres usage plus haut) ---
+r1141Point est une Structure
+	x est un entier
+	y est un entier
+FIN
+
+r1141_points est un tableau de r1141Point
+Ajoute(r1141_points, [3, 4])
+dbgVérifieEgalité(r1141_points[1].x, 3, "tableau de type utilisateur : membre x coerce")
+dbgVérifieEgalité(Taille(r1141_avant), 0, "forward ref tableau sur type utilisateur acceptee")
+
+// --- file / pile / liste : primitifs ---
+r1141_file est une file de entiers
+Enfile(r1141_file, 11)
+Enfile(r1141_file, 22)
+dbgVérifieEgalité(Défile(r1141_file), 11, "file de entiers : FIFO")
+
+r1141_pile est une pile de chaînes
+Empile(r1141_pile, "a")
+Empile(r1141_pile, "b")
+dbgVérifieEgalité(Dépile(r1141_pile), "b", "pile de chaînes : LIFO")
+
+r1141_liste est une Liste de réels
+r1141_liste.Ajoute(1.5)
+dbgVérifieEgalité(r1141_liste..Occurrence, 1, "liste de réels : 1 element")
+
+r1141_fileEN is a queue of integers
+Enfile(r1141_fileEN, 5)
+dbgVérifieEgalité(r1141_fileEN..Occurrence, 1, "queue of integers : 1 element")
+
+// --- file / pile / liste : type utilisateur ---
+r1141_filePoints est une file de r1141Point
+dbgVérifieEgalité(r1141_filePoints..Occurrence, 0, "file de type utilisateur : vide")
+dbgVérifieEgalité(r1141_fileAvant..Occurrence, 0, "forward ref file sur type utilisateur acceptee")
+
+// --- formes SANS type d'element : restent valides ---
+r1141_libre est un tableau
+Ajoute(r1141_libre, 42)
+Ajoute(r1141_libre, "hello")
+dbgVérifieEgalité(r1141_libre[1], 42, "tableau sans type : stocke un entier")
+dbgVérifieEgalité(r1141_libre[2], "hello", "tableau sans type : stocke une chaine")
+
+r1141_fileLibre est une file
+Enfile(r1141_fileLibre, "x")
+dbgVérifieEgalité(Défile(r1141_fileLibre), "x", "file sans type : stocke une chaine")
+
+r1141_pileLibre est une pile
+Empile(r1141_pileLibre, 9)
+dbgVérifieEgalité(Dépile(r1141_pileLibre), 9, "pile sans type : stocke un entier")
+
+r1141_listeLibre est une Liste
+r1141_listeLibre.Ajoute(Vrai)
+dbgVérifieEgalité(r1141_listeLibre..Occurrence, 1, "liste sans type : 1 element")
+
+dbgBilanTest()

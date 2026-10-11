@@ -1,0 +1,128 @@
+// @sujet : dCopie
+// @resume : Copier tout ou partie d'une image source dans une image destination, avec support zoom
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_copie_complete_simple()
+	imgSource est un Image
+	imgDest est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	pixelCopie est un entier
+	ok est un booléen
+
+	// Copie intégrale sans coordonnées : toute la source → coin haut-gauche destination
+	imgSource = dCréeImage(50, 50, couleurRouge)
+	imgDest   = dCréeImage(100, 100, couleurBlanc)
+	ok        = dCopie(imgSource, imgDest)
+
+	dbgVérifieVrai(ok, "copie complete : retour Vrai")
+	// Le pixel (25,25) est dans la zone copiée (carré rouge 50x50 en haut-gauche)
+	pixelCopie = dPixelCouleur(imgDest, 25, 25)
+	dbgVérifieEgalité(pixelCopie, couleurRouge, "copie complete : zone copiée est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_copie_region_partielle()
+	imgSource est un Image
+	imgDest est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCopie est un entier
+	ok est un booléen
+
+	// Copier une région rectangulaire de la source (x=10, y=10, largeur 30, hauteur 20)
+	// vers coin haut-gauche de la destination
+	imgSource = dCréeImage(100, 100, couleurVert)
+	imgDest   = dCréeImage(50, 50, couleurBlanc)
+
+	// Coordonnées source : sx=10, sy=10, sw=30, sh=20 (largeur avant hauteur)
+	// Coordonnées destination : dx=0, dy=0 (par défaut coin haut-gauche)
+	ok = dCopie(imgSource, imgDest, 10, 10, 30, 20)
+
+	dbgVérifieVrai(ok, "copie region partielle : retour Vrai")
+	// Le pixel (10,5) est dans la zone copiée 30x20 (rectangle vert)
+	pixelCopie = dPixelCouleur(imgDest, 10, 5)
+	dbgVérifieEgalité(pixelCopie, couleurVert, "copie region : zone copiée est verte")
+FIN
+
+PROCEDURE PUBLIQUE scenario_copie_avec_zoom_agrandissement()
+	imgSource est un Image
+	imgDest est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCopie est un entier
+	ok est un booléen
+
+	// Zoom 2x : copier région source 20x10 → destination 40x20 (agrandissement)
+	imgSource = dCréeImage(100, 100, couleurBleu)
+	imgDest   = dCréeImage(80, 80, couleurBlanc)
+
+	// Source : x=10, y=10, largeur 20, hauteur 10
+	// Destination : x=5, y=5, largeur 40, hauteur 20 (2x dimensions source)
+	ok = dCopie(imgSource, imgDest, 10, 10, 20, 10, 5, 5, 40, 20)
+
+	dbgVérifieVrai(ok, "copie zoom 2x : retour Vrai")
+	// Le pixel (20,10) est au centre de la zone destination agrandie (5..45, 5..25)
+	pixelCopie = dPixelCouleur(imgDest, 20, 10)
+	dbgVérifieEgalité(pixelCopie, couleurBleu, "copie zoom 2x : zone agrandie est bleue")
+FIN
+
+PROCEDURE PUBLIQUE scenario_copie_avec_reduction()
+	imgSource est un Image
+	imgDest est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCopie est un entier
+	ok est un booléen
+
+	// Réduction 0.5x : copier région source 60x40 → destination 30x20 (rétrécissement)
+	imgSource = dCréeImage(100, 100, couleurJaune)
+	imgDest   = dCréeImage(80, 80, couleurBlanc)
+
+	// Source : x=5, y=5, largeur 60, hauteur 40
+	// Destination : x=10, y=10, largeur 30, hauteur 20 (0.5x dimensions source)
+	ok = dCopie(imgSource, imgDest, 5, 5, 60, 40, 10, 10, 30, 20)
+
+	dbgVérifieVrai(ok, "copie reduction 0.5x : retour Vrai")
+	// Le pixel (20,15) est au centre de la zone destination rétrécie (10..40, 10..30)
+	pixelCopie = dPixelCouleur(imgDest, 20, 15)
+	dbgVérifieEgalité(pixelCopie, couleurJaune, "copie reduction 0.5x : zone retrecie est jaune")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisibles dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_copie_pixel_unique()
+	imgSource est un Image
+	imgDest est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	ok est un booléen
+
+	// Cas limite : copier 1 seul pixel (largeur=1, hauteur=1)
+	imgSource = dCréeImage(10, 10, couleurCyan)
+	imgDest   = dCréeImage(10, 10, couleurBlanc)
+
+	ok = dCopie(imgSource, imgDest, 5, 5, 1, 1, 7, 7, 1, 1)
+
+	dbgVérifieVrai(ok, "copie pixel unique : retour Vrai")
+	// Pixel unique cyan sur fond blanc 10x10 : test verrouille juste l'absence de crash
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_destination_non_initialisee()
+	imgSource est un Image
+	imgDest est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	ok est un booléen
+
+	// Copie échoue si destination non initialisée (taille non affectée)
+	imgSource = dCréeImage(50, 50, couleurRouge)
+	// imgDest déclaré mais PAS initialisé avec dCreeImage → Hauteur/Largeur = 0
+
+	ok = dCopie(imgSource, imgDest)
+
+	dbgVérifieVrai(PAS ok, "copie vers dest non initialisee : retour Faux attendu")
+FIN

@@ -1,0 +1,46 @@
+// Compile-time error : deux colonnes homonymes dans la meme Table.
+// Les deux colonnes existent reellement dans le widget (elles occupent
+// chacune un slot de donnees et decalent les valeurs positionnelles),
+// mais la resolution par nom n'atteint que la derniere : la premiere
+// porte des donnees illisibles.
+FEN_ColonneDoublon est une Fenêtre
+	PROPRIETES
+		Titre = "Doublon de colonne"
+	FIN
+
+	TBL_Doublon est un Champ Table
+		PROPRIETES
+			Largeur = 300
+			Hauteur = 200
+		FIN
+
+		COL_Cle est une colonne
+			PROPRIETES
+				Libellé = "Premiere"
+				Type    = colTypeTexte
+			FIN
+		FIN
+
+		COL_Cle est une colonne
+			PROPRIETES
+				Libellé = "Seconde"
+				Type    = colTypeTexte
+			FIN
+		FIN
+
+		// Une colonne saine APRES le doublon, puis du code : la faute ne doit
+		// pas desynchroniser le parcours du reste de la Table ni de la
+		// fenetre. Un doublon place en dernier ne prouverait rien — c'est ce
+		// qui masquait la cascade.
+		COL_Suite est une colonne
+			PROPRIETES
+				Libellé = "Suite"
+				Type    = colTypeTexte
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TBL_Doublon, "a", "b")
+	FIN
+FIN

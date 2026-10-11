@@ -1,0 +1,27 @@
+// Regression : ExtraitChaîne(..., DepuisFin) au-delà de 1024 morceaux.
+//
+// La branche DepuisFin collectait les morceaux dans un tableau borné puis
+// indexait depuis la fin. Au-delà du plafond, la collecte s'arrêtait
+// silencieusement et l'index depuis la fin renvoyait un mauvais morceau
+// (pas d'erreur, pas de marqueur de fin — juste un résultat faux).
+//
+// On construit une chaîne de 1030 morceaux DISTINGUABLES ("x0;x1;...;x1029")
+// et on vérifie que le parcours depuis la fin renvoie bien les vrais morceaux.
+
+sBig est une chaîne = ""
+POUR i = 0 A 1029
+	SI i > 0 ALORS
+		sBig = sBig + ";"
+	FIN
+	sBig = sBig + "x" + NumériqueVersChaîne(i)
+FIN
+
+// Rang 1 depuis la fin = tout dernier morceau.
+dbgVérifieEgalité(ExtraitChaîne(sBig, 1, ";", DepuisFin), "x1029",
+	"ExtraitChaîne rang 1 depuis la fin sur 1030 morceaux = dernier morceau")
+
+// Rang 5 depuis la fin = 5e en partant de la fin (x1029, x1028, x1027, x1026, x1025).
+dbgVérifieEgalité(ExtraitChaîne(sBig, 5, ";", DepuisFin), "x1025",
+	"ExtraitChaîne rang 5 depuis la fin sur 1030 morceaux")
+
+dbgBilanTest()

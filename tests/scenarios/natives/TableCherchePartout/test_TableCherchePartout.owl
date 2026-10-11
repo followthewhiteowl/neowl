@@ -1,0 +1,106 @@
+// @sujet : TableCherchePartout, TableSearchEverywhere
+// @résumé : recherche programmatique d'un élément dans toutes les colonnes d'une Table (indice 1-based de la première ligne correspondante, -1 si rien ne correspond), avec type de recherche et ligne de départ optionnels.
+//
+// Sur un champ Table peuplé par programmation, TableCherchePartout parcourt
+// TOUTES les colonnes (contrairement à TableCherche qui se limite à une
+// colonne) et renvoie l'indice 1-based de la première ligne correspondante
+// (-1 si aucune ligne ne correspond). Le type de recherche (identique /
+// commence par / contient / défaut) et la ligne de départ sont optionnels.
+// TableSearchEverywhere est la forme anglaise, strictement équivalente.
+//
+// La déclaration complète (FEN_TableCherchePartout.owl) : deux colonnes
+// "Produit" et "Couleur" peuplées de 5 lignes dans FinInitialisation.
+
+TestModeHeadless(Vrai)
+
+
+PROCEDURE PUBLIQUE scenario_tableCherchePartout_trouve_colonne_non_premiere()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "Noir")
+	dbgVérifieEgalité(iTrouve, 2, "trouve dans la colonne Couleur (2e colonne) : ligne 2")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherchePartout_non_trouve_rend_moins_un()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "Bottes")
+	dbgVérifieEgalité(iTrouve,-1, "aucune colonne ne correspond : -1")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherchePartout_commence_par()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "Che", rechercheCommencePar)
+	dbgVérifieEgalité(iTrouve, 1, "recherche 'commence par' : première ligne dont une colonne débute par 'Che'")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherchePartout_ligne_depart_trouve_occurrence_suivante()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "Bleu", rechercheIdentique, 2)
+	dbgVérifieEgalité(iTrouve, 3, "recherche reprise à la ligne 2 : trouve le second 'Bleu' (ligne 3)")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_tableCherchePartout_bilingue_tableSearchEverywhere()
+	Ouvre(FEN_TableCherchePartout)
+
+	iFR est un entier = TableCherchePartout(TAB_Produits, "Veste")
+	iEN est un entier = TableSearchEverywhere(TAB_Produits, "Veste")
+	dbgVérifieEgalité(iFR, iEN, "TableCherchePartout et TableSearchEverywhere résolvent identiquement")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherchePartout_rechercheDefaut_egale_contient()
+	Ouvre(FEN_TableCherchePartout)
+
+	iDefaut est un entier = TableCherchePartout(TAB_Produits, "emis", rechercheDéfaut)
+	iContient est un entier = TableCherchePartout(TAB_Produits, "emis", rechercheContient)
+	dbgVérifieEgalité(iDefaut, iContient, "rechercheDéfaut se comporte comme rechercheContient (canon)")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherchePartout_identique_stricte_rejette_partiel()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "Che", rechercheIdentique)
+	dbgVérifieEgalité(iTrouve,-1, "recherche identique stricte : 'Che' ne matche aucune valeur complète")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherchePartout_ligne_depart_hors_plage_rend_moins_un()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "Chemise", rechercheIdentique, 10)
+	dbgVérifieEgalité(iTrouve,-1, "ligne de départ au-delà du nombre de lignes : -1")
+
+	Ferme(FEN_TableCherchePartout)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_tableCherchePartout_casse_insensible()
+	Ouvre(FEN_TableCherchePartout)
+
+	iTrouve est un entier = TableCherchePartout(TAB_Produits, "noir")
+	dbgVérifieEgalité(iTrouve, 2, "recherche programmatique insensible à la casse")
+
+	Ferme(FEN_TableCherchePartout)
+FIN

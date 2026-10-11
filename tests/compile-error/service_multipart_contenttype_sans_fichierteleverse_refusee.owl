@@ -1,0 +1,30 @@
+// Contrat CIBLE  : ContentType = typeMimeFormulaireMultiPartie
+// déclare une opération qui attend un formulaire multipart, mais aucun
+// paramètre `FichierTéléversé` n'est présent dans `surRequête`. La
+// vérification bidirectionnelle (ContentType ⟺ présence d'un
+// FichierTéléversé) doit refuser ce déséquilibre à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : ni `ContentType`
+// (propriété d'OpérationHTTP) ni `FichierTéléversé` (type de paramètre)
+// n'existent encore. Le golden ci-dessous porte les DEUX erreurs
+// aujourd'hui accidentelles (propriété inconnue + paramètre scalaire sans
+// source de liaison connue), pas encore la contradiction ContentType/
+// FichierTéléversé définitive. À régénérer une fois  livré.
+ServiceMultipartSansFichier est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Televerse est une OpérationHTTP
+		PROPRIETES
+			Méthode     = httpPost
+			Chemin      = ["upload"]
+			Réponses    = [httpOK]
+			CodeÉtat    = httpOK
+			ContentType = typeMimeFormulaireMultiPartie
+		FIN
+		PROCEDURE surRequête(titre est une chaîne)
+			RENVOYER titre
+		FIN
+	FIN
+FIN

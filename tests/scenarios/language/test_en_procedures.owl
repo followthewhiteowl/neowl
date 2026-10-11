@@ -1,0 +1,74 @@
+// @subject: English procedures and functions — PROCEDURE/FUNCTION, RETURN/RESULT
+// @summary: Programs using English keywords PROCEDURE, FUNCTION, RETURN, RESULT
+// for declaring procedures with parameters and typed return values. Verifies
+// that EN procedure declarations compile, execute, and return correct values.
+
+// Private helper: adds two integers using RETURN
+PROCEDURE PRIVÉE en_add(p is an integer, q is an integer) : integer
+	RETURN p + q
+FIN
+
+// Private helper: multiplies using RESULT keyword (synonym for RETURN)
+PROCEDURE PRIVÉE en_multiply(p is an integer, q is an integer) : integer
+	RESULT p * q
+FIN
+
+// Private helper: concatenates two strings
+PROCEDURE PRIVÉE en_concat(s1 is a string, s2 is a string) : string
+	RETURN s1 + s2
+FIN
+
+// Private helper: returns true if value is positive
+PROCEDURE PRIVÉE en_is_positive(n is an integer) : boolean
+	IF n > 0 THEN
+		RETURN True
+	END
+	RETURN False
+FIN
+
+// Private helper declared with FUNCTION keyword (synonym of PROCEDURE for typed returns)
+FUNCTION PRIVÉE en_square(n is an integer) : integer
+	RETURN n * n
+FIN
+
+// Private helper: returns parameter unchanged (pass-through test)
+PROCEDURE PRIVÉE en_identity(s is a string) : string
+	RETURN s
+FIN
+
+PROCEDURE PUBLIQUE scenario_return_integer()
+	res is an integer = en_add(3, 4)
+	dbgCheckEqual(res, 7, "RETURN from EN procedure returns correct integer sum")
+FIN
+
+PROCEDURE PUBLIQUE scenario_result_synonym()
+	res is an integer = en_multiply(6, 7)
+	dbgCheckEqual(res, 42, "RESULT keyword works as synonym for RETURN")
+FIN
+
+PROCEDURE PUBLIQUE scenario_return_string()
+	res is a string = en_concat("foo", "bar")
+	dbgCheckEqual(res, "foobar", "RETURN from EN procedure returns concatenated string")
+FIN
+
+PROCEDURE PUBLIQUE scenario_return_boolean()
+	bPos is a boolean = en_is_positive(5)
+	dbgCheckTrue(bPos, "positive number returns True from EN PROCEDURE")
+	bNeg is a boolean = en_is_positive(-1)
+	dbgCheckFalse(bNeg, "negative number returns False from EN PROCEDURE")
+FIN
+
+PROCEDURE PUBLIQUE scenario_function_keyword()
+	res is an integer = en_square(9)
+	dbgCheckEqual(res, 81, "FUNCTION keyword declares callable identical to PROCEDURE")
+FIN
+
+PROCEDURE PUBLIQUE scenario_identity_passthrough()
+	res is a string = en_identity("hello")
+	dbgCheckEqual(res, "hello", "EN procedure passes string parameter through correctly")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chained_calls()
+	res is an integer = en_add(en_square(3), en_multiply(2, 5))
+	dbgCheckEqual(res, 19, "chained EN procedure calls: square(3)+multiply(2,5) = 9+10 = 19")
+FIN

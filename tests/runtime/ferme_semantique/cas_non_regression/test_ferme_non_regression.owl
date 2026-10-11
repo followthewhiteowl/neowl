@@ -1,0 +1,58 @@
+//  — Non-régression Ferme : cas verts préservés après alignement canon.
+//
+// Vérifie que les formes légitimes de Ferme continuent de fonctionner
+// sans erreur après l'impl qui retire l'heuristique val-de-retour
+// pour les chaînes inconnues.
+//
+// Cas couverts (tous VERTS attendus) :
+//   1. Ferme() → ferme la fenêtre courante, pas d'erreur.
+//   2. Ferme("") → chaîne vide = fenêtre courante, pas d'erreur.
+//   3. Ferme("", valeur) → ferme la courante en renvoyant valeur (idiome préservé).
+//   4. Ferme(42) → 1er arg non-string = valeur de retour, pas d'erreur.
+//   5. Ferme("FEN_NonReg") → fenêtre connue par son nom, pas d'erreur.
+
+TestModeHeadless(Vrai)
+
+// --- Cas 1 : Ferme() sans argument ---
+Ouvre(FEN_NonReg)
+ErreurRAZ()
+Ferme()
+bErr1 est un booléen = ErreurDétectée
+dbgVérifieFaux(bErr1, "Cas 1 : Ferme() sans arg → pas d'erreur")
+
+// --- Cas 2 : Ferme("") chaîne vide ---
+Ouvre(FEN_NonReg)
+ErreurRAZ()
+Ferme("")
+bErr2 est un booléen = ErreurDétectée
+dbgVérifieFaux(bErr2, "Cas 2 : Ferme(chaine_vide) → pas d'erreur")
+
+// --- Cas 3 : Ferme("", valeur) idiome retour ---
+Ouvre(FEN_NonReg)
+ErreurRAZ()
+Ferme("", "valRetour")
+bErr3 est un booléen = ErreurDétectée
+dbgVérifieFaux(bErr3, "Cas 3 : Ferme(vide + valeur) → pas d'erreur (idiome retour préservé)")
+
+// --- Cas 4 : Ferme(42) premier arg entier = valeur de retour ---
+Ouvre(FEN_NonReg)
+ErreurRAZ()
+Ferme(42)
+bErr4 est un booléen = ErreurDétectée
+dbgVérifieFaux(bErr4, "Cas 4 : Ferme(42) arg entier → pas d'erreur (valeur de retour)")
+
+// --- Cas 5 : Ferme("FEN_NonReg") fenêtre connue par nom ---
+Ouvre(FEN_NonReg)
+ErreurRAZ()
+Ferme("FEN_NonReg")
+bErr5 est un booléen = ErreurDétectée
+dbgVérifieFaux(bErr5, "Cas 5 : Ferme(FEN_NonReg par nom) → pas d'erreur")
+
+// --- Cas 6 : Ferme(FEN_NonReg) référence nue (syntaxe officielle) ---
+Ouvre(FEN_NonReg)
+ErreurRAZ()
+Ferme(FEN_NonReg)
+bErr6 est un booléen = ErreurDétectée
+dbgVérifieFaux(bErr6, "Cas 6 : Ferme(ref nue FEN_NonReg) → pas d'erreur (syntaxe officielle)")
+
+dbgBilanTest()

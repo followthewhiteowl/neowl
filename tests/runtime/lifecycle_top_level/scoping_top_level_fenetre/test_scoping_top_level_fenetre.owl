@@ -1,0 +1,30 @@
+// Témoin scoping : variable du top-level FENÊTRE visible dans les champs.
+//
+// Attendu (rouge aujourd'hui — crash compile, top-level pas encore implémenté) :
+// - Une variable déclarée dans le top-level FENÊTRE devrait être visible dans
+//   les events/procédures des champs (portée globale à la fenêtre).
+// - Les params de fenêtre (FEN_X est une Fenêtre(p1, p2)) ont la même portée.
+//
+// Pattern : la fenêtre voisine FEN_Test_Scoping.owl expose LireValeurClic
+// qui appelle callback_verifie. Le script déclenche le clic puis demande la lecture.
+
+TestModeHeadless(Vrai)
+
+valLue est une chaîne = ""
+
+PROCEDURE callback_verifie(t est une chaîne)
+	valLue = t
+FIN
+
+Ouvre(FEN_Test_Scoping)
+
+// Déclencher le clic pour tester la visibilité de variableFenetre
+TestSimuleSouris(BTN_Test, ClicGauche)
+
+// Remontée de la valeur via la procedure publique de la fenêtre
+LireValeurClic()
+
+dbgVérifieEgalité(valLue, "VISIBLE_FENETRE", "Variable top-level fenêtre visible dans event du champ")
+
+Ferme(FEN_Test_Scoping)
+dbgBilanTest()

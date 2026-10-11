@@ -1,0 +1,25 @@
+// Test : RécupèreDéfinitionType sur Fenêtre + introspection des sous-champs.
+// (Séparé de test_reflect_etat_fenetre.owl car OWL refuse Etat+Fenêtre dans
+// un même fichier.)
+//
+// Pattern : la fenêtre voisine FEN_Test.owl porte la déclaration.
+
+dFen est une Definition = RécupèreDéfinitionType("FEN_Test")
+dbgVérifieEgalité(dFen..Nom, "FEN_Test", "Fenêtre : Nom récupéré")
+dbgVérifieEgalité(dFen..Type, owlFenetre, "Fenêtre : Type = owlFenetre")
+dbgVérifieEgalité(dFen..FamilleDéfinition, familleFenetre, "Fenêtre : Famille = familleFenetre")
+dbgVérifieEgalité(dFen..ChampsNoms..Occurrence, 2, "Fenêtre : 2 sous-champs")
+dbgVérifieEgalité(dFen..ChampsNoms[1], "LIB_Hello", "Fenêtre : 1er champ")
+dbgVérifieEgalité(dFen..ChampsNoms[2], "BTN_Quit", "Fenêtre : 2e champ")
+
+// Itération 4 : Champs typés (chaque sous-contrôle = mini-Définition).
+dbgVérifieEgalité(dFen..Champs..Occurrence, 2, "Fenêtre : Champs array peuplé")
+c1 est une Definition = dFen..Champs[1]
+dbgVérifieEgalité(c1..Nom, "LIB_Hello", "Champs[1]..Nom = LIB_Hello")
+dbgVérifieEgalité(c1..Type, owlChampLibelle, "Champs[1]..Type = owlChampLibelle")
+dbgVérifieEgalité(c1..FamilleDéfinition, familleChamp, "Champs[1].Famille = familleChamp")
+c2 est une Definition = dFen..Champs[2]
+dbgVérifieEgalité(c2..Nom, "BTN_Quit", "Champs[2]..Nom = BTN_Quit")
+dbgVérifieEgalité(c2..Type, owlChampBouton, "Champs[2]..Type = owlChampBouton")
+
+dbgBilanTest()

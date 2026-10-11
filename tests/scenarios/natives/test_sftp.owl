@@ -1,0 +1,182 @@
+// @sujet : FTPConnecte
+// @résumé : Connexion FTP sur tunnel SSH via un préfixe "sftp://" — port 22 par défaut, authentification par mot de passe ou par clé privée OpenSSH, et politique de vérification de la clé d'hôte relâchable via un paramètre optionnel combinable.
+
+// Comme pour les connexions FTPS/FTPES, la native FTPConnecte est mockée
+// individuellement : le serveur SSH distant est une dépendance externe. Le
+// mock isole la surface d'appel (paramètres transmis, valeur retournée)
+// sans exiger de serveur vivant. Un cas complémentaire, plus bas, exerce le
+// vrai routage SFTP contre un port mort, sans mock.
+PROCEDURE PUBLIQUE scenario_connexion_sftp_ouvre_tunnel_ssh_chiffre()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "sftp.exemple.test"
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "SFTP"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("sftp://sftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion sftp:// est établie sur tunnel chiffré")
+	dbgVérifieEgalité(cnx..Chiffrement, "SFTP", "le chiffrement identifié est SFTP")
+
+	mockConnecte.Desactive()
+FIN
+
+// Sans port explicite, une connexion sftp:// utilise le port 22 (canal SSH),
+// à distinguer du port 21 par défaut des connexions FTP/FTPS/FTPES.
+PROCEDURE PUBLIQUE scenario_connexion_sftp_utilise_port_22_par_defaut()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "sftp.exemple.test"
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "SFTP"
+	cnxAttendue..Port        = 22
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("sftp://sftp.exemple.test", "alice", "secret42").Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("sftp://sftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieEgalité(cnx..Port, 22, "le port par défaut d'une connexion sftp:// est 22")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a été appelée sans port explicite")
+
+	mockConnecte.Desactive()
+FIN
+
+// Le motif ftpIgnoreHôteInconnu relâche la vérification de la clé d'hôte
+// SSH : il se combine avec les motifs de relâchement de certificat TLS
+// hérités du FTPS, en OU-binaire, comme n'importe quel jeu de constantes
+// combinables du langage.
+PROCEDURE PUBLIQUE scenario_ignore_hote_inconnu_combinable_avec_motifs_certificat()
+	nCombinaison est un entier = ftpIgnoreHôteInconnu + ftpIgnoreCertificatExpiré
+
+	cnxAttendue est une ftpClient
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "SFTP"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("sftp://sftp.exemple.test", "alice", "secret42", 22, ftpModePassif, nCombinaison).Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("sftp://sftp.exemple.test", "alice", "secret42", 22, ftpModePassif, nCombinaison)
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion sftp:// aboutit avec l'hôte inconnu accepté")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a bien reçu la combinaison des deux motifs")
+
+	mockConnecte.Desactive()
+FIN
+
+// Authentification par clé privée OpenSSH (7 paramètres) : le chemin de la
+// clé remplace le mot de passe comme moyen d'authentification.
+PROCEDURE PUBLIQUE scenario_connexion_sftp_authentification_par_cle_privee()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "SFTP"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("sftp://sftp.exemple.test", "alice", "", 22, ftpModePassif, 0, "/clés/id_ed25519").Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("sftp://sftp.exemple.test", "alice", "", 22, ftpModePassif, 0, "/clés/id_ed25519")
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion par clé privée aboutit")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a bien reçu le chemin de la clé privée en 7e paramètre")
+
+	mockConnecte.Desactive()
+FIN
+
+// Authentification par clé privée protégée par une phrase de passe
+// (8 paramètres) : le 8e paramètre porte la phrase de passe de la clé.
+PROCEDURE PUBLIQUE scenario_connexion_sftp_cle_privee_protegee_par_phrase_de_passe()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "SFTP"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("sftp://sftp.exemple.test", "alice", "", 22, ftpModePassif, 0, "/clés/id_ed25519", "phraseSecrete").Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("sftp://sftp.exemple.test", "alice", "", 22, ftpModePassif, 0, "/clés/id_ed25519", "phraseSecrete")
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion par clé privée protégée aboutit")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a bien reçu la phrase de passe de la clé en 8e paramètre")
+
+	mockConnecte.Desactive()
+FIN
+
+// La propriété VérifieHôte reflète, en lecture seule, si la clé d'hôte SSH
+// a été vérifiée contre le fichier known_hosts lors du handshake.
+PROCEDURE PUBLIQUE scenario_verifiehote_relisible_apres_handshake()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "SFTP"
+	cnxAttendue..VérifieHôte = Vrai
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("sftp://sftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieVrai(cnx..VérifieHôte, "la clé d'hôte a été vérifiée contre known_hosts")
+
+	mockConnecte.Desactive()
+FIN
+
+// Callback appelé par FTPListeFichier, réutilisé sur une connexion sftp://
+// pour vérifier la parité de comportement avec le FTP clair/sécurisé :
+// même signature de callback, même valeur de retour.
+PROCEDURE PRIVÉE compteEntreesCallback(sNom est une chaîne, nTaille est un entier, sAttribut est une chaîne, sDate est une chaîne, sHeure est une chaîne, nParam est un entier) : booléen
+	SI sNom = "" ALORS
+		RENVOYER Faux
+	FIN
+	nParam++
+	RENVOYER Vrai
+FIN
+
+// Parité d'opération : le listage de fichiers fonctionne à l'identique sur
+// une connexion sftp://, routé en interne sur le protocole SSH.
+PROCEDURE PUBLIQUE scenario_listage_fichiers_parite_sur_connexion_sftp()
+	cnx est une ftpClient
+	cnx..Serveur     = "sftp.exemple.test"
+	cnx..Sécurisée   = Vrai
+	cnx..Chiffrement = "SFTP"
+
+	mockListe est un MockNative = MockCrée(FTPListeFichier)
+	mockListe.Quand().Retourne(2).Active()
+
+	nCompte est un entier = FTPListeFichier(cnx, "/depot/*.log", compteEntreesCallback)
+
+	dbgVérifieEgalité(nCompte, 2, "FTPListeFichier retourne le nombre d'entrées listées sur sftp://")
+
+	mockListe.Desactive()
+FIN
+
+// Cas comportemental réel, non mocké : une connexion sftp:// vers un port
+// mort (rien n'écoute) doit échouer en douceur — la native retourne Null et
+// laisse un détail exploitable dans ErreurInfo, sans exception bloquante.
+// Ce cas prouve à la fois le routage réel du préfixe sftp:// vers le tunnel
+// SSH et le contrat d'échec silencieux, sans dépendre d'un serveur vivant.
+PROCEDURE PUBLIQUE scenario_connexion_sftp_port_mort_echoue_en_douceur()
+	cnx est une ftpClient = FTPConnecte("sftp://127.0.0.1", "u", "p", 2)
+	bEchec est un booléen = (cnx = Null)
+
+	dbgVérifieVrai(bEchec, "la connexion sftp:// vers un port mort échoue sans exception")
+	dbgVérifieVrai(Taille(ErreurInfo()) > 0, "ErreurInfo détaille l'échec de la connexion sftp://")
+FIN
+
+// Cas limite : FTPCommande (commande FTP brute) n'a pas de sens sur un
+// tunnel SSH — la connexion sftp:// n'a pas de canal de commande texte.
+PROCEDURE PRIVÉE scenario_edge_commande_brute_sans_effet_sur_sftp()
+	cnx est une ftpClient
+	cnx..Serveur     = "sftp.exemple.test"
+	cnx..Sécurisée   = Vrai
+	cnx..Chiffrement = "SFTP"
+
+	mockCommande est un MockNative = MockCrée(FTPCommande)
+	mockCommande.Quand().Retourne(Faux).Active()
+
+	bResultat est un booléen = FTPCommande(cnx, "NOOP")
+
+	dbgVérifieFaux(bResultat, "FTPCommande échoue sur une connexion sftp:// (pas de canal de commande texte)")
+
+	mockCommande.Desactive()
+FIN
+
+dbgBilanTest()

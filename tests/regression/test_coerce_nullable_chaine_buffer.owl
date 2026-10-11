@@ -1,0 +1,118 @@
+// ================================================================
+//  : une cible `chaîne?` / `Buffer?` convertit comme sa
+// contrepartie non nullable, sans écraser le témoin Null.
+// ================================================================
+//
+// Trois familles de témoins, indissociables :
+//   1. la conversion s'applique bien (le correctif) ;
+//   2. affecter Null laisse Null (le nullable reste nullable) ;
+//   3. les autres cibles nullables (entier?, réel?, booléen?,
+//      monétaire?, numérique?) conservent le type brut — sans ce
+//      témoin négatif, rien ne distingue « conversion levée pour
+//      deux cibles » de « conversion levée pour tout le monde ».
+//
+// Codes TypeVar utilisés : 0 = Null, 8 = entier, 16 = chaîne,
+// 25 = Buffer.
+
+// ----------------------------------------------------------------
+// 1. chaîne? — déclaration
+// ----------------------------------------------------------------
+
+PROCEDURE PUBLIQUE test_chaine_nullable_decl_entier()
+	sn est une chaîne? = 42
+	dbgVérifieEgalité(TypeVar(sn), 16, "chaîne? = 42 déclare bien une chaîne")
+	dbgVérifieEgalité(sn, "42", "chaîne? = 42 stocke la représentation décimale")
+FIN
+
+PROCEDURE PUBLIQUE test_chaine_nullable_decl_booleen()
+	sn est une chaîne? = Vrai
+	dbgVérifieEgalité(TypeVar(sn), 16, "chaîne? = Vrai déclare bien une chaîne")
+	dbgVérifieEgalité(sn, "1", "chaîne? = Vrai stocke '1'")
+FIN
+
+PROCEDURE PUBLIQUE test_chaine_nullable_decl_null_reste_null()
+	sn est une chaîne? = Null
+	dbgVérifieEgalité(TypeVar(sn), 0, "chaîne? = Null garde le type Null")
+	dbgVérifieEgalité(sn, Null, "chaîne? = Null vaut Null, ni '' ni 'Null'")
+FIN
+
+// ----------------------------------------------------------------
+// 2. chaîne? — réaffectation
+// ----------------------------------------------------------------
+
+PROCEDURE PUBLIQUE test_chaine_nullable_reaffectation_entier()
+	sn est une chaîne? = "départ"
+	sn = 7
+	dbgVérifieEgalité(TypeVar(sn), 16, "réaffecter 7 à une chaîne? garde le type chaîne")
+	dbgVérifieEgalité(sn, "7", "réaffecter 7 à une chaîne? stocke '7'")
+FIN
+
+PROCEDURE PUBLIQUE test_chaine_nullable_reaffectation_null_reste_null()
+	sn est une chaîne? = "départ"
+	sn = Null
+	dbgVérifieEgalité(TypeVar(sn), 0, "réaffecter Null à une chaîne? garde Null")
+	dbgVérifieEgalité(sn, Null, "réaffecter Null à une chaîne? vaut Null")
+FIN
+
+// ----------------------------------------------------------------
+// 3. Buffer? — déclaration et réaffectation
+// ----------------------------------------------------------------
+
+PROCEDURE PUBLIQUE test_buffer_nullable_decl_chaine()
+	bn est un Buffer? = "hello"
+	dbgVérifieEgalité(TypeVar(bn), 25, "Buffer? = chaîne déclare bien un Buffer")
+	dbgVérifieEgalité(Taille(bn), 5, "Buffer? = 'hello' fait 5 octets")
+FIN
+
+PROCEDURE PUBLIQUE test_buffer_nullable_decl_null_reste_null()
+	bn est un Buffer? = Null
+	dbgVérifieEgalité(TypeVar(bn), 0, "Buffer? = Null garde le type Null")
+	dbgVérifieEgalité(bn, Null, "Buffer? = Null vaut Null")
+FIN
+
+PROCEDURE PUBLIQUE test_buffer_nullable_reaffectation_chaine()
+	bn est un Buffer? = Null
+	bn = "abc"
+	dbgVérifieEgalité(TypeVar(bn), 25, "réaffecter une chaîne à un Buffer? donne un Buffer")
+	dbgVérifieEgalité(Taille(bn), 3, "réaffecter 'abc' à un Buffer? fait 3 octets")
+FIN
+
+PROCEDURE PUBLIQUE test_buffer_nullable_reaffectation_null_reste_null()
+	bn est un Buffer? = "abc"
+	bn = Null
+	dbgVérifieEgalité(TypeVar(bn), 0, "réaffecter Null à un Buffer? garde Null")
+	dbgVérifieEgalité(bn, Null, "réaffecter Null à un Buffer? vaut Null")
+FIN
+
+// ----------------------------------------------------------------
+// 4. Témoins négatifs : les autres cibles nullables ne bougent pas
+// ----------------------------------------------------------------
+
+PROCEDURE PUBLIQUE test_entier_nullable_garde_le_type_brut()
+	nn est un entier? = "7"
+	dbgVérifieEgalité(TypeVar(nn), 16, "entier? = '7' garde le type brut chaîne")
+	nn = "9"
+	dbgVérifieEgalité(TypeVar(nn), 16, "réaffecter '9' à un entier? garde le type brut chaîne")
+FIN
+
+PROCEDURE PUBLIQUE test_reel_nullable_garde_le_type_brut()
+	rn est un réel? = "3.5"
+	dbgVérifieEgalité(TypeVar(rn), 16, "réel? = '3.5' garde le type brut chaîne")
+FIN
+
+PROCEDURE PUBLIQUE test_booleen_nullable_garde_le_type_brut()
+	bo est un booléen? = "Vrai"
+	dbgVérifieEgalité(TypeVar(bo), 16, "booléen? = 'Vrai' garde le type brut chaîne")
+FIN
+
+PROCEDURE PUBLIQUE test_monetaire_nullable_garde_le_type_brut()
+	mo est un monétaire? = "12.5"
+	dbgVérifieEgalité(TypeVar(mo), 16, "monétaire? = '12.5' garde le type brut chaîne")
+FIN
+
+PROCEDURE PUBLIQUE test_numerique_nullable_garde_le_type_brut()
+	nu est un numérique? = "12.5"
+	dbgVérifieEgalité(TypeVar(nu), 16, "numérique? = '12.5' garde le type brut chaîne")
+FIN
+
+dbgBilanTest()

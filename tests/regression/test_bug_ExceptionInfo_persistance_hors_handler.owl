@@ -1,0 +1,116 @@
+// @sujet : Régression — ExceptionInfo stale hors handler
+// @résumé : Après qu'un handler QUAND EXCEPTION DANS...FAIRE...FIN a consommé
+// une exception normalement, ExceptionInfo() hors handler doit retourner vide
+// ("") et non les données périmées de la dernière exception capturée.
+// ExceptionPropage() hors handler doit être un no-op, pas un crash.
+// Handlers imbriqués : à la sortie du handler interne, le handler externe
+// doit retrouver son propre contexte d'exception (save/restore par niveau).
+//
+// Cause racine : currentException + g_exc_* dans vm.c ne sont jamais remis à
+// NULL à la sortie normale d'un bloc FAIRE. Fix = save/restore par niveau de
+// handler + reset à la sortie du niveau externe vers le top-level.
+
+
+// Hors tout handler actif, ExceptionInfo doit retourner vide.
+// Ce scénario s'exécute après que d'autres handlers ont été consommés (stale
+// potentiel) et vérifie qu'aucun résidu ne persiste hors handler.
+PROCEDURE scenario_a_hors_handler_actif_valeurs_vides()
+	nCode est un entier = ExceptionInfo(errCode)
+	sMsg est une chaîne = ExceptionInfo(errMessage)
+	dbgVérifieEgalité(nCode, 0, "Hors handler : errCode = 0 (pas de stale persistant entre scénarios)")
+	dbgVérifieEgalité(sMsg, "", "Hors handler : errMessage vide (pas de stale persistant)")
+FIN
+
+
+// Repro de base du bug : après un handler FAIRE vide, ExceptionInfo doit
+// retourner vide et non les données de l'exception attrapée.
+PROCEDURE scenario_b_repro_base_apres_handler_vide()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(7, "boom")
+	FAIRE
+	FIN
+	// Bug stale : le runtime renvoie encore (7, "boom") au lieu de ("", "")
+	dbgVérifieEgalité(ExceptionInfo(errCode), "", "Après handler vide : errCode vide (pas de stale 7)")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "", "Après handler vide : errMessage vide (pas de stale 'boom')")
+FIN
+
+
+// Non-régression : lecture DANS le handler doit rester correcte.
+// Lecture APRÈS le FIN doit être vide (bug stale).
+PROCEDURE scenario_c_lecture_dans_correcte_apres_handler_vide()
+	nCodeDans est un entier = -1
+	sMsgDans est une chaîne = "???"
+
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(42, "test-message")
+	FAIRE
+		nCodeDans = ExceptionInfo(errCode)
+		sMsgDans  = ExceptionInfo(errMessage)
+	FIN
+
+	// Non-régression : lecture DANS le handler — doit rester juste après le fix
+	dbgVérifieEgalité(nCodeDans, 42, "DANS handler : errCode = 42 (non-régression, lecture dans handler correcte)")
+	dbgVérifieEgalité(sMsgDans, "test-message", "DANS handler : errMessage = 'test-message' (non-régression)")
+	// Bug stale : lecture APRÈS le FIN — RED avant fix, GREEN après fix
+	dbgVérifieEgalité(ExceptionInfo(errCode), "", "APRÈS handler : errCode vide (bug stale : renvoie 42 au lieu de vide)")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "", "APRÈS handler : errMessage vide (bug stale : renvoie 'test-message' au lieu de '')")
+FIN
+
+
+// ExceptionPropage() hors handler doit être un no-op : pas de crash, flux continue.
+// Actuellement : ExceptionPropage() re-lève l'exception résiduelle stale → crash.
+// Après fix : currentException est NULL hors handler, ExceptionPropage() retourne sans effet.
+PROCEDURE scenario_d_propage_hors_handler_est_no_op()
+	// Créer un état stale en sortant proprement d'un handler
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(5, "stale-setup-pour-propage")
+	FAIRE
+	FIN
+	// Hors handler, ExceptionPropage() doit être un no-op (pas re-lever le stale)
+	bSuiteExecutee est un booléen = Faux
+	ExceptionPropage() // bug stale : crashe avec exception non gérée
+	bSuiteExecutee = Vrai // cette ligne doit s'exécuter si no-op
+	dbgVérifieVrai(bSuiteExecutee, "ExceptionPropage() hors handler : flux continue sans crash (stale bug)")
+FIN
+
+
+// Handlers imbriqués : à la sortie du handler interne, le handler externe
+// doit retrouver son propre contexte d'exception (pas le stale du handler interne,
+// pas une valeur vide).
+// NOTE : ce comportement (save/restore par niveau) n'est pas documenté explicitement
+// dans 08_exceptions.md §5 — la doc est muette sur le cas d'imbrication. Le
+// coordinator a décidé le comportement : save/restore (cf. ticket  Décision).
+// Signalement explicite : la doc §5 doit être complétée pour couvrir ce cas.
+PROCEDURE scenario_e_handlers_imbriques_restaurent_contexte_externe()
+	nCodeExterne est un entier = -1
+	sMsgExterne est une chaîne = "???"
+	nCodeApresInterne est un entier = -1
+	sMsgApresInterne est une chaîne = "???"
+
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(7, "externe")
+	FAIRE
+		nCodeExterne = ExceptionInfo(errCode)
+		sMsgExterne  = ExceptionInfo(errMessage)
+
+		QUAND EXCEPTION DANS
+			ExceptionDéclenche(3, "interne")
+		FAIRE
+		FIN
+
+		// Après sortie du handler interne, handler externe doit voir son exception restaurée
+		nCodeApresInterne = ExceptionInfo(errCode)
+		sMsgApresInterne  = ExceptionInfo(errMessage)
+	FIN
+
+	// Handler externe : lectures avant handler interne (non-régression, pas de bug ici)
+	dbgVérifieEgalité(nCodeExterne, 7, "Handler externe avant interne : errCode = 7")
+	dbgVérifieEgalité(sMsgExterne, "externe", "Handler externe avant interne : errMessage = 'externe'")
+	// Handler externe : lectures après sortie du handler interne (bug stale de l'interne)
+	// Bug : renvoie (3, "interne") au lieu de (7, "externe") — le stale interne écrase le contexte externe
+	dbgVérifieEgalité(nCodeApresInterne, 7, "Après handler interne, dans handler externe : errCode restauré = 7 (pas 3 du stale interne)")
+	dbgVérifieEgalité(sMsgApresInterne, "externe", "Après handler interne, dans handler externe : errMessage restauré (pas 'interne' du stale)")
+FIN
+
+
+dbgBilanTest()

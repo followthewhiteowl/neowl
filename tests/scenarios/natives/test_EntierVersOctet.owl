@@ -1,0 +1,107 @@
+// @sujet : EntierVersOctet
+// @résumé : Convertit un entier en valeur d'octet (0–255). Spécialisation de EntierDansPlage(v, 0, 255, mode) conservée pour exprimer explicitement l'intention « je veux un octet ». Mode défaut débordementErreur : lève une exception si la valeur est hors [0,255]. Supporte tous les modes de l'enum octetDébordement, y compris débordementOctetFaible (garde les 8 bits faibles).
+
+
+// Cas A : valeur dans [0,255], mode défaut — retournée telle quelle.
+PROCEDURE PUBLIQUE scenario_dans_plage()
+	n est un entier = EntierVersOctet(42)
+	dbgVérifieEgalité(n, 42, "42 dans [0,255] retourné tel quel")
+FIN
+
+
+// Cas B : valeur aux bornes — 0 et 255.
+PROCEDURE PUBLIQUE scenario_valeur_aux_bornes()
+	nZero est un entier = EntierVersOctet(0)
+	dbgVérifieEgalité(nZero, 0, "borne basse 0 retournée telle quelle")
+	nMax est un entier = EntierVersOctet(255)
+	dbgVérifieEgalité(nMax, 255, "borne haute 255 retournée telle quelle")
+FIN
+
+
+// Cas C : valeur hors plage, mode défaut — exception runtime levée.
+PROCEDURE PUBLIQUE scenario_hors_plage_erreur()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		n est un entier = EntierVersOctet(300)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "300 hors [0,255] lève une exception en mode défaut")
+FIN
+
+
+// Cas D : mode cyclique — 300 → 44.
+PROCEDURE PUBLIQUE scenario_cyclique()
+	n est un entier = EntierVersOctet(300, débordementCyclique)
+	dbgVérifieEgalité(n, 44, "300 cyclique dans [0,255] = 44")
+FIN
+
+
+// Cas E : mode borné (clamp) — 300 → 255.
+PROCEDURE PUBLIQUE scenario_borne_clamp_haut()
+	n est un entier = EntierVersOctet(300, débordementBorne)
+	dbgVérifieEgalité(n, 255, "300 clamp dans [0,255] = 255")
+FIN
+
+
+// Cas F : mode octetFaible — 300 → 44 (bits faibles : 300 & 0xFF = 44).
+PROCEDURE PUBLIQUE scenario_octet_faible()
+	n est un entier = EntierVersOctet(300, débordementOctetFaible)
+	dbgVérifieEgalité(n, 44, "300 octetFaible = 44 (300 & 0xFF)")
+FIN
+
+
+// Cas G : mode octetFaible, valeur négative — -1 → 255 (complément à deux 8 bits).
+PROCEDURE PUBLIQUE scenario_octet_faible_negatif()
+	n est un entier = EntierVersOctet(-1, débordementOctetFaible)
+	dbgVérifieEgalité(n, 255, "-1 octetFaible = 255 (0xFF en 8 bits)")
+FIN
+
+
+// Cas H : forme EN (bilingue) — IntegerToByte.
+PROCEDURE PUBLIQUE scenario_bilingue_en()
+	n est un entier = IntegerToByte(42)
+	dbgVérifieEgalité(n, 42, "IntegerToByte (EN) équivalent à EntierVersOctet")
+FIN
+
+
+// Cas I : forme fluent FR — valeur.VersOctet(mode).
+PROCEDURE PUBLIQUE scenario_fluent_fr()
+	n est un entier = (300).VersOctet(débordementCyclique)
+	dbgVérifieEgalité(n, 44, "fluent 300.VersOctet(cyclique) = 44")
+FIN
+
+
+// Cas J : forme fluent EN — value.ToByte(mode).
+PROCEDURE PUBLIQUE scenario_fluent_en()
+	n est un entier = (300).ToByte(overflowLowByte)
+	dbgVérifieEgalité(n, 44, "fluent 300.ToByte(overflowLowByte) = 44")
+FIN
+
+
+// Edge case : valeur 256 en mode cyclique → 0 (256 mod 256 = 0).
+PROCEDURE PRIVÉE scenario_edge_256_cyclique()
+	n est un entier = EntierVersOctet(256, débordementCyclique)
+	dbgVérifieEgalité(n, 0, "256 cyclique = 0 (256 mod 256)")
+FIN
+
+
+// Edge case : valeur -1 en mode cyclique → 255.
+PROCEDURE PRIVÉE scenario_edge_moins1_cyclique()
+	n est un entier = EntierVersOctet(-1, débordementCyclique)
+	dbgVérifieEgalité(n, 255, "-1 cyclique dans [0,255] = 255")
+FIN
+
+
+// Edge case : valeur -256 en mode octetFaible → 0 (-256 & 0xFF = 0).
+PROCEDURE PRIVÉE scenario_edge_octet_faible_grand_negatif()
+	n est un entier = EntierVersOctet(-256, débordementOctetFaible)
+	dbgVérifieEgalité(n, 0, "-256 octetFaible = 0 (-256 & 0xFF)")
+FIN
+
+
+// Edge case : valeur -1 en mode borné → 0 (clamp vers borne basse).
+PROCEDURE PRIVÉE scenario_edge_negatif_borne()
+	n est un entier = EntierVersOctet(-1, débordementBorne)
+	dbgVérifieEgalité(n, 0, "-1 clamp dans [0,255] = 0 (plancher)")
+FIN

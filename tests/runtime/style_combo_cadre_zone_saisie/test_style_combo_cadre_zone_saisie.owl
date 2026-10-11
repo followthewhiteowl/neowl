@@ -1,0 +1,111 @@
+//  — Style..ZoneSaisie..Cadre (Couleur / Epaisseur / Arrondi) était
+// sans effet sur un Champ Combo : seul le fond passait. La brique de zone de
+// saisie ne transportait que Couleur / CouleurFond / Police jusqu'à la feuille
+// QSS du combo ; le Cadre n'atteignait jamais Qt.
+//
+// Oracle : le Champ Saisie. Même style de ZoneSaisie ⇒ même rendu, à géométrie
+// égale. Vérification en deux couches :
+//   - la feuille QSS effective (__DebugFeuilleStyle) contient bien liseré+rayon,
+//   - le PIXEL : bordure verte peinte, coin réellement arrondi (le fond de la
+//     fenêtre reste visible dans le coin), fond rouge intact au centre.
+
+TestModeHeadless(Faux)
+
+cbczsVert est un entier = RVB(0, 255, 0)
+cbczsRouge est un entier = RVB(255, 0, 0)
+cbczsFond est un entier = RVB(10, 10, 10)
+
+PROCEDURE CbczsCompte(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_ComboCadreZoneSaisie)
+
+// ---- 1. Feuille QSS : le liseré et l'arrondi de la ZoneSaisie sont émis.
+feuilleCombo est une chaîne = __DebugFeuilleStyle(CMB_Cible)
+dbgVérifieVrai(Contient(feuilleCombo, "border: 3px solid rgb(0, 255, 0)"),
+"Combo : ZoneSaisie..Cadre Epaisseur/Couleur émis dans la feuille QSS")
+dbgVérifieVrai(Contient(feuilleCombo, "border-radius: 10px"),
+"Combo : ZoneSaisie..Cadre..Arrondi émis dans la feuille QSS")
+dbgVérifieVrai(Contient(feuilleCombo, "background-color: rgb(255, 0, 0)"),
+"Combo : le fond de la ZoneSaisie est toujours émis (non-régression)")
+
+// ---- 2. Arrondi borné : Arrondi 18 sur un champ dont la boîte fait moins de
+// 36px de haut. Qt jette les rayons qui ne tiennent pas dans la boîte (coins
+// carrés) — le rayon est donc borné à la demi-hauteur réelle, soit la
+// demi-hauteur DÉCLARÉE (25 / 2 = 12) puisqu'un champ stylé rend désormais la
+// hauteur qu'on lui écrit.
+feuillePilule est une chaîne = __DebugFeuilleStyle(CMB_Pilule)
+dbgVérifieVrai(Contient(feuillePilule, "border-radius: 12px"),
+"Combo : Arrondi 18 est borné à la demi-hauteur rendue (pilule, pas coins carrés)")
+
+// ---- 3. Pixel : bordure verte réellement peinte sur le pourtour du combo.
+img est une Image = dCopieImageFenêtre(FEN_ComboCadreZoneSaisie)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+nbVertSaisie est un entier = CbczsCompte(img, 20, 20, 220, 45, cbczsVert)
+nbVertCombo est un entier = CbczsCompte(img, 20, 80, 220, 105, cbczsVert)
+dbgVérifieVrai(nbVertSaisie > 400,
+"Saisie (oracle) : la bordure verte est peinte sur le pourtour")
+dbgVérifieVrai(nbVertCombo > 400,
+"Combo : la bordure verte de ZoneSaisie..Cadre est peinte sur le pourtour")
+
+// ---- 4. Pixel : fond rouge intact au centre (le cadre n'écrase pas le fond).
+nbRougeCombo est un entier = CbczsCompte(img, 60, 88, 160, 97, cbczsRouge)
+dbgVérifieVrai(nbRougeCombo > 600,
+"Combo : le fond rouge de la ZoneSaisie survit à la pose du cadre")
+
+// ---- 5. Pixel : coin réellement arrondi. Sur un coin carré, le pixel du coin
+// porte la bordure ; sur un coin arrondi, le fond de la fenêtre reste visible.
+//
+// Les coins sont sondés au sommet RÉEL du widget (..Y / ..Hauteur), pas à des
+// ordonnées écrites en dur : une sonde figée qui rate le champ d'une ligne
+// tombe sur le fond de fenêtre et passe sans plus rien vérifier. L'ancrage
+// garde la sonde sur le coin quelle que soit la géométrie du champ.
+cbczsYCible est un entier = CMB_Cible..Y
+cbczsHCible est un entier = CMB_Cible..Hauteur
+cbczsYPilule est un entier = CMB_Pilule..Y
+cbczsYSaisie est un entier = SAI_Ref..Y
+dbgVérifieEgalité(dPixelCouleur(img, 20, cbczsYCible), cbczsFond,
+"Combo : coin haut-gauche arrondi (fond de fenêtre visible, pas de liseré)")
+dbgVérifieEgalité(dPixelCouleur(img, 219, cbczsYCible + cbczsHCible - 1), cbczsFond,
+"Combo : coin bas-droit arrondi (le bouton déroulant ne carre pas le coin)")
+dbgVérifieEgalité(dPixelCouleur(img, 20, cbczsYPilule), cbczsFond,
+"Combo Arrondi borné : coin haut-gauche arrondi malgré Arrondi > demi-hauteur")
+
+// ---- 6. Équivalence Saisie / Combo : même style, même rendu de coin. On
+// compare la diagonale du coin du fond de fenêtre jusqu'au liseré : c'est là
+// que se joue la forme du coin. Le pixel de transition liseré → fond intérieur
+// est un mélange d'anti-crénelage, non comparable au pixel près.
+//
+// Les deux diagonales partent du sommet réel de chaque champ (même raison qu'au
+// bloc 5). C'est bien la FORME du coin qui est comparée, pas la position des
+// boîtes : une sonde en dur mesurerait un éventuel décalage de boîte au lieu de
+// l'arrondi. Comparaison au pixel près, aucune tolérance ajoutée.
+i est un entier = 0
+TANTQUE i < 5
+	dbgVérifieEgalité(dPixelCouleur(img, 20 + i, cbczsYCible + i), dPixelCouleur(img, 20 + i, cbczsYSaisie + i),
+	"Combo et Saisie : diagonale du coin identique au pixel (offset " + i + ")")
+	i = i + 1
+FIN
+
+// ---- 7. Témoin nu : aucune fuite du style sur le combo voisin.
+dbgVérifieEgalité(CbczsCompte(img, 20, 200, 220, 225, cbczsVert), 0,
+"Combo sans style : aucun pixel vert (pas de fuite du style voisin)")
+dbgVérifieEgalité(CbczsCompte(img, 20, 200, 220, 225, cbczsRouge), 0,
+"Combo sans style : aucun pixel rouge (pas de fuite du style voisin)")
+
+Ferme(FEN_ComboCadreZoneSaisie)
+dbgBilanTest()

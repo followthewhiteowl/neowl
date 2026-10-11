@@ -1,0 +1,25 @@
+// @sujet : ToastAffiche dans script court
+//
+// Reproduit le bug : un script qui appelle ToastAffiche puis termine
+// immediatement doit voir le toast s'afficher avant l'exit. Le runtime
+// pompe l'event loop UI jusqu'a ce que tous les toasts soient termines,
+// ou jusqu'a un cap de securite ~10s.
+//
+// En mode headless (self-test / runtime sans display), le toast est
+// silencieusement no-op donc ce test couvre principalement :
+//   - la non-regression compile (le scenario parse et tourne)
+//   - l'absence de crash quand ToastAffiche est appele hors Fenetre
+//   - l'absence d'attente longue quand aucun toast n'est actif
+//
+// La validation visuelle reste manuelle (dev rouvre VSCode et lance).
+
+Trace("avant toast")
+ToastAffiche("Hello toast court")
+Trace("apres toast")
+
+// Assertion minimale : on est arrives jusqu'ici sans crash.
+// Le toast lui-meme n'a pas d'API de read-back (widget asynchrone),
+// donc on verifie juste que le flow continue.
+dbgVérifieVrai(Vrai, "ToastAffiche dans script court : pas de crash")
+
+dbgBilanTest()

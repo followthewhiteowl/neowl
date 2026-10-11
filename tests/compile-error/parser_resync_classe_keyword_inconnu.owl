@@ -1,0 +1,22 @@
+// Regression : parser resync manquant apres mot-cle inconnu dans corps de classe
+//
+// Bug B6 : quand un mot-cle inconnu (ex: RETOURNE au lieu de RENVOYER) apparait
+// dans une procedure de classe, le parser emet l'erreur mais ne resynchronise PAS, donc
+// interprete l'annotation type retour suivante (`: cTypeQuelconque`) comme une tentative d'acces
+// membre sur la classe courante, generant un faux positif en cascade.
+//
+// Cas d'origine : `RETOURNE Null` au lieu de `RENVOYER Null`, suivi de l'annotation `: cTypeQuelconque`.
+// Symptome : 2 erreurs dont 1 seule legitime (RETOURNE inconnu ligne 20).
+// La 2e erreur (fake) : "':cTypeQuelconque' : membre inconnu sur la classe 'cRegistre'."
+//
+// Ce test capture l'etat actuel (2 erreurs). Apres fix synchronize(), devrait tomber a 1 seule.
+//
+// Note : le type annotation est volontairement inexistant pour declencher la cascade fake.
+// Si le type existe, la cascade ne survient pas (le parser comprend l'annotation correctement).
+
+cRegistre est une Classe
+PUBLIC
+	PROCEDURE PlusDangereux() : cTypeQuelconque
+		RETOURNE Null
+	FIN
+FIN

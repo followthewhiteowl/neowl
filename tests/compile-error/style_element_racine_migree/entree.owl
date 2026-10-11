@@ -1,0 +1,20 @@
+//  — migration (break net) : l'ancienne forme racine `Style[état]..X`
+// (phase 1/2, -0835) est SUPERSÉDÉE par le modèle sous-éléments
+// (`Style..ZoneSaisie..Etats[état]..X`). Post-migration, l'indexation `[état]`
+// directement sur `Style` (racine) doit devenir une erreur de compilation
+// (le crochet ne vit plus que sur `Etats`), pas rester une forme valide.
+//
+// PAS de entree.expected.json à côté de ce fichier : DELIBERE. Aujourd'hui
+// cette ligne compile ET s'exécute SANS erreur (l'ancienne forme racine
+// `Style[survol]` existe encore, cf. tests/runtime/style_saisie_etat/,
+// verts). Générer un snapshot depuis la sortie actuelle figerait "aucune
+// erreur" comme référence, ce qui est l'INVERSE de ce que ce fixture doit
+// vérifier. Ce fichier orphelin fait délibérément échouer
+// --self-test-compile-error (MISS) tant que l'implémenteur n'a pas retiré
+// le gate `[état]` racine sur styleSaisie et regénéré ce snapshot avec
+// --check (message attendu : indexation invalide sur styleSaisie, le
+// crochet doit viser Etats).
+TestModeHeadless(Vrai)
+Ouvre(FEN_StyleElementRacineMigree)
+SAI_X..Style[survol]..CouleurFond = RVB(0, 200, 0)
+Ferme(FEN_StyleElementRacineMigree)

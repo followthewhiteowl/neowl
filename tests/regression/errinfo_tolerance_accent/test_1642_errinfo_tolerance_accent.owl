@@ -1,0 +1,25 @@
+//  : l'énumération errInfo ne liste plus que ses formes canoniques
+// (FR accentué + alias EN). La saisie sans accent d'un composant doit
+// continuer de fonctionner grâce à l'insensibilité aux accents du langage :
+// errResume ≡ errRésumé, errCodeSysteme ≡ errCodeSystème,
+// errMessageSysteme ≡ errMessageSystème. Non-régression de la tolérance.
+
+ErreurRAZ()
+ErreurDéclenche(42, "Connexion perdue.")
+
+// errRésumé : résumé court (première ligne du message). La forme sans accent
+// doit donner exactement la même valeur.
+dbgVérifieEgalité(ErreurInfo(errResume), "Connexion perdue.", "errResume (sans accent) lit le résumé")
+dbgVérifieEgalité(ErreurInfo(errResume), ErreurInfo(errRésumé), "errResume et errRésumé désignent le même composant")
+
+// errCodeSystème : code système (0 en l'absence de native concernée). La forme
+// sans accent doit renvoyer la même valeur que la forme canonique.
+dbgVérifieEgalité(ErreurInfo(errCodeSysteme), 0, "errCodeSysteme (sans accent) lit le code système neutre")
+dbgVérifieEgalité(ErreurInfo(errCodeSysteme), ErreurInfo(errCodeSystème), "errCodeSysteme et errCodeSystème désignent le même composant")
+
+// errMessageSystème : message système (chaîne vide en l'absence de native). La
+// forme sans accent doit renvoyer la même valeur que la forme canonique.
+dbgVérifieEgalité(ErreurInfo(errMessageSysteme), "", "errMessageSysteme (sans accent) lit le message système neutre")
+dbgVérifieEgalité(ErreurInfo(errMessageSysteme), ErreurInfo(errMessageSystème), "errMessageSysteme et errMessageSystème désignent le même composant")
+
+dbgBilanTest()

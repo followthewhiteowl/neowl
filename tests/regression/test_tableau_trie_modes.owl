@@ -1,0 +1,98 @@
+// Régression : tous les modes de TableauTrie / Trie / .Trie() / .Sort()
+// spécification de référence : ttCroissant, ttDecroissant, ttColonne (2D multi-col),
+// ttMembre (struct), ttFonction (procédure custom), ttCle (assoc).
+
+Trace("=== TableauTrie tous modes ===")
+
+// === 1D ttCroissant / ttDecroissant ===
+t1a est un tableau d'entiers = [3, 1, 4, 1, 5, 9, 2, 6]
+TableauTrie(t1a, ttCroissant)
+dbgVérifieEgalité(t1a[1], 1, "1D croissant min")
+dbgVérifieEgalité(t1a[8], 9, "1D croissant max")
+
+t1b est un tableau d'entiers = [3, 1, 4, 1, 5]
+TableauTrie(t1b, ttDecroissant)
+dbgVérifieEgalité(t1b[1], 5, "1D décroissant : max en tête")
+dbgVérifieEgalité(t1b[5], 1, "1D décroissant : min en queue")
+
+// === 1D chaîne avec options tcc ===
+t1c est un tableau de chaînes = ["bob", "ALICE", "Charlie"]
+TableauTrie(t1c, ttCroissant + tccSansCasse)
+dbgVérifieEgalité(t1c[1], "ALICE", "tccSansCasse : ALICE en tête")
+dbgVérifieEgalité(t1c[3], "Charlie", "tccSansCasse : Charlie en queue")
+
+// === 2D forme courte (mode, col) ===
+t2a est un tableau de * par 2 entiers = [[1,30],[2,10],[3,20]]
+TableauTrie(t2a, ttCroissant, 2)
+dbgVérifieEgalité(t2a[1, 2], 10, "2D forme courte : col2 mini en tête")
+dbgVérifieEgalité(t2a[3, 2], 30, "2D forme courte : col2 max en queue")
+
+// === 2D ttColonne multi-clés ===
+t2b est un tableau de * par 3 entiers = [[1,2,300],[1,2,100],[1,2,200],[2,1,50]]
+TableauTrie(t2b, ttColonne, "2;-3")
+dbgVérifieEgalité(t2b[1, 2], 1, "ttColonne : col2 mini d'abord")
+dbgVérifieEgalité(t2b[2, 3], 300, "ttColonne : col3 max après")
+dbgVérifieEgalité(t2b[4, 3], 100, "ttColonne : col3 min en queue")
+
+// === ttMembre sur tableau de structures ===
+STPers est une Structure
+	sNom est une chaîne
+	nAge est un entier
+FIN
+tabPers est un tableau de STPers
+p1 est un STPers
+p1.sNom = "Charlie"
+p1.nAge = 25
+TableauAjoute(tabPers, p1)
+p2 est un STPers
+p2.sNom = "Alice"
+p2.nAge = 30
+TableauAjoute(tabPers, p2)
+p3 est un STPers
+p3.sNom = "Bob"
+p3.nAge = 22
+TableauAjoute(tabPers, p3)
+
+TableauTrie(tabPers, ttMembre, "sNom")
+dbgVérifieEgalité(tabPers[1].sNom, "Alice", "ttMembre : Alice en tête (alpha)")
+dbgVérifieEgalité(tabPers[3].sNom, "Charlie", "ttMembre : Charlie en queue")
+
+// ttMembre multi-clés avec direction
+TableauTrie(tabPers, ttMembre, "-nAge")
+dbgVérifieEgalité(tabPers[1].nAge, 30, "ttMembre -nAge : 30 en tête")
+dbgVérifieEgalité(tabPers[3].nAge, 22, "ttMembre -nAge : 22 en queue")
+
+// === ttFonction : procédure de comparaison custom ===
+PROCEDURE CompareEntiersDesc(nA est un entier, nB est un entier)
+	SI nA > nB ALORS RENVOYER -1
+	SI nA < nB ALORS RENVOYER 1
+	RENVOYER 0
+FIN
+
+t3 est un tableau d'entiers = [3, 1, 5, 2, 4]
+TableauTrie(t3, ttFonction, CompareEntiersDesc)
+dbgVérifieEgalité(t3[1], 5, "ttFonction custom desc : 5 en tête")
+dbgVérifieEgalité(t3[5], 1, "ttFonction custom desc : 1 en queue")
+
+// === ttCle : assoc selon clés ===
+ta1 est un tableau associatif de chaînes
+Insère(ta1, "Charlie", "v1")
+Insère(ta1, "Alice", "v2")
+Insère(ta1, "Bob", "v3")
+TableauTrie(ta1, ttCroissant + ttClé)
+ordreCles est une chaîne = ""
+POUR TOUT ELEMENT v, k DE ta1
+	ordreCles = ordreCles + k + ";"
+FIN
+dbgVérifieEgalité(ordreCles, "Alice;Bob;Charlie;", "ttCle assoc croissant")
+
+// === Méthode prefix .Trie() / .Sort() ===
+t4 est un tableau d'entiers = [5, 2, 8, 1]
+t4.Trie(ttCroissant)
+dbgVérifieEgalité(t4[1], 1, ".Trie() croissant")
+
+t5 est un tableau d'entiers = [5, 2, 8, 1]
+t5.Sort(ttDecroissant)
+dbgVérifieEgalité(t5[1], 8, ".Sort() décroissant (alias EN)")
+
+dbgBilanTest()

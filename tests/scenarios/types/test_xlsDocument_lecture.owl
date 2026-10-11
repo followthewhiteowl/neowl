@@ -1,0 +1,89 @@
+// @sujet : xlsDocument, xlsOuvre, xlsSauve, xlsFerme, xlsDonnée
+// @résumé : Relecture d'un classeur Excel (.xlsx) après sauvegarde : valeurs sur plusieurs feuilles, styles reconstruits depuis le fichier et préservation des cellules non modifiées lors d'un ré-enregistrement.
+
+
+// Un classeur écrit avec des types de cellule variés sur deux feuilles doit se relire à l'identique
+// une fois rouvert : chaîne, nombre, date (sérial Excel) et montant monétaire (forme décimale).
+PROCEDURE PUBLIQUE scenario_roundtrip_valeurs_multi_feuilles()
+	doc est un xlsDocument
+	doc[1, 1] = "Client"
+	doc[1, 2] = 42
+	dateRef est une date = ChaîneVersDate("20200101")
+	doc[1, 3] = dateRef
+	montant est un monétaire = 12.50
+	doc[1, 4] = montant
+
+	xlsAjouteFeuille(doc, "Détail")
+	xlsFeuilleEnCours(doc, 2)
+	doc[1, 1] = "Ligne de détail"
+
+	xlsSauve(doc, "test_xls_lecture_roundtrip.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_lecture_roundtrip.xlsx")
+	xlsFeuilleEnCours(relu, 1)
+	dbgVérifieEgalité(relu[1, 1], "Client", "la cellule chaîne relue correspond à celle écrite")
+	dbgVérifieEgalité(relu[1, 2], "42", "la cellule nombre relue correspond à celle écrite")
+	dbgVérifieEgalité(relu[1, 3], "43831", "la cellule date relue redonne le sérial Excel de la date écrite")
+	dbgVérifieEgalité(relu[1, 4], "12.5", "la cellule monétaire relue redonne la forme décimale canonique")
+
+	dbgVérifieEgalité(xlsNbFeuille(relu), 2, "les deux feuilles sont bien présentes après relecture")
+	xlsFeuilleEnCours(relu, 2)
+	dbgVérifieEgalité(relu[1, 1], "Ligne de détail", "la deuxième feuille conserve son propre contenu après relecture")
+	xlsFerme(relu)
+	fSupprime("test_xls_lecture_roundtrip.xlsx")
+FIN
+
+
+// Le style d'une cellule (couleur de fond, gras, alignement horizontal, masque de format) doit être
+// reconstruit depuis le fichier au moment de la relecture, pas seulement conservé en mémoire avant sauvegarde.
+PROCEDURE PUBLIQUE scenario_roundtrip_styles_cellule()
+	doc est un xlsDocument
+	doc[1, 1] = "Total"
+	doc..Cellule[1, 1]..CouleurFond  = RougeClair
+	doc..Cellule[1, 1]..Police..Gras = Vrai
+	doc..Cellule[1, 1]..AlignementH  = chCentre
+	doc..Cellule[1, 1]..Masque       = xlsFormatMonétaire
+
+	xlsSauve(doc, "test_xls_lecture_styles.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_lecture_styles.xlsx")
+	dbgVérifieEgalité(relu..Cellule[1, 1]..CouleurFond, RougeClair, "la couleur de fond relue depuis le fichier correspond à celle écrite")
+	dbgVérifieVrai(relu..Cellule[1, 1]..Police..Gras, "le gras relu depuis le fichier correspond à celui écrit")
+	dbgVérifieEgalité(relu..Cellule[1, 1]..AlignementH, chCentre, "l'alignement horizontal relu depuis le fichier correspond à celui écrit")
+	dbgVérifieEgalité(relu..Cellule[1, 1]..Masque, xlsFormatMonétaire, "le masque de format relu depuis le fichier correspond à celui écrit")
+	xlsFerme(relu)
+	fSupprime("test_xls_lecture_styles.xlsx")
+FIN
+
+
+// Préservation round-trip : rouvrir un classeur, modifier uniquement la valeur d'une cellule (A1),
+// puis ré-enregistrer. La cellule voisine (B1) jamais touchée — ni sa valeur ni son style — doit
+// rester strictement intacte au deuxième ré-enregistrement.
+PROCEDURE PUBLIQUE scenario_preservation_cellule_non_modifiee()
+	doc est un xlsDocument
+	doc[1, 1] = "A1 initial"
+	doc..Cellule[1, 1]..CouleurFond  = RougeClair
+	doc..Cellule[1, 1]..Police..Gras = Vrai
+
+	doc[1, 2] = "B1 initial"
+	doc..Cellule[1, 2]..CouleurFond  = Bleu
+	doc..Cellule[1, 2]..Police..Gras = Vrai
+
+	xlsSauve(doc, "test_xls_lecture_preservation.xlsx")
+	xlsFerme(doc)
+
+	premièreRelecture est un xlsDocument = xlsOuvre("test_xls_lecture_preservation.xlsx")
+	premièreRelecture[1, 1] = "A1 modifié"
+	xlsSauve(premièreRelecture, "test_xls_lecture_preservation.xlsx")
+	xlsFerme(premièreRelecture)
+
+	deuxièmeRelecture est un xlsDocument = xlsOuvre("test_xls_lecture_preservation.xlsx")
+	dbgVérifieEgalité(deuxièmeRelecture[1, 1], "A1 modifié", "la cellule modifiée porte bien sa nouvelle valeur après le deuxième ré-enregistrement")
+	dbgVérifieEgalité(deuxièmeRelecture[1, 2], "B1 initial", "la cellule voisine jamais touchée conserve sa valeur d'origine")
+	dbgVérifieEgalité(deuxièmeRelecture..Cellule[1, 2]..CouleurFond, Bleu, "la cellule voisine jamais touchée conserve sa couleur de fond d'origine")
+	dbgVérifieVrai(deuxièmeRelecture..Cellule[1, 2]..Police..Gras, "la cellule voisine jamais touchée conserve son gras d'origine")
+	xlsFerme(deuxièmeRelecture)
+	fSupprime("test_xls_lecture_preservation.xlsx")
+FIN

@@ -1,0 +1,52 @@
+// Fenetre voisine —  ordre-independant helpers FEN.
+//
+// TOUS les helpers sont definis EN BAS du fichier, APRES les blocs champs
+// et handlers qui les appellent. C'est l'ordre naturel d'ecriture d'une
+// fenetre (layout visuel en haut, logique en bas).
+//
+// Avant  : erreur compile "MonHelper : fonction/procedure inconnue"
+// Apres  : OK, resolution double passe.
+
+FEN_HelpersApresAppel est une Fenêtre
+	PROPRIETES
+		Largeur = 200
+		Hauteur = 100
+	FIN
+
+	// Bouton avec surClic qui appelle un helper defini PLUS BAS
+	BTN_Test est un Champ Bouton
+		PROPRIETES
+			Libellé = "Tester"
+		FIN
+		PROCEDURE surClic()
+			MonHelper("depuis surClic")
+		FIN
+	FIN
+
+	// Bloc champ avec top-level qui appelle un helper defini PLUS BAS
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			Libellé = "initial"
+		FIN
+		MonHelper("depuis top-champ")
+	FIN
+
+	PROCEDURE FinInitialisation()
+		MonHelper("depuis FinInit")
+	FIN
+
+	// ======== HELPERS TOUS EN BAS ========
+	// (ordre naturel d'ecriture : layout avant logique)
+
+	PROCEDURE MonHelper(s est une chaîne)
+		SI s = "depuis surClic" ALORS
+			callback_observe("surclic", s)
+		FIN
+		SI s = "depuis top-champ" ALORS
+			callback_observe("topchamp", s)
+		FIN
+		SI s = "depuis FinInit" ALORS
+			callback_observe("fininit", s)
+		FIN
+	FIN
+FIN

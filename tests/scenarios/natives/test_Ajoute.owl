@@ -1,0 +1,77 @@
+// @sujet : Ajoute
+// @résumé : Ajout d'un ou plusieurs éléments à la fin d'un tableau, avec vérification de la taille et des valeurs insérées.
+
+// Cas nominal — ajouter un entier à un tableau vide
+PROCEDURE PUBLIQUE scenario_ajout_simple_tableau_entiers()
+	nombres est un tableau d'entiers
+	Ajoute(nombres, 42)
+	dbgVérifieEgalité(nombres..Occurrence, 1, "Un élément ajouté")
+	dbgVérifieEgalité(nombres[1], 42, "Valeur correcte au 1er index")
+FIN
+
+// Cas nominal — ajouter plusieurs chaînes avec la forme méthode
+PROCEDURE PUBLIQUE scenario_ajouts_multiples_forme_methode()
+	mots est un tableau de chaînes
+	mots.Ajoute("alpha")
+	mots.Ajoute("beta")
+	mots.Ajoute("gamma")
+	dbgVérifieEgalité(mots..Occurrence, 3, "Trois éléments dans le tableau")
+	dbgVérifieEgalité(mots[1], "alpha", "Premier mot correct")
+	dbgVérifieEgalité(mots[2], "beta", "Deuxième mot correct")
+	dbgVérifieEgalité(mots[3], "gamma", "Troisième mot correct")
+FIN
+
+// Cas nominal — chaîner plusieurs ajouts successifs
+PROCEDURE PUBLIQUE scenario_chainabilite_ajouts()
+	couleurs est un tableau de chaînes
+	couleurs.Ajoute("rouge").Ajoute("vert").Ajoute("bleu")
+	dbgVérifieEgalité(couleurs..Occurrence, 3, "Chaînage de 3 ajouts validé")
+	dbgVérifieEgalité(couleurs[1], "rouge", "Ordre préservé : 1er élément")
+	dbgVérifieEgalité(couleurs[2], "vert", "Ordre préservé : 2e élément")
+	dbgVérifieEgalité(couleurs[3], "bleu", "Ordre préservé : 3e élément")
+FIN
+
+// Cas nominal — récupération de la position après ajout via ..Occurrence
+PROCEDURE PUBLIQUE scenario_position_dernier_element()
+	prenoms est un tableau de chaînes
+	prenoms.Ajoute("Alice")
+	prenoms.Ajoute("Bob")
+	prenoms.Ajoute("Charlie")
+	position est un entier = prenoms..Occurrence
+	dbgVérifieEgalité(position, 3, "Position du dernier élément ajouté")
+	dbgVérifieEgalité(prenoms[position], "Charlie", "Accès au dernier élément via position")
+FIN
+
+// Cas limite — tableau vide avant ajout, non vide après
+PROCEDURE PUBLIQUE scenario_tableau_vide_devient_non_vide()
+	vide est un tableau de réels
+	dbgVérifieEgalité(vide..Occurrence, 0, "Tableau initialement vide")
+	vide.Ajoute(3.14)
+	dbgVérifieEgalité(vide..Occurrence, 1, "Un élément après ajout")
+	dbgVérifieEgalité(vide[1], 3.14, "Valeur correcte dans tableau précédemment vide")
+FIN
+
+// Cas limite — ajout d'une chaîne vide valide
+PROCEDURE PUBLIQUE scenario_ajout_chaine_vide()
+	textes est un tableau de chaînes
+	textes.Ajoute("contenu")
+	textes.Ajoute("")
+	textes.Ajoute("autre")
+	dbgVérifieEgalité(textes..Occurrence, 3, "Trois éléments dont un vide")
+	dbgVérifieEgalité(textes[1], "contenu", "Premier élément non vide")
+	dbgVérifieEgalité(textes[2], "", "Deuxième élément : chaîne vide")
+	dbgVérifieEgalité(textes[3], "autre", "Troisième élément non vide")
+FIN
+
+// Cas limite — ajout de nombreux éléments (montée en charge)
+PROCEDURE PUBLIQUE scenario_ajout_grande_quantite()
+	grandTableau est un tableau d'entiers
+	i est un entier
+	POUR i = 1 _A_ 100
+		grandTableau.Ajoute(i * 2)
+	FIN
+	dbgVérifieEgalité(grandTableau..Occurrence, 100, "Cent éléments ajoutés")
+	dbgVérifieEgalité(grandTableau[1], 2, "Premier élément : 1*2")
+	dbgVérifieEgalité(grandTableau[50], 100, "Élément 50 : 50*2")
+	dbgVérifieEgalité(grandTableau[100], 200, "Dernier élément : 100*2")
+FIN

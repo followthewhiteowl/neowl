@@ -1,0 +1,89 @@
+// Fenêtre voisine — ressource pour test_MonChamp.owl.
+//
+// Chaque bouton illustre une facette de MonChamp : modification de son
+// propre Libellé dans son propre gestionnaire d'événement, alias EN
+// (MyControl), casse alternative (monchamp), et délégation à une
+// procédure externe (héritage de la chaîne d'appel, comme MoiMême).
+// Les procédures externes utilisées par BTN_Chain / BTN_ChainMyControl
+// sont déclarées côté test et vues via le mode script voisinage.
+
+FEN_MonChamp est une Fenêtre
+	PROPRIETES
+		Titre       = "Scénario MonChamp"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 300
+	FIN
+
+	// Bouton qui modifie son propre Libellé via MonChamp dans son handler.
+	BTN_Auto est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Avant"
+		FIN
+		PROCEDURE surClic()
+			MonChamp..Libellé = "Après"
+		FIN
+	FIN
+
+	// Bouton pour tester l'alias EN MyControl dans son propre handler.
+	BTN_MyControl est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 60
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "EN Before"
+		FIN
+		PROCEDURE surClic()
+			MyControl..Libellé = "EN After"
+		FIN
+	FIN
+
+	// Bouton pour tester la casse alternative (monchamp, sans majuscule).
+	BTN_Casse est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 110
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Casse Init"
+		FIN
+		PROCEDURE surClic()
+			monchamp..Libellé = "Casse OK"
+		FIN
+	FIN
+
+	// Bouton dont le handler délègue à une procédure externe qui utilise
+	// MonChamp -- verrouille l'héritage de la chaîne d'appel (hors
+	// déclaration du champ lui-même).
+	BTN_Chain est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 160
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Chain Init"
+		FIN
+		PROCEDURE surClic()
+			ModifierLibelleViaMonChamp()
+		FIN
+	FIN
+
+	// Idem via l'alias EN MyControl, depuis une procédure externe.
+	BTN_ChainMyControl est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 210
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Chain EN Init"
+		FIN
+		PROCEDURE surClic()
+			ModifierLibelleViaMyControl()
+		FIN
+	FIN
+FIN

@@ -1,0 +1,186 @@
+// @sujet : Bug — littéral {…} en affectation nue après déclaration séparée
+// @résumé : Régression . Un littéral {…} assigné à une variable déclarée
+// séparément (`x est un T` puis `x = {…}`) levait E_SYNTAX_BRACE_LITERAL_NO_TYPE
+// pour tous les types composés, alors que l'init même-ligne (`x est un T = {…}`)
+// fonctionnait. La correction câble g_inline_target_type depuis le type déclaré
+// de la LHS au chemin d'affectation nue. Sémantique = REMPLACEMENT.
+//
+// Couvre : struct utilisateur, Cadre, Style, Police, httpRequête, httpRéponse.
+// Durée : voir test_bug_litteral_affectation_decl_separee_duree.owl (cas à trancher).
+// Icône brace-avec-props : voir test_bug_litteral_affectation_decl_separee_icone.owl.
+//
+// Matrice par candidat : nominal + écrasement.
+// Champs invalides : les messages d'erreur post-fix seront créés comme fixtures
+// compile-error par l'implémenteur (brace_assign_champ_inconnu_cadre.owl, etc.)
+// car les numéros de colonnes exacts ne sont prédictibles qu'après le fix.
+
+// === Struct utilisateur ===
+
+MonPoint est une Structure
+	x est un entier
+	y est un entier
+	nom est une chaîne
+FIN
+
+
+// Nominal : décl séparée + affectation brace. Tous les champs posés correctement.
+PROCEDURE scenario_struct_user_nominal()
+	p est un MonPoint
+	p = {x = 10, y = 20, nom = "A"}
+
+	dbgVérifieEgalité(p.x, 10, "struct user decl-sep : x posé")
+	dbgVérifieEgalité(p.y, 20, "struct user decl-sep : y posé")
+	dbgVérifieEgalité(p.Nom, "A", "struct user decl-sep : nom posé")
+FIN
+
+
+// Écrasement : remplacement — les champs non cités reviennent aux valeurs par défaut.
+// Après `p = {x = 5}`, y revient à 0 et nom revient à "" (fresh struct).
+PROCEDURE scenario_struct_user_ecrasement()
+	p est un MonPoint = {x = 99, y = 88, nom = "initial"}
+
+	p = {x = 5}
+
+	dbgVérifieEgalité(p.x, 5, "écrasement struct user : x remplacé")
+	dbgVérifieEgalité(p.y, 0, "écrasement struct user : y revient au défaut 0")
+	dbgVérifieEgalité(p.Nom, "", "écrasement struct user : nom revient au défaut vide")
+FIN
+
+
+// === Cadre ===
+
+// Nominal : décl séparée + affectation brace sur Cadre.
+PROCEDURE scenario_cadre_nominal()
+	c est un Cadre
+	c = {Couleur = RougeClair, Epaisseur = 3}
+
+	dbgVérifieEgalité(c..Couleur, RougeClair, "cadre decl-sep : Couleur posée")
+	dbgVérifieEgalité(c..Epaisseur, 3, "cadre decl-sep : Epaisseur posée")
+FIN
+
+
+// Écrasement : remplacement — Couleur revient au défaut (0 = noir) après
+// réaffectation ne mentionnant que Epaisseur.
+PROCEDURE scenario_cadre_ecrasement()
+	c est un Cadre = {Couleur = BleuFoncé, Epaisseur = 5}
+
+	c = {Epaisseur = 1}
+
+	dbgVérifieEgalité(c..Epaisseur, 1, "écrasement cadre : Epaisseur remplacée")
+	dbgVérifieEgalité(c..Couleur, 0, "écrasement cadre : Couleur revient au défaut 0 = noir")
+FIN
+
+
+// === Police ===
+
+// Nominal : décl séparée + affectation brace sur Police.
+PROCEDURE scenario_police_nominal()
+	p est une Police
+	p = {nom = "Arial", Taille = 14, Gras = Vrai}
+
+	dbgVérifieEgalité(p..Nom, "Arial", "police decl-sep : Nom posé")
+	dbgVérifieEgalité(p..Taille, 14, "police decl-sep : Taille posée")
+	dbgVérifieVrai(p..Gras, "police decl-sep : Gras posé à Vrai")
+FIN
+
+
+// Écrasement : remplacement — Gras revient à Faux (défaut) après réaffectation
+// ne mentionnant que Nom.
+PROCEDURE scenario_police_ecrasement()
+	p est une Police = {nom = "Times", Taille = 12, Gras = Vrai}
+
+	p = {nom = "Helvetica"}
+
+	dbgVérifieEgalité(p..Nom, "Helvetica", "écrasement police : Nom remplacé")
+	dbgVérifieFaux(p..Gras, "écrasement police : Gras revient au défaut Faux")
+	dbgVérifieEgalité(p..Taille, 11, "écrasement police : Taille revient au défaut 11")
+FIN
+
+
+// === Style ===
+
+// Nominal : décl séparée + affectation brace sur Style.
+PROCEDURE scenario_style_nominal()
+	s est un Style
+	s = {Couleur = RougeClair, CouleurFond = Blanc}
+
+	dbgVérifieEgalité(s..Couleur, RougeClair, "style decl-sep : Couleur posée")
+	dbgVérifieEgalité(s..CouleurFond, Blanc, "style decl-sep : CouleurFond posée")
+FIN
+
+
+// Écrasement : remplacement — CouleurFond revient à -1 (défaut = pas de fond)
+// après réaffectation ne mentionnant que Couleur.
+PROCEDURE scenario_style_ecrasement()
+	s est un Style = {Couleur = BleuFoncé, CouleurFond = Blanc}
+
+	s = {Couleur = Vert}
+
+	dbgVérifieEgalité(s..Couleur, Vert, "écrasement style : Couleur remplacée")
+	dbgVérifieEgalité(s..CouleurFond,-1, "écrasement style : CouleurFond revient au défaut -1")
+FIN
+
+
+// === httpRequête ===
+
+// Nominal : décl séparée + affectation brace sur httpRequête.
+PROCEDURE scenario_http_requete_nominal()
+	req est un httpRequête
+	req = {URL = "https://example.com", Méthode = httpPost}
+
+	dbgVérifieEgalité(req..URL, "https://example.com", "httpRequête decl-sep : URL posée")
+	dbgVérifieEgalité(req..Méthode, httpPost, "httpRequête decl-sep : Méthode posée")
+FIN
+
+
+// Écrasement : remplacement — Méthode revient à httpGet (défaut) après
+// réaffectation ne mentionnant que URL.
+PROCEDURE scenario_http_requete_ecrasement()
+	req est un httpRequête = {URL = "https://old.example.com", Méthode = httpPost}
+
+	req = {URL = "https://new.example.com"}
+
+	dbgVérifieEgalité(req..URL, "https://new.example.com", "écrasement httpRequête : URL remplacée")
+	dbgVérifieEgalité(req..Méthode, httpGet, "écrasement httpRequête : Méthode revient au défaut httpGet")
+FIN
+
+
+// === httpRéponse ===
+
+// Nominal : décl séparée + affectation brace sur httpRéponse.
+// (Cas pratique : construction d'une réponse mock dans les tests.)
+PROCEDURE scenario_http_reponse_nominal()
+	rep est une httpRéponse
+	rep = {CodeEtat = 200, contenu = "OK Body"}
+
+	dbgVérifieEgalité(rep..CodeEtat, 200, "httpRéponse decl-sep : CodeEtat posé")
+	dbgVérifieEgalité(rep..Contenu, "OK Body", "httpRéponse decl-sep : Contenu posé")
+FIN
+
+
+// Écrasement : remplacement — Contenu revient à "" (défaut) après réaffectation
+// ne mentionnant que CodeEtat.
+PROCEDURE scenario_http_reponse_ecrasement()
+	rep est une httpRéponse = {CodeEtat = 200, contenu = "ancien contenu"}
+
+	rep = {CodeEtat = 404}
+
+	dbgVérifieEgalité(rep..CodeEtat, 404, "écrasement httpRéponse : CodeEtat remplacé")
+	dbgVérifieEgalité(rep..Contenu, "", "écrasement httpRéponse : Contenu revient au défaut vide")
+FIN
+
+
+scenario_struct_user_nominal()
+scenario_struct_user_ecrasement()
+scenario_cadre_nominal()
+scenario_cadre_ecrasement()
+scenario_police_nominal()
+scenario_police_ecrasement()
+scenario_style_nominal()
+scenario_style_ecrasement()
+scenario_http_requete_nominal()
+scenario_http_requete_ecrasement()
+scenario_http_reponse_nominal()
+scenario_http_reponse_ecrasement()
+
+dbgBilanTest()

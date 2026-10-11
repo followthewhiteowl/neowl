@@ -1,0 +1,66 @@
+// Methodes inline : verification convention arity
+// @sujet methodes inline 0/1/2/N args + return type
+// @resume validation qu'une methode 1-arg ne devient pas magiquement __set_
+
+cTest est une Classe
+	nValeur est un entier
+	nX est un entier
+	nY est un entier
+
+	PROCEDURE Constructeur(v est un entier)
+		:nValeur = v
+	FIN
+
+	PROCEDURE Lire() : entier
+		RENVOYER :nValeur
+	FIN
+
+	PROCEDURE Definir(Val est un entier)
+		:nValeur = Val
+	FIN
+
+	PROCEDURE Ajouter(x est un entier, y est un entier)
+		nSomme est un entier = x + y
+		:nValeur = nSomme
+	FIN
+
+	PROCEDURE Mixer(w est un entier, x est un entier, y est un entier, z est un entier)
+		nSomme est un entier = w + x + y + z
+		:nValeur = nSomme
+	FIN
+
+	PROCEDURE AvecReturn(Val est un entier) : entier
+		:nValeur = Val
+		RENVOYER Val * 2
+	FIN
+FIN
+
+PROCEDURE scenario_methode_0_arg()
+	oTest est un cTest(10)
+	dbgVérifieEgalité(oTest.Lire(), 10, "Methode 0-arg retour = valeur initiale")
+FIN
+
+PROCEDURE scenario_methode_1_arg()
+	oTest est un cTest(10)
+	oTest.Definir(42)
+	dbgVérifieEgalité(oTest.Lire(), 42, "Methode 1-arg assigne membre nValeur")
+FIN
+
+PROCEDURE scenario_methode_2_args()
+	oTest est un cTest(10)
+	oTest.Ajouter(5, 7)
+	dbgVérifieEgalité(oTest.Lire(), 12, "Methode 2-args calcule somme")
+FIN
+
+PROCEDURE scenario_methode_N_args()
+	oTest est un cTest(10)
+	oTest.Mixer(1, 2, 3, 4)
+	dbgVérifieEgalité(oTest.Lire(), 10, "Methode 4-args calcule somme 1+2+3+4")
+FIN
+
+PROCEDURE scenario_methode_avec_return()
+	oTest est un cTest(10)
+	nRes est un entier = oTest.AvecReturn(8)
+	dbgVérifieEgalité(nRes, 16, "Methode 1-arg avec return = val*2")
+	dbgVérifieEgalité(oTest.Lire(), 8, "Methode 1-arg avec return assigne aussi membre")
+FIN

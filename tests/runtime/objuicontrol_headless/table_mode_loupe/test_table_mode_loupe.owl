@@ -1,0 +1,82 @@
+// =====================================================================
+// TEST (headless): propriété canon `ModeLoupe` sur le Champ Table.
+//
+// Canon de référence : la propriété ModeLoupe
+// pilote ce que fait la loupe du titre de colonne (recherche/positionne vs
+// filtre/masque). Alias anglais documenté : MagnifierMode. Les constantes
+// programmatiques sont PARTAGÉES avec les natives voisines déjà câblées :
+//   - filtreContient        (TableActiveFiltre, /2121) : mode
+//     "Filtre <Contient>" — masque les lignes non-correspondantes.
+//   - rechercheCommencePar  (TableCherche, ) : mode "Recherche" —
+//     trie/positionne sur la 1re ligne correspondante SANS masquer les
+//     autres (cf. la documentation de référence, section "Mode
+//     de recherche par défaut" + tableau des constantes ModeLoupe).
+//
+// Cette tranche scope volontairement ModeLoupe à SEULEMENT ces
+// 2 valeurs simplifiées (miroir du combo "Mode loupe" de l'éditeur de référence) —
+// le jeu complet de constantes filtre*/recherche* documenté pour ModeLoupe
+// (filtreCommencePar, filtreEgal, rechercheDéfaut, ...) est hors-scope,
+// reporté à une tranche ultérieure (menu contextuel, tranche 3 de l'épic).
+//
+// Hors-scope de ce fichier (validation HUMAINE requise, non headless) :
+// le comportement VISUEL du mode Recherche (saut/surlignage de la ligne
+// trouvée) et du mode Filtre (masquage) au clic sur la loupe — c'est du
+// rendu Qt, invisible en mode headless (aucun widget matérialisé). Le
+// masquage lui-même est mesurable sur un widget monté via la sonde
+// test-only __DebugTableColonneVisible, pas dans cette suite.
+//
+// Pattern : la fenêtre voisine FEN_ModeLoupe.owl porte la déclaration.
+//
+//  : la casse-insensibilité du nom de propriété (invariant #1) ne
+// se teste PAS ici en casse mêlée (`..modeloupe`/`..MODELOUPE`) — owl fmt
+// canonicalise la casse au save et neutraliserait silencieusement
+// l'assertion (cf. convention ,
+// docs/internal_documentation/test_casse_accent_insensible.md). Cette
+// couverture vit désormais, fmt-immune, dans
+// src/internal_tests/case_accent_guard_test.c
+// (test_widget_property_casse, exposé via --self-test-case-accent).
+// =====================================================================
+
+Ouvre(FEN_ModeLoupe)
+
+// --- 1. Valeur par défaut ---
+// Décision actée : le défaut est rechercheCommencePar (mode
+// Recherche) — trie/positionne sans masquer, comportement le moins
+// surprenant par défaut. filtreContient (mode Filtre = masque, cf.
+// TableActiveFiltre) reste opt-in explicite.
+dbgVérifieEgalité(TAB_Donnees..ModeLoupe, rechercheCommencePar,
+"ModeLoupe par défaut = rechercheCommencePar (mode Recherche, décision de design)")
+
+// --- 2. Assignation + relecture, mode Filtre-contient ---
+TAB_Donnees..ModeLoupe = filtreContient
+dbgVérifieEgalité(TAB_Donnees..ModeLoupe, filtreContient,
+"ModeLoupe = filtreContient relu (storage virtuel)")
+
+// --- 3. Assignation + relecture, mode Recherche ---
+TAB_Donnees..ModeLoupe = rechercheCommencePar
+dbgVérifieEgalité(TAB_Donnees..ModeLoupe, rechercheCommencePar,
+"ModeLoupe = rechercheCommencePar relu (storage virtuel)")
+
+// --- 4. Bascule multiple (round-trip Recherche -> Filtre -> Recherche) ---
+TAB_Donnees..ModeLoupe = filtreContient
+dbgVérifieEgalité(TAB_Donnees..ModeLoupe, filtreContient,
+"ModeLoupe rebascule sur filtreContient après rechercheCommencePar")
+
+TAB_Donnees..ModeLoupe = rechercheCommencePar
+dbgVérifieEgalité(TAB_Donnees..ModeLoupe, rechercheCommencePar,
+"ModeLoupe rebascule sur rechercheCommencePar après filtreContient")
+
+// --- 5. Alias EN MagnifierMode (invariant bilingue FR/EN) ---
+TAB_Donnees..MagnifierMode = filtreContient
+dbgVérifieEgalité(TAB_Donnees..MagnifierMode, filtreContient,
+"MagnifierMode (EN) = filtreContient relu")
+dbgVérifieEgalité(TAB_Donnees..ModeLoupe, filtreContient,
+"ModeLoupe (FR) reflète l'écriture faite via MagnifierMode (EN)")
+
+TAB_Donnees..ModeLoupe = rechercheCommencePar
+dbgVérifieEgalité(TAB_Donnees..MagnifierMode, rechercheCommencePar,
+"MagnifierMode (EN) reflète l'écriture faite via ModeLoupe (FR)")
+
+Ferme(FEN_ModeLoupe)
+
+dbgBilanTest()

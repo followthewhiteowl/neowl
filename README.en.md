@@ -342,9 +342,20 @@ the `owl mcp` command.
 
 > **Want to run the AI locally, no cloud?** A dedicated guide explains how to connect a
 > model running on *your* machine (model choice by RAM, settings, with or without VS Code):
-> **[Writing NeOwl with a local AI](LLM-LOCAL.en.md)**.
+> **[Writing NeOwl with a local AI](docs/LLM-LOCAL.en.md)**.
 
 ---
+
+## Distributing your application
+
+To turn your OWL project into a standalone executable, the **full** installer (`neowl-full-setup`) ships `owl-build`:
+
+```
+owl-build my_project                         # binary for your platform
+owl-build --target linux-x86_64 my_project   # Linux binary, from Windows
+```
+
+You get a **self-contained** binary (embedded runtime) to distribute as-is, with nothing to install on your users' machines — and you produce it for **Windows as well as Linux, from the same machine**. The **light** installer (`neowl-light-setup`) is enough to write and run code — get the **full** one if you package.
 
 ## Tests
 
@@ -356,6 +367,23 @@ NeOwl discovers `test_*.owl` files and runs them (current directory, and all
 subdirectories when a `projet.owl` file is present at the root). Every file
 following this naming convention is treated as a test file. An execution report
 is displayed automatically at the end.
+
+---
+
+## License
+
+NeOwl is **open source under [AGPL-3.0-only](LICENSE)**, together with the **[OWL Runtime Exception](LICENSE.RUNTIME-EXCEPTION)**.
+
+In plain terms: you may use, study, modify and fork it freely, including in a professional or commercial setting. **The applications you write with OWL stay under the license of your choice**, including proprietary — merely building or interpreting them with the runtime does not place them under the AGPL. Only your **modifications to the OWL runtime itself**, if you distribute them or expose them over a network, must be published under the AGPL.
+
+Details: [`LICENSING.en.md`](LICENSING.en.md) · [`LICENSE`](LICENSE) · [`LICENSE.RUNTIME-EXCEPTION`](LICENSE.RUNTIME-EXCEPTION) · [`THIRD-PARTY-NOTICES`](THIRD-PARTY-NOTICES)
+
+---
+
+## Contributing and security
+
+- Contributing: [`CONTRIBUTING.en.md`](CONTRIBUTING.en.md)
+- Reporting a vulnerability: [`SECURITY.en.md`](SECURITY.en.md)
 
 ---
 

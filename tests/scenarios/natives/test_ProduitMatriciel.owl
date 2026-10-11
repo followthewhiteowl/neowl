@@ -1,0 +1,139 @@
+// @sujet : ProduitMatriciel
+// @résumé : Produit matriciel A·B (Matrice × Matrice → Matrice) et Matrice × Vecteur → Vecteur, disponible en native préfixée et en méthode fluente, avec formes bilingues et vérification stricte des dimensions.
+
+
+// Le produit matriciel A·B combine les lignes de A avec les colonnes de B :
+// le résultat a autant de lignes que A et autant de colonnes que B.
+PROCEDURE PUBLIQUE scenario_produit_matrice_carree()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	matB est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	c est une Matrice = ProduitMatriciel(matA, matB)
+	dbgVérifieEgalité(c..Lignes, 2, "A·B a autant de lignes que A")
+	dbgVérifieEgalité(c..Colonnes, 2, "A·B a autant de colonnes que B")
+	dbgVérifieEgalité(c[1][1], 19.0, "1*5 + 2*7 = 19")
+	dbgVérifieEgalité(c[1][2], 22.0, "1*6 + 2*8 = 22")
+	dbgVérifieEgalité(c[2][1], 43.0, "3*5 + 4*7 = 43")
+	dbgVérifieEgalité(c[2][2], 50.0, "3*6 + 4*8 = 50")
+FIN
+
+
+// Le produit matriciel n'exige pas des matrices carrées : seule la règle
+// colonnes(A) == lignes(B) compte. Une matrice 2×3 combinée à une 3×2
+// donne une 2×2.
+PROCEDURE PUBLIQUE scenario_produit_matrices_rectangulaires()
+	matA est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	matB est une Matrice = [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]]
+	c est une Matrice = ProduitMatriciel(matA, matB)
+	dbgVérifieEgalité(c..Lignes, 2, "2x3 · 3x2 -> 2 lignes")
+	dbgVérifieEgalité(c..Colonnes, 2, "2x3 · 3x2 -> 2 colonnes")
+	dbgVérifieEgalité(c[1][1], 58.0, "1*7 + 2*9 + 3*11 = 58")
+	dbgVérifieEgalité(c[1][2], 64.0, "1*8 + 2*10 + 3*12 = 64")
+	dbgVérifieEgalité(c[2][1], 139.0, "4*7 + 5*9 + 6*11 = 139")
+	dbgVérifieEgalité(c[2][2], 154.0, "4*8 + 5*10 + 6*12 = 154")
+FIN
+
+
+// La méthode fluente .ProduitMatriciel() produit exactement le même
+// résultat que la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	matB est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	cViaFluent est une Matrice = matA.ProduitMatriciel(matB)
+	cViaNatif est une Matrice = ProduitMatriciel(matA, matB)
+	dbgVérifieEgalité(cViaFluent[1][1], cViaNatif[1][1], "matA.ProduitMatriciel(matB)[1][1] == ProduitMatriciel(matA, matB)[1][1]")
+	dbgVérifieEgalité(cViaFluent[2][2], cViaNatif[2][2], "matA.ProduitMatriciel(matB)[2][2] == ProduitMatriciel(matA, matB)[2][2]")
+FIN
+
+
+// Les formes anglaises MatrixProduct / .MatrixProduct désignent la même
+// opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	matB est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	cNatifEN est une Matrice = MatrixProduct(matA, matB)
+	cFluentEN est une Matrice = matA.MatrixProduct(matB)
+	dbgVérifieEgalité(cNatifEN[1][1], 19.0, "MatrixProduct(matA, matB)[1][1] = 19")
+	dbgVérifieEgalité(cFluentEN[2][2], 50.0, "matA.MatrixProduct(matB)[2][2] = 50")
+FIN
+
+
+// Surchargé pour Matrice × Vecteur → Vecteur (le vecteur est traité comme
+// une colonne) : l'atome du calcul d'une couche de réseau, W·x.
+PROCEDURE PUBLIQUE scenario_produit_matrice_vecteur()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	v est un Vecteur = [1.0, 1.0]
+	w est un Vecteur = ProduitMatriciel(m, v)
+	dbgVérifieEgalité(w..Taille, 2, "Matrice(2x2)·Vecteur(2) -> Vecteur de taille 2")
+	dbgVérifieEgalité(w[1], 3.0, "1*1 + 2*1 = 3")
+	dbgVérifieEgalité(w[2], 7.0, "3*1 + 4*1 = 7")
+FIN
+
+
+// Matrice × Vecteur n'exige pas non plus une matrice carrée : seule la
+// règle colonnes(m) == taille(v) compte, le résultat a autant d'éléments
+// que m a de lignes.
+PROCEDURE PUBLIQUE scenario_produit_matrice_vecteur_rectangulaire()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	v est un Vecteur = [1.0, 1.0, 1.0]
+	w est un Vecteur = ProduitMatriciel(m, v)
+	dbgVérifieEgalité(w..Taille, 2, "Matrice(2x3)·Vecteur(3) -> Vecteur de taille 2")
+	dbgVérifieEgalité(w[1], 6.0, "1+2+3 = 6")
+	dbgVérifieEgalité(w[2], 15.0, "4+5+6 = 15")
+FIN
+
+
+// Deux Matrice dont les dimensions internes ne correspondent pas
+// (colonnes(A) != lignes(B)) ne peuvent pas être combinées : l'opération
+// lève l'exception dédiée, pas un calcul tronqué.
+PROCEDURE PRIVÉE scenario_edge_dimensions_matrice_matrice_incompatibles()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	matB est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		c est une Matrice = ProduitMatriciel(matA, matB)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg    = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "colonnes(A) != lignes(B) attrapé")
+	dbgVérifieVrai(Contient(sMsg, "incompatibles"), "message dédié dimensions incompatibles")
+FIN
+
+
+// Une Matrice et un Vecteur dont les tailles internes ne correspondent
+// pas (colonnes(m) != taille(v)) ne peuvent pas être combinés.
+PROCEDURE PRIVÉE scenario_edge_dimensions_matrice_vecteur_incompatibles()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	v est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		w est un Vecteur = ProduitMatriciel(m, v)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg    = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "colonnes(m) != taille(v) attrapé")
+	dbgVérifieVrai(Contient(sMsg, "incompatibles"), "message dédié dimensions incompatibles")
+FIN
+
+
+// Un opérande tableau (littéral ou variable) est refusé, comme pour
+// l'arithmétique Matrice/Vecteur : conversion explicite requise.
+PROCEDURE PRIVÉE scenario_edge_operande_tableau_refuse()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		c est une Matrice = ProduitMatriciel(matA, [[5.0, 6.0], [7.0, 8.0]])
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ProduitMatriciel(matA, [littéral]) refusé")
+FIN

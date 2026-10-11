@@ -1,0 +1,46 @@
+// Témoin isolation : variable de top-level CHAMP invisible chez un champ VOISIN
+// Attendu (canon strict 1 fichier = 1 Fenêtre, ) :
+// - Une variable du top-level d'un champ (LIB_Compteur::nClics) ne doit PAS être
+//   visible dans un champ voisin (BTN_Reset).
+// - Référencer nClics depuis BTN_Reset doit produire une erreur de compilation
+//   "'nClics' : variable inconnue ou inaccessible."
+
+FEN_Test_Isolation_Voisin est une Fenêtre
+	PROPRIETES
+		Titre       = "Isolation voisin"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	// Champ 1 : déclare une variable de top-level
+	LIB_Compteur est un Champ Libellé
+		PROPRIETES
+			X       = 50
+			Y       = 50
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Compteur"
+		FIN
+
+		// TOP-LEVEL CHAMP : variable locale au champ
+		nClics est un entier = 0
+	FIN
+
+	// Champ 2 : tente de référencer la variable du champ voisin
+	BTN_Reset est un Champ Bouton
+		PROPRIETES
+			X       = 50
+			Y       = 100
+			Largeur = 100
+			Hauteur = 30
+			Libellé = "Reset"
+		FIN
+
+		PROCEDURE surClic()
+			// ERREUR ATTENDUE ligne suivante : 'nClics' : variable inconnue ou inaccessible.
+			// La variable nClics appartient au top-level de LIB_Compteur, pas à BTN_Reset.
+			nClics = 0
+		FIN
+	FIN
+FIN

@@ -1,0 +1,79 @@
+// @sujet : sqlRequête
+// @résumé : Gabarit SQL paramétré à trous nommés, réutilisable avec des valeurs différentes et sans risque d'injection.
+
+// sqlRequête est un gabarit SQL réutilisable : Code porte le texte avec des
+// trous nommés {nom}, Paramètres fournit les valeurs. Le gabarit se réécrit
+// une fois et se relance avec des valeurs différentes sans reconstruire de
+// texte SQL à chaque appel.
+
+PROCEDURE PRIVÉE connexion_test_ouverte()
+	cnx est une sqlConnexion
+	cnx..Provider = sqlSqlite
+	cnx..Source   = ":memory:"
+	cnx.Ouvre()
+	RENVOYER cnx
+FIN
+
+
+// Un même gabarit, réutilisé avec des valeurs différentes : seuls les
+// Paramètres changent entre les deux envois, le Code ne bouge pas.
+PROCEDURE PUBLIQUE scenario_gabarit_reutilise_avec_valeurs_differentes()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE commande (client TEXT, montant INTEGER)"
+	SQLEnvoie(cnx, reqCree)
+
+	reqAjout est une sqlRequête
+	reqAjout..Code = "INSERT INTO commande (client, montant) VALUES ({p_client}, {p_montant})"
+
+	reqAjout..Paramètres["p_client"]  = "Sophie Renard"
+	reqAjout..Paramètres["p_montant"] = 120
+	SQLEnvoie(cnx, reqAjout)
+
+	reqAjout..Paramètres["p_client"]  = "Marc Petit"
+	reqAjout..Paramètres["p_montant"] = 75
+	SQLEnvoie(cnx, reqAjout)
+
+	reqTotal est une sqlRequête
+	reqTotal..Code = "SELECT SUM(montant) AS total FROM commande"
+	repTotal est une sqlRéponse = SQLEnvoie(cnx, reqTotal)
+	dbgVérifieEgalité(repTotal..Lignes[1]["total"], 195, "les deux commandes du même gabarit sont bien enregistrées")
+
+	cnx.Ferme()
+FIN
+
+
+// Neutralisation de l'injection : la valeur reçue est traitée comme du
+// texte, jamais comme du SQL. Une valeur qui tenterait de supprimer la
+// table ne fait qu'échouer à trouver une correspondance — la preuve est
+// que la table répond toujours normalement juste après.
+PROCEDURE PUBLIQUE scenario_valeur_malveillante_neutralisee()
+	cnx est une sqlConnexion = connexion_test_ouverte()
+
+	reqCree est une sqlRequête
+	reqCree..Code = "CREATE TABLE client (nom TEXT)"
+	SQLEnvoie(cnx, reqCree)
+
+	reqAjout est une sqlRequête
+	reqAjout..Code                = "INSERT INTO client (nom) VALUES ({p_nom})"
+	reqAjout..Paramètres["p_nom"] = "Julien Blanc"
+	SQLEnvoie(cnx, reqAjout)
+
+	reqCherche est une sqlRequête
+	reqCherche..Code                = "SELECT nom FROM client WHERE nom = {p_nom}"
+	reqCherche..Paramètres["p_nom"] = "'; DROP TABLE client; --"
+	repCherche est une sqlRéponse = SQLEnvoie(cnx, reqCherche)
+	dbgVérifieEgalité(repCherche..Succès, Vrai, "la requête aboutit malgré la valeur piégée")
+	dbgVérifieEgalité(repCherche..Occurrence, 0, "aucune ligne ne porte ce nom littéral")
+
+	// Si le DROP avait été exécuté, cette requête échouerait : la table
+	// n'existerait plus.
+	reqVerif est une sqlRequête
+	reqVerif..Code = "SELECT nom FROM client"
+	repVerif est une sqlRéponse = SQLEnvoie(cnx, reqVerif)
+	dbgVérifieEgalité(repVerif..Succès, Vrai, "la table existe toujours")
+	dbgVérifieEgalité(repVerif..Occurrence, 1, "le client inséré avant la tentative est intact")
+
+	cnx.Ferme()
+FIN

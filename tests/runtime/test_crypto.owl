@@ -1,0 +1,271 @@
+Trace("=== CRYPTO (hashes, HMAC, AES) ===")
+
+// =====================================================================
+// Hashes : ordre canon de référence HashChaine(algo, data) documentation de référence
+// Constantes HA_* en sentinelles INT32 (sentinels.h)
+// =====================================================================
+
+// SHA-256 par defaut (forme 1-arg HashChaine(str))
+dbgVérifieEgalité(HashChaîne(""),
+"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+"SHA256 empty string (1-arg defaut)")
+
+dbgVérifieEgalité(HashChaîne("abc"),
+"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+"SHA256('abc') (1-arg defaut)")
+
+// Algo via constante HA_*
+dbgVérifieEgalité(HashChaîne(HA_SHA_256, "hello"),
+"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+"HA_SHA_256 explicite")
+
+// MD5("abc")
+dbgVérifieEgalité(HashChaîne(HA_MD5_128, "abc"),
+"900150983cd24fb0d6963f7d28e17f72",
+"HA_MD5_128('abc')")
+
+// SHA-1("abc")
+dbgVérifieEgalité(HashChaîne(HA_SHA_160, "abc"),
+"a9993e364706816aba3e25717850c26c9cd0d89d",
+"HA_SHA_160('abc')")
+
+// SHA-512("abc")
+dbgVérifieEgalité(HashChaîne(HA_SHA_512, "abc"),
+"ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+"HA_SHA_512('abc')")
+
+// SHA-384("abc")
+dbgVérifieEgalité(HashChaîne(HA_SHA_384, "abc"),
+"cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7",
+"HA_SHA_384('abc')")
+
+// SHA-256-DOUBLE (Bitcoin-style) : SHA256(SHA256("abc"))
+// Manuellement : sha256("abc") = ba78... ; sha256(byte_decode(ba78...)) = 4f8b...
+// Ref Bitcoin : 4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358
+dbgVérifieEgalité(HashChaîne(HA_SHA_256_DOUBLE, "abc"),
+"4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358",
+"HA_SHA_256_DOUBLE('abc') Bitcoin-style")
+
+// Forme string algo (legacy compat)
+dbgVérifieEgalité(HashChaîne("MD5", "abc"),
+"900150983cd24fb0d6963f7d28e17f72",
+"string algo 'MD5' accepte")
+
+// Nom d'algo insensible a la casse, avec tiret
+dbgVérifieEgalité(HashChaîne("sha-256", "abc"),
+"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+"string 'sha-256' (case-insensitive + tiret)")
+
+// English alias HashString
+dbgVérifieEgalité(HashString("abc"),
+"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+"HashString EN alias")
+
+// =====================================================================
+// HMAC : doc canon de référence HashChaine(HA_HMAC_*, msg, cle)
+// + alias OWL HMACChaine(algo, msg, cle) pour ergonomie
+// =====================================================================
+
+// HMAC-SHA-256("", "") via HashChaine
+dbgVérifieEgalité(HashChaîne(HA_HMAC_SHA_256, "", ""),
+"b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad",
+"HashChaine(HA_HMAC_SHA_256, '', '')")
+
+// HMAC-SHA-256 quick brown fox
+dbgVérifieEgalité(HashChaîne(HA_HMAC_SHA_256, "The quick brown fox jumps over the lazy dog", "key"),
+"f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8",
+"HMAC-SHA-256 quick brown fox / key")
+
+// HMACChaine alias OWL (forme legacy 2-args defaut SHA-256)
+dbgVérifieEgalité(HMACChaîne("The quick brown fox jumps over the lazy dog", "key"),
+"f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8",
+"HMACChaine 2-args legacy (defaut SHA-256)")
+
+// HMACChaine ordre canon de référence (algo, msg, cle)
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA_256, "The quick brown fox jumps over the lazy dog", "key"),
+"f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8",
+"HMACChaine(HA_HMAC_SHA_256, msg, cle)")
+
+// HMAC-MD5 vide
+dbgVérifieEgalité(HashChaîne(HA_HMAC_MD5_128, "", ""),
+"74e6f7298a9c2d168935f58c001bad88",
+"HMAC-MD5 empty")
+
+// English alias HMACString
+dbgVérifieEgalité(HMACString("The quick brown fox jumps over the lazy dog", "key"),
+"f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8",
+"HMACString EN alias")
+
+// =====================================================================
+// HashVerifieChaine : verification avec comparaison en temps constant
+// =====================================================================
+
+hashAbc est une chaîne = HashChaîne(HA_SHA_256, "abc")
+dbgVérifieVrai(HashVérifieChaîne(HA_SHA_256, "abc", hashAbc),
+"HashVerifieChaine SHA-256 match -> Vrai")
+dbgVérifieFaux(HashVérifieChaîne(HA_SHA_256, "abd", hashAbc),
+"HashVerifieChaine SHA-256 mismatch -> Faux")
+
+// Verifie HMAC : 4-args (algo, msg, cle, hashAttendu)
+hmacRef est une chaîne = HashChaîne(HA_HMAC_SHA_256, "data", "secret")
+dbgVérifieVrai(HashVérifieChaîne(HA_HMAC_SHA_256, "data", "secret", hmacRef),
+"HashVerifieChaine HMAC 4-args match")
+dbgVérifieFaux(HashVérifieChaîne(HA_HMAC_SHA_256, "data", "mauvaiseCle", hmacRef),
+"HashVerifieChaine HMAC 4-args mismatch -> Faux")
+
+// Alias EN HashCheckString : memes arites {3,4}
+dbgVérifieVrai(HashCheckString(HA_SHA_256, "abc", hashAbc),
+"HashCheckString SHA-256 match -> Vrai")
+dbgVérifieFaux(HashCheckString(HA_SHA_256, "abd", hashAbc),
+"HashCheckString SHA-256 mismatch -> Faux")
+dbgVérifieVrai(HashCheckString(HA_HMAC_SHA_256, "data", "secret", hmacRef),
+"HashCheckString HMAC 4-args match")
+
+// =====================================================================
+// SHA-3 (FIPS 202) -- impl maison sha3.c. Test vectors NIST.
+// =====================================================================
+
+// SHA3-224("") = 6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7
+dbgVérifieEgalité(HashChaîne(HA_SHA3_224, ""),
+"6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7",
+"SHA3-224('') NIST vector")
+
+// SHA3-256("") = a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a
+dbgVérifieEgalité(HashChaîne(HA_SHA3_256, ""),
+"a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+"SHA3-256('') NIST vector")
+
+// SHA3-256("abc") = 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532
+dbgVérifieEgalité(HashChaîne(HA_SHA3_256, "abc"),
+"3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+"SHA3-256('abc') NIST vector")
+
+// SHA3-384("abc") = ec01498288516fc926459f58e2c6ad8df9b473cb0fc08c2596da7cf0e49be4b298d88cea927ac7f539f1edf228376d25
+dbgVérifieEgalité(HashChaîne(HA_SHA3_384, "abc"),
+"ec01498288516fc926459f58e2c6ad8df9b473cb0fc08c2596da7cf0e49be4b298d88cea927ac7f539f1edf228376d25",
+"SHA3-384('abc') NIST vector")
+
+// SHA3-512("abc")
+dbgVérifieEgalité(HashChaîne(HA_SHA3_512, "abc"),
+"b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
+"SHA3-512('abc') NIST vector")
+
+// HMAC-SHA3-256 cross-check : valeur de reference computee via Python
+//   python -c "import hmac, hashlib; print(hmac.new(b'key', \
+//     b'The quick brown fox jumps over the lazy dog', \
+//     hashlib.sha3_256).hexdigest())"
+dbgVérifieEgalité(HashChaîne(HA_HMAC_SHA3_256, "The quick brown fox jumps over the lazy dog", "key"),
+"8c6e0683409427f8931711b10ca92a506eb1fafa48fadd66d76126f47ac2c333",
+"HMAC-SHA3-256 quick brown fox / key (Python cross-check)")
+
+// SHA3 streaming via HashFichier (fichier dans temp pour ne pas polluer cwd)
+sha3File est une chaîne = fRepTemp() + fSep() + "owl_test_sha3.txt"
+fSauveTexte(sha3File, "abc")
+dbgVérifieEgalité(HashFichier(HA_SHA3_256, sha3File),
+"3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+"HashFichier(HA_SHA3_256, ...) -> meme resultat que HashChaine")
+fSupprime(sha3File)
+
+// =====================================================================
+// RIPEMD-160 / RIPEMD-128 -- impl maison ripemd.c
+// Test vectors officiels : https://homes.esat.kuleuven.be/~bosselae/ripemd160.html
+// =====================================================================
+
+// RIPEMD-160 NIST vectors
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_160, ""),
+"9c1185a5c5e9fc54612808977ee8f548b2258d31",
+"RIPEMD-160('') official vector")
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_160, "a"),
+"0bdc9d2d256b3ee9daae347be6f4dc835a467ffe",
+"RIPEMD-160('a') official vector")
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_160, "abc"),
+"8eb208f7e05d987a9b044a8e98c6b087f15a0bfc",
+"RIPEMD-160('abc') official vector")
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_160, "message digest"),
+"5d0689ef49d2fae572b881b123a85ffa21595f36",
+"RIPEMD-160('message digest') official vector")
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_160, "abcdefghijklmnopqrstuvwxyz"),
+"f71c27109c692c1b56bbdceb5b9d2865b3708dbc",
+"RIPEMD-160(a-z) official vector")
+
+// RIPEMD-128 official vectors
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_128, ""),
+"cdf26213a150dc3ecb610f18f6b38b46",
+"RIPEMD-128('') official vector")
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_128, "abc"),
+"c14a12199c66e4ba84636b0f69144c77",
+"RIPEMD-128('abc') official vector")
+dbgVérifieEgalité(HashChaîne(HA_RIPEMD_128, "message digest"),
+"9e327b3d6e523062afc1132d7df9d1b8",
+"RIPEMD-128('message digest') official vector")
+
+// HMAC-RIPEMD-160 : cross-check via Python (cryptography lib)
+//   from cryptography.hazmat.primitives import hashes, hmac
+//   h = hmac.HMAC(b"key", hashes.RIPEMD160())
+//   h.update(b"The quick brown fox jumps over the lazy dog")
+//   h.finalize().hex()
+dbgVérifieEgalité(HashChaîne(HA_HMAC_RIPEMD_160, "The quick brown fox jumps over the lazy dog", "key"),
+"50278a77d4d7670561ab72e867383aef6ce50b3e",
+"HMAC-RIPEMD-160 quick brown fox / key")
+
+// RIPEMD-160 streaming via HashFichier
+ripemdFile est une chaîne = fRepTemp() + fSep() + "owl_test_ripemd.txt"
+fSauveTexte(ripemdFile, "abc")
+dbgVérifieEgalité(HashFichier(HA_RIPEMD_160, ripemdFile),
+"8eb208f7e05d987a9b044a8e98c6b087f15a0bfc",
+"HashFichier(HA_RIPEMD_160, ...) -> meme resultat")
+fSupprime(ripemdFile)
+
+// =====================================================================
+// BLAKE2b -- impl maison blake2.c (RFC 7693), extension OWL hors documentation de référence
+// Test vectors RFC 7693 + cross-check Python hashlib.blake2b
+// =====================================================================
+
+// BLAKE2b-512("") -- RFC 7693 Appendix A
+dbgVérifieEgalité(HashChaîne(HA_BLAKE2B_512, ""),
+"786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce",
+"BLAKE2b-512('') RFC 7693 vector")
+
+// BLAKE2b-512("abc") -- RFC 7693 Appendix A standard vector
+dbgVérifieEgalité(HashChaîne(HA_BLAKE2B_512, "abc"),
+"ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923",
+"BLAKE2b-512('abc') RFC 7693 vector")
+
+// BLAKE2b-256 et BLAKE2b-384 cross-checked via Python hashlib.blake2b
+dbgVérifieEgalité(HashChaîne(HA_BLAKE2B_256, "abc"),
+"bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319",
+"BLAKE2b-256('abc') Python cross-check")
+dbgVérifieEgalité(HashChaîne(HA_BLAKE2B_384, "abc"),
+"6f56a82c8e7ef526dfe182eb5212f7db9df1317e57815dbda46083fc30f54ee6c66ba83be64b302d7cba6ce15bb556f4",
+"BLAKE2b-384('abc') Python cross-check")
+
+// HMAC-BLAKE2b-256 cross-check Python
+dbgVérifieEgalité(HashChaîne(HA_HMAC_BLAKE2B_256, "The quick brown fox jumps over the lazy dog", "key"),
+"bb3e1cd6f38b5df1cb87983ec29d6116587c1b9bf6e5cd167ac7f2bc741d3817",
+"HMAC-BLAKE2b-256 fox/key Python cross-check")
+
+// BLAKE2b streaming via HashFichier
+blake2File est une chaîne = fRepTemp() + fSep() + "owl_test_blake2.txt"
+fSauveTexte(blake2File, "abc")
+dbgVérifieEgalité(HashFichier(HA_BLAKE2B_512, blake2File),
+"ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923",
+"HashFichier(HA_BLAKE2B_512, ...) -> meme resultat")
+fSupprime(blake2File)
+
+// =====================================================================
+// AES-256-CBC via CrypteStandard (inchange)
+// =====================================================================
+
+message est une chaîne = "Message secret tres important"
+motDePasse est une chaîne = "motDePasseHyperComplexe42!"
+
+chiffre est un buffer = CrypteStandard(message, motDePasse)
+dbgVérifieVrai(Taille(chiffre) > 0, "CrypteStandard produit un buffer non vide")
+
+dechiffre est un buffer = DécrypteStandard(chiffre, motDePasse)
+dbgVérifieEgalité(dechiffre, message, "DecrypteStandard(CrypteStandard(m)) = m")
+
+chiffre2 est un buffer = CrypteStandard(message, motDePasse)
+dbgVérifieVrai(chiffre <> chiffre2, "Chiffrements successifs differents (IV aleatoire)")
+
+dbgBilanTest()

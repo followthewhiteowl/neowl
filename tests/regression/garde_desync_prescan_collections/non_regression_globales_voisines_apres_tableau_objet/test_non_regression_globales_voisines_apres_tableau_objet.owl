@@ -1,0 +1,20 @@
+//  — corpus de non-régression VERT : reproduit exactement les deux
+// repros « propres » de la reconnaissance coordinator (globale top-level et
+// globale d'élément déclarées après un `tableau de httpRequête`), pour
+// verrouiller qu'un futur durcissement du walker jumeau
+// `hydrate_globals_from_neighbors` ne les fasse pas régresser.
+TestModeHeadless(Vrai)
+
+dbgVérifieEgalité(gApresTableau, 11, "1406 corpus : globale top-level après tableau d'objets reste résolue en nom nu")
+
+dbgVérifieEgalité(tabRequêtes..Occurrence, 0, "1406 corpus : le tableau d'objets voisin lui-même reste résolu en nom nu")
+
+// L'accès qualifié à une variable de fenêtre est instance-based :
+// la fenêtre doit être ouverte, sinon l'accès lève une exception. Même patron
+// que tests/regression/portee_globale_fenetre/test_glob_qualifie_apres_ouvre.owl.
+Ouvre(FEN_A)
+dbgVérifieEgalité(FEN_A.gApresTableauElem, 22, "1406 corpus : globale d'élément Fenêtre après tableau d'objets reste résolue en qualifié")
+dbgVérifieEgalité(FEN_A.tabRequêtesElem..Occurrence, 1, "1406 corpus : le tableau d'objets d'élément est alimenté par l'événement de la fenêtre")
+Ferme(FEN_A)
+
+dbgBilanTest()

@@ -1,0 +1,52 @@
+// @sujet : fChangeRepertoire
+// @résumé : Change le dossier courant du processus. Ne retourne rien : l'effet s'observe via fRepEnCours(). Un dossier inexistant est un no-op silencieux, le dossier courant reste inchangé.
+
+
+// Changement effectif vers le dossier parent, cible toujours présente
+// quel que soit le dossier courant de départ. On vérifie que fRepEnCours()
+// reflète bien le changement avant de restaurer scrupuleusement l'état
+// initial, indispensable car le dossier courant est partagé par toute
+// la suite de tests.
+PROCEDURE scenario_change_vers_parent_puis_restaure()
+	sAvant est une chaîne = fRepEnCours()
+
+	fChangeRepertoire("..")
+	sApres est une chaîne = fRepEnCours()
+	dbgVérifieVrai(sApres <> sAvant, `le dossier courant a changé après fChangeRepertoire("..")`)
+
+	fChangeRepertoire(sAvant)
+	dbgVérifieEgalité(fRepEnCours(), sAvant, "Le dossier courant est restauré après le round-trip")
+FIN
+
+
+// Changement vers un sous-dossier fraîchement créé pour ce scénario,
+// puis nettoyage complet : restauration du dossier courant AVANT la
+// suppression du sous-dossier temporaire (on ne supprime jamais le
+// dossier dans lequel on se trouve).
+PROCEDURE scenario_change_vers_sous_dossier_temp_puis_nettoie()
+	sAvant est une chaîne = fRepEnCours()
+	sNomTemp est une chaîne = "_tmp_test_fChangeRepertoire"
+
+	fRepCree(sNomTemp)
+	dbgVérifieVrai(fRepExiste(sNomTemp), "Le sous-dossier temporaire a bien été créé avant le changement")
+
+	fChangeRepertoire(sNomTemp)
+	dbgVérifieVrai(fRepEnCours() <> sAvant, "Le dossier courant a changé vers le sous-dossier temporaire")
+
+	fChangeRepertoire(sAvant)
+	dbgVérifieEgalité(fRepEnCours(), sAvant, "Le dossier courant est restauré avant le nettoyage")
+
+	fRepSupprime(sNomTemp)
+	dbgVérifieVrai(fRepExiste(sNomTemp) = Faux, "Le sous-dossier temporaire a bien été supprimé après restauration")
+FIN
+
+
+// Cas limite canon : un chemin inexistant est un no-op silencieux, sans
+// exception levée. Le dossier courant doit rester strictement inchangé,
+// contrairement à un changement effectif qui, lui, modifie fRepEnCours().
+PROCEDURE PRIVÉE scenario_dossier_inexistant_ne_change_rien()
+	sAvant est une chaîne = fRepEnCours()
+
+	fChangeRepertoire("_ce_dossier_nexiste_surement_pas_xyz987")
+	dbgVérifieEgalité(fRepEnCours(), sAvant, "Un dossier inexistant laisse le dossier courant inchangé")
+FIN

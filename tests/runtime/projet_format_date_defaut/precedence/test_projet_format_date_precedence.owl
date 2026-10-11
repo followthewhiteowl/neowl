@@ -1,0 +1,29 @@
+//  — précédence : MasqueAffichage du CHAMP l'emporte sur FormatDate
+// du PROJET. Le projet voisin pose FormatDate = "MM/JJ/AAAA" (identique au
+// dossier "pilote"), mais le champ pose son propre MasqueAffichage =
+// "JJ/MM/AAAA". Pour la même saisie ambiguë "05/12/2026" :
+//   - dossier "pilote" (pas de masque champ)          -> 20260512 (12 mai)
+//   - ce dossier (masque champ JJ/MM/AAAA)             -> 20261205 (5 déc.)
+// Les deux résultats DIVERGENT sur la même chaîne d'entrée : preuve que le
+// masque du champ prend le dessus sur le format du projet, pas l'inverse.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatDate n'existe pas au catalogue (champ inconnu).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatDatePrecedence..FormatDate, "MM/JJ/AAAA", "Projet..FormatDate : lisible en cascade, valeur posée")
+
+OuvreSoeur(FEN_ProjetFormatDatePrecedence)
+
+TestSimuleSaisie(SAI_Date, "05/12/2026")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Champ avec MasqueAffichage, projet FormatDate posé : ..Valeur reste un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLue est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLue, "20261205", "MasqueAffichage champ JJ/MM/AAAA gagne sur FormatDate projet MM/JJ/AAAA : « 05/12/2026 » interprété comme 5 décembre 2026")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetFormatDatePrecedence)
+dbgBilanTest()

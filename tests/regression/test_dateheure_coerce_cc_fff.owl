@@ -1,0 +1,69 @@
+// @sujet : cast chaîne → dateheure préserve CC (16 chars) et FFF (17 chars)
+// @résumé : Verrouille que `dh est une dateheure = "…CC"` ou `"…FFF"` lit
+// les sous-secondes. Avant ce fix, ms était hardcodé à 0, perdant la
+// précision sub-seconde. Symétrique avec parse côté DateHeureVersChaîne.
+
+// Helper : on extrait le ms d'une dateheure via la différence avec sa
+// version 14-chars (même date/heure, ms=0). Le delta = ms attendu.
+
+// 1. Non-régression 14 chars : ms = 0 (delta avec lui-même = 0).
+PROCEDURE test_14_chars_ms_zero()
+	dh est une dateheure = "20260605143045"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 0, "14 chars : pas de ms, delta=0")
+FIN
+
+
+// 2. 16 chars CC=00 : ms = 0.
+PROCEDURE test_16_chars_cc_zero()
+	dh est une dateheure = "2026060514304500"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 0, "16 chars CC=00 : ms=0")
+FIN
+
+
+// 3. 16 chars CC=50 : ms = 500.
+PROCEDURE test_16_chars_cc_cinquante()
+	dh est une dateheure = "2026060514304550"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 500, "16 chars CC=50 → ms=500")
+FIN
+
+
+// 4. 16 chars CC=99 : ms = 990.
+PROCEDURE test_16_chars_cc_max()
+	dh est une dateheure = "2026060514304599"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 990, "16 chars CC=99 → ms=990")
+FIN
+
+
+// 5. 17 chars FFF=000 : ms = 0.
+PROCEDURE test_17_chars_fff_zero()
+	dh est une dateheure = "20260605143045000"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 0, "17 chars FFF=000 : ms=0")
+FIN
+
+
+// 6. 17 chars FFF=123 : ms = 123 (précision ms directe, vs CC × 10).
+PROCEDURE test_17_chars_fff_milieu()
+	dh est une dateheure = "20260605143045123"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 123, "17 chars FFF=123 → ms=123 direct")
+FIN
+
+
+// 7. 17 chars FFF=999 : ms = 999 (max).
+PROCEDURE test_17_chars_fff_max()
+	dh est une dateheure = "20260605143045999"
+	base est une dateheure = "20260605143045"
+	delta est une durée = dh - base
+	dbgVérifieEgalité(delta, 999, "17 chars FFF=999 → ms=999")
+FIN

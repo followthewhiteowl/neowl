@@ -1,0 +1,30 @@
+//  — précédence : MasqueAffichage du CHAMP l'emporte sur FormatHeure
+// du PROJET. Le projet voisin pose FormatHeure = "HH:MI" (tronque aux
+// minutes), mais le champ pose son propre MasqueAffichage = "HH:MI:SS". Pour
+// la même valeur owlHeure 14:30:45 :
+//   - défaut projet HH:MI seul            -> 14300000 (tronqué)
+//   - ce dossier (masque champ HH:MI:SS)  -> 14304500 (secondes préservées)
+// Le résultat 14304500 prouve que le masque du champ prend le dessus sur le
+// format du projet, pas l'inverse.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatHeure n'existe pas au catalogue (champ inconnu).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatHeurePrecedence..FormatHeure, "HH:MI", "Projet..FormatHeure : lisible en cascade, valeur posée")
+
+OuvreSoeur(FEN_ProjetFormatHeurePrecedence)
+
+hPrécision est une heure = ChaîneVersHeure("143045")
+SAI_Heure..Valeur = hPrécision
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Champ avec MasqueAffichage, projet FormatHeure posé : ..Valeur reste un owlHeure")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLue est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLue, "14304500", "MasqueAffichage champ HH:MI:SS gagne sur FormatHeure projet HH:MI : secondes préservées")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetFormatHeurePrecedence)
+dbgBilanTest()

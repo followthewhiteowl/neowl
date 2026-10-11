@@ -1,0 +1,68 @@
+// @sujet : VecteurDistance
+// @résumé : Distance euclidienne entre deux Vecteur — magnitude de leur différence, disponible en native préfixée et en méthode fluente, avec forme anglaise et refus des opérandes non conformes.
+
+
+// La distance euclidienne entre deux Vecteur est la magnitude de leur
+// différence.
+PROCEDURE PUBLIQUE scenario_calcul_distance()
+	v est un Vecteur = [0.0, 0.0]
+	w est un Vecteur = [3.0, 4.0]
+	nDistance est un réel = VecteurDistance(v, w)
+	dbgVérifieEgalité(nDistance, 5.0, "Distance entre (0,0) et (3,4) = 5.0")
+FIN
+
+
+// La méthode fluente .Distance() produit exactement le même résultat que
+// la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [0.0, 0.0]
+	w est un Vecteur = [3.0, 4.0]
+	nViaFluent est un réel = v.Distance(w)
+	nViaNatif est un réel = VecteurDistance(v, w)
+	dbgVérifieEgalité(nViaFluent, nViaNatif, "v.Distance(w) == VecteurDistance(v, w)")
+FIN
+
+
+// La forme anglaise VectorDistance / .Distance désigne la même opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	v est un Vecteur = [0.0, 0.0]
+	w est un Vecteur = [3.0, 4.0]
+	nNatifEN est un réel = VectorDistance(v, w)
+	dbgVérifieEgalité(nNatifEN, 5.0, "VectorDistance(v, w) = 5.0")
+FIN
+
+
+// Un opérande tableau (littéral ou variable) est refusé, comme pour
+// l'arithmétique Vecteur : conversion explicite requise.
+PROCEDURE PRIVÉE scenario_edge_operande_tableau_refuse()
+	v est un Vecteur = [0.0, 0.0]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = VecteurDistance(v, [3.0, 4.0])
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "VecteurDistance(v, [littéral]) refusé")
+FIN
+
+
+// Des Vecteur de tailles différentes ne peuvent pas être combinés : la
+// distance lève l'exception dédiée, pas un calcul tronqué.
+PROCEDURE PRIVÉE scenario_edge_tailles_incompatibles()
+	vCourt est un Vecteur = [1.0, 2.0]
+	vLong est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un réel = VecteurDistance(vCourt, vLong)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg    = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Tailles différentes attrapées")
+	dbgVérifieVrai(Contient(sMsg, "incompatibles"), "message dédié tailles incompatibles")
+FIN

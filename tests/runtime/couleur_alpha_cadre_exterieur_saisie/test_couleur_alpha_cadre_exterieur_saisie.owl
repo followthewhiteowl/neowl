@@ -1,0 +1,33 @@
+//  (LOT 1) — opacité sur `Style..CadreExtérieur..CouleurFond` d'un
+// Champ Saisie, rendu en QSS (background-color) sur le wrapper qui enveloppe
+// le QLineEdit (celui-ci devient transparent dès qu'un fond de wrapper est
+// posé, cf. couleur_alpha_fond : sampling au centre déjà fiable).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur).
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg = VERT PUR (0,255,0), bg = ROUGE PUR (255,0,0), a = 128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaCadreExtSaisie)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaCadreExtSaisie)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque : SAI_Opaque [X=20..320,Y=20..70], centre=(170,45) --
+dbgVérifieEgalité(dPixelCouleur(img, 170, 45), RVB(0, 255, 0),
+"SAI_Opaque : Style..CadreExtérieur..CouleurFond = RVB(0,255,0) (entier nu opaque) : vert pur, non-régression")
+
+// --- 2. SAI_Alpha [X=20..320,Y=100..150], centre=(170,125) -----------------
+dbgVérifieEgalité(dPixelCouleur(img, 170, 125), RVB(127, 128, 0),
+"SAI_Alpha : Style..CadreExtérieur..CouleurFond = <Couleur Opacité=128> : centre mélangé avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaCadreExtSaisie)
+dbgBilanTest()

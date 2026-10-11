@@ -1,0 +1,43 @@
+// Régression : Ajoute(tab_typé_struct, [v1, v2, ...]) coerce en instance
+// de structure par matching positionnel (ordre de déclaration des champs).
+
+STPoint est une Structure
+	X est un entier
+	Y est un entier
+	Etiquette est une chaîne
+FIN
+
+tabPoints est un tableau de STPoint
+
+// Ajout complet par array literal
+Ajoute(tabPoints, [10, 20, "origin"])
+dbgVérifieEgalité(tabPoints..Occurrence, 1, "1 point après coercion")
+dbgVérifieEgalité(tabPoints[1].X, 10, "X = 10")
+dbgVérifieEgalité(tabPoints[1].Y, 20, "Y = 20")
+dbgVérifieEgalité(tabPoints[1].Etiquette, "origin", "Etiquette = origin")
+
+// Ajout partiel (moins de valeurs que de champs) — champs restants restent
+// à leur valeur par défaut du template
+Ajoute(tabPoints, [5, 6])
+dbgVérifieEgalité(tabPoints[2].X, 5, "ajout partiel X")
+dbgVérifieEgalité(tabPoints[2].Y, 6, "ajout partiel Y")
+// Etiquette est la valeur par défaut (chaîne vide "", zero-value OWL)
+dbgVérifieVrai(tabPoints[2].Etiquette = "" OU EstNul(tabPoints[2].Etiquette),
+"Etiquette manquant = zero-value")
+
+// Ajout via variable structure temporaire (l'autre syntaxe de référence)
+stTmp est un STPoint
+stTmp.X = 100
+stTmp.Y = 200
+stTmp.Etiquette = "via var"
+Ajoute(tabPoints, stTmp)
+dbgVérifieEgalité(tabPoints..Occurrence, 3, "3 points total")
+dbgVérifieEgalité(tabPoints[3].X, 100, "via var X")
+dbgVérifieEgalité(tabPoints[3].Etiquette, "via var", "via var Etiquette")
+
+// Sur un tableau NON typé struct, le comportement concat reste en vigueur
+tabLibre est un tableau de entiers
+Ajoute(tabLibre, [1, 2, 3])
+dbgVérifieEgalité(tabLibre..Occurrence, 3, "concat normal sans coercion")
+
+dbgBilanTest()

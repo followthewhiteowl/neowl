@@ -1,0 +1,24 @@
+// Regression ordre-independant : helper declare APRES un Conteneur a widgets
+// imbriques, une forme courte de SI et une chaine elif. Sans les correctifs
+// du pre-scan, DernierHelper n'est pas pre-enregistre -> "fonction inconnue"
+// a la compilation du handler surBoutonGauche.
+//
+// Verifie aussi que AvecElif evalue correctement (n=2 -> 20), donc que la
+// chaine conditionnelle reste intacte.
+
+TestModeHeadless(Vrai)
+
+marqueur est un entier = -1
+
+PROCEDURE callback_observe(tag est une chaîne, val est un entier)
+	SI tag = "dernier" ALORS
+		marqueur = val
+	FIN
+FIN
+
+Ouvre(FEN_ConteneurHelpers)
+
+TestSimuleSouris(BTN_Action, ClicGauche)
+dbgVérifieEgalité(marqueur, 20, "DernierHelper (apres conteneur + SI court + elif) resolu + execute")
+
+dbgBilanTest()

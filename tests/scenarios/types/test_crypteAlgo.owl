@@ -1,0 +1,34 @@
+// @sujet : crypteAlgo
+// @résumé : Enum des algorithmes de chiffrement acceptés par CrypteStandard et DécrypteStandard. Deux membres : AES-128 bits (crypteAES128) et AES-256 bits (crypteAES256). DES et 3DES sont absents (retirés, non sécures).
+
+
+// crypteAES128 : chiffrement AES-128 (round-trip minimal).
+PROCEDURE PUBLIQUE scenario_chiffrement_aes128()
+	msg est une chaîne = "donnée confidentielle"
+	cle est une chaîne = "ma-clé-secrète"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCBC)
+	dbgVérifieVrai(Taille(buf) > 0, "CrypteStandard avec crypteAES128 produit un buffer non vide")
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES128, crypteCBC)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-128 CBC restitue le message d'origine")
+FIN
+
+
+// crypteAES256 : chiffrement AES-256 (round-trip minimal).
+PROCEDURE PUBLIQUE scenario_chiffrement_aes256()
+	msg est une chaîne = "donnée confidentielle 256"
+	cle est une chaîne = "clé-256-bits"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	dbgVérifieVrai(Taille(buf) > 0, "CrypteStandard avec crypteAES256 produit un buffer non vide")
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCBC)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256 CBC restitue le message d'origine")
+FIN
+
+
+// Les deux algos produisent des chiffrés différents pour la même entrée.
+PROCEDURE PRIVÉE scenario_algos_different_cipher()
+	msg est une chaîne = "même message"
+	cle est une chaîne = "clé-commune"
+	buf128 est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCBC)
+	buf256 est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	dbgVérifieVrai(buf128 <> buf256, "AES-128 et AES-256 produisent des chiffrés distincts")
+FIN

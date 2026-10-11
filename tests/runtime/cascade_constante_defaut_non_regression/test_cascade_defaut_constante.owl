@@ -1,0 +1,27 @@
+//  (support #222) — non-regression cascade d'erreurs.
+// Avant , une CONSTANT nommee comme valeur par defaut de parametre
+// etait rejetee (E_SEM_DEFAULT_MUST_BE_LITERAL) ET la recuperation d'erreur
+// cassait le parse du corps : une variable LOCALE declaree juste apres
+// (iOptions) etait faussement signalee "inconnue" -- 2e erreur fantome qui
+// disparaissait des qu'on remplacait la constante par un litteral.
+//  accepte la constante -> plus de rejet -> plus de cascade.
+// Ce test verrouille : la variable locale du corps est bien resolue et le
+// defaut par constante s'applique reellement.
+
+CONSTANT
+	hLstNormal1311 = 256
+FIN
+
+PROCEDURE hListFile1311(ipar_Options est un entier = hLstNormal1311)
+	iOptions est un entier = ipar_Options
+	SI iOptions - hLstNormal1311 >= 0 ALORS
+		iOptions -= hLstNormal1311
+	FIN
+	RENVOYER iOptions
+FIN
+
+nDefaut1311 est un entier = hListFile1311()
+dbgVérifieEgalité(nDefaut1311, 0, "defaut constante 256 : iOptions=256, 256-256 -> 0 (variable locale resolue, pas de fausse erreur inconnue)")
+nArg1311 est un entier = hListFile1311(300)
+dbgVérifieEgalité(nArg1311, 44, "arg 300 : 300-256 -> 44")
+dbgBilanTest()

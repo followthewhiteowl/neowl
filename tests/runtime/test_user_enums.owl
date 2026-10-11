@@ -1,0 +1,35 @@
+// Test: user-defined enumerations et combinaisons
+// Post +0299, le type et l'instance ne peuvent plus partager le même
+// nom case-insensitive (Couleur/couleur). Les variables d'instance ont un
+// nom préfixé/distinctif.
+
+// Énumération simple
+Couleur est une Énumération
+	Rouge
+	Vert
+	Bleu
+FIN
+
+maCouleur est une Couleur
+maCouleur = Rouge
+dbgVérifieEgalité(maCouleur, Rouge, "enum Rouge")
+
+SI maCouleur = Rouge ALORS
+	maCouleur = Bleu
+FIN
+dbgVérifieEgalité(maCouleur, Bleu, "enum switch Rouge->Bleu")
+
+// Combinaison (flags)
+Options est une Combinaison
+	Option1
+	Option2
+	Option3
+FIN
+
+mesOpts est une Options
+mesOpts = Option1 + Option3
+dbgVérifieVrai(ETBinaire(mesOpts..Valeur, Option1..Valeur) <> 0, "combinaison Option1 présente")
+dbgVérifieVrai(ETBinaire(mesOpts..Valeur, Option2..Valeur) = 0, "combinaison Option2 absente")
+dbgVérifieVrai(ETBinaire(mesOpts..Valeur, Option3..Valeur) <> 0, "combinaison Option3 présente")
+
+dbgBilanTest()

@@ -1,0 +1,137 @@
+// @sujet : SELON Vrai — aiguillage par conditions booléennes complexes
+// @résumé : L'idiome `SELON Vrai` retourne le contrôle aux CAS dont la condition s'évalue à Vrai. Chaque CAS contient alors une expression booléenne quelconque — comparaison, combinaison ET/OU, appel de fonction renvoyant un booléen. Le premier CAS Vrai exécute son bloc, les suivants sont ignorés. C'est l'équivalent compact d'une cascade `SI ... SINON SI ... SINON SI ...` quand toutes les branches partagent la même structure logique. Pas de nouveauté syntaxique : c'est le mécanisme SELON standard appliqué à la sentinelle `Vrai`.
+
+
+// Cas canonique : cascade de conditions hétérogènes. L'idiome `SELON Vrai`
+// est apprécié pour sa lisibilité quand on a une succession de tests qui
+// ne portent pas tous sur la même variable. Lecture naturelle « parmi ces
+// conditions, prends la première qui est vraie ».
+PROCEDURE scenario_cascade_conditions()
+	nAge est un entier = 25
+	bEtudiant est un booléen = Vrai
+	sCategorie est une chaîne = ""
+	SELON Vrai
+		CAS nAge < 18           : sCategorie = "mineur"
+		CAS bEtudiant           : sCategorie = "étudiant"
+		CAS nAge >= 65          : sCategorie = "senior"
+		AUTRE CAS               : sCategorie = "adulte"
+	FIN
+	dbgVérifieEgalité(sCategorie, "étudiant", "25 ans, étudiant → second CAS matche")
+
+	bEtudiant = Faux
+	SELON Vrai
+		CAS nAge < 18           : sCategorie = "mineur"
+		CAS bEtudiant           : sCategorie = "étudiant"
+		CAS nAge >= 65          : sCategorie = "senior"
+		AUTRE CAS               : sCategorie = "adulte"
+	FIN
+	dbgVérifieEgalité(sCategorie, "adulte", "Aucun CAS Vrai → AUTRE CAS")
+FIN
+
+
+// Combinaison ET/OU dans une condition de CAS. Permet d'exprimer des règles
+// composées sans imbriquer des SI. Le court-circuit de ET et OU s'applique
+// normalement à l'intérieur d'un CAS comme dans toute expression.
+PROCEDURE scenario_conditions_combinees()
+	nScore est un entier = 14
+	bReussi est un booléen = Vrai
+	sMention est une chaîne = ""
+	SELON Vrai
+		CAS nScore >= 16                        : sMention = "très bien"
+		CAS nScore >= 14 ET bReussi             : sMention = "bien"
+		CAS nScore >= 10 OU bReussi             : sMention = "passable"
+		AUTRE CAS                               : sMention = "ajourné"
+	FIN
+	dbgVérifieEgalité(sMention, "bien", "14 + réussi → CAS combiné par ET")
+
+	nScore  = 12
+	bReussi = Faux
+	SELON Vrai
+		CAS nScore >= 16                        : sMention = "très bien"
+		CAS nScore >= 14 ET bReussi             : sMention = "bien"
+		CAS nScore >= 10 OU bReussi             : sMention = "passable"
+		AUTRE CAS                               : sMention = "ajourné"
+	FIN
+	dbgVérifieEgalité(sMention, "passable", "12 + non réussi → CAS combiné par OU avec membre gauche Vrai")
+FIN
+
+
+// Une condition de CAS peut contenir un appel de fonction qui renvoie
+// un booléen. Le compteur d'appels du scénario démontre qu'une fonction
+// n'est invoquée que si on atteint son CAS — les CAS précédents qui
+// matchent court-circuitent la cascade.
+nAppelsEstAdulte est un entier = 0
+
+PROCEDURE PRIVÉE EstAdulte(nAgeArg est un entier) : booléen
+	nAppelsEstAdulte = nAppelsEstAdulte + 1
+	RENVOYER nAgeArg >= 18
+FIN
+
+PROCEDURE scenario_appel_fonction_en_condition()
+	nAppelsEstAdulte = 0
+	nAge est un entier = 30
+	sStatut est une chaîne = ""
+	SELON Vrai
+		CAS nAge < 13      : sStatut = "enfant"
+		CAS EstAdulte(nAge) : sStatut = "adulte"
+		AUTRE CAS          : sStatut = "ado"
+	FIN
+	dbgVérifieEgalité(sStatut, "adulte", "Appel de fonction comme condition de CAS")
+	dbgVérifieEgalité(nAppelsEstAdulte, 1, "EstAdulte n'est appelée qu'au moment de tester son CAS")
+
+	nAppelsEstAdulte = 0
+	nAge             = 10
+	SELON Vrai
+		CAS nAge < 13      : sStatut = "enfant"
+		CAS EstAdulte(nAge) : sStatut = "adulte"
+		AUTRE CAS          : sStatut = "ado"
+	FIN
+	dbgVérifieEgalité(sStatut, "enfant", "Premier CAS matche en court-circuit")
+	dbgVérifieEgalité(nAppelsEstAdulte, 0, "Le CAS suivant n'est jamais évalué → EstAdulte non appelée")
+FIN
+
+
+// AUTRE CAS final reste optionnel. Si aucun CAS ne matche et qu'il n'y a
+// pas d'AUTRE CAS, le SELON ne fait simplement rien — pas d'erreur, pas
+// d'avertissement. Comportement aligné sur les autres formes de SELON.
+PROCEDURE scenario_aucun_cas_matche_sans_autre()
+	bExecute est un booléen = Faux
+	nValeur est un entier = 5
+	SELON Vrai
+		CAS nValeur > 100 : bExecute = Vrai
+		CAS nValeur < 0   : bExecute = Vrai
+	FIN
+	dbgVérifieFaux(bExecute, "Aucun CAS ne matche, pas d'AUTRE CAS → SELON sans effet")
+FIN
+
+
+// `SELON Vrai` imbriqué dans un SI. Démontre que l'idiome se compose sans
+// difficulté avec les autres structures de contrôle. Chaque niveau garde
+// sa propre logique.
+PROCEDURE scenario_imbrication_dans_si()
+	nValeur est un entier = 50
+	bMode est un booléen = Vrai
+	sResultat est une chaîne = ""
+	SI bMode ALORS
+		SELON Vrai
+			CAS nValeur < 10  : sResultat = "petit"
+			CAS nValeur < 100 : sResultat = "moyen"
+			AUTRE CAS         : sResultat = "grand"
+		FIN
+	SINON
+		sResultat = "désactivé"
+	FIN
+	dbgVérifieEgalité(sResultat, "moyen", "SELON Vrai imbriqué dans SI : 50 ∈ [10, 100)")
+
+	bMode = Faux
+	SI bMode ALORS
+		SELON Vrai
+			CAS nValeur < 10  : sResultat = "petit"
+			CAS nValeur < 100 : sResultat = "moyen"
+			AUTRE CAS         : sResultat = "grand"
+		FIN
+	SINON
+		sResultat = "désactivé"
+	FIN
+	dbgVérifieEgalité(sResultat, "désactivé", "Branche SINON empruntée, SELON non traversé")
+FIN

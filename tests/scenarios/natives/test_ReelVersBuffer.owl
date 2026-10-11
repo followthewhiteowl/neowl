@@ -1,0 +1,104 @@
+// @sujet : RéelVersBuffer
+// @résumé : Produit une séquence d'octets binaire représentant un nombre réel au format IEEE 754. La taille est 4 (simple précision, 32 bits) ou 8 (double précision, 64 bits) — toute autre taille lève une exception. Le boutisme (petit-boutiste par défaut ou grand-boutiste) est précisé en paramètre facultatif.
+
+
+// Cas A : 1.5 sur 8 octets (double précision), boutisme petit (défaut).
+// IEEE 754 double 1.5 = 0x3FF8000000000000 → octets LE : 00 00 00 00 00 00 F8 3F.
+PROCEDURE PUBLIQUE scenario_double_petit_boutiste()
+	buf est un buffer = RéelVersBuffer(1.5, 8)
+	dbgVérifieEgalité(Taille(buf), 8, "RéelVersBuffer(1.5, 8) produit 8 octets")
+	o7 est un entier = BufferLitOctet(buf, 7)
+	o8 est un entier = BufferLitOctet(buf, 8)
+	dbgVérifieEgalité(o7, 248, "octet 7 = 0xF8 (248)")
+	dbgVérifieEgalité(o8, 63, "octet 8 = 0x3F (63) — poids fort")
+FIN
+
+
+// Cas B : 1.5 sur 4 octets (simple précision), boutisme petit (défaut).
+// IEEE 754 float 1.5 = 0x3FC00000 → octets LE : 00 00 C0 3F.
+PROCEDURE PUBLIQUE scenario_float_petit_boutiste()
+	buf est un buffer = RéelVersBuffer(1.5, 4)
+	dbgVérifieEgalité(Taille(buf), 4, "RéelVersBuffer(1.5, 4) produit 4 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	o3 est un entier = BufferLitOctet(buf, 3)
+	o4 est un entier = BufferLitOctet(buf, 4)
+	dbgVérifieEgalité(o1, 0, "octet 1 = 0x00")
+	dbgVérifieEgalité(o2, 0, "octet 2 = 0x00")
+	dbgVérifieEgalité(o3, 192, "octet 3 = 0xC0 (192)")
+	dbgVérifieEgalité(o4, 63, "octet 4 = 0x3F (63) — poids fort")
+FIN
+
+
+// Cas C : 1.5 sur 4 octets, boutisme grand — ordre inversé par rapport au cas B.
+// 0x3FC00000 → octets BE : 3F C0 00 00.
+PROCEDURE PUBLIQUE scenario_float_gros_boutiste()
+	buf est un buffer = RéelVersBuffer(1.5, 4, boutismeGros)
+	dbgVérifieEgalité(Taille(buf), 4, "boutismeGros sur 4 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	o3 est un entier = BufferLitOctet(buf, 3)
+	o4 est un entier = BufferLitOctet(buf, 4)
+	dbgVérifieEgalité(o1, 63, "octet 1 = 0x3F (63) — poids fort en premier")
+	dbgVérifieEgalité(o2, 192, "octet 2 = 0xC0 (192)")
+	dbgVérifieEgalité(o3, 0, "octet 3 = 0x00")
+	dbgVérifieEgalité(o4, 0, "octet 4 = 0x00")
+FIN
+
+
+// Cas D : taille invalide — 2 n'est pas dans {4,8} → exception.
+PROCEDURE PUBLIQUE scenario_taille_invalide()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		RéelVersBuffer(1.5, 2)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "taille 2 non autorisée pour un réel lève une exception")
+FIN
+
+
+// Edge case : 0.0 sur 8 octets (double) — représentation IEEE 754 : tous les octets nuls.
+PROCEDURE PRIVÉE scenario_edge_zero_double()
+	buf est un buffer = RéelVersBuffer(0.0, 8)
+	dbgVérifieEgalité(Taille(buf), 8, "taille = 8 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o8 est un entier = BufferLitOctet(buf, 8)
+	dbgVérifieEgalité(o1, 0, "octet 1 = 0 (0.0 IEEE 754)")
+	dbgVérifieEgalité(o8, 0, "octet 8 = 0 (0.0 IEEE 754)")
+FIN
+
+
+// Edge case : 0.0 sur 4 octets (float) — représentation IEEE 754 : tous les octets nuls.
+PROCEDURE PRIVÉE scenario_edge_zero_float()
+	buf est un buffer = RéelVersBuffer(0.0, 4)
+	dbgVérifieEgalité(Taille(buf), 4, "taille = 4 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o4 est un entier = BufferLitOctet(buf, 4)
+	dbgVérifieEgalité(o1, 0, "octet 1 = 0 (0.0 IEEE 754 float)")
+	dbgVérifieEgalité(o4, 0, "octet 4 = 0 (0.0 IEEE 754 float)")
+FIN
+
+
+// Edge case : taille 1 → exception (hors {4,8}).
+PROCEDURE PRIVÉE scenario_edge_taille_1()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		RéelVersBuffer(1.5, 1)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "taille 1 non autorisée pour un réel lève une exception")
+FIN
+
+
+// Edge case : 1.5 sur 8 octets, boutisme grand.
+// 0x3FF8000000000000 → octets BE : 3F F8 00 00 00 00 00 00.
+PROCEDURE PRIVÉE scenario_edge_double_gros_boutiste()
+	buf est un buffer = RéelVersBuffer(1.5, 8, boutismeGros)
+	dbgVérifieEgalité(Taille(buf), 8, "boutismeGros 8 octets")
+	o1 est un entier = BufferLitOctet(buf, 1)
+	o2 est un entier = BufferLitOctet(buf, 2)
+	dbgVérifieEgalité(o1, 63, "octet 1 = 0x3F (63) — poids fort en premier")
+	dbgVérifieEgalité(o2, 248, "octet 2 = 0xF8 (248)")
+FIN

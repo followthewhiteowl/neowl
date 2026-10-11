@@ -1,0 +1,92 @@
+// @sujet : Agrège
+// @résumé : Agrège (réduction/fold sur tableau)
+// Scénario : native Agrège (réduction/fold sur tableau)
+// Démonstration pédagogique des formes d'usage et cas limites
+
+// Callbacks de réduction (déclarés avant usage en PRIVE)
+PROCEDURE PRIVÉE sommeCallback(val est un entier, acc est un entier) : entier
+	RENVOYER acc + val
+FIN
+
+PROCEDURE PRIVÉE concatCallback(val est une chaîne, acc est une chaîne) : chaîne
+	RENVOYER acc + val
+FIN
+
+PROCEDURE PRIVÉE sommeNotesCallback(val est un entier, acc est un entier) : entier
+	RENVOYER acc + val
+FIN
+
+PROCEDURE PRIVÉE convertChiffresCallback(val est un entier, acc est une chaîne) : chaîne
+	SI acc = Null ALORS
+		RENVOYER ChaîneConstruit("%1", val)
+	FIN
+	RENVOYER acc + ChaîneConstruit("%1", val)
+FIN
+
+PROCEDURE PRIVÉE maxCallback(val est un entier, acc est un entier) : entier
+	SI val > acc ALORS
+		RENVOYER val
+	FIN
+	RENVOYER acc
+FIN
+
+// Somme simple d'un tableau d'entiers via réduction
+PROCEDURE PUBLIQUE scenario_somme_entiers()
+	valeurs est un tableau d'entiers = [10, 20, 30, 40]
+
+	somme est un entier = Agrège(valeurs, sommeCallback, 0)
+
+	dbgVérifieEgalité(somme, 100, "somme tableau [10,20,30,40]")
+FIN
+
+// Concaténation de chaînes via réduction avec séparateur
+PROCEDURE PUBLIQUE scenario_concat_chaines()
+	mots est un tableau de chaînes = ["Bon", "jour", "monde"]
+
+	resultat est une chaîne = Agrège(mots, concatCallback, "")
+
+	dbgVérifieEgalité(resultat, "Bonjourmonde", "concat sans séparateur")
+FIN
+
+// Forme méthode sur tableau associatif : Agrège accepte aussi
+// l'arity 2 (val, acc) en mode associatif, la clé est simplement
+// ignorée par le callback. (Pour un callback qui utilise la clé,
+// voir doc canon : signature 3-arg (val, cle, acc).)
+PROCEDURE PUBLIQUE scenario_associatif_callback_arity2()
+	notes est un tableau associatif de entiers
+	notes["alice"] = 85
+	notes["bob"] = 92
+	notes["charlie"] = 78
+
+	total est un entier = notes.Agrège(sommeNotesCallback, 0)
+
+	dbgVérifieEgalité(total, 255, "somme notes associatives (85+92+78)")
+FIN
+
+// Cas limite : tableau vide retourne la valeur initiale
+PROCEDURE PUBLIQUE scenario_tableau_vide_valeur_initiale()
+	vide est un tableau d'entiers
+
+	resultat est un entier = Agrège(vide, sommeCallback, 42)
+
+	dbgVérifieEgalité(resultat, 42, "tableau vide renvoie valeur initiale 42")
+FIN
+
+// Cas limite : réduction avec valeur initiale nulle (Null)
+PROCEDURE PUBLIQUE scenario_valeur_initiale_par_defaut()
+	chiffres est un tableau d'entiers = [1, 2, 3]
+
+	// valeur initiale omise → Null, puis le callback prend le relais
+	resultat est une chaîne = Agrège(chiffres, convertChiffresCallback)
+
+	dbgVérifieEgalité(resultat, "123", "conversion tableau entiers en chaîne sans valeur initiale")
+FIN
+
+// Cas extrême : réduction avec opération qui accumule le maximum
+PROCEDURE PUBLIQUE scenario_max_via_reduction()
+	nombres est un tableau d'entiers = [42, 18, 99, 7, 63]
+
+	maxVal est un entier = Agrège(nombres, maxCallback, 0)
+
+	dbgVérifieEgalité(maxVal, 99, "maximum tableau via réduction")
+FIN

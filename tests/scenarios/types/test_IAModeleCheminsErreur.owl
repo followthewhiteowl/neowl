@@ -1,0 +1,258 @@
+// @sujet : IAModèle — chemins d'erreur (arguments invalides, JSON malformé)
+// @résumé : les méthodes de IAModèle signalent leurs erreurs par le mécanisme
+// récupérable ErreurDétectée : l'appel ne lève pas d'exception, il pose le
+// drapeau ErreurDétectée à Vrai et rend une valeur sentinelle (Nul pour les
+// méthodes qui rendent d'ordinaire un objet, Faux pour .Charge), sans jamais
+// crasher ni corrompre le modèle receveur. ErreurDétectée se lit TOUJOURS en
+// premier après l'appel fautif : tout autre appel intercalé (assertion,
+// propriété) remet le drapeau à zéro.
+//
+// Couverture :
+//   - .AjouteCoucheDense : dimensions ≤ 0 ou type non numérique.
+//   - .Infère : argument non-Tenseur.
+//   - .Poids / .Biais : indice hors plage ou type non numérique.
+//   - .Entraîne : X/Y non-Tenseur, rang ≠ 2, nombres d'échantillons
+//     différents, options d'un type invalide.
+//   - ..TailleLot ≤ 0 : clampé silencieusement à 1 (pas une erreur —
+//     l'entraînement tourne quand même, un lot par échantillon).
+//   - .Charge : JSON syntaxiquement invalide, couche sans type, type de
+//     couche inconnu, fichier vide, fichier absent, et lignes de poids de
+//     longueur inégale — tous rejetés proprement (Faux + ErreurDétectée).
+
+// .AjouteCoucheDense avec une dimension nulle ou négative pose ErreurDétectée
+// et laisse le modèle intact (aucune couche ajoutée). Un type non numérique
+// pour une dimension est rejeté de la même façon.
+PROCEDURE PUBLIQUE scenario_ajoute_dense_dimensions_invalides()
+	mon est un IAModèle
+
+	ErreurRAZ()
+	mon.AjouteCoucheDense(0, 4)
+	dbgVérifieVrai(ErreurDétectée, "dimension nulle en entrée signale une erreur")
+	dbgVérifieEgalité(mon..NbCouches, 0, "aucune couche n'est ajoutée après une dimension nulle")
+
+	ErreurRAZ()
+	mon.AjouteCoucheDense(3, -2)
+	dbgVérifieVrai(ErreurDétectée, "dimension négative en sortie signale une erreur")
+	dbgVérifieEgalité(mon..NbCouches, 0, "aucune couche n'est ajoutée après une dimension négative")
+
+	ErreurRAZ()
+	mon.AjouteCoucheDense("trois", 4)
+	dbgVérifieVrai(ErreurDétectée, "dimension d'un type non numérique signale une erreur")
+	dbgVérifieEgalité(mon..NbCouches, 0, "aucune couche n'est ajoutée après un type de dimension invalide")
+FIN
+
+
+// .Infère avec un argument qui n'est pas un Tenseur pose ErreurDétectée et
+// rend Nul, sans crash.
+PROCEDURE PUBLIQUE scenario_infere_argument_non_tenseur()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	ErreurRAZ()
+	mon.Infère(42)
+	dbgVérifieVrai(ErreurDétectée, "un argument non-Tenseur passé à .Infère signale une erreur")
+
+	ErreurRAZ()
+	mon.Infère("pas un tenseur")
+	dbgVérifieVrai(ErreurDétectée, "une chaîne passée à .Infère signale une erreur")
+FIN
+
+
+// .Poids et .Biais avec un indice hors plage (aucune couche dense à cet
+// indice) posent ErreurDétectée. Un indice d'un type non numérique est
+// rejeté de la même façon.
+PROCEDURE PUBLIQUE scenario_poids_biais_indice_invalide()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 4)
+	mon.AjouteCoucheReLU()
+	mon.AjouteCoucheDense(4, 2)
+
+	ErreurRAZ()
+	mon.Poids(99)
+	dbgVérifieVrai(ErreurDétectée, "un indice hors plage passé à .Poids signale une erreur")
+
+	ErreurRAZ()
+	mon.Poids(0)
+	dbgVérifieVrai(ErreurDétectée, "l'indice 0 (base 1) est hors plage pour .Poids")
+
+	ErreurRAZ()
+	mon.Biais(99)
+	dbgVérifieVrai(ErreurDétectée, "un indice hors plage passé à .Biais signale une erreur")
+
+	ErreurRAZ()
+	mon.Poids("un")
+	dbgVérifieVrai(ErreurDétectée, "un indice d'un type non numérique passé à .Poids signale une erreur")
+
+	// L'indice 2 est valide (2 couches denses) : aucune erreur, et le
+	// modèle reste utilisable après les rejets précédents.
+	ErreurRAZ()
+	tW est un Tenseur = mon.Poids(2)
+	dbgVérifieFaux(ErreurDétectée, "un indice valide ne signale aucune erreur")
+	matW est une Matrice = tW..Valeur
+	dbgVérifieEgalité(matW..Lignes, 4, "Poids(2) reste accessible : (entrées×sorties) = (4×2)")
+FIN
+
+
+// .Entraîne rejette proprement chaque forme d'entrée invalide via
+// ErreurDétectée : X ou Y non-Tenseur, rang ≠ 2, nombres d'échantillons
+// différents, options d'un type qui n'est pas OptionsEntraînement.
+PROCEDURE PUBLIQUE scenario_entraine_arguments_invalides()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	opts est un OptionsEntraînement
+	opts..Époques = 1
+
+	matX est une Matrice = [[1.0, 2.0, 3.0], [0.0, 1.0, -1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	ErreurRAZ()
+	mon.Entraîne(42, tY, opts)
+	dbgVérifieVrai(ErreurDétectée, "X non-Tenseur passé à .Entraîne signale une erreur")
+
+	ErreurRAZ()
+	mon.Entraîne(tX, "pas un tenseur", opts)
+	dbgVérifieVrai(ErreurDétectée, "Y non-Tenseur passé à .Entraîne signale une erreur")
+
+	// Rang ≠ 2 : des Tenseurs 1D au lieu de matrices N×features.
+	x1D est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	y1D est un Tenseur = Tenseur([1.0, 0.0])
+	ErreurRAZ()
+	mon.Entraîne(x1D, y1D, opts)
+	dbgVérifieVrai(ErreurDétectée, "des Tenseurs de rang ≠ 2 passés à .Entraîne signalent une erreur")
+
+	// Nombres d'échantillons différents : X a 2 lignes, Y en a 3.
+	matY3 est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 0.0]]
+	tY3 est un Tenseur = Tenseur(matY3)
+	ErreurRAZ()
+	mon.Entraîne(tX, tY3, opts)
+	dbgVérifieVrai(ErreurDétectée, "X et Y avec des nombres d'échantillons différents signalent une erreur")
+
+	// Options d'un type invalide (un entier au lieu d'OptionsEntraînement).
+	ErreurRAZ()
+	mon.Entraîne(tX, tY, 42)
+	dbgVérifieVrai(ErreurDétectée, "des options d'un type invalide passées à .Entraîne signalent une erreur")
+FIN
+
+
+// ..TailleLot ≤ 0 est clampé silencieusement à 1 : l'entraînement tourne
+// (un mini-lot par échantillon), ne signale aucune erreur, et modifie bien
+// les poids. C'est un clamp délibéré, pas un rejet — il évite une boucle qui
+// n'avancerait jamais (pas de progression avec un lot de taille nulle).
+PROCEDURE PUBLIQUE scenario_taille_lot_non_positive_clampee_a_un()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(3, 2)
+
+	matX est une Matrice = [[1.0, -1.0, 2.0], [0.0, 2.0, -1.0], [-2.0, 1.0, 1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 0.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	valAvant est une Matrice = mon.Poids(1)..Valeur
+	poidsAvant est un réel = valAvant[1][1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 5
+	opts..TailleLot         = 0
+	opts..TauxApprentissage = 0.1
+	opts..Perte             = perteEntropieCroisée
+
+	ErreurRAZ()
+	mon.Entraîne(tX, tY, opts)
+	dbgVérifieFaux(ErreurDétectée, "TailleLot ≤ 0 est clampé à 1, ce n'est pas une erreur")
+
+	valApres est une Matrice = mon.Poids(1)..Valeur
+	poidsApres est un réel = valApres[1][1]
+	dbgVérifieVrai(Abs(poidsApres - poidsAvant) > 0.0000000001, "l'entraînement a réellement tourné avec le lot clampé à 1 (les poids ont changé)")
+FIN
+
+
+// .Charge d'un JSON malformé échoue proprement : rend Faux, pose
+// ErreurDétectée, ne crashe pas, et ne corrompt pas le modèle receveur.
+// Cinq formes de malformation, toutes traitées de la même manière.
+PROCEDURE PUBLIQUE scenario_charge_json_malforme_rejete_proprement()
+	// 1. Syntaxe JSON invalide.
+	cheminSyntaxe est une chaîne = fRepTemp() + "owl_test_iamodele_err_syntaxe.json"
+	fSauveTexte(cheminSyntaxe, `{ ceci n'est pas du JSON`)
+	m1 est un IAModèle
+	ErreurRAZ()
+	r1 est un booléen = m1.Charge(cheminSyntaxe)
+	dbgVérifieVrai(ErreurDétectée, "un JSON syntaxiquement invalide fait signaler une erreur à .Charge")
+	dbgVérifieEgalité(r1, Faux, "un JSON syntaxiquement invalide fait rendre Faux à .Charge")
+	fSupprime(cheminSyntaxe)
+
+	// 2. Couche dense sans champ type.
+	cheminSansType est une chaîne = fRepTemp() + "owl_test_iamodele_err_sanstype.json"
+	fSauveTexte(cheminSansType, `{"couches":[{"poids":[[1.0,2.0]],"biais":[0.0,0.0]}]}`)
+	m2 est un IAModèle
+	ErreurRAZ()
+	r2 est un booléen = m2.Charge(cheminSansType)
+	dbgVérifieVrai(ErreurDétectée, "une couche sans champ type fait signaler une erreur à .Charge")
+	dbgVérifieEgalité(r2, Faux, "une couche sans champ type fait rendre Faux à .Charge")
+	fSupprime(cheminSansType)
+
+	// 3. Type de couche inconnu.
+	cheminTypeInconnu est une chaîne = fRepTemp() + "owl_test_iamodele_err_typeinconnu.json"
+	fSauveTexte(cheminTypeInconnu, `{"couches":[{"type":"convolution"}]}`)
+	m3 est un IAModèle
+	ErreurRAZ()
+	r3 est un booléen = m3.Charge(cheminTypeInconnu)
+	dbgVérifieVrai(ErreurDétectée, "un type de couche inconnu fait signaler une erreur à .Charge")
+	dbgVérifieEgalité(r3, Faux, "un type de couche inconnu fait rendre Faux à .Charge")
+	fSupprime(cheminTypeInconnu)
+
+	// 4. Fichier vide.
+	cheminVide est une chaîne = fRepTemp() + "owl_test_iamodele_err_vide.json"
+	fSauveTexte(cheminVide, "")
+	m4 est un IAModèle
+	ErreurRAZ()
+	r4 est un booléen = m4.Charge(cheminVide)
+	dbgVérifieVrai(ErreurDétectée, "un fichier vide fait signaler une erreur à .Charge")
+	dbgVérifieEgalité(r4, Faux, "un fichier vide fait rendre Faux à .Charge")
+	fSupprime(cheminVide)
+
+	// 5. Fichier absent.
+	cheminAbsent est une chaîne = fRepTemp() + "owl_test_iamodele_err_absent_xyzzy.json"
+	dbgVérifieEgalité(fFichierExiste(cheminAbsent), Faux, "précondition : le fichier n'existe pas")
+	m5 est un IAModèle
+	ErreurRAZ()
+	r5 est un booléen = m5.Charge(cheminAbsent)
+	dbgVérifieVrai(ErreurDétectée, "un fichier absent fait signaler une erreur à .Charge")
+	dbgVérifieEgalité(r5, Faux, "un fichier absent fait rendre Faux à .Charge")
+FIN
+
+
+// .Charge d'un JSON dont les lignes de poids sont de longueur inégale
+// (`[[1,2],[3]]`) est rejeté proprement : rend Faux, pose ErreurDétectée. Un
+// modèle aux poids incohérents ne doit pas être chargé en silence via un
+// zéro-remplissage — même traitement que les autres cas malformés.
+PROCEDURE PUBLIQUE scenario_charge_lignes_poids_inegales_rejetees()
+	chemin est une chaîne = fRepTemp() + "owl_test_iamodele_err_lignesinegales.json"
+	fSauveTexte(chemin, `{"couches":[{"type":"dense","poids":[[1.0,2.0],[3.0]],"biais":[0.0,0.0]}]}`)
+
+	mon est un IAModèle
+	ErreurRAZ()
+	résultat est un booléen = mon.Charge(chemin)
+	dbgVérifieVrai(ErreurDétectée, "des lignes de poids de longueur inégale font signaler une erreur à .Charge")
+	dbgVérifieEgalité(résultat, Faux, "des lignes de poids de longueur inégale font rendre Faux à .Charge (pas de zéro-remplissage silencieux)")
+
+	fSupprime(chemin)
+FIN
+
+
+// Forme anglaise .Load : un JSON malformé est rejeté avec le même contrat
+// observable que .Charge (Faux + ErreurDétectée).
+PROCEDURE PRIVÉE scenario_edge_load_forme_anglaise_json_malforme()
+	chemin is a string = fRepTemp() + "owl_test_iamodele_err_english.json"
+	fSauveTexte(chemin, `{ not valid json`)
+
+	mon is an AIModel
+	ErreurRAZ()
+	ok is a boolean = mon.Load(chemin)
+	dbgVérifieVrai(ErreurDétectée, "malformed JSON makes .Load flag an error")
+	dbgCheckEqual(ok, Faux, "malformed JSON makes .Load return Faux")
+
+	fSupprime(chemin)
+FIN

@@ -1,0 +1,23 @@
+//  — garde-fou anti-sur-rejet le plus important : un paramètre de
+// Fenêtre typé avec une STRUCTURE utilisateur (`o est un MaStructParam`)
+// doit toujours compiler et s'exécuter. La validation de type des
+// paramètres de fenêtre ne doit rejeter QUE les types réellement inconnus,
+// jamais un type utilisateur valide.
+
+TestModeHeadless(Vrai)
+
+nVu est un entier = 0
+
+PROCEDURE callback_type_user_struct(n est un entier)
+	nVu = n
+FIN
+
+o est un MaStructParam
+o.valeur = 42
+
+Ouvre(FEN_ParamUserStruct, o)
+
+dbgVérifieEgalité(nVu, 42, "param de type utilisateur toujours accepté et injecté")
+
+Ferme(FEN_ParamUserStruct)
+dbgBilanTest()

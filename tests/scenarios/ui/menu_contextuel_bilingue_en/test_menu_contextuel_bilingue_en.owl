@@ -1,0 +1,29 @@
+// Context menu, English canon forms: ContextMenu / Submenu / MenuOption /
+// MenuSeparator / Caption / onSelection compile and open without error,
+// attached to a field via the ContextMenu property. The onSelection
+// counters are read right after opening, before any interaction, so they
+// hold zero.
+//
+// EXPECTED RED: `ContextMenu` is not recognized yet, neither as a block
+// keyword nor as a field attach property.
+
+TestModeHeadless(Vrai)
+
+nCopy_obs est un entier = -1
+nPaste_obs est un entier = -1
+
+PROCEDURE cb_menu_en_counters(nCopy est un entier, nPaste est un entier)
+	nCopy_obs  = nCopy
+	nPaste_obs = nPaste
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_contextuel_en_arbre_complet_compile()
+	Ouvre(FEN_MenuContextuelEN)
+	dbgVérifieFaux(ErreurDétectée, "ContextMenu/Submenu/MenuOption/MenuSeparator (EN), attaché via ContextMenu : ouverture sans erreur")
+
+	ReadCountersEN()
+	dbgVérifieEgalité(nCopy_obs, 0, "Copy option: onSelection counter at zero before any interaction")
+	dbgVérifieEgalité(nPaste_obs, 0, "Paste option: onSelection counter at zero before any interaction")
+
+	Ferme(FEN_MenuContextuelEN)
+FIN

@@ -1,0 +1,52 @@
+// test_math_arity.owl
+// Verrouille les formes d'arite discretes des natives math
+// migrees depuis une signature variadique masquee : chaque forme valide
+// continue de compiler ET de s'executer correctement.
+
+PROCEDURE PUBLIQUE test_arrondi_formes()
+	// 1 arg : arrondi a l'entier
+	a1 est un entier = Arrondi(3.6)
+	dbgVérifieEgalité(a1, 4, "Arrondi 1 arg = entier le plus proche")
+	// 2 args : arrondi au nombre de decimales
+	a2 est un réel = Arrondi(3.14159, 2)
+	dbgVérifieEgalité(a2, 3.14, "Arrondi 2 args = decimales")
+FIN
+
+PROCEDURE PUBLIQUE test_inithasard_formes()
+	// 0 arg : graine fixe reproductible (extension OWL)
+	InitHasard()
+	premier est un entier = Hasard(1, 1000000)
+	InitHasard()
+	rejeu est un entier = Hasard(1, 1000000)
+	dbgVérifieEgalité(rejeu, premier, "InitHasard 0 arg = sequence reproductible")
+	// 1 arg : graine explicite
+	InitHasard(123)
+	g1 est un entier = Hasard(1, 1000000)
+	InitHasard(123)
+	g2 est un entier = Hasard(1, 1000000)
+	dbgVérifieEgalité(g2, g1, "InitHasard 1 arg = graine explicite reproductible")
+FIN
+
+PROCEDURE PUBLIQUE test_hasard_formes()
+	// 0 arg : reel dans [0,1[
+	r est un réel = Hasard()
+	dbgVérifieVrai(r >= 0.0 ET r < 1.0, "Hasard 0 arg dans [0,1[")
+	// 1 arg : entier dans [1,max]
+	e1 est un entier = Hasard(5)
+	dbgVérifieVrai(e1 >= 1 ET e1 <= 5, "Hasard 1 arg dans [1,max]")
+	// 2 args : entier dans [min,max]
+	e2 est un entier = Hasard(10, 20)
+	dbgVérifieVrai(e2 >= 10 ET e2 <= 20, "Hasard 2 args dans [min,max]")
+FIN
+
+PROCEDURE PUBLIQUE test_hasardsecurise_formes()
+	// 0 arg : reel dans [0,1[
+	r est un réel = HasardSécurisé()
+	dbgVérifieVrai(r >= 0.0 ET r < 1.0, "HasardSecurise 0 arg dans [0,1[")
+	// 1 arg : entier dans [1,max]
+	e1 est un entier = HasardSécurisé(5)
+	dbgVérifieVrai(e1 >= 1 ET e1 <= 5, "HasardSecurise 1 arg dans [1,max]")
+	// 2 args : entier dans [min,max]
+	e2 est un entier = HasardSécurisé(10, 20)
+	dbgVérifieVrai(e2 >= 10 ET e2 <= 20, "HasardSecurise 2 args dans [min,max]")
+FIN

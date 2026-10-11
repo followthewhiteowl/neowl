@@ -1,0 +1,76 @@
+// @sujet : IAModèle.ChargeONNX — import d'un MaxPool avec remplissage (padding)
+// @résumé : les vrais réseaux ONNX (ResNet-50, SqueezeNet) démarrent par un
+// MaxPool 3×3 pas 2 remplissage 1. Ce scénario importe une fixture
+// Conv → ReLU → MaxPool(3, pas 2, remplissage 1) → Flatten → Gemm et compare
+// l'inférence à un oracle capturé hors OWL (onnxruntime), avec tolérance
+// flottante.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_pool_pad.onnx.
+// Oracle : tests/internal_fixtures/onnx/fixture_pool_pad_oracle.json — entrée
+// [1,1,8,8] (flat[k] = k/64.0 pour k=0..63, reconstruite à la main ci-dessous
+// pour ne dépendre d'aucune lecture JSON), sortie attendue
+// [0.477649, 0.475464, -0.053274].
+//
+// Si le pooling avec remplissage n'est pas supporté par l'import, celui-ci
+// échoue proprement (ErreurDétectée), PAS un crash — message runtime
+// attendu : "MaxPool avec remplissage non supporte".
+PROCEDURE PUBLIQUE scenario_charge_onnx_maxpool_padde_infere_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_pool_pad.onnx")
+	// Capture immédiate : la sentinelle d'erreur est consommée au 1er appel
+	// natif suivant (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un MaxPool avec remplissage réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 63
+			brut.Ajoute(k / 64.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 8, 8])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = 0.4776493310928345
+		attendu2 est un réel = 0.47546350955963135
+		attendu3 est un réel = -0.05327361822128296
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (MaxPool paddé, tolérance flottante)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (MaxPool paddé, tolérance flottante)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (MaxPool paddé, tolérance flottante)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le même
+// comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_maxpool_padded_infer_equals_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_pool_pad.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a MaxPool with padding succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 63
+			raw.Ajoute(k / 64.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 1, 8, 8])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = 0.4776493310928345
+		expected2 is a real = 0.47546350955963135
+		expected3 is a real = -0.05327361822128296
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the padded-MaxPool oracle")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the padded-MaxPool oracle")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the padded-MaxPool oracle")
+	FIN
+FIN

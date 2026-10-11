@@ -1,0 +1,34 @@
+// Verrou  — les noms de blocs d'un Etat sont insensibles aux accents
+// comme le reste des identifiants du langage (invariant 2).
+//
+// Moitie "recherche" du verrou : un bloc declare "sep" est atteint par
+// iImprimeBloc("sép") et un bloc declare "séparateur" est atteint par
+// iImprimeBloc("separateur"). La moitie "declaration" (doublon accentue
+// refuse) est verrouillee par les fixtures compile-error
+// etat_bloc_doublon_accent / etat_bloc_doublon_casse.
+//
+// La ressource ETAT_BlocAccent vit dans le voisin ETAT_BlocAccent.owl.
+
+TestModeHeadless(Vrai)
+
+resAccent est un booléen = Faux
+resNu est un booléen = Faux
+
+PROCEDURE callback_resultat_accent(ok est un booléen)
+	resAccent = ok
+FIN
+
+PROCEDURE callback_resultat_nu(ok est un booléen)
+	resNu = ok
+FIN
+
+iDestination(iPDFGénérique, "tests/regression/etat_bloc_nom_accent/temp.pdf")
+iImprimeEtat(ETAT_BlocAccent)
+iFinImprime()
+
+dbgVérifieEgalité(resAccent, Vrai,
+`iImprimeBloc("sép") atteint le bloc declare "sep"`)
+dbgVérifieEgalité(resNu, Vrai,
+`iImprimeBloc("separateur") atteint le bloc declare "séparateur"`)
+
+dbgBilanTest()

@@ -1,0 +1,45 @@
+//  — Colonne de Table avec Visible = Faux masque la colonne au
+// runtime sans corrompre le modele.
+//
+// La colonne masquee reste dans le modele (setColumnHidden, pas de
+// suppression) : les donnees ne se decalent pas, les indices restent
+// coherents. En GUI la colonne est invisible ; en headless (owl test)
+// on verifie ce qui est observable sans widget Qt :
+//   - la fenetre s'ouvre/se ferme sans crash malgre Visible = Faux ;
+//   - les lectures de cellules AVANT et APRES la colonne masquee
+//     restent correctes (pas de decalage d'index) ;
+//   - la colonne masquee reste lisible par programme (dans le modele).
+//
+// La preuve visuelle du masquage se fait en GUI via la demo
+// examples/style_table_demo (colonne "Ville" passee en Visible = Faux).
+
+TestModeHeadless(Vrai)
+
+init_done_colvis est un booléen = Faux
+
+PROCEDURE cb_colvis_init_done()
+	init_done_colvis = Vrai
+FIN
+
+Ouvre(FEN_ColVisible)
+
+dbgVérifieVrai(init_done_colvis, "FinInitialisation FEN_ColVisible executee (pas de crash malgre colonne Visible=Faux)")
+
+// Colonne AVANT la colonne masquee.
+nId1 est un entier = LireId(1)
+dbgVérifieEgalité(nId1, 1, "TBL[1].COL_Id == 1 (colonne avant la masquee)")
+
+// Colonne APRES la colonne masquee : l'index ne doit pas etre decale.
+sNom2 est une chaîne = LireNom(2)
+dbgVérifieEgalité(sNom2, "Bob", "TBL[2].COL_Nom == Bob (colonne apres la masquee, index non decale)")
+
+sNom1 est une chaîne = LireNom(1)
+dbgVérifieEgalité(sNom1, "Alice", "TBL[1].COL_Nom == Alice (colonne apres la masquee)")
+
+// La colonne masquee reste dans le modele : lisible par programme.
+sCache1 est une chaîne = LireCache(1)
+dbgVérifieEgalité(sCache1, "secret1", "TBL[1].COL_Cache == secret1 (colonne masquee reste dans le modele)")
+
+Ferme(FEN_ColVisible)
+
+dbgBilanTest()

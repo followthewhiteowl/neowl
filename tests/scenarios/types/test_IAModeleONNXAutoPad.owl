@@ -1,0 +1,75 @@
+// @sujet : IAModèle.ChargeONNX — import d'un Conv avec auto_pad=VALID
+// @résumé : certains réseaux expriment leur remplissage via l'attribut chaîne
+// auto_pad (VALID = aucun remplissage, SAME_UPPER/SAME_LOWER = remplissage qui
+// conserve la carte) plutôt que par des pads explicites. Ce scénario importe une
+// fixture Conv(auto_pad=VALID, noyau 3×3, pas 1) → ReLU → Flatten → Gemm et
+// compare l'inférence à un oracle capturé hors OWL (onnxruntime).
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_autopad_valid.onnx.
+// Oracle : tests/internal_fixtures/onnx/fixture_autopad_valid_oracle.json —
+// entrée [1,1,8,8] (flat[k] = k/64.0 pour k=0..63), sortie attendue
+// [-8.421441, 3.703559, 15.828559].
+//
+// VALID signifie AUCUN remplissage : la carte 8×8 rétrécit à 6×6 (noyau 3),
+// donc Flatten produit 2·6·6 = 72 entrées consommées par le Gemm. Un
+// remplissage SAME appliqué à tort produirait une carte 8×8 → Flatten 128 →
+// mésappariement au Gemm (inférence en échec) ou des valeurs fausses. La valeur
+// exacte de auto_pad doit donc être lue, pas devinée présente = SAME.
+PROCEDURE PUBLIQUE scenario_charge_onnx_conv_autopad_valid_infere_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_autopad_valid.onnx")
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un Conv auto_pad=VALID réussit")
+
+	brut est un tableau de réels
+	POUR k = 0 À 63
+		brut.Ajoute(k / 64.0)
+	FIN
+	entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 8, 8])
+
+	sortie est un Tenseur = mon.Infère(entrée)
+	bInfereEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bInfereEchoue, "l'inférence d'un Conv auto_pad=VALID réussit (pas de sur-remplissage)")
+
+	dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+	val est un Vecteur = sortie..Valeur
+
+	attendu1 est un réel = -8.421441078186035
+	attendu2 est un réel = 3.7035586833953857
+	attendu3 est un réel = 15.828558921813965
+
+	dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (auto_pad VALID, tolérance flottante)")
+	dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (auto_pad VALID, tolérance flottante)")
+	dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (auto_pad VALID, tolérance flottante)")
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le même
+// comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_conv_autopad_valid_infer_equals_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_autopad_valid.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a Conv with auto_pad=VALID succeeds")
+
+	raw is an array of reals
+	POUR k = 0 À 63
+		raw.Ajoute(k / 64.0)
+	FIN
+	input is a Tensor = Tensor(raw).Redimensionne([1, 1, 8, 8])
+
+	output is a Tensor = mon.Infer(input)
+	bInferFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bInferFailed, "inference of a Conv with auto_pad=VALID succeeds (no over-padding)")
+
+	dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+	val is a Vector = output..Value
+
+	expected1 is a real = -8.421441078186035
+	expected2 is a real = 3.7035586833953857
+	expected3 is a real = 15.828558921813965
+
+	dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the auto_pad VALID oracle")
+	dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the auto_pad VALID oracle")
+	dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the auto_pad VALID oracle")
+FIN

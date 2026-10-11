@@ -1,0 +1,29 @@
+// Regression  : la sérialisation JSON d'un Chrono en cours doit
+// refleter l'etat LIVE (computeGetter delegate), pas le snapshot pose au
+// dernier appel ChronoXxx. Avant le refacto, value_to_json lisait le
+// storage brut de l'instance ; chrono_sync_public posait un snapshot a
+// chaque mutation, mais la valeur entre 2 mutations restait figee.
+
+c est un Chrono
+ChronoDébut(c)
+
+// Charge de travail pour faire avancer le temps reel.
+somme est un entier = 0
+POUR i = 1 À 200000
+	somme = somme + i
+FIN
+
+// Sérialisation pendant que le chrono tourne (aucune mutation depuis Début).
+buf est une chaîne
+Sérialise(c, buf, psdMinifie)
+
+// Demarre doit refleter l'etat live (computeGetter -> fn_chrono_demarre).
+dbgVérifieVrai(Contient(buf, `"Demarre":true`), "Sérialise d'un Chrono en cours expose Demarre=true (live)")
+
+// La Valeur ne doit pas etre 0 (storage initial) puisque le chrono tourne
+// et que la boucle ci-dessus prend > 1 ms. Avant , value_to_json
+// lisait le storage `Valeur=0` (snapshot pose par chrono_sync_public au
+// ChronoDébut, jamais resync entre temps).
+dbgVérifieEgalité(Contient(buf, `"Valeur":0`), Faux, "Sérialise d'un Chrono en cours ne rend pas Valeur=0 stale (live)")
+
+ChronoFin(c)

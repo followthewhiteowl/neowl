@@ -1,0 +1,159 @@
+// @sujet : Tenseur.MaxPooling / .MoyennePooling — remplissage (padding) optionnel
+// @résumé : `TenseurMaxPooling(t, fenêtre, pas, remplissage)` /
+// `.MaxPooling(fenêtre, pas, remplissage)` (idem `TenseurMoyennePooling` /
+// `.MoyennePooling`, formes anglaises `TensorMaxPooling` /
+// `TensorAveragePooling`) ajoutent un 4ᵉ argument optionnel : le remplissage
+// (padding) appliqué symétriquement autour de l'entrée avant le découpage en
+// fenêtres. Sortie : Hout = plancher((H + 2·remplissage - fenêtre) / pas) + 1
+// (idem largeur). En max-pooling, les cellules de remplissage valent -∞ (elles
+// ne gagnent JAMAIS le max) ; en moyenne-pooling, la moyenne divise par le
+// nombre de cellules RÉELLES de la fenêtre (convention ONNX count_include_pad=0).
+// Toutes les valeurs de ce fichier sont calculées à la main.
+//
+// Le 4ᵉ argument (remplissage) est optionnel : les formes à 2 ou 3 arguments
+// (receveur + fenêtre [+ pas]) restent valides. Les scénarios de remplissage
+// sont regroupés ici.
+
+
+// Entrée 1×1×3×3 :
+//    1 2 3
+//    4 5 6
+//    7 8 9
+// MaxPooling fenêtre=3, pas=1, remplissage=1 -> sortie 3×3
+// (Hout = plancher((3 + 2 - 3) / 1) + 1 = 3). Chaque fenêtre couvre les lignes
+// [i-1, i+1] et colonnes [j-1, j+1] (i,j 0-based) ; les cellules hors [0,3[ sont
+// du remplissage à -∞ (jamais le max). Max de chaque fenêtre :
+//    5 6 6
+//    8 9 9
+//    8 9 9
+PROCEDURE PUBLIQUE scenario_maxpooling_remplissage_forward()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	sortie est un Tenseur = entrée.MaxPooling(3, 1, 1)
+
+	dbgVérifieEgalité(sortie..Forme[3], 3, "plancher((3+2-3)/1)+1 = 3 fenêtres en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 3, "plancher((3+2-3)/1)+1 = 3 fenêtres en largeur")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], 5.0, "coin haut-gauche : max({1,2,4,5}) = 5 (remplissage à -∞)")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], 6.0, "bord haut-milieu : max({1,2,3,4,5,6}) = 6")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], 9.0, "centre : max({1..9}) = 9")
+	dbgVérifieEgalité(sortie..Valeur[1][1][3][3], 9.0, "coin bas-droit : max({5,6,8,9}) = 9")
+	dbgVérifieEgalité(sortie..Valeur[1][1][3][1], 8.0, "coin bas-gauche : max({4,7,5,8}) = 8")
+
+	sortieNative est un Tenseur = TenseurMaxPooling(entrée, 3, 1, 1)
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], 5.0, "forme native (4 arguments) == forme méthode")
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][3][3], 9.0, "forme native (4 arguments) == forme méthode")
+FIN
+
+
+// LE test qui prouve que le remplissage vaut -∞ et NON 0 : entrée entièrement
+// NÉGATIVE. Avec un remplissage à 0, une cellule de remplissage gagnerait le max
+// (0 > toute valeur négative) et la sortie serait 0.0. Avec -∞, le max reste la
+// plus grande valeur réelle.
+// Entrée 1×1×2×2 :
+//   -1 -2
+//   -3 -4
+// MaxPooling fenêtre=3, pas=1, remplissage=1 -> sortie 2×2
+// (Hout = plancher((2 + 2 - 3) / 1) + 1 = 2). Chaque fenêtre contient les 4
+// cellules réelles -> max = -1.0 partout (0.0 si le remplissage était à 0).
+PROCEDURE PUBLIQUE scenario_maxpooling_remplissage_moins_infini_pas_zero()
+	entrée est un Tenseur = Tenseur([-1.0, -2.0, -3.0, -4.0]).Redimensionne([1, 1, 2, 2])
+	sortie est un Tenseur = entrée.MaxPooling(3, 1, 1)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "plancher((2+2-3)/1)+1 = 2 en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "plancher((2+2-3)/1)+1 = 2 en largeur")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], -1.0, "remplissage = -∞ : max = -1 (0.0 si le remplissage valait 0)")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], -1.0, "remplissage = -∞ : max = -1")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][1], -1.0, "remplissage = -∞ : max = -1")
+	dbgVérifieEgalité(sortie..Valeur[1][1][2][2], -1.0, "remplissage = -∞ : max = -1")
+FIN
+
+
+// Moyenne-pooling paddé, convention ONNX count_include_pad=0 : la moyenne divise
+// par le nombre de cellules RÉELLES de la fenêtre (pas par fenêtre²).
+// Entrée 1×1×3×3 (1..9), fenêtre=3, pas=1, remplissage=1 -> sortie 3×3 :
+//   coin haut-gauche  : {1,2,4,5}       somme=12, 4 cellules réelles -> 3.0
+//                       (12/9 = 1.333 si count_include_pad=1 -> écarté)
+//   bord haut-milieu  : {1,2,3,4,5,6}   somme=21, 6 cellules réelles -> 3.5
+//   centre            : {1..9}          somme=45, 9 cellules réelles -> 5.0
+//   coin bas-droit    : {5,6,8,9}       somme=28, 4 cellules réelles -> 7.0
+PROCEDURE PUBLIQUE scenario_moyennepooling_remplissage_count_include_pad_zero()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	sortie est un Tenseur = entrée.MoyennePooling(3, 1, 1)
+
+	dbgVérifieEgalité(sortie..Forme[3], 3, "plancher((3+2-3)/1)+1 = 3 en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 3, "plancher((3+2-3)/1)+1 = 3 en largeur")
+
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][1] - 3.0) < 0.0001, "coin : 12 / 4 cellules réelles = 3.0 (pas 12/9)")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][2] - 3.5) < 0.0001, "bord : 21 / 6 cellules réelles = 3.5")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][2][2] - 5.0) < 0.0001, "centre : 45 / 9 cellules réelles = 5.0")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][3][3] - 7.0) < 0.0001, "coin bas-droit : 28 / 4 cellules réelles = 7.0")
+FIN
+
+
+// Backward max-pooling paddé : le gradient ne va qu'aux cellules RÉELLES
+// gagnantes ; une cellule jamais gagnante reçoit un gradient nul ; une cellule
+// gagnante de plusieurs fenêtres accumule (SOMME). Aucun gradient n'est perdu
+// dans le remplissage (le remplissage n'existe pas dans l'entrée).
+// Entrée 1×1×3×3 (1..9), fenêtre=3, pas=1, remplissage=1. Sortie (cf. forward) :
+//   5 6 6 / 8 9 9 / 8 9 9. Positions gagnantes (0-based) :
+//   out(0,0)->5 @(1,1) ; out(0,1)->6 @(1,2) ; out(0,2)->6 @(1,2)
+//   out(1,0)->8 @(2,1) ; out(1,1)->9 @(2,2) ; out(1,2)->9 @(2,2)
+//   out(2,0)->8 @(2,1) ; out(2,1)->9 @(2,2) ; out(2,2)->9 @(2,2)
+// q = sortie*sortie -> grad_sortie = 2*sortie :
+//   10 12 12 / 16 18 18 / 16 18 18
+// Accumulation vers l'entrée (1-based [ligne][col]) :
+//   entrée[2][2] (=5) : out(0,0)          -> 10
+//   entrée[2][3] (=6) : out(0,1)+out(0,2) -> 12+12 = 24
+//   entrée[3][2] (=8) : out(1,0)+out(2,0) -> 16+16 = 32
+//   entrée[3][3] (=9) : out(1,1)+out(1,2)+out(2,1)+out(2,2) -> 18*4 = 72
+//   entrée[1][1] (=1) : jamais gagnante   -> 0
+PROCEDURE PUBLIQUE scenario_maxpooling_remplissage_backward_cellules_reelles()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+	sortie est un Tenseur = entrée.MaxPooling(3, 1, 1)
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][2], 10.0, "cellule gagnante unique (valeur 5) : 2*5 = 10")
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][3], 24.0, "cellule gagnante de 2 fenêtres (valeur 6) : 12+12 = 24")
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][2], 32.0, "cellule gagnante de 2 fenêtres (valeur 8) : 16+16 = 32")
+	dbgVérifieEgalité(entrée..Gradient[1][1][3][3], 72.0, "cellule gagnante de 4 fenêtres (valeur 9) : 18*4 = 72")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][1], 0.0, "cellule jamais gagnante (valeur 1) : gradient nul")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][2], 0.0, "cellule jamais gagnante (valeur 2) : gradient nul")
+FIN
+
+
+// Non-régression : un remplissage explicite de 0 (4ᵉ argument) doit produire
+// exactement le même résultat que l'appel à 3 arguments et à 2
+// arguments. Entrée 1×1×4×4 (1..16), fenêtre=3, pas=1.
+PROCEDURE PUBLIQUE scenario_pooling_remplissage_zero_non_regression()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+
+	avecPad0 est un Tenseur = entrée.MaxPooling(3, 1, 0)
+	sansPad est un Tenseur = entrée.MaxPooling(3, 1)
+
+	dbgVérifieEgalité(avecPad0..Forme[3], sansPad..Forme[3], "remplissage=0 : même forme qu'à 3 arguments")
+	dbgVérifieEgalité(avecPad0..Valeur[1][1][1][1], sansPad..Valeur[1][1][1][1], "remplissage=0 : valeur identique à 3 arguments")
+	dbgVérifieEgalité(avecPad0..Valeur[1][1][2][2], sansPad..Valeur[1][1][2][2], "remplissage=0 : valeur identique à 3 arguments")
+	dbgVérifieEgalité(avecPad0..Valeur[1][1][1][1], 11.0, "valeur absolue inchangée = 11")
+	dbgVérifieEgalité(avecPad0..Valeur[1][1][2][2], 16.0, "valeur absolue inchangée = 16")
+
+	moyPad0 est un Tenseur = entrée.MoyennePooling(3, 1, 0)
+	moySansPad est un Tenseur = entrée.MoyennePooling(3, 1)
+	dbgVérifieVrai(Abs(moyPad0..Valeur[1][1][1][1] - moySansPad..Valeur[1][1][1][1]) < 0.0000001, "moyenne remplissage=0 identique à 3 arguments")
+FIN
+
+
+// Verrou des formes anglaises : TensorMaxPooling / TensorAveragePooling avec
+// remplissage produisent les mêmes valeurs que les formes françaises.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_remplissage()
+	input is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).Redimensionne([1, 1, 3, 3])
+
+	outMax is a Tensor = TensorMaxPooling(input, 3, 1, 1)
+	dbgCheckEqual(outMax..Valeur[1][1][1][1], 5.0, "English form: padded max window top-left = 5")
+	dbgCheckEqual(outMax..Valeur[1][1][2][2], 9.0, "English form: padded max window center = 9")
+
+	outAvg is a Tensor = TensorAveragePooling(input, 3, 1, 1)
+	dbgCheckTrue(Abs(outAvg..Valeur[1][1][1][1] - 3.0) < 0.0001, "English form: padded average top-left = 12/4 = 3.0")
+	dbgCheckTrue(Abs(outAvg..Valeur[1][1][2][2] - 5.0) < 0.0001, "English form: padded average center = 45/9 = 5.0")
+FIN

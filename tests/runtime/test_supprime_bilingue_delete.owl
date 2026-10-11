@@ -1,0 +1,72 @@
+// =====================================================================
+// Test : forme EN bilingue de Supprime en position d'appel
+//   La forme EN `Delete(...)` doit compiler ET s'exécuter exactement
+//   comme `Supprime(...)`, sans être confondue avec la libération
+//   d'instance (mot-clé OOP homonyme).
+//   Couvre RHS d'assignment, statement, méthode, chaînage et la
+//   non-régression du mot-clé OOP de libération.
+// =====================================================================
+
+Trace("=== Supprime bilingue Delete (forme EN) ===")
+
+// =====================================================================
+// (a) RHS d'assignment : x = Delete(x, i) — le cas qui plantait
+//     (« Expression attendue »). Doit valoir Supprime(x, i).
+// =====================================================================
+t est un tableau de chaînes
+t.Ajoute("a")
+t.Ajoute("b")
+t.Ajoute("c")
+r est un tableau de chaînes = Delete(t, 2)
+dbgVérifieEgalité(r..Occurrence, 2, "Delete forme fonction renvoie tableau réduit")
+dbgVérifieEgalité(t..Occurrence, 2, "Delete a retiré 1 élément de t")
+dbgVérifieEgalité(r[1], "a", "ordre préservé après Delete milieu")
+dbgVérifieEgalité(r[2], "c", "élément suivant remonte après Delete")
+
+// =====================================================================
+// (b) Réassignment de la même variable : t = Delete(t, i)
+// =====================================================================
+u est un tableau de chaînes
+u.Ajoute("x")
+u.Ajoute("y")
+u.Ajoute("z")
+u = Delete(u, 1)
+dbgVérifieEgalité(u..Occurrence, 2, "réassignment u = Delete(u, 1) OK")
+dbgVérifieEgalité(u[1], "y", "premier élément après Delete réassigné")
+
+// =====================================================================
+// (c) Statement form : Delete(t, i) sans assignment
+// =====================================================================
+v est un tableau de chaînes
+v.Ajoute("seul")
+Delete(v, 1)
+dbgVérifieEgalité(v..Occurrence, 0, "Delete statement form OK")
+
+// =====================================================================
+// (d) Tableau associatif via Delete
+// =====================================================================
+ta est un tableau associatif de chaînes
+ta["nom"] = "Roger"
+ta["ville"] = "Langley"
+ra est un tableau associatif de chaînes = Delete(ta, "nom")
+dbgVérifieEgalité(ra..Occurrence, 1, "Delete assoc renvoie tableau réduit")
+dbgVérifieEgalité(ta["nom"], "", "clé supprimée via Delete lit le défaut")
+
+// =====================================================================
+// (e) Équivalence stricte Delete == Supprime sur le même contenu
+// =====================================================================
+a1 est un tableau de chaînes
+a1.Ajoute("p")
+a1.Ajoute("q")
+a1.Ajoute("s")
+a2 est un tableau de chaînes
+a2.Ajoute("p")
+a2.Ajoute("q")
+a2.Ajoute("s")
+Delete(a1, 2)
+Supprime(a2, 2)
+dbgVérifieEgalité(a1..Occurrence, a2..Occurrence, "Delete et Supprime même taille")
+dbgVérifieEgalité(a1[1], a2[1], "Delete et Supprime même contenu [1]")
+dbgVérifieEgalité(a1[2], a2[2], "Delete et Supprime même contenu [2]")
+
+dbgBilanTest()

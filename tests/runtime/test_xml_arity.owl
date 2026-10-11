@@ -1,0 +1,49 @@
+// Verrouille les formes d'arite discretes de la famille XML migrees depuis
+// une signature variadique masquee : chaque forme valide continue de
+// compiler ET de s'executer correctement. La sous/sur-application est
+// rejetee a la compilation (cf. tests/compile-error/xml_*).
+//
+// Natives couvertes :
+//   XMLDocument([version])              -> formes 0..1
+//   XMLOuvre(source [, mode])           -> formes 1..2
+//   XMLAjouteFils(parent, nom [, val])  -> formes 2..3
+//   XMLInsèreFils(parent, nom [, pos])  -> formes 2..3
+
+PROCEDURE PUBLIQUE test_xml_document_formes()
+	// 0 arg : document version "1.0" par defaut
+	doc0 est un xmlDocument = XMLDocument()
+	dbgVérifieNonNull(doc0, "XMLDocument 0 arg : document cree")
+	// 1 arg : version explicite
+	doc1 est un xmlDocument = XMLDocument("1.1")
+	dbgVérifieNonNull(doc1, "XMLDocument 1 arg : document cree")
+FIN
+
+PROCEDURE PUBLIQUE test_xml_ouvre_formes()
+	// 2 args : source chaine + mode depuisChaine -> parse en memoire
+	doc est un xmlDocument = XMLOuvre("<racine><item>x</item></racine>", depuisChaîne)
+	dbgVérifieNonNull(doc, "XMLOuvre 2 args : parse chaine")
+	r est un xmlNoeud = XMLRacine(doc)
+	dbgVérifieEgalité(XMLNomElément(r), "racine", "XMLOuvre 2 args : racine lue")
+FIN
+
+PROCEDURE PUBLIQUE test_xml_ajoute_fils_formes()
+	doc est un xmlDocument = XMLDocument()
+	// 2 args : parent + nom (cree la racine)
+	racine est un xmlNoeud = XMLAjouteFils(doc, "catalogue")
+	dbgVérifieEgalité(XMLNomElément(racine), "catalogue", "XMLAjouteFils 2 args : noeud cree")
+	// 3 args : parent + nom + contenu
+	item est un xmlNoeud = XMLAjouteFils(racine, "produit", "Vis")
+	dbgVérifieEgalité(XMLLit(item), "Vis", "XMLAjouteFils 3 args : contenu pose")
+FIN
+
+PROCEDURE PUBLIQUE test_xml_insere_fils_formes()
+	doc est un xmlDocument = XMLDocument()
+	racine est un xmlNoeud = XMLAjouteFils(doc, "liste")
+	prem est un xmlNoeud = XMLAjouteFils(racine, "a")
+	// 3 args : insertion en position 1 (avant le 1er fils)
+	tete est un xmlNoeud = XMLInsèreFils(racine, "tete", 1)
+	dbgVérifieEgalité(XMLNomElément(XMLPremier(racine)), "tete", "XMLInsèreFils 3 args : insere en tete")
+	// 2 args : ajout en fin (position par defaut)
+	der est un xmlNoeud = XMLInsèreFils(racine, "fin")
+	dbgVérifieEgalité(XMLNomElément(XMLDernier(racine)), "fin", "XMLInsèreFils 2 args : ajoute en fin")
+FIN

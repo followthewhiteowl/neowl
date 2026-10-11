@@ -1,0 +1,36 @@
+// Regression T5 : `--check <file>` doit considerer le fichier en cours
+// comme le fichier courant pour la resolution des PROCEDURE PRIVÉE.
+//
+// Avant fix : handle_check_command passait currentFileIndex=-1 a la
+// compile et symtable_find retournait le premier symbole du projet.
+// Quand 2 fichiers declaraient PROCEDURE PRIVÉE Helper(), l'appel
+// auto-reference de l'un produisait "Cannot access private symbol
+// from another file" parce que symtable_find renvoyait le Helper de
+// l'autre fichier.
+//
+// Fix double :
+//   - main.c::handle_check_command_no_vm_lifecycle resout l'index
+//     du fichier dans le projet (match par basename) et le passe a
+//     compile_in_project au lieu de -1.
+//   - compiler.c::named_variable cherche d'abord dans le fichier
+//     courant (symtable_find_in_file) avant le scan global.
+//
+// Ce test couvre l'auto-reference sur une PROCEDURE PRIVÉE qui peut
+// avoir le meme nom dans un autre fichier de la suite — l'erreur
+// historique etait exactement ce pattern (collision de noms entre
+// fixtures du dossier tests/).
+
+PROCEDURE PRIVÉE Helper_t5_a()
+	RENVOYER 42
+FIN
+
+PROCEDURE PRIVÉE Helper_t5_b()
+	RENVOYER Helper_t5_a() * 2
+FIN
+
+dbgVérifieEgalité(Helper_t5_a(), 42,
+"PROCEDURE PRIVÉE auto-reference : appel direct OK")
+dbgVérifieEgalité(Helper_t5_b(), 84,
+"PROCEDURE PRIVÉE auto-reference : appel inter-PRIVÉE OK")
+
+dbgBilanTest()

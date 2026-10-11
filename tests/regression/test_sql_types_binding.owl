@@ -1,0 +1,136 @@
+// Regression : couverture exhaustive du mapping de types entre OWL et
+// SQLite via SQLEnvoie (bind cote envoi + lecture cote retour).
+//
+// Couvre : entier 64-bit, reel, chaine UTF-8 (emoji, accents), buffer/BLOB,
+// null, booleen, type non bindable (tableau -> erreur propre), round-trip
+// INSERT->SELECT preservant les valeurs.
+
+cnx est une sqlConnexion
+cnx..Provider = sqlSqlite
+cnx..Source   = ":memory:"
+cnx.Ouvre()
+
+// Table avec types varies SQLite : INTEGER, REAL, TEXT, BLOB.
+// SQLite est dynamiquement type donc on peut stocker n'importe quoi
+// dans n'importe quelle colonne, mais on teste les conversions naturelles.
+reqCreate est une sqlRequête
+reqCreate..Code = [
+    CREATE TABLE t (
+        i INTEGER,
+        r REAL,
+        s TEXT,
+        b BLOB,
+        n INTEGER
+    )
+]
+SQLEnvoie(cnx, reqCreate)
+
+
+// --- 1. INSERT avec types varies ---
+buf est un buffer = "octets bruts \x00\x01\x02 fin"
+reqIns est une sqlRequête
+reqIns..Code             = "INSERT INTO t (i, r, s, b, n) VALUES ({pi}, {pr}, {ps}, {pb}, {pn})"
+reqIns..Paramètres["pi"] = 9223372036854775000 // proche du max int64
+reqIns..Paramètres["pr"] = 3.14159265358979
+reqIns..Paramètres["ps"] = "Hello \U0001F981 ééà 你好" // emoji + accents + chinois
+reqIns..Paramètres["pb"] = buf
+reqIns..Paramètres["pn"] = Null
+repIns est une sqlRéponse = SQLEnvoie(cnx, reqIns)
+dbgVérifieEgalité(repIns..Succès, Vrai, "INSERT types varies reussit")
+dbgVérifieEgalité(repIns..LignesAffectées, 1, "1 ligne affectee")
+
+
+// --- 2. SELECT round-trip : recupere les valeurs et compare ---
+reqSel est une sqlRequête
+reqSel..Code = "SELECT i, r, s, b, n FROM t"
+repSel est une sqlRéponse = SQLEnvoie(cnx, reqSel)
+dbgVérifieEgalité(repSel..Succès, Vrai, "SELECT reussit")
+dbgVérifieEgalité(repSel..Occurrence, 1, "1 ligne")
+
+ligne est un tableau associatif = repSel..Lignes[1]
+dbgVérifieEgalité(ligne["i"], 9223372036854775000, "round-trip INTEGER 64-bit")
+dbgVérifieEgalité(ligne["r"], 3.14159265358979, "round-trip REAL")
+dbgVérifieEgalité(ligne["s"], "Hello \U0001F981 ééà 你好", "round-trip TEXT UTF-8 (emoji + accents + chinois)")
+dbgVérifieEgalité(ligne["n"], Null, "round-trip NULL")
+// Pour le BLOB on compare via Taille
+dbgVérifieEgalité(Taille(ligne["b"]), Taille(buf), "round-trip BLOB taille preservee")
+
+
+// --- 3. Booleen : bind comme INTEGER 0/1 ---
+reqBool est une sqlRequête
+reqBool..Code             = "SELECT {pa} AS a, {pb} AS b"
+reqBool..Paramètres["pa"] = Vrai
+reqBool..Paramètres["pb"] = Faux
+repBool est une sqlRéponse = SQLEnvoie(cnx, reqBool)
+dbgVérifieEgalité(repBool..Lignes[1]["a"], 1, "Vrai bind comme INTEGER 1")
+dbgVérifieEgalité(repBool..Lignes[1]["b"], 0, "Faux bind comme INTEGER 0")
+
+
+// --- 4. NULL explicite via parametre ---
+reqNull est une sqlRequête
+reqNull..Code            = "SELECT ({p} IS NULL) AS est_null"
+reqNull..Paramètres["p"] = Null
+repNull est une sqlRéponse = SQLEnvoie(cnx, reqNull)
+dbgVérifieEgalité(repNull..Lignes[1]["est_null"], 1, "Null bind comme SQLITE_NULL")
+
+
+// --- 5. Chaine vide : doit roundtripper sans devenir Null ---
+reqEmpty est une sqlRequête
+reqEmpty..Code            = "SELECT {p} AS s, length({p}) AS n"
+reqEmpty..Paramètres["p"] = ""
+repEmpty est une sqlRéponse = SQLEnvoie(cnx, reqEmpty)
+dbgVérifieEgalité(repEmpty..Lignes[1]["s"], "", "chaine vide round-trip")
+dbgVérifieEgalité(repEmpty..Lignes[1]["n"], 0, "length('') = 0")
+
+
+// --- 6. Buffer vide : roundtrip preserve ---
+bufVide est un buffer
+reqBV est une sqlRequête
+reqBV..Code            = "SELECT {p} AS b, length({p}) AS n"
+reqBV..Paramètres["p"] = bufVide
+repBV est une sqlRéponse = SQLEnvoie(cnx, reqBV)
+dbgVérifieEgalité(repBV..Lignes[1]["n"], 0, "buffer vide -> length 0")
+
+
+// --- 7. Type non bindable : tableau -> Succes=Faux + ErreurDetectee ---
+reqBad est une sqlRequête
+reqBad..Code = "SELECT {p}"
+t est un tableau de chaînes = ["a", "b"]
+reqBad..Paramètres["p"] = t
+repBad est une sqlRéponse = SQLEnvoie(cnx, reqBad)
+dbgVérifieEgalité(repBad..Succès, Faux, "tableau non bindable -> Succes=Faux")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+dbgVérifieVrai(Position(ErreurInfo(), "type non supporte") > 0, "message d'erreur explicite")
+
+
+// --- 8. Reutilisation d'une requete : Parametres re-bindes proprement ---
+ErreurRAZ()
+reqMulti est une sqlRequête
+reqMulti..Code = "INSERT INTO t (i, s) VALUES ({i}, {s})"
+POUR i = 1 À 5
+	reqMulti..Paramètres["i"] = i * 100
+	reqMulti..Paramètres["s"] = "ligne_" + i
+	SQLEnvoie(cnx, reqMulti)
+FIN
+
+reqCount est une sqlRequête
+reqCount..Code = "SELECT COUNT(*) AS n FROM t WHERE i >= 100 AND i <= 500"
+repCount est une sqlRéponse = SQLEnvoie(cnx, reqCount)
+dbgVérifieEgalité(repCount..Lignes[1]["n"], 5, "5 inserts via reutilisation de requete")
+
+
+// --- 9. Update avec ancien Parametres residuel : pas de fuite ---
+// (verifie qu'un parametre laisse dans Parametres mais pas reference dans
+//  le Code n'affecte pas l'execution)
+reqClean est une sqlRequête
+reqClean..Code                   = "SELECT {p_used} AS x"
+reqClean..Paramètres["p_used"]   = 42
+reqClean..Paramètres["p_unused"] = "n'apparait pas dans le SQL"
+repClean est une sqlRéponse = SQLEnvoie(cnx, reqClean)
+dbgVérifieEgalité(repClean..Succès, Vrai, "param non reference ignore silencieusement")
+dbgVérifieEgalité(repClean..Lignes[1]["x"], 42, "param utilise lu correctement")
+
+
+cnx.Ferme()
+
+dbgBilanTest()

@@ -1,0 +1,69 @@
+// =====================================================================
+// TEST: styleSaisie — première brique du modèle de style typé par widget.
+//
+// Vérifie de bout en bout (backend headless) :
+//   1. Le type styleSaisie se déclare et compose les briques existantes :
+//      sous-champs plats (Couleur/CouleurFond/Retraits), Police et Cadre
+//      imbriqués, et deux sous-états ouverts Survol (souris) et Focus
+//      (clavier). Read-back des sous-champs sur l'instance déclarée.
+//   2. L'application au champ Saisie via SAI..Style ne casse pas (le style
+//      transite vers le widget Qt ; en headless c'est un no-op sûr).
+//   3. La prop Style typée sur Saisie : la cascade SAI..Style..SousChamp
+//      matérialise un styleSaisie et fait un round-trip (assign + read-back),
+//      y compris à travers les composés (Police, Cadre) et sous-états.
+//
+// Le rendu Qt réel (couleurs :hover / :focus, cadre du QLineEdit) relève de
+// la validation humaine ; ici on verrouille le contrat de type + le store.
+// =====================================================================
+
+Trace("=== styleSaisie : type composite + application Saisie ===")
+
+// 1. Déclaration d'un styleSaisie + renseignement de ses sous-champs, puis
+//    read-back sur l'instance (prouve que le type compose correctement).
+STY_Saisie est un styleSaisie
+STY_Saisie..Couleur                                = BleuFoncé
+STY_Saisie..CouleurFond                            = Blanc
+STY_Saisie..RetraitGauche                          = 6
+STY_Saisie..Police..Gras                           = Vrai
+STY_Saisie..Cadre..Arrondi                         = 8
+STY_Saisie..ZoneSaisie..Etats[survol]..CouleurFond = GrisClair
+STY_Saisie..ZoneSaisie..Etats[focus]..Couleur      = Rouge
+
+dbgVérifieEgalité(STY_Saisie..Couleur, BleuFoncé, "styleSaisie : Couleur posée")
+dbgVérifieEgalité(STY_Saisie..CouleurFond, Blanc, "styleSaisie : CouleurFond posée")
+dbgVérifieEgalité(STY_Saisie..RetraitGauche, 6, "styleSaisie : RetraitGauche posé")
+dbgVérifieEgalité(STY_Saisie..Police..Gras, Vrai, "styleSaisie : Police..Gras (composé)")
+dbgVérifieEgalité(STY_Saisie..Cadre..Arrondi, 8, "styleSaisie : Cadre..Arrondi (composé)")
+dbgVérifieEgalité(STY_Saisie..ZoneSaisie..Etats[survol]..CouleurFond, GrisClair, "styleSaisie : ..ZoneSaisie..Etats[survol]..CouleurFond (état)")
+dbgVérifieEgalité(STY_Saisie..ZoneSaisie..Etats[focus]..Couleur, Rouge, "styleSaisie : ..ZoneSaisie..Etats[focus]..Couleur (état)")
+
+// 2. Application du styleSaisie au champ Saisie (chemin apply_style_to_control)
+//    sans crash.
+Ouvre(FEN_SaisieStyle)
+SAI_Style..Style = STY_Saisie
+dbgVérifieVrai(Vrai, "styleSaisie appliqué à SAI..Style sans crash")
+
+// 3. Prop Style typée sur Saisie : cascade round-trip via matérialisation.
+SAI_Style..Style..Couleur = VertFoncé
+dbgVérifieEgalité(SAI_Style..Style..Couleur, VertFoncé, "SAI..Style..Couleur round-trip")
+
+SAI_Style..Style..CouleurFond = JauneClair
+dbgVérifieEgalité(SAI_Style..Style..CouleurFond, JauneClair, "SAI..Style..CouleurFond round-trip")
+
+SAI_Style..Style..RetraitHaut = 4
+dbgVérifieEgalité(SAI_Style..Style..RetraitHaut, 4, "SAI..Style..RetraitHaut round-trip")
+
+SAI_Style..Style..Police..Italique = Vrai
+dbgVérifieEgalité(SAI_Style..Style..Police..Italique, Vrai, "SAI..Style..Police..Italique round-trip")
+
+SAI_Style..Style..Cadre..Epaisseur = 2
+dbgVérifieEgalité(SAI_Style..Style..Cadre..Epaisseur, 2, "SAI..Style..Cadre..Epaisseur round-trip")
+
+SAI_Style..Style..ZoneSaisie..Etats[survol]..Couleur = Rouge
+dbgVérifieEgalité(SAI_Style..Style..ZoneSaisie..Etats[survol]..Couleur, Rouge, "SAI..Style..ZoneSaisie..Etats[survol]..Couleur round-trip")
+
+SAI_Style..Style..ZoneSaisie..Etats[focus]..CouleurFond = Noir
+dbgVérifieEgalité(SAI_Style..Style..ZoneSaisie..Etats[focus]..CouleurFond, Noir, "SAI..Style..ZoneSaisie..Etats[focus]..CouleurFond round-trip")
+
+Ferme(FEN_SaisieStyle)
+dbgBilanTest()

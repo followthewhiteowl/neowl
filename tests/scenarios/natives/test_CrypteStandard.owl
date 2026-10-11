@@ -1,0 +1,89 @@
+// @sujet : CrypteStandard
+// @resume : Chiffre un message avec AES-256-CBC (clé dérivée SHA-256)
+
+// Scénario : native CrypteStandard (chiffrement standard recommandé)
+// Démonstration pédagogique : round-trip chiffrer/déchiffrer un message
+
+// Cas nominal : chiffrer un message texte simple et le déchiffrer
+PROCEDURE PUBLIQUE scenario_round_trip_simple()
+	message est une chaîne = "Message secret"
+	cle est une chaîne = "motdepasse123"
+
+	chiffre est un buffer = CrypteStandard(message, cle)
+	dbgVérifieVrai(Taille(chiffre) > 0, "buffer chiffré non vide")
+
+	dechiffre est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(dechiffre, message, "déchiffrement restitue message original")
+FIN
+
+// Cas nominal : message avec accents et caractères spéciaux (UTF-8)
+PROCEDURE PUBLIQUE scenario_utf8_avec_accents()
+	message est une chaîne = "Sécurité renforcée : café, déjà, été"
+	cle est une chaîne = "pwd"
+
+	chiffre est un buffer = CrypteStandard(message, cle)
+	dechiffre est un buffer = DécrypteStandard(chiffre, cle)
+
+	dbgVérifieEgalité(dechiffre, message, "message UTF-8 préservé après round-trip")
+FIN
+
+// Cas limite : deux chiffrements du même message produisent des résultats différents (IV aléatoire)
+PROCEDURE PUBLIQUE scenario_iv_aleatoire()
+	message est une chaîne = "texte identique"
+	cle est une chaîne = "meme-cle"
+
+	chiffre1 est un buffer = CrypteStandard(message, cle)
+	chiffre2 est un buffer = CrypteStandard(message, cle)
+
+	dbgVérifieEgalité(Taille(chiffre1), Taille(chiffre2), "tailles identiques")
+	dbgVérifieFaux(chiffre1 = chiffre2, "ciphertexts différents grâce à IV aléatoire")
+
+	// Les deux déchiffrent vers le même message
+	dbgVérifieEgalité(DécrypteStandard(chiffre1, cle), message, "chiffre1 déchiffre OK")
+	dbgVérifieEgalité(DécrypteStandard(chiffre2, cle), message, "chiffre2 déchiffre OK")
+FIN
+
+// Cas limite : buffer en entrée (pas seulement chaîne)
+PROCEDURE PRIVÉE scenario_buffer_en_entree()
+	bufferMsg est un buffer = ChaîneVersBuffer("message binaire")
+	cle est une chaîne = "k"
+
+	chiffre est un buffer = CrypteStandard(bufferMsg, cle)
+	clair est un buffer = DécrypteStandard(chiffre, cle)
+
+	dbgVérifieEgalité(clair, "message binaire", "buffer source accepté et déchiffré")
+FIN
+
+// Cas limite : message vide
+PROCEDURE PRIVÉE scenario_message_vide()
+	vide est une chaîne = ""
+	cle est une chaîne = "cle-valide"
+
+	chiffre est un buffer = CrypteStandard(vide, cle)
+	dbgVérifieVrai(Taille(chiffre) > 0, "chiffré d'un message vide non vide (padding AES)")
+
+	dechiffre est un buffer = DécrypteStandard(chiffre, cle)
+	dbgVérifieEgalité(dechiffre, vide, "message vide round-trip OK")
+FIN
+
+// Cas limite : clé très courte (1 caractère)
+PROCEDURE PRIVÉE scenario_cle_courte()
+	message est une chaîne = "test"
+	cle est une chaîne = "x"
+
+	chiffre est un buffer = CrypteStandard(message, cle)
+	dechiffre est un buffer = DécrypteStandard(chiffre, cle)
+
+	dbgVérifieEgalité(dechiffre, message, "clé courte acceptée et fonctionne")
+FIN
+
+// Cas erreur : mauvaise clé au déchiffrement provoque une erreur
+PROCEDURE PRIVÉE scenario_mauvaise_cle()
+	message est une chaîne = "secret"
+	chiffre est un buffer = CrypteStandard(message, "bonne-cle")
+
+	ErreurRAZ()
+	mauvais est une chaîne = DécrypteStandard(chiffre, "mauvaise-cle")
+
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur détectée après mauvaise clé")
+FIN

@@ -1,0 +1,230 @@
+// ============================================
+// TEST: ENFIN / FINALLY — cleanup garanti dans QUAND EXCEPTION DANS
+//
+// Sémantique : le bloc ENFIN s'exécute dans les 4 chemins :
+//   A — succès (DANS termine sans exception)
+//   B — caught (exception attrapée par FAIRE)
+//   C — uncaught no-FAIRE (exception traverse, ENFIN exécute puis re-throw)
+//   D — re-raise (EXCEPTION dans FAIRE, ENFIN exécute avant remontée)
+//
+// + cas SINON + ENFIN, nested ENFIN, variable au scope englobant.
+// ============================================
+Trace("=== EXCEPTION ENFIN ===")
+
+
+// --- Cas A : succès — DANS termine, ENFIN s'exécute, flux continue ---
+sJournalA est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	sJournalA = sJournalA + "T;"
+FAIRE
+	sJournalA = sJournalA + "H;"
+ENFIN
+	sJournalA = sJournalA + "F;"
+FIN
+sJournalA = sJournalA + "X;"
+
+dbgVérifieEgalité(sJournalA, "T;F;X;",
+"Cas A : DANS puis ENFIN puis suite — pas de FAIRE car pas d'exception")
+
+
+// --- Cas B : exception attrapée — DANS interrompu, FAIRE, ENFIN, suite ---
+sJournalB est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	sJournalB = sJournalB + "T1;"
+	ExceptionDéclenche("boom")
+	sJournalB = sJournalB + "T2;"
+FAIRE
+	sJournalB = sJournalB + "H;"
+ENFIN
+	sJournalB = sJournalB + "F;"
+FIN
+sJournalB = sJournalB + "X;"
+
+dbgVérifieEgalité(sJournalB, "T1;H;F;X;",
+"Cas B : DANS partiel jusqu'à exception, puis FAIRE, puis ENFIN, puis suite")
+
+
+// --- Cas C : pas de FAIRE — exception traverse, ENFIN s'exécute, remonte au parent ---
+sJournalC est une chaîne = ""
+
+FONCTION ProcInterneCasC()
+	QUAND EXCEPTION DANS
+		sJournalC = sJournalC + "T1;"
+		ExceptionDéclenche("boom")
+		sJournalC = sJournalC + "T2;"
+	ENFIN
+		sJournalC = sJournalC + "F;"
+	FIN
+	sJournalC = sJournalC + "apres_FIN;"
+FIN
+
+QUAND EXCEPTION DANS
+	ProcInterneCasC()
+	sJournalC = sJournalC + "no_throw;"
+FAIRE
+	sJournalC = sJournalC + "parent_catch;"
+FIN
+
+dbgVérifieEgalité(sJournalC, "T1;F;parent_catch;",
+"Cas C : ENFIN s'exécute puis l'exception remonte au handler englobant")
+
+
+// --- Cas D : EXCEPTION (re-raise) dans FAIRE — ENFIN exécute avant remontée ---
+sJournalD est une chaîne = ""
+
+FONCTION ProcInterneCasD()
+	QUAND EXCEPTION DANS
+		sJournalD = sJournalD + "T1;"
+		ExceptionDéclenche("boom")
+	FAIRE
+		sJournalD = sJournalD + "H;"
+		EXCEPTION
+	ENFIN
+		sJournalD = sJournalD + "F;"
+	FIN
+	sJournalD = sJournalD + "apres_FIN;"
+FIN
+
+QUAND EXCEPTION DANS
+	ProcInterneCasD()
+FAIRE
+	sJournalD = sJournalD + "parent_catch;"
+FIN
+
+dbgVérifieEgalité(sJournalD, "T1;H;F;parent_catch;",
+"Cas D : EXCEPTION re-raise déclenche ENFIN avant la remontée au parent")
+
+
+// --- Cas SINON + ENFIN : DANS sans exception → SINON puis ENFIN ---
+sJournalE est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	sJournalE = sJournalE + "T;"
+FAIRE
+	sJournalE = sJournalE + "H;"
+SINON
+	sJournalE = sJournalE + "S;"
+ENFIN
+	sJournalE = sJournalE + "F;"
+FIN
+
+dbgVérifieEgalité(sJournalE, "T;S;F;",
+"DANS réussi : SINON exécute puis ENFIN (FAIRE skippé)")
+
+
+// --- SINON + ENFIN sur exception : FAIRE puis ENFIN, SINON skippé ---
+sJournalF est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	sJournalF = sJournalF + "T;"
+	ExceptionDéclenche("boom")
+FAIRE
+	sJournalF = sJournalF + "H;"
+SINON
+	sJournalF = sJournalF + "S;"
+ENFIN
+	sJournalF = sJournalF + "F;"
+FIN
+
+dbgVérifieEgalité(sJournalF, "T;H;F;",
+"Exception : FAIRE exécute puis ENFIN, SINON skippé")
+
+
+// --- ENFIN sans FAIRE ni SINON, succès : DANS puis ENFIN ---
+sJournalG est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	sJournalG = sJournalG + "T;"
+ENFIN
+	sJournalG = sJournalG + "F;"
+FIN
+sJournalG = sJournalG + "X;"
+
+dbgVérifieEgalité(sJournalG, "T;F;X;",
+"ENFIN seul (sans FAIRE) sur succès : DANS puis ENFIN puis suite")
+
+
+// --- ENFIN nested : deux niveaux, ordre inner → outer ---
+sJournalN est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	QUAND EXCEPTION DANS
+		sJournalN = sJournalN + "T_inner;"
+		ExceptionDéclenche("inner_boom")
+	FAIRE
+		sJournalN = sJournalN + "H_inner;"
+	ENFIN
+		sJournalN = sJournalN + "F_inner;"
+	FIN
+	sJournalN = sJournalN + "T_outer;"
+ENFIN
+	sJournalN = sJournalN + "F_outer;"
+FIN
+
+dbgVérifieEgalité(sJournalN, "T_inner;H_inner;F_inner;T_outer;F_outer;",
+"ENFIN nested : inner s'exécute avant outer (ordre LIFO)")
+
+
+// --- Variable déclarée AVANT le bloc, modifiée dans DANS, lue dans ENFIN ---
+// Pattern idiomatique : la ressource est déclarée au scope englobant pour
+// rester accessible dans ENFIN quel que soit le chemin d'exécution.
+nRessourceOuverte est un entier = 0
+sCleanup est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	nRessourceOuverte = 42
+	ExceptionDéclenche("oops")
+FAIRE
+	sCleanup = sCleanup + "caught;"
+ENFIN
+	SI nRessourceOuverte <> 0 ALORS
+		sCleanup = sCleanup + "cleanup_" + nRessourceOuverte + ";"
+	FIN
+FIN
+
+dbgVérifieEgalité(sCleanup, "caught;cleanup_42;",
+"Variable du scope englobant lisible dans ENFIN après modification dans DANS")
+
+
+// --- Compteur incrémental : verrouille l'ordre d'exécution complet ---
+nCompteur est un entier = 0
+nEtapeT est un entier = 0
+nEtapeH est un entier = 0
+nEtapeF est un entier = 0
+
+QUAND EXCEPTION DANS
+	nCompteur = nCompteur + 1
+	nEtapeT   = nCompteur
+	ExceptionDéclenche("seq")
+FAIRE
+	nCompteur = nCompteur + 1
+	nEtapeH   = nCompteur
+ENFIN
+	nCompteur = nCompteur + 1
+	nEtapeF   = nCompteur
+FIN
+
+dbgVérifieEgalité(nEtapeT, 1, "DANS exécute en premier")
+dbgVérifieEgalité(nEtapeH, 2, "FAIRE exécute en deuxième")
+dbgVérifieEgalité(nEtapeF, 3, "ENFIN exécute en dernier")
+
+
+// --- Alias FINALLY (forme EN) — identique à ENFIN ---
+sJournalEn est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	sJournalEn = sJournalEn + "T;"
+	ExceptionDéclenche("boom")
+FAIRE
+	sJournalEn = sJournalEn + "H;"
+FINALLY
+	sJournalEn = sJournalEn + "F;"
+FIN
+
+dbgVérifieEgalité(sJournalEn, "T;H;F;",
+"FINALLY (alias EN) équivaut à ENFIN")
+
+
+dbgBilanTest()

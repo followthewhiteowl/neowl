@@ -1,0 +1,89 @@
+// Relecture d'un ÉTAT par le namespace du thème : `theme.<style>..<surface>..
+// Etats[état]..CouleurFond`. La propriété de BASE se relit déjà par ce chemin ;
+// l'état, lui, faisait retomber le crochet sur l'indexation de tableau, qui
+// cherchait alors une variable portant le nom de l'état.
+//
+// Un style est lisible par trois chemins : le namespace du thème, une variable
+// typée, et un champ monté. Les trois doivent rendre la même valeur pour le
+// même style — c'est ce qui prouve qu'il n'existe pas trois sémantiques.
+//
+// Le thème est désigné par le projet voisin : sans désignation il serait
+// inerte, et ces mesures porteraient sur la sentinelle « style introuvable ».
+
+Trace("=== relecture d'états par le namespace du thème ===")
+
+Ouvre(FEN_ThemeNsEtats)
+SAI_NsEtats..Style = theme.stNsSaisie
+BTN_NsEtats..Style = theme.stNsBouton
+
+// --- 1. La propriété de BASE par le namespace (acquis, verrouillé ici) ---
+dbgVérifieEgalité(theme.stNsSaisie..ZoneSaisie..CouleurFond, RVB(255, 255, 255),
+"styleSaisie : la base relue par le namespace = la valeur posée")
+dbgVérifieEgalité(theme.stNsBouton..CadreExtérieur..CouleurFond, RVB(50, 50, 50),
+"styleBouton : la base relue par le namespace = la valeur posée")
+
+// --- 2. L'ÉTAT par le namespace, forme FR, deux familles ---
+dbgVérifieEgalité(theme.stNsSaisie..ZoneSaisie..Etats[survol]..CouleurFond, RVB(200, 10, 10),
+"styleSaisie : Etats[survol] relu par le namespace = la valeur posée")
+dbgVérifieEgalité(theme.stNsSaisie..ZoneSaisie..Etats[focus]..CouleurFond, RVB(10, 200, 10),
+"styleSaisie : Etats[focus] relu par le namespace = la valeur posée")
+dbgVérifieEgalité(theme.stNsBouton..CadreExtérieur..Etats[survol]..CouleurFond, RVB(10, 10, 200),
+"styleBouton : Etats[survol] relu par le namespace = la valeur posée")
+dbgVérifieEgalité(theme.stNsBouton..CadreExtérieur..Etats[appuyé]..CouleurFond, RVB(0, 200, 0),
+"styleBouton : Etats[appuyé] relu par le namespace = la valeur posée")
+
+// --- 3. Même lecture en forme EN de bout en bout (invariant bilingue) ---
+dbgVérifieEgalité(theme.stNsSaisie..InputZone..States[hover]..BackgroundColor, RVB(200, 10, 10),
+"styleSaisie : la chaîne EN rend la même valeur que la chaîne FR")
+dbgVérifieEgalité(theme.stNsSaisie..InputZone..States[focus]..BackgroundColor, RVB(10, 200, 10),
+"styleSaisie : Etats[focus] en forme EN")
+dbgVérifieEgalité(theme.stNsBouton..OuterFrame..States[hover]..BackgroundColor, RVB(10, 10, 200),
+"styleBouton : la chaîne EN rend la même valeur que la chaîne FR")
+dbgVérifieEgalité(theme.stNsBouton..OuterFrame..States[pressed]..BackgroundColor, RVB(0, 200, 0),
+"styleBouton : Etats[appuyé] en forme EN (pressed)")
+
+// --- 4. La base et l'état restent deux valeurs distinctes ---
+dbgVérifieDifférence(theme.stNsSaisie..ZoneSaisie..CouleurFond,
+theme.stNsSaisie..ZoneSaisie..Etats[survol]..CouleurFond,
+"styleSaisie : la base n'est pas l'état")
+dbgVérifieDifférence(theme.stNsBouton..CadreExtérieur..CouleurFond,
+theme.stNsBouton..CadreExtérieur..Etats[survol]..CouleurFond,
+"styleBouton : la base n'est pas l'état")
+
+// --- 5. Les TROIS chemins rendent la même valeur pour le même style ---
+vNsSaisie est un styleSaisie = theme.stNsSaisie
+vNsBouton est un styleBouton = theme.stNsBouton
+
+dbgVérifieEgalité(theme.stNsSaisie..ZoneSaisie..Etats[survol]..CouleurFond,
+vNsSaisie..ZoneSaisie..Etats[survol]..CouleurFond,
+"styleSaisie état : namespace = variable typée")
+dbgVérifieEgalité(theme.stNsSaisie..ZoneSaisie..Etats[survol]..CouleurFond,
+SAI_NsEtats..Style..ZoneSaisie..Etats[survol]..CouleurFond,
+"styleSaisie état : namespace = champ monté")
+dbgVérifieEgalité(theme.stNsSaisie..ZoneSaisie..CouleurFond,
+SAI_NsEtats..Style..ZoneSaisie..CouleurFond,
+"styleSaisie base : namespace = champ monté")
+
+dbgVérifieEgalité(theme.stNsBouton..CadreExtérieur..Etats[appuyé]..CouleurFond,
+vNsBouton..CadreExtérieur..Etats[appuyé]..CouleurFond,
+"styleBouton état : namespace = variable typée")
+dbgVérifieEgalité(theme.stNsBouton..CadreExtérieur..Etats[appuyé]..CouleurFond,
+BTN_NsEtats..Style..CadreExtérieur..Etats[appuyé]..CouleurFond,
+"styleBouton état : namespace = champ monté")
+dbgVérifieEgalité(theme.stNsBouton..CadreExtérieur..CouleurFond,
+BTN_NsEtats..Style..CadreExtérieur..CouleurFond,
+"styleBouton base : namespace = champ monté")
+
+// --- 6. Contre-épreuve : l'indexation de tableau reste une indexation ---
+// Portée exacte de cette section, pour qu'on ne lui en prête pas davantage :
+// elle vérifie qu'un tableau ordinaire s'indexe toujours normalement. Elle NE
+// couvre PAS un tableau atteint derrière le namespace du thème — ce cas ne
+// s'écrit pas : la reconnaissance exige que le nom résolve vers un type de
+// style, et un tableau n'en est jamais un.
+tNsEtats est un tableau de entiers = [10, 20, 30]
+dbgVérifieEgalité(tNsEtats[1], 10, "indexation de tableau : t[1] inchangé")
+nNsIdx est un entier = 3
+dbgVérifieEgalité(tNsEtats[nNsIdx], 30, "indexation par variable : t[i] inchangé")
+
+Ferme(FEN_ThemeNsEtats)
+dbgBilanTest()

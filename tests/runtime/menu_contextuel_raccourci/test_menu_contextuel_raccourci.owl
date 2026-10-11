@@ -1,0 +1,54 @@
+//  — les raccourcis des OptionMenu d'un MenuContextuel doivent firer
+// leur surSélection quand le widget attaché a le focus, MENU FERMÉ (et pas
+// seulement pendant l'affichage du popup).
+//
+// Vrais widgets Qt (TestModeHeadless(Faux) + OuvreSoeur) : EnvoieTouche poste
+// un vrai QKeyEvent sur le widget focusé ; si le raccourci est enregistré de
+// façon persistante sur ce widget, Qt déclenche la QAction -> surSélection.
+//
+// ROUGE ATTENDU avant impl : le raccourci n'existe que sur la QAction du popup
+// (vivante seulement pendant l'affichage), donc EnvoieTouche menu fermé ne
+// déclenche rien -> cDernierChamp_mcr reste "" / nFondCount_mcr reste 0.
+
+TestModeHeadless(Faux)
+
+bFenPrete_mcr est un booléen = Faux
+cDernierChamp_mcr est une chaîne = ""
+nFondCount_mcr est un entier = 0
+
+PROCEDURE callback_fen_prete()
+	bFenPrete_mcr = Vrai
+FIN
+
+PROCEDURE callback_action_champ(cNom est une chaîne)
+	cDernierChamp_mcr = cNom
+FIN
+
+PROCEDURE callback_action_fond()
+	nFondCount_mcr += 1
+FIN
+
+OuvreSoeur(FEN_MenuRaccourci)
+dbgVérifieVrai(bFenPrete_mcr, "FinInitialisation appelee : fenetre prete")
+
+// Champ A focus -> F4 doit firer surSélection de OPT_Action, menu fermé.
+DonneFocus(ZS_ZoneA)
+EnvoieTouche(tkF4)
+dbgVérifieEgalité(cDernierChamp_mcr, "ZS_ZoneA",
+"raccourci F4 fire surSélection (champ A focus, menu ferme)")
+
+// Menu PARTAGÉ (MNU_Edition sur ZS_ZoneA ET ZS_ZoneB) : le raccourci fire
+// aussi quand l'autre champ a le focus, avec le bon sender (MoiMême).
+DonneFocus(ZS_ZoneB)
+EnvoieTouche(tkF4)
+dbgVérifieEgalité(cDernierChamp_mcr, "ZS_ZoneB",
+"menu partage : F4 fire aussi sur champ B (sender = ZS_ZoneB)")
+
+// Menu attaché à la FENÊTRE (MNU_Fond) : F6 fire quel que soit le champ focusé
+// (contexte WindowShortcut).
+EnvoieTouche(tkF6)
+dbgVérifieEgalité(nFondCount_mcr, 1,
+"raccourci F6 du menu de fond fire (WindowShortcut, menu ferme)")
+
+Ferme(FEN_MenuRaccourci)
+dbgBilanTest()

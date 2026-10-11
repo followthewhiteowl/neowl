@@ -1,0 +1,126 @@
+//  — un champ Date/Heure borne les VALEURS à la frappe (validateur de
+// plages dérivé du format, en plus du masque ) : jour 01-31, mois
+// 01-12, heure 00-23, minute/seconde 00-59. Bornes GROSSIÈRES seulement (pas
+// de validation calendaire fine — 30 février reste hors-scope, assumé).
+//
+// Discriminants (mesurés empiriquement AVANT dépôt, cf. rapport test_writer) :
+// aujourd'hui ( seul), ..Valeur sur une date/heure aberrante retombe
+// déjà sur une chaîne vide (le parseur qui LIT ..Valeur fait déjà une
+// validation calendaire exacte, indépendante du sujet de ce ticket). Comparer
+// juste "45151986" avant/après serait donc un FAUX discriminant (vide des
+// deux côtés). Le vrai discriminant : un validateur de plages REJETTE les
+// chiffres hors-borne AU MOMENT DE LA FRAPPE (pas juste au moment de LIRE
+// ..Valeur), donc les chiffres suivants continuent d'arriver et peuvent
+// composer une date/heure valide — chose impossible aujourd'hui où tous les
+// chiffres tapés sont engloutis tels quels dans les emplacements du masque,
+// sans notion de validité.
+//
+// Exemple concret (scénario 1) : "4515091986" (10 chiffres).
+//   - Aujourd'hui (aucun validateur, juste le masque ) : les 8
+//     premiers chiffres remplissent aveuglément JJ=45/MM=15/AAAA=0919 (les 2
+//     derniers chiffres n'ont plus de place) -> date invalide -> ..Valeur
+//     retombe sur une chaîne vide.
+//   - Après (validateur de plages) : "4" et "5" sont refusés en position JJ
+//     (aucun jour valide ne commence par 4 ou 5) ; "1" puis "5" composent
+//     JJ=15 (valide) ; "1" est accepté en MM, "9" refusé (MM=19 invalide),
+//     "8" refusé, mais l'attente reprend et le prochain chiffre valide
+//     complète le mois ; au final JJ=15, MM=09, AAAA=1986 -> 15/09/1986,
+//     ..Valeur devient un owlDate.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_BornesValeursDateHeure)
+
+// ===== 1. Date aberrante bloquée (cœur) : jour hors-borne (JJ commençant par
+// 4 ou 5) rejeté à la frappe, les chiffres suivants complètent une date
+// valide grâce au rejet — impossible sans validateur (aujourd'hui : chaîne
+// vide dans les deux cas, non-discriminant ; ce montage EST discriminant) =====
+
+SAI_Date..Valeur = ""
+TestSimuleSaisie(SAI_Date, "4515091986")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Jour aberrant : les chiffres hors-borne (4,5) sont rejetés en position JJ, ce qui laisse les chiffres suivants composer 15/09/1986 (owlDate) — aujourd'hui, sans validateur, ces mêmes chiffres sont engloutis aveuglément et donnent une chaîne vide")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sDateBornee est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sDateBornee, "19860915", "Jour aberrant : la date recomposée après rejet des chiffres hors-borne est bien le 15 septembre 1986")
+SINON
+	dbgVérifieVrai(Faux, "Jour aberrant : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 2. Date valide directe acceptée (non-régression du guidage ) =====
+
+SAI_Date..Valeur = ""
+TestSimuleSaisie(SAI_Date, "10091986")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Date valide directe : « 10091986 » reste guidée vers un owlDate (non-régression feat_2030)")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sDateValide est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sDateValide, "19860910", "Date valide directe : 10 septembre 1986, inchangé par le validateur de plages")
+SINON
+	dbgVérifieVrai(Faux, "Date valide directe : round-trip ignoré")
+FIN
+
+// ===== 3. Mois > 12 bloqué : même montage que le jour, ciblé sur le mois
+// (MM=15 refusé, les chiffres suivants recomposent MM=12) =====
+
+SAI_Date..Valeur = ""
+TestSimuleSaisie(SAI_Date, "1015921986")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Mois aberrant : « 15 » est refusé en position MM (les chiffres 5 puis 9 ne complètent aucun mois valide), le chiffre suivant recompose MM=12, donnant le 10 décembre 1986 — aujourd'hui, sans validateur, MM=15 est accepté tel quel et la date reste invalide")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sDateMoisBorne est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sDateMoisBorne, "19861210", "Mois aberrant : la date recomposée après rejet du mois hors-borne est bien le 10 décembre 1986")
+SINON
+	dbgVérifieVrai(Faux, "Mois aberrant : round-trip ignoré")
+FIN
+
+// ===== 4. Heure hors bornes bloquée : HH=25 refusé, les chiffres suivants
+// recomposent HH=23 =====
+
+SAI_Heure..MasqueAffichage = "HH:MI:SS"
+SAI_Heure..Valeur          = ""
+TestSimuleSaisie(SAI_Heure, "2533045")
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Heure aberrante : « 25 » est refusé en position HH (le chiffre 5 ne complète aucune heure valide après 2), le chiffre suivant recompose HH=23, donnant 23:30:45 — aujourd'hui, sans validateur, HH=25 est accepté tel quel et l'heure reste invalide")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sHeureBornee est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sHeureBornee, "23304500", "Heure aberrante : l'heure recomposée après rejet des chiffres hors-borne est bien 23:30:45")
+SINON
+	dbgVérifieVrai(Faux, "Heure aberrante : round-trip ignoré")
+FIN
+
+// ===== 5. Heure valide directe acceptée (non-régression ) =====
+
+SAI_Heure..Valeur = ""
+TestSimuleSaisie(SAI_Heure, "143045")
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Heure valide directe : « 143045 » reste guidée vers un owlHeure (non-régression feat_2030)")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sHeureValide est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sHeureValide, "14304500", "Heure valide directe : 14:30:45, inchangé par le validateur de plages")
+SINON
+	dbgVérifieVrai(Faux, "Heure valide directe : round-trip ignoré")
+FIN
+
+// ===== 6. Jetons nommés (mois en lettres) : pas de validateur, saisie libre,
+// pas de plantage (le validateur de plages ne s'applique qu'aux formats à
+// jetons numériques, cf.  pour le masque de frappe) =====
+
+SAI_DateNommee..MasqueAffichage = "JJ MMMM AAAA"
+SAI_DateNommee..Valeur          = ""
+TestSimuleSaisie(SAI_DateNommee, "20260912")
+dbgVérifieEgalité(TypeVar(SAI_DateNommee..Valeur), owlDate, "Jetons nommés : saisie libre (chiffres ISO) toujours acceptée sans validateur de plages, pas de plantage")
+SI TypeVar(SAI_DateNommee..Valeur) = owlDate ALORS
+	sDateNommee est une chaîne = SAI_DateNommee..Valeur
+	dbgVérifieEgalité(sDateNommee, "20260912", "Jetons nommés : round-trip fidèle en saisie libre (12 septembre 2026)")
+SINON
+	dbgVérifieVrai(Faux, "Jetons nommés : round-trip ignoré")
+FIN
+
+// ===== 7. Non-régression Numérique : le validateur de plages ne doit affecter
+// que Date et Heure =====
+
+SAI_Num..Valeur = ""
+TestSimuleSaisie(SAI_Num, "12345")
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Numérique témoin : ..Valeur reste un owlRéel (non-régression, non affecté par le validateur de plages)")
+SI TypeVar(SAI_Num..Valeur) = owlRéel ALORS
+	dbgVérifieVrai(Abs(SAI_Num..Valeur - 12345.0) < 0.0001, "Numérique témoin : valeur saisie fidèle (12345)")
+FIN
+
+Ferme(FEN_BornesValeursDateHeure)
+dbgBilanTest()

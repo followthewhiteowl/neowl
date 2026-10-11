@@ -1,0 +1,69 @@
+// ================================================================
+// Image natif — Lot I.0 : fondations (déclaration, propriétés)
+// Pas encore de chargement (Lot I.1) ni de pixel access (Lot I.2).
+//
+// Documentation de référence.
+// Conforme au canon : Valide reste Faux tant que l'image n'a pas été
+// "chargée ou créée correctement" (par dChargeImage en I.1).
+// ================================================================
+
+// ----- Déclaration d'une variable Image vide -----
+img1 est une Image
+dbgVérifieEgalité(img1..Valide, Faux, "Image vide: Valide = Faux")
+dbgVérifieEgalité(img1..Largeur, 0, "Image vide: Largeur = 0")
+dbgVérifieEgalité(img1..Hauteur, 0, "Image vide: Hauteur = 0")
+dbgVérifieEgalité(img1..AvecAlpha, Faux, "Image vide: AvecAlpha = Faux")
+dbgVérifieEgalité(img1..BitParPixel, 0, "Image vide: BitParPixel = 0")
+dbgVérifieEgalité(img1..EchelleDessin, 1.0, "Image vide: EchelleDessin = 1.0 (défaut)")
+
+// CouleurRemplissage : défaut = Blanc (0xFFFFFF en BGR)
+dbgVérifieEgalité(img1..CouleurRemplissage, Blanc, "Image vide: CouleurRemplissage = Blanc")
+
+// ----- Stockage des dimensions (sans chargement) -----
+img2 est une Image
+img2..Largeur = 100
+img2..Hauteur = 50
+dbgVérifieEgalité(img2..Largeur, 100, "Largeur après set : 100")
+dbgVérifieEgalité(img2..Hauteur, 50, "Hauteur après set : 50")
+// Conforme au comportement de référence : set Largeur/Hauteur seul ne suffit pas pour Valide=Vrai.
+// L'image devient valide uniquement après dChargeImage (Lot I.1).
+dbgVérifieEgalité(img2..Valide, Faux, "Set dimensions seul : Valide reste Faux")
+
+// ----- CouleurRemplissage : modifier avant chargement -----
+img3 est une Image
+img3..CouleurRemplissage = RougeClair
+dbgVérifieEgalité(img3..CouleurRemplissage, RougeClair, "CouleurRemplissage modifiable")
+
+img4 est une Image
+img4..CouleurRemplissage = BleuClair
+dbgVérifieEgalité(img4..CouleurRemplissage, BleuClair, "CouleurRemplissage indépendante par instance")
+
+// ----- EchelleDessin : modifier -----
+img5 est une Image
+img5..EchelleDessin = 2.5
+dbgVérifieEgalité(img5..EchelleDessin, 2.5, "EchelleDessin écrivable")
+
+img6 est une Image
+img6..EchelleDessin = 0.5
+dbgVérifieEgalité(img6..EchelleDessin, 0.5, "EchelleDessin (0.5) écrivable")
+dbgVérifieEgalité(img5..EchelleDessin, 2.5, "EchelleDessin par instance (img5 préservé)")
+
+// ----- Plusieurs images indépendantes : isolation des champs -----
+imgA est une Image
+imgA..Largeur = 50
+imgA..Hauteur = 50
+
+imgB est une Image
+imgB..Largeur = 200
+imgB..Hauteur = 200
+
+dbgVérifieEgalité(imgA..Largeur, 50, "imgA isolée : Largeur = 50")
+dbgVérifieEgalité(imgB..Largeur, 200, "imgB isolée : Largeur = 200")
+dbgVérifieEgalité(imgA..Hauteur, 50, "imgA isolée : Hauteur = 50")
+dbgVérifieEgalité(imgB..Hauteur, 200, "imgB isolée : Hauteur = 200")
+
+// ----- Alias EN du type 'Image' (canon bilingue OWL) -----
+// Le type Image a la même casse en FR et EN (canon de référence).
+img7 est une Image
+img7..Largeur = 1
+dbgVérifieEgalité(img7..Largeur, 1, "Image type bilingue (même nom FR/EN)")

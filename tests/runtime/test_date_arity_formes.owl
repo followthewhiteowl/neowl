@@ -1,0 +1,31 @@
+// Formes d'arité discrètes (, famille date) : chaque forme valide
+// des natives migrées depuis une signature variadique masquée continue de
+// compiler ET de s'exécuter correctement.
+// @sujet arité date : formes natives + formes chaînées valides
+
+d est une date = ChaîneVersDate("20240101")
+
+// NuméroDeSemaine : 1 arg (date) et 2 args (date, format iso8601)
+dbgVérifieEgalité(NuméroDeSemaine(d), 1, "NuméroDeSemaine 1 arg")
+dbgVérifieEgalité(NuméroDeSemaine(d, iso8601), 1, "NuméroDeSemaine 2 args (iso8601)")
+// Forme chaînée (binding méthode aligné -1) : 2 args en chaîné = receveur + format
+dbgVérifieEgalité(d.NumeroDeSemaine(iso8601), 1, "NuméroDeSemaine méthode + format")
+
+// DateVersChaîne : 1 arg et 2 args (avec template)
+dbgVérifieEgalité(DateVersChaîne(d), "01/01/2024", "DateVersChaîne 1 arg")
+dbgVérifieEgalité(DateVersChaîne(d, "AAAA-MM-JJ"), "2024-01-01", "DateVersChaîne 2 args (template)")
+
+// HeureVersChaîne : 1 arg et 2 args (avec template), + forme chaînée
+h est une heure = ChaîneVersHeure("143005")
+dbgVérifieEgalité(HeureVersChaîne(h), "14:30:05:00", "HeureVersChaîne 1 arg")
+dbgVérifieEgalité(HeureVersChaîne(h, "HH:MM"), "14:30", "HeureVersChaîne 2 args (template)")
+dbgVérifieEgalité(h.VersChaîne("HHhMM"), "14h30", "HeureVersChaîne méthode + format")
+
+// AnnéeBissextile : 0 arg (année courante) et 1 arg
+dbgVérifieEgalité(AnnéeBissextile(2024), Vrai, "AnnéeBissextile 1 arg (2024 bissextile)")
+dbgVérifieEgalité(AnnéeBissextile(2023), Faux, "AnnéeBissextile 1 arg (2023 non)")
+
+// Age : 1 arg (référence = aujourd'hui) et 2 args (référence explicite)
+dbgVérifieEgalité(Age("20000101", "20240101"), "00240000", "Age 2 args (24 ans pile)")
+
+dbgBilanTest()

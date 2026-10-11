@@ -1,0 +1,85 @@
+//  — propriété canon MasqueAffichage (EN DisplayMask, doc
+// 1000020008) sur le champ de saisie, appliquée au type Date : pilote le
+// format d'affichage/relecture au lieu du JJ/MM/AAAA codé en dur.
+//
+// Nature : ROUGE avant impl, y compris à la compilation — MasqueAffichage
+// n'existe pas encore dans le catalogue du champ Saisie (`--check` échoue
+// avec "Propriété 'MasqueAffichage' inconnue pour Saisie"). Le compile-check
+// échoue donc pour la BONNE raison : symbole inconnu, pas une faute de
+// syntaxe `.`/`..`.
+//
+// Point de testabilité (cf. ticket) : aucun accesseur headless du TEXTE
+// AFFICHÉ brut d'un champ Date n'existe indépendamment de ..Valeur (qui
+// renvoie un owlDate format-agnostique, contrat ). ..Libelle sur un
+// champ Saisie désigne le libellé intégré (composite à gauche), pas la zone
+// de saisie, et n'est de toute façon pas dans la white-list Qt-live
+// de vm.c::try_live_qt_prop_for_uici — donc même s'il désignait le bon widget,
+// la lecture retomberait sur le store (pas le rendu vivant). L'effet VISUEL du
+// masque (ex: "2026-05-12" affiché à l'écran) reste donc une vérification
+// manuelle (cf. notes test_writer du ticket). Ce fichier couvre ce qui est
+// headless-testable : round-trip get/set de la propriété, non-régression du
+// contrat ..Valeur=owlDate quel que soit le masque posé, et la RELECTURE
+// (parsing) d'une saisie utilisateur au format du masque.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MasqueAffichageDate)
+
+// ===== 1. Round-trip get/set de MasqueAffichage =====
+
+sDéfaut est une chaîne = SAI_SansMasque..MasqueAffichage
+dbgVérifieEgalité(sDéfaut, "", "MasqueAffichage : chaîne vide avant toute configuration")
+
+SAI_SansMasque..MasqueAffichage = "AAAA-MM-JJ"
+sLu est une chaîne = SAI_SansMasque..MasqueAffichage
+dbgVérifieEgalité(sLu, "AAAA-MM-JJ", "MasqueAffichage : round-trip get/set fidèle")
+
+// ===== 2. Repli sans masque : JJ/MM/AAAA implicite (non-régression ) =====
+//
+// Champ dédié SANS jamais poser MasqueAffichage dessus (celui du bloc 1 a
+// déjà reçu un masque — on ne le réutilise pas pour ne pas coupler les cas).
+
+SAI_MasqueISO..Valeur = ChaîneVersDate("20260512")
+dbgVérifieEgalité(TypeVar(SAI_MasqueISO..Valeur), owlDate, "Repli défaut : ..Valeur est un owlDate (contrat ADR_0205 préservé)")
+SI TypeVar(SAI_MasqueISO..Valeur) = owlDate ALORS
+	sLueDefaut est une chaîne = SAI_MasqueISO..Valeur
+	dbgVérifieEgalité(sLueDefaut, "20260512", "Repli défaut : round-trip fidèle sans masque posé")
+SINON
+	dbgVérifieVrai(Faux, "Repli défaut : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 3. Masque ISO posé : ..Valeur reste owlDate (non-régression ) =====
+
+SAI_MasqueISO..MasqueAffichage = "AAAA-MM-JJ"
+dRéférence est une date = ChaîneVersDate("20261231")
+SAI_MasqueISO..Valeur = dRéférence
+dbgVérifieEgalité(TypeVar(SAI_MasqueISO..Valeur), owlDate, "Masque ISO posé : ..Valeur reste un owlDate")
+SI TypeVar(SAI_MasqueISO..Valeur) = owlDate ALORS
+	sLueMasquee est une chaîne = SAI_MasqueISO..Valeur
+	dbgVérifieEgalité(sLueMasquee, "20261231", "Masque ISO posé : round-trip fidèle malgré le masque d'affichage")
+SINON
+	dbgVérifieVrai(Faux, "Masque ISO posé : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 4. Le masque pilote la RELECTURE d'une saisie utilisateur =====
+//
+// "05/12/2026" est ambigu (JJ/MM vs MM/JJ). Sans connaissance du masque posé,
+// le parsing générique (owl_parse_date_multi) l'interprète en JJ/MM/AAAA
+// (jour=05, mois=12 -> 5 décembre 2026) — vérifié empiriquement AVANT ce
+// ticket. Avec un masque "MM/JJ/AAAA" posé sur le champ, la relecture doit
+// respecter l'ORDRE DE JETONS du masque (mois=05, jour=12 -> 12 mai 2026).
+// Ce cas discrimine réellement l'implémentation du masque de la simple
+// auto-détection générique déjà existante (pas de vert par coïncidence).
+
+SAI_MasqueUS..MasqueAffichage = "MM/JJ/AAAA"
+TestSimuleSaisie(SAI_MasqueUS, "05/12/2026")
+dbgVérifieEgalité(TypeVar(SAI_MasqueUS..Valeur), owlDate, "Masque MM/JJ/AAAA : saisie utilisateur relue comme owlDate")
+SI TypeVar(SAI_MasqueUS..Valeur) = owlDate ALORS
+	sLueUS est une chaîne = SAI_MasqueUS..Valeur
+	dbgVérifieEgalité(sLueUS, "20260512", "Masque MM/JJ/AAAA : « 05/12/2026 » interprété comme 12 mai 2026, pas 5 décembre")
+SINON
+	dbgVérifieVrai(Faux, "Masque MM/JJ/AAAA : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_MasqueAffichageDate)
+dbgBilanTest()

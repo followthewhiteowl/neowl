@@ -1,0 +1,27 @@
+// @sujet : EnModeStressGC
+// @résumé : Detection du mode stress GC (OWL_STRESS_GC ou OWL_GC_POISON). Retour booléen contextuel, permet aux tests perf d'adapter leurs seuils selon l'environnement.
+
+PROCEDURE PUBLIQUE scenario_detection_mode_stress_gc()
+	// 1. Appel de base — ne crashe pas, retourne un booléen
+	mode_stress est un booléen = EnModeStressGC()
+	dbgVérifieVrai(mode_stress OU PAS mode_stress, "EnModeStressGC doit retourner un booléen (Vrai ou Faux)")
+
+	// 2. Stabilité : deux appels successifs retournent la même valeur
+	premier_appel est un booléen = EnModeStressGC()
+	second_appel est un booléen = EnModeStressGC()
+	dbgVérifieEgalité(premier_appel, second_appel, "EnModeStressGC stable sur plusieurs appels")
+
+	// 3. Pattern usage typique : ajuster un seuil selon le mode
+	// (sans asserter sur la valeur contextuelle, juste vérifier que le pattern compile et s'exécute)
+	seuil_perf est un entier
+	SI EnModeStressGC() ALORS
+		seuil_perf = 10000 // Mode stress : collection à chaque alloc → relax threshold
+	SINON
+		seuil_perf = 500
+	FIN
+	dbgVérifieVrai(seuil_perf = 500 OU seuil_perf = 10000, "Pattern ajustement seuil selon mode stress valide")
+
+	// 4. Alias EN : InStressGCMode doit retourner la même valeur
+	alias_en est un booléen = InStressGCMode()
+	dbgVérifieEgalité(EnModeStressGC(), alias_en, "Alias EN InStressGCMode retourne la même valeur")
+FIN

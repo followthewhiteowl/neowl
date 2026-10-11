@@ -1,0 +1,90 @@
+// @sujet : TexteDistanceDamerau
+// @résumé : Distance de Damerau-Levenshtein OSA entre deux chaînes — Levenshtein augmentée de la transposition de deux caractères adjacents (coût 1). Retourne un entier >= 0. Insensible à la casse et aux accents par défaut. Utile pour détecter les fautes de frappe humaines typiques (inversion de deux lettres adjacentes).
+
+
+// Vecteur démonstratif : "ca" → "ac" est 1 transposition (coût 1) alors
+// que Levenshtein pur compte 2 substitutions. Démontre la différence
+// avec Levenshtein : Damerau reconnaît l'inversion adjacente comme
+// opération atomique.
+PROCEDURE scenario_texte_distance_damerau_transposition()
+	distDamerau est un entier = TexteDistanceDamerau("ca", "ac")
+	distLevenshtein est un entier = TexteDistance("ca", "ac")
+
+	dbgVérifieEgalité(distDamerau, 1, "Damerau reconnaît transposition adjacente = 1")
+	dbgVérifieEgalité(distLevenshtein, 2, "Levenshtein compte 2 substitutions")
+FIN
+
+
+// Cas trivial : chaînes identiques → distance 0. Cohérence avec Levenshtein.
+PROCEDURE scenario_texte_distance_damerau_identique()
+	dist est un entier = TexteDistanceDamerau("bonjour", "bonjour")
+
+	dbgVérifieEgalité(dist, 0, "chaînes identiques → 0")
+FIN
+
+
+// Cas trivial : l'une des chaînes est vide → distance = taille de l'autre.
+// Même comportement que Levenshtein sur les bornes.
+PROCEDURE scenario_texte_distance_damerau_chaine_vide()
+	dist1 est un entier = TexteDistanceDamerau("abc", "")
+	dist2 est un entier = TexteDistanceDamerau("", "xyz")
+
+	dbgVérifieEgalité(dist1, 3, "chaîne vide vs abc → 3")
+	dbgVérifieEgalité(dist2, 3, "vide vs xyz → 3")
+FIN
+
+
+// Insensible casse+accents : Damerau hérite du folding standard de repli
+// casse et accents. "Café" vs "cafe" → identiques après normalisation → 0.
+PROCEDURE scenario_texte_distance_damerau_insensible_defaut()
+	dist est un entier = TexteDistanceDamerau("Café", "cafe")
+
+	dbgVérifieEgalité(dist, 0, "accents + casse ignorés par défaut")
+FIN
+
+
+// Alias EN : TextDistanceDamerau() équivalent à TexteDistanceDamerau().
+// Vérifie la cohérence bilingue.
+PROCEDURE scenario_text_distance_damerau_alias_en()
+	distFR est un entier = TexteDistanceDamerau("ca", "ac")
+	distEN est un entier = TextDistanceDamerau("ca", "ac")
+
+	dbgVérifieEgalité(distFR, distEN, "alias EN équivalent à FR")
+	dbgVérifieEgalité(distEN, 1, "alias EN calcule correctement")
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Faute de frappe réelle : inversion de deux lettres adjacentes.
+// Cas typique : "Mraie" vs "Marie" (erreur de frappe humaine courante).
+// Damerau détecte l'inversion r↔a = 1 transposition.
+PROCEDURE PRIVÉE scenario_texte_distance_damerau_faute_frappe()
+	dist est un entier = TexteDistanceDamerau("Mraie", "Marie")
+
+	dbgVérifieEgalité(dist, 1, "inversion r↔a = 1 transposition")
+FIN
+
+
+// Plusieurs opérations : "CA" vs "ABC" nécessite insertions + transpositions.
+// Pas de calcul manuel ici, juste vérifier que Damerau <= Levenshtein
+// (preuve empirique que la transposition peut économiser des opérations).
+PROCEDURE PRIVÉE scenario_texte_distance_damerau_multi_operations()
+	distDamerau est un entier = TexteDistanceDamerau("CA", "ABC")
+	distLevenshtein est un entier = TexteDistance("CA", "ABC")
+
+	dbgVérifieVrai(distDamerau <= distLevenshtein,
+	"Damerau jamais > Levenshtein (transposition peut économiser)")
+FIN
+
+
+// Symétrie : Damerau est symétrique (comme Levenshtein). Inverser l'ordre
+// des arguments ne change pas le résultat.
+PROCEDURE PRIVÉE scenario_texte_distance_damerau_symetrie()
+	dist1 est un entier = TexteDistanceDamerau("abc", "bac")
+	dist2 est un entier = TexteDistanceDamerau("bac", "abc")
+
+	dbgVérifieEgalité(dist1, dist2, "distance symétrique")
+FIN

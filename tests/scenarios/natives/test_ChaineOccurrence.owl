@@ -1,0 +1,141 @@
+// @sujet : ChaîneOccurrence
+// @résumé : ChaîneOccurrence : compter le nombre d'occurrences d'une sous-chaîne dans un texte.
+// Vitrine de ChaîneOccurrence : compter le nombre d'occurrences d'une sous-chaîne dans un texte.
+// Retourne le nombre d'occurrences trouvées (0 si aucune).
+
+// ============================================================================
+// PROCEDURES PUBLIQUES
+// ============================================================================
+
+// Cas nominal : compter les occurrences d'un motif simple dans un texte.
+// Utilisation typique : analyser des logs, compter des balises, dénombrer des mots clés.
+PROCEDURE PUBLIQUE scenario_base_comptage_simple()
+	phrase est une chaîne = "le chat voit le chien et le lapin"
+	nbOccurrences est un entier = ChaîneOccurrence(phrase, "le")
+
+	dbgVérifieEgalité(nbOccurrences, 3, "3 occurrences de 'le'")
+
+	// Cas texte technique
+	log est une chaîne = "ERROR: Failed to connect | ERROR: Timeout | WARNING: Retry"
+	dbgVérifieEgalité(ChaîneOccurrence(log, "ERROR"), 2, "2 erreurs loguées")
+FIN
+
+// Aucune occurrence trouvée — le motif n'apparaît pas dans le texte.
+// ChaîneOccurrence retourne 0.
+PROCEDURE PUBLIQUE scenario_aucune_occurrence()
+	texte est une chaîne = "Bonjour le monde"
+
+	// Motif absent
+	dbgVérifieEgalité(ChaîneOccurrence(texte, "salut"), 0, "motif absent")
+
+	// Motif avec casse différente (sans option SansCasse)
+	dbgVérifieEgalité(ChaîneOccurrence(texte, "MONDE"), 0, "casse différente sans option")
+
+	// Motif plus long que le texte
+	dbgVérifieEgalité(ChaîneOccurrence("court", "très long motif introuvable"), 0, "motif trop long")
+FIN
+
+// Option SansCasse : compter sans tenir compte des majuscules/minuscules.
+// Pratique pour normaliser les recherches utilisateur.
+PROCEDURE PUBLIQUE scenario_sans_casse()
+	description est une chaîne = "Le Hibou voit le hibou qui regarde LE HIBOU"
+
+	// Sans option : 1 seule occurrence exacte
+	dbgVérifieEgalité(ChaîneOccurrence(description, "hibou"), 1, "1 occurrence exacte (casse sensible)")
+
+	// Avec SansCasse : toutes les variantes comptent
+	dbgVérifieEgalité(ChaîneOccurrence(description, "hibou", SansCasse), 3, "3 occurrences (casse ignorée)")
+	dbgVérifieEgalité(ChaîneOccurrence(description, "LE", SansCasse), 3, "3 variantes de 'LE'")
+FIN
+
+// Cas limites : chaîne vide, motif vide, motif égal au texte, chevauchements.
+PROCEDURE PUBLIQUE scenario_cas_limites()
+	// Motif vide → 0 par convention
+	dbgVérifieEgalité(ChaîneOccurrence("texte", ""), 0, "motif vide = 0")
+
+	// Chaîne vide → 0
+	dbgVérifieEgalité(ChaîneOccurrence("", "motif"), 0, "chaîne vide = 0")
+
+	// Motif égal à la chaîne complète → 1
+	dbgVérifieEgalité(ChaîneOccurrence("hello", "hello"), 1, "égalité = 1 occurrence")
+
+	// Motif répété sans chevauchement
+	dbgVérifieEgalité(ChaîneOccurrence("aaaa", "aa"), 2, "4 'a' → 2 occurrences 'aa' (non-chevauchantes)")
+
+	// Motif dans motif (chevauchement)
+	dbgVérifieEgalité(ChaîneOccurrence("aaa", "aa"), 1, "chevauchement non compté")
+FIN
+
+// ============================================================================
+// PROCEDURES PRIVEES (edge cases proactifs, non-pédagogiques)
+// ============================================================================
+
+// Edge case : UTF-8, accents, emoji. Le comptage est en caractères, pas en bytes.
+PROCEDURE PRIVÉE scenario_edge_utf8_et_accents()
+	// UTF-8 : un caractère accentué = 1 caractère (plusieurs bytes)
+	dbgVérifieEgalité(ChaîneOccurrence("été été été", "été"), 3, "3 occurrences UTF-8")
+
+	// Accent sensible par défaut (pas d'option ccSansAccent)
+	dbgVérifieEgalité(ChaîneOccurrence("Validé validé valide", "validé"), 1, "1 seule avec accent exact")
+
+	// Emoji
+	dbgVérifieEgalité(ChaîneOccurrence("🦉 hibou 🦉 owl 🦉", "🦉"), 3, "3 emoji comptés")
+FIN
+
+// Edge case : option MotComplet — compte uniquement les occurrences entourées de séparateurs.
+// Utile pour chercher un mot entier, pas un fragment dans un mot plus long.
+PROCEDURE PRIVÉE scenario_edge_mot_complet()
+	phrase est une chaîne = "le chat le chaton le chien"
+
+	// Sans MotComplet : "chat" apparaît 2 fois (dans "chat" et "chaton")
+	dbgVérifieEgalité(ChaîneOccurrence(phrase, "chat"), 2, "2 fragments 'chat'")
+
+	// Avec MotComplet : "chat" seul = 1 (pas dans "chaton")
+	dbgVérifieEgalité(ChaîneOccurrence(phrase, "chat", MotComplet), 1, "1 mot complet 'chat'")
+
+	// Mot en fin de chaîne (séparateur virtuel)
+	dbgVérifieEgalité(ChaîneOccurrence("le chien", "chien", MotComplet), 1, "mot en fin OK")
+FIN
+
+// Edge case : option DepuisFin — compte depuis la fin (sémantique inversée).
+// Note : peu utile pour un comptage total, mais combinable avec autres options.
+PROCEDURE PRIVÉE scenario_edge_depuis_fin()
+	texte est une chaîne = "un deux trois"
+
+	// DepuisFin seul : le comptage total est identique (ordre inversé mais total inchangé)
+	nbNormal est un entier = ChaîneOccurrence(texte, "e")
+	nbInverse est un entier = ChaîneOccurrence(texte, "e", DepuisFin)
+	dbgVérifieEgalité(nbNormal, nbInverse, "DepuisFin donne même total")
+FIN
+
+// Edge case : combinaison d'options (bitwise OR).
+// SansCasse + MotComplet = recherche insensible à la casse sur mots complets.
+PROCEDURE PRIVÉE scenario_edge_options_combinees()
+	phrase est une chaîne = "Le CHAT, le Chat et le chaton"
+
+	// SansCasse seul
+	dbgVérifieEgalité(ChaîneOccurrence(phrase, "chat", SansCasse), 3, "3 variantes 'chat' (casse ignorée)")
+
+	// MotComplet seul (casse sensible)
+	dbgVérifieEgalité(ChaîneOccurrence(phrase, "chat", MotComplet), 0, "0 avec casse exacte (CHAT ≠ chat)")
+
+	// SansCasse + MotComplet : "CHAT" et "Chat" comptent, pas "chaton"
+	optsCombo est un entier = SansCasse + MotComplet
+	dbgVérifieEgalité(ChaîneOccurrence(phrase, "chat", optsCombo), 2, "2 mots complets (casse ignorée)")
+FIN
+
+// Edge case : performance et cas extrêmes (long texte, nombreuses occurrences).
+PROCEDURE PRIVÉE scenario_edge_performance_extremes()
+	// Très long texte avec motif répété
+	longTexte est une chaîne = Répète("abc ", 1000)
+	dbgVérifieEgalité(ChaîneOccurrence(longTexte, "abc"), 1000, "1000 occurrences dans texte long")
+
+	// Motif répété collé sans espace
+	texteRepete est une chaîne = Répète("x", 100)
+	dbgVérifieEgalité(ChaîneOccurrence(texteRepete, "x"), 100, "100 occurrences de 'x'")
+
+	// Cas limite : un seul caractère répété
+	dbgVérifieEgalité(ChaîneOccurrence("zzzz", "z"), 4, "4 'z'")
+FIN
+
+dbgBilanTest()

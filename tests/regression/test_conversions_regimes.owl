@@ -1,0 +1,293 @@
+//  — Régression : matrice de conversion des 3 régimes du modèle de nombre v2
+// Verrouille les comportements des 3 régimes définis dans  (cahier des charges).
+//
+// SECTION VERTE (V*) — comportements déjà corrects aujourd'hui (gardes anti-régression).
+// SECTION ROUGE (R*) — comportements manquants à implémenter dans  :
+//   R1-R2 : numérique → entier : passthrough au lieu de troncature (fn_entier_coerce sans case NUMERIC)
+//   R3    : mur magnitude numérique → entier : silencieux au lieu d'exception
+//   R4    : mur magnitude numérique → monétaire : silencieux au lieu d'exception
+//   R5    : mur réel Infini → entier : silencieux au lieu d'exception (comportement C UB)
+//   R6    : numérique → monétaire : passthrough au lieu d'arrondi 6 dec (fn_monetaire_coerce sans case NUMERIC)
+// Chaque test rouge échoue pour la BONNE raison (valeur incorrecte ou absence d'exception).
+
+// =========================================================================
+// SECTION VERTE — gardes anti-régression
+// =========================================================================
+
+// V1 : réel positif non-entier → entier : troncature vers zéro (souple, sans exception)
+// fn_entier_coerce : IS_REAL → (int64_t)AS_REAL(v). Comportement C correct pour valeurs en range.
+PROCEDURE PUBLIQUE test_v1_reel_vers_entier_troncature_positive()
+	n_a est un entier = 3.75
+	dbgVérifieEgalité(n_a, 3, "3.75 → entier = 3 (troncature vers zéro)")
+	n_b est un entier = 9.99
+	dbgVérifieEgalité(n_b, 9, "9.99 → entier = 9 (troncature vers zéro)")
+	n_c est un entier = 2.5
+	dbgVérifieEgalité(n_c, 2, "2.5 → entier = 2 (troncature vers zéro, pas arrondi)")
+	n_d est un entier = 0.0
+	dbgVérifieEgalité(n_d, 0, "0.0 → entier = 0")
+	n_e est un entier = 0.9999
+	dbgVérifieEgalité(n_e, 0, "0.9999 → entier = 0 (troncature vers zéro)")
+FIN
+
+
+// V2 : réel négatif non-entier → entier : troncature vers zéro (souple, sans exception)
+// Comportement de référence : -3.75 → -3 (vers zéro, pas vers -4). Diverge de floor.
+PROCEDURE PUBLIQUE test_v2_reel_vers_entier_troncature_negative()
+	n_a est un entier = -3.75
+	dbgVérifieEgalité(n_a,-3, "-3.75 → entier = -3 (troncature vers zéro, pas floor)")
+	n_b est un entier = -2.99
+	dbgVérifieEgalité(n_b,-2, "-2.99 → entier = -2 (vers zéro)")
+	n_c est un entier = -0.5
+	dbgVérifieEgalité(n_c, 0, "-0.5 → entier = 0 (vers zéro)")
+FIN
+
+
+// V3 : division par zéro entier/entier lève une exception (mur déjà implémenté)
+// OP_DIVIDE : IS_INTEGER / 0 → DIV_ZERO_RAISE() → exception rattrapable QUAND EXCEPTION.
+// Note : on passe par une variable pour éviter la détection compile-time.
+PROCEDURE PUBLIQUE test_v3_div_zero_entier_leve_exception()
+	bException est un booléen = Faux
+	nDiviseur est un entier = 0
+	QUAND EXCEPTION DANS
+		nRes est un entier = 1 / nDiviseur
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "1/nDiviseur(0) (entier/entier) lève une exception rattrapable")
+FIN
+
+
+// V4 : division par zéro numérique/numérique lève une exception (mur déjà implémenté)
+// OP_DIVIDE : IS_NUMERIC path → numeric_div → dz=true → DIV_ZERO_RAISE().
+PROCEDURE PUBLIQUE test_v4_div_zero_numerique_leve_exception()
+	bException est un booléen = Faux
+	nNumerateur est un numérique = 1
+	nZero est un numérique = 0
+	QUAND EXCEPTION DANS
+		nRes est un numérique = nNumerateur / nZero
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "numérique/numérique(0) lève une exception rattrapable")
+FIN
+
+
+// V5 : division par zéro entier/numérique(0) lève une exception (mur déjà implémenté)
+// IS_NUMERIC(b) active le chemin numeric_div même si a est entier.
+PROCEDURE PUBLIQUE test_v5_div_zero_entier_sur_numerique_zero_leve_exception()
+	bException est un booléen = Faux
+	nZero est un numérique = 0
+	QUAND EXCEPTION DANS
+		nRes est un entier = 1 / nZero
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "1 / numérique(0) lève une exception rattrapable")
+FIN
+
+
+// V6 : promotion entier → numérique au débordement INT64_MAX (garde anti-régression )
+// INT64_MAX + 1 ne doit pas wrapper en INT64_MIN — il doit promouvoir en numérique exact.
+PROCEDURE PUBLIQUE test_v6_promotion_entier_int64max_vers_numerique()
+	nMax est un entier = 9223372036854775807
+	nPromo est un numérique = nMax + 1
+	dbgVérifieEgalité(TypeVar(nPromo), owlNumerique, "INT64_MAX + 1 promu en numérique (pas wrap entier)")
+	nCheck est un numérique = nPromo - 1
+	dbgVérifieEgalité(nCheck, nMax, "INT64_MAX + 1 - 1 = INT64_MAX (round-trip exact)")
+FIN
+
+
+// V7 : JSON entier > int64 parsé en numérique exact, sans saturation ni troncature
+// jp_parse_number : strtoll → ERANGE → numeric_from_string (chemin bignum).
+PROCEDURE PUBLIQUE test_v7_json_bignum_entier_parse_exact()
+	sJson est une chaîne = `{"n": 99999999999999999999999999}`
+	jDoc est un JSON = ChaîneVersJSON(sJson)
+	sSer est une chaîne = JSONVersChaîne(jDoc, psdMinifie)
+	dbgVérifieVrai(Contient(sSer, "99999999999999999999999999"),
+	"JSON entier 26 chiffres round-trip exact (pas de saturation int64)")
+	nLu est un numérique = jDoc.n
+	dbgVérifieVrai(nLu > 0, "valeur JSON bignum lue en numérique est positive")
+FIN
+
+
+// V8 : réel → monétaire avec >6 décimales : arrondit à 6 déc.
+// fn_monetaire_coerce : IS_REAL → double_to_int64_saturate(d * 1000000.0).
+// 12.3456789 * 1000000 = 12345678.9 → arrondi à 12345679 → 12.345679 monétaire.
+PROCEDURE PUBLIQUE test_v8_reel_vers_monetaire_arrondi_6dec()
+	mVal est un monétaire = 12.3456789
+	// Vérification via sérialisation JSON (représentation exacte de la valeur stockée)
+	jDoc est un JSON = ChaîneVersJSON("{}")
+	jDoc.Val = mVal
+	sSer est une chaîne = JSONVersChaîne(jDoc, psdMinifie)
+	dbgVérifieVrai(Contient(sSer, "12.345679"),
+	"12.3456789 → monétaire → 12.345679 (arrondi sur 6 décimales)")
+FIN
+
+
+// =========================================================================
+// SECTION ROUGE — comportements à implémenter dans 
+// =========================================================================
+
+// R1 : numérique non-entier → entier : doit tronquer vers zéro (souple, sans exception)
+// BUG ACTUEL  : fn_entier_coerce n'a pas de case IS_NUMERIC → passthrough
+//               → slot entier contient un numérique (fuite de Variant)
+//               → valeur est 3.75 (non tronquée) au lieu de 3
+// ATTENDU     : troncature vers zéro, TypeVar = owlEntier
+// RAISON ROUGE: TypeVar(n) = owlNumerique (pas owlEntier) ; valeur ≠ 3
+PROCEDURE PUBLIQUE test_r1_numerique_non_entier_vers_entier_troncature_souple()
+	// Pas d'exception attendue (coercion souple = magnitude rentre, seules les décimales sont perdues)
+	bException est un booléen = Faux
+	nSrc375 est un numérique = 0n3.75
+	nSrcNeg375 est un numérique = -(0n3.75)
+	nSrc09 est un numérique = 0n0.9
+	QUAND EXCEPTION DANS
+		nPos est un entier = nSrc375
+		nNeg est un entier = nSrcNeg375
+		nNul est un entier = nSrc09
+		// TypeVar doit être owlEntier, pas owlNumerique
+		dbgVérifieEgalité(TypeVar(nPos), owlEntier, "TypeVar après coerce souple numérique → entier")
+		// Valeur correcte après troncature
+		dbgVérifieEgalité(nPos, 3, "numérique(3.75) → entier = 3 (troncature vers zéro)")
+		dbgVérifieEgalité(nNeg,-3, "numérique(-3.75) → entier = -3 (troncature vers zéro)")
+		dbgVérifieEgalité(nNul, 0, "numérique(0.9) → entier = 0 (troncature vers zéro)")
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException = Faux, "coercion souple numérique → entier : pas d'exception")
+FIN
+
+
+// R2 : numérique entier exact INT64_MAX → entier : doit rentrer (souple, pas de mur)
+// BUG ACTUEL  : passthrough → slot entier contient le numérique → TypeVar = owlNumerique
+// ATTENDU     : TypeVar = owlEntier, valeur = 9223372036854775807
+// RAISON ROUGE: TypeVar(n) ≠ owlEntier
+PROCEDURE PUBLIQUE test_r2_numerique_int64max_vers_entier_rentre()
+	nMax est un numérique = 9223372036854775807
+	nSub est un numérique = -(9223372036854775807)
+	nCvt est un entier = nMax
+	nCvtNeg est un entier = nSub
+	dbgVérifieEgalité(TypeVar(nCvt), owlEntier,
+	"numérique(INT64_MAX) → entier : slot doit être owlEntier")
+	dbgVérifieEgalité(nCvt, 9223372036854775807,
+	"numérique(INT64_MAX) → entier : valeur préservée")
+	dbgVérifieEgalité(TypeVar(nCvtNeg), owlEntier,
+	"numérique(-INT64_MAX) → entier : slot doit être owlEntier")
+	dbgVérifieEgalité(nCvtNeg,-9223372036854775807,
+	"numérique(-INT64_MAX) → entier : valeur préservée")
+FIN
+
+
+// R3 : mur magnitude numérique → entier quand magnitude dépasse int64 → exception
+// BUG ACTUEL  : value_to_integer → numeric_to_i64(value, NULL) → troncature silencieuse
+//               (les 64 bits bas de 10^20 → valeur poubelle, aucune exception)
+// ATTENDU     : exception runtime (mur)
+// RAISON ROUGE: FAIRE jamais atteint → bException reste Faux → assertion échoue
+PROCEDURE PUBLIQUE test_r3_mur_numerique_magnitude_vers_entier_exception()
+	// Construit 10^20 par promotion (exact depuis ) — dépasse INT64_MAX (~9.2×10^18)
+	nBase est un entier = 10000000000
+	n20 est un numérique = nBase * nBase
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		nEntier est un entier = n20
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "numérique(10^20) → entier : mur, doit lever exception")
+FIN
+
+
+// R3b : mur magnitude numérique → entier avec 2^63 exactement (déborde d'un)
+// 2^63 = INT64_MAX + 1 : la première valeur qui ne rentre pas dans int64 signé.
+PROCEDURE PUBLIQUE test_r3b_mur_numerique_2pow63_vers_entier_exception()
+	nMaxPlus1 est un entier = 9223372036854775807
+	n2pow63 est un numérique = nMaxPlus1 + 1
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		nEntier est un entier = n2pow63
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "numérique(2^63) → entier : mur, doit lever exception (déborde de 1)")
+FIN
+
+
+// R4 : mur magnitude numérique → monétaire quand magnitude dépasse monétaire → exception
+// Le monétaire est stocké en int64 × 10^6 : max ≈ 9.2×10^12. 10^40 est clairement hors borne.
+// BUG ACTUEL  : fn_monetaire_coerce n'a pas de case IS_NUMERIC → passthrough silencieux
+// ATTENDU     : exception runtime (mur)
+// RAISON ROUGE: FAIRE jamais atteint → bException reste Faux → assertion échoue
+PROCEDURE PUBLIQUE test_r4_mur_numerique_magnitude_vers_monetaire_exception()
+	// 10^40 via arithmétique numérique (bien au-delà de monétaire max ≈ 9.2×10^12)
+	nBase est un entier = 10000000000
+	n20 est un numérique = nBase * nBase
+	n40 est un numérique = n20 * n20
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		mResult est un monétaire = n40
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "numérique(10^40) → monétaire : mur, doit lever exception")
+FIN
+
+
+// R5 : mur réel Infini → entier → exception
+// Infini IEEE754 produit par dépassement de gamme (1e300 * 1e300 = +Inf, sans exception OWL).
+// BUG ACTUEL  : fn_entier_coerce IS_REAL → (int64_t)INFINITY = comportement indéfini en C
+//               → aucune exception levée
+// ATTENDU     : exception runtime (mur : valeur non-sens)
+// RAISON ROUGE: FAIRE jamais atteint → bException reste Faux → assertion échoue
+PROCEDURE PUBLIQUE test_r5_mur_reel_infini_vers_entier_exception()
+	// Créer +Infini IEEE754 par overflow double (OP_MULTIPLY ne vérifie pas l'infini)
+	rInfiniPos est un réel = 1e300 * 1e300
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		nEntier est un entier = rInfiniPos
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "réel(+Infini) → entier : mur, doit lever exception")
+FIN
+
+
+// R5b : mur réel -Infini → entier → exception
+PROCEDURE PUBLIQUE test_r5b_mur_reel_infini_negatif_vers_entier_exception()
+	rInfiniNeg est un réel = -1e300 * 1e300
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		nEntier est un entier = rInfiniNeg
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "réel(-Infini) → entier : mur, doit lever exception")
+FIN
+
+
+// R6 : numérique → monétaire avec >6 décimales : doit arrondir à 6 déc. (souple, sans exception)
+// BUG ACTUEL  : fn_monetaire_coerce n'a pas de case IS_NUMERIC → passthrough
+//               → slot monétaire contient un numérique
+//               → TypeVar = owlNumerique (pas owlMonétaire)
+//               → valeur 12.3456789 (non arrondie) au lieu de 12.345679
+// ATTENDU     : arrondi demi-pair à 6 déc., TypeVar = owlMonétaire
+// RAISON ROUGE: TypeVar(mVal) ≠ owlMonétaire ; valeur stockée ≠ 12.345679
+PROCEDURE PUBLIQUE test_r6_numerique_vers_monetaire_arrondi_6dec_souple()
+	nSource est un numérique = 12.3456789
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		mVal est un monétaire = nSource
+		dbgVérifieEgalité(TypeVar(mVal), owlMonétaire,
+		"TypeVar après coerce numérique → monétaire doit être owlMonétaire")
+		// Vérification de l'arrondi via JSON round-trip (représentation exacte)
+		jDoc est un JSON = ChaîneVersJSON("{}")
+		jDoc.Val = mVal
+		sSer est une chaîne = JSONVersChaîne(jDoc, psdMinifie)
+		dbgVérifieVrai(Contient(sSer, "12.345679"),
+		"numérique(12.3456789) → monétaire → 12.345679 (arrondi demi-pair 6 déc.)")
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException = Faux,
+	"coercion souple numérique → monétaire : pas d'exception (magnitude rentre)")
+FIN
+
+// owl test auto-découvre et appelle les PROCEDURE PUBLIQUE ci-dessus.

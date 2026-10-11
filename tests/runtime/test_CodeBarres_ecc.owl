@@ -1,0 +1,51 @@
+// Verrouillage : la propriété CorrectionErreur agit au-delà du QR Code.
+//  - PDF417 : niveau entier 0-8 (nombre de codewords de correction).
+//  - Aztec  : niveau entier 1-4 (couches de correction).
+// Un niveau plus élevé ajoute des données de correction -> le symbole produit
+// est mesurablement différent (dimensions) d'un niveau bas, à contenu égal.
+// Avant câblage, CorrectionErreur était ignorée hors QR : les deux niveaux
+// produisaient des images identiques (ce test verrouille la différence).
+
+sContenu est une chaîne = "PDF417 correction erreur - controle OWL 1098 azerty"
+
+// --- PDF417 : ECC 0 vs ECC 8 ---
+cbPdfBas est un CodeBarres
+cbPdfBas..TypeCodeBarres   = CB_PDF417
+cbPdfBas..Contenu          = sContenu
+cbPdfBas..CorrectionErreur = 0
+
+cbPdfHaut est un CodeBarres
+cbPdfHaut..TypeCodeBarres   = CB_PDF417
+cbPdfHaut..Contenu          = sContenu
+cbPdfHaut..CorrectionErreur = 8
+
+ErreurRAZ()
+imgPdfBas est une Image = CodeBarreVersImage(cbPdfBas)
+dbgVérifieVrai(ErreurInfo() = "", "PDF417 ECC 0 - pas d'erreur")
+imgPdfHaut est une Image = CodeBarreVersImage(cbPdfHaut)
+dbgVérifieVrai(ErreurInfo() = "", "PDF417 ECC 8 - pas d'erreur")
+
+dbgVérifieVrai(imgPdfBas..Valide ET imgPdfHaut..Valide, "PDF417 ECC - images valides")
+dbgVérifieVrai(imgPdfHaut..Hauteur <> imgPdfBas..Hauteur OU imgPdfHaut..Largeur <> imgPdfBas..Largeur, "PDF417 ECC 8 produit un symbole différent de ECC 0 (CorrectionErreur câblée)")
+
+// --- Aztec : niveau 1 vs niveau 4 ---
+cbAzBas est un CodeBarres
+cbAzBas..TypeCodeBarres   = CB_AZTEC
+cbAzBas..Contenu          = sContenu
+cbAzBas..CorrectionErreur = 1
+
+cbAzHaut est un CodeBarres
+cbAzHaut..TypeCodeBarres   = CB_AZTEC
+cbAzHaut..Contenu          = sContenu
+cbAzHaut..CorrectionErreur = 4
+
+ErreurRAZ()
+imgAzBas est une Image = CodeBarreVersImage(cbAzBas)
+dbgVérifieVrai(ErreurInfo() = "", "Aztec niveau 1 - pas d'erreur")
+imgAzHaut est une Image = CodeBarreVersImage(cbAzHaut)
+dbgVérifieVrai(ErreurInfo() = "", "Aztec niveau 4 - pas d'erreur")
+
+dbgVérifieVrai(imgAzBas..Valide ET imgAzHaut..Valide, "Aztec ECC - images valides")
+dbgVérifieVrai(imgAzHaut..Hauteur <> imgAzBas..Hauteur OU imgAzHaut..Largeur <> imgAzBas..Largeur, "Aztec niveau 4 produit un symbole différent du niveau 1 (CorrectionErreur câblée)")
+
+dbgBilanTest()

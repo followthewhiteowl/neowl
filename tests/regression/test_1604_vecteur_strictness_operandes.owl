@@ -1,0 +1,204 @@
+//  : strictness des opérandes de l'arithmétique Vecteur.
+// Un opérande tableau (littéral nu OU variable typée) est refusé dans
+// l'arithmétique Vecteur — opérateurs + - * / ET méthodes fluentes
+// .Ajoute/.Soustrait/.Multiplie/.Divise. Distinguer un tableau d'un Vecteur
+// relèverait de l'inférence de type (bannie). Conversion explicite requise
+// via TableauVersVecteur, ou déclaration d'un Vecteur.
+// Ne restent légitimes que : Vecteur op Vecteur et Vecteur op scalaire.
+
+
+// --- Refus opérateurs : opérande tableau VARIABLE (tableau de réels) ---
+PROCEDURE PUBLIQUE test_operateur_refuse_tableau_variable()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	ta est un tableau de 3 réels
+	ta[1] = 10.0
+	ta[2] = 10.0
+	ta[3] = 10.0
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		r est un Vecteur = v + ta
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "v + tableau(variable) lève une exception")
+	dbgVérifieVrai(Contient(sMsg, "TableauVersVecteur"),
+		"message oriente vers TableauVersVecteur")
+FIN
+
+
+// --- Refus opérateurs : opérande tableau LITTÉRAL nu ---
+PROCEDURE PUBLIQUE test_operateur_refuse_tableau_litteral()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		r est un Vecteur = v + [10.0, 10.0, 10.0]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "v + [littéral] lève une exception")
+	dbgVérifieVrai(Contient(sMsg, "TableauVersVecteur"),
+		"message oriente vers TableauVersVecteur (littéral)")
+FIN
+
+
+// --- Refus des quatre opérateurs avec un opérande tableau ---
+PROCEDURE PUBLIQUE test_operateurs_soustraction_multiplication_division_refuses()
+	v est un Vecteur = [4.0, 6.0, 8.0]
+
+	capMoins est une chaîne = ""
+	QUAND EXCEPTION DANS
+		resMoins est un Vecteur = v - [1.0, 1.0, 1.0]
+		capMoins = "no-throw"
+	FAIRE
+		capMoins = "caught"
+	FIN
+	dbgVérifieEgalité(capMoins, "caught", "v - [littéral] refusé")
+
+	capFois est une chaîne = ""
+	QUAND EXCEPTION DANS
+		resFois est un Vecteur = v * [2.0, 2.0, 2.0]
+		capFois = "no-throw"
+	FAIRE
+		capFois = "caught"
+	FIN
+	dbgVérifieEgalité(capFois, "caught", "v * [littéral] refusé")
+
+	capDiv est une chaîne = ""
+	QUAND EXCEPTION DANS
+		resDiv est un Vecteur = v / [2.0, 2.0, 2.0]
+		capDiv = "no-throw"
+	FAIRE
+		capDiv = "caught"
+	FIN
+	dbgVérifieEgalité(capDiv, "caught", "v / [littéral] refusé")
+FIN
+
+
+// --- Refus méthodes fluentes : opérande tableau littéral ---
+PROCEDURE PUBLIQUE test_fluent_refuse_tableau_litteral()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		r est un Vecteur = v.Ajoute([1.0, 1.0, 1.0])
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "v.Ajoute([littéral]) lève une exception")
+	dbgVérifieVrai(Contient(sMsg, "TableauVersVecteur"),
+		"message fluent oriente vers TableauVersVecteur")
+FIN
+
+
+// --- Refus des quatre méthodes fluentes avec un opérande tableau ---
+PROCEDURE PUBLIQUE test_fluent_soustrait_multiplie_divise_refuses()
+	v est un Vecteur = [4.0, 6.0, 8.0]
+
+	capSous est une chaîne = ""
+	QUAND EXCEPTION DANS
+		resSous est un Vecteur = v.Soustrait([1.0, 1.0, 1.0])
+		capSous = "no-throw"
+	FAIRE
+		capSous = "caught"
+	FIN
+	dbgVérifieEgalité(capSous, "caught", "v.Soustrait([littéral]) refusé")
+
+	capMul est une chaîne = ""
+	QUAND EXCEPTION DANS
+		resMul est un Vecteur = v.Multiplie([2.0, 2.0, 2.0])
+		capMul = "no-throw"
+	FAIRE
+		capMul = "caught"
+	FIN
+	dbgVérifieEgalité(capMul, "caught", "v.Multiplie([littéral]) refusé")
+
+	capDiv est une chaîne = ""
+	QUAND EXCEPTION DANS
+		resDiv est un Vecteur = v.Divise([2.0, 2.0, 2.0])
+		capDiv = "no-throw"
+	FAIRE
+		capDiv = "caught"
+	FIN
+	dbgVérifieEgalité(capDiv, "caught", "v.Divise([littéral]) refusé")
+FIN
+
+
+// --- Tailles de Vecteur incompatibles : message dédié, pas le générique
+//     trompeur "les opérandes doivent être des nombres". ---
+PROCEDURE PUBLIQUE test_taille_incompatible_message_dedie()
+	vCourt est un Vecteur = [1.0, 2.0]
+	vLong est un Vecteur = [1.0, 2.0, 3.0]
+
+	capturé est une chaîne = ""
+	sMsg est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un Vecteur = vCourt + vLong
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+		sMsg = ExceptionInfo(errMessage)
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "tailles incompatibles lèvent une exception")
+	dbgVérifieVrai(Contient(sMsg, "incompatibles"),
+		"message dédié mentionne des tailles incompatibles")
+	dbgVérifieFaux(Contient(sMsg, "nombres"),
+		"message n'est plus le générique 'doivent être des nombres'")
+FIN
+
+
+// ==================== NON-RÉGRESSION ====================
+
+// Vecteur op Vecteur (même taille) : inchangé.
+PROCEDURE PUBLIQUE test_non_regression_vecteur_op_vecteur()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	w est un Vecteur = [4.0, 5.0, 6.0]
+	vSomme est un Vecteur = v + w
+	dbgVérifieEgalité(vSomme[1], 5.0, "v + w : élément 1 inchangé")
+	dbgVérifieEgalité(vSomme[2], 7.0, "v + w : élément 2 inchangé")
+	dbgVérifieEgalité(vSomme[3], 9.0, "v + w : élément 3 inchangé")
+FIN
+
+
+// Vecteur op scalaire (réel et entier coercé) : inchangé.
+PROCEDURE PUBLIQUE test_non_regression_vecteur_scalaire()
+	v est un Vecteur = [1.0, 2.0, 3.0]
+	vMul est un Vecteur = v * 2.0
+	dbgVérifieEgalité(vMul[1], 2.0, "v * 2.0 réel : élément 1")
+	dbgVérifieEgalité(vMul[3], 6.0, "v * 2.0 réel : élément 3")
+
+	vAjoutEntier est un Vecteur = v + 1
+	dbgVérifieEgalité(vAjoutEntier[1], 2.0, "v + entier(1) coercé en réel")
+FIN
+
+
+// Déclaration d'un Vecteur à partir d'un littéral entre crochets : cible
+// typée explicite, PAS d'inférence — toujours valide (hors scope du refus).
+PROCEDURE PUBLIQUE test_non_regression_declaration_litteral()
+	w est un Vecteur = [1, 2, 3]
+	dbgVérifieEgalité(w..Taille, 3, "déclaration Vecteur depuis littéral : taille 3")
+	dbgVérifieEgalité(w[1], 1.0, "élément 1 coercé en réel")
+	dbgVérifieEgalité(w[3], 3.0, "élément 3 coercé en réel")
+FIN
+
+
+// .Ajoute sur un TABLEAU reste l'append mutant (canon collection) : le refus
+// ne concerne QUE le type Vecteur, jamais le tableau.
+PROCEDURE PUBLIQUE test_non_regression_tableau_ajoute_mutant()
+	t est un tableau de 2 entiers
+	t[1] = 1
+	t[2] = 2
+	t.Ajoute(9)
+	dbgVérifieEgalité(t..Occurrence, 3, "t.Ajoute append : occurrence passe à 3")
+	dbgVérifieEgalité(t[3], 9, "t.Ajoute append : dernier élément = 9")
+FIN

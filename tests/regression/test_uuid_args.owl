@@ -1,0 +1,49 @@
+// Regression : DonneUUID et .VersChaîne avec un argument runtime invalide
+// doivent positionner ErreurDétectée sans planter le programme.
+//
+// Le compile-check enum_violation_error couvre déjà le cas des identifiants
+// nommés appartenant à un autre enum (ex DonneUUID(httpGet) — testé en
+// compile-time). Mais un entier brut comme 42 passe la compile et doit
+// être attrapé runtime via le mécanisme allowedBase.
+
+
+// --- DonneUUID(version) : version hors enum uuidVersion ---------------
+
+ErreurRAZ()
+idHorsEnum est un UUID = DonneUUID(42)
+dbgVérifieVrai(ErreurInfo() <> "",
+"ErreurInfo capture erreur apres echec")
+
+// Garde-fou : un appel valide derrière doit ré-effacer l'erreur.
+ErreurRAZ()
+idOK est un UUID = DonneUUID()
+dbgVérifieFaux(ErreurDétectée,
+"DonneUUID() valide derrière un appel raté : ErreurDétectée à Faux")
+dbgVérifieEgalité(Taille(idOK.VersChaîne()), 36,
+"DonneUUID() valide retourne un UUID 36 chars")
+
+
+// --- .VersChaîne(format) : format hors enum uuidFormat ----------------
+
+ErreurRAZ()
+idTest est un UUID = DonneUUID()
+sBadFmt est une chaîne = idTest.VersChaîne(99)
+dbgVérifieVrai(ErreurInfo() <> "",
+"ErreurInfo capture erreur apres echec")
+dbgVérifieEgalité(sBadFmt, "",
+".VersChaîne(99) retourne la chaîne vide")
+
+// Garde-fou : un appel valide derrière doit produire la sortie standard.
+ErreurRAZ()
+sOK est une chaîne = idTest.VersChaîne(uuidFormatStandard)
+dbgVérifieFaux(ErreurDétectée,
+".VersChaîne(uuidFormatStandard) valide : ErreurDétectée à Faux")
+dbgVérifieEgalité(Taille(sOK), 36,
+".VersChaîne(uuidFormatStandard) retourne 36 caractères")
+
+// Consomme le warning compile emis par DonneUUID(42) ligne 13 :
+// litteral entier passe a un parametre cable sur enum uuidVersion.
+__dbgAvertissementAttendu("Littéral numérique passé à un paramètre enum 'uuidVersion'",
+"Litteral 42 sur DonneUUID emet bien le warning enum")
+
+dbgBilanTest()

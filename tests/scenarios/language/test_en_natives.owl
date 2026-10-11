@@ -1,0 +1,80 @@
+// @subject: English native functions — EN forms of string and utility natives
+// @summary: Programs calling native functions by their English names.
+// Covers: Length, Left, Right, Middle, Upper, Lower, StringStartsWith,
+// StringEndsWith, Count, StringToInteger, ValR, Abs, Trace (EN forms verified
+// via owl explain --json). Verifies that each EN native form compiles,
+// executes, and returns the expected value.
+
+PROCEDURE PUBLIQUE scenario_length()
+	s is a string = "Hello"
+	dbgCheckEqual(Length(s), 5, "Length returns character count of string")
+	s2 is a string = ""
+	dbgCheckEqual(Length(s2), 0, "Length of empty string is 0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_left_right()
+	s is a string = "abcdefgh"
+	sL is a string = Left(s, 3)
+	dbgCheckEqual(sL, "abc", "Left(s, 3) returns first 3 characters")
+	sR is a string = Right(s, 3)
+	dbgCheckEqual(sR, "fgh", "Right(s, 3) returns last 3 characters")
+FIN
+
+PROCEDURE PUBLIQUE scenario_middle()
+	s is a string = "Hello World"
+	sMid is a string = Middle(s, 7, 5)
+	dbgCheckEqual(sMid, "World", "Middle(s, 7, 5) extracts 5 chars from position 7")
+FIN
+
+PROCEDURE PUBLIQUE scenario_upper_lower()
+	s is a string = "Hello World"
+	sUp is a string = Upper(s)
+	dbgCheckEqual(sUp, "HELLO WORLD", "Upper converts to uppercase")
+	sLo is a string = Lower(s)
+	dbgCheckEqual(sLo, "hello world", "Lower converts to lowercase")
+FIN
+
+PROCEDURE PUBLIQUE scenario_string_starts_ends_with()
+	s is a string = "Hello World"
+	dbgCheckTrue(StringStartsWith(s, "Hello"), "StringStartsWith matches prefix")
+	dbgCheckFalse(StringStartsWith(s, "World"), "StringStartsWith rejects non-prefix")
+	dbgCheckTrue(StringEndsWith(s, "World"), "StringEndsWith matches suffix")
+	dbgCheckFalse(StringEndsWith(s, "Hello"), "StringEndsWith rejects non-suffix")
+FIN
+
+PROCEDURE PUBLIQUE scenario_count_occurrences()
+	s is a string = "banana"
+	nCount is an integer = Count(s, "a")
+	dbgCheckEqual(nCount, 3, "Count finds 3 occurrences of 'a' in 'banana'")
+	nCount = Count(s, "na")
+	dbgCheckEqual(nCount, 2, "Count finds 2 occurrences of 'na' in 'banana'")
+FIN
+
+PROCEDURE PUBLIQUE scenario_string_to_integer()
+	s is a string = "42"
+	n is an integer = StringToInteger(s)
+	dbgCheckEqual(n, 42, "StringToInteger converts '42' to integer 42")
+	sNeg is a string = "-7"
+	nNeg is an integer = StringToInteger(sNeg)
+	dbgCheckEqual(nNeg,-7, "StringToInteger converts '-7' to integer -7")
+FIN
+
+PROCEDURE PUBLIQUE scenario_valr()
+	// ValR is the EN form of ChaîneVersRéel
+	s is a string = "3.14"
+	r is a real = ValR(s)
+	dbgCheckTrue(r > 3.13 AND r < 3.15, "ValR converts '3.14' to real ~3.14")
+FIN
+
+PROCEDURE PUBLIQUE scenario_abs()
+	n is an integer = -15
+	dbgCheckEqual(Abs(n), 15, "Abs of -15 is 15")
+	m is an integer = 7
+	dbgCheckEqual(Abs(m), 7, "Abs of positive 7 is 7")
+FIN
+
+PROCEDURE PUBLIQUE scenario_trace_en()
+	// Trace is already its EN form (invariant: same name FR and EN)
+	Trace("EN trace call compiles and executes")
+	dbgCheckTrue(True, "Trace EN form executes without error")
+FIN

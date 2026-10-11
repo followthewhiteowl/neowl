@@ -1,0 +1,81 @@
+// @sujet : dbgBilanTest
+// @resume : Affiche le bilan récapitulatif des assertions exécutées et retourne le nombre d'échecs
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_bilan_apres_assertions_mixtes()
+	// Un scénario mixte d'assertions réussies et échouées
+	// dbgBilanTest affiche le récapitulatif final
+
+	resultatSomme est un entier = 2 + 2
+	dbgVérifieVrai(resultatSomme = 4, "2+2 = 4")
+	dbgVérifieFaux(resultatSomme = 5, "2+2 != 5")
+	dbgVérifieEgalité(resultatSomme, 4, "2+2 vaut 4")
+
+	// Afficher le bilan accumulé jusque-là
+	nbEchecs est un entier = dbgBilanTest()
+
+	// On vérifie qu'aucun échec n'est remonté (toutes assertions OK)
+	dbgVérifieEgalité(nbEchecs, 0, "Aucun echec attendu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_retour_nombre_echecs()
+	// dbgBilanTest retourne le nombre d'échecs accumulés
+	// Utile pour des vérifications conditionnelles ou rapports personnalisés
+
+	// Assertions réussies pour baseline
+	dbgVérifieVrai(Vrai, "Base OK")
+
+	compteur est un entier = dbgBilanTest()
+
+	// Le compteur reflète l'état des assertions jusqu'à présent
+	// (dans un scénario isolé, devrait être 0 car tout passe)
+	dbgVérifieEgalité(compteur, 0, "Retour correct du compteur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_bilan_sans_assertions_prealables()
+	// Cas limite : appeler dbgBilanTest sans aucune assertion préalable
+	// Le bilan affiche 0/0
+
+	resultat est un entier = dbgBilanTest()
+
+	// Comportement attendu : 0 échec si aucune assertion n'a été exécutée
+	// (les compteurs globaux ne sont pas remis à zéro par dbgBilanTest)
+	dbgVérifieVrai(resultat >= 0, "Resultat non negatif")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_appels_multiples()
+	// Appels multiples à dbgBilanTest dans le même scénario
+	// Les compteurs persistent entre les appels (pas de reset automatique)
+
+	dbgVérifieVrai(Vrai, "Pre-bilan")
+
+	nb1 est un entier = dbgBilanTest()
+	nb2 est un entier = dbgBilanTest()
+
+	// Les deux appels retournent le même nombre d'échecs (pas de reset)
+	dbgVérifieEgalité(nb1, nb2, "Appels consecutifs coherents")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_bilan_avec_accent_insensible()
+	// Vérifier que dbgBilanTest et dbgTestSummary (alias EN) sont équivalents
+
+	dbgVérifieVrai(Vrai, "Pre-test accent")
+
+	// Appel de la forme FR
+	compteFR est un entier = dbgBilanTest()
+
+	// Appel de la forme EN
+	compteEN est un entier = dbgTestSummary()
+
+	// Les deux formes doivent retourner le même résultat
+	dbgVérifieEgalité(compteFR, compteEN, "Alias FR/EN coherents")
+FIN
+
+dbgBilanTest()

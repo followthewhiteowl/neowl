@@ -1,0 +1,24 @@
+// Regression: HeureVersChaine format de référence = "HH:MM:SS:CC" (avec centièmes)
+// Avant fix: retournait "HH:MM:SS" sans centièmes, n'acceptait pas string HHMMSSCC
+
+// Accepte une chaîne HHMMSSCC (8 chars) — exemple de référence
+dbgVérifieEgalité(HeureVersChaîne("12005956"), "12:00:59:56", "string HHMMSSCC doc exemple")
+dbgVérifieEgalité(Gauche(HeureVersChaîne("12005956"), 5), "12:00", "Gauche 5")
+
+// Format par défaut = HH:MM:SS:CC
+h est une heure = "09304578"
+dbgVérifieEgalité(HeureVersChaîne(h), "09:30:45:78", "heure avec centièmes")
+
+// HHMMSS (sans centièmes) → CC = 00
+h2 est une heure = "000000"
+dbgVérifieEgalité(HeureVersChaîne(h2), "00:00:00:00", "minuit avec centièmes")
+
+h3 est une heure = "235959"
+dbgVérifieEgalité(HeureVersChaîne(h3), "23:59:59:00", "fin de journee centièmes 00")
+
+// Format personnalisé
+dbgVérifieEgalité(HeureVersChaîne(h, "HH-MM-SS"), "09-30-45", "format sans centièmes")
+dbgVérifieEgalité(HeureVersChaîne(h, "HH:MM:SS:CC"), "09:30:45:78", "format explicite CC")
+dbgVérifieEgalité(HeureVersChaîne(h, "HHMM"), "0930", "format court")
+
+dbgBilanTest()

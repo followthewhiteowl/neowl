@@ -1,0 +1,52 @@
+//  lot 1 — framework extensible type-colonne (createEditor) + 1er type
+// câblé = Date. Une colonne `Type = colTypeDate` SANS masque brut déclaré doit
+// être pilotée par le format date défaut/projet ("JJ/MM/AAAA"), qui dérive le
+// masque de frappe (verrouillé côté
+// tests/runtime/table_colonne_type_date_masque_format/) ET le validateur de
+// plages (OwlDateTimeValidator, ui_qt.cpp ~L9507) qui rejette une date
+// syntaxiquement valide mais calendairement absurde ("99/99/9999").
+//
+// Sonde : __DebugTableCelluleValideSaisie(champ, ligne, colonne, texte) —
+// ouvre l'éditeur transitoire de la cellule (même mécanisme que
+// __DebugTableCelluleMasque, ), interroge le validateur effectif de
+// l'éditeur sur `texte`, rend Vrai ssi l'état est Acceptable (Faux sinon,
+// y compris Intermediate), détruit l'éditeur. Cellule sans validateur (ex.
+// colonne texte) → tout texte est Acceptable → Vrai (pas de contrainte).
+//
+// Cette native n'existe pas encore : ROUGE aujourd'hui (« fonction/procédure
+// inconnue »). Une fois la sonde ajoutée mais le dispatch colTypeDate →
+// validateur pas câblé dans createEditor, la colonne Date n'aura aucun
+// validateur posé et tout texte (y compris "99/99/9999") sera lu Acceptable
+// → rougit alors sur l'assertion 1.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeDateValidation)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. Date syntaxiquement complète mais calendairement absurde : rejetée =====
+
+dbgVérifieFaux(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "99/99/9999"),
+"colonne Date (colTypeDate, sans masque brut) : '99/99/9999' rejeté par le validateur de plages dérivé du format")
+
+// ===== 2. Date valide : acceptée =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "31/12/2026"),
+"colonne Date : '31/12/2026' accepté par le validateur de plages")
+
+// ===== 3. Cas limites : jour et mois hors-plage =====
+
+dbgVérifieFaux(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "32/01/2026"),
+"colonne Date : jour 32 rejeté (hors-plage 01-31)")
+
+dbgVérifieFaux(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "01/13/2026"),
+"colonne Date : mois 13 rejeté (hors-plage 01-12)")
+
+// ===== 4. Non-régression : colonne texte sans validateur -> tout accepté =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 2, "99/99/9999"),
+"colonne Texte (sans validateur) : aucune contrainte, saisie toujours acceptée")
+
+Ferme(FEN_TableColonneTypeDateValidation)
+
+dbgBilanTest()

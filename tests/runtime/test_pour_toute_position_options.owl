@@ -1,0 +1,64 @@
+// Runtime : POUR TOUTE POSITION avec options via AVEC et sens DepuisFin.
+//
+// Couvre le statement (documentation de référence) :
+//   POUR TOUTE POSITION <var> DE <motif> DANS <chaîne> [AVEC <opts>] [<sens>]
+//
+// Note : DepuisFin/DepuisDébut sont aussi consommés en suffixe positionnel
+// (consume_optional_depuis_sens dans compiler.c) en plus de leur usage
+// possible dans AVEC.
+
+// === AVEC SansCasse ===
+sCasse est une chaîne = "abcABab"
+tabIns est un tableau de entiers
+POUR TOUTE Position p DE "ab" DANS sCasse AVEC SansCasse
+	Ajoute(tabIns, p)
+FIN
+dbgVérifieEgalité(tabIns..Occurrence, 3, "AVEC SansCasse : 3 occurrences de 'ab'")
+dbgVérifieEgalité(tabIns[1], 1, "Pos 1 (ab)")
+dbgVérifieEgalité(tabIns[2], 4, "Pos 4 (AB)")
+dbgVérifieEgalité(tabIns[3], 6, "Pos 6 (ab)")
+
+// === AVEC MotComplet ===
+sMot est une chaîne = "le chat et un chaton chat fin"
+tabMot est un tableau de entiers
+POUR TOUTE Position p DE "chat" DANS sMot AVEC MotComplet
+	Ajoute(tabMot, p)
+FIN
+dbgVérifieEgalité(tabMot..Occurrence, 2, "AVEC MotComplet : 2 'chat' isolés (pas 'chaton')")
+dbgVérifieEgalité(tabMot[1], 4, "1er 'chat' isolé pos 4")
+dbgVérifieEgalité(tabMot[2], 22, "2e 'chat' isolé pos 22")
+
+// === AVEC combinaison MotComplet + SansCasse ===
+sCombo est une chaîne = "CHAT chaton ChAt"
+tabCombo est un tableau de entiers
+POUR TOUTE Position p DE "chat" DANS sCombo AVEC MotComplet + SansCasse
+	Ajoute(tabCombo, p)
+FIN
+dbgVérifieEgalité(tabCombo..Occurrence, 2,
+"AVEC MotComplet + SansCasse : 'CHAT' et 'ChAt' isolés, 'chaton' exclu")
+dbgVérifieEgalité(tabCombo[1], 1, "Pos 1 (CHAT)")
+dbgVérifieEgalité(tabCombo[2], 13, "Pos 13 (ChAt)")
+
+// === Suffixe positionnel DepuisFin ===
+sFin est une chaîne = "abcabcabc"
+tabFin est un tableau de entiers
+POUR TOUTE Position p DE "abc" DANS sFin DepuisFin
+	Ajoute(tabFin, p)
+FIN
+dbgVérifieEgalité(tabFin..Occurrence, 3, "DepuisFin : 3 positions")
+dbgVérifieEgalité(tabFin[1], 7, "DepuisFin : 1er = pos 7 (la dernière)")
+dbgVérifieEgalité(tabFin[2], 4, "DepuisFin : 2e = pos 4")
+dbgVérifieEgalité(tabFin[3], 1, "DepuisFin : 3e = pos 1 (la 1ère ordre normal)")
+
+// === AVEC SansCasse + suffixe DepuisFin ===
+sBoth est une chaîne = "abcABCabc"
+tabBoth est un tableau de entiers
+POUR TOUTE Position p DE "abc" DANS sBoth AVEC SansCasse DepuisFin
+	Ajoute(tabBoth, p)
+FIN
+dbgVérifieEgalité(tabBoth..Occurrence, 3,
+"AVEC SansCasse DepuisFin : 3 matches en ordre inverse")
+dbgVérifieEgalité(tabBoth[1], 7, "1er = pos 7")
+dbgVérifieEgalité(tabBoth[3], 1, "3e = pos 1")
+
+dbgBilanTest()

@@ -1,0 +1,44 @@
+//  — non-régression de l'indexation `[]` existante. La nouvelle
+// désambiguïsation Style[état] vs tab[i] se fait par TYPE de la cible
+// (whitelist styleType->enum dans `subscript`) : elle ne doit RIEN casser
+// des usages `[]` déjà valides sur des tableaux ordinaires, y compris quand
+// le tableau contient des styleSaisie (chaîne `[i]..CouleurFond`).
+//
+// VERT attendu dès maintenant (comportement déjà existant, pas touché par
+// ce ticket). Sert de digue anti-régression pour le futur patch parser.
+
+Trace("=== non-régression [] : tableaux ordinaires + tableau de styleSaisie ===")
+
+// 1. Tableau d'entiers, indexation simple lecture/écriture.
+tEntiers est un tableau de 5 entiers
+tEntiers[1] = 10
+tEntiers[2] = 20
+tEntiers[3] = 30
+dbgVérifieEgalité(tEntiers[1], 10, "tab[i] entier : lecture après écriture (index 1)")
+dbgVérifieEgalité(tEntiers[3], 30, "tab[i] entier : lecture après écriture (index 3)")
+
+// 2. Tableau de chaînes.
+tNoms est un tableau de chaînes = ["Ada", "Grace", "Alan"]
+dbgVérifieEgalité(tNoms[2], "Grace", "tab[i] chaîne : lecture d'un littéral tableau")
+
+// 3. Indexation multi : un index calculé à partir d'un autre tableau
+//    (tImportants[k] sert d'index dans tEntiers).
+tImportants est un tableau de 2 entiers
+tImportants[1] = 3
+k est un entier = tImportants[1]
+dbgVérifieEgalité(tEntiers[k], 30, "indexation multi : tab2[ tab1[k] ] reste valide")
+
+// 4. Tableau de styleSaisie (composite) : l'indexation `[i]` PUIS la
+//    cascade `..CouleurFond` sur l'élément — le chemin ARRAY, pas le
+//    chemin ÉTAT (les éléments ne sont pas des constantes d'état).
+STY_A est un styleSaisie
+STY_B est un styleSaisie
+tabStyles est un tableau de 2 styleSaisie
+tabStyles[1] = STY_A
+tabStyles[2] = STY_B
+tabStyles[1]..CouleurFond = RVB(120, 40, 200)
+tabStyles[2]..CouleurFond = RVB(5, 5, 5)
+dbgVérifieEgalité(tabStyles[1]..CouleurFond, RVB(120, 40, 200), "tableauDeStyles[i]..CouleurFond : écriture/lecture (index 1)")
+dbgVérifieEgalité(tabStyles[2]..CouleurFond, RVB(5, 5, 5), "tableauDeStyles[i]..CouleurFond : écriture/lecture (index 2)")
+
+dbgBilanTest()

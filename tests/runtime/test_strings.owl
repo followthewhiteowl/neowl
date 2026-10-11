@@ -1,0 +1,73 @@
+// ============================================
+// TEST: Chaines de caracteres
+// ============================================
+Trace("=== CHAINES ===")
+
+// --- Concatenation ---
+dbgVerifieEgalite("Hello" + " " + "World", "Hello World", "Concat 3 chaines")
+dbgVerifieEgalite("" + "test", "test", "Concat chaine vide + chaine")
+dbgVerifieEgalite("test" + "", "test", "Concat chaine + chaine vide")
+dbgVerifieEgalite("" + "", "", "Concat deux chaines vides")
+
+// --- Conversion implicite lors de concat ---
+dbgVerifieEgalite("n=" + 42, "n=42", "Concat + entier")
+dbgVerifieEgalite("r=" + 3.14, "r=3.14", "Concat + reel")
+dbgVerifieEgalite("b=" + Vrai, "b=1", "Concat + booleen vrai")
+dbgVerifieEgalite("b=" + Faux, "b=0", "Concat + booleen faux")
+
+// --- Taille ---
+dbgVerifieEgalite(Taille(""), 0, "Taille chaine vide")
+dbgVerifieEgalite(Taille("A"), 1, "Taille chaine 1 char")
+dbgVerifieEgalite(Taille("Hello"), 5, "Taille Hello = 5")
+dbgVerifieEgalite(Taille("Hello World"), 11, "Taille avec espace")
+
+// --- Comparaison ---
+dbgVerifieVrai("abc" = "abc", "Egalite chaines identiques")
+dbgVerifieVrai("abc" <> "ABC", "Differentes: abc vs ABC (sensible casse pour valeurs)")
+dbgVerifieVrai("abc" <> "def", "Differentes: abc vs def")
+dbgVerifieVrai("a" < "b", "Ordre: a < b")
+dbgVerifieVrai("abc" < "abd", "Ordre: abc < abd")
+dbgVerifieVrai("abc" < "abcd", "Ordre: abc < abcd (plus court)")
+
+// --- Escape sequences ---
+sEscape est une chaine = "tab\there"
+dbgVerifieVrai(Taille(sEscape) > 3, "Escape \t produit un caractere")
+
+sNewline est une chaine = "line1\nline2"
+dbgVerifieVrai(Taille(sNewline) > 5, "Escape \n produit un caractere")
+
+// --- String interpolation [%var%] ---
+sPrenom est une chaine = "Roger"
+nAge est un entier = 45
+dbgVerifieEgalite(%"Bonjour [%sPrenom%]", "Bonjour Roger", "Interpolation simple")
+dbgVerifieEgalite(%"[%sPrenom%] a [%nAge%] ans", "Roger a 45 ans", "Interpolation double")
+dbgVerifieEgalite("Pas d'interpolation", "Pas d'interpolation", "String sans interpolation")
+dbgVerifieEgalite(%"[%sPrenom%]", "Roger", "Interpolation seule")
+
+// --- Base64 ---
+dbgVerifieEgalite(ChaineVersBase64("Hello"), "SGVsbG8=", "Base64 encode Hello")
+dbgVerifieEgalite(Base64VersChaine("SGVsbG8="), "Hello", "Base64 decode Hello")
+dbgVerifieEgalite(ChaineVersBase64(""), "", "Base64 encode vide")
+dbgVerifieEgalite(Base64VersChaine(ChaineVersBase64("OWL est genial")), "OWL est genial", "Base64 roundtrip")
+
+// --- URL Encode/Decode ---
+dbgVerifieEgalite(URLEncode("hello world"), "hello%20world", "URLEncode espace")
+dbgVerifieEgalite(URLDecode("hello%20world"), "hello world", "URLDecode espace")
+// Mode défaut canon de référence : les séparateurs URL réservés (= & : / ?) sont préservés.
+// Pour encoder strictement tous les caractères réservés, utiliser encodeURLParamètre.
+dbgVerifieEgalite(URLEncode("a=1&b=2", encodeURLParamètre), "a%3D1%26b%3D2", "URLEncode strict (mode Paramètre)")
+dbgVerifieEgalite(URLDecode(URLEncode("OWL/test?q=1")), "OWL/test?q=1", "URL roundtrip")
+
+// --- Hexa ---
+dbgVerifieEgalite(ChaineVersHexa("AB"), "4142", "Hexa encode AB")
+dbgVerifieEgalite(HexaVersChaine("4142"), "AB", "Hexa decode 4142")
+dbgVerifieEgalite(HexaVersChaine(ChaineVersHexa("OWL")), "OWL", "Hexa roundtrip")
+
+// --- Chaine dans conditions ---
+sTest est une chaine = "hello"
+SI sTest = "hello" ALORS
+	dbgVerifieVrai(Vrai, "Chaine dans condition SI")
+SINON
+	dbgVerifieVrai(Faux, "Chaine dans condition - mauvaise branche")
+FIN
+

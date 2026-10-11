@@ -1,0 +1,364 @@
+// @sujet : IAModèle — fusion de branches par concaténation canal
+// (mon.FusionneParConcaténation / mon.MergeByConcat)
+// @résumé : sur un bloc ouvert par mon.DébutBranches() / mon.BrancheSuivante(),
+// mon.FusionneParConcaténation() clôt le bloc et concatène les sorties de
+// toutes les branches sur l'axe des canaux (le 2ᵉ axe d'un Tenseur image
+// [N,C,H,W] : sortie = [N, C1+C2+…, H, W]). Contrairement à
+// FusionneParAddition() (qui exige des sorties de MÊME forme), la
+// concaténation exige seulement que N, H, W coïncident — les canaux
+// s'additionnent. Motif typique : un « module feu » (deux convolutions
+// parallèles sur la même entrée, dont les résultats sont mis côte à côte
+// avant la suite du réseau).
+//
+// Convention de vérification (comme test_IAModeleBranches.owl) : jamais de
+// poids/gradient hardcodé — on EXTRAIT les poids appris via .Poids/.Biais et
+// on recalcule indépendamment avec les briques Tenseur bas niveau
+// (Convolution2D, ProduitMatriciel, +, ErreurQuadratique), puis on
+// recompose la concaténation canal À LA MAIN (aucune primitive Tenseur de
+// concaténation n'existe : on lit .Valeur canal par canal et on réassemble
+// un tableau plat qu'on redimensionne).
+
+// Recompose « à la main » la concaténation canal de deux sorties de
+// convolution [1,c1,h,w] et [1,c2,h,w] en un Tenseur [1,c1+c2,h,w]. Sert de
+// référence indépendante pour vérifier mon.FusionneParConcaténation().
+PROCEDURE PRIVÉE concatCanalManuel4D(tF est un Tenseur, tG est un Tenseur, c1 est un entier, c2 est un entier, h est un entier, w est un entier) : Tenseur
+	arr est un tableau de réels
+	POUR c = 1 À (c1 + c2)
+		POUR i = 1 À h
+			POUR j = 1 À w
+				SI c <= c1 ALORS
+					arr.Ajoute(tF..Valeur[1][c][i][j])
+				SINON
+					arr.Ajoute(tG..Valeur[1][c - c1][i][j])
+				FIN
+			FIN
+		FIN
+	FIN
+	RENVOYER Tenseur(arr).Redimensionne([1, c1 + c2, h, w])
+FIN
+
+// Entrée déterministe [1,2,4,4] partagée par les scénarios forward FR/EN.
+PROCEDURE PRIVÉE entréeConcatForward() : Tenseur
+	brut est un tableau de réels
+	POUR k = 0 À 31
+		brut.Ajoute(k / 32.0)
+	FIN
+	RENVOYER Tenseur(brut).Redimensionne([1, 2, 4, 4])
+FIN
+
+
+// Deux branches de convolution (3 puis 5 canaux de sortie) sur la même
+// entrée [1,2,4,4], fusionnées par concaténation canal : la sortie doit être
+// [1,8,4,4] et coïncider EXACTEMENT (au bit près) avec la concaténation
+// manuelle des deux convolutions recalculées indépendamment à partir des
+// poids extraits du modèle.
+PROCEDURE PUBLIQUE scenario_concat_deux_branches_convolution_egal_calcul_manuel()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheConvolution2D(2, 3, 3, 1, 1)
+	mon.BrancheSuivante()
+	mon.AjouteCoucheConvolution2D(2, 5, 3, 1, 1)
+	mon.FusionneParConcaténation()
+
+	tWF est un Tenseur = mon.Poids(1)
+	tbF est un Tenseur = mon.Biais(1)
+	tWG est un Tenseur = mon.Poids(2)
+	tbG est un Tenseur = mon.Biais(2)
+
+	entrée est un Tenseur = entréeConcatForward()
+
+	tF est un Tenseur = entrée.Convolution2D(tWF, 1, 1) + tbF
+	tG est un Tenseur = entrée.Convolution2D(tWG, 1, 1) + tbG
+	tManuel est un Tenseur = concatCanalManuel4D(tF, tG, 3, 5, 4, 4)
+
+	sortie est un Tenseur = mon.Infère(entrée)
+
+	dbgVérifieEgalité(sortie..Forme[1], 1, "concaténation de branches : N préservé = 1")
+	dbgVérifieEgalité(sortie..Forme[2], 8, "concaténation de branches : C = C1+C2 = 3+5 = 8")
+	dbgVérifieEgalité(sortie..Forme[3], 4, "concaténation de branches : H préservé = 4")
+	dbgVérifieEgalité(sortie..Forme[4], 4, "concaténation de branches : W préservé = 4")
+
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][1] - tManuel..Valeur[1][1][1][1]) < 0.0000001, "sortie[1][1][1][1] (canal de la branche 1) = concaténation manuelle, au bit près")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][3][4][4] - tManuel..Valeur[1][3][4][4]) < 0.0000001, "sortie[1][3][4][4] (dernier canal de la branche 1) = concaténation manuelle, au bit près")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][4][1][1] - tManuel..Valeur[1][4][1][1]) < 0.0000001, "sortie[1][4][1][1] (premier canal de la branche 2) = concaténation manuelle, au bit près")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][8][4][4] - tManuel..Valeur[1][8][4][4]) < 0.0000001, "sortie[1][8][4][4] (dernier canal de la branche 2) = concaténation manuelle, au bit près")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][6][2][3] - tManuel..Valeur[1][6][2][3]) < 0.0000001, "sortie[1][6][2][3] (canal intérieur de la branche 2) = concaténation manuelle, au bit près")
+FIN
+
+
+// Même contrat, formes anglaises (.BeginBranches / .NextBranch /
+// .AddConvolution2DLayer / .MergeByConcat) : verrou de la surface bilingue
+// (invariant 3).
+PROCEDURE PUBLIQUE scenario_formes_anglaises_concat_deux_branches_convolution()
+	mon is an AIModel
+	mon.BeginBranches()
+	mon.AddConvolution2DLayer(2, 3, 3, 1, 1)
+	mon.NextBranch()
+	mon.AddConvolution2DLayer(2, 5, 3, 1, 1)
+	mon.MergeByConcat()
+
+	tWF is a Tensor = mon.Weights(1)
+	tbF is a Tensor = mon.Bias(1)
+	tWG is a Tensor = mon.Weights(2)
+	tbG is a Tensor = mon.Bias(2)
+
+	entrée is a Tensor = entréeConcatForward()
+
+	tF is a Tensor = entrée.Convolution2D(tWF, 1, 1) + tbF
+	tG is a Tensor = entrée.Convolution2D(tWG, 1, 1) + tbG
+	tManuel is a Tensor = concatCanalManuel4D(tF, tG, 3, 5, 4, 4)
+
+	sortie is a Tensor = mon.Infer(entrée)
+
+	dbgCheckEqual(sortie..Shape[1], 1, "English forms: branch concat preserves N = 1")
+	dbgCheckEqual(sortie..Shape[2], 8, "English forms: branch concat -> C = C1+C2 = 3+5 = 8")
+	dbgCheckEqual(sortie..Shape[3], 4, "English forms: branch concat preserves H = 4")
+	dbgCheckEqual(sortie..Shape[4], 4, "English forms: branch concat preserves W = 4")
+
+	dbgCheckTrue(Abs(sortie..Value[1][1][1][1] - tManuel..Valeur[1][1][1][1]) < 0.0000001, "English forms: output[1][1][1][1] (branch 1 channel) equals the manual concat, bit for bit")
+	dbgCheckTrue(Abs(sortie..Value[1][8][4][4] - tManuel..Valeur[1][8][4][4]) < 0.0000001, "English forms: output[1][8][4][4] (last channel of branch 2) equals the manual concat, bit for bit")
+FIN
+
+
+// Entrée/cible fixes du gradient-check concat (Dense 2->2 puis 2->3,
+// fusionnées par concaténation canal : sortie [1,5]).
+PROCEDURE PRIVÉE entréeGradientCheckConcat() : Tenseur
+	mat est une Matrice = [[1.0, -1.0]]
+	RENVOYER Tenseur(mat)
+FIN
+
+PROCEDURE PRIVÉE cibleGradientCheckConcat() : Tenseur
+	mat est une Matrice = [[0.5, -0.5, 0.25, -0.25, 0.1]]
+	RENVOYER Tenseur(mat)
+FIN
+
+// Recompose la concaténation canal de deux sorties denses [1,c1] et [1,c2]
+// en un Tenseur [1,c1+c2] — même principe que concatCanalManuel4D mais pour
+// une sortie sans axes spatiaux.
+PROCEDURE PRIVÉE concatCanalManuel2D(tF est un Tenseur, tG est un Tenseur, c1 est un entier, c2 est un entier) : Tenseur
+	valF est une Matrice = tF..Valeur
+	valG est une Matrice = tG..Valeur
+	arr est un tableau de réels
+	POUR c = 1 À c1
+		arr.Ajoute(valF[1][c])
+	FIN
+	POUR c = 1 À c2
+		arr.Ajoute(valG[1][c])
+	FIN
+	RENVOYER Tenseur(arr).Redimensionne([1, c1 + c2])
+FIN
+
+// Perte scalaire d'un bloc à deux branches denses (2->2 puis 2->3) fusionnées
+// par concaténation, sur l'entrée/cible fixes ci-dessus. Fonction PUREMENT
+// forward (aucun Rétropropage ici) : sert de brique au gradient-check par
+// différences finies, indépendante du chemin de backward qu'elle vérifie
+// (patron test_TenseurConvolution2DGroupe.owl / test_IAModeleBranches.owl).
+PROCEDURE PRIVÉE perteConcatMergeDeuxBranches(tW1 est un Tenseur, tb1 est un Tenseur, tW2 est un Tenseur, tb2 est un Tenseur) : réel
+	tX est un Tenseur = entréeGradientCheckConcat()
+	tY est un Tenseur = cibleGradientCheckConcat()
+	tF est un Tenseur = tX.ProduitMatriciel(tW1) + tb1
+	tG est un Tenseur = tX.ProduitMatriciel(tW2) + tb2
+	tSortie est un Tenseur = concatCanalManuel2D(tF, tG, 2, 3)
+	tPerte est un Tenseur = tSortie.ErreurQuadratique(tY)
+	RENVOYER tPerte..Valeur[1]
+FIN
+
+// Tenseur nLignes×nCols valant `delta` à la position (ligne,colonne) et 0
+// ailleurs : s'ajoute à un poids extrait pour le perturber à un seul
+// endroit, sans jamais reconstruire les autres poids (indépendance du
+// gradient-check).
+PROCEDURE PRIVÉE tenseurUnSeulÉlémentConcat(nLignes est un entier, nCols est un entier, ligne est un entier, col est un entier, delta est un réel) : Tenseur
+	arr est un tableau de réels
+	POUR i = 1 À nLignes
+		POUR j = 1 À nCols
+			SI i = ligne ET j = col ALORS
+				arr.Ajoute(delta)
+			SINON
+				arr.Ajoute(0.0)
+			FIN
+		FIN
+	FIN
+	RENVOYER Tenseur(arr).Redimensionne([nLignes, nCols])
+FIN
+
+
+// Gradient-check backward du merge par concaténation (FusionneParConcaténation),
+// sur un bloc à DEUX branches denses (2->2 puis 2->3, la même entrée x
+// nourrit les deux). Le gradient « analytique » est lu au travers du
+// mécanisme réel du modèle (mon.Entraîne, un pas de SGD pur : poids AVANT
+// moins poids APRÈS, divisé par le taux d'apprentissage — même convention
+// que test_IAModeleBranches.owl). Comparé à des différences finies centrées
+// calculées par un helper strictement FORWARD (aucun Rétropropage), donc
+// indépendant du chemin de backward qu'il vérifie. Une composante est
+// vérifiée dans CHAQUE branche : ça prouve que le gradient d'une branche ne
+// dépend QUE de sa propre tranche de canaux de sortie dans la concaténation
+// (pas mélangé avec l'autre branche).
+PROCEDURE PUBLIQUE scenario_gradient_concatmerge_deux_branches_verifie_par_differences_finies()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2, initHe)
+	mon.BrancheSuivante()
+	mon.AjouteCoucheDense(2, 3, initHe)
+	mon.FusionneParConcaténation()
+
+	tW1avant est un Tenseur = mon.Poids(1)
+	tb1avant est un Tenseur = mon.Biais(1)
+	tW2avant est un Tenseur = mon.Poids(2)
+	tb2avant est un Tenseur = mon.Biais(2)
+
+	tX est un Tenseur = entréeGradientCheckConcat()
+	tY est un Tenseur = cibleGradientCheckConcat()
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+	mon.Entraîne(tX, tY, opts)
+
+	tW1après est un Tenseur = mon.Poids(1)
+	tW2après est un Tenseur = mon.Poids(2)
+
+	valW1avant est une Matrice = tW1avant..Valeur
+	valW1après est une Matrice = tW1après..Valeur
+	valW2avant est une Matrice = tW2avant..Valeur
+	valW2après est une Matrice = tW2après..Valeur
+
+	tauxApprentissage est un réel = 0.1
+	dW1AnalytiqueViaSGD est un réel = (valW1avant[1][1] - valW1après[1][1]) / tauxApprentissage
+	dW2AnalytiqueViaSGD est un réel = (valW2avant[1][1] - valW2après[1][1]) / tauxApprentissage
+
+	eps est un réel = 0.0001
+
+	tW1plus est un Tenseur = tW1avant + tenseurUnSeulÉlémentConcat(2, 2, 1, 1, eps)
+	tW1moins est un Tenseur = tW1avant + tenseurUnSeulÉlémentConcat(2, 2, 1, 1,-eps)
+	perteW1Plus est un réel = perteConcatMergeDeuxBranches(tW1plus, tb1avant, tW2avant, tb2avant)
+	perteW1Moins est un réel = perteConcatMergeDeuxBranches(tW1moins, tb1avant, tW2avant, tb2avant)
+	dW1Findiff est un réel = (perteW1Plus - perteW1Moins) / (2 * eps)
+
+	tW2plus est un Tenseur = tW2avant + tenseurUnSeulÉlémentConcat(2, 3, 1, 1, eps)
+	tW2moins est un Tenseur = tW2avant + tenseurUnSeulÉlémentConcat(2, 3, 1, 1,-eps)
+	perteW2Plus est un réel = perteConcatMergeDeuxBranches(tW1avant, tb1avant, tW2plus, tb2avant)
+	perteW2Moins est un réel = perteConcatMergeDeuxBranches(tW1avant, tb1avant, tW2moins, tb2avant)
+	dW2Findiff est un réel = (perteW2Plus - perteW2Moins) / (2 * eps)
+
+	tolérance est un réel = 0.001
+	dbgVérifieVrai(Abs(dW1AnalytiqueViaSGD - dW1Findiff) < tolérance, "branche 1 : le gradient qui traverse FusionneParConcaténation() est proche des différences finies indépendantes")
+	dbgVérifieVrai(Abs(dW2AnalytiqueViaSGD - dW2Findiff) < tolérance, "branche 2 : le gradient qui traverse FusionneParConcaténation() est proche des différences finies indépendantes — routé sur sa propre tranche de canaux, pas mélangé avec la branche 1")
+FIN
+
+
+// Import d'un « module feu » depuis ONNX : une entrée commune nourrit deux
+// convolutions parallèles (1×1 puis 3×3, chacune suivie d'une activation),
+// dont les sorties sont concaténées sur l'axe canal avant une réduction
+// globale et une couche dense. Fixture :
+// tests/internal_fixtures/onnx/fixture_fire_concat.onnx — entrée [1,3,8,8].
+// Oracle : tests/internal_fixtures/onnx/fixture_fire_concat_oracle.json —
+// sortie calculée indépendamment par onnxruntime.
+//
+// Le nœud ONNX Concat (fusion de N branches, généralisation du nœud Add à 2
+// branches déjà reconnu) est mappé à l'import.
+PROCEDURE PUBLIQUE scenario_import_onnx_module_feu_concat_egal_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_fire_concat.onnx")
+	// Capture immédiate : la sentinelle d'erreur est consommée au 1er appel
+	// natif suivant (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un module feu (deux convolutions parallèles concaténées sur l'axe canal) réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 191
+			brut.Ajoute(k / 192.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 3, 8, 8])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+		bInfereEchoue est un booléen = ErreurDétectée
+		dbgVérifieVrai(PAS bInfereEchoue, "l'inférence d'un module feu réussit (les deux branches convoluées sont concaténées, pas mélangées)")
+
+		SI PAS bInfereEchoue ALORS
+			dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+			val est un Vecteur = sortie..Valeur
+
+			attendu1 est un réel = -0.16607671976089478
+			attendu2 est un réel = 0.020685017108917236
+			attendu3 est un réel = 0.5074467658996582
+
+			dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle (module feu, tolérance flottante)")
+			dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle (module feu, tolérance flottante)")
+			dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle (module feu, tolérance flottante)")
+		FIN
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le
+// même comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_fire_module_concat_infer_egale_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_fire_concat.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a fire module (two parallel convolutions concatenated on the channel axis) succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 191
+			raw.Ajoute(k / 192.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 3, 8, 8])
+
+		output is a Tensor = mon.Infer(input)
+		bInferFailed is a boolean = ErrorOccurred
+		dbgCheckTrue(PAS bInferFailed, "inferring a fire module succeeds (the two convolved branches are concatenated, not mixed)")
+
+		SI PAS bInferFailed ALORS
+			dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+			val is a Vector = output..Value
+
+			expected1 is a real = -0.16607671976089478
+			expected2 is a real = 0.020685017108917236
+			expected3 is a real = 0.5074467658996582
+
+			dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the fire-module oracle")
+			dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the fire-module oracle")
+			dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the fire-module oracle")
+		FIN
+	FIN
+FIN
+
+
+// Cas limite : FusionneParConcaténation() sans DébutBranches() préalable
+// signale une erreur (même famille que scenario_edge_fusionne_par_addition_
+// sans_debut_branches dans test_IAModeleBranches.owl).
+PROCEDURE PRIVÉE scenario_edge_fusionne_par_concatenation_sans_debut_branches()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	ErreurRAZ()
+	mon.FusionneParConcaténation()
+	dbgVérifieVrai(ErreurDétectée, "FusionneParConcaténation() sans DébutBranches() correspondant signale une erreur")
+FIN
+
+
+// Cas limite : deux branches dont les sorties ont des dimensions spatiales
+// (H,W) différentes ne peuvent PAS être concaténées sur l'axe canal — seul
+// le nombre de canaux est autorisé à différer. Une convolution sans
+// remplissage (branche 2) réduit H,W de 2 par rapport à une convolution avec
+// remplissage 1 (branche 1) : la fusion doit signaler une erreur claire
+// plutôt que produire silencieusement un résultat incohérent.
+PROCEDURE PRIVÉE scenario_edge_concat_branches_dimensions_spatiales_incompatibles()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheConvolution2D(2, 3, 3, 1, 1)
+	mon.BrancheSuivante()
+	mon.AjouteCoucheConvolution2D(2, 3, 3, 1, 0)
+	mon.FusionneParConcaténation()
+
+	entrée est un Tenseur = entréeConcatForward()
+
+	ErreurRAZ()
+	sortie est un Tenseur = mon.Infère(entrée)
+	dbgVérifieVrai(ErreurDétectée, "concaténation de branches à H,W incompatibles (4×4 vs 2×2) signale une erreur, pas de résultat incohérent silencieux")
+FIN

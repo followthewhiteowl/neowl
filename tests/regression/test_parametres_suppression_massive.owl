@@ -1,0 +1,34 @@
+//  : ParamètreSupprime sans argument efface la totalité des
+// paramètres du support actif, sans affecter un autre support.
+
+PROCEDURE PUBLIQUE test_suppression_massive_efface_tout()
+	chemin est une chaîne = fRepTemp() + "test_regr_parametres_suppr_massive.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("Un", "1")
+	ParamètreEnregistre("Deux", "2")
+	ParamètreEnregistre("Trois", "3")
+
+	ParamètreSupprime()
+
+	dbgVérifieEgalité(ParamètreCharge("Un", "vide"), "vide", "premier paramètre effacé")
+	dbgVérifieEgalité(ParamètreCharge("Deux", "vide"), "vide", "second paramètre effacé")
+	dbgVérifieEgalité(ParamètreCharge("Trois", "vide"), "vide", "troisième paramètre effacé")
+FIN
+
+PROCEDURE PUBLIQUE test_suppression_massive_ne_touche_pas_un_autre_support()
+	cheminA est une chaîne = fRepTemp() + "test_regr_parametres_suppr_massive_a.json"
+	cheminB est une chaîne = fRepTemp() + "test_regr_parametres_suppr_massive_b.json"
+
+	ParamètreInitialise(paramJSON, cheminA)
+	ParamètreEnregistre("Cle", "conserve")
+
+	ParamètreInitialise(paramJSON, cheminB)
+	ParamètreEnregistre("Cle", "a-effacer")
+	ParamètreSupprime()
+
+	ParamètreInitialise(paramJSON, cheminA)
+	dbgVérifieEgalité(ParamètreCharge("Cle"), "conserve", "la suppression massive sur B n'affecte pas A")
+FIN
+
+dbgBilanTest()

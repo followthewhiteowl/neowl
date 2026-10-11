@@ -1,0 +1,183 @@
+// @sujet : Compile
+// @resume : Compilation dynamique de code OWL au runtime : procédures anonymes et nommées, réentrance, gestion erreurs
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_compilation_anonyme()
+	// Compilation d'une expression simple en procédure anonyme
+	// Cas d'usage : calculer une valeur sans définir de fonction au préalable
+
+	codeSource est une chaîne = "RENVOYER 10 + 20"
+
+	ErreurRAZ()
+	calculatrice est une procédure = Compile(codeSource)
+	dbgVérifieFaux(ErreurDétectée, "Compilation sans erreur")
+	dbgVérifieEgalité(calculatrice(), 30, "Exécution de la procédure anonyme")
+FIN
+
+PROCEDURE PUBLIQUE scenario_compilation_nommee()
+	// Compilation avec enregistrement global : la procédure devient accessible par nom
+	// Cas d'usage : définir dynamiquement une fonction utilisable partout
+
+	codeTriple est une chaîne = [
+PROCEDURE Triple(x est un entier)
+	RENVOYER x * 3
+FIN
+]
+
+	ErreurRAZ()
+	Compile("Triple", codeTriple)
+	dbgVérifieFaux(ErreurDétectée, "Compilation nommée sans erreur")
+
+	// Appel direct par le nom enregistré
+	res est un entier = Triple(7)
+	dbgVérifieEgalité(res, 21, "Procédure compilée nommée appelable")
+FIN
+
+PROCEDURE PUBLIQUE scenario_parametres_multiples()
+	// Compilation d'une procédure avec plusieurs paramètres
+	// Démontre que Compile supporte les signatures complexes
+
+	codeAddition est une chaîne = [
+PROCEDURE Additionne(valA est un entier, valB est un entier, valC est un entier)
+	RENVOYER valA + valB + valC
+FIN
+]
+
+	ErreurRAZ()
+	Compile("Additionne", codeAddition)
+	dbgVérifieFaux(ErreurDétectée, "Compilation proc paramétrée OK")
+	// Appel via le nom enregistré (nécessaire pour procédure paramétrée)
+	dbgVérifieEgalité(Additionne(5, 10, 15), 30, "Appel avec 3 paramètres")
+FIN
+
+PROCEDURE PUBLIQUE scenario_appel_natives()
+	// Code compilé peut invoquer les fonctions natives d'OWL
+	// Cas d'usage : composition dynamique d'opérations utilisant les natives
+
+	codeMajuscule est une chaîne = [
+PROCEDURE FormatTexte(texte est une chaîne)
+	RENVOYER Majuscule(texte)
+FIN
+]
+
+	ErreurRAZ()
+	formateur est une procédure = Compile(codeMajuscule)
+	dbgVérifieFaux(ErreurDétectée, "Compilation avec native OK")
+	dbgVérifieEgalité(formateur("hello"), "HELLO", "Majuscule invoquée depuis code compilé")
+FIN
+
+PROCEDURE PUBLIQUE scenario_erreur_syntaxe()
+	// Code source invalide : Compile retourne NIL et remplit ErreurInfo
+	// Comportement attendu : pas de crash, gestion propre de l'erreur
+
+	codeCasse est une chaîne = "this is not valid syntax !!!"
+
+	ErreurRAZ()
+	procInvalide est une procédure = Compile(codeCasse)
+	dbgVérifieVrai(ErreurDétectée, "Code invalide détecté")
+	dbgVérifieVrai(ErreurInfo() <> "", "Message d'erreur rempli")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques (non visibles dans owl examples)
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_compilation_vide()
+	// Code source vide ou blanc : comportement actuellement non-bloquant
+
+	ErreurRAZ()
+	procVide1 est une procédure = Compile("")
+	dbgVérifieFaux(ErreurDétectée, "Chaîne vide compilée sans erreur")
+
+	ErreurRAZ()
+	procVide2 est une procédure = Compile("   ")
+	dbgVérifieFaux(ErreurDétectée, "Chaîne blanc compilée sans erreur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_reentrance_simple()
+	// Réentrance : Compile invoqué depuis une fonction en cours d'exécution
+	// Vérifie que la VM supporte bien l'imbrication compile/exec
+
+	codeDynamique est une chaîne = "RENVOYER 100 * 2"
+
+	ErreurRAZ()
+	dynProc est une procédure = CompileDansContexte(codeDynamique)
+	dbgVérifieFaux(ErreurDétectée, "Réentrance Compile OK")
+	dbgVérifieEgalité(dynProc(), 200, "Proc compilée en réentrance exécutable")
+FIN
+
+PROCEDURE CompileDansContexte(src est une chaîne)
+	// Fonction wrapper pour forcer la réentrance
+	RENVOYER Compile(src)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_accents_identifiants()
+	// Code source avec accents dans les identifiants (invariant 2 du langage)
+
+	codeAccents est une chaîne = [
+PROCEDURE DoubleLeTxt(msg est une chaîne)
+	RENVOYER msg + msg
+FIN
+]
+
+	ErreurRAZ()
+	Compile("DoubleLeTxt", codeAccents)
+	dbgVérifieFaux(ErreurDétectée, "Identifiants accentués compilent")
+
+	// Appel via la procédure compilée
+	double est une chaîne = DoubleLeTxt("ok")
+	dbgVérifieEgalité(double, "okok", "Procédure dynamique appelable")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_collision_nom_global()
+	// Compiler une procédure nommée qui existe déjà : remplace l'ancienne
+
+	code1 est une chaîne = "RENVOYER 1"
+	code2 est une chaîne = "RENVOYER 2"
+
+	ErreurRAZ()
+	Compile("DynGlobal", code1)
+	dbgVérifieEgalité(DynGlobal(), 1, "Première compilation")
+
+	ErreurRAZ()
+	Compile("DynGlobal", code2)
+	dbgVérifieEgalité(DynGlobal(), 2, "Recompilation écrase la précédente")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_variables_locales()
+	// Code compilé avec variables locales : isolation de scope
+
+	codeAvecLocales est une chaîne = [
+x est un entier = 7
+y est un entier = x * x
+RENVOYER y
+]
+
+	ErreurRAZ()
+	calcul est une procédure = Compile(codeAvecLocales)
+	dbgVérifieFaux(ErreurDétectée, "Variables locales compilent")
+	dbgVérifieEgalité(calcul(), 49, "Scope local isolé")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_param_attribut_utile()
+	// Un paramètre marqué <utile> dans un en-tête PROCEDURE compilé
+	// dynamiquement doit être accepté, comme dans une procédure écrite
+	// directement dans le fichier (l'attribut exempte le paramètre de
+	// l'avertissement « déclarée mais jamais utilisée »).
+
+	codeUtile est une chaîne = [
+PROCEDURE TripleUtil(x est un entier <utile>)
+	RENVOYER x * 3
+FIN
+]
+
+	ErreurRAZ()
+	Compile("TripleUtil", codeUtile)
+	dbgVérifieFaux(ErreurDétectée, "Paramètre <utile> accepté dans un en-tête compilé")
+	dbgVérifieEgalité(TripleUtil(7), 21, "Procédure compilée avec paramètre <utile> appelable")
+FIN
+
+dbgBilanTest()

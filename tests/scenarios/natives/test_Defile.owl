@@ -1,0 +1,129 @@
+// @sujet : Défile
+// @resume : Retrait du premier élément d'une file FIFO
+
+// ──────────────────────────────────────────────────────────────────────────
+// Cas nominal — extraction ordonnée d'éléments
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PUBLIQUE scenario_nominal_ordre_fifo()
+	f est une file de entiers
+	Enfile(f, 10)
+	Enfile(f, 20)
+	Enfile(f, 30)
+
+	// Premier entré, premier sorti
+	premier est un entier = Défile(f)
+	dbgVérifieEgalité(premier, 10, "Premier élément défilé : 10")
+
+	deuxieme est un entier = Défile(f)
+	dbgVérifieEgalité(deuxieme, 20, "Deuxième élément défilé : 20")
+
+	troisieme est un entier = Défile(f)
+	dbgVérifieEgalité(troisieme, 30, "Troisième élément défilé : 30")
+FIN
+
+// ──────────────────────────────────────────────────────────────────────────
+// Forme méthode — équivalence avec appel fonctionnel
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	f est une file de entiers
+	Enfile(f, 100)
+	Enfile(f, 200)
+
+	// Forme <file>.Defile() équivalente à Défile(f)
+	val1 est un entier = f.Defile()
+	dbgVérifieEgalité(val1, 100, "Forme méthode : premier élément défilé")
+
+	val2 est un entier = f.Defile()
+	dbgVérifieEgalité(val2, 200, "Forme méthode : deuxième élément défilé")
+FIN
+
+// ──────────────────────────────────────────────────────────────────────────
+// Cas limite — file vide retourne Null
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PUBLIQUE scenario_file_vide()
+	f est une file de entiers
+
+	// File vide → Null (type nullable requis pour capter Null)
+	res est un entier? = Défile(f)
+	dbgVérifieEgalité(res, Null, "File vide retourne Null")
+FIN
+
+// ──────────────────────────────────────────────────────────────────────────
+// Edge case — file de chaînes avec accents et casse
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PRIVÉE scenario_edge_chaines_accents()
+	f est une file de chaînes
+	Enfile(f, "Première")
+	Enfile(f, "DEUXIÈME")
+	Enfile(f, "troïsième")
+
+	s1 est une chaîne = Défile(f)
+	dbgVérifieEgalité(s1, "Première", "Chaîne avec accent majuscule préservée")
+
+	s2 est une chaîne = Défile(f)
+	dbgVérifieEgalité(s2, "DEUXIÈME", "Chaîne tout majuscule avec accent préservée")
+
+	s3 est une chaîne = Défile(f)
+	dbgVérifieEgalité(s3, "troïsième", "Chaîne avec tréma préservée")
+FIN
+
+// ──────────────────────────────────────────────────────────────────────────
+// Edge case — types numériques extrêmes
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PRIVÉE scenario_edge_valeurs_extremes()
+	f est une file de entiers
+	Enfile(f,-2147483648) // INT32_MIN
+	Enfile(f, 0)
+	Enfile(f, 2147483647) // INT32_MAX
+
+	vMin est un entier = Défile(f)
+	dbgVérifieEgalité(vMin,-2147483648, "INT32_MIN défilé correctement")
+
+	vZero est un entier = Défile(f)
+	dbgVérifieEgalité(vZero, 0, "Zéro défilé correctement")
+
+	vMax est un entier = Défile(f)
+	dbgVérifieEgalité(vMax, 2147483647, "INT32_MAX défilé correctement")
+FIN
+
+// ──────────────────────────────────────────────────────────────────────────
+// Edge case — file avec 1 seul élément
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PRIVÉE scenario_edge_un_seul_element()
+	f est une file de chaînes
+	Enfile(f, "unique")
+
+	s est une chaîne = Défile(f)
+	dbgVérifieEgalité(s, "unique", "Unique élément défilé")
+
+	// File maintenant vide (type nullable pour capter Null)
+	sNull est une chaîne? = Défile(f)
+	dbgVérifieEgalité(sNull, Null, "File vide après défilement unique")
+FIN
+
+// ──────────────────────────────────────────────────────────────────────────
+// Edge case — multiples enfiles/défiles entrelacés
+// ──────────────────────────────────────────────────────────────────────────
+PROCEDURE PRIVÉE scenario_edge_entrelace()
+	f est une file de entiers
+
+	Enfile(f, 1)
+	Enfile(f, 2)
+	v1 est un entier = Défile(f)
+	dbgVérifieEgalité(v1, 1, "Premier défilé = 1")
+
+	Enfile(f, 3)
+	Enfile(f, 4)
+	v2 est un entier = Défile(f)
+	dbgVérifieEgalité(v2, 2, "Deuxième défilé = 2")
+
+	v3 est un entier = Défile(f)
+	dbgVérifieEgalité(v3, 3, "Troisième défilé = 3")
+
+	v4 est un entier = Défile(f)
+	dbgVérifieEgalité(v4, 4, "Quatrième défilé = 4")
+
+	// File vide maintenant (type nullable pour capter Null)
+	vNull est un entier? = Défile(f)
+	dbgVérifieEgalité(vNull, Null, "File vide après entrelacement")
+FIN

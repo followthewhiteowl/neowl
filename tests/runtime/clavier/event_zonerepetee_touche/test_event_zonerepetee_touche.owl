@@ -1,0 +1,52 @@
+//  lot B — Event surToucheAppuyée / surToucheRelâchée sur
+// ZoneRépétée. EnvoieTouche poste un vrai QKeyEvent. Interdiction
+// DéclencheÉvénement.
+//
+// ROUGE ATTENDU (compile) : FAM_KEYBOARD_EVENTS n'est pas encore enregistrée
+// pour OWL_CONTROL_ZONE_REPETEE -> check_event_signature rejette les
+// procédures clavier dans le bloc ZR_Cible -> le fichier voisin ne compile
+// pas -> `owl test` classe ce fichier CRASH tant que le catalogue n'est pas
+// étendu.
+
+TestModeHeadless(Faux)
+
+bZrTouchePrete est un booléen = Faux
+nZrAppCap est un entier = 0
+nZrRelCap est un entier = 0
+nZrDerniereAppCap est un entier = -1
+nZrDerniereRelCap est un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bZrTouchePrete = Vrai
+FIN
+
+PROCEDURE callback_lit_compteurs(nA est un entier, nR est un entier, nDA est un entier, nDR est un entier)
+	nZrAppCap         = nA
+	nZrRelCap         = nR
+	nZrDerniereAppCap = nDA
+	nZrDerniereRelCap = nDR
+FIN
+
+OuvreSoeur(FEN_ZoneRepeteeTouche)
+dbgVérifieVrai(bZrTouchePrete, "FinInitialisation appelée : ZoneRépétée focusée dès l'ouverture")
+
+// Touche spéciale (flèche bas : naviguer entre lignes).
+EnvoieTouche(tkBas)
+
+LireCompteurs()
+dbgVérifieEgalité(nZrAppCap, 1, "surToucheAppuyée ZoneRépétée : 1 tir pour tkBas")
+dbgVérifieEgalité(nZrDerniereAppCap, tkBas, "surToucheAppuyée ZoneRépétée : code = tkBas")
+dbgVérifieEgalité(nZrRelCap, 1, "surToucheRelâchée ZoneRépétée : 1 tir pour tkBas")
+dbgVérifieEgalité(nZrDerniereRelCap, tkBas, "surToucheRelâchée ZoneRépétée : code = tkBas")
+
+// Caractère ASCII.
+EnvoieTouche(Asc("A"))
+
+LireCompteurs()
+dbgVérifieEgalité(nZrAppCap, 2, "surToucheAppuyée ZoneRépétée : 2 tirs après le caractère 'A'")
+dbgVérifieEgalité(nZrDerniereAppCap, Asc("A"), "surToucheAppuyée ZoneRépétée : code = Asc('A')")
+dbgVérifieEgalité(nZrRelCap, 2, "surToucheRelâchée ZoneRépétée : 2 tirs après le caractère 'A'")
+dbgVérifieEgalité(nZrDerniereRelCap, Asc("A"), "surToucheRelâchée ZoneRépétée : code = Asc('A')")
+
+Ferme(FEN_ZoneRepeteeTouche)
+dbgBilanTest()

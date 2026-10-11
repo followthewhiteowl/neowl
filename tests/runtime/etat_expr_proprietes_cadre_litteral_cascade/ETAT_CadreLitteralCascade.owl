@@ -1,0 +1,41 @@
+// Ressource voisine de test_cadre_litteral_cascade.owl (, re-scope
+// mesure — trou de rendu composite pré-existant, classe ).
+//
+// Cadre (prop COMPOSITE) est posé en LITTÉRAL PUR dans PROPRIETES
+// (Cadre = { Couleur = Rouge, Epaisseur = 2 }, aucune expression, aucune
+// variable), et Lecture() écrit ENSUITE une cascade IMPÉRATIVE sur le
+// sous-champ (LIB_X..Cadre..Couleur = Vert). Contrairement au test voisin
+// _cadre_composite_override (Cadre en EXPRESSION dynamique), ce test isole
+// le cas le plus simple possible : aucun reseed, aucune ré-évaluation
+// d'expression à chaque rendu, juste un littéral figé au décl + une
+// cascade impérative dessus.
+//
+// Cible correcte : la cascade impérative doit gagner — le bord doit être
+// Vert, jamais Rouge.
+
+ETAT_CadreLitteralCascade est un État
+	PROPRIETES
+		Format = formatA4
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 15
+		FIN
+
+		LIB_X est un Champ Libellé
+			PROPRIETES
+				Libellé = "X"
+				X       = 20
+				Y       = 2
+				Largeur = 100
+				Hauteur = 10
+				Cadre   = {Couleur = Rouge, Epaisseur = 2}
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE Lecture()
+		LIB_X..Cadre..Couleur = Vert
+	FIN
+FIN

@@ -1,0 +1,22 @@
+//  (couverture) — verrouille FormatNégatif = fmnMoins sur un montant
+// NÉGATIF (motif signe '-', ex. "-1 234,50 €"). Complète le cas fmnParenthèses
+// avec le motif par défaut, pour garantir que le signe '-' affiché est bien
+// reparse en montant négatif exact.
+//
+// Discriminant : ..Valeur = 0m-1234.50, affiché "-1 234,50 €", relu en ..Valeur
+// DOIT rendre 0m-1234.50 (négatif exact) — le signe survit au round-trip malgré
+// le symbole et le séparateur de milliers intercalés.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatMonetaireNegatifMoins)
+
+nNegatif est un entier = SAI_Montant..FormatMonétaire..FormatNégatif
+dbgVérifieEgalité(nNegatif, fmnMoins, "FormatMonétaire du champ : ..FormatNégatif relit fmnMoins (motif signe '-')")
+
+SAI_Montant..Valeur = 0m-1234.50
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m-1234.50, "fmnMoins sur négatif : round-trip SET->affiché avec signe '-'->GET rend -1234.50 exact, signe préservé")
+
+Ferme(FEN_FormatMonetaireNegatifMoins)
+dbgBilanTest()

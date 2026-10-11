@@ -1,0 +1,28 @@
+//  renforce par  — PROCEDURE d Etat avec params par defaut :
+// optionalite RUNTIME verifiee (appel avec moins d args depuis la section,
+// param par defaut applique, resultat observable).
+// ROUGE ATTENDU jusqu au  (procs top-level d Etat appelables depuis
+// section). Apres fix : les deux procs sont appelees et les valeurs par defaut
+// sont appliquees correctement.
+// Pattern : la ressource voisine ETAT_ParamDefaut.owl porte les declarations.
+
+TestModeHeadless(Vrai)
+
+seqParam est une chaîne = ""
+
+PROCEDURE callback_observe(s est une chaîne)
+	seqParam += s
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/procedure_param_defaut_fenetre_etat/etat_param_defaut/temp.pdf")
+iImprimeEtat(ETAT_ParamDefaut)
+iFinImprime()
+
+Trace("seqParam : [" + seqParam + "]")
+
+// Calcule(5) avec marge par defaut=10 -> 5+10=15.
+// Formate("bonjour") avec suffixe par defaut="!" -> "bonjour!".
+dbgVérifieEgalité(seqParam, "calc:15|fmt:bonjour!",
+"Procs Etat avec params par defaut : optionalite runtime verifiee")
+
+dbgBilanTest()

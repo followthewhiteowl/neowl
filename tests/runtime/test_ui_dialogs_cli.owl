@@ -1,0 +1,46 @@
+// =====================================================================
+// TEST: Phase E.0 - natives Tier 1 GUI accessibles
+//
+// owl.exe est all-in-one (interpreter + GUI Qt6). Les natives Info /
+// Erreur / Avertissement ouvrent des QMessageBox modales en mode normal.
+// En mode test on les mocke pour eviter le bloquant.
+//
+// Ce test verifie le contrat : signature variadique, retour Nul,
+// concatenation des messages. Couvre aussi les constantes Oui/Non/
+// Annuler (constantes UI globales).
+// =====================================================================
+
+mInfo est un MockNative = MockCrée(Info)
+mInfo.Quand().Retourne(Null).Active()
+mErr est un MockNative = MockCrée(Erreur)
+mErr.Quand().Retourne(Null).Active()
+mAvert est un MockNative = MockCrée(Avertissement)
+mAvert.Quand().Retourne(Null).Active()
+
+Trace("=== PHASE E.0 : natives UI Tier 1 ===")
+
+// --- Constantes Oui/Non/Annuler (alignees documentation de référence) ---
+dbgVérifieEgalité(Non, 0, "Non = 0 (aligné sur le comportement de référence)")
+dbgVérifieEgalité(Oui, 1, "Oui = 1 (aligné sur le comportement de référence)")
+dbgVérifieEgalité(Annuler, 2, "Annuler = 2 (aligné sur le comportement de référence)")
+
+// --- Info / Erreur / Avertissement : retour Nul ---
+res est un entier? = Info("test info")
+dbgVérifieVrai(res = Null, "Info retourne Nul")
+
+res = Erreur("test erreur")
+dbgVérifieVrai(res = Null, "Erreur retourne Nul")
+
+res = Avertissement("test avertissement")
+dbgVérifieVrai(res = Null, "Avertissement retourne Nul")
+
+// --- Variadiques : plusieurs lignes ---
+Info("ligne 1", "ligne 2", "ligne 3")
+Erreur("erreur ligne A", "erreur ligne B")
+Avertissement("avert ligne X")
+
+// --- Alias EN ---
+Info("EN alias OK") // CLI : Info = Trace donc affiche
+
+dbgVérifieVrai(Vrai, "Phase E.0 : 3 dialogues + 3 constantes accessibles")
+dbgBilanTest()

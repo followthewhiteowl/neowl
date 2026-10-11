@@ -1,0 +1,51 @@
+//  — ZoneRépétée : indexation ZR[i].champ en FinInitialisation
+//
+// ROUGE ATTENDU tant que  n'est pas implémenté (option A).
+// Raison du rouge : ZR_Liste[i] throw E_RT_INDEX_NEEDS_ARRAY_OR_COMBI
+// dans FinInitialisation car ObjUiControlRef n'a pas de branche dans
+// OP_ARRAY_GET / OP_ARRAY_SET (vm.c).
+//
+// Ce test verrouille :
+//   1. SET ZR[i].champ dans FinInitialisation (3 lignes, 2 sous-champs)
+//   2. GET ZR[i].champ via LireNom(n) / LireNum(n) après init
+//   3. Cohérence indices 1-based : ligne 1, 2, 3
+
+TestModeHeadless(Vrai)
+
+// Variable partagée : FinInitialisation la pose via callback
+fininitialisation_appelee est un booléen = Faux
+
+PROCEDURE cb_fininitialisation_done()
+	fininitialisation_appelee = Vrai
+FIN
+
+Ouvre(FEN_ZRIndex)
+
+// --- Vérification que FinInitialisation s'est bien exécutée ---
+dbgVérifieVrai(fininitialisation_appelee, "FinInitialisation s'est exécutée")
+
+// --- Vérification occurrence ---
+occ est un entier = ZoneRépétéeOccurrence(ZR_Liste)
+dbgVérifieEgalité(occ, 3, "ZoneRépétéeOccurrence = 3 après FinInitialisation")
+
+// --- GET ligne 1 ---
+num1 est une chaîne = LireNum(1)
+nom1 est une chaîne = LireNom(1)
+dbgVérifieEgalité(num1, "#1", "ZR_Liste[1].LIB_Num = #1 (SET en FinInitialisation)")
+dbgVérifieEgalité(nom1, "Alice", "ZR_Liste[1].LIB_Nom = Alice (SET en FinInitialisation)")
+
+// --- GET ligne 2 ---
+num2 est une chaîne = LireNum(2)
+nom2 est une chaîne = LireNom(2)
+dbgVérifieEgalité(num2, "#2", "ZR_Liste[2].LIB_Num = #2")
+dbgVérifieEgalité(nom2, "Bob", "ZR_Liste[2].LIB_Nom = Bob")
+
+// --- GET ligne 3 (dernière) ---
+num3 est une chaîne = LireNum(3)
+nom3 est une chaîne = LireNom(3)
+dbgVérifieEgalité(num3, "#3", "ZR_Liste[3].LIB_Num = #3")
+dbgVérifieEgalité(nom3, "Charlie", "ZR_Liste[3].LIB_Nom = Charlie")
+
+Ferme(FEN_ZRIndex)
+
+dbgBilanTest()

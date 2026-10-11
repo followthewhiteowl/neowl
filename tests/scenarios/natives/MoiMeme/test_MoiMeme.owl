@@ -1,0 +1,150 @@
+// @sujet : MoiMême / MySelf
+// @résumé : Keyword remplacé à l'exécution par le champ courant. Permet
+// d'écrire des procédures génériques réutilisables sans hardcoder le nom
+// du champ.
+//
+// Le keyword MoiMême résout au champ qui exécute le code à cet instant :
+// - dans un handler d'événement de champ (surClic, surBoutonGauche), MoiMême
+//   est le champ qui a déclenché l'événement
+// - dans une fenêtre top-level hors handler, MoiMême est la fenêtre
+// - dans un état top-level hors handler, MoiMême est l'état
+// - dans une procédure appelée depuis un handler, MoiMême hérite du champ
+//   émetteur (chaîne d'appel)
+//
+// Cas d'usage canon : grille de N cellules partageant 1 handler générique,
+// MoiMême permet de distinguer quelle cellule a été cliquée.
+//
+// La fenêtre voisine FEN_Grille.owl porte la déclaration et expose
+// RemonteDrapeaux() / RAZDrapeaux(). Les procédures utilitaires utilisées
+// par les handlers (ModifierLibelleWidget, ModifierLibelleViaMoiMeme) sont
+// définies ici et vues côté fenêtre via le mode script voisinage.
+
+// Drapeaux observés côté script — alimentés par callback_drapeaux.
+dernierLibelleObs est une chaîne = ""
+dernierCouleurObs est un entier = 0
+
+PROCEDURE callback_drapeaux(lib est une chaîne, coul est un entier)
+	dernierLibelleObs = lib
+	dernierCouleurObs = coul
+FIN
+
+
+// Procédures utilitaires appelées depuis les handlers de FEN_Grille.
+PROCEDURE ModifierLibelleWidget(widget est un Champ)
+	widget..Libellé = "Modifié par proc"
+FIN
+
+PROCEDURE ModifierLibelleViaMoiMeme()
+	MoiMême..Libellé = "Chain Modifié"
+FIN
+
+
+// Pattern 1 : grille N cellules, 1 handler générique partagé. Cliquer
+// CellX capture son Libellé et sa Couleur via MoiMême. Le handler est
+// identique pour les 3 cellules mais MoiMême résout à la cellule cliquée.
+PROCEDURE scenario_grille_distingue_cellule_cliquee()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	RAZDrapeaux()
+
+	TestSimuleSouris(LIB_Cell1, ClicGauche)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(dernierLibelleObs, "Cell1", "MoiMême résout à Cell1")
+	dbgVérifieEgalité(dernierCouleurObs, RVB(255, 0, 0), "Couleur rouge Cell1")
+
+	RAZDrapeaux()
+	TestSimuleSouris(LIB_Cell2, ClicGauche)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(dernierLibelleObs, "Cell2", "MoiMême résout à Cell2")
+	dbgVérifieEgalité(dernierCouleurObs, RVB(0, 255, 0), "Couleur verte Cell2")
+
+	RAZDrapeaux()
+	TestSimuleSouris(LIB_Cell3, ClicGauche)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(dernierLibelleObs, "Cell3", "MoiMême résout à Cell3")
+	dbgVérifieEgalité(dernierCouleurObs, RVB(0, 0, 255), "Couleur bleue Cell3")
+
+	Ferme(FEN_Grille)
+FIN
+
+
+// Pattern 2 : MoiMême dans FinInitialisation (top-level fenêtre) résout
+// à la fenêtre. La propriété Titre de la fenêtre est modifiée.
+PROCEDURE scenario_fenetre_top_level_moimeme_fenetre()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	dbgVérifieEgalité(FEN_Grille..Titre, "Fenêtre modifiée par MoiMême", "Titre fenêtre modifié")
+	Ferme(FEN_Grille)
+FIN
+
+
+// Pattern 3 : MoiMême..Propriété dans un handler de Bouton modifie le
+// bouton lui-même. Le titre du bouton change de "Avant" à "Après".
+PROCEDURE scenario_propriete_modifiee_via_moimeme()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	dbgVérifieEgalité(BTN_Auto..Libellé, "Avant", "Libellé initial")
+	TestSimuleSouris(BTN_Auto, ClicGauche)
+	dbgVérifieEgalité(BTN_Auto..Libellé, "Après", "Libellé modifié par MoiMême")
+	Ferme(FEN_Grille)
+FIN
+
+
+// Pattern 5 : MoiMême passé en paramètre à une procédure. Le handler
+// appelle ModifierLibelleWidget(MoiMême) qui reçoit la référence du bouton.
+PROCEDURE scenario_passage_param_moimeme()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	dbgVérifieEgalité(BTN_Param..Libellé, "Initial", "Libellé avant appel")
+	TestSimuleSouris(BTN_Param, ClicGauche)
+	dbgVérifieEgalité(BTN_Param..Libellé, "Modifié par proc", "Libellé modifié via param")
+	Ferme(FEN_Grille)
+FIN
+
+
+// Pattern bilingue : MySelf (alias EN) fonctionne identiquement à MoiMême.
+PROCEDURE scenario_alias_myself_identique()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	dbgVérifieEgalité(BTN_MySelf..Libellé, "EN Before", "Libellé avant")
+	TestSimuleSouris(BTN_MySelf, ClicGauche)
+	dbgVérifieEgalité(BTN_MySelf..Libellé, "EN After", "MySelf modifie comme MoiMême")
+	Ferme(FEN_Grille)
+FIN
+
+
+// Edge case héritage chain : handler → procédure → MoiMême résout au
+// champ émetteur. Le handler de BTN_Chain appelle
+// ModifierLibelleViaMoiMeme qui utilise MoiMême pour modifier le bouton.
+PROCEDURE PRIVÉE test_heritage_chain_moimeme()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	dbgVérifieEgalité(BTN_Chain..Libellé, "Chain Init", "Libellé avant")
+	TestSimuleSouris(BTN_Chain, ClicGauche)
+	dbgVérifieEgalité(BTN_Chain..Libellé, "Chain Modifié", "MoiMême hérite du champ émetteur")
+	Ferme(FEN_Grille)
+FIN
+
+
+// Edge case lecture directe : v = MoiMême récupère la référence du champ.
+PROCEDURE PRIVÉE test_lecture_directe_assign_variable()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	RAZDrapeaux()
+	TestSimuleSouris(LIB_Lecture, ClicGauche)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(dernierLibelleObs, "LIB_Lecture", "Lecture MoiMême assignée variable")
+	Ferme(FEN_Grille)
+FIN
+
+
+// Edge case accent-insensible : MoiMeme (sans accent) doit fonctionner
+// identiquement à MoiMême (avec accent). OWL est accent-insensible.
+PROCEDURE PRIVÉE test_accent_insensible_moimeme()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Grille)
+	dbgVérifieEgalité(BTN_Accent..Libellé, "Accent Init", "Libellé avant")
+	TestSimuleSouris(BTN_Accent, ClicGauche)
+	dbgVérifieEgalité(BTN_Accent..Libellé, "Accent OK", "MoiMeme sans accent fonctionne")
+	Ferme(FEN_Grille)
+FIN

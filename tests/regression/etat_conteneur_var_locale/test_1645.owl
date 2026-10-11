@@ -1,0 +1,50 @@
+// Regression  : homogénéité du set des déclarateurs GUI à token dédié
+// utilisables comme nom de VARIABLE LOCALE. Follow-up  : le set couvrait
+// Fenêtre/Libellé/Bouton/Saisie/Table/Colonne mais oubliait État (TOKEN_ETAT) et
+// Conteneur (TOKEN_CONTENEUR), les 2 seuls déclarateurs à token dédié absents.
+// Symptôme avant fix : « Expression attendue » sur `État est une chaîne = ...`.
+//
+// Les 8 déclarateurs à token dédié doivent tous être acceptés comme nom de
+// variable locale (démotion en identifiant en position d'expression/déclaration).
+
+PROCEDURE testSetHomogene()
+	// --- Les 2 réparés par  ---
+	État est une chaîne = "b"
+	dbgVérifieEgalité(État, "b", "État (TOKEN_ETAT) comme variable locale = b")
+
+	Conteneur est un entier = 3
+	dbgVérifieEgalité(Conteneur, 3, "Conteneur (TOKEN_CONTENEUR) comme variable locale = 3")
+
+	// --- Les 6 déjà couverts par  (non-régression) ---
+	Fenêtre est un entier = 4
+	dbgVérifieEgalité(Fenêtre, 4, "Fenêtre (TOKEN_FENETRE) variable locale = 4")
+
+	Libellé est un entier = 3
+	dbgVérifieEgalité(Libellé, 3, "Libellé (TOKEN_LIBELLE) variable locale = 3")
+
+	Bouton est un entier = 7
+	dbgVérifieEgalité(Bouton, 7, "Bouton (TOKEN_BOUTON) variable locale = 7")
+
+	Saisie est un entier = 2
+	dbgVérifieEgalité(Saisie, 2, "Saisie (TOKEN_SAISIE) variable locale = 2")
+
+	Table est un entier = 9
+	dbgVérifieEgalité(Table, 9, "Table (TOKEN_TABLE) variable locale = 9")
+
+	Colonne est un entier = 5
+	dbgVérifieEgalité(Colonne, 5, "Colonne (TOKEN_COLONNE) variable locale = 5")
+
+	// Alias EN de État/Conteneur, pour prouver que la démotion couvre les 2 formes.
+	Report est une chaîne = "r"
+	dbgVérifieEgalité(Report, "r", "Report (alias EN de TOKEN_ETAT) variable locale = r")
+
+	Container est un entier = 11
+	dbgVérifieEgalité(Container, 11, "Container (alias EN de TOKEN_CONTENEUR) variable locale = 11")
+
+	// Les widget-noms restent utilisables en arithmétique une fois déclarés.
+	dbgVérifieEgalité(Conteneur + Fenêtre + Libellé + Bouton + Saisie + Table + Colonne, 33,
+	"Somme des widget-noms déclarés = 3+4+3+7+2+9+5 = 33")
+FIN
+
+testSetHomogene()
+dbgBilanTest()

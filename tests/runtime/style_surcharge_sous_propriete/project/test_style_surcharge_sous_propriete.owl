@@ -1,0 +1,44 @@
+//  — surcharge de sous-propriété de Style ignorée.
+//
+// Bug : dans les PROPRIETES d'un widget, une surcharge
+// `Style..CadreExtérieur..sous = Y` posée en présence d'une affectation de
+// `Style` ENTIER (`Style = theme.X` OU `Style = { littéral }`) est ignorée.
+// Le read-back renvoie la valeur de base (thème/littéral), pas la surcharge.
+//
+// Sémantique cible : ordre source, dernière écriture gagne.
+//   Style = X PUIS Style..sous = Y -> Y gagne (surcharge, isolée au widget).
+//   Style..sous = Y PUIS Style = X -> X gagne (reset écrase la surcharge).
+//
+// ROUGE attendu (cas 1 à 5) : read-back renvoie la valeur de base au lieu
+// de la surcharge. Cas 6 (non-régression) : déjà vert avant le fix.
+
+Trace("=== Surcharge de sous-propriété de Style (fix/1029) ===")
+
+Ouvre(FEN_SurchargeStyle)
+
+// --- Cas 1 : Style = { littéral } PUIS surcharge du sous-bloc Dégradé ---
+dbgVérifieEgalité(BTN_LitteralDegrade..Style..CadreExtérieur..Dégradé..CouleurDébut, RougeClair, "Littéral + surcharge : CouleurDébut = valeur surchargée (RougeClair), pas la valeur du littéral")
+
+// --- Cas 2a : Style = theme.bp PUIS surcharge du sous-bloc Dégradé ---
+dbgVérifieEgalité(BTN_ThemeDegrade..Style..CadreExtérieur..Dégradé..CouleurDébut, RougeClair, "Thème + surcharge : CouleurDébut = valeur surchargée (RougeClair), pas la valeur du thème")
+
+// --- Cas 2b : isolation — le thème partagé n'est pas muté par la surcharge du 1er ---
+dbgVérifieEgalité(BTN_ThemeTemoin..Style..CadreExtérieur..Dégradé..CouleurDébut, RVB(126, 103, 187), "Thème témoin (même theme.bp, sans surcharge) : reste à la valeur d'origine du thème")
+
+// --- Cas 3 : sous-propriété scalaire simple ---
+dbgVérifieEgalité(BTN_ScalarFond..Style..CadreExtérieur..CouleurFond, VertClair, "Thème + surcharge CouleurFond (scalaire simple) : valeur surchargée appliquée")
+
+// --- Cas 4 : sous-bloc profond Ombre..Flou ---
+dbgVérifieEgalité(BTN_OmbreFlou..Style..CadreExtérieur..Ombre..Flou, 40, "Thème + surcharge Ombre..Flou (sous-bloc profond) : valeur surchargée appliquée")
+
+// --- Cas 5 : ordre inverse — Style..sous = Y PUIS Style = X -> X (reset) gagne ---
+dbgVérifieEgalité(BTN_OrdreInverse..Style..CadreExtérieur..CouleurFond, Blanc, "Ordre inverse : Style = X posé après la surcharge écrase (reset), CouleurFond = Blanc (thème)")
+
+// --- Cas 6a (non-régression) : Style = X seul, sans surcharge ---
+dbgVérifieEgalité(BTN_StyleSeul..Style..CadreExtérieur..CouleurFond, Blanc, "Non-régression : Style = X seul, sans surcharge -> valeurs du thème")
+
+// --- Cas 6b (non-régression) : surcharge seule, sans Style = entier ---
+dbgVérifieEgalité(BTN_SurchargeSeule..Style..CadreExtérieur..CouleurFond, VertClair, "Non-régression : surcharge seule (sans Style= entier), sur le style par défaut -> surcharge appliquée")
+
+Ferme(FEN_SurchargeStyle)
+dbgBilanTest()

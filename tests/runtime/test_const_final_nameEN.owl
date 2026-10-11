@@ -1,0 +1,172 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR — ENDGAME nameEN.
+//
+// Echantillon final : derniers TYPES et CONSTANTES recevant leur nameEN.
+// Verrouille le contrat bilingue invariant n3 :
+//   - un TYPE reference par sa forme EN instancie le meme type que la forme FR
+//     (TypeVar identique) ; pour les EN distincts (Font/Frame/Corner/Stroke/
+//     NumberFormat) la forme EN est ajoutee aux aliases du type.
+//   - une CONSTANTE referencee par sa forme EN canon resout vers EXACTEMENT
+//     la meme valeur que la forme FR canon (alias runtime-only vm.globals).
+//
+// Deux couches d'assertion par couple ancre : EN == FR, ET EN == valeur brute.
+// =============================================================================
+
+// ----------------------------------------------------------------------------
+// TYPES — EN distinct, resoluble via alias
+// ----------------------------------------------------------------------------
+
+policeFR est un Police
+policeEN est un Font
+dbgVérifieEgalité(TypeVar(policeEN), TypeVar(policeFR),
+"Font instancie le meme type que Police")
+
+cadreFR est un Cadre
+cadreEN est un Frame
+dbgVérifieEgalité(TypeVar(cadreEN), TypeVar(cadreFR),
+"Frame instancie le meme type que Cadre")
+
+coinFR est un Coin
+coinEN est un Corner
+dbgVérifieEgalité(TypeVar(coinEN), TypeVar(coinFR),
+"Corner instancie le meme type que Coin")
+
+traitFR est un Trait
+traitEN est un Stroke
+dbgVérifieEgalité(TypeVar(traitEN), TypeVar(traitFR),
+"Stroke instancie le meme type que Trait")
+
+fmtFR est un FormatNumérique
+fmtEN est un NumberFormat
+dbgVérifieEgalité(TypeVar(fmtEN), TypeVar(fmtFR),
+"NumberFormat instancie le meme type que FormatNumerique")
+
+// httpRequête : nameEN = ascii-strip du FR (alias "httpRequete" deja present)
+reqFR est un httpRequête
+reqEN est un httpRequête
+dbgVérifieEgalité(TypeVar(reqEN), TypeVar(reqFR),
+"httpRequete instancie le meme type que httpRequête(accentue)")
+
+// ----------------------------------------------------------------------------
+// CONSTANTES — couples EN -> FR ancres sur valeur brute
+// ----------------------------------------------------------------------------
+
+PROCEDURE scenario_dialogues()
+	dbgVérifieEgalité(Yes, Oui, "Yes resout vers Oui")
+	dbgVérifieEgalité(Yes, 1, "Yes vaut exactement 1")
+	dbgVérifieEgalité(No, Non, "No resout vers Non")
+	dbgVérifieEgalité(No, 0, "No vaut exactement 0")
+	dbgVérifieEgalité(Cancel, Annuler, "Cancel resout vers Annuler")
+	dbgVérifieEgalité(Cancel, 2, "Cancel vaut exactement 2")
+FIN
+
+PROCEDURE scenario_alignements()
+	dbgVérifieEgalité(chLeft, chGauche, "chLeft resout vers chGauche")
+	dbgVérifieEgalité(chCenter, chCentre, "chCenter resout vers chCentre")
+	dbgVérifieEgalité(chRight, chDroite, "chRight resout vers chDroite")
+	dbgVérifieEgalité(cvTop, cvHaut, "cvTop resout vers cvHaut")
+	dbgVérifieEgalité(cvCenter, cvCentre, "cvCenter resout vers cvCentre")
+	dbgVérifieEgalité(cvMiddle, cvMilieu, "cvMiddle resout vers cvMilieu")
+	dbgVérifieEgalité(cvBottom, cvBas, "cvBottom resout vers cvBas")
+FIN
+
+PROCEDURE scenario_mime()
+	dbgVérifieEgalité(mimeTypeForm, typeMimeFormulaireSimple,
+	"mimeTypeForm resout vers typeMimeFormulaireSimple")
+	dbgVérifieEgalité(mimeTypeSVG, typeMimeSVG, "mimeTypeSVG resout vers typeMimeSVG")
+	dbgVérifieEgalité(mimeTypeODT, typeMimeODT, "mimeTypeODT resout vers typeMimeODT")
+	dbgVérifieEgalité(mimeTypeRichText, typeMimeTexteRiche,
+	"mimeTypeRichText resout vers typeMimeTexteRiche")
+FIN
+
+PROCEDURE scenario_zip()
+	dbgVérifieEgalité(zipName, zipNom, "zipName resout vers zipNom")
+	dbgVérifieEgalité(zipSize, zipTaille, "zipSize resout vers zipTaille")
+	dbgVérifieEgalité(zipCompressedSize, zipTailleCompressée,
+	"zipCompressedSize resout vers zipTailleCompressee")
+	dbgVérifieEgalité(zipFastCompression, zipCompressionRapide,
+	"zipFastCompression resout vers zipCompressionRapide")
+	dbgVérifieEgalité(zipMaxCompression, zipCompressionMaximale,
+	"zipMaxCompression resout vers zipCompressionMaximale")
+FIN
+
+PROCEDURE scenario_langues()
+	dbgVérifieEgalité(languageChineseSimplified, langueChinoisSimplifié,
+	"languageChineseSimplified resout vers langueChinoisSimplifie")
+	dbgVérifieEgalité(languageFrenchCanada, langueFrançaisCanada,
+	"languageFrenchCanada resout vers langueFrancaisCanada")
+	dbgVérifieEgalité(languageEnglishUK, langueAnglaisRoyaumeUni,
+	"languageEnglishUK resout vers langueAnglaisRoyaumeUni")
+FIN
+
+PROCEDURE scenario_fichiers()
+	dbgVérifieEgalité(flFile, flFichier, "flFile resout vers flFichier")
+	dbgVérifieEgalité(flFirstFile, flPremierFichier,
+	"flFirstFile resout vers flPremierFichier")
+	dbgVérifieEgalité(flChangeDirectory, flChangeRépertoire,
+	"flChangeDirectory resout vers flChangeRepertoire")
+FIN
+
+PROCEDURE scenario_image()
+	dbgVérifieEgalité(BackgroundSolid, FondPlein, "BackgroundSolid resout vers FondPlein")
+	dbgVérifieEgalité(BackgroundTransparent, FondTransparent,
+	"BackgroundTransparent resout vers FondTransparent")
+	dbgVérifieEgalité(BackgroundHatched, FondHachuré,
+	"BackgroundHatched resout vers FondHachure")
+	dbgVérifieEgalité(drNoEnlarge, drSansAgrandissement,
+	"drNoEnlarge resout vers drSansAgrandissement")
+FIN
+
+PROCEDURE scenario_textline()
+	dbgVérifieEgalité(TLNormal, TLNormal, "TLNormal (EN==FR) stable")
+	dbgVérifieEgalité(TLMultiLine, TLMultiLigne, "TLMultiLine resout vers TLMultiLigne")
+FIN
+
+PROCEDURE scenario_xml()
+	dbgVérifieEgalité(XMLComment, XMLCommentaire, "XMLComment resout vers XMLCommentaire")
+	dbgVérifieEgalité(XMLPITag, XMLBalisePI, "XMLPITag resout vers XMLBalisePI")
+FIN
+
+PROCEDURE scenario_erreur()
+	dbgVérifieEgalité(errFunction, errFonction, "errFunction resout vers errFonction")
+	dbgVérifieEgalité(errNumericCode, errCodeNum, "errNumericCode resout vers errCodeNum")
+FIN
+
+PROCEDURE scenario_eol()
+	// LF : nameEN == FR (pose benin). Valeur ancree via Caract() pour
+	// eviter toute hypothese sur l'echappement \n dans un litteral OWL.
+	//
+	// Ce scenario porte sur le nameEN DES CONSTANTES. CR n'etant plus une
+	// constante, il n'a plus rien a y faire : sa couverture (forme heritee
+	// resolue hors registre) vit dans
+	// tests/regression/test_eol_lot1_rc_cr_compat.owl.
+	dbgVérifieEgalité(LF, Caract(10), "LF vaut le line feed (Caract 10)")
+	dbgVérifieEgalité(Taille(LF), 1, "LF fait 1 octet")
+FIN
+
+PROCEDURE scenario_durees()
+	dbgVérifieEgalité(durationCenti, duréeCentième,
+	"durationCenti resout vers dureeCentieme")
+	dbgVérifieEgalité(durationMilli, duréeMillième,
+	"durationMilli resout vers dureeMillieme")
+FIN
+
+PROCEDURE scenario_selecteur()
+	dbgVérifieEgalité(selectedRow, ligneSélectionnée,
+	"selectedRow resout vers ligneSelectionnee")
+FIN
+
+scenario_dialogues()
+scenario_alignements()
+scenario_mime()
+scenario_zip()
+scenario_langues()
+scenario_fichiers()
+scenario_image()
+scenario_textline()
+scenario_xml()
+scenario_erreur()
+scenario_eol()
+scenario_durees()
+scenario_selecteur()
+dbgBilanTest()

@@ -1,0 +1,26 @@
+// Lot 1  : RC et CR sortent du langage comme symboles autonomes et
+// deviennent une couche de compatibilite avalee par le compilateur comme
+// valant exactement CRLF (2 octets). LF reste le saut de ligne canon a 1
+// octet. Seul Caract(13) donne encore l'octet 13 seul.
+
+// RC et CR valent CRLF (2 octets), pas leur ancienne valeur.
+dbgVérifieEgalité(Taille("a" + CRLF + "b"), 4, "a + RC + b = 4 octets (RC = CRLF)")
+dbgVérifieEgalité(Taille("a" + CRLF + "b"), 4, "a + CR + b = 4 octets (CR = CRLF)")
+dbgVérifieEgalité(Taille(CRLF), 2, "RC = 2 octets")
+dbgVérifieEgalité(Taille(CRLF), 2, "CR = 2 octets (n'est plus l'extension OWL 1 octet)")
+dbgVérifieEgalité(Taille(CRLF), 2, "CRLF = 2 octets")
+dbgVérifieEgalité(Taille(LF), 1, "LF reste 1 octet, inchangé")
+
+// RC, CR et CRLF partagent rigoureusement la même valeur.
+dbgVérifieEgalité(CRLF, CRLF, "RC = CRLF")
+dbgVérifieEgalité(CRLF, CRLF, "CR = CRLF")
+dbgVérifieEgalité(CRLF, CRLF, "CR = RC")
+dbgVérifieEgalité(CRLF, Caract(13) + Caract(10), "CRLF = Caract(13) + Caract(10)")
+dbgVérifieEgalité(LF, Caract(10), "LF = Caract(10), inchangé")
+
+// Caract(13) reste la seule façon d'obtenir l'octet 13 seul.
+dbgVérifieEgalité(Taille(Caract(13)), 1, "Caract(13) = 1 octet")
+dbgVérifieVrai(Caract(13) <> CRLF, "Caract(13) seul n'est plus égal à CR (CR = CRLF désormais)")
+dbgVérifieVrai(Caract(13) <> CRLF, "Caract(13) seul n'est pas égal à RC")
+
+dbgBilanTest()

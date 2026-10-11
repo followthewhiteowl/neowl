@@ -1,0 +1,25 @@
+// Verrou  — un Champ CodeBarres est rendu dans un Etat (sortie PDF).
+//
+// Avant fix : render_etat_block_controls (stdlib_pdf.c) ne dispatche que
+// Libellé et Image -> le code-barres est silencieusement dropé -> le PDF
+// "avec" a la même taille que le PDF "sans".
+// Après fix : le PDF "avec" embarque un PNG de code-barres -> nettement plus
+// gros. Comparaison de taille = signal robuste (pas d'analyse interne du PDF).
+
+TestModeHeadless(Vrai)
+
+iDestination(iPDFGénérique, "build/etat_cb_avec.pdf")
+iImprimeEtat(ETAT_CBAvec)
+iFinImprime()
+
+iDestination(iPDFGénérique, "build/etat_cb_sans.pdf")
+iImprimeEtat(ETAT_CBSans)
+iFinImprime()
+
+tailleAvec est un entier = fTaille("build/etat_cb_avec.pdf")
+tailleSans est un entier = fTaille("build/etat_cb_sans.pdf")
+
+dbgVérifieVrai(tailleAvec > tailleSans + 500,
+"Champ CodeBarres rendu en Etat : le PDF avec code-barres embarque une image (plus gros)")
+
+dbgBilanTest()

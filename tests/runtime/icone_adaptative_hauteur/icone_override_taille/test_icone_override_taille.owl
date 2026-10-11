@@ -1,0 +1,76 @@
+//  — CAS 3 : propriete override ImageTaille force une taille d'icone explicite.
+// Quatre boutons (Hauteur=96) : BTN_Auto/BTN_Override avec icone, BTN_NuAuto/BTN_NuOvr nus.
+//
+// Methode : diff pixel entre btn-avec et btn-nu de meme geometrie.
+// Le chrome du QPushButton (cadre arrondi, padding) est identique dans les deux ->
+// la diff isole uniquement les pixels de l'icone, peu importe le chrome.
+//
+// Oracle : nbDiff_Auto >> nbDiff_Override.
+//   Auto     ≈ 704 pixels diff (icone ~96px adaptatif)
+//   Override ≈ 144 pixels diff (icone 32px force)
+// Seuil : nbDiff_Auto > nbDiff_Override * 2.5 (conservateur, ratio theorique ≈ 4.9).
+
+Ouvre(FEN_IcoOverride)
+
+// ---- Captures ----
+imgAvec est une Image = dCopieImageChamp(BTN_Auto)
+dbgVérifieEgalité(imgAvec..Valide, Vrai, "BTN_Auto : capture valide")
+
+imgNuA est une Image = dCopieImageChamp(BTN_NuAuto)
+dbgVérifieEgalité(imgNuA..Valide, Vrai, "BTN_NuAuto : capture valide")
+
+imgOvr est une Image = dCopieImageChamp(BTN_Override)
+dbgVérifieEgalité(imgOvr..Valide, Vrai, "BTN_Override : capture valide")
+
+imgNuO est une Image = dCopieImageChamp(BTN_NuOvr)
+dbgVérifieEgalité(imgNuO..Valide, Vrai, "BTN_NuOvr : capture valide")
+
+// ---- Diff pixels : BTN_Auto vs BTN_NuAuto ----
+nbDiffAuto est un entier = 0
+wA est un entier = imgAvec..Largeur
+hA est un entier = imgAvec..Hauteur
+yyA est un entier = 0
+TANTQUE yyA < hA
+	xxA est un entier = 0
+	TANTQUE xxA < wA
+		cA1 est un entier = dPixelCouleur(imgAvec, xxA, yyA)
+		cA2 est un entier = dPixelCouleur(imgNuA, xxA, yyA)
+		SI cA1 <> cA2 ALORS
+			nbDiffAuto = nbDiffAuto + 1
+		FIN
+		xxA = xxA + 1
+	FIN
+	yyA = yyA + 1
+FIN
+dbgVérifieVrai(nbDiffAuto > 50,
+"BTN_Auto vs BTN_NuAuto : pixels icone detectes (icone auto presente)")
+
+// ---- Diff pixels : BTN_Override vs BTN_NuOvr ----
+nbDiffOvr est un entier = 0
+wO est un entier = imgOvr..Largeur
+hO est un entier = imgOvr..Hauteur
+yyO est un entier = 0
+TANTQUE yyO < hO
+	xxO est un entier = 0
+	TANTQUE xxO < wO
+		cO1 est un entier = dPixelCouleur(imgOvr, xxO, yyO)
+		cO2 est un entier = dPixelCouleur(imgNuO, xxO, yyO)
+		SI cO1 <> cO2 ALORS
+			nbDiffOvr = nbDiffOvr + 1
+		FIN
+		xxO = xxO + 1
+	FIN
+	yyO = yyO + 1
+FIN
+dbgVérifieVrai(nbDiffOvr > 10,
+"BTN_Override vs BTN_NuOvr : pixels icone detectes (icone 32px presente)")
+
+// ---- Assertion cle : override force icone significativement plus petite ----
+// nbDiff_Auto ≈ 704, nbDiff_Override ≈ 144 -> ratio ≈ 4.9.
+// Seuil conservateur : Auto > Override * 2.5.
+seuil250pct est un entier = (nbDiffOvr * 25) / 10
+dbgVérifieVrai(nbDiffAuto > seuil250pct,
+"CAS3-OVERRIDE : zone icone auto > 2.5x zone icone override32 (ImageTaille=32 reduit l'icone)")
+
+Ferme(FEN_IcoOverride)
+dbgBilanTest()

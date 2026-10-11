@@ -1,0 +1,86 @@
+// @sujet : Tenseur (N-D)
+// @résumé : Un Tenseur multi-dimensions (3D, 4D...) se construit en
+// redimensionnant un Tenseur plat vers la forme voulue. ..Forme rend la
+// séquence des tailles de chaque axe, ..Rang le nombre d'axes, et
+// l'indexation chaînée ..Valeur[i][j]... descend d'un axe à chaque
+// crochet, comme pour le Vecteur (1D) et la Matrice (2D) déjà couverts
+// ailleurs.
+
+// Un Tenseur plat de 16 éléments redimensionné en (2x2x2x2) donne un
+// Tenseur de rang 4. Les éléments 1.0 à 16.0 restent rangés dans leur
+// ordre d'origine : le premier axe varie le plus lentement, le dernier
+// le plus vite.
+PROCEDURE PUBLIQUE scenario_construction_4d_forme_et_rang()
+	t4d est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([2, 2, 2, 2])
+
+	dbgVérifieEgalité(t4d..Rang, 4, "Redimensionné en 4 axes -> Rang 4")
+	dbgVérifieEgalité(t4d..Forme[1], 2, "Axe 1 : 2")
+	dbgVérifieEgalité(t4d..Forme[2], 2, "Axe 2 : 2")
+	dbgVérifieEgalité(t4d..Forme[3], 2, "Axe 3 : 2")
+	dbgVérifieEgalité(t4d..Forme[4], 2, "Axe 4 : 2")
+
+	dbgVérifieEgalité(t4d..Valeur[1][1][1][1], 1.0, "Premier élément d'origine")
+	dbgVérifieEgalité(t4d..Valeur[2][2][2][2], 16.0, "Dernier élément d'origine")
+	dbgVérifieEgalité(t4d..Valeur[1][2][1][2], 6.0, "6e élément d'origine")
+FIN
+
+
+// Une forme asymétrique (2x3x2, axes de tailles différentes) est
+// correctement rapportée par ..Forme, sans confondre l'ordre des axes.
+PROCEDURE PUBLIQUE scenario_construction_3d_forme_asymetrique()
+	t3d est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 3, 2])
+
+	dbgVérifieEgalité(t3d..Rang, 3, "Redimensionné en 3 axes -> Rang 3")
+	dbgVérifieEgalité(t3d..Forme[1], 2, "Axe 1 : 2 blocs")
+	dbgVérifieEgalité(t3d..Forme[2], 3, "Axe 2 : 3 lignes par bloc")
+	dbgVérifieEgalité(t3d..Forme[3], 2, "Axe 3 : 2 colonnes par ligne")
+
+	dbgVérifieEgalité(t3d..Valeur[1][2][2], 4.0, "Bloc 1, ligne 2, colonne 2")
+	dbgVérifieEgalité(t3d..Valeur[2][3][1], 11.0, "Bloc 2, ligne 3, colonne 1")
+FIN
+
+
+// Le gradient d'un Tenseur N-D fraîchement construit est entièrement à
+// zéro, à la même forme que la valeur — comme pour le Vecteur et la
+// Matrice.
+PROCEDURE PUBLIQUE scenario_gradient_initial_zero_4d()
+	t4d est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([2, 2, 2, 2])
+
+	dbgVérifieEgalité(t4d..Gradient[1][1][1][1], 0.0, "Gradient initial nul, premier élément")
+	dbgVérifieEgalité(t4d..Gradient[2][2][2][2], 0.0, "Gradient initial nul, dernier élément")
+FIN
+
+
+// Non-régression : ..Rang et ..Forme sont aussi disponibles sur un
+// Tenseur 1D (Vecteur) sans rien changer à son comportement existant.
+PROCEDURE PUBLIQUE scenario_rang_et_forme_1d_non_regression()
+	ta est un Tenseur = Tenseur([3.0, 4.0, 5.0])
+
+	dbgVérifieEgalité(ta..Rang, 1, "Tenseur 1D -> Rang 1")
+	dbgVérifieEgalité(ta..Forme[1], 3, "Tenseur 1D -> Forme[1] = taille du Vecteur")
+FIN
+
+
+// Non-régression : ..Rang et ..Forme sont aussi disponibles sur un
+// Tenseur 2D (Matrice) sans rien changer à son comportement existant.
+PROCEDURE PUBLIQUE scenario_rang_et_forme_2d_non_regression()
+	matW est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tW est un Tenseur = Tenseur(matW)
+
+	dbgVérifieEgalité(tW..Rang, 2, "Tenseur 2D -> Rang 2")
+	dbgVérifieEgalité(tW..Forme[1], 2, "Tenseur 2D -> Forme[1] = nombre de lignes")
+	dbgVérifieEgalité(tW..Forme[2], 2, "Tenseur 2D -> Forme[2] = nombre de colonnes")
+FIN
+
+
+// La forme anglaise .Reshape(...) et les accesseurs ..Shape/..Rank
+// désignent la même construction que .Redimensionne(...) / ..Forme/..Rang.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise_3d()
+	t3dEN is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Reshape([2, 3, 2])
+
+	dbgVérifieEgalité(t3dEN..Rank, 3, "Reshape(...)..Rank = 3")
+	dbgVérifieEgalité(t3dEN..Shape[1], 2, "Reshape(...)..Shape[1] = 2")
+	dbgVérifieEgalité(t3dEN..Shape[2], 3, "Reshape(...)..Shape[2] = 3")
+	dbgVérifieEgalité(t3dEN..Shape[3], 2, "Reshape(...)..Shape[3] = 2")
+	dbgVérifieEgalité(t3dEN..Value[2][3][1], 11.0, "Reshape(...)..Value[2][3][1] = 11.0")
+FIN

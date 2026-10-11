@@ -1,0 +1,74 @@
+// Runtime GUI (widgets montés, offscreen) — étirement d'un champ sur l'axe
+// PRINCIPAL d'une pile, contrat de la fondation 18_layouts §4 : « Étire = Vrai
+// prend toute la place restante sur l'axe principal ».
+//
+// Deux leviers distincts, à ne pas confondre :
+//   - `Étire = Vrai`            absorbe l'espace restant sur l'axe PRINCIPAL ;
+//   - `Alignement = alignÉtire` remplit l'axe TRANSVERSE (couvert ailleurs).
+// En pile verticale, l'axe principal est la hauteur ; un champ dont la politique
+// de taille est figée en hauteur (Saisie / Combo / Bouton / Jauge) refusait de
+// grandir et se recentrait à sa hauteur minimale, contredisant le contrat.
+//
+// La dimension attendue est celle que la fenêtre déclare : le seul enfant d'une
+// pile qui étire occupe toute la dimension cliente (aucune marge par défaut).
+
+TestModeHeadless(Faux)
+
+// ------------------------------------------------ 1. Saisie seule, pile
+// verticale : occupe toute la hauteur cliente déclarée (300).
+OuvreSoeur(FEN_PrincV)
+dbgVérifieEgalité(EPV_Saisie..Hauteur, 300,
+"pile verticale : une Saisie Étire=Vrai occupe toute la hauteur cliente")
+// L'axe transverse (largeur) n'est PAS rempli : Étire ne joue que sur l'axe
+// principal. La largeur reste la largeur naturelle, plus petite que la fenêtre.
+dbgVérifieVrai(EPV_Saisie..Largeur < 400,
+"pile verticale : Étire ne remplit pas l'axe transverse, la largeur reste naturelle")
+Ferme(FEN_PrincV)
+
+// ------------------------------------------------ 2. Combo : même politique de
+// hauteur figée, même contrat.
+OuvreSoeur(FEN_PrincCombo)
+dbgVérifieEgalité(EPC_Combo..Hauteur, 300,
+"pile verticale : un Combo Étire=Vrai occupe toute la hauteur cliente")
+Ferme(FEN_PrincCombo)
+
+// ------------------------------------------------ 3. Bouton : idem.
+OuvreSoeur(FEN_PrincBouton)
+dbgVérifieEgalité(EPB_Bouton..Hauteur, 300,
+"pile verticale : un Bouton Étire=Vrai occupe toute la hauteur cliente")
+Ferme(FEN_PrincBouton)
+
+// ------------------------------------------------ 4. Hauteur figée prime sur
+// Étire : la taille déclarée verrouille l'axe principal.
+OuvreSoeur(FEN_PrincFigee)
+dbgVérifieEgalité(EPF_Saisie..Hauteur, 40,
+"une Hauteur figée prime sur Étire : le champ reste à 40 px, il n'absorbe pas le reste")
+Ferme(FEN_PrincFigee)
+
+// ------------------------------------------------ 5. Témoin : un champ naturel
+// et un champ étiré dans la même pile. Le témoin garde sa hauteur naturelle,
+// l'étiré absorbe tout le reste.
+OuvreSoeur(FEN_PrincTemoin)
+dbgVérifieEgalité(EPT_Nature..Hauteur, 23,
+"pile verticale : un champ sans consigne garde sa hauteur naturelle (23)")
+dbgVérifieVrai(EPT_Etire..Hauteur > EPT_Nature..Hauteur,
+"pile verticale : le champ Étire=Vrai est plus haut que le témoin naturel")
+dbgVérifieEgalité(EPT_Etire..Hauteur, 271,
+"pile verticale : le champ Étire=Vrai absorbe tout le reste (300 - 23 du témoin - 6 d'espacement)")
+dbgVérifieEgalité(EPT_Etire..Hauteur + EPT_Etire..Y, 300,
+"pile verticale : le bas du champ étiré atteint le bas de la pile, il remplit jusqu'en bas")
+dbgVérifieVrai(EPT_Etire..Y > EPT_Nature..Y,
+"pile verticale : l'étiré est empilé sous le témoin, pas centré à sa place")
+Ferme(FEN_PrincTemoin)
+
+// ------------------------------------------------ 6. Pile horizontale : l'axe
+// principal est la largeur. Étire y grandit déjà la largeur (non-régression), et
+// ne doit PAS déborder sur la hauteur transverse.
+OuvreSoeur(FEN_PrincHoriz)
+dbgVérifieVrai(EPH_Etire..Largeur > EPH_Nature..Largeur,
+"pile horizontale : Étire=Vrai absorbe la largeur restante sur l'axe principal")
+dbgVérifieEgalité(EPH_Etire..Hauteur, EPH_Nature..Hauteur,
+"pile horizontale : Étire ne touche pas la hauteur transverse, qui reste naturelle")
+Ferme(FEN_PrincHoriz)
+
+dbgBilanTest()

@@ -1,0 +1,17 @@
+// @sujet : zipPortionChemin
+// @résumé : Enum regroupant les portions de chemin conservées lors de l'ajout d'une entrée à une archive : nom seul, chemin relatif, chemin absolu. La sentinelle zipEnMémoire rejoint cet enum car elle occupe la même position d'argument (ajout d'un buffer en mémoire plutôt que d'un fichier disque).
+
+
+// zipEnMémoire : ajout d'un buffer en mémoire avec un nom d'entrée libre.
+PROCEDURE PUBLIQUE scenario_ajout_buffer_en_memoire()
+	arch est une zipArchive = zipCrée("test_portion_memoire.zip")
+	contenu est un buffer = ChaîneVersBuffer("contenu en mémoire")
+	ajout est un booléen = zipAjouteFichier(arch, contenu, zipEnMémoire, "memo.txt")
+	dbgVérifieVrai(ajout, "zipAjouteFichier accepte zipEnMémoire pour un buffer")
+	zipFerme(arch)
+	lecture est une zipArchive = zipOuvre("test_portion_memoire.zip", zipLecture)
+	nom est une chaîne = zipInfoFichier(lecture, 1, zipNom)
+	dbgVérifieEgalité(nom, "memo.txt", "l'entrée ajoutée via zipEnMémoire conserve le nom fourni")
+	zipFerme(lecture)
+	fSupprime("test_portion_memoire.zip")
+FIN

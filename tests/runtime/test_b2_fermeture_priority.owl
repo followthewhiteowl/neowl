@@ -1,0 +1,26 @@
+// =====================================================================
+//  : priorite Fermeture > Closing -- si LES DEUX sont definies,
+// seul Fermeture est appele au teardown (FR canon prime, Closing ignore).
+//
+// Main() n'est PLUS auto-appelee : le top-level est le programme.
+// =====================================================================
+
+trace est une chaîne = ""
+
+// Main() definie mais jamais appelee : "M" ne doit PAS apparaitre.
+PROCEDURE Main()
+	trace += "M"
+FIN
+
+PROCEDURE Fermeture()
+	trace += "F"
+	// Main n'a pas tourne et Closing ne doit pas suivre : trace = "F".
+	dbgVérifieEgalité(trace, "F", "Fermeture teardown, Main jamais appelee")
+FIN
+
+PROCEDURE Closing()
+	// Ne doit JAMAIS s'executer car Fermeture est definie.
+	dbgVérifieVrai(Faux, "Closing ne doit PAS etre appele si Fermeture existe")
+FIN
+
+dbgBilanTest()

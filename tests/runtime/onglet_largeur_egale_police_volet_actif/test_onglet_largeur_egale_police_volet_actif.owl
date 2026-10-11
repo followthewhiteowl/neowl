@@ -1,0 +1,124 @@
+//  — en largeur égale, la largeur commune des languettes ne doit pas
+// dépendre du volet actif.
+//
+// Régression couverte : la largeur commune était le maximum des languettes
+// mesurées dans leur état du moment. La languette active portant une police
+// grasse, elle mesurait plus large que les autres ; changer de volet actif
+// déplaçait ce surplus sur une autre languette, donc changeait le maximum —
+// toute la barre se réorganisait sous le clic de l'utilisateur (mesuré sur
+// trois volets : 154 px de languette volet 1 actif, 163 px volet 2 actif).
+//
+// Méthode : le fond ROUGE de la languette active et le fond BLEU des inactives
+// servent de règle graduée. La bande rouge donne la largeur d'UNE languette,
+// la bande rouge+bleu la largeur de toute la barre de languettes.
+//
+// Widgets réels obligatoires : un Champ Onglet re-matérialisé en mode headless
+// rend une surface vide (pas de barre de languettes), donc aveugle à tout ça.
+
+TestModeHeadless(Faux)
+
+// Première ligne portant du rouge : le haut de la languette active.
+PROCEDURE yPremierRouge(imgO est une Image) : entier
+	nY est un entier = -1
+	POUR yScan = 0 À 179
+		SI nY = -1 ET dPixelCouleur(imgO, 20, yScan) = Rouge ALORS
+			nY = yScan
+		FIN
+	FIN
+	RENVOYER nY
+FIN
+
+// Largeur de la bande rouge : du premier au dernier pixel rouge de la ligne,
+// trous du texte compris. C'est la largeur de la languette ACTIVE.
+PROCEDURE largeurLanguetteActive(imgO est une Image, yLigne est un entier) : entier
+	xDeb est un entier = -1
+	xFin est un entier = -1
+	POUR xScan = 0 À 599
+		SI dPixelCouleur(imgO, xScan, yLigne) = Rouge ALORS
+			SI xDeb = -1 ALORS
+				xDeb = xScan
+			FIN
+			xFin = xScan
+		FIN
+	FIN
+	SI xDeb = -1 ALORS
+		RENVOYER -1
+	FIN
+	RENVOYER xFin - xDeb + 1
+FIN
+
+// Dernier pixel de la barre de languettes (rouge ou bleu) : sa fin exacte.
+PROCEDURE finBarreLanguettes(imgO est une Image, yLigne est un entier) : entier
+	nX est un entier = -1
+	POUR xScan = 0 À 599
+		coul est un entier = dPixelCouleur(imgO, xScan, yLigne)
+		SI coul = Rouge OU coul = Bleu ALORS
+			nX = xScan
+		FIN
+	FIN
+	RENVOYER nX
+FIN
+
+OuvreSoeur(FEN_OngletLargeurPolice)
+
+// ------------------------------------------------------------ largeur égale
+// Trois états successifs : volet 1, 2 puis 3 actif. Le volet 2 porte le libellé
+// le plus long, donc c'est lui qui dicte la largeur commune.
+ONG_Egal..Valeur = 1
+Temporise(20)
+imgEgal1 est une Image = dCopieImageChamp(ONG_Egal)
+dbgVérifieEgalité(imgEgal1..Valide, Vrai, "ONG_Egal : capture valide")
+
+yEgal est un entier = yPremierRouge(imgEgal1)
+dbgVérifieEgalité(yEgal, 0, "Largeur égale : la barre est en haut du champ")
+
+finEgal1 est un entier = finBarreLanguettes(imgEgal1, yEgal + 10)
+largEgal1 est un entier = largeurLanguetteActive(imgEgal1, yEgal + 10)
+dbgVérifieVrai(largEgal1 > 0, "Largeur égale : la languette active est rendue")
+
+ONG_Egal..Valeur = 2
+Temporise(20)
+imgEgal2 est une Image = dCopieImageChamp(ONG_Egal)
+finEgal2 est un entier = finBarreLanguettes(imgEgal2, yEgal + 10)
+largEgal2 est un entier = largeurLanguetteActive(imgEgal2, yEgal + 10)
+
+ONG_Egal..Valeur = 3
+Temporise(20)
+imgEgal3 est une Image = dCopieImageChamp(ONG_Egal)
+finEgal3 est un entier = finBarreLanguettes(imgEgal3, yEgal + 10)
+largEgal3 est un entier = largeurLanguetteActive(imgEgal3, yEgal + 10)
+
+dbgVérifieEgalité(finEgal2, finEgal1,
+"Largeur égale : passer du volet 1 au volet 2 ne réorganise pas la barre")
+dbgVérifieEgalité(finEgal3, finEgal1,
+"Largeur égale : passer du volet 1 au volet 3 ne réorganise pas la barre")
+
+dbgVérifieEgalité(largEgal2, largEgal1,
+"Largeur égale : la languette active garde la même largeur d'un volet à l'autre")
+dbgVérifieEgalité(largEgal3, largEgal1,
+"Largeur égale : la largeur commune ne dépend pas du volet actif")
+
+// ------------------------------------------------- largeur proportionnelle
+// Mode natif : chaque languette épouse son texte, donc la languette active
+// change bien de largeur d'un volet à l'autre.
+ONG_Prop..Valeur = 1
+Temporise(20)
+imgProp1 est une Image = dCopieImageChamp(ONG_Prop)
+yProp est un entier = yPremierRouge(imgProp1)
+largProp1 est un entier = largeurLanguetteActive(imgProp1, yProp + 10)
+
+ONG_Prop..Valeur = 2
+Temporise(20)
+imgProp2 est une Image = dCopieImageChamp(ONG_Prop)
+largProp2 est un entier = largeurLanguetteActive(imgProp2, yProp + 10)
+
+dbgVérifieVrai(largProp2 > largProp1 + 40,
+"Largeur proportionnelle : la languette au libellé long reste nettement plus large")
+
+// La languette du libellé le plus long, en police active, est la référence de
+// largeur : la largeur commune vaut exactement ça. Elle ne tronque donc rien.
+dbgVérifieEgalité(largEgal1, largProp2,
+"Largeur égale : la largeur commune est celle du plus long libellé en police active")
+
+Ferme(FEN_OngletLargeurPolice)
+dbgBilanTest()

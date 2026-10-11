@@ -1,0 +1,33 @@
+// Contrôle positif : un segment littéral ("actifs") et un segment
+// paramètre (id) à la même position ne sont pas en conflit — la
+// résolution par spécificité tranche déterministe (littéral > paramètre).
+// Doit compiler sans erreur.
+ServiceRouteurPasConflitSpecificite est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "v1", "clients"]
+	FIN
+
+	ListeActifs est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["actifs"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : entier
+			RENVOYER 0
+		FIN
+	FIN
+
+	LitClient est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = [id]
+			Réponses = [httpOK, httpNonTrouvé]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête(id est un entier) : entier
+			RENVOYER id
+		FIN
+	FIN
+FIN

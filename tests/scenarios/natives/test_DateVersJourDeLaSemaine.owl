@@ -1,0 +1,92 @@
+// @sujet : DateVersJourDeLaSemaine
+// @résumé : Retourne le jour de la semaine d'une date (1=lundi, 7=dimanche).
+
+
+// Cas nominal : mercredi en milieu de semaine.
+PROCEDURE PUBLIQUE scenario_mercredi()
+	d est une date = ChaîneVersDate("20260603")
+	jour est un entier = DateVersJourDeLaSemaine(d)
+	// 3 juin 2026 = mercredi.
+	dbgVérifieEgalité(jour, 3, "3 juin 2026 doit être mercredi (3)")
+FIN
+
+
+// Forme méthode : même comportement que fonction globale.
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	d est une date = ChaîneVersDate("20260610")
+	jour est un entier = d.DateVersJourDeLaSemaine()
+	// 10 juin 2026 = mercredi.
+	dbgVérifieEgalité(jour, 3, "forme méthode retourne 3 pour mercredi")
+FIN
+
+
+// Vérifier l'équivalence avec l'alias DateVersJour.
+PROCEDURE PUBLIQUE scenario_alias_dateversjour()
+	d est une date = ChaîneVersDate("20260615")
+	jourPrincipal est un entier = DateVersJourDeLaSemaine(d)
+	jourAlias est un entier = DateVersJour(d)
+	// Les deux formes doivent retourner la même valeur.
+	dbgVérifieEgalité(jourPrincipal, jourAlias, "alias DateVersJour équivalent")
+FIN
+
+
+// Weekend : samedi et dimanche.
+PROCEDURE PUBLIQUE scenario_weekend()
+	samedi est une date = ChaîneVersDate("20260606")
+	dimanche est une date = ChaîneVersDate("20260607")
+
+	jourSam est un entier = DateVersJourDeLaSemaine(samedi)
+	jourDim est un entier = DateVersJourDeLaSemaine(dimanche)
+
+	// 6 juin 2026 = samedi (6).
+	dbgVérifieEgalité(jourSam, 6, "6 juin 2026 doit être samedi (6)")
+	// 7 juin 2026 = dimanche (7).
+	dbgVérifieEgalité(jourDim, 7, "7 juin 2026 doit être dimanche (7)")
+FIN
+
+
+// Premier et dernier jour du mois.
+PROCEDURE PUBLIQUE scenario_limites_mois()
+	premierJour est une date = ChaîneVersDate("20260601")
+	dernierJour est une date = ChaîneVersDate("20260630")
+
+	jourPremier est un entier = DateVersJourDeLaSemaine(premierJour)
+	jourDernier est un entier = DateVersJourDeLaSemaine(dernierJour)
+
+	// 1er juin 2026 = lundi (1).
+	dbgVérifieEgalité(jourPremier, 1, "1er juin 2026 doit être lundi (1)")
+	// 30 juin 2026 = mardi (2).
+	dbgVérifieEgalité(jourDernier, 2, "30 juin 2026 doit être mardi (2)")
+FIN
+
+
+// Année bissextile : 29 février.
+PROCEDURE PRIVÉE scenario_edge_bissextile()
+	d est une date = ChaîneVersDate("20240229")
+	jour est un entier = DateVersJourDeLaSemaine(d)
+	// 29 février 2024 = jeudi (4).
+	dbgVérifieEgalité(jour, 4, "29 février 2024 doit être jeudi (4)")
+FIN
+
+
+// Transition d'année : 31 décembre et 1er janvier.
+PROCEDURE PRIVÉE scenario_edge_transition_annee()
+	dernierJour2025 est une date = ChaîneVersDate("20251231")
+	premierJour2026 est une date = ChaîneVersDate("20260101")
+
+	jour2025 est un entier = DateVersJourDeLaSemaine(dernierJour2025)
+	jour2026 est un entier = DateVersJourDeLaSemaine(premierJour2026)
+
+	// 31 décembre 2025 = mercredi (3).
+	dbgVérifieEgalité(jour2025, 3, "31 décembre 2025 doit être mercredi (3)")
+	// 1er janvier 2026 = jeudi (4).
+	dbgVérifieEgalité(jour2026, 4, "1er janvier 2026 doit être jeudi (4)")
+FIN
+
+
+// Entrée chaîne AAAAMMJJ : cast implicite.
+PROCEDURE PRIVÉE scenario_edge_entree_chaine()
+	jour est un entier = DateVersJourDeLaSemaine("20260620")
+	// 20 juin 2026 = samedi (6).
+	dbgVérifieEgalité(jour, 6, "20 juin 2026 (chaîne) doit être samedi (6)")
+FIN

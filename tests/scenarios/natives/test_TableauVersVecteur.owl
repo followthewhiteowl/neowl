@@ -1,0 +1,31 @@
+// @sujet : TableauVersVecteur
+// @résumé : Convertit explicitement un tableau de réels en Vecteur, sans coercion implicite entre les deux types.
+
+
+// Cas nominal : un tableau de réels devient un Vecteur de même taille,
+// avec les mêmes valeurs aux mêmes positions.
+PROCEDURE PUBLIQUE scenario_conversion_nominale()
+	arrTab est un tableau de réels = [1.5, 2.5, 3.5]
+	v est un Vecteur = TableauVersVecteur(arrTab)
+	dbgVérifieEgalité(v..Taille, 3, "Vecteur converti a la même taille que le tableau source")
+	dbgVérifieEgalité(v[1], 1.5, "v[1] = arrTab[1]")
+	dbgVérifieEgalité(v[2], 2.5, "v[2] = arrTab[2]")
+	dbgVérifieEgalité(v[3], 3.5, "v[3] = arrTab[3]")
+FIN
+
+
+// Un tableau construit avec des éléments entiers puis converti conserve
+// la coercion réel déjà appliquée au tableau.
+PROCEDURE PUBLIQUE scenario_conversion_depuis_tableau_entiers_coerces()
+	arrTab est un tableau de réels = [10, 20, 30]
+	v est un Vecteur = TableauVersVecteur(arrTab)
+	dbgVérifieEgalité(v[2], 20.0, "Élément coercé en réel avant conversion, préservé")
+FIN
+
+
+// Un tableau vide se convertit en Vecteur de taille 0, pas d'erreur.
+PROCEDURE PRIVÉE scenario_edge_tableau_vide()
+	arrTab est un tableau de réels = []
+	v est un Vecteur = TableauVersVecteur(arrTab)
+	dbgVérifieEgalité(v..Taille, 0, "Tableau vide -> Vecteur de taille 0")
+FIN

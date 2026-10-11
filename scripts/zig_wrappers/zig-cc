@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Wrapper zig cc avec les fixs decouverts en POC :
+#   - -Wl,-subsystem,X  -> -Wl,--subsystem,X  (lld vs GNU ld)
+#   - injection auto -L<repo>/vendor/zig/winapi_stubs (libs Windows manquantes
+#     du sysroot zig : synchronization, runtimeobject)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Resolve zig binary
+if [ -n "$OWL_ZIG" ]; then
+    ZIG="$OWL_ZIG"
+else
+    case "$(uname -s)" in
+        Linux*)   HOST="x86_64-linux" ;;
+        MSYS*|MINGW*|CYGWIN*) HOST="x86_64-windows" ;;
+        Darwin*)
+            if [ "$(uname -m)" = "arm64" ]; then HOST="aarch64-macos"
+            else HOST="x86_64-macos"; fi ;;
+    esac
+    ZIG="$REPO_ROOT/vendor/zig/$HOST/zig"
+    [ -f "$ZIG.exe" ] && ZIG="$ZIG.exe"
+fi
+[ -x "$ZIG" ] || { echo "zig-cc: zig binary not found at $ZIG (lance scripts/setup_zig.sh)" >&2; exit 1; }
+
+# Translate args
+STUBS_DIR="$REPO_ROOT/vendor/zig/winapi_stubs"
+args=()
+[ -d "$STUBS_DIR" ] && args+=("-L$STUBS_DIR")
+for a in "$@"; do
+    case "$a" in
+        -Wl,-subsystem,*)  args+=("${a/-Wl,-subsystem,/-Wl,--subsystem,}") ;;
+        *) args+=("$a") ;;
+    esac
+done
+exec "$ZIG" cc "${args[@]}"

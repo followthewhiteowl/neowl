@@ -1,0 +1,25 @@
+//  : rattrapage réentrant COMPLET pour le déclencheur exception USER
+// explicite (ExceptionDéclenche / OP_THROW), même mécanisme que le déclencheur
+// division par zéro déjà couvert (test_1655_reentrant_incomplet.owl). Ici, le
+// comparateur d'un TableauTrie ttFonction rappelé en réentrant lève une
+// exception via ExceptionDéclenche au lieu de diviser par zéro, sous un
+// QUAND EXCEPTION ANCÊTRE.
+//
+// VERT attendu : le bloc FAIRE s'exécute (assertion PASS), suite propre,
+// aucun diagnostic sur stderr.
+PROCEDURE cmpDeclencheException(gauche est un entier, droite est un entier)
+	ExceptionDéclenche(1, "Comparateur réentrant en échec.")
+	RENVOYER 0
+FIN
+
+PROCEDURE PUBLIQUE test_erreur_reentrante_exception_declenche_rattrapee()
+	données est un tableau de 3 entiers = [3, 1, 2]
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		TableauTrie(données, ttFonction, cmpDeclencheException)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "exception déclenchée dans un comparateur réentrant reste rattrapable par l'ancêtre")
+FIN

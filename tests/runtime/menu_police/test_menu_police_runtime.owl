@@ -1,0 +1,79 @@
+// La police d'un menu stylé est POSÉE sur les widgets Qt au runtime via
+// setFont, pas seulement écrite dans la feuille QSS (Qt n'honore pas
+// font-family sur QMenuBar::item / QMenu::item). On lit la police effective de
+// la barre et d'un déroulant montés (widgets réels, offscreen).
+//
+// Descripteur renvoyé par les getters test-only : "famille|taille|gras|italique".
+//
+// Le descripteur (__DebugPoliceBarreMenu) lit le QFont POSÉ ; il ne prouve pas
+// que Qt PEINT réellement cette police. __DebugEncreBarreMenu mesure l'encre
+// (glyphes peints) via un grab off-screen : c'est la seule assertion qui
+// attraperait un fragment QSS neutralisant le setFont (le QFont dirait 15pt mais
+// l'encre retomberait au défaut). Une police plus grande peint plus haut ->
+// l'encre de la barre stylée (Georgia 15pt) doit dépasser celle du défaut.
+//
+// ROUGE attendu AVANT le fix : la police n'est jamais posée par setFont ->
+// la barre et les options gardent la police héritée (ni Liberation Serif ni
+// Liberation Sans), et la taille 15 / le gras ne sont pas appliqués.
+
+TestModeHeadless(Faux)
+
+// --- 1. Barre : police Georgia (Liberation Serif) + taille 15.
+OuvreSoeur(FEN_MenuPoliceRuntime)
+dbgVérifieFaux(ErreurDétectée,
+"MenuPrincipal avec police : ouverture sans erreur")
+
+descBarre est une chaîne = __DebugPoliceBarreMenu()
+Trace("=== barre === " + descBarre)
+
+dbgVérifieVrai(Contient(descBarre, "Liberation Serif"),
+"Barre..Police..Nom = iPoliceGeorgia : la barre porte réellement Liberation Serif")
+dbgVérifieVrai(Contient(descBarre, "|15|"),
+"Barre..Police..Taille = 15 : la taille est réellement appliquée à la barre")
+
+// Encre RÉELLEMENT peinte de la barre stylée (pas seulement le QFont posé).
+nEncreStylée est un entier = __DebugEncreBarreMenu()
+Trace("=== encre stylée === " + nEncreStylée)
+dbgVérifieVrai(nEncreStylée > 0,
+"La barre stylée peint bien du texte (encre mesurable > 0)")
+
+// --- 2. Options : police ComicSansMS (Liberation Sans) + gras.
+descOption est une chaîne = __DebugPoliceSousMenu("&Fichier")
+Trace("=== option === " + descOption)
+
+dbgVérifieVrai(Contient(descOption, "Liberation Sans"),
+"OptionMenu..Police..Nom = iPoliceComicSansMS : le déroulant porte réellement Liberation Sans")
+dbgVérifieFaux(Contient(descOption, "Liberation Serif"),
+"La police de la barre (Serif) ne déborde PAS sur les options (Sans)")
+dbgVérifieVrai(FinitPar(descOption, "|1|0"),
+"OptionMenu..Police..Gras = Vrai : le gras est réellement appliqué au déroulant")
+
+Ferme(FEN_MenuPoliceRuntime)
+
+// --- 3. Non-régression : menu sans police -> barre non touchée (ni Serif ni Sans).
+OuvreSoeur(FEN_MenuSansPoliceRuntime)
+dbgVérifieFaux(ErreurDétectée,
+"Menu couleurs seules : ouverture sans erreur")
+
+descDefaut est une chaîne = __DebugPoliceBarreMenu()
+Trace("=== defaut === " + descDefaut)
+
+dbgVérifieFaux(Contient(descDefaut, "Liberation Serif"),
+"Menu sans police : aucune famille imposée (la police Serif du menu voisin ne fuit pas)")
+dbgVérifieFaux(Contient(descDefaut, "|15|"),
+"Menu sans police : aucune taille imposée (la taille 15 du menu voisin ne fuit pas -> défaut conservé)")
+
+// Encre de la barre par défaut (Liberation Sans 10pt) : sert de référence basse.
+nEncreDéfaut est un entier = __DebugEncreBarreMenu()
+Trace("=== encre defaut === " + nEncreDéfaut)
+
+Ferme(FEN_MenuSansPoliceRuntime)
+
+// --- 4. Cœur du durcissement : l'encre PEINTE de la barre stylée (15pt) dépasse
+// nettement celle du défaut (10pt). Un fragment QSS qui neutraliserait le setFont
+// ferait retomber l'encre stylée au niveau du défaut -> cette assertion rougirait
+// là où le descripteur seul (points 1-2) resterait aveugle.
+dbgVérifieVrai(nEncreStylée >= nEncreDéfaut + 3,
+"Barre stylée (Georgia 15pt) peint une encre plus haute que le défaut (10pt) : le setFont est réellement rendu, pas juste posé")
+
+dbgBilanTest()

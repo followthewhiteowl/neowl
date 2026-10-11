@@ -1,0 +1,40 @@
+// @sujet : enum-coerce-vers-entier-extraction-litteral
+// @résumé : Quand on affecte `n est un entier = TypeEnum.valeur`, le coerce d'affectation extrait l'entier sous-jacent (field Valeur) au lieu de stocker l'instance dans la variable typée entier. Garantit que `nX est un entier = X.cBlanc` puis usage arithmétique de nX se comporte comme un entier pur. Note : la coerce via variable intermédiaire typée-enum a été retirée.
+
+
+TypeCouleurBinaire est une Énumération
+	cBlanc = 1
+	cNoir  = 2
+FIN
+
+
+// Cas central : `nX est un entier = TypeEnum.cBlanc` doit
+// stocker l'entier 1, pas l'instance enum. La chaîne du nX coerce
+// retourne "1" et non "<eEnum instance>".
+PROCEDURE scenario_extraction_litteral_enum_vers_entier()
+	nX est un entier = TypeCouleurBinaire.cBlanc
+
+	dbgVérifieEgalité(nX, 1, "extraction littéral entier de cBlanc")
+
+	// nX est arithmétique pur — somme avec un entier brut.
+	dbgVérifieEgalité(nX + 10, 11, "nX se comporte comme entier en arithmétique")
+
+	nY est un entier = TypeCouleurBinaire.cNoir
+	dbgVérifieEgalité(nY, 2, "extraction cNoir")
+FIN
+
+
+// Réaffectation : `nX = TypeEnum.cBlanc` après init doit aussi
+// extraire l'entier (même mécanisme coerce).
+PROCEDURE scenario_reaffectation_extrait_entier()
+	nX est un entier = 0
+
+	nX = TypeCouleurBinaire.cBlanc
+	dbgVérifieEgalité(nX, 1, "réaffectation extrait l'entier")
+
+	nX = TypeCouleurBinaire.cNoir
+	dbgVérifieEgalité(nX, 2, "réaffectation suivante extrait aussi")
+FIN
+
+
+dbgBilanTest()

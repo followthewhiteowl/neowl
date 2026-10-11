@@ -1,0 +1,33 @@
+// Contrat CIBLE  : un `FichierTéléversé` ne peut pas coexister
+// avec un corps JSON structuré dans le même `surRequête` — un formulaire
+// multipart et un corps `application/json` sont deux contenus de requête
+// mutuellement exclusifs. Doit être refusé à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `ContentType` et
+// `FichierTéléversé` n'existent pas encore — le golden ci-dessous porte
+// les erreurs accidentelles actuelles (propriété inconnue + paramètre
+// scalaire sans source de liaison connue), pas encore le message dédié de
+// coexistence corps-JSON/FichierTéléversé. À régénérer une fois 
+// livré.
+ServiceMultipartAvecCorpsJSON est un ServiceREST
+stCorpsUploadJSON est une Structure
+	titre est une chaîne
+FIN
+
+PROPRIETES
+	UrlBase = ["api"]
+FIN
+
+Televerse est une OpérationHTTP
+	PROPRIETES
+		Méthode     = httpPost
+		Chemin      = ["upload"]
+		Réponses    = [httpOK]
+		CodeÉtat    = httpOK
+		ContentType = typeMimeFormulaireMultiPartie
+	FIN
+	PROCEDURE surRequête(corps est une stCorpsUploadJSON, scan est un FichierTéléversé)
+		RENVOYER corps.titre
+	FIN
+FIN
+FIN

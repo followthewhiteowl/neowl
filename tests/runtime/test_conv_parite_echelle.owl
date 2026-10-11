@@ -1,0 +1,114 @@
+// test_conv_parite_echelle.owl — 
+// Digue de parité bit-à-bit AVANT le threading de Convolution2D forward
+// (boucle b, co, i, j -> somme sur ci, kh, kw croissants, gather pur,
+// chaque cellule de sortie écrite une seule fois). Complète
+// tests/scenarios/types/test_TenseurConvolution2D.owl (petites tailles
+// calculées à la main) avec une configuration à l'échelle "CIFAR-like"
+// (Cin=3, Cout assez grand pour une partition (b, co) multi-thread
+// réelle) et une combinaison avance/remplissage différente. L'oracle OWL
+// naïf ci-dessous accumule dans le MÊME ordre (ci, kh, kw croissants)
+// que le kernel natif : natif == oracle doit tenir bit-à-bit avant ET
+// après le passage au threading sur (b, co) — un partitionnement qui
+// écrirait une même cellule depuis deux threads ou réordonnerait la somme
+// casserait l'égalité EXACTE.
+
+Trace("=== CONV2D FORWARD PARITÉ À L'ÉCHELLE (digue perf feat/1634) ===")
+
+// --- Tenseur 4D à valeurs FRACTIONNAIRES bornées (division par 9.0, fraction
+// binaire non terminante), aplati en ordre B,C,H,W : les sommes accumulées
+// ne sont pas exactement représentables en double, contrairement à des
+// entiers purs (qui masqueraient tout réordonnancement d'accumulation ou
+// fusion FMA). ---
+PROCEDURE convParite_construitTenseur4D(dimA est un entier, dimB est un entier, dimC est un entier, dimD est un entier, decalage est un entier)
+	arr est un tableau de réels
+	POUR ia = 1 À dimA
+		POUR ib = 1 À dimB
+			POUR ic = 1 À dimC
+				POUR id = 1 À dimD
+					vi est un entier = ((ia * 11 + ib * 7 + ic * 5 + id * 3 + decalage) % 9) + 1
+					v est un réel = vi / 9.0
+					Ajoute(arr, v)
+				FIN
+			FIN
+		FIN
+	FIN
+	t est un Tenseur = Tenseur(arr).Redimensionne([dimA, dimB, dimC, dimD])
+	RENVOYER t
+FIN
+
+// Oracle naïf d'une cellule de sortie (indices 1-based) : somme sur
+// ci, kh, kw croissants — même ordre que la triple boucle native.
+PROCEDURE convParite_oracleCellule(entree est un Tenseur, poids est un Tenseur, b est un entier, co est un entier, i est un entier, j est un entier, cin est un entier, tKH est un entier, tKW est un entier, avance est un entier, remplissage est un entier, H est un entier, Wd est un entier)
+	s est un réel = 0.0
+	i0 est un entier = i - 1
+	j0 est un entier = j - 1
+	POUR ci = 1 À cin
+		POUR kh = 1 À tKH
+			POUR kw = 1 À tKW
+				ih0 est un entier = i0 * avance - remplissage + (kh - 1)
+				iw0 est un entier = j0 * avance - remplissage + (kw - 1)
+				SI ih0 >= 0 ET ih0 < H ET iw0 >= 0 ET iw0 < Wd ALORS
+					s += entree..Valeur[b][ci][ih0 + 1][iw0 + 1] * poids..Valeur[co][ci][kh][kw]
+				FIN
+			FIN
+		FIN
+	FIN
+	RENVOYER s
+FIN
+
+// Configuration CIFAR-like : Cin=3, Cout=40 (partition multi-thread
+// réelle sur les canaux de sortie), noyau 3×3, avance=1, remplissage=1,
+// B=2, H=W=8.
+PROCEDURE scenario_conv2d_forward_echelle_cifar_like()
+	B est un entier = 2
+	Cin est un entier = 3
+	Cout est un entier = 40
+	H est un entier = 8
+	Wd est un entier = 8
+	kTaille est un entier = 3
+	avance est un entier = 1
+	remplissage est un entier = 1
+
+	entree est un Tenseur = convParite_construitTenseur4D(B, Cin, H, Wd, 0)
+	poids est un Tenseur = convParite_construitTenseur4D(Cout, Cin, kTaille, kTaille, 17)
+	sortie est un Tenseur = entree.Convolution2D(poids, avance, remplissage)
+
+	dbgVérifieEgalité(sortie..Forme[1], B, "CIFAR-like : B conservé")
+	dbgVérifieEgalité(sortie..Forme[2], Cout, "CIFAR-like : Cout=40")
+	dbgVérifieEgalité(sortie..Forme[3], H, "CIFAR-like : H'=H (même remplissage)")
+	dbgVérifieEgalité(sortie..Forme[4], Wd, "CIFAR-like : W'=W (même remplissage)")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], convParite_oracleCellule(entree, poids, 1, 1, 1, 1, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "CIFAR-like : [b=1,co=1,1,1] == oracle")
+	dbgVérifieEgalité(sortie..Valeur[2][40][8][8], convParite_oracleCellule(entree, poids, 2, 40, 8, 8, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "CIFAR-like : coin [b=2,co=40,8,8] == oracle")
+	dbgVérifieEgalité(sortie..Valeur[1][21][4][5], convParite_oracleCellule(entree, poids, 1, 21, 4, 5, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "CIFAR-like : intérieur [b=1,co=21,4,5] == oracle")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][8], convParite_oracleCellule(entree, poids, 2, 1, 1, 8, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "CIFAR-like : bord [b=2,co=1,1,8] == oracle")
+FIN
+
+// Cas avance=2, remplissage=0 : fenêtres non chevauchantes, sortie réduite.
+// Cin=3, Cout=12, H=W=9, noyau 3×3 -> Hout=Wout=(9-3)/2+1=4.
+PROCEDURE scenario_conv2d_forward_pas2_remplissage0()
+	B est un entier = 1
+	Cin est un entier = 3
+	Cout est un entier = 12
+	H est un entier = 9
+	Wd est un entier = 9
+	kTaille est un entier = 3
+	avance est un entier = 2
+	remplissage est un entier = 0
+
+	entree est un Tenseur = convParite_construitTenseur4D(B, Cin, H, Wd, 5)
+	poids est un Tenseur = convParite_construitTenseur4D(Cout, Cin, kTaille, kTaille, 23)
+	sortie est un Tenseur = entree.Convolution2D(poids, avance, remplissage)
+
+	dbgVérifieEgalité(sortie..Forme[3], 4, "avance=2 : H' = (9-3)/2+1 = 4")
+	dbgVérifieEgalité(sortie..Forme[4], 4, "avance=2 : W' = (9-3)/2+1 = 4")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], convParite_oracleCellule(entree, poids, 1, 1, 1, 1, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "avance=2 : [co=1,1,1] == oracle")
+	dbgVérifieEgalité(sortie..Valeur[1][12][4][4], convParite_oracleCellule(entree, poids, 1, 12, 4, 4, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "avance=2 : coin [co=12,4,4] == oracle")
+	dbgVérifieEgalité(sortie..Valeur[1][7][2][3], convParite_oracleCellule(entree, poids, 1, 7, 2, 3, Cin, kTaille, kTaille, avance, remplissage, H, Wd), "avance=2 : intérieur [co=7,2,3] == oracle")
+FIN
+
+scenario_conv2d_forward_echelle_cifar_like()
+scenario_conv2d_forward_pas2_remplissage0()
+
+dbgBilanTest()

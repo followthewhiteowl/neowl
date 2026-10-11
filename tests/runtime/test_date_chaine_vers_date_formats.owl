@@ -1,0 +1,124 @@
+// Coverage exhaustif de ChaîneVersDate et ses alias (chaine.VersDate).
+// La documentation de référence liste de nombreux tokens de format qui ne sont pas
+// illustrés par ses propres exemples. Ce test les tacle tous.
+//
+// Rappel: cast implicite Date→string = AAAAMMJJ (8 chars),
+//         cast DateHeure→string      = AAAAMMJJHHMMSSFFF (17 chars).
+
+// ===========================================================================
+// Forme auto-détection (sans format)
+// ===========================================================================
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001"), "20011225", "auto / JJ/MM/AAAA")
+dbgVérifieEgalité(ChaîneVersDate("25-12-2001"), "20011225", "auto JJ-MM-AAAA")
+dbgVérifieEgalité(ChaîneVersDate("20011225"), "20011225", "auto YYYYMMDD")
+dbgVérifieEgalité(ChaîneVersDate(""), "", "vide → vide")
+dbgVérifieEgalité(ChaîneVersDate("bla"), "", "invalide → vide")
+
+// ===========================================================================
+// Forme avec format string — tokens digits
+// ===========================================================================
+// AAAA (année 4 digits)
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001", "JJ/MM/AAAA"), "20011225", "JJ/MM/AAAA")
+dbgVérifieEgalité(ChaîneVersDate("12-25-2001", "MM-JJ-AAAA"), "20011225", "MM-JJ-AAAA")
+dbgVérifieEgalité(ChaîneVersDate("2001/12/25", "AAAA/MM/JJ"), "20011225", "AAAA/MM/JJ")
+
+// AA (année 2 digits, pivot 51)
+dbgVérifieEgalité(ChaîneVersDate("12-25-01", "MM-JJ-AA"), "20011225", "AA=01 → 2001")
+dbgVérifieEgalité(ChaîneVersDate("12-25-50", "MM-JJ-AA"), "20501225", "AA=50 → 2050")
+dbgVérifieEgalité(ChaîneVersDate("12-25-51", "MM-JJ-AA"), "19511225", "AA=51 → 1951")
+dbgVérifieEgalité(ChaîneVersDate("12-25-99", "MM-JJ-AA"), "19991225", "AA=99 → 1999")
+
+// Rejet : chaîne trop longue pour le format AA
+dbgVérifieEgalité(ChaîneVersDate("12-25-2001", "MM-JJ-AA"), "", "AA ne mange pas 4 digits")
+
+// MM (mois 2 digits)
+dbgVérifieEgalité(ChaîneVersDate("20010225", "AAAAMMJJ"), "20010225", "MM=02")
+dbgVérifieEgalité(ChaîneVersDate("20011225", "AAAAMMJJ"), "20011225", "MM=12")
+
+// M (mois 1-2 digits, zero omis)
+dbgVérifieEgalité(ChaîneVersDate("2001/2/25", "AAAA/M/JJ"), "20010225", "M=2 → 02")
+dbgVérifieEgalité(ChaîneVersDate("2001/12/25", "AAAA/M/JJ"), "20011225", "M=12 → 12")
+
+// JJ (jour 2 digits) - déjà couvert par JJ/MM/AAAA plus haut
+
+// J (jour 1-2 digits)
+dbgVérifieEgalité(ChaîneVersDate("2001/12/5", "AAAA/MM/J"), "20011205", "J=5 → 05")
+dbgVérifieEgalité(ChaîneVersDate("2001/12/25", "AAAA/MM/J"), "20011225", "J=25 → 25")
+
+// ===========================================================================
+// Forme avec format string — tokens alphabétiques (mois)
+// ===========================================================================
+// MMM / Mmm / mmm (mois sur 3 lettres, FR)
+dbgVérifieEgalité(ChaîneVersDate("25 déc 2001", "JJ MMM AAAA"), "20011225", "MMM=déc")
+dbgVérifieEgalité(ChaîneVersDate("25 Déc 2001", "JJ Mmm AAAA"), "20011225", "Mmm=Déc")
+dbgVérifieEgalité(ChaîneVersDate("25 déc 2001", "JJ mmm AAAA"), "20011225", "mmm=déc")
+dbgVérifieEgalité(ChaîneVersDate("01 jan 2001", "JJ MMM AAAA"), "20010101", "MMM=jan")
+dbgVérifieEgalité(ChaîneVersDate("25 Nov 2012", "JJ MMM AAAA"), "20121125", "MMM EN = Nov")
+
+// MMMM / Mmmm / mmmm (mois complet)
+dbgVérifieEgalité(ChaîneVersDate("25 décembre 2001", "JJ MMMM AAAA"), "20011225", "MMMM=décembre")
+dbgVérifieEgalité(ChaîneVersDate("25 Décembre 2001", "JJ Mmmm AAAA"), "20011225", "Mmmm=Décembre")
+dbgVérifieEgalité(ChaîneVersDate("25 décembre 2001", "JJ mmmm AAAA"), "20011225", "mmmm=décembre")
+dbgVérifieEgalité(ChaîneVersDate("01 janvier 2001", "JJ MMMM AAAA"), "20010101", "MMMM=janvier")
+dbgVérifieEgalité(ChaîneVersDate("15 août 2001", "JJ MMMM AAAA"), "20010815", "MMMM=août (accent)")
+
+// ===========================================================================
+// Forme avec format string — tokens alphabétiques (jour de semaine, ignorés sémantiquement)
+// ===========================================================================
+// JJJ / Jjj / jjj (jour 3 lettres)
+dbgVérifieEgalité(ChaîneVersDate("mar 25/12/2001", "JJJ JJ/MM/AAAA"), "20011225", "JJJ=mar")
+dbgVérifieEgalité(ChaîneVersDate("Mar 25/12/2001", "Jjj JJ/MM/AAAA"), "20011225", "Jjj=Mar")
+
+// JJJJ / Jjjj / jjjj (jour complet)
+dbgVérifieEgalité(ChaîneVersDate("mardi 25/12/2001", "JJJJ JJ/MM/AAAA"), "20011225", "JJJJ=mardi")
+dbgVérifieEgalité(ChaîneVersDate("Mardi 25/12/2001", "Jjjj JJ/MM/AAAA"), "20011225", "Jjjj=Mardi")
+
+// L (première lettre du jour)
+dbgVérifieEgalité(ChaîneVersDate("M 25/12/2001", "L JJ/MM/AAAA"), "20011225", "L=M pour mardi")
+dbgVérifieEgalité(ChaîneVersDate("D 25/12/2001", "L JJ/MM/AAAA"), "20011225", "L=D (accepté, pas validé)")
+
+// ===========================================================================
+// Forme avec format string — tokens d'heure
+// ===========================================================================
+// HH, MI, SS → le résultat devient DateHeure (17 chars)
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001 14:30:00", "JJ/MM/AAAA HH:MI:SS"),
+"20011225143000000", "avec HH:MI:SS → DateHeure")
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001 14:30", "JJ/MM/AAAA HH:MI"),
+"20011225143000000", "avec HH:MI (SS=0)")
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001 14", "JJ/MM/AAAA HH"),
+"20011225140000000", "avec HH seul")
+
+// ===========================================================================
+// Forme avec constantes mask (sanity check, pour compléter les tests docsamples)
+// ===========================================================================
+dbgVérifieEgalité(ChaîneVersDate("Sun, 25 Nov 2012 12:11:55 +0100", maskDateEmail),
+"20121125121155000", "maskDateEmail")
+dbgVérifieEgalité(ChaîneVersDate("Sun, 24 Nov 2019 23:00:00 +0000", maskDateEmailUTC),
+"20191124230000000", "maskDateEmailUTC")
+dbgVérifieEgalité(ChaîneVersDate("2019-08-25T00:00:00.000+02:00", maskDateInternet),
+"20190825000000000", "maskDateInternet")
+dbgVérifieEgalité(ChaîneVersDate("2019-08-24T22:00:00.000Z", maskDateInternetUTC),
+"20190824220000000", "maskDateInternetUTC")
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001", maskDateSystème),
+"20011225", "maskDateSystème = auto-detect")
+
+// ===========================================================================
+// Alias méthode: "s".VersDate(...)
+// ===========================================================================
+dbgVérifieEgalité("25/12/2001".VersDate(), "20011225", "méthode .VersDate() simple")
+dbgVérifieEgalité("12-25-2001".VersDate("MM-JJ-AAAA"), "20011225", "méthode avec format")
+dbgVérifieEgalité("25 décembre 2001".VersDate("JJ MMMM AAAA"), "20011225",
+"méthode avec mois complet")
+dbgVérifieEgalité("Sun, 25 Nov 2012 12:11:55 +0100".VersDate(maskDateEmail),
+"20121125121155000", "méthode avec mask")
+
+// ===========================================================================
+// Edge cases de rejet
+// ===========================================================================
+dbgVérifieEgalité(ChaîneVersDate("32/12/2001"), "", "jour 32 invalide")
+dbgVérifieEgalité(ChaîneVersDate("25/13/2001"), "", "mois 13 invalide")
+dbgVérifieEgalité(ChaîneVersDate("29/02/2001"), "", "29/02 non bissextile")
+dbgVérifieEgalité(ChaîneVersDate("29/02/2000"), "20000229", "29/02 bissextile")
+dbgVérifieEgalité(ChaîneVersDate("25/12/2001 extra", "JJ/MM/AAAA"), "", "trailing garbage")
+
+dbgBilanTest()

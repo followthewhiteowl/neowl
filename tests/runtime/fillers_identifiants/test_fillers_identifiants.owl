@@ -1,0 +1,104 @@
+//  — les mots courts avales par le scanner (le, la, les, du, des, uns,
+// unes, from) sont utilisables comme IDENTIFIANT partout ou un nom est attendu :
+// membre d'enumeration, champ de structure, parametre, variable.
+// Avant : le scanner les consommait sans emettre de token, en TOUTE position ->
+// le nom disparaissait et l'erreur portait sur le mot suivant ("Expression
+// attendue" sur `est`, colonne 4 de `du est une durée = 90`).
+// Seul `des` garde un role d'article, strippe UNIQUEMENT juste apres EST/SONT
+// (`x, y sont des entiers`), comme `un`/`une` depuis .
+
+// Le cas d'origine du ticket (`du est une durée = 90` au top-level) vit dans
+// tests/runtime/repro/ : un `du` global ici masquerait les parametres
+// et variables locales du meme nom eprouves plus bas.
+
+// --- Membres d'enumeration ---
+Mots est une Énumération
+	Le = 1
+	La = 2
+	Les = 3
+	Du = 4
+	Des = 5
+	Uns = 6
+	Unes = 7
+	From = 8
+FIN
+dbgVérifieEgalité(Mots.Le..Valeur, 1, "membre d'enum 'Le'")
+dbgVérifieEgalité(Mots.La..Valeur, 2, "membre d'enum 'La'")
+dbgVérifieEgalité(Mots.Les..Valeur, 3, "membre d'enum 'Les'")
+dbgVérifieEgalité(Mots.Du..Valeur, 4, "membre d'enum 'Du'")
+dbgVérifieEgalité(Mots.Des..Valeur, 5, "membre d'enum 'Des'")
+dbgVérifieEgalité(Mots.Uns..Valeur, 6, "membre d'enum 'Uns'")
+dbgVérifieEgalité(Mots.Unes..Valeur, 7, "membre d'enum 'Unes'")
+dbgVérifieEgalité(Mots.From..Valeur, 8, "membre d'enum 'From'")
+
+// --- Champs de structure ---
+Boite est une Structure
+	Le est un entier
+	La est un entier
+	Les est un entier
+	Du est un entier
+	Des est un entier
+	Uns est un entier
+	Unes est un entier
+	From est un entier
+FIN
+b est un Boite
+b.Le = 10
+b.La = 20
+b.Les = 30
+b.Du = 40
+b.Des = 50
+b.Uns = 60
+b.Unes = 70
+b.From = 80
+dbgVérifieEgalité(b.Le, 10, "champ de structure 'Le'")
+dbgVérifieEgalité(b.La, 20, "champ de structure 'La'")
+dbgVérifieEgalité(b.Les, 30, "champ de structure 'Les'")
+dbgVérifieEgalité(b.Du, 40, "champ de structure 'Du'")
+dbgVérifieEgalité(b.Des, 50, "champ de structure 'Des'")
+dbgVérifieEgalité(b.Uns, 60, "champ de structure 'Uns'")
+dbgVérifieEgalité(b.Unes, 70, "champ de structure 'Unes'")
+dbgVérifieEgalité(b.From, 80, "champ de structure 'From'")
+
+// --- Parametres ---
+PROCEDURE SommeMots(Le est un entier, La est un entier, Les est un entier, Du est un entier, Des est un entier, Uns est un entier, Unes est un entier, From est un entier) : entier
+	RENVOYER Le + La + Les + Du + Des + Uns + Unes + From
+FIN
+dbgVérifieEgalité(SommeMots(1, 2, 4, 8, 16, 32, 64, 128), 255, "parametres nommes le/la/les/du/des/uns/unes/from")
+
+// --- Variables locales, relues dans une autre casse (Regle 6) ---
+PROCEDURE VarsLocales() : entier
+	Le est un entier = 1
+	La est un entier = 2
+	Les est un entier = 4
+	Du est un entier = 8
+	Des est un entier = 16
+	Uns est un entier = 32
+	Unes est un entier = 64
+	From est un entier = 128
+	RENVOYER LE + LA + LES + DU + DES + UNS + UNES + FROM
+FIN
+dbgVérifieEgalité(VarsLocales(), 255, "variables locales relues en majuscules (casse-insensible)")
+
+// --- Formes accentuees normalisees vers le meme mot ---
+PROCEDURE VarsAccentuees() : entier
+	là est un entier = 3
+	dû est un entier = 4
+	RENVOYER là + dû
+FIN
+dbgVérifieEgalité(VarsAccentuees(), 7, "variables nommees 'là' et 'dû'")
+
+// --- Non-regression : role d'article conserve ---
+x, y sont des entiers = 3
+dbgVérifieEgalité(x, 3, "non-reg : 'sont des entiers' (article pluriel strippe)")
+dbgVérifieEgalité(y, 3, "non-reg : 'sont des entiers' sur la 2e variable")
+s1, s2 sont des chaînes
+s1 = "a"
+s2 = "b"
+dbgVérifieEgalité(s1 + s2, "ab", "non-reg : 'sont des chaînes'")
+n est un entier = 42
+c est une chaîne = "ok"
+dbgVérifieEgalité(n, 42, "non-reg : 'est un entier'")
+dbgVérifieEgalité(c, "ok", "non-reg : 'est une chaîne'")
+
+dbgBilanTest()

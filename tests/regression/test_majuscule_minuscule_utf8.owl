@@ -1,0 +1,38 @@
+// Régression : Majuscule / Minuscule / ChaîneFormate avec accents UTF-8.
+// OWL stocke les chaînes en UTF-8. toupper/tolower byte-level ne gèrent
+// pas les caractères accentués du Latin-1 Supplement (U+00A0..U+00FF).
+// Fix : handler UTF-8 qui flip le byte 0xC3 XX → XX±0x20.
+
+// ── Majuscule ─────────────────────────────────────────────────────
+dbgVérifieEgalité(Majuscule("hello"), "HELLO", "ASCII only")
+dbgVérifieEgalité(Majuscule("le développement"), "LE DÉVELOPPEMENT", "maj avec é")
+dbgVérifieEgalité(Majuscule("café"), "CAFÉ", "mot simple")
+dbgVérifieEgalité(Majuscule("àéèêïöùç"), "ÀÉÈÊÏÖÙÇ", "tous les accents latin courants")
+dbgVérifieEgalité(Majuscule("Nöel"), "NÖEL", "tréma")
+dbgVérifieEgalité(Majuscule(""), "", "chaîne vide")
+
+// ── Minuscule ─────────────────────────────────────────────────────
+dbgVérifieEgalité(Minuscule("HELLO"), "hello", "ASCII only")
+dbgVérifieEgalité(Minuscule("LE DÉVELOPPEMENT"), "le développement", "min avec É")
+dbgVérifieEgalité(Minuscule("CAFÉ"), "café", "mot simple")
+dbgVérifieEgalité(Minuscule("ÀÉÈÊÏÖÙÇ"), "àéèêïöùç", "tous les accents latin courants")
+
+// ── Idempotence ────────────────────────────────────────────────────
+dbgVérifieEgalité(Majuscule(Majuscule("café")), "CAFÉ", "Majuscule idempotent")
+dbgVérifieEgalité(Minuscule(Minuscule("CAFÉ")), "café", "Minuscule idempotent")
+
+// ── Aller-retour ───────────────────────────────────────────────────
+dbgVérifieEgalité(Minuscule(Majuscule("Café")), "café", "A/R")
+
+// ── Via ChaîneFormate ──────────────────────────────────────────────
+dbgVérifieEgalité(ChaîneFormate("le développement", ccMajuscule),
+"LE DÉVELOPPEMENT", "ChaîneFormate ccMajuscule accents")
+dbgVérifieEgalité(ChaîneFormate("LE DÉVELOPPEMENT", ccMinuscule),
+"le développement", "ChaîneFormate ccMinuscule accents")
+
+// ── Caractères non-case (symboles math, pas d'accent) ──────────────
+// × (0xC3 0x97) et ÷ (0xC3 0xB7) — passent tels quels sans crash
+dbgVérifieEgalité(Majuscule("a×b"), "A×B", "multiplication sign pass-through")
+dbgVérifieEgalité(Minuscule("A÷B"), "a÷b", "division sign pass-through")
+
+dbgBilanTest()

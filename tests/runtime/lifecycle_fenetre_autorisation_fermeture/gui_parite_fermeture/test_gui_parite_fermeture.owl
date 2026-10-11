@@ -1,0 +1,30 @@
+//  — parité GUI/headless sur Fermeture : un Ferme() réel doit
+// déclencher PROCEDURE Fermeture() en mode graphique exactement comme en
+// headless (cf. lifecycle_fenetre_autorisation_fermeture/sans_handler, vert
+// en headless). Chemin réel exclusivement (Ferme()), jamais
+// DéclencheÉvénement — cf. piège documenté dans le ticket.
+//
+// ROUGE ATTENDU (pré-impl) : bug confirmé coordinator par reproduction
+// manuelle — en GUI + OuvreSoeur + Ferme(), Fermeture n'est jamais tiré,
+// alors qu'il l'est en headless. La chaîne reste vide au lieu de "FER;".
+//
+// ATTENTION (constaté par le coordinator, pas testé ici) : le cas GUI avec
+// Ouvre() BLOQUANT (modal) + Ferme() appelé depuis FinInitialisation part en
+// timeout (~90 s) — l'app ne se termine pas. Ne JAMAIS écrire ce scénario en
+// test automatisé tant que ce point n'est pas creusé séparément : il ferait
+// timeout toute la batterie. Seul OuvreSoeur (non-modal) est exercé ici.
+
+TestModeHeadless(Faux)
+
+seq est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seq += s
+FIN
+
+OuvreSoeur(FEN_GuiFermeture)
+
+Ferme(FEN_GuiFermeture)
+dbgVérifieEgalité(seq, "FER;", "GUI : Ferme() réel déclenche Fermeture, parité avec le headless")
+
+dbgBilanTest()

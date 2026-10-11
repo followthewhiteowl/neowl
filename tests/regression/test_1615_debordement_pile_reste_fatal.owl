@@ -1,0 +1,31 @@
+//  : le débordement de pile d'appels est une erreur fatale de la
+// machine, PAS une erreur utilisateur. QUAND EXCEPTION ne doit JAMAIS la
+// rattraper — même quand la récursion infinie a lieu dans le bloc DANS.
+//
+// On ne peut pas déclencher l'overflow directement dans ce scénario : il
+// sortirait en exit non-0 (mort du process) et le runner compterait un crash.
+// On le déclenche donc dans un sous-programme isolé via ExécuteCode, qui
+// l'exécute dans un run() réentrant partageant l'exceptionStack. Le handler
+// QUAND EXCEPTION installé au niveau parent y est visible ; le pont OP_CALL du
+// run() réentrant REFUSE néanmoins de le consulter pour une fatale-VM (marqueur
+// g_rt_fatal_vm). La fatale remonte donc à la frontière ExécuteCode qui
+// l'absorbe et rend la main : le bloc DANS parent poursuit normalement
+// (« no-throw ») et le bloc FAIRE ne s'exécute JAMAIS. Si la fatale redevenait
+// rattrapable, le pont sauterait au handler parent et « capturé » vaudrait
+// "caught" — l'assertion vire alors au rouge.
+//
+// Le contraste (une erreur UTILISATEUR au MÊME OP_CALL reste, elle,
+// rattrapable) est verrouillé par le fichier frère
+// test_1615_appel_non_appelable.owl (n() sur une variable non-fonction).
+PROCEDURE PUBLIQUE test_debordement_pile_reste_fatal_dans_quand_exception()
+	src est une chaîne = "PROCEDURE recursif()" + RC + "recursif()" + RC + "FIN" + RC + "recursif()"
+
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		ExécuteCode(src)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "no-throw", "débordement de pile reste fatal : QUAND EXCEPTION ne le rattrape pas")
+FIN

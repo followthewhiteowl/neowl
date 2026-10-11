@@ -1,0 +1,61 @@
+// SQL.2.b : verifie l'ouverture/fermeture reelle d'une connexion SQLite.
+// Couvre les cas heureux et les cas d'erreur courants.
+
+// --- 1. Cas heureux : open + close sur fichier en memoire ---
+cnxMem est une sqlConnexion
+cnxMem..Provider = sqlSqlite
+cnxMem..Source   = ":memory:"
+res est un booléen = cnxMem.Ouvre()
+dbgVérifieEgalité(res, Vrai, "open :memory: reussit")
+dbgVérifieEgalité(ErreurDétectée, Faux, "open :memory: ne pose pas erreur")
+
+resFerme est un booléen = cnxMem.Ferme()
+dbgVérifieEgalité(resFerme, Vrai, "close :memory: reussit")
+
+// Ferme idempotent : refermer une cnx deja close ne plante pas.
+resFerme2 est un booléen = cnxMem.Ferme()
+dbgVérifieEgalité(resFerme2, Vrai, "close idempotent (deja ferme)")
+
+
+// --- 2. Cas heureux : open + close sur fichier disque ---
+cnxFichier est une sqlConnexion
+cnxFichier..Provider = sqlSqlite
+cnxFichier..Source   = "./_test_sql_b.db"
+dbgVérifieEgalité(cnxFichier.Ouvre(), Vrai, "open fichier disque reussit")
+dbgVérifieEgalité(cnxFichier.Ferme(), Vrai, "close fichier disque reussit")
+
+// Le fichier doit exister apres open.
+dbgVérifieEgalité(fFichierExiste("./_test_sql_b.db"), Vrai, "fichier .db cree")
+
+// Cleanup
+fSupprime("./_test_sql_b.db")
+fSupprime("./_test_sql_b.db-wal")
+fSupprime("./_test_sql_b.db-shm")
+
+
+// --- 3. Cas d'erreur : Source vide ---
+cnxVide est une sqlConnexion
+cnxVide..Provider = sqlSqlite
+cnxVide..Source   = ""
+dbgVérifieEgalité(cnxVide.Ouvre(), Faux, "open avec Source vide echoue")
+dbgVérifieVrai(ErreurInfo() <> "", "open Source vide pose ErreurDetectee")
+
+
+// --- 4. Cas d'erreur : Provider non supporte (V1 = SQLite uniquement) ---
+cnxPg est une sqlConnexion
+cnxPg..Provider = sqlPostgres
+cnxPg..Source   = "./qqch.db"
+dbgVérifieEgalité(cnxPg.Ouvre(), Faux, "open avec Provider PG echoue (V1)")
+dbgVérifieVrai(ErreurInfo() <> "", "open Provider PG pose ErreurDetectee")
+
+
+// --- 5. Cas d'erreur : double open sur la meme cnx ---
+cnxDouble est une sqlConnexion
+cnxDouble..Provider = sqlSqlite
+cnxDouble..Source   = ":memory:"
+dbgVérifieEgalité(cnxDouble.Ouvre(), Vrai, "premier open ok")
+dbgVérifieEgalité(cnxDouble.Ouvre(), Faux, "double open echoue")
+dbgVérifieVrai(ErreurInfo() <> "", "double open pose ErreurDetectee")
+cnxDouble.Ferme()
+
+dbgBilanTest()

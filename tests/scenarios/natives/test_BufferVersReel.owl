@@ -1,0 +1,99 @@
+// @sujet : BufferVersRéel
+// @résumé : Lit 4 ou 8 octets à partir de la position indiquée (base 1) dans un buffer et restitue le nombre réel IEEE 754 correspondant (simple ou double précision). Le boutisme est petit-boutiste par défaut ou grand-boutiste sur demande. Toute taille autre que 4 ou 8, ou tout accès hors des limites du buffer, lève une exception.
+
+
+// Cas A : round-trip double précision (8 octets), boutisme petit (défaut).
+// 1.5 est exactement représentable en IEEE 754 double → restitution sans perte.
+PROCEDURE PUBLIQUE scenario_bvr_roundtrip_8_octets_le()
+	buf est un buffer = RéelVersBuffer(1.5, 8)
+	r est un réel = BufferVersRéel(buf, 1, 8)
+	dbgVérifieEgalité(r, 1.5, "round-trip double précision LE : 1.5 → buffer → 1.5")
+FIN
+
+
+// Cas B : round-trip simple précision (4 octets), boutisme petit (défaut).
+// 1.5 est aussi exactement représentable en IEEE 754 simple → restitution sans perte.
+PROCEDURE PUBLIQUE scenario_bvr_roundtrip_4_octets_le()
+	buf est un buffer = RéelVersBuffer(1.5, 4)
+	r est un réel = BufferVersRéel(buf, 1, 4)
+	dbgVérifieEgalité(r, 1.5, "round-trip simple précision LE : 1.5 → buffer → 1.5")
+FIN
+
+
+// Cas C : round-trip boutismeGros 8 octets.
+// Encodage et décodage utilisent le même boutisme → restitution exacte.
+PROCEDURE PUBLIQUE scenario_bvr_roundtrip_gros_boutiste()
+	buf est un buffer = RéelVersBuffer(1.5, 8, boutismeGros)
+	r est un réel = BufferVersRéel(buf, 1, 8, boutismeGros)
+	dbgVérifieEgalité(r, 1.5, "round-trip boutismeGros double précision : 1.5 → buffer → 1.5")
+FIN
+
+
+// Cas D : taille invalide (2) → exception (seules 4 et 8 sont acceptées).
+PROCEDURE PUBLIQUE scenario_bvr_taille_invalide_2()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersRéel(EntierVersBuffer(0, 4), 1, 2)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "taille 2 non dans {4,8} lève une exception")
+FIN
+
+
+// Cas E : hors bornes — lire 8 octets dans un buffer de 4 → exception.
+PROCEDURE PUBLIQUE scenario_bvr_hors_bornes()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersRéel(RéelVersBuffer(1.5, 4), 1, 8)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "lire 8 octets dans un buffer de 4 lève une exception")
+FIN
+
+
+// Edge case : lecture à une position non unitaire dans un buffer composite.
+// Un entier 4 octets suivi d'un réel 8 octets → lire le réel à position 5.
+PROCEDURE PRIVÉE scenario_edge_bvr_position()
+	bufPad est un buffer = EntierVersBuffer(0, 4)
+	bufReel est un buffer = RéelVersBuffer(3.14, 8)
+	buf est un buffer = bufPad + bufReel
+	r est un réel = BufferVersRéel(buf, 5, 8)
+	bProche est un booléen = Abs(r - 3.14) < 0.000001
+	dbgVérifieVrai(bProche, "lecture du réel 3.14 à position 5 dans un buffer composite")
+FIN
+
+
+// Edge case : position 0 → exception.
+PROCEDURE PRIVÉE scenario_edge_bvr_position_zero()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersRéel(RéelVersBuffer(1.0, 8), 0, 8)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "position 0 hors base 1 lève une exception")
+FIN
+
+
+// Edge case : taille invalide (0) → exception.
+PROCEDURE PRIVÉE scenario_edge_bvr_taille_zero()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersRéel(RéelVersBuffer(1.0, 8), 1, 0)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "taille 0 lève une exception")
+FIN
+
+
+// Edge case : mismatch boutisme — le même buffer LE relu en BE donne une valeur différente.
+// La valeur obtenue doit juste être différente de la valeur d'origine.
+PROCEDURE PRIVÉE scenario_edge_bvr_mismatch_boutisme()
+	buf est un buffer = RéelVersBuffer(1.5, 8)
+	rMismatch est un réel = BufferVersRéel(buf, 1, 8, boutismeGros)
+	bDifferent est un booléen = Abs(rMismatch - 1.5) > 0.001
+	dbgVérifieVrai(bDifferent, "buffer LE de 1.5 relu en BE produit une valeur différente")
+FIN

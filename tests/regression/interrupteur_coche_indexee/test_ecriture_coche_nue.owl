@@ -1,0 +1,55 @@
+// Écriture de la coche d'une option d'Interrupteur via l'indexation NUE
+// (INT_X[i] = ...). Aujourd'hui l'indexation nue ne supporte pas
+// l'affectation (seule la lecture struct existe) : la première ligne fait
+// planter le script à l'exécution — c'est le rouge attendu (mécanisme
+// annoncé, pas encore branché sur l'affectation), pas une faute de syntaxe.
+// Les assertions suivantes, qui documentent le comportement visé une fois
+// l'écriture branchée, ne s'exécutent donc pas encore : elles couvriront la
+// scène complète dès que le crash disparaît.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Interrupteur)
+
+// --- Écriture entière, indice littéral ---
+INT_Perms[1] = 1
+dbgVérifieEgalité(INT_Perms[1], 1,
+"écriture entière indice littéral, coche relue après écriture")
+
+// --- Écriture entière, indice variable, décoche ---
+k est un entier = 2
+INT_Perms[k] = 0
+dbgVérifieEgalité(INT_Perms[k], 0,
+"écriture entière indice variable, coche relue après écriture")
+
+// --- Écriture booléenne ---
+INT_Perms[1] = Vrai
+dbgVérifieEgalité(INT_Perms[1], 1,
+"écriture Vrai, coche relue à 1")
+
+INT_Perms[1] = Faux
+dbgVérifieEgalité(INT_Perms[1], 0,
+"écriture Faux, coche relue à 0")
+
+// --- Refus de -1 sur une option en mode 2 états (défaut Faux) : soft-error
+// alignée sur le comportement de référence ("erreur de référence générée"), le programme
+// continue. Lecture d'ErreurDétectée IMMÉDIATEMENT après l'écriture. ---
+INT_Perms[2] = -1
+bErrTroisEtats est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrTroisEtats,
+"écriture -1 sur option 2 états pose ErreurDetectee")
+dbgVérifieEgalité(INT_Perms[2], 0,
+"option refusée reste à sa valeur précédente (0)")
+
+// --- Hors plage en écriture : soft-error nommant le widget, le programme
+// continue (symétrique de la lecture). ---
+INT_Perms[99] = 1
+bErrOobWrite est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrOobWrite,
+"écriture indice 99 sur 3 options pose ErreurDetectee")
+dbgVérifieEgalité(INT_Perms..Occurrence, 3,
+"l'Interrupteur garde ses 3 options après le débordement en écriture")
+
+Ferme(FEN_Interrupteur)
+
+dbgBilanTest()

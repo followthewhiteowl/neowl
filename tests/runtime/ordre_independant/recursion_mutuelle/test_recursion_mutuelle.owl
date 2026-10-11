@@ -1,0 +1,32 @@
+//  — ordre-independant recursion mutuelle
+//
+// PROCEDURE A appelle B (definie apres), B appelle A.
+// Avant  : erreur compile "B : fonction/procedure inconnue"
+// Apres  : OK, les deux sont collectees en pre-passe.
+
+compteur est un entier = 0
+
+res est un entier = ComputeA(5)
+
+dbgVérifieEgalité(res, 0, "recursion mutuelle avec condition arret doit fonctionner")
+dbgVérifieVrai(compteur > 0, "recursion mutuelle a bien execute")
+
+dbgBilanTest()
+
+// A appelle B (definie PLUS BAS)
+PROCEDURE ComputeA(n est un entier) : entier
+	compteur += 1
+	SI n <= 0 ALORS
+		RENVOYER 0
+	FIN
+	RENVOYER ComputeB(n - 1)
+FIN
+
+// B appelle A (definie PLUS HAUT, mais forward-ref au moment de la declaration de A)
+PROCEDURE ComputeB(n est un entier) : entier
+	compteur += 1
+	SI n <= 0 ALORS
+		RENVOYER 0
+	FIN
+	RENVOYER ComputeA(n - 1)
+FIN

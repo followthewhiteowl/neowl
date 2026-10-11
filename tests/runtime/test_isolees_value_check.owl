@@ -1,0 +1,78 @@
+// Verrouillage structurel des valeurs de constantes Fichiers / tri /
+// format numérique. Ce test ancre la valeur entière exacte de chaque
+// constante : tout changement de valeur (renumérotation, retrait,
+// collision de bits) casse ici proprement.
+//
+// Plusieurs de ces constantes sont aujourd'hui PLEINEMENT câblées et
+// disposent de tests comportementaux dédiés ailleurs (options fichier,
+// tri de tableau, format numérique). On garde ici un value-check
+// structurel léger, complété d'un contrôle comportemental du verrou
+// de partage foBloqueLecture.
+
+// ================================================================
+// Fichier — flags bitmask de partage / cycle de vie
+// ================================================================
+dbgVérifieEgalité(foBloqueLecture, 4096, "foBloqueLecture = 0x1000")
+dbgVérifieEgalité(foBloqueEcriture, 8192, "foBloqueEcriture = 0x2000")
+dbgVérifieEgalité(foSuppressionAutomatique, 16384, "foSuppressionAutomatique = 0x4000")
+dbgVérifieEgalité(frSansFichierCaché, 16, "frSansFichierCaché = 0x10")
+dbgVérifieEgalité(frSansRépertoireCaché, 32, "frSansRépertoireCaché = 0x20")
+// Bits distincts
+dbgVérifieVrai((foBloqueLecture & foBloqueEcriture) = 0, "foBloque*: bits disjoints")
+dbgVérifieVrai((foBloqueEcriture & foSuppressionAutomatique) = 0, "fo*: bits disjoints")
+dbgVérifieVrai((frSansFichierCaché & frSansRépertoireCaché) = 0, "fr*: bits disjoints")
+
+// ================================================================
+// foBloqueLecture — verrou de partage : empêche les autres
+// ouvertures de LIRE le fichier jusqu'à fFerme.
+// ================================================================
+verrouDir est une chaîne = fRepTemp() + "/owl_test_bloque_lecture"
+SI fRepExiste(verrouDir) ALORS
+	fRepSupprime(verrouDir, Vrai)
+FIN
+dbgVérifieVrai(fRepCree(verrouDir), "setup verrouDir")
+
+readLockPath est une chaîne = verrouDir + "/locked.dat"
+fSauveTexte(readLockPath, "contenu")
+
+hLock est un entier = fOuvre(readLockPath, foLectureEcriture + foBloqueLecture)
+dbgVérifieVrai(hLock > 0, "1ère ouverture avec foBloqueLecture réussit")
+
+// Tentative concurrente d'ouverture en lecture : doit être refusée (-1)
+hConcurrent est un entier = fOuvre(readLockPath, foLecture)
+dbgVérifieEgalité(hConcurrent,-1, "Ouverture concurrente en lecture refusée")
+
+fFerme(hLock)
+
+// Après libération : ouverture en lecture re-fonctionne
+hAfter est un entier = fOuvre(readLockPath, foLecture)
+dbgVérifieVrai(hAfter > 0, "Ouverture en lecture re-OK après fFerme du verrou")
+SI hAfter > 0 ALORS
+	fFerme(hAfter)
+FIN
+
+dbgVérifieVrai(fRepSupprime(verrouDir, Vrai), "cleanup verrouDir")
+
+// ================================================================
+// Tri chaîne — bits tcc* d'options de comparaison. Tous câblés
+// (options de tri de tableau), value-check des offsets ici.
+// ================================================================
+dbgVérifieEgalité(tccSansEspace, 1024, "tccSansEspace = 0x400")
+dbgVérifieEgalité(tccSansEspaceIntérieur, 2048, "tccSansEspaceIntérieur = 0x800")
+dbgVérifieEgalité(tccSansPonctuationNiEspace, 4096, "tccSansPonctuationNiEspace = 0x1000")
+dbgVérifieEgalité(tccRespecteNumérique, 8192, "tccRespecteNumérique = 0x2000")
+dbgVérifieEgalité(tccOrdreLexicographique, 16384, "tccOrdreLexicographique = 0x4000")
+// Distincts de tccSansCasse / tccSansAccent
+dbgVérifieVrai(tccSansEspace <> tccSansCasse, "tccSansEspace <> tccSansCasse")
+dbgVérifieVrai(tccOrdreLexicographique <> tccSansAccent, "tccOrdreLexicographique <> tccSansAccent")
+
+// ================================================================
+// Format numérique — fnpAuto : sentinel de préfixe automatique
+// (câblé sur le champ Prefixe selon la notation).
+// ================================================================
+dbgVérifieVrai(fnpAuto < 0, "fnpAuto est un sentinel négatif (OWL_FNP_AUTO)")
+// Sentinel distinct des autres familles fn*
+dbgVérifieVrai(fnpAuto <> fnnHexadécimal, "fnpAuto <> fnnHexadécimal (familles distinctes)")
+dbgVérifieVrai(fnpAuto <> fnnDécimal, "fnpAuto <> fnnDécimal")
+
+dbgBilanTest()

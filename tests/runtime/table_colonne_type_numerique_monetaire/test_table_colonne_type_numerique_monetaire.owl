@@ -1,0 +1,75 @@
+//  lot 3 — câblage colTypeNumerique/colTypeMonétaire sur le
+// framework type-driven de colonne ( Date,  Heure/Durée).
+// DEUX couches testées ensemble (décision dev) :
+//
+// 1. INPUT (frappe) : sonde __DebugTableCelluleValideSaisie,
+//    réutilisée telle quelle — rejette le non-numérique, accepte un nombre.
+//
+// 2. AFFICHAGE (cellule hors édition) : sonde __DebugTableCelluleTexteAffiche
+//    (champ, ligne, colonne) → chaîne, PROPOSÉE par ce ticket (n'existe pas
+//    encore, à valider côté coordinator). Contrat : renvoie le texte tel que
+//    rendu par le delegate de la cellule (DisplayRole / paint), HORS édition
+//    — pas l'état d'un éditeur transitoire (à la différence de
+//    __DebugTableCelluleMasque/__DebugTableCelluleValideSaisie). Format
+//    résolu défaut/projet (ce dossier configure FormatNombre ET
+//    FormatMonétaire au niveau projet, miroir exact
+//    tests/runtime/format_nombre_heritage_champ et
+//    format_monetaire_heritage_champ côté Champ Saisie).
+//
+// ROUGE attendu aujourd'hui, pour DEUX raisons distinctes :
+//  - colTypeMonétaire n'existe pas dans l'enum colTypes -> dégrade en warning
+//    silencieux (miroir  lot 2 sur colTypeHeure), Type de COL_Mon
+//    jamais posé -> retombe sur colTypeTexte (défaut) -> aucune contrainte ni
+//    formatage sur cette colonne.
+//  - __DebugTableCelluleTexteAffiche est une fonction inconnue -> échec de
+//    compilation (« fonction/procédure inconnue »), AVANT même que le dispatch
+//    colTypeNumerique -> validateur/formatage ne soit câblé dans
+//    owl_table_apply_col_editor_behavior / le delegate.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeNumeriqueMonetaire)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. INPUT — colonne Numérique : rejette le non-numérique, accepte un
+// nombre =====
+
+dbgVérifieFaux(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "abc"),
+"colonne Numérique (colTypeNumerique, sans masque brut) : 'abc' rejeté par le validateur numérique")
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "1234.56"),
+"colonne Numérique : '1234.56' accepté par le validateur numérique")
+
+// ===== 2. INPUT — colonne Monétaire : même contrat =====
+
+dbgVérifieFaux(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 2, "abc"),
+"colonne Monétaire (colTypeMonétaire, sans masque brut) : 'abc' rejeté par le validateur numérique")
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 2, "1234.56"),
+"colonne Monétaire : '1234.56' accepté par le validateur numérique")
+
+// ===== 3. AFFICHAGE — colonne Numérique : cellule "1234.56" rendue formatée
+// selon FormatNombre projet (séparateur milliers " ", décimal ",", 2
+// décimales) -> "1 234,56" =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 1), "1 234,56",
+"colonne Numérique : affichage hors édition formaté selon FormatNombre projet")
+
+// ===== 4. AFFICHAGE — colonne Monétaire : cellule "1234.56" rendue formatée
+// selon FormatMonétaire projet (symbole "€" après, séparateurs identiques) ->
+// "1 234,56 €" =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 2), "1 234,56 €",
+"colonne Monétaire : affichage hors édition formaté selon FormatMonétaire projet (symbole + séparateurs)")
+
+// ===== 5. Non-régression : colonne Texte — ni validateur ni formatage =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 3, "1234.56abc"),
+"colonne Texte (sans validateur) : aucune contrainte, saisie toujours acceptée")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 3), "abc",
+"colonne Texte : affichage identique à la valeur brute (pas de formatage)")
+
+Ferme(FEN_TableColonneTypeNumeriqueMonetaire)
+
+dbgBilanTest()

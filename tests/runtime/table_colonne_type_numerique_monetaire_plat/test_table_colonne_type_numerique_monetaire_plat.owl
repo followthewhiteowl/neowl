@@ -1,0 +1,39 @@
+//  lot 3 (edge case proactif) — repli PLAT de l'AFFICHAGE colonne
+// quand aucun FormatNombre/FormatMonétaire n'est résolu (projet voisin
+// neutre, miroir tests/runtime/format_nombre_projet_defaut et
+// format_monetaire_projet_defaut). Discriminant : la cellule "1234.5" (UNE
+// seule décimale) doit rester "1234.5" telle quelle — pas de décimales
+// forcées à 2, pas de séparateur de milliers inventé. Une assertion
+// d'identité pure serait trivialement vraie même si aucun dispatch n'avait
+// lieu ; ce choix de valeur (1 décimale, pas 2) distingue le repli plat
+// réel d'un hypothétique formatage à 2 décimales par défaut.
+//
+// Sonde __DebugTableCelluleTexteAffiche : même contrat proposé que dans
+// tests/runtime/table_colonne_type_numerique_monetaire/ (dossier voisin,
+// AFFICHAGE formaté).
+//
+// ROUGE attendu aujourd'hui : __DebugTableCelluleTexteAffiche est une
+// fonction inconnue (n'existe pas encore) ; colTypeMonétaire n'existe pas
+// dans l'enum colTypes (dégrade en warning silencieux, Type de COL_Mon
+// jamais posé).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeNumeriqueMonetairePlat)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. AFFICHAGE — colonne Numérique sans FormatNombre résolu : forme
+// plate inchangée =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 1), "1234.5",
+"colonne Numérique (repli plat, sans FormatNombre projet) : affichage inchangé, pas de décimales forcées ni de séparateur de milliers")
+
+// ===== 2. AFFICHAGE — colonne Monétaire sans FormatMonétaire résolu : forme
+// plate inchangée, aucun symbole imposé =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 2), "1234.5",
+"colonne Monétaire (repli plat, sans FormatMonétaire projet) : affichage inchangé, aucun symbole imposé")
+
+Ferme(FEN_TableColonneTypeNumeriqueMonetairePlat)
+
+dbgBilanTest()

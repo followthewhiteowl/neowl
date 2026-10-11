@@ -1,0 +1,52 @@
+// @sujet : Hot-switch de la langue sur une UI vivante
+// @résumé : Langue(<lang>) re-résout et re-pousse les propriétés typées chaîneMultilingue des contrôles vivants vers la couche d'affichage. Les libellés/titres affichés changent de langue à chaud sans reconstruire la fenêtre.
+//
+// PORTÉE DE CE TEST : il exerce le CHEMIN de re-render (fenêtre affichée hors
+// écran, la passe de hot-switch parcourt les contrôles vivants et re-pousse
+// leurs propriétés multilingues à la couche d'affichage) et vérifie deux
+// choses mécaniques :
+//   1. Aucun crash quand Langue() re-pousse vers des contrôles affichés.
+//   2. La re-résolution logique reste cohérente (langue active → fallback).
+// La lecture `CTRL..Libellé` par référence nommée passe par l'état interne du
+// contrôle (source de vérité), qui retient la chaîne multilingue et la résout à
+// la langue active : ces assertions passent donc AVANT comme APRÈS l'impl.
+// Elles NE prouvent PAS le rafraîchissement visuel à l'écran — ça, seul l'œil
+// humain le valide. Le rôle du test est de
+// garder le chemin de re-render exécuté et sans régression.
+//
+// TestModeHeadless(Faux) affiche les contrôles réels (hors écran) pour que la
+// passe de hot-switch traverse effectivement des contrôles affichés.
+
+TestModeHeadless(Faux)
+
+bHotSwitchPrete est un booléen = Faux
+
+PROCEDURE cb_hotswitch_prete()
+	bHotSwitchPrete = Vrai
+FIN
+
+PROCEDURE PUBLIQUE scenario_hotswitch_langue()
+	OuvreSoeur(FEN_HotSwitchLangue)
+	dbgVérifieVrai(bHotSwitchPrete, "FinInitialisation : fenetre montee")
+
+	// Langue courante par défaut = fr-FR : résolution en français.
+	dbgVérifieEgalité(LIB_Titre..Libellé, "Bonjour", "libellé fr avant switch")
+	dbgVérifieEgalité(BTN_Ok..Libellé, "Valider", "bouton fr avant switch")
+
+	// Hot-switch vers l'anglais : déclenche la passe de re-render de l'UI vivante.
+	Langue(langueAnglais)
+	Temporise(20)
+
+	// La re-résolution logique suit la langue active (sans crash de la passe).
+	dbgVérifieEgalité(LIB_Titre..Libellé, "Hello", "libellé en apres switch")
+	dbgVérifieEgalité(BTN_Ok..Libellé, "Submit", "bouton en apres switch")
+
+	// Retour au français : la passe re-pousse à nouveau la langue source.
+	Langue(langueFrançais)
+	Temporise(20)
+	dbgVérifieEgalité(LIB_Titre..Libellé, "Bonjour", "libellé fr apres re-switch")
+	dbgVérifieEgalité(BTN_Ok..Libellé, "Valider", "bouton fr apres re-switch")
+
+	Ferme(FEN_HotSwitchLangue)
+	Langue(langueFrançais) // restaure l'etat global pour les fichiers suivants
+FIN

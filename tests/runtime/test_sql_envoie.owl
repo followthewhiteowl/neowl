@@ -1,0 +1,119 @@
+// SQL.2.c : verifie SQLEnvoie complet — prepare, bind {nom}, step, sqlReponse.
+// Couvre DDL (CREATE), DML (INSERT/UPDATE/DELETE) et DQL (SELECT) + injection.
+
+cnx est une sqlConnexion
+cnx..Provider = sqlSqlite
+cnx..Source   = ":memory:"
+dbgVérifieEgalité(cnx.Ouvre(), Vrai, "open")
+
+
+// --- 1. CREATE TABLE (DDL) ---
+reqCreate est une sqlRequête
+reqCreate..Code = [
+    CREATE TABLE clients (
+        id INTEGER PRIMARY KEY,
+        nom TEXT NOT NULL,
+        email TEXT,
+        actif INTEGER DEFAULT 1
+    )
+]
+repCreate est une sqlRéponse = SQLEnvoie(cnx, reqCreate)
+dbgVérifieEgalité(repCreate..Succès, Vrai, "CREATE TABLE reussit")
+dbgVérifieEgalité(repCreate..Occurrence, 0, "CREATE retourne 0 lignes")
+
+
+// --- 2. INSERT avec parametres nommes ---
+reqIns est une sqlRequête
+reqIns..Code                  = "INSERT INTO clients (nom, email) VALUES ({p_nom}, {p_email})"
+reqIns..Paramètres["p_nom"]   = "Alice"
+reqIns..Paramètres["p_email"] = "alice@example.com"
+repIns est une sqlRéponse = SQLEnvoie(cnx, reqIns)
+dbgVérifieEgalité(repIns..Succès, Vrai, "INSERT 1 reussit")
+dbgVérifieEgalité(repIns..LignesAffectées, 1, "INSERT 1 affecte 1 ligne")
+
+// 2e insert avec autres valeurs
+reqIns..Paramètres["p_nom"]   = "Bob"
+reqIns..Paramètres["p_email"] = "bob@example.com"
+SQLEnvoie(cnx, reqIns)
+
+// 3e insert (actif = 0)
+reqIns..Paramètres["p_nom"]   = "Charlie"
+reqIns..Paramètres["p_email"] = ""
+SQLEnvoie(cnx, reqIns)
+
+
+// --- 3. SELECT toutes lignes ---
+reqAll est une sqlRequête
+reqAll..Code = "SELECT id, nom, email, actif FROM clients ORDER BY id"
+repAll est une sqlRéponse = SQLEnvoie(cnx, reqAll)
+dbgVérifieEgalité(repAll..Succès, Vrai, "SELECT all reussit")
+dbgVérifieEgalité(repAll..Occurrence, 3, "3 lignes retournees")
+dbgVérifieEgalité(repAll..Lignes[1]["nom"], "Alice", "ligne 1 nom = Alice")
+dbgVérifieEgalité(repAll..Lignes[1]["id"], 1, "ligne 1 id = 1")
+dbgVérifieEgalité(repAll..Lignes[2]["nom"], "Bob", "ligne 2 nom = Bob")
+dbgVérifieEgalité(repAll..Lignes[3]["nom"], "Charlie", "ligne 3 nom = Charlie")
+dbgVérifieEgalité(repAll..Lignes[1]["actif"], 1, "ligne 1 actif = 1")
+
+
+// --- 4. SELECT avec WHERE parametre ---
+reqWhere est une sqlRequête
+reqWhere..Code                  = "SELECT nom FROM clients WHERE email = {p_email}"
+reqWhere..Paramètres["p_email"] = "bob@example.com"
+repWhere est une sqlRéponse = SQLEnvoie(cnx, reqWhere)
+dbgVérifieEgalité(repWhere..Succès, Vrai, "SELECT WHERE reussit")
+dbgVérifieEgalité(repWhere..Occurrence, 1, "1 ligne matchee")
+dbgVérifieEgalité(repWhere..Lignes[1]["nom"], "Bob", "match correct")
+
+
+// --- 5. PROTECTION INJECTION : tentative malveillante ---
+// Si l'injection passait, la table serait droppee et le SELECT echouerait.
+// Mais grace au prepared statement, la valeur est traitee comme du texte
+// pur et le WHERE devient WHERE nom = "'; DROP TABLE clients; --".
+reqInject est une sqlRequête
+reqInject..Code                = "SELECT * FROM clients WHERE nom = {p_nom}"
+reqInject..Paramètres["p_nom"] = "'; DROP TABLE clients; --"
+repInject est une sqlRéponse = SQLEnvoie(cnx, reqInject)
+dbgVérifieEgalité(repInject..Succès, Vrai, "injection neutralisee : prepared bind")
+dbgVérifieEgalité(repInject..Occurrence, 0, "0 ligne (literal text qui matche rien)")
+
+// Verifie que la table existe toujours
+repAll = SQLEnvoie(cnx, reqAll)
+dbgVérifieEgalité(repAll..Occurrence, 3, "table intacte apres tentative d'injection")
+
+
+// --- 6. UPDATE ---
+reqUp est une sqlRequête
+reqUp..Code              = "UPDATE clients SET actif = {p_a} WHERE nom = {p_n}"
+reqUp..Paramètres["p_a"] = 0
+reqUp..Paramètres["p_n"] = "Alice"
+repUp est une sqlRéponse = SQLEnvoie(cnx, reqUp)
+dbgVérifieEgalité(repUp..Succès, Vrai, "UPDATE reussit")
+dbgVérifieEgalité(repUp..LignesAffectées, 1, "1 ligne affectee")
+
+
+// --- 7. DELETE ---
+reqDel est une sqlRequête
+reqDel..Code = "DELETE FROM clients WHERE actif = 0"
+repDel est une sqlRéponse = SQLEnvoie(cnx, reqDel)
+// Seule Alice a actif=0 (Charlie a hérité du DEFAULT 1).
+dbgVérifieEgalité(repDel..LignesAffectées, 1, "1 ligne supprimee (Alice)")
+
+
+// --- 8. SELECT scalaire ---
+reqCount est une sqlRequête
+reqCount..Code = "SELECT COUNT(*) AS n FROM clients"
+repCount est une sqlRéponse = SQLEnvoie(cnx, reqCount)
+dbgVérifieEgalité(repCount..Lignes[1]["n"], 2, "2 clients restants (Bob + Charlie)")
+
+
+// --- 9. SQL invalide -> erreur propre, pas de crash ---
+reqBad est une sqlRequête
+reqBad..Code = "SELECT * FROM table_inexistante"
+repBad est une sqlRéponse = SQLEnvoie(cnx, reqBad)
+dbgVérifieEgalité(repBad..Succès, Faux, "SQL invalide echoue proprement")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+
+cnx.Ferme()
+
+dbgBilanTest()

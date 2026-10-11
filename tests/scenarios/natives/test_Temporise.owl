@@ -1,0 +1,111 @@
+// @sujet : Temporise
+// @résumé : Met en pause l'exécution pendant une durée donnée — entier (centièmes de seconde), Durée native, ou chaîne courte ("1s", "200ms", "10cs"). L'interface utilisateur reste fluide pendant l'attente. Sans argument ou avec 0, ne fait rien. Sous le runner de tests, les pauses sont court-circuitées pour que la suite reste rapide.
+
+
+// Cas canonique : appel avec un entier en centièmes de seconde (canon
+// historique préservé). Temporise(20) = 200 ms. Sous le runner de tests
+// unitaires, la pause est court-circuitée — l'appel retourne immédiatement,
+// ce qui garantit que l'écriture de scénarios mettant en jeu des pauses
+// ne ralentit pas la suite. Hors mode test, la pause est réelle.
+PROCEDURE scenario_entier_centiemes()
+	debut est un Chrono
+	debut.Début()
+	Temporise(20)
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise(20) sous owl test : court-circuit < 100 ms")
+FIN
+
+
+// Forme chaîne courte : "200ms" est reconnue et convertie en durée.
+// Les suffixes acceptés sont "s" (secondes), "cs" (centièmes), "ms"
+// (millisecondes), "mn" (minutes). Utile quand l'unité doit rester lisible
+// dans le code appelant — un "200ms" parle plus qu'un 20 nu.
+PROCEDURE scenario_chaine_courte()
+	debut est un Chrono
+	debut.Début()
+	Temporise("200ms")
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise(""200ms"") sous owl test : court-circuit")
+FIN
+
+
+// Forme variable typée Durée : une variable de type Durée peut être passée
+// directement. Permet de centraliser la définition d'un délai (timeout,
+// délai d'animation…) et de le réutiliser à plusieurs endroits.
+PROCEDURE scenario_variable_duree()
+	delaiAnimation est une durée = "200ms"
+	debut est un Chrono
+	debut.Début()
+	Temporise(delaiAnimation)
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise(Durée) sous owl test : court-circuit")
+FIN
+
+
+// Sans argument : équivaut à un no-op. Pratique pour les cas défensifs
+// où une variable de durée peut valoir zéro selon le contexte — l'appel
+// ne fait simplement rien, sans erreur ni avertissement.
+PROCEDURE scenario_sans_argument()
+	debut est un Chrono
+	debut.Début()
+	Temporise()
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise() : no-op immédiat")
+FIN
+
+
+// Argument zéro : également un no-op explicite. Permet d'écrire du code
+// du type Temporise(maDuréeOptionnelle) sans avoir à tester si la valeur
+// est nulle avant l'appel.
+PROCEDURE PRIVÉE scenario_zero_no_op()
+	debut est un Chrono
+	debut.Début()
+	Temporise(0)
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise(0) : no-op")
+FIN
+
+
+// Argument négatif : la valeur absolue est utilisée. Choix défensif —
+// un bug d'inversion de signe ne fera pas silencieusement disparaître
+// l'attente. Temporise(-20) attend autant que Temporise(20).
+PROCEDURE PRIVÉE scenario_negatif_absolu()
+	debut est un Chrono
+	debut.Début()
+	Temporise(-20)
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise(-20) : ABS, court-circuit sous test")
+FIN
+
+
+// Chaîne non convertible en durée : l'appel ne plante pas mais positionne
+// ErreurDétectée à Vrai, et ne fait aucune pause. Le code appelant peut
+// inspecter ErreurDétectée pour réagir.
+PROCEDURE PRIVÉE scenario_chaine_invalide_erreur_detectee()
+	Temporise("xyz")
+	dbgVérifieVrai(ErreurDétectée, "Temporise(""xyz"") positionne ErreurDétectée")
+FIN
+
+
+// Court-circuit explicite sous le runner de tests : même avec une durée
+// énorme (60000 centièmes = 10 minutes), l'appel retourne en quelques
+// millisecondes parce que EnModeTestUnitaire() renvoie Vrai. Garantit
+// qu'aucun test écrit dans cette suite ne peut bloquer la CI sur une
+// pause involontaire.
+PROCEDURE PRIVÉE scenario_court_circuit_test_unitaire()
+	debut est un Chrono
+	debut.Début()
+	Temporise(60000)
+	dur est un entier = debut.Fin()
+	dbgVérifieVrai(dur < 100, "Temporise(60000) sous owl test : court-circuit total < 100 ms")
+FIN
+
+
+// Type incorrect (réel) : un réel ne fait pas partie des trois formes
+// acceptées (entier, Durée, chaîne). L'appel signale l'erreur via
+// ErreurDétectée. Pour une pause fractionnaire, utiliser une chaîne
+// "250ms" ou une variable Durée.
+PROCEDURE PRIVÉE scenario_reel_refuse()
+	Temporise(3.14)
+	dbgVérifieVrai(ErreurDétectée, "Temporise(3.14) refuse le réel")
+FIN

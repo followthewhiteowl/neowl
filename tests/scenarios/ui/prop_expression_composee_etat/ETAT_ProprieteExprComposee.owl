@@ -1,0 +1,55 @@
+// État voisin — ressource pour test_prop_expression_composee_etat.owl.
+//
+// Valide qu'une valeur de propriété dans un bloc PROPRIETES d'un sous-champ
+// d'État accepte une EXPRESSION COMPOSÉE (concaténation `+`, somme…), à
+// parité avec l'affectation directe `CHAMP..Prop = <expression>` et avec le
+// même comportement côté Fenêtre. Sans cette parité, la concaténation sur un
+// slot Libellé fait rejeter le sous-champ au compile-time (« nom de propriété
+// attendu »), donc ce fichier ne compile pas.
+//
+// Non-régression regroupée dans le même bloc PROPRIETES :
+//   - somme d'entiers entièrement const-foldée (chemin littéral inchangé) ;
+//   - cascade avec expression composée (Police..Taille = 6 + 6) ;
+//   - littéral multilingue inline `{}` sur un second Libellé.
+//
+// __dbgNoteExecution au top-level : compte chaque exécution réelle du bloc
+// (1 impression => compteur = 1), ce qui prouve que les évaluations de
+// propriété composées tournent au rendu sans erreur.
+
+ETAT_ProprieteExprComposee est un État
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	__dbgNoteExecution("ETAT_ExprComposee")
+
+	Corps est un Corps
+		PROPRIETES
+			Hauteur = 60
+		FIN
+
+		// Concaténation de chaînes sur le Libellé : "a" + LF + "b".
+		LIB_C est un Champ Libellé
+			PROPRIETES
+				X              = 100 + 25
+				Y              = 10
+				Largeur        = 180
+				Hauteur        = 10
+				Police..Taille = 6 + 6
+				Libellé        = "a" + LF + "b"
+			FIN
+		FIN
+
+		// Non-régression : littéral multilingue inline sur le slot Libellé.
+		LIB_M est un Champ Libellé
+			PROPRIETES
+				X       = 10
+				Y       = 30
+				Largeur = 180
+				Hauteur = 10
+				Libellé = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+			FIN
+		FIN
+	FIN
+FIN

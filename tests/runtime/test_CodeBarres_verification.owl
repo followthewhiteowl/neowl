@@ -1,0 +1,45 @@
+// Verrouillage : CB_Vérification applique la clé de contrôle UNIQUEMENT sur les
+// symbologies 1D valides (Code39/Code93/Interleaved 2/5/Codabar) en posant
+// option_2=1. Sur une 2D (DataMatrix/PDF417) l'option est neutre : option_2 n'y
+// est pas touché (sinon la plus petite matrice / une seule colonne casserait
+// l'encodage).
+
+// ============================================================================
+// CB_Vérification ajoute la clé de contrôle sur un 1D valide (Code39)
+// ============================================================================
+cbC39nu est un CodeBarres
+cbC39nu..TypeCodeBarres = CB_CODE39
+cbC39nu..Contenu        = "OWL123"
+
+cbC39v est un CodeBarres
+cbC39v..TypeCodeBarres = CB_CODE39
+cbC39v..Contenu        = "OWL123"
+cbC39v..Options        = CB_Vérification
+
+ErreurRAZ()
+imgC39nu est une Image = CodeBarreVersImage(cbC39nu)
+imgC39v est une Image = CodeBarreVersImage(cbC39v)
+dbgVérifieVrai(ErreurInfo() = "", "Code39 + CB_Vérification - génération sans erreur")
+dbgVérifieVrai(imgC39v..Largeur > imgC39nu..Largeur, "CB_Vérification ajoute la clé de contrôle sur Code39 (symbole plus large)")
+
+// ============================================================================
+// CB_Vérification sur une symbologie 2D (DataMatrix) est neutre : pas de casse,
+// dimensions inchangées (option_2 non touché hors 1D)
+// ============================================================================
+cbDMnu est un CodeBarres
+cbDMnu..TypeCodeBarres = CB_DATAMATRIX
+cbDMnu..Contenu        = "OWL-DataMatrix-2026"
+
+cbDMv est un CodeBarres
+cbDMv..TypeCodeBarres = CB_DATAMATRIX
+cbDMv..Contenu        = "OWL-DataMatrix-2026"
+cbDMv..Options        = CB_Vérification
+
+ErreurRAZ()
+imgDMnu est une Image = CodeBarreVersImage(cbDMnu)
+imgDMv est une Image = CodeBarreVersImage(cbDMv)
+dbgVérifieVrai(ErreurInfo() = "", "DataMatrix + CB_Vérification - génération sans erreur (option ignorée)")
+dbgVérifieVrai(imgDMv..Valide, "DataMatrix + CB_Vérification - Image valide")
+dbgVérifieEgalité(imgDMv..Largeur, imgDMnu..Largeur, "CB_Vérification n'altère pas un DataMatrix (option_2 non touché hors 1D)")
+
+dbgBilanTest()

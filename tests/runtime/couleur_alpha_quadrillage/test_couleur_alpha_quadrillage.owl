@@ -1,0 +1,58 @@
+//  (LOT GARDE-FOU) — opacité sur `Style..Quadrillage..Couleur` (liseré
+// de grille d'un Champ Table). `read_table_style` (stdlib_ui.c) lit ce champ
+// via `instance_get_int(quad, "Couleur", -1)`, qui rend -1 sur une instance
+// Couleur -> `spec->quadrillage` reste négatif -> ni `gridline-color` QSS ni
+// `setShowGrid(true)` explicite ne sont posés : le liseré ne montre PAS notre
+// couleur (mesuré : gris Qt par défaut RVB(212,212,212), même quand
+// l'utilisateur a demandé un vert translucide — la valeur est totalement
+// ignorée, pas juste son alpha).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Fenêtre voisine FEN_CouleurAlphaQuadrillage.owl : 2 Champ
+// Table empilés, LignesImpaires/LignesPaires forcées BLANC opaque uniforme
+// (backdrop déterministe pour le mélange du liseré).
+//
+// Coordonnées de liseré mesurées empiriquement (HauteurLigne=40, 1px de
+// large) : x=100, y=79/119/159 (table témoin, Y=20) et y=299/339/379 (table
+// alpha, Y=240) — frontières entre lignes.
+//
+//  — ces six ordonnées ont toutes reculé de 2px : l'en-tête de la
+// table n'est plus gonflé par une taille de police émise à tort par le style.
+// Rien d'autre n'a bougé — les couleurs relevées à ces frontières sont
+// exactement les mêmes qu'avant (vert pur, puis le mélange sur blanc).
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   fg=VERT (0,255,0), bg=BLANC (255,255,255), a=128/255
+//   R : fg=0,   bg=255 -> résultat = 255*(255-128)/255 = 127
+//   V : fg=255, bg=255 -> résultat = 255
+//   B : fg=0,   bg=255 -> résultat = 127
+// Mélange attendu : RVB(127, 255, 127). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertSurBlanc est un entier = RVB(127, 255, 127)
+
+OuvreSoeur(FEN_CouleurAlphaQuadrillage)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaQuadrillage)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque (TAB_QuadOpaque) : liseré vert pur, non-régression --
+dbgVérifieEgalité(dPixelCouleur(img, 100, 79), vertOpaque,
+"TAB_QuadOpaque : Style..Quadrillage..Couleur = RVB(0,255,0) (entier nu opaque) : liseré vert pur, non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 100, 119), vertOpaque,
+"TAB_QuadOpaque : Style..Quadrillage..Couleur = RVB(0,255,0) (entier nu opaque) : liseré vert pur (2e frontière), non-régression")
+dbgVérifieEgalité(dPixelCouleur(img, 100, 159), vertOpaque,
+"TAB_QuadOpaque : Style..Quadrillage..Couleur = RVB(0,255,0) (entier nu opaque) : liseré vert pur (3e frontière), non-régression")
+
+// --- 2. TAB_QuadAlpha : mélange attendu avec le fond blanc des lignes -----
+dbgVérifieEgalité(dPixelCouleur(img, 100, 299), vertSurBlanc,
+"TAB_QuadAlpha : Style..Quadrillage..Couleur = <Couleur Opacité=128> mélange le liseré avec le blanc (127,255,127), pas ignoré")
+dbgVérifieEgalité(dPixelCouleur(img, 100, 339), vertSurBlanc,
+"TAB_QuadAlpha : Style..Quadrillage..Couleur = <Couleur Opacité=128> mélange le liseré avec le blanc (2e frontière), pas ignoré")
+dbgVérifieEgalité(dPixelCouleur(img, 100, 379), vertSurBlanc,
+"TAB_QuadAlpha : Style..Quadrillage..Couleur = <Couleur Opacité=128> mélange le liseré avec le blanc (3e frontière), pas ignoré")
+
+Ferme(FEN_CouleurAlphaQuadrillage)
+dbgBilanTest()

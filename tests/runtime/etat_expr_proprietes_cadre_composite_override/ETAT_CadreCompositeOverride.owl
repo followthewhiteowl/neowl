@@ -1,0 +1,45 @@
+// Ressource voisine de test_cadre_composite_override.owl (, follow-up
+//  — limite ).
+//
+// Cadre (prop COMPOSITE) est posé en EXPRESSION dynamique dans PROPRIETES
+// (Cadre = { Couleur = cVal, Epaisseur = 2 }), et Lecture() écrit ENSUITE
+// une cascade IMPÉRATIVE sur le sous-champ (LIB_X..Cadre..Couleur = Vert).
+// La cascade impérative doit rester sticky (Vert) sur tous les rendus,
+// même quand cVal change ensuite — contrairement au cas scalaire
+// (CouleurFond, ) où seule l'écriture ..prop = directe est
+// protégée par headless_override_keys. Ici l'écriture impérative cible
+// le sous-champ Couleur de l'ObjInstance Cadre, pas la prop Cadre
+// elle-même côté contrôle : reachability à mesurer.
+
+ETAT_CadreCompositeOverride est un État
+	PROPRIETES
+		Format = formatA4
+	FIN
+
+	cVal est un entier = Rouge
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 15
+		FIN
+
+		LIB_X est un Champ Libellé
+			PROPRIETES
+				Libellé = "X"
+				X       = 20
+				Y       = 2
+				Largeur = 100
+				Hauteur = 10
+				Cadre   = {Couleur = cVal, Epaisseur = 2}
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE Lecture()
+		cVal                  = Rouge
+		LIB_X..Cadre..Couleur = Vert
+		iImprimeBloc("Corps")
+		cVal = Bleu
+		iImprimeBloc("Corps")
+	FIN
+FIN

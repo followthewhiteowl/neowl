@@ -1,0 +1,31 @@
+// @sujet  : PROCEDURE GLOBAL (sans E) doit etre accepte a egalite avec
+//          PROCEDURE GLOBALE comme modificateur de methode statique.
+// @résumé Verrouille : GLOBAL (forme anglaise, sans E — nouvelle) et GLOBALE
+//          (forme francaise, existante), plus la non-regression de la
+//          section membre statique GLOBAL (bloc de champs statiques en tete
+//          de classe — role different, ne doit pas changer). Classes
+//          voisines : cNettoyeur_1964.owl, cCalcul_1964.owl,
+//          cCompteur_1964.owl (une Classe par fichier, convention OWL).
+//          Note : l'alias EN "static" (deja supporte, canon formatter
+//          -> GLOBALE) n'a pas de couverture regression dediee ici : le
+//          formatter le reecrit systematiquement en GLOBALE avant tout
+//          commit possible (KW_NEUTRE, canon unique), donc aucun fichier
+//          source contenant "static" ne peut rester fmt --check propre.
+
+PROCEDURE scenario_procedure_global_forme_en_nominal()
+	sPropre est une chaîne = cNettoyeur1964.MET_NomFichierVALIDER(`a'b"c<d>e\f/g*h?i¦j`, "_")
+	dbgVérifieEgalité(sPropre, "a_b_c_d_e_f_g_h_i_j", "PROCEDURE GLOBAL (sans E) nettoie tous les caracteres interdits")
+
+	sDefaut est une chaîne = cNettoyeur1964.MET_NomFichierVALIDER("propre.txt")
+	dbgVérifieEgalité(sDefaut, "propre.txt", "PROCEDURE GLOBAL respecte le parametre par defaut")
+FIN
+
+PROCEDURE scenario_procedure_globale_fr_non_regression()
+	dbgVérifieEgalité(cCalcul1964.Double(21), 42, "PROCEDURE GLOBALE (FR, avec E) toujours fonctionnelle")
+FIN
+
+PROCEDURE scenario_section_membre_global_non_regression()
+	c1 est un cCompteur1964()
+	c2 est un cCompteur1964()
+	dbgVérifieEgalité(cCompteur1964.NbInstances(), 2, "section membre statique GLOBAL toujours fonctionnelle")
+FIN

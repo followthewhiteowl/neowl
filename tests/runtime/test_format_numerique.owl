@@ -1,0 +1,160 @@
+// =====================================================================
+// Test du type FormatNumérique (documentation de référence)
+// Alternative au masque chaîne pour configurer NumériqueVersChaîne via
+// une struct typée (autocomplete/validation enum-bound côté LSP).
+// =====================================================================
+
+Trace("=== FormatNumérique struct ===")
+OwlConfigureLocale(".", "'")
+
+// =====================================================================
+// Cas par défaut : FormatNumérique fraîchement instancié
+// =====================================================================
+f1 est un FormatNumérique
+dbgVérifieEgalité(NumériqueVersChaîne(123.456, f1), "123.456000",
+"défaut: f + 6 décimales")
+
+// =====================================================================
+// Notation : décimal / exp / hex / octal / binaire
+// =====================================================================
+fHex est un FormatNumérique
+fHex..Notation = fnnHexadécimal
+dbgVérifieEgalité(NumériqueVersChaîne(255, fHex), "ff", "fnnHexadecimal")
+
+fHexMaj est un FormatNumérique
+fHexMaj..Notation   = fnnHexadécimal
+fHexMaj..Majuscules = Vrai
+dbgVérifieEgalité(NumériqueVersChaîne(255, fHexMaj), "FF", "fnnHexadecimal + Majuscules")
+
+fOct est un FormatNumérique
+fOct..Notation = fnnOctal
+dbgVérifieEgalité(NumériqueVersChaîne(8, fOct), "10", "fnnOctal: 8 -> 10")
+
+fBin est un FormatNumérique
+fBin..Notation = fnnBinaire
+dbgVérifieEgalité(NumériqueVersChaîne(255, fBin), "11111111", "fnnBinaire: 255 -> 11111111")
+dbgVérifieEgalité(NumériqueVersChaîne(8, fBin), "1000", "fnnBinaire: 8 -> 1000")
+
+fExp est un FormatNumérique
+fExp..Notation             = fnnExponentiel
+fExp..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(1234.5, fExp), "1.23e+03", "fnnExponentiel + 2 dec")
+
+// =====================================================================
+// Signe : fnsMoinsSiNegatif (défaut) / fnsToujours / fnsParenthesesSiNegatif
+// =====================================================================
+fForce est un FormatNumérique
+fForce..Signe                = fnsToujours
+fForce..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(42, fForce), "+42.00", "fnsToujours sur positif")
+dbgVérifieEgalité(NumériqueVersChaîne(-42, fForce), "-42.00", "fnsToujours sur négatif")
+dbgVérifieEgalité(NumériqueVersChaîne(0, fForce), "+0.00", "fnsToujours sur zéro")
+
+fParens est un FormatNumérique
+fParens..Signe                = fnsParenthèsesSiNégatif
+fParens..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(123.45, fParens), "123.45", "parens: positif inchangé")
+dbgVérifieEgalité(NumériqueVersChaîne(-123.45, fParens), "(123.45)", "parens: négatif entre ()")
+
+// =====================================================================
+// Alignement : fncDroite (défaut) / fncGauche
+// =====================================================================
+fLeft est un FormatNumérique
+fLeft..Alignement           = fncGauche
+fLeft..LongueurMinimale     = 10
+fLeft..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(42.5, fLeft), "42.50     ", "fncGauche width 10")
+
+fRight est un FormatNumérique
+fRight..Alignement           = fncDroite
+fRight..LongueurMinimale     = 10
+fRight..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(42.5, fRight), "     42.50", "fncDroite width 10 (défaut)")
+
+// =====================================================================
+// CaractereRemplissage : '0', '*', etc.
+// =====================================================================
+fStar est un FormatNumérique
+fStar..LongueurMinimale     = 8
+fStar..CaractèreRemplissage = "*"
+fStar..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(42.5, fStar), "***42.50", "fillChar = '*'")
+
+fZero est un FormatNumérique
+fZero..LongueurMinimale     = 6
+fZero..CaractèreRemplissage = "0"
+fZero..Notation             = fnnHexadécimal
+fZero..Majuscules           = Vrai
+dbgVérifieEgalité(NumériqueVersChaîne(255, fZero), "0000FF", "fillChar='0' + hex maj zero-pad")
+
+// =====================================================================
+// SeparateurMilliers (override locale)
+// =====================================================================
+fThou est un FormatNumérique
+fThou..SéparateurMilliers   = "_"
+fThou..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(1234567.89, fThou), "1_234_567.89",
+"SeparateurMilliers='_'")
+
+// =====================================================================
+// SeparateurDecimal (single byte)
+// =====================================================================
+fDec est un FormatNumérique
+fDec..SéparateurDécimal    = ","
+fDec..ChiffresAprèsVirgule = 2
+dbgVérifieEgalité(NumériqueVersChaîne(42.5, fDec), "42,50", "SeparateurDecimal=','")
+
+// =====================================================================
+// Préfixe custom et auto (@AUTO@ sentinel)
+// =====================================================================
+fPre est un FormatNumérique
+fPre..Notation = fnnHexadécimal
+fPre..Préfixe  = "0x"
+dbgVérifieEgalité(NumériqueVersChaîne(255, fPre), "0xff", "préfixe custom '0x'")
+
+fPreAuto est un FormatNumérique
+fPreAuto..Notation = fnnBinaire
+fPreAuto..Préfixe  = "@AUTO@"
+dbgVérifieEgalité(NumériqueVersChaîne(8, fPreAuto), "0b1000", "préfixe @AUTO@ + binaire -> 0b")
+
+// Préfixe automatique via la constante fnpAuto (chemin canon).
+// Le préfixe produit dépend de la notation : 0x hexa, 0b binaire, 0 octal.
+fAutoHex est un FormatNumérique
+fAutoHex..Notation = fnnHexadécimal
+fAutoHex..Préfixe  = fnpAuto
+dbgVérifieEgalité(NumériqueVersChaîne(255, fAutoHex), "0xff", "fnpAuto + hexa -> 0xff")
+
+fAutoBin est un FormatNumérique
+fAutoBin..Notation = fnnBinaire
+fAutoBin..Préfixe  = fnpAuto
+dbgVérifieEgalité(NumériqueVersChaîne(8, fAutoBin), "0b1000", "fnpAuto + binaire -> 0b1000")
+
+fAutoOct est un FormatNumérique
+fAutoOct..Notation = fnnOctal
+fAutoOct..Préfixe  = fnpAuto
+dbgVérifieEgalité(NumériqueVersChaîne(8, fAutoOct), "010", "fnpAuto + octal -> 0 + 10")
+
+// fnpAuto suit le drapeau Majuscules pour l'hexadécimal (0X majuscule).
+fAutoHexUp est un FormatNumérique
+fAutoHexUp..Notation   = fnnHexadécimal
+fAutoHexUp..Majuscules = Vrai
+fAutoHexUp..Préfixe    = fnpAuto
+dbgVérifieEgalité(NumériqueVersChaîne(255, fAutoHexUp), "0XFF", "fnpAuto + hexa majuscule -> 0XFF")
+
+// Sans fnpAuto, aucun préfixe automatique : on prouve l'effet par différentiel.
+fSansAuto est un FormatNumérique
+fSansAuto..Notation = fnnHexadécimal
+dbgVérifieEgalité(NumériqueVersChaîne(255, fSansAuto), "ff", "sans fnpAuto -> pas de préfixe")
+
+// =====================================================================
+// Combinaison riche : tout activé
+// =====================================================================
+fAll est un FormatNumérique
+fAll..Notation             = fnnDécimal
+fAll..Signe                = fnsToujours
+fAll..ChiffresAprèsVirgule = 4
+fAll..LongueurMinimale     = 12
+fAll..SéparateurMilliers   = "'"
+dbgVérifieEgalité(NumériqueVersChaîne(1234.567, fAll), " +1'234.5670", "combo riche width=12")
+
+dbgBilanTest()

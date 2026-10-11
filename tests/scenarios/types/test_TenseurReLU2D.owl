@@ -1,0 +1,62 @@
+// @sujet : Tenseur.ReLU (2D)
+// @résumé : ReLU s'applique élément par élément sur un Tenseur 2D (B×n),
+// forme préservée — même règle que la version 1D, appliquée à chaque
+// case de la Matrice. Rétropropage() ne laisse passer le gradient que là
+// où la composante d'entrée était strictement positive.
+
+// ReLU écrase les négatifs à 0.0, laisse les positifs inchangés, case par
+// case, sans changer la forme (2×2 -> 2×2).
+// [[-1,2],[3,-4]] -> [[0,2],[3,0]]
+PROCEDURE PUBLIQUE scenario_relu2d_forward()
+	matX est une Matrice = [[-1.0, 2.0], [3.0, -4.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.ReLU()
+	valR est une Matrice = tR..Valeur
+	dbgVérifieEgalité(valR..Lignes, 2, "ReLU préserve la forme : 2 lignes")
+	dbgVérifieEgalité(valR..Colonnes, 2, "ReLU préserve la forme : 2 colonnes")
+	dbgVérifieEgalité(valR[1][1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(valR[1][2], 2.0, "ReLU(2.0) = 2.0")
+	dbgVérifieEgalité(valR[2][1], 3.0, "ReLU(3.0) = 3.0")
+	dbgVérifieEgalité(valR[2][2], 0.0, "ReLU(-4.0) = 0.0")
+FIN
+
+
+// Rétropropage() direct amorce le gradient à 1.0 sur chaque composante de
+// sortie ; seules les cases dont l'entrée était strictement positive le
+// laissent passer.
+PROCEDURE PUBLIQUE scenario_relu2d_backward()
+	matX est une Matrice = [[-1.0, 2.0], [3.0, -4.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.ReLU()
+	tR.Rétropropage()
+
+	gradX est une Matrice = tX..Gradient
+	dbgVérifieEgalité(gradX[1][1], 0.0, "Entrée négative : gradient bloqué à 0.0")
+	dbgVérifieEgalité(gradX[1][2], 1.0, "Entrée positive : gradient transmis tel quel")
+	dbgVérifieEgalité(gradX[2][1], 1.0, "Entrée positive : gradient transmis tel quel")
+	dbgVérifieEgalité(gradX[2][2], 0.0, "Entrée négative : gradient bloqué à 0.0")
+FIN
+
+
+// Une Matrice à une seule ligne (1×3) reste une forme 2D valide : ReLU et
+// son gradient s'appliquent sans aplatissement en Vecteur. Le zéro exact
+// est bloqué comme un négatif, comme en 1D.
+PROCEDURE PRIVÉE scenario_edge_relu2d_matrice_une_seule_ligne()
+	matY est une Matrice = [[-2.0, 0.0, 5.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	tR est un Tenseur = tY.ReLU()
+	tR.Rétropropage()
+
+	valR est une Matrice = tR..Valeur
+	dbgVérifieEgalité(valR[1][1], 0.0, "ReLU(-2.0) = 0.0")
+	dbgVérifieEgalité(valR[1][2], 0.0, "ReLU(0.0) = 0.0")
+	dbgVérifieEgalité(valR[1][3], 5.0, "ReLU(5.0) = 5.0")
+
+	gradY est une Matrice = tY..Gradient
+	dbgVérifieEgalité(gradY[1][1], 0.0, "Entrée négative : gradient bloqué")
+	dbgVérifieEgalité(gradY[1][2], 0.0, "Entrée nulle : gradient bloqué (comme en 1D)")
+	dbgVérifieEgalité(gradY[1][3], 1.0, "Entrée positive : gradient transmis")
+FIN

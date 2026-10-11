@@ -1,0 +1,116 @@
+// @sujet : Classe — affectation composee sur membre (:champ += valeur)
+// @resume : Verifie que les operateurs d'affectation composee += et -= fonctionnent sur les membres d'instance :champ comme sur les variables locales.
+
+// Cas nominal : += sur membre monetaire
+PROCEDURE scenario_plus_egale_sur_membre_monetaire()
+	c est un cCompte()
+
+	// Credit initial
+	c.Crediter(100)
+	dbgVérifieEgalité(c.Solde(), 100, "Premier credit : solde = 100")
+
+	// Second credit via += interne
+	c.Crediter(50)
+	dbgVérifieEgalité(c.Solde(), 150, "Deuxieme credit : solde = 150")
+FIN
+
+// Cas nominal : -= sur membre monetaire
+PROCEDURE scenario_moins_egale_sur_membre_monetaire()
+	c est un cCompte()
+
+	// Credit initial
+	c.Crediter(200)
+	dbgVérifieEgalité(c.Solde(), 200, "Credit initial : solde = 200")
+
+	// Debit via -= interne
+	c.Debiter(75)
+	dbgVérifieEgalité(c.Solde(), 125, "Debit : solde = 125")
+FIN
+
+// Cas nominal : += sur membre entier (compteur)
+PROCEDURE scenario_plus_egale_sur_membre_entier()
+	c est un cCompte()
+
+	// Deux operations
+	c.Crediter(10)
+	c.Debiter(5)
+
+	dbgVérifieEgalité(c.NbOperations(), 2, "Compteur operations via += interne")
+FIN
+
+// Cas nominal : exemple doc 06_poo (ligne 82)
+PROCEDURE scenario_exemple_doc_06_poo()
+	c est un cCompte()
+
+	// La doc promet `:rSolde += rMontant` dans Crediter
+	c.Crediter(250)
+	dbgVérifieEgalité(c.Solde(), 250, "Exemple doc 06_poo : credit via += fonctionne")
+FIN
+
+// Cas nominal : affectation composee sur variable locale (temoin non-regression)
+PROCEDURE scenario_affectation_composee_locale_temoin()
+	n est un entier = 0
+
+	// += sur local (doit deja compiler et fonctionner)
+	n += 10
+	dbgVérifieEgalité(n, 10, "+= sur variable locale fonctionne")
+
+	// -= sur local
+	n -= 3
+	dbgVérifieEgalité(n, 7, "-= sur variable locale fonctionne")
+FIN
+
+// Edge case : += sur membre avec zero (identite)
+PROCEDURE PRIVÉE scenario_edge_plus_egale_zero()
+	c est un cCompte()
+	c.Crediter(100)
+
+	// += 0 ne change rien
+	c.Crediter(0)
+	dbgVérifieEgalité(c.Solde(), 100, "+= 0 est identite")
+FIN
+
+// Cas nominal : ++ sur membre entier (increment de 1)
+PROCEDURE scenario_plus_plus_sur_membre_entier()
+	c est un cCompte()
+
+	// Etat initial : compteur = 0
+	dbgVérifieEgalité(c.NbOperations(), 0, "Compteur initial = 0")
+
+	// Incrementation via :champ++
+	c.IncrementerCompteur()
+	dbgVérifieEgalité(c.NbOperations(), 1, ":nOperations++ incremente de 1")
+
+	// Deuxieme increment
+	c.IncrementerCompteur()
+	dbgVérifieEgalité(c.NbOperations(), 2, "Deuxieme :nOperations++ = 2")
+FIN
+
+// Cas nominal : -- sur membre entier (decrement de 1)
+PROCEDURE scenario_moins_moins_sur_membre_entier()
+	c est un cCompte()
+	c.Crediter(10)
+	c.Crediter(10)
+	c.Crediter(10)
+
+	// Etat initial : compteur = 3 (3 credits)
+	dbgVérifieEgalité(c.NbOperations(), 3, "Compteur initial = 3")
+
+	// Decrementation via :champ--
+	c.DecrementerCompteur()
+	dbgVérifieEgalité(c.NbOperations(), 2, ":nOperations-- decremente de 1")
+
+	// Deuxieme decrement
+	c.DecrementerCompteur()
+	dbgVérifieEgalité(c.NbOperations(), 1, "Deuxieme :nOperations-- = 1")
+FIN
+
+// Edge case : -= avec valeur negative (equivalent +=)
+PROCEDURE PRIVÉE scenario_edge_moins_egale_negatif()
+	c est un cCompte()
+	c.Crediter(50)
+
+	// Debiter une valeur negative equivaut a crediter
+	c.Debiter(-25)
+	dbgVérifieEgalité(c.Solde(), 75, "-= (-25) equivaut += 25")
+FIN

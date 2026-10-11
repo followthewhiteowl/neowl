@@ -1,0 +1,273 @@
+// @sujet : Langue (runtime mutable)
+// @résumé : État global runtime de la langue courante, accessible via Langue() getter/setter. Switch runtime impacte les coercions auto chaîneMultilingue → chaîne. Détection OS via LangueSystème(). Sens d'écriture RTL/LTR via LangueSensÉcriture().
+
+
+// Langue() sans argument : getter retourne la valeur courante de la langue
+// runtime (tag BCP 47 string). Par défaut "fr-FR" au boot.
+PROCEDURE scenario_langue_getter_retourne_valeur_courante()
+	lang est une chaîne = Langue()
+
+	// Défaut hardcodé par défaut : "fr-FR"
+	dbgVérifieEgalité(lang, "fr-FR", "Langue() initial = hardcode défaut fr-FR")
+FIN
+
+
+// Langue(<langueXxx>) : setter met à jour la langue courante runtime.
+// Accepte une constante langueXxx. Retourne l'ancienne valeur (pattern
+// similaire à Nation()).
+PROCEDURE scenario_langue_setter_constante_enum()
+	ancienneLangue est une chaîne = Langue(langueAnglais)
+
+	dbgVérifieEgalité(ancienneLangue, "fr-FR", "Langue(langueAnglais) retourne ancienne valeur fr-FR")
+	dbgVérifieEgalité(Langue(), "en-US", "Langue() après switch retourne en-US")
+
+	// Rétablir pour les autres tests
+	Langue(langueFrançais)
+FIN
+
+
+// Langue("fr-CA") : setter accepte aussi un tag BCP 47 libre (string).
+// Permet de poser des variantes non-constante (fr-CH, fr-jura, etc.).
+PROCEDURE scenario_langue_setter_string_bcp47_libre()
+	ancienneLangue est une chaîne = Langue("fr-CA")
+
+	dbgVérifieEgalité(ancienneLangue, "fr-FR", "retourne ancienne valeur")
+	dbgVérifieEgalité(Langue(), "fr-CA", "langue courante mise à jour via tag libre")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// LangueSource() : getter read-only de la langue source du projet.
+// Hardcodée par défaut "fr-FR" (futur ticket settings projet permettra de la
+// configurer). Pas de setter exposé pour l'instant.
+PROCEDURE scenario_langue_source_readonly()
+	langSource est une chaîne = LangueSource()
+
+	dbgVérifieEgalité(langSource, "fr-FR", "langue source hardcodée par défaut")
+FIN
+
+
+// LangueSystème() : détection OS, retourne le tag BCP 47 détecté.
+// Cross-platform (Win32 GetUserDefaultLocaleName / POSIX getenv("LANG")
+// avec parsing "fr_FR.UTF-8" → "fr-FR" / macOS CFLocaleCopyCurrent).
+// Fallback "en-US" si détection impossible.
+//
+// Test déterministe : on ne peut PAS vérifier la valeur exacte (dépend
+// de la machine d'exécution). On vérifie que c'est un tag BCP 47
+// bien formé : >= 2 chars (langue ISO-639), contient un tiret "-",
+// pas vide.
+PROCEDURE scenario_langue_systeme_detecte_os()
+	langSys est une chaîne = LangueSystème()
+
+	dbgVérifieVrai(Taille(langSys) >= 2, "tag BCP 47 non vide (au moins code langue)")
+	dbgVérifieVrai(Position(langSys, "-") > 0, "tag BCP 47 contient un tiret (langue-région)")
+FIN
+
+
+// LangueSensÉcriture(<langue>) : retourne une constante de l'enum
+// sensÉcriture : sensDroiteGauche (RTL) pour les langues ar-*/he-*/fa-*/ur-*,
+// sensGaucheDroite (LTR) pour toutes les autres. Accepte une constante
+// langueXxx ou un tag BCP 47 libre (string).
+PROCEDURE scenario_langue_sens_ecriture_ltr_par_defaut()
+	sens est un entier = LangueSensÉcriture(langueFrançais)
+
+	dbgVérifieEgalité(sens, sensGaucheDroite, "français LTR")
+FIN
+
+PROCEDURE scenario_langue_sens_ecriture_rtl_arabe()
+	sens est un entier = LangueSensÉcriture(langueArabe)
+
+	dbgVérifieEgalité(sens, sensDroiteGauche, "arabe RTL")
+FIN
+
+PROCEDURE scenario_langue_sens_ecriture_rtl_hebreu()
+	sens est un entier = LangueSensÉcriture(langueHébreu)
+
+	dbgVérifieEgalité(sens, sensDroiteGauche, "hébreu RTL")
+FIN
+
+PROCEDURE scenario_langue_sens_ecriture_string_bcp47_libre()
+	// Tag libre "fa-IR" (persan Iran) → RTL
+	sensFarsi est un entier = LangueSensÉcriture("fa-IR")
+	dbgVérifieEgalité(sensFarsi, sensDroiteGauche, "persan RTL via tag libre")
+
+	// Tag libre "es-MX" (espagnol Mexique) → LTR
+	sensEspagnol est un entier = LangueSensÉcriture("es-MX")
+	dbgVérifieEgalité(sensEspagnol, sensGaucheDroite, "espagnol LTR via tag libre")
+FIN
+
+
+// ListeLangues() : tableau de langue représentant les langues actives du
+// projet. Hardcodée par défaut : retourne un tableau d'1 seul élément [langueFrançais].
+// Futur ticket settings projet permettra de configurer la liste.
+PROCEDURE scenario_liste_langues_hardcode_defaut()
+	langues est un tableau de langue = ListeLangues()
+
+	dbgVérifieEgalité(Taille(langues), 1, "hardcode défaut : 1 langue active")
+	dbgVérifieEgalité(langues[1], langueFrançais, "langue active unique = français")
+FIN
+
+
+// Coerce auto post-switch : après Langue(langueAnglais), toute coerce
+// automatique chaîneMultilingue → chaîne résout en langue courante
+// (ici en-US), plus en fr-FR. Branchement déjà existant via
+// value_to_string + fn_taille, à valider en runtime mutable.
+PROCEDURE scenario_coerce_auto_post_switch_info()
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+
+	// Avant switch : langue courante = fr-FR
+	dbgVérifieEgalité(Taille(m), 7, "Taille(m) avant switch = 7 (Bonjour UTF-8)")
+
+	// Switch langue courante
+	Langue(langueAnglais)
+
+	// Après switch : coerce résout en-US
+	dbgVérifieEgalité(Taille(m), 5, "Taille(m) après switch = 5 (Hello UTF-8)")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Coerce auto post-switch via affectation chaîne : une variable chaîne
+// affectée depuis chaîneMultilingue résout selon la langue courante.
+PROCEDURE scenario_coerce_auto_post_switch_affectation_chaine()
+	m est une chaîneMultilingue = {langueFrançais: "Succès", langueAnglais: "Success"}
+
+	// Langue courante = fr-FR (hardcode défaut)
+	s1 est une chaîne = m
+	dbgVérifieEgalité(s1, "Succès", "coerce en fr-FR")
+
+	Langue(langueAnglais)
+
+	s2 est une chaîne = m
+	dbgVérifieEgalité(s2, "Success", "coerce en en-US après switch")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Switch langue courante vers une langue non-présente dans
+// chaîneMultilingue : retombe sur langue source (fr-FR par défaut).
+PROCEDURE PRIVÉE scenario_coerce_post_switch_fallback_langue_source()
+	m est une chaîneMultilingue = {langueFrançais: "Seule traduction"}
+
+	Langue(langueAllemand)
+
+	// m[de-DE] absent → fallback m[fr-FR]
+	s est une chaîne = m
+	dbgVérifieEgalité(s, "Seule traduction", "fallback langue source si switch langue absente")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Langue() setter avec variable typée langue (pas juste constante).
+PROCEDURE PRIVÉE scenario_langue_setter_variable_langue()
+	lang est une langue = langueEspagnol
+
+	ancienne est une chaîne = Langue(lang)
+
+	dbgVérifieEgalité(ancienne, "fr-FR", "retourne ancienne")
+	dbgVérifieEgalité(Langue(), "es-ES", "switch via variable langue")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// LangueSensÉcriture() sur tag libre ourdou (ur-PK) → RTL.
+PROCEDURE PRIVÉE scenario_langue_sens_ecriture_rtl_ourdou()
+	sens est un entier = LangueSensÉcriture("ur-PK")
+
+	dbgVérifieEgalité(sens, sensDroiteGauche, "ourdou RTL")
+FIN
+
+
+// LangueSensÉcriture() sur variante régionale arabe (ar-EG Égypte) → RTL.
+PROCEDURE PRIVÉE scenario_langue_sens_ecriture_rtl_arabe_variante()
+	sens est un entier = LangueSensÉcriture("ar-EG")
+
+	dbgVérifieEgalité(sens, sensDroiteGauche, "arabe Égypte RTL")
+FIN
+
+
+// LangueSensÉcriture() sur langue asiatique LTR (japonais).
+PROCEDURE PRIVÉE scenario_langue_sens_ecriture_ltr_japonais()
+	sens est un entier = LangueSensÉcriture(langueJaponais)
+
+	dbgVérifieEgalité(sens, sensGaucheDroite, "japonais LTR")
+FIN
+
+
+// Langue() setter multiple : enchaîner plusieurs switchs dans le même
+// scenario. Chaque appel retourne l'ancienne valeur correcte.
+PROCEDURE PRIVÉE scenario_langue_setter_enchainements()
+	anc1 est une chaîne = Langue(langueAnglais)
+	dbgVérifieEgalité(anc1, "fr-FR")
+
+	anc2 est une chaîne = Langue(langueAllemand)
+	dbgVérifieEgalité(anc2, "en-US", "switch 2 retourne valeur précédente en-US")
+
+	anc3 est une chaîne = Langue(langueFrançais)
+	dbgVérifieEgalité(anc3, "de-DE", "switch 3 retourne de-DE")
+
+	dbgVérifieEgalité(Langue(), "fr-FR", "état final restauré")
+FIN
+
+
+// Switch langue courante puis lecture LangueSource() : la langue source
+// ne change pas (read-only).
+PROCEDURE PRIVÉE scenario_langue_source_immutable_post_switch()
+	Langue(langueJaponais)
+
+	langSource est une chaîne = LangueSource()
+	dbgVérifieEgalité(langSource, "fr-FR", "langue source immutable même après switch langue courante")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// LangueSystème() appelée multiple fois retourne toujours la même valeur
+// (détection OS ne change pas en cours d'exécution).
+PROCEDURE PRIVÉE scenario_langue_systeme_stable()
+	sys1 est une chaîne = LangueSystème()
+	sys2 est une chaîne = LangueSystème()
+
+	dbgVérifieEgalité(sys1, sys2, "LangueSystème() retourne valeur stable")
+FIN
+
+
+// Langue() setter avec tag BCP 47 variante longue (fr-CA vs fr-FR).
+// Coerce auto doit distinguer les deux variantes régionales si présentes
+// dans chaîneMultilingue.
+PROCEDURE PRIVÉE scenario_coerce_post_switch_variante_regionale()
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour France",
+		langueFrançaisCanada: "Bonjour Canada"
+	}
+
+	Langue(langueFrançaisCanada)
+
+	s est une chaîne = m
+	dbgVérifieEgalité(s, "Bonjour Canada", "switch vers variante régionale résout correctement")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Langue() setter avec chaîne vide : comportement défensif (erreur runtime
+// propre ou fallback vers défaut).
+PROCEDURE PRIVÉE scenario_langue_setter_chaine_vide_defensive()
+	// Note : le comportement toléré est défensif. Si ça plante avec erreur
+	// propre, c'est OK. Si ça pose "" comme langue courante, c'est défensif
+	// acceptable.
+	ancienne est une chaîne = Langue("")
+
+	dbgVérifieVrai(Vrai, "Langue([]) ne crash pas brutalement (erreur propre ou fallback)")
+
+	Langue(langueFrançais) // restore tentative
+FIN

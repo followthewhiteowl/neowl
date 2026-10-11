@@ -1,0 +1,28 @@
+// Test de regression : une declaration de VARIABLE dont le type est aussi
+// un widget (Image, Conteneur, ...) suivie d'un commentaire inline NE doit
+// PAS ouvrir un faux niveau d'indentation. Le peek-PROPRIETES de
+// formatter.c::dsl_word_really_opens doit sauter le commentaire de fin de
+// ligne avant de regarder le mot significatif suivant.
+//
+// Bug d'origine : `imgJeu est une Image // cmt` faisait cascader +1 tab sur
+// tout le reste du corps de la fenetre (nTaillePx, bBoucleActive, BAR_Haut).
+
+FEN_X est une Fenêtre
+	imgJeu est une Image // tampon de dessin hors ecran
+	nTaillePx est un entier = 22
+	bBoucleActive est un booléen = Vrai
+
+	BAR_Haut est un Champ Libellé
+		PROPRIETES
+			Texte = "Score"
+		FIN
+	FIN
+
+	// Vraie declaration de widget avec corps suivie d'un commentaire inline :
+	// son corps doit toujours s'indenter correctement.
+	IMG_Vue est une Image // surface principale
+		PROPRIETES
+			Cadrage = cadCentre
+		FIN
+	FIN
+FIN

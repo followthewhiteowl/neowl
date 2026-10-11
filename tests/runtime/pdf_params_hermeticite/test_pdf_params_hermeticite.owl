@@ -1,0 +1,73 @@
+// Verrou d'hermeticite du backend PDF : les options posees par iParametrePDF
+// (protection, mot de passe, signets, PDF/A-3b) configurent LE document en
+// cours de generation et sont a usage unique. Une fois iFinImprime consomme,
+// elles ne doivent PAS survivre a la session : un second document genere sans
+// re-declarer iParametrePDF doit rester en clair.
+//
+// Sans le reset des parametres a iFinImprime, le post-traitement qpdf du
+// premier document laisse protectionFlags actif et re-chiffre (R6 AES-256) le
+// second document -> ses flux de contenu compresses deviennent illisibles
+// (le flux n'est plus du deflate valide) et le PDF gagne un dictionnaire
+// /Encrypt. Ce test reproduit exactement cette sequence empoisonnante dans un
+// seul process, independamment de l'ordre des autres suites.
+
+// Recherche d'un motif dans un buffer en domaine octet (jamais tronque sur un
+// octet nul, contrairement a une recherche sur chaine : un PDF chiffre est
+// truffe de zeros bien avant le dictionnaire /Encrypt du trailer).
+PROCEDURE BufferContient(buf est un buffer, motif est une chaîne)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = 1
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER Vrai
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER Faux
+FIN
+
+base est une chaîne = fRepTemp() + "/owl_pdf_hermeticite"
+
+// --- Session 1 : document PROTEGE (pose protection -> post-traitement qpdf) ---
+pProt est un pdfParamètre
+pProt..Protection = iProtectionImpression + iProtectionModification
+pdfProtege est une chaîne = base + "_prot.pdf"
+iParamètrePDF(pProt)
+iDestination(iPDFGénérique, pdfProtege)
+iImprime("Document protege")
+iFinImprime()
+dbgVérifieVrai(fTaille(pdfProtege) > 0, "session protegee : PDF non vide")
+// Sanity : la session protegee est bien chiffree (le pipeline qpdf marche).
+bufProt est un buffer = fChargeBuffer(pdfProtege)
+dbgVérifieVrai(BufferContient(bufProt, "/Encrypt"),
+"session protegee : le PDF est bien chiffre (sanity du pipeline)")
+
+// --- Session 2 : document EN CLAIR, SANS re-declarer iParametrePDF ---
+// Aucun appel a iParametrePDF ici : les options de la session 1 ne doivent
+// plus s'appliquer.
+pdfClair est une chaîne = base + "_clair.pdf"
+iDestination(iPDFGénérique, pdfClair)
+iImprime("Document en clair")
+iFinImprime()
+dbgVérifieVrai(fTaille(pdfClair) > 0, "session en clair : PDF non vide")
+
+// Le PDF en clair ne doit contenir aucun dictionnaire de chiffrement.
+bufClair est un buffer = fChargeBuffer(pdfClair)
+dbgVérifieFaux(BufferContient(bufClair, "/Encrypt"),
+"le second document ne doit pas etre chiffre (fuite d'etat des parametres de la session 1)")
+
+// Nettoyage
+fSupprime(pdfProtege)
+fSupprime(pdfClair)
+
+dbgBilanTest()

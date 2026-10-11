@@ -1,0 +1,101 @@
+// Les surcharges d'état d'un volet doivent s'écrire en littéral —
+// `Etats = { Survol = { ... } }` — comme sur toutes les autres familles de
+// style, et pas seulement en cascade indexée `Etats[survol]..`.
+//
+// Défaut couvert : la forme littérale était refusée sur un volet, des deux
+// côtés. Dans un thème : « Champ 'Survol' inconnu sur type styleVoletEtats ».
+// En littéral inline : « Propriété de style 'Survol' inconnue pour
+// VoletActif ». Un thème ne pouvait donc décrire qu'un volet amputé de ses
+// états, et la même idée s'écrivait de deux façons selon le champ visé.
+//
+// Méthode : trois Champs Onglet portant le MÊME habillage écrit de trois
+// façons (cascade indexée / littéral inline / style nommé de thème).
+//   1. la feuille de style produite est mesurée et comparée : cascade et
+//      littéral doivent rendre la MÊME chaîne, octet pour octet ;
+//   2. le bloc :hover attendu est lu tel quel dans les trois feuilles ;
+//   3. les deux champs sont capturés et comparés PIXEL À PIXEL sur toute
+//      leur surface.
+//
+// Widgets réels obligatoires : un Champ Onglet re-matérialisé en mode
+// headless rend une surface vide, donc aveugle à tout ça.
+
+TestModeHeadless(Faux)
+
+// --- 1. Round-trip du littéral sur une variable typée ---------------------
+// Le littéral pose bien les couleurs d'état, relues par l'index d'état dans
+// les deux langues.
+styVolet est un styleOnglet = {
+	VoletActif = {
+		CouleurFond = Blanc
+		Etats       = {
+			Survol = {
+				CouleurFond = RVB(255, 0, 255)
+				Couleur     = RVB(0, 255, 255)
+			}
+		}
+	}
+}
+
+dbgVérifieEgalité(styVolet..VoletActif..CouleurFond, Blanc,
+"Littéral : la propriété de base du volet reste intacte à côté des états")
+dbgVérifieEgalité(styVolet..VoletActif..Etats[survol]..CouleurFond, RVB(255, 0, 255),
+"Littéral : Etats = { Survol = { CouleurFond } } relu par ..Etats[survol]")
+dbgVérifieEgalité(styVolet..VoletActif..Etats[survol]..Couleur, RVB(0, 255, 255),
+"Littéral : Etats = { Survol = { Couleur } } relu par ..Etats[survol]")
+dbgVérifieEgalité(styVolet..VoletActif..Etats[hover]..CouleurFond, RVB(255, 0, 255),
+"Littéral : l'état se relit aussi par son nom anglais (hover)")
+
+OuvreSoeur(FEN_OngletEtatsLitteral)
+dbgVérifieFaux(ErreurDétectée,
+"Trois écritures du même habillage : ouverture sans erreur")
+
+// --- 2. Feuilles de style : la mesure ------------------------------------
+feuilleCascade est une chaîne = __DebugFeuilleStyle(ONG_Cascade)
+feuilleLitteral est une chaîne = __DebugFeuilleStyle(ONG_Litteral)
+feuilleTheme est une chaîne = __DebugFeuilleStyle(ONG_Theme)
+
+dbgVérifieEgalité(feuilleLitteral, feuilleCascade,
+"Cascade et littéral produisent la MÊME feuille de style, octet pour octet")
+
+dbgVérifieVrai(Contient(feuilleLitteral, "QTabBar::tab:selected:hover { background: rgb(255,0,255); color: rgb(0,255,255); }"),
+"Littéral inline : le bloc survol du volet actif est déclaré avec ses deux couleurs")
+dbgVérifieVrai(Contient(feuilleLitteral, "QTabBar::tab:!selected:hover { background: rgb(255,128,0); }"),
+"Littéral inline : le bloc survol du volet inactif est déclaré")
+dbgVérifieVrai(Contient(feuilleTheme, "QTabBar::tab:selected:hover { background: rgb(255,0,255); color: rgb(0,255,255); }"),
+"Thème : le bloc survol du volet actif traverse le style nommé à l'identique")
+dbgVérifieVrai(Contient(feuilleTheme, "QTabBar::tab:!selected:hover { background: rgb(255,128,0); }"),
+"Thème : le bloc survol du volet inactif traverse le style nommé à l'identique")
+
+// --- 3. Rendu : comparaison pixel à pixel --------------------------------
+imgCascade est une Image = dCopieImageChamp(ONG_Cascade)
+imgLitteral est une Image = dCopieImageChamp(ONG_Litteral)
+dbgVérifieEgalité(imgCascade..Valide, Vrai, "Capture du champ en cascade : valide")
+dbgVérifieEgalité(imgLitteral..Valide, Vrai, "Capture du champ en littéral : valide")
+dbgVérifieEgalité(imgCascade..Largeur, 480, "Capture en cascade : largeur du champ")
+dbgVérifieEgalité(imgLitteral..Largeur, 480, "Capture en littéral : largeur du champ")
+
+// Les languettes occupent la gauche de la bande : la première (active) est
+// blanche, la seconde (inactive) bleue.
+dbgVérifieEgalité(dPixelCouleur(imgCascade, 10, 12), Blanc,
+"Cascade : la languette active est peinte en blanc")
+dbgVérifieEgalité(dPixelCouleur(imgLitteral, 10, 12), Blanc,
+"Littéral : la languette active est peinte du même blanc")
+dbgVérifieEgalité(dPixelCouleur(imgCascade, 70, 12), Bleu,
+"Cascade : la languette inactive est peinte en bleu")
+dbgVérifieEgalité(dPixelCouleur(imgLitteral, 70, 12), Bleu,
+"Littéral : la languette inactive est peinte du même bleu")
+
+// Balayage complet des 76 800 pixels : aucune divergence tolérée.
+écartsPixels est un entier = 0
+POUR py = 0 À 159
+	POUR px = 0 À 479
+		SI dPixelCouleur(imgCascade, px, py) <> dPixelCouleur(imgLitteral, px, py) ALORS
+			écartsPixels = écartsPixels + 1
+		FIN
+	FIN
+FIN
+dbgVérifieEgalité(écartsPixels, 0,
+"Les deux écritures rendent exactement la même image (480 x 160 pixels comparés)")
+
+Ferme(FEN_OngletEtatsLitteral)
+dbgBilanTest()

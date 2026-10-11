@@ -1,0 +1,37 @@
+//  : deux supports (ou deux sources sur le même support) sont
+// totalement isolés — écrire dans l'un ne doit jamais apparaître dans l'autre,
+// et revenir sur le premier restitue exactement son propre état.
+
+PROCEDURE PUBLIQUE test_isolation_entre_deux_sources_json()
+	cheminA est une chaîne = fRepTemp() + "test_regr_parametres_isolation_a.json"
+	cheminB est une chaîne = fRepTemp() + "test_regr_parametres_isolation_b.json"
+
+	ParamètreInitialise(paramJSON, cheminA)
+	ParamètreEnregistre("Cle", "valeur-A")
+
+	ParamètreInitialise(paramJSON, cheminB)
+	ParamètreEnregistre("Cle", "valeur-B")
+
+	dbgVérifieEgalité(ParamètreCharge("Cle"), "valeur-B", "la source B contient sa propre valeur")
+
+	ParamètreInitialise(paramJSON, cheminA)
+	dbgVérifieEgalité(ParamètreCharge("Cle"), "valeur-A", "revenir sur la source A restitue sa propre valeur, non écrasée par B")
+FIN
+
+PROCEDURE PUBLIQUE test_isolation_entre_deux_supports_differents()
+	cheminJSON est une chaîne = fRepTemp() + "test_regr_parametres_isolation.json"
+	cheminXML est une chaîne = fRepTemp() + "test_regr_parametres_isolation.xml"
+
+	ParamètreInitialise(paramJSON, cheminJSON)
+	ParamètreEnregistre("Cle", "valeur-json")
+
+	ParamètreInitialise(paramIni, fRepTemp() + "test_regr_parametres_isolation.ini")
+	ParamètreEnregistre("Cle", "valeur-ini")
+
+	dbgVérifieEgalité(ParamètreCharge("Cle"), "valeur-ini", "le support ini a sa propre valeur")
+
+	ParamètreInitialise(paramXML, cheminXML)
+	dbgVérifieEgalité(ParamètreCharge("Cle", "absente"), "absente", "un support jamais écrit ne voit ni JSON ni ini")
+FIN
+
+dbgBilanTest()

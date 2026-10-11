@@ -1,0 +1,31 @@
+// @sujet : Types alias scalaire — déclaration sans init explicite
+// @résumé : Verrouille le comportement d'init par défaut des types alias scalaire registry (zipArchive, MockNative). Une déclaration `var est un Type` sans valeur explicite doit produire la valeur par défaut canonique du type — sans plantage runtime — et les types composés (httpRequête, Chrono, Couleur…) continuent de recevoir leur template d'instance.
+
+// zipArchive sans init : handle opaque, valeur Null légitime tant qu'on
+// n'a pas ouvert d'archive. Doit compiler et s'évaluer à Null sans
+// plantage (le bug initial faisait crasher : Undefined variable
+// 'zipArchive' au runtime via __StructClone sur un type sans template).
+PROCEDURE scenario_ziparchive_sans_init()
+	arch est un zipArchive
+
+	dbgVérifieVrai(arch = Null, "zipArchive sans init = Null (handle non ouvert)")
+FIN
+
+// MockNative sans init : handle opaque mock, valeur Null tant qu'on n'a
+// pas créé de mock. Symétrique de zipArchive.
+PROCEDURE scenario_mocknative_sans_init()
+	mock est un MockNative
+
+	dbgVérifieVrai(mock = Null, "MockNative sans init = Null (mock non créé)")
+FIN
+
+// Régression check : un type composé (avec fields) doit continuer à
+// recevoir son instance template clonée, pas la valeur scalaire par
+// défaut. httpRequête.URL doit valoir "" après déclaration sans init,
+// preuve que __StructClone a bien été appelé.
+PROCEDURE scenario_types_composes_pas_regression()
+	req est un httpRequête
+
+	dbgVérifieVrai(req <> Null, "httpRequête sans init reste une instance")
+	dbgVérifieEgalité(req..URL, "", "httpRequête..URL par défaut = chaîne vide")
+FIN

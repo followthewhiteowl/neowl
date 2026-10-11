@@ -1,0 +1,71 @@
+//  — verrou pixel : un Conteneur Étire=Vrai dans une Fenêtre
+// dispVerticale occupe l'espace principal disponible (remplit l'axe vertical
+// jusqu'au bas), contrairement à un Conteneur sans Étire qui reste compact
+// en haut (ressort terminal ). Le test discrimine les deux cas sur
+// la MÊME zone basse de fenêtre pour prouver que la sonde est significative.
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteCouleurZone(im est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(im, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+couleurFondEtire est un entier = RVB(0, 200, 0)
+couleurFondHaut est un entier = RVB(0, 0, 200)
+couleurFondFenetre est un entier = RVB(5, 5, 5)
+
+// Zone basse commune aux deux fenêtres : bien après LIB_Haut (30px) +
+// espacement (8px) = 38px, donc largement dans la zone que seul un
+// conteneur Étire=Vrai peut atteindre.
+zY1 est un entier = 350
+zY2 est un entier = 395
+
+//----------------------------------------------------------------------
+// Cas 1 : Conteneur Étire=Vrai -> doit REMPLIR jusqu'au bas de la fenêtre.
+//----------------------------------------------------------------------
+OuvreSoeur(FEN_ConteneurEtire)
+Temporise(50)
+
+imgEtire est une Image = dCopieImageFenêtre(FEN_ConteneurEtire)
+dbgVérifieEgalité(imgEtire..Valide, Vrai, "capture de FEN_ConteneurEtire valide")
+
+nEtireEnBas est un entier = CompteCouleurZone(imgEtire, 0, zY1, 300, zY2, couleurFondEtire)
+dbgVérifieVrai(nEtireEnBas > 0,
+"Conteneur Étire=Vrai : le fond du conteneur atteint le bas de la fenêtre (remplit l'axe principal)")
+
+Ferme(FEN_ConteneurEtire)
+
+//----------------------------------------------------------------------
+// Cas 2 (témoin discriminant) : Conteneur SANS Étire -> reste compact en
+// haut, la même zone basse ne doit contenir QUE la CouleurFond pure de la
+// fenêtre (ressort terminal  actif ici).
+//----------------------------------------------------------------------
+OuvreSoeur(FEN_ConteneurCompact)
+Temporise(50)
+
+imgCompact est une Image = dCopieImageFenêtre(FEN_ConteneurCompact)
+dbgVérifieEgalité(imgCompact..Valide, Vrai, "capture de FEN_ConteneurCompact valide")
+
+nCompactEnBas est un entier = CompteCouleurZone(imgCompact, 0, zY1, 300, zY2, couleurFondEtire)
+dbgVérifieEgalité(nCompactEnBas, 0,
+"témoin : sans Étire, le fond du conteneur n'atteint PAS le bas de la fenêtre")
+
+nFondFenetreEnBasCompact est un entier = CompteCouleurZone(imgCompact, 0, zY1, 300, zY2, couleurFondFenetre)
+dbgVérifieVrai(nFondFenetreEnBasCompact > 0,
+"témoin : sans Étire, le bas de la fenêtre reste à la CouleurFond pure (ressort terminal)")
+
+Ferme(FEN_ConteneurCompact)
+
+dbgBilanTest()

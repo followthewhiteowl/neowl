@@ -1,0 +1,39 @@
+// @sujet : ErreurDetectee
+// @résumé : Pattern capture + test immédiat fonctionne cross-natives ( RAZ-auto dispatch)
+
+Trace("=== ErreurDetectee : pattern capture cross-natives ===")
+
+// ── Famille FILE : fChargeTexte ──
+
+fSupprime("inexistant_file_0059.txt")
+cFile est une chaîne = fChargeTexte("inexistant_file_0059.txt")
+dbgVérifieVrai(ErreurDétectée, "FILE: fChargeTexte capture + ErreurDetectee")
+dbgVérifieVrai(Taille(ErreurInfo()) > 0, "FILE: ErreurInfo non vide")
+ErreurRAZ()
+
+// ── Famille FILE : fOuvre ──
+
+nHandle est un entier = fOuvre("inexistant_file_0059.txt", foLecture)
+dbgVérifieVrai(ErreurDétectée, "FILE: fOuvre fichier absent + ErreurDetectee")
+dbgVérifieEgalité(nHandle,-1, "FILE: fOuvre retourne -1 sur erreur")
+dbgVérifieVrai(Taille(ErreurInfo()) > 0, "FILE: ErreurInfo non vide après fOuvre")
+ErreurRAZ()
+
+// ── Famille JSON : ChaineVersJSON ──
+
+jInvalide est un JSON = ChaîneVersJSON("{invalide_sans_fermeture")
+dbgVérifieVrai(ErreurDétectée, "JSON: ChaineVersJSON parse error + ErreurDetectee")
+dbgVérifieVrai(EstNul(jInvalide), "JSON: ChaineVersJSON retourne Null sur erreur")
+dbgVérifieVrai(Taille(ErreurInfo()) > 0, "JSON: ErreurInfo non vide après parse error")
+ErreurRAZ()
+
+// ── Famille EVAL : EvalueExpression ──
+
+// EvalueExpression retourne type "tout" — on utilise un type nullable.
+vEval est une chaîne? = EvalueExpression("syntaxe non valide $$")
+dbgVérifieVrai(ErreurDétectée, "EVAL: EvalueExpression expression invalide + ErreurDetectee")
+dbgVérifieVrai(EstNul(vEval), "EVAL: EvalueExpression retourne Null sur erreur")
+dbgVérifieVrai(Taille(ErreurInfo()) > 0, "EVAL: ErreurInfo non vide après eval error")
+ErreurRAZ()
+
+Trace("OK - 4 familles natives testées, pattern capture + test fonctionne pour toutes")

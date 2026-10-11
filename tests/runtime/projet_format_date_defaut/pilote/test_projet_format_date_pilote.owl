@@ -1,0 +1,32 @@
+//  — un champ Date SANS MasqueAffichage doit suivre le format posé
+// au niveau du manifeste Projet (FormatDate = "MM/JJ/AAAA" ici), et pas un
+// ordre générique figé JJ/MM/AAAA. Cas discriminant repris du même principe
+// que  (test_masque_affichage_date.owl) : "05/12/2026" est ambigu
+// (JJ/MM vs MM/JJ) — sans pilotage projet, le parsing générique
+// (owl_parse_date_multi) l'interprète en JJ/MM/AAAA (5 décembre). Avec
+// FormatDate = "MM/JJ/AAAA" posé sur le projet, la relecture doit suivre
+// l'ORDRE DE JETONS du projet (mois=05, jour=12 -> 12 mai 2026).
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatDate n'existe pas au catalogue (champ inconnu). Une fois le champ
+// ajouté sans le câblage runtime, ce test rougirait quand même sur
+// l'assertion de relecture (20261205 au lieu de 20260512 attendu) —
+// prouvant que le simple ajout du champ au catalogue ne suffit pas.
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatDatePilote..FormatDate, "MM/JJ/AAAA", "Projet..FormatDate : lisible en cascade, valeur posée")
+
+OuvreSoeur(FEN_ProjetFormatDatePilote)
+
+TestSimuleSaisie(SAI_Date, "05/12/2026")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Champ Date sans masque, projet FormatDate posé : ..Valeur reste un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLue est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLue, "20260512", "FormatDate projet MM/JJ/AAAA : « 05/12/2026 » interprété comme 12 mai 2026, pas 5 décembre")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetFormatDatePilote)
+dbgBilanTest()

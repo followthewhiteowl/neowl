@@ -1,0 +1,80 @@
+// @sujet : Tableau membre de classe — initialisation automatique a vide
+// @resume : Verifie qu'un tableau declare comme membre de classe (t est un tableau de X) est automatiquement initialise a vide des l'instanciation, sans necessiter d'affectation explicite. Les operations Ajoute, Taille, POUR TOUT doivent fonctionner des la creation de l'instance.
+
+// Scenario 1 : Ajoute sur membre tableau vide non affecte augmente reellement la taille
+PROCEDURE scenario_ajoute_membre_augmente_taille()
+	oBag est un cBag()
+
+	// Taille initiale zero sur membre jamais affecte
+	dbgVérifieEgalité(oBag.NombreMots(), 0, "taille initiale membre tableau vide")
+
+	// Ajout d'un element via Ajoute(:membre, ...)
+	oBag.AjouterMot("alpha")
+	dbgVérifieEgalité(oBag.NombreMots(), 1, "taille apres 1 ajout")
+
+	// Ajout d'un second element
+	oBag.AjouterMot("beta")
+	dbgVérifieEgalité(oBag.NombreMots(), 2, "taille apres 2 ajouts")
+FIN
+
+// Scenario 2 : POUR TOUT sur membre tableau vide n'a aucun crash (itere 0 fois)
+PROCEDURE scenario_pour_tout_membre_vide_sans_crash()
+	oBag est un cBag()
+
+	// POUR TOUT sur membre vide doit iterer 0 fois sans crash
+	nCompteur est un entier = oBag.CompterIterationsPourTout()
+	dbgVérifieEgalité(nCompteur, 0, "POUR TOUT sur membre vide itere 0 fois")
+FIN
+
+// Scenario 3 : Coherence Taille et POUR TOUT sur le meme membre
+PROCEDURE scenario_coherence_taille_pour_tout()
+	oBag est un cBag()
+
+	// Etat initial
+	dbgVérifieEgalité(oBag.NombreMots(), 0, "taille initiale zero")
+	dbgVérifieEgalité(oBag.CompterIterationsPourTout(), 0, "iterations POUR TOUT initiale zero")
+
+	// Apres ajout d'un element
+	oBag.AjouterMot("gamma")
+	dbgVérifieEgalité(oBag.NombreMots(), 1, "taille apres 1 ajout")
+	dbgVérifieEgalité(oBag.CompterIterationsPourTout(), 1, "iterations POUR TOUT apres 1 ajout")
+
+	// Apres ajout d'un deuxieme element
+	oBag.AjouterMot("delta")
+	dbgVérifieEgalité(oBag.NombreMots(), 2, "taille apres 2 ajouts")
+	dbgVérifieEgalité(oBag.CompterIterationsPourTout(), 2, "iterations POUR TOUT apres 2 ajouts")
+FIN
+
+// Scenario 4 : Forme methode :membre.Ajoute(x) sur membre des l'instanciation
+PROCEDURE scenario_forme_methode_ajoute()
+	oBag est un cBag()
+
+	// Ajout via forme methode :tMots.Ajoute(x)
+	oBag.AjouterMotMethode("epsilon")
+	dbgVérifieEgalité(oBag.NombreMots(), 1, "taille apres ajout via forme methode")
+
+	oBag.AjouterMotMethode("zeta")
+	dbgVérifieEgalité(oBag.NombreMots(), 2, "taille apres 2 ajouts via forme methode")
+FIN
+
+// Scenario 5 : Temoin non-regression — tableau LOCAL fonctionne toujours
+PROCEDURE scenario_temoin_local_non_regression()
+	tLocal est un tableau de chaînes
+
+	// Taille initiale zero
+	dbgVérifieEgalité(Taille(tLocal), 0, "taille initiale tableau local")
+
+	// Ajout d'elements
+	Ajoute(tLocal, "eta")
+	dbgVérifieEgalité(Taille(tLocal), 1, "taille apres 1 ajout tableau local")
+
+	Ajoute(tLocal, "theta")
+	dbgVérifieEgalité(Taille(tLocal), 2, "taille apres 2 ajouts tableau local")
+
+	// POUR TOUT sur tableau local
+	nCompteur est un entier = 0
+	POUR TOUT m DE tLocal
+		nCompteur++
+	FIN
+	dbgVérifieEgalité(nCompteur, 2, "POUR TOUT sur tableau local itere bien")
+FIN

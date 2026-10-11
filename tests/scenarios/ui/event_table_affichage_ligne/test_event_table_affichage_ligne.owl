@@ -1,0 +1,39 @@
+// Event surAffichageLigne(indice) sur un champ Table.
+//
+// La Table peuple 3 lignes : surAffichageLigne doit etre declenche une fois
+// par ligne, avec l'indice 1-based de la ligne rendue.
+//
+// Note technique : TestModeHeadless(Faux) monte le champ Table reel (hors ecran).
+// TableAjouteLigne dans FinInitialisation declenche le rendu immediatement.
+// Temporise(50) apres OuvreSoeur assure que les rafraichissements d'affichage
+// sont traites avant la lecture du compteur.
+
+TestModeHeadless(Faux)
+
+bTblAffichagePrete est un booléen = Faux
+nAffichageCount_obs est un entier = 0
+nDernierIndice_obs est un entier = 0
+
+PROCEDURE cb_evt_tbl_affichage_prete()
+	bTblAffichagePrete = Vrai
+FIN
+
+PROCEDURE cb_evt_tbl_affichage_compteurs(nCount est un entier, nDernier est un entier)
+	nAffichageCount_obs = nCount
+	nDernierIndice_obs  = nDernier
+FIN
+
+PROCEDURE PUBLIQUE scenario_affichage_ligne()
+	OuvreSoeur(FEN_TableAffichageLigne)
+	dbgVérifieVrai(bTblAffichagePrete, "FinInitialisation appelee (3 lignes ajoutees)")
+
+	// Pomper la boucle d'evenements pour s'assurer que l'affichage est traite.
+	Temporise(50)
+
+	// surAffichageLigne doit avoir tire 3 fois (Alpha=indice 1, Beta=2, Gamma=3).
+	LireCompteursAffichage()
+	dbgVérifieEgalité(nAffichageCount_obs, 3, "surAffichageLigne : 3 tirs pour 3 lignes ajoutees")
+	dbgVérifieVrai(nDernierIndice_obs >= 1, "surAffichageLigne : indice dernier >= 1 (convention 1-based)")
+
+	Ferme(FEN_TableAffichageLigne)
+FIN

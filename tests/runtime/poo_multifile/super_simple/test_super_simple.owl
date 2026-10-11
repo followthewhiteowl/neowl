@@ -1,0 +1,36 @@
+// @sujet super-call dans override de methode
+// @résumé Ancetre.Methode() invoque la version parente puis l'enfant ajoute son comportement
+
+PROCEDURE scenario_super_call_basique()
+	oChat est un cChat("Felix")
+	oChat.Presenter()
+	// Verifie que :sBruits contient EXACTEMENT "animal+miaou"
+	// (i.e. version parent appelée AVANT l'ajout enfant)
+	dbgVérifieEgalité(oChat.sBruits, "animal+miaou",
+	"Super-call execute parent puis enfant")
+FIN
+
+PROCEDURE scenario_super_call_independance_instances()
+	oChat1 est un cChat("Tom")
+	oChat2 est un cChat("Jerry")
+	oChat1.Presenter()
+	oChat1.Presenter()
+	// Deux appels = deux super-calls, chacun applique parent+enfant
+	dbgVérifieEgalité(oChat1.sBruits, "animal+miaouanimal+miaou",
+	"Super-call idempotent par appel (chaine d'effets)")
+	// oChat2 jamais appele : son sBruits doit etre distinct
+	// (egalite avec oChat1 invalide => instances independantes)
+	dbgVérifieDifférence(oChat1.sBruits, oChat2.sBruits,
+	"Instances independantes apres super-call")
+FIN
+
+PROCEDURE scenario_super_call_bilingue_ancestor()
+	// La forme anglaise Ancestor.Method() doit fonctionner identique
+	// (Note : test indirect — la classe cChat utilise Ancetre, on valide
+	// juste que le keyword bilingue est accepte par le scanner via
+	// l'absence d'erreur de compile du test_seul_bilingue.owl ailleurs.)
+	oChat est un cChat("Mistigri")
+	oChat.Presenter()
+	dbgVérifieEgalité(oChat.sBruits, "animal+miaou",
+	"Forme canonique Ancetre.Methode() compile et execute")
+FIN

@@ -1,0 +1,72 @@
+// @sujet : BufferVersChaîne
+// @résumé : Forme étendue de BufferVersChaîne à 4 arguments : décode un nombre d'octets fixé à partir d'une position donnée (base 1) dans le buffer. Complète les formes à 1 et 2 arguments. Les formes existantes restent inchangées (rétro-compatibilité garantie).
+
+
+// Cas A : tranche UTF-8 au milieu d'un buffer composite.
+// Buffer = EntierVersBuffer(7,2) → [0x07,0x00] (positions 1-2)
+//        + ChaîneVersBuffer("Hi",encUTF8) → [0x48,0x69] (positions 3-4)
+// BufferVersChaîne(buf, encUTF8, 3, 2) lit les octets 3 et 4 = "Hi".
+PROCEDURE PUBLIQUE scenario_bvc_tranche_utf8()
+	buf est un buffer = EntierVersBuffer(7, 2) + ChaîneVersBuffer("Hi", encUTF8)
+	s est une chaîne = BufferVersChaîne(buf, encUTF8, 3, 2)
+	dbgVérifieEgalité(s, "Hi", "tranche UTF-8 à position 3, longueur 2 dans buffer composite = Hi")
+FIN
+
+
+// Cas B : tranche Windows-1252 en milieu de buffer.
+// Buffer = EntierVersBuffer(0,2) → [0x00,0x00]
+//        + ChaîneVersBuffer("AB",encWindows1252) → [0x41,0x42] (positions 3-4)
+// BufferVersChaîne(buf, encWindows1252, 3, 2) = "AB".
+PROCEDURE PUBLIQUE scenario_bvc_tranche_windows1252()
+	buf est un buffer = EntierVersBuffer(0, 2) + ChaîneVersBuffer("AB", encWindows1252)
+	s est une chaîne = BufferVersChaîne(buf, encWindows1252, 3, 2)
+	dbgVérifieEgalité(s, "AB", "tranche Windows-1252 à position 3, longueur 2 = AB")
+FIN
+
+
+// Edge case : tranche d'un seul octet à la première position.
+PROCEDURE PRIVÉE scenario_bvc_edge_tranche_1_octet_debut()
+	buf est un buffer = ChaîneVersBuffer("XY", encUTF8)
+	s est une chaîne = BufferVersChaîne(buf, encUTF8, 1, 1)
+	dbgVérifieEgalité(s, "X", "tranche 1 octet à position 1 d'un buffer XY = X")
+FIN
+
+
+// Edge case : tranche d'un seul octet à la dernière position.
+PROCEDURE PRIVÉE scenario_bvc_edge_tranche_1_octet_fin()
+	buf est un buffer = ChaîneVersBuffer("XY", encUTF8)
+	s est une chaîne = BufferVersChaîne(buf, encUTF8, 2, 1)
+	dbgVérifieEgalité(s, "Y", "tranche 1 octet à la dernière position du buffer = Y")
+FIN
+
+
+// Edge case : tranche couvrant la totalité du buffer (position 1, longueur = Taille(buf)).
+PROCEDURE PRIVÉE scenario_bvc_edge_tranche_total()
+	buf est un buffer = ChaîneVersBuffer("Hi", encUTF8)
+	s est une chaîne = BufferVersChaîne(buf, encUTF8, 1, Taille(buf))
+	dbgVérifieEgalité(s, "Hi", "tranche couvrant tout le buffer = contenu complet")
+FIN
+
+
+// Edge case : tranche hors bornes → exception.
+PROCEDURE PRIVÉE scenario_bvc_edge_tranche_hors_bornes()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersChaîne(ChaîneVersBuffer("Hi", encUTF8), encUTF8, 2, 5)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "tranche dépassant la fin du buffer lève une exception")
+FIN
+
+
+// Edge case : position 0 → exception (les positions sont en base 1).
+PROCEDURE PRIVÉE scenario_bvc_edge_tranche_position_zero()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		BufferVersChaîne(ChaîneVersBuffer("Hi", encUTF8), encUTF8, 0, 1)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "position 0 hors base 1 lève une exception")
+FIN

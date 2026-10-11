@@ -1,0 +1,31 @@
+//  Path B — la forme nue `COL_A..MasqueSaisie` doit devenir un VRAI
+// receveur au runtime (stockage sur la colonne), au lieu d'être refusée par
+// le garde compile-time `E_SEM_TABLE_COLUMN_PROP_NOT_WRITABLE` (
+// avant amendement). Rouge attendu tant que le récepteur colonne n'a pas été
+// étendu (chemin d'application Qt fourni par ce ticket, Path A).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColonneReceveurMasqueSaisie)
+
+// Colonne sans masque déclaré : lecture initiale vide.
+dbgVérifieEgalité(LireMasqueSaisie(), "",
+"COL_A..MasqueSaisie sans déclaration ni écriture est vide")
+
+// Set-then-get symétrique en forme nue.
+EcritMasqueSaisie("99 99 99 99 99")
+dbgVérifieEgalité(LireMasqueSaisie(), "99 99 99 99 99",
+"COL_A..MasqueSaisie écrite en forme nue est relue à l'identique")
+
+// Parité bilingue : la valeur posée en FR est lisible sous sa forme EN.
+dbgVérifieEgalité(LireMasqueSaisieEN(), "99 99 99 99 99",
+"le MasqueSaisie posé en FR est relu à l'identique sous ..InputMask (EN)")
+
+// Écriture croisée : posée en EN, relue en FR.
+EcritMasqueSaisieEN("AAA")
+dbgVérifieEgalité(LireMasqueSaisie(), "AAA",
+"écrit via ..InputMask (EN), relu à l'identique via ..MasqueSaisie (FR)")
+
+Ferme(FEN_ColonneReceveurMasqueSaisie)
+
+dbgBilanTest()

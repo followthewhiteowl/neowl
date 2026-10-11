@@ -1,0 +1,22 @@
+// Régression : ChaîneInverse inverse l'ordre des caractères (documentation de référence).
+// Bug corrigé : l'ancienne impl faisait un XOR 0xFFFF par codepoint, totalement
+// hors spec. La bonne sémantique est "ABC" -> "CBA".
+
+dbgVérifieEgalité(ChaîneInverse("ABC"), "CBA", "ASCII basique")
+dbgVérifieEgalité(ChaîneInverse(""), "", "vide")
+dbgVérifieEgalité(ChaîneInverse("A"), "A", "1 caractère")
+
+// Involutif (A = f(f(A)))
+dbgVérifieEgalité(ChaîneInverse(ChaîneInverse("hello world")), "hello world", "involutif")
+
+// UTF-8 codepoint-safe (chaque accent reste un caractère, pas 2 bytes séparés)
+dbgVérifieEgalité(ChaîneInverse("café"), "éfac", "UTF-8")
+dbgVérifieEgalité(ChaîneInverse("àéè"), "èéà", "multiples accents")
+
+// Pas de trim, les espaces sont préservés
+dbgVérifieEgalité(ChaîneInverse("  abc  "), "  cba  ", "préserve espaces")
+
+// Méthode sur chaîne
+dbgVérifieEgalité("test".Inverse(), "tset", "méthode sur chaîne")
+
+dbgBilanTest()

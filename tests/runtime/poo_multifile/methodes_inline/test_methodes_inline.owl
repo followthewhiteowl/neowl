@@ -1,0 +1,69 @@
+// @sujet methodes inline obligatoires dans body class
+// @résumé suppression syntaxe externe, alignement canon de référence : declaration directe dans body class
+//
+// Scenarios couverts :
+// - Constructeur sans args (utilise defaults)
+// - Constructeur avec args partiels (1 sur 2)
+// - Constructeur avec args complets
+// - Appel methode publique sur instance + retour
+// - Appel :M() interne (methode locale inline)
+// - Override + super-call depuis methode inline
+// - Libérer + Destructeur déclenché
+// - Methode protegee appelable depuis derivee
+
+PROCEDURE scenario_constructeur_sans_args()
+	p est un cPersonne()
+	dbgVérifieVrai(p.sNom = "inconnu", "Constructeur 0-arg: nom defaut")
+	dbgVérifieVrai(p.nAge = 0, "Constructeur 0-arg: age defaut")
+	Libérer p
+FIN
+
+PROCEDURE scenario_constructeur_args_partiels()
+	p est un cPersonne("Dupont")
+	dbgVérifieVrai(p.sNom = "Dupont", "Constructeur 1-arg: nom passe")
+	dbgVérifieVrai(p.nAge = 0, "Constructeur 1-arg: age defaut")
+	Libérer p
+FIN
+
+PROCEDURE scenario_constructeur_args_complets()
+	p est un cPersonne("Martin", 42)
+	dbgVérifieVrai(p.sNom = "Martin", "Constructeur 2-args: nom passe")
+	dbgVérifieVrai(p.nAge = 42, "Constructeur 2-args: age passe")
+	Libérer p
+FIN
+
+PROCEDURE scenario_methode_publique_avec_retour()
+	p est un cPersonne("Durand", 30)
+	s est une chaîne = p.ObtenirNom()
+	dbgVérifieVrai(s = "Durand", "appel methode PUBLIC avec retour")
+	Libérer p
+FIN
+
+PROCEDURE scenario_appel_methode_interne_colon()
+	p est un cPersonne("Petit", 20)
+	p.Vieillir(3)
+	dbgVérifieVrai(p.nAge = 23, "appel methode interne via :M() (AugmenterAge x3)")
+	Libérer p
+FIN
+
+PROCEDURE scenario_override_super_call()
+	e est un cEmploye("Legrand", "IT")
+	e.SePresenteAvecAncetre()
+	dbgVérifieVrai(e.sService = "IT", "override + super-call: service OK")
+	Libérer e
+FIN
+
+PROCEDURE scenario_destructeur_inline_declenche()
+	p est un cPersonne("TempTest", 10)
+	// Libérer doit declencher Destructeur inline (qui trace "liberation cPersonne: TempTest")
+	Libérer p
+	dbgVérifieVrai(Vrai, "Liberer + Destructeur inline OK")
+FIN
+
+PROCEDURE scenario_methode_protegee_depuis_derivee()
+	e est un cEmploye("Test", "RH")
+	e.nAge = 55
+	e.ResetAge()
+	dbgVérifieVrai(e.nAge = 0, "appel methode PROTEGE depuis derivee via ResetAge")
+	Libérer e
+FIN

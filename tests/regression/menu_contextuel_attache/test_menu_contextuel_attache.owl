@@ -1,0 +1,21 @@
+// Régression  : l'attache `MenuContextuel = MNU_Edition` posée dans
+// le bloc PROPRIETES de la fenêtre elle-même (pas d'un champ) doit toujours
+// compiler et se résoudre correctement une fois MenuContextuel ajouté à la
+// table des kinds structurels du formatter ( non cassé par ).
+// Pattern : la fenêtre voisine FEN_MenuContextuelAttache.owl porte la
+// déclaration + l'attache.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_MenuContextuelAttache)
+dbgVérifieFaux(ErreurDétectée, "ouverture fenêtre avec attache MenuContextuel = MNU_X : pas d'erreur")
+
+TestSimuleMenu(FEN_MenuContextuelAttache, "OPT_Copier")
+dbgVérifieFaux(ErreurDétectée, "déclenchement surSélection() via le menu contextuel attaché : pas de crash")
+
+n est un entier = LireDeclenchements()
+dbgVérifieEgalité(n, 1, "surSélection() déclenché exactement une fois")
+
+Ferme(FEN_MenuContextuelAttache)
+
+dbgBilanTest()

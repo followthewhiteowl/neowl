@@ -1,0 +1,31 @@
+//  famille 1 — Fenetre EN avec le prefixe widget `Control` (nameEN
+// canon du type Champ). Trois depth-counters du compilo (prescan top-level
+// , prescan depth>0 , shadow-check ) ne sautaient
+// que `Champ`/`Field` (len 5), pas `Control` (len 7) : desync de profondeur
+// + faux shadow cross-fenetre quand le DSL est ecrit en anglais.
+//
+// Ce fichier combine les trois declencheurs :
+//   - widget declare APRES une PROCEDURE qui l'ecrit (forward-ref prescan) ;
+//   - prefixe `Control` au lieu de `Field` ;
+//   - noms de controles homonymes avec le voisin FEN_CtrlB (shadow check).
+
+FEN_CtrlA is a Window
+	PROPERTIES
+		Title = "Control prefix A"
+	END
+
+	PROCEDURE FillA()
+		LBL_Shared..Caption = "set A"
+	END
+
+	// Appel top-level : declenche FillA() qui ecrit dans un widget declare
+	// plus bas (forward-ref), prefixe par `Control`.
+	FillA()
+
+	// Forward-ref : declare APRES son usage, prefixe EN `Control`.
+	LBL_Shared is a Control Label
+		PROPERTIES
+			Caption = "depart A"
+		END
+	END
+END

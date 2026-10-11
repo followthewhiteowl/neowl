@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Wrapper windres -> zig rc (Windows resource compiler).
+# Args attendus (style mingw windres) :
+#   -O coff -D... -I... <input.rc> <output.obj>
+# Sortie : zig rc /fo <output> [defines/includes] <input>
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+if [ -n "$OWL_ZIG" ]; then
+    ZIG="$OWL_ZIG"
+else
+    case "$(uname -s)" in
+        Linux*)   HOST="x86_64-linux" ;;
+        MSYS*|MINGW*|CYGWIN*) HOST="x86_64-windows" ;;
+        Darwin*)
+            if [ "$(uname -m)" = "arm64" ]; then HOST="aarch64-macos"
+            else HOST="x86_64-macos"; fi ;;
+    esac
+    ZIG="$REPO_ROOT/vendor/zig/$HOST/zig"
+    [ -f "$ZIG.exe" ] && ZIG="$ZIG.exe"
+fi
+
+input=""
+output=""
+defs=()
+incs=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -O) shift; shift ;;
+        -D*) defs+=("$1"); shift ;;
+        -I) incs+=("-I" "$2"); shift 2 ;;
+        -i) input="$2"; shift 2 ;;
+        -o) output="$2"; shift 2 ;;
+        *.rc) input="$1"; shift ;;
+        *.obj|*.o|*.res) output="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+[ -n "$input" ] && [ -n "$output" ] || { echo "windres-wrapper: missing input or output" >&2; exit 1; }
+exec "$ZIG" rc /fo "$output" "${defs[@]}" "${incs[@]}" "$input"

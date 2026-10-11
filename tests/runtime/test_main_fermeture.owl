@@ -1,0 +1,43 @@
+// Verifie le modele d'execution :
+//   1. Hoisting des declarations top-level (PROCEDURE, FONCTION, CLASSE,
+//      STRUCTURE, ENUMERATION, COMBINAISON, FENETRE) en tete du chunk
+//   2. Top-level statements en ordre source (apres les decls hoistees) : le
+//      top-level EST le programme
+//   3. Main() n'est JAMAIS auto-appelee (fin du dispatch cache, pilier 2)
+//   4. Fermeture() / Closing() reste le teardown auto-appele en fin
+
+// =============================================
+// Test 1 : hoisting -- forward call vers une proc declaree apres
+// =============================================
+res est un entier = MaProcAvant(40)
+dbgVérifieEgalité(res, 42, "forward ref OK : appel avant declaration")
+
+PROCEDURE MaProcAvant(x est un entier)
+	RENVOYER x + 2
+FIN
+
+// =============================================
+// Test 2 : Main() n'est PAS auto-appelee
+// =============================================
+// trace partagee entre top-level et Fermeture()
+trace est une chaîne = "T"
+
+PROCEDURE Main()
+	// Ne doit JAMAIS tourner : sinon trace deviendrait "TM.." et l'egalite
+	// dans Fermeture echouerait.
+	trace += "M"
+FIN
+
+// trace = "T" ici
+dbgVérifieEgalité(trace, "T", "top-level : trace = 'T', Main pas appelee")
+
+// =============================================
+// Test 3 : Fermeture() est le teardown auto-appele en fin
+// =============================================
+PROCEDURE Fermeture()
+	// Main n'a PAS tourne -> trace vaut toujours "T"
+	dbgVérifieEgalité(trace, "T", "Main jamais appelee avant Fermeture")
+	trace += "F"
+FIN
+
+dbgBilanTest()

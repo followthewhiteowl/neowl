@@ -1,0 +1,107 @@
+// @sujet : dHauteurTexte
+// @résumé : Mesure la hauteur en pixels de la police courante d'une image
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_mesure_simple()
+	img est une Image
+	nHauteur est un entier
+
+	// Préparer l'image avec une police chargée
+	img = dCréeImage(400, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 16, iNormal, 0)
+
+	// Mesurer la hauteur de la police courante
+	nHauteur = dHauteurTexte(img, "Bonjour OWL")
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(nHauteur > 0, "hauteur d'une police chargée est strictement positive")
+FIN
+
+PROCEDURE PUBLIQUE scenario_centrage_vertical()
+	img est une Image
+	nHauteurImage est un entier = 200
+	nHauteurTexte est un entier
+	nY est un entier
+
+	// Usage typique : centrer un texte verticalement dans une image
+	img = dCréeImage(400, nHauteurImage)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 18, iNormal, 0)
+
+	nHauteurTexte = dHauteurTexte(img, "Titre")
+	nY            = (nHauteurImage - nHauteurTexte) / 2
+
+	dTexte(img, 50, nY, "Titre")
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(nY > 0, "texte plus court que l'image, centrage vertical possible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_hauteur_independante_du_texte()
+	img est une Image
+	nHauteurCourt est un entier
+	nHauteurLong est un entier
+	nHauteurVide est un entier
+
+	// La hauteur dépend de la police, pas du contenu textuel
+	img = dCréeImage(400, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 16, iNormal, 0)
+
+	nHauteurCourt = dHauteurTexte(img, "A")
+	nHauteurLong  = dHauteurTexte(img, "Un texte beaucoup plus long")
+	nHauteurVide  = dHauteurTexte(img, "")
+
+	dFinDessin(img)
+
+	dbgVérifieEgalité(nHauteurCourt, nHauteurLong, "hauteur identique quelle que soit la longueur")
+	dbgVérifieEgalité(nHauteurCourt, nHauteurVide, "hauteur identique même pour chaîne vide")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases et cas limites proactifs
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_sans_police()
+	img est une Image
+	nHauteur est un entier
+	bErr est un booléen
+
+	// Sans police chargée, la mesure échoue avec erreur posée
+	img = dCréeImage(200, 100)
+	dDébutDessin(img)
+
+	nHauteur = dHauteurTexte(img, "Sans police")
+	bErr     = ErreurDétectée
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(bErr, "erreur posée si police non chargée")
+	dbgVérifieEgalité(nHauteur, 0, "retour 0 si police non chargée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_taille_police_influence()
+	img est une Image
+	nPetit est un entier
+	nGrand est un entier
+
+	// Plus grande police → plus grande hauteur de ligne
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 10, iNormal, 0)
+	nPetit = dHauteurTexte(img, "Test")
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 30, iNormal, 0)
+	nGrand = dHauteurTexte(img, "Test")
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(nGrand > nPetit, "police plus grande → hauteur plus grande")
+FIN

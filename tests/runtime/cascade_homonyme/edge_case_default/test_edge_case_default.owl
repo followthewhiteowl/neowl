@@ -1,0 +1,36 @@
+// Cas 2 : edge case — valeur explicite ÉGALE au défaut du template
+//
+// Objectif : poser explicitement une valeur égale au défaut sur une cascade
+// homonyme ne doit PAS être ignorée par le merge (la rustine runtime pouvait
+// ignorer si valeur = défaut → perte de l'intention explicite).
+//
+// Défauts Cadre (cf. owl explain Cadre --json) :
+//   - Trait : TraitContinu (valeur canon défaut)
+//   - Couleur : 0 (Noir)
+//   - Epaisseur : 0 (invisible)
+//
+// Pattern : la fenêtre voisine FEN_EdgeCaseDefault.owl appelle callback_verifie
+// dans son FinInitialisation pour remonter les valeurs lues au script test.
+
+valTrait est un entier = -1
+valEpaisseur est un entier = -1
+valCouleur est un entier = -1
+
+PROCEDURE callback_verifie(trait est un entier, epaisseur est un entier, couleur est un entier)
+	valTrait     = trait
+	valEpaisseur = epaisseur
+	valCouleur   = couleur
+FIN
+
+Ouvre(FEN_EdgeCaseDefault)
+
+// Vérifier que la valeur explicite (même si = défaut) survit au merge
+dbgVérifieEgalité(valTrait, TraitContinu, "Trait explicite (défaut) préservé")
+dbgVérifieEgalité(valEpaisseur, 2, "Épaisseur non-défaut préservée")
+
+// Vérifier aussi Couleur (pas posée → doit rester défaut 0/Noir)
+dbgVérifieEgalité(valCouleur, 0, "Couleur non-posée reste défaut (Noir)")
+
+Ferme(FEN_EdgeCaseDefault)
+
+dbgBilanTest()

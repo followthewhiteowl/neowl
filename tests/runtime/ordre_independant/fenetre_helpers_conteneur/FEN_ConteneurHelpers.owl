@@ -1,0 +1,77 @@
+// Fenetre voisine — ordre-independant helpers FEN avec Conteneur a widgets
+// imbriques, forme courte de SI et chaine elif.
+//
+// Verrou de regression (symptome reel : projet echecs). Le pre-scan
+// ordre-independant (prepass_block_collect_procs) comptait mal la profondeur
+// des blocs sur TROIS constructions, chacune desynchronisant le compteur et
+// empechant la pre-inscription des PROCEDURE declarees plus bas :
+//   1. widgets imbriques dans un Conteneur (BAR) detectes seulement au
+//      top-level -> leur FIN sur-decremente -> sortie prematuree du scan ;
+//   2. `SI cond ALORS <stmt>` mono-ligne (sans FIN) compte comme un bloc ;
+//   3. `SINON SI` (elif) compte le SI comme un ouvreur sans FIN apparie.
+// Ici le DernierHelper, declare en bas et appele depuis un handler, ne se
+// resolvait pas ("fonction inconnue") tant qu'une de ces trois constructions
+// apparaissait avant lui.
+
+FEN_ConteneurHelpers est une Fenêtre
+	PROPRIETES
+		Largeur = 200
+		Hauteur = 100
+	FIN
+
+	IMG_Zone est un Champ Image
+		PROPRIETES
+			Largeur = 120
+			Hauteur = 80
+		FIN
+		PROCEDURE surBoutonGauche(nX est un entier, nY est un entier)
+			DernierHelper(nX)
+		FIN
+	FIN
+
+	// Conteneur avec widgets IMBRIQUES (depth>0) : leur FIN cassait le compteur.
+	BAR est un Champ Conteneur
+		PROPRIETES
+			Hauteur = 40
+		FIN
+		LIB_Info est un Champ Libellé
+			PROPRIETES
+				Libellé = "info"
+			FIN
+		FIN
+		BTN_Action est un Champ Bouton
+			PROPRIETES
+				Libellé = "go"
+			FIN
+			PROCEDURE surClic()
+				DernierHelper(2)
+			FIN
+		FIN
+	FIN
+
+	// Forme courte mono-ligne (sans FIN) suivie d'une boucle.
+	PROCEDURE AvecSiCourt(n est un entier)
+		SI n < 0 ALORS RENVOYER
+		POUR i = 1 À 3
+			callback_observe("court", n)
+		FIN
+	FIN
+
+	// Chaine elif (SINON SI) + SI imbrique.
+	PROCEDURE AvecElif(n est un entier) : entier
+		SI n = 1 ALORS
+			RENVOYER 10
+		SINON SI n = 2 ALORS
+			RENVOYER 20
+		SINON SI n = 3 ALORS
+			RENVOYER 30
+		SINON
+			RENVOYER 0
+		FIN
+	FIN
+
+	// Declare en DERNIER, apres les trois constructions piege.
+	PROCEDURE DernierHelper(n est un entier)
+		callback_observe("dernier", AvecElif(n))
+	FIN
+FIN

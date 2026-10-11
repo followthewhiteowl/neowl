@@ -1,0 +1,86 @@
+// Regression : valide l'invariant n°3 (bilingue FR<->EN) sur les fields
+// du type sqlConnexion. Couvre les 7 fields migres en B.3.
+
+cnx est une sqlConnexion
+
+// Provider, Source identiques (FR == EN canon)
+cnx..Provider = sqlSqlite
+dbgVérifieEgalité(cnx..Provider, sqlSqlite, "Provider identique")
+cnx..Source = "./data.db"
+dbgVérifieEgalité(cnx..Source, "./data.db", "Source identique")
+
+// Serveur <-> Server
+cnx..Server = "db.example.com"
+dbgVérifieEgalité(cnx..Serveur, "db.example.com", "Server -> Serveur")
+cnx..Serveur = "other.example.com"
+dbgVérifieEgalité(cnx..Server, "other.example.com", "Serveur -> Server")
+
+// BaseDeDonnees <-> Database (avec accent FR)
+cnx..Database = "production"
+dbgVérifieEgalité(cnx..BaseDeDonnées, "production", "Database -> BaseDeDonnees")
+dbgVérifieEgalité(cnx..BaseDeDonnées, "production", "Database -> BaseDeDonnées (accent)")
+cnx..BaseDeDonnées = "staging"
+dbgVérifieEgalité(cnx..Database, "staging", "BaseDeDonnées -> Database")
+
+// Utilisateur <-> User
+cnx..User = "alice"
+dbgVérifieEgalité(cnx..Utilisateur, "alice", "User -> Utilisateur")
+
+// MotDePasse <-> Password
+cnx..Password = "s3cret"
+dbgVérifieEgalité(cnx..MotDePasse, "s3cret", "Password -> MotDePasse")
+
+// Storage UNIQUE : ecriture EN puis FR ecrase la meme key canon
+cnx..User        = "bob"
+cnx..Utilisateur = "carol"
+dbgVérifieEgalité(cnx..User, "carol", "ecriture FR ecrase EN (storage unique)")
+
+
+// === sqlRequete (B.4) ===
+
+req est une sqlRequête
+
+// Code identique
+req..Code = "SELECT * FROM t"
+dbgVérifieEgalité(req..Code, "SELECT * FROM t", "Code identique")
+
+// Parametres <-> Parameters (assoc array)
+req..Parameters["a"] = 42
+dbgVérifieEgalité(req..Paramètres["a"], 42, "Parameters -> Parametres")
+dbgVérifieEgalité(req..Paramètres["a"], 42, "Parameters -> Paramètres (accent)")
+
+req..Paramètres["b"] = "x"
+dbgVérifieEgalité(req..Parameters["b"], "x", "Paramètres -> Parameters")
+
+// Storage UNIQUE : ecriture FR + EN partage la meme map
+req..Parameters["k"] = 1
+req..Paramètres["k"] = 2 // ecrase
+dbgVérifieEgalité(req..Parameters["k"], 2, "Parametres ecrase Parameters (meme map)")
+
+
+// === sqlReponse (B.5) ===
+
+rep est une sqlRéponse
+
+// Succes <-> Success (avec accent FR)
+dbgVérifieEgalité(rep..Success, Faux, "Success initial Faux (lecture EN)")
+dbgVérifieEgalité(rep..Succès, Faux, "Succès initial Faux (accent FR)")
+dbgVérifieEgalité(rep..Succès, Faux, "Succes initial Faux (FR canon)")
+
+// Lignes <-> Rows (tableau)
+dbgVérifieEgalité(rep..Rows..Occurrence, 0, "Rows -> Lignes (tableau, ..Occurrence=0)")
+
+// Occurrence <-> Count
+dbgVérifieEgalité(rep..Occurrence, 0, "Count initial 0")
+dbgVérifieEgalité(rep..Occurrence, 0, "Occurrence initial 0")
+
+// LignesAffectees <-> AffectedRows (avec accent FR)
+dbgVérifieEgalité(rep..AffectedRows, 0, "AffectedRows initial 0")
+dbgVérifieEgalité(rep..LignesAffectées, 0, "LignesAffectees initial 0")
+dbgVérifieEgalité(rep..LignesAffectées, 0, "LignesAffectées initial 0 (accent)")
+
+// Storage UNIQUE : ecriture EN puis FR ecrase la meme key canon
+rep..Success = Vrai
+dbgVérifieEgalité(rep..Succès, Vrai, "Success ecrit, Succes lit (storage unique)")
+
+dbgBilanTest()

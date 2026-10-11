@@ -1,0 +1,40 @@
+//  — Native EnvoieTouche (EN: SendKey)
+// Injection de frappes vers le champ qui a le focus / la fenetre active.
+// Conforme au comportement de référence.
+//
+// ROUGE ATTENDU : native inconnue au registry.
+// Raison du rouge : "'EnvoieTouche' : fonction/procedure inconnue"
+//
+// Apres impl, teste ici les cas sans fenetre ouverte (headless pur) :
+// - Appel sans widget focus : pas de crash, pas d'ErreurDetectee.
+// - Forme EN acceptee.
+// Les cas avec widget reel (focus sur Saisie, event dispatche) sont
+// dans tests/runtime/clavier/event_saisie_touche/ (mode OuvreSoeur).
+
+TestModeHeadless(Vrai)
+
+// --- Sans fenetre ouverte : pas de crash, pas d erreur ---
+EnvoieTouche(Asc("A"))
+bErrDef est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrDef = Faux, "EnvoieTouche sans fenetre : pas ErreurDetectee")
+
+// --- Constantes tk* : appel syntaxiquement valide ---
+EnvoieTouche(tkEchap)
+bErrEchap est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrEchap = Faux, "EnvoieTouche(tkEchap) : pas ErreurDetectee")
+
+EnvoieTouche(tkHaut)
+bErrHaut est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrHaut = Faux, "EnvoieTouche(tkHaut) : pas ErreurDetectee")
+
+// --- Forme EN (bilingue) ---
+SendKey(Asc("A"))
+bErrEN est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrEN = Faux, "SendKey (EN) : forme EN acceptee, pas d erreur")
+
+// --- Code Asc ("A") : pattern documentation de référence pour les lettres ---
+EnvoieTouche(Asc("A"))
+bErrAsc est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrAsc = Faux, "EnvoieTouche(Asc(A)) : code lettre via Asc, pas d erreur")
+
+dbgBilanTest()

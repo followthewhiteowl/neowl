@@ -1,0 +1,32 @@
+//  Lot A-bis — le receveur nu `COL..Couleur` se résout pour une colonne
+// en position NON-première (la seconde ici). Régression : avant le correctif, la
+// 2e colonne d'une Table était captée comme globale d'élément (`FEN$COL`), son nom
+// nu réécrit court-circuitait l'intercept, et `COL_Montant..Couleur` échouait à la
+// compilation (« variable inconnue »). Set-then-get symétrique sur la 2e colonne.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColonneNonPremiere)
+
+// Seconde colonne — Couleur : set-then-get symétrique.
+EcritCouleurSeconde(RVB(255, 0, 0))
+dbgVérifieEgalité(LireCouleurSeconde(), RVB(255, 0, 0),
+"COL non-première ..Couleur écrite en forme nue est relue à l'identique")
+
+// Seconde colonne — CouleurFond : indépendante de Couleur.
+EcritCouleurFondSeconde(RVB(0, 0, 255))
+dbgVérifieEgalité(LireCouleurFondSeconde(), RVB(0, 0, 255),
+"COL non-première ..CouleurFond écrite en forme nue est relue à l'identique")
+dbgVérifieEgalité(LireCouleurSeconde(), RVB(255, 0, 0),
+"CouleurFond posée sur la 2e colonne : sa Couleur reste inchangée")
+
+// La première colonne reste résoluble et indépendante de la seconde.
+EcritCouleurPremiere(RVB(0, 255, 0))
+dbgVérifieEgalité(LireCouleurPremiere(), RVB(0, 255, 0),
+"COL première ..Couleur reste résoluble et relue à l'identique")
+dbgVérifieEgalité(LireCouleurSeconde(), RVB(255, 0, 0),
+"écrire la 1re colonne ne touche pas la mise en forme de la 2e")
+
+Ferme(FEN_ColonneNonPremiere)
+
+dbgBilanTest()

@@ -1,0 +1,33 @@
+// Compile-time error : doublon de nom de champ, a corps NON vide.
+//
+// Verrou anti-cascade : une seule faute doit produire une seule erreur.
+// Le corps non vide est le declencheur du defaut historique — la reprise
+// avalait le bloc PROPRIETES et son FIN, ce qui ajoutait un « Bloc
+// PROPRIETES manquant » puis desequilibrait le comptage des FIN jusqu'a
+// faire sortir la Fenetre un cran trop tot. Le meme doublon a corps vide
+// n'a jamais cascade : c'est bien la presence du corps qu'on verrouille.
+FEN_ChampDoublonCascade est une Fenêtre
+	PROPRIETES
+		Titre = "Doublon de champ"
+	FIN
+
+	LIB_Doublon est un Champ Libellé
+		PROPRIETES
+			Libellé = "Premier"
+		FIN
+	FIN
+
+	LIB_Doublon est un Champ Libellé
+		PROPRIETES
+			Libellé = "Second"
+		FIN
+	FIN
+
+	// Un champ sain APRES le doublon : la faute ne doit pas desynchroniser le
+	// parcours du reste de la fenetre.
+	LIB_Suite est un Champ Libellé
+		PROPRIETES
+			Libellé = "Suite"
+		FIN
+	FIN
+FIN

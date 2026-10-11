@@ -1,0 +1,67 @@
+// Round-trip bilingue pour props simples en mode headless (test-only, sans widget Qt).
+// Bug avéré 0161 : SET langue A / GET langue B donne 0 (défaut) au lieu de la valeur
+// posée, car headless_key_normalize (object.c) indexait par nom tapé au lieu du canon.
+//
+// Garde anti-récurrence : ces assertions ROUGES aujourd'hui (bug actif) deviennent
+// VERTES après fix implementer (canonisation via registry lang-aware).
+//
+// Pattern : la fenêtre voisine FEN_PropBilingue.owl porte la déclaration.
+
+Trace("=== Headless : round-trip cross-langue FR↔EN ===")
+
+Ouvre(FEN_PropBilingue)
+
+// --- Test 1 : SET FR → GET EN (Largeur/Width) ---
+LIB_1..Largeur = 50 // SET forme FR
+
+// BUG actif (avant fix) : GET forme EN lit 0 (clé distincte), devrait être 50
+dbgVérifieEgalité(LIB_1..Width, 50, "SET Largeur → GET Width = 50")
+
+// Non-régression même langue : SET FR → GET FR OK
+dbgVérifieEgalité(LIB_1..Largeur, 50, "SET Largeur → GET Largeur = 50")
+
+
+// --- Test 2 : SET EN → GET FR (Hauteur/Height) ---
+LIB_2..Height = 77 // SET forme EN
+
+// BUG actif : GET forme FR lit 0, devrait être 77
+dbgVérifieEgalité(LIB_2..Hauteur, 77, "SET Height → GET Hauteur = 77")
+
+// Non-régression même langue : SET EN → GET EN OK
+dbgVérifieEgalité(LIB_2..Height, 77, "SET Height → GET Height = 77")
+
+
+// --- Test 3 : Props booléen (Grisé/Grayed) FR↔EN ---
+LIB_3..Grisé = Vrai // SET forme FR
+
+// BUG actif : GET EN lit Faux (défaut), devrait être Vrai
+dbgVérifieEgalité(LIB_3..Grayed, Vrai, "SET Grisé → GET Grayed = Vrai")
+
+// Non-régression même langue
+dbgVérifieEgalité(LIB_3..Grisé, Vrai, "SET Grisé → GET Grisé = Vrai")
+
+
+// --- Test 4 : Props couleur (Couleur/Color) FR↔EN ---
+LIB_4..Color = 0xFF0000 // SET forme EN (rouge)
+
+// BUG actif : GET FR lit 0 (défaut), devrait être 0xFF0000
+dbgVérifieEgalité(LIB_4..Couleur, 0xFF0000, "SET Color → GET Couleur = 0xFF0000")
+
+// Non-régression même langue
+dbgVérifieEgalité(LIB_4..Color, 0xFF0000, "SET Color → GET Color = 0xFF0000")
+
+
+// --- Test 5 : Non-régression props composées (feat 0144 déjà protégées) ---
+// Les props Cadre/Police utilisent déjà une clé canon depuis 0144 — vérifier
+// qu'on ne régresse pas.
+LIB_5..Police..Nom = "Arial" // SET forme FR
+
+// Déjà OK  (clé canon introduite)
+dbgVérifieEgalité(LIB_5..Font..Name, "Arial", "SET Police.Nom → GET Font.Name = Arial")
+
+// Non-régression même langue
+dbgVérifieEgalité(LIB_5..Police..Nom, "Arial", "SET Police.Nom → GET Police.Nom = Arial")
+
+Ferme(FEN_PropBilingue)
+
+Trace("=== Fin round-trip cross-langue ===")

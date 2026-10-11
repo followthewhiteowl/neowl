@@ -1,0 +1,124 @@
+// @sujet : ChronoPause
+// @résumé : Met en pause un chronomètre. La valeur du chronomètre reste figée jusqu'à ChronoReprend. Permet de mesurer des intervalles cumulés en excluant les périodes inactives.
+
+
+// Cas canonique : pause fige la valeur du chronomètre.
+// La native empêche le compteur de progresser pendant la période de pause.
+PROCEDURE scenario_pause_fige_valeur()
+	ChronoDébut()
+	// Travail initial pour accumuler un temps mesurable
+	total est un entier = 0
+	POUR i = 1 À 1000
+		total = total + 1
+	FIN
+	ChronoPause()
+	valeurPause est un entier = ChronoValeur()
+	// Travail important pendant la pause : le compteur ne doit PAS bouger
+	POUR i = 1 À 100000
+		total = total + 1
+	FIN
+	valeurApres est un entier = ChronoValeur()
+	dbgVérifieEgalité(valeurApres, valeurPause, "valeur constante pendant pause")
+FIN
+
+
+// Pause puis reprise : le cumul du temps est préservé et continue.
+// ChronoReprend réactive le compteur qui repart de la valeur figée par ChronoPause.
+PROCEDURE scenario_pause_reprend_cumul()
+	ChronoDébut()
+	total est un entier = 0
+	POUR i = 1 À 1000
+		total = total + 1
+	FIN
+	ChronoPause()
+	valeurPause est un entier = ChronoValeur()
+	// Travail sans mesure (pause)
+	POUR i = 1 À 50000
+		total = total + 1
+	FIN
+	ChronoReprend()
+	// Nouveau travail mesuré après reprise
+	POUR i = 1 À 1000
+		total = total + 1
+	FIN
+	valeurFinale est un entier = ChronoValeur()
+	// Le compteur repart de valeurPause, donc valeurFinale > valeurPause
+	dbgVérifieVrai(valeurFinale >= valeurPause, "chrono reprend au-delà de la pause")
+FIN
+
+
+// Syntaxe préfixée : pause sur une instance de type Chrono.
+// Même sémantique que la forme globale mais appliquée à un chronomètre nommé.
+PROCEDURE scenario_syntaxe_prefixee()
+	c est un Chrono
+	c.Début()
+	total est un entier = 0
+	POUR i = 1 À 1000
+		total = total + 1
+	FIN
+	c.Pause()
+	valeurPause est un entier = c..Valeur
+	// Travail pendant la pause : le compteur ne doit PAS bouger
+	POUR i = 1 À 50000
+		total = total + 1
+	FIN
+	dbgVérifieEgalité(c..Valeur, valeurPause, "instance: valeur constante pendant pause")
+	c.Reprend()
+	c.Fin()
+FIN
+
+
+// Pause sur un chronomètre jamais démarré : n'a aucun effet observable.
+// La native est idempotente dans ce cas (pas de crash, pas d'erreur).
+PROCEDURE scenario_pause_chrono_jamais_demarre()
+	c est un Chrono
+	c.Pause()
+	// Le chrono est en état "pas démarré", donc Pause ne fait rien
+	dbgVérifieFaux(c..Démarré, "chrono reste non démarré après Pause sans Début")
+FIN
+
+
+// Propriété Démarré reste vraie pendant une pause.
+// Un chronomètre en pause est toujours considéré comme démarré (compteur actif mais figé).
+PROCEDURE scenario_demarre_reste_vrai_pendant_pause()
+	c est un Chrono
+	c.Début()
+	c.Pause()
+	dbgVérifieVrai(c..Démarré, "Démarré reste Vrai pendant pause")
+FIN
+
+
+// Cas limite : double pause consécutive (pause déjà actif).
+// La deuxième pause n'a aucun effet supplémentaire, la valeur reste celle de la première.
+PROCEDURE PRIVÉE scenario_double_pause_idempotent()
+	c est un Chrono
+	c.Début()
+	total est un entier = 0
+	POUR i = 1 À 1000
+		total = total + 1
+	FIN
+	c.Pause()
+	valeurPause1 est un entier = c..Valeur
+	// Deuxième pause : pas d'effet additionnel
+	c.Pause()
+	valeurPause2 est un entier = c..Valeur
+	dbgVérifieEgalité(valeurPause2, valeurPause1, "double pause conserve la première valeur")
+FIN
+
+
+// Cas limite : pause après ChronoFin (chronomètre arrêté).
+// ChronoFin termine le chronomètre, donc Pause sur un chrono terminé n'a pas de sens
+// et ne doit pas crasher (idempotente sur état arrêté).
+PROCEDURE PRIVÉE scenario_pause_apres_fin_idempotent()
+	c est un Chrono
+	c.Début()
+	total est un entier = 0
+	POUR i = 1 À 500
+		total = total + 1
+	FIN
+	c.Fin()
+	dbgVérifieFaux(c..Démarré, "chrono arrêté après Fin")
+	c.Pause()
+	// Pause sur un chrono arrêté ne relance rien : reste arrêté
+	dbgVérifieFaux(c..Démarré, "chrono reste arrêté après Pause sur état Fin")
+FIN

@@ -1,0 +1,69 @@
+// @sujet : Tenseur.ProduitMatriciel
+// @résumé : Produit matriciel différentiable entre deux Tenseurs — la
+// valeur se calcule comme pour un produit matriciel classique, et
+// Rétropropage() sait remonter le gradient jusqu'à chaque opérande.
+
+// Cas d'amorçage du gradient : un Tenseur ligne (1×n) combiné à un
+// Tenseur colonne (n×1) donne un Tenseur scalaire (1 seul élément),
+// point de départ naturel pour Rétropropage() sans réduction
+// supplémentaire.
+// tc = ta.ProduitMatriciel(tb) = 1.0*3.0 + 2.0*4.0 = 11.0
+PROCEDURE PUBLIQUE scenario_produit_ligne_colonne_forward()
+	ta est un Tenseur = Tenseur([1.0, 2.0])
+	tb est un Tenseur = Tenseur([3.0, 4.0])
+	tc est un Tenseur = ta.ProduitMatriciel(tb)
+	dbgVérifieEgalité(tc..Valeur[1], 11.0, "1.0*3.0 + 2.0*4.0 = 11.0")
+FIN
+
+
+// Dérivées à la main : dC/dta = tb (chaque composante de tb pondère la
+// composante correspondante de ta) et dC/dtb = ta, symétriquement.
+PROCEDURE PUBLIQUE scenario_produit_ligne_colonne_backward()
+	ta est un Tenseur = Tenseur([1.0, 2.0])
+	tb est un Tenseur = Tenseur([3.0, 4.0])
+	tc est un Tenseur = ta.ProduitMatriciel(tb)
+	tc.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 3.0, "dC/dta[1] = tb[1] = 3.0")
+	dbgVérifieEgalité(ta..Gradient[2], 4.0, "dC/dta[2] = tb[2] = 4.0")
+	dbgVérifieEgalité(tb..Gradient[1], 1.0, "dC/dtb[1] = ta[1] = 1.0")
+	dbgVérifieEgalité(tb..Gradient[2], 2.0, "dC/dtb[2] = ta[2] = 2.0")
+FIN
+
+
+// La forme anglaise .MatrixProduct() désigne la même opération que
+// .ProduitMatriciel(), avec le même calcul de gradient.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	ta est un Tenseur = Tenseur([1.0, 2.0])
+	tb est un Tenseur = Tenseur([3.0, 4.0])
+	tc est un Tenseur = ta.MatrixProduct(tb)
+	tc.Rétropropage()
+	dbgVérifieEgalité(tc..Valeur[1], 11.0, "MatrixProduct : 1.0*3.0 + 2.0*4.0 = 11.0")
+	dbgVérifieEgalité(ta..Gradient[1], 3.0, "MatrixProduct : dC/dta[1] = tb[1] = 3.0")
+FIN
+
+
+// Trois composantes plutôt que deux : la règle de dérivation reste la
+// même, composante par composante.
+// tc = 1.0*4.0 + 2.0*5.0 + 3.0*6.0 = 32.0
+PROCEDURE PRIVÉE scenario_edge_trois_composantes()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	tb est un Tenseur = Tenseur([4.0, 5.0, 6.0])
+	tc est un Tenseur = ta.ProduitMatriciel(tb)
+	tc.Rétropropage()
+	dbgVérifieEgalité(tc..Valeur[1], 32.0, "1.0*4.0 + 2.0*5.0 + 3.0*6.0 = 32.0")
+	dbgVérifieEgalité(ta..Gradient[3], 6.0, "dC/dta[3] = tb[3] = 6.0")
+	dbgVérifieEgalité(tb..Gradient[3], 3.0, "dC/dtb[3] = ta[3] = 3.0")
+FIN
+
+
+// Des valeurs négatives ne changent rien à la règle de dérivation.
+// tc = -1.0*3.0 + 2.0*(-4.0) = -3.0 - 8.0 = -11.0
+PROCEDURE PRIVÉE scenario_edge_valeurs_negatives()
+	ta est un Tenseur = Tenseur([-1.0, 2.0])
+	tb est un Tenseur = Tenseur([3.0,-4.0])
+	tc est un Tenseur = ta.ProduitMatriciel(tb)
+	tc.Rétropropage()
+	dbgVérifieEgalité(tc..Valeur[1],-11.0, "-1.0*3.0 + 2.0*(-4.0) = -11.0")
+	dbgVérifieEgalité(ta..Gradient[1], 3.0, "dC/dta[1] = tb[1] = 3.0")
+	dbgVérifieEgalité(tb..Gradient[2], 2.0, "dC/dtb[2] = ta[2] = 2.0")
+FIN

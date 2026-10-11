@@ -1,0 +1,188 @@
+// @sujet : ChronoValeur
+// @resume : Lecture de la valeur courante d'un chronometre en millisecondes
+
+// ============================================================================
+// PROCEDURES PUBLIQUES (vitrine)
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_nominal_lecture_valeur()
+	// Scénario nominal : démarrer un chrono, lire la valeur pendant qu'il tourne
+	ChronoDébut()
+
+	// Effectuer un travail léger
+	somme est un entier = 0
+	POUR i = 1 À 500
+		somme = somme + i
+	FIN
+
+	valeur est un entier = ChronoValeur()
+	dbgVérifieVrai(valeur >= 0, "valeur chrono >= 0")
+
+	// Lire une seconde fois — la valeur doit avoir augmenté
+	POUR i = 1 À 500
+		somme = somme + i
+	FIN
+
+	valeur2 est un entier = ChronoValeur()
+	dbgVérifieVrai(valeur2 >= valeur, "la valeur augmente avec le temps")
+
+	ChronoFin()
+FIN
+
+PROCEDURE PUBLIQUE scenario_avec_instance_nommee()
+	// Utilisation avec une variable de type Chrono pour suivre plusieurs chronos simultanément
+	c est un Chrono
+	ChronoDébut(c)
+
+	total est un entier = 0
+	POUR i = 1 À 300
+		total = total + i
+	FIN
+
+	valeurInstance est un entier = ChronoValeur(c)
+	dbgVérifieVrai(valeurInstance >= 0, "valeur chrono avec instance >= 0")
+
+	// Accès via propriété du type Chrono. Comparaison sous pause pour
+	// garantir un snapshot stable : les deux lectures sont live, donc
+	// hors pause elles peuvent différer de quelques ms si le scheduler
+	// passe entre.
+	ChronoPause(c)
+	dbgVérifieEgalité(c..Valeur, ChronoValeur(c), "propriete Valeur = ChronoValeur() (sous pause)")
+	ChronoReprend(c)
+
+	ChronoFin(c)
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeur_pendant_pause()
+	// La valeur reste constante pendant une pause
+	c est un Chrono
+	ChronoDébut(c)
+
+	total est un entier = 0
+	POUR i = 1 À 500
+		total = total + i
+	FIN
+
+	ChronoPause(c)
+	valeurPause est un entier = ChronoValeur(c)
+
+	// Effectuer un travail important pendant la pause
+	POUR i = 1 À 50000
+		total = total + i
+	FIN
+
+	valeurEncore est un entier = ChronoValeur(c)
+	dbgVérifieEgalité(valeurEncore, valeurPause, "valeur constante pendant pause")
+
+	ChronoReprend(c)
+	ChronoFin(c)
+FIN
+
+PROCEDURE PUBLIQUE scenario_apres_fin()
+	// Après ChronoFin, la valeur reste figée au dernier relevé
+	ChronoDébut()
+
+	total est un entier = 0
+	POUR i = 1 À 200
+		total = total + i
+	FIN
+
+	valeurFin est un entier = ChronoFin()
+	dbgVérifieVrai(valeurFin >= 0, "ChronoFin retourne la duree finale")
+
+	// Relire la valeur après la fin
+	valeurApres est un entier = ChronoValeur()
+	dbgVérifieEgalité(valeurApres, 0, "ChronoValeur = 0 apres ChronoFin")
+FIN
+
+// ============================================================================
+// PROCEDURES PRIVEES (edge cases)
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_multiple_lectures_consecutives()
+	// Stress : plusieurs lectures consécutives sans calcul intermédiaire
+	c est un Chrono
+	ChronoDébut(c)
+
+	v1 est un entier = ChronoValeur(c)
+	v2 est un entier = ChronoValeur(c)
+	v3 est un entier = ChronoValeur(c)
+	v4 est un entier = ChronoValeur(c)
+
+	// Les valeurs doivent être monotones (non décroissantes)
+	dbgVérifieVrai(v2 >= v1, "v2 >= v1")
+	dbgVérifieVrai(v3 >= v2, "v3 >= v2")
+	dbgVérifieVrai(v4 >= v3, "v4 >= v3")
+
+	ChronoFin(c)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_apres_raz()
+	// Après un RAZ, la valeur repart de 0
+	c est un Chrono
+	ChronoDébut(c)
+
+	total est un entier = 0
+	POUR i = 1 À 1000
+		total = total + i
+	FIN
+
+	valeurAvantRAZ est un entier = ChronoValeur(c)
+	// >= 0 (non négatif) : la boucle peut être trop rapide pour incrémenter
+	// le chrono sur machine puissante, on évite le flaky de timing.
+	dbgVérifieVrai(valeurAvantRAZ >= 0, "valeur >= 0 avant RAZ")
+
+	ChronoRAZ(c)
+	valeurApresRAZ est un entier = ChronoValeur(c)
+	dbgVérifieEgalité(valeurApresRAZ, 0, "valeur = 0 apres RAZ")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_bilingue()
+	// Les alias EN et FR doivent retourner la même valeur
+	ChronoStart()
+
+	total est un entier = 0
+	POUR i = 1 À 200
+		total = total + i
+	FIN
+
+	valeurFR est un entier = ChronoValeur()
+	valeurEN est un entier = ChronoValue()
+
+	// Tolérance minime car 2 appels successifs introduisent un delta temporel
+	delta est un entier = Abs(valeurEN - valeurFR)
+	dbgVérifieVrai(delta < 10, "alias FR/EN retournent valeurs quasi-identiques")
+
+	ChronoEnd()
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_deux_chronos_independants()
+	// Deux chronos en parallèle doivent avoir des valeurs distinctes
+	c1 est un Chrono
+	c2 est un Chrono
+
+	ChronoDébut(c1)
+
+	total est un entier = 0
+	POUR i = 1 À 500
+		total = total + i
+	FIN
+
+	ChronoDébut(c2)
+
+	POUR i = 1 À 200
+		total = total + i
+	FIN
+
+	v1 est un entier = ChronoValeur(c1)
+	v2 est un entier = ChronoValeur(c2)
+
+	// Les deux chronos ont des valeurs indépendantes et non-négatives.
+	// Comparaison d'ordre évitée car timing trop serré sous certaines charges.
+	dbgVérifieVrai(v1 >= 0 ET v2 >= 0, "les deux chronos ont des valeurs valides")
+
+	ChronoFin(c1)
+	ChronoFin(c2)
+FIN
+
+dbgBilanTest()

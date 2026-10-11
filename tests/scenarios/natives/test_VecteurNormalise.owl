@@ -1,0 +1,51 @@
+// @sujet : VecteurNormalise
+// @résumé : Normalisation d'un Vecteur — division par sa propre magnitude pour obtenir un vecteur de norme 1, disponible en native préfixée et en méthode fluente, avec forme anglaise et refus du vecteur nul.
+
+
+// Normaliser un Vecteur produit un nouveau Vecteur de même direction dont
+// la magnitude vaut exactement 1.0.
+PROCEDURE PUBLIQUE scenario_normalisation_magnitude_unitaire()
+	v est un Vecteur = [3.0, 4.0]
+	vNormalisé est un Vecteur = VecteurNormalise(v)
+	nMagnitudeRésultat est un réel = VecteurMagnitude(vNormalisé)
+	dbgVérifieVrai(Abs(nMagnitudeRésultat - 1.0) < 0.0001, "Magnitude du Vecteur normalisé = 1.0")
+FIN
+
+
+// La méthode fluente .Normalise() produit exactement le même résultat que
+// la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [3.0, 4.0]
+	vViaFluent est un Vecteur = v.Normalise()
+	vViaNatif est un Vecteur = VecteurNormalise(v)
+	dbgVérifieVrai(Abs(vViaFluent[1] - vViaNatif[1]) < 0.0001, "v.Normalise()[1] == VecteurNormalise(v)[1]")
+	dbgVérifieVrai(Abs(vViaFluent[2] - vViaNatif[2]) < 0.0001, "v.Normalise()[2] == VecteurNormalise(v)[2]")
+FIN
+
+
+// La forme anglaise VectorNormalize / .Normalize désigne la même
+// opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	v est un Vecteur = [3.0, 4.0]
+	vNatifEN est un Vecteur = VectorNormalize(v)
+	vFluentEN est un Vecteur = v.Normalize()
+	dbgVérifieVrai(Abs(VecteurMagnitude(vNatifEN) - 1.0) < 0.0001, "VectorNormalize(v) a une magnitude 1.0")
+	dbgVérifieVrai(Abs(VecteurMagnitude(vFluentEN) - 1.0) < 0.0001, "v.Normalize() a une magnitude 1.0")
+FIN
+
+
+// Normaliser le vecteur nul (magnitude 0) lève une exception récupérable :
+// jamais de NaN silencieux, exactement comme une division scalaire par
+// zéro.
+PROCEDURE PRIVÉE scenario_edge_vecteur_nul_leve_exception()
+	vNul est un Vecteur = [0.0, 0.0, 0.0]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est un Vecteur = VecteurNormalise(vNul)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Normaliser un Vecteur nul est attrapé, jamais NaN")
+FIN

@@ -1,0 +1,72 @@
+// ============================================
+// TEST: Tier 2 — Compile / ExecuteCode / EvalueExpression
+// Test la réentrance VM quand du code dynamique est exécuté
+// depuis l'intérieur d'un script en cours d'exécution.
+// ============================================
+Trace("=== DYNAMIC EVAL ===")
+
+// --- EvalueExpression : expressions arithmétiques ---
+dbgVérifieEgalité(EvalueExpression("2 + 3"), 5, "EvalueExpression 2+3")
+dbgVérifieEgalité(EvalueExpression("10 * 4"), 40, "EvalueExpression 10*4")
+dbgVérifieEgalité(EvalueExpression("100 / 4"), 25, "EvalueExpression 100/4")
+dbgVérifieEgalité(EvalueExpression("2 ^ 8"), 256.0, "EvalueExpression puissance")
+
+// --- EvalueExpression sur chaines ---
+dbgVérifieEgalité(EvalueExpression("""hello"""), "hello", "EvalueExpression chaine litterale")
+dbgVérifieEgalité(EvalueExpression("""a"" + ""b"""), "ab", "EvalueExpression concat")
+
+// --- EvalueExpression avec fonctions natives ---
+dbgVérifieEgalité(EvalueExpression("Taille(""abcd"")"), 4, "EvalueExpression Taille")
+dbgVérifieEgalité(EvalueExpression("Majuscule(""abc"")"), "ABC", "EvalueExpression Majuscule")
+
+// --- ExecuteCode : code complet avec RENVOYER ---
+r1 est un entier = ExécuteCode("RENVOYER 42")
+dbgVérifieEgalité(r1, 42, "ExecuteCode simple RENVOYER")
+
+r2 est un entier = ExécuteCode("x est un entier = 7" + Caract(10) + "RENVOYER x * x")
+dbgVérifieEgalité(r2, 49, "ExecuteCode avec variable locale")
+
+// --- ExecuteCode sans retour — effet seulement ---
+ExécuteCode("Trace(""(from dynamic)"")") // rien à assert, juste que ça ne crash pas
+
+// --- Compile : retourne une Procedure utilisable ---
+f est une procédure = Compile("RENVOYER 7 * 6")
+dbgVérifieEgalité(f(), 42, "Compile + appel")
+
+g est une procédure = Compile("RENVOYER Majuscule(""abc"")")
+dbgVérifieEgalité(g(), "ABC", "Compile avec fonction native")
+
+// --- Compile avec nom — enregistre comme globale ---
+Compile("DynCalcul", "RENVOYER 100 * 2")
+dbgVérifieEgalité(DynCalcul(), 200, "Compile nommée accessible comme fonction")
+
+// --- Réentrance : eval dans un contexte appelant ---
+FONCTION Appelle(n est un entier) : entier
+	RENVOYER EvalueExpression(NumériqueVersChaîne(n) + " + 1")
+FIN
+
+dbgVérifieEgalité(Appelle(5), 6, "EvalueExpression depuis fonction utilisateur")
+dbgVérifieEgalité(Appelle(99), 100, "Idem autre valeur")
+
+// --- Réentrance : EvalueExpression imbriquée ---
+nested est un entier = EvalueExpression("EvalueExpression(""3 + 4"")")
+dbgVérifieEgalité(nested, 7, "EvalueExpression imbriquée")
+
+// --- Réentrance : boucle avec eval dynamique ---
+somme est un entier = 0
+POUR i = 1 À 5
+	somme += EvalueExpression("2 * " + NumériqueVersChaîne(i))
+FIN
+dbgVérifieEgalité(somme, 30, "Boucle 5x avec EvalueExpression")
+
+// --- Réentrance : ExecuteCode rappelle une fonction utilisateur ---
+PROCEDURE Marque(msg est une chaîne)
+	// effet de bord vérifiable via une globale
+	derniere_marque = msg
+FIN
+
+derniere_marque est une chaîne
+ExécuteCode("Marque(""hello from dynamic"")")
+dbgVérifieEgalité(derniere_marque, "hello from dynamic", "ExecuteCode appelle fonction utilisateur")
+
+dbgBilanTest()

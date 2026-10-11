@@ -1,0 +1,88 @@
+// ================================================================
+// Sérialise / Désérialise — attributs <Sérialise=Faux>, <Sérialise="rename">
+// ================================================================
+
+// ----- Exclure un membre via <Sérialise=Faux> -----
+CompteUser est une Structure
+    pseudo est une chaine
+    motDePasse est une chaine <Sérialise=Faux>
+    actif est un booleen
+FIN
+
+c est un CompteUser
+c.pseudo = "roger"
+c.motDePasse = "secret123"
+c.actif = Vrai
+
+bufC est une chaine
+Sérialise(c, bufC, psdJSON)
+dbgVerifieVrai(Position(bufC, "roger") > 0,       "Sérialise: pseudo présent")
+dbgVerifieEgalite(Position(bufC, "secret123"), 0, "Sérialise: motDePasse exclu")
+dbgVerifieEgalite(Position(bufC, "motDePasse"), 0, "Sérialise: clé motDePasse absente")
+dbgVerifieVrai(Position(bufC, "actif") > 0,       "Sérialise: actif présent")
+
+// ----- Renommer un membre via <Sérialise="rename"> -----
+CompteProfil est une Structure
+    pseudo est une chaine <Sérialise="username">
+    age est un entier <Sérialise="user_age">
+    bio est une chaine
+FIN
+
+p est un CompteProfil
+p.pseudo = "alice"
+p.age = 30
+p.bio = "Hello"
+
+bufP est une chaine
+Sérialise(p, bufP, psdMinifie)
+// L'ordre des champs est respecté : pseudo, age, bio
+dbgVerifieEgalite(bufP, "{""username"":""alice"",""user_age"":30,""bio"":""Hello""}",
+    "Rename: clés JSON utilisent le nom alternatif")
+
+// ----- Désérialiser depuis un JSON utilisant les noms alternatifs -----
+p2 est un CompteProfil
+Désérialise(p2, "{""username"":""bob"",""user_age"":42,""bio"":""hi""}", psdJSON)
+dbgVerifieEgalite(p2.pseudo, "bob",  "Désér rename: champ pseudo via username")
+dbgVerifieEgalite(p2.age, 42,        "Désér rename: champ age via user_age")
+dbgVerifieEgalite(p2.bio, "hi",      "Désér rename: champ bio (sans rename) direct")
+
+// ----- Mapping souple (case+accent insensibles) -----
+// Le JSON entrant peut avoir un casing différent du rename canonique
+p3 est un CompteProfil
+Désérialise(p3, "{""USERNAME"":""carol"",""User_Age"":25,""BIO"":""x""}", psdJSON)
+dbgVerifieEgalite(p3.pseudo, "carol", "Mapping souple: USERNAME -> pseudo")
+dbgVerifieEgalite(p3.age, 25,         "Mapping souple: User_Age -> age")
+dbgVerifieEgalite(p3.bio, "x",        "Mapping souple: BIO -> bio")
+
+// ----- Roundtrip avec rename -----
+bufP2 est une chaine
+Sérialise(p3, bufP2, psdMinifie)
+p4 est un CompteProfil
+Désérialise(p4, bufP2, psdJSON)
+dbgVerifieEgalite(p4.pseudo, p3.pseudo, "Roundtrip rename: pseudo")
+dbgVerifieEgalite(p4.age,    p3.age,    "Roundtrip rename: age")
+dbgVerifieEgalite(p4.bio,    p3.bio,    "Roundtrip rename: bio")
+
+// ----- Combinaison : skip + rename dans la même struct -----
+CompteMembre est une Structure
+    nom est une chaine <Sérialise="name">
+    cleHash est un entier <Sérialise=Faux>
+    droits est une chaine <Sérialise="permissions">
+FIN
+
+mb est un CompteMembre
+mb.nom = "Admin"
+mb.cleHash = 999
+mb.droits = "all"
+
+bufM est une chaine
+Sérialise(mb, bufM, psdMinifie)
+dbgVerifieEgalite(bufM, "{""name"":""Admin"",""permissions"":""all""}",
+    "Skip + rename combinés")
+
+mb2 est un CompteMembre
+mb2.cleHash = 7  // valeur initiale, ne doit pas être écrasée
+Désérialise(mb2, bufM, psdJSON)
+dbgVerifieEgalite(mb2.nom, "Admin",       "Combiné: nom restauré")
+dbgVerifieEgalite(mb2.droits, "all",      "Combiné: droits restauré")
+dbgVerifieEgalite(mb2.cleHash, 7,         "Combiné: cleHash reste à valeur initiale (skip)")

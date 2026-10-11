@@ -1,0 +1,36 @@
+//  — Nom nu widget passé comme ARGUMENT de procédure (contexte valeur).
+// ROUGE ATTENDU (feature non impl) : MaProc(SAI_Texte) doit passer la
+// valeur chaîne du champ, pas l'objet contrôle lui-même.
+//
+// Contextes couverts :
+//   1. Procédure locale prenant une chaîne — argument positionnel
+//   2. Procédure locale prenant un entier — coerce chaîne→entier à l'appel
+TestModeHeadless(Vrai)
+
+sArgRecu_ap est une chaîne = ""
+nArgRecu_ap est un entier = 0
+
+PROCEDURE RecoisChaine(s est une chaîne)
+	sArgRecu_ap = s
+FIN
+
+PROCEDURE RecoisEntier(n est un entier)
+	nArgRecu_ap = n
+FIN
+
+Ouvre(FEN_ArgProc)
+
+SAI_Texte..Valeur = "hello"
+
+// 1. Argument chaîne — le nom nu doit transmettre "hello".
+RecoisChaine(SAI_Texte)
+dbgVérifieEgalité(sArgRecu_ap, "hello", "SAI nom nu arg chaine : procédure reçoit la valeur hello")
+
+// 2. Argument entier — widget contient "7", coerce à l'appel.
+SAI_Texte..Valeur = "7"
+RecoisEntier(SAI_Texte)
+dbgVérifieEgalité(nArgRecu_ap, 7, "SAI nom nu arg entier : procédure reçoit la valeur coercee 7")
+
+Ferme(FEN_ArgProc)
+
+dbgBilanTest()

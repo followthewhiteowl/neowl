@@ -1,0 +1,27 @@
+//  — variante GUI de lifecycle_fenetre_autorisation_fermeture/annulation :
+// AutorisationFermeture retournant Faux annule la fermeture réelle (Ferme()),
+// Vrai la laisse se poursuivre, et Fermeture tire ensuite dans l'ordre.
+// Chemin réel exclusivement, jamais DéclencheÉvénement.
+//
+// ROUGE ATTENDU (pré-impl) : AutorisationFermeture n'est câblé nulle part en
+// GUI (catalogue seul), et le bug de parité GUI/headless sur Fermeture
+// (cf. gui_parite_fermeture/) empêche même l'observation de "FER;" au 2e
+// Ferme(). La séquence observée reste vide au lieu de "AF1;AF2;FER;".
+
+TestModeHeadless(Faux)
+
+seq est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seq += s
+FIN
+
+OuvreSoeur(FEN_GuiAnnule)
+
+Ferme(FEN_GuiAnnule)
+dbgVérifieEgalité(seq, "AF1;", "GUI, 1er Ferme() : AutorisationFermeture=Faux annule, Fermeture ne tire pas")
+
+Ferme(FEN_GuiAnnule)
+dbgVérifieEgalité(seq, "AF1;AF2;FER;", "GUI, 2e Ferme() : AutorisationFermeture=Vrai laisse Fermeture tirer, dans l'ordre")
+
+dbgBilanTest()

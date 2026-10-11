@@ -1,0 +1,139 @@
+// Tests du nouveau comportement raw des chaînes (aligné sur le comportement de référence).
+// Réf: documentation de référence "Chaînes littérales" (constantes diverses).
+//
+// Statut: certains de ces tests vont ÉCHOUER tant que le refactor n'est
+// pas fait. C'est volontaire (TDD-style).
+
+// ============================================================
+// 1. Raw — pas d'escape sequences C
+// ============================================================
+
+// Backslash littéral, pas un escape
+dbgVerifieEgalite(Taille("\"), 1, "1 backslash = 1 char")
+dbgVerifieEgalite(Asc("\"), 92, "1 backslash = code 92")
+
+dbgVerifieEgalite(Taille("\\"), 2, "2 backslashes = 2 chars")
+dbgVerifieEgalite(Taille("\\\\"), 4, "4 backslashes = 4 chars")
+dbgVerifieEgalite(Taille("\\\\\\\\"), 8, "8 backslashes = 8 chars")
+
+// Pas d'escape \n, \t, \r, \0
+dbgVerifieEgalite(Taille("\n"), 2, "\\n = 2 chars littéraux")
+dbgVerifieEgalite(Asc(Milieu("\n", 1, 1)), 92, "\\n char[0] = backslash")
+dbgVerifieEgalite(Asc(Milieu("\n", 2, 1)), 110, "\\n char[1] = 'n'")
+
+dbgVerifieEgalite(Taille("\t"), 2, "\\t = 2 chars littéraux")
+dbgVerifieEgalite(Taille("\r"), 2, "\\r = 2 chars littéraux")
+
+// Chemins Windows triviaux
+dbgVerifieEgalite(Taille("C:\Users\admin"), 14, "chemin Windows = 14 chars")
+dbgVerifieEgalite("C:\Users\admin", "C:" + "\" + "Users" + "\" + "admin",
+    "chemin Windows = concat équivalent")
+
+// ============================================================
+// 2. Doublage des quotes pour " interne
+// ============================================================
+
+// "" interne = un seul " dans la string finale
+dbgVerifieEgalite(Taille("a""b"), 3, "a + quote + b = 3 chars")
+dbgVerifieEgalite("a""b", "a" + Caract(34) + "b", "doublage = quote littérale")
+
+// Cas du JSON-like
+dbgVerifieEgalite("{""nom"":""Roger""}", "{" + Caract(34) + "nom" + Caract(34) + ":" + Caract(34) + "Roger" + Caract(34) + "}",
+    "JSON inline avec doublage")
+
+// String entièrement faite de quotes
+dbgVerifieEgalite(Taille(""""), 1, "4 quotes = 1 char (la quote)")
+dbgVerifieEgalite("""""", Caract(34) + Caract(34), "6 quotes = 2 chars")
+
+// ============================================================
+// 3. Constantes de référence pour chars spéciaux
+// ============================================================
+
+dbgVerifieEgalite(CRLF, Caract(13) + Caract(10), "CRLF = Caract(13) + Caract(10)")
+dbgVerifieEgalite(CRLF, RC, "CRLF == RC")
+dbgVerifieEgalite(Taille(CRLF), 2, "CRLF = 2 chars")
+dbgVerifieEgalite(TAB, Caract(9), "TAB = Caract(9)")
+dbgVerifieEgalite(EOT, Caract(4), "EOT = Caract(4)")
+dbgVerifieEgalite(ESC, Caract(27), "ESC = Caract(27)")
+
+// Combinaison newline réelle dans string
+ligne1 est une chaîne = "ligne 1"
+ligne2 est une chaîne = "ligne 2"
+combined est une chaîne = ligne1 + CRLF + ligne2
+dbgVerifieEgalite(Taille(combined), 16, "ligne1 + CRLF + ligne2 = 16 chars")
+dbgVerifieEgalite(Position(combined, CRLF), 8, "CRLF trouvé à pos 8")
+
+// ============================================================
+// 4. Multiligne crochets [...]
+// ============================================================
+
+multi est une chaîne = [
+ligne A
+ligne B
+]
+dbgVerifieVrai(Position(multi, "ligne A") > 0, "multiligne [] contient ligne A")
+dbgVerifieVrai(Position(multi, "ligne B") > 0, "multiligne [] contient ligne B")
+dbgVerifieVrai(Position(multi, CRLF) > 0 OU Position(multi, Caract(10)) > 0,
+    "multiligne [] contient newline entre lignes")
+
+// ============================================================
+// 5. Pas d'interpolation dans "..." par défaut
+// ============================================================
+
+nom est une chaîne = "Roger"
+plain est une chaîne = "Bonjour [%nom%]"
+dbgVerifieEgalite(plain, "Bonjour [%nom%]",
+    "[%var%] dans guillemets simples = littéral (pas d'interpolation par défaut)")
+
+// ============================================================
+// 6. Opt-in interpolation: %"..."
+// ============================================================
+
+interp est une chaîne = %"Bonjour [%nom%]"
+dbgVerifieEgalite(interp, "Bonjour Roger", "%-quote active interpolation")
+
+// NOTE: l'interpolation actuelle ne supporte que des identifiants simples
+//       (var, var.field). Expressions arbitraires [%2 + 3%] non supportées
+//       pour l'instant — backlog.
+
+age est un entier = 46
+ageStr est une chaîne = %"Bonjour [%nom%], [%age%] ans"
+dbgVerifieEgalite(ageStr, "Bonjour Roger, 46 ans", "interpolation multiple")
+
+// ============================================================
+// 7. Backticks
+// ============================================================
+
+b1 est une chaîne = `Bonjour Roger`
+dbgVerifieEgalite(b1, "Bonjour Roger", "backtick = string raw")
+
+// Interpolation toujours active dans backticks
+b3 est une chaîne = `Bonjour [%nom%]`
+dbgVerifieEgalite(b3, "Bonjour Roger", "interpolation auto dans backticks")
+
+// Multiligne backtick
+b4 est une chaîne = `
+ligne 1
+ligne 2
+`
+dbgVerifieVrai(Position(b4, "ligne 1") > 0, "backtick multiligne contient ligne 1")
+dbgVerifieVrai(Position(b4, "ligne 2") > 0, "backtick multiligne contient ligne 2")
+
+// Backticks préservent le backslash
+b5 est une chaîne = `C:\Users\admin`
+dbgVerifieEgalite(b5, "C:\Users\admin", "backtick = backslash littéral")
+
+// ============================================================
+// 8. Triple-dot continuation (à implémenter)
+// ============================================================
+
+// Une fois implémenté:
+// total est un entier = 1 + 2 + ...
+//                       3 + 4
+// dbgVerifieEgalite(total, 10, "... continuation arithmétique")
+//
+// concat est une chaîne = "préfixe " + ...
+//                         "suffixe"
+// dbgVerifieEgalite(concat, "préfixe suffixe", "... continuation string")
+
+dbgBilanTest()

@@ -1,0 +1,293 @@
+// @sujet : EmailImporteSource
+// @résumé : Parse le message brut déposé dans la propriété Source d'un Email et en remplit les
+// champs (expéditeur, destinataires, sujet décodé RFC 2047, corps texte/HTML, pièces jointes).
+// Couvre le round-trip avec EmailConstruitSource, des fixtures .eml écrites à la main, la
+// robustesse face à une entrée malformée, et le cycle fichier via fSauveTexte/fChargeTexte.
+
+
+// ---------------------------------------------------------------------------
+// Bloc 1 : round-trip EmailConstruitSource -> EmailImporteSource (anti-régression offline)
+// ---------------------------------------------------------------------------
+
+// Cas A : texte seul.
+PROCEDURE PUBLIQUE scenario_eis_roundtrip_texte_seul()
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = "Ordre du jour"
+	e1..Message      = "Bonjour Bob, voici l'ordre du jour."
+	EmailConstruitSource(e1)
+
+	e2 est un Email
+	e2..Source = e1..Source
+	ok est un booléen = EmailImporteSource(e2)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source texte seul")
+	dbgVérifieEgalité(e2..Expéditeur, e1..Expéditeur, "expéditeur restitué à l'identique")
+	dbgVérifieEgalité(Taille(e2..Destinataire), 1, "un seul destinataire restitué")
+	dbgVérifieEgalité(e2..Destinataire[1], e1..Destinataire[1], "adresse du destinataire restituée à l'identique")
+	dbgVérifieEgalité(e2..Sujet, e1..Sujet, "sujet restitué à l'identique")
+	dbgVérifieEgalité(e2..Message, e1..Message, "corps texte restitué à l'identique")
+FIN
+
+
+// Cas B : texte + HTML (multipart/alternative).
+PROCEDURE PUBLIQUE scenario_eis_roundtrip_texte_html()
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = "Rapport"
+	e1..Message      = "Version texte du rapport."
+	e1..HTML         = "<p>Version HTML du rapport.</p>"
+	EmailConstruitSource(e1)
+
+	e2 est un Email
+	e2..Source = e1..Source
+	ok est un booléen = EmailImporteSource(e2)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source texte + HTML")
+	dbgVérifieEgalité(e2..Message, e1..Message, "partie texte restituée à l'identique")
+	dbgVérifieEgalité(e2..HTML, e1..HTML, "partie HTML restituée à l'identique")
+FIN
+
+
+// Cas C : pièce jointe (multipart/mixed, base64).
+PROCEDURE PUBLIQUE scenario_eis_roundtrip_piece_jointe()
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = "Facture"
+	e1..Message      = "Voici la facture en pièce jointe."
+
+	pj est un emailAttache
+	pj..Contenu     = ChaîneVersBuffer("contenu binaire simulé de la facture")
+	pj..ContentType = "application/pdf"
+	pj..Nom         = "facture.pdf"
+	e1..Attache     = [pj]
+	EmailConstruitSource(e1)
+
+	e2 est un Email
+	e2..Source = e1..Source
+	ok est un booléen = EmailImporteSource(e2)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source avec pièce jointe")
+	dbgVérifieEgalité(Taille(e2..Attache), 1, "une seule pièce jointe restituée")
+	dbgVérifieEgalité(e2..Attache[1]..Nom, pj..Nom, "nom de la pièce jointe restitué à l'identique")
+	dbgVérifieEgalité(e2..Attache[1]..ContentType, pj..ContentType, "type MIME de la pièce jointe restitué à l'identique")
+	dbgVérifieEgalité(e2..Attache[1]..Contenu, pj..Contenu, "contenu binaire de la pièce jointe restitué à l'identique (décodage base64)")
+FIN
+
+
+// Cas D : sujet accentué construit avec emailOptionEncodeEntête -> décodage RFC 2047 au retour.
+PROCEDURE PUBLIQUE scenario_eis_roundtrip_sujet_accentue_rfc2047()
+	sSujetOriginal est une chaîne = "Réunion budgétaire"
+
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = sSujetOriginal
+	e1..Message      = "Merci de confirmer votre présence."
+	EmailConstruitSource(e1, emailOptionEncodeEntête)
+
+	e2 est un Email
+	e2..Source = e1..Source
+	ok est un booléen = EmailImporteSource(e2)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source au sujet encodé RFC 2047")
+	dbgVérifieEgalité(e2..Sujet, sSujetOriginal, "le sujet encodé RFC 2047 est décodé et restitué à l'identique")
+FIN
+
+
+// ---------------------------------------------------------------------------
+// Bloc 2 : fixtures .eml fabriquées à la main (CRLF explicite, RFC 5322 / RFC 2045)
+// ---------------------------------------------------------------------------
+
+// Cas E : multipart/mixed avec une pièce jointe base64 -> contenu décodé exact.
+PROCEDURE PUBLIQUE scenario_eis_fixture_multipart_mixed_base64()
+	sBoundary est une chaîne = "==BOUNDARY-FACTURE=="
+
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: Rapport mensuel" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: multipart/mixed; boundary=" + `"` + sBoundary + `"` + CRLF
+	sSource += CRLF
+	sSource += "--" + sBoundary + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Le rapport est joint." + CRLF
+	sSource += "--" + sBoundary + CRLF
+	sSource += "Content-Type: application/pdf; name=" + `"` + "rapport.pdf" + `"` + CRLF
+	sSource += "Content-Transfer-Encoding: base64" + CRLF
+	sSource += "Content-Disposition: attachment; filename=" + `"` + "rapport.pdf" + `"` + CRLF
+	sSource += CRLF
+	sSource += "Y29udGVudSBkdSByYXBwb3J0" + CRLF
+	sSource += "--" + sBoundary + "--" + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une fixture multipart/mixed base64")
+	dbgVérifieEgalité(e..Expéditeur, "alice@example.org", "expéditeur lu depuis From:")
+	dbgVérifieEgalité(e..Message, "Le rapport est joint.", "partie text/plain lue")
+	dbgVérifieEgalité(Taille(e..Attache), 1, "une pièce jointe extraite")
+	dbgVérifieEgalité(e..Attache[1]..Nom, "rapport.pdf", "nom de la pièce jointe lu depuis Content-Disposition")
+	dbgVérifieEgalité(BufferVersChaîne(e..Attache[1]..Contenu), "contenu du rapport", "contenu de la pièce jointe décodé base64 exact")
+FIN
+
+
+// Cas F : Subject: en mot-encodé RFC 2047 -> décodé.
+PROCEDURE PUBLIQUE scenario_eis_fixture_sujet_encode_rfc2047()
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: =?UTF-8?B?UsOpdW5pb24gw6AgMTVo?=" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Merci de confirmer." + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une fixture au sujet mot-encodé")
+	dbgVérifieEgalité(e..Sujet, "Réunion à 15h", "sujet décodé RFC 2047 exact")
+FIN
+
+
+// Cas G : en-tête Subject replié sur 2 lignes -> unfoldé.
+PROCEDURE PUBLIQUE scenario_eis_fixture_entete_replie_unfold()
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: Compte-rendu de la réunion du" + CRLF
+	sSource += " 12 septembre 2026 (équipe projet)" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Voir pièce jointe." + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une fixture à en-tête replié")
+	dbgVérifieEgalité(e..Sujet, "Compte-rendu de la réunion du 12 septembre 2026 (équipe projet)", "en-tête Subject unfoldé sur une seule ligne logique")
+FIN
+
+
+// ---------------------------------------------------------------------------
+// Bloc 3 : robustesse face à une entrée non fiable (jamais de plantage)
+// ---------------------------------------------------------------------------
+
+// Cas H : mot-encodé incomplet (jamais fermé par ?=).
+PROCEDURE PUBLIQUE scenario_eis_robustesse_motencode_incomplet()
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: =?UTF-8?Q?incomplet" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Corps du message." + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok = Vrai OU ok = Faux, "EmailImporteSource ne plante pas sur un mot-encodé incomplet, elle retourne un booléen")
+	dbgVérifieEgalité(e..Expéditeur, "alice@example.org", "malgré le sujet malformé, l'expéditeur reste correctement lu")
+	dbgVérifieEgalité(e..Message, "Corps du message.", "malgré le sujet malformé, le corps reste correctement lu")
+FIN
+
+
+// Cas I : base64 corrompu dans la partie pièce jointe.
+PROCEDURE PUBLIQUE scenario_eis_robustesse_base64_corrompu()
+	sBoundary est une chaîne = "==BOUNDARY-CORROMPU=="
+
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: Pièce jointe corrompue" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: multipart/mixed; boundary=" + `"` + sBoundary + `"` + CRLF
+	sSource += CRLF
+	sSource += "--" + sBoundary + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Corps valide." + CRLF
+	sSource += "--" + sBoundary + CRLF
+	sSource += "Content-Type: application/octet-stream; name=" + `"` + "abime.bin" + `"` + CRLF
+	sSource += "Content-Transfer-Encoding: base64" + CRLF
+	sSource += CRLF
+	sSource += "$$$non-base64$$$!!!" + CRLF
+	sSource += "--" + sBoundary + "--" + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok = Vrai OU ok = Faux, "EmailImporteSource ne plante pas sur une pièce jointe au base64 corrompu, elle retourne un booléen")
+	dbgVérifieEgalité(e..Message, "Corps valide.", "malgré la pièce jointe corrompue, le corps texte reste correctement lu")
+FIN
+
+
+// Cas J : boundary déclaré mais jamais présent dans le corps.
+PROCEDURE PUBLIQUE scenario_eis_robustesse_boundary_absent()
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: Boundary absente" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: multipart/mixed; boundary=" + `"` + "==BOUNDARY-JAMAIS-VUE==" + `"` + CRLF
+	sSource += CRLF
+	sSource += "Ce corps ne contient aucune frontière déclarée." + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok = Vrai OU ok = Faux, "EmailImporteSource ne plante pas quand la frontière déclarée est absente du corps, elle retourne un booléen")
+	dbgVérifieEgalité(e..Expéditeur, "alice@example.org", "malgré la frontière absente, l'expéditeur reste correctement lu")
+FIN
+
+
+// ---------------------------------------------------------------------------
+// Bloc 4 : cycle fichier .eml via fSauveTexte / fChargeTexte
+// ---------------------------------------------------------------------------
+
+PROCEDURE PUBLIQUE scenario_eis_fichier_eml()
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = "Compte-rendu"
+	e1..Message      = "Voici le compte-rendu de la réunion."
+	EmailConstruitSource(e1)
+
+	chemin est une chaîne = fRepTemp() + "\_tmp_eis_2083_fichier.eml"
+	fSupprime(chemin)
+	okEcrit est un booléen = fSauveTexte(chemin, e1..Source)
+	dbgVérifieVrai(okEcrit, "fSauveTexte écrit le fichier .eml")
+
+	e3 est un Email
+	e3..Source = fChargeTexte(chemin)
+	ok est un booléen = EmailImporteSource(e3)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source relue depuis un fichier .eml")
+	dbgVérifieEgalité(e3..Expéditeur, e1..Expéditeur, "expéditeur restitué depuis le fichier relu")
+	dbgVérifieEgalité(e3..Sujet, e1..Sujet, "sujet restitué depuis le fichier relu")
+	dbgVérifieEgalité(e3..Message, e1..Message, "corps restitué depuis le fichier relu")
+
+	fSupprime(chemin)
+FIN
+
+
+// Edge case : source vide — ne doit pas planter, échec propre.
+PROCEDURE PRIVÉE scenario_eis_edge_source_vide()
+	e est un Email
+	ok est un booléen = EmailImporteSource(e)
+	dbgVérifieVrai(ok = Faux OU e..Expéditeur = "", "une source vide ne provoque pas de plantage : échec propre ou email vide")
+FIN

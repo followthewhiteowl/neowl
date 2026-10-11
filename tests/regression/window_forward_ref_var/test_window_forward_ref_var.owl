@@ -1,0 +1,26 @@
+// Régression  : une variable d'état de fenêtre déclarée APRÈS un
+// handler qui l'utilise reste forward-référençable, par symétrie avec les
+// procédures (déjà forward-refables). Couvre le cas général SANS menu (Bouton
+// surClic) ET le cas AVEC menu (OptionMenu surSélection). La fenêtre voisine
+// FEN_FwdRef.owl porte les déclarations.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_FwdRef)
+dbgVérifieFaux(ErreurDétectée, "ouverture fenêtre : pas d'erreur")
+
+// Cas SANS menu : le surClic référence nClics déclarée après le bouton.
+TestSimuleSouris(BTN_Inc, ClicGauche)
+dbgVérifieFaux(ErreurDétectée, "surClic (variable forward) : pas d'erreur")
+nc est un entier = LireClics()
+dbgVérifieEgalité(nc, 1, "nClics incrémentée par le handler bouton (forward-ref sans menu)")
+
+// Cas AVEC menu : le surSélection référence nMenu déclarée après le bloc menu.
+TestSimuleMenu(FEN_FwdRef, "OPT_A")
+dbgVérifieFaux(ErreurDétectée, "surSélection (variable forward) : pas d'erreur")
+nm est un entier = LireMenu()
+dbgVérifieEgalité(nm, 1, "nMenu incrémentée par le handler menu (forward-ref avec menu)")
+
+Ferme(FEN_FwdRef)
+
+dbgBilanTest()

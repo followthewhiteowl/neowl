@@ -1,0 +1,57 @@
+// Fenêtre parente du scénario « fenêtre ouverte depuis le gestionnaire d'une
+// autre ». Elle est ouverte modale par le script de test ; un minuteur one-shot
+// rend la main à la boucle d'événements, et c'est depuis ce gestionnaire que
+// les fenêtres filles sont ouvertes — c'est la seule façon d'atteindre la
+// branche imbriquée (une boucle tourne déjà quand Ouvre est appelé).
+
+FEN_PurgeParent est une Fenêtre
+	PROPRIETES
+		Titre       = "Purge parente"
+		Largeur     = 320
+		Hauteur     = 200
+		Disposition = dispLibre
+	FIN
+
+	SAI_P est un Champ Saisie
+		PROPRIETES
+			X       = 10
+			Y       = 20
+			Largeur = 200
+		FIN
+
+		PROCEDURE surAChaqueModification()
+			callback_parent_change()
+		FIN
+	FIN
+
+	tGo est un Timer
+
+	PROCEDURE FinInitialisation()
+		PROCEDURE ActionGo()
+			TimerArrête(tGo)
+
+			// Cycle 1 : ouverture imbriquée simple.
+			Ouvre(FEN_PurgeFille)
+			callback_retour(1)
+
+			// Cycle 2 : ré-ouverture de la MÊME fenêtre (instance fraîche).
+			Ouvre(FEN_PurgeFille)
+			callback_retour(2)
+
+			// Cycle 3 : deux niveaux d'imbrication.
+			Ouvre(FEN_PurgeFille2)
+			callback_retour(3)
+
+			// La parente doit rester pleinement vivante après les fermetures :
+			// ses propres connexions ne doivent pas avoir été emportées.
+			TestSimuleSaisie(SAI_P, "ok")
+			callback_valeur_parente(SAI_P..Valeur)
+
+			Ferme(FEN_PurgeParent)
+		FIN
+		tGo..Intervalle = 30
+		tGo..Procédure  = ActionGo
+		tGo..Répète     = Faux
+		TimerDémarre(tGo)
+	FIN
+FIN

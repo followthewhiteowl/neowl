@@ -1,0 +1,53 @@
+// Regression : PositionOccurrence forme tableau-de-motifs au-delà de 2048.
+//
+// La forme tableau collecte toutes les positions de tous les motifs, les
+// trie ascendant, puis indexe par rang (ou parcourt via rangPremier/
+// rangSuivant). La collecte utilisait un tableau borné à 2048 : au-delà,
+// troncature silencieuse → rang profond faux (0) et parcours coupé.
+//
+// On construit "aXbXaXbX...aXbX" (1100 répétitions de "aXbX").
+// Motif "aX" aux positions 1,5,9,... ; "bX" aux positions 3,7,11,...
+// Fusionnés et triés : positions 1,3,5,7,... → occurrence k = 2k-1.
+// Total = 2200 occurrences (> 2048).
+
+sBig est une chaîne = ""
+POUR i = 1 A 1100
+	sBig = sBig + "aXbX"
+FIN
+
+motifs est un tableau de chaîne = ["aX", "bX"]
+
+// Rang profond au-delà du plafond : occurrence 2100 = 2*2100 - 1 = 4199.
+dbgVérifieEgalité(PositionOccurrence(sBig, motifs, 2100), 4199,
+	"forme tableau : 2100e occurrence à la position 4199 (au-delà de 2048)")
+
+// Dernière occurrence : 2200 = 2*2200 - 1 = 4399.
+dbgVérifieEgalité(PositionOccurrence(sBig, motifs, 2200), 4399,
+	"forme tableau : 2200e occurrence à la position 4399")
+
+// Rang hors borne au-delà du total : 0.
+dbgVérifieEgalité(PositionOccurrence(sBig, motifs, 2201), 0,
+	"forme tableau : rang 2201 hors total (2200) → 0")
+
+// Parcours rangPremier / rangSuivant au-delà de 2048 (buffer global).
+nPos est un entier = PositionOccurrence(sBig, motifs, rangPremier)
+dbgVérifieEgalité(nPos, 1, "parcours : rangPremier → position 1")
+
+nCompteur est un entier = 1
+nDernier est un entier = nPos
+TANTQUE nCompteur < 2100
+	nDernier = PositionOccurrence(sBig, motifs, rangSuivant)
+	nCompteur = nCompteur + 1
+FIN
+// Après 2099 rangSuivant, on est à la 2100e occurrence = 4199.
+dbgVérifieEgalité(nDernier, 4199,
+	"parcours : 2100e via rangSuivant = 4199 (au-delà du buffer 2048)")
+
+// Non-régression cas nominal (< 2048).
+sPetit est une chaîne = "aXbXaXbX"
+motifsPetit est un tableau de chaîne = ["aX", "bX"]
+dbgVérifieEgalité(PositionOccurrence(sPetit, motifsPetit, 1), 1, "nominal rang 1 → 1")
+dbgVérifieEgalité(PositionOccurrence(sPetit, motifsPetit, 4), 7, "nominal rang 4 → 7")
+dbgVérifieEgalité(PositionOccurrence(sPetit, motifsPetit, 5), 0, "nominal rang 5 hors total → 0")
+
+dbgBilanTest()

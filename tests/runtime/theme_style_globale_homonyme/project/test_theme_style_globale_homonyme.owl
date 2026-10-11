@@ -1,0 +1,36 @@
+// Un style de thème n'a pas de nom nu : le lire ainsi est refusé, et le refus
+// nomme le thème propriétaire. Ce refus connaît une exception — la seule —
+// quand une globale ORDINAIRE porte déjà ce nom : le nom nu désigne alors
+// cette globale-là, comme il l'a toujours fait, et le refus se tait.
+//
+// C'est la branche la plus délicate du dispositif : mal posée, elle rouvre la
+// porte que l'encapsulation vient de fermer. Les trois moitiés se vérifient
+// donc ensemble :
+//   1. le nom nu rend bien la valeur de la globale ordinaire ;
+//   2. il ne rend PAS celle du style de même nom porté par le thème ;
+//   3. le style reste atteignable, par sa forme qualifiée.
+
+Trace("=== style de thème homonyme d'une globale ordinaire ===")
+
+// --- 1. Le nom nu rend la globale ORDINAIRE ---
+dbgVérifieEgalité(stAmbiance..ZoneSaisie..CouleurFond, RVB(250, 250, 250),
+"nom nu homonyme : rend la valeur de la globale ordinaire")
+
+// --- 2. Il ne rend pas le style du thème (aucune fuite) ---
+dbgVérifieDifférence(stAmbiance..ZoneSaisie..CouleurFond, RVB(200, 10, 10),
+"nom nu homonyme : la valeur du style de thème ne fuit pas")
+
+// --- 3. Le style du thème reste lisible par sa forme qualifiée ---
+dbgVérifieEgalité(theme.stAmbiance..ZoneSaisie..CouleurFond, RVB(200, 10, 10),
+"forme qualifiée : rend la valeur du style de thème, malgré l'homonyme")
+dbgVérifieDifférence(theme.stAmbiance..ZoneSaisie..CouleurFond, RVB(250, 250, 250),
+"forme qualifiée : la globale ordinaire ne masque pas le style")
+
+// --- 4. Contre-épreuve : sans homonyme, le nom nu reste fermé ---
+// `stSansHomonyme` n'a aucune globale ordinaire pour le porter : son nom nu
+// est refusé à la COMPILATION, il n'y a donc rien à en lire ici. Ce que l'on
+// vérifie, c'est que l'exception ci-dessus n'a pas ouvert le cas général.
+dbgVérifieEgalité(theme.stSansHomonyme..ZoneSaisie..CouleurFond, RVB(20, 180, 20),
+"style sans homonyme : lisible par le namespace du thème")
+
+dbgBilanTest()

@@ -1,0 +1,58 @@
+//  — Table : lecture cellule par programme, forme col-first
+// TBL.COL_Nom[ligne]. Reutilise le store de  (forme ligne-first).
+//
+// Ce test verrouille :
+//   1. TBL.COL_Nom[2] == "Bob"            (chaine, col-first)
+//   2. TBL.COL_Id[1] == 1                 (numerique type)
+//   3. TBL.COL_Id[1] + 1 == 2            (arithmetique, pas concat → valeur typee)
+//   4. TBL.COL_Nom[1] == "Alice"          (coherence)
+//   5. symetrie col-first == ligne-first  (TBL.COL_Nom[L] == TBL[L].COL_Nom)
+//   6. TBL.COL_Nom[0] → OOB soft          (borne basse, ErreurDetectee)
+//   7. TBL.COL_Nom[3] → OOB soft          (borne haute apres 2 lignes)
+
+TestModeHeadless(Vrai)
+
+init_done_0554 est un booléen = Faux
+
+PROCEDURE cb_0554_init_done()
+	init_done_0554 = Vrai
+FIN
+
+Ouvre(FEN_TBL554)
+
+dbgVérifieVrai(init_done_0554, "FinInitialisation FEN_TBL554 executee")
+
+// --- Cas 1 : col-first COL_Nom ligne 2 (chaine) ---
+sNom2 est une chaîne = LireNomCol(2)
+dbgVérifieEgalité(sNom2, "Bob", "TBL.COL_Nom[2] == Bob")
+
+// --- Cas 2 + 3 : col-first COL_Id ligne 1 (numerique + arithmetique) ---
+nId1 est un entier = LireIdCol(1)
+dbgVérifieEgalité(nId1, 1, "TBL.COL_Id[1] == 1")
+dbgVérifieEgalité(nId1 + 1, 2, "TBL.COL_Id[1] + 1 == 2 (type numerique, pas concat)")
+
+// --- Cas 4 : col-first COL_Nom ligne 1 ---
+sNom1 est une chaîne = LireNomCol(1)
+dbgVérifieEgalité(sNom1, "Alice", "TBL.COL_Nom[1] == Alice")
+
+// --- Cas 5 : symetrie col-first == ligne-first ---
+bSym1 est un booléen = SymetrieNom(1)
+dbgVérifieVrai(bSym1, "TBL.COL_Nom[1] == TBL[1].COL_Nom (symetrie ligne 1)")
+bSym2 est un booléen = SymetrieNom(2)
+dbgVérifieVrai(bSym2, "TBL.COL_Nom[2] == TBL[2].COL_Nom (symetrie ligne 2)")
+
+// --- Cas 6 : OOB borne basse (ligne 0) ---
+ErreurRAZ()
+sHorsBas est une chaîne = LireNomCol(0)
+bOOBBas est un booléen = ErreurDétectée
+dbgVérifieVrai(bOOBBas, "TBL.COL_Nom[0] → ErreurDetectee (borne basse OOB soft)")
+
+// --- Cas 7 : OOB borne haute (ligne 3 sur 2 lignes) ---
+ErreurRAZ()
+sHorsHaut est une chaîne = LireNomCol(3)
+bOOBHaut est un booléen = ErreurDétectée
+dbgVérifieVrai(bOOBHaut, "TBL.COL_Nom[3] → ErreurDetectee (borne haute OOB soft)")
+
+Ferme(FEN_TBL554)
+
+dbgBilanTest()

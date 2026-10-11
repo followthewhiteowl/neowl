@@ -1,0 +1,58 @@
+Trace("=== AUTO-INIT Date/Heure/DateHeure ===")
+
+// --- Date sans initializer = date du jour ---
+maDate est une date
+dbgVérifieEgalité(TypeVar(maDate), owlDate, "Date sans init = type date")
+dbgVérifieVrai(maDate..Année >= 2026, "Date auto-init annee >= 2026")
+dbgVérifieVrai(maDate..Mois >= 1, "Date auto-init mois valide")
+dbgVérifieVrai(maDate..Jour >= 1, "Date auto-init jour valide")
+dbgVérifieVrai(maDate..Mois <= 12, "Date auto-init mois <= 12")
+dbgVérifieVrai(maDate..Jour <= 31, "Date auto-init jour <= 31")
+
+// --- Heure sans initializer = heure du jour ---
+monHeure est une heure
+dbgVérifieEgalité(TypeVar(monHeure), owlHeure, "Heure sans init = type heure")
+dbgVérifieVrai(monHeure..Heure >= 0, "Heure auto-init heure valide")
+dbgVérifieVrai(monHeure..Heure <= 23, "Heure <= 23")
+dbgVérifieVrai(monHeure..Minute >= 0, "Minute valide")
+dbgVérifieVrai(monHeure..Minute <= 59, "Minute <= 59")
+
+// --- DateHeure sans initializer = datetime courant ---
+maDH est une dateheure
+dbgVérifieEgalité(TypeVar(maDH), owlDateHeure, "DateHeure sans init")
+dbgVérifieVrai(maDH..Année >= 2026, "DH annee auto-init")
+dbgVérifieVrai(maDH..Heure >= 0, "DH heure auto-init")
+dbgVérifieVrai(maDH..Heure <= 23, "DH heure <= 23")
+
+// --- Concordance avec DateSys/HeureSys ---
+// Les valeurs auto-init doivent etre coherentes avec les fonctions systeme
+// (tolerance: peut varier legerement si la seconde change entre les appels)
+dateAuj est une date = DateSys()
+dbgVérifieEgalité(maDate..Année, dateAuj..Année, "auto-init annee = DateSys annee")
+
+// --- Override avec initializer ---
+dateCustom est une date = "20260416"
+dbgVérifieEgalité(dateCustom..Année, 2026, "init string")
+dbgVérifieEgalité(dateCustom..Mois, 4, "init mois")
+dbgVérifieEgalité(dateCustom..Jour, 16, "init jour")
+
+// --- Coercion implicite via init ---
+// String -> Date
+dateFromString est une date = "20261225"
+dbgVérifieEgalité(dateFromString..Mois, 12, "coercion string->date")
+
+// Integer -> Date (jours depuis 01/01/1800)
+dateFromInt est une date = 80000
+dbgVérifieVrai(dateFromInt..Année > 1800, "coercion int->date")
+
+// --- Heure via string ---
+heureFromString est une heure = "143025"
+dbgVérifieEgalité(heureFromString..Heure, 14, "coercion string->heure")
+dbgVérifieEgalité(heureFromString..Minute, 30, "heure minute")
+
+// --- DateHeure via string ---
+dhFromString est une dateheure = "20260416143025"
+dbgVérifieEgalité(dhFromString..Année, 2026, "DH string annee")
+dbgVérifieEgalité(dhFromString..Heure, 14, "DH string heure")
+
+dbgBilanTest()

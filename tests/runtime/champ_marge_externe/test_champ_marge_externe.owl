@@ -1,0 +1,137 @@
+// Runtime GUI (widgets montés, offscreen) : la marge d'un champ écarte ce
+// champ de ses voisins. Elle n'entre pas dans le champ : ni sa taille ni la
+// position de son texte à l'intérieur ne changent.
+//
+// Chaque mesure est prise sur la géométrie réelle du champ (..X / ..Y /
+// ..Largeur / ..Hauteur, disponibles depuis ), et la position du champ
+// marginé est recoupée par une sonde pixel indépendante sur son fond vert.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PremierYMarge(im est une Image, x est un entier, couleur est un entier)
+	y est un entier = 0
+	TANTQUE y < 300
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER y
+		FIN
+		y = y + 1
+	FIN
+	RENVOYER -1
+FIN
+
+PROCEDURE PremierXMarge(im est une Image, y est un entier, couleur est un entier)
+	x est un entier = 0
+	TANTQUE x < 400
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER x
+		FIN
+		x = x + 1
+	FIN
+	RENVOYER -1
+FIN
+
+gMargeVert est un entier = RVB(0, 200, 0)
+
+
+// ============================================================
+//  Taille déclarée — le cas où la marge était entièrement avalée
+// ============================================================
+
+OuvreSoeur(FEN_MargeVert)
+Temporise(80)
+
+imVert est une Image = dCopieImageFenêtre(FEN_MargeVert)
+
+// --- 1. Le champ sans marge sert d'origine.
+dbgVérifieEgalité(LIB_Haut..X, 0, "Sans marge : le champ est collé au bord gauche")
+dbgVérifieEgalité(LIB_Haut..Y, 0, "Sans marge : le champ est collé au bord haut")
+dbgVérifieEgalité(LIB_Haut..Hauteur, 20, "Sans marge : la hauteur déclarée est respectée")
+
+// --- 2. Marge gauche et haute sur un champ de taille déclarée : le champ se
+// déplace de la marge, et sa taille ne bouge pas d'un pixel.
+dbgVérifieEgalité(LIB_Marge..X, 30,
+"MargeGauche = 30 : le champ est écarté de 30 du bord gauche")
+dbgVérifieEgalité(LIB_Marge..Y, 45,
+"MargeHaut = 25 sous un champ de 20 : le champ commence en y = 45")
+dbgVérifieEgalité(LIB_Marge..Largeur, 80,
+"La marge n'entre pas dans le champ : la largeur déclarée reste 80")
+dbgVérifieEgalité(LIB_Marge..Hauteur, 20,
+"La marge n'entre pas dans le champ : la hauteur déclarée reste 20")
+
+// --- 3. Sonde pixel : le fond du champ marginé commence bien là où la
+// propriété le dit, sans passer par la propriété.
+yMarge est un entier = PremierYMarge(imVert, 40, gMargeVert)
+xMarge est un entier = PremierXMarge(imVert, 50, gMargeVert)
+dbgVérifieEgalité(yMarge, 45, "Sonde pixel : le fond du champ marginé commence en y = 45")
+dbgVérifieEgalité(xMarge, 30, "Sonde pixel : le fond du champ marginé commence en x = 30")
+dbgVérifieEgalité(LIB_Marge..X, xMarge, "Sonde pixel : ..X confirme la position mesurée")
+dbgVérifieEgalité(LIB_Marge..Y, yMarge, "Sonde pixel : ..Y confirme la position mesurée")
+
+// --- 4. Le voisin est réellement écarté : la marge basse du champ précédent
+// le pousse vers le bas.
+dbgVérifieEgalité(LIB_Bas..Y, 70,
+"MargeBas = 5 du voisin : le champ suivant commence en y = 70")
+dbgVérifieEgalité(LIB_Bas..X, 0,
+"La marge du voisin ne décale pas le champ suivant horizontalement")
+
+// --- 5. Forme groupée : Marge s'applique aux quatre côtés.
+dbgVérifieEgalité(LIB_Uni..X, 7, "Marge = 7 : écart de 7 à gauche")
+dbgVérifieEgalité(LIB_Uni..Y, 97, "Marge = 7 : écart de 7 au-dessus du champ précédent")
+dbgVérifieEgalité(LIB_Uni..Largeur, 80, "Marge groupée : la largeur déclarée reste 80")
+
+// --- 6. Un côté nommé l'emporte sur la forme groupée.
+dbgVérifieEgalité(LIB_Over..Y, 144,
+"MargeHaut = 20 l'emporte sur Marge = 7 pour le côté haut")
+dbgVérifieEgalité(LIB_Over..X, 7,
+"Marge = 7 continue de s'appliquer aux côtés non surchargés")
+dbgVérifieEgalité(LIB_Fin..Y, 171,
+"La marge basse groupée du champ précédent écarte le dernier champ")
+
+Ferme(FEN_MargeVert)
+
+
+// ============================================================
+//  Sans taille déclarée — le champ ne doit pas grossir
+// ============================================================
+
+OuvreSoeur(FEN_MargeHoriz)
+Temporise(80)
+
+dbgVérifieEgalité(LIB_G..X, 0, "Pile horizontale : le premier champ est collé au bord")
+
+// --- 7. Sans taille déclarée, la marge écarte au lieu de gonfler le champ :
+// le champ marginé mesure exactement autant que ses voisins de même texte.
+dbgVérifieEgalité(LIB_M..Largeur, LIB_G..Largeur,
+"Sans taille déclarée : la marge ne grossit pas le champ en largeur")
+dbgVérifieEgalité(LIB_M..Hauteur, LIB_G..Hauteur,
+"Sans taille déclarée : la marge ne grossit pas le champ en hauteur")
+dbgVérifieEgalité(LIB_M..X, LIB_G..Largeur + 12,
+"MargeGauche = 12 : le champ est écarté de 12 de son voisin de gauche")
+dbgVérifieEgalité(LIB_D..X, LIB_M..X + LIB_M..Largeur + 18,
+"MargeDroite = 18 : le voisin de droite est écarté de 18")
+dbgVérifieEgalité(LIB_D..Largeur, LIB_G..Largeur,
+"Le voisin de droite garde sa largeur naturelle")
+
+Ferme(FEN_MargeHoriz)
+
+
+// ============================================================
+//  Marge externe et retrait intérieur sur le même champ
+// ============================================================
+
+OuvreSoeur(FEN_MargeRetrait)
+Temporise(80)
+
+// --- 8. Les deux réglages sont indépendants : le retrait reste dans le champ
+// (mêmes dimensions que la référence sans marge), la marge le déplace.
+dbgVérifieEgalité(LIB_AvecMarge..Largeur, LIB_RefRetrait..Largeur,
+"Marge et retrait : la marge n'écrase pas le retrait en largeur")
+dbgVérifieEgalité(LIB_AvecMarge..Hauteur, LIB_RefRetrait..Hauteur,
+"Marge et retrait : la marge n'écrase pas le retrait en hauteur")
+dbgVérifieEgalité(LIB_RefRetrait..X, 0,
+"Retrait seul : le champ reste collé au bord")
+dbgVérifieEgalité(LIB_AvecMarge..X, 30,
+"Marge et retrait : seule la marge déplace le champ, de 30")
+
+Ferme(FEN_MargeRetrait)
+dbgBilanTest()

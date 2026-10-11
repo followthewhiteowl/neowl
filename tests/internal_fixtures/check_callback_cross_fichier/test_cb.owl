@@ -1,0 +1,19 @@
+// Fixture pour --self-test-cli-ops.
+// Fichier de TEST cible du controle : il declare le callback top-level que le
+// compagnon FEN_Cb appelle depuis son FinInitialisation. `owl --check` sur ce
+// fichier doit rendre le meme verdict que `owl test` sur le dossier : le
+// callback est resolu, aucun faux positif "inconnue".
+
+TestModeHeadless(Vrai)
+
+init_fait est un booléen = Faux
+
+PROCEDURE cb_injecte_par_test()
+	init_fait = Vrai
+FIN
+
+Ouvre(FEN_Cb)
+dbgVérifieVrai(init_fait, "FinInitialisation a appele le callback injecte")
+Ferme(FEN_Cb)
+
+dbgBilanTest()

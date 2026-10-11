@@ -1,0 +1,22 @@
+// Plusieurs sous-champs d'Etat se manipulent mutuellement par nom dans
+// leur top-level respectif. La ressource ETAT_MultiSousChamps vit dans
+// le voisin etat_multi_souschamps.owl.
+
+TestModeHeadless(Vrai)
+
+seqEtat est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqEtat += sEvenement
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_lifecycle_top_level/multi_souschamps/temp.pdf")
+iImprimeEtat(ETAT_MultiSousChamps)
+iFinImprime()
+
+Trace("seqEtat obtenu : [" + seqEtat + "]")
+
+dbgVérifieEgalité(seqEtat, "A_set_B:from_A|B_set_A:from_B",
+"Multi sous-champs d'Etat se manipulent mutuellement par nom dans leur top-level")
+
+dbgBilanTest()

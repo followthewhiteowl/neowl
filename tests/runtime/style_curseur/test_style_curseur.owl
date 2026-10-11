@@ -1,0 +1,51 @@
+// =====================================================================
+// TEST: CurseurSouris cohérent sur tout widget visuel + via Style.
+//
+// Avant ce câblage, CurseurSouris n'était accepté que sur Image et
+// Libellé : Saisie, Bouton et Conteneur rejetaient la propriété au
+// --check ("propriété inconnue"). Le descripteur Style ne portait pas
+// non plus de CurseurSouris au niveau de base.
+//
+// Ce test verrouille :
+//   1. L'acceptation déclarative de CurseurSouris sur les 3 widgets
+//      jadis KO (sinon FEN_StyleCurseur.owl ne compilerait pas).
+//   2. La valeur réellement conservée et relisible via ..CurseurSouris
+//      (store) sur ces widgets, en lecture déclarative ET après
+//      écriture runtime.
+//   3. L'application d'un Style générique portant CurseurSouris (base +
+//      Survol) sans crash sur le chemin apply_style_to_control. Le
+//      support est la Fenêtre (seule surface acceptant encore le
+//      descripteur Style non typé — les champs ont leur styleXxx typé).
+//
+// La forme posée par un Style transite par le widget Qt (pas le store)
+// et n'est pas exposée en lecture OWL — on ne fabrique pas de getter
+// dédié (surface langage). On vérifie l'absence de crash + la lecture
+// des chemins store-backed.
+// =====================================================================
+
+TestModeHeadless(Faux)
+
+Trace("=== CurseurSouris : cohérence widgets + Style ===")
+
+OuvreSoeur(FEN_StyleCurseur)
+
+// 1. Lecture déclarative : la valeur posée en PROPRIETES survit dans
+//    le store sur les 3 widgets jadis KO.
+dbgVérifieEgalité(SAI_Cur..CurseurSouris, curMain, "Saisie : CurseurSouris déclaratif conservé")
+dbgVérifieEgalité(BTN_Cur..CurseurSouris, curInterdit, "Bouton : CurseurSouris déclaratif conservé")
+dbgVérifieEgalité(CONT_Cur..CurseurSouris, curAide, "Conteneur : CurseurSouris déclaratif conservé")
+
+// 2. Écriture runtime puis relecture (chemin générique real_ui_set_prop
+//    + store) sur un widget jadis KO.
+SAI_Cur..CurseurSouris = curSablier
+dbgVérifieEgalité(SAI_Cur..CurseurSouris, curSablier, "Saisie : CurseurSouris réaffecté au runtime")
+
+BTN_Cur..CurseurSouris = curCroix
+dbgVérifieEgalité(BTN_Cur..CurseurSouris, curCroix, "Bouton : CurseurSouris réaffecté au runtime")
+
+// 3. Le Style (base curMain + Survol curInterdit) a déjà été appliqué à
+//    la Fenêtre à l'ouverture sans crash : on confirme l'état nominal.
+dbgVérifieVrai(Vrai, "Style avec CurseurSouris (base + Survol) appliqué sans crash")
+
+Ferme(FEN_StyleCurseur)
+dbgBilanTest()

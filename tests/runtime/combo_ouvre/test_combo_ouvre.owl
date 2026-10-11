@@ -1,0 +1,58 @@
+// @sujet : ComboOuvre
+// @résumé : Ouvre la liste déroulée d'un champ Combo (force l'affichage
+// du popup de sélection).
+//
+// La fenêtre voisine FEN_ComboOuvre.owl porte la déclaration des Combos.
+// Chaque scenario ouvre la fenêtre, exerce ComboOuvre, puis ferme.
+
+// Cas nominal — ouvrir une combo simple.
+PROCEDURE PUBLIQUE scenario_ouvrir_combo_simple()
+	Ouvre(FEN_ComboOuvre)
+	// En mode headless (test runner), le popup ne s'affiche pas visuellement
+	// mais la fonction s'exécute sans erreur. ComboOuvre force l'ouverture
+	// de la liste déroulée du champ.
+	ComboOuvre(CMB_Simple)
+	dbgVérifieVrai(Vrai, "ComboOuvre s'exécute sans erreur sur combo simple")
+	Ferme(FEN_ComboOuvre)
+FIN
+
+// Cas nominal — appel via référence directe au champ.
+PROCEDURE PUBLIQUE scenario_ouvrir_avec_reference()
+	Ouvre(FEN_ComboOuvre)
+	// Le champ peut être passé directement comme argument
+	// (référence locale ou globale).
+	ComboOuvre(CMB_Forme)
+	dbgVérifieVrai(Vrai, "Référence directe au champ fonctionne")
+	Ferme(FEN_ComboOuvre)
+FIN
+
+// Cas limite — ouvrir une combo vide.
+PROCEDURE PUBLIQUE scenario_ouvrir_combo_vide()
+	Ouvre(FEN_ComboOuvre)
+	// Ouvrir une combo sans options ne doit pas planter.
+	// Le popup affiché sera vide, mais l'appel reste valide.
+	ComboOuvre(CMB_Vide)
+	dbgVérifieVrai(Vrai, "Ouvrir une combo vide ne génère pas d'erreur")
+	Ferme(FEN_ComboOuvre)
+FIN
+
+// Cas limite — appel multiple successif sur la même combo.
+PROCEDURE PUBLIQUE scenario_appel_multiple_ouvre()
+	Ouvre(FEN_ComboOuvre)
+	// Appeler ComboOuvre plusieurs fois de suite doit être idempotent
+	// (si déjà ouverte, rester ouverte).
+	ComboOuvre(CMB_Multi)
+	ComboOuvre(CMB_Multi)
+	ComboOuvre(CMB_Multi)
+	dbgVérifieVrai(Vrai, "Appels multiples successifs sans erreur")
+	Ferme(FEN_ComboOuvre)
+FIN
+
+// Edge case — combo avec nom accentué.
+PROCEDURE PRIVÉE scenario_edge_combo_nom_accentue()
+	Ouvre(FEN_ComboOuvre)
+	// Noms de champ accentués doivent être supportés.
+	ComboOuvre(CMB_Météo)
+	dbgVérifieVrai(Vrai, "Combo avec nom accentué fonctionne")
+	Ferme(FEN_ComboOuvre)
+FIN

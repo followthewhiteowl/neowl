@@ -1,0 +1,37 @@
+// Coverage API fluente des mocks via méthodes préfixées sur MockNative.
+// Extension OWL (pas de documentation de référence : les mocks sont une nouveauté OWL).
+// Note: MockCrée n'accepte que les natives C (OBJ_NATIVE).
+
+// ============================================================================
+// Syntaxe chainable complète
+// ============================================================================
+m est un MockNative = MockCrée(Trace)
+m.Quand().Avec(MockTout).Retourne("mocked!")
+m.Active()
+dbgVérifieEgalité(Trace("anything"), "mocked!", "mock actif intercepte via .Quand().Avec().Retourne().Active()")
+
+// .VérifieAppelé (receiver-first)
+Trace("a")
+Trace("b")
+m.VérifieAppelé(3)
+
+// .Réinitialise remet le compteur à 0
+m.Réinitialise()
+m.VérifieAppelé(0)
+
+// .Désactive rend la main
+m.Désactive()
+// Après Désactive, Trace fonctionne normalement (pas de retour mocké)
+// (on ne teste pas Trace() qui écrit sur stdout, juste que ça ne plante pas)
+
+// ============================================================================
+// Aliases EN .When() / .With() / .Returns() / .Activate() / .Deactivate()
+// (tous pointent vers les mêmes fonctions natives que leurs équivalents FR)
+// ============================================================================
+m2 est un MockNative = MockCrée(Majuscule)
+m2.When().With(MockTout).Returns("OK")
+m2.Activate()
+dbgVérifieEgalité(Majuscule("hello"), "OK", "aliases EN chainables")
+m2.Deactivate()
+
+dbgBilanTest()

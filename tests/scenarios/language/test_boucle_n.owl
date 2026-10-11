@@ -1,0 +1,107 @@
+// @sujet : BOUCLE (N) — compteur d'itérations sans variable exposée
+// @résumé : BOUCLE (N) exécute le bloc exactement N fois, sans variable d'itération visible dans le body. N est évalué une seule fois au démarrage : si N est négatif ou nul, le bloc n'est pas exécuté du tout. SORTIR et CONTINUER fonctionnent comme dans toute autre boucle. C'est l'idiome canonique pour « répéter N fois » quand on n'a pas besoin de connaître le numéro du tour.
+
+
+// Cas le plus courant : on veut juste répéter une action un nombre fixe de
+// fois. BOUCLE (N) garde le compteur en interne, le body se concentre sur
+// l'effet à appliquer. Plus lisible qu'un POUR i = 1 A N quand l'index ne
+// sert à rien.
+PROCEDURE scenario_compteur_fixe()
+	nTotal est un entier = 0
+	nGuard est un entier = 0
+	BOUCLE (3)
+		nTotal = nTotal + 1
+		nGuard = nGuard + 1
+		SI nGuard > 100 ALORS
+			SORTIR
+		FIN
+	FIN
+	dbgVérifieEgalité(nTotal, 3, "BOUCLE (3) exécute le body exactement 3 fois")
+	dbgVérifieEgalité(nGuard, 3, "Pas d'itération parasite : compteur garde 3")
+FIN
+
+
+// N == 0 est légal et signifie « ne rien faire ». Pas d'erreur, juste une
+// sortie immédiate. Utile quand N est calculé à partir d'un contexte qui
+// peut produire zéro légitimement.
+PROCEDURE scenario_zero_iteration()
+	bExecute est un booléen = Faux
+	nGuard est un entier = 0
+	BOUCLE (0)
+		bExecute = Vrai
+		nGuard   = nGuard + 1
+		SI nGuard > 100 ALORS
+			SORTIR
+		FIN
+	FIN
+	dbgVérifieFaux(bExecute, "BOUCLE (0) n'exécute jamais le body")
+FIN
+
+
+// SORTIR fonctionne comme dans une BOUCLE classique : sortie immédiate
+// dès la condition rencontrée, même si N itérations étaient prévues.
+PROCEDURE scenario_sortir_anticipe()
+	nVus est un entier = 0
+	nGuard est un entier = 0
+	BOUCLE (10)
+		nVus = nVus + 1
+		SI nVus >= 4 ALORS
+			SORTIR
+		FIN
+		nGuard = nGuard + 1
+		SI nGuard > 100 ALORS
+			SORTIR
+		FIN
+	FIN
+	dbgVérifieEgalité(nVus, 4, "SORTIR à nVus=4 termine la boucle avant la fin des 10 tours prévus")
+FIN
+
+
+// CONTINUER saute le reste du body mais le tour est tout de même compté.
+// Sur N=5 avec CONTINUER sur les impairs, le body s'exécute partiellement
+// 5 fois mais l'accumulateur n'incrémente que sur les 2 tours pairs.
+PROCEDURE scenario_continuer_compte_le_tour()
+	nTours est un entier = 0
+	nPairs est un entier = 0
+	nGuard est un entier = 0
+	BOUCLE (5)
+		nTours = nTours + 1
+		nGuard = nGuard + 1
+		SI nGuard > 100 ALORS
+			SORTIR
+		FIN
+		SI nTours % 2 = 1 ALORS
+			CONTINUER
+		FIN
+		nPairs = nPairs + 1
+	FIN
+	dbgVérifieEgalité(nTours, 5, "Les 5 tours sont effectués même avec CONTINUER")
+	dbgVérifieEgalité(nPairs, 2, "CONTINUER saute le reste du body : seuls les tours 2 et 4 incrémentent nPairs")
+FIN
+
+
+// N peut être une expression. Elle est évaluée une seule fois au démarrage
+// de la boucle, jamais re-calculée par la suite. Démontre l'eval-unique :
+// la procédure DonneTroisEtCompte() incrémente un compteur global et
+// retourne 3 ; après la boucle ce compteur vaut 1 (un seul appel), pas 3.
+nAppelsDonneN est un entier = 0
+
+PROCEDURE PRIVÉE DonneTroisEtCompte() : entier
+	nAppelsDonneN = nAppelsDonneN + 1
+	RENVOYER 3
+FIN
+
+PROCEDURE scenario_expression_evaluee_une_seule_fois()
+	nAppelsDonneN = 0
+	nIter est un entier = 0
+	nGuard est un entier = 0
+	BOUCLE (DonneTroisEtCompte())
+		nIter  = nIter + 1
+		nGuard = nGuard + 1
+		SI nGuard > 100 ALORS
+			SORTIR
+		FIN
+	FIN
+	dbgVérifieEgalité(nIter, 3, "BOUCLE (DonneTroisEtCompte()) tourne 3 fois")
+	dbgVérifieEgalité(nAppelsDonneN, 1, "L'expression du compteur est évaluée une seule fois au démarrage")
+FIN

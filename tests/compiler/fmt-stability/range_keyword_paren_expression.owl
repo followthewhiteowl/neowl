@@ -1,0 +1,22 @@
+//  — espace preserve entre keyword de range loop et `(` ouvrante
+// d'expression parenthesee. `POUR i = 1 A (borne)` et `POUR i = 1 _A_ (borne)`
+// ne doivent PAS devenir `POUR i = 1 A(borne)` / `POUR i = 1 _A_(borne)`.
+// Note : `A` est canonise en `À` par format_line_content (range loop FR),
+// et `_A_` (borne evaluee une fois) en `_À_` via fmt_keywords[] ;
+// le test cible donc la forme accentuee post-canon (idempotence).
+PROCEDURE Test()
+	n est un entier = 10
+	bCond est un booléen = Vrai
+	POUR i = 1 À (n + 1)
+		Trace(i)
+	FIN
+	POUR j = 1 _A_ (n + 1)
+		Trace(j)
+	FIN
+	POUR k = 1 À (n) PAS (1 + 1)
+		Trace(k)
+	FIN
+	POUR m = 1 À (n) _PAS_ (1 + 1)
+		Trace(m)
+	FIN
+FIN

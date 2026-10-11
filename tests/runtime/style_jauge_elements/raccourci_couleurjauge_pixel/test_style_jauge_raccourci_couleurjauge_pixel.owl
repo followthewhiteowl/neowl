@@ -1,0 +1,48 @@
+//  — Lot 1 (digue) : cohérence raccourci ↔ style. `..CouleurJauge`
+// (raccourci à plat, GARDÉ non-cassant) et `Style..Remplissage..CouleurFond`
+// (nouveau chemin styleJauge) doivent produire le même remplissage pour la
+// même couleur.
+//
+// ROUGE attendu : `Style..Remplissage..CouleurFond` ne compile pas encore (le
+// type styleJauge n'existe pas) — JAU_Raccourci seul (raccourci existant)
+// ne suffit pas à faire compiler ce fichier voisin. Cf.
+// FEN_StyleJaugeRaccourci.owl.
+
+TestModeHeadless(Faux)
+
+couleurRemplissage est un entier = RVB(0, 0, 220)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleJaugeRaccourci)
+
+imgRaccourci est une Image = dCopieImageChamp(JAU_Raccourci)
+imgStyle est une Image = dCopieImageChamp(JAU_Style)
+dbgVérifieEgalité(imgRaccourci..Valide, Vrai, "capture JAU_Raccourci valide")
+dbgVérifieEgalité(imgStyle..Valide, Vrai, "capture JAU_Style valide")
+
+// Même géométrie (300x30, valeur 60%) pour les deux jauges : la zone
+// remplie ~[0,180] échantillonnée à l'identique.
+nbRaccourci est un entier = CompteCouleurZone(imgRaccourci, 10, 8, 150, 22, couleurRemplissage)
+nbStyle est un entier = CompteCouleurZone(imgStyle, 10, 8, 150, 22, couleurRemplissage)
+seuil est un entier = 700 // (150-10) * (22-8) = 1960, ~35%, marge basse
+
+dbgVérifieVrai(nbRaccourci > seuil, "JAU_Raccourci : ..CouleurJauge peint le remplissage")
+dbgVérifieVrai(nbStyle > seuil, "JAU_Style : Style..Remplissage..CouleurFond peint le remplissage")
+
+Ferme(FEN_StyleJaugeRaccourci)
+dbgBilanTest()

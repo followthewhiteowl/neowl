@@ -1,0 +1,51 @@
+// @sujet : xlsDocument
+// @résumé : Formes méthode du type xlsDocument (doc.AjouteFeuille, doc.Sauve, ...), miroir des fonctions libres.
+
+
+// Ajouter une feuille et y basculer via les formes méthode.
+PROCEDURE PUBLIQUE scenario_methode_ajoute_et_bascule_feuille()
+	doc est un xlsDocument
+	doc[1, 1] = "Feuille 1"
+	ajoutée est un booléen = doc.AjouteFeuille("Rapport")
+	dbgVérifieVrai(ajoutée, "doc.AjouteFeuille ajoute une deuxième feuille")
+	dbgVérifieEgalité(doc.NbFeuille(), 2, "doc.NbFeuille reflète l'ajout")
+
+	basculée est un booléen = doc.FeuilleEnCours(2)
+	dbgVérifieVrai(basculée, "doc.FeuilleEnCours bascule vers la feuille 2")
+	doc.Ferme()
+FIN
+
+
+// Fusionner puis défusionner une plage via les formes méthode.
+PROCEDURE PUBLIQUE scenario_methode_fusion_et_defusion()
+	doc est un xlsDocument
+	doc[2, 2] = "Titre fusionné"
+	fusionnée est un booléen = doc.FusionneCellule("B2", "D4")
+	dbgVérifieVrai(fusionnée, "doc.FusionneCellule fusionne la plage B2:D4")
+	défusionnée est un booléen = doc.DéfusionneCellule("B2")
+	dbgVérifieVrai(défusionnée, "doc.DéfusionneCellule annule la fusion précédente")
+	doc.Ferme()
+FIN
+
+
+// Consulter les dimensions du classeur via les formes méthode.
+PROCEDURE PUBLIQUE scenario_methode_dimensions()
+	doc est un xlsDocument
+	doc[1, 1] = "A"
+	doc[3, 5] = "B"
+	dbgVérifieEgalité(doc.NbLigne(), 3, "doc.NbLigne renvoie la dernière ligne occupée")
+	dbgVérifieEgalité(doc.NbColonne(), 5, "doc.NbColonne renvoie la dernière colonne occupée")
+	doc.Ferme()
+FIN
+
+
+// Sauvegarder puis fermer via les formes méthode.
+PROCEDURE PUBLIQUE scenario_methode_sauve_et_ferme()
+	doc est un xlsDocument
+	doc[1, 1] = "Bonjour"
+	résultat est un booléen = doc.Sauve("test_xls_methode_sauve.xlsx")
+	dbgVérifieVrai(résultat, "doc.Sauve écrit le classeur sur disque")
+	dbgVérifieVrai(fFichierExiste("test_xls_methode_sauve.xlsx"), "le fichier .xlsx a bien été produit")
+	doc.Ferme()
+	fSupprime("test_xls_methode_sauve.xlsx")
+FIN

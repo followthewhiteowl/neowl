@@ -1,0 +1,104 @@
+// @sujet : ToastAffiche
+// @résumé : Affiche un message éphémère (toast) non bloquant, fondu auto. Couvre durée, cadrage et couleur de fond.
+
+
+// Particularité des fonctions UI : on ne peut pas vérifier l'apparence du
+// toast dans un test automatisé. On vérifie en revanche que la fonction a
+// été appelée, combien de fois, et — via les patterns d'argument du mock —
+// sur quel type de contenu. La fixture pose un catch-all qui empêche tout
+// champ GUI de s'ouvrir ; les scénarios installent au besoin des règles
+// plus spécifiques avant l'appel.
+mockToast est un MockNative = MockCrée(ToastAffiche)
+
+
+PROCEDURE avantChaqueTest()
+	mockToast = MockCrée(ToastAffiche).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockToast.Desactive()
+FIN
+
+
+// Cas canonique : un appel à un seul argument suffit. La durée, le cadrage
+// et la couleur prennent leurs valeurs par défaut (toast court, en bas-centre,
+// couleur du thème). Une seule invocation est interceptée.
+PROCEDURE scenario_appel_simple()
+	ToastAffiche("Opération réussie.")
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 1))
+FIN
+
+
+// Les cinq paramètres scalaires sont indépendants et peuvent être tous
+// fournis explicitement : message, durée (`toastLong`), cadrage vertical
+// (`cvMilieu` — alias de `cvCentre`), cadrage horizontal (`chCentre`) et
+// couleur de fond (`VertClair`). Démonstration de la signature complète.
+PROCEDURE scenario_cinq_parametres_explicites()
+	ToastAffiche("Sauvegarde terminée.", toastLong, cvMilieu, chCentre, VertClair)
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 1))
+FIN
+
+
+// Un message vide est autorisé : le toast s'affiche comme un rectangle
+// minimal, sans erreur. Cas limite défensif.
+PROCEDURE scenario_message_vide()
+	ToastAffiche("")
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 1))
+FIN
+
+
+// Un message multiligne est rendu tel quel : les sauts de ligne `LF`
+// produisent autant de lignes dans le champ. Idiomatique pour un toast
+// d'information détaillée.
+PROCEDURE scenario_message_multiligne()
+	ToastAffiche("Étape 1 terminée." + LF + "Étape 2 en cours.")
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 1))
+FIN
+
+
+// Le compteur du mock reflète fidèlement le nombre d'invocations sur la
+// durée du scénario. Au runtime, les toasts s'enchaînent dans une file
+// séquentielle (chacun attend la fin du précédent) — du point de vue de
+// l'appelant, chaque ligne déclenche son propre toast.
+PROCEDURE scenario_appels_repetes_compte_exact()
+	ToastAffiche("Fichier 1 traité.")
+	ToastAffiche("Fichier 2 traité.")
+	ToastAffiche("Fichier 3 traité.")
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 3))
+FIN
+
+
+// L'interpolation `[%var%]` fonctionne dans le message comme dans toute
+// chaîne. Forme idiomatique pour insérer des valeurs variables sans
+// concaténation explicite.
+PROCEDURE scenario_avec_interpolation()
+	nFichiers est un entier = 42
+	ToastAffiche("Vous avez [%nFichiers%] fichiers à traiter.")
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 1))
+FIN
+
+
+// Pattern MockContient : la règle ne s'applique que sur les appels dont
+// le premier argument contient la sous-chaîne, quelle que soit sa
+// position. Utile pour catégoriser les toasts (succès, erreur) tout en
+// laissant le catch-all gérer le reste.
+PROCEDURE scenario_pattern_par_substring()
+	mockLocal est un MockNative = MockCrée(ToastAffiche)
+	mockLocal.Quand().Avec(MockContient("succès")).Retourne(0).Active()
+
+	ToastAffiche("Opération terminée avec succès.")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1))
+
+	mockLocal.Desactive()
+FIN
+
+
+// `couleurFond` accepte une couleur prédéfinie du registry. La forme la
+// plus lisible est de passer la constante (`VertClair`, `RougeFoncé`,
+// etc.) ; un entier RVB explicite est également accepté mais moins
+// parlant à la relecture.
+PROCEDURE scenario_couleur_predefinie()
+	ToastAffiche("Avertissement.", toastCourt, cvBas, chCentre, RougeFoncé)
+	dbgVérifieVrai(MockVérifieAppelé(mockToast, 1))
+FIN

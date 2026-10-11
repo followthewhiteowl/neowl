@@ -1,0 +1,63 @@
+//  — `Style..ZoneSaisie..Dégradé` peint réellement le fond du QLineEdit
+// d'un Champ Saisie. Un dégradé linéaire horizontal rouge->bleu doit produire
+// DEUX couleurs distinctes dans le champ : des pixels franchement rouges à
+// gauche, des pixels franchement bleus à droite (preuve d'un dégradé, pas d'un
+// fond uni). On extrait les composantes R/B de chaque pixel (BGR packé) et on
+// compte la dominance, robuste à l'interpolation du dégradé.
+//
+// ROUGE attendu avant  : `Dégradé` inconnu sur styleZoneSaisie ->
+// erreur sémantique au compile (le fichier ne se lance pas). Après impl : le
+// QLineEdit porte `background: qlineargradient(...)`, les deux couleurs
+// apparaissent.
+
+TestModeHeadless(Faux)
+
+// reddish : R domine nettement B ; bluish : B domine nettement R.
+PROCEDURE CompteDominance(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, rougeDomine est un booléen)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			c est un entier = dPixelCouleur(img, xx, yy)
+			r est un entier = c MODULO 256
+			b est un entier = (c / 65536) MODULO 256
+			SI rougeDomine ALORS
+				SI r - b > 60 ALORS
+					n = n + 1
+				FIN
+			SINON
+				SI b - r > 60 ALORS
+					n = n + 1
+				FIN
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementZoneSaisieDegrade)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleElementZoneSaisieDegrade)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// Bande gauche du champ : franchement rouge (début du dégradé).
+nbRougeGauche est un entier = CompteDominance(img, 30, 30, 120, 80, Vrai)
+dbgVérifieVrai(nbRougeGauche > 200, "ZoneSaisie..Dégradé : bord gauche rouge (début du dégradé)")
+
+// Bande droite du champ : franchement bleue (fin du dégradé).
+nbBleuDroite est un entier = CompteDominance(img, 440, 30, 530, 80, Faux)
+dbgVérifieVrai(nbBleuDroite > 200, "ZoneSaisie..Dégradé : bord droit bleu (fin du dégradé)")
+
+// Preuve « deux couleurs » : le champ n'est PAS uni (rouge à gauche ET bleu à
+// droite en même temps).
+dbgVérifieVrai(nbRougeGauche > 200 ET nbBleuDroite > 200, "ZoneSaisie..Dégradé : deux couleurs distinctes visibles (dégradé, pas un fond uni)")
+
+// Round-trip QSS : le QLineEdit porte bien le dégradé dans sa feuille de style.
+feuille est une chaîne = __DebugFeuilleStyle(SAI_Degrade)
+dbgVérifieVrai(Contient(feuille, "qlineargradient"), "ZoneSaisie..Dégradé : feuille QSS du QLineEdit contient qlineargradient")
+
+Ferme(FEN_StyleElementZoneSaisieDegrade)
+dbgBilanTest()

@@ -1,0 +1,317 @@
+// @sujet : Couleur (type composé)
+// @résumé : Type composé avec 8 propriétés (Rouge/Vert/Bleu/Teinte/Saturation/Luminosité/Opacité/Couleur). La propriété Couleur (valeur entière packée RGB) est la propriété par défaut : le type se déballe automatiquement en contexte scalaire. Mutation d'une sous-propriété déclenche un rebalancing RGB ↔ HSL ↔ packed.
+
+
+// Cas canonique sans init explicite : déclaration `c est une Couleur` sans
+// valeur initiale reçoit un template par défaut avec les 8 propriétés à
+// leurs valeurs par défaut (noir = RGB(0,0,0), Opacité 255).
+PROCEDURE scenario_declaration_sans_init()
+	c est une Couleur
+
+	// Valeur packée par défaut = 0 (noir)
+	dbgVérifieEgalité(c..Couleur, 0, "Couleur sans init = 0 (noir)")
+
+	// Composantes RGB par défaut
+	dbgVérifieEgalité(c..Rouge, 0, "Rouge par défaut = 0")
+	dbgVérifieEgalité(c..Vert, 0, "Vert par défaut = 0")
+	dbgVérifieEgalité(c..Bleu, 0, "Bleu par défaut = 0")
+
+	// Opacité par défaut (opaque)
+	dbgVérifieEgalité(c..Opacité, 255, "Opacité par défaut = 255 (opaque)")
+FIN
+
+
+// Déclaration avec constante couleur prédéfinie. Les 8 propriétés sont
+// remplies de façon cohérente : composantes RGB/HSL dérivées, Couleur =
+// valeur packée BGR (R + V*256 + B*65536), Opacité par défaut 255 (opaque).
+PROCEDURE scenario_declaration_constante_couleur()
+	MaCouleur est une Couleur = JauneClair
+
+	// Propriété par défaut Couleur : contient la valeur packée entière
+	dbgVérifieEgalité(MaCouleur..Couleur, JauneClair, "Couleur = valeur packée de JauneClair")
+
+	// RGB : décomposition cohérente (JauneClair = 0xFFFF00 = Rouge 255, Vert 255, Bleu 0)
+	dbgVérifieEgalité(MaCouleur..Rouge, 255, "composante Rouge cohérente")
+	dbgVérifieEgalité(MaCouleur..Vert, 255, "composante Vert cohérente")
+	dbgVérifieEgalité(MaCouleur..Bleu, 0, "composante Bleu cohérente")
+
+	// Opacité par défaut (alpha channel)
+	dbgVérifieEgalité(MaCouleur..Opacité, 255, "opaque par défaut")
+FIN
+
+
+// Déclaration avec RVB(r, v, b) : fonction RVB retourne toujours un entier
+// (comportement existant préservé), mais l'assignation à un type Couleur
+// déclenche la coercion-in qui remplit les 8 propriétés.
+PROCEDURE scenario_declaration_rvb()
+	MaCouleur est une Couleur = RVB(255, 100, 50)
+
+	// Composantes RGB exactes
+	dbgVérifieEgalité(MaCouleur..Rouge, 255, "Rouge = 255")
+	dbgVérifieEgalité(MaCouleur..Vert, 100, "Vert = 100")
+	dbgVérifieEgalité(MaCouleur..Bleu, 50, "Bleu = 50")
+
+	// Couleur packée = R + V*256 + B*65536
+	valeurAttendue est un entier = 255 + 100 * 256 + 50 * 65536
+	dbgVérifieEgalité(MaCouleur..Couleur, valeurAttendue, "Couleur packée BGR encodée correctement")
+
+	// Opacité par défaut
+	dbgVérifieEgalité(MaCouleur..Opacité, 255, "opaque par défaut")
+FIN
+
+
+// Assignation directe par entier littéral packé (forme hex). L'entier
+// s'interprète comme BGR (R sur bits 0-7, V sur 8-15, B sur 16-23), la
+// coercion décompose et remplit les 8 propriétés.
+PROCEDURE scenario_declaration_entier_litteral()
+	MaCouleur est une Couleur = 0xFF6432
+
+	// Décomposition BGR : 0x32=R=50, 0x64=V=100, 0xFF=B=255
+	dbgVérifieEgalité(MaCouleur..Rouge, 0x32, "Rouge = 0x32 = 50")
+	dbgVérifieEgalité(MaCouleur..Vert, 0x64, "Vert = 0x64 = 100")
+	dbgVérifieEgalité(MaCouleur..Bleu, 0xFF, "Bleu = 0xFF = 255")
+
+	dbgVérifieEgalité(MaCouleur..Couleur, 0xFF6432, "Couleur packée = littéral assigné")
+FIN
+
+
+// Lecture des sous-propriétés : accès direct aux composantes RGB/HSL/alpha
+// sans recompute. Les valeurs ont été posées lors de la coercion initiale
+// (ou par un onFieldSet précédent).
+PROCEDURE scenario_lecture_sous_proprietes()
+	MaCouleur est une Couleur = RougeClair
+
+	// Lecture Rouge/Vert/Bleu
+	r est un entier = MaCouleur..Rouge
+	v est un entier = MaCouleur..Vert
+	b est un entier = MaCouleur..Bleu
+	dbgVérifieEgalité(r, 255, "Rouge lu")
+	dbgVérifieEgalité(v, 0, "Vert lu")
+	dbgVérifieEgalité(b, 0, "Bleu lu")
+
+	// Lecture Teinte/Saturation/Luminosité (calculées lors de la coercion)
+	t est un entier = MaCouleur..Teinte
+	s est un entier = MaCouleur..Saturation
+	l est un entier = MaCouleur..Luminosité
+	// Invariant : après mutation Rouge=255 Vert=0 Bleu=0, les HSL sont cohérents
+	dbgVérifieVrai(t >= 0 ET t <= 240, "Teinte dans range canonique 0-240")
+	dbgVérifieVrai(s >= 0 ET s <= 240, "Saturation dans range canonique 0-240")
+	dbgVérifieVrai(l >= 0 ET l <= 240, "Luminosité dans range canonique 0-240")
+
+	// Lecture Opacité
+	alpha est un entier = MaCouleur..Opacité
+	dbgVérifieEgalité(alpha, 255, "Opacité lue")
+
+	// Lecture Couleur (propriété par défaut)
+	packedValue est un entier = MaCouleur..Couleur
+	dbgVérifieEgalité(packedValue, RougeClair, "Couleur packée lue")
+FIN
+
+
+// Mutation sous-propriété RGB : changer Rouge/Vert/Bleu déclenche le
+// onFieldSet qui recalcule la valeur packée .Couleur ET les composantes
+// HSL pour cohérence.
+PROCEDURE scenario_mutation_rgb()
+	MaCouleur est une Couleur = Noir
+
+	// Mutation Rouge
+	MaCouleur..Rouge = 128
+	dbgVérifieEgalité(MaCouleur..Rouge, 128, "Rouge muté")
+
+	// La valeur packée Couleur a été mise à jour
+	valeurAttendue est un entier = 128 + 0 * 256 + 0 * 65536
+	dbgVérifieEgalité(MaCouleur..Couleur, valeurAttendue, "Couleur packée reflète Rouge=128")
+
+	// Les HSL ont été recalculés
+	// (invariant : après mutation RGB, HSL cohérent — pas de vérification sur
+	// valeurs exactes HSL car algos varient, mais la valeur packée DOIT changer)
+	MaCouleur..Vert = 64
+	valeurAttendue2 est un entier = 128 + 64 * 256 + 0 * 65536
+	dbgVérifieEgalité(MaCouleur..Couleur, valeurAttendue2, "Couleur packée reflète Vert=64")
+
+	MaCouleur..Bleu = 32
+	valeurAttendue3 est un entier = 128 + 64 * 256 + 32 * 65536
+	dbgVérifieEgalité(MaCouleur..Couleur, valeurAttendue3, "Couleur packée reflète Bleu=32")
+FIN
+
+
+// Mutation sous-propriété HSL : changer Teinte/Saturation/Luminosité
+// déclenche le onFieldSet qui recalcule RGB et la valeur packée .Couleur.
+// Exemple : `MaCouleur.Luminosité += 10` après déclaration.
+PROCEDURE scenario_mutation_luminosite()
+	MaCouleur est une Couleur = JauneClair
+	luminositeInitiale est un entier = MaCouleur..Luminosité
+	couleurInitiale est un entier = MaCouleur..Couleur
+
+	// Mutation Luminosité (exemple canon)
+	MaCouleur..Luminosité += 10
+
+	// Invariant : la valeur packée Couleur DOIT avoir changé
+	dbgVérifieDifférence(MaCouleur..Couleur, couleurInitiale, "Couleur packée change après mutation Luminosité")
+
+	// La nouvelle luminosité est bien enregistrée
+	dbgVérifieEgalité(MaCouleur..Luminosité, luminositeInitiale + 10, "Luminosité += 10 enregistrée")
+FIN
+
+
+// Mutation Teinte/Saturation : même mécanique que Luminosité.
+PROCEDURE scenario_mutation_teinte_saturation()
+	MaCouleur est une Couleur = RVB(200, 150, 100)
+	couleurInitiale est un entier = MaCouleur..Couleur
+
+	// Mutation Teinte
+	MaCouleur..Teinte = 120
+	dbgVérifieEgalité(MaCouleur..Teinte, 120, "Teinte mutée")
+	dbgVérifieDifférence(MaCouleur..Couleur, couleurInitiale, "Couleur packée change après mutation Teinte")
+
+	// Mutation Saturation
+	couleurIntermediaire est un entier = MaCouleur..Couleur
+	MaCouleur..Saturation = 80
+	dbgVérifieEgalité(MaCouleur..Saturation, 80, "Saturation mutée")
+	dbgVérifieDifférence(MaCouleur..Couleur, couleurIntermediaire, "Couleur packée change après mutation Saturation")
+FIN
+
+
+// Mutation Opacité : indépendante du rebalancing RGB/HSL (alpha channel
+// séparé). Pas de recalcul des autres composantes.
+PROCEDURE scenario_mutation_opacite()
+	MaCouleur est une Couleur = RougeClair
+	couleurInitiale est un entier = MaCouleur..Couleur
+
+	// Mutation Opacité
+	MaCouleur..Opacité = 128
+	dbgVérifieEgalité(MaCouleur..Opacité, 128, "Opacité mutée")
+
+	// La valeur packée Couleur (RGB 24 bits) ne change PAS
+	dbgVérifieEgalité(MaCouleur..Couleur, couleurInitiale, "Couleur packée inchangée après mutation Opacité seule")
+
+	// RGB inchangés
+	dbgVérifieEgalité(MaCouleur..Rouge, 255, "Rouge inchangé")
+	dbgVérifieEgalité(MaCouleur..Vert, 0, "Vert inchangé")
+	dbgVérifieEgalité(MaCouleur..Bleu, 0, "Bleu inchangé")
+FIN
+
+
+// Propriété par défaut (scalar unwrap) : assigner un type Couleur à un
+// slot entier (variable libre ou propriété champ typée entier) déballe
+// automatiquement sur .Couleur (la propriété par défaut).
+PROCEDURE scenario_scalar_unwrap_variable()
+	MaCouleur est une Couleur = RVB(255, 128, 64)
+
+	// Assignation à un entier libre : déballe sur .Couleur
+	entierLibre est un entier = MaCouleur
+	valeurAttendue est un entier = 255 + 128 * 256 + 64 * 65536
+	dbgVérifieEgalité(entierLibre, valeurAttendue, "déballe Couleur vers entier libre")
+FIN
+
+
+// Propriété par défaut en arithmétique : utiliser un type Couleur dans une
+// expression arithmétique avec un scalaire déballe sur .Couleur.
+PROCEDURE scenario_scalar_unwrap_arithmetique()
+	MaCouleur est une Couleur = RVB(100, 50, 25)
+
+	// Arithmétique : MaCouleur + <entier> déballe sur .Couleur
+	somme est un entier = MaCouleur + 1
+	valeurAttendue est un entier = (100 + 50 * 256 + 25 * 65536) + 1
+	dbgVérifieEgalité(somme, valeurAttendue, "déballe Couleur en arithmétique")
+
+	// Arithmétique inverse : <entier> + MaCouleur
+	somme2 est un entier = 0 + MaCouleur
+	valeurAttendue2 est un entier = 100 + 50 * 256 + 25 * 65536
+	dbgVérifieEgalité(somme2, valeurAttendue2, "déballe Couleur en arithmétique (ordre inverse)")
+FIN
+
+
+// ===========================================================================
+// PROCEDURES PRIVEES — Edge cases et non-régression cross-cutting
+// ===========================================================================
+
+
+// Non-régression RVB() : la fonction RVB continue de retourner un entier
+// (comportement existant), pas un type Couleur. Assignable directement à
+// un entier ou à un slot champ typé entier.
+PROCEDURE PRIVÉE scenario_nonregression_rvb_retourne_entier()
+	valeurRVB est un entier = RVB(255, 0, 0)
+	dbgVérifieEgalité(valeurRVB, 255, "RVB() retourne toujours entier")
+
+	// Non-régression constantes couleur : restent entier
+	valeurConstante est un entier = RougeClair
+	dbgVérifieEgalité(valeurConstante, 255, "constante couleur reste entier")
+FIN
+
+
+// Non-régression Police/Cadre/Style : les types composites existants avec
+// un field .Couleur (entier) continuent de marcher. L'ajout de
+// defaultProperty/onFieldSet sur OwlTypeDef est NULL pour ces types →
+// aucun side-effect attendu.
+PROCEDURE PRIVÉE scenario_nonregression_police_couleur()
+	p est une Police
+	p..Couleur = RougeFoncé
+	dbgVérifieEgalité(p..Couleur, RougeFoncé, "Police.Couleur (entier) fonctionne")
+
+	c est un Cadre
+	c..Couleur = VertClair
+	dbgVérifieEgalité(c..Couleur, VertClair, "Cadre.Couleur (entier) fonctionne")
+FIN
+
+
+// Edge case : valeurs sentinel RGB (0, 255, MIN/MAX). Pas de débordement,
+// pas de crash.
+PROCEDURE PRIVÉE scenario_edge_rgb_sentinel()
+	// RGB(0, 0, 0) = Noir
+	c1 est une Couleur = RVB(0, 0, 0)
+	dbgVérifieEgalité(c1..Couleur, 0, "RGB(0,0,0) = Noir")
+
+	// RGB(255, 255, 255) = Blanc
+	c2 est une Couleur = RVB(255, 255, 255)
+	dbgVérifieEgalité(c2..Couleur, 16777215, "RGB(255,255,255) = Blanc")
+
+	// Mutation à 0
+	c2..Rouge = 0
+	dbgVérifieEgalité(c2..Rouge, 0, "mutation Rouge=0 OK")
+
+	// Mutation à 255
+	c1..Vert = 255
+	dbgVérifieEgalité(c1..Vert, 255, "mutation Vert=255 OK")
+FIN
+
+
+// Edge case : Opacité extrêmes (0 = transparent, 255 = opaque).
+PROCEDURE PRIVÉE scenario_edge_opacite_extremes()
+	c est une Couleur = RougeClair
+
+	// Opacité 0 (transparent)
+	c..Opacité = 0
+	dbgVérifieEgalité(c..Opacité, 0, "Opacité=0 (transparent)")
+
+	// Opacité 255 (opaque)
+	c..Opacité = 255
+	dbgVérifieEgalité(c..Opacité, 255, "Opacité=255 (opaque)")
+FIN
+
+
+// Edge case : HSL aux limites (Teinte/Saturation/Luminosité range
+// canonique 0-240). Pas de crash, valeurs clampées si nécessaire.
+PROCEDURE PRIVÉE scenario_edge_hsl_limites()
+	c est une Couleur = RVB(128, 128, 128)
+
+	// Teinte 0 (rouge)
+	c..Teinte = 0
+	dbgVérifieEgalité(c..Teinte, 0, "Teinte=0 OK")
+
+	// Teinte 240 (bleu)
+	c..Teinte = 240
+	dbgVérifieEgalité(c..Teinte, 240, "Teinte=240 OK")
+
+	// Saturation 0 (gris)
+	c..Saturation = 0
+	dbgVérifieEgalité(c..Saturation, 0, "Saturation=0 OK")
+
+	// Luminosité 0 (noir)
+	c..Luminosité = 0
+	dbgVérifieEgalité(c..Luminosité, 0, "Luminosité=0 OK")
+
+	// Luminosité 240 (max range canonique, blanc ou proche)
+	c..Luminosité = 240
+	dbgVérifieEgalité(c..Luminosité, 240, "Luminosité=240 OK")
+FIN

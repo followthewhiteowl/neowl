@@ -1,0 +1,132 @@
+Trace("=== DATES FONCTIONS AVANCEES ===")
+
+dateAvril est une date = "20260416"
+
+// --- Jour dans l'annee ---
+dbgVérifieEgalité(DateVersJourDansLAnnée(dateAvril), 106, "16 avril = jour 106")
+dbgVérifieEgalité(dateAvril.JourDansLAnnee(), 106, "method JourDansLAnnee")
+
+// --- Numero de semaine ISO ---
+nSemaine est un entier = DateVersNuméroDeSemaine(dateAvril)
+dbgVérifieEgalité(nSemaine, 16, "16 avril 2026 = semaine 16")
+dbgVérifieEgalité(dateAvril.NumeroDeSemaine(), 16, "method NumeroDeSemaine")
+
+// --- SemaineVersDate ---
+dateLundi est une date = SemaineVersDate(16, 2026)
+dbgVérifieEgalité(dateLundi..Jour, 13, "Lundi S16 2026 = 13 avril")
+dbgVérifieEgalité(dateLundi..Mois, 4, "Lundi S16 2026 = avril")
+
+// --- AnneeEnCours / MoisEnCours ---
+dbgVérifieVrai(AnnéeEnCours() >= 2026, "AnneeEnCours >= 2026")
+dbgVérifieVrai(MoisEnCours() >= 1, "MoisEnCours >= 1")
+
+// --- Bornes semaine ---
+dateLundiSem est une date = PremierJourDeLaSemaine(dateAvril)
+dateDimSem est une date = DernierJourDeLaSemaine(dateAvril)
+dbgVérifieEgalité(dateLundiSem..Jour, 13, "PremierJourDeLaSemaine = lundi 13")
+dbgVérifieEgalité(dateDimSem..Jour, 19, "DernierJourDeLaSemaine = dimanche 19")
+dbgVérifieEgalité(dateAvril.PremierJourDeLaSemaine()..Jour, 13, "method PremierJourDeLaSemaine")
+
+// --- Bornes annee ---
+dateJanv est une date = PremierJourDeLAnnée(dateAvril)
+dateDec est une date = DernierJourDeLAnnée(dateAvril)
+dbgVérifieEgalité(dateJanv..Jour, 1, "PremierJourDeLAnnee jour = 1")
+dbgVérifieEgalité(dateJanv..Mois, 1, "PremierJourDeLAnnee mois = 1")
+dbgVérifieEgalité(dateDec..Jour, 31, "DernierJourDeLAnnee jour = 31")
+dbgVérifieEgalité(dateDec..Mois, 12, "DernierJourDeLAnnee mois = 12")
+
+// --- HeureVersEntier / EntierVersHeure roundtrip ---
+hTest est une heure = "143025"
+nCS est un entier = HeureVersEntier(hTest)
+dbgVérifieVrai(nCS > 0, "HeureVersEntier > 0")
+hRetour est une heure = EntierVersHeure(nCS)
+dbgVérifieEgalité(hRetour..Heure, 14, "EntierVersHeure roundtrip heure")
+dbgVérifieEgalité(hRetour..Minute, 30, "EntierVersHeure roundtrip minute")
+dbgVérifieEgalité(hTest.VersEntier(), nCS, "method VersEntier sur heure")
+
+// --- DateHeureValide ---
+dhOK est une dateheure = "20260416120000"
+dbgVérifieEgalité(DateHeureValide(dhOK), Vrai, "DateHeureValide ok")
+dbgVérifieEgalité(dhOK.EstValide(), Vrai, "method EstValide DateHeure")
+
+// --- HeureDifference ---
+h1 est une heure = "100000"
+h2 est une heure = "143000"
+diffCS est un entier = HeureDifférence(h1, h2)
+dbgVérifieEgalité(diffCS, 1620000, "HeureDifference 10h->14h30 = 1620000 cs")
+
+// --- NumeroDeJourVersLettre / NumeroDeMoisVersLettre ---
+dbgVérifieEgalité(NuméroDeJourVersLettre(1), "Lundi", "1 = Lundi")
+dbgVérifieEgalité(NuméroDeJourVersLettre(7), "Dimanche", "7 = Dimanche")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(1), "Janvier", "1 = Janvier")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(12), "Décembre", "12 = Décembre")
+
+// --- NumeroDeMoisVersLettre : coerce + bornes ---
+// Coerce chaine numerique -> entier (extension OWL hors référence)
+ErreurRAZ()
+moisStr7 est une chaîne = NuméroDeMoisVersLettre("7")
+dbgVérifieFaux(ErreurDétectée, "NumeroDeMoisVersLettre chaine numerique sans erreur")
+dbgVérifieEgalité(moisStr7, "Juillet", "NumeroDeMoisVersLettre chaine 7 = Juillet")
+
+// Chaine non-numerique -> erreur claire, pas NIL silencieux
+ErreurRAZ()
+moisAbc est une chaîne = NuméroDeMoisVersLettre("abc")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// Entier 0 -> erreur (refus borne basse, plus strict que canon de référence)
+ErreurRAZ()
+moisZero est une chaîne = NuméroDeMoisVersLettre(0)
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// Entier 13 -> erreur (refus borne haute, plus strict que canon de référence)
+ErreurRAZ()
+moisTreize est une chaîne = NuméroDeMoisVersLettre(13)
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// Entier negatif -> erreur (sans garde, indice negatif lit hors tableau)
+ErreurRAZ()
+moisNeg est une chaîne = NuméroDeMoisVersLettre(-1)
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+// 12 mois complets en entier (couverture totale du tableau)
+dbgVérifieEgalité(NuméroDeMoisVersLettre(2), "Février", "2 = Fevrier")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(3), "Mars", "3 = Mars")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(4), "Avril", "4 = Avril")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(5), "Mai", "5 = Mai")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(6), "Juin", "6 = Juin")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(7), "Juillet", "7 = Juillet")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(8), "Août", "8 = Aout")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(9), "Septembre", "9 = Septembre")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(10), "Octobre", "10 = Octobre")
+dbgVérifieEgalité(NuméroDeMoisVersLettre(11), "Novembre", "11 = Novembre")
+
+// --- Jours feries ---
+JourFériéAjoute("0101")
+JourFériéAjoute("1225")
+JourFériéAjoute("20260501")
+dateNouvelAn est une date = "20260101"
+dateNoel2 est une date = "20261225"
+date1Mai est une date = "20260501"
+dateNormal est une date = "20260416"
+dbgVérifieEgalité(JourFérié(dateNouvelAn), Vrai, "1er janvier = ferie")
+dbgVérifieEgalité(JourFérié(dateNoel2), Vrai, "25 dec = ferie")
+dbgVérifieEgalité(JourFérié(date1Mai), Vrai, "1er mai 2026 = ferie")
+dbgVérifieEgalité(JourFérié(dateNormal), Faux, "16 avril = pas ferie")
+dbgVérifieEgalité(dateNouvelAn.EstFerie(), Vrai, "method EstFerie")
+sListe est une chaîne = JourFériéListe()
+dbgVérifieVrai(Taille(sListe) > 0, "JourFerieListe non vide")
+JourFériéSupprimeTout()
+dbgVérifieEgalité(JourFérié(dateNouvelAn), Faux, "apres supprime tout")
+
+// --- DateHeure VersChaine ---
+dhFmt est une dateheure = "20260416143025"
+dbgVérifieEgalité(dhFmt.VersChaîne("JJ/MM/AAAA HH:mm:SS"), "16/04/2026 14:30:25", "DH VersChaine format")
+
+// --- Duree VersChaine ---
+dateDebut2 est une date = "20260101"
+dateFin2 est une date = "20260416"
+dureeTest est une durée = dateFin2 - dateDebut2
+sDuree est une chaîne = dureeTest.VersChaîne()
+dbgVérifieVrai(Taille(sDuree) > 0, "Duree VersChaine non vide")
+
+dbgBilanTest()

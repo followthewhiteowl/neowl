@@ -1,0 +1,37 @@
+// @sujet : STOMPRejette
+// @résumé : Rejette un message STOMP reçu en mode ack client (frame NACK), avec ou sans remise en file, à partir de son jeton d'acquittement.
+
+
+// Rejeter sur une session qui n'a jamais été connectée échoue proprement :
+// la native renvoie Faux et renseigne l'erreur courante, sans émettre sur le
+// fil.
+PROCEDURE PUBLIQUE scenario_rejette_session_non_connectee()
+	sess est un stompSession
+	msg est un stompMessage
+	msg..Identifiant = "msg-1"
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPRejette(sess, msg, Vrai)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bRetour, "rejet sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "rejet sans connexion pose une erreur")
+FIN
+
+
+// Le message doit être un stompMessage : un autre type en 2e argument est
+// refusé avec le code d'erreur canonique de type d'argument invalide, avant
+// tout accès réseau (validation AVANT le contrôle de connexion, parité
+// AMQP/MQTT).
+PROCEDURE PUBLIQUE scenario_rejette_message_type_invalide()
+	sess est un stompSession
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPRejette(sess, 42, Vrai)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "message d'un type invalide renvoie Faux")
+	dbgVérifieVrai(bErr, "message d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

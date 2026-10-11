@@ -1,0 +1,45 @@
+// @sujet : ErreurInfo
+// @résumé : ErreurInfo() survit après RAZ-auto du flag ErreurDetectee ( ligne 19)
+
+Trace("=== ErreurInfo survit RAZ-auto ===")
+
+// ── Cas 1 : info survit après instruction neutre (RAZ flag-only) ──
+
+fSupprime("inexistant_survie_0059.txt")
+c est une chaîne = fChargeTexte("inexistant_survie_0059.txt")
+
+// ErreurDetectee est maintenant Vrai, info remplie.
+dbgVérifieVrai(ErreurDétectée, "Setup : ErreurDetectee Vrai après fChargeTexte")
+
+// Instruction "neutre" qui va RAZ le flag (OP_DEFINE_GLOBAL sur assignation suivante).
+dummy est un entier = 42
+
+// Flag RAZ (dispatch auto), mais info doit survivre.
+dbgVérifieVrai(PAS ErreurDétectée, "RAZ-auto : flag ErreurDetectee remis a Faux après instruction neutre")
+dbgVérifieVrai(Taille(ErreurInfo()) > 0, "ErreurInfo() SURVIT apres RAZ-auto du flag (ADR_0012 ligne 19)")
+
+// ── Cas 2 : ErreurPropage() fonctionne post RAZ-auto ──
+
+// Doctrine  : ErreurPropage() peut promouvoir l'erreur en exception
+// tant que l'info (g_err_message != NULL) est presente, meme si le flag est Faux.
+// On verifie que l'appel ne crash pas (pas de test QUAND EXCEPTION ici, juste
+// l'assertion que ErreurPropage() reste appelable).
+
+QUAND EXCEPTION DANS
+	// ErreurPropage() doit lever une exception basee sur l'info survivante.
+	ErreurPropage()
+	dbgVérifieVrai(Faux, "ErreurPropage devrait lever exception (pas atteindre cette ligne)")
+FAIRE
+	// Exception levee = comportement attendu.
+	dbgVérifieVrai(Vrai, "ErreurPropage() fonctionne post RAZ-auto (exception levee)")
+FIN
+
+// ── Cas 3 : ErreurRAZ() user-explicit clear flag + info ──
+
+fChargeTexte("inexistant_survie_0059.txt") // repose l'erreur
+dbgVérifieVrai(ErreurDétectée, "Repose erreur avant ErreurRAZ")
+ErreurRAZ()
+dbgVérifieVrai(PAS ErreurDétectée, "ErreurRAZ() clear flag")
+dbgVérifieEgalité(ErreurInfo(), "", "ErreurRAZ() clear AUSSI l'info (canon de référence)")
+
+Trace("OK - ErreurInfo survit RAZ-auto, ErreurPropage fonctionne, ErreurRAZ clear tout")

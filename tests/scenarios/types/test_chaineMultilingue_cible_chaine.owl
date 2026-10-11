@@ -1,0 +1,102 @@
+// @sujet : chaîneMultilingue — coercition pilotée par une cible chaine
+// @résumé : Un littéral {langueXxx: valeur} est accepté partout où la cible déclarée est une chaîne simple, pas seulement chaîneMultilingue. Le littéral est construit puis aplati (snapshot) à la langue active au moment de l'affectation — contrairement à une cible chaîneMultilingue qui retient l'objet et se re-résout à chaque lecture.
+
+
+// Cas nominal : littéral à deux langues affecté à une variable typée
+// chaine. Le compilateur construit la multilingue en interne puis
+// l'aplatit immédiatement vers la langue active (langueFrançais = langue
+// source par défaut).
+PROCEDURE scenario_litteral_deux_langues_vers_variable_chaine()
+	s est une chaîne = {langueFrançais: "bonjour", langueAnglais: "hello"}
+
+	dbgVérifieEgalité(s, "bonjour", "littéral multilingue aplati sur la langue active (fr-FR)")
+FIN
+
+
+// Une seule langue dans le littéral : accepté, la cible chaine reçoit
+// directement cette traduction (langue active = langue posée).
+PROCEDURE scenario_litteral_une_seule_langue_vers_variable_chaine()
+	s est une chaîne = {langueFrançais: "seul"}
+
+	dbgVérifieEgalité(s, "seul", "littéral mono-langue aplati sans détour")
+FIN
+
+
+// N langues (5) dans le littéral : la résolution retient bien la langue
+// active courante, peu importe le nombre d'entrées du dictionnaire source.
+PROCEDURE scenario_litteral_cinq_langues_vers_variable_chaine()
+	s est une chaîne = {
+		langueFrançais: "Bonjour",
+		langueAnglais: "Hello",
+		langueAllemand: "Hallo",
+		langueEspagnol: "Hola",
+		langueItalien: "Ciao"
+	}
+
+	dbgVérifieEgalité(s, "Bonjour", "aplatissement retient la langue active parmi 5 entrées")
+FIN
+
+
+// Distinction essentielle avec une cible chaîneMultilingue (qui retient
+// l'objet et se re-résout à chaque lecture) : une cible chaine est un
+// SNAPSHOT figé au moment de l'affectation. Un switch de langue après
+// coup ne change plus la valeur déjà aplatie.
+PROCEDURE scenario_aplatissement_snapshot_fige_apres_switch_langue()
+	s est une chaîne = {langueFrançais: "bonjour", langueAnglais: "hello"}
+	dbgVérifieEgalité(s, "bonjour", "valeur aplatie initiale = langue active au moment de l'affectation")
+
+	Langue(langueAnglais)
+	dbgVérifieEgalité(s, "bonjour", "chaine aplatie reste figée malgré un switch de langue ultérieur")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Contre-exemple : la même construction affectée à une chaîneMultilingue
+// suit le comportement inverse (retient, re-résout). Rejoué ici pour
+// contraste direct avec le scénario précédent, dans le même fichier.
+PROCEDURE scenario_contraste_cible_multilingue_re_resout_au_switch()
+	m est une chaîneMultilingue = {langueFrançais: "bonjour", langueAnglais: "hello"}
+	dbgVérifieEgalité(m, "bonjour", "chaîneMultilingue résout la langue active au moment de la lecture")
+
+	Langue(langueAnglais)
+	dbgVérifieEgalité(m, "hello", "chaîneMultilingue re-résout après switch (contraste avec chaine aplatie)")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Cas limite défensif : littéral vide {} affecté à une cible chaine.
+// Aucune langue posée -> aplatissement retombe sur chaine vide (pas de
+// langue source disponible).
+PROCEDURE PRIVÉE scenario_litteral_vide_vers_variable_chaine()
+	s est une chaîne = {}
+
+	dbgVérifieEgalité(s, "", "littéral multilingue vide aplati en chaine vide")
+FIN
+
+
+// Cas limite défensif : la langue active n'a pas d'entrée dans le
+// littéral -> fallback langue source (même règle qu'une lecture indexée
+// sur chaîneMultilingue), puis aplatissement de ce
+// fallback.
+PROCEDURE PRIVÉE scenario_langue_active_absente_du_litteral_fallback_source()
+	Langue(langueAllemand)
+	s est une chaîne = {langueFrançais: "bonjour", langueAnglais: "hello"}
+	dbgVérifieEgalité(s, "bonjour", "langue active absente du littéral -> fallback langue source aplati")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Cas limite défensif : entrée de langue explicitement vide ("") dans le
+// littéral, distincte d'une langue absente. Si la langue active pointe
+// sur cette entrée vide, l'aplatissement retient bien la chaine vide
+// (pas de fallback, l'entrée existe).
+PROCEDURE PRIVÉE scenario_entree_vide_distincte_absente_a_l_aplatissement()
+	Langue(langueAnglais)
+	s est une chaîne = {langueFrançais: "bonjour", langueAnglais: ""}
+	dbgVérifieEgalité(s, "", "entrée vide posée pour la langue active -> aplatie en chaine vide (pas de fallback)")
+
+	Langue(langueFrançais) // restore
+FIN

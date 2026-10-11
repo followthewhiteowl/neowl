@@ -1,0 +1,42 @@
+// Fenetre voisine — repro .
+//
+// Verifie qu'un helper PROCEDURE de niveau fenetre est appelable PARTOUT
+// dans la fenetre, conformement au canon de référence. Le cas qui crashait avant
+//  est le top-level d'un bloc champ. Les autres cas (helper depuis
+// FinInitialisation, helper -> helper transitif) sont deja couverts par
+// la regression  voisine (fen_helper_fininit) et conserves ici
+// pour eviter une regression croisee.
+//
+// Ordre source : helpers declares AVANT le bloc champ qui les appelle
+// (pour ne pas trebucher sur la resolution compile-time du call-site).
+
+FEN_HelperPartout est une Fenêtre
+	PROPRIETES
+		Titre   = "Helper Partout"
+		Largeur = 200
+		Hauteur = 100
+	FIN
+
+	PROCEDURE HelperD()
+		marqueur_transitif = "via HelperD (transitif)"
+	FIN
+
+	PROCEDURE HelperB()
+		marqueur_top_champ = "via HelperB (top-champ)"
+		HelperD()
+	FIN
+
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			Libellé = "init"
+		FIN
+		// CAS CRITIQUE  : top-level du bloc champ qui appelle
+		// un helper FEN, puis un helper transitif (HelperB -> HelperD).
+		HelperB()
+	FIN
+
+	PROCEDURE FinInitialisation()
+		marqueur_fininit = "via FinInit"
+		HelperD()
+	FIN
+FIN

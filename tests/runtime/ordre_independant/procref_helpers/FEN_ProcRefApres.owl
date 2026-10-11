@@ -1,0 +1,42 @@
+// Fenetre voisine — prise de REFERENCE (valeur procedure) d'un helper
+// defini PLUS BAS dans le bloc, comme les APPELS deja ordre-independants.
+//
+// Trois formes de proc-ref forward couvertes :
+//   (a) affectation propriete : tTic..Procedure = HelperApres
+//   (b) variable typee procedure (locale) : pRef est une procedure = HelperApres
+//   (c) corps de lambda appelant un helper apres : () => HelperApres()
+//
+// Les helpers sont TOUS en bas (ordre naturel : layout en haut, logique en
+// bas). La prise de reference doit resoudre quel que soit l'ordre, exactement
+// comme un appel nu.
+
+FEN_ProcRefApres est une Fenêtre
+	PROPRIETES
+		Largeur = 200
+		Hauteur = 100
+	FIN
+
+	tTic est un Timer
+
+	PROCEDURE FinInitialisation()
+		// (a) proc-ref forward via affectation propriete d'un Timer.
+		// La cible Procedure scanne comme mot-cle ; le helper est defini
+		// plus bas. Compile-time : doit resoudre.
+		tTic..Procédure = HelperApres
+
+		// (b) proc-ref forward dans une variable typee procedure locale,
+		// puis invocation immediate (effet observable).
+		pRef est une procédure = HelperApres
+		pRef("via variable procedure")
+
+		// (c) corps de lambda appelant un helper defini plus bas.
+		fLambda est une procédure = () => HelperApres("via lambda body")
+		fLambda()
+	FIN
+
+	// ======== HELPERS TOUS EN BAS ========
+
+	PROCEDURE HelperApres(s est une chaîne)
+		callback_observe(s)
+	FIN
+FIN

@@ -1,0 +1,52 @@
+//  lot B — Event surToucheAppuyée / surToucheRelâchée sur
+// Interrupteur. EnvoieTouche poste un vrai QKeyEvent. Interdiction
+// DéclencheÉvénement.
+//
+// ROUGE ATTENDU (compile) : FAM_KEYBOARD_EVENTS n'est pas encore enregistrée
+// pour OWL_CONTROL_INTERRUPTEUR -> check_event_signature rejette les
+// procédures clavier dans le bloc INT_Cible -> le fichier voisin ne compile
+// pas -> `owl test` classe ce fichier CRASH tant que le catalogue n'est pas
+// étendu.
+
+TestModeHeadless(Faux)
+
+bIntTouchePrete est un booléen = Faux
+nIntAppCap est un entier = 0
+nIntRelCap est un entier = 0
+nIntDerniereAppCap est un entier = -1
+nIntDerniereRelCap est un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bIntTouchePrete = Vrai
+FIN
+
+PROCEDURE callback_lit_compteurs(nA est un entier, nR est un entier, nDA est un entier, nDR est un entier)
+	nIntAppCap         = nA
+	nIntRelCap         = nR
+	nIntDerniereAppCap = nDA
+	nIntDerniereRelCap = nDR
+FIN
+
+OuvreSoeur(FEN_InterrupteurTouche)
+dbgVérifieVrai(bIntTouchePrete, "FinInitialisation appelée : Interrupteur focusé dès l'ouverture")
+
+// Touche spéciale (flèche gauche).
+EnvoieTouche(tkGauche)
+
+LireCompteurs()
+dbgVérifieEgalité(nIntAppCap, 1, "surToucheAppuyée Interrupteur : 1 tir pour tkGauche")
+dbgVérifieEgalité(nIntDerniereAppCap, tkGauche, "surToucheAppuyée Interrupteur : code = tkGauche")
+dbgVérifieEgalité(nIntRelCap, 1, "surToucheRelâchée Interrupteur : 1 tir pour tkGauche")
+dbgVérifieEgalité(nIntDerniereRelCap, tkGauche, "surToucheRelâchée Interrupteur : code = tkGauche")
+
+// Caractère ASCII (Espace : bascule usuelle d'un interrupteur).
+EnvoieTouche(Asc(" "))
+
+LireCompteurs()
+dbgVérifieEgalité(nIntAppCap, 2, "surToucheAppuyée Interrupteur : 2 tirs après le caractère espace")
+dbgVérifieEgalité(nIntDerniereAppCap, Asc(" "), "surToucheAppuyée Interrupteur : code = Asc(' ')")
+dbgVérifieEgalité(nIntRelCap, 2, "surToucheRelâchée Interrupteur : 2 tirs après le caractère espace")
+dbgVérifieEgalité(nIntDerniereRelCap, Asc(" "), "surToucheRelâchée Interrupteur : code = Asc(' ')")
+
+Ferme(FEN_InterrupteurTouche)
+dbgBilanTest()

@@ -1,0 +1,77 @@
+// Coverage Compile() + ExécuteTraitement() — documentation de référence.
+//
+// OWL divergence assumée (VISION §5bis) : Compile retourne toujours une
+// Procédure (ObjFunction) sur succès, NIL sur erreur. Le canal d'erreur
+// est ErreurDétectée / ErreurInfo(), uniforme avec le reste des natives.
+
+// ============================================================================
+// Compile(nom, source) : enregistre la procédure comme global nommé
+// ============================================================================
+sourceCode est une chaîne = [
+PROCEDURE DoublePar2(n est un entier)
+    RENVOYER n * 2
+FIN
+]
+
+ErreurRAZ()
+fn1 est une procédure = Compile("DoublePar2", sourceCode)
+dbgVérifieFaux(ErreurDétectée, "compilation nommée sans erreur")
+
+// Appelable par nom global
+r est un entier = DoublePar2(21)
+dbgVérifieEgalité(r, 42, "procédure compilée appelable par nom")
+
+// Ou via ExécuteTraitement
+r2 est un entier = ExécuteTraitement("DoublePar2", trtProcédure, 10)
+dbgVérifieEgalité(r2, 20, "ExécuteTraitement avec param")
+
+// ============================================================================
+// Compile(source) : procédure anonyme
+// ============================================================================
+srcExpr est une chaîne = [
+RENVOYER 10 + 20
+]
+
+ErreurRAZ()
+f est une procédure = Compile(srcExpr)
+dbgVérifieFaux(ErreurDétectée, "compilation anonyme OK")
+dbgVérifieEgalité(f(), 30, "appel direct du résultat de Compile")
+
+// ============================================================================
+// Compile avec paramètres (doc note "Paramètres d'une procédure dynamique")
+// ============================================================================
+srcParam est une chaîne = [
+PROCEDURE AdditionneXetY(aa est un entier, bb est un entier)
+RENVOYER aa + bb
+]
+ErreurRAZ()
+MaProc est une procédure = Compile(srcParam)
+dbgVérifieFaux(ErreurDétectée, "Compile proc paramétrée OK")
+dbgVérifieEgalité(MaProc(2, 3), 5, "AdditionneXetY(2,3) = 5")
+
+// ============================================================================
+// Erreur de compilation : ErreurDetectee + Compile retourne NIL
+// ============================================================================
+ErreurRAZ()
+srcBad est une chaîne = [
+this is not valid OWL syntax
+]
+fBad est une procédure = Compile(srcBad)
+dbgVérifieVrai(ErreurInfo() <> "", "code invalide → ErreurInfo capture")
+
+// ============================================================================
+// ExécuteTraitement avec procédure définie statiquement
+// ============================================================================
+PROCEDURE MaProcStatique(x est un entier)
+	RENVOYER x + 100
+FIN
+
+res est un entier = ExécuteTraitement("MaProcStatique", trtProcédure, 5)
+dbgVérifieEgalité(res, 105, "ExécuteTraitement sur proc statique")
+
+// ExécuteTraitement sur procédure inconnue → erreur
+ErreurRAZ()
+resBad est un entier? = ExécuteTraitement("Inconnue", trtProcédure)
+dbgVérifieVrai(ErreurInfo() <> "", "procédure inconnue → ErreurInfo capture")
+
+dbgBilanTest()

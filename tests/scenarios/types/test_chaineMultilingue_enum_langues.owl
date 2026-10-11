@@ -1,0 +1,161 @@
+// @sujet : chaîneMultilingue (enum langueXxx)
+// @résumé : Enum langueXxx couvre 30+ langues principales + variantes régionales courantes. Convention défaut sans suffixe (langueFrançais = "fr-FR"), variantes avec suffixe région (langueFrançaisCanada = "fr-CA").
+
+
+// Enum langueXxx : constantes pour les langues principales. Au moins
+// 30 langues documentées avec variantes régionales courantes. Ce test
+// vérifie l'existence des constantes enum, pas leur valeur BCP 47
+// sous-jacente (ça, c'est le rôle de `owl explain langue --json`).
+PROCEDURE scenario_enum_langues_principales_existent()
+	m est une chaîneMultilingue
+
+	// Langues européennes principales
+	m[langueFrançais] = "Français"
+	m[langueAnglais] = "English"
+	m[langueAllemand] = "Deutsch"
+	m[langueEspagnol] = "Español"
+	m[langueItalien] = "Italiano"
+	m[languePortugais] = "Português"
+	m[langueNéerlandais] = "Nederlands"
+	m[languePolonais] = "Polski"
+	m[langueRoumain] = "Română"
+	m[langueSuédois] = "Svenska"
+	m[langueDanois] = "Dansk"
+	m[langueNorvégien] = "Norsk"
+	m[langueFinnois] = "Suomi"
+	m[langueGrec] = "Ελληνικά"
+	m[langueTurc] = "Türkçe"
+
+	// Langues slaves
+	m[langueRusse] = "Русский"
+	m[langueUkrainien] = "Українська"
+	m[langueTchèque] = "Čeština"
+	m[langueSlovaque] = "Slovenčina"
+	m[langueBulgare] = "Български"
+
+	// Langues asiatiques principales
+	m[langueChinoisSimplifié] = "简体中文"
+	m[langueChinoisTraditionnel] = "繁體中文"
+	m[langueJaponais] = "日本語"
+	m[langueCoréen] = "한국어"
+	m[langueArabe] = "العربية"
+	m[langueHébreu] = "עברית"
+	m[langueHindi] = "हिन्दी"
+	m[langueThaï] = "ไทย"
+	m[langueVietnamien] = "Tiếng Việt"
+	m[langueIndonésien] = "Bahasa Indonesia"
+
+	dbgVérifieVrai(Vrai, "30 constantes enum langueXxx reconnues")
+FIN
+
+
+// Variantes régionales : convention "défaut sans suffixe" pour la
+// variante principale, suffixe région pour les autres. Vérifie que
+// les variantes courantes existent dans l'enum.
+PROCEDURE scenario_enum_variantes_regionales()
+	m est une chaîneMultilingue
+
+	// Français : fr-FR par défaut, variante Canada
+	m[langueFrançais] = "Français France"
+	m[langueFrançaisCanada] = "Français Canada"
+
+	// Anglais : en-US par défaut, variante UK
+	m[langueAnglais] = "English US"
+	m[langueAnglaisRoyaumeUni] = "English UK"
+
+	// Portugais : pt-PT par défaut, variante Brésil
+	m[languePortugais] = "Português Portugal"
+	m[languePortugaisBrésil] = "Português Brasil"
+
+	// Espagnol : es-ES par défaut, variante Mexique
+	m[langueEspagnol] = "Español España"
+	m[langueEspagnolMexique] = "Español México"
+
+	// Chinois : zh-CN simplifié par défaut, zh-TW traditionnel variante
+	m[langueChinoisSimplifié] = "简体中文"
+	m[langueChinoisTraditionnel] = "繁體中文"
+
+	dbgVérifieVrai(Vrai, "variantes régionales courantes reconnues")
+FIN
+
+
+// Cohérence défaut sans suffixe : langueFrançais doit mapper "fr-FR",
+// langueAnglais doit mapper "en-US", etc. On vérifie via indexation
+// croisée constante enum ⇄ string BCP 47.
+PROCEDURE scenario_enum_defaut_sans_suffixe_coherence()
+	m est une chaîneMultilingue
+
+	m[langueFrançais] = "Bonjour"
+	dbgVérifieEgalité(m["fr-FR"], "Bonjour", "langueFrançais = fr-FR")
+
+	m[langueAnglais] = "Hello"
+	dbgVérifieEgalité(m["en-US"], "Hello", "langueAnglais = en-US")
+
+	m[langueAllemand] = "Hallo"
+	dbgVérifieEgalité(m["de-DE"], "Hallo", "langueAllemand = de-DE")
+
+	m[langueEspagnol] = "Hola"
+	dbgVérifieEgalité(m["es-ES"], "Hola", "langueEspagnol = es-ES")
+
+	m[languePortugais] = "Olá"
+	dbgVérifieEgalité(m["pt-PT"], "Olá", "languePortugais = pt-PT")
+
+	m[langueChinoisSimplifié] = "你好"
+	dbgVérifieEgalité(m["zh-CN"], "你好", "langueChinoisSimplifié = zh-CN")
+FIN
+
+
+// Cohérence variantes avec suffixe : les variantes régionales doivent
+// mapper les tags BCP 47 attendus (fr-CA, en-GB, pt-BR, etc.).
+PROCEDURE scenario_enum_variantes_coherence_bcp47()
+	m est une chaîneMultilingue
+
+	m[langueFrançaisCanada] = "Bonjour Canada"
+	dbgVérifieEgalité(m["fr-CA"], "Bonjour Canada")
+
+	m[langueAnglaisRoyaumeUni] = "Hello UK"
+	dbgVérifieEgalité(m["en-GB"], "Hello UK")
+
+	m[languePortugaisBrésil] = "Olá Brasil"
+	dbgVérifieEgalité(m["pt-BR"], "Olá Brasil")
+
+	m[langueEspagnolMexique] = "Hola México"
+	dbgVérifieEgalité(m["es-MX"], "Hola México")
+
+	m[langueChinoisTraditionnel] = "你好台灣"
+	dbgVérifieEgalité(m["zh-TW"], "你好台灣")
+FIN
+
+
+// Cas limite défensif : vérifier que l'enum couvre des langues
+// asiatiques / arabes / cyrilliques moins fréquentes mais importantes
+// pour l'i18n. Pas seulement les européennes.
+PROCEDURE PRIVÉE scenario_enum_langues_non_europeennes()
+	m est une chaîneMultilingue
+
+	m[langueArabe] = "مرحبا"
+	m[langueHébreu] = "שלום"
+	m[langueHindi] = "नमस्ते"
+	m[langueThaï] = "สวัสดี"
+	m[langueVietnamien] = "Xin chào"
+	m[langueCoréen] = "안녕하세요"
+	m[langueJaponais] = "こんにちは"
+	m[langueRusse] = "Привет"
+
+	dbgVérifieVrai(Vrai, "langues non-européennes couvertes")
+FIN
+
+
+// Cas limite défensif : vérifier que les variantes régionales ne se
+// marchent pas dessus. Poser langueFrançais et langueFrançaisCanada
+// dans le même dictionnaire doit stocker deux entrées distinctes.
+PROCEDURE PRIVÉE scenario_enum_variantes_independantes()
+	m est une chaîneMultilingue = {
+		langueFrançais: "Bonjour France",
+		langueFrançaisCanada: "Bonjour Canada"
+	}
+
+	dbgVérifieDifférence(m[langueFrançais], m[langueFrançaisCanada])
+	dbgVérifieEgalité(m["fr-FR"], "Bonjour France")
+	dbgVérifieEgalité(m["fr-CA"], "Bonjour Canada")
+FIN

@@ -1,0 +1,99 @@
+// Tests sqlHFSQLClassic — déterministes, zéro réseau, zéro fichier .fic réel.
+//
+// DIGUE TEST-FIRST : ce fichier référence sqlHFSQLClassic / Analyse / Repertoire
+// qui n'existent pas encore côté surface publique au moment du dépôt. Il est
+// donc attendu ROUGE en erreur de compilation (symbole inconnu) tant que
+// l'implémentation n'a pas ajouté ces éléments. Une fois l'implémentation
+// posée, ce fichier doit passer entièrement au vert sans modification.
+//
+// Couvre :
+//   1. Constante sqlHFSQLClassic existe et se distingue de sqlHFSQL/sqlSqlite/sqlODBC
+//   2. Champs Analyse et Repertoire : écriture + relecture round-trip,
+//      variante accent/casse, round-trip Unicode (accents FR dans le chemin)
+//   3. SQLConnexionOuvre mocké → contrat retour booléen sur une cnx Classic
+//   4. Analyse ou Repertoire vide → Ouvre() échoue proprement (sans mock,
+//      dispatch réellement exécuté)
+//   5. ModeTLS posé sur une cnx Classic : pas de crash, round-trip du champ
+//
+// La validation réelle avec un fichier .fic + .wdd (extraction, ouverture,
+// lecture de lignes) reste manuelle côté dev — pas de .fic committable en CI.
+
+// --- 1. Constante sqlHFSQLClassic existe (enum sqlBackend) ---
+dbgVérifieVrai(sqlHFSQLClassic <> sqlHFSQL, "sqlHFSQLClassic different de sqlHFSQL")
+dbgVérifieVrai(sqlHFSQLClassic <> sqlSqlite, "sqlHFSQLClassic different de sqlSqlite")
+dbgVérifieVrai(sqlHFSQLClassic <> sqlODBC, "sqlHFSQLClassic different de sqlODBC")
+
+
+// --- 2. Lecture/écriture des champs Analyse et Repertoire ---
+cnx est une sqlConnexion
+cnx..Provider   = sqlHFSQLClassic
+cnx..Analyse    = "C:\OwlTest\OwlTest.wdd"
+cnx..Répertoire = "C:\OwlTest\Exe\Executable"
+
+dbgVérifieEgalité(cnx..Provider, sqlHFSQLClassic, "Provider sqlHFSQLClassic lu")
+dbgVérifieEgalité(cnx..Analyse, "C:\OwlTest\OwlTest.wdd", "Analyse lue")
+dbgVérifieEgalité(cnx..Répertoire, "C:\OwlTest\Exe\Executable", "Repertoire lu")
+
+// Variante accent/casse (accent-insensible runtime) : mêmes valeurs relues
+// via une forme alternative du nom de champ.
+dbgVérifieEgalité(cnx..Analyse, "C:\OwlTest\OwlTest.wdd", "analyse (casse basse) lue identique")
+dbgVérifieEgalité(cnx..Répertoire, "C:\OwlTest\Exe\Executable", "RÉPERTOIRE (accent+majuscule) lu identique")
+
+
+// --- 3. Unicode round-trip dans Analyse et Repertoire ---
+cnxU est une sqlConnexion
+cnxU..Provider   = sqlHFSQLClassic
+cnxU..Analyse    = "C:\Données\Été_2026\OwlTest.wdd"
+cnxU..Répertoire = "C:\Données\Été_2026\Exécutable"
+
+dbgVérifieEgalité(cnxU..Analyse, "C:\Données\Été_2026\OwlTest.wdd", "Analyse accents FR OK")
+dbgVérifieEgalité(cnxU..Répertoire, "C:\Données\Été_2026\Exécutable", "Repertoire accents FR OK")
+
+
+// --- 4. Mock SQLConnexionOuvre → contrat retour booléen sur cnx Classic ---
+mockOuvre est un MockNative = MockCrée(SQLConnexionOuvre)
+MockQuand(mockOuvre)
+MockAvec(mockOuvre, MockTout)
+MockRetourne(mockOuvre, Vrai)
+MockActive(mockOuvre)
+
+res est un booléen = SQLConnexionOuvre(cnx)
+dbgVérifieEgalité(res, Vrai, "mock SQLConnexionOuvre HFSQL Classic retourne Vrai")
+MockVérifieAppelé(mockOuvre)
+MockDésactive(mockOuvre)
+
+
+// --- 5. Analyse vide → dispatch réel échoue proprement ---
+// Sans mock : on veut que le code de ouverture Classic soit vraiment
+// exécuté pour valider le chemin erreur "quel champ manque".
+cnxSansAnalyse est une sqlConnexion
+cnxSansAnalyse..Provider   = sqlHFSQLClassic
+cnxSansAnalyse..Répertoire = "C:\OwlTest\Exe\Executable"
+// pas d'Analyse
+resSansAnalyse est un booléen = cnxSansAnalyse.Ouvre()
+dbgVérifieEgalité(resSansAnalyse, Faux, "ouverture Classic sans Analyse échoue")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec (Analyse manquante)")
+
+
+// --- 6. Repertoire vide → dispatch réel échoue proprement ---
+cnxSansRepertoire est une sqlConnexion
+cnxSansRepertoire..Provider = sqlHFSQLClassic
+cnxSansRepertoire..Analyse  = "C:\OwlTest\OwlTest.wdd"
+// pas de Repertoire
+resSansRepertoire est un booléen = cnxSansRepertoire.Ouvre()
+dbgVérifieEgalité(resSansRepertoire, Faux, "ouverture Classic sans Repertoire échoue")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec (Repertoire manquant)")
+
+
+// --- 7. ModeTLS sur cnx Classic : round-trip sans crash ---
+// Le mode Classic n'a aucun transport réseau, donc aucun warning n'est
+// attendu ici — on ne teste que la relecture du champ.
+cnxTLS est une sqlConnexion
+cnxTLS..Provider   = sqlHFSQLClassic
+cnxTLS..Analyse    = "C:\OwlTest\OwlTest.wdd"
+cnxTLS..Répertoire = "C:\OwlTest\Exe\Executable"
+cnxTLS..ModeTLS    = tlsDesactive
+dbgVérifieEgalité(cnxTLS..ModeTLS, tlsDesactive, "ModeTLS round-trip OK sur cnx Classic")
+
+
+dbgBilanTest()

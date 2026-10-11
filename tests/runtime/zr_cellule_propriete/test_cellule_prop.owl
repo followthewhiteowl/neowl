@@ -1,0 +1,90 @@
+//  — ZoneRépétée headless : accès propriété par cellule (..Prop)
+//
+// Aujourd'hui ZRC[i].champ..Prop hard-crashe en headless ("champ sur valeur Null").
+// Ces tests verrouillent le comportement cible APRÈS fix :
+//   - store de props par cellule (round-trip set/get)
+//   - indépendance inter-lignes (pas de contamination)
+//   - cohérence bare vs ..Valeur
+//   - non-régression  (bare entier -> chaîne)
+//   - non-régression  (OOB -> ErreurDétectée soft, pas crash dur)
+//
+// ROUGE ATTENDU (crash ou échec) : cas 1, 2, 2b, 3, 4, 5, 7 (tout ce qui touche ..Prop)
+// VERT ATTENDU d'emblée : cas 6 (non-régression bare entier -> chaîne)
+//   NB : cas 6 peut lui aussi crasher avant fix car LitBare() appelle ZRC[i].ZS_V,
+//   même chemin headless que ..Prop. Si crash aussi sur cas 6 : rouge, attendu.
+//
+// IMPORTANT — piège de type : ne pas stocker le retour dans une variable
+// déclarée "est une chaîne" (coercerait silencieusement et masquerait le bug).
+// Les assertions clés passent la valeur DIRECTEMENT depuis la PROCEDURE.
+
+TestModeHeadless(Vrai)
+
+init_done_0558 est un booléen = Faux
+
+PROCEDURE cb_0558_init_done()
+	init_done_0558 = Vrai
+FIN
+
+Ouvre(FEN_ZR558)
+
+dbgVérifieVrai(init_done_0558, "FinInitialisation FEN_ZR558 exécutée")
+
+// --- Cas 1 : set ..Valeur puis LitValeur (prop défaut Saisie) ---
+// PoseValeur appelle ZRC[1].ZS_V..Valeur = "abc"
+// LitValeur renvoie ZRC[1].ZS_V..Valeur
+// ROUGE ATTENDU avant fix (crash headless "champ sur valeur Null" sur ..Valeur)
+PoseValeur(1, "abc")
+dbgVérifieEgalité(LitValeur(1), "abc", "ZRC[1].ZS_V..Valeur = abc -> relu abc (round-trip prop défaut)")
+
+// --- Cas 2 : bare == ..Valeur (cohérence déballage) ---
+// LitBare renvoie ZRC[1].ZS_V (nom nu) — doit égaler LitValeur(1)
+// ROUGE ATTENDU avant fix (crash headless sur accès cellule)
+dbgVérifieEgalité(LitBare(1), "abc", "ZRC[1].ZS_V bare == abc (cohérence déballage)")
+
+// --- Cas 2b : bare == ..Valeur numériquement ---
+// Sonde directe : les deux chemins doivent pointer vers la même valeur
+dbgVérifieEgalité(LitBare(1), LitValeur(1), "ZRC[1].ZS_V bare == ..Valeur (identité)")
+
+// --- Cas 3 : CouleurFond (prop non défaut, store cellule) ---
+// PoseCouleurFond appelle ZRC[1].ZS_V..CouleurFond = Rouge
+// LitCouleurFond renvoie ZRC[1].ZS_V..CouleurFond
+// Comparaison directe à la constante Rouge (pas de variable entier intermédiaire).
+// ROUGE ATTENDU avant fix (crash headless sur ..CouleurFond)
+PoseCouleurFond(1, Rouge)
+dbgVérifieEgalité(LitCouleurFond(1), Rouge, "ZRC[1].ZS_V..CouleurFond = Rouge -> relu Rouge (store cellule prop non défaut)")
+
+// --- Cas 4 : sous-contrôle LB_T, prop ..Libellé ---
+// PoseLibelle appelle ZRC[2].LB_T..Libellé = "Titre"
+// LitLibelle renvoie ZRC[2].LB_T..Libellé
+// ROUGE ATTENDU avant fix (crash headless sur LB_T..Libellé)
+PoseLibelle(2, "Titre")
+dbgVérifieEgalité(LitLibelle(2), "Titre", "ZRC[2].LB_T..Libellé = Titre -> relu Titre (sous-contrôle Libellé)")
+
+// --- Cas 5 : indépendance inter-lignes ---
+// CouleurFond posée sur ligne 1 (Rouge) ne doit PAS contaminer ligne 2.
+// Ligne 2 doit avoir une CouleurFond différente de Rouge (valeur par défaut du store).
+// ROUGE ATTENDU avant fix (crash headless sur LitCouleurFond(2))
+// Après fix : LitCouleurFond(2) != Rouge
+dbgVérifieDifférence(LitCouleurFond(2), Rouge, "ZRC[2].ZS_V..CouleurFond != Rouge (pas contaminée par ligne 1)")
+
+// --- Cas 6 : non-régression  (bare entier -> chaîne) ---
+// ZRC[1].ZS_V = 42 (set bare entier), puis LitBare(1) + 1 == "421" (concat, pas arith)
+// Après  : le store ZR Saisie renvoie toujours une chaîne.
+// NB : LitBare passe par le même chemin headless que ..Prop ;
+//   si crash avant  : rouge attendu ici aussi.
+PoseValeur(1, "42")
+dbgVérifieEgalité(LitBare(1) + 1, "421", "ZRC[1].ZS_V = 42 (chaine) -> bare + 1 == 421 (concat, non-régression fix/0557)")
+
+// --- Cas 7 : non-régression  : OOB -> ErreurDétectée soft, pas crash dur ---
+// LitOOB accède ZRC[3].ZS_V..Valeur sur 2 lignes.
+// AVANT fix : hard-crash (ou ErreurDétectée selon impl).
+// APRÈS fix : doit poser ErreurDétectée sans crash ; runner continue.
+// La lecture ErreurDétectée se fait IMMÉDIATEMENT après LitOOB() (règle ordre assert).
+ErreurRAZ()
+LitOOB()
+bOOB est un booléen = ErreurDétectée
+dbgVérifieVrai(bOOB, "ZRC[3].ZS_V..Valeur sur 2 lignes -> ErreurDétectée (OOB soft, pas crash)")
+
+Ferme(FEN_ZR558)
+
+dbgBilanTest()

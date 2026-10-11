@@ -1,0 +1,76 @@
+// @sujet : DateHeureLocaleVersUTC
+// @resume : Convertit une dateheure locale en temps universel (UTC), et inversement via DateHeureUTCVersLocale, selon le fuseau et l'horaire d'ete/hiver du poste
+
+// Les assertions sont ecrites pour rester valides quel que soit le fuseau du
+// poste (y compris UTC). On s'appuie sur des proprietes independantes du
+// fuseau : le round-trip est l'identite, les deux conversions sont inverses
+// l'une de l'autre, et le passage par l'epoch fixe des valeurs concretes.
+
+PROCEDURE PUBLIQUE scenario_round_trip_hiver()
+	// Une date d'hiver (offset stable, hors bascule) : Locale -> UTC -> Locale
+	// doit rendre exactement la dateheure de depart.
+	dhL est une dateheure = "202001011230"
+	utc est une dateheure = DateHeureLocaleVersUTC(dhL)
+	rt est une dateheure = DateHeureUTCVersLocale(utc)
+	dbgVérifieEgalité(DateHeureVersEpoch(rt), DateHeureVersEpoch(dhL),
+		"Round-trip hiver Locale->UTC->Locale est l'identite")
+
+	// Sens inverse : UTC -> Locale -> UTC rend aussi la valeur de depart.
+	depart est une dateheure = "202001011230"
+	loc est une dateheure = DateHeureUTCVersLocale(depart)
+	back est une dateheure = DateHeureLocaleVersUTC(loc)
+	dbgVérifieEgalité(DateHeureVersEpoch(back), DateHeureVersEpoch(depart),
+		"Round-trip hiver UTC->Locale->UTC est l'identite")
+FIN
+
+PROCEDURE PUBLIQUE scenario_round_trip_ete()
+	// Une date d'ete (offset different de l'hiver la ou il y a un horaire d'ete)
+	// : le round-trip reste l'identite car l'offset est pris a la meme date.
+	dhL est une dateheure = "202007151400"
+	utc est une dateheure = DateHeureLocaleVersUTC(dhL)
+	rt est une dateheure = DateHeureUTCVersLocale(utc)
+	dbgVérifieEgalité(DateHeureVersEpoch(rt), DateHeureVersEpoch(dhL),
+		"Round-trip ete Locale->UTC->Locale est l'identite")
+FIN
+
+PROCEDURE PUBLIQUE scenario_conversions_inverses()
+	// Les deux conversions decalent l'horloge de facon symetrique autour de
+	// l'entree : la somme des epochs des deux resultats vaut deux fois l'epoch
+	// de l'entree. Vrai quel que soit l'offset (0 inclus).
+	x est une dateheure = "202001011200"
+	utc est une dateheure = DateHeureLocaleVersUTC(x)
+	loc est une dateheure = DateHeureUTCVersLocale(x)
+	dbgVérifieEgalité(DateHeureVersEpoch(utc) + DateHeureVersEpoch(loc),
+		2 * DateHeureVersEpoch(x),
+		"LocaleVersUTC et UTCVersLocale decalent en sens opposes")
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeur_utc_concrete()
+	// Interpreter une dateheure comme UTC puis la reconvertir en epoch redonne
+	// l'epoch "naif" de cette dateheure lue comme UTC. Valeur figee,
+	// independante du fuseau du poste.
+	// 2000-01-01 00:00:00 UTC -> epoch 946684800.
+	loc est une dateheure = DateHeureUTCVersLocale("200001010000")
+	dbgVérifieEgalité(DateHeureVersEpoch(loc), 946684800,
+		"2000-01-01 00:00 lu en UTC -> epoch 946684800")
+
+	// 2020-01-01 12:00:00 UTC -> epoch 1577880000.
+	loc2 est une dateheure = DateHeureUTCVersLocale("202001011200")
+	dbgVérifieEgalité(DateHeureVersEpoch(loc2), 1577880000,
+		"2020-01-01 12:00 lu en UTC -> epoch 1577880000")
+FIN
+
+PROCEDURE PUBLIQUE scenario_bilingue_et_casse()
+	// Forme anglaise + casse melangee doivent resoudre la meme native.
+	x est une dateheure = "202001011200"
+	viaEn est une dateheure = DateTimeLocalToUTC(x)
+	viaFr est une dateheure = datehEUReLocaleVersutc(x)
+	dbgVérifieEgalité(DateHeureVersEpoch(viaEn), DateHeureVersEpoch(viaFr),
+		"Forme EN DateTimeLocalToUTC == forme FR (casse-insensible)")
+
+	yUtc est une dateheure = "202001011200"
+	viaEn2 est une dateheure = DateTimeUTCToLocal(yUtc)
+	viaFr2 est une dateheure = DateHeureUTCVersLocale(yUtc)
+	dbgVérifieEgalité(DateHeureVersEpoch(viaEn2), DateHeureVersEpoch(viaFr2),
+		"Forme EN DateTimeUTCToLocal == forme FR")
+FIN

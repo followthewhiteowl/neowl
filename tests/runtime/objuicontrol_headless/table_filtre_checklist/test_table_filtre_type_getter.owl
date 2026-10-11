@@ -1,0 +1,54 @@
+// ============================================
+// TEST (Qt réel, offscreen) : pont get_filter_type — discrimine IN vs texte
+//
+// L'éditeur inline de la loupe (clic gauche) doit s'ouvrir VIDE quand la
+// colonne porte déjà un filtre multi-valeurs IN {set} (les valeurs de
+// l'ensemble ne sont pas un motif texte éditable), et se pré-remplir
+// normalement quand le filtre actif est un filtre texte (op+valeur).
+//
+// Le header custom Qt a besoin du TYPE du filtre actif, pas seulement de sa
+// valeur. Ce test verrouille la sonde __DebugTableFiltreType, qui appelle le
+// VRAI pont owl_ui_table_user_get_filter_type(widget monté, col0) — même
+// résolution widget->uici->$tblfilters que le pré-remplissage de l'éditeur.
+//
+//   __DebugTableFiltreType(TAB.COL) -> entier
+//     Type du filtre actif sur la colonne (constante filtre*), 0 si aucun
+//     filtre. Test-only, lit le store partagé via le widget monté.
+//
+// Réutilise la fenêtre voisine FEN_FiltreChecklist.owl (TAB_Filtre.COL_Ville).
+// ============================================
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FiltreChecklist)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+TableAjouteLigne(TAB_Filtre, "Dupont", "Paris")
+TableAjouteLigne(TAB_Filtre, "Martin", "Lyon")
+TableAjouteLigne(TAB_Filtre, "Durand", "Nice")
+
+// --- 1. Aucun filtre : le type est 0 (l'éditeur inline s'ouvrirait vide) ---
+dbgVérifieEgalité(__DebugTableFiltreType(TAB_Filtre.COL_Ville), 0,
+"colonne sans filtre : type 0")
+
+// --- 2. Filtre IN {set} : type != filtre texte, l'éditeur inline doit s'ouvrir VIDE ---
+__DebugTableFiltreIN(TAB_Filtre.COL_Ville, "Paris" + CRLF + "Lyon")
+dbgVérifieDifférence(__DebugTableFiltreType(TAB_Filtre.COL_Ville), filtreCommencePar,
+"filtre IN {set} : type distinct d'un filtre texte (l'éditeur inline s'ouvre vide)")
+dbgVérifieDifférence(__DebugTableFiltreType(TAB_Filtre.COL_Ville), 0,
+"filtre IN {set} : un IN reste un filtre actif (type non nul)")
+
+// --- 3. Filtre texte op+valeur : type EXACT filtreCommencePar (pré-remplissage inchangé) ---
+// Dernier geste gagne : le filtre texte remplace proprement l'IN sur le même slot.
+TableActiveFiltre(TAB_Filtre.COL_Ville, filtreCommencePar, "Par")
+dbgVérifieEgalité(__DebugTableFiltreType(TAB_Filtre.COL_Ville), filtreCommencePar,
+"filtre texte : type EXACT filtreCommencePar (l'éditeur inline se pré-remplit)")
+
+// --- 4. Retrait : retour à 0 ---
+TableDésactiveFiltre(TAB_Filtre.COL_Ville)
+dbgVérifieEgalité(__DebugTableFiltreType(TAB_Filtre.COL_Ville), 0,
+"après retrait : type 0")
+
+Ferme(FEN_FiltreChecklist)
+
+dbgBilanTest()

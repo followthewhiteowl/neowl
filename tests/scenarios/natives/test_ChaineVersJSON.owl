@@ -1,0 +1,166 @@
+// @sujet : ChaîneVersJSON
+// @résumé : Parse une chaîne JSON et retourne l'objet JSON correspondant (Null si invalide).
+
+
+// Cas canonique : une chaîne JSON représentant un objet simple est parsée
+// et donne accès aux membres via notation pointée. Les types primitifs
+// (entier, réel, chaîne, booléen) sont automatiquement identifiés.
+//
+// Note d'écriture : les littéraux JSON sont rédigés en chaîne `backtick`,
+// qui n'exige pas d'échapper les guillemets. C'est la forme la plus lisible
+// pour ce genre de contenu.
+PROCEDURE scenario_objet_simple()
+	sJSON est une chaîne = `{"nom":"Alice","age":32}`
+	j est un JSON = ChaîneVersJSON(sJSON)
+	sNom est une chaîne = j.Nom
+	nAge est un entier = j.age
+	dbgVérifieEgalité(sNom, "Alice", "membre chaîne extrait")
+	dbgVérifieEgalité(nAge, 32, "membre entier extrait")
+FIN
+
+
+// Un tableau JSON est parsé et accessible par index numérique à partir de 1.
+// La cohérence avec l'indexation des tableaux OWL natifs (base 1) est
+// intentionnelle, même si JavaScript indexe à partir de 0.
+PROCEDURE scenario_tableau()
+	sJSON est une chaîne = `[10,20,30]`
+	j est un JSON = ChaîneVersJSON(sJSON)
+	dbgVérifieEgalité(j[1], 10, "premier élément")
+	dbgVérifieEgalité(j[2], 20, "deuxième élément")
+	dbgVérifieEgalité(j[3], 30, "troisième élément")
+FIN
+
+
+// Les objets et tableaux imbriqués sont navigables par combinaison de notation
+// pointée et d'index. La profondeur d'imbrication n'est pas limitée.
+PROCEDURE scenario_objet_imbrique()
+	sJSON est une chaîne = `{"user":{"nom":"Alice","tags":["admin","dev"]}}`
+	j est un JSON = ChaîneVersJSON(sJSON)
+	sNom est une chaîne = j.user.Nom
+	sTag1 est une chaîne = j.user.tags[1]
+	dbgVérifieEgalité(sNom, "Alice", "membre objet imbriqué")
+	dbgVérifieEgalité(sTag1, "admin", "élément tableau imbriqué")
+FIN
+
+
+// Aller-retour parse + sérialise : parse puis sérialise doit préserver
+// la structure et les valeurs, même si la représentation textuelle diffère
+// légèrement (whitespace, ordre des clés selon implémentation).
+PROCEDURE scenario_round_trip()
+	sOriginal est une chaîne = `{"a":1,"b":[2,3]}`
+	j est un JSON = ChaîneVersJSON(sOriginal)
+	sFinal est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sFinal, sOriginal, "round-trip sans perte")
+FIN
+
+
+// Les types primitifs JSON (entier, réel, chaîne, booléen) sont reconnus
+// et accessibles après parse. Le JSON est un document dynamique dont les
+// membres sont accessibles via notation pointée.
+PROCEDURE scenario_types_primitifs()
+	// Créer un objet JSON vide puis affecter les membres
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.n = 42
+	doc.r = 3.14
+	doc.s = "ok"
+	doc.b = Vrai
+
+	// Vérifier que les valeurs sont bien présentes après sérialisation
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"n":42`), "entier présent")
+	dbgVérifieVrai(Contient(sRes, `"r":3.14`), "réel présent")
+	dbgVérifieVrai(Contient(sRes, `"s":"ok"`), "chaîne présente")
+FIN
+
+
+// La syntaxe historique "..." reste disponible pour un littéral JSON, au prix
+// d'un doublage des guillemets internes ("" → "). Plus pénible à écrire que le
+// backtick mais utile dans les cas où un seul "..." sert à la fois de modèle
+// et de chaîne calculée.
+PROCEDURE scenario_input_avec_guillemets_owl()
+	j est un JSON = ChaîneVersJSON("{""produit"":""café""}")
+	sProduit est une chaîne = j.produit
+	dbgVérifieEgalité(sProduit, "café", "guillemets doublés parsés")
+FIN
+
+
+// Quand l'entrée JSON est volumineuse, le backtick supporte le multi-ligne
+// natif : aucun échappement, indentation libre. Le parser ignore les espaces,
+// tabulations et retours à la ligne hors des chaînes.
+PROCEDURE scenario_input_multiligne_lisible()
+	sInput est une chaîne = `
+        {
+            "client": "Alice",
+            "panier": [
+                { "ref": "A100", "qte": 2 },
+                { "ref": "B200", "qte": 1 }
+            ]
+        }
+    `
+	j est un JSON = ChaîneVersJSON(sInput)
+	dbgVérifieEgalité(j.client, "Alice", "client extrait du multi-ligne")
+	dbgVérifieEgalité(j.panier[1].ref, "A100", "premier item panier")
+FIN
+
+
+// Cas limite défensif : un objet JSON vide est une structure valide qui parse
+// correctement. De même pour un tableau vide. Les deux donnent un JSON dont
+// la sérialisation produit respectivement "{}" et "[]".
+PROCEDURE PRIVÉE scenario_structures_vides()
+	jObjet est un JSON = ChaîneVersJSON(`{}`)
+	jTableau est un JSON = ChaîneVersJSON(`[]`)
+	dbgVérifieEgalité(JSONVersChaîne(jObjet, psdMinifie), `{}`, "objet vide")
+	dbgVérifieEgalité(JSONVersChaîne(jTableau, psdMinifie), `[]`, "tableau vide")
+FIN
+
+
+// Une chaîne JSON invalide (syntaxe non-JSON) parse de manière tolérante.
+// Pas d'exception levée : le contrat est silencieux (objet vide par défaut).
+PROCEDURE PRIVÉE scenario_json_invalide_tolerant()
+	j est un JSON = ChaîneVersJSON("pas du JSON du tout!")
+	// Le parser tolérant retourne un objet vide pour les entrées invalides.
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, "{}", "JSON invalide → objet vide tolérant")
+FIN
+
+
+// Un littéral JSON "null" (quatre caractères, pas la valeur OWL Null) parse
+// en JSON_T_NULL, un type distinct. Ce JSON_T_NULL se sérialise fidèlement
+// en "null". Le round-trip parse→serialize est invariant.
+PROCEDURE PRIVÉE scenario_json_null_explicite()
+	j est un JSON = ChaîneVersJSON("null")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), "null", "JSON null explicite")
+FIN
+
+
+// Une chaîne vide n'est pas du JSON valide (pas d'objet, pas de tableau,
+// pas de valeur). Le résultat est un JSON_T_NULL (échec de parse).
+PROCEDURE PRIVÉE scenario_chaine_vide_renvoie_null()
+	j est un JSON = ChaîneVersJSON("")
+	// Un parse échoué retourne un JSON_T_NULL, qui se sérialise en "null".
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, "null", "chaîne vide → JSON_T_NULL → sérialise null")
+FIN
+
+
+// Les chaînes JSON qui contiennent des échappements Unicode (A) sont
+// décodées en caractères UTF-8 natifs lors du parse. Le round-trip peut ne
+// pas préserver l'échappement (forme canonique = UTF-8 direct).
+PROCEDURE PRIVÉE scenario_echappement_unicode()
+	sJSON est une chaîne = `{"char":"A"}`
+	j est un JSON = ChaîneVersJSON(sJSON)
+	sChar est une chaîne = j.char
+	dbgVérifieEgalité(sChar, "A", "\\u0041 décodé en A")
+FIN
+
+
+// Les nombres à forte précision (numérique / monétaire) sont préservés sans
+// perte lors du parse si le JSON contient un nombre décimal. Le type exact
+// (numérique ou monétaire) est déterminé par le contexte d'affectation.
+PROCEDURE PRIVÉE scenario_precision_numerique_exacte()
+	sJSON est une chaîne = `{"valeur":99999999999999999999999999999999.123456}`
+	j est un JSON = ChaîneVersJSON(sJSON)
+	n est un numérique = j.Valeur
+	attendu est un numérique = 0n99999999999999999999999999999999.123456
+	dbgVérifieEgalité(n, attendu, "numérique exact préservé")
+FIN

@@ -1,0 +1,44 @@
+// @sujet : fChangeExtension
+// @résumé : Change l'extension d'un nom de fichier ou d'un chemin, sans toucher au disque. Le répertoire éventuel est préservé, seule la partie après le dernier point du nom de fichier est remplacée. Si aucune extension d'origine n'existe, la nouvelle est simplement ajoutée.
+
+
+// Cas A : remplacement simple d'une extension existante sur un nom sans répertoire.
+PROCEDURE PUBLIQUE scenario_fce_remplace_extension_simple()
+	nouveau est une chaîne = fChangeExtension("rapport.txt", "pdf")
+	dbgVérifieEgalité(nouveau, "rapport.pdf", "l'extension txt est remplacée par pdf")
+FIN
+
+
+// Cas B : le répertoire du chemin d'origine est intégralement préservé, seule l'extension change.
+PROCEDURE PUBLIQUE scenario_fce_preserve_repertoire()
+	nouveau est une chaîne = fChangeExtension("C:\dossier\image.jpeg", "png")
+	dbgVérifieEgalité(nouveau, "C:\dossier\image.png", "le répertoire C:\dossier est conservé tel quel")
+FIN
+
+
+// Cas C : nom de fichier sans extension d'origine — la nouvelle extension est ajoutée avec un point.
+PROCEDURE PUBLIQUE scenario_fce_ajoute_extension_manquante()
+	nouveau est une chaîne = fChangeExtension("sans_ext", "log")
+	dbgVérifieEgalité(nouveau, "sans_ext.log", "aucune extension d'origine : le point et l'extension sont ajoutés")
+FIN
+
+
+// Cas limite : dest fourni avec un point de tête — pas de doublement, un seul point sépare le nom de l'extension.
+PROCEDURE PRIVÉE scenario_fce_edge_dest_avec_point_de_tete()
+	nouveau est une chaîne = fChangeExtension("rapport.txt", ".pdf")
+	dbgVérifieEgalité(nouveau, "rapport.pdf", "le point de tête de dest ne double pas le séparateur")
+FIN
+
+
+// Cas limite : dest vide — l'extension d'origine et son point sont retirés, aucun point résiduel.
+PROCEDURE PRIVÉE scenario_fce_edge_dest_vide()
+	nouveau est une chaîne = fChangeExtension("rapport.txt", "")
+	dbgVérifieEgalité(nouveau, "rapport", "dest vide retire l'extension et le point séparateur")
+FIN
+
+
+// Cas limite : nom multi-points (type archive.tar.gz) — seule la dernière extension (après le dernier point) est remplacée.
+PROCEDURE PRIVÉE scenario_fce_edge_source_multi_points()
+	nouveau est une chaîne = fChangeExtension("archive.tar.gz", "zip")
+	dbgVérifieEgalité(nouveau, "archive.tar.zip", "seul le dernier segment (gz) est remplacé, tar reste intact")
+FIN

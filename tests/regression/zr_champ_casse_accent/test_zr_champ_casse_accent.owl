@@ -1,0 +1,31 @@
+//  — verrou non-régression : la validation compile-time du nom de
+// champ ZoneRépétée (ZR_X[i].<champ>) ne doit PAS produire de faux positif
+// sur un champ réellement déclaré, quelle que soit la casse ou l'accentuation
+// utilisée à l'appel (invariants casse-insensible / accent-insensible OWL).
+//
+// Pattern : la fenêtre voisine FEN_ZRCasseAccent.owl porte la déclaration
+// et exerce déjà l'écriture avec casse/accent variés dans FinInitialisation ;
+// ce script lit les valeurs posées via des procédures publiques appelées
+// elles aussi avec casse/accent variés.
+
+TestModeHeadless(Vrai)
+
+casse_accent_done est un booléen = Faux
+
+PROCEDURE cb_casse_accent_done()
+	casse_accent_done = Vrai
+FIN
+
+Ouvre(FEN_ZRCasseAccent)
+
+dbgVérifieVrai(casse_accent_done, "FinInitialisation FEN_ZRCasseAccent exécutée")
+
+nom est une chaîne = LireNom(1)
+ete est une chaîne = LireEte(1)
+
+dbgVérifieEgalité(nom, "Alice", "ZR_Liste[1].lib_nom écrit puis relu via LIB_NOM = Alice")
+dbgVérifieEgalité(ete, "Juillet", "ZR_Liste[1].LIB_ETE écrit puis relu via lib_ete = Juillet")
+
+Ferme(FEN_ZRCasseAccent)
+
+dbgBilanTest()

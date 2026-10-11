@@ -1,0 +1,37 @@
+// Thème présent, aucun fichier projet qui le désigne : `theme.<style>` ne
+// résout pas. Ce test verrouille les DEUX moitiés du contrat :
+//   1. la résolution échoue (le modèle reste celui du thème désigné) ;
+//   2. elle ne le fait pas en silence — une erreur est posée, et son message
+//      nomme le style ET la désignation manquante.
+//
+// Le second point est le cœur du défaut mesuré : l'erreur était bien posée,
+// mais rien ne la donnait à voir. Le message est ici assert au texte exact,
+// pour qu'aucune reformulation ne le vide de la piste « fichier projet ».
+
+Trace("=== theme.<style> sans thème désigné : inerte, mais pas muet ===")
+
+ErreurRAZ()
+styBouton est un styleBouton = theme.boutonPrimaire
+// ErreurDétectée d'abord : tout autre appel consommerait la sentinelle.
+bErreur est un booléen = ErreurDétectée
+sMessage est une chaîne = ErreurInfo(errMessage)
+
+dbgVérifieVrai(bErreur, "un thème non désigné pose ErreurDétectée")
+dbgVérifieEgalité(sMessage,
+"Style 'boutonPrimaire' introuvable : aucun style de ce nom dans le thème actif. Vérifier l'orthographe, et que le fichier projet désigne bien un thème (propriété 'Thème').",
+"le message nomme le style et la désignation manquante")
+
+// Ce que l'utilisateur récupère reste navigable (pas de plantage en cascade),
+// et ne porte AUCUNE des valeurs du thème : la couleur écrite dans le bloc
+// n'arrive pas jusqu'ici.
+dbgVérifieDifférence(styBouton..CadreExtérieur..CouleurFond, Bleu,
+"la couleur du bloc inerte n'est pas appliquée")
+
+// L'incident a aussi une moitié compile-time : le bloc de thème que rien ne
+// désigne est signalé dès la frappe. Le message exact est verrouillé par les
+// fixtures snapshot ; ici on verrouille seulement qu'il est bien émis sur ce
+// corpus, et on le retire du bilan.
+__dbgAvertissementAttendu("'ThèmeInerteRuntime' inerte",
+"le thème que rien ne désigne est signalé dès la compilation")
+
+dbgBilanTest()

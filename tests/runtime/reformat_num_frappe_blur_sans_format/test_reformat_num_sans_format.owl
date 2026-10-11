@@ -1,0 +1,20 @@
+//  — non-régression : champ typSaisieNum SANS FormatNombre effectif
+// (ni champ ni projet). Le focus-out ne doit RIEN reformater : le
+// comportement plat actuel (round-trip brut inchangé) doit rester identique
+// avant et après le fix du déclencheur focus-out.
+//
+// VERT attendu dans les deux cas (avant/après implémentation) : c'est la
+// digue anti-régression du ticket.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ReformatNumSansFormat)
+
+TestSimuleSaisie(SAI_Num, "1234567.891")
+DonneFocus(SAI_Autre)
+
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234567.891) < 0.0001, "sans FormatNombre effectif : focus-out n'altère pas l'affichage, round-trip brut inchangé (1234567.891)")
+
+Ferme(FEN_ReformatNumSansFormat)
+dbgBilanTest()

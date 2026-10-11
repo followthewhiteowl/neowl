@@ -1,0 +1,66 @@
+// @sujet : TableauVersMatriceColonne
+// @résumé : Convertit explicitement un tableau plat de réels en une Matrice colonne, sans coercion implicite entre les deux types.
+
+
+// Cas nominal : un tableau de N réels devient une Matrice colonne N×1,
+// avec les mêmes valeurs dans le même ordre.
+PROCEDURE PUBLIQUE scenario_conversion_nominale()
+	valeurs est un tableau = [7.0, 8.0, 9.0]
+	colonne est une Matrice = TableauVersMatriceColonne(valeurs)
+	dbgVérifieEgalité(colonne..Lignes, 3, "Matrice colonne a autant de lignes que d'éléments dans le tableau")
+	dbgVérifieEgalité(colonne..Colonnes, 1, "Matrice colonne a une seule colonne")
+	dbgVérifieEgalité(colonne[1][1], 7.0, "colonne[1][1] = valeurs[1]")
+	dbgVérifieEgalité(colonne[2][1], 8.0, "colonne[2][1] = valeurs[2]")
+	dbgVérifieEgalité(colonne[3][1], 9.0, "colonne[3][1] = valeurs[3]")
+FIN
+
+
+// Cas d'un tableau à un seul élément : Matrice colonne 1×1.
+PROCEDURE PUBLIQUE scenario_un_seul_element()
+	valeurs est un tableau = [42.0]
+	colonne est une Matrice = TableauVersMatriceColonne(valeurs)
+	dbgVérifieEgalité(colonne..Lignes, 1, "Matrice colonne à un élément a 1 ligne")
+	dbgVérifieEgalité(colonne..Colonnes, 1, "Matrice colonne à un élément a 1 colonne")
+	dbgVérifieEgalité(colonne[1][1], 42.0, "colonne[1][1] = valeurs[1]")
+FIN
+
+
+// La forme anglaise ArrayToColumnMatrix désigne la même opération.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	valeurs est un tableau = [1.0, 2.0, 3.0]
+	colonne est une Matrice = ArrayToColumnMatrix(valeurs)
+	dbgVérifieEgalité(colonne..Lignes, 3, "ArrayToColumnMatrix(valeurs) a autant de lignes que d'éléments")
+	dbgVérifieEgalité(colonne[1][1], 1.0, "colonne[1][1] = valeurs[1]")
+	dbgVérifieEgalité(colonne[3][1], 3.0, "colonne[3][1] = valeurs[3]")
+FIN
+
+
+// Un tableau vide est une erreur récupérable : une Matrice ne peut pas
+// être vide (invariant lignes >= 1).
+PROCEDURE PRIVÉE scenario_edge_tableau_vide()
+	valeurs est un tableau = []
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		colonne est une Matrice = TableauVersMatriceColonne(valeurs)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "TableauVersMatriceColonne([]) est attrapé")
+FIN
+
+
+// Un élément non réel dans le tableau est une erreur récupérable.
+PROCEDURE PRIVÉE scenario_edge_element_non_reel()
+	valeurs est un tableau = ["x", "y"]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		colonne est une Matrice = TableauVersMatriceColonne(valeurs)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "TableauVersMatriceColonne(tableau de chaînes) est attrapé")
+FIN

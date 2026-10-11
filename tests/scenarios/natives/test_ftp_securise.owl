@@ -1,0 +1,146 @@
+// @sujet : FTPConnecte
+// @résumé : Connexion FTP sécurisée par TLS via un préfixe sur le nom du serveur — chiffrement implicite d'emblée ("ftps://") ou négocié après connexion ("ftpes://") — et relâchement ciblé de la vérification du certificat via un paramètre optionnel combinable.
+
+// Chaque native FTP est mockée individuellement : le serveur distant est une
+// dépendance externe, le mock l'isole comme pour un appel HTTP. Le mock est
+// créé, activé puis désactivé localement dans chaque scénario. Les
+// connexions sécurisées se distinguent d'une connexion en clair par deux
+// propriétés relisibles sur l'objet ftpClient retourné : Sécurisée et
+// Chiffrement.
+
+// Un préfixe "ftps://" ouvre un canal de contrôle chiffré d'emblée : le
+// chiffrement est actif dès l'établissement de la connexion, sans étape de
+// négociation intermédiaire.
+PROCEDURE PUBLIQUE scenario_connexion_ftps_chiffree_implicitement()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "ftp.exemple.test"
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "FTPS"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftps://ftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion ftps:// est établie chiffrée d'emblée")
+	dbgVérifieEgalité(cnx..Chiffrement, "FTPS", "le chiffrement identifié est FTPS (implicite)")
+
+	mockConnecte.Desactive()
+FIN
+
+// Un préfixe "ftpes://" ouvre d'abord un canal de contrôle en clair puis
+// négocie le chiffrement (AUTH TLS) avant tout échange d'identifiants.
+PROCEDURE PUBLIQUE scenario_connexion_ftpes_chiffree_apres_negociation()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "ftp.exemple.test"
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "FTPES"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftpes://ftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion ftpes:// est établie chiffrée après négociation")
+	dbgVérifieEgalité(cnx..Chiffrement, "FTPES", "le chiffrement identifié est FTPES (explicite)")
+
+	mockConnecte.Desactive()
+FIN
+
+// Sans préfixe, la connexion reste en clair : les deux propriétés
+// témoignent de l'absence de chiffrement.
+PROCEDURE PUBLIQUE scenario_connexion_sans_prefixe_reste_en_clair()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "ftp.exemple.test"
+	cnxAttendue..Sécurisée   = Faux
+	cnxAttendue..Chiffrement = ""
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieFaux(cnx..Sécurisée, "sans préfixe, la connexion n'est pas sécurisée")
+	dbgVérifieEgalité(cnx..Chiffrement, "", "sans préfixe, aucun chiffrement n'est identifié")
+
+	mockConnecte.Desactive()
+FIN
+
+// Une connexion ftps:// avec relâchement de la vérification du certificat :
+// la constante se passe en dernier paramètre optionnel de FTPConnecte, sans
+// jamais être manipulée comme une valeur brute. Le mock vérifie que ce
+// paramètre est bien transmis à la native.
+PROCEDURE PUBLIQUE scenario_connexion_ftps_ignore_certificat_invalide()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "ftp.exemple.test"
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "FTPS"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("ftps://ftp.exemple.test", "alice", "secret42", 21, ftpModePassif, ftpIgnoreCertificatInvalide).Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftps://ftp.exemple.test", "alice", "secret42", 21, ftpModePassif, ftpIgnoreCertificatInvalide)
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion aboutit malgré un certificat invalide ignoré")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a bien reçu le paramètre de relâchement de vérification")
+
+	mockConnecte.Desactive()
+FIN
+
+// Les quatre motifs de relâchement de la vérification du certificat se
+// combinent en un seul paramètre, comme n'importe quel jeu de constantes
+// combinables du langage.
+PROCEDURE PUBLIQUE scenario_ignore_certificat_motifs_combinables()
+	nCombinaison est un entier = ftpIgnoreCertificatInvalide + ftpIgnoreCertificatExpiré + ftpIgnoreNomCertificatInvalide + ftpIgnoreRévocation
+
+	cnxAttendue est une ftpClient
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "FTPS"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("ftps://ftp.exemple.test", "alice", "secret42", 21, ftpModePassif, nCombinaison).Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftps://ftp.exemple.test", "alice", "secret42", 21, ftpModePassif, nCombinaison)
+
+	dbgVérifieVrai(cnx..Sécurisée, "la connexion aboutit avec les quatre motifs de relâchement combinés")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a bien reçu la combinaison des quatre motifs")
+
+	mockConnecte.Desactive()
+FIN
+
+// Sans paramètre de relâchement, la vérification du certificat reste
+// complète : c'est le comportement par défaut, le plus prudent.
+PROCEDURE PUBLIQUE scenario_connexion_ftps_verification_complete_par_defaut()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "ftp.exemple.test"
+	cnxAttendue..Sécurisée   = Vrai
+	cnxAttendue..Chiffrement = "FTPS"
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Avec("ftps://ftp.exemple.test", "alice", "secret42").Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftps://ftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieVrai(cnx..Sécurisée, "connexion établie sans relâchement de vérification")
+	dbgVérifieVrai(MockVérifieAppelé(mockConnecte, 1), "FTPConnecte a été appelée sans motif de relâchement")
+
+	mockConnecte.Desactive()
+FIN
+
+// Cas limite : les quatre constantes de relâchement portent des valeurs
+// distinctes, chacune une puissance de deux — condition nécessaire pour
+// qu'elles restent décomposables une fois combinées en OU-binaire.
+PROCEDURE PRIVÉE scenario_edge_ignore_certificat_valeurs_distinctes_puissances_de_deux()
+	dbgVérifieVrai(ftpIgnoreCertificatInvalide <> ftpIgnoreCertificatExpiré, "deux motifs distincts portent des valeurs distinctes")
+	dbgVérifieVrai(ftpIgnoreCertificatInvalide <> ftpIgnoreNomCertificatInvalide, "deux motifs distincts portent des valeurs distinctes")
+	dbgVérifieVrai(ftpIgnoreCertificatInvalide <> ftpIgnoreRévocation, "deux motifs distincts portent des valeurs distinctes")
+	dbgVérifieVrai(ftpIgnoreCertificatExpiré <> ftpIgnoreNomCertificatInvalide, "deux motifs distincts portent des valeurs distinctes")
+	dbgVérifieVrai(ftpIgnoreCertificatExpiré <> ftpIgnoreRévocation, "deux motifs distincts portent des valeurs distinctes")
+	dbgVérifieVrai(ftpIgnoreNomCertificatInvalide <> ftpIgnoreRévocation, "deux motifs distincts portent des valeurs distinctes")
+
+	nSeul est un entier = OUBinaire(ftpIgnoreCertificatInvalide, ftpIgnoreCertificatExpiré)
+	nAvecDoublon est un entier = OUBinaire(OUBinaire(ftpIgnoreCertificatInvalide, ftpIgnoreCertificatExpiré), ftpIgnoreCertificatInvalide)
+	dbgVérifieEgalité(nSeul, nAvecDoublon, "combiner deux fois le même motif ne change pas le résultat (bits indépendants)")
+FIN
+
+dbgBilanTest()

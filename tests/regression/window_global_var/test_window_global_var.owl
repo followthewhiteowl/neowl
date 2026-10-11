@@ -1,0 +1,16 @@
+// Verrou  — acces QUALIFIE aux globales de fenetre apres Ouvre.
+// Remplace l'acces nu precedent (sTest / nVal) qui testait la fuite de scope.
+// Le contrat post-fix : les globales d'une fenetre ne fuient plus vers le
+// script appelant ; elles sont accessibles uniquement par FEN_X.globale.
+//
+// FEN_X.owl declare sTest et nVal dans son bloc Fenetre.
+// Apres Ouvre, FEN_X.sTest doit valoir "ok" et FEN_X.nVal doit valoir 42.
+//
+// STATUS ATTENDU : ROUGE avant fix (qualifie retourne Null/0), VERT apres.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_X)
+dbgVérifieEgalité(FEN_X.sTest, "ok", "FEN_X.sTest qualifie retourne la valeur correcte apres Ouvre")
+dbgVérifieEgalité(FEN_X.nVal, 42, "FEN_X.nVal qualifie retourne la valeur correcte apres Ouvre")
+Ferme(FEN_X)
+dbgBilanTest()

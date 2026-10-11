@@ -1,0 +1,22 @@
+//  — contrôle positif : ce projet pose FormatDate = "MM/JJ/AAAA".
+// La saisie "05/12/2026" doit être interprétée mois=05, jour=12 (12 mai
+// 2026), preuve que le format projet est bien pris en compte ICI (sert de
+// référence face au projet frère "b_sans_formatdate" qui NE pose rien et
+// doit garder le défaut JJ/MM/AAAA — cf. test_fuite_formatdate_sans_projet.owl).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FuiteFormatDatePoseur)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+TestSimuleSaisie(SAI_Date, "05/12/2026")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Valeur reste un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLue est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLue, "20260512", "FormatDate projet MM/JJ/AAAA : « 05/12/2026 » interprété comme 12 mai 2026")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_FuiteFormatDatePoseur)
+dbgBilanTest()

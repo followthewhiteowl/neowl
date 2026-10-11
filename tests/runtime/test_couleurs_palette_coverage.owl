@@ -1,0 +1,85 @@
+// @sujet : Constantes de palette couleur (valeurs packées)
+// @résumé : Couverture des constantes de couleurs nommées de la palette. Chaque constante est un entier = valeur RGB packée (R + V*256 + B*65536). On vérifie la valeur exacte de chaque teinte. CouleurDéfaut est un sentinel (valeur négative dédiée à la couleur par défaut/système), distinct d'un RGB normal.
+
+// Couleurs neutres / métalliques. Valeurs packées exactes de la palette.
+PROCEDURE scenario_palette_neutres()
+	dbgVérifieEgalité(Argent, 12632256, "Argent = #C0C0C0 packé")
+	dbgVérifieEgalité(Bronze, 3309517, "Bronze = #CD7F32 packé")
+FIN
+
+
+// Famille Cyan : clair / foncé / pastel.
+PROCEDURE scenario_palette_cyan()
+	dbgVérifieEgalité(CyanClair, 16776960, "CyanClair packé")
+	dbgVérifieEgalité(CyanFoncé, 8421376, "CyanFoncé packé")
+	dbgVérifieEgalité(CyanPastel, 16777113, "CyanPastel packé")
+FIN
+
+
+// Famille Magenta : clair / foncé / pastel.
+PROCEDURE scenario_palette_magenta()
+	dbgVérifieEgalité(MagentaClair, 16711935, "MagentaClair packé")
+	dbgVérifieEgalité(MagentaFoncé, 8388736, "MagentaFoncé packé")
+	dbgVérifieEgalité(MagentaPastel, 16751103, "MagentaPastel packé")
+FIN
+
+
+// Famille Marron : clair / foncé / pastel.
+PROCEDURE scenario_palette_marron()
+	dbgVérifieEgalité(MarronClair, 2763429, "MarronClair packé")
+	dbgVérifieEgalité(MarronFoncé, 10584, "MarronFoncé packé")
+	dbgVérifieEgalité(MarronPastel, 6510979, "MarronPastel packé")
+FIN
+
+
+// Famille Orange : clair / foncé.
+PROCEDURE scenario_palette_orange()
+	dbgVérifieEgalité(OrangeClair, 42495, "OrangeClair packé")
+	dbgVérifieEgalité(OrangeFoncé, 36095, "OrangeFoncé packé")
+FIN
+
+
+// Famille Rose : clair / foncé / pastel.
+PROCEDURE scenario_palette_rose()
+	dbgVérifieEgalité(RoseClair, 13353215, "RoseClair packé")
+	dbgVérifieEgalité(RoseFoncé, 10382589, "RoseFoncé packé")
+	dbgVérifieEgalité(RosePastel, 14471679, "RosePastel packé")
+FIN
+
+
+// Famille Violet : clair / foncé / pastel.
+PROCEDURE scenario_palette_violet()
+	dbgVérifieEgalité(VioletClair, 15631086, "VioletClair packé")
+	dbgVérifieEgalité(VioletFoncé, 13828244, "VioletFoncé packé")
+	dbgVérifieEgalité(VioletPastel, 13212107, "VioletPastel packé")
+FIN
+
+
+// Teintes isolées de la palette : jaune foncé et rouge pastel.
+PROCEDURE scenario_palette_diverses()
+	dbgVérifieEgalité(JauneFoncé, 32896, "JauneFoncé packé")
+	dbgVérifieEgalité(RougePastel, 10066431, "RougePastel packé")
+FIN
+
+
+// Décomposition RGB d'une couleur de palette : la valeur packée encode
+// R sur bits 0-7, V sur 8-15, B sur 16-23. CyanClair = 16776960 = 0xFFFF00,
+// soit Rouge=0, Vert=255, Bleu=255 (encodage BGR : l'octet de poids faible
+// est le Rouge). Vérifie que la valeur exacte se décompose correctement,
+// en renfort de l'assertion sur valeur brute.
+PROCEDURE scenario_palette_decomposition_rgb()
+	c est une Couleur = CyanClair
+	dbgVérifieEgalité(c..Rouge, 0, "CyanClair composante Rouge")
+	dbgVérifieEgalité(c..Vert, 255, "CyanClair composante Vert")
+	dbgVérifieEgalité(c..Bleu, 255, "CyanClair composante Bleu")
+	dbgVérifieEgalité(c..Couleur, 16776960, "CyanClair valeur packée via type Couleur")
+FIN
+
+
+// CouleurDéfaut : cas spécial. Ce n'est PAS un RGB normal mais un sentinel
+// signalant « couleur par défaut / système ». Sa valeur entière dédiée est
+// négative (-2), voisine du sentinel iSystème (-3). On verrouille la valeur
+// exacte du sentinel.
+PROCEDURE scenario_couleur_defaut_sentinel()
+	dbgVérifieEgalité(CouleurDéfaut,-2, "CouleurDéfaut = sentinel -2 (couleur par défaut, pas un RGB)")
+FIN

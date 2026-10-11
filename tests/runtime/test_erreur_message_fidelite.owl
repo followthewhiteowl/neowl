@@ -1,0 +1,94 @@
+// ============================================
+// TEST: fidélité des messages d'erreur de natives
+//
+// Trois défauts distincts, tous visibles par l'utilisateur final :
+//   1. un marqueur de gabarit rendu littéralement ({arg}, {actual}, {native})
+//      parce que le site d'émission ne l'alimente pas ;
+//   2. un diagnostic d'argument manquant posé sur un argument présent mais
+//      du mauvais type ;
+//   3. un message qui nomme une fonction autre que celle appelée, parce
+//      qu'une implémentation partagée code un nom en dur.
+//
+// Le critère général : aucun message rendu ne doit contenir le caractère
+// '{'. Le contrôle exhaustif sur les sources vit dans
+// scripts/check_error_template_args.sh ; ce fichier en verrouille les cas
+// représentatifs au runtime.
+// ============================================
+Trace("=== FIDELITE DES MESSAGES D'ERREUR NATIVES ===")
+
+PROCEDURE sansMarqueur(msg est une chaîne, titre est une chaîne)
+	dbgVérifieEgalité(Position(msg, "{"), 0, titre)
+FIN
+
+// ----- 1a : marqueurs {native}, {expected} et {actual} non alimentés -----
+ErreurRAZ()
+buf est un buffer = "abc"
+o est un entier = BufferLitOctet(42, 1)
+m1 est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(m1, "BufferLitOctet: argument 'buf' attendu Buffer, reçu autre type.",
+"1a: BufferLitOctet nomme la native, l'attendu et le reçu")
+sansMarqueur(m1, "1a: aucun marqueur brut")
+
+// ----- 1b : marqueurs {arg} et {actual} non alimentés -----
+ErreurRAZ()
+h est une chaîne = HeureVersChaîne(42)
+m2 est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(m2, "HeureVersChaine: argument 'heure' attendu Heure, DateHeure ou Chaine, reçu autre type.",
+"1b: HeureVersChaine nomme l'argument et le reçu")
+sansMarqueur(m2, "1b: aucun marqueur brut")
+
+// ----- 1c : marqueur {arg} d'un diagnostic hors plage -----
+ErreurRAZ()
+p est une chaîne = EntierVersDate(1, "XX")
+m3 est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(m3, "EntierVersDate: argument 'partie' hors plage.",
+"1c: EntierVersDate nomme l'argument hors plage")
+sansMarqueur(m3, "1c: aucun marqueur brut")
+
+// ----- 2a : argument présent, du mauvais type -> diagnostic de type -----
+ErreurRAZ()
+za est un entier = zipOuvre(42)
+m5 est une chaîne = ErreurInfo(errMessage)
+c5 est une chaîne = ErreurInfo(errCode)
+dbgVérifieEgalité(m5, "zipOuvre: argument 'chemin' attendu chaîne, reçu autre type.",
+"2a: zipOuvre parle de type, pas d'argument manquant")
+dbgVérifieEgalité(c5, "E_NATIVE_ARG_TYPE_MISMATCH", "2a: code de type, pas E_NATIVE_ARG_MISSING")
+
+// ----- 2b : même motif sur zipCrée -----
+ErreurRAZ()
+zb est un entier = zipCrée(42)
+m6 est une chaîne = ErreurInfo(errMessage)
+c6 est une chaîne = ErreurInfo(errCode)
+dbgVérifieEgalité(m6, "zipCrée: argument 'chemin' attendu chaîne, reçu autre type.",
+"2b: zipCrée parle de type, pas d'argument manquant")
+dbgVérifieEgalité(c6, "E_NATIVE_ARG_TYPE_MISMATCH", "2b: code de type, pas E_NATIVE_ARG_MISSING")
+
+// ----- 2c : même motif hors famille zip -----
+ErreurRAZ()
+doc est un xmlDocument = XMLDocument()
+ok est un booléen = XMLSauve(doc, 42)
+m7 est une chaîne = ErreurInfo(errMessage)
+c7 est une chaîne = ErreurInfo(errCode)
+dbgVérifieEgalité(m7, "XMLSauve: argument 'chemin' attendu chaîne, reçu autre type.",
+"2c: XMLSauve parle de type, pas d'argument manquant")
+dbgVérifieEgalité(c7, "E_NATIVE_ARG_TYPE_MISMATCH", "2c: code de type, pas E_NATIVE_ARG_MISSING")
+
+// ----- 3a : le message nomme la native appelée, pas l'implémentation partagée -----
+ErreurRAZ()
+sig est une chaîne = HMACChaîne(HA_HMAC_SHA_256, 42, "clé")
+m8 est une chaîne = ErreurInfo(errMessage)
+f8 est une chaîne = ErreurInfo(errFonction)
+dbgVérifieEgalité(m8, "HMACChaine: argument 'chaine' attendu chaine, reçu autre type.",
+"3a: le message nomme HMACChaine")
+dbgVérifieEgalité(f8, "HMACChaine", "3a: errFonction nomme HMACChaine")
+
+// ----- 3b : même implémentation partagée, autre appelant -----
+ErreurRAZ()
+vrf est un booléen = HashVérifieChaîne(HA_HMAC_SHA_256, 42, "clé", "00")
+m9 est une chaîne = ErreurInfo(errMessage)
+f9 est une chaîne = ErreurInfo(errFonction)
+dbgVérifieEgalité(m9, "HashVerifieChaine: argument 'chaine' attendu chaine, reçu autre type.",
+"3b: le message nomme HashVerifieChaine")
+dbgVérifieEgalité(f9, "HashVerifieChaine", "3b: errFonction nomme HashVerifieChaine")
+
+dbgBilanTest()

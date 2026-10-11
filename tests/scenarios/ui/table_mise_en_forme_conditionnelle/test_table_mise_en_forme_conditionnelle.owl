@@ -1,0 +1,91 @@
+// Mise en forme conditionnelle d'une Table : colorer une cellule ou une ligne
+// en fonction de la donnée affichée.
+//
+// Trois écritures, deux propriétés chacune — `..Couleur` (texte) et
+// `..CouleurFond` (fond), alias anglais `..Color` et `..BackgroundColor` :
+//
+//   TABLE_X[ligne][colonne]..Couleur   une cellule, la ligne d'abord
+//   TABLE_X.COL_A[ligne]..Couleur      la même cellule, la colonne d'abord
+//   TABLE_X[ligne]..Couleur            la ligne entière
+//
+// Les indices sont des variables : la mise en forme s'écrit dans une boucle,
+// pas sur des lignes connues à l'avance.
+//
+// Note technique : TestModeHeadless(Faux) monte le champ Table réel (hors
+// écran), ce qui permet à TableOccurrence de rendre le nombre de lignes.
+
+TestModeHeadless(Faux)
+
+CST_BLANC est un entier = RVB(255, 255, 255)
+CST_ROUGE est un entier = RVB(200, 30, 30)
+CST_ORANGE est un entier = RVB(210, 105, 0)
+CST_VERT est un entier = RVB(0, 110, 60)
+
+PROCEDURE PUBLIQUE scenario_mise_en_forme_conditionnelle()
+	OuvreSoeur(FEN_SyntheseTresorerie)
+
+	nLigne est un entier
+	nSolde est un entier
+	nStock est un entier
+
+	nMeilleureLigne est un entier = 1
+	nMeilleurSolde est un entier = TABLE_Synthese[1].COL_Tresorerie
+
+	POUR nLigne = 1 À TableOccurrence(TABLE_Synthese)
+		nSolde = TABLE_Synthese[nLigne].COL_Tresorerie
+		nStock = TABLE_Synthese[nLigne].COL_Stock
+
+		// Cellule, la ligne d'abord : la colonne Trésorerie est la 2e.
+		SI nSolde < 0 ALORS
+			TABLE_Synthese[nLigne][2]..Couleur = CST_BLANC
+			TABLE_Synthese[nLigne][2]..CouleurFond = CST_ROUGE
+		FIN
+
+		// Cellule, la colonne d'abord : la colonne est désignée par son nom.
+		SI nStock < 10 ALORS
+			TABLE_Synthese.COL_Stock[nLigne]..Couleur = CST_BLANC
+			TABLE_Synthese.COL_Stock[nLigne]..CouleurFond = CST_ORANGE
+		FIN
+
+		SI nSolde > nMeilleurSolde ALORS
+			nMeilleurSolde  = nSolde
+			nMeilleureLigne = nLigne
+		FIN
+	FIN
+
+	// Ligne entière : un seul indice, toutes les colonnes sont teintées.
+	TABLE_Synthese[nMeilleureLigne]..Couleur     = CST_BLANC
+	TABLE_Synthese[nMeilleureLigne]..CouleurFond = CST_VERT
+
+	// La ligne 2 porte le seul solde négatif : sa cellule Trésorerie est teintée.
+	dbgVérifieEgalité(TABLE_Synthese[2][2]..Couleur, CST_BLANC,
+	"cellule Trésorerie de la ligne au solde négatif : texte blanc")
+	dbgVérifieEgalité(TABLE_Synthese[2][2]..CouleurFond, CST_ROUGE,
+	"cellule Trésorerie de la ligne au solde négatif : fond rouge")
+
+	// Les deux écritures désignent la même cellule.
+	dbgVérifieEgalité(TABLE_Synthese.COL_Tresorerie[2]..CouleurFond, CST_ROUGE,
+	"la même cellule relue la colonne d'abord : fond rouge")
+
+	// Écrit la colonne d'abord, relu la ligne d'abord : la colonne Stock est la 3e.
+	dbgVérifieEgalité(TABLE_Synthese[3][3]..CouleurFond, CST_ORANGE,
+	"cellule Stock de la ligne au stock bas : fond orange")
+
+	// Les alias anglais lisent la même valeur.
+	dbgVérifieEgalité(TABLE_Synthese[3][3]..BackgroundColor, CST_ORANGE,
+	"..BackgroundColor lit ce que ..CouleurFond a écrit")
+
+	// Ligne 1 : meilleur solde, la ligne entière est teintée.
+	dbgVérifieEgalité(TABLE_Synthese[1]..CouleurFond, CST_VERT,
+	"ligne du meilleur solde : fond vert sur toute la ligne")
+
+	// Une cellule qu'aucune règle n'a touchée n'a pas de couleur propre.
+	dbgVérifieVrai(TABLE_Synthese[1][2]..Couleur = Null,
+	"cellule non visée par une règle : aucune couleur posée")
+
+	// La mise en forme ne modifie pas la valeur affichée.
+	dbgVérifieEgalité(TABLE_Synthese[2].COL_Tresorerie,-3250,
+	"la valeur de la cellule est inchangée après sa mise en forme")
+
+	Ferme(FEN_SyntheseTresorerie)
+FIN

@@ -1,0 +1,75 @@
+// @sujet : mqttSession
+// @résumé : Type composé décrivant les paramètres de connexion à un broker de messagerie MQTT (adresse, port, identifiants, options). Se passe à MQTTConnecte et aux natives de publication/abonnement.
+
+
+// Cas canonique : une session déclarée sans initialisation reçoit les
+// valeurs par défaut prêtes à l'emploi (port 1883 en clair, aucune option).
+PROCEDURE scenario_creation_avec_defauts()
+	sess est un mqttSession
+	dbgVérifieEgalité(sess..Adresse, "")
+	dbgVérifieEgalité(sess..Port, 1883)
+	dbgVérifieEgalité(sess..IDClient, "")
+	dbgVérifieEgalité(sess..Option, 0)
+	dbgVérifieEgalité(sess..SessionVide, Faux)
+	dbgVérifieEgalité(sess..TimeoutConnexion, 0)
+FIN
+
+
+// Le databinding est direct : on assigne aux propriétés avec la notation
+// `..`, on relit de la même façon.
+PROCEDURE scenario_configuration_connexion()
+	sess est un mqttSession
+	sess..Adresse               = "broker.exemple.local"
+	sess..Port                  = 8883
+	sess..IDClient              = "capteur-salon-01"
+	sess..Utilisateur           = "alice"
+	sess..MotDePasseUtilisateur = "secret42"
+
+	dbgVérifieEgalité(sess..Adresse, "broker.exemple.local")
+	dbgVérifieEgalité(sess..Port, 8883)
+	dbgVérifieEgalité(sess..IDClient, "capteur-salon-01")
+	dbgVérifieEgalité(sess..Utilisateur, "alice")
+	dbgVérifieEgalité(sess..MotDePasseUtilisateur, "secret42")
+FIN
+
+
+// La propriété Option accepte la constante optionSSL pour demander une
+// connexion chiffrée au broker.
+PROCEDURE scenario_option_ssl()
+	sess est un mqttSession
+	sess..Option = optionSSL
+	dbgVérifieEgalité(sess..Option, optionSSL)
+FIN
+
+
+// SessionVide permet de repartir d'une session propre côté broker plutôt
+// que de reprendre les abonnements persistés d'une session précédente.
+PROCEDURE scenario_session_vide()
+	sess est un mqttSession
+	sess..SessionVide = Vrai
+	dbgVérifieEgalité(sess..SessionVide, Vrai)
+FIN
+
+
+// CertificatCA : chemin d'un fichier PEM de CA à truster en plus du bundle
+// standard, pour se connecter en TLS strict à un broker à certificat privé.
+// Vide par défaut (bundle public standard).
+PROCEDURE scenario_certificat_ca_defaut_et_configuration()
+	sess est un mqttSession
+	dbgVérifieEgalité(sess..CertificatCA, "", "CertificatCA vide par défaut")
+
+	sess..CertificatCA = "/chemin/vers/ca-interne.pem"
+	dbgVérifieEgalité(sess..CertificatCA, "/chemin/vers/ca-interne.pem", "CertificatCA relu tel quel")
+FIN
+
+
+// Formes bilingues : CertificatCA (FR) et CACertificate (EN) sont un seul et
+// même champ, quel que soit le nom utilisé pour écrire ou lire.
+PROCEDURE scenario_certificat_ca_bilingue()
+	sess est un mqttSession
+	sess..CertificatCA = "/etc/ssl/ca-fr.pem"
+	dbgVérifieEgalité(sess..CACertificate, "/etc/ssl/ca-fr.pem", "CACertificate (EN) relit ce qu'écrit CertificatCA (FR)")
+
+	sess..CACertificate = "/etc/ssl/ca-en.pem"
+	dbgVérifieEgalité(sess..CertificatCA, "/etc/ssl/ca-en.pem", "CertificatCA (FR) relit ce qu'écrit CACertificate (EN)")
+FIN

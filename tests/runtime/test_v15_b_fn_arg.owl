@@ -1,0 +1,38 @@
+// V1.7-1 : init litéral { ... } directement en argument de PROCEDURE
+// user-defined. Le compiler track les types des params (table
+// g_user_procs alimentee au parse de la decl).
+
+// Cas 1 : single-arg PROCEDURE typee composé
+PROCEDURE configCadre(c est un Cadre)
+	dbgVérifieEgalité(c..Couleur, RougeFoncé, "fn arg Couleur")
+	dbgVérifieEgalité(c..Epaisseur, 4, "fn arg Epaisseur")
+FIN
+
+configCadre({
+	Couleur   = RougeFoncé
+	Epaisseur = 4
+})
+
+// Cas 2 : single-arg avec recursivite (Style → Police, Cadre, Survol)
+PROCEDURE configStyle(s est un Style)
+	dbgVérifieEgalité(s..Couleur, BleuFoncé, "style Couleur")
+	dbgVérifieEgalité(s..Police..Taille, 14, "style..Police..Taille")
+	dbgVérifieEgalité(s..Cadre..Epaisseur, 2, "style..Cadre..Epaisseur")
+FIN
+
+configStyle({
+	Couleur = BleuFoncé
+	Police  = { Taille = 14, Gras = Vrai }
+	Cadre   = { Epaisseur = 2, Couleur = BleuFoncé }
+})
+
+// Cas 3 : single-arg PROCEDURE differente, variable explicite
+PROCEDURE accepteVariable(c est un Cadre)
+	dbgVérifieEgalité(c..Couleur, JauneOr, "var ref Couleur")
+	dbgVérifieEgalité(c..Epaisseur, 1, "var ref Epaisseur")
+FIN
+
+monCadre est un Cadre = {Couleur = JauneOr, Epaisseur = 1}
+accepteVariable(monCadre)
+
+dbgBilanTest()

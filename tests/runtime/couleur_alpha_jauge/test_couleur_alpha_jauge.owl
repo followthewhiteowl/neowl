@@ -1,0 +1,62 @@
+//  (LOT 4) — opacité sur `Style..Libellé..Couleur` (texte % d'un
+// Champ Jauge). Le texte % est peint via QPen/QPalette (paintEvent), pas via
+// QSS `color:` — même trou d'ingestion que les autres familles (mesuré aux
+// lots 1-3) : `read_jauge_style` lit `Libellé..Couleur` via
+// `instance_get_int(lib, "Couleur", -1)`, qui rend -1 sur une instance
+// Couleur -> le texte % reste dans sa couleur par défaut au lieu du mélange
+// attendu.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Fond ROUGE uniforme (CadreExtérieur ET Remplissage posés
+// à la même couleur RVB(255,0,0)) sous tout le texte "50%", cf.
+// FEN_CouleurAlphaJauge.owl.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg=VERT (0,255,0), bg=ROUGE (255,0,0), a=128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertMelange est un entier = RVB(127, 128, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CouleurAlphaJauge)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaJauge)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Non-régression : témoin opaque (JAU_Opaque, X=20..320, Y=20..70) --
+// Patron  test_style_jauge_element_libelle_pixel.owl : seuil > 30
+// (le texte "50%" est dense, une police Taille=24 Gras couvre largement ce
+// nombre de pixels).
+nbOpaque est un entier = CompteCouleurZone(img, 20, 20, 320, 70, vertOpaque)
+dbgVérifieVrai(nbOpaque > 30,
+"JAU_Opaque : Style..Libellé..Couleur = RVB(0,255,0) (entier nu opaque) : texte % vert, non-régression")
+
+// --- 2. Alpha (JAU_Alpha, X=20..320, Y=100..150) : mélange attendu --------
+nbAlpha est un entier = CompteCouleurZone(img, 20, 100, 320, 150, vertMelange)
+dbgVérifieVrai(nbAlpha > 30,
+"JAU_Alpha : Style..Libellé..Couleur = <Couleur Opacité=128> : texte % mélangé avec le fond rouge de la jauge")
+
+Ferme(FEN_CouleurAlphaJauge)
+dbgBilanTest()

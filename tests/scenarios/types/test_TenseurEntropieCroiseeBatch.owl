@@ -1,0 +1,72 @@
+// @sujet : Tenseur.EntropieCroisée (batch)
+// @résumé : EntropieCroisée sur des logits en lot (Tenseur 2D, B lignes ×
+// classes) applique softmax + entropie croisée à chaque ligne, puis rend
+// la moyenne des B pertes en un Tenseur scalaire. Rétropropage() remonte
+// vers les logits, ligne par ligne, le gradient fusionné (probabilités -
+// cible) divisé par B, le nombre de lignes du paquet.
+
+// Deux lignes à égalité parfaite (2 classes) : softmax([0,0]) = [0.5,0.5]
+// sur chaque ligne. Cible one-hot différente par ligne : ligne1 classe 1,
+// ligne2 classe 2. perte par ligne = -log(0.5) ~= 0.6931471805599453,
+// identique sur les 2 lignes -> moyenne = 0.6931471805599453 (exacte).
+PROCEDURE PUBLIQUE scenario_ce_batch_logits_egaux_forward()
+	matLogits est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	matCibles est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tLogits est un Tenseur = Tenseur(matLogits)
+	tCibles est un Tenseur = Tenseur(matCibles)
+
+	tPerte est un Tenseur = tLogits.EntropieCroisée(tCibles)
+	dbgVérifieEgalité(tPerte..Valeur[1], 0.6931471805599453, "moyenne(-log(0.5), -log(0.5)) = -log(0.5) exactement")
+FIN
+
+
+// Gradient par ligne = (softmax - cible) / B, avec B=2.
+// ligne1 : ([0.5,0.5] - [1,0]) / 2 = [-0.25, 0.25]
+// ligne2 : ([0.5,0.5] - [0,1]) / 2 = [0.25, -0.25]
+// La cible ne porte pas de gradient.
+PROCEDURE PUBLIQUE scenario_ce_batch_logits_egaux_backward()
+	matLogits est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	matCibles est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tLogits est un Tenseur = Tenseur(matLogits)
+	tCibles est un Tenseur = Tenseur(matCibles)
+
+	tPerte est un Tenseur = tLogits.EntropieCroisée(tCibles)
+	tPerte.Rétropropage()
+
+	gradLogits est une Matrice = tLogits..Gradient
+	dbgVérifieEgalité(gradLogits..Lignes, 2, "Gradient garde la forme des logits : 2 lignes")
+	dbgVérifieEgalité(gradLogits..Colonnes, 2, "Gradient garde la forme des logits : 2 colonnes")
+	dbgVérifieEgalité(gradLogits[1][1],-0.25, "ligne1 : (0.5-1.0)/2 = -0.25")
+	dbgVérifieEgalité(gradLogits[1][2], 0.25, "ligne1 : (0.5-0.0)/2 = 0.25")
+	dbgVérifieEgalité(gradLogits[2][1], 0.25, "ligne2 : (0.5-0.0)/2 = 0.25")
+	dbgVérifieEgalité(gradLogits[2][2],-0.25, "ligne2 : (0.5-1.0)/2 = -0.25")
+
+	gradCibles est une Matrice = tCibles..Gradient
+	dbgVérifieEgalité(gradCibles[1][1], 0.0, "La cible ne porte pas de gradient")
+	dbgVérifieEgalité(gradCibles[2][2], 0.0, "La cible ne porte pas de gradient")
+FIN
+
+
+// Deux lignes avec des logits différents (asymétriques). Calcul à la main
+// (constantes reprises de test_TenseurEntropieCroisee.owl) :
+// ligne1 logits=[1,2], softmax=[0.2689414213699951,0.7310585786300049],
+//   cible1=[0,1] (classe correcte = max) -> perte1 = -log(0.7310585786300049) ~= 0.3132616875182228
+// ligne2 logits=[0,0], softmax=[0.5,0.5], cible2=[1,0] -> perte2 = -log(0.5) = 0.6931471805599453
+// moyenne = (0.3132616875182228 + 0.6931471805599453) / 2 ~= 0.5032044340390841
+PROCEDURE PRIVÉE scenario_edge_ce_batch_lignes_asymetriques()
+	matLogits est une Matrice = [[1.0, 2.0], [0.0, 0.0]]
+	matCibles est une Matrice = [[0.0, 1.0], [1.0, 0.0]]
+	tLogits est un Tenseur = Tenseur(matLogits)
+	tCibles est un Tenseur = Tenseur(matCibles)
+
+	tPerte est un Tenseur = tLogits.EntropieCroisée(tCibles)
+	tPerte.Rétropropage()
+
+	dbgVérifieVrai(Abs(tPerte..Valeur[1] - 0.5032044340390841) < 0.0000001, "(0.3132616875182228 + 0.6931471805599453) / 2 ~= 0.5032044340390841")
+
+	gradLogits est une Matrice = tLogits..Gradient
+	dbgVérifieVrai(Abs(gradLogits[1][1] - 0.13447071068499755) < 0.0000001, "ligne1 : (0.2689414213699951-0.0)/2 ~= 0.13447071068499755")
+	dbgVérifieVrai(Abs(gradLogits[1][2] - (-0.13447071068499755)) < 0.0000001, "ligne1 : (0.7310585786300049-1.0)/2 ~= -0.13447071068499755")
+	dbgVérifieEgalité(gradLogits[2][1],-0.25, "ligne2 : (0.5-1.0)/2 = -0.25")
+	dbgVérifieEgalité(gradLogits[2][2], 0.25, "ligne2 : (0.5-0.0)/2 = 0.25")
+FIN

@@ -1,0 +1,60 @@
+// Régression : ChaîneCommencePar / ChaîneFinitPar
+// spécification de référence : retourne la taille (en caractères UTF-8, pas en bytes) de
+// l'élément qui matche, 0 sinon. Forme 2 : 2e arg peut être un tableau
+// de candidats. Forme 3 : 3e arg options ccSansCasse/ccSansAccent/...
+
+// ── CommencePar (forme chaîne) ──────────────────────────────────────
+dbgVérifieEgalité(ChaîneCommencePar("hello world", "hello"), 5, "match complet")
+dbgVérifieEgalité(ChaîneCommencePar("hello world", ""), 0, "préfixe vide = 0")
+dbgVérifieEgalité(ChaîneCommencePar("hello", "hello world"), 0, "préfixe trop long")
+dbgVérifieEgalité(ChaîneCommencePar("", "x"), 0, "chaîne vide")
+dbgVérifieEgalité(ChaîneCommencePar("hello", "hello"), 5, "égaux")
+
+// Method form
+dbgVérifieEgalité("abcdef".CommencePar("abc"), 3, "méthode sur chaîne")
+
+// Idiome documentation de référence : SI <> 0 ALORS
+SI ChaîneCommencePar("HTTP/1.1 200 OK", "HTTP") <> 0 ALORS
+	dbgVérifieVrai(Vrai, "idiome SI .CommencePar <> 0")
+SINON
+	dbgVérifieVrai(Faux, "idiome SI .CommencePar <> 0 échoué")
+FIN
+
+// ── CommencePar (forme tableau) ────────────────────────────────────
+candidats est un tableau de chaînes = ["foo", "ba", "hello"]
+dbgVérifieEgalité(ChaîneCommencePar("bar", candidats), 2, "2e candidat matche")
+dbgVérifieEgalité(ChaîneCommencePar("xyz", candidats), 0, "aucun ne matche")
+
+// ── FinitPar (forme chaîne) ─────────────────────────────────────────
+dbgVérifieEgalité(ChaîneFinitPar("hello world", "world"), 5, "match fin")
+dbgVérifieEgalité(ChaîneFinitPar("test.owl", ".owl"), 4, "extension")
+dbgVérifieEgalité(ChaîneFinitPar("test.owl", ".txt"), 0, "pas de match")
+dbgVérifieEgalité(ChaîneFinitPar("", "x"), 0, "chaîne vide")
+dbgVérifieEgalité("hello".FinitPar("lo"), 2, "méthode sur chaîne")
+
+// ── FinitPar (forme tableau) ────────────────────────────────────────
+extensions est un tableau de chaînes = [".txt", ".md", ".owl"]
+dbgVérifieEgalité(ChaîneFinitPar("readme.md", extensions), 3, "2e extension")
+dbgVérifieEgalité(ChaîneFinitPar("binary.exe", extensions), 0, "aucune extension")
+
+// ── Options ccSansCasse / ccSansAccent ──────────────────────────────
+// Match avec casse différente
+dbgVérifieEgalité(ChaîneCommencePar("HELLO world", "hello"), 0, "sans option: no match")
+dbgVérifieEgalité(ChaîneCommencePar("HELLO world", "hello", ccSansCasse), 5,
+"ccSansCasse: match")
+
+// UTF-8 : résultat en caractères, pas en bytes
+dbgVérifieEgalité(ChaîneFinitPar("la procédure", "procédure"), 9,
+"UTF-8 match: 9 chars (pas 10 bytes)")
+dbgVérifieEgalité(ChaîneFinitPar("la PROCÉDURE", "procédure", ccSansCasse), 9,
+"UTF-8 ccSansCasse: 9 chars")
+
+// Combinaison ccSansCasse + ccSansAccent
+dbgVérifieEgalité(ChaîneCommencePar("ÉLÉGANT style", "elegant", ccSansCasse + ccSansAccent), 7,
+"ccSansCasse + ccSansAccent")
+
+// Sans match malgré options
+dbgVérifieEgalité(ChaîneCommencePar("HELLO world", "foo", ccSansCasse), 0,
+"options + no match = 0")
+
+dbgBilanTest()

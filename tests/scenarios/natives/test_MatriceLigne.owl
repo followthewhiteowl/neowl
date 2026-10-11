@@ -1,0 +1,38 @@
+// @sujet : MatriceLigne
+// @résumé : Extrait une ligne d'une Matrice sous la forme d'un Vecteur, sans coercion implicite entre les deux types.
+
+
+// Cas nominal : la ligne i d'une Matrice devient un Vecteur dont la
+// taille est le nombre de colonnes de la matrice source.
+PROCEDURE PUBLIQUE scenario_extraction_nominale()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	v est un Vecteur = MatriceLigne(m, 2)
+	dbgVérifieEgalité(v..Taille, 3, "Vecteur extrait a la taille du nombre de colonnes")
+	dbgVérifieEgalité(v[1], 4.0, "v[1] = m[2][1]")
+	dbgVérifieEgalité(v[2], 5.0, "v[2] = m[2][2]")
+	dbgVérifieEgalité(v[3], 6.0, "v[3] = m[2][3]")
+FIN
+
+
+// La forme anglaise MatrixRow désigne la même opération.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	v est un Vecteur = MatrixRow(m, 1)
+	dbgVérifieEgalité(v[1], 1.0, "MatrixRow(m, 1)[1] = m[1][1]")
+	dbgVérifieEgalité(v[2], 2.0, "MatrixRow(m, 1)[2] = m[1][2]")
+FIN
+
+
+// Un index de ligne hors borne est une erreur récupérable.
+PROCEDURE PRIVÉE scenario_edge_ligne_hors_borne()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		v est un Vecteur = MatriceLigne(m, 100)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "MatriceLigne(m, ligne hors borne) est attrapé")
+FIN

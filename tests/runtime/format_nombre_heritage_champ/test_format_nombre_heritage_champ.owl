@@ -1,0 +1,25 @@
+//  — héritage projet -> champ. Champ `typSaisieNum` SANS son propre
+// `FormatNombre`, sous un projet qui pose `FormatNombre = { ... }` (2
+// décimales, séparateurs) : l'affichage doit suivre le format PROJET.
+//
+// Discriminant central : 1234567.891 posé en ..Valeur, ARRONDI à 2 décimales
+// par le format projet (-> 1234567.89 affiché "1 234 567,89"), relu en
+// ..Valeur DOIT rendre 1234567.89 — PAS 1234567.891 (ce que rendrait un
+// affichage plat qui ignore le format projet) et PAS une valeur corrompue
+// (ce que rendrait un reparse naïf, cf.  Qt-first).
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatNombre n'existe pas au catalogue (littéral inline rejeté).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatNombreHeritageChamp..FormatNombre..ChiffresAprèsVirgule, 2, "Projet..FormatNombre : objet configuré, lisible en cascade")
+
+OuvreSoeur(FEN_HeritageChamp)
+
+SAI_Num..Valeur = 1234567.891
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234567.89) < 0.0001, "FormatNombre hérité du projet (2 décimales, séparateurs) : round-trip SET->affiché formaté->GET rend 1234567.89 (arrondi projet), pas 1234567.891 ni une valeur corrompue")
+
+Ferme(FEN_HeritageChamp)
+dbgBilanTest()

@@ -1,0 +1,88 @@
+// Fenêtre voisine — ressource pour test_table_menu_loupe.owl.
+//
+// MNU_Loupe est attaché au champ Table via la propriété MenuLoupe : il
+// remplace le menu intégré de la loupe (clic droit sur l'en-tête de
+// colonne). Dans le surSélection() d'une option, MoiMême désigne la
+// colonne cliquée (forme TABLE.COL) : les natifs de filtre déjà câblés
+// branchent directement dessus.
+//
+// MNU_Classique + ZS_Champ couvrent la non-régression : un menu contextuel
+// attaché à un champ non-Table via la propriété canon MenuContextuel garde
+// son comportement d'origine (MoiMême = le champ attaché).
+
+FEN_MenuLoupe est une Fenêtre
+	PROPRIETES
+		Titre       = "Menu loupe custom"
+		Disposition = dispLibre
+	FIN
+
+	MNU_Loupe est un MenuContextuel
+		OPT_Filtrer est une OptionMenu
+			PROPRIETES
+				Libellé = "Commence par D"
+			FIN
+
+			PROCEDURE surSélection()
+				TableActiveFiltre(MoiMême, filtreCommencePar, "D")
+			FIN
+		FIN
+
+		OPT_Effacer est une OptionMenu
+			PROPRIETES
+				Libellé = "Effacer le filtre"
+			FIN
+
+			PROCEDURE surSélection()
+				TableDésactiveFiltre(MoiMême)
+			FIN
+		FIN
+	FIN
+
+	MNU_Classique est un MenuContextuel
+		OPT_Z est une OptionMenu
+			PROPRIETES
+				Libellé = "Option classique"
+			FIN
+
+			PROCEDURE surSélection()
+				MoiMême..Valeur = "moimeme_ok"
+			FIN
+		FIN
+	FIN
+
+	TAB_Donnees est un Champ Table
+		PROPRIETES
+			X         = 10
+			Y         = 10
+			Largeur   = 400
+			Hauteur   = 300
+			MenuLoupe = MNU_Loupe
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+
+		COL_Ville est une Colonne
+			PROPRIETES
+				Libellé = "Ville"
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+	FIN
+
+	ZS_Champ est un Champ Saisie
+		PROPRIETES
+			X              = 10
+			Y              = 320
+			Largeur        = 200
+			Hauteur        = 30
+			MenuContextuel = MNU_Classique
+		FIN
+	FIN
+FIN

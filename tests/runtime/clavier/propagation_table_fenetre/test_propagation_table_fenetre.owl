@@ -1,0 +1,66 @@
+//  lot B — Bubble-up  verrouillé sur un des champs
+// nouvellement câblés (Table), pas seulement sur Saisie.
+//
+// Semantique verrouillée (identique à propagation_saisie_fenetre) :
+//   - Touche sur Table SANS handler surToucheAppuyée -> remonte à la Fenêtre.
+//   - Touche sur Table AVEC handler surToucheAppuyée -> consommée, ne
+//     remonte pas.
+//
+// ROUGE ATTENDU (compile) : FAM_KEYBOARD_EVENTS n'est pas encore enregistrée
+// pour OWL_CONTROL_TABLE -> check_event_signature rejette 'surToucheAppuyée'
+// déclarée dans le bloc TABLE_AvecHandler -> le fichier voisin ne compile
+// pas -> `owl test` classe ce fichier CRASH tant que le catalogue n'est pas
+// étendu.
+
+TestModeHeadless(Faux)
+
+bPropPrete est un booléen = Faux
+nFenCapProp est un entier = 0
+nTblAvecCapProp est un entier = 0
+nDerniereCapProp est un entier = -1
+nDerniereCapTblProp est un entier = -1
+
+PROCEDURE callback_propagation_prete()
+	bPropPrete = Vrai
+FIN
+
+PROCEDURE callback_fen_propagation(nTouche est un entier)
+	nFenCapProp += 1
+	nDerniereCapProp = nTouche
+FIN
+
+PROCEDURE callback_tbl_avec_handler(nTouche est un entier)
+	nTblAvecCapProp += 1
+	nDerniereCapTblProp = nTouche
+FIN
+
+PROCEDURE callback_lit_prop_compteurs(nF est un entier, nT est un entier)
+	nFenCapProp     = nF
+	nTblAvecCapProp = nT
+FIN
+
+OuvreSoeur(FEN_PropagationTable)
+dbgVérifieVrai(bPropPrete, "FinInitialisation appelée : fenêtre prête")
+
+// Donner le focus à TABLE_SansHandler (pas de handler clavier sur ce champ).
+DonneFocus(TABLE_SansHandler)
+
+// Sans handler sur le champ, la touche doit remonter à la fenêtre.
+EnvoieTouche(tkHaut)
+
+LirePropCompteurs()
+dbgVérifieEgalité(nFenCapProp, 1, "propagation Table : tkHaut sur Table sans handler -> 1 tir fenêtre")
+dbgVérifieEgalité(nTblAvecCapProp, 0, "propagation Table : TABLE_AvecHandler n'a pas tiré (pas focusée)")
+
+// Donner le focus à TABLE_AvecHandler (a un handler clavier).
+DonneFocus(TABLE_AvecHandler)
+
+// La touche doit être consommée par le champ, NE doit PAS remonter à la fenêtre.
+EnvoieTouche(tkBas)
+
+LirePropCompteurs()
+dbgVérifieEgalité(nTblAvecCapProp, 1, "propagation Table : tkBas sur Table avec handler -> 1 tir table")
+dbgVérifieEgalité(nFenCapProp, 1, "propagation Table : compteur fenêtre reste 1 (pas de remontée)")
+
+Ferme(FEN_PropagationTable)
+dbgBilanTest()

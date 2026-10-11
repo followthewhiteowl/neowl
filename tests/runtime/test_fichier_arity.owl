@@ -1,0 +1,49 @@
+// test_fichier_arity.owl
+// Verrouille les formes d'arite discretes des natives fichier migrees
+// depuis une signature variadique masquee : chaque forme valide continue
+// de compiler ET de s'executer correctement.
+
+PROCEDURE PUBLIQUE test_construit_chemin_formes()
+	// 2 args : dossier + nom (pure, sans acces disque)
+	dbgVérifieEgalité(fConstruitChemin("dossier", "fichier.txt"),
+	"dossier" + fSep() + "fichier.txt", "fConstruitChemin 2 args")
+	// 3 args : dossier + nom + extension (point ajoute si absent)
+	dbgVérifieEgalité(fConstruitChemin("dossier", "fichier", "txt"),
+	"dossier" + fSep() + "fichier.txt", "fConstruitChemin 3 args")
+FIN
+
+PROCEDURE PUBLIQUE test_ouvre_positionne_formes()
+	sFichier est une chaîne = fConstruitChemin(fRepTemp(), "owl_arity_test.bin")
+	// fOuvre 2 args : chemin + mode
+	id est un entier = fOuvre(sFichier, foCréation + foEcriture)
+	dbgVérifieFaux(ErreurDétectée, "fOuvre 2 args sans erreur")
+	fEcrit(id, "0123456789")
+	fFerme(id)
+
+	// fOuvre 1 arg : mode par defaut (lecture/ecriture)
+	id2 est un entier = fOuvre(sFichier)
+	dbgVérifieFaux(ErreurDétectée, "fOuvre 1 arg sans erreur")
+	// fPositionne 3 args : id + deplacement + origine
+	pos est un entier = fPositionne(id2, 5, fpDebut)
+	dbgVérifieEgalité(pos, 5, "fPositionne 3 args : position 5")
+	// fPositionne 2 args : origine par defaut (fpDébut)
+	pos2 est un entier = fPositionne(id2, 2)
+	dbgVérifieEgalité(pos2, 2, "fPositionne 2 args : position 2")
+	fFerme(id2)
+
+	fSupprime(sFichier)
+FIN
+
+PROCEDURE PUBLIQUE test_repsupprime_formes()
+	sDir est une chaîne = fConstruitChemin(fRepTemp(), "owl_arity_dir")
+	fRepCree(sDir)
+	// fRepSupprime 1 arg : dossier vide
+	res est un booléen = fRepSupprime(sDir)
+	dbgVérifieVrai(res, "fRepSupprime 1 arg")
+
+	// fRepSupprime 2 args : avec indicateur recursif
+	fRepCree(sDir)
+	fSauveTexte(fConstruitChemin(sDir, "f.txt"), "x")
+	res2 est un booléen = fRepSupprime(sDir, frRécursif)
+	dbgVérifieVrai(res2, "fRepSupprime 2 args (recursif)")
+FIN

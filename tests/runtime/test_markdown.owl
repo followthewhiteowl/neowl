@@ -1,0 +1,119 @@
+// =====================================================================
+// Test : MarkdownVersTexte + MarkdownVersHTML (md4c CommonMark + GFM)
+// =====================================================================
+// OWL implémente Markdown via la lib md4c (palier B doc VISION §5bis :
+// superset CommonMark + GFM exposé sous noms de référence).
+
+Trace("=== MarkdownVersTexte ===")
+
+// =====================================================================
+// MarkdownVersTexte : strip toutes les balises, contenu textuel pur
+// =====================================================================
+dbgVérifieEgalité(MarkdownVersTexte(""), "", "vide -> vide")
+dbgVérifieEgalité(MarkdownVersTexte("hello"), "hello", "plain text inchangé")
+dbgVérifieEgalité(MarkdownVersTexte("**bold**"), "bold", "bold strippé")
+dbgVérifieEgalité(MarkdownVersTexte("_italic_"), "italic", "italic strippé")
+dbgVérifieEgalité(MarkdownVersTexte("~~strike~~"), "strike", "GFM strikethrough strippé")
+dbgVérifieEgalité(MarkdownVersTexte("`code`"), "code", "code inline strippé")
+dbgVérifieEgalité(MarkdownVersTexte("# Titre"), "Titre", "titre strippé")
+dbgVérifieEgalité(MarkdownVersTexte("## Titre 2"), "Titre 2", "H2 strippé")
+dbgVérifieEgalité(MarkdownVersTexte("[texte](url)"), "texte", "lien -> texte seulement")
+dbgVérifieEgalité(MarkdownVersTexte("![alt](img.png)"), "alt", "image -> alt text")
+
+// HTML inline reconnu par CommonMark (span, em, etc.) -> strippé
+// (extension OWL : sortie texte propre, sans balises résiduelles)
+dbgVérifieEgalité(MarkdownVersTexte("Hello <span style=""color:red"">monde</span>"),
+"Hello monde", "raw HTML inline whitelist CommonMark strippé")
+// <script> n'est PAS HTML inline whitelist CommonMark -> traité comme texte.
+// La sécurité contre injection est assurée côté HTML renderer (cf plus bas
+// "Sécurité raw HTML strippé" via &lt;script&gt;).
+sciptTxt est une chaîne = MarkdownVersTexte("Texte <script>alert(1)</script> safe")
+dbgVérifieVrai(Position(sciptTxt, "alert") > 0,
+"<script> non whitelist : contenu reste en texte (sécurité côté HTML renderer)")
+
+// Combinaisons riches
+dbgVérifieEgalité(MarkdownVersTexte("**bold** _italic_ ~~strike~~"),
+"bold italic strike", "combo bold+italic+strike")
+
+// Listes (le contenu est conservé)
+res est une chaîne = MarkdownVersTexte("- item1" + LF + "- item2")
+dbgVérifieVrai(Position(res, "item1") > 0, "liste : item1 présent")
+dbgVérifieVrai(Position(res, "item2") > 0, "liste : item2 présent")
+dbgVérifieVrai(Position(res, "-") = 0, "liste : marker '-' strippé")
+
+Trace("=== MarkdownVersHTML ===")
+
+// =====================================================================
+// MarkdownVersHTML : rendu HTML, CommonMark + GFM
+// =====================================================================
+// Base : H1, gras, lien
+sH1 est une chaîne = MarkdownVersHTML("# Titre")
+dbgVérifieVrai(Position(sH1, "<h1>") > 0, "H1: <h1> présent")
+dbgVérifieVrai(Position(sH1, "Titre") > 0, "H1: Titre présent")
+dbgVérifieVrai(Position(sH1, "</h1>") > 0, "H1: </h1> présent")
+
+sBold est une chaîne = MarkdownVersHTML("**bold**")
+dbgVérifieVrai(Position(sBold, "<strong>") > 0, "bold -> <strong>")
+dbgVérifieVrai(Position(sBold, "bold") > 0, "bold contenu")
+
+sLink est une chaîne = MarkdownVersHTML("[label](http://x)")
+dbgVérifieVrai(Position(sLink, "<a href=") > 0, "lien: <a href= présent")
+dbgVérifieVrai(Position(sLink, "label") > 0, "lien: label présent")
+
+// GFM strikethrough
+sStrike est une chaîne = MarkdownVersHTML("~~strike~~")
+dbgVérifieVrai(Position(sStrike, "<del>") > 0, "GFM ~~strike~~ -> <del>")
+
+// GFM tables
+sTable est une chaîne = MarkdownVersHTML("| a | b |" + LF + "|---|---|" + LF + "| 1 | 2 |")
+dbgVérifieVrai(Position(sTable, "<table>") > 0, "GFM table: <table>")
+dbgVérifieVrai(Position(sTable, "<th>") > 0, "GFM table: <th>")
+dbgVérifieVrai(Position(sTable, "<td>") > 0, "GFM table: <td>")
+
+// GFM task lists
+sTask est une chaîne = MarkdownVersHTML("- [x] done" + LF + "- [ ] todo")
+dbgVérifieVrai(Position(sTask, "checkbox") > 0, "GFM task: checkbox input")
+dbgVérifieVrai(Position(sTask, "checked") > 0, "GFM task: x -> checked")
+
+// Code fence
+sCode est une chaîne = MarkdownVersHTML("```" + LF + "let x = 42" + LF + "```")
+dbgVérifieVrai(Position(sCode, "<pre>") > 0, "code fence: <pre>")
+dbgVérifieVrai(Position(sCode, "<code>") > 0, "code fence: <code>")
+
+// =====================================================================
+// MarkdownVersHTML(s, css) : injection CSS
+// =====================================================================
+sWithCss est une chaîne = MarkdownVersHTML("# Hello", "h1 { color: red; }")
+dbgVérifieVrai(Position(sWithCss, "<style>") > 0, "css: <style> injecté")
+dbgVérifieVrai(Position(sWithCss, "h1 { color: red") > 0, "css: contenu CSS présent")
+dbgVérifieVrai(Position(sWithCss, "</style>") > 0, "css: </style> fermé")
+
+// =====================================================================
+// Sécurité : raw HTML strippé par défaut (palier B + Q6 secure)
+// =====================================================================
+sSafe est une chaîne = MarkdownVersHTML("Hello <script>evil()</script>")
+dbgVérifieEgalité(Position(sSafe, "<script>"), 0, "script: <script> non présent (entité-encodé)")
+dbgVérifieVrai(Position(sSafe, "&lt;script&gt;") > 0,
+"script: <script> remplacé par entités HTML")
+
+// =====================================================================
+// Méthodes prefix sur chaîne (pattern OWL canon)
+// =====================================================================
+m est une chaîne = "**bold**"
+dbgVérifieEgalité(m.MarkdownVersTexte(), "bold", ".MarkdownVersTexte() prefix method")
+dbgVérifieEgalité(m.VersTexte(), "bold", ".VersTexte() (alias court OWL)")
+
+n est une chaîne = "# H"
+nHTML est une chaîne = n.MarkdownVersHTML()
+dbgVérifieVrai(Position(nHTML, "<h1>") > 0, ".MarkdownVersHTML() prefix method")
+nHTML2 est une chaîne = n.VersHTML()
+dbgVérifieVrai(Position(nHTML2, "<h1>") > 0, ".VersHTML() (alias court OWL)")
+
+// =====================================================================
+// Aliases EN
+// =====================================================================
+dbgVérifieEgalité(MarkdownToText("**x**"), "x", "MarkdownToText alias EN")
+sEnHTML est une chaîne = MarkdownToHTML("# Y")
+dbgVérifieVrai(Position(sEnHTML, "<h1>") > 0, "MarkdownToHTML alias EN")
+
+dbgBilanTest()

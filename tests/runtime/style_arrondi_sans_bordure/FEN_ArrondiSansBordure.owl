@@ -1,0 +1,145 @@
+//  — un arrondi (Cadre..Arrondi) sans bordure (Epaisseur = 0) doit
+// être rendu : le border-radius ne doit PAS être jeté quand l'épaisseur est
+// nulle. Motif design courant : carte / champ à coins arrondis sans liseré.
+FEN_ArrondiSansBordure est une Fenêtre
+	PROPRIETES
+		Titre       = "Arrondi sans bordure"
+		Largeur     = 400
+		Hauteur     = 300
+		Disposition = dispLibre
+		CouleurFond = RVB(10, 10, 10)
+	FIN
+
+	// Conteneur arrondi SANS bordure : le cas qui régresse aujourd'hui.
+	CONT_SansBordure est un Champ Conteneur
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 200
+			Hauteur = 120
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(255, 255, 255)
+					Cadre       = { Epaisseur = 0, Arrondi = 26 }
+				}
+			}
+		FIN
+	FIN
+
+	// Conteneur arrondi AVEC bordure : le comportement existant ne doit pas
+	// changer (bordure + radius comme avant).
+	CONT_AvecBordure est un Champ Conteneur
+		PROPRIETES
+			X       = 20
+			Y       = 160
+			Largeur = 200
+			Hauteur = 100
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(255, 255, 255)
+					Cadre       = { Couleur = RVB(139, 118, 245), Epaisseur = 2, Arrondi = 18 }
+				}
+			}
+		FIN
+	FIN
+
+	// État texte (survol) : Cadre arrondi sans bordure dans un état doit aussi
+	// émettre le radius (chemin owl_ui_control_set_state_style).
+	SAI_EtatArrondi est un Champ Saisie
+		PROPRIETES
+			X                                                  = 240
+			Y                                                  = 20
+			Largeur                                            = 140
+			Hauteur                                            = 40
+			Style..ZoneSaisie..Etats[survol]..CouleurFond      = RVB(0, 255, 0)
+			Style..ZoneSaisie..Etats[survol]..Cadre..Epaisseur = 0
+			Style..ZoneSaisie..Etats[survol]..Cadre..Arrondi   = 10
+		FIN
+	FIN
+
+	// Liste arrondie SANS bordure (chemin owl_ui_liste_set_style / border_css).
+	LST_Arrondi est un Champ Liste
+		PROPRIETES
+			X       = 240
+			Y       = 70
+			Largeur = 140
+			Hauteur = 60
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(255, 255, 255)
+					Cadre       = { Epaisseur = 0, Arrondi = 12 }
+				}
+			}
+		FIN
+	FIN
+
+	// Combo arrondi SANS bordure (chemin owl_ui_combo_set_style / border_css).
+	CMB_Arrondi est un Champ Combo
+		PROPRIETES
+			X       = 240
+			Y       = 140
+			Largeur = 140
+			Hauteur = 40
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(255, 255, 255)
+					Cadre       = { Epaisseur = 0, Arrondi = 14 }
+				}
+			}
+		FIN
+	FIN
+
+	// Sélecteur arrondi SANS bordure (chemin owl_ui_selecteur_set_style / border_css).
+	SEL_Arrondi est un Champ Sélecteur
+		PROPRIETES
+			X       = 20
+			Y       = 190
+			Largeur = 140
+			Hauteur = 80
+			Options = ["A", "B", "C"]
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(255, 255, 255)
+					Cadre       = { Epaisseur = 0, Arrondi = 16 }
+				}
+			}
+		FIN
+	FIN
+
+	// Interrupteur arrondi SANS bordure (chemin owl_ui_interrupteur_set_style / border_css).
+	INT_Arrondi est un Champ Interrupteur
+		PROPRIETES
+			X       = 240
+			Y       = 190
+			Largeur = 140
+			Hauteur = 80
+			Options = ["X", "Y"]
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(255, 255, 255)
+					Cadre       = { Epaisseur = 0, Arrondi = 18 }
+				}
+			}
+		FIN
+	FIN
+
+	// Bouton arrondi SANS bordure : garde de non-régression. Le CadreExtérieur
+	// d'un Bouton passe par owl_cadre_body (radius per-coin, déjà hors gate
+	// épaisseur) — cette assertion verrouille ce chemin, distinct des lambdas
+	// border_css corrigées ici.
+	BTN_Arrondi est un Champ Bouton
+		PROPRIETES
+			X       = 20
+			Y       = 280
+			Largeur = 160
+			Hauteur = 44
+			Libellé = "Rond"
+			Style   = {
+				CadreExtérieur = {
+					CouleurFond = RVB(139, 118, 245)
+					Cadre       = { Epaisseur = 0, Arrondi = 24 }
+				}
+			}
+		FIN
+	FIN
+FIN

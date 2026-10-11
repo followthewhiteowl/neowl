@@ -1,0 +1,59 @@
+// @sujet : NATSPublie
+// @résumé : Publie un message NATS (frame PUB) sur un sujet du serveur et renvoie un booléen de réussite.
+
+
+// Publier sur une session qui n'a jamais été connectée échoue proprement :
+// la native renvoie Faux et pose une erreur dédiée, sans lever d'exception
+// ni bloquer.
+PROCEDURE PUBLIQUE scenario_publication_sans_connexion()
+	sess est un natsConnexion
+	sess..Adresse = "nats.exemple.local"
+
+	msg est un natsMessage
+	msg..Corps = "bonjour"
+
+	ErreurRAZ()
+	bRetour est un booléen = NATSPublie(sess, "owl.notifications", msg)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "publication sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "publication sans connexion pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_NATS_PUBLISH_FAILURE", "code d'erreur dédié à la publication")
+FIN
+
+
+// Validation d'argument AVANT toute tentative réseau : un sujet d'un autre
+// type qu'une chaîne est refusé avec le code canonique de type d'argument
+// invalide, même sur une session jamais connectée. La validation de type
+// doit précéder le contrôle de connexion vivante (parité AMQP/MQTT/STOMP).
+PROCEDURE PUBLIQUE scenario_sujet_type_invalide()
+	sess est un natsConnexion
+	msg est un natsMessage
+	msg..Corps = "bonjour"
+
+	ErreurRAZ()
+	bRetour est un booléen = NATSPublie(sess, 42, msg)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "sujet d'un type invalide renvoie Faux")
+	dbgVérifieVrai(bErr, "sujet d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+
+// Même exigence pour le message : un argument qui n'est pas un natsMessage
+// (ici une chaîne brute) est refusé avec le code canonique de type invalide,
+// jamais publié en silence avec un corps vide.
+PROCEDURE PUBLIQUE scenario_message_type_invalide()
+	sess est un natsConnexion
+
+	ErreurRAZ()
+	bRetour est un booléen = NATSPublie(sess, "owl.notifications", "corps-brut-refuse")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "message d'un type invalide renvoie Faux")
+	dbgVérifieVrai(bErr, "message d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

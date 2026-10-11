@@ -1,0 +1,31 @@
+// AVEC / WITH — couverture sur CLASSE.
+// Compagnon de test_avec.owl (regle OWL 1 classe = 1 fichier interdit
+// le melange classe + struct + runtime). Le test passe par une
+// PROCEDURE scenario_ pour respecter "pas de runtime top-level dans
+// un fichier classe".
+
+cVoiture est une Classe
+PUBLIC
+	sMarque est une chaîne
+	nVitesse est un entier
+
+	PROCEDURE Constructeur(sM est une chaîne, nV est un entier)
+		:sMarque = sM
+		:nVitesse = nV
+	FIN
+
+	PROCEDURE Decrire() : chaîne
+		RENVOYER :sMarque + " a " + :nVitesse + " km/h"
+	FIN
+FIN
+
+PROCEDURE scenario_avec_sur_classe()
+	oVeh est un cVoiture("Peugeot", 130)
+	sDesc est une chaîne = ""
+	AVEC oVeh
+		.nVitesse = 200
+		sDesc = .Decrire()
+	FIN
+	dbgVérifieEgalité(oVeh.nVitesse, 200, "AVEC class set nVitesse")
+	dbgVérifieEgalité(sDesc, "Peugeot a 200 km/h", "AVEC class method call")
+FIN

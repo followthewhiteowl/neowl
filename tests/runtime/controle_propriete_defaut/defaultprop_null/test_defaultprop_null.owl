@@ -1,0 +1,34 @@
+//  — Widgets sans defaultProperty scalaire (Interrupteur) en contexte VALEUR.
+//
+// Interrupteur a defaultProperty=NULL dans CONTROL_KINDS (pas de résolution
+// scalaire simple — indexé par option). La lecture nom nu n'a pas de prop
+// par défaut définie.
+//
+// QUESTION DE DESIGN (non verrouillée ici) : l'impl doit décider entre :
+//   A) Erreur compile-time E_SEM_WIDGET_NOT_SCALAR_READ (symétrique de
+//      E_SEM_WIDGET_NOT_SCALAR_ASSIGN côté écriture)
+//   B) L'objet contrôle est retourné tel quel (transparence)
+//
+// Ce test vérifie :
+//   1. Lecture prop explicite Interrupteur..Valeur → -1 (aucune option cochée)
+//   2. Lecture prop explicite Interrupteur..Occurrence → 0 (aucune option)
+// Ces assertions sont VERTES et doivent le rester (accès explicite non impacté).
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_NullProp)
+
+// 1. Accès explicite Interrupteur..Valeur doit marcher (non impacté par fix).
+nValItr est un entier = ITR_Option..Valeur
+dbgVérifieVrai(nValItr >= -1, "Interrupteur..Valeur explicite non-crash (>= -1)")
+
+// 2. Accès explicite Interrupteur..Occurrence.
+nOcc est un entier = ITR_Option..Occurrence
+dbgVérifieEgalité(nOcc, 0, "Interrupteur..Occurrence = 0 (aucune option déclarée)")
+
+// ASSERTION FUTURE (à activer après décision impl) :
+// Si option A (erreur compile) : ce test sera complété par un test compile-error.
+// Si option B (retour contrôle) : ajouter ici une assertion sur le type retourné.
+
+Ferme(FEN_NullProp)
+
+dbgBilanTest()

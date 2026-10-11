@@ -1,0 +1,67 @@
+// @sujet : Tenseur.MoyennePooling — average pooling 2D (avant + arrière)
+// @résumé : MoyennePooling(taille) découpe l'entrée en fenêtres carrées non
+// chevauchantes (pas = taille) et rend la moyenne de chaque fenêtre. La
+// rétropropagation répartit le gradient de chaque fenêtre UNIFORMÉMENT
+// (÷ taille²) sur toutes les cellules de cette fenêtre. Toutes les valeurs
+// sont calculées à la main.
+
+// Entrée 1×1×4×4 :
+//    1  2  3  4
+//    5  6  7  8
+//    9 10 11 12
+//   13 14 15 16
+// Découpée en 4 fenêtres 2×2 non chevauchantes :
+//   fenêtre[1][1] = [[1,2],[5,6]]     -> moyenne = (1+2+5+6)/4 = 3.5
+//   fenêtre[1][2] = [[3,4],[7,8]]     -> moyenne = (3+4+7+8)/4 = 5.5
+//   fenêtre[2][1] = [[9,10],[13,14]]  -> moyenne = (9+10+13+14)/4 = 11.5
+//   fenêtre[2][2] = [[11,12],[15,16]] -> moyenne = (11+12+15+16)/4 = 13.5
+PROCEDURE PUBLIQUE scenario_moyennepooling_forward()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MoyennePooling(2)
+
+	dbgVérifieEgalité(sortie..Forme[3], 2, "4/2 = 2 fenêtres en hauteur")
+	dbgVérifieEgalité(sortie..Forme[4], 2, "4/2 = 2 fenêtres en largeur")
+
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][1] - 3.5) < 0.0001, "moyenne([[1,2],[5,6]]) = 3.5")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][1][2] - 5.5) < 0.0001, "moyenne([[3,4],[7,8]]) = 5.5")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][2][1] - 11.5) < 0.0001, "moyenne([[9,10],[13,14]]) = 11.5")
+	dbgVérifieVrai(Abs(sortie..Valeur[1][1][2][2] - 13.5) < 0.0001, "moyenne([[11,12],[15,16]]) = 13.5")
+FIN
+
+
+// Rétropropagation via q = sortie*sortie (grad de sortie non uniforme) :
+// sortie = [[3.5,5.5],[11.5,13.5]] -> grad_sortie = 2*sortie = [[7,11],[23,27]]
+// Chaque valeur de grad_sortie est répartie ÷4 (taille² = 2²) sur les 4
+// cellules de sa fenêtre d'origine :
+//   fenêtre[1][1] : 7/4 = 1.75 sur chacune des 4 cellules
+//   fenêtre[1][2] : 11/4 = 2.75 sur chacune des 4 cellules
+//   fenêtre[2][1] : 23/4 = 5.75 sur chacune des 4 cellules
+//   fenêtre[2][2] : 27/4 = 6.75 sur chacune des 4 cellules
+PROCEDURE PUBLIQUE scenario_moyennepooling_backward_repartit_gradient_uniformement()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MoyennePooling(2)
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][1][1] - 1.75) < 0.0001, "fenêtre[1][1] : grad_sortie/4 = 7/4 = 1.75, cellule [1][1]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][2][2] - 1.75) < 0.0001, "fenêtre[1][1] : 1.75, cellule [2][2]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][1][3] - 2.75) < 0.0001, "fenêtre[1][2] : 11/4 = 2.75, cellule [1][3]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][2][4] - 2.75) < 0.0001, "fenêtre[1][2] : 2.75, cellule [2][4]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][3][1] - 5.75) < 0.0001, "fenêtre[2][1] : 23/4 = 5.75, cellule [3][1]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][4][2] - 5.75) < 0.0001, "fenêtre[2][1] : 5.75, cellule [4][2]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][3][3] - 6.75) < 0.0001, "fenêtre[2][2] : 27/4 = 6.75, cellule [3][3]")
+	dbgVérifieVrai(Abs(entrée..Gradient[1][1][4][4] - 6.75) < 0.0001, "fenêtre[2][2] : 6.75, cellule [4][4]")
+FIN
+
+
+// La forme native TenseurMoyennePooling(entrée, taille) doit rendre
+// exactement le même résultat que la méthode fluente.
+PROCEDURE PUBLIQUE scenario_moyennepooling_forme_native_egale_methode()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+
+	sortieMéthode est un Tenseur = entrée.MoyennePooling(2)
+	sortieNative est un Tenseur = TenseurMoyennePooling(entrée, 2)
+
+	dbgVérifieVrai(Abs(sortieNative..Valeur[1][1][1][1] - sortieMéthode..Valeur[1][1][1][1]) < 0.0001, "native et méthode rendent la même cellule [1][1]")
+	dbgVérifieVrai(Abs(sortieNative..Valeur[1][1][2][2] - sortieMéthode..Valeur[1][1][2][2]) < 0.0001, "native et méthode rendent la même cellule [2][2]")
+FIN

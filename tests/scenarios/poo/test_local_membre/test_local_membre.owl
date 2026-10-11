@@ -1,0 +1,30 @@
+// @sujet : Section LOCAL — membres d'instance (complement de GLOBAL)
+// @resume : Dans un body de classe, la section LOCAL declare des membres attaches a chaque instance (un exemplaire par objet), par opposition a GLOBAL qui declare des membres partages par toutes les instances. LOCAL est l'axe instance et revient a ce mode apres un bloc GLOBAL, sans toucher a la visibilite courante.
+
+// Cas nominal : membre LOCAL independant par instance, membre GLOBAL partage
+PROCEDURE scenario_local_instance_vs_global_partage()
+	// Reinitialise le compteur partage
+	cLocGlob.nPartage = 0
+
+	oA est un cLocGlob() // Constructeur : nPartage -> 1
+	dbgVérifieEgalité(cLocGlob.nPartage, 1, "GLOBAL incrementé par la premiere instance")
+
+	oB est un cLocGlob() // Constructeur : nPartage -> 2
+	dbgVérifieEgalité(cLocGlob.nPartage, 2, "GLOBAL partage : vu a 2 apres la seconde instance")
+
+	// Membre LOCAL : chaque instance a sa propre valeur
+	oA.nPropre = 10
+	oB.nPropre = 20
+	dbgVérifieEgalité(oA.nPropre, 10, "LOCAL propre a l'instance A")
+	dbgVérifieEgalité(oB.nPropre, 20, "LOCAL propre a l'instance B (independant de A)")
+
+	// Preuve d'independance : modifier B ne touche pas A
+	oB.nPropre = 99
+	dbgVérifieEgalité(oA.nPropre, 10, "LOCAL de A intact apres modification de B")
+FIN
+
+// Cas support : sections LOCAL/GLOBAL/PRIVÉ/PROTÉGÉ enchainees compilent et instancient
+PROCEDURE scenario_sections_enchainees_compilent()
+	oT est un cTestLocal()
+	dbgVérifieVrai(oT <> Null, "classe avec sections LOCAL/GLOBAL/PRIVÉ/PROTÉGÉ instanciable")
+FIN

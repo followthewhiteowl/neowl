@@ -1,0 +1,88 @@
+//  — Composantes réelles dans littéral durée { } + coercion réel→durée directe
+//
+// ROUGE ATTENDU sur tous les cas réels (comportement actuel : 0 silencieux).
+// VERT ATTENDU sur non-régression entier (test_nonreg_entier_seconde).
+//
+// Décision sous-ms (à aligner avec implementer) :
+//   { Milliseconde = 0.5 } → tronque à 0 ms (grain ms entier, pas d'arrondi).
+//   L'assertion est sur 0 ; si l'implementer préfère arrondir à 1, modifier
+//   l'assertion ici et documenter le choix dans ADR/.
+
+// --- Cas réels simples ---
+
+PROCEDURE test_reel_seconde_2_5()
+	d est une durée = {Seconde = 2.5}
+	n est un entier = d
+	dbgVérifieEgalité(n, 2500, "{ Seconde=2.5 } → 2500 ms")
+FIN
+
+PROCEDURE test_reel_minute_1_5()
+	d est une durée = {Minute = 1.5}
+	n est un entier = d
+	dbgVérifieEgalité(n, 90000, "{ Minute=1.5 } → 90000 ms")
+FIN
+
+PROCEDURE test_reel_heure_0_5()
+	d est une durée = {heure = 0.5}
+	n est un entier = d
+	dbgVérifieEgalité(n, 1800000, "{ Heure=0.5 } → 1800000 ms")
+FIN
+
+// --- Cas combiné réel + entier ---
+
+PROCEDURE test_reel_combine_minute_entier_seconde_reel()
+	d est une durée = {Minute = 1, Seconde = 1.5}
+	n est un entier = d
+	dbgVérifieEgalité(n, 61500, "{ Minute=1, Seconde=1.5 } → 61500 ms")
+FIN
+
+// --- Précision sous-ms : troncature à 0 ---
+// Choix : tronque (floor) vers ms entiers. 0.5 ms < 1 ms → 0.
+// Si l'implementer préfère l'arrondi (round), changer 0 → 1 ici.
+
+PROCEDURE test_reel_sous_ms_troncature()
+	d est une durée = {Milliseconde = 0.5}
+	n est un entier = d
+	dbgVérifieEgalité(n, 0, "{ Milliseconde=0.5 } → 0 ms (troncature, grain ms)")
+FIN
+
+// --- Coercion réel→durée directe (hors composante) ---
+// Comportement actuel : 0 silencieux. Doit donner 2500 après fix.
+
+PROCEDURE test_reel_coerce_directe_2500()
+	d est une durée = 2500.0
+	n est un entier = d
+	dbgVérifieEgalité(n, 2500, "durée = 2500.0 (réel direct) → 2500 ms")
+FIN
+
+PROCEDURE test_reel_coerce_directe_zero()
+	d est une durée = 0.0
+	n est un entier = d
+	dbgVérifieEgalité(n, 0, "durée = 0.0 (réel direct) → 0 ms")
+FIN
+
+PROCEDURE test_reel_coerce_directe_sous_ms()
+	d est une durée = 0.7
+	n est un entier = d
+	dbgVérifieEgalité(n, 0, "durée = 0.7 (réel < 1ms) → 0 ms (troncature)")
+FIN
+
+// --- Non-régression : composante entière doit rester vert ---
+
+PROCEDURE test_nonreg_entier_seconde()
+	d est une durée = {Seconde = 3}
+	n est un entier = d
+	dbgVérifieEgalité(n, 3000, "{ Seconde=3 } (entier) → 3000 ms (non-régression)")
+FIN
+
+test_reel_seconde_2_5()
+test_reel_minute_1_5()
+test_reel_heure_0_5()
+test_reel_combine_minute_entier_seconde_reel()
+test_reel_sous_ms_troncature()
+test_reel_coerce_directe_2500()
+test_reel_coerce_directe_zero()
+test_reel_coerce_directe_sous_ms()
+test_nonreg_entier_seconde()
+
+dbgBilanTest()

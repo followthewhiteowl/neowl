@@ -1,0 +1,51 @@
+// @sujet : VecteurSigmoïde
+// @résumé : Applique la fonction sigmoïde (1/(1+e⁻ˣ)) élément par élément à un Vecteur — écrase toute valeur réelle dans l'intervalle ouvert (0, 1), disponible en native préfixée et en méthode fluente, avec forme anglaise.
+
+
+// La sigmoïde de 0 vaut exactement 0.5, valeur pivot de la courbe.
+PROCEDURE PUBLIQUE scenario_sigmoide_zero_exact()
+	v est un Vecteur = [0.0]
+	r est un Vecteur = VecteurSigmoïde(v)
+	dbgVérifieEgalité(r[1], 0.5, "Sigmoïde(0.0) = 0.5")
+FIN
+
+
+// Sur une grande valeur positive, la sigmoïde sature au voisinage de 1 ;
+// sur une grande valeur négative, elle sature au voisinage de 0.
+PROCEDURE PUBLIQUE scenario_saturation_valeurs_extremes()
+	v est un Vecteur = [50.0,-50.0]
+	r est un Vecteur = VecteurSigmoïde(v)
+	dbgVérifieVrai(Abs(r[1] - 1.0) < 0.0001, "Sigmoïde(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(r[2] - 0.0) < 0.0001, "Sigmoïde(-50.0) proche de 0.0")
+FIN
+
+
+// La méthode fluente .Sigmoïde() produit exactement le même résultat que
+// la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	v est un Vecteur = [1.0,-1.0]
+	rViaFluent est un Vecteur = v.Sigmoïde()
+	rViaNatif est un Vecteur = VecteurSigmoïde(v)
+	dbgVérifieVrai(Abs(rViaFluent[1] - rViaNatif[1]) < 0.0001, "v.Sigmoïde()[1] == VecteurSigmoïde(v)[1]")
+	dbgVérifieVrai(Abs(rViaFluent[2] - rViaNatif[2]) < 0.0001, "v.Sigmoïde()[2] == VecteurSigmoïde(v)[2]")
+FIN
+
+
+// La forme anglaise VectorSigmoid / .Sigmoid désigne la même opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	v est un Vecteur = [0.0]
+	rNatifEN est un Vecteur = VectorSigmoid(v)
+	rFluentEN est un Vecteur = v.Sigmoid()
+	dbgVérifieEgalité(rNatifEN[1], 0.5, "VectorSigmoid([0.0])[1] = 0.5")
+	dbgVérifieEgalité(rFluentEN[1], 0.5, "v.Sigmoid()[1] = 0.5")
+FIN
+
+
+// La sigmoïde produit toujours une valeur strictement comprise entre 0 et
+// 1, même pour une entrée déjà proche de la saturation.
+PROCEDURE PRIVÉE scenario_edge_bornes_ouvertes()
+	v est un Vecteur = [20.0,-20.0]
+	r est un Vecteur = VecteurSigmoïde(v)
+	dbgVérifieVrai(r[1] < 1.0, "Sigmoïde(20.0) reste strictement < 1.0")
+	dbgVérifieVrai(r[2] > 0.0, "Sigmoïde(-20.0) reste strictement > 0.0")
+FIN

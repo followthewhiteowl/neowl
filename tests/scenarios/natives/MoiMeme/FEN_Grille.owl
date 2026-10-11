@@ -1,0 +1,165 @@
+// Fenêtre voisine — ressource pour test_MoiMeme.owl.
+//
+// Variables fenêtre (dernierLibelleRecu / dernierCouleurRecu) mutées par
+// les handlers et remontées via RemonteDrapeaux() au script de test.
+// Procédures utilitaires (ModifierLibelleWidget, ModifierLibelleViaMoiMeme)
+// déclarées côté test (visibles via le mode script voisinage).
+
+FEN_Grille est une Fenêtre
+	PROPRIETES
+		Titre       = "Grille pattern initial"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 400
+	FIN
+
+	dernierCouleurRecu est un entier  = 0
+	dernierLibelleRecu est une chaîne = ""
+
+	// Trois cellules partageant un handler générique sur Clic. Le handler
+	// utilise MoiMême pour distinguer quelle cellule a été cliquée et lire
+	// sa propriété Couleur.
+	LIB_Cell1 est un Champ Libellé
+		PROPRIETES
+			Libellé = "Cell1"
+			X       = 10
+			Y       = 10
+			Largeur = 100
+			Hauteur = 40
+			Couleur = RVB(255, 0, 0)
+		FIN
+		PROCEDURE surClic()
+			// Pattern 1 : MoiMême dans un handler résout au champ cliqué.
+			dernierLibelleRecu = MoiMême..Libellé
+			dernierCouleurRecu = MoiMême..Couleur
+		FIN
+	FIN
+
+	LIB_Cell2 est un Champ Libellé
+		PROPRIETES
+			Libellé = "Cell2"
+			X       = 120
+			Y       = 10
+			Largeur = 100
+			Hauteur = 40
+			Couleur = RVB(0, 255, 0)
+		FIN
+		PROCEDURE surClic()
+			dernierLibelleRecu = MoiMême..Libellé
+			dernierCouleurRecu = MoiMême..Couleur
+		FIN
+	FIN
+
+	LIB_Cell3 est un Champ Libellé
+		PROPRIETES
+			Libellé = "Cell3"
+			X       = 230
+			Y       = 10
+			Largeur = 100
+			Hauteur = 40
+			Couleur = RVB(0, 0, 255)
+		FIN
+		PROCEDURE surClic()
+			dernierLibelleRecu = MoiMême..Libellé
+			dernierCouleurRecu = MoiMême..Couleur
+		FIN
+	FIN
+
+	// Bouton avec handler qui modifie sa propre propriété Libellé via MoiMême.
+	BTN_Auto est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 60
+			Libellé = "Avant"
+		FIN
+		PROCEDURE surClic()
+			// Pattern 3 : MoiMême..Propriété pour modifier le champ courant.
+			MoiMême..Libellé = "Après"
+		FIN
+	FIN
+
+	// Bouton qui appelle une procédure générique en passant MoiMême en
+	// paramètre explicite.
+	BTN_Param est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 110
+			Libellé = "Initial"
+		FIN
+		PROCEDURE surClic()
+			// Pattern 5 : passage MoiMême en param à une procédure.
+			ModifierLibelleWidget(MoiMême)
+		FIN
+	FIN
+
+	// Bouton pour tester l'alias MySelf (bilingue FR/EN).
+	BTN_MySelf est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 160
+			Libellé = "EN Before"
+		FIN
+		PROCEDURE surClic()
+			// Pattern bilingue : MySelf identique à MoiMême.
+			MySelf..Libellé = "EN After"
+		FIN
+	FIN
+
+	// Bouton pour tester héritage chain d'appel handler → procédure.
+	BTN_Chain est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 210
+			Libellé = "Chain Init"
+		FIN
+		PROCEDURE surClic()
+			// Appelle une procédure qui va utiliser MoiMême (héritage chain).
+			ModifierLibelleViaMoiMeme()
+		FIN
+	FIN
+
+	// Libellé pour tester lecture directe MoiMême assignée à variable.
+	LIB_Lecture est un Champ Libellé
+		PROPRIETES
+			Libellé = "LIB_Lecture"
+			X       = 10
+			Y       = 260
+			Largeur = 100
+			Hauteur = 40
+		FIN
+		PROCEDURE surClic()
+			// Edge case : lecture directe v = MoiMême.
+			v est un Champ = MoiMême
+			dernierLibelleRecu = v..Libellé
+		FIN
+	FIN
+
+	// Bouton pour tester accent-insensible MoiMeme (sans accent).
+	BTN_Accent est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 310
+			Libellé = "Accent Init"
+		FIN
+		PROCEDURE surClic()
+			// Pattern accent-insensible : MoiMeme (sans accent) doit marcher.
+			MoiMeme..Libellé = "Accent OK"
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Pattern 2 : MoiMême dans top-level fenêtre résout à la fenêtre.
+		MoiMême..Titre = "Fenêtre modifiée par MoiMême"
+	FIN
+
+	// Remonte les drapeaux courants au script de test via callback.
+	PROCEDURE RemonteDrapeaux()
+		callback_drapeaux(dernierLibelleRecu, dernierCouleurRecu)
+	FIN
+
+	// Réinitialise les drapeaux avant chaque scénario.
+	PROCEDURE RAZDrapeaux()
+		dernierLibelleRecu = ""
+		dernierCouleurRecu = 0
+	FIN
+FIN

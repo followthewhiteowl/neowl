@@ -1,0 +1,54 @@
+//  (LOT 4) — opacité sur `Style..LigneSélectionnée..CouleurFond`
+// (fond de la répétition sélectionnée) d'un Champ ZoneRépétée. Trou
+// d'ingestion connu (même famille de bug que la parité, cf.
+// test_couleur_alpha_zr_parite.owl) : `read_zr_style` lit CouleurFond via
+// `instance_get_int(sel, "CouleurFond", -1)`, qui rend -1 sur une instance
+// Couleur -> le fond de la ligne sélectionnée reste invisible (backdrop
+// rouge nu du CadreExtérieur) au lieu du mélange attendu.
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur). Cf. FEN_CouleurAlphaZrSelectionFond.owl. 2 répétitions,
+// la 2e sélectionnée via `..LigneSélectionnée = 2`.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   VERT (0,255,0) sur ROUGE (255,0,0) -> RVB(127, 128, 0)
+// Aucune tolérance nécessaire (calcul exact, multiples de 255).
+
+TestModeHeadless(Faux)
+
+vertOpaque est un entier = RVB(0, 255, 0)
+vertSurRouge est un entier = RVB(127, 128, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_CouleurAlphaZrSelectionFond)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaZrSelectionFond)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// === ZR_SelFondOpaque [X=20..420, Y=20..160] — non-régression =============
+nbOpaque est un entier = CompteCouleurZone(img, 20, 20, 420, 160, vertOpaque)
+dbgVérifieVrai(nbOpaque > 5000,
+"ZR_SelFondOpaque : Style..LigneSélectionnée..CouleurFond = RVB(0,255,0) (entier nu opaque, ligne 2 sélectionnée) : fond vert, non-régression")
+
+// === ZR_SelFondAlpha [X=20..420, Y=180..320] — mélange attendu ============
+nbAlpha est un entier = CompteCouleurZone(img, 20, 180, 420, 320, vertSurRouge)
+dbgVérifieVrai(nbAlpha > 5000,
+"ZR_SelFondAlpha : Style..LigneSélectionnée..CouleurFond = <Couleur Opacité=128> : fond de la ligne sélectionnée mélangé avec le rouge du CadreExtérieur")
+
+Ferme(FEN_CouleurAlphaZrSelectionFond)
+dbgBilanTest()

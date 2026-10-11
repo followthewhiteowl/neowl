@@ -1,0 +1,71 @@
+// Fenêtre voisine — ressource pour test_TestSimuleSouris.owl.
+//
+// Variables fenêtre + procédure publique RemonteDrapeaux() pour
+// transmettre l'état muté par les callbacks souris au script de test
+// (le typage et le scope des slots champs restent dans la fenêtre).
+
+FEN_TSimul est une Fenêtre
+	PROPRIETES
+		Titre       = "Test TestSimuleSouris"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 300
+	FIN
+
+	drapeauClic est un booléen = Faux
+	xRecu est un entier = -1
+	yRecu est un entier = -1
+	mvtRecu est un entier = 0
+
+	BTN_OK est un Champ Bouton
+		PROPRIETES
+			X = 10
+			Y = 10
+		FIN
+		PROCEDURE surClic()
+			drapeauClic = Vrai
+		FIN
+	FIN
+
+	IMG_Canvas est un Champ Image
+		PROPRIETES
+			X       = 0
+			Y       = 50
+			Largeur = 200
+			Hauteur = 200
+		FIN
+		PROCEDURE surBoutonGauche(x est un entier, y est un entier)
+			xRecu = x
+			yRecu = y
+		FIN
+		PROCEDURE surMolette(mouvement est un entier, x est un entier, y est un entier)
+			mvtRecu = mouvement
+			xRecu   = x
+			yRecu   = y
+		FIN
+	FIN
+
+	IMG_Vide est un Champ Image
+		PROPRIETES
+			X       = 0
+			Y       = 250
+			Largeur = 50
+			Hauteur = 50
+		FIN
+	FIN
+
+	// Remonte les drapeaux courants au script de test via callbacks
+	// définis côté test (callback_drapeaux). Le script reste seul
+	// possesseur des variables observées.
+	PROCEDURE RemonteDrapeaux()
+		callback_drapeaux(drapeauClic, xRecu, yRecu, mvtRecu)
+	FIN
+
+	// Réinitialise les drapeaux à leur valeur d'init avant chaque scénario.
+	PROCEDURE RAZDrapeaux()
+		drapeauClic = Faux
+		xRecu       = -1
+		yRecu       = -1
+		mvtRecu     = 0
+	FIN
+FIN

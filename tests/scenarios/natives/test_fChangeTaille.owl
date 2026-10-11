@@ -1,0 +1,59 @@
+// @sujet : fChangeTaille
+// @résumé : Tronque ou étend un fichier ouvert à une taille donnée en octets. La nouvelle taille se vérifie via fTaille (par chemin) après fermeture du fichier.
+
+
+// Cas A : troncature — un fichier de 10 octets ramené à 4 octets ne conserve que le préfixe.
+PROCEDURE PUBLIQUE scenario_fct_troncature_preserve_prefixe()
+	chemin est une chaîne = "_tmp_fct_0146_A.bin"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "0123456789")
+	id est un entier = fOuvre(chemin)
+	fChangeTaille(id, 4)
+	fFerme(id)
+	dbgVérifieEgalité(fTaille(chemin), 4, "le fichier tronqué à 4 octets mesure bien 4 octets")
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(contenu, "0123", "les 4 premiers octets d'origine sont conservés après troncature")
+	fSupprime(chemin)
+FIN
+
+
+// Cas B : extension — un fichier de 4 octets étendu à 12 octets grandit sur disque.
+PROCEDURE PUBLIQUE scenario_fct_extension_agrandit_fichier()
+	chemin est une chaîne = "_tmp_fct_0146_B.bin"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "abcd")
+	id est un entier = fOuvre(chemin)
+	fChangeTaille(id, 12)
+	fFerme(id)
+	dbgVérifieEgalité(fTaille(chemin), 12, "le fichier étendu à 12 octets mesure bien 12 octets")
+	fSupprime(chemin)
+FIN
+
+
+// Cas limite : troncature à 0 octet — le fichier est entièrement vidé mais continue d'exister.
+PROCEDURE PRIVÉE scenario_fct_edge_troncature_zero()
+	chemin est une chaîne = "_tmp_fct_0146_C.bin"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "0123456789")
+	id est un entier = fOuvre(chemin)
+	fChangeTaille(id, 0)
+	fFerme(id)
+	dbgVérifieEgalité(fTaille(chemin), 0, "le fichier tronqué à 0 octet est bien vide")
+	dbgVérifieEgalité(fChargeTexte(chemin), "", "le contenu relu d'un fichier vidé est une chaîne vide")
+	fSupprime(chemin)
+FIN
+
+
+// Cas D : deux troncatures successives sur le même identifiant — chaque appel ré-applique la nouvelle taille.
+PROCEDURE PRIVÉE scenario_fct_appels_successifs()
+	chemin est une chaîne = "_tmp_fct_0146_D.bin"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "0123456789")
+	id est un entier = fOuvre(chemin)
+	fChangeTaille(id, 8)
+	fChangeTaille(id, 2)
+	fFerme(id)
+	dbgVérifieEgalité(fTaille(chemin), 2, "la seconde troncature écrase la première, taille finale = 2")
+	dbgVérifieEgalité(fChargeTexte(chemin), "01", "le contenu relu correspond au préfixe de la dernière troncature")
+	fSupprime(chemin)
+FIN

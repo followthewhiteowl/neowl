@@ -1,0 +1,34 @@
+// @sujet : Rétention du Titre multilingue d'une fenetre au seed (hot-switch)
+// @résumé : Une fenetre dont le Titre est une chaineMultilingue retient
+//   l'objet multilingue dans l'etat interne de l'instance (comme les
+//   sous-controles). La lecture `FEN..Titre` resout le Titre a la langue
+//   active ; changer la langue a chaud (Langue()) re-resout le Titre.
+//
+// PORTÉE : ce test verifie la RÉTENTION (l'etat interne de la fenetre garde
+// le Titre multilingue et le resout a la langue courante), qui est le proxy
+// mecanique du rafraichissement visuel. Il tourne en headless (aucun champ
+// Qt) : c'est la re-résolution logique qui est prouvee ici, pas le repaint a
+// l'ecran (validé a l'oeil par le dev).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_titre_multilingue_retention()
+	Ouvre(FEN_TitreMultilingue)
+
+	// Langue courante par défaut = fr-FR : le Titre resout en français.
+	sTitreFr est une chaîne = FEN_TitreMultilingue..Titre
+	dbgVérifieEgalité(sTitreFr, "Bonjour", "titre fenetre fr avant switch")
+
+	// Hot-switch vers l'anglais : le Titre retenu doit se re-résoudre.
+	Langue(langueAnglais)
+	sTitreEn est une chaîne = FEN_TitreMultilingue..Titre
+	dbgVérifieEgalité(sTitreEn, "Hello", "titre fenetre en apres switch")
+
+	// Retour au français : re-résolution vers la langue source.
+	Langue(langueFrançais)
+	sTitreFr2 est une chaîne = FEN_TitreMultilingue..Titre
+	dbgVérifieEgalité(sTitreFr2, "Bonjour", "titre fenetre fr apres re-switch")
+
+	Ferme(FEN_TitreMultilingue)
+	Langue(langueFrançais) // restaure l'etat global pour les fichiers suivants
+FIN

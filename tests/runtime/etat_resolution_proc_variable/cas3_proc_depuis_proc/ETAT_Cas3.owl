@@ -1,0 +1,36 @@
+// Ressource Etat pure —  cas 3.
+// Verifie qu une PROCEDURE top-level d Etat peut appeler une autre
+// PROCEDURE top-level du meme Etat.
+// Triggerabilite via Lecture() (proc event appelee par le moteur d impression).
+// Actuellement rouge : Helper(3, 4) dans Lecture() echoue avec
+// "Seules les fonctions et procedures peuvent etre appelees."
+// Apres fix : Somme(3, 4) = 7.
+// Observation via callback_observe() (resolu par voisinage mode script).
+
+ETAT_Cas3 est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	// PROCEDURE top-level cible de l appel inter-proc.
+	// Note : ne pas utiliser 'a' ni 'b' comme noms de parametres —
+	// 'A' est un mot-cle reservé (borne POUR).
+	PROCEDURE Somme(n1 est un entier, n2 est un entier)
+		RENVOYER n1 + n2
+	FIN
+
+	// PROCEDURE top-level appelee par le moteur lors de l impression
+	// (Lecture = evenement de parcours des donnees de l Etat).
+	// Ici sans source de donnees : appelee 1x par iImprimeEtat.
+	PROCEDURE Lecture()
+		r est un entier = Somme(3, 4) // n1=3, n2=4 -> 7
+		callback_observe("c3:" + r)
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+	FIN
+FIN

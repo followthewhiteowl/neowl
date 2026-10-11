@@ -1,0 +1,29 @@
+//  — pivot du ticket : `appuyé` (pressed) est une NOUVELLE valeur
+// de palette d'état, absente de toute palette existante (Saisie n'a que
+// survol/focus/grisé/lectureSeule). Mapping attendu : `:pressed` QSS.
+// Survol/focus vérifiés en même temps (mêmes contraintes headless).
+//
+// ROUGE attendu (cumulé) : `Style..Libellé..Etats[survol/appuyé/focus]..X`
+// ne compile pas (styleBouton / palette Libellé absents ; "appuyé" absent de
+// TOUTE palette aujourd'hui). Cf. FEN_StyleBoutonEtatQss.owl.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleBoutonEtatQss)
+
+feuille est une chaîne = __DebugFeuilleStyle(BTN_Etats)
+
+// Pivot : la feuille doit contenir un bloc :pressed avec la couleur de fond
+// appuyée (nouvel état, pas de mapping :pressed avant ce ticket).
+dbgVérifieVrai(Contient(feuille, ":pressed"), "Style..Libellé..Etats[appuyé] : la feuille QSS contient un bloc :pressed")
+dbgVérifieVrai(Contient(feuille, "255, 0, 0") OU Contient(feuille, "#ff0000"), "Style..Libellé..Etats[appuyé]..CouleurFond : couleur de fond appuyée présente dans la feuille")
+
+// Non-régression : survol/focus suivent le même patron que le Saisie.
+dbgVérifieVrai(Contient(feuille, ":hover"), "Style..Libellé..Etats[survol] : la feuille QSS contient un bloc :hover")
+dbgVérifieVrai(Contient(feuille, "0, 255, 0") OU Contient(feuille, "#00ff00"), "Style..Libellé..Etats[survol]..CouleurFond : couleur de fond survol présente dans la feuille")
+
+dbgVérifieVrai(Contient(feuille, ":focus"), "Style..Libellé..Etats[focus] : la feuille QSS contient un bloc :focus")
+dbgVérifieVrai(Contient(feuille, "0, 128, 255") OU Contient(feuille, "#0080ff"), "Style..Libellé..Etats[focus]..Cadre..Couleur : couleur de bordure focus présente dans la feuille")
+
+Ferme(FEN_StyleBoutonEtatQss)
+dbgBilanTest()

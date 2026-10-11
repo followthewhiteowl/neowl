@@ -1,0 +1,130 @@
+// ============================================
+// TEST: Structures de controle
+// ============================================
+Trace("=== STRUCTURES DE CONTROLE ===")
+
+// --- SI / SINON ---
+nVal est un entier = 10
+
+SI nVal > 5 ALORS
+	dbgVérifieVrai(Vrai, "SI branche then executee")
+SINON
+	dbgVérifieVrai(Faux, "SI branche else ne devrait pas")
+FIN
+
+SI nVal < 5 ALORS
+	dbgVérifieVrai(Faux, "SI branche then ne devrait pas")
+SINON
+	dbgVérifieVrai(Vrai, "SI branche else executee")
+FIN
+
+// --- SI sans SINON ---
+bExecute est un booléen = Faux
+SI Vrai ALORS
+	bExecute = Vrai
+FIN
+dbgVérifieVrai(bExecute, "SI sans SINON")
+
+// --- SI avec condition complexe ---
+SI nVal > 5 ET nVal < 20 ALORS
+	dbgVérifieVrai(Vrai, "SI avec ET")
+FIN
+
+SI nVal < 5 OU nVal > 8 ALORS
+	dbgVérifieVrai(Vrai, "SI avec OU")
+FIN
+
+// --- POUR boucle ---
+nSomme est un entier = 0
+POUR i = 1 À 10
+	nSomme += i
+FIN
+dbgVérifieEgalité(nSomme, 55, "POUR 1 A 10 somme = 55")
+
+// --- POUR avec PAS negatif ---
+nDecompte est un entier = 0
+POUR j = 5 À 1 PAS -1
+	nDecompte += j
+FIN
+dbgVérifieEgalité(nDecompte, 15, "POUR 5 A 1 PAS -1 somme = 15")
+
+// --- POUR avec PAS positif (variable k pour eviter conflit mot-cle 'a') ---
+nPairs est un entier = 0
+POUR k = 2 À 10 PAS 2
+	nPairs += k
+FIN
+dbgVérifieEgalité(nPairs, 30, "POUR 2 A 10 PAS 2 somme = 30")
+
+// --- TANTQUE ---
+nCompteur est un entier = 0
+nAccum est un entier = 0
+TANTQUE nCompteur < 5
+	nCompteur++
+	nAccum += nCompteur
+FIN
+dbgVérifieEgalité(nCompteur, 5, "TANTQUE compteur final = 5")
+dbgVérifieEgalité(nAccum, 15, "TANTQUE accumulation = 15")
+
+// --- BOUCLE avec condition de sortie (SORTIR a implementer proprement) ---
+// TODO: SORTIR n'est pas encore implemente comme statement
+// On teste BOUCLE avec TANTQUE pour l'instant
+nLoops est un entier = 0
+TANTQUE nLoops < 3
+	nLoops++
+FIN
+dbgVérifieEgalité(nLoops, 3, "TANTQUE comme alternative a BOUCLE+SORTIR")
+
+// --- SELON ---
+nJour est un entier = 3
+sResult est une chaîne = ""
+
+SELON nJour
+	CAS 1:
+		sResult = "Lundi"
+	CAS 2:
+		sResult = "Mardi"
+	CAS 3:
+		sResult = "Mercredi"
+	AUTRE CAS:
+		sResult = "Autre"
+FIN
+dbgVérifieEgalité(sResult, "Mercredi", "SELON CAS 3 = Mercredi")
+
+// --- SELON avec CAS multiples ---
+nJour2 est un entier = 5
+sResult2 est une chaîne = ""
+SELON nJour2
+	CAS 1, 2, 3:
+		sResult2 = "Debut de semaine"
+	CAS 4, 5:
+		sResult2 = "Fin de semaine"
+	AUTRE CAS:
+		sResult2 = "Weekend"
+FIN
+dbgVérifieEgalité(sResult2, "Fin de semaine", "SELON CAS multiples 4,5")
+
+// --- SELON AUTRE CAS ---
+nJour3 est un entier = 99
+sResult3 est une chaîne = ""
+SELON nJour3
+	CAS 1:
+		sResult3 = "Non"
+	AUTRE CAS:
+		sResult3 = "Default"
+FIN
+dbgVérifieEgalité(sResult3, "Default", "SELON AUTRE CAS (default)")
+
+// --- Boucles imbriquees (variables x,y pour eviter conflit mot-cle 'a') ---
+nProduit est un entier = 0
+POUR x = 1 À 3
+	POUR y = 1 À 3
+		nProduit++
+	FIN
+FIN
+dbgVérifieEgalité(nProduit, 9, "Boucles imbriquees 3x3 = 9")
+
+// --- Semicolon comme separateur de statements ---
+nSemiA est un entier = 0; nSemiB est un entier = 0
+nSemiA = 11; nSemiB = 22
+dbgVérifieEgalité(nSemiA, 11, "Semicolon separateur - var A"); dbgVérifieEgalité(nSemiB, 22, "Semicolon separateur - var B")
+

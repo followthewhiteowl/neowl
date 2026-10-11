@@ -1,0 +1,166 @@
+// @sujet : TexteDistance
+// @résumé : Distance de Levenshtein entre deux chaînes — nombre minimal d'opérations unitaires (insertion, suppression, substitution) nécessaires pour transformer l'une en l'autre. Retourne un entier >= 0. Insensible à la casse et aux accents par défaut. Utile pour rapprochement de données (détecter fautes de frappe, rapprocher noms similaires).
+
+
+// Vecteur de référence canonique : "kitten" → "sitting" = 3 opérations
+// (substitution k→s, insertion t, substitution e→i). Classique de la
+// littérature algorithmique. Confirme que l'implémentation est conforme
+// aux attentes standard de Levenshtein.
+PROCEDURE scenario_texte_distance_vecteur_canon_levenshtein()
+	dist est un entier = TexteDistance("kitten", "sitting")
+
+	dbgVérifieEgalité(dist, 3, "distance Levenshtein kitten→sitting = 3")
+FIN
+
+
+// Cas trivial : chaînes identiques → distance 0. Preuve que la native
+// détecte correctement l'identité parfaite.
+PROCEDURE scenario_texte_distance_identique_zero()
+	dist est un entier = TexteDistance("bonjour", "bonjour")
+
+	dbgVérifieEgalité(dist, 0, "chaînes identiques → 0")
+FIN
+
+
+// Cas trivial : l'une des chaînes est vide → distance = nombre de caractères
+// de l'autre (insertions nécessaires). Valide les cas limites de la récursion.
+PROCEDURE scenario_texte_distance_chaine_vide()
+	dist1 est un entier = TexteDistance("abc", "")
+	dist2 est un entier = TexteDistance("", "xyz")
+
+	dbgVérifieEgalité(dist1, 3, "chaîne vide vs abc → 3 insertions")
+	dbgVérifieEgalité(dist2, 3, "vide vs xyz → 3 insertions")
+FIN
+
+
+// Cas trivial : deux chaînes vides → distance 0. Cohérence avec l'identité.
+PROCEDURE scenario_texte_distance_deux_vides()
+	dist est un entier = TexteDistance("", "")
+
+	dbgVérifieEgalité(dist, 0, "deux chaînes vides → 0")
+FIN
+
+
+// Insensible casse par défaut : deux chaînes identiques modulo casse
+// ont une distance de 0. Le repli de casse normalise avant le calcul.
+PROCEDURE scenario_texte_distance_insensible_casse_defaut()
+	dist est un entier = TexteDistance("Marie", "marie")
+
+	dbgVérifieEgalité(dist, 0, "casse ignorée par défaut")
+FIN
+
+
+// Insensible accents par défaut : deux chaînes identiques modulo accents
+// ont une distance de 0. Le folding d'accents normalise é→e, à→a, etc.
+PROCEDURE scenario_texte_distance_insensible_accents_defaut()
+	dist est un entier = TexteDistance("café", "cafe")
+
+	dbgVérifieEgalité(dist, 0, "accents ignorés par défaut")
+FIN
+
+
+// Calcul codepoint-level, pas byte-level : les caractères multi-octets
+// UTF-8 sont comptés comme 1 unité. "café" vs "cafü" = 1 substitution
+// (é→ü après folding des deux, e→u), pas une distance byte-level erronée.
+PROCEDURE scenario_texte_distance_codepoint_pas_byte()
+	dist est un entier = TexteDistance("café", "cafü")
+
+	dbgVérifieEgalité(dist, 1, "1 seul caractère diffère (codepoint-level, pas byte)")
+FIN
+
+
+// Alias EN : TextDistance() (sans accent) donne le même résultat que
+// TexteDistance(). Vérifie la cohérence bilingue du langage.
+PROCEDURE scenario_text_distance_alias_en()
+	distFR est un entier = TexteDistance("kitten", "sitting")
+	distEN est un entier = TextDistance("kitten", "sitting")
+
+	dbgVérifieEgalité(distFR, distEN, "alias EN équivalent à FR")
+	dbgVérifieEgalité(distEN, 3, "alias EN calcule correctement")
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Insensible casse+accents combiné : "Café" vs "CAFE" → distance 0
+// (les deux transformations appliquées simultanément).
+PROCEDURE PRIVÉE scenario_texte_distance_insensible_casse_et_accents()
+	dist est un entier = TexteDistance("Café", "CAFE")
+
+	dbgVérifieEgalité(dist, 0, "casse + accents ignorés simultanément")
+FIN
+
+
+// Vecteur de référence supplétif : "Saturday" → "Sunday" = 3
+// (substitution a→u, suppression t, suppression r). Variante classique
+// de la littérature académique.
+PROCEDURE PRIVÉE scenario_texte_distance_vecteur_saturday_sunday()
+	dist est un entier = TexteDistance("Saturday", "Sunday")
+
+	dbgVérifieEgalité(dist, 3, "Saturday→Sunday = 3")
+FIN
+
+
+// Caractères multibyte allemands : l'umlaut ü est replié vers u (suppression
+// diacritique simple). Après repli, "Müller" → "Muller" = identique → distance 0.
+PROCEDURE PRIVÉE scenario_texte_distance_umlaut_allemand()
+	dist est un entier = TexteDistance("Müller", "Muller")
+
+	dbgVérifieEgalité(dist, 0, "umlaut replié vers lettre de base")
+FIN
+
+
+// Caractères accentués français multiples : "éléphant" vs "elephant" =
+// distance 0 après folding accents (é→e répété).
+PROCEDURE PRIVÉE scenario_texte_distance_accents_multiples_francais()
+	dist est un entier = TexteDistance("éléphant", "elephant")
+
+	dbgVérifieEgalité(dist, 0, "accents français multiples foldés")
+FIN
+
+
+// Ordre inversé : distance symétrique (Levenshtein est symétrique).
+// Vérifie qu'inverser l'ordre des arguments ne change pas le résultat.
+PROCEDURE PRIVÉE scenario_texte_distance_symetrie()
+	dist1 est un entier = TexteDistance("abc", "def")
+	dist2 est un entier = TexteDistance("def", "abc")
+
+	dbgVérifieEgalité(dist1, dist2, "distance symétrique")
+FIN
+
+
+// Chaînes longues : éviter régression perf quadratique naïve. Pas de
+// vérification timing ici (hors scope test fonctionnel), mais au moins
+// vérifier que ça ne crash pas sur 100+ chars et retourne un résultat plausible.
+PROCEDURE PRIVÉE scenario_texte_distance_chaines_longues()
+	s1 est une chaîne = "Le rapide renard brun saute par-dessus le chien paresseux. Cette phrase contient suffisamment de caractères pour tester."
+	s2 est une chaîne = "Le renard brun rapide bondit au-dessus du chien endormi. Cette phrase a assez de lettres pour évaluer."
+
+	dist est un entier = TexteDistance(s1, s2)
+
+	// On ne vérifie pas la valeur exacte (pas calculé à la main), juste
+	// que ça retourne un entier plausible (> 0 car phrases différentes,
+	// < 200 car pas totalement disjoint).
+	dbgVérifieVrai(dist > 0, "distance > 0 pour chaînes longues différentes")
+	dbgVérifieVrai(dist < 200, "distance plausible pour chaînes longues similaires")
+FIN
+
+
+// Cas limite défensif : chaîne avec espaces multiples. Les espaces sont
+// des caractères ordinaires (pas normalisés par défaut). "a b" vs "ab" = 1.
+PROCEDURE PRIVÉE scenario_texte_distance_espaces()
+	dist est un entier = TexteDistance("a b", "ab")
+
+	dbgVérifieEgalité(dist, 1, "espace compté comme caractère")
+FIN
+
+
+// Cas limite défensif : chaînes avec chiffres et ponctuation. Pas de
+// normalisation spéciale, traités comme caractères ordinaires.
+PROCEDURE PRIVÉE scenario_texte_distance_chiffres_ponctuation()
+	dist est un entier = TexteDistance("test123", "test456")
+
+	dbgVérifieEgalité(dist, 3, "chiffres traités comme caractères ordinaires")
+FIN

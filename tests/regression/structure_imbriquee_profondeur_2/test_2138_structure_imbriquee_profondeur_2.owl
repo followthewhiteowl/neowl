@@ -1,0 +1,38 @@
+//  : verrou de couverture pour le nesting de types imbriques de
+// PROFONDEUR >= 2 hors collection. Une Structure englobante (CT_Coffre)
+// declare un type imbrique sMilieu, qui declare lui-meme un type imbrique
+// sNoyau (trois niveaux emboites). Chaque niveau a ses propres champs ; on
+// ecrit et relit une valeur a chaque niveau depuis l'exterieur pour prouver
+// l'independance des niveaux (aucun ecrasement d'un niveau par un autre).
+
+CT_Coffre est une Structure
+	nom est une chaîne
+
+	sMilieu est une Structure
+		label est une chaîne
+
+		sNoyau est une Structure
+			valeur est un entier
+		FIN
+		coeur est un sNoyau
+
+		cle est un entier
+	FIN
+	centre est un sMilieu
+
+	taille est un entier
+FIN
+
+c est un CT_Coffre
+c.nom = "coffre"
+c.centre.label = "milieu"
+c.centre.coeur.valeur = 42
+c.centre.cle = 7
+c.taille = 100
+
+dbgVérifieEgalité(c.nom, "coffre", "niveau 1 : champ scalaire avant le type imbrique reste accessible")
+dbgVérifieEgalité(c.centre.label, "milieu", "niveau 2 : champ du type imbrique de profondeur 1, ecrit et lu depuis l'exterieur")
+dbgVérifieEgalité(c.centre.coeur.valeur, 42, "niveau 3 : champ du type imbrique de profondeur 2, ecrit et lu depuis l'exterieur")
+dbgVérifieEgalité(c.centre.cle, 7, "niveau 2 : champ scalaire apres le type imbrique de profondeur 2 n'est pas orphelin")
+dbgVérifieEgalité(c.taille, 100, "niveau 1 : champ scalaire apres le type imbrique de profondeur 1 n'est pas orphelin")
+dbgBilanTest()

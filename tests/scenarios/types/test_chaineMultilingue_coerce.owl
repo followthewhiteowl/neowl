@@ -1,0 +1,100 @@
+// @sujet : chaîneMultilingue (coercions)
+// @résumé : Coercions bidirectionnelles chaîne ⇄ chaîneMultilingue. À l'usage (passage à Info, Trace, etc.), coerce auto vers la langue courante runtime. À l'affectation depuis chaîne, remplit uniquement la langue source.
+
+
+// Coerce auto chaîneMultilingue → chaîne à l'usage : quand une fonction
+// attend une chaîne et reçoit une chaîneMultilingue, le runtime résout
+// automatiquement selon la langue courante (hardcodée "fr-FR" en v1).
+// Permet d'utiliser m directement dans Info(), Trace(), etc.
+PROCEDURE scenario_coerce_auto_vers_chaine_usage()
+	m est une chaîneMultilingue = {langueFrançais: "Succès", langueAnglais: "Success"}
+
+	// Info attend une chaîne, reçoit une chaîneMultilingue → coerce auto
+	// Langue courante runtime hardcodée "fr-FR" en v1 → retourne "Succès"
+	Info(m)
+	dbgVérifieVrai(Vrai, "Info(chaîneMultilingue) ne plante pas")
+FIN
+
+
+// Coerce auto retourne la traduction de la langue courante runtime.
+// En v1, langue courante = "fr-FR" hardcodée. Donc m passé à une
+// fonction qui attend chaîne retourne m[langueFrançais].
+PROCEDURE scenario_coerce_auto_langue_courante_fr_fr()
+	m est une chaîneMultilingue = {langueFrançais: "Bonjour", langueAnglais: "Hello"}
+
+	// Taille attend une chaîne → coerce m vers langue courante "fr-FR"
+	n est un entier = Taille(m)
+	dbgVérifieEgalité(n, 7, "Taille(m) = Taille(""Bonjour"") = 7 bytes UTF-8")
+FIN
+
+
+// Coerce chaîne → chaîneMultilingue : affectation `m = "texte"` remplit
+// uniquement la langue source (hardcodée "fr-FR" en v1). Les autres
+// langues restent vides. Permet d'initialiser rapidement avec une seule
+// traduction, puis d'ajouter les autres à la demande.
+PROCEDURE scenario_coerce_chaine_vers_multilingue_langue_source()
+	m est une chaîneMultilingue
+	m = "Bonjour le monde"
+
+	dbgVérifieEgalité(m[langueFrançais], "Bonjour le monde")
+	dbgVérifieEgalité(m["fr-FR"], "Bonjour le monde")
+FIN
+
+
+// Coerce chaîne → chaîneMultilingue ne remplit PAS les autres langues.
+// Si on lit une langue autre que la source, retourne le fallback
+// (langue source elle-même).
+PROCEDURE scenario_coerce_chaine_ne_remplit_que_source()
+	m est une chaîneMultilingue
+	m = "Texte unique"
+
+	// langueAnglais n'a pas été rempli → fallback langue source "fr-FR"
+	dbgVérifieEgalité(m[langueAnglais], "Texte unique")
+FIN
+
+
+// Coerce inverse : chaîneMultilingue assignée à une variable chaîne
+// (si coerce explicite supporté). Retourne la traduction de la langue
+// courante runtime. En v1 = "fr-FR" hardcodé.
+PROCEDURE scenario_coerce_multilingue_vers_chaine_explicite()
+	m est une chaîneMultilingue = {langueFrançais: "Salut", langueAnglais: "Hi"}
+
+	s est une chaîne = m
+	dbgVérifieEgalité(s, "Salut", "coerce m vers chaîne retourne langue courante fr-FR")
+FIN
+
+
+// Cas limite défensif : coerce d'une chaîneMultilingue vide (aucune
+// traduction posée). Langue courante demandée absente → fallback langue
+// source. Langue source absente aussi → retourne chaîne vide.
+PROCEDURE PRIVÉE scenario_coerce_multilingue_vide_vers_chaine()
+	m est une chaîneMultilingue = {}
+
+	s est une chaîne = m
+	dbgVérifieEgalité(s, "", "chaîneMultilingue vide → chaîne vide")
+FIN
+
+
+// Cas limite défensif : affectation chaîne vide `m = ""` remplit la
+// langue source avec chaîne vide. Différent de ne pas remplir du tout
+// (distinction sémantique : traduction vide vs traduction absente).
+PROCEDURE PRIVÉE scenario_coerce_chaine_vide_vers_multilingue()
+	m est une chaîneMultilingue
+	m = ""
+
+	dbgVérifieEgalité(m[langueFrançais], "")
+	dbgVérifieEgalité(m["fr-FR"], "")
+FIN
+
+
+// Cas limite défensif : réaffectation via coerce chaîne → chaîneMultilingue
+// écrase la langue source existante, conserve les autres langues intactes.
+// Utile pour mise à jour partielle.
+PROCEDURE PRIVÉE scenario_coerce_reaffectation_ecrase_source()
+	m est une chaîneMultilingue = {langueFrançais: "Initial", langueAnglais: "Initial EN"}
+
+	m = "Mise à jour"
+
+	dbgVérifieEgalité(m[langueFrançais], "Mise à jour")
+	dbgVérifieEgalité(m[langueAnglais], "Initial EN", "langue non-source conservée")
+FIN

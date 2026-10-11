@@ -1,0 +1,30 @@
+// Regression: fExtraitChemin doit accepter les constantes de référence officielles
+// fFichier, fRepertoire, fDisque, fExtension.
+// le comportement de référence permet aussi la combinaison: fDisque + fRepertoire
+
+chemin est une chaîne = "C:/dossier/sous/fichier.txt"
+
+// fFichier → nom sans extension
+dbgVérifieEgalité(fExtraitChemin(chemin, fFichier), "fichier", "fFichier")
+
+// fExtension → extension avec point
+dbgVérifieEgalité(fExtraitChemin(chemin, fExtension), ".txt", "fExtension")
+
+// fRepertoire → portion répertoire (sans nom fichier, sans disque)
+rep est une chaîne = fExtraitChemin(chemin, fRepertoire)
+dbgVérifieVrai(Position(rep, "dossier") > 0, "fRepertoire contient dossier")
+dbgVérifieVrai(Position(rep, "fichier.txt") = 0, "fRepertoire sans fichier")
+
+// fDisque → lettre lecteur (Windows: "C:")
+disque est une chaîne = fExtraitChemin(chemin, fDisque)
+dbgVérifieVrai(Taille(disque) >= 1, "fDisque non vide")
+
+// Combinaison fDisque + fRepertoire
+Combo est une chaîne = fExtraitChemin(chemin, fDisque + fRepertoire)
+dbgVérifieVrai(Position(Combo, "dossier") > 0, "combo disque+rep")
+
+// fFichier + fExtension = nom complet
+nomComplet est une chaîne = fExtraitChemin(chemin, fFichier + fExtension)
+dbgVérifieEgalité(nomComplet, "fichier.txt", "fFichier+fExtension")
+
+dbgBilanTest()

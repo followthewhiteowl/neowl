@@ -1,0 +1,47 @@
+// surChangementTaille(largeur, hauteur) — event fenetre declenche au
+// redimensionnement par programme.
+//
+// Chemin teste : ecriture de ..Largeur ou ..Hauteur sur une fenetre ouverte
+// → surChangementTaille doit se declencher avec les nouvelles dimensions.
+//
+// Note : TestModeHeadless(Faux) est requis pour monter la fenetre reelle
+// (hors ecran) et exercer le redimensionnement de la couche graphique.
+// Temporise(50) pompe la boucle d'evenements avant lecture des compteurs.
+
+TestModeHeadless(Faux)
+
+bResizeEventPrete est un booléen = Faux
+nResizeCount_obs est un entier = -1
+nDernierWidth_obs est un entier = -1
+nDernierHeight_obs est un entier = -1
+
+PROCEDURE cb_fen_resize_event_prete()
+	bResizeEventPrete = Vrai
+FIN
+
+PROCEDURE cb_fen_resize_event_compteurs(nCount est un entier, nW est un entier, nH est un entier)
+	nResizeCount_obs   = nCount
+	nDernierWidth_obs  = nW
+	nDernierHeight_obs = nH
+FIN
+
+PROCEDURE PUBLIQUE scenario_resize_event()
+	OuvreSoeur(FEN_ResizeEvent)
+	dbgVérifieVrai(bResizeEventPrete, "FinInitialisation : fenetre montee")
+
+	// --- Premiere ecriture : Largeur = 600 ---
+	FEN_ResizeEvent..Largeur = 600
+	Temporise(50)
+	LireCompteursResize()
+	dbgVérifieEgalité(nResizeCount_obs, 1, "surChangementTaille : 1 tir apres Largeur = 600")
+	dbgVérifieEgalité(nDernierWidth_obs, 600, "surChangementTaille : largeur = 600 dans le payload")
+
+	// --- Deuxieme ecriture : Hauteur = 450 ---
+	FEN_ResizeEvent..Hauteur = 450
+	Temporise(50)
+	LireCompteursResize()
+	dbgVérifieEgalité(nResizeCount_obs, 2, "surChangementTaille : 2e tir apres Hauteur = 450")
+	dbgVérifieEgalité(nDernierHeight_obs, 450, "surChangementTaille : hauteur = 450 dans le payload")
+
+	Ferme(FEN_ResizeEvent)
+FIN

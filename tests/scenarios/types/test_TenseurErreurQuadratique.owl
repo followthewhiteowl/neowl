@@ -1,0 +1,68 @@
+// @sujet : Tenseur.ErreurQuadratique
+// @résumé : Perte différentiable erreur quadratique moyenne (MSE) entre une
+// prédiction et une cible — moyenne des carrés des écarts, en un Tenseur
+// scalaire ; Rétropropage() remonte le gradient vers la prédiction, jamais
+// vers la cible.
+
+// perte = moyenne((prédit - cible)²) = ((2.0-1.0)² + (0.0-0.0)²) / 2 = 0.5
+PROCEDURE PUBLIQUE scenario_mse_deux_composantes_forward()
+	tp est un Tenseur = Tenseur([2.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.ErreurQuadratique(tc)
+	dbgVérifieEgalité(tperte..Valeur[1], 0.5, "((2.0-1.0)^2 + (0.0-0.0)^2) / 2 = 0.5")
+FIN
+
+
+// dPerte/dPrédit = 2*(prédit - cible) / n = 2*[1.0, 0.0] / 2 = [1.0, 0.0].
+// La cible ne porte pas de gradient : son propre gradient reste à zéro.
+PROCEDURE PUBLIQUE scenario_mse_deux_composantes_backward()
+	tp est un Tenseur = Tenseur([2.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.ErreurQuadratique(tc)
+	tperte.Rétropropage()
+	dbgVérifieEgalité(tp..Gradient[1], 1.0, "dPerte/dPrédit[1] = 2*(2.0-1.0)/2 = 1.0")
+	dbgVérifieEgalité(tp..Gradient[2], 0.0, "dPerte/dPrédit[2] = 2*(0.0-0.0)/2 = 0.0")
+	dbgVérifieEgalité(tc..Gradient[1], 0.0, "La cible ne porte pas de gradient")
+	dbgVérifieEgalité(tc..Gradient[2], 0.0, "La cible ne porte pas de gradient")
+FIN
+
+
+// La forme anglaise .MeanSquaredError() désigne la même perte, avec le
+// même calcul de gradient.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	tp est un Tenseur = Tenseur([2.0, 0.0])
+	tc est un Tenseur = Tenseur([1.0, 0.0])
+	tperte est un Tenseur = tp.MeanSquaredError(tc)
+	tperte.Rétropropage()
+	dbgVérifieEgalité(tperte..Valeur[1], 0.5, "MeanSquaredError : même calcul que ErreurQuadratique")
+	dbgVérifieEgalité(tp..Gradient[1], 1.0, "MeanSquaredError : même gradient que ErreurQuadratique")
+FIN
+
+
+// Prédiction identique à la cible : la perte tombe exactement à zéro,
+// et le gradient de la prédiction aussi (aucun écart à corriger).
+PROCEDURE PRIVÉE scenario_edge_prediction_egale_cible()
+	tp est un Tenseur = Tenseur([1.0, 2.0])
+	tc est un Tenseur = Tenseur([1.0, 2.0])
+	tperte est un Tenseur = tp.ErreurQuadratique(tc)
+	tperte.Rétropropage()
+	dbgVérifieEgalité(tperte..Valeur[1], 0.0, "Prédiction = cible : perte nulle")
+	dbgVérifieEgalité(tp..Gradient[1], 0.0, "Aucun écart : gradient nul")
+	dbgVérifieEgalité(tp..Gradient[2], 0.0, "Aucun écart : gradient nul")
+FIN
+
+
+// Trois composantes, écarts de signes mêlés : la moyenne et le gradient
+// suivent la même règle, dérivés à la main.
+// diffs = [1.0, 0.0, -2.0] ; carrés = [1.0, 0.0, 4.0] ; moyenne = 5.0/3.0
+// grad = 2*diffs/3 = [0.6666..., 0.0, -1.3333...]
+PROCEDURE PRIVÉE scenario_edge_trois_composantes_signes_melanges()
+	tp est un Tenseur = Tenseur([1.0,-2.0, 3.0])
+	tc est un Tenseur = Tenseur([0.0,-2.0, 5.0])
+	tperte est un Tenseur = tp.ErreurQuadratique(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 1.6666666666666667) < 0.0000001, "moyenne((1.0² + 0.0² + (-2.0)²)) / 3 ~= 1.6666667")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - 0.6666666666666666) < 0.0000001, "2*1.0/3 ~= 0.6666667")
+	dbgVérifieEgalité(tp..Gradient[2], 0.0, "2*0.0/3 = 0.0")
+	dbgVérifieVrai(Abs(tp..Gradient[3] - (-1.3333333333333333)) < 0.0000001, "2*(-2.0)/3 ~= -1.3333333")
+FIN

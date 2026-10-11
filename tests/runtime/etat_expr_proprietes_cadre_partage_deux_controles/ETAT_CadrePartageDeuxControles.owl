@@ -1,0 +1,64 @@
+// Ressource voisine de test_cadre_partage_deux_controles.owl.
+//
+// Deux Champs Libellé, chacun avec sa propre PROPRIETES Cadre (couleurs de
+// départ distinctes : LIB_A = Rouge, LIB_B = Bleu). Lecture() COPIE le
+// composite Cadre de A vers B par affectation directe
+// (LIB_B..Cadre = LIB_A..Cadre), puis écrit sur le sous-champ de A
+// SEULEMENT (LIB_A..Cadre..Couleur = Vert).
+//
+// Sémantique retenue (Cadre copié à l'affectation, comme Style) :
+// LIB_B..Cadre = LIB_A..Cadre écrase le Cadre de B par une COPIE
+// indépendante de celui de A (au moment de l'affectation). L'écriture
+// ultérieure sur A ne se répercute donc PAS sur B :
+// - LIB_A..Cadre..Couleur vaut Vert (l'écriture sur A prend effet, propre à A)
+// - LIB_B..Cadre..Couleur vaut Rouge (copie du Cadre de A au moment de
+//   l'affectation, non affectée par l'écriture ultérieure sur A)
+//
+// Les assertions sont posées directement ici, dans Lecture(), pour
+// discriminer par VALEUR (pas par comptage de couleurs dans le PDF rendu,
+// méthode non-discriminante entre le bug et le correct — cf. historique
+// du ticket).
+
+ETAT_CadrePartageDeuxControles est un État
+	PROPRIETES
+		Format = formatA4
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 15
+		FIN
+
+		LIB_A est un Champ Libellé
+			PROPRIETES
+				Libellé = "A"
+				X       = 20
+				Y       = 2
+				Largeur = 100
+				Hauteur = 10
+				Cadre   = {Couleur = Rouge, Epaisseur = 2}
+			FIN
+		FIN
+
+		LIB_B est un Champ Libellé
+			PROPRIETES
+				Libellé = "B"
+				X       = 20
+				Y       = 14
+				Largeur = 100
+				Hauteur = 10
+				Cadre   = {Couleur = Bleu, Epaisseur = 2}
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE Lecture()
+		LIB_B..Cadre          = LIB_A..Cadre
+		LIB_A..Cadre..Couleur = Vert
+
+		dbgVérifieEgalité(LIB_A..Cadre..Couleur, Vert,
+		"A garde son ecriture propre")
+		dbgVérifieEgalité(LIB_B..Cadre..Couleur, Rouge,
+		"B = copie du Cadre de A au moment de l'affectation, non affecte par l'ecriture ulterieure sur A")
+	FIN
+FIN

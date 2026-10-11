@@ -1,0 +1,26 @@
+// Test du champ Libelle (header) de Colonne retype chaineMultilingue.
+//
+// Les colonnes de Table (type compose Colonne, declare via DSL Table)
+// ont un champ Libelle pour l'en-tete. Ce slot est desormais type
+// chaineMultilingue pour permettre des headers localises.
+//
+// Limite design-time DSL :
+//   `Libelle = "string"` -> OK (coerce auto vers langue source au runtime)
+//   `Libelle = {langueXxx: "..."}` -> non supporte dans le DSL colonne en
+//   l'etat (column_parse_property_init n'invoque pas la detection
+//   MULTILINGUE). Extension future possible si besoin (sous-ticket dedie).
+//
+// Ce que ce test valide :
+//   - DSL colonne compile sans erreur avec Libelle = "string" (backward-compat)
+//   - `owl explain Colonne` (ou introspection equivalente) montre le slot
+//     retype en chaineMultilingue (verifie via la suite registry, pas ici)
+//
+// La fenêtre voisine FEN_ColonneLibelle.owl porte la déclaration.
+
+// Pas d'assertion runtime : l'acces dot-set sur une colonne n'est pas
+// expose en OWL runtime (les colonnes vivent dans le store de la Table
+// parente, lues par render_table). Le retypage chaineMultilingue est
+// observable via le registry catalog (suite --self-test-registry) et
+// le compile-time des affectations DSL dans le fichier voisin.
+
+dbgBilanTest()

@@ -1,0 +1,54 @@
+//  lot 1 — framework extensible type-colonne (createEditor) + 1er type
+// câblé = Date. Une colonne `Type = colTypeDate` SANS masque brut déclaré doit
+// être pilotée par le format date défaut/projet (défaut mesuré : "JJ/MM/AAAA",
+// cf. src/stdlib_ui.c L1740) et dériver le masque de frappe via
+// input_frappe_mask_from_format — la forme de référence round-trip (owl_ui_lineedit_get_mask,
+// ui_qt.cpp ~L9408) attendue pour "JJ/MM/AAAA" est "99/99/9999" (mesuré :
+// input_frappe_mask_from_format émet 2x'9' pour JJ/MM, 4x'9' pour AAAA, séparateurs
+// '/' littéraux, round-trip identique car les caractères '9' ne sont pas
+// ré-échappés par get_mask).
+//
+// Sonde réutilisée : __DebugTableCelluleMasque(champ, ligne, colonne) — ,
+// ouvre l'éditeur transitoire de la cellule via le delegate colonne et relit le
+// masque Qt effectif reconverti en forme de référence. AUCUNE native nouvelle nécessaire
+// pour cette dimension masque (le dispatch colTypeDate → format n'existe pas
+// encore dans createEditor, donc ce test est ROUGE aujourd'hui : la colonne
+// colTypeDate sans masque brut ne pose aucun masque, __DebugTableCelluleMasque
+// retourne "" au lieu de "99/99/9999").
+//
+// Hors-scope de CE fichier : la preuve que le validateur de plages REJETTE
+// "99/99/9999" à la frappe (aucune sonde booléenne __Debug*ValideSaisie
+// n'existe aujourd'hui, ni côté Table ni côté Saisie -2031 — contrat
+// remonté au coordinator avant dépôt, cf. rapport test_writer ).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeDateMasqueFormat)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. Colonne colTypeDate SANS masque brut : pilotée par le format date
+// défaut projet (JJ/MM/AAAA) -> masque dérivé "99/99/9999" =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 1), "99/99/9999",
+"colonne Date (colTypeDate, sans masque brut) : éditeur de cellule piloté par le format date défaut (JJ/MM/AAAA) -> masque 99/99/9999")
+
+// ===== 2. Colonne colTypeDate AVEC masque brut déclaré : l'override bas-niveau
+// reste appliqué tel quel, PAS la dérivation format =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 2), "99-99-9999",
+"colonne Date (colTypeDate + MasqueSaisie brut) : le masque brut déclaré prime, non affecté par la dérivation format")
+
+// ===== 3. Non-régression : colonnes Texte/Numérique/Booléen sans masque =====
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 3), "",
+"colonne Texte (colTypeTexte, sans masque) : aucun masque posé (non-régression)")
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 4), "",
+"colonne Numérique (colTypeNumerique, sans masque) : aucun masque posé (hors-scope feat/2148, non-régression)")
+
+dbgVérifieEgalité(__DebugTableCelluleMasque(TAB_ColTypes, 1, 5), "",
+"colonne Booléen (colTypeBooleen, sans masque) : aucun masque posé (non-régression)")
+
+Ferme(FEN_TableColonneTypeDateMasqueFormat)
+
+dbgBilanTest()

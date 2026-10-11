@@ -1,0 +1,57 @@
+// Régression  : déclaration multi-variables `A, B, C sont des <type>`
+// casse dès qu'un nom en position non-initiale (ou initiale) scanne comme
+// token widget-kind réservé (ex. Report/Etat, Conteneur, Colonne), alors
+// que la même déclaration en forme SINGLE-VAR (`Colonne est un entier`)
+// compile déjà (démotion keyword→variable). La liste multi-var doit
+// appliquer la même démotion, pour le même ensemble de tokens, que le
+// chemin single-var.
+//
+// Aujourd'hui : ce fichier ne compile PAS du tout (erreur "variable
+// inconnue ou inaccessible" sur TOUTE la liste dès qu'un widget-kind y
+// figure, même sur les noms non-réservés voisins de la même liste).
+// Après le fix, il compile et toutes les assertions passent au vert.
+//
+// Chaque cas utilise un widget-kind DIFFÉRENT pour éviter toute
+// redéclaration de variable dans le même scope top-level.
+//
+// Hors-scope (ADR ) : le nom `a` seul (article EN « is a »), non
+// démotable même en single-var — on n'utilise donc jamais `a` seul ici.
+
+// --- Cas 1 : widget-kind (Report) en position NON-INITIALE d'une liste de 3
+x, Report, y sont des entiers
+x      = 1
+Report = 2
+y      = 3
+dbgVérifieEgalité(x, 1, "cas1: x")
+dbgVérifieEgalité(Report, 2, "cas1: Report (widget-kind pos.2) démoté en variable")
+dbgVérifieEgalité(y, 3, "cas1: y")
+
+// --- Cas 2 : widget-kind (Conteneur) en position INITIALE d'une liste de 2,
+// forme anglaise `are` (couvre aussi l'alias bilingue de la déclaration).
+Conteneur, cpt are integers
+Conteneur = 20
+cpt       = 30
+dbgVérifieEgalité(Conteneur, 20, "cas2: Conteneur (widget-kind pos.1, EN) démoté en variable")
+dbgVérifieEgalité(cpt, 30, "cas2: cpt (EN)")
+
+// --- Cas 3 : widget-kind (Etat) en position MILIEU, type chaîne ---------
+a1, État, a2 sont des chaînes
+a1   = "avant"
+Etat = "milieu"
+a2   = "après"
+dbgVérifieEgalité(a1, "avant", "cas3: a1")
+dbgVérifieEgalité(État, "milieu", "cas3: Etat (widget-kind) démoté en variable")
+dbgVérifieEgalité(a2, "après", "cas3: a2")
+
+// --- Cas 4 : non-régression — multi-var normale sans widget-kind --------
+p, q, r sont des entiers
+p = 100
+q = 200
+r = 300
+dbgVérifieEgalité(p + q + r, 600, "cas4: multi-var normale non-régression")
+
+// --- Cas 4bis : non-régression — single-var widget-kind reste OK --------
+Colonne est un entier = 7
+dbgVérifieEgalité(Colonne, 7, "cas4bis: single-var Colonne non-régression")
+
+dbgBilanTest()

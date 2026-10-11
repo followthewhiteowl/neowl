@@ -1,0 +1,143 @@
+// @sujet : IAModèle.SauveONNX / .SaveONNX — export d'un modèle vers ONNX
+// @résumé : .SauveONNX(chemin) (FR) / .SaveONNX(chemin) (EN) écrit un IAModèle
+// OWL en fichier `.onnx` (format protobuf), inverse de .ChargeONNX/.LoadONNX.
+// La digue de ce fichier est un round-trip complet : importer une fixture
+// `.onnx` connue (oracle capturé hors OWL), l'exporter vers un fichier
+// temporaire, ré-importer ce fichier fraîchement écrit, puis vérifier que
+// l'inférence du modèle ré-importé reproduit le même oracle que l'import
+// direct — preuve que l'export préserve structure ET poids, à la tolérance
+// flottante près (cf. test_IAModeleONNX.owl pour la justification de la
+// tolérance).
+//
+// Fixtures utilisées (mêmes que test_IAModeleONNX.owl) :
+//   tests/internal_fixtures/onnx/fixture_cnn.onnx — CNN séquentiel
+//   (Conv2d→BatchNorm2d→ReLU→MaxPool2d→Flatten→Linear). Entrée [1,1,8,8],
+//   oracle [-0.02090887725353241, -0.07250624895095825, -0.08615229278802872].
+//   tests/internal_fixtures/onnx/fixture_resnet.onnx — ResNet (bloc résiduel
+//   Add-skip + GlobalAveragePool). Entrée [1,2,8,8], oracle
+//   [-0.13573767244815826, 0.19091612100601196, 0.05653282627463341].
+
+// Cœur du contrat : round-trip CNN séquentiel. Importer la fixture, exporter
+// vers un fichier temporaire, ré-importer dans un modèle frais, inférer sur
+// l'entrée oracle et comparer à la même sortie de référence que l'import
+// direct (test_IAModeleONNX.owl) — preuve que l'export ne perd ni structure
+// ni poids.
+PROCEDURE PUBLIQUE scenario_sauve_onnx_roundtrip_cnn_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_cnn.onnx")
+
+	chemin est une chaîne = fRepTemp() + "owl_export_cnn.onnx"
+	succèsSauve est un booléen = mon.SauveONNX(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".SauveONNX d'un CNN séquentiel réussit")
+
+	frais est un IAModèle
+	frais.ChargeONNX(chemin)
+	// Capture immédiate : la sentinelle d'erreur est consommée au 1er appel
+	// natif suivant (cf. skill test-writing-pitfalls §6).
+	bReimportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bReimportEchoue, "le ré-import du fichier fraîchement exporté réussit")
+
+	SI PAS bReimportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 63
+			brut.Ajoute(k / 64.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 8, 8])
+
+		sortie est un Tenseur = frais.Infère(entrée)
+
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = -0.02090887725353241
+		attendu2 est un réel = -0.07250624895095825
+		attendu3 est un réel = -0.08615229278802872
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] du modèle ré-importé proche de l'oracle (round-trip CNN)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] du modèle ré-importé proche de l'oracle (round-trip CNN)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] du modèle ré-importé proche de l'oracle (round-trip CNN)")
+	FIN
+
+	fSupprime(chemin)
+FIN
+
+
+// Round-trip ResNet : exerce l'export du bloc résiduel (Add-skip) et de
+// GlobalAveragePool, en plus de Conv/BatchNorm/ReLU déjà couverts par le
+// CNN séquentiel ci-dessus.
+PROCEDURE PUBLIQUE scenario_sauve_onnx_roundtrip_resnet_egale_oracle()
+	mon est un IAModèle
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_resnet.onnx")
+
+	chemin est une chaîne = fRepTemp() + "owl_export_resnet.onnx"
+	succèsSauve est un booléen = mon.SauveONNX(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".SauveONNX d'un ResNet (bloc résiduel + GlobalAveragePool) réussit")
+
+	frais est un IAModèle
+	frais.ChargeONNX(chemin)
+	bReimportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bReimportEchoue, "le ré-import du ResNet fraîchement exporté réussit")
+
+	SI PAS bReimportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 127
+			brut.Ajoute(k / 128.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 2, 8, 8])
+
+		sortie est un Tenseur = frais.Infère(entrée)
+
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = -0.13573767244815826
+		attendu2 est un réel = 0.19091612100601196
+		attendu3 est un réel = 0.05653282627463341
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] du ResNet ré-importé proche de l'oracle (round-trip, bloc résiduel)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] du ResNet ré-importé proche de l'oracle (round-trip, bloc résiduel)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] du ResNet ré-importé proche de l'oracle (round-trip, bloc résiduel)")
+	FIN
+
+	fSupprime(chemin)
+FIN
+
+
+// Verrou de la forme anglaise : round-trip complet via .SaveONNX/.LoadONNX
+// sur la fixture CNN, même contrat observable que la forme FR ci-dessus.
+PROCEDURE PUBLIQUE scenario_save_onnx_roundtrip_forme_anglaise_egale_oracle()
+	mon is an AIModel
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_cnn.onnx")
+
+	chemin is a string = fRepTemp() + "owl_export_cnn_en.onnx"
+	saveSucceeded is a boolean = mon.SaveONNX(chemin)
+	dbgCheckEqual(saveSucceeded, Vrai, ".SaveONNX of a sequential CNN succeeds")
+
+	fresh is an AIModel
+	fresh.LoadONNX(chemin)
+	reloadFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS reloadFailed, "reloading the freshly exported file succeeds")
+
+	SI PAS reloadFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 63
+			raw.Ajoute(k / 64.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 1, 8, 8])
+
+		output is a Tensor = fresh.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = -0.02090887725353241
+		expected2 is a real = -0.07250624895095825
+		expected3 is a real = -0.08615229278802872
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.SaveONNX/LoadONNX round-trip: output[1] within tolerance of the oracle")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.SaveONNX/LoadONNX round-trip: output[2] within tolerance of the oracle")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.SaveONNX/LoadONNX round-trip: output[3] within tolerance of the oracle")
+	FIN
+
+	fSupprime(chemin)
+FIN

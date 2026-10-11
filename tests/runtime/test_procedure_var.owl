@@ -1,0 +1,84 @@
+// ============================================
+// TEST: Variable de type Procedure + Execute() — Tier 1
+// ============================================
+Trace("=== PROCEDURE VAR ===")
+
+// --- Fonctions à référencer ---
+FONCTION Double(n est un entier) : entier
+	RENVOYER n * 2
+FIN
+
+FONCTION Triple(n est un entier) : entier
+	RENVOYER n * 3
+FIN
+
+FONCTION Salue(nom est une chaîne) : chaîne
+	RENVOYER "Bonjour " + nom
+FIN
+
+PROCEDURE EffetDeBord(n est un entier)
+	// pas de retour, juste un effet
+	Trace("effet: " + NumériqueVersChaîne(n))
+FIN
+
+// --- Déclaration ---
+p est une procédure
+	// Default = Null (pas encore lié)
+	dbgVérifieVrai(EstNul(p), "Procedure vide = Null")
+
+	// --- Affectation par référence sans parens ---
+	p = Double
+	dbgVérifieFaux(EstNul(p), "Après affectation, non-Null")
+	dbgVérifieEgalité(p(5), 10, "Appel via variable: p(5) = 10")
+
+	// --- Réaffectation ---
+	p = Triple
+	dbgVérifieEgalité(p(5), 15, "Réaffectation p = Triple, p(5) = 15")
+
+	// --- Execute dispatcher ---
+	dbgVérifieEgalité(Execute(Double, 21), 42, "Execute(Double, 21) = 42")
+	dbgVérifieEgalité(Execute(Triple, 7), 21, "Execute(Triple, 7) = 21")
+	dbgVérifieEgalité(Execute(p, 11), 33, "Execute via variable Procedure")
+
+	// --- Execute sur chaîne ---
+	dbgVérifieEgalité(Execute(Salue, "Roger"), "Bonjour Roger", "Execute avec chaine")
+
+	// --- Procédure en paramètre ---
+	PROCEDURE Applique(f est une procédure, v est un entier) : entier
+		RENVOYER f(v)
+	FIN
+
+	dbgVérifieEgalité(Applique(Double, 11), 22, "Applique(Double, 11)")
+	dbgVérifieEgalité(Applique(Triple, 4), 12, "Applique(Triple, 4)")
+
+	// --- Application répétée (map manuel) ---
+	FONCTION MapDouble(t est un tableau de entiers) : tableau
+		resultat est un tableau de entiers
+		POUR TOUT x DE t
+			Ajoute(resultat, Double(x))
+		FIN
+		RENVOYER resultat
+	FIN
+
+	arrT est un tableau de entiers
+	Ajoute(arrT, 1)
+	Ajoute(arrT, 2)
+	Ajoute(arrT, 3)
+
+	doubled est un tableau de entiers = MapDouble(arrT)
+	dbgVérifieEgalité(doubled[1], 2, "Map[1] = 2")
+	dbgVérifieEgalité(doubled[2], 4, "Map[2] = 4")
+	dbgVérifieEgalité(doubled[3], 6, "Map[3] = 6")
+
+	// --- Stockage dans une struct ---
+	Dispatcher est une Structure
+		nom est une chaîne
+		fn est une procédure
+		FIN
+
+		d est un Dispatcher
+		d.nom = "doubler"
+		d.fn = Double
+		dbgVérifieEgalité(d.fn(8), 16, "Procedure dans une struct")
+
+		dbgBilanTest()

@@ -1,0 +1,35 @@
+// Régression : matching de clés JSON case-insensitive (canon de référence).
+// Comportement de référence vérifié : j.userName == j.username == j.UserName, mais
+// snake_case (j.user_name) ne match PAS — pas de transformation magique.
+
+j est un JSON = ChaîneVersJSON("{""userName"":""alice"",""âge"":42}")
+
+// --- Get : case-insensitive ---
+dbgVérifieEgalité(j.userName, "alice", "match casse exacte")
+dbgVérifieEgalité(j.username, "alice", "match tout minuscules")
+dbgVérifieEgalité(j.UserName, "alice", "match PascalCase")
+dbgVérifieEgalité(j.USERNAME, "alice", "match tout majuscules")
+
+// --- Existe : case-insensitive ---
+dbgVérifieVrai(JSONExiste(j, "userName"), "JSONExiste casse exacte")
+dbgVérifieVrai(JSONExiste(j, "username"), "JSONExiste tout minuscules")
+dbgVérifieVrai(JSONExiste(j, "UserName"), "JSONExiste PascalCase")
+dbgVérifieFaux(JSONExiste(j, "user_name"), "JSONExiste : snake_case PAS aliase (canon de référence)")
+
+// --- Set : preserve original casing, mais update case-insensitive ---
+j.userName = "bob"
+dbgVérifieEgalité(j.username, "bob", "set via casse exacte mis a jour")
+
+j.USERNAME = "carol"
+dbgVérifieEgalité(j.userName, "carol", "set via majuscules ecrase la valeur")
+
+// La clé d'origine garde son casing initial — le set ne le rebaptise pas
+serialise est une chaîne = JSONVersChaîne(j)
+dbgVérifieVrai(Position(serialise, "userName") > 0, "casing original 'userName' conservee dans la serialisation")
+
+// --- Delete : case-insensitive ---
+res est un booléen = JSONSupprime(j, "USERNAME")
+dbgVérifieVrai(res, "JSONSupprime accepte n'importe quelle casse")
+dbgVérifieFaux(JSONExiste(j, "userName"), "cle bien supprimee")
+
+dbgBilanTest()

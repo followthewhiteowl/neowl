@@ -1,0 +1,18 @@
+// Verrouillage du warning compile-time emis quand l'utilisateur essaie
+// d'appliquer ..Couleur sur une icone multi-color native (PDF, dossier,
+// emoji, etc.) — le SVG embarque des couleurs fixes et l'assignation
+// '..Couleur = X' est ignoree au rendu.
+//
+// Surface privee (regression), pas de pollution suite scenarios PUB.
+// Le warning est intentionnel : valide via __dbgAvertissementAttendu
+// (native interne, prefixe __, reservee aux tests qui valident le compilo).
+
+PROCEDURE scenario_warning_emis_si_couleur_assignee_sur_icone_multi_color()
+	ICN_PDF est une Icône = icones.file_type_pdf2
+	ICN_PDF..Couleur = Rouge
+	// L'icone reste valide en runtime, le warning n'est pas bloquant
+	dbgVérifieVrai(ICN_PDF..Valide, "Icone multi-color valide malgre warning")
+	// Consomme le warning compile-time attendu
+	__dbgAvertissementAttendu("n'est pas coloriable",
+	"Warning compile-time emis sur ..Couleur appliquee a icone multi-color")
+FIN

@@ -1,0 +1,140 @@
+// =====================================================================
+// Tests mocks pour les fonctions HTTP qui n'avaient pas de couverture :
+//   - HTTPCookieGere (toggle cookie jar global)
+//   - HTTPCookie (read/write cookies manuellement)
+//   - HTTPDonneResultat (extraction de champs httpReponse via constantes)
+//   - httpIgnore* flags (errors TLS contournables via httpRequete..IgnoreErreur)
+//
+// Reference : documentation de référence (HTTPDonneResultat), HTTPCookieGere doc.
+// =====================================================================
+
+Trace("=== HTTP GAPS MOCKES ===")
+
+HTTPParamètre(httpParamReinitialise, 0)
+
+// =====================================================================
+// Section 1 : HTTPCookieGere -- toggle global du cookie jar
+// =====================================================================
+
+// Etat par defaut : selon le code C, g_cookies_auto = 0 (false)
+// HTTPCookieGere() sans arg -> retourne l'etat courant
+etatInit est un booléen = HTTPCookieGère()
+dbgVérifieVrai(etatInit = Vrai OU etatInit = Faux,
+"HTTPCookieGere() sans arg retourne un booleen")
+
+// Activation
+HTTPCookieGère(Vrai)
+dbgVérifieEgalité(HTTPCookieGère(), Vrai, "HTTPCookieGere(Vrai) -> activated")
+
+// Desactivation
+HTTPCookieGère(Faux)
+dbgVérifieEgalité(HTTPCookieGère(), Faux, "HTTPCookieGere(Faux) -> off")
+
+// Forme entier (conforme au comportement de référence : 1 = on, 0 = off)
+HTTPCookieGère(1)
+dbgVérifieEgalité(HTTPCookieGère(), Vrai, "HTTPCookieGere(1) -> on (entier toggle)")
+
+HTTPCookieGère(0)
+dbgVérifieEgalité(HTTPCookieGère(), Faux, "HTTPCookieGere(0) -> off (entier toggle)")
+
+// =====================================================================
+// Section 2 : HTTPCookie -- ecriture et lecture manuelle de cookies
+// =====================================================================
+
+// Ecriture
+ok est un booléen = HTTPCookie("session_id", "abc123", "example.com", "/")
+dbgVérifieVrai(ok, "HTTPCookie ecriture renvoie Vrai")
+
+// Lecture
+val est une chaîne = HTTPCookie("session_id")
+dbgVérifieEgalité(val, "abc123", "HTTPCookie lit la valeur ecrite")
+
+// Cookie inexistant -> chaine vide
+absent est une chaîne = HTTPCookie("inexistant_xyz")
+dbgVérifieEgalité(absent, "", "HTTPCookie(absent) -> chaine vide")
+
+// =====================================================================
+// Section 3 : HTTPDonneResultat -- extraction via constantes httpResult*
+// =====================================================================
+// Cette forme prend une instance httpReponse en 1er arg + une constante
+// en 2e. On construit la reponse manuellement (pas de reseau).
+
+rep est un httpRéponse
+rep..Contenu             = "body content"
+rep..CodeEtat            = 200
+rep..Entête              = "Content-Type: text/plain"
+rep..ContentType         = "text/plain"
+rep..EntêteBrut          = "HTTP/1.1 200 OK\r\nContent-Type: text/plain"
+rep..URL                 = "http://test.invalid/api"
+rep..DescriptionCodeEtat = "OK"
+
+// Extraction par constantes
+contenu est une chaîne = HTTPDonneRésultat(rep, httpResultContenu)
+dbgVérifieEgalité(contenu, "body content",
+"HTTPDonneResultat(rep, httpResultContenu)")
+
+code est un entier = HTTPDonneRésultat(rep, httpResultCodeEtat)
+dbgVérifieEgalité(code, 200,
+"HTTPDonneResultat(rep, httpResultCodeEtat)")
+
+ct est une chaîne = HTTPDonneRésultat(rep, httpResultContentType)
+dbgVérifieEgalité(ct, "text/plain",
+"HTTPDonneResultat(rep, httpResultContentType)")
+
+url est une chaîne = HTTPDonneRésultat(rep, httpResultURL)
+dbgVérifieEgalité(url, "http://test.invalid/api",
+"HTTPDonneResultat(rep, httpResultURL)")
+
+ent est une chaîne = HTTPDonneRésultat(rep, httpResultEntete)
+dbgVérifieEgalité(ent, "Content-Type: text/plain",
+"HTTPDonneResultat(rep, httpResultEntete)")
+
+desc est une chaîne = HTTPDonneRésultat(rep, httpResultDescriptionCodeEtat)
+dbgVérifieEgalité(desc, "OK",
+"HTTPDonneResultat(rep, httpResultDescriptionCodeEtat)")
+
+// Type inconnu -> Null. On passe par une variable intermédiaire pour
+// contourner le check compile-time "Littéral numérique pour enum" : ici
+// la valeur invalide est intentionnelle (test du fallback Null).
+nTypeInvalide est un entier = 999
+inconnu est une chaîne? = HTTPDonneRésultat(rep, nTypeInvalide)
+dbgVérifieVrai(inconnu = Null,
+"HTTPDonneResultat(rep, type inconnu) -> Null")
+
+// =====================================================================
+// Section 4 : httpIgnore* flags -- contournement erreurs TLS via httpRequete
+// =====================================================================
+// Les flags httpIgnore* sont bitwise combinables et stockes dans le champ
+// IgnoreErreur d'un httpRequete. Test : verification que la combinaison
+// fonctionne et que les valeurs sont distinctes.
+
+dbgVérifieDifférence(httpIgnoreCertificatInvalide, httpIgnoreCertificatExpire,
+"httpIgnoreCertificatInvalide != Expire")
+dbgVérifieDifférence(httpIgnoreCertificatInvalide, httpIgnoreNomCertificatInvalide,
+"httpIgnoreCertificatInvalide != NomInvalide")
+dbgVérifieDifférence(httpIgnoreRedirection, httpIgnoreRevocation,
+"httpIgnoreRedirection != Revocation")
+
+// Combinaison bitwise : 2 flags -> valeur composite
+combo est un entier = httpIgnoreCertificatInvalide + httpIgnoreCertificatExpire
+dbgVérifieVrai(combo > httpIgnoreCertificatInvalide,
+"Somme de flags > flag seul (combine)")
+
+// Assignement au champ IgnoreErreur d'un httpRequete
+req est un httpRequête
+req..URL          = "https://expired.test.invalid/api"
+req..IgnoreErreur = httpIgnoreCertificatInvalide + httpIgnoreCertificatExpire
+dbgVérifieEgalité(req..IgnoreErreur, combo,
+"req..IgnoreErreur accepte flags combines")
+
+// =====================================================================
+// Section 5 : note divergence forme legacy 7-args HTTPRequete
+// =====================================================================
+// Documentation de référence : HTTPRequete(url, method, body, headers, accept, user, pwd)
+// OWL accepte url + 3 args optionnels (method, body, headers). Les args
+// 5/6/7 (accept, user, pwd) sont silencieusement ignores. Pattern OWL canon :
+// httpRequete..Utilisateur / ..MotDePasse / ..ContentType au lieu de la forme
+// position-based. Ce test ne couvre pas la forme 7-args (divergence VISION
+// §5bis).
+
+dbgBilanTest()

@@ -1,0 +1,52 @@
+//  — la config FormatNombre d'un Champ Saisie est validée à DEUX
+// niveaux :
+//   - littéral inline `{ … }` -> refusé AU COMPILE (voir les fixtures
+//     tests/compile-error/champ_format_nombre_sep_*), non re-testé ici ;
+//   - config posée DYNAMIQUEMENT à chaud (`SAI..FormatNombre..Sep = x`) ->
+//     refus RUNTIME (repli fnb_config_from_instance, drapeau ErreurDétectée)
+//     quand la résolution du format est déclenchée (lecture de ..Valeur).
+//
+// Ce test couvre le repli RUNTIME (Cas 1 & 2 : mutation dynamique invalide) et
+// la non-régression des configs saines (Cas 3 & 4, inline valide). Les
+// scénarios inline invalides d'origine sont désormais interceptés au
+// compile et vivent dans tests/compile-error/champ_format_nombre_*.
+//
+// Vrais widgets Qt montés (TestModeHeadless(Faux)) : en headless le champ n'est
+// jamais construit et la config n'est jamais lue.
+
+TestModeHeadless(Faux)
+
+// Cas 1 : milliers muté dynamiquement pour égaler le décimal (',') -> conflit
+// détecté à la résolution du format (lecture de ..Valeur), pas au silence.
+OuvreSoeur(FEN_FnbDynamique)
+SAI_Dyn..FormatNombre..SéparateurMilliers = ","
+ErreurRAZ()
+rIdent est un réel = SAI_Dyn..Valeur
+bIdent est un booléen = ErreurDétectée
+Ferme(FEN_FnbDynamique)
+dbgVérifieVrai(bIdent, "FormatNombre dynamique milliers == décimal (',') : erreur claire levée à la résolution")
+
+// Cas 2 : milliers muté dynamiquement vers un chiffre ('5') -> conflit détecté.
+OuvreSoeur(FEN_FnbDynamique)
+SAI_Dyn..FormatNombre..SéparateurMilliers = "5"
+ErreurRAZ()
+rChiffre est un réel = SAI_Dyn..Valeur
+bChiffre est un booléen = ErreurDétectée
+Ferme(FEN_FnbDynamique)
+dbgVérifieVrai(bChiffre, "FormatNombre dynamique séparateur = chiffre ('5') : erreur claire levée à la résolution")
+
+// Cas 3 : config valide (milliers=' ', décimal=',') -> AUCUNE erreur (non-régression).
+ErreurRAZ()
+OuvreSoeur(FEN_FnbValide)
+bValide est un booléen = ErreurDétectée
+Ferme(FEN_FnbValide)
+dbgVérifieFaux(bValide, "FormatNombre valide (milliers=' ', décimal=',') : aucune erreur")
+
+// Cas 4 : un seul séparateur défini (décimal ',', milliers vide) -> AUCUNE erreur.
+ErreurRAZ()
+OuvreSoeur(FEN_FnbUnSeul)
+bUnSeul est un booléen = ErreurDétectée
+Ferme(FEN_FnbUnSeul)
+dbgVérifieFaux(bUnSeul, "FormatNombre un seul séparateur (décimal ','), milliers vide : aucune erreur")
+
+dbgBilanTest()

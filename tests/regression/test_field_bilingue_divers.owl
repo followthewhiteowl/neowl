@@ -1,0 +1,267 @@
+// Regression : valide l'invariant n°3 (bilingue FR<->EN) sur les fields
+// des types reifies migres en Phase B "divers" (Chrono, Definition, etc.).
+// Chaque type est ajoute ici au fur et a mesure de sa migration.
+
+// === Chrono (B.6) ===
+//
+// Chrono est un cas particulier : le template runtime stocke
+// "Demarre" ET "Démarré" comme deux fields distincts (gere par les
+// natives ChronoDébut/ChronoFin qui mettent a jour les deux). Mais
+// du point de vue du fallback EN->FR, lire `chrono..Started` doit
+// retourner la valeur canon.
+
+c est un Chrono
+
+// Le runtime expose Demarre + Démarré dans le template.
+// ..Started doit lire le canon ASCII "Demarre".
+dbgVérifieEgalité(c..Started, Faux, "Started initial Faux (lecture EN)")
+dbgVérifieEgalité(c..Démarré, Faux, "Demarre initial Faux (FR canon)")
+
+// Valeur <-> Value
+dbgVérifieEgalité(c..Value, 0, "Value initial 0 (lecture EN)")
+dbgVérifieEgalité(c..Valeur, 0, "Valeur initial 0 (FR)")
+
+
+// === FichierDisque (B.7) ===
+
+f est un FichierDisque
+
+// Handle identique en EN/FR (-1 = non ouvert, doc canon)
+dbgVérifieEgalité(f..Handle,-1, "Handle initial -1 (FR)")
+
+// NomFichier <-> FileName
+dbgVérifieEgalité(f..FileName, "", "FileName initial vide (lecture EN)")
+dbgVérifieEgalité(f..NomFichier, "", "NomFichier initial vide (FR canon)")
+
+
+// === Image (B.9) ===
+
+img est une Image
+
+// Largeur <-> Width, Hauteur <-> Height
+dbgVérifieEgalité(img..Width, 0, "Width initial 0 (EN)")
+dbgVérifieEgalité(img..Largeur, 0, "Largeur initial 0 (FR)")
+dbgVérifieEgalité(img..Height, 0, "Height initial 0 (EN)")
+dbgVérifieEgalité(img..Hauteur, 0, "Hauteur initial 0 (FR)")
+
+// Valide <-> Valid
+dbgVérifieEgalité(img..Valid, Faux, "Valid initial Faux (EN)")
+dbgVérifieEgalité(img..Valide, Faux, "Valide initial Faux (FR)")
+
+// AvecAlpha <-> WithAlpha
+dbgVérifieEgalité(img..WithAlpha, Faux, "WithAlpha initial Faux (EN)")
+dbgVérifieEgalité(img..AvecAlpha, Faux, "AvecAlpha initial Faux (FR)")
+
+// BitParPixel <-> BitsPerPixel
+dbgVérifieEgalité(img..BitsPerPixel, 0, "BitsPerPixel initial 0 (EN)")
+dbgVérifieEgalité(img..BitParPixel, 0, "BitParPixel initial 0 (FR)")
+
+// CouleurRemplissage <-> FillColor (Blanc = entier)
+dbgVérifieEgalité(img..FillColor, img..CouleurRemplissage, "FillColor === CouleurRemplissage")
+
+// EchelleDessin <-> DrawingScale
+dbgVérifieEgalité(img..DrawingScale, 1.0, "DrawingScale initial 1.0 (EN)")
+dbgVérifieEgalité(img..EchelleDessin, 1.0, "EchelleDessin initial 1.0 (FR)")
+
+
+// === Definition (B.10) ===
+
+d est une Definition
+
+// Nom <-> Name
+dbgVérifieEgalité(d..Name, "", "Name initial vide (EN)")
+dbgVérifieEgalité(d..Nom, "", "Nom initial vide (FR)")
+
+// Type identique en EN/FR (canon technique)
+dbgVérifieEgalité(d..Type, 0, "Type initial 0")
+
+// FamilleDefinition <-> DefinitionFamily
+dbgVérifieEgalité(d..DefinitionFamily, 0, "DefinitionFamily initial 0 (EN)")
+dbgVérifieEgalité(d..FamilleDéfinition, 0, "FamilleDefinition initial 0 (FR)")
+dbgVérifieEgalité(d..FamilleDéfinition, 0, "FamilleDéfinition initial 0 (FR accent)")
+
+// Nullable identique
+dbgVérifieEgalité(d..Nullable, Faux, "Nullable initial Faux")
+
+// ChampsNoms <-> FieldNames
+dbgVérifieEgalité(d..FieldNames..Occurrence, 0, "FieldNames vide (EN)")
+dbgVérifieEgalité(d..ChampsNoms..Occurrence, 0, "ChampsNoms vide (FR)")
+
+// Parametres <-> Parameters (ajout B.10)
+dbgVérifieEgalité(d..Parameters..Occurrence, 0, "Parameters vide (EN)")
+dbgVérifieEgalité(d..Paramètres..Occurrence, 0, "Parametres vide (FR)")
+dbgVérifieEgalité(d..Paramètres..Occurrence, 0, "Paramètres vide (FR accent)")
+
+// Champs <-> Fields (ajout B.10)
+dbgVérifieEgalité(d..Fields..Occurrence, 0, "Fields vide (EN)")
+dbgVérifieEgalité(d..Champs..Occurrence, 0, "Champs vide (FR)")
+
+// TypeNom <-> TypeName (ajout B.10)
+dbgVérifieEgalité(d..TypeName, "", "TypeName initial vide (EN)")
+dbgVérifieEgalité(d..TypeNom, "", "TypeNom initial vide (FR)")
+
+
+// === FormatNumerique (B.11) ===
+
+fmt est un FormatNumérique
+
+// Alignement <-> Alignment
+dbgVérifieEgalité(fmt..Alignment, fncDroite, "Alignment defaut fncDroite (EN)")
+dbgVérifieEgalité(fmt..Alignement, fncDroite, "Alignement defaut fncDroite (FR)")
+
+// CaractereRemplissage <-> FillCharacter (avec accent FR)
+dbgVérifieEgalité(fmt..FillCharacter, " ", "FillCharacter defaut espace (EN)")
+dbgVérifieEgalité(fmt..CaractèreRemplissage, " ", "CaractereRemplissage defaut (FR)")
+dbgVérifieEgalité(fmt..CaractèreRemplissage, " ", "CaractèreRemplissage defaut (accent)")
+
+// ChiffresApresVirgule <-> DecimalPlaces (avec accent FR)
+dbgVérifieEgalité(fmt..DecimalPlaces, 6, "DecimalPlaces defaut 6 (EN)")
+dbgVérifieEgalité(fmt..ChiffresAprèsVirgule, 6, "ChiffresApresVirgule defaut (FR)")
+dbgVérifieEgalité(fmt..ChiffresAprèsVirgule, 6, "ChiffresAprèsVirgule defaut (accent)")
+
+// LongueurMinimale <-> MinimumLength
+dbgVérifieEgalité(fmt..MinimumLength, 0, "MinimumLength 0 (EN)")
+dbgVérifieEgalité(fmt..LongueurMinimale, 0, "LongueurMinimale 0 (FR)")
+
+// Majuscules <-> Uppercase
+dbgVérifieEgalité(fmt..Uppercase, Faux, "Uppercase Faux (EN)")
+dbgVérifieEgalité(fmt..Majuscules, Faux, "Majuscules Faux (FR)")
+
+// Notation identique
+dbgVérifieEgalité(fmt..Notation, fnnDécimal, "Notation defaut fnnDécimal")
+
+// Prefixe <-> Prefix (avec accent FR)
+dbgVérifieEgalité(fmt..Prefix, "", "Prefix vide (EN)")
+dbgVérifieEgalité(fmt..Préfixe, "", "Prefixe vide (FR)")
+dbgVérifieEgalité(fmt..Préfixe, "", "Préfixe vide (accent)")
+
+// SeparateurDecimal <-> DecimalSeparator
+dbgVérifieEgalité(fmt..DecimalSeparator, "", "DecimalSeparator vide (EN)")
+dbgVérifieEgalité(fmt..SéparateurDécimal, "", "SeparateurDecimal vide (FR)")
+dbgVérifieEgalité(fmt..SéparateurDécimal, "", "SéparateurDécimal vide (accent)")
+
+// SeparateurMilliers <-> ThousandsSeparator
+dbgVérifieEgalité(fmt..ThousandsSeparator, "", "ThousandsSeparator vide (EN)")
+dbgVérifieEgalité(fmt..SéparateurMilliers, "", "SeparateurMilliers vide (FR)")
+
+// Signe <-> Sign
+dbgVérifieEgalité(fmt..Sign, fnsMoinsSiNégatif, "Sign defaut")
+dbgVérifieEgalité(fmt..Signe, fnsMoinsSiNégatif, "Signe defaut")
+
+// SigneExponentielle <-> ExponentSign
+dbgVérifieEgalité(fmt..ExponentSign, fnsToujours, "ExponentSign defaut (EN)")
+dbgVérifieEgalité(fmt..SigneExponentielle, fnsToujours, "SigneExponentielle defaut (FR)")
+
+
+// === Police (B.12) ===
+
+p est une Police
+
+// Nom <-> Name
+p..Name = "Arial"
+dbgVérifieEgalité(p..Nom, "Arial", "Name -> Nom")
+
+// Taille <-> Size
+p..Size = 14
+dbgVérifieEgalité(p..Taille, 14, "Size -> Taille")
+
+// Gras <-> Bold
+p..Bold = Vrai
+dbgVérifieEgalité(p..Gras, Vrai, "Bold -> Gras")
+
+// Italique <-> Italic
+p..Italic = Vrai
+dbgVérifieEgalité(p..Italique, Vrai, "Italic -> Italique")
+
+// Souligne (canon Souligné) <-> Underlined
+p..Underlined = Vrai
+dbgVérifieEgalité(p..Souligné, Vrai, "Underlined -> Souligné")
+dbgVérifieEgalité(p..Souligné, Vrai, "Underlined -> Souligne (ASCII)")
+
+// Barre (canon Barré) <-> StrikeOut
+p..StrikeOut = Vrai
+dbgVérifieEgalité(p..Barré, Vrai, "StrikeOut -> Barré")
+dbgVérifieEgalité(p..Barre, Vrai, "StrikeOut -> Barre (ASCII)")
+
+// Couleur <-> Color
+p..Color = 255
+dbgVérifieEgalité(p..Couleur, 255, "Color -> Couleur")
+
+
+// === Cadre (B.13) ===
+
+cadr est un Cadre
+
+// Couleur <-> Color
+cadr..Color = 100
+dbgVérifieEgalité(cadr..Couleur, 100, "Cadre..Color -> Couleur")
+
+// Epaisseur <-> Thickness
+cadr..Thickness = 2
+dbgVérifieEgalité(cadr..Epaisseur, 2, "Thickness -> Epaisseur")
+
+// Trait <-> LineStyle
+cadr..LineStyle = TraitTiret
+dbgVérifieEgalité(cadr..Trait, TraitTiret, "LineStyle -> Trait")
+
+// Arrondi <-> CornerRadius
+cadr..CornerRadius = 5
+dbgVérifieEgalité(cadr..Arrondi, 5, "CornerRadius -> Arrondi")
+
+// Bords <-> Edges
+cadr..Edges = BordHaut + BordBas
+dbgVérifieEgalité(cadr..Bords, BordHaut + BordBas, "Edges -> Bords")
+
+// Sous-objets Coin (declarations B.13)
+dbgVérifieEgalité(cadr..TopLeftCorner..Largeur, 0, "TopLeftCorner accessible (EN)")
+dbgVérifieEgalité(cadr..CoinHautGauche..Largeur, 0, "CoinHautGauche accessible (FR)")
+dbgVérifieEgalité(cadr..TopRightCorner..Hauteur, 0, "TopRightCorner accessible")
+dbgVérifieEgalité(cadr..BottomLeftCorner..Largeur, 0, "BottomLeftCorner accessible")
+dbgVérifieEgalité(cadr..BottomRightCorner..Hauteur, 0, "BottomRightCorner accessible")
+
+// Sous-objets Trait (declarations B.13)
+dbgVérifieEgalité(cadr..BorderTop..Couleur, 0, "BorderTop accessible (EN)")
+dbgVérifieEgalité(cadr..TraitHaut..Couleur, 0, "TraitHaut accessible (FR)")
+dbgVérifieEgalité(cadr..BorderBottom..Epaisseur, 0, "BorderBottom accessible")
+dbgVérifieEgalité(cadr..BorderLeft..Type, TraitContinu, "BorderLeft accessible")
+dbgVérifieEgalité(cadr..BorderRight..Couleur, 0, "BorderRight accessible")
+
+
+// === Style (B.14) ===
+
+st est un Style
+
+// Couleur <-> Color
+st..Color = 100
+dbgVérifieEgalité(st..Couleur, 100, "Style..Color -> Couleur")
+
+// CouleurFond <-> BackgroundColor
+st..BackgroundColor = 200
+dbgVérifieEgalité(st..CouleurFond, 200, "BackgroundColor -> CouleurFond")
+
+// Retrait{Gauche/Droit/Haut/Bas} <-> {Left/Right/Top/Bottom}Padding
+st..LeftPadding = 5
+dbgVérifieEgalité(st..RetraitGauche, 5, "LeftPadding -> RetraitGauche")
+st..RightPadding = 6
+dbgVérifieEgalité(st..RetraitDroit, 6, "RightPadding -> RetraitDroit")
+st..TopPadding = 7
+dbgVérifieEgalité(st..RetraitHaut, 7, "TopPadding -> RetraitHaut")
+st..BottomPadding = 8
+dbgVérifieEgalité(st..RetraitBas, 8, "BottomPadding -> RetraitBas")
+
+// Sous-objets composes : Police <-> Font, Cadre <-> Border, Survol <-> Hover
+//  — la Police d'un Style est une surcharge : sa taille n'est pas
+// renseignee tant que rien n'y est ecrit (0). Ce qui est verifie ici est
+// l'acces bilingue Font -> Police, pas la valeur de defaut elle-meme.
+dbgVérifieEgalité(st..Font..Taille, 0, "Font -> Police accessible (taille non renseignee)")
+dbgVérifieEgalité(st..Border..Bords, 15, "Border -> Cadre accessible (defaut Bords=BordTous)")
+
+// Survol/Hover : conteneur ouvert (pas de field predefini), juste verifier
+// que l'acces ne plante pas
+st..Hover..Couleur = 300
+dbgVérifieEgalité(st..Survol..Couleur, 300, "Hover -> Survol assignable")
+
+// pdfParametre est trop gros pour rentrer dans le meme scope (limite OWL
+// 256 idents par scope) — voir test_field_bilingue_pdf.owl.
+
+dbgBilanTest()

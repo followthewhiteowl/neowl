@@ -1,0 +1,81 @@
+// ============================================
+// TEST: Deep copy <= et parametre LOCAL
+// ============================================
+Trace("=== DEEP COPY ===")
+
+// --- Array : = partage la ref, <= clone profond ---
+src est un tableau de entiers
+Ajoute(src, 1)
+Ajoute(src, 2)
+Ajoute(src, 3)
+
+refCopy est un tableau de entiers = src
+deepCopy est un tableau de entiers <= src
+
+src[1] = 99
+
+dbgVérifieEgalité(src[1], 99, "Mutation visible dans source")
+dbgVérifieEgalité(refCopy[1], 99, "Reference voit mutation")
+dbgVérifieEgalité(deepCopy[1], 1, "Copie profonde isolee")
+
+// --- Affectation <= apres declaration ---
+extra est un tableau de entiers
+
+extra <= src
+src[2] = 88
+dbgVérifieEgalité(extra[2], 2, "Assign <= : isole")
+
+// --- Tableau associatif deep copy ---
+mapSrc est un tableau associatif de chaînes
+
+mapSrc["a"] = "alpha"
+mapSrc["b"] = "beta"
+
+mapCopy est un tableau associatif de chaînes
+
+mapCopy <= mapSrc
+mapSrc["a"] = "MUTATED"
+dbgVérifieEgalité(mapCopy["a"], "alpha", "Assoc deep copy isole")
+
+// --- Struct deep copy ---
+Box est une Structure
+	etiquette est une chaîne
+	score est un entier
+FIN
+
+b1 est un Box
+
+b1.etiquette = "original"
+b1.score = 7
+
+b2 est un Box
+
+b2 <= b1
+b1.etiquette = "mutated"
+b1.score = 99
+
+dbgVérifieEgalité(b2.etiquette, "original", "Struct deep copy : etiquette isole")
+dbgVérifieEgalité(b2.score, 7, "Struct deep copy : score isole")
+
+// --- LOCAL parameter : caller's value is untouched ---
+PROCEDURE fauxCorrompt(t est un tableau de entiers)
+	t[1] = 999
+FIN
+
+PROCEDURE vraiIsole(LOCAL t est un tableau de entiers)
+	t[1] = 999
+FIN
+
+arrT est un tableau de entiers
+
+Ajoute(arrT, 1)
+Ajoute(arrT, 2)
+
+fauxCorrompt(arrT)
+dbgVérifieEgalité(arrT[1], 999, "Param sans LOCAL : ref partagee")
+
+arrT[1] = 1
+vraiIsole(arrT)
+dbgVérifieEgalité(arrT[1], 1, "Param LOCAL : caller isole")
+
+dbgBilanTest()

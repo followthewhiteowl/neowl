@@ -1,0 +1,57 @@
+// Sentinelles  — lecture saisie depuis path REF en contexte
+// (mono- puis multi-fenêtres).
+//
+// Le bug réel (Valeur=[] alors que l'utilisateur a tapé "42") n'apparaît
+// QU'EN GUI réelle : Qt textChanged déclenche le handler OWL mais ne
+// pousse rien dans le headless_store de l'ObjUiControlInstance ; la
+// lecture ..Valeur via la branche IS_UI_CONTROL_REF de OP_STRUCT_GET
+// passe par obj_ui_control_instance_headless_get → vide.
+//
+// Le fix pose un helper try_live_qt_prop_for_uici qui, quand
+// uici->widget != NULL, lit depuis Qt en priorité (whitelist Valeur /
+// ValeurAffichée / ValeurMémorisée).
+//
+// En headless (widget == NULL), le helper retourne false → fallback
+// store inchangé. Ces sentinelles verrouillent ce path : aucune
+// régression sur les scénarios qui passaient déjà. Validation GUI
+// réelle = à la charge du dev sur owl_gestion.
+
+TestModeHeadless(Vrai)
+
+Trace("=== fix/0515 — sentinelles path REF (headless) ===")
+
+
+// --- Cas 1 : mono-fenêtre, écriture+lecture via ..Valeur ---
+Ouvre(FEN_Saisie)
+
+SAI_Montant..Valeur = "42"
+
+dbgVérifieEgalité(SAI_Montant..Valeur, "42",
+"REF + headless : SET ..Valeur / GET ..Valeur = 42")
+
+SAI_Montant..Valeur = "100"
+dbgVérifieEgalité(SAI_Montant..Valeur, "100",
+"REF + headless : SET ..Valeur / GET ..Valeur = 100")
+
+Ferme(FEN_Saisie)
+
+
+// --- Cas 2 : multi-fenêtres (newbie-like FEN_Liste → FEN_Edition) ---
+// On ouvre FEN_Liste, PUIS FEN_Saisie par-dessus, puis on écrit/lit
+// dans FEN_Saisie. La stack des fenêtres a 2 niveaux : c'est la
+// situation où le bug GUI réel se manifeste (résolution REF →
+// instance top-of-stack = FEN_Saisie).
+Ouvre(FEN_Liste)
+Ouvre(FEN_Saisie)
+
+SAI_Montant..Valeur = "777"
+
+dbgVérifieEgalité(SAI_Montant..Valeur, "777",
+"Multi-fenêtres : SET/GET ..Valeur = 777 sur top-of-stack")
+
+Ferme(FEN_Saisie)
+Ferme(FEN_Liste)
+
+Trace("=== Fin sentinelles fix/0515 ===")
+
+dbgBilanTest()

@@ -1,0 +1,104 @@
+// Ressource fenêtre pour  — ZoneRépétée : accès propriété par cellule (..Prop)
+// en headless. Aujourd'hui ça hard-crashe ("champ sur valeur Null") ; ces tests
+// verrouillent le comportement cible (store par cellule, round-trip, indépendance lignes).
+//
+// ZRC contient deux sous-contrôles :
+//   ZS_V   est une Saisie  (sujet principal : ..Valeur, ..CouleurFond)
+//   LB_T   est un Libellé  (sous-contrôle secondaire : ..Libellé)
+//
+// FinInitialisation ajoute 2 lignes et notifie le script via cb_0558_init_done().
+// Chaque PROCEDURE PUBLIQUE encapsule un SET ou un GET de propriété par cellule.
+
+FEN_ZR558 est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR cellule propriete store headless"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 350
+	FIN
+
+	ZRC est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 460
+			Hauteur           = 290
+			Sens              = zrVertical
+			HauteurRepetition = 50
+		FIN
+
+		ZS_V est un Champ Saisie
+			PROPRIETES
+				X       = 5
+				Y       = 10
+				Largeur = 200
+				Hauteur = 26
+			FIN
+		FIN
+
+		LB_T est un Champ Libellé
+			PROPRIETES
+				X       = 215
+				Y       = 10
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Deux lignes — permet de tester l'indépendance inter-lignes.
+		i1 est un entier = ZoneRépétéeAjouteLigne(ZRC)
+		i2 est un entier = ZoneRépétéeAjouteLigne(ZRC)
+		// Cellules laissées à leur valeur par défaut (seed).
+		cb_0558_init_done()
+	FIN
+
+	// --- SET/GET Valeur (prop défaut Saisie) ---
+
+	// Cas 1/2 : set ..Valeur sur la cellule
+	PROCEDURE PoseValeur(nLigne est un entier, v est une chaîne)
+		ZRC[nLigne].ZS_V..Valeur = v
+	FIN
+
+	// Lit ..Valeur de la cellule (résultat brut sans variable chaine intermédiaire)
+	PROCEDURE LitValeur(nLigne est un entier)
+		RENVOYER ZRC[nLigne].ZS_V..Valeur
+	FIN
+
+	// Lit la cellule par nom nu (bare) — doit égaler ..Valeur (cas 2)
+	PROCEDURE LitBare(nLigne est un entier)
+		RENVOYER ZRC[nLigne].ZS_V
+	FIN
+
+	// --- SET/GET CouleurFond (prop non défaut) ---
+
+	// Cas 3/5 : set CouleurFond sur la cellule
+	PROCEDURE PoseCouleurFond(nLigne est un entier, coul est un entier)
+		ZRC[nLigne].ZS_V..CouleurFond = coul
+	FIN
+
+	// Lit CouleurFond de la cellule
+	PROCEDURE LitCouleurFond(nLigne est un entier)
+		RENVOYER ZRC[nLigne].ZS_V..CouleurFond
+	FIN
+
+	// --- SET/GET Libellé (sous-contrôle LB_T, cas 4) ---
+
+	// Set ..Libellé sur LB_T de la cellule
+	PROCEDURE PoseLibelle(nLigne est un entier, s est une chaîne)
+		ZRC[nLigne].LB_T..Libellé = s
+	FIN
+
+	// Lit ..Libellé de LB_T de la cellule
+	PROCEDURE LitLibelle(nLigne est un entier)
+		RENVOYER ZRC[nLigne].LB_T..Libellé
+	FIN
+
+	// --- OOB (cas 7) ---
+
+	// Accède ZRC[3] sur 2 lignes -> doit poser ErreurDétectée (soft), pas crash
+	PROCEDURE LitOOB()
+		RENVOYER ZRC[3].ZS_V..Valeur
+	FIN
+FIN

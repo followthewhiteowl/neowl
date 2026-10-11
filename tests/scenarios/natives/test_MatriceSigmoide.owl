@@ -1,0 +1,52 @@
+// @sujet : MatriceSigmoïde
+// @résumé : Applique la fonction sigmoïde (1/(1+e⁻ˣ)) élément par élément à une Matrice — écrase toute valeur réelle dans l'intervalle ouvert (0, 1), disponible en native préfixée et en méthode fluente, avec forme anglaise.
+
+
+// La sigmoïde de 0 vaut exactement 0.5, valeur pivot de la courbe, sur
+// chaque élément d'une Matrice.
+PROCEDURE PUBLIQUE scenario_sigmoide_zero_exact()
+	m est une Matrice = [[0.0, 0.0]]
+	r est une Matrice = MatriceSigmoïde(m)
+	dbgVérifieEgalité(r[1][1], 0.5, "Sigmoïde(0.0) = 0.5")
+	dbgVérifieEgalité(r[1][2], 0.5, "Sigmoïde(0.0) = 0.5")
+FIN
+
+
+// Sur une grande valeur positive, la sigmoïde sature au voisinage de 1 ;
+// sur une grande valeur négative, elle sature au voisinage de 0.
+PROCEDURE PUBLIQUE scenario_saturation_valeurs_extremes()
+	m est une Matrice = [[50.0, -50.0]]
+	r est une Matrice = MatriceSigmoïde(m)
+	dbgVérifieVrai(Abs(r[1][1] - 1.0) < 0.0001, "Sigmoïde(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(r[1][2] - 0.0) < 0.0001, "Sigmoïde(-50.0) proche de 0.0")
+FIN
+
+
+// La méthode fluente .Sigmoïde() produit exactement le même résultat que
+// la native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	m est une Matrice = [[1.0, -1.0]]
+	rViaFluent est une Matrice = m.Sigmoïde()
+	rViaNatif est une Matrice = MatriceSigmoïde(m)
+	dbgVérifieVrai(Abs(rViaFluent[1][1] - rViaNatif[1][1]) < 0.0001, "m.Sigmoïde()[1][1] == MatriceSigmoïde(m)[1][1]")
+	dbgVérifieVrai(Abs(rViaFluent[1][2] - rViaNatif[1][2]) < 0.0001, "m.Sigmoïde()[1][2] == MatriceSigmoïde(m)[1][2]")
+FIN
+
+
+// La forme anglaise MatrixSigmoid / .Sigmoid désigne la même opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	m est une Matrice = [[0.0]]
+	rNatifEN est une Matrice = MatrixSigmoid(m)
+	rFluentEN est une Matrice = m.Sigmoid()
+	dbgVérifieEgalité(rNatifEN[1][1], 0.5, "MatrixSigmoid([[0.0]])[1][1] = 0.5")
+	dbgVérifieEgalité(rFluentEN[1][1], 0.5, "m.Sigmoid()[1][1] = 0.5")
+FIN
+
+
+// La sigmoïde d'une Matrice préserve ses dimensions d'origine.
+PROCEDURE PRIVÉE scenario_edge_dimensions_preservees()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	r est une Matrice = MatriceSigmoïde(m)
+	dbgVérifieEgalité(r..Lignes, m..Lignes, "MatriceSigmoïde préserve le nombre de lignes")
+	dbgVérifieEgalité(r..Colonnes, m..Colonnes, "MatriceSigmoïde préserve le nombre de colonnes")
+FIN

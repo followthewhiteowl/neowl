@@ -1,0 +1,96 @@
+// @sujet : DateHeureVersChaîne
+// @résumé : Formate une date+heure en chaîne. Sans format explicite produit JJ/MM/AAAA HH:mm:SS:CC ; accepte un format texte avec patterns date (AAAA, MM, JJ…) et heure (HH, mm, SS, CC), ou une constante de masque (maskDateInternet/Email…).
+
+
+// Cas canonique : sans deuxième argument, le format par défaut est JJ/MM/AAAA HH:mm:SS:CC.
+PROCEDURE scenario_format_par_defaut()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh)
+	dbgVérifieEgalité(s, "12/05/2026 14:30:45:00", "format défaut avec centièmes à zéro")
+FIN
+
+
+// Format explicite ISO complet (AAAA-MM-JJ HH:mm:SS) pour sérialisation propre.
+PROCEDURE scenario_format_iso_complet()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, "AAAA-MM-JJ HH:mm:SS")
+	dbgVérifieEgalité(s, "2026-05-12 14:30:45", "format ISO avec date et heure")
+FIN
+
+
+// Format avec date en lettres et heure précise.
+PROCEDURE scenario_format_lettres_avec_heure()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, "JJJJ JJ MMMM AAAA à HH:mm:SS")
+	dbgVérifieEgalité(s, "Mardi 12 Mai 2026 à 14:30:45", "date en lettres avec heure")
+FIN
+
+
+// Masque RFC-3339 (maskDateInternet) pour API et logs. Format avec offset de timezone.
+PROCEDURE scenario_mask_internet_rfc3339()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, maskDateInternet)
+	// RFC-3339 produit AAAA-MM-JJTHH:MM:SS+offset ; vérifie le préfixe stable.
+	dbgVérifieEgalité(Gauche(s, 19), "2026-05-12T14:30:45", "prefix RFC-3339 stable")
+FIN
+
+
+// Masque RFC-5322 (maskDateEmail) pour en-têtes de courriels.
+PROCEDURE scenario_mask_email_rfc5322()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, maskDateEmail)
+	// Forme : "Jour, JJ Mmm AAAA HH:MM:SS +ZZZZ" — vérifie les portions stables.
+	dbgVérifieVrai(Position(s, "12") > 0, "jour présent dans maskDateEmail")
+	dbgVérifieVrai(Position(s, "2026") > 0, "année présente dans maskDateEmail")
+	dbgVérifieVrai(Position(s, "14:30:45") > 0, "heure complète présente dans maskDateEmail")
+FIN
+
+
+// Format sans partie heure (patterns date seuls).
+PROCEDURE scenario_format_date_seule()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, "AAAA-MM-JJ")
+	// Les patterns horaires absents du format → heure non affichée.
+	dbgVérifieEgalité(s, "2026-05-12", "format date seul ignore composantes horaires")
+FIN
+
+
+// Entrée chaîne AAAAMMJJHHMMSS acceptée directement (cast implicite).
+PROCEDURE scenario_entree_chaine_compacte()
+	s est une chaîne = DateHeureVersChaîne("20260512143045", "AAAA-MM-JJ HH:mm:SS")
+	dbgVérifieEgalité(s, "2026-05-12 14:30:45", "chaîne compacte AAAAMMJJHHMMSS acceptée")
+FIN
+
+
+// Entrée chaîne compacte sans heure (seulement date) : format heure ignore les patterns manquants.
+PROCEDURE scenario_entree_chaine_date_seule()
+	// Une chaîne AAAAMMJJ sans composantes horaires ne peut pas afficher HH:mm:SS.
+	// DateHeureVersChaîne accepte la chaîne mais les patterns HH mm SS restent non remplacés
+	// si la source n'a pas de partie heure. Format date seul fonctionne.
+	s est une chaîne = DateHeureVersChaîne("20260512", "AAAA-MM-JJ")
+	dbgVérifieEgalité(s, "2026-05-12", "chaîne compacte date seule → format date seul")
+FIN
+
+
+// Cas limite défensif : chaîne vide en entrée retourne chaîne vide.
+PROCEDURE scenario_entree_vide()
+	s est une chaîne = DateHeureVersChaîne("")
+	dbgVérifieEgalité(s, "", "chaîne vide retourne chaîne vide")
+FIN
+
+
+// Pattern mixte date courte + heure courte.
+PROCEDURE PRIVÉE scenario_format_mixte_court()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, "JJ/MM/AA HH:mm")
+	dbgVérifieEgalité(s, "12/05/26 14:30", "format mixte date courte et heure sans secondes")
+FIN
+
+
+// Pattern heure avec format US 12h (AM/PM non pris en charge).
+// Contournement : format 24h avec séparateur personnalisé.
+PROCEDURE PRIVÉE scenario_format_heure_24h()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateHeureVersChaîne(dh, "HH heures SS secondes")
+	dbgVérifieEgalité(s, "14 heures 45 secondes", "format heure avec texte intercalé")
+FIN

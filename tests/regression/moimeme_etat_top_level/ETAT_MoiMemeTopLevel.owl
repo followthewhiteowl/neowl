@@ -1,0 +1,38 @@
+// Ressource Etat pure utilisée par test_moimeme_etat_top_level.owl.
+//
+// Vérifie que MoiMême dans le top-level d'un sous-champ d'Etat résout au
+// sous-champ et permet la lecture-après-écriture de ses propriétés,
+// symétriquement au top-level d'un sous-champ de Fenêtre (canon de référence).
+// Les observations sont remontées via les callbacks voisins
+// callback_lib_moimeme / callback_lib_via_nom.
+
+ETAT_MoiMemeTopLevel est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+
+		LIB_Test est un Champ Libellé
+			PROPRIETES
+				Libellé = "init declaratif"
+				X       = 20
+				Y       = 10
+				Largeur = 100
+				Hauteur = 15
+			FIN
+
+			// TOP-LEVEL SOUS-CHAMP — MoiMême doit résoudre au sous-champ
+			// LIB_Test, exactement comme `LIB_Test` le ferait.
+			MoiMême..Libellé = "pose par MoiMeme"
+			// Lecture-après-écriture via MoiMême : doit voir la valeur posée.
+			callback_lib_moimeme(MoiMême..Libellé)
+			// Lecture par nom (LIB_Test) : doit voir la même valeur.
+			callback_lib_via_nom(LIB_Test..Libellé)
+		FIN
+	FIN
+FIN

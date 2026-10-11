@@ -1,0 +1,116 @@
+// @sujet : POUR TOUT — parcours tableau, chaîne séparée, occurrences
+// @résumé : POUR TOUT parcourt un tableau, une chaîne découpée par séparateur ou les occurrences d'un motif. POUR TOUS et POUR CHAQUE sont des synonymes stricts. Le sens du parcours se contrôle avec DepuisDébut (défaut) ou DepuisFin. Un filtre inline AVEC <cond> permet de sauter les éléments hors-critère sans écrire un SI imbriqué.
+
+
+// Forme la plus courante : parcours d'un tableau ordinal. La variable
+// d'itération est typée par inférence depuis le tableau (ici un entier).
+// Idiomatique pour appliquer un traitement uniforme à chaque élément.
+PROCEDURE scenario_parcours_tableau_basique()
+	tabNb est un tableau de entiers = [10, 20, 30]
+	nSomme est un entier = 0
+	POUR TOUT v DE tabNb
+		nSomme = nSomme + v
+	FIN
+	dbgVérifieEgalité(nSomme, 60, "Parcours d'un tableau de 3 entiers, somme attendue")
+FIN
+
+
+// POUR TOUT, POUR TOUS et POUR CHAQUE sont des synonymes stricts.
+// Le choix relève du style et du contexte de lecture
+// (« pour chaque élément », « pour tous les éléments »).
+PROCEDURE scenario_synonymes_tout_tous_chaque()
+	tabMots est un tableau de chaînes = ["alpha", "beta", "gamma"]
+	sConcatTout est une chaîne = ""
+	sConcatTous est une chaîne = ""
+	sConcatChaque est une chaîne = ""
+
+	POUR TOUT s DE tabMots
+		sConcatTout = sConcatTout + s
+	FIN
+	POUR TOUS s DE tabMots
+		sConcatTous = sConcatTous + s
+	FIN
+	POUR CHAQUE s DE tabMots
+		sConcatChaque = sConcatChaque + s
+	FIN
+
+	dbgVérifieEgalité(sConcatTout, "alphabetagamma", "POUR TOUT concatène les 3 mots")
+	dbgVérifieEgalité(sConcatTous, sConcatTout, "POUR TOUS strictement équivalent à POUR TOUT")
+	dbgVérifieEgalité(sConcatChaque, sConcatTout, "POUR CHAQUE strictement équivalent à POUR TOUT")
+FIN
+
+
+// Sens du parcours inversé via le sentinel DepuisFin. Le tableau est
+// parcouru du dernier élément au premier, sans le retourner physiquement.
+// DepuisDébut (défaut implicite) peut s'écrire explicitement pour la
+// lisibilité d'une boucle dont le sens importe au lecteur.
+PROCEDURE scenario_depuis_fin_parcours_inverse()
+	tabJours est un tableau de chaînes = ["lundi", "mardi", "mercredi"]
+	sOrdre est une chaîne = ""
+	POUR TOUT j DE tabJours DepuisFin
+		sOrdre = sOrdre + j + "|"
+	FIN
+	dbgVérifieEgalité(sOrdre, "mercredi|mardi|lundi|", "DepuisFin parcourt du dernier au premier")
+FIN
+
+
+// Filtre inline AVEC : la condition est évaluée pour chaque élément,
+// le body n'est exécuté que si elle est vraie. Lisible comme « pour
+// tout v de tab tel que cond ». Équivalent à un SI NON cond ALORS
+// CONTINUER FIN injecté en tête de body, sans avoir à l'écrire.
+PROCEDURE scenario_filtre_inline_avec()
+	tabTemperatures est un tableau de entiers = [12, 25, 18, 30, 22, 8]
+	nChaudes est un entier = 0
+	POUR TOUT t DE tabTemperatures AVEC t > 20
+		nChaudes = nChaudes + 1
+	FIN
+	dbgVérifieEgalité(nChaudes, 3, "AVEC garde uniquement les 3 valeurs > 20")
+FIN
+
+
+// Parcours d'une chaîne découpée par un séparateur, sans avoir à la
+// transformer en tableau au préalable. Idiomatique pour traiter une
+// liste sérialisée (CSV inline, log à délimiteur, etc.). La variable
+// reçoit successivement chaque sous-chaîne entre séparateurs.
+PROCEDURE scenario_chaine_separee_par()
+	sListe est une chaîne = "rouge,vert,bleu"
+	nCouleurs est un entier = 0
+	sDerniere est une chaîne = ""
+	POUR TOUTE chaîne sCouleur DE sListe SEPAREE par ","
+		nCouleurs = nCouleurs + 1
+		sDerniere = sCouleur
+	FIN
+	dbgVérifieEgalité(nCouleurs, 3, "Trois sous-chaînes extraites")
+	dbgVérifieEgalité(sDerniere, "bleu", "Dernière itération porte la dernière sous-chaîne")
+FIN
+
+
+// Forme à trois variables sortantes : la sous-chaîne, sa position de
+// début dans la source (1-based) et le compteur d'itération (1-based).
+// La position donne le repérage exact dans le texte source, utile pour
+// rapports d'erreur ou découpe contextuelle.
+PROCEDURE scenario_chaine_separee_trois_variables()
+	tabTraces est un tableau de chaînes
+	POUR TOUTE chaîne sc, nPos, nIdx DE "A.B.C" SEPAREE par "."
+		Ajoute(tabTraces, sc + "-" + nPos + "-" + nIdx)
+	FIN
+	dbgVérifieEgalité(tabTraces..Occurrence, 3, "Trois itérations sur A.B.C séparées par .")
+	dbgVérifieEgalité(tabTraces[1], "A-1-1", "Première : sous-chaîne A, position 1, compteur 1")
+	dbgVérifieEgalité(tabTraces[2], "B-3-2", "Deuxième : sous-chaîne B, position 3, compteur 2")
+	dbgVérifieEgalité(tabTraces[3], "C-5-3", "Troisième : sous-chaîne C, position 5, compteur 3")
+FIN
+
+
+// Parcours des positions successives d'un motif dans une chaîne. La
+// variable reçoit l'index 1-based de chaque occurrence. Pratique pour
+// repérer tous les emplacements d'un délimiteur, d'un marqueur, etc.
+PROCEDURE scenario_position_occurrences()
+	sTexte est une chaîne = "a;b;c"
+	tabPositions est un tableau de entiers
+	POUR TOUTE Position p DE ";" DANS sTexte
+		Ajoute(tabPositions, p)
+	FIN
+	dbgVérifieEgalité(tabPositions..Occurrence, 2, "Deux points-virgules dans 'a;b;c'")
+	dbgVérifieEgalité(tabPositions[1], 2, "Première occurrence à la position 2")
+	dbgVérifieEgalité(tabPositions[2], 4, "Seconde occurrence à la position 4")
+FIN

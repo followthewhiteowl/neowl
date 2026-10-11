@@ -1,0 +1,231 @@
+// @sujet : CrypteStandard
+// @résumé : Vérifie que CrypteStandard et DécrypteStandard honorent réellement le choix
+// d'algorithme (AES-128/256), de mode (CBC/CFB/CTR/GCM) et de remplissage (PKCS/Zéro).
+// Couvre aussi la distinction inter-algo et le rejet GCM sur buffer altéré.
+
+// ─── AES-128 ───────────────────────────────────────────────────────────────
+
+// AES-128-CBC-PKCS : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes128_cbc_pkcs()
+	msg est une chaîne = "aes128 cbc pkcs"
+	cle est une chaîne = "cle-128"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCBC, cryptePaddingPKCS)
+	dbgVérifieVrai(Taille(buf) > 0, "AES-128-CBC-PKCS : buffer chiffré non vide")
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES128, crypteCBC, cryptePaddingPKCS)
+	dbgVérifieEgalité(clair, msg, "AES-128-CBC-PKCS : round-trip restitue le clair")
+FIN
+
+
+// AES-128-CBC-Zéro : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes128_cbc_zero()
+	msg est une chaîne = "aes128 cbc zero"
+	cle est une chaîne = "cle-128"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCBC, cryptePaddingZéro)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES128, crypteCBC, cryptePaddingZéro)
+	dbgVérifieEgalité(clair, msg, "AES-128-CBC-Zéro : round-trip restitue le clair")
+FIN
+
+
+// AES-128-CFB : round-trip nominal (mode flux, sans padding).
+PROCEDURE PUBLIQUE scenario_aes128_cfb()
+	msg est une chaîne = "aes128 cfb flux"
+	cle est une chaîne = "cle-128"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCFB)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES128, crypteCFB)
+	dbgVérifieEgalité(clair, msg, "AES-128-CFB : round-trip restitue le clair")
+FIN
+
+
+// AES-128-CTR : round-trip nominal (mode flux, sans padding).
+PROCEDURE PUBLIQUE scenario_aes128_ctr()
+	msg est une chaîne = "aes128 ctr flux"
+	cle est une chaîne = "cle-128"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteCTR)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES128, crypteCTR)
+	dbgVérifieEgalité(clair, msg, "AES-128-CTR : round-trip restitue le clair")
+FIN
+
+
+// AES-128-GCM : round-trip nominal (mode authentifié, sans padding).
+PROCEDURE PUBLIQUE scenario_aes128_gcm()
+	msg est une chaîne = "aes128 gcm auth"
+	cle est une chaîne = "cle-128"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES128, crypteGCM)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES128, crypteGCM)
+	dbgVérifieEgalité(clair, msg, "AES-128-GCM : round-trip restitue le clair")
+FIN
+
+
+// ─── AES-256 ───────────────────────────────────────────────────────────────
+
+// AES-256-CBC-PKCS : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes256_cbc_pkcs()
+	msg est une chaîne = "aes256 cbc pkcs"
+	cle est une chaîne = "cle-256-longue"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC, cryptePaddingPKCS)
+	dbgVérifieVrai(Taille(buf) > 0, "AES-256-CBC-PKCS : buffer chiffré non vide")
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCBC, cryptePaddingPKCS)
+	dbgVérifieEgalité(clair, msg, "AES-256-CBC-PKCS : round-trip restitue le clair")
+FIN
+
+
+// AES-256-CBC-Zéro : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes256_cbc_zero()
+	msg est une chaîne = "aes256 cbc zero"
+	cle est une chaîne = "cle-256-longue"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC, cryptePaddingZéro)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCBC, cryptePaddingZéro)
+	dbgVérifieEgalité(clair, msg, "AES-256-CBC-Zéro : round-trip restitue le clair")
+FIN
+
+
+// AES-256-CFB : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes256_cfb()
+	msg est une chaîne = "aes256 cfb flux"
+	cle est une chaîne = "cle-256-longue"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCFB)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCFB)
+	dbgVérifieEgalité(clair, msg, "AES-256-CFB : round-trip restitue le clair")
+FIN
+
+
+// AES-256-CTR : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes256_ctr()
+	msg est une chaîne = "aes256 ctr flux"
+	cle est une chaîne = "cle-256-longue"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCTR)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCTR)
+	dbgVérifieEgalité(clair, msg, "AES-256-CTR : round-trip restitue le clair")
+FIN
+
+
+// AES-256-GCM : round-trip nominal.
+PROCEDURE PUBLIQUE scenario_aes256_gcm()
+	msg est une chaîne = "aes256 gcm auth"
+	cle est une chaîne = "cle-256-longue"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteGCM)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteGCM)
+	dbgVérifieEgalité(clair, msg, "AES-256-GCM : round-trip restitue le clair")
+FIN
+
+
+// ─── Défaut inchangé ────────────────────────────────────────────────────────
+
+// Sans paramètres optionnels : le comportement reste AES-256-CBC (compatibilité
+// des données existantes préservée).
+PROCEDURE PUBLIQUE scenario_defaut_preserve()
+	msg est une chaîne = "defaut aes256 cbc"
+	cle est une chaîne = "cle-defaut"
+	buf est un buffer = CrypteStandard(msg, cle)
+	clair est un buffer = DécrypteStandard(buf, cle)
+	dbgVérifieEgalité(clair, msg, "appel sans params : round-trip AES-256-CBC préservé")
+
+	// Le buffer chiffré avec défaut est déchiffrable avec AES-256-CBC explicite
+	// (et inversement) — même algorithme sous-jacent.
+	bufExplicite est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	clairExplicite est un buffer = DécrypteStandard(bufExplicite, cle)
+	dbgVérifieEgalité(clairExplicite, msg, "buffer AES-256-CBC explicite déchiffrable avec défaut")
+FIN
+
+
+// ─── Distinction inter-algo ─────────────────────────────────────────────────
+
+// Un buffer chiffré AES-256-CBC ne peut pas être correctement déchiffré avec
+// AES-128-CBC : le résultat doit être observable comme différent du clair ou
+// DécrypteStandard doit signaler une erreur (comportement selon impl mbedTLS).
+PROCEDURE PUBLIQUE scenario_distinction_algo_observable()
+	msg est une chaîne = "test distinction algo"
+	cle est une chaîne = "meme-cle"
+
+	buf256 est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+
+	ErreurRAZ()
+	resultatMismatch est un buffer = DécrypteStandard(buf256, cle, crypteAES128, crypteCBC)
+	bErreur est un booléen = ErreurDétectée
+
+	// Observable : soit une erreur a été levée, soit le résultat n'est pas le clair d'origine.
+	// On ne teste pas le détail d'implémentation, seulement que l'opération mismatch
+	// ne produit PAS silencieusement le message original.
+	SI bErreur ALORS
+		dbgVérifieVrai(Vrai, "mismatch AES-128 sur buffer AES-256 : erreur levée (comportement attendu)")
+	SINON
+		dbgVérifieFaux(resultatMismatch = msg, "mismatch AES-128 sur buffer AES-256 : résultat ≠ clair original")
+	FIN
+FIN
+
+
+// ─── GCM : rejet sur altération ─────────────────────────────────────────────
+
+// GCM est un mode authentifié : l'auth tag détecte toute altération du buffer.
+// Après altération d'un octet du ciphertext, DécrypteStandard doit rejeter
+// (retourner vide ou lever une erreur — pas restituer un clair corrompu).
+PROCEDURE PUBLIQUE scenario_gcm_rejet_alteration()
+	msg est une chaîne = "message gcm authentifie"
+	cle est une chaîne = "cle-gcm"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteGCM)
+
+	// Format GCM : IV(12) || tag(16) || ciphertext
+	// On altère un octet dans la zone ciphertext (après les 28 premiers octets).
+	// Base 1 pour BufferLitOctet/BufferÉcritOctet.
+	tailleBuf est un entier = Taille(buf)
+	dbgVérifieVrai(tailleBuf > 28, "buffer GCM doit faire au moins 29 octets")
+
+	// Copier le buffer et modifier un octet dans le corps chiffré (position 30, base 1).
+	bufAltere est un buffer = buf
+	posAlt est un entier = 30
+	SI tailleBuf <= 30 ALORS
+		posAlt = 29
+	FIN
+	// Flip l'octet à posAlt par XOR avec 0xFF (|| = OU exclusif bit-à-bit en OWL).
+	octetOriginal est un entier = BufferLitOctet(bufAltere, posAlt)
+	BufferÉcritOctet(bufAltere, posAlt, octetOriginal || 0xFF)
+
+	ErreurRAZ()
+	clairAltere est un buffer = DécrypteStandard(bufAltere, cle, crypteAES256, crypteGCM)
+	bErreur est un booléen = ErreurDétectée
+
+	// GCM DOIT rejeter : soit erreur, soit résultat vide.
+	// Il ne doit PAS retourner un clair (corrompu ou non).
+	SI bErreur ALORS
+		dbgVérifieVrai(Vrai, "GCM altéré : erreur d'authentification levée (comportement attendu)")
+	SINON
+		dbgVérifieEgalité(Taille(clairAltere), 0, "GCM altéré : restitution vide (tag invalide)")
+	FIN
+FIN
+
+
+// ─── Edge cases ─────────────────────────────────────────────────────────────
+
+// Message vide avec chaque mode : le chiffrement doit fonctionner sans crash.
+PROCEDURE PRIVÉE scenario_message_vide_chaque_mode()
+	cle est une chaîne = "cle-vide"
+	vide est une chaîne = ""
+
+	bufCbc est un buffer = CrypteStandard(vide, cle, crypteAES256, crypteCBC)
+	dbgVérifieEgalité(DécrypteStandard(bufCbc, cle, crypteAES256, crypteCBC), vide, "vide AES-256-CBC")
+
+	bufCfb est un buffer = CrypteStandard(vide, cle, crypteAES256, crypteCFB)
+	dbgVérifieEgalité(DécrypteStandard(bufCfb, cle, crypteAES256, crypteCFB), vide, "vide AES-256-CFB")
+
+	bufCtr est un buffer = CrypteStandard(vide, cle, crypteAES256, crypteCTR)
+	dbgVérifieEgalité(DécrypteStandard(bufCtr, cle, crypteAES256, crypteCTR), vide, "vide AES-256-CTR")
+
+	bufGcm est un buffer = CrypteStandard(vide, cle, crypteAES256, crypteGCM)
+	dbgVérifieEgalité(DécrypteStandard(bufGcm, cle, crypteAES256, crypteGCM), vide, "vide AES-256-GCM")
+FIN
+
+
+// IV aléatoire par appel : deux chiffrements du même message avec le même algo/mode
+// produisent des ciphertexts différents.
+PROCEDURE PRIVÉE scenario_iv_aleatoire_par_mode()
+	msg est une chaîne = "meme contenu"
+	cle est une chaîne = "cle-iv"
+
+	buf1 est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	buf2 est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	dbgVérifieFaux(buf1 = buf2, "AES-256-CBC : deux chiffrements du même message donnent des ciphertexts différents")
+
+	buf3 est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteGCM)
+	buf4 est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteGCM)
+	dbgVérifieFaux(buf3 = buf4, "AES-256-GCM : deux chiffrements du même message donnent des ciphertexts différents")
+FIN

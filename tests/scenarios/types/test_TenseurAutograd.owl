@@ -1,0 +1,131 @@
+// Rétropropage() parcourt le graphe de calcul construit par + et * puis
+// remplit ..Gradient de chaque Tenseur impliqué, en appliquant la règle de
+// la chaîne. Les gradients obtenus ici sont vérifiés contre leur calcul
+// mathématique à la main — pas de tolérance nécessaire, les valeurs en jeu
+// sont exactes en flottant.
+
+// tc = ta + tb : la dérivée de la somme par rapport à chacun des deux termes
+// vaut 1.
+PROCEDURE PUBLIQUE scenario_gradient_addition()
+	ta est un Tenseur = Tenseur([2.0])
+	tb est un Tenseur = Tenseur([3.0])
+	tc est un Tenseur = ta + tb
+	tc.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 1.0, "Dérivée de la somme par rapport à ta = 1")
+	dbgVérifieEgalité(tb..Gradient[1], 1.0, "Dérivée de la somme par rapport à tb = 1")
+FIN
+
+
+// tc = ta * tb : la dérivée du produit par rapport à chaque terme vaut la
+// valeur de l'autre terme.
+PROCEDURE PUBLIQUE scenario_gradient_multiplication()
+	ta est un Tenseur = Tenseur([2.0])
+	tb est un Tenseur = Tenseur([3.0])
+	tc est un Tenseur = ta * tb
+	tc.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 3.0, "Dérivée du produit par rapport à ta = tb = 3.0")
+	dbgVérifieEgalité(tb..Gradient[1], 2.0, "Dérivée du produit par rapport à tb = ta = 2.0")
+FIN
+
+
+// Graphe à deux étages : td = ta*tb + tb. Dérivées à la main :
+// par rapport à ta -> tb ; par rapport à tb -> ta + 1.
+PROCEDURE PUBLIQUE scenario_gradient_graphe_chaine()
+	ta est un Tenseur = Tenseur([-4.0])
+	tb est un Tenseur = Tenseur([2.0])
+	td est un Tenseur = ta * tb + tb
+	td.Rétropropage()
+	dbgVérifieEgalité(td..Valeur[1],-6.0, "td = (-4.0 * 2.0) + 2.0 = -6.0")
+	dbgVérifieEgalité(ta..Gradient[1], 2.0, "Dérivée de td par rapport à ta = tb = 2.0")
+	dbgVérifieEgalité(tb..Gradient[1],-3.0, "Dérivée de td par rapport à tb = ta + 1 = -4.0 + 1 = -3.0")
+FIN
+
+
+// Trois facteurs enchaînés : tf = (ta * tb) * tc. Dérivées à la main :
+// par rapport à ta -> tb*tc ; par rapport à tb -> ta*tc ; par rapport à tc -> ta*tb.
+PROCEDURE PUBLIQUE scenario_gradient_produit_triple()
+	ta est un Tenseur = Tenseur([2.0])
+	tb est un Tenseur = Tenseur([3.0])
+	tc est un Tenseur = Tenseur([4.0])
+	tf est un Tenseur = ta * tb * tc
+	tf.Rétropropage()
+	dbgVérifieEgalité(tf..Valeur[1], 24.0, "tf = 2.0 * 3.0 * 4.0 = 24.0")
+	dbgVérifieEgalité(ta..Gradient[1], 12.0, "Dérivée de tf par rapport à ta = tb*tc = 3.0*4.0 = 12.0")
+	dbgVérifieEgalité(tb..Gradient[1], 8.0, "Dérivée de tf par rapport à tb = ta*tc = 2.0*4.0 = 8.0")
+	dbgVérifieEgalité(tc..Gradient[1], 6.0, "Dérivée de tf par rapport à tc = ta*tb = 2.0*3.0 = 6.0")
+FIN
+
+
+// Mélange + et * : tg = (ta + tb) * tc. Dérivées à la main :
+// par rapport à ta -> tc ; par rapport à tb -> tc ; par rapport à tc -> ta + tb.
+PROCEDURE PUBLIQUE scenario_gradient_somme_puis_produit()
+	ta est un Tenseur = Tenseur([1.0])
+	tb est un Tenseur = Tenseur([4.0])
+	tc est un Tenseur = Tenseur([4.0])
+	tg est un Tenseur = (ta + tb) * tc
+	tg.Rétropropage()
+	dbgVérifieEgalité(tg..Valeur[1], 20.0, "tg = (1.0 + 4.0) * 4.0 = 20.0")
+	dbgVérifieEgalité(ta..Gradient[1], 4.0, "Dérivée de tg par rapport à ta = tc = 4.0")
+	dbgVérifieEgalité(tb..Gradient[1], 4.0, "Dérivée de tg par rapport à tb = tc = 4.0")
+	dbgVérifieEgalité(tc..Gradient[1], 5.0, "Dérivée de tg par rapport à tc = ta + tb = 1.0 + 4.0 = 5.0")
+FIN
+
+
+// Un même Tenseur utilisé deux fois dans le graphe (ta * ta) doit accumuler
+// les contributions des deux occurrences : la dérivée vaut 2*ta, pas juste ta.
+// C'est le piège classique de l'autograd : un nœud partagé doit sommer ses
+// contributions, pas se contenter de la dernière branche visitée.
+PROCEDURE PUBLIQUE scenario_gradient_noeud_reutilise_multiplication()
+	ta est un Tenseur = Tenseur([3.0])
+	tc est un Tenseur = ta * ta
+	tc.Rétropropage()
+	dbgVérifieEgalité(tc..Valeur[1], 9.0, "ta*ta = 3.0*3.0 = 9.0")
+	dbgVérifieEgalité(ta..Gradient[1], 6.0, "Dérivée de ta*ta par rapport à ta = 2*ta = 6.0 (accumulation des deux occurrences)")
+FIN
+
+
+// Même piège avec + : ta + ta doit accumuler un gradient de 2, pas 1.
+PROCEDURE PUBLIQUE scenario_gradient_noeud_reutilise_addition()
+	ta est un Tenseur = Tenseur([5.0])
+	tc est un Tenseur = ta + ta
+	tc.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 2.0, "Dérivée de ta+ta par rapport à ta = 2 (accumulation des deux occurrences)")
+FIN
+
+
+// Un Tenseur réutilisé dans un graphe plus riche : tc = ta*ta + ta. Dérivée à
+// la main : 2*ta + 1.
+PROCEDURE PRIVÉE scenario_edge_noeud_reutilise_graphe_mixte()
+	ta est un Tenseur = Tenseur([3.0])
+	tc est un Tenseur = ta * ta + ta
+	tc.Rétropropage()
+	dbgVérifieEgalité(tc..Valeur[1], 12.0, "tc = 3.0*3.0 + 3.0 = 12.0")
+	dbgVérifieEgalité(ta..Gradient[1], 7.0, "Dérivée de tc par rapport à ta = 2*ta + 1 = 7.0")
+FIN
+
+
+// Rétropropage() repart de gradients à zéro par défaut : un deuxième appel
+// sur le même graphe redonne le même résultat, sans s'additionner au premier
+// passage. Pas de remise à zéro manuelle à prévoir entre deux passes.
+PROCEDURE PUBLIQUE scenario_reset_gradient_par_defaut_entre_deux_passes()
+	ta est un Tenseur = Tenseur([2.0])
+	tb est un Tenseur = Tenseur([3.0])
+	tc est un Tenseur = ta * tb
+
+	tc.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 3.0, "1ère passe : dérivée de ta*tb par rapport à ta = tb = 3.0")
+
+	tc.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 3.0, "2e passe : toujours 3.0, pas 6.0 (aucune accumulation implicite entre deux passes)")
+FIN
+
+
+// La forme anglaise .Backpropagate() désigne la même opération que
+// .Rétropropage().
+PROCEDURE PRIVÉE scenario_edge_backpropagate_forme_anglaise()
+	ta est un Tenseur = Tenseur([2.0])
+	tb est un Tenseur = Tenseur([5.0])
+	tc est un Tenseur = ta * tb
+	tc.Backpropagate()
+	dbgVérifieEgalité(ta..Gradient[1], 5.0, "Backpropagate() équivaut à Rétropropage()")
+FIN

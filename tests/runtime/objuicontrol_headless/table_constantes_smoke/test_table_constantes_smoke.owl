@@ -1,0 +1,45 @@
+// ============================================
+// TEST (headless): smoke des constantes Table UI t[adios]* avec leurs natives
+//
+// TableOccurrence / TableSelect / TableInfoXY / TablePosition / DeplaceLigne
+// operent sur un widget Table/Liste reel. En mode test aucun widget n'est
+// materialise (pas de fenetre graphique), donc ces natives renvoient Null
+// sans effet observable. Cette suite se limite au SMOKE : chaque constante
+// est passee a sa native consommatrice sans lever ni crasher. La couverture
+// d'EFFET reel attend une infra d'introspection headless du modele de table
+// (meme mur Qt que filtre* / PoliceNom, cf. candidat ).
+//
+// La couverture structurelle (valeurs / offsets exacts des sentinels) vit
+// dans tests/runtime/test_table_constantes_coverage.owl.
+// Pattern : la fenêtre voisine FEN_Smoke.owl porte la déclaration.
+// ============================================
+
+Ouvre(FEN_Smoke)
+
+// TableOccurrence — chaque type d'info to* accepte sans lever.
+TableOccurrence(TAB_Donnees, toTotal)
+TableOccurrence(TAB_Donnees, toAffichée)
+TableOccurrence(TAB_Donnees, toColonne)
+TableOccurrence(TAB_Donnees, toVisible)
+
+// TableSelect — chaque type d'info ts* accepte sans lever.
+TableSelect(TAB_Donnees, 1, tsLigne)
+TableSelect(TAB_Donnees, 1, tsColonne)
+TableSelect(TAB_Donnees, 1, tsLigneCellule)
+TableSelect(TAB_Donnees, 1, tsColonneCellule)
+
+// TableInfoXY — chaque type d'info ti* accepte sans lever.
+TableInfoXY(TAB_Donnees, tiNumLigne, 5, 5)
+TableInfoXY(TAB_Donnees, tiNumColonne, 5, 5)
+TableInfoXY(TAB_Donnees, tiNomColonne, 5, 5)
+TableInfoXY(TAB_Donnees, tiOrigineEcran, 5, 5)
+
+// TablePosition — chaque option ta* acceptee sans lever.
+TablePosition(TAB_Donnees, 1, taPremier)
+TablePosition(TAB_Donnees, 1, taVisible)
+
+// On a traverse toutes les constantes Table UI sans interruption.
+dbgVérifieVrai(Vrai,
+"natives Table acceptent les constantes to*/ts*/ti*/ta* sans lever")
+
+dbgBilanTest()

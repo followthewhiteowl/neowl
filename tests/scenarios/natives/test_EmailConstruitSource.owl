@@ -1,0 +1,144 @@
+// @sujet : EmailConstruitSource
+// @résumé : Fabrique le message brut RFC 5322 / MIME d'un Email et le dépose dans la propriété
+// Source. Couvre les en-têtes de base, le multipart texte+HTML, les pièces jointes en base64,
+// l'encodage RFC 2047 des en-têtes accentués, la copie cachée masquée par défaut, et le
+// round-trip fichier .eml via fSauveTexte/fChargeTexte.
+
+
+// Cas A : texte seul — en-têtes de base présents, Content-Type text/plain.
+PROCEDURE PUBLIQUE scenario_ecs_texte_seul_entetes_base()
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+	e..Sujet        = "Ordre du jour"
+	e..Message      = "Bonjour Bob, voici l'ordre du jour."
+
+	ok est un booléen = EmailConstruitSource(e)
+	dbgVérifieVrai(ok, "EmailConstruitSource réussit sur un message texte simple")
+	dbgVérifieVrai(Position(e..Source, "From:") > 0, "l'en-tête From: est présent")
+	dbgVérifieVrai(Position(e..Source, "To:") > 0, "l'en-tête To: est présent")
+	dbgVérifieVrai(Position(e..Source, "Subject:") > 0, "l'en-tête Subject: est présent")
+	dbgVérifieVrai(Position(e..Source, "Date:") > 0, "l'en-tête Date: est présent")
+	dbgVérifieVrai(Position(e..Source, "MIME-Version: 1.0") > 0, "MIME-Version: 1.0 est présent")
+	dbgVérifieVrai(Position(e..Source, "Content-Type: text/plain") > 0, "le corps est déclaré text/plain")
+FIN
+
+
+// Cas B : texte + HTML — multipart/alternative avec les deux parties.
+PROCEDURE PUBLIQUE scenario_ecs_texte_html_multipart_alternative()
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+	e..Sujet        = "Rapport"
+	e..Message      = "Version texte du rapport."
+	e..HTML         = "<p>Version HTML du rapport.</p>"
+
+	ok est un booléen = EmailConstruitSource(e)
+	dbgVérifieVrai(ok, "EmailConstruitSource réussit sur un message texte + HTML")
+	dbgVérifieVrai(Position(e..Source, "multipart/alternative") > 0, "le message est déclaré multipart/alternative")
+	dbgVérifieVrai(Position(e..Source, "Content-Type: text/plain") > 0, "une partie text/plain est présente")
+	dbgVérifieVrai(Position(e..Source, "Content-Type: text/html") > 0, "une partie text/html est présente")
+	dbgVérifieVrai(Position(e..Source, "boundary=") > 0, "une frontière multipart est déclarée")
+FIN
+
+
+// Cas C : pièce jointe — multipart/mixed, partie encodée base64, Content-Disposition nommée.
+PROCEDURE PUBLIQUE scenario_ecs_piece_jointe_multipart_mixed()
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+	e..Sujet        = "Facture"
+	e..Message      = "Voici la facture en pièce jointe."
+
+	pj est un emailAttache
+	pj..Contenu     = ChaîneVersBuffer("contenu binaire simulé de la facture")
+	pj..ContentType = "application/pdf"
+	pj..Nom         = "facture.pdf"
+	e..Attache      = [pj]
+
+	ok est un booléen = EmailConstruitSource(e)
+	dbgVérifieVrai(ok, "EmailConstruitSource réussit avec une pièce jointe")
+	dbgVérifieVrai(Position(e..Source, "multipart/mixed") > 0, "le message est déclaré multipart/mixed")
+	dbgVérifieVrai(Position(e..Source, "Content-Type: application/pdf") > 0, "la pièce jointe est déclarée application/pdf")
+	dbgVérifieVrai(Position(e..Source, "base64") > 0, "la pièce jointe est encodée en base64")
+	dbgVérifieVrai(Position(e..Source, "facture.pdf") > 0, "le nom de fichier facture.pdf apparaît (Content-Disposition)")
+FIN
+
+
+// Cas D : emailOptionEncodeEntête — un sujet accentué produit un mot-encodé RFC 2047 avec l'option,
+// reste en clair sans l'option.
+PROCEDURE PUBLIQUE scenario_ecs_option_encode_entete_sujet_accentue()
+	sSujet est une chaîne = "Réunion budgétaire"
+
+	eSansOption est un Email
+	eSansOption..Expéditeur   = "alice@example.org"
+	eSansOption..Destinataire = ["bob@example.org"]
+	eSansOption..Sujet        = sSujet
+	eSansOption..Message      = "Merci de confirmer votre présence."
+	EmailConstruitSource(eSansOption)
+	dbgVérifieVrai(Position(eSansOption..Source, sSujet) > 0, "sans emailOptionEncodeEntête, le sujet accentué reste en clair")
+	dbgVérifieEgalité(Position(eSansOption..Source, "=?UTF-8?"), 0, "sans l'option, aucun mot-encodé RFC 2047 n'apparaît")
+
+	eAvecOption est un Email
+	eAvecOption..Expéditeur   = "alice@example.org"
+	eAvecOption..Destinataire = ["bob@example.org"]
+	eAvecOption..Sujet        = sSujet
+	eAvecOption..Message      = "Merci de confirmer votre présence."
+	EmailConstruitSource(eAvecOption, emailOptionEncodeEntête)
+	dbgVérifieVrai(Position(eAvecOption..Source, "=?UTF-8?") > 0, "avec emailOptionEncodeEntête, le sujet est encodé en mot RFC 2047")
+FIN
+
+
+// Cas E : Cci masqué des en-têtes par défaut, exposé (Bcc) avec emailOptionEntêteCCi. To et Cc
+// restent toujours présents.
+PROCEDURE PUBLIQUE scenario_ecs_option_entete_cci_masque_par_defaut()
+	eSansOption est un Email
+	eSansOption..Expéditeur   = "alice@example.org"
+	eSansOption..Destinataire = ["bob@example.org"]
+	eSansOption..Cc           = ["carla@example.org"]
+	eSansOption..Cci          = ["dave@example.org"]
+	eSansOption..Sujet        = "Point hebdo"
+	eSansOption..Message      = "Merci de votre présence."
+	EmailConstruitSource(eSansOption)
+	dbgVérifieVrai(Position(eSansOption..Source, "To:") > 0, "To: reste présent")
+	dbgVérifieVrai(Position(eSansOption..Source, "Cc:") > 0, "Cc: reste présent")
+	dbgVérifieEgalité(Position(eSansOption..Source, "dave@example.org"), 0, "sans l'option, l'adresse en copie cachée n'apparaît dans aucun en-tête")
+
+	eAvecOption est un Email
+	eAvecOption..Expéditeur   = "alice@example.org"
+	eAvecOption..Destinataire = ["bob@example.org"]
+	eAvecOption..Cc           = ["carla@example.org"]
+	eAvecOption..Cci          = ["dave@example.org"]
+	eAvecOption..Sujet        = "Point hebdo"
+	eAvecOption..Message      = "Merci de votre présence."
+	EmailConstruitSource(eAvecOption, emailOptionEntêteCCi)
+	dbgVérifieVrai(Position(eAvecOption..Source, "Bcc:") > 0, "avec emailOptionEntêteCCi, un en-tête Bcc: apparaît")
+	dbgVérifieVrai(Position(eAvecOption..Source, "dave@example.org") > 0, "l'adresse en copie cachée apparaît dans l'en-tête Bcc:")
+FIN
+
+
+// Cas F : round-trip fichier .eml — fSauveTexte(Source) puis fChargeTexte restitue exactement Source.
+PROCEDURE PUBLIQUE scenario_ecs_roundtrip_fichier_eml()
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+	e..Sujet        = "Compte-rendu"
+	e..Message      = "Voici le compte-rendu de la réunion."
+	EmailConstruitSource(e)
+
+	chemin est une chaîne = fRepTemp() + "\_tmp_ecs_2081_roundtrip.eml"
+	fSupprime(chemin)
+	okEcrit est un booléen = fSauveTexte(chemin, e..Source)
+	dbgVérifieVrai(okEcrit, "fSauveTexte écrit le fichier .eml")
+	sLu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(sLu, e..Source, "le contenu relu du fichier .eml est identique à e..Source")
+	fSupprime(chemin)
+FIN
+
+
+// Edge case : aucun destinataire, aucun corps — la native ne doit pas planter, elle échoue proprement.
+PROCEDURE PRIVÉE scenario_ecs_edge_email_vide()
+	e est un Email
+	ok est un booléen = EmailConstruitSource(e)
+	dbgVérifieVrai(ok = Faux OU Taille(e..Source) > 0, "un Email vide ne provoque pas de plantage : échec propre ou source générée")
+FIN

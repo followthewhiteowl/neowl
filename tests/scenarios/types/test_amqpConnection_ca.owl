@@ -1,0 +1,33 @@
+// @sujet : amqpConnection
+// @résumé : Propriété CertificatCA (bilingue CACertificate) d'une connexion AMQP : chemin d'un fichier PEM de CA à truster en plus du bundle standard, pour se connecter en TLS strict à un serveur à certificat privé.
+
+
+// Une connexion déclarée sans initialisation n'a pas de CA personnalisé : le
+// mode SSL retombe sur le bundle de certificats public standard.
+PROCEDURE PUBLIQUE scenario_creation_avec_defauts()
+	cnx est un amqpConnection
+	dbgVérifieEgalité(cnx..CertificatCA, "", "CertificatCA vide par défaut")
+FIN
+
+
+// Le databinding est direct : on assigne le chemin du fichier PEM avec la
+// notation `..`, on relit de la même façon.
+PROCEDURE PUBLIQUE scenario_configuration_certificat_ca()
+	cnx est un amqpConnection
+	cnx..CertificatCA = "/chemin/vers/ca-interne.pem"
+	dbgVérifieEgalité(cnx..CertificatCA, "/chemin/vers/ca-interne.pem", "CertificatCA relu tel quel")
+FIN
+
+
+// Formes bilingues : CertificatCA (FR) et CACertificate (EN) sont un seul et
+// même champ, quel que soit le nom utilisé pour écrire ou lire.
+PROCEDURE PUBLIQUE scenario_bilingue_certificatca_cacertificate()
+	cnx est un amqpConnection
+	cnx..CertificatCA = "/etc/ssl/ca-fr.pem"
+	dbgVérifieEgalité(cnx..CACertificate, "/etc/ssl/ca-fr.pem", "CACertificate (EN) relit ce qu'écrit CertificatCA (FR)")
+
+	cnx..CACertificate = "/etc/ssl/ca-en.pem"
+	dbgVérifieEgalité(cnx..CertificatCA, "/etc/ssl/ca-en.pem", "CertificatCA (FR) relit ce qu'écrit CACertificate (EN)")
+FIN
+
+dbgBilanTest()

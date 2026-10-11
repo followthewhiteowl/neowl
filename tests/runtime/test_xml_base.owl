@@ -1,0 +1,118 @@
+// Tests XML base : création, navigation, lecture/écriture, sérialisation
+
+// --- Création depuis une chaîne ---
+xml est une chaîne = "<?xml version=""1.0"" encoding=""UTF-8""?><catalogue><livre><titre>Dune</titre><auteur>Herbert</auteur></livre><livre><titre>Fondation</titre><auteur>Asimov</auteur></livre></catalogue>"
+doc est un xmlDocument = XMLOuvre(xml, depuisChaîne)
+dbgVérifieVrai(doc <> Null, "XMLOuvre depuis chaîne retourne un document")
+
+// --- Racine ---
+racine est un xmlNoeud = XMLRacine(doc)
+dbgVérifieVrai(racine <> Null, "XMLRacine retourne un nœud")
+dbgVérifieEgalité(XMLNomElément(racine), "catalogue", "nom racine = catalogue")
+dbgVérifieEgalité(racine..Nom(), "catalogue", "méthode ..Nom() sur xmlNoeud")
+
+// --- Navigation globale via fonctions ---
+premier est un xmlNoeud = XMLPremier(racine)
+dbgVérifieVrai(premier <> Null, "XMLPremier retourne le 1er fils")
+dbgVérifieEgalité(XMLNomElément(premier), "livre", "1er fils = livre")
+
+dernier est un xmlNoeud = XMLDernier(racine)
+dbgVérifieEgalité(XMLNomElément(dernier), "livre", "dernier fils = livre")
+
+suivant est un xmlNoeud = XMLSuivant(premier)
+dbgVérifieVrai(suivant <> Null, "XMLSuivant du 1er livre retourne le 2e")
+dbgVérifieVrai(XMLPrécédent(suivant) <> Null, "XMLPrécédent remonte au 1er")
+
+parent_node est un xmlNoeud = XMLParent(premier)
+dbgVérifieEgalité(XMLNomElément(parent_node), "catalogue", "parent = catalogue")
+
+// --- Navigation via méthodes prefix ---
+dbgVérifieEgalité(premier.Suivant()..Nom(), "livre", "méthode .Suivant()..Nom()")
+dbgVérifieVrai(premier.Parent() <> Null, "méthode .Parent()")
+dbgVérifieVrai(racine.Premier() <> Null, "méthode .Premier() sur xmlNoeud")
+dbgVérifieVrai(racine.Dernier() <> Null, "méthode .Dernier() sur xmlNoeud")
+
+// --- Lecture de contenu ---
+titre_node est un xmlNoeud = XMLPremier(premier)
+dbgVérifieEgalité(XMLNomElément(titre_node), "titre", "1er fils de livre = titre")
+dbgVérifieEgalité(XMLLit(titre_node), "Dune", "XMLLit retourne le contenu texte")
+dbgVérifieEgalité(titre_node.Lit(), "Dune", "méthode .Lit()")
+
+auteur_node est un xmlNoeud = XMLDernier(premier)
+dbgVérifieEgalité(XMLLit(auteur_node), "Herbert", "auteur = Herbert")
+
+// --- XMLFils tableau ---
+fils_racine est un tableau de xmlNoeud = XMLFils(racine)
+dbgVérifieEgalité(fils_racine..Occurrence, 2, "XMLFils retourne 2 livres")
+dbgVérifieEgalité(XMLNomElément(fils_racine[1]), "livre", "fils_racine[1] = livre")
+
+fils_livre est un tableau de xmlNoeud = premier.Fils()
+dbgVérifieEgalité(fils_livre..Occurrence, 2, "méthode .Fils() sur livre retourne 2 éléments")
+
+// --- Écriture ---
+XMLEcrit(titre_node, "Dune Messiah")
+dbgVérifieEgalité(XMLLit(titre_node), "Dune Messiah", "XMLEcrit modifie le contenu")
+titre_node.Ecrit("Dune")
+dbgVérifieEgalité(titre_node.Lit(), "Dune", "méthode .Ecrit() restaure le contenu")
+
+// --- XMLModifie (alias) ---
+XMLModifie(titre_node, "Dune II")
+dbgVérifieEgalité(XMLLit(titre_node), "Dune II", "XMLModifie = alias XMLEcrit")
+
+// --- XMLRenomme ---
+XMLRenomme(titre_node, "intitule")
+dbgVérifieEgalité(XMLNomElément(titre_node), "intitule", "XMLRenomme change le nom")
+titre_node.Rename("titre")
+dbgVérifieEgalité(titre_node..Nom(), "titre", "méthode .Rename()")
+
+// --- XMLFilsExiste ---
+dbgVérifieVrai(XMLFilsExiste(premier, "titre"), "XMLFilsExiste: titre existe")
+dbgVérifieVrai(XMLFilsExiste(premier, "auteur"), "XMLFilsExiste: auteur existe")
+dbgVérifieVrai(PAS XMLFilsExiste(premier, "prix"), "XMLFilsExiste: prix absent")
+
+// --- XMLTypeElement ---
+dbgVérifieEgalité(XMLTypeElément(titre_node), XMLBalise, "type titre = XMLBalise")
+
+// --- XMLNomParent ---
+dbgVérifieEgalité(XMLNomParent(titre_node), "livre", "XMLNomParent = livre")
+dbgVérifieEgalité(titre_node.NomParent(), "livre", "méthode .NomParent()")
+
+// --- XMLAjouteFils ---
+prix_node est un xmlNoeud = XMLAjouteFils(premier, "prix", "29.90")
+dbgVérifieVrai(prix_node <> Null, "XMLAjouteFils retourne le nouveau nœud")
+dbgVérifieEgalité(XMLLit(prix_node), "29.90", "contenu du nouveau nœud")
+dbgVérifieEgalité(XMLNomParent(prix_node), "livre", "parent du nouveau nœud = livre")
+
+// Méthode .AjouteFils()
+qte est un xmlNoeud = premier.AddChild("quantite", "1")
+dbgVérifieEgalité(qte..Nom(), "quantite", "méthode .AddChild()")
+
+// --- XMLSupprime ---
+XMLSupprime(qte)
+fils_apres est un tableau de xmlNoeud = premier.Fils()
+dbgVérifieEgalité(fils_apres..Occurrence, 3, "XMLSupprime : 3 fils restants (titre+auteur+prix)")
+
+// --- Création d'un document vide et construction from scratch ---
+doc2 est un xmlDocument = XMLDocument()
+dbgVérifieVrai(doc2 <> Null, "XMLDocument() crée un document vide")
+root2 est un xmlNoeud = XMLAjouteFils(doc2, "root")
+dbgVérifieEgalité(XMLRacine(doc2)..Nom(), "root", "document vide avec racine créée")
+enfant est un xmlNoeud = root2.AddChild("child", "hello")
+dbgVérifieEgalité(enfant.Lit(), "hello", "enfant avec contenu")
+
+// --- XMLConstruitChaîne ---
+xml_out est une chaîne = XMLConstruitChaîne(doc2)
+dbgVérifieVrai(Taille(xml_out) > 0, "XMLConstruitChaîne retourne une chaîne non vide")
+dbgVérifieVrai(Position(xml_out, "<root>") > 0, "la chaîne contient <root>")
+dbgVérifieVrai(Position(xml_out, "<child>hello</child>") > 0, "la chaîne contient le contenu")
+
+// Méthode .BuildString()
+xml_out2 est une chaîne = doc2.BuildString()
+dbgVérifieEgalité(xml_out, xml_out2, ".BuildString() identique à XMLConstruitChaîne")
+
+// --- XMLTermine / méthode .Close() ---
+XMLTermine(doc)
+doc2.Close()
+// Après Termine, le pointeur est invalidé — on ne peut plus l'utiliser
+
+Trace("test_xml_base : OK")

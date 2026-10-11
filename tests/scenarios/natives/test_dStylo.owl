@@ -1,0 +1,309 @@
+// @sujet : dStylo
+// @résumé : Définir le stylo de dessin : couleur, style de trait (plein/tiret/pointillé), largeur, opacité
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_stylo_couleur_simple()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentral est un entier
+
+	// Stylo rouge, style plein (défaut 0), largeur défaut 1
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurRouge, 0, 1, 255)
+	dLigne(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la diagonale tracée
+	pixelCentral = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentral, couleurRouge, "stylo rouge : pixel central sur la trace est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stylo_trait_epais()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentral est un entier
+
+	// Stylo bleu, trait plein, largeur 5 pixels
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurBleu, 0, 5, 255)
+	dLigne(img, 50, 10, 50, 90)
+	dFinDessin(img)
+
+	// Ligne verticale en x=50, largeur 5 : le pixel (50,50) est sur la trace
+	pixelCentral = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentral, couleurBleu, "stylo bleu largeur 5 : pixel central sur la trace est bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stylo_tiret()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Stylo vert, style tiret (1), largeur 2
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurVert, 1, 2, 255)
+	dLigne(img, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	// Style tiret : alternance pleins/vides le long de la ligne horizontale y=50.
+	// Au moins un point parmi un échantillon raisonnable doit tomber sur un segment plein.
+	pixelA = dPixelCouleur(img, 10, 50)
+	pixelB = dPixelCouleur(img, 30, 50)
+	pixelC = dPixelCouleur(img, 50, 50)
+	dbgVérifieVrai(pixelA = couleurVert OU pixelB = couleurVert OU pixelC = couleurVert, "stylo vert style tiret : au moins un point d'échantillon est vert")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stylo_pointille()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+	pixelD est un entier
+
+	// Stylo jaune, style pointillé (2), largeur 1
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurJaune, 2, 1, 255)
+	dLigne(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	// Style pointillé : un point sur N le long de la diagonale.
+	// Échantillonne plusieurs points : au moins un doit tomber sur un point allumé.
+	pixelA = dPixelCouleur(img, 10, 10)
+	pixelB = dPixelCouleur(img, 30, 30)
+	pixelC = dPixelCouleur(img, 50, 50)
+	pixelD = dPixelCouleur(img, 70, 70)
+	dbgVérifieVrai(pixelA = couleurJaune OU pixelB = couleurJaune OU pixelC = couleurJaune OU pixelD = couleurJaune, "stylo jaune style pointillé : au moins un point d'échantillon est jaune")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stylo_persiste_entre_operations()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelLigne1 est un entier
+	pixelLigne2 est un entier
+
+	// Stylo défini une fois, réutilisé pour plusieurs opérations de dessin
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurMagenta, 0, 3, 255)
+	dLigne(img, 10, 10, 90, 10)
+	dLigne(img, 10, 20, 90, 20)
+	dCercle(img, 30, 40, 70, 80)
+	dFinDessin(img)
+
+	// Les deux lignes horizontales (largeur 3) avec le même stylo magenta persistant
+	// doivent toutes deux être tracées. Échantillon sur chaque ligne.
+	pixelLigne1 = dPixelCouleur(img, 50, 10)
+	pixelLigne2 = dPixelCouleur(img, 50, 20)
+	dbgVérifieEgalité(pixelLigne1, couleurMagenta, "stylo persiste : 1ère ligne magenta")
+	dbgVérifieEgalité(pixelLigne2, couleurMagenta, "stylo persiste : 2ème ligne magenta (même stylo)")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_largeur_zero()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	couleurDominante est un entier
+
+	// Stylo largeur 0 (edge case : ligne invisible ou largeur minimale 1)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurOrange, 0, 0, 255)
+	dLigne(img, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Largeur 0 : selon impl, peut ne rien tracer ou tracer largeur min 1
+	// Test vérifie que ça ne crash pas (résultat blanc acceptable si pas de trait)
+	dbgVérifieVrai(Vrai, "stylo largeur 0 : pas de crash")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 (invisible) : ligne ne doit PAS apparaître
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dLigne(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Style invisible : ligne ne pollue PAS l'image, reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : ligne non tracée, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_opacite_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	couleurDominante est un entier
+
+	// Stylo opacité 0 (totalement transparent) : ligne ne doit PAS apparaître
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img, 1)
+	dStylo(img, couleurNoir, 0, 5, 0)
+	dLigne(img, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Opacité 0 : ligne transparente ne pollue PAS, reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo opacité 0 : ligne transparente, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_rectangle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible + fond transparent : dRectangle ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dRectangle(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Contour invisible + pas de fond explicite : image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dRectangle contour non tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_cercle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible + fond transparent : dCercle ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dCercle(img, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Contour invisible + pas de fond explicite : image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dCercle contour non tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_arc()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible : dArc hérite du pen et ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dArc(img, 10, 10, 90, 90, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Stylo invisible hérité : arc non tracé, image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dArc non tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_polygone()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible + fond transparent : dPolygone ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dPolygone(img, 3, 10, 10, 90, 10, 50, 90)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Contour invisible hérité + pas de fond explicite : image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dPolygone contour non tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_polyligne()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible : dPolyligne hérite du pen et ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dPolyligne(img, 3, 10, 10, 90, 10, 50, 90)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Stylo invisible hérité : polyligne non tracée, image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dPolyligne non tracée, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_corde()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible + fond transparent : dCorde ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dCorde(img, 10, 10, 90, 90, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Contour invisible hérité + fond transparent : image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dCorde contour non tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_style_invisible_portion()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurDominante est un entier
+
+	// Stylo style 5 invisible + fond transparent : dPortion ne doit rien tracer
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(img, couleurCyan, 5, 3, 255)
+	dPortion(img, 10, 10, 90, 90, 10, 50, 90, 50)
+	dFinDessin(img)
+
+	couleurDominante = CouleurDominanteImage(img)
+
+	// Contour invisible hérité + fond transparent : image reste blanche
+	dbgVérifieVrai(couleurDominante = couleurBlanc, "stylo style invisible : dPortion contour non tracé, image blanche")
+FIN

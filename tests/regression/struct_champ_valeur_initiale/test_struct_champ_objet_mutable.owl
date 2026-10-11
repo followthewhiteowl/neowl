@@ -1,0 +1,45 @@
+// Champ de Structure porteur d'une valeur initiale de type mutable en place.
+// Trois familles sont concernees : le buffer (ecriture d'octet), le document
+// JSON (affectation de cle) et la chaine multilingue (affectation de tag).
+// Pour chacune, la valeur declaree doit etre presente a l'instanciation ET
+// chaque instance doit posseder sa propre copie : ecrire dans l'une ne doit
+// jamais se voir depuis l'autre.
+
+stMutable est une Structure
+	bufOctets est un buffer = ChaîneVersBuffer("ABCD")
+	docJson est un JSON = ChaîneVersJSON("{""compteur"": 1}")
+	msgTexte est une chaîneMultilingue = {langueFrançais: "bonjour", langueAnglais: "hello"}
+FIN
+
+// --- Les valeurs declarees sont bien presentes ---
+m1 est un stMutable
+
+dbgVérifieEgalité(BufferVersChaîne(m1.bufOctets), "ABCD", "le buffer initialise porte son contenu")
+dbgVérifieEgalité(BufferLitOctet(m1.bufOctets, 1), 65, "premier octet du buffer initialise")
+dbgVérifieEgalité(m1.docJson["compteur"], 1, "le document JSON initialise porte sa cle")
+dbgVérifieEgalité(m1.msgTexte[langueFrançais], "bonjour", "la chaine multilingue initialisee porte son texte francais")
+dbgVérifieEgalité(m1.msgTexte[langueAnglais], "hello", "la chaine multilingue initialisee porte son texte anglais")
+
+// --- Ecriture en place sur une seconde instance ---
+m2 est un stMutable
+BufferÉcritOctet(m2.bufOctets, 1, 90)
+m2.docJson["compteur"] = 99
+m2.msgTexte[langueFrançais] = "salut"
+
+dbgVérifieEgalité(BufferLitOctet(m2.bufOctets, 1), 90, "la seconde instance porte bien son octet modifie")
+dbgVérifieEgalité(m2.docJson["compteur"], 99, "la seconde instance porte bien sa cle JSON modifiee")
+dbgVérifieEgalité(m2.msgTexte[langueFrançais], "salut", "la seconde instance porte bien son texte modifie")
+
+dbgVérifieEgalité(BufferLitOctet(m1.bufOctets, 1), 65, "les buffers ne sont pas partages entre instances")
+dbgVérifieEgalité(m1.docJson["compteur"], 1, "les documents JSON ne sont pas partages entre instances")
+dbgVérifieEgalité(m1.msgTexte[langueFrançais], "bonjour", "les chaines multilingues ne sont pas partagees entre instances")
+dbgVérifieEgalité(m1.msgTexte[langueAnglais], "hello", "les tags non modifies de la premiere instance sont intacts")
+
+// --- Une troisieme instance repart des valeurs declarees ---
+m3 est un stMutable
+
+dbgVérifieEgalité(BufferLitOctet(m3.bufOctets, 1), 65, "une instance creee apres modification repart du buffer declare")
+dbgVérifieEgalité(m3.docJson["compteur"], 1, "idem pour le document JSON")
+dbgVérifieEgalité(m3.msgTexte[langueFrançais], "bonjour", "idem pour la chaine multilingue")
+
+dbgBilanTest()

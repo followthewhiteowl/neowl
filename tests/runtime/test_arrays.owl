@@ -1,0 +1,127 @@
+// ============================================
+// TEST: Tableaux
+// ============================================
+Trace("=== TABLEAUX ===")
+
+// --- Creation et taille ---
+arrT est un tableau de entiers
+dbgVérifieEgalité(Taille(arrT), 0, "Tableau vide taille = 0")
+
+// --- Ajoute ---
+Ajoute(arrT, 10)
+Ajoute(arrT, 20)
+Ajoute(arrT, 30)
+dbgVérifieEgalité(Taille(arrT), 3, "Taille apres 3 Ajoute = 3")
+
+// --- Acces index base 1 ---
+dbgVérifieEgalité(arrT[1], 10, "arrT[1] = 10 (premier element)")
+dbgVérifieEgalité(arrT[2], 20, "arrT[2] = 20")
+dbgVérifieEgalité(arrT[3], 30, "arrT[3] = 30 (dernier)")
+
+// --- Modification par index ---
+arrT[2] = 99
+dbgVérifieEgalité(arrT[2], 99, "arrT[2] modifie = 99")
+dbgVérifieEgalité(arrT[1], 10, "arrT[1] intact apres modif arrT[2]")
+dbgVérifieEgalité(arrT[3], 30, "arrT[3] intact apres modif arrT[2]")
+
+// --- Supprime (base 1) ---
+Supprime(arrT, 1)
+dbgVérifieEgalité(Taille(arrT), 2, "Taille apres Supprime = 2")
+dbgVérifieEgalité(arrT[1], 99, "arrT[1] apres suppression = 99 (ancien arrT[2])")
+dbgVérifieEgalité(arrT[2], 30, "arrT[2] apres suppression = 30 (ancien arrT[3])")
+
+// --- Tableau de chaines ---
+noms est un tableau de chaînes
+Ajoute(noms, "Alice")
+Ajoute(noms, "Bob")
+Ajoute(noms, "Charlie")
+dbgVérifieEgalité(Taille(noms), 3, "Tableau chaines taille = 3")
+dbgVérifieEgalité(noms[1], "Alice", "noms[1] = Alice")
+dbgVérifieEgalité(noms[3], "Charlie", "noms[3] = Charlie")
+
+// --- POUR TOUT simple ---
+sConcat est une chaîne = ""
+POUR TOUT elem DE noms
+	SI sConcat <> "" ALORS
+		sConcat = sConcat + ","
+	FIN
+	sConcat = sConcat + elem
+FIN
+dbgVérifieEgalité(sConcat, "Alice,Bob,Charlie", "POUR TOUT concatenation")
+
+// --- POUR TOUT avec index ---
+sIndexed est une chaîne = ""
+POUR TOUT elem, idx DE noms
+	sIndexed = sIndexed + idx + ":" + elem + " "
+FIN
+dbgVérifieEgalité(sIndexed, "1:Alice 2:Bob 3:Charlie ", "POUR TOUT avec index")
+
+// --- POUR TOUT sur tableau vide ---
+tabVide est un tableau de entiers
+nCount est un entier = 0
+POUR TOUT v DE tabVide
+	nCount++
+FIN
+dbgVérifieEgalité(nCount, 0, "POUR TOUT sur tableau vide = 0 iterations")
+
+// --- Tableau avec ajouts successifs ---
+tabNum est un tableau de entiers
+POUR i = 1 À 10
+	Ajoute(tabNum, i * i)
+FIN
+dbgVérifieEgalité(Taille(tabNum), 10, "10 ajouts = taille 10")
+dbgVérifieEgalité(tabNum[1], 1, "tabNum[1] = 1*1")
+dbgVérifieEgalité(tabNum[5], 25, "tabNum[5] = 5*5")
+dbgVérifieEgalité(tabNum[10], 100, "tabNum[10] = 10*10")
+
+// --- Somme avec POUR TOUT ---
+nSomme est un entier = 0
+POUR TOUT Val DE tabNum
+	nSomme += Val
+FIN
+dbgVérifieEgalité(nSomme, 385, "Somme des carres 1..10 = 385")
+
+// --- Borne checks et accès hors limites (regression: segfault QUAND EXCEPTION + OOB) ---
+// Avant fix avril 2026, OP_ARRAY_GET avait un double-pop dans le handler
+// d'exception qui causait segfault. Ce bloc verrouille le comportement correct.
+tabBorne est un tableau d'entiers
+Ajoute(tabBorne, 100)
+Ajoute(tabBorne, 200)
+Ajoute(tabBorne, 300)
+
+// Dimension/Taille reflètent les ajouts
+dbgVérifieEgalité(Dimension(tabBorne), 3, "Dimension après 3 Ajoute")
+dbgVérifieEgalité(Taille(tabBorne), 3, "Taille = Dimension sur tableau")
+
+// Pattern Dimension guard recommandé
+SI 5 < 1 OU 5 > Dimension(tabBorne) ALORS
+	msg est une chaîne = "OOB-detected"
+SINON
+	msg est une chaîne = "in-bounds"
+FIN
+
+// QUAND EXCEPTION attrape l'accès hors borne (n'avait pas marché avant le fix segfault)
+captured est une chaîne = ""
+QUAND EXCEPTION DANS
+	x est un entier = tabBorne[10]
+	captured = "no-throw"
+FAIRE
+	captured = "caught-OOB"
+FIN
+dbgVérifieEgalité(captured, "caught-OOB", "REGRESSION: arrT[OOB] catché par QUAND EXCEPTION (pas de segfault)")
+
+// Idem pour index 0 (base 1)
+capturedZero est une chaîne = ""
+QUAND EXCEPTION DANS
+	y est un entier = tabBorne[0]
+FAIRE
+	capturedZero = "caught-zero"
+FIN
+dbgVérifieEgalité(capturedZero, "caught-zero", "arrT[0] catché (base 1)")
+
+// Supprime + ré-vérif Dimension
+Supprime(tabBorne, 2)
+dbgVérifieEgalité(Dimension(tabBorne), 2, "Dimension après Supprime")
+dbgVérifieEgalité(tabBorne[1], 100, "valeur 1 inchangée")
+dbgVérifieEgalité(tabBorne[2], 300, "valeur 2 = ancienne valeur 3 (shift)")
+

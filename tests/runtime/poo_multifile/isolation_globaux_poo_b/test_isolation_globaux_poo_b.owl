@@ -1,0 +1,19 @@
+// @sujet smoke pollution tables globales POO compile-time (cote B)
+// @résumé redeclare cIsoCible en classe NORMALE et l'instancie directement.
+//          Pre-fix : echec compile-time "La classe 'cIsoCible' est abstraite
+//          et ne peut pas etre instanciee" (pollution de g_class_abstract
+//          par le dossier voisin _a/). Post-fix : compile et tourne au vert.
+
+PROCEDURE scenario_iso_b_classe_concrete_meme_nom()
+	// Sans le reset des tables POO globales, cette ligne plante au compile
+	// avec "La classe 'cIsoCible' est abstraite et ne peut pas etre instanciee"
+	// car g_class_abstract garde l'entree posee par le test A voisin.
+	oObj est un cIsoCible(10)
+
+	dbgVérifieEgalité(oObj.nValeur, 10, "Instance cIsoCible concrete creee")
+	dbgVérifieEgalité(oObj.Double(), 20, "Methode cIsoCible.Double() executee")
+
+	// Deuxieme instance pour bonne mesure (independance).
+	oObj2 est un cIsoCible(5)
+	dbgVérifieEgalité(oObj2.Double(), 10, "Seconde instance independante")
+FIN

@@ -1,0 +1,35 @@
+//  — ordre-independant fenetre (helpers apres call-sites)
+//
+// Avant  : helpers FEN doivent etre declares AVANT surClic / top-level
+// champ / FinInitialisation. Contrainte single-pass.
+// Apres  : helpers peuvent etre definis EN BAS de la fenetre (ergonomie
+// layout avant logique).
+
+TestModeHeadless(Vrai)
+
+marqueur_surclic est une chaîne = ""
+marqueur_topchamp est une chaîne = ""
+marqueur_fininit est une chaîne = ""
+
+PROCEDURE callback_observe(tag est une chaîne, val est une chaîne)
+	SELON tag
+		CAS "surclic"
+		marqueur_surclic = val
+		CAS "topchamp"
+		marqueur_topchamp = val
+		CAS "fininit"
+		marqueur_fininit = val
+	FIN
+FIN
+
+Ouvre(FEN_HelpersApresAppel)
+
+// Verifier top-level champ et FinInitialisation (executes a l'ouverture)
+dbgVérifieEgalité(marqueur_topchamp, "depuis top-champ", "top-level champ -> helper apres OK")
+dbgVérifieEgalité(marqueur_fininit, "depuis FinInit", "FinInitialisation -> helper apres OK")
+
+// Simuler clic bouton
+TestSimuleSouris(BTN_Test, ClicGauche)
+dbgVérifieEgalité(marqueur_surclic, "depuis surClic", "surClic -> helper apres OK")
+
+dbgBilanTest()

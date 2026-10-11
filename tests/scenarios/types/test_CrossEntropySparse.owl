@@ -1,0 +1,133 @@
+// @sujet : TenseurEntropieCroiséeIndices / .EntropieCroiséeIndices
+// @résumé : Entropie croisée softmax acceptant directement des indices de
+// classe (Tenseur 1D, 0-based) au lieu d'une cible one-hot 2D. La cible
+// one-hot est construite en interne, puis la perte suit exactement le même
+// calcul que TenseurEntropieCroisée : la voie indices et la voie one-hot
+// rendent la même perte (forward) et le même gradient vers les logits
+// (backward), au bit près. Différentiable ; la cible ne reçoit pas de gradient.
+
+// Cas 1D (un exemple), calcul à la main. logits = [2,1,0], classe cible = 0.
+// softmax([2,1,0]) = [0.6652409557748219, 0.24472847105479767,
+//                     0.09003057317038046]
+// perte = -log(0.6652409557748219) ~= 0.4076059644443803
+PROCEDURE PUBLIQUE scenario_valeur_calculee_main()
+	tLogits est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	tIndices est un Tenseur = Tenseur([0.0])
+	tPerte est un Tenseur = tLogits.EntropieCroiséeIndices(tIndices)
+	dbgVérifieVrai(Abs(tPerte..Valeur[1] - 0.4076059644443803) < 0.0000001, "-log(softmax(logits)[classe 0]) ~= 0.4076059644443803")
+
+	tPerte.Rétropropage()
+	dbgVérifieVrai(Abs(tLogits..Gradient[1] - (-0.3347590442251781)) < 0.0000001, "grad[1] = softmax[0] - 1 = 0.6652409557748219 - 1")
+	dbgVérifieVrai(Abs(tLogits..Gradient[2] - 0.24472847105479767) < 0.0000001, "grad[2] = softmax[1] - 0")
+	dbgVérifieVrai(Abs(tLogits..Gradient[3] - 0.09003057317038046) < 0.0000001, "grad[3] = softmax[2] - 0")
+FIN
+
+
+// Parité forward 1D : la voie indices rend EXACTEMENT la même perte que la voie
+// one-hot construite à la main avec TenseurUnParmiN, pour les mêmes logits.
+PROCEDURE PUBLIQUE scenario_parite_1d_forward()
+	tLogitsA est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	tIndices est un Tenseur = Tenseur([0.0])
+	perteSparse est un Tenseur = tLogitsA.EntropieCroiséeIndices(tIndices)
+
+	tLogitsB est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	tCibleOH est un Tenseur = TenseurUnParmiN(tIndices, 3)
+	perteOneHot est un Tenseur = tLogitsB.EntropieCroisée(tCibleOH)
+
+	dbgVérifieEgalité(perteSparse..Valeur[1], perteOneHot..Valeur[1], "perte indices == perte one-hot (forward 1D, égalité exacte)")
+FIN
+
+
+// Parité backward 1D : le gradient vers les logits est identique cellule par
+// cellule entre la voie indices et la voie one-hot.
+PROCEDURE PUBLIQUE scenario_parite_1d_backward()
+	tIndices est un Tenseur = Tenseur([0.0])
+
+	tLogitsA est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	perteSparse est un Tenseur = tLogitsA.EntropieCroiséeIndices(tIndices)
+	perteSparse.Rétropropage()
+
+	tLogitsB est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	tCibleOH est un Tenseur = TenseurUnParmiN(tIndices, 3)
+	perteOneHot est un Tenseur = tLogitsB.EntropieCroisée(tCibleOH)
+	perteOneHot.Rétropropage()
+
+	dbgVérifieEgalité(tLogitsA..Gradient[1], tLogitsB..Gradient[1], "grad[1] identique entre les deux voies")
+	dbgVérifieEgalité(tLogitsA..Gradient[2], tLogitsB..Gradient[2], "grad[2] identique entre les deux voies")
+	dbgVérifieEgalité(tLogitsA..Gradient[3], tLogitsB..Gradient[3], "grad[3] identique entre les deux voies")
+FIN
+
+
+// Parité forward 2D (lot de 2 exemples, 3 classes) : logits asymétriques,
+// indices [0, 2]. Même perte moyenne entre voie indices et voie one-hot.
+PROCEDURE PUBLIQUE scenario_parite_2d_forward()
+	matLogits est une Matrice = [[2.0, 1.0, 0.0], [0.0, 1.0, 2.0]]
+	tIndices est un Tenseur = Tenseur([0.0, 2.0])
+
+	tLogitsA est un Tenseur = Tenseur(matLogits)
+	perteSparse est un Tenseur = tLogitsA.EntropieCroiséeIndices(tIndices)
+
+	tLogitsB est un Tenseur = Tenseur(matLogits)
+	tCibleOH est un Tenseur = TenseurUnParmiN(tIndices, 3)
+	perteOneHot est un Tenseur = tLogitsB.EntropieCroisée(tCibleOH)
+
+	dbgVérifieEgalité(perteSparse..Valeur[1], perteOneHot..Valeur[1], "perte indices == perte one-hot (forward 2D lot, égalité exacte)")
+	// Ancrage sur la valeur attendue calculée à la main : les deux lignes ont
+	// une perte de -log(0.6652409557748219) chacune -> moyenne identique.
+	dbgVérifieVrai(Abs(perteSparse..Valeur[1] - 0.4076059644443803) < 0.0000001, "moyenne des deux pertes = -log(0.6652409557748219)")
+FIN
+
+
+// Parité backward 2D : gradient identique cellule par cellule (2×3).
+PROCEDURE PUBLIQUE scenario_parite_2d_backward()
+	matLogits est une Matrice = [[2.0, 1.0, 0.0], [0.0, 1.0, 2.0]]
+	tIndices est un Tenseur = Tenseur([0.0, 2.0])
+
+	tLogitsA est un Tenseur = Tenseur(matLogits)
+	perteSparse est un Tenseur = tLogitsA.EntropieCroiséeIndices(tIndices)
+	perteSparse.Rétropropage()
+	gradA est une Matrice = tLogitsA..Gradient
+
+	tLogitsB est un Tenseur = Tenseur(matLogits)
+	tCibleOH est un Tenseur = TenseurUnParmiN(tIndices, 3)
+	perteOneHot est un Tenseur = tLogitsB.EntropieCroisée(tCibleOH)
+	perteOneHot.Rétropropage()
+	gradB est une Matrice = tLogitsB..Gradient
+
+	dbgVérifieEgalité(gradA[1][1], gradB[1][1], "grad[1][1] identique entre les deux voies")
+	dbgVérifieEgalité(gradA[1][2], gradB[1][2], "grad[1][2] identique entre les deux voies")
+	dbgVérifieEgalité(gradA[1][3], gradB[1][3], "grad[1][3] identique entre les deux voies")
+	dbgVérifieEgalité(gradA[2][1], gradB[2][1], "grad[2][1] identique entre les deux voies")
+	dbgVérifieEgalité(gradA[2][2], gradB[2][2], "grad[2][2] identique entre les deux voies")
+	dbgVérifieEgalité(gradA[2][3], gradB[2][3], "grad[2][3] identique entre les deux voies")
+
+	// Ancrage hand-computed : grad[1][1] = (softmax([2,1,0])[0] - 1) / 2
+	// = (0.6652409557748219 - 1) / 2 = -0.16737952211258905. Tolérance car la
+	// softmax stable (soustraction du max) diverge de la formule directe au
+	// dernier ULP — la parité entre voies, elle, reste exacte (assertions
+	// ci-dessus).
+	dbgVérifieVrai(Abs(gradA[1][1] - (-0.16737952211258905)) < 0.0000001, "grad[1][1] = (softmax[0]-1)/2 hand-computed")
+FIN
+
+
+// La forme anglaise .CrossEntropyIndices désigne la même perte sparse.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	tLogits est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	tIndices est un Tenseur = Tenseur([0.0])
+	tPerte est un Tenseur = tLogits.CrossEntropyIndices(tIndices)
+	dbgVérifieVrai(Abs(tPerte..Valeur[1] - 0.4076059644443803) < 0.0000001, "CrossEntropyIndices : même calcul que EntropieCroiséeIndices")
+
+	tPerte2 est un Tenseur = TensorCrossEntropyIndices(tLogits, tIndices)
+	dbgVérifieVrai(Abs(tPerte2..Valeur[1] - 0.4076059644443803) < 0.0000001, "TensorCrossEntropyIndices : native préfixée anglaise")
+FIN
+
+
+// Un indice de classe hors de [0, nbClasses[ (nbClasses = largeur des logits)
+// pose ErreurDétectée sans crasher.
+PROCEDURE PRIVÉE scenario_edge_indice_hors_bornes()
+	tLogits est un Tenseur = Tenseur([2.0, 1.0, 0.0])
+	tIndicesHorsBornes est un Tenseur = Tenseur([5.0])
+	ErreurRAZ()
+	sentinelle est un Tenseur = tLogits.EntropieCroiséeIndices(tIndicesHorsBornes)
+	dbgVérifieVrai(ErreurDétectée, "indice de classe 5 hors de [0, 3[ signale une erreur")
+FIN

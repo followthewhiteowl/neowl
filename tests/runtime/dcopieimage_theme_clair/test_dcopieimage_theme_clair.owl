@@ -1,0 +1,45 @@
+//  — Lot 3 dCopieImageFenêtre : activation effective enum ThèmeSnapshot.
+// themeClair doit forcer une palette light avant grab. Le centre image doit
+// donc tomber sur une couleur claire (palette Window light = ~#F0F0F0 = 0xF0F0F0).
+// Au Lot 2, le 2e param etait no-op : la capture suivait la palette OS courante
+// et le centre n'avait aucune garantie de luminance. Ce test echoue tant que
+// Lot 3 n'active pas le dispatch palette.
+
+Ouvre(FEN_ThemeClair)
+
+imgClair est une Image = dCopieImageFenêtre(FEN_ThemeClair, themeClair)
+dbgVérifieEgalité(imgClair..Valide, Vrai, "themeClair : Image valide")
+dbgVérifieVrai(imgClair..Largeur >= 320, "Largeur >= 320")
+dbgVérifieVrai(imgClair..Hauteur >= 200, "Hauteur >= 200")
+
+// Echantillon au centre du fond fenetre. Le libellé occupe (20..300 ; 20..60),
+// donc un point au centre (Largeur/2, Hauteur*3/4) tombe sous le libellé, sur
+// le fond fenetre = palette Window. En light theme, Window = ~#F0F0F0
+// (gris tres clair, luminance moyenne > 200).
+xMid est un entier = imgClair..Largeur / 2
+yBas est un entier = (imgClair..Hauteur * 3) / 4
+couleurFondClair est un entier = dPixelCouleur(imgClair, xMid, yBas)
+
+// Decomposition RGB : la composante rouge encode bits 0..7 dans la convention
+// OWL canon (dPixelCouleur = R + G*256 + B*65536). On verifie que R est eleve
+// (>= 200) ce qui caracterise un theme clair.
+rClair est un entier = ETBinaire(couleurFondClair, 255)
+dbgVérifieVrai(rClair >= 200, "themeClair : composante R fond >= 200 (palette light forcee)")
+
+// Capture themeSombre sur la meme fenetre : doit donner un fond fonce.
+imgSombre est une Image = dCopieImageFenêtre(FEN_ThemeClair, themeSombre)
+couleurFondSombre est un entier = dPixelCouleur(imgSombre, xMid, yBas)
+rSombre est un entier = ETBinaire(couleurFondSombre, 255)
+dbgVérifieVrai(rSombre <= 80, "themeSombre : composante R fond <= 80 (palette dark forcee)")
+
+// Critere de difference effective : clair et sombre doivent diverger
+// significativement sur le centre (luminance grande difference).
+dbgVérifieVrai(rClair - rSombre >= 100, "themeClair vs themeSombre : difference R >= 100 (push/pop palette actif)")
+
+// Retour themeDefaut : palette OS rendue. Pas d'assertion couleur (depend OS),
+// juste valide.
+imgDefaut est une Image = dCopieImageFenêtre(FEN_ThemeClair, themeDéfaut)
+dbgVérifieEgalité(imgDefaut..Valide, Vrai, "themeDefaut apres push/pop : Image valide (palette restauree)")
+
+Ferme(FEN_ThemeClair)
+dbgBilanTest()

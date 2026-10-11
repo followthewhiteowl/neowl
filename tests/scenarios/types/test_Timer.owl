@@ -1,0 +1,146 @@
+// Déclarer un timer avec ses valeurs par défaut : inactif, intervalle
+// nul, sans procédure assignée.
+PROCEDURE scenario_declaration_defauts()
+	t est un Timer
+	dbgVérifieEgalité(t..Intervalle, 0, "Timer neuf : intervalle = 0")
+	dbgVérifieFaux(t..Actif, "Timer neuf : inactif par défaut")
+	dbgVérifieVrai(t..Répète, "Timer neuf : ..Répète = Vrai par défaut")
+FIN
+
+
+// Assigner un intervalle (en millisecondes) puis relire la valeur.
+PROCEDURE scenario_intervalle_lecture_ecriture()
+	t est un Timer
+	t..Intervalle = 500
+	dbgVérifieEgalité(t..Intervalle, 500, "..Intervalle = 500 relue correctement")
+	t..Intervalle = 2000
+	dbgVérifieEgalité(t..Intervalle, 2000, "..Intervalle = 2000 relue correctement")
+FIN
+
+
+// Assigner une procédure sans paramètre par référence directe.
+PROCEDURE scenario_procedure_ref_directe()
+	PROCEDURE ActionSimple()
+	FIN
+	t est un Timer
+	t..Procédure = ActionSimple
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Proc sans params : pas d'erreur à l'assignation")
+FIN
+
+
+// Une procédure peut être stockée dans une variable de type Procédure puis
+// passée à ..Procédure — pattern utile pour partager une même action entre
+// plusieurs timers.
+PROCEDURE ActionPartagee()
+FIN
+
+PROCEDURE scenario_procedure_via_variable()
+	t est un Timer
+	p est une procédure = ActionPartagee
+	t..Procédure = p
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Proc via variable Procédure : pas d'erreur")
+FIN
+
+
+// TimerDémarre(t) et t.Démarre() sont deux formes équivalentes.
+// Après Démarre, ..Actif passe à Vrai. Après Arrête, ..Actif repasse Faux.
+PROCEDURE scenario_demarre_arrete_dualite()
+	PROCEDURE Tick()
+	FIN
+	t est un Timer
+	t..Intervalle = 100
+	t..Procédure  = Tick
+
+	// Forme native classique
+	TimerDémarre(t)
+	dbgVérifieVrai(t..Actif, "TimerDémarre(t) -> ..Actif = Vrai")
+	TimerArrête(t)
+	dbgVérifieFaux(t..Actif, "TimerArrête(t) -> ..Actif = Faux")
+
+	// Forme méthode préfixe
+	t.Démarre()
+	dbgVérifieVrai(t..Actif, "t.Démarre() -> ..Actif = Vrai")
+	t.Arrête()
+	dbgVérifieFaux(t..Actif, "t.Arrête() -> ..Actif = Faux")
+FIN
+
+
+// Formes alias anglais : TimerStart / TimerStop et ..Interval / ..Active.
+PROCEDURE scenario_alias_anglais()
+	PROCEDURE Tick()
+	FIN
+	t est un Timer
+	t..Interval = 200
+	dbgVérifieEgalité(t..Interval, 200, "alias ..Interval = ..Intervalle")
+	t..Procédure = Tick
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "alias ..Procedure = ..Procédure, pas d'erreur")
+	TimerStart(t)
+	dbgVérifieVrai(t..Active, "TimerStart -> alias ..Active = Vrai")
+	TimerStop(t)
+	dbgVérifieFaux(t..Active, "TimerStop -> alias ..Active = Faux")
+FIN
+
+
+// ..Répète = Faux : le timer doit stocker la valeur correctement.
+PROCEDURE scenario_repete_faux()
+	t est un Timer
+	t..Répète = Faux
+	dbgVérifieFaux(t..Répète, "..Répète = Faux correctement stocké")
+	t..Répète = Vrai
+	dbgVérifieVrai(t..Répète, "..Répète = Vrai correctement restauré")
+FIN
+
+
+// Assigner une lambda zéro-param wrappant une procédure : doit être acceptée
+// sans erreur. C'est la forme équivalente à la référence directe quand aucun
+// argument n'est transmis.
+PROCEDURE ProxyCible()
+FIN
+
+PROCEDURE scenario_lambda_zero_param()
+	t est un Timer
+	t..Procédure = () => ProxyCible()
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Lambda () => Proc() : pas d'erreur à l'assignation")
+FIN
+
+
+// Assigner une lambda avec paramètre formel (ex. (x) => ...) déclenche une
+// erreur runtime car le timer appelle sa procédure sans argument.
+PROCEDURE ProxyCibleParam(nParam est un entier)
+	// Stub cible de lambda — paramètre intentionnellement non utilisé dans le corps.
+	// La signature (1 param entier) est ce qui est testé, pas le corps.
+	SI nParam > 0 ALORS FIN
+FIN
+
+PROCEDURE scenario_lambda_avec_param_interdit()
+	t est un Timer
+	t..Procédure = (x) => ProxyCibleParam(x)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Lambda (x) => ... : ErreurDétectée = Vrai")
+	sMsg est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieVrai(Contient(sMsg, "exige des paramètres"), "Message d'erreur mentionne 'exige des paramètres'")
+FIN
+
+
+// Lambda qui fige les arguments : () => ProcAvecArgs(val_figee). C'est le
+// pattern documenté pour passer des valeurs fixes à une procédure qui exige
+// des paramètres — le timer voit une procédure sans paramètre.
+PROCEDURE ProxyActionMsg(sMsg est une chaîne)
+	// Stub cible de lambda — paramètre intentionnellement non utilisé dans le corps.
+	// La signature (1 param chaîne) est ce qui est testé, pas le corps.
+	SI Taille(sMsg) > 0 ALORS FIN
+FIN
+
+PROCEDURE scenario_lambda_args_figes()
+	t est un Timer
+	t..Procédure = () => ProxyActionMsg("msg-fige")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "Lambda args figés () => Proc(val) : pas d'erreur")
+FIN
+
+
+dbgBilanTest()

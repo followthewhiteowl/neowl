@@ -1,0 +1,176 @@
+// @sujet : indexation directe d'un Tenseur — sous-Tenseur first-class le long de l'axe 0
+// @résumé : `mat[i]` sur un Tenseur de rang ≥ 2 rend un sous-Tenseur autonome de
+// rang N-1, réutilisable et différentiable (sélection le long de l'axe 0,
+// 1-based). Distinct de l'accès brut `..Valeur[i]`, qui reste inchangé. Un
+// rang 1 n'a pas de sous-Tenseur (erreur claire) ; les bornes hors [1, forme[1]]
+// lèvent une exception rattrapable.
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// ==================== NOMINAL : sous-Tenseur d'un 2×2 ====================
+
+// mat[1] et mat[2] sur un 2×2 rendent chacun un sous-Tenseur de rang 1 (une
+// rangée), avec forme et valeurs exactes.
+PROCEDURE PUBLIQUE scenario_indexation_directe_rend_sous_tenseur_rang_1()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	ligne est un Tenseur = mat[1]
+	dbgVérifieEgalité(ligne..Rang, 1, "mat[1] est un sous-Tenseur de rang 1")
+	dbgVérifieEgalité(ligne..Forme[1], 2, "mat[1] a 2 éléments")
+	dbgVérifieEgalité(ligne..Valeur[1], 1.0, "mat[1][1] = 1.0")
+	dbgVérifieEgalité(ligne..Valeur[2], 2.0, "mat[1][2] = 2.0")
+
+	dbgVérifieEgalité(mat[2]..Valeur[1], 3.0, "mat[2][1] = 3.0")
+	dbgVérifieEgalité(mat[2]..Valeur[2], 4.0, "mat[2][2] = 4.0")
+FIN
+
+
+// Le sous-Tenseur est réutilisable : stocké dans une variable, il peut être
+// ré-indexé (accès brut chaîné) et passé à une autre opération de la famille.
+PROCEDURE PUBLIQUE scenario_sous_tenseur_reutilisable()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	ligne est un Tenseur = mat[1]
+	dbgVérifieEgalité(ligne..Valeur[2], 2.0, "sous-Tenseur stocké, ré-indexé via ..Valeur")
+
+	somme est un Tenseur = ligne.Somme(1)
+	dbgVérifieEgalité(somme..Valeur[1], 3.0, "somme(mat[1]) = 1.0 + 2.0 = 3.0, réutilisé dans une op")
+FIN
+
+
+// Sur un cube 2×2×2, t[1] rend un sous-Tenseur de rang 2 (la première
+// tranche), forme [2, 2].
+PROCEDURE PUBLIQUE scenario_indexation_directe_rang_3_vers_rang_2()
+	cube est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+
+	tranche est un Tenseur = cube[1]
+	dbgVérifieEgalité(tranche..Rang, 2, "cube[1] est un sous-Tenseur de rang 2")
+	dbgVérifieEgalité(tranche..Forme[1], 2, "cube[1] a la forme [2, 2] : premier axe")
+	dbgVérifieEgalité(tranche..Forme[2], 2, "cube[1] a la forme [2, 2] : deuxième axe")
+	dbgVérifieEgalité(tranche..Valeur[1][1], 1.0, "cube[1][1][1] = 1.0")
+	dbgVérifieEgalité(tranche..Valeur[2][2], 4.0, "cube[1][2][2] = 4.0")
+FIN
+
+
+// ==================== AUTOGRAD TRACÉ ====================
+
+// perte = somme(mat[1]) : dérivée analytique triviale, 1.0 sur la rangée
+// sélectionnée, 0.0 ailleurs. Rétropropage() doit renvoyer le gradient du
+// sous-Tenseur vers la bonne tranche de mat, le reste à zéro.
+PROCEDURE PUBLIQUE scenario_autograd_gradient_remonte_a_la_bonne_tranche()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	perte est un Tenseur = mat[1].Somme(1)
+	perte.Rétropropage()
+
+	dbgVérifieEgalité(perte..Valeur[1], 3.0, "perte = somme(mat[1]) = 1.0 + 2.0 = 3.0")
+	dbgVérifieEgalité(mat..Gradient[1][1], 1.0, "d(somme(mat[1]))/d(mat) = 1.0 sur la rangée sélectionnée")
+	dbgVérifieEgalité(mat..Gradient[1][2], 1.0, "d(somme(mat[1]))/d(mat) = 1.0 sur la rangée sélectionnée")
+	dbgVérifieEgalité(mat..Gradient[2][1], 0.0, "d(somme(mat[1]))/d(mat) = 0.0 ailleurs")
+	dbgVérifieEgalité(mat..Gradient[2][2], 0.0, "d(somme(mat[1]))/d(mat) = 0.0 ailleurs")
+FIN
+
+
+// Symétrique sur mat[2] : le gradient remonte cette fois sur la seconde
+// rangée, la première reste à zéro.
+PROCEDURE PUBLIQUE scenario_autograd_gradient_deuxieme_rangee()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	perte est un Tenseur = mat[2].Somme(1)
+	perte.Rétropropage()
+
+	dbgVérifieEgalité(mat..Gradient[2][1], 1.0, "d(somme(mat[2]))/d(mat) = 1.0 sur la rangée 2")
+	dbgVérifieEgalité(mat..Gradient[2][2], 1.0, "d(somme(mat[2]))/d(mat) = 1.0 sur la rangée 2")
+	dbgVérifieEgalité(mat..Gradient[1][1], 0.0, "d(somme(mat[2]))/d(mat) = 0.0 sur la rangée 1")
+	dbgVérifieEgalité(mat..Gradient[1][2], 0.0, "d(somme(mat[2]))/d(mat) = 0.0 sur la rangée 1")
+FIN
+
+
+// ==================== NON-RÉGRESSION : accès brut inchangé ====================
+
+// L'accès chaîné ..Valeur[i][j] reste intact, indépendant de l'indexation
+// directe mat[i].
+PROCEDURE PUBLIQUE scenario_acces_brut_valeur_inchange()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	dbgVérifieEgalité(mat..Valeur[1][1], 1.0, "accès brut chaîné mat..Valeur[1][1] = 1.0 inchangé")
+	dbgVérifieEgalité(mat..Valeur[2][2], 4.0, "accès brut chaîné mat..Valeur[2][2] = 4.0 inchangé")
+FIN
+
+
+// ==================== EDGE : rang 1, pas de sous-Tenseur ====================
+
+// Un Tenseur de rang 1 n'a pas de sous-Tenseur : v[1] doit lever une
+// exception rattrapable (au lieu de fabriquer un rang 0 fantôme).
+PROCEDURE PRIVÉE scenario_edge_rang_1_pas_de_sous_tenseur()
+	v est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousV est un Tenseur = v[1]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "v[1] sur un Tenseur de rang 1 : exception rattrapée")
+FIN
+
+
+// ==================== EDGE : bornes ====================
+
+// Indice 0, hors [1, forme[1]] : exception rattrapable. Verrou no-crash
+// (exception générique existante), pas une preuve de la sémantique de
+// tranche — voir bloc nominal ci-dessus pour ça.
+PROCEDURE PRIVÉE scenario_edge_indice_zero_hors_borne()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousV est un Tenseur = mat[0]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "mat[0] hors [1,2] : exception rattrapée")
+FIN
+
+
+// Indice au-delà de forme[1] (2×2, forme[1] = 2) : exception rattrapable.
+PROCEDURE PRIVÉE scenario_edge_indice_superieur_a_la_forme_hors_borne()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousV est un Tenseur = mat[3]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "mat[3] hors [1,2] : exception rattrapée")
+FIN
+
+
+// Indice négatif : exception rattrapable.
+PROCEDURE PRIVÉE scenario_edge_indice_negatif_hors_borne()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousV est un Tenseur = mat[-1]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "mat[-1] hors [1,2] : exception rattrapée")
+FIN

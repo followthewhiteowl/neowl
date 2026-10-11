@@ -1,0 +1,27 @@
+// Mesure : Cadre est un composite COPIÉ à l'affectation directe
+// (LIB_B..Cadre = LIB_A..Cadre), comme Style.
+//
+// La ressource ETAT_CadrePartageDeuxControles vit dans le voisin
+// ETAT_CadrePartageDeuxControles.owl : Lecture() fait
+//   LIB_B..Cadre          = LIB_A..Cadre
+//   LIB_A..Cadre..Couleur = Vert
+// puis vérifie directement par VALEUR (dbgVérifieEgalité, dans Lecture()) :
+// - LIB_A..Cadre..Couleur = Vert (son écriture prend effet)
+// - LIB_B..Cadre..Couleur = Rouge (copie du Cadre de A au moment de
+//   l'affectation, non affectée par l'écriture ultérieure sur A)
+//
+// Méthode discriminante : avant le deep-clone à l'affectation (partage par
+// référence, last-writer), la mesure donnait A = Rouge (écriture perdue) et
+// B = Vert (jamais demandé sur B) — les 2 assertions auraient échoué. Avec
+// le deep-clone en place, A = Vert et B = Rouge — les 2 assertions passent.
+//
+// Ce runner se contente d'imprimer l'État (PDF jetable, non versionné) pour
+// déclencher Lecture(), puis dresse le bilan.
+
+TestModeHeadless(Vrai)
+
+iDestination(iPDFGénérique, "tests/runtime/etat_expr_proprietes_cadre_partage_deux_controles/temp.pdf")
+iImprimeEtat(ETAT_CadrePartageDeuxControles)
+iFinImprime()
+
+dbgBilanTest()

@@ -1,0 +1,28 @@
+//  — prescan depth consolide (pas de fantome)
+// Script voisin declare une globale Traiter homonyme de la methode de classe.
+// Avant fix : warning homonymie fantome (la methode etait exportee comme globale).
+// Apres fix : pas de warning fantome, la globale du script s'execute correctement.
+
+// Globale Traiter (homonyme methode classe, mais scope different)
+PROCEDURE Traiter(s est une chaîne) : chaîne
+	RENVOYER "globale:" + s
+FIN
+
+// Appel globale depuis top-level script
+resGlobale est une chaîne = Traiter("test")
+
+// Appel methode via instance classe
+c est un cCollectionneur
+tabTest est un tableau de chaînes
+Ajoute(tabTest, "A")
+Ajoute(tabTest, "B")
+sListe est une chaîne = c.MajListe(tabTest)
+resMethode est un entier = c.Traiter(5)
+
+dbgVérifieEgalité(resGlobale, "globale:test", "globale Traiter(s) doit s'executer depuis script")
+dbgVérifieEgalité(sListe, "A;B;", "methode MajListe avec POUR+SI doit fonctionner")
+dbgVérifieEgalité(resMethode, 105, "methode Traiter(x) apres MajListe doit etre resolue correctement")
+
+// Warning compile-time intentionnel (methode homonyme d'une globale) = feature testee.
+__dbgAvertissementAttendu("masque une procédure globale", "homonymie methode/globale Traiter — pas de fantome (fix/0507)")
+dbgBilanTest()

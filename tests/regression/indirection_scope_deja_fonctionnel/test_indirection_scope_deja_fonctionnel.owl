@@ -1,0 +1,30 @@
+// Regression  : verrouille le sous-ensemble de l'indirection scopée
+// qui fonctionne deja aujourd'hui, avant meme l'enregistrement d'indWindow /
+// indFenetre — pour eviter qu'un refactor du parsing de {expr, scope} (lie a
+// la resolution de {nom, indWindow} et {nom, indChamp}) ne regresse ce qui
+// marche deja :
+//   - {nom, indControl}..prop resout un champ par nom dynamique
+//   - {nom, indVariable} et {nom} (sans scope) resolvent une variable globale
+//
+// La fenetre voisine FEN_IndirectionScopeExistant.owl porte la declaration.
+
+TestModeHeadless(Vrai)
+
+nomChampCible est une chaîne = "LIB_IndirectionScopeExistant"
+configActiveCible est une chaîne = "production"
+nomVariableCible est une chaîne = "configActiveCible"
+
+Ouvre(FEN_IndirectionScopeExistant)
+
+sChamp est une chaîne = {nomChampCible, indControl}..Libellé
+dbgVérifieEgalité(sChamp, "Champ cible", "{nom, indControl}..Libellé resout deja le champ nomme dynamiquement")
+
+Ferme(FEN_IndirectionScopeExistant)
+
+vAvecScope est une chaîne = {nomVariableCible, indVariable}
+dbgVérifieEgalité(vAvecScope, "production", "{nom, indVariable} resout deja la variable globale nommee dynamiquement")
+
+vSansScope est une chaîne = {nomVariableCible}
+dbgVérifieEgalité(vSansScope, "production", "{nom} sans scope conserve la resolution en variable globale")
+
+dbgBilanTest()

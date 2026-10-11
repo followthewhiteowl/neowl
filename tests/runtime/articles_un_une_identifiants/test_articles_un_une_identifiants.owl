@@ -1,0 +1,49 @@
+//  — "un"/"une" (toutes casses) utilisables comme IDENTIFIANT partout
+// ou un nom est attendu (membre d'enum, variable, champ, parametre, acces
+// membre), tout en gardant leur role d'article dans `est un/une <Type>`.
+// Avant : le scanner les strippait comme fillers en TOUTE position -> le nom
+// disparaissait ("Nom de valeur d'enum attendu", "Expression attendue", etc.).
+// Fix : strippes UNIQUEMENT en position d'article (juste apres EST/SONT).
+
+// --- Membre d'enumeration nomme Un / Une, lisible via Type.Un ---
+Nombres est une Énumération
+	Un = 1
+	Une = 2
+	Trois = 3
+FIN
+n est un Nombres = Nombres.Un
+dbgVérifieEgalité(n, Nombres.Un, "membre d'enum 'Un' accessible/affectable via Nombres.Un")
+dbgVérifieVrai(Nombres.Un <> Nombres.Une, "membres d'enum 'Un' et 'Une' distincts")
+
+// --- Champ de structure nomme Un / Une ---
+Paire est une Structure
+	Un est un entier
+	Une est un entier
+FIN
+p est un Paire
+p.Un = 7
+p.Une = 8
+dbgVérifieEgalité(p.Un, 7, "champ de structure nomme 'Un'")
+dbgVérifieEgalité(p.Une, 8, "champ de structure nomme 'Une'")
+
+// --- Parametres nommes Un / Une (article strippe apres est) ---
+PROCEDURE SommeUnUne(Un est un entier, Une est un entier) : entier
+	resultat est un entier = Un + Une
+	RENVOYER resultat
+FIN
+dbgVérifieEgalité(SommeUnUne(10, 20), 30, "parametres nommes 'Un' et 'Une'")
+
+// --- Variable locale nommee Un + casse-insensible (UN == Un, Regle 6) ---
+PROCEDURE VarLocaleCasse() : entier
+	Un est un entier = 5
+	RENVOYER UN
+FIN
+dbgVérifieEgalité(VarLocaleCasse(), 5, "variable locale 'Un' relue en 'UN' (casse-insensible)")
+
+// --- Non-regression : l'article dans la declaration fonctionne toujours ---
+x est un entier = 42
+y est une chaîne = "ok"
+dbgVérifieEgalité(x, 42, "non-reg : x est un entier = 42")
+dbgVérifieEgalité(y, "ok", "non-reg : y est une chaine")
+
+dbgBilanTest()

@@ -1,0 +1,26 @@
+//  — __EnumCoerce résout les membres d'enum en FR ET en EN.
+//
+// __EnumCoerce(membre, enum) est le point d'entrée runtime de la coercition
+// vers une constante d'énumération. La résolution par nom n'acceptait que la
+// forme FR canon : passer la forme EN d'un membre ("errLine" pour errLigne)
+// renvoyait NIL (coercé en 0), alors que la forme FR ("errLigne") renvoyait
+// la vraie valeur sentinelle.
+//
+// Ce test verrouille la parité : EN doit converger vers la même valeur que FR.
+// La valeur exacte de errLigne/errLine dans errInfo est -2147482110.
+
+// Non-régression FR : la forme historique renvoie la sentinelle exacte.
+vFR est un entier = __EnumCoerce("errLigne", "errInfo")
+dbgVérifieEgalité(vFR,-2147482110, "__EnumCoerce FR (errLigne) = sentinelle errInfo")
+
+// Trou comblé : la forme EN résout le même membre et la même valeur.
+vEN est un entier = __EnumCoerce("errLine", "errInfo")
+dbgVérifieEgalité(vEN,-2147482110, "__EnumCoerce EN (errLine) = sentinelle errInfo")
+
+dbgVérifieEgalité(vEN, vFR, "__EnumCoerce EN et FR convergent")
+
+// Membre absent : reste NIL (coercé 0) — la coercition ne fabrique rien.
+vAbsent est un entier = __EnumCoerce("errInexistant", "errInfo")
+dbgVérifieEgalité(vAbsent, 0, "__EnumCoerce membre inconnu = NIL (0)")
+
+dbgBilanTest()

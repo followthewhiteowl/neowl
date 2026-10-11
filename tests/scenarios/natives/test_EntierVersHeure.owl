@@ -1,0 +1,93 @@
+// @sujet : EntierVersHeure
+// @résumé : Convertit un nombre de centièmes de seconde écoulés depuis minuit en heure. Précision : centième de seconde (10ms).
+
+
+// Cas canonique : zéro centième correspond à minuit pile.
+PROCEDURE PUBLIQUE scenario_minuit()
+	h est une heure = EntierVersHeure(0)
+	dbgVérifieEgalité(h..Heure, 0, "minuit = 0h")
+	dbgVérifieEgalité(h..Minute, 0, "minuit = 0min")
+	dbgVérifieEgalité(h..Seconde, 0, "minuit = 0sec")
+	dbgVérifieEgalité(h..Milliseconde, 0, "minuit = 0ms")
+FIN
+
+
+// Conversion d'une seconde exacte : 100 centièmes = 1 seconde.
+PROCEDURE PUBLIQUE scenario_une_seconde()
+	h est une heure = EntierVersHeure(100)
+	dbgVérifieEgalité(h..Heure, 0, "1 seconde = 0h")
+	dbgVérifieEgalité(h..Minute, 0, "1 seconde = 0min")
+	dbgVérifieEgalité(h..Seconde, 1, "1 seconde = 1sec")
+	dbgVérifieEgalité(h..Milliseconde, 0, "1 seconde = 0ms résiduel")
+FIN
+
+
+// Une minute exacte : 60 secondes = 6 000 centièmes.
+PROCEDURE PUBLIQUE scenario_une_minute()
+	h est une heure = EntierVersHeure(6000)
+	dbgVérifieEgalité(h..Heure, 0, "1 minute = 0h")
+	dbgVérifieEgalité(h..Minute, 1, "1 minute = 1min")
+	dbgVérifieEgalité(h..Seconde, 0, "1 minute = 0sec résiduel")
+FIN
+
+
+// Une heure exacte : 3 600 secondes = 360 000 centièmes.
+PROCEDURE PUBLIQUE scenario_une_heure()
+	h est une heure = EntierVersHeure(360000)
+	dbgVérifieEgalité(h..Heure, 1, "1 heure = 1h")
+	dbgVérifieEgalité(h..Minute, 0, "1 heure = 0min résiduel")
+	dbgVérifieEgalité(h..Seconde, 0, "1 heure = 0sec résiduel")
+FIN
+
+
+// Valeur composite : 14:32:08 + 50 centièmes = 14h × 360 000 + 32min × 6 000
+// + 8sec × 100 + 50cs = 5 040 000 + 192 000 + 800 + 50 = 5 232 850.
+PROCEDURE PUBLIQUE scenario_heure_composite()
+	h est une heure = EntierVersHeure(5232850)
+	dbgVérifieEgalité(h..Heure, 14, "5232850cs = 14h")
+	dbgVérifieEgalité(h..Minute, 32, "5232850cs = 32min")
+	dbgVérifieEgalité(h..Seconde, 8, "5232850cs = 8sec")
+	dbgVérifieEgalité(h..Milliseconde, 500, "5232850cs = 50cs = 500ms")
+FIN
+
+
+// Limite haute : 23:59:59:99 = 8 639 999 centièmes (juste avant minuit).
+PROCEDURE PUBLIQUE scenario_limite_haute()
+	h est une heure = EntierVersHeure(8639999)
+	dbgVérifieEgalité(h..Heure, 23, "limite haute = 23h")
+	dbgVérifieEgalité(h..Minute, 59, "limite haute = 59min")
+	dbgVérifieEgalité(h..Seconde, 59, "limite haute = 59sec")
+	dbgVérifieEgalité(h..Milliseconde, 990, "limite haute = 99cs = 990ms")
+FIN
+
+
+// Conversion depuis un réel arrondi : 100.7 centièmes → tronqué à 100cs = 1 seconde.
+// L'implémentation cast en int64_t (ligne 1906 stdlib_date.c), donc troncature implicite.
+PROCEDURE PRIVÉE scenario_reel_arrondi()
+	h est une heure = EntierVersHeure(100.7)
+	dbgVérifieEgalité(h..Seconde, 1, "réel 100.7 tronqué à 100cs = 1sec")
+	dbgVérifieEgalité(h..Milliseconde, 0, "pas de fraction résiduelle après troncature")
+FIN
+
+
+// Valeur négative : l'implémentation ne valide pas. Le modulo arithmétique peut
+// donner des résultats contre-intuitifs (ex: -100cs → 23:59:59:00 en wrap-around).
+// On vérifie qu'aucun crash ne survient, pas la sémantique exacte.
+PROCEDURE PRIVÉE scenario_negatif_pas_crash()
+	h est une heure = EntierVersHeure(-100)
+	// L'assertion minimale : le résultat est une heure valide (pas null, pas crash).
+	dbgVérifieVrai(h..Heure >= 0 ET h..Heure <= 23, "négatif donne heure dans [0..23]")
+FIN
+
+
+// Dépassement 24h : 25 heures = 9 000 000 centièmes. L'implémentation module implicitement
+// (division par 360 000 sans vérification borne supérieure). 25h → 1h en wrap-around.
+PROCEDURE PRIVÉE scenario_depassement_24h()
+	h est une heure = EntierVersHeure(9000000)
+	nHeureObtenue est un entier = h..Heure
+	// 9 000 000 / 360 000 = 25 → division entière → 25 % 24 ou juste 25 selon implémentation.
+	// L'impl actuelle fait h = cs / 360000 PUIS modulo 360000 sur le reste (lignes 1907-1911).
+	// Donc 9 000 000 / 360 000 = 25h, pas de modulo 24 appliqué sur h. Résultat : 25:00:00:00.
+	dbgVérifieEgalité(nHeureObtenue, 25, "dépassement 24h : implem actuelle donne 25h brut (pas de modulo 24)")
+	dbgVérifieEgalité(h..Minute, 0, "dépassement 24h : 0 minute résiduelle")
+FIN

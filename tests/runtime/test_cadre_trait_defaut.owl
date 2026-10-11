@@ -1,0 +1,27 @@
+//  — instance Cadre standalone herite le defaut Trait=TraitContinu
+// du registry (pas 0).
+// Bug pre-existant depuis  : l'instance declarative (litteral ou
+// cascade) avait Trait=0 (invisible malgre epaisseur + couleur posees).
+
+// Test 1 : instance impérative standalone (créée par le runtime sans valeur
+// explicite) porte bien le défaut Trait=TraitContinu du registry.
+c est un Cadre
+dbgVérifieEgalité(c..Trait, TraitContinu, "Cadre standalone : Trait par défaut = TraitContinu")
+
+// Test 2 : poser Epaisseur + Couleur sans toucher Trait → Trait reste au
+// défaut continu (pas écrasé à 0 par les autres poseurs).
+c..Epaisseur = 3
+c..Couleur   = RougeClair
+dbgVérifieEgalité(c..Trait, TraitContinu, "Après pose Epaisseur+Couleur : Trait inchangé")
+
+// Test 3 : littéral partiel (sans Trait explicite) hérite le défaut continu.
+c2 est un Cadre = {Epaisseur = 5; Couleur = BleuFoncé}
+dbgVérifieEgalité(c2..Trait, TraitContinu, "Littéral sans Trait : défaut = TraitContinu")
+
+// Test 4 : poser Trait=TraitAucun explicitement → la valeur survit (non écrasée
+// par un défaut brutal qui forcerait continu partout).
+c3 est un Cadre
+c3..Trait = TraitAucun
+dbgVérifieEgalité(c3..Trait, TraitAucun, "Trait explicite TraitAucun : préservé")
+
+dbgBilanTest()

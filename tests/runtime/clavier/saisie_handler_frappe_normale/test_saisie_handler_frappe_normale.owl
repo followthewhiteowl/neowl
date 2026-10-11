@@ -1,0 +1,45 @@
+//  lot B — Non-régression : la présence d'un handler
+// surToucheAppuyée sur un Champ Saisie ne doit pas empêcher la frappe
+// normale de remplir ..Valeur. Le filtre clavier observe la touche et la
+// laisse passer au widget Qt (pas de consommation exclusive).
+//
+// Pas de doublon avec tests/runtime/offscreen/saisie_reelle_principale
+// (celui-ci type SANS handler clavier déclaré) ni avec
+// tests/runtime/clavier/event_saisie_touche (celui-ci ne vérifie pas
+// ..Valeur). Ce test combine les deux : handler déclaré + valeur réelle.
+//
+// ROUGE ATTENDU (constaté) : Saisie fait déjà partie des 4 champs câblés
+// avant ce ticket (FAM_KEYBOARD_EVENTS déjà enregistrée pour
+// OWL_CONTROL_INPUT), mais la présence d'un handler surToucheAppuyée
+// EMPÊCHE aujourd'hui ..Valeur de se remplir : le filtre clavier consomme
+// la frappe au profit du seul handler (nAppCap = 3 tire bien, mais
+// ..Valeur reste vide au lieu de "abc"). C'est exactement le risque de
+// régression que ce critère d'acceptation vise à verrouiller -- il n'est
+// pas hypothétique.
+
+TestModeHeadless(Faux)
+
+bPrete est un booléen = Faux
+nAppCap est un entier = 0
+
+PROCEDURE callback_fen_prete()
+	bPrete = Vrai
+FIN
+
+PROCEDURE callback_lit_appuyee_count(n est un entier)
+	nAppCap = n
+FIN
+
+OuvreSoeur(FEN_SaisieHandlerFrappeNormale)
+dbgVérifieVrai(bPrete, "FinInitialisation appelée : fenêtre prête")
+
+// TestSimuleSaisie poste de vrais QKeyEvents : "abc" = 3 caractères.
+TestSimuleSaisie(SAI_AvecHandler, "abc")
+
+dbgVérifieEgalité(SAI_AvecHandler..Valeur, "abc", "frappe normale : ..Valeur = texte réel malgré le handler surToucheAppuyée")
+
+LireAppuyeeCount()
+dbgVérifieEgalité(nAppCap, 3, "surToucheAppuyée : tire aussi 1 fois par caractère (pas de conflit avec la saisie)")
+
+Ferme(FEN_SaisieHandlerFrappeNormale)
+dbgBilanTest()

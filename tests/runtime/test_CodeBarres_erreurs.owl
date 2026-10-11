@@ -1,0 +1,65 @@
+// Verrouillage : contenu incompatible avec la symbologie -> ErreurInfo levée par
+// CodeBarreVersImage (pipeline zint : ZBarcode_Encode retourne >= 5 -> errtxt).
+// Hors scope v1 : check-digit calculé, ValeurBrute, décodage (cf ticket ).
+
+// ============================================================================
+// EAN13 : longueur invalide (5 chiffres au lieu de 12/13)
+// ============================================================================
+cbLongueurInvalide est un CodeBarres
+cbLongueurInvalide..TypeCodeBarres = CB_EAN13
+cbLongueurInvalide..TypeContenu    = cbTypeTexte
+cbLongueurInvalide..Contenu        = "12345"
+
+ErreurRAZ()
+imgLongueurInvalide est une Image = CodeBarreVersImage(cbLongueurInvalide)
+dbgVérifieVrai(ErreurInfo() <> "", "EAN13 longueur invalide (5 chiffres) -> erreur levée")
+
+// ============================================================================
+// EAN13 : contenu non-numérique
+// ============================================================================
+cbNonNumerique est un CodeBarres
+cbNonNumerique..TypeCodeBarres = CB_EAN13
+cbNonNumerique..TypeContenu    = cbTypeTexte
+cbNonNumerique..Contenu        = "ABCDEFGHIJKLM"
+
+ErreurRAZ()
+imgNonNumerique est une Image = CodeBarreVersImage(cbNonNumerique)
+dbgVérifieVrai(ErreurInfo() <> "", "EAN13 contenu non-numérique -> erreur levée")
+
+// ============================================================================
+// EAN8 : longueur invalide (10 chiffres au lieu de 7/8)
+// ============================================================================
+cbEan8Invalide est un CodeBarres
+cbEan8Invalide..TypeCodeBarres = CB_EAN8
+cbEan8Invalide..TypeContenu    = cbTypeTexte
+cbEan8Invalide..Contenu        = "1234567890"
+
+ErreurRAZ()
+imgEan8Invalide est une Image = CodeBarreVersImage(cbEan8Invalide)
+dbgVérifieVrai(ErreurInfo() <> "", "EAN8 longueur invalide (10 chiffres) -> erreur levée")
+
+// ============================================================================
+// UPC-A : longueur invalide (12 chiffres au lieu de 11)
+// ============================================================================
+cbUpcaInvalide est un CodeBarres
+cbUpcaInvalide..TypeCodeBarres = CB_UPCA
+cbUpcaInvalide..TypeContenu    = cbTypeTexte
+cbUpcaInvalide..Contenu        = "123456789012"
+
+ErreurRAZ()
+imgUpcaInvalide est une Image = CodeBarreVersImage(cbUpcaInvalide)
+dbgVérifieVrai(ErreurInfo() <> "", "UPC-A longueur invalide (12 chiffres) -> erreur levée")
+
+// ============================================================================
+// Contenu vide : rien à encoder
+// ============================================================================
+cbVide est un CodeBarres
+cbVide..TypeCodeBarres = CB_CODE128
+cbVide..TypeContenu    = cbTypeTexte
+cbVide..Contenu        = ""
+
+ErreurRAZ()
+imgVide est une Image = CodeBarreVersImage(cbVide)
+dbgVérifieVrai(ErreurInfo() <> "", "Contenu vide -> erreur levée")
+
+dbgBilanTest()

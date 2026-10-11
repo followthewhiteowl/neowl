@@ -1,0 +1,95 @@
+// @sujet : MockDernierArgument
+// @résumé : Récupère la valeur typée d'un argument du dernier appel intercepté sur un mock, dans son type d'origine (chaîne, entier, structure…). Permet d'asserter sur le contenu réel d'un argument, pas seulement sur le nombre d'appels.
+
+
+// Le compteur d'appels d'un mock (MockVérifieAppelé) répond à « combien de
+// fois » ; MockDernierArgument répond à « avec quoi ». L'indice est 1-based
+// et vise le DERNIER appel intercepté. La valeur revient dans son type
+// d'origine, donc une structure passée en argument (httpRequête) reste
+// pleinement lisible via ses propriétés.
+mockInfo est un MockNative = MockCrée(Info)
+
+
+PROCEDURE avantChaqueTest()
+	mockInfo = MockCrée(Info).Quand().Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockInfo.Desactive()
+FIN
+
+
+// Argument chaîne : le premier argument du dernier appel revient tel quel.
+PROCEDURE scenario_capture_scalaire_chaine()
+	Info("bonjour")
+	dbgVérifieEgalité(MockDernierArgument(mockInfo, 1), "bonjour", "1er argument chaîne du dernier appel")
+FIN
+
+
+// La capture vise le DERNIER appel : après trois invocations, seul le
+// contenu de la dernière est retourné.
+PROCEDURE scenario_capture_dernier_appel_seulement()
+	Info("un")
+	Info("deux")
+	Info("trois")
+	dbgVérifieEgalité(MockDernierArgument(mockInfo, 1), "trois", "seul le dernier appel est capturé")
+FIN
+
+
+// Argument entier : la valeur revient typée entier, pas convertie en chaîne.
+// L'égalité stricte avec 42 (entier) le prouve.
+PROCEDURE scenario_capture_scalaire_entier()
+	Info(42)
+	dbgVérifieEgalité(MockDernierArgument(mockInfo, 1), 42, "argument entier capturé dans son type")
+FIN
+
+
+// Argument structuré : une requête HTTP passée à HTTPEnvoie interceptée est
+// récupérée intacte. Ses propriétés (URL, en-têtes) restent lisibles — c'est
+// le cœur de la fonctionnalité : asserter sur la signature d'un appel réseau
+// sans l'émettre.
+PROCEDURE scenario_capture_struct_httpRequete()
+	mockHTTP est un MockNative = MockCrée(HTTPEnvoie)
+	mockHTTP.Quand().Avec(MockTout).Retourne("{}").Active()
+
+	reqSortie est un httpRequête
+	reqSortie..URL                     = "http://exemple.test/ressource"
+	reqSortie..Entête["Authorization"] = "AWS4-HMAC-SHA256 Credential=xxx"
+
+	HTTPEnvoie(reqSortie)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHTTP, 1)
+	dbgVérifieEgalité(reqCapturee..URL, "http://exemple.test/ressource", "URL de la requête capturée")
+	dbgVérifieEgalité(reqCapturee..Entête["Authorization"], "AWS4-HMAC-SHA256 Credential=xxx", "en-tête Authorization de la requête capturée")
+
+	mockHTTP.Desactive()
+FIN
+
+
+// Aucun appel intercepté : la fonction signale une erreur (ErreurDétectée)
+// et retourne Null. Un mock fraîchement créé n'a rien à offrir.
+PROCEDURE PRIVÉE scenario_edge_aucun_appel()
+	mockVierge est un MockNative = MockCrée(Info).Quand().Active()
+
+	ErreurRAZ()
+	vRien est une chaîne = MockDernierArgument(mockVierge, 1)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Aucun appel intercepté pose ErreurDetectee")
+	dbgVérifieNull(vRien, "Aucun appel intercepté → Null")
+
+	mockVierge.Desactive()
+FIN
+
+
+// Indice hors bornes : au-delà du nombre d'arguments du dernier appel, la
+// fonction signale une erreur et retourne Null.
+PROCEDURE PRIVÉE scenario_edge_indice_hors_bornes()
+	Info("solo")
+
+	ErreurRAZ()
+	vRien est une chaîne = MockDernierArgument(mockInfo, 5)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Indice hors bornes pose ErreurDetectee")
+	dbgVérifieNull(vRien, "Indice hors bornes → Null")
+FIN

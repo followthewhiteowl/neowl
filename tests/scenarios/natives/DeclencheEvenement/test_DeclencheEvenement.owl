@@ -1,0 +1,106 @@
+// @sujet : DéclencheÉvénement, TriggerEvent
+// @résumé : Déclenche par code le handler d'un événement d'un champ, sans
+// passer par une interaction utilisateur simulée. Utile quand la logique
+// métier vit dans le handler lui-même (pas dans une procédure nommée à
+// part) et qu'on veut la ré-exécuter depuis du code (tests, orchestration,
+// migration de logique historique).
+//
+// Deux formes de cible :
+// - objet : DéclencheÉvénement(BTN_x, evtClic) — champ résolu au compile.
+// - chaîne : DéclencheÉvénement("BTN_x", evtClic) — indirection, résolue
+//   au runtime.
+//
+// La fenêtre voisine FEN_Decl.owl porte les champs et leurs handlers ;
+// les callbacks utilitaires ci-dessous remontent l'exécution au script.
+
+dernierClicObs est une chaîne = ""
+dernierModifObs est une chaîne = ""
+dernierToucheObs est un entier = 0
+
+PROCEDURE callback_clic(msg est une chaîne)
+	dernierClicObs = msg
+FIN
+
+PROCEDURE callback_modif(msg est une chaîne)
+	dernierModifObs = msg
+FIN
+
+PROCEDURE callback_touche(t est un entier)
+	dernierToucheObs = t
+FIN
+
+
+// Isolation : les globals d'observation sont partagés entre scénarios ;
+// on les remet à zéro avant chaque scénario (sinon l'état fuite).
+PROCEDURE avantChaqueTest()
+	dernierClicObs   = ""
+	dernierModifObs  = ""
+	dernierToucheObs = 0
+FIN
+
+
+// Forme objet : déclenche surClic de BTN_Clic sans clic simulé.
+PROCEDURE scenario_declenche_forme_objet()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Decl)
+	dbgVérifieEgalité(dernierClicObs, "", "Aucun clic avant déclenchement")
+
+	DéclencheÉvénement(BTN_Clic, evtClic)
+	dbgVérifieEgalité(dernierClicObs, "clic déclenché", "surClic exécuté par code")
+
+	Ferme(FEN_Decl)
+FIN
+
+
+// Forme objet sur un 2e event (surAChaqueModification / evtModification).
+PROCEDURE scenario_declenche_forme_objet_second_event()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Decl)
+	dbgVérifieEgalité(dernierModifObs, "", "Aucune modif avant déclenchement")
+
+	DéclencheÉvénement(SAI_Modif, evtAChaqueModification)
+	dbgVérifieEgalité(dernierModifObs, "modif déclenchée", "surAChaqueModification exécuté par code")
+
+	Ferme(FEN_Decl)
+FIN
+
+
+// Forme chaîne (indirection) : le nom du champ est résolu au runtime.
+PROCEDURE scenario_declenche_forme_chaine()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Decl)
+	dbgVérifieEgalité(dernierClicObs, "", "Aucun clic avant déclenchement")
+
+	DéclencheÉvénement("BTN_Clic", evtClic)
+	dbgVérifieEgalité(dernierClicObs, "clic déclenché", "surClic exécuté via indirection chaîne")
+
+	Ferme(FEN_Decl)
+FIN
+
+
+// Bilingue : TriggerEvent + evtClick (formes EN) équivalent à
+// DéclencheÉvénement + evtClic.
+PROCEDURE scenario_bilingue_triggerevent()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Decl)
+	dbgVérifieEgalité(dernierClicObs, "", "Aucun clic avant déclenchement")
+
+	TriggerEvent(BTN_Clic, evtClick)
+	dbgVérifieEgalité(dernierClicObs, "clic déclenché", "onClick exécuté via forme EN")
+
+	Ferme(FEN_Decl)
+FIN
+
+
+// Passage de paramètre : evtToucheAppuyée reçoit le code de touche passé
+// en argument supplémentaire à DéclencheÉvénement.
+PROCEDURE scenario_declenche_avec_parametre()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Decl)
+	dbgVérifieEgalité(dernierToucheObs, 0, "Aucune touche avant déclenchement")
+
+	DéclencheÉvénement(SAI_Modif, evtToucheAppuyée, 65)
+	dbgVérifieEgalité(dernierToucheObs, 65, "surToucheAppuyée reçoit le paramètre passé par code")
+
+	Ferme(FEN_Decl)
+FIN

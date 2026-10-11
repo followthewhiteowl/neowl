@@ -1,0 +1,76 @@
+//  — Non-regression : TANTQUE/POUR/SELON dans SINON marchent
+// et SI dans ALORS marche
+// STATUT INITIAL : VERT (ne doit pas regressee apres fix)
+
+// TANTQUE dans SINON
+PROCEDURE TestTantqueDansSinon()
+	nRes est un entier = 0
+	SI Faux ALORS
+		nRes = 99
+	SINON
+		TANTQUE nRes < 3
+			nRes = nRes + 1
+		FIN
+	FIN
+	RENVOYER nRes
+FIN
+
+// POUR dans SINON
+PROCEDURE TestPourDansSinon()
+	nRes est un entier = 0
+	SI Faux ALORS
+		nRes = 99
+	SINON
+		POUR i = 1 À 4
+			nRes = nRes + i
+		FIN
+	FIN
+	RENVOYER nRes
+FIN
+
+// SELON dans SINON
+PROCEDURE TestSelonDansSinon()
+	nRes est un entier = 0
+	SI Faux ALORS
+		nRes = 99
+	SINON
+		SELON nRes
+			CAS 0 : nRes = 42
+			AUTRE CAS : nRes = 0
+		FIN
+	FIN
+	RENVOYER nRes
+FIN
+
+// SI dans ALORS (temoin historique : ne doit pas etre affecte)
+PROCEDURE TestSiDansAlors()
+	nRes est un entier = 0
+	SI Vrai ALORS
+		SI Vrai ALORS
+			nRes = 7
+		FIN
+		nRes = nRes + 1
+	FIN
+	RENVOYER nRes
+FIN
+
+// SI dans ALORS avec SINON imbriqué
+PROCEDURE TestSiAvecSinonDansAlors()
+	nRes est un entier = 0
+	SI Vrai ALORS
+		SI Faux ALORS
+			nRes = 99
+		SINON
+			nRes = 5
+		FIN
+	FIN
+	RENVOYER nRes
+FIN
+
+dbgVérifieEgalité(TestTantqueDansSinon(), 3, "TANTQUE dans SINON : boucle jusqu'a 3")
+dbgVérifieEgalité(TestPourDansSinon(), 10, "POUR dans SINON : 1+2+3+4 = 10")
+dbgVérifieEgalité(TestSelonDansSinon(), 42, "SELON dans SINON : CAS 0 -> 42")
+dbgVérifieEgalité(TestSiDansAlors(), 8, "SI dans ALORS : 7+1 = 8")
+dbgVérifieEgalité(TestSiAvecSinonDansAlors(), 5, "SI+SINON imbriqué dans ALORS : branche SINON = 5")
+
+dbgBilanTest()

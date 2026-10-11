@@ -1,0 +1,28 @@
+//  : cœur de la sémantique « bascules collantes alternables » —
+// GLOBAL nA / LOCAL nB / GLOBAL nC. `nA` et `nC` doivent être visibles
+// (promus), `nB` doit rester confiné même si des bascules GLOBAL
+// l'entourent des deux côtés. Ce fichier verrouille la partie confinement
+// (référence à `nB` depuis une procédure) : elle doit échouer,
+// contrairement à `nA`/`nC`.
+// ROUGE attendu / SNAPSHOT NON FIGÉ : aujourd'hui, `GLOBAL`/`LOCAL` en tête
+// de ligne ne sont câblés par aucune règle de parsing hors classe — erreur
+// de compilation générique sur la première occurrence, pas encore la vraie
+// raison (confinement de `nB`). Pas de .expected.json : l'implementer fige
+// le snapshot une fois la bascule câblée et `nB` réellement confiné.
+
+GLOBAL
+nA est un entier = 1
+
+LOCAL
+nB est un entier = 2
+
+GLOBAL
+nC est un entier = 3
+
+PROCEDURE UtiliseTout()
+	Trace(nA)
+	Trace(nB)
+	Trace(nC)
+FIN
+
+UtiliseTout()

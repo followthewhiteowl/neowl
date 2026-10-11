@@ -1,0 +1,62 @@
+Trace("=== Enum-constrained native params (valid cases only) ===")
+
+// HTTPDonneResultat — le param 2 accepte uniquement httpResult*
+HTTPParamètre(httpParamReinitialise, 0)
+
+rep est un httpRéponse
+rep..CodeEtat = 200
+rep..Contenu  = ChaîneVersBuffer("hello")
+
+// Chaque cas valide doit compiler sans erreur et retourner la bonne valeur.
+dbgVérifieEgalité(HTTPDonneRésultat(rep, httpResultCodeEtat), 200,
+"httpResultCodeEtat accepte")
+
+// HTTPParametre — le param 1 accepte uniquement httpParam*
+HTTPParamètre(httpParamTimeoutConnexion, 30)
+dbgVérifieVrai(Vrai, "httpParam* valide sans erreur compile")
+
+// ErreurInfo — accepte errXxx (soft error, pas unwinding)
+//  : errCode retourne desormais une chaine canonique. Legacy
+// path ErreurDeclenche(int, msg) stocke la representation string de l'int.
+ErreurDéclenche(7, "boom")
+dbgVérifieEgalité(ErreurInfo(errCode), "7", "errCode dans ErreurInfo (string)")
+dbgVérifieEgalité(ErreurInfo(errMessage), "boom", "errMessage dans ErreurInfo")
+ErreurRAZ()
+
+// Variable runtime — ne déclenche pas la vérif compile (pas une constante globale)
+choix est un entier = httpResultURL
+dbgVérifieEgalité(HTTPDonneRésultat(rep, choix), "",
+"variable runtime acceptée (URL vide sur cette réponse)")
+
+// Field assignment — `req..Méthode = httpPost` doit compiler ;
+// `req..Méthode = httpParamProxy` serait rejeté à la compile (testé hors suite).
+req est un httpRequête
+req..Méthode = httpPost
+dbgVérifieEgalité(req..Méthode, httpPost, "field enum-checked accept")
+req..Méthode = httpDelete
+dbgVérifieEgalité(req..Méthode, httpDelete, "field enum-checked reassign")
+
+// === Palier 1 — nouvelles propriétés httpRequête ===
+req..AgentUtilisateur = "OwlTest/1.0"
+dbgVérifieEgalité(req..AgentUtilisateur, "OwlTest/1.0", "AgentUtilisateur set/get")
+
+req..Destination = "/tmp/out.bin"
+dbgVérifieEgalité(req..Destination, "/tmp/out.bin", "Destination set/get")
+
+req..MotDePasseCertificatClient = "secret"
+dbgVérifieEgalité(req..MotDePasseCertificatClient, "secret", "MotDePasseCertificatClient set/get")
+
+// === Palier 2 — enums combinables ===
+// VersionSSL — bitmask TLS1_2 | TLS1_3
+req..VersionSSL = ProtocoleTLS1_2 + ProtocoleTLS1_3
+dbgVérifieEgalité(req..VersionSSL, 12, "VersionSSL = TLS1_2+TLS1_3 (bitmask 4+8=12)")
+
+// IgnoreErreur — bitmask combinable (ignore cert expiré + redirect)
+req..IgnoreErreur = httpIgnoreCertificatExpire + httpIgnoreRedirection
+dbgVérifieEgalité(req..IgnoreErreur, 12, "IgnoreErreur = certExpiré+redirect (bitmask 4+8=12)")
+
+// Mélange autorisé de plusieurs membres de l'enum combinable
+req..IgnoreErreur = httpIgnoreCertificatInvalide + httpIgnoreNomCertificatInvalide + httpIgnoreRevocation
+dbgVérifieEgalité(req..IgnoreErreur, 1 + 2 + 64, "IgnoreErreur triple combinaison")
+
+dbgBilanTest()

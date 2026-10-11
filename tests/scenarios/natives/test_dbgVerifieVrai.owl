@@ -1,0 +1,134 @@
+// @sujet : dbgVérifieVrai
+// @resume : Vérifie qu'une condition est vraie et signale une assertion si fausse
+
+// ======================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ======================================
+
+PROCEDURE PUBLIQUE scenario_condition_vraie_simple()
+	// Cas nominal : une condition vraie déclenche une assertion réussie
+	// Aucun échec ne doit être enregistré dans le bilan
+
+	nbEchecsAvant est un entier = dbgBilanTest()
+
+	valeur est un entier = 42
+
+	// Vérifier qu'une comparaison vraie est bien détectée
+	dbgVérifieVrai(valeur > 10, "42 superieur a 10")
+
+	// Le compteur d'échecs ne doit pas avoir bougé
+	nbEchecsApres est un entier = dbgBilanTest()
+	deltaEchecs est un entier = nbEchecsApres - nbEchecsAvant
+
+	dbgVérifieEgalité(deltaEchecs, 0, "Aucun echec pour condition vraie")
+FIN
+
+PROCEDURE PUBLIQUE scenario_egalite_chaines()
+	// Vérifier qu'une condition d'égalité sur chaînes fonctionne
+	// Cas typique : validation de résultat attendu
+
+	sNom1 est une chaîne = "Alice"
+	sNom2 est une chaîne = "Alice"
+
+	// La condition "sNom1 = sNom2" est vraie, donc l'assertion passe
+	dbgVérifieVrai(sNom1 = sNom2, "Alice egal Alice")
+FIN
+
+PROCEDURE PUBLIQUE scenario_complement_dbgVerifieFaux()
+	// dbgVérifieVrai est le pendant exact de dbgVérifieFaux
+	// Utile pour des assertions de type "doit être"
+
+	compteur est un entier = 5
+
+	// Vérifier qu'une valeur est dans une plage attendue
+	dbgVérifieVrai(compteur > 0, "Compteur strictement positif")
+
+	// Équivalent à dbgVérifieFaux(compteur <= 0, ...)
+	// Mais exprime l'intention différemment selon le contexte
+FIN
+
+// ======================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ======================================
+
+PROCEDURE PRIVÉE scenario_edge_zero_et_valeurs_negatives()
+	// Valeurs sentinel : 0, négatifs, limites arithmétiques
+
+	zero est un entier = 0
+	dbgVérifieVrai(zero = 0, "Zero egal zero")
+	dbgVérifieVrai(zero >= 0, "Zero superieur ou egal zero")
+
+	negatif est un entier = -5
+	dbgVérifieVrai(negatif < 0, "Negatif inferieur a zero")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_vides()
+	// Cas limites sur chaînes vides
+
+	sVide est une chaîne = ""
+	sAutreVide est une chaîne = ""
+
+	// Vérifier qu'une chaîne vide est égale à une autre chaîne vide
+	dbgVérifieVrai(sVide = sAutreVide, "Vides egales")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_operateurs_logiques()
+	// Combinaison avec opérateurs logiques ET, OU
+
+	nA est un entier = 5
+	nB est un entier = 10
+
+	// Vérifier des conditions complexes vraies
+	dbgVérifieVrai(nA > 0 ET nB > 0, "Condition ET vraie")
+	dbgVérifieVrai(nA = 5 OU nB = 5, "Condition OU vraie")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_comparaisons_reels()
+	// Comparaisons sur réels : attention aux arrondis
+
+	rX est un réel = 1.0
+	rY est un réel = 2.0
+
+	dbgVérifieVrai(rX < rY, "1.0 inferieur a 2.0")
+	dbgVérifieVrai(rX <> rY, "1.0 different de 2.0")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que dbgVérifieVrai et dbgCheckTrue sont équivalents
+
+	nbEchecsAvant est un entier = dbgBilanTest()
+
+	valeur est un entier = 10
+
+	// Les deux formes doivent se comporter à l'identique
+	dbgVérifieVrai(valeur > 5, "Alias FR")
+	dbgCheckTrue(valeur > 5, "Alias EN")
+
+	// Aucun échec supplémentaire
+	nbEchecsApres est un entier = dbgBilanTest()
+	deltaEchecs est un entier = nbEchecsApres - nbEchecsAvant
+
+	dbgVérifieEgalité(deltaEchecs, 0, "Alias FR/EN coherents")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_label_vide()
+	// Cas limite : label vide (2e arg optionnel normalement)
+	// Le système doit tolérer un label vide
+
+	compteur est un entier = 10
+
+	dbgVérifieVrai(compteur > 0, "")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_comparaison_booleen_direct()
+	// Comparaison directe sur booléens
+
+	flag est un booléen = Vrai
+
+	// Vérifier que flag est bien Vrai
+	dbgVérifieVrai(flag = Vrai, "Flag est Vrai")
+
+	// Équivalent à dbgVérifieFaux(flag = Faux, ...) mais exprime la logique positive
+FIN
+
+dbgBilanTest()

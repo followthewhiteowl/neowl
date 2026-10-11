@@ -1,0 +1,52 @@
+//  — raccourci `Style..CouleurFond` ≡ `Style..ZoneSaisie..CouleurFond`
+// (réécriture compile-time du raccourci vers la forme explicite du sous-
+// élément ZoneSaisie). Vérifié en comparant le rendu pixel des deux formes,
+// même couleur, même géométrie relative.
+//
+// ROUGE attendu : `Style..ZoneSaisie..X` ne compile pas encore (le sous-
+// élément ZoneSaisie n'existe pas sur styleSaisie — champ inconnu). Le
+// raccourci `Style..CouleurFond` compile déjà aujourd'hui (prop de base
+// existante) mais ce test dépose les DEUX formes ensemble : il ne peut
+// compiler tant que la forme explicite n'existe pas. Cf.
+// FEN_StyleElementRaccourci.owl.
+
+TestModeHeadless(Faux)
+
+couleurFond est un entier = RVB(0, 220, 100)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementRaccourci)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleElementRaccourci)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+seuilFond est un entier = 4800 // (500-20) * (60-20) * 0.30, arrondi
+
+nbFondRaccourci est un entier = CompteCouleurZone(img, 30, 30, 510, 70, couleurFond)
+dbgVérifieVrai(nbFondRaccourci > seuilFond, "SAI_Raccourci : Style..CouleurFond peint le fond")
+
+nbFondExplicite est un entier = CompteCouleurZone(img, 30, 110, 510, 150, couleurFond)
+dbgVérifieVrai(nbFondExplicite > seuilFond, "SAI_Explicite : Style..ZoneSaisie..CouleurFond peint le fond")
+
+// Les deux formes doivent produire un rendu équivalent (même nombre de
+// pixels peints à +/- une marge de tolérance de bord d'anti-crénelage).
+ecart est un entier = nbFondRaccourci - nbFondExplicite
+dbgVérifieVrai(Abs(ecart) < 200, "raccourci ≡ forme explicite : rendu équivalent (écart de pixels négligeable)")
+
+Ferme(FEN_StyleElementRaccourci)
+dbgBilanTest()

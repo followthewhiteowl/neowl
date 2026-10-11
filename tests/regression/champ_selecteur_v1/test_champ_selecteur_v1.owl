@@ -1,0 +1,38 @@
+// Regression : Champ Selecteur V1 — kind, props, options polymorphique, natives.
+//
+// Pattern : la fenêtre voisine FEN_TestSelecteur.owl porte la déclaration
+// compile-only (modes d'affichage + options array/struct + multi-colonnes
+// + images optionnelles). Toutes les déclarations `Options` y sont écrites en
+// forme mono-ligne (seule forme canon pour un littéral tableau, cf. ) :
+// un `[` en fin de ligne ouvre une chaîne multi-ligne, jamais un tableau.
+//
+//  — durcissement : ce test ne vérifiait avant que `TypeVar(...)` sur
+// les natives, jamais le CONTENU réel des Options. C'est ce qui a laissé
+// passer un bug où une forme multi-ligne rendait des Sélecteurs vides
+// (Occurrence = 0) sans le moindre diagnostic ni échec de test. On vérifie
+// maintenant le contenu réel au banc headless.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_TestSelecteur)
+
+dbgVérifieEgalité(SélecteurOccurrence(SEL_Civilite), 3,
+"SEL_Civilite (Options mono-ligne, chaînes) a 3 options")
+dbgVérifieEgalité(SélecteurOccurrence(SEL_Livraison), 3,
+"SEL_Livraison (Options mono-ligne, structs) a 3 options")
+dbgVérifieEgalité(SélecteurOccurrence(SEL_Couleurs), 4,
+"SEL_Couleurs (Options mono-ligne, chaînes) a 4 options")
+dbgVérifieEgalité(SélecteurOccurrence(SEL_Format), 2,
+"SEL_Format (Options mono-ligne, structs + images) a 2 options")
+
+dbgVérifieEgalité(owlChampSelecteur, 90, "owlChampSelecteur = 90")
+dbgVérifieEgalité(TypeVar(SélecteurAjoute), 70, "SelecteurAjoute = procedure native")
+dbgVérifieEgalité(TypeVar(SélecteurInsère), 70, "SelecteurInsere = procedure native")
+dbgVérifieEgalité(TypeVar(SélecteurSupprime), 70, "SelecteurSupprime = procedure native")
+dbgVérifieEgalité(TypeVar(SélecteurOccurrence), 70, "SelecteurOccurrence = procedure native")
+// Constantes selModeAffichage
+dbgVérifieEgalité(TypeVar(selStandard), 8, "selStandard = entier")
+dbgVérifieEgalité(TypeVar(selSousLib), 8, "selSousLib = entier")
+dbgVérifieEgalité(TypeVar(selVista), 8, "selVista = entier")
+dbgVérifieEgalité(TypeVar(selVistaSousLib), 8, "selVistaSousLib = entier")
+
+dbgBilanTest()

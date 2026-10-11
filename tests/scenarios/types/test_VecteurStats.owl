@@ -1,0 +1,60 @@
+// @sujet : Vecteur
+// @résumé : Statistiques descriptives fluentes d'un Vecteur — Variance et ÉcartType (population, division par n), disponibles uniquement en méthode (comme Somme/Moyenne), avec la forme anglaise StandardDeviation pour l'écart-type.
+
+
+// .Variance() renvoie la moyenne des carrés des écarts à la moyenne
+// (variance de population : division par n, pas n-1).
+// [2,4,4,4,5,5,7,9] : moyenne = 40/8 = 5 ;
+// écarts au carré = 9,1,1,1,0,0,4,16 -> somme 32 ; variance = 32/8 = 4.
+PROCEDURE PUBLIQUE scenario_variance_population()
+	v est un Vecteur = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
+	nVariance est un réel = v.Variance()
+	dbgVérifieEgalité(nVariance, 4.0, "Variance de population de [2,4,4,4,5,5,7,9] = 4.0")
+FIN
+
+
+// .ÉcartType() est la racine carrée de la variance : racine(4) = 2.
+PROCEDURE PUBLIQUE scenario_ecart_type_population()
+	v est un Vecteur = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
+	nEcartType est un réel = v.ÉcartType()
+	dbgVérifieEgalité(nEcartType, 2.0, "Écart-type = racine(variance) = racine(4) = 2.0")
+FIN
+
+
+// La forme anglaise .StandardDeviation() désigne le même écart-type que
+// .ÉcartType() ; .Variance() est déjà un mot identique en français et en
+// anglais.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	v est un Vecteur = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
+	nStdEN est un réel = v.StandardDeviation()
+	dbgVérifieEgalité(nStdEN, 2.0, "v.StandardDeviation() = 2.0")
+	dbgVérifieEgalité(v.Variance(), 4.0, "v.Variance() (identique FR/EN) = 4.0")
+FIN
+
+
+// Relation écart-type = racine(variance) sur un cas à racine exacte :
+// [1,3] : moyenne = 2 ; écarts au carré = 1,1 ; variance = 2/2 = 1 ;
+// écart-type = racine(1) = 1.
+PROCEDURE PUBLIQUE scenario_relation_racine()
+	v est un Vecteur = [1.0, 3.0]
+	dbgVérifieEgalité(v.Variance(), 1.0, "Variance de [1,3] = 1.0")
+	dbgVérifieEgalité(v.ÉcartType(), 1.0, "Écart-type de [1,3] = 1.0")
+FIN
+
+
+// Un Vecteur à un seul élément n'a aucune dispersion : variance et
+// écart-type valent 0.
+PROCEDURE PRIVÉE scenario_edge_singleton()
+	v est un Vecteur = [7.0]
+	dbgVérifieEgalité(v.Variance(), 0.0, "Variance d'un singleton = 0")
+	dbgVérifieEgalité(v.ÉcartType(), 0.0, "Écart-type d'un singleton = 0")
+FIN
+
+
+// Un Vecteur vide n'a rien à disperser : comme Somme/Moyenne, Variance et
+// ÉcartType renvoient 0 (pas d'exception), cohérent avec le canon tableau.
+PROCEDURE PRIVÉE scenario_edge_vecteur_vide()
+	vVide est un Vecteur = []
+	dbgVérifieEgalité(vVide.Variance(), 0.0, "Variance d'un Vecteur vide = 0")
+	dbgVérifieEgalité(vVide.ÉcartType(), 0.0, "Écart-type d'un Vecteur vide = 0")
+FIN

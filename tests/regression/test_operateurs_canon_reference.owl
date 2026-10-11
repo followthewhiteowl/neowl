@@ -1,0 +1,217 @@
+// Régression : alignement canon de référence alpha sur les 5 paires d'opérateurs
+// d'évaluation — ET/_ET_, OU/_OU_, DANS/_DANS_, A/_A_, PAS/_PAS_.
+//
+// Avant 0009, OWL traitait silencieusement les 10 formes comme la version
+// optimisée (short-circuit ou évaluation unique). Cas limites couverts ici :
+//  - chaînage et précédence avec mix full / SC
+//  - PAS DANS / PAS _DANS_ avec compteur
+//  - intervalle vide POUR avec borne re-eval (0 itération mais quand-même
+//    1 appel à la borne pour le test d'arrêt)
+//  - opérandes non booléen → runtime error
+//  - LHS faux pour _ET_ : aucune trace côté RHS, même pas via TagEval
+//  - mix ET / OU sans parenthèses : précédence ET > OU préservée
+Trace("=== OPERATEURS CANON DE RÉFÉRENCE — REGRESSION ===")
+
+// Compteur partagé. Réinit en tête de chaque scénario.
+nApp est un entier = 0
+
+PROCEDURE Vrai_e() : booléen
+	nApp++
+	RENVOYER Vrai
+FIN
+
+PROCEDURE Faux_e() : booléen
+	nApp++
+	RENVOYER Faux
+FIN
+
+PROCEDURE Tag_e(nV est un entier) : entier
+	nApp++
+	RENVOYER nV
+FIN
+
+
+// ──────────── Chaînage discriminant : précédence ET > OU full-eval ────
+// `Vrai_e() OU Faux_e() ET Faux_e()` = `Vrai OU (Faux ET Faux)`.
+// Avec OU full-eval, le RHS du OU est évalué malgré un LHS vrai →
+// ET full-eval évalue ses deux sondes → 3 appels. Avec OU SC (pré-0009)
+// ou _OU_, le RHS du OU est sauté → 1 seul appel.
+PROCEDURE PRIVÉE scenario_precedence_et_ou_full_discriminant()
+	nApp = 0
+	bRes est un booléen = Vrai_e() OU Faux_e() ET Faux_e()
+	dbgVérifieVrai(bRes, "Vrai OU (Faux ET Faux) = Vrai")
+	dbgVérifieEgalité(nApp, 3, "OU full-eval déclenche le RHS, ET full-eval évalue ses deux côtés")
+FIN
+
+
+// ──────────── PAS DANS full-eval discriminant ────────────
+// La négation préfixée respecte la stratégie d'évaluation de DANS :
+// avec PAS DANS et un match précoce, toutes les expressions restent
+// évaluées avant la négation finale. Test discriminant : cible présente
+// dans la liste, donc en SC l'évaluation s'arrêterait au 1er match.
+PROCEDURE PRIVÉE scenario_pas_dans_full_eval()
+	nApp = 0
+	nCible est un entier = 1
+	bExclu est un booléen = nCible PAS DANS (Tag_e(1), Tag_e(2), Tag_e(3))
+	dbgVérifieFaux(bExclu, "1 PAS DANS (1,2,3) = Faux (match au 1er)")
+	dbgVérifieEgalité(nApp, 3, "PAS DANS full-eval : 3 expressions évaluées même si match au 1er")
+FIN
+
+
+// ──────────── PAS _DANS_ short-circuit ────────────
+// La forme `PAS v _DANS_ liste` court-circuite : dès qu'un match est
+// trouvé, l'évaluation s'arrête et le PAS s'applique au résultat partiel.
+PROCEDURE PRIVÉE scenario_pas_dans_sc()
+	nApp = 0
+	nCible est un entier = 1
+	bExclu est un booléen = nCible PAS _DANS_(Tag_e(1), Tag_e(2), Tag_e(3))
+	dbgVérifieFaux(bExclu, "1 PAS _DANS_ (1,2,3) = Faux (match au 1er)")
+	dbgVérifieEgalité(nApp, 1, "PAS _DANS_ : arrêt au 1er match avant négation")
+FIN
+
+
+// ──────────── Intervalle vide POUR i = 5 À 1 avec A re-eval ────────────
+// Quand l'intervalle est dégénéré (début > fin avec pas implicite +1),
+// la boucle effectue 0 itération. Mais la borne est tout de même
+// évaluée 1 fois — le test d'arrêt initial doit la lire.
+PROCEDURE PRIVÉE scenario_a_reeval_intervalle_vide()
+	nApp = 0
+	nIters est un entier = 0
+	POUR i = 5 À Tag_e(1)
+		nIters++
+	FIN
+	dbgVérifieEgalité(nIters, 0, "5 À 1 : intervalle vide, 0 tour")
+	dbgVérifieEgalité(nApp, 1, "A : 1 appel à la borne pour le test d'arrêt initial")
+FIN
+
+
+// ──────────── _A_ avec borne complexe ────────────
+// La forme _A_ accepte n'importe quelle expression de borne, y compris
+// celles qui contiennent un ternaire ou un opérateur logique. Elle
+// l'évalue une seule fois, puis fige le résultat.
+PROCEDURE PRIVÉE scenario_a_sc_borne_complexe_acceptee()
+	nApp = 0
+	bCond est un booléen = Vrai
+	nIters est un entier = 0
+	POUR i = 1 _A_ (bCond ? 3 SINON 7)
+		nIters++
+	FIN
+	dbgVérifieEgalité(nIters, 3, "_A_ : borne ternaire évaluée une fois, valeur 3")
+FIN
+
+
+// ──────────── Combinaison mix full / SC dans un SI ────────────
+// Mélanger `ET` (full) et `_OU_` (SC) reste lisible et déterministe :
+// chaque opérateur applique sa propre stratégie. Test discriminant :
+// avec `Vrai_e() ET Faux_e()` à droite de `_OU_`, le `ET` full-eval
+// appelle ses deux sondes même si le LHS suffit à conclure le ET. La
+// version SC pré-0009 appellerait seulement la 1re. LHS faux pour
+// forcer l'évaluation du RHS du _OU_.
+PROCEDURE PRIVÉE scenario_mix_et_full_ou_sc()
+	nApp = 0
+	bRes est un booléen = Faux_e() _OU_ (Faux_e() ET Vrai_e())
+	dbgVérifieFaux(bRes, "Faux _OU_ (Faux ET Vrai) = Faux")
+	// LHS Faux → RHS du _OU_ évalué → ET full-eval appelle ses deux
+	// sondes même si la 1re renvoyait Faux. Total : 1 + 2 = 3 appels.
+	// La version SC pré-0009 ferait : 1 + 1 = 2 (ET court-circuite).
+	dbgVérifieEgalité(nApp, 3, "_OU_ déclenche le RHS (ET full-eval) : 3 appels malgré LHS de ET faux")
+FIN
+
+
+// ──────────── _ET_ : le RHS n'est strictement pas évalué si LHS faux ───
+// Confirmation qu'avec _ET_ + LHS faux, le compteur reste à 1 : pas
+// de leak d'effet de bord côté RHS, même par accident d'inlining.
+PROCEDURE PRIVÉE scenario_et_sc_aucun_leak_rhs()
+	nApp = 0
+	bRes est un booléen = Faux_e() _ET_ (Tag_e(1) > 0 ET Tag_e(2) > 0)
+	dbgVérifieFaux(bRes, "Faux _ET_ ... = Faux")
+	dbgVérifieEgalité(nApp, 1, "_ET_ + LHS faux : aucune des Tag_e n'est appelée")
+FIN
+
+
+// ──────────── Liste DANS à 1 élément ────────────
+// `v DANS (e)` se comporte comme `v = e`. Conservé après refacto :
+// la cascade de OR n'est jamais entamée s'il n'y a qu'un seul terme.
+PROCEDURE PRIVÉE scenario_dans_full_un_element()
+	nApp = 0
+	nCible est un entier = 7
+	bRes est un booléen = nCible DANS (Tag_e(7))
+	dbgVérifieVrai(bRes, "7 DANS (7) = Vrai")
+	dbgVérifieEgalité(nApp, 1, "DANS à 1 élément : 1 seul appel")
+FIN
+
+
+// ──────────── DANS avec match précoce ────────────
+// Test discriminant : cible présente au 1er élément. SC s'arrêterait
+// au 1er match (1 appel) ; full-eval poursuit jusqu'à la fin (3 appels).
+// La spec délègue la comparaison cross-type à OP_EQUAL existant.
+PROCEDURE PRIVÉE scenario_dans_full_match_precoce()
+	nApp = 0
+	nCible est un entier = 1
+	bRes est un booléen = nCible DANS (Tag_e(1), Tag_e(2), Tag_e(3))
+	dbgVérifieVrai(bRes, "1 DANS (1,2,3) : match au 1er élément")
+	dbgVérifieEgalité(nApp, 3, "DANS full-eval : 3 appels même avec match au 1er")
+FIN
+
+
+// ──────────── Re-eval A avec borne Taille() — cas pratique ────────────
+// Boucle où la borne dépend de la taille d'un tableau modifié pendant
+// la boucle elle-même. Avec A canon, Taille(t) est ré-évaluée à chaque
+// tour : les éléments ajoutés sont visités. Cas idiomatique dans le comportement de référence.
+PROCEDURE PRIVÉE scenario_a_reeval_taille_tableau()
+	t est un tableau de entiers = [1, 2, 3]
+	nSomme est un entier = 0
+	POUR i = 1 À Taille(t)
+		nSomme = nSomme + t[i]
+		// Ajout pendant la boucle : avec A canon, la nouvelle borne
+		// est visible au tour suivant. On ajoute un seul élément pour
+		// éviter de boucler à l'infini.
+		SI i = 1 ALORS
+			TableauAjoute(t, 99)
+		FIN
+	FIN
+	// Sans re-eval (comportement pré-0009) : somme = 1 + 2 + 3 = 6.
+	// Avec re-eval canon : somme = 1 + 2 + 3 + 99 = 105.
+	dbgVérifieEgalité(nSomme, 105, "A re-eval : l'élément ajouté pendant la boucle est visité")
+FIN
+
+
+// ──────────── Non-régression : opérandes purs → comportement inchangé ──
+// Sans effet de bord, full-eval et SC sont indiscernables côté résultat.
+// La grande majorité des tests existants tombe dans cette catégorie ;
+// on s'assure ici qu'aucune régression silencieuse n'apparaît.
+PROCEDURE PRIVÉE scenario_non_regression_operandes_purs()
+	nA est un entier = 3
+	nB est un entier = 5
+
+	dbgVérifieVrai(nA = 3 ET nB = 5, "ET sur litéraux purs : résultat identique full / SC")
+	dbgVérifieVrai(nA = 0 OU nB = 5, "OU sur litéraux purs : résultat identique full / SC")
+	dbgVérifieVrai(nA DANS (1, 2, 3), "DANS sur litéraux purs : résultat identique full / SC")
+
+	nSomme est un entier = 0
+	POUR i = 1 À 5
+		nSomme = nSomme + i
+	FIN
+	dbgVérifieEgalité(nSomme, 15, "POUR avec borne litérale : 1+2+3+4+5 = 15")
+FIN
+
+
+// ──────────── _OU_ / _ET_ SC : court-circuit évite l'erreur non-bool ──
+// OP_AND_FULL / OP_OR_FULL refusent les opérandes non-booléens (string,
+// tableau, instance, etc.) et lèvent un runtime_error. Le test direct
+// du raise vit en tests/runtime-error/ (snapshot, pas exécutable inline
+// sans crasher le harness). On vérifie ici le pendant observable :
+// _OU_ / _ET_ short-circuit n'évaluent pas le RHS quand le résultat est
+// déjà déterminé, donc un RHS non-bool n'est jamais touché.
+PROCEDURE PRIVÉE scenario_or_sc_evite_crash_sur_non_bool()
+	s est une chaîne = "hello"
+	n est un entier = 5
+
+	// _OU_ : LHS truthy → RHS non-bool jamais évalué, pas d'erreur.
+	bA est un booléen = (n > 0) _OU_ s
+	dbgVérifieVrai(bA, "_OU_ SC : LHS vrai bypass RHS non-bool sans erreur")
+
+	// _ET_ : LHS falsy → RHS non-bool jamais évalué, pas d'erreur.
+	bB est un booléen = (n < 0) _ET_ s
+	dbgVérifieFaux(bB, "_ET_ SC : LHS faux bypass RHS non-bool sans erreur")
+FIN

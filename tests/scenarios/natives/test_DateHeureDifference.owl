@@ -1,0 +1,77 @@
+// @sujet : DateHeureDifférence
+// @résumé : Différence entre deux dates-heures, calculée comme (dh2 - dh1). Le résultat est une durée signée : positive si dh2 est postérieure, négative si antérieure, nulle pour la même date-heure.
+
+
+// Cas canonique : dh2 postérieure à dh1 → durée positive (2 heures).
+PROCEDURE scenario_dh2_posterieure_positif()
+	dh1 est une dateheure = "20260515100000"
+	dh2 est une dateheure = "20260515120000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 2 heures = 7200000 ms
+	dbgVérifieEgalité(ecart, 7200000, "écart attendu en ms")
+FIN
+
+
+// Argument inversé : dh1 postérieure à dh2 → durée négative.
+PROCEDURE scenario_dh1_posterieure_negatif()
+	dh1 est une dateheure = "20260515120000"
+	dh2 est une dateheure = "20260515100000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	dbgVérifieEgalité(ecart,-7200000, "écart attendu en ms")
+FIN
+
+
+// Même date-heure : durée nulle.
+PROCEDURE scenario_meme_dateheure_zero()
+	dh1 est une dateheure = "20260512103045"
+	dh2 est une dateheure = "20260512103045"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	dbgVérifieEgalité(ecart, 0, "écart attendu en ms")
+FIN
+
+
+// Différence à cheval sur minuit (23h55 → 00h05 = 10 minutes).
+PROCEDURE scenario_a_cheval_sur_minuit()
+	dh1 est une dateheure = "20260515235500"
+	dh2 est une dateheure = "20260516000500"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 10 minutes = 600000 ms
+	dbgVérifieEgalité(ecart, 600000, "écart attendu en ms")
+FIN
+
+
+// Différence multi-jours avec heures (5 jours, 3h, 15 min, 30s).
+PROCEDURE scenario_multi_jours_avec_heures()
+	dh1 est une dateheure = "20260101100000"
+	dh2 est une dateheure = "20260106131530"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 5 jours = 432000000 ms, 3h = 10800000 ms, 15 min = 900000 ms, 30s = 30000 ms
+	// Total = 443730000 ms
+	dbgVérifieEgalité(ecart, 443730000, "écart attendu en ms")
+FIN
+
+
+// À cheval sur changement d'année (31 déc 23h → 1er jan 01h = 2h).
+PROCEDURE scenario_a_cheval_sur_annee()
+	dh1 est une dateheure = "20251231230000"
+	dh2 est une dateheure = "20260101010000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	dbgVérifieEgalité(ecart, 7200000, "écart attendu en ms")
+FIN
+
+
+// Différence incluant secondes et centisecondes.
+PROCEDURE scenario_avec_secondes_centisecondes()
+	dh1 est une dateheure = "20260512100000"
+	dh2 est une dateheure = "2026051210011545"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 1 min 15s 45cs = 60000 + 15000 + 450 = 75450 ms
+	dbgVérifieEgalité(ecart, 75450, "écart attendu en ms")
+FIN
+
+
+// Cast implicite chaînes AAAAMMJJHHmmSS accepté en entrée sans variable dateheure intermédiaire.
+PROCEDURE scenario_cast_implicite_chaine()
+	ecart est une durée = DateHeureDifférence("20260512100000", "20260512120000")
+	dbgVérifieEgalité(ecart, 7200000, "écart attendu en ms")
+FIN

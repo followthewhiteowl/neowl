@@ -1,0 +1,61 @@
+// Fenêtre voisine — ressource pour test_table_colonne_receveur_couleur.owl.
+// (pattern split canon strict — cf.  / .)
+//
+// Verrouille  Lot B : la forme nue `COL_A..Couleur` / `COL_A..CouleurFond`
+// devient un VRAI receveur au runtime (stockage sur la Table), pas seulement
+// résoluble au compile-time (Lot A). Ferme aussi  côté écriture.
+
+FEN_ColonneReceveurCouleur est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne receveur couleur"
+	FIN
+
+	TABLE_Receveur est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_Solde est une Colonne
+			PROPRIETES
+				Libellé = "Solde"
+				Type    = colTypeNumerique
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Receveur, 10)
+	FIN
+
+	// Écriture forme nue, propriété FR.
+	PROCEDURE EcritCouleur(c est un entier)
+		COL_Solde..Couleur = c
+	FIN
+
+	PROCEDURE EcritCouleurFond(c est un entier)
+		COL_Solde..CouleurFond = c
+	FIN
+
+	// Lecture forme nue, propriété FR.
+	PROCEDURE LireCouleur()
+		RENVOYER COL_Solde..Couleur
+	FIN
+
+	PROCEDURE LireCouleurFond()
+		RENVOYER COL_Solde..CouleurFond
+	FIN
+
+	// Lecture forme nue, propriété EN (bilingue, Règle 6.3).
+	PROCEDURE LireCouleurEN()
+		RENVOYER COL_Solde..Color
+	FIN
+
+	PROCEDURE LireCouleurFondEN()
+		RENVOYER COL_Solde..BackgroundColor
+	FIN
+
+	// Écriture via la propriété EN, relue en FR (parité bilingue croisée).
+	PROCEDURE EcritCouleurEN(c est un entier)
+		COL_Solde..Color = c
+	FIN
+FIN

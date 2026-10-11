@@ -1,0 +1,122 @@
+// @sujet : ChronoReprend
+// @resume : Vitrine de ChronoReprend : reprise d'un chronometre apres pause
+
+PROCEDURE PUBLIQUE scenario_reprend_apres_pause()
+	// Cas canonique : cycle Debut → travail → Pause → travail sans mesure → Reprend → travail → verification cumul
+	// La native reactive le compteur qui repart de la valeur figee par ChronoPause.
+	ChronoDébut()
+
+	accum est un entier = 0
+	POUR i = 1 À 500
+		accum += i
+	FIN
+
+	ChronoPause()
+	valeurAvantPause est un entier = ChronoValeur()
+
+	// Travail important pendant la pause : le compteur ne doit PAS progresser
+	POUR i = 1 À 50000
+		accum += i
+	FIN
+
+	valeurPendantPause est un entier = ChronoValeur()
+	dbgVérifieEgalité(valeurPendantPause, valeurAvantPause, "valeur figee pendant pause")
+
+	ChronoReprend()
+
+	// Nouveau travail apres reprise : le compteur repart du point fige
+	POUR i = 1 À 500
+		accum += i
+	FIN
+
+	valeurFinale est un entier = ChronoValeur()
+	dbgVérifieVrai(valeurFinale >= valeurPendantPause, "compteur reprend et depasse ou egal la valeur pausee")
+
+	ChronoFin()
+FIN
+
+PROCEDURE PUBLIQUE scenario_instance_nommee()
+	// Forme prefixee : c.Reprend() sur une instance de type Chrono.
+	// Meme semantique que la forme globale ChronoReprend(c).
+	c est un Chrono
+	c.Début()
+
+	somme est un entier = 0
+	POUR i = 1 À 300
+		somme += i
+	FIN
+
+	c.Pause()
+	valPause est un entier = c..Valeur
+
+	POUR i = 1 À 30000
+		somme += i
+	FIN
+
+	c.Reprend()
+
+	POUR i = 1 À 300
+		somme += i
+	FIN
+
+	valFin est un entier = c..Valeur
+	dbgVérifieVrai(valFin >= valPause, "instance: compteur reprend ou continue apres pause")
+	c.Fin()
+FIN
+
+PROCEDURE PUBLIQUE scenario_reprend_sans_pause_prealable()
+	// Cas limite : Reprend sur un chronometre en marche (pas en pause).
+	// La native est idempotente : aucun effet observable, pas de crash.
+	c est un Chrono
+	c.Début()
+
+	travail est un entier = 0
+	POUR i = 1 À 200
+		travail += i
+	FIN
+
+	valAvant est un entier = c..Valeur
+	c.Reprend()
+	valApres est un entier = c..Valeur
+
+	// Le chrono etait deja en marche, Reprend ne change rien
+	dbgVérifieVrai(valApres >= valAvant, "Reprend sans Pause prealable: chrono continue normalement")
+	c.Fin()
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_reprend_chrono_inexistant()
+	// Edge case : Reprend sur un chrono jamais demarre.
+	// La native est idempotente dans ce cas (pas de crash, pas d'erreur).
+	c est un Chrono
+	c.Reprend()
+
+	// Le chrono n'etait pas demarre, donc Reprend ne fait rien
+	dbgVérifieFaux(c..Démarré, "chrono reste non demarre apres Reprend sans Debut")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_double_reprend()
+	// Edge case : deux Reprend successifs sans Pause intermediaire.
+	// La native est idempotente : le second Reprend n'a aucun effet observable.
+	c est un Chrono
+	c.Début()
+
+	cumul est un entier = 0
+	POUR i = 1 À 100
+		cumul += i
+	FIN
+
+	c.Pause()
+	valPause est un entier = c..Valeur
+
+	c.Reprend()
+	valPremierReprend est un entier = c..Valeur
+
+	// Le chrono est maintenant en marche, deuxieme Reprend ne change rien
+	c.Reprend()
+	valSecondReprend est un entier = c..Valeur
+
+	dbgVérifieVrai(valSecondReprend >= valPremierReprend, "double Reprend: idempotent")
+	c.Fin()
+FIN
+
+dbgBilanTest()

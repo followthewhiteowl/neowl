@@ -1,0 +1,31 @@
+//  Path B — la forme colonne-first QUALIFIÉE NON INDEXÉE
+// `TABLE_X.COL_A..MasqueSaisie` doit rester un VRAI receveur au runtime, et
+// ne pas être refusée par le garde prop-allowlist du récepteur colonne
+//. Rouge attendu tant que le récepteur colonne n'a pas été
+// étendu à MasqueSaisie (Path A fournit le chemin d'application Qt).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColonneQualifieeMasqueSaisie)
+
+// Colonne sans masque déclaré : lecture initiale vide.
+dbgVérifieEgalité(LireMasqueSaisie(), "",
+"TABLE_X.COL_A..MasqueSaisie sans déclaration ni écriture est vide")
+
+// Set-then-get symétrique via la forme qualifiée.
+EcritMasqueSaisie("99 99 99 99 99")
+dbgVérifieEgalité(LireMasqueSaisie(), "99 99 99 99 99",
+"TABLE_X.COL_A..MasqueSaisie écrite en forme qualifiée est relue à l'identique")
+
+// Parité bilingue : la valeur posée en FR est lisible sous sa forme EN qualifiée.
+dbgVérifieEgalité(LireMasqueSaisieEN(), "99 99 99 99 99",
+"le MasqueSaisie posé en FR est relu à l'identique sous ..InputMask (EN)")
+
+// Écriture croisée : posée en EN qualifiée, relue en FR.
+EcritMasqueSaisieEN("AAA")
+dbgVérifieEgalité(LireMasqueSaisie(), "AAA",
+"écrit via ..InputMask (EN), relu à l'identique via ..MasqueSaisie (FR)")
+
+Ferme(FEN_ColonneQualifieeMasqueSaisie)
+
+dbgBilanTest()

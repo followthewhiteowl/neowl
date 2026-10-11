@@ -1,0 +1,155 @@
+// @sujet : Précision / Rappel / F1
+// @résumé : Trois métriques d'évaluation de classification dérivées de la
+// matrice de confusion, calculées par classe. Chaque native rend un Vecteur
+// indexé par classe (position 1-based = classe 0-based + 1) : précision_c =
+// VP_c / (VP_c + FP_c), rappel_c = VP_c / (VP_c + FN_c), F1_c = 2·P·R / (P+R).
+// La moyenne macro (non pondérée) s'obtient avec la méthode ..Moyenne du
+// Vecteur. Conventions déterministes sans NaN : dénominateur nul -> 0.0,
+// P+R nul -> F1 = 0.0. Prédictions en Tenseur 2D (scores, ArgMax par ligne)
+// ou 1D (indices), cibles en indices 1D 0-based, comme les autres métriques.
+
+
+// Jeu contrôlé à 3 classes (indices 1D). Ventilation par exemple :
+//   cibles : [0, 0, 0, 1, 1, 2]
+//   préds  : [0, 1, 0, 1, 1, 0]
+// Comptage par classe (VP/FP/FN) :
+//   classe 0 : VP=2 (ex.0,2) FP=1 (ex.5 prédit 0) FN=1 (ex.1 réelle 0)
+//   classe 1 : VP=2 (ex.3,4) FP=1 (ex.1 prédit 1) FN=0
+//   classe 2 : VP=0          FP=0                  FN=1 (ex.5 réelle 2)
+// précision = [2/3, 2/3, 0/0->0.0]
+PROCEDURE PUBLIQUE scenario_precision_par_classe()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
+	cibles est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+	p est un Vecteur = Précision(preds, cibles)
+
+	dbgVérifieEgalité(p..Taille, 3, "3 classes -> Vecteur de taille 3")
+	dbgVérifieVrai(Abs(p[1] - 0.6666666666666666) < 0.0000001, "précision classe 0 = 2/(2+1)")
+	dbgVérifieVrai(Abs(p[2] - 0.6666666666666666) < 0.0000001, "précision classe 1 = 2/(2+1)")
+	dbgVérifieEgalité(p[3], 0.0, "précision classe 2 : aucune prédiction positive -> 0.0 (pas NaN)")
+FIN
+
+
+// Rappel = VP / (VP + FN).
+//   classe 0 : 2/(2+1) = 2/3
+//   classe 1 : 2/(2+0) = 1.0
+//   classe 2 : 0/(0+1) = 0.0
+PROCEDURE PUBLIQUE scenario_rappel_par_classe()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
+	cibles est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+	r est un Vecteur = Rappel(preds, cibles)
+
+	dbgVérifieVrai(Abs(r[1] - 0.6666666666666666) < 0.0000001, "rappel classe 0 = 2/3")
+	dbgVérifieEgalité(r[2], 1.0, "rappel classe 1 = 2/2 = 1.0")
+	dbgVérifieEgalité(r[3], 0.0, "rappel classe 2 = 0/1 = 0.0")
+FIN
+
+
+// F1 = 2·P·R/(P+R).
+//   classe 0 : P=R=2/3 -> F1 = 2/3
+//   classe 1 : P=2/3 R=1 -> F1 = 2·(2/3)·1 / (2/3+1) = (4/3)/(5/3) = 0.8
+//   classe 2 : P=R=0 -> P+R=0 -> F1 = 0.0 (convention, pas NaN)
+PROCEDURE PUBLIQUE scenario_f1_par_classe()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
+	cibles est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+	f est un Vecteur = F1(preds, cibles)
+
+	dbgVérifieVrai(Abs(f[1] - 0.6666666666666666) < 0.0000001, "F1 classe 0 = 2/3")
+	dbgVérifieVrai(Abs(f[2] - 0.8) < 0.0000001, "F1 classe 1 = 0.8")
+	dbgVérifieEgalité(f[3], 0.0, "F1 classe 2 : P+R=0 -> 0.0 (pas NaN)")
+FIN
+
+
+// Moyenne macro = moyenne non pondérée des valeurs par classe, via ..Moyenne.
+//   précision macro = (2/3 + 2/3 + 0)/3 = 4/9
+//   rappel    macro = (2/3 + 1   + 0)/3 = 5/9
+//   F1        macro = (2/3 + 0.8 + 0)/3 = 22/45
+PROCEDURE PUBLIQUE scenario_macro()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
+	cibles est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+
+	precMacro est un réel = Précision(preds, cibles)..Moyenne()
+	rapMacro est un réel = Rappel(preds, cibles)..Moyenne()
+	f1Macro est un réel = F1(preds, cibles)..Moyenne()
+
+	dbgVérifieVrai(Abs(precMacro - 0.4444444444444444) < 0.0000001, "précision macro = 4/9")
+	dbgVérifieVrai(Abs(rapMacro - 0.5555555555555556) < 0.0000001, "rappel macro = 5/9")
+	dbgVérifieVrai(Abs(f1Macro - 0.4888888888888889) < 0.0000001, "F1 macro = 22/45")
+FIN
+
+
+// Prédictions en scores 2D lot x classes : la classe retenue par ligne est
+// l'ArgMax, même résultat que la forme 1D indices. Scores donnant les classes
+// prédites [0,1,0,1,1,0] et cibles [0,0,0,1,1,2] -> même F1 par classe.
+PROCEDURE PUBLIQUE scenario_scores_2d()
+	matScores est une Matrice = [[3.0, 1.0, 0.0], [0.0, 3.0, 1.0], [3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 3.0, 1.0], [3.0, 0.0, 0.0]]
+	preds est un Tenseur = Tenseur(matScores)
+	cibles est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+	f est un Vecteur = F1(preds, cibles)
+
+	dbgVérifieEgalité(f..Taille, 3, "3 classes déduites des colonnes des scores")
+	dbgVérifieVrai(Abs(f[2] - 0.8) < 0.0000001, "F1 classe 1 depuis scores 2D = 0.8")
+	dbgVérifieEgalité(f[3], 0.0, "F1 classe 2 depuis scores 2D = 0.0")
+FIN
+
+
+// Formes anglaises Precision / Recall / F1 : même calcul que leurs
+// équivalents français.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
+	cibles est un Tenseur = Tenseur([0.0, 0.0, 0.0, 1.0, 1.0, 2.0])
+
+	p est un Vecteur = Precision(preds, cibles)
+	dbgVérifieVrai(Abs(p[1] - 0.6666666666666666) < 0.0000001, "Precision = Précision")
+
+	r est un Vecteur = Recall(preds, cibles)
+	dbgVérifieEgalité(r[2], 1.0, "Recall = Rappel")
+
+	f est un Vecteur = F1(preds, cibles)
+	dbgVérifieVrai(Abs(f[2] - 0.8) < 0.0000001, "F1 (EN) = F1 (FR)")
+FIN
+
+
+// Cas parfait : chaque prédiction égale sa cible -> précision/rappel/F1 = 1.0
+// pour chaque classe présente (valeurs exactes).
+PROCEDURE PUBLIQUE scenario_parfait()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 2.0, 1.0])
+	cibles est un Tenseur = Tenseur([0.0, 1.0, 2.0, 1.0])
+
+	p est un Vecteur = Précision(preds, cibles)
+	r est un Vecteur = Rappel(preds, cibles)
+	f est un Vecteur = F1(preds, cibles)
+
+	dbgVérifieEgalité(p[1], 1.0, "précision classe 0 = 1.0")
+	dbgVérifieEgalité(r[2], 1.0, "rappel classe 1 = 1.0")
+	dbgVérifieEgalité(f[3], 1.0, "F1 classe 2 = 1.0")
+FIN
+
+
+// Edge : une classe sans instance réelle NI prédiction positive donne des
+// cellules définies à 0.0, pas de NaN. Ici 3 classes déclarées par les scores
+// mais la classe 1 n'est jamais ni prédite ni réelle.
+PROCEDURE PRIVÉE scenario_edge_classe_absente()
+	matScores est une Matrice = [[3.0, 0.0, 1.0], [1.0, 0.0, 3.0]]
+	preds est un Tenseur = Tenseur(matScores)
+	cibles est un Tenseur = Tenseur([0.0, 2.0])
+
+	p est un Vecteur = Précision(preds, cibles)
+	f est un Vecteur = F1(preds, cibles)
+
+	dbgVérifieEgalité(p..Taille, 3, "3 classes déduites des colonnes")
+	dbgVérifieEgalité(p[2], 0.0, "classe 1 absente : précision 0.0 (pas NaN)")
+	dbgVérifieEgalité(f[2], 0.0, "classe 1 absente : F1 0.0 (pas NaN)")
+	dbgVérifieEgalité(p[1], 1.0, "classe 0 : VP=1 FP=0 -> précision 1.0")
+FIN
+
+
+// Edge : tailles incohérentes entre prédictions et cibles -> erreur
+// récupérable posée. On vérifie ErreurDétectée AVANT toute autre instruction
+// (la sentinelle d'erreur fraîche ne survit qu'à un OP_CALL).
+PROCEDURE PRIVÉE scenario_edge_tailles_incoherentes()
+	ErreurRAZ()
+	preds est un Tenseur = Tenseur([0.0, 1.0, 0.0])
+	cibles est un Tenseur = Tenseur([0.0])
+	p est un Vecteur = Précision(preds, cibles)
+	dbgVérifieVrai(ErreurDétectée, "tailles incohérentes -> ErreurDétectée")
+FIN

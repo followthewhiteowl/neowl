@@ -1,0 +1,32 @@
+//  — prop Style (type styleImage) sur le Champ Image. Vérifie de
+// bout en bout (backend headless) :
+//   1. Déclaration d'un styleImage + renseignement de son sous-champ
+//      CadreExtérieur, read-back sur l'instance (le type compose correctement).
+//   2. Application au Champ Image via IMG..Style ne casse pas.
+//   3. La prop Style typée sur Image : la cascade IMG..Style..CadreExtérieur
+//      matérialise un styleImage et fait un round-trip.
+//
+// styleImage = {CadreExtérieur} UNIQUEMENT (pas de sous-élément Image séparé :
+// la source de l'image est la prop top-level IMG..Image, pas le Style).
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore sur le Champ Image
+// (compile-fail : "Propriété 'Style' inconnue pour Image").
+
+Trace("=== styleImage : type composite + application Champ Image ===")
+
+STY_Img est un styleImage
+STY_Img..CadreExtérieur..CouleurFond      = JauneClair
+STY_Img..CadreExtérieur..Cadre..Epaisseur = 2
+
+dbgVérifieEgalité(STY_Img..CadreExtérieur..CouleurFond, JauneClair, "styleImage : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Img..CadreExtérieur..Cadre..Epaisseur, 2, "styleImage : CadreExtérieur..Cadre..Epaisseur posé")
+
+Ouvre(FEN_ImageStyle)
+IMG_Style..Style = STY_Img
+dbgVérifieVrai(Vrai, "styleImage appliqué à IMG..Style sans crash")
+
+IMG_Style..Style..CadreExtérieur..CouleurFond = RougeClair
+dbgVérifieEgalité(IMG_Style..Style..CadreExtérieur..CouleurFond, RougeClair, "IMG..Style..CadreExtérieur..CouleurFond round-trip")
+
+Ferme(FEN_ImageStyle)
+dbgBilanTest()

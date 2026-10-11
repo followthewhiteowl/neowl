@@ -1,0 +1,63 @@
+// @sujet : ErreurDéclenche
+// @résumé : Déclenche un état d'erreur soft — ErreurDetectee passe à Vrai,
+// sans dialogue ni exception fatale. L'état se lit via ErreurInfo et se
+// réinitialise via ErreurRAZ.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// Forme sans argument : code 0 et message par défaut. Utile pour signaler
+// un échec générique sans avoir à composer de message dédié.
+PROCEDURE scenario_forme_sans_argument_code_et_message_par_defaut()
+	ErreurDéclenche()
+	dbgVérifieVrai(ErreurDétectée, "L'appel sans argument doit lever le flag d'erreur")
+	dbgVérifieEgalité(ErreurInfo(errCode), 0, "Le code par défaut est 0")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "Erreur", "Le message par défaut est générique")
+FIN
+
+
+// Surcharge à un argument, variante entier : le paramètre est interprété
+// comme un code, le message retombe sur la valeur par défaut.
+PROCEDURE scenario_un_argument_entier_devient_le_code()
+	ErreurDéclenche(42)
+	dbgVérifieVrai(ErreurDétectée, "Un code seul doit lever le flag d'erreur")
+	dbgVérifieEgalité(ErreurInfo(errCode), 42, "Le code fourni est repris tel quel")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "Erreur", "Sans message fourni, le message reste celui par défaut")
+FIN
+
+
+// Surcharge à un argument, variante chaîne : le paramètre est interprété
+// comme un message, le code retombe sur 0. La distinction se fait par le
+// type de l'argument, pas par sa position.
+PROCEDURE scenario_un_argument_chaine_devient_le_message()
+	ErreurDéclenche("Connexion refusée par le serveur distant.")
+	dbgVérifieVrai(ErreurDétectée, "Un message seul doit lever le flag d'erreur")
+	dbgVérifieEgalité(ErreurInfo(errCode), 0, "Sans code fourni, le code retombe à 0")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "Connexion refusée par le serveur distant.", "Le message fourni est repris tel quel")
+FIN
+
+
+// Forme complète à deux arguments : code et message sont tous deux
+// personnalisés, ce qui permet de qualifier précisément l'erreur pour le
+// code appelant qui inspectera ErreurInfo.
+PROCEDURE scenario_deux_arguments_code_et_message_personnalises()
+	ErreurDéclenche(7, "Quota de requêtes dépassé.")
+	dbgVérifieVrai(ErreurDétectée, "Code et message combinés doivent lever le flag d'erreur")
+	dbgVérifieEgalité(ErreurInfo(errCode), 7, "Le code personnalisé est repris tel quel")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "Quota de requêtes dépassé.", "Le message personnalisé est repris tel quel")
+FIN
+
+
+// Cas limite : après ErreurRAZ, le flag retombe à Faux même si une erreur
+// avait été déclenchée juste avant. La réinitialisation est le seul moyen
+// documenté de sortir de l'état d'erreur soft.
+PROCEDURE PRIVÉE scenario_reinitialisation_via_erreur_raz()
+	ErreurDéclenche(99, "État temporaire.")
+	dbgVérifieVrai(ErreurDétectée, "L'erreur est bien active avant réinitialisation")
+
+	ErreurRAZ()
+	dbgVérifieFaux(ErreurDétectée, "Le flag retombe à Faux après ErreurRAZ")
+FIN

@@ -1,0 +1,122 @@
+// ================================================================
+//  : coerce string invalide → date/heure/dateheure/durée
+// Facette (b) : runtime nullable → Null + ErreurDétectée
+// ================================================================
+//
+// Stratégie hybride tranchée :
+// - (b) `d est une date? = sChaineInvalide` : Null + ErreurDétectée
+// - Pattern user : `SI EstNul(d) ALORS ...`
+// - Cas valide (string valide) : EstNul = Faux, valeur correcte
+//
+// Dispatcher non-nullable vs nullable côté impl (option 1 : compiler injecte
+// check post-coerce si isNullable, option 2 : deux helpers C distincts).
+// Ce test vérifie les 4 types temporels.
+
+PROCEDURE PUBLIQUE test_coerce_date_invalide_nullable()
+	// ============================================================
+	// Date nullable : mois 00 invalide → Null
+	// ============================================================
+
+	sDate_invalide est une chaîne = "20250001"
+	d est une date? = sDate_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	// Null retourné
+	dbgVérifieVrai(EstNul(d), "Date invalide nullable : EstNul = Vrai")
+
+	// ErreurDétectée activée
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce date invalide nullable")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_date_valide_nullable()
+	// ============================================================
+	// Date nullable valide : EstNul = Faux, valeur correcte
+	// ============================================================
+
+	sDate_valide est une chaîne = "20250601"
+	d est une date? = sDate_valide
+
+	dbgVérifieFaux(EstNul(d), "Date valide nullable : EstNul = Faux")
+	dbgVérifieEgalité(d..Année, 2025, "Année = 2025")
+	dbgVérifieEgalité(d..Mois, 6, "Mois = 6")
+	dbgVérifieEgalité(d..Jour, 1, "Jour = 1")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_heure_invalide_nullable()
+	// ============================================================
+	// Heure nullable : heures 25 invalide → Null
+	// ============================================================
+
+	sHeure_invalide est une chaîne = "250000"
+	h est une heure? = sHeure_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	dbgVérifieVrai(EstNul(h), "Heure invalide nullable : EstNul = Vrai")
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce heure invalide nullable")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_heure_valide_nullable()
+	// ============================================================
+	// Heure nullable valide
+	// ============================================================
+
+	sHeure_valide est une chaîne = "143000"
+	h est une heure? = sHeure_valide
+
+	dbgVérifieFaux(EstNul(h), "Heure valide nullable : EstNul = Faux")
+	dbgVérifieEgalité(h..Heure, 14, "Heure = 14")
+	dbgVérifieEgalité(h..Minute, 30, "Minute = 30")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_dateheure_invalide_nullable()
+	// ============================================================
+	// DateHeure nullable : secondes 70 invalide → Null
+	// ============================================================
+
+	sDH_invalide est une chaîne = "202501011200700"
+	dh est une dateheure? = sDH_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	dbgVérifieVrai(EstNul(dh), "DateHeure invalide nullable : EstNul = Vrai")
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce dateheure invalide nullable")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_dateheure_valide_nullable()
+	// ============================================================
+	// DateHeure nullable valide
+	// ============================================================
+
+	sDH_valide est une chaîne = "20250601143000"
+	dh est une dateheure? = sDH_valide
+
+	dbgVérifieFaux(EstNul(dh), "DateHeure valide nullable : EstNul = Faux")
+	dbgVérifieEgalité(dh..Année, 2025, "Année = 2025")
+	dbgVérifieEgalité(dh..Heure, 14, "Heure = 14")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_duree_invalide_nullable()
+	// ============================================================
+	// Durée nullable : format inconnu → Null (DÉJÀ CONFORME ?)
+	// ============================================================
+
+	sDuree_invalide est une chaîne = "blabla"
+	dur est une durée? = sDuree_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	dbgVérifieVrai(EstNul(dur), "Durée invalide nullable : EstNul = Vrai")
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce durée invalide nullable")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_duree_valide_nullable()
+	// ============================================================
+	// Durée nullable valide
+	// ============================================================
+
+	sDuree_valide est une chaîne = "1s"
+	dur est une durée? = sDuree_valide
+
+	dbgVérifieFaux(EstNul(dur), "Durée valide nullable : EstNul = Faux")
+	dbgVérifieEgalité(dur..EnMillisecondes, 1000, "1s = 1000 ms")
+FIN
+
+dbgBilanTest()

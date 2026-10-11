@@ -1,0 +1,40 @@
+// @sujet operateur d'introspection "est <Interface>"
+// @résumé obj est iInterface renvoie Vrai si la classe de obj (ou un ancetre)
+//         implemente iInterface ; Faux sinon ; pas de crash sur non-instance.
+
+PROCEDURE scenario_est_interface_direct()
+	oChien est un cChien("Rex")
+	bResultat est un booléen = (oChien est iAnimal)
+	dbgVérifieEgalité(bResultat, Vrai,
+	"oChien est iAnimal -> Vrai (implementation directe)")
+FIN
+
+PROCEDURE scenario_est_interface_via_heritage()
+	oChiot est un cChiot("Rex")
+	bResultat est un booléen = (oChiot est iAnimal)
+	dbgVérifieEgalité(bResultat, Vrai,
+	"oChiot est iAnimal -> Vrai (heritage via cChien)")
+FIN
+
+PROCEDURE scenario_est_interface_non_implementee()
+	oChien est un cChien("Rex")
+	bResultat est un booléen = (oChien est iAutre)
+	dbgVérifieEgalité(bResultat, Faux,
+	"oChien est iAutre -> Faux (interface non implementee)")
+FIN
+
+PROCEDURE scenario_est_interface_non_instance()
+	bResultat est un booléen = (42 est iAnimal)
+	dbgVérifieEgalité(bResultat, Faux,
+	"42 est iAnimal -> Faux (non-instance, pas de crash)")
+FIN
+
+PROCEDURE scenario_est_interface_dans_si()
+	oChien est un cChien("Rex")
+	sCateg est une chaîne = "inconnu"
+	SI oChien est iAnimal ALORS
+		sCateg = "animal"
+	FIN
+	dbgVérifieEgalité(sCateg, "animal",
+	"est <Interface> utilisable dans condition SI")
+FIN

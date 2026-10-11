@@ -1,0 +1,71 @@
+// ============================================
+// TEST: Structures
+// ============================================
+Trace("=== STRUCTURES ===")
+
+// --- Declaration et instanciation ---
+stPoint est une Structure
+	X est un entier
+	Y est un entier
+FIN
+
+p est un stPoint
+p.X = 10
+p.Y = 20
+
+dbgVerifieEgalite(p.X, 10, "Structure champ X = 10")
+dbgVerifieEgalite(p.Y, 20, "Structure champ Y = 20")
+
+// --- Modification de champ ---
+p.X = 99
+dbgVerifieEgalite(p.X, 99, "Structure modif X = 99")
+dbgVerifieEgalite(p.Y, 20, "Structure Y intact apres modif X")
+
+// --- Structure avec chaines ---
+stPersonne est une Structure
+	Nom est une chaine
+	Prenom est une chaine
+	Age est un entier
+FIN
+
+pers est un stPersonne
+pers.Nom = "Smith"
+pers.Prenom = "Roger"
+pers.Age = 45
+
+dbgVerifieEgalite(pers.Nom, "Smith", "Structure chaine Nom")
+dbgVerifieEgalite(pers.Prenom, "Roger", "Structure chaine Prenom")
+dbgVerifieEgalite(pers.Age, 45, "Structure entier Age")
+
+// --- Utilisation de champs dans expression ---
+sComplet est une chaine = pers.Prenom + " " + pers.Nom
+dbgVerifieEgalite(sComplet, "Roger Smith", "Concat champs structure")
+
+// --- Deux instances de la meme structure ---
+pers2 est un stPersonne
+pers2.Nom = "Jones"
+pers2.Prenom = "Steve"
+pers2.Age = 30
+
+dbgVerifieEgalite(pers2.Nom, "Jones", "Deuxieme instance Nom")
+dbgVerifieEgalite(pers.Nom, "Smith", "Premiere instance intacte")
+dbgVerifieDifference(pers.Nom, pers2.Nom, "Instances independantes")
+
+// ============================================
+// REJET COMPILE-TIME : structure auto-referente
+// ============================================
+// Modèle de référence : une structure est un type valeur, un champ de son
+// propre type aurait une taille infinie. Le comportement de référence émet la meme erreur.
+// Contournement standard : utiliser une CLASSE (type reference).
+
+codeRecursif est une chaine = "stNode est une Structure" + LF ///
+    + "  Valeur est un entier" + LF ///
+    + "  Left est un stNode" + LF ///
+    + "FIN"
+
+fn est une Procédure = Compile(codeRecursif)
+dbgVerifieEgalite(EstNul(fn), Vrai, "Struct auto-referente rejetee a la compile")
+msgErr est une chaine = ErreurInfo()
+dbgVerifieVrai(Position(msgErr, "propre type") > 0,
+               "Message d'erreur mentionne 'son propre type'")
+

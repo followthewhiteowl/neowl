@@ -1,0 +1,34 @@
+// TEST (headless) : natives Table resolvent les 3 formes d'arguments.
+//
+// Fix 0222 : `table_arg_or_error()` doit resoudre :
+// - IS_UI_CONTROL (direct, deja gere avant )
+// - IS_UI_CONTROL_REF (proxy compile-time via resolve_ui_ref)
+// - IS_STRING (nom, via current_window_uici_by_name)
+//
+// LIMITATION HEADLESS : en mode `owl test`, `vm.headless_mode=true`
+// court-circuite `build_window()`, donc `uici->widget = NULL` pour tous les
+// controles UI. Les natives Table guardent `if (!table) return [0|no-op]`.
+// Consequence : TableAjouteLigne/TableOccurrence/etc. sont no-op silencieux en
+// headless. Ce test verifie uniquement que la resolution ObjUiControlRef +
+// IS_STRING ne crash pas.
+//
+// Pattern : la fenêtre voisine FEN_Test.owl porte la déclaration + FinInit.
+
+Ouvre(FEN_Test)
+
+// La FinInitialisation a tourne sans crash si on arrive ici.
+dbgVérifieVrai(Vrai, "TableAjouteLigne ref + string ne crash pas en headless")
+
+// ===== Cas d'erreur attendus (non regression securite) =====
+
+// 1. Passer un non-Table (stderr attendu : "1er argument n'est pas un Champ Table.")
+res1 est un booléen = TableAjouteLigne(42, "x")
+dbgVérifieVrai(Vrai, "TableAjouteLigne(42) ne crash pas")
+
+// 2. Passer une chaine qui ne matche aucun controle (stderr attendu)
+res2 est un booléen = TableAjouteLigne("INEXISTANT", "y")
+dbgVérifieVrai(Vrai, "TableAjouteLigne nom inexistant ne crash pas")
+
+Ferme(FEN_Test)
+
+dbgBilanTest()

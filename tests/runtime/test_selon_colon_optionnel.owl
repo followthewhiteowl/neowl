@@ -1,0 +1,73 @@
+// Verrouillage : les deux-points apres CAS et apres AUTRE CAS sont
+// optionnels. Les formes `CAS 1 : action` et `CAS 1 action` sont
+// strictement equivalentes. Idem pour `AUTRE CAS`.
+
+// Forme historique : tous les CAS ont leur deux-points. Pas de regression
+// — c'etait la seule forme acceptee avant, elle reste valide apres.
+PROCEDURE test_avec_deux_points()
+	n est un entier = 2
+	s est une chaîne = ""
+	SELON n
+		CAS 1 : s = "un"
+		CAS 2 : s = "deux"
+		AUTRE CAS : s = "autre"
+	FIN
+	dbgVérifieEgalité(s, "deux", "Forme historique : deux-points present apres chaque CAS")
+FIN
+
+// Forme nouvelle : aucun deux-points. Le corps du CAS demarre directement
+// apres le pattern (et optionnellement un saut de ligne). Acceptee comme
+// la forme historique.
+PROCEDURE test_sans_deux_points()
+	n est un entier = 2
+	s est une chaîne = ""
+	SELON n
+		CAS 1
+		s = "un"
+		CAS 2
+		s = "deux"
+		AUTRE CAS
+		s = "autre"
+	FIN
+	dbgVérifieEgalité(s, "deux", "Forme nouvelle : aucun deux-points, body sur lignes suivantes")
+FIN
+
+// Forme mixte : certains CAS avec deux-points, d'autres sans. Aucune
+// contrainte d'uniformite — chaque CAS choisit sa forme independamment.
+PROCEDURE test_forme_mixte()
+	n est un entier = 3
+	s est une chaîne = ""
+	SELON n
+		CAS 1 : s = "un"
+		CAS 2
+		s = "deux"
+		CAS 3 : s = "trois"
+		AUTRE CAS
+		s = "autre"
+	FIN
+	dbgVérifieEgalité(s, "trois", "Forme mixte : CAS 3 avec deux-points apres CAS 2 sans")
+FIN
+
+// Forme sans deux-points avec patterns etendus (plage, comparateur,
+// sandwich). Demonstration : le deux-points optionnel s'applique a toutes
+// les formes de CAS, pas seulement aux valeurs simples.
+PROCEDURE test_sans_deux_points_patterns_etendus()
+	n est un entier = 15
+	s est une chaîne = ""
+	SELON n
+		CAS 1 À 10
+		s = "plage"
+		CAS > 100
+		s = "comparateur"
+		CAS 10 < * < 20
+		s = "sandwich"
+		AUTRE CAS
+		s = "autre"
+	FIN
+	dbgVérifieEgalité(s, "sandwich", "Sans deux-points : sandwich matche 15 ∈ ]10, 20[")
+FIN
+
+test_avec_deux_points()
+test_sans_deux_points()
+test_forme_mixte()
+test_sans_deux_points_patterns_etendus()

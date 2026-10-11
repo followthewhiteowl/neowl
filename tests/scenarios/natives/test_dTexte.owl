@@ -1,0 +1,173 @@
+// @sujet : dTexte
+// @résumé : Dessine une chaîne de texte sur une image à une position donnée
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_texte_simple_avec_police()
+	img est une Image
+	bOk est un booléen
+
+	// Créer une image et charger une police avant d'écrire du texte
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+
+	// Charger une police standard
+	bOk = dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 14, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "police chargée pour le rendu texte")
+
+	// Dessiner le texte au coin (10, 10) — coin haut-gauche du texte
+	dTexte(img, 10, 10, "Texte simple rendu")
+
+	dFinDessin(img)
+
+	// Aucune erreur n'a été remontée par les natives image pendant le rendu
+	dbgVérifieFaux(ErreurDétectée, "texte rendu sans erreur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_position_variee()
+	img est une Image
+
+	// Tester plusieurs positions pour placer le texte
+	img = dCréeImage(600, 400)
+	dDébutDessin(img)
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+
+	// Texte en haut à gauche
+	dTexte(img, 5, 5, "Coin haut-gauche")
+
+	// Texte centré approximativement
+	dTexte(img, 250, 190, "Centre approximatif")
+
+	// Texte vers le bas
+	dTexte(img, 450, 350, "Bas droite")
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "texte rendu à différentes positions sans crash")
+FIN
+
+PROCEDURE PUBLIQUE scenario_texte_avec_couleur_explicite()
+	img est une Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+
+	// Spécifier la couleur du texte directement dans dTexte
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 16, iNormal, 0)
+
+	// Texte rouge rendu à la position (20, 50)
+	dTexte(img, 20, 50, "Texte rouge", couleurRouge)
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "texte coloré rendu sans erreur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_autoconv_numerique_en_chaine()
+	img est une Image
+	nEntier est un entier = 42
+	rReel est un réel = 3.14159
+
+	// Les nombres passés à dTexte sont auto-convertis en chaîne
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 14, iNormal, 0)
+
+	// Passer un entier directement
+	dTexte(img, 10, 10, nEntier)
+
+	// Passer un réel directement
+	dTexte(img, 10, 30, rReel)
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "autoconv numérique → chaîne fonctionne")
+FIN
+
+PROCEDURE PUBLIQUE scenario_echec_sans_police_chargee()
+	img est une Image
+	bErr est un booléen
+
+	// Tenter de dessiner du texte sans avoir chargé de police au préalable
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+
+	// Appeler dTexte sans dPolice préalable doit poser une erreur
+	dTexte(img, 10, 10, "Texte sans police")
+	bErr = ErreurDétectée
+
+	dFinDessin(img)
+
+	dbgVérifieVrai(bErr, "erreur posée si aucune police chargée")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases et cas limites proactifs
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_chaine_vide()
+	img est une Image
+
+	// Dessiner une chaîne vide ne doit pas crasher
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+
+	dTexte(img, 10, 10, "")
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "chaîne vide rendue sans erreur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_position_zero()
+	img est une Image
+
+	// Position (0, 0) devrait être valide
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+
+	dTexte(img, 0, 0, "Coin absolu 0,0")
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "texte rendu à position (0,0) sans erreur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_position_hors_limites()
+	img est une Image
+
+	// Positionner le texte en dehors de l'image ne doit pas crasher
+	img = dCréeImage(100, 100)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+
+	// Position largement hors cadre
+	dTexte(img, 5000, 5000, "Hors limites")
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "texte hors limites ne crash pas")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_accents_utf8()
+	img est une Image
+
+	// Vérifier le rendu correct de chaînes avec accents et caractères UTF-8
+	img = dCréeImage(400, 200)
+	dDébutDessin(img)
+	dPolice(img, "assets/fonts/DejaVuSans-Regular.ttf", 14, iNormal, 0)
+
+	dTexte(img, 10, 10, "Texte accentué : éèêëàâùûïî")
+	dTexte(img, 10, 30, "Symboles : €£¥§©®™")
+
+	dFinDessin(img)
+
+	dbgVérifieFaux(ErreurDétectée, "texte UTF-8 avec accents et symboles rendu sans erreur")
+FIN

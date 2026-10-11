@@ -1,0 +1,22 @@
+// Valide deux cas :
+// 1. Conteneur imbriqué : sous-contrôle `Champ de X` dans un Conteneur.
+// 2. Forward-ref : contrôle `Champ de Bouton` déclaré APRÈS une procédure
+//    qui le référence (le prescan doit skiper `de`).
+//
+// Ressource DSL : FEN_ChampDeConteneur.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_champ_de_dans_conteneur()
+	Ouvre(FEN_ChampDeConteneur)
+
+	// Cas 1 : sous-contrôle dans Conteneur accessible et fonctionnel
+	sLibConteneur est une chaîne = LireLibelleDansConteneur()
+	dbgVérifieEgalité(sLibConteneur, "Dans conteneur", "Champ de Bouton dans Conteneur : libellé correct")
+
+	// Cas 2 : forward-ref résolu malgré `de` dans la déclaration
+	sLibForward est une chaîne = LireLibelleForward()
+	dbgVérifieEgalité(sLibForward, "Forward ref", "Champ de Bouton forward-ref : prescan a skipé de")
+
+	Ferme(FEN_ChampDeConteneur)
+FIN

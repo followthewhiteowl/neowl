@@ -1,0 +1,48 @@
+//  — le Dégradé (CadreExtérieur..Dégradé) d'un Style peint le FOND
+// de la Fenêtre, pas seulement les widgets. Avant ce câblage,
+// apply_style_to_window n'émettait qu'un fond uni (background-color) : le
+// Dégradé du Style était ignoré pour le panneau central de la Fenêtre.
+//
+// Oracle = capture pixel réelle (offscreen). Un dégradé vertical (Angle 90)
+// rend le haut ≠ du bas ; un fond uni rend le haut = bas.
+//
+// ROUGE attendu avant impl : le fond de FEN_FondDegrade est uni (le Dégradé
+// n'est pas appliqué) -> cHaut = cBas -> l'assertion "cHaut <> cBas" échoue.
+// VERT après impl : le fond devient un vrai dégradé -> cHaut <> cBas.
+
+TestModeHeadless(Faux)
+
+Trace("=== Fenêtre : fond en dégradé (rendu pixel) ===")
+
+OuvreSoeur(FEN_FondDegrade)
+
+// Round-trip : la Fenêtre porte bien le Dégradé sur son Style (valeur exacte).
+dbgVérifieEgalité(FEN_FondDegrade..Style..CadreExtérieur..Dégradé..Type, dégradéLinéaire,
+"Fenêtre porte le Dégradé linéaire sur son Style")
+
+imgDeg est une Image = dCopieImageFenêtre(FEN_FondDegrade)
+dbgVérifieEgalité(imgDeg..Valide, Vrai, "capture de la fenêtre à dégradé valide")
+
+// Angle 90 = axe vertical : compare un point haut vs un point bas, même x.
+xMid est un entier = imgDeg..Largeur / 2
+cHaut est un entier = dPixelCouleur(imgDeg, xMid, 4)
+cBas est un entier = dPixelCouleur(imgDeg, xMid, imgDeg..Hauteur - 5)
+dbgVérifieVrai(cHaut <> cBas,
+"fond de la fenêtre est un dégradé vertical (couleur haut <> couleur bas)")
+
+Ferme(FEN_FondDegrade)
+
+// --- Non-régression : fond uni reste uniforme (haut = bas). ---
+OuvreSoeur(FEN_FondUni)
+imgUni est une Image = dCopieImageFenêtre(FEN_FondUni)
+dbgVérifieEgalité(imgUni..Valide, Vrai, "capture de la fenêtre à fond uni valide")
+
+xu est un entier = imgUni..Largeur / 2
+uHaut est un entier = dPixelCouleur(imgUni, xu, 4)
+uBas est un entier = dPixelCouleur(imgUni, xu, imgUni..Hauteur - 5)
+dbgVérifieEgalité(uHaut, uBas,
+"fond uni sans dégradé reste uniforme (couleur haut = couleur bas)")
+
+Ferme(FEN_FondUni)
+
+dbgBilanTest()

@@ -1,0 +1,45 @@
+//  (Option A) — Style..Image..Etats[grisé]..Image : preuve de
+// rendu réel. On capture le bouton AVANT (icône de base icones.add) puis
+// APRES avoir posé BTN..Etat = Grisé (icône attendue : icones.close, via
+// QIcon::Disabled). Les deux captures doivent différer significativement
+// -> la substitution d'icône par état est bien appliquée au rendu, pas
+// seulement stockée en mémoire.
+//
+// ROUGE ATTENDU : Style..Image..Etats ne compile pas encore (cf. dossier
+// voisin tests/runtime/style_bouton_image_etats/compile/).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleBoutonImageEtatGrisePixel)
+
+imgAvant est une Image = dCopieImageChamp(BTN_Cible)
+dbgVérifieEgalité(imgAvant..Valide, Vrai, "capture avant Etat=Grisé valide")
+
+BTN_Cible..Etat = Grisé
+
+imgApres est une Image = dCopieImageChamp(BTN_Cible)
+dbgVérifieEgalité(imgApres..Valide, Vrai, "capture après Etat=Grisé valide")
+
+// Comparaison pixel-a-pixel : meme geometrie (meme champ), donc directe.
+nbDiff est un entier = 0
+w est un entier = imgAvant..Largeur
+h est un entier = imgAvant..Hauteur
+y est un entier = 0
+TANTQUE y < h
+	x est un entier = 0
+	TANTQUE x < w
+		cAvant est un entier = dPixelCouleur(imgAvant, x, y)
+		cApres est un entier = dPixelCouleur(imgApres, x, y)
+		SI cAvant <> cApres ALORS
+			nbDiff = nbDiff + 1
+		FIN
+		x = x + 1
+	FIN
+	y = y + 1
+FIN
+
+dbgVérifieVrai(nbDiff > 50,
+"BTN_Cible : icône avant (icones.add) et après Etat=Grisé (icones.close via Etats[grisé]) rendent des captures différentes (icône par état appliquée au rendu)")
+
+Ferme(FEN_StyleBoutonImageEtatGrisePixel)
+dbgBilanTest()

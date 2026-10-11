@@ -1,0 +1,36 @@
+// @sujet visibilite methodes PRIVEE/PUBLIC
+// @resume methode PRIVEE appelable depuis la classe, methode PUBLIC appelable de partout
+// NOTE : contourne bug runtime appel interne :M() (self non propage)
+
+PROCEDURE scenario_methode_publique_externe()
+	oServ est un cService()
+	oServ.TraiterPublic()
+	dbgVérifieEgalité(oServ.ObtenirCompteur(), 1,
+	"methode PUBLIC appelable depuis l'exterieur")
+FIN
+
+// scenario_methode_privee_acces_champ retiré : l'appel externe
+// `oServ.IncrementerInterne()` est désormais correctement bloqué compile-time.
+// Le cas négatif est couvert par la fixture compile-error
+// `tests/compile-error/methode_privee_appel_externe.owl`.
+
+PROCEDURE scenario_compteur_increments_multiples()
+	oServ est un cService()
+	oServ.TraiterPublic()
+	oServ.TraiterPublic()
+	oServ.TraiterPublic()
+	dbgVérifieEgalité(oServ.ObtenirCompteur(), 3,
+	"incrementation multiple via PUBLIC")
+FIN
+
+PROCEDURE scenario_instance_multiple()
+	oServ1 est un cService()
+	oServ2 est un cService()
+	oServ1.TraiterPublic()
+	oServ1.TraiterPublic()
+	oServ2.TraiterPublic()
+	dbgVérifieEgalité(oServ1.ObtenirCompteur(), 2,
+	"instance 1 : compteur isole")
+	dbgVérifieEgalité(oServ2.ObtenirCompteur(), 1,
+	"instance 2 : compteur isole")
+FIN

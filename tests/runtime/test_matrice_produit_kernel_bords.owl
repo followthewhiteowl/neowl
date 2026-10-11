@@ -1,0 +1,124 @@
+// test_matrice_produit_kernel_bords.owl — 
+// Filet de non-régression avant réécriture perf du kernel de
+// ProduitMatriciel (blocage + SIMD gardé). Cible spécifiquement les
+// tailles non-carrées et non-multiples d'une largeur SIMD 2/4/8 : les
+// petits carrés du scénario pédagogique de
+// tests/scenarios/natives/test_ProduitMatriciel.owl ne suffisent pas à
+// exercer les boucles de reste / le blocage en tuiles. Résultats
+// attendus calculés indépendamment (pas recopiés depuis la sortie du
+// binaire), le kernel actuel (triple boucle naïve) DOIT rester sur les
+// mêmes valeurs après la réécriture.
+
+Trace("=== MATRICE PRODUIT — BORDS KERNEL ===")
+
+// --- Helper : construit une Matrice n×k avec valeur[i][j] = (i-1)*k+j+décalage ---
+PROCEDURE construitMatriceSequence(n est un entier, k est un entier, decalage est un entier)
+	arr est un tableau = []
+	POUR i = 1 À n
+		ligne est un tableau = []
+		POUR j = 1 À k
+			Ajoute(ligne,(i - 1) * k + j + decalage)
+		FIN
+		Ajoute(arr, [ligne])
+	FIN
+	RENVOYER TableauVersMatrice(arr)
+FIN
+
+// --- Cas 1 : 7×13 · 13×5 — dimensions non-multiples de 2/4/8 ---
+matA1 est une Matrice = construitMatriceSequence(7, 13, 0)
+matB1 est une Matrice = construitMatriceSequence(13, 5, 100)
+c1 est une Matrice = ProduitMatriciel(matA1, matB1)
+dbgVérifieEgalité(c1..Lignes, 7, "7x13 · 13x5 -> 7 lignes")
+dbgVérifieEgalité(c1..Colonnes, 5, "7x13 · 13x5 -> 5 colonnes")
+dbgVérifieEgalité(c1[1][1], 12831.0, "7x13 · 13x5 : c1[1][1] = 12831")
+dbgVérifieEgalité(c1[7][5], 150085.0, "7x13 · 13x5 : c1[7][5] = 150085")
+dbgVérifieEgalité(c1[4][3], 80444.0, "7x13 · 13x5 : c1[4][3] = 80444")
+
+// --- Cas 2 : 16×16 · 16×16 — pile un multiple de 8, exerce le blocage sans reste ---
+matA2 est une Matrice = construitMatriceSequence(16, 16, 0)
+matB2 est une Matrice = construitMatriceSequence(16, 16, 200)
+c2 est une Matrice = ProduitMatriciel(matA2, matB2)
+dbgVérifieEgalité(c2..Lignes, 16, "16x16 · 16x16 -> 16 lignes")
+dbgVérifieEgalité(c2..Colonnes, 16, "16x16 · 16x16 -> 16 colonnes")
+dbgVérifieEgalité(c2[1][1], 49096.0, "16x16 · 16x16 : c2[1][1] = 49096")
+dbgVérifieEgalité(c2[16][16], 1341376.0, "16x16 · 16x16 : c2[16][16] = 1341376")
+dbgVérifieEgalité(c2[8][9], 639752.0, "16x16 · 16x16 : c2[8][9] = 639752")
+
+// --- Cas 3 : 17×3 · 3×19 — dimension interne très courte (3), colonnes larges (19) ---
+matA3 est une Matrice = construitMatriceSequence(17, 3, 0)
+matB3 est une Matrice = construitMatriceSequence(3, 19, 50)
+c3 est une Matrice = ProduitMatriciel(matA3, matB3)
+dbgVérifieEgalité(c3..Lignes, 17, "17x3 · 3x19 -> 17 lignes")
+dbgVérifieEgalité(c3..Colonnes, 19, "17x3 · 3x19 -> 19 colonnes")
+dbgVérifieEgalité(c3[1][1], 458.0, "17x3 · 3x19 : c3[1][1] = 458")
+dbgVérifieEgalité(c3[17][19], 13238.0, "17x3 · 3x19 : c3[17][19] = 13238")
+dbgVérifieEgalité(c3[9][10], 6200.0, "17x3 · 3x19 : c3[9][10] = 6200")
+
+// --- Cas 4 : forme extrême 1×N · N×1 (une seule ligne × une seule colonne -> scalaire) ---
+matA4 est une Matrice = construitMatriceSequence(1, 5, 0)
+matB4 est une Matrice = construitMatriceSequence(5, 1, 10)
+c4 est une Matrice = ProduitMatriciel(matA4, matB4)
+dbgVérifieEgalité(c4..Lignes, 1, "1x5 · 5x1 -> 1 ligne")
+dbgVérifieEgalité(c4..Colonnes, 1, "1x5 · 5x1 -> 1 colonne")
+dbgVérifieEgalité(c4[1][1], 205.0, "1x5 · 5x1 : c4[1][1] = 205")
+
+// --- Cas 5 : forme extrême N×1 · 1×M (une seule colonne × une seule ligne) ---
+matA5 est une Matrice = construitMatriceSequence(5, 1, 0)
+matB5 est une Matrice = construitMatriceSequence(1, 4, 20)
+c5 est une Matrice = ProduitMatriciel(matA5, matB5)
+dbgVérifieEgalité(c5..Lignes, 5, "5x1 · 1x4 -> 5 lignes")
+dbgVérifieEgalité(c5..Colonnes, 4, "5x1 · 1x4 -> 4 colonnes")
+dbgVérifieEgalité(c5[1][1], 21.0, "5x1 · 1x4 : c5[1][1] = 21")
+dbgVérifieEgalité(c5[5][4], 120.0, "5x1 · 1x4 : c5[5][4] = 120")
+
+// --- Cas 6 : forme extrême 1×1 · 1×1 ---
+matA6 est une Matrice = [[3.0]]
+matB6 est une Matrice = [[7.0]]
+c6 est une Matrice = ProduitMatriciel(matA6, matB6)
+dbgVérifieEgalité(c6..Lignes, 1, "1x1 · 1x1 -> 1 ligne")
+dbgVérifieEgalité(c6..Colonnes, 1, "1x1 · 1x1 -> 1 colonne")
+dbgVérifieEgalité(c6[1][1], 21.0, "1x1 · 1x1 : c6[1][1] = 21")
+
+// --- Cas 7 : Matrice × Vecteur, 7×13 · vecteur de taille 13 (non-alignée) ---
+arrV7 est un tableau = []
+POUR j = 1 À 13
+	Ajoute(arrV7, j)
+FIN
+v7 est un Vecteur = TableauVersVecteur(arrV7)
+w7 est un Vecteur = ProduitMatriciel(matA1, v7)
+dbgVérifieEgalité(w7..Taille, 7, "7x13 · Vecteur(13) -> Vecteur de taille 7")
+dbgVérifieEgalité(w7[1], 819.0, "7x13 · Vecteur(13) : w7[1] = 819")
+dbgVérifieEgalité(w7[7], 7917.0, "7x13 · Vecteur(13) : w7[7] = 7917")
+
+// --- Cas 8 : Matrice × Vecteur, 17×3 · vecteur de taille 3 (dimension interne courte) ---
+v17 est un Vecteur = [2.0, 3.0, 5.0]
+w17 est un Vecteur = ProduitMatriciel(matA3, v17)
+dbgVérifieEgalité(w17..Taille, 17, "17x3 · Vecteur(3) -> Vecteur de taille 17")
+dbgVérifieEgalité(w17[1], 23.0, "17x3 · Vecteur(3) : w17[1] = 23")
+dbgVérifieEgalité(w17[17], 503.0, "17x3 · Vecteur(3) : w17[17] = 503")
+
+// --- Cas 9 : accumulation en non-entiers (tolérance sur les irrationnels
+// d'arrondi binaire, exact sinon) ---
+matAf est une Matrice = [[0.1, 0.2], [0.3, 0.4]]
+matBf est une Matrice = [[0.5, 0.6], [0.7, 0.8]]
+cf est une Matrice = ProduitMatriciel(matAf, matBf)
+dbgVérifieVrai(Abs(cf[1][1] - 0.19) < 0.0000001, "0.1*0.5 + 0.2*0.7 ~= 0.19")
+dbgVérifieVrai(Abs(cf[1][2] - 0.22) < 0.0000001, "0.1*0.6 + 0.2*0.8 ~= 0.22")
+dbgVérifieVrai(Abs(cf[2][1] - 0.43) < 0.0000001, "0.3*0.5 + 0.4*0.7 ~= 0.43")
+dbgVérifieEgalité(cf[2][2], 0.5, "0.3*0.6 + 0.4*0.8 = 0.5 (exact en binaire)")
+
+// --- Cas 10 : associativité (A·B)·C == A·(B·C) — invariant fort qui
+// casse net si le blocage se trompe d'indices ---
+matAssocA est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+matAssocB est une Matrice = [[1.0, 0.0, 2.0, 1.0], [0.0, 1.0, 1.0, 2.0], [1.0, 1.0, 0.0, 1.0]]
+matAssocC est une Matrice = [[2.0, 1.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]
+resGauche est une Matrice = ProduitMatriciel(ProduitMatriciel(matAssocA, matAssocB), matAssocC)
+resDroite est une Matrice = ProduitMatriciel(matAssocA, ProduitMatriciel(matAssocB, matAssocC))
+dbgVérifieEgalité(resGauche[1][1], resDroite[1][1], "(A·B)·C == A·(B·C) sur [1][1]")
+dbgVérifieEgalité(resGauche[1][2], resDroite[1][2], "(A·B)·C == A·(B·C) sur [1][2]")
+dbgVérifieEgalité(resGauche[2][1], resDroite[2][1], "(A·B)·C == A·(B·C) sur [2][1]")
+dbgVérifieEgalité(resGauche[2][2], resDroite[2][2], "(A·B)·C == A·(B·C) sur [2][2]")
+dbgVérifieEgalité(resGauche[1][1], 20.0, "(A·B)·C[1][1] = 20 (valeur indépendante)")
+dbgVérifieEgalité(resGauche[2][2], 41.0, "(A·B)·C[2][2] = 41 (valeur indépendante)")
+
+dbgBilanTest()

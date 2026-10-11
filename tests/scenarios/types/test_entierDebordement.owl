@@ -1,0 +1,55 @@
+// @sujet : entierDébordement
+// @résumé : Enum de mode de débordement pour EntierDansPlage. Trois membres : débordementErreur (défaut, lève une exception si hors plage), débordementCyclique (repli modulo dans la plage), débordementBorne (clamp vers la borne violée la plus proche).
+
+
+// débordementErreur : EntierDansPlage lève une exception quand la valeur est hors plage.
+PROCEDURE PUBLIQUE scenario_erreur_hors_plage()
+	bException est un booléen = Faux
+	QUAND EXCEPTION DANS
+		r est un entier = EntierDansPlage(200, 0, 100, débordementErreur)
+	FAIRE
+		bException = Vrai
+	FIN
+	dbgVérifieVrai(bException, "débordementErreur : valeur hors plage lève une exception")
+FIN
+
+
+// débordementCyclique : repli modulo dans la plage [0, 9].
+PROCEDURE PUBLIQUE scenario_cyclique_dans_plage()
+	r est un entier = EntierDansPlage(13, 0, 9, débordementCyclique)
+	dbgVérifieEgalité(r, 3, "débordementCyclique : 13 dans [0,9] donne 3 (repli modulo)")
+FIN
+
+
+// débordementBorne : clamp à la borne supérieure.
+PROCEDURE PUBLIQUE scenario_borne_superieure()
+	r est un entier = EntierDansPlage(150, 0, 100, débordementBorne)
+	dbgVérifieEgalité(r, 100, "débordementBorne : 150 dans [0,100] donne 100 (clamp borne sup)")
+FIN
+
+
+// débordementBorne : clamp à la borne inférieure.
+PROCEDURE PUBLIQUE scenario_borne_inferieure()
+	r est un entier = EntierDansPlage(-5, 0, 100, débordementBorne)
+	dbgVérifieEgalité(r, 0, "débordementBorne : -5 dans [0,100] donne 0 (clamp borne inf)")
+FIN
+
+
+// Formes EN bilingues : overflowWrap et overflowClamp sont utilisables comme alias.
+PROCEDURE PUBLIQUE scenario_formes_en_bilingues()
+	rWrap est un entier = EntierDansPlage(13, 0, 9, overflowWrap)
+	dbgVérifieEgalité(rWrap, 3, "overflowWrap (alias EN de débordementCyclique) donne 3")
+	rClamp est un entier = EntierDansPlage(150, 0, 100, overflowClamp)
+	dbgVérifieEgalité(rClamp, 100, "overflowClamp (alias EN de débordementBorne) donne 100")
+FIN
+
+
+// Valeur dans la plage : aucun mode ne modifie une valeur déjà valide.
+PROCEDURE PRIVÉE scenario_valeur_dans_plage()
+	rErr est un entier = EntierDansPlage(50, 0, 100, débordementErreur)
+	rCyc est un entier = EntierDansPlage(50, 0, 100, débordementCyclique)
+	rBrn est un entier = EntierDansPlage(50, 0, 100, débordementBorne)
+	dbgVérifieEgalité(rErr, 50, "valeur dans plage inchangée (mode erreur)")
+	dbgVérifieEgalité(rCyc, 50, "valeur dans plage inchangée (mode cyclique)")
+	dbgVérifieEgalité(rBrn, 50, "valeur dans plage inchangée (mode borné)")
+FIN

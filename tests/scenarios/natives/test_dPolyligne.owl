@@ -1,0 +1,189 @@
+// @sujet : dPolyligne
+// @resume : Tracer une ligne brisée (suite de segments connectés) avec points en arguments multiples ou tableau
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_polyligne_quatre_segments()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Polyligne de 4 segments (5 points) : forme en escalier
+	// Points : (10,10) → (30,30) → (50,30) → (70,50) → (90,70)
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurVert, 0, 2)
+	dPolyligne(img, 5, 10, 10, 30, 30, 50, 30, 70, 50, 90, 70)
+	dFinDessin(img)
+
+	// Points exacts du parcours — sommets garantis sur la trace
+	pixelA = dPixelCouleur(img, 30, 30)
+	pixelB = dPixelCouleur(img, 50, 30)
+	pixelC = dPixelCouleur(img, 70, 50)
+	dbgVérifieVrai(pixelA = couleurVert OU pixelB = couleurVert OU pixelC = couleurVert, "polyligne 4 segments : au moins un sommet est vert")
+FIN
+
+PROCEDURE PUBLIQUE scenario_polyligne_tableau_plat()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelSommet est un entier
+	tabCoords est un tableau de entiers
+
+	// Polyligne via tableau plat [x1, y1, x2, y2, ..., xn, yn]
+	// Points : (10,80), (50,20), (90,80) — forme en V inversé
+	tabCoords = [10, 80, 50, 20, 90, 80]
+	img       = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurRouge, 0, 3)
+	dPolyligne(img, tabCoords)
+	dFinDessin(img)
+
+	// Le sommet (50,20) est exactement sur le parcours
+	pixelSommet = dPixelCouleur(img, 50, 20)
+	dbgVérifieEgalité(pixelSommet, couleurRouge, "polyligne tableau plat : sommet exact est rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_polyligne_couleur_explicite()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+
+	// Polyligne avec couleur spécifiée en dernier argument (pas de dStylo)
+	// Points : (10,10), (40,20), (70,50), (20,70)
+	img = dCréeImage(80, 80, couleurBlanc)
+	dDébutDessin(img)
+	dPolyligne(img, 4, 10, 10, 40, 20, 70, 50, 20, 70, couleurBleu)
+	dFinDessin(img)
+
+	// Sommets exacts du parcours
+	pixelA = dPixelCouleur(img, 40, 20)
+	pixelB = dPixelCouleur(img, 70, 50)
+	dbgVérifieVrai(pixelA = couleurBleu OU pixelB = couleurBleu, "polyligne avec couleur explicite : au moins un sommet est bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_polyligne_sans_dDebutDessin()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelSommet est un entier
+
+	// Polyligne directe sans dDébutDessin : image spécifiée en 1er argument
+	// Points : (5,30), (30,10), (55,50)
+	img = dCréeImage(60, 60, couleurBlanc)
+	dPolyligne(img, 3, 5, 30, 30, 10, 55, 50, couleurMagenta)
+
+	// Le sommet (30,10) est sur la trace
+	pixelSommet = dPixelCouleur(img, 30, 10)
+	dbgVérifieEgalité(pixelSommet, couleurMagenta, "polyligne sans dDébutDessin : sommet est magenta")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_deux_points_ligne_simple()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	pixelDiag est un entier
+
+	// Polyligne minimum : 2 points (1 segment) → équivalent à dLigne
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurCyan, 0, 2)
+	dPolyligne(img, 2, 10, 10, 90, 90)
+	dFinDessin(img)
+
+	// Le point (50,50) est sur la diagonale tracée
+	pixelDiag = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelDiag, couleurCyan, "polyligne 2 points (1 segment) : diagonale cyan tracée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_nombreux_points()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Polyligne avec nombreux points (30 points = 29 segments)
+	// Forme en zigzag horizontal — sommets alternant y=10 et y=30
+	img = dCréeImage(200, 100, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurOrange, 0, 1)
+	dPolyligne(img, 30, 5, 10, 10, 30, 15, 10, 20, 30, 25, 10, 30, 30, 35, 10, 40, 30, 45, 10, 50, 30, 55, 10, 60, 30, 65, 10, 70, 30, 75, 10, 80, 30, 85, 10, 90, 30, 95, 10, 100, 30, 105, 10, 110, 30, 115, 10, 120, 30, 125, 10, 130, 30, 135, 10, 140, 30, 145, 10, 150, 30)
+	dFinDessin(img)
+
+	// Échantillonnage sur sommets exacts du zigzag
+	pixelA = dPixelCouleur(img, 30, 30)
+	pixelB = dPixelCouleur(img, 50, 30)
+	pixelC = dPixelCouleur(img, 70, 30)
+	dbgVérifieVrai(pixelA = couleurOrange OU pixelB = couleurOrange OU pixelC = couleurOrange, "polyligne 30 points (zigzag) : au moins un sommet est orange")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_points_superposes()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelDiag est un entier
+
+	// Polyligne avec points superposés (segments de longueur 0)
+	// 3 points : (20,20), (20,20), (60,60) → 1 segment nul + 1 segment diagonal
+	img = dCréeImage(80, 80, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurJaune, 0, 2)
+	dPolyligne(img, 3, 20, 20, 20, 20, 60, 60)
+	dFinDessin(img)
+
+	// Le point (40,40) est sur la diagonale du segment non nul (20,20)→(60,60)
+	pixelDiag = dPixelCouleur(img, 40, 40)
+	dbgVérifieEgalité(pixelDiag, couleurJaune, "polyligne points superposés : segment diagonal jaune tracé")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_tableau_vide()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCentre est un entier
+	tabCoords est un tableau de entiers
+
+	// Tableau vide (0 coordonnées) : polyligne non traçable, image reste blanche
+	tabCoords = []
+	img       = dCréeImage(50, 50, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurVert, 0, 2)
+	dPolyligne(img, tabCoords)
+	dFinDessin(img)
+
+	// Rien tracé, image blanche
+	pixelCentre = dPixelCouleur(img, 25, 25)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "polyligne tableau vide : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_points_hors_image()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	pixelCentre est un entier
+
+	// Polyligne dont tous les points sont hors de la bbox de l'image
+	// Image 50x50, polyligne entièrement dans [-50, 0] (hors bbox)
+	img = dCréeImage(50, 50, couleurBlanc)
+	dDébutDessin(img)
+	dStylo(couleurNoir, 0, 2)
+	dPolyligne(img, 3,-10,-10,-30,-20,-50,-30)
+	dFinDessin(img)
+
+	// Polyligne hors image : rien visible, centre reste blanc
+	pixelCentre = dPixelCouleur(img, 25, 25)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "polyligne hors image : rien tracé, blanche")
+FIN

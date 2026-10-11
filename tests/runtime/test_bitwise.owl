@@ -1,0 +1,50 @@
+// ============================================
+// TEST: Bitwise functions (comportement de référence).
+// Fonctions registry : ETBinaire, OUBinaire, OUExclusifBinaire, NONBinaire.
+// Décalages : bitDécaleGauche / bitDécaleDroite (opérateurs scanner+compiler,
+// utilisables en infix OU comme fonction). Documentation de référence.
+// Voir test_bitwise_operators.owl pour les formes opérateur (& | || ~).
+// ============================================
+Trace("=== BITWISE ===")
+
+// --- AND ---
+dbgVérifieEgalité(ETBinaire(0xFF, 0x0F), 15, "AND 0xFF & 0x0F = 15")
+dbgVérifieEgalité(ETBinaire(0xAAAA, 0x5555), 0, "AND bits alternes = 0")
+dbgVérifieEgalité(ETBinaire(12, 10), 8, "AND 12 & 10 = 8")
+
+// --- OR ---
+dbgVérifieEgalité(OUBinaire(0xF0, 0x0F), 255, "OR 0xF0 | 0x0F = 255")
+dbgVérifieEgalité(OUBinaire(0, 0), 0, "OR 0 | 0 = 0")
+dbgVérifieEgalité(OUBinaire(5, 3), 7, "OR 5 | 3 = 7")
+
+// --- XOR ---
+dbgVérifieEgalité(OUExclusifBinaire(0xFF, 0x0F), 240, "XOR 0xFF ^ 0x0F = 240")
+dbgVérifieEgalité(OUExclusifBinaire(5, 5), 0, "XOR auto = 0")
+dbgVérifieEgalité(OUExclusifBinaire(12, 10), 6, "XOR 12 ^ 10 = 6")
+
+// --- Left shift (canon de référence : bitDécaleGauche) ---
+dbgVérifieEgalité(bitDécaleGauche(1, 4), 16, "1 << 4 = 16")
+dbgVérifieEgalité(bitDécaleGauche(3, 2), 12, "3 << 2 = 12")
+dbgVérifieEgalité(bitDécaleGauche(0, 8), 0, "0 << 8 = 0")
+
+// --- Right shift (canon de référence : bitDécaleDroite) ---
+dbgVérifieEgalité(bitDécaleDroite(256, 4), 16, "256 >> 4 = 16")
+dbgVérifieEgalité(bitDécaleDroite(1, 1), 0, "1 >> 1 = 0")
+dbgVérifieEgalité(bitDécaleDroite(8, 0), 8, "8 >> 0 = 8 (no shift)")
+
+// --- NOT ---
+dbgVérifieEgalité(NONBinaire(0),-1, "NOT 0 = -1")
+dbgVérifieEgalité(NONBinaire(-1), 0, "NOT -1 = 0")
+dbgVérifieVrai(NONBinaire(5) = -6, "NOT 5 = -6")
+
+// --- Combinaisons courantes : flags ---
+flags est un entier = 0
+flags = OUBinaire(flags, 1) // set bit 0
+flags = OUBinaire(flags, 4) // set bit 2
+dbgVérifieEgalité(flags, 5, "Flags 0b101 = 5")
+
+dbgVérifieEgalité(ETBinaire(flags, 1), 1, "bit 0 defini")
+dbgVérifieEgalité(ETBinaire(flags, 4), 4, "bit 2 defini")
+dbgVérifieEgalité(ETBinaire(flags, 2), 0, "bit 1 non defini")
+
+dbgBilanTest()

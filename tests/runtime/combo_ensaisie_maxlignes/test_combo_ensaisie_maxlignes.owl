@@ -1,0 +1,31 @@
+//  — non-régression EnSaisie / MaxLignesAffichées (Champ Combo).
+//
+// Ces deux props existent déjà (src/ui_catalog.c PROPS_COMBO_FIELD, cf.
+// commentaire attaché à MaxLignesAffichées). Verrou : leur pose/relecture
+// headless ne doit PAS régresser pendant le chantier styleCombo (ajout du
+// wrapper Libellé + prop Style).
+//
+// VERT ATTENDU (props déjà présentes) — documente le comportement actuel :
+//   - Défauts : EnSaisie = Faux, MaxLignesAffichées = 0
+//   - DSL littéral relu après Ouvre
+//   - Set/get runtime headless
+
+Ouvre(FEN_ComboEnSaisieMaxLignes)
+
+// --- Défauts (COMBO_Defaut : aucune des deux props dans PROPRIETES) ---
+dbgVérifieEgalité(COMBO_Defaut..EnSaisie, Faux, "EnSaisie : défaut = Faux")
+dbgVérifieEgalité(COMBO_Defaut..MaxLignesAffichées, 0, "MaxLignesAffichées : défaut = 0")
+
+// --- DSL littéral : valeurs relues depuis PROPRIETES après Ouvre ---
+dbgVérifieEgalité(COMBO_EnSaisie..EnSaisie, Vrai, "DSL littéral EnSaisie = Vrai relu après Ouvre")
+dbgVérifieEgalité(COMBO_EnSaisie..MaxLignesAffichées, 6, "DSL littéral MaxLignesAffichées = 6 relu après Ouvre")
+
+// --- Set/get runtime ---
+COMBO_EnSaisie..EnSaisie = Faux
+dbgVérifieEgalité(COMBO_EnSaisie..EnSaisie, Faux, "EnSaisie setter/getter headless")
+
+COMBO_EnSaisie..MaxLignesAffichées = 12
+dbgVérifieEgalité(COMBO_EnSaisie..MaxLignesAffichées, 12, "MaxLignesAffichées setter/getter headless")
+
+Ferme(FEN_ComboEnSaisieMaxLignes)
+dbgBilanTest()

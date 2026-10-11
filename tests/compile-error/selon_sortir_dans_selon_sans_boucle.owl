@@ -1,0 +1,16 @@
+// Compile-time : SORTIR reste reserve aux boucles, meme a l'interieur
+// d'un SELON. Pour quitter un SELON sans boucle englobante, l'utilisateur
+// doit ecrire SORTIR SELON. SORTIR sans boucle est une erreur, exactement
+// comme un SORTIR au top-level.
+//
+// PROCEDURE wrapper : isole `n` du scan cross-file (handle_check_command
+// inspecte le dossier parent) pour que le test produise le bon message
+// independamment du mode --check. Sans le wrapper, `n` global serait
+// ambigu avec d'autres tests du dossier et masquerait le vrai diagnostic.
+PROCEDURE Test()
+	n est un entier = 1
+	SELON n
+		CAS 1 : SORTIR
+		AUTRE CAS : Trace("ko")
+	FIN
+FIN

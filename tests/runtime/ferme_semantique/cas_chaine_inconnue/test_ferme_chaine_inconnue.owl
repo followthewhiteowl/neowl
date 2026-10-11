@@ -1,0 +1,24 @@
+//  — Ferme("FenInconnue") doit lever une erreur runtime.
+//
+// Comportement ACTUEL (avant impl) : si arg[0] est une chaîne qui ne
+// correspond à aucune fenêtre connue, la chaîne est traitée comme valeur
+// de retour (heuristique) et la fenêtre courante est fermée sans erreur.
+//
+// Comportement CIBLE (alignement canon) : une chaîne non-vide qui ne
+// correspond à aucune fenêtre connue → erreur runtime (ErreurDétectée = Vrai).
+//
+// Ce test est ROUGE avant impl (ErreurDétectée sera Faux car l'heuristique
+// traite "FEN_PasLa" comme valeur de retour sans erreur).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Cible)
+
+// Appel Ferme avec une chaîne ne correspondant à aucune fenêtre connue.
+// La native doit poser ErreurDétectée = Vrai.
+nomInconnu est une chaîne = "FEN_PasLa"
+Ferme(nomInconnu)
+bErrInconnu est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrInconnu, "Ferme(chaine_inconnue) -> ErreurDétectée = Vrai")
+
+dbgBilanTest()

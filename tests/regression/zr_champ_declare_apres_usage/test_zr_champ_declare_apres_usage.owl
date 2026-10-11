@@ -1,0 +1,24 @@
+//  — verrou non-régression : l'ordre textuel entre l'usage d'un
+// champ ZoneRépétée (ZR_X[i].LIB_A) et sa déclaration ne doit pas influencer
+// la validation compile-time. Le pré-scan doit voir 'LIB_A' même si les
+// procédures qui l'utilisent apparaissent AVANT le bloc ZoneRépétée dans le
+// fichier voisin FEN_ZRDeclareApresUsage.owl.
+
+TestModeHeadless(Vrai)
+
+declare_apres_usage_done est un booléen = Faux
+
+PROCEDURE cb_declare_apres_usage_done()
+	declare_apres_usage_done = Vrai
+FIN
+
+Ouvre(FEN_ZRDeclareApresUsage)
+
+dbgVérifieVrai(declare_apres_usage_done, "FinInitialisation FEN_ZRDeclareApresUsage exécutée")
+
+val est une chaîne = LireCellule(1)
+dbgVérifieEgalité(val, "valeur ordre inverse", "ZR_X[1].LIB_A écrit/lu via procédures déclarées avant ZR_X")
+
+Ferme(FEN_ZRDeclareApresUsage)
+
+dbgBilanTest()

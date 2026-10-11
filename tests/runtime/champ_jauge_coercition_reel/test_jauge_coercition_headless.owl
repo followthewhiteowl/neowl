@@ -1,0 +1,41 @@
+//  — coercition réel -> entier des props numériques d'un Champ Jauge.
+//
+// En OWL, `/` produit toujours un réel : `JAU..Valeur = num * 100 / total`
+// vaut 33.33, 66.66... Avant le correctif, le réel ne matchait aucune branche
+// du setter Jauge -> la valeur était droppée en silence (widget figé) et le
+// store retenait le réel brut. Ce verrou headless vérifie que le store reflète
+// désormais l'ENTIER coercé (troncature), observable sans widget Qt.
+//
+// Nature : ROUGE avant impl (le store rendait le réel), VERT après.
+
+dbgVérifieEgalité(TestModeHeadless(), Vrai, "mode headless par défaut, sans setter")
+
+OuvreSoeur(FEN_JaugeCoercition)
+
+// --- Valeur déclarée lue depuis le store ---
+dbgVérifieEgalité(JAU..Valeur, 40, "valeur déclarée = 40")
+
+// --- Coercition réel littéral : troncature, pas d'arrondi ---
+JAU..Valeur = 33.9
+dbgVérifieEgalité(JAU..Valeur, 33, "réel 33.9 coercé à 33 (troncature)")
+
+// --- Le vrai scénario du bug : une division produit un réel ---
+JAU..Valeur = 100 / 3
+dbgVérifieEgalité(JAU..Valeur, 33, "100/3 (33.33) coercé à 33 — plus de drop silencieux")
+
+// --- Entier inchangé (non-régression) ---
+JAU..Valeur = 75
+dbgVérifieEgalité(JAU..Valeur, 75, "entier 75 stocké tel quel")
+
+// --- Bornes numériques : même coercition réel -> entier ---
+JAU..BorneMax = 200 / 3
+dbgVérifieEgalité(JAU..BorneMax, 66, "BorneMax 200/3 (66.66) coercé à 66")
+JAU..BorneMin = 5.7
+dbgVérifieEgalité(JAU..BorneMin, 5, "BorneMin 5.7 coercé à 5")
+
+// --- Accès bilingue : même coercition côté EN ---
+JAU..Value = 12.8
+dbgVérifieEgalité(JAU..Valeur, 12, "..Value (EN) réel 12.8 coercé à 12")
+
+Ferme(FEN_JaugeCoercition)
+dbgBilanTest()

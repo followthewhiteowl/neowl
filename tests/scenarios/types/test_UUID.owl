@@ -1,0 +1,179 @@
+// @sujet : UUID
+// @résumé : Type UUID et son générateur DonneUUID — versions v4 (aléatoire RFC 4122, défaut) ou v7 (timestamp + aléatoire RFC 9562, sortable lexicographiquement). La méthode .VersChaîne sérialise dans trois formats : standard à tirets, hex compact ou legacy à accolades.
+
+
+// Cas canonique : un UUID v4 RFC 4122 généré par DonneUUID(). Forme à
+// 36 caractères avec tirets, 13e caractère hex toujours `4` (version),
+// 17e caractère hex dans {8,9,a,b} (variant). Vérification complète pour
+// servir de référence à la lecture.
+PROCEDURE scenario_donne_uuid_format_v4()
+	id est un UUID = DonneUUID()
+	s est une chaîne = id.VersChaîne()
+	dbgVérifieEgalité(Taille(s), 36, "DonneUUID() retourne 36 caractères")
+	dbgVérifieVrai(
+	RegexVérifie(s, "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+	"DonneUUID() respecte le format UUID v4 RFC 4122"
+	)
+FIN
+
+
+// DonneUUID(uuidV7) génère un UUID v7 RFC 9562 : 48 bits de timestamp
+// epoch-ms en préfixe, suivis de bits aléatoires. Le 13e caractère hex
+// vaut `7` (marker version), le 17e reste dans {8,9,a,b} (variant).
+// Conséquence pratique : deux UUID v7 générés successivement se trient
+// par date dans l'ordre lexicographique — idéal comme clé primaire BDD
+// ou identifiant de log.
+PROCEDURE scenario_donne_uuid_v7_sortable_lexico()
+	id1 est un UUID = DonneUUID(uuidV7)
+	id2 est un UUID = DonneUUID(uuidV7)
+	s1 est une chaîne = id1.VersChaîne()
+	s2 est une chaîne = id2.VersChaîne()
+	dbgVérifieVrai(
+	RegexVérifie(s1, "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+	"DonneUUID(uuidV7) respecte le format UUID v7 RFC 9562"
+	)
+	dbgVérifieVrai(s2 >= s1, "v7 successifs : ordre lexicographique = ordre temporel")
+FIN
+
+
+// La méthode .VersChaîne accepte un format optionnel. Sans argument,
+// elle équivaut à .VersChaîne(uuidFormatStandard) — la forme canonique
+// RFC à 36 caractères avec tirets. Les deux autres formats servent à
+// l'interopérabilité : uuidFormatCompact (32 chars hex pur, utile en
+// URL ou clé compacte) et uuidFormatAccolades (38 chars, format legacy
+// Microsoft `{...}` attendu par certaines API).
+PROCEDURE scenario_vers_chaine_trois_formats()
+	id est un UUID = DonneUUID()
+	sStandard est une chaîne = id.VersChaîne(uuidFormatStandard)
+	sCompact est une chaîne = id.VersChaîne(uuidFormatCompact)
+	sAccolades est une chaîne = id.VersChaîne(uuidFormatAccolades)
+	dbgVérifieEgalité(Taille(sStandard), 36, "Format standard = 36 caractères")
+	dbgVérifieEgalité(Taille(sCompact), 32, "Format compact = 32 caractères hex pur")
+	dbgVérifieEgalité(Taille(sAccolades), 38, "Format accolades = 38 caractères")
+	dbgVérifieVrai(RegexVérifie(sCompact, "^[0-9a-f]{32}$"),
+	"Format compact : hex lowercase sans séparateur")
+	dbgVérifieVrai(RegexVérifie(sAccolades, "^\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}$"),
+	"Format accolades : encadré par { } avec tirets")
+FIN
+
+
+// Coercion chaîne → UUID. Affecter une chaîne au format standard à une
+// variable typée UUID est direct : le parseur reconnaît la forme RFC et
+// reconstruit les 16 octets. Démontre le round-trip texte→UUID→texte
+// identique au caractère près.
+PROCEDURE scenario_coercion_chaine_vers_uuid()
+	sSource est une chaîne = "31aad81b-0a3f-47ad-ab1a-5935d7c34cde"
+	id est un UUID = sSource
+	dbgVérifieEgalité(id.VersChaîne(), sSource,
+	"Coercion chaîne → UUID puis .VersChaîne() : round-trip exact")
+FIN
+
+
+// Deux appels successifs renvoient deux valeurs distinctes — c'est
+// l'objet même d'un UUID. Vaut pour v4 (aléatoire) comme pour v7
+// (random salt sur les 74 derniers bits).
+PROCEDURE scenario_unicite_entre_appels()
+	id1 est un UUID = DonneUUID()
+	id2 est un UUID = DonneUUID()
+	dbgVérifieDifférence(id1.VersChaîne(), id2.VersChaîne(),
+	"Deux DonneUUID() consécutifs sont distincts")
+
+	id3 est un UUID = DonneUUID(uuidV7)
+	id4 est un UUID = DonneUUID(uuidV7)
+	dbgVérifieDifférence(id3.VersChaîne(), id4.VersChaîne(),
+	"Deux DonneUUID(uuidV7) consécutifs sont distincts")
+FIN
+
+
+// Une variable UUID déclarée sans initialiseur prend la valeur UUID nul :
+// 16 octets à zéro, soit "00000000-0000-0000-0000-000000000000" formaté
+// en standard. Cohérent avec `entier n` → 0, `chaîne s` → "".
+PROCEDURE PRIVÉE scenario_uuid_non_initialise_egal_nul()
+	id est un UUID
+	dbgVérifieEgalité(id.VersChaîne(), "00000000-0000-0000-0000-000000000000",
+	"UUID non initialisé = UUID nul (36 zéros formatés)")
+FIN
+
+
+// Le format Accolades + le format Compact appliqués au même UUID
+// désignent la même valeur : retirer les accolades et les tirets de
+// l'un donne exactement l'autre. Round-trip de cohérence inter-formats.
+PROCEDURE PRIVÉE scenario_coherence_inter_formats()
+	id est un UUID = DonneUUID()
+	sAccolades est une chaîne = id.VersChaîne(uuidFormatAccolades)
+	sCompact est une chaîne = id.VersChaîne(uuidFormatCompact)
+	// Reconstruction : enlève `{`, `}` et tirets du format accolades
+	sNormalise est une chaîne = Remplace(Remplace(Remplace(sAccolades, "{", ""), "}", ""), "-", "")
+	dbgVérifieEgalité(sNormalise, sCompact,
+	"Format accolades sans { } ni tirets = format compact")
+FIN
+
+
+// Coercion d'une chaîne au format accolades vers UUID : les accolades
+// et la casse mixte sont absorbées par le parser, la sérialisation
+// retombe sur la forme canonique lowercase à tirets.
+PROCEDURE PRIVÉE scenario_coercion_chaine_accolades()
+	id est un UUID = "{31AAD81B-0A3F-47AD-AB1A-5935D7C34CDE}"
+	dbgVérifieEgalité(id.VersChaîne(),
+	"31aad81b-0a3f-47ad-ab1a-5935d7c34cde",
+	"Coercion {MAJUSCULES} → UUID canonique lowercase")
+FIN
+
+
+// Coercion d'une chaîne au format compact (hex pur 32 chars sans tirets)
+// vers UUID : le parser accepte la forme sans séparateur.
+PROCEDURE PRIVÉE scenario_coercion_chaine_compact()
+	id est un UUID = "31aad81b0a3f47adab1a5935d7c34cde"
+	dbgVérifieEgalité(id.VersChaîne(),
+	"31aad81b-0a3f-47ad-ab1a-5935d7c34cde",
+	"Coercion hex compact 32 chars → UUID canonique à tirets")
+FIN
+
+
+// Round-trip via les trois formats successivement : UUID → chaîne dans
+// un format → re-coercion vers UUID → comparaison avec l'original.
+// L'identité de contenu doit être préservée quel que soit le format
+// intermédiaire choisi.
+PROCEDURE PRIVÉE scenario_round_trip_trois_formats()
+	idOriginal est un UUID = DonneUUID()
+
+	idViaStandard est un UUID = idOriginal.VersChaîne(uuidFormatStandard)
+	idViaCompact est un UUID = idOriginal.VersChaîne(uuidFormatCompact)
+	idViaAccolades est un UUID = idOriginal.VersChaîne(uuidFormatAccolades)
+
+	dbgVérifieEgalité(idViaStandard.VersChaîne(), idOriginal.VersChaîne(),
+	"Round-trip via uuidFormatStandard préserve la valeur")
+	dbgVérifieEgalité(idViaCompact.VersChaîne(), idOriginal.VersChaîne(),
+	"Round-trip via uuidFormatCompact préserve la valeur")
+	dbgVérifieEgalité(idViaAccolades.VersChaîne(), idOriginal.VersChaîne(),
+	"Round-trip via uuidFormatAccolades préserve la valeur")
+FIN
+
+
+// Différence v4 / v7 au caractère hex n°13 (1-based) : la forme à
+// tirets place le caractère de version juste après le 2e tiret. v4 → `4`,
+// v7 → `7`. Aucun autre caractère ne diffère structurellement entre les
+// deux versions vues à travers la sérialisation standard.
+PROCEDURE PRIVÉE scenario_v4_vs_v7_marker_version()
+	id4 est un UUID = DonneUUID(uuidV4)
+	id7 est un UUID = DonneUUID(uuidV7)
+	cMarker4 est une chaîne = Milieu(id4.VersChaîne(), 15, 1)
+	cMarker7 est une chaîne = Milieu(id7.VersChaîne(), 15, 1)
+	dbgVérifieEgalité(cMarker4, "4", "DonneUUID(uuidV4) : marker version = '4' au caractère 15")
+	dbgVérifieEgalité(cMarker7, "7", "DonneUUID(uuidV7) : marker version = '7' au caractère 15")
+FIN
+
+
+// DonneUUID() sans argument équivaut à DonneUUID(uuidV4) — uuidV4 est
+// la valeur par défaut de l'enum uuidVersion.
+PROCEDURE PRIVÉE scenario_donne_uuid_defaut_egal_v4()
+	idDefaut est un UUID = DonneUUID()
+	idExplicite est un UUID = DonneUUID(uuidV4)
+	// On vérifie la forme — pas l'égalité de contenu (les bytes random diffèrent).
+	sDefaut est une chaîne = idDefaut.VersChaîne()
+	sExplicite est une chaîne = idExplicite.VersChaîne()
+	dbgVérifieEgalité(Milieu(sDefaut, 15, 1), "4",
+	"DonneUUID() sans arg : marker version = '4' (défaut = uuidV4)")
+	dbgVérifieEgalité(Milieu(sExplicite, 15, 1), "4",
+	"DonneUUID(uuidV4) : même marker version '4'")
+FIN

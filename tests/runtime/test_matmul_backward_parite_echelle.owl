@@ -1,0 +1,109 @@
+// test_matmul_backward_parite_echelle.owl — 
+// Digue de parité bit-à-bit pour le backward dense de Tenseur.ProduitMatriciel
+// (TENSOR_OP_MATMUL2D, src/stdlib_tenseur.c), qui appelle deux fois
+// owl_matmul (dA = dSortie @ Bᵀ, dB = Aᵀ @ dSortie) via des buffers scratch
+// C-heap. Ce fichier verrouille les gradients à une échelle qui dépasse la
+// tuile BI=64 sur M ET sur les deux matmul internes (p et q > 64), pour que
+// le threading sur les lignes du kernel ne réordonne rien ici non plus.
+//
+// Gradient non uniforme via q = sortie*sortie (comme les scénarios
+// pédagogiques existants tests/scenarios/types/test_TenseurProduitMatricielMatriceMatrice.owl),
+// sinon Rétropropage() directement sur le résultat amorcerait un gradient
+// uniforme trivial qui ne teste rien de la structure du calcul.
+//
+// Oracle indépendant : dSortie[i][j] = 2*C[i][j] (C = A@B, calculé en k
+// croissant comme le native), puis dA[i][k] = somme sur j de
+// dSortie[i][j]*B[k][j], dB[k][j] = somme sur i de A[i][k]*dSortie[i][j].
+// Ce sont les mêmes formules que le commentaire C (dA = dSortie @ Bᵀ,
+// dB = Aᵀ @ dSortie), réécrites indépendamment en OWL, ordre d'accumulation
+// interne (k, puis j ou i) préservé.
+
+Trace("=== MATMUL BACKWARD PARITÉ À L'ÉCHELLE (digue perf feat/1634) ===")
+
+// Valeurs FRACTIONNAIRES (division par 3.0, fraction binaire non terminante) :
+// les sommes accumulées côté forward ET côté gradients ne sont pas exactement
+// représentables en double, contrairement à des entiers purs.
+PROCEDURE mmBwParite_construitMatrice(n est un entier, k est un entier, decalage est un entier)
+	arr est un tableau = []
+	POUR i = 1 À n
+		ligne est un tableau = []
+		POUR j = 1 À k
+			v est un réel = (((i * 5 + j * 2 + decalage) % 7) + 1) / 3.0
+			Ajoute(ligne, v)
+		FIN
+		Ajoute(arr, [ligne])
+	FIN
+	RENVOYER TableauVersMatrice(arr)
+FIN
+
+// C[i][j] = somme sur k croissant de A[i][k]*B[k][j]
+PROCEDURE mmBwParite_oracleForward(matA est une Matrice, matB est une Matrice, i est un entier, j est un entier)
+	kMax est un entier = matA..Colonnes
+	s est un réel = 0.0
+	POUR kk = 1 À kMax
+		s += matA[i][kk] * matB[kk][j]
+	FIN
+	RENVOYER s
+FIN
+
+// dSortie[i][j] = 2 * C[i][j] (dérivée de q = C*C, élément par élément)
+PROCEDURE mmBwParite_oracleDSortie(matA est une Matrice, matB est une Matrice, i est un entier, j est un entier)
+	RENVOYER 2.0 * mmBwParite_oracleForward(matA, matB, i, j)
+FIN
+
+// dA[i][k] = somme sur j croissant de dSortie[i][j] * B[k][j]
+PROCEDURE mmBwParite_oracleDA(matA est une Matrice, matB est une Matrice, i est un entier, k est un entier)
+	r est un entier = matB..Colonnes
+	s est un réel = 0.0
+	POUR jj = 1 À r
+		s += mmBwParite_oracleDSortie(matA, matB, i, jj) * matB[k][jj]
+	FIN
+	RENVOYER s
+FIN
+
+// dB[k][j] = somme sur i croissant de A[i][k] * dSortie[i][j]
+PROCEDURE mmBwParite_oracleDB(matA est une Matrice, matB est une Matrice, k est un entier, j est un entier)
+	p est un entier = matA..Lignes
+	s est un réel = 0.0
+	POUR ii = 1 À p
+		s += matA[ii][k] * mmBwParite_oracleDSortie(matA, matB, ii, j)
+	FIN
+	RENVOYER s
+FIN
+
+// A (70×70) @ B (70×70) : p=q=r=70, chacun des deux matmul internes du
+// backward (dA : M=70×K=70×N=70 ; dB : M=70×K=70×N=70) dépasse BI=64 sur
+// sa dimension M -> exerce réellement le multi-tuile côté lignes.
+PROCEDURE scenario_matmul_backward_echelle()
+	matA est une Matrice = mmBwParite_construitMatrice(70, 70, 0)
+	matB est une Matrice = mmBwParite_construitMatrice(70, 70, 11)
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC[1][1], mmBwParite_oracleForward(matA, matB, 1, 1), "forward : coin [1][1] == oracle")
+	dbgVérifieEgalité(valC[70][70], mmBwParite_oracleForward(matA, matB, 70, 70), "forward : coin [70][70] == oracle")
+	dbgVérifieEgalité(valC[40][25], mmBwParite_oracleForward(matA, matB, 40, 25), "forward : intérieur [40][25] == oracle")
+
+	q est un Tenseur = tC * tC
+	q.Rétropropage()
+
+	gradA est une Matrice = tA..Gradient
+	dbgVérifieEgalité(gradA..Lignes, 70, "dA garde 70 lignes")
+	dbgVérifieEgalité(gradA..Colonnes, 70, "dA garde 70 colonnes")
+	dbgVérifieEgalité(gradA[1][1], mmBwParite_oracleDA(matA, matB, 1, 1), "dA[1][1] == oracle")
+	dbgVérifieEgalité(gradA[70][70], mmBwParite_oracleDA(matA, matB, 70, 70), "dA[70][70] == oracle")
+	dbgVérifieEgalité(gradA[33][12], mmBwParite_oracleDA(matA, matB, 33, 12), "dA intérieur [33][12] == oracle")
+
+	gradB est une Matrice = tB..Gradient
+	dbgVérifieEgalité(gradB..Lignes, 70, "dB garde 70 lignes")
+	dbgVérifieEgalité(gradB..Colonnes, 70, "dB garde 70 colonnes")
+	dbgVérifieEgalité(gradB[1][1], mmBwParite_oracleDB(matA, matB, 1, 1), "dB[1][1] == oracle")
+	dbgVérifieEgalité(gradB[70][70], mmBwParite_oracleDB(matA, matB, 70, 70), "dB[70][70] == oracle")
+	dbgVérifieEgalité(gradB[19][58], mmBwParite_oracleDB(matA, matB, 19, 58), "dB intérieur [19][58] == oracle")
+FIN
+
+scenario_matmul_backward_echelle()
+
+dbgBilanTest()

@@ -1,0 +1,24 @@
+// Stress test: create many objects to trigger GC
+Trace("=== GC STRESS TEST ===")
+
+// Create many strings in a loop
+POUR i = 1 À 1000
+	s est une chaîne = "string numero " + i
+FIN
+
+// Create arrays with many elements
+arrT est un tableau de chaînes
+POUR i = 1 À 500
+	Ajoute(arrT, "element " + i)
+FIN
+dbgVérifieEgalité(Taille(arrT), 500, "Array survived GC with 500 elements")
+
+// Create and discard objects
+POUR i = 1 À 100
+	temp est un tableau de entiers
+	Ajoute(temp, i)
+	Ajoute(temp, i * 2)
+FIN
+
+Trace("GC stress test survived!")
+dbgVérifieVrai(Vrai, "GC stress test complete")

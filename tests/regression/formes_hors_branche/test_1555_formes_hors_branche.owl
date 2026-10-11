@@ -1,0 +1,62 @@
+//  : formes de diviseur qui n'ont jamais declenche le refus de
+// division par zero, et qui ne doivent jamais le declencher.
+//
+// Le refus decrit dans tests/regression/faux_positifs_garde_division/
+// ne frappait que les diviseurs dont la derniere operation tient sur un seul
+// octet et suit immediatement le chargement d'un litteral. Les cinq formes
+// ci-dessous ne remplissent pas cette condition : leur derniere operation est
+// une lecture (indice variable, champ, variable locale, variable globale) ou
+// une negation. Elles restent hors de la detection quelle que soit la
+// composition du jeu de constantes.
+//
+// Chaque procedure porte malgre tout un tableau litteral contenant un zero,
+// afin que le fichier reste hostile a une detection qui devinerait a nouveau
+// sa position. Un balayage du rang du zero de 0 a 120 a ete effectue sur
+// chacune de ces cinq formes au moment de la pose : aucun rang n'a produit de
+// refus.
+
+stZone1555 est une Structure
+	champ est un entier
+FIN
+
+gDiviseur1555 est un entier = 2
+
+// Acces a un tableau par un indice variable.
+PROCEDURE Hors1555IndiceVariable(num est un entier, i est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 0]
+	RENVOYER num / t[i]
+FIN
+
+// Lecture d'un champ de structure.
+PROCEDURE Hors1555Champ(num est un entier, o est un stZone1555)
+	t est un tableau de entiers = [1, 2, 3, 4, 0]
+	RENVOYER num / o.champ
+FIN
+
+// Variable locale nue, sans parenthese ni operation.
+PROCEDURE Hors1555LocalNu(num est un entier, den est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 0]
+	RENVOYER num / den
+FIN
+
+// Variable globale.
+PROCEDURE Hors1555Global(num est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 0]
+	RENVOYER num / gDiviseur1555
+FIN
+
+// Negation parenthesee.
+PROCEDURE Hors1555Negation(num est un entier, den est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 0]
+	RENVOYER num / (-den)
+FIN
+
+zone1555 est un stZone1555
+zone1555.champ = 2
+
+dbgVérifieEgalité(Hors1555IndiceVariable(10, 2), 5, "diviseur : acces a un tableau par indice variable")
+dbgVérifieEgalité(Hors1555Champ(10, zone1555), 5, "diviseur : champ de structure")
+dbgVérifieEgalité(Hors1555LocalNu(10, 2), 5, "diviseur : variable locale nue")
+dbgVérifieEgalité(Hors1555Global(10), 5, "diviseur : variable globale")
+dbgVérifieEgalité(Hors1555Negation(10,-2), 5, "diviseur : negation parenthesee")
+dbgBilanTest()

@@ -1,0 +1,106 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — import d'un modèle ONNX réel du
+// domaine public dont le biais est émis en node Add séparé.
+// @résumé : certains exportateurs (et opsets anciens) n'intègrent pas le biais
+// au node Conv/MatMul : ils l'émettent en node `Add(sortie_couche, constante)`
+// juste après. L'import reconnaît ce motif comme le biais élément-par-élément
+// de la couche précédente (Conv → biais du Conv ; MatMul → biais du Dense),
+// distinct de l'addition de raccourci résiduel (deux sorties de couches).
+// Le scénario central importe un vrai réseau de classification de chiffres
+// (Conv → Add(biais) → ReLU → MaxPool, ×2, puis aplatissement → MatMul →
+// Add(biais)) et compare l'inférence à une sortie de référence (oracle)
+// capturée hors OWL, à une tolérance flottante près.
+//
+// Fixture : tests/internal_fixtures/onnx/mnist-8.onnx — réseau du domaine
+// public (chiffres manuscrits 28×28). Entrée [1,1,28,28], sortie [1,10].
+// L'oracle (entrée arange(784)/784 + sortie attendue) vit dans
+// tests/internal_fixtures/onnx/mnist8_oracle.json ; la digue reconstruit
+// l'entrée à la main (flat[k] = k/784.0) pour ne dépendre d'aucune lecture
+// JSON.
+
+// Cœur du contrat : .ChargeONNX importe mnist-8.onnx (biais en nodes Add
+// séparés), puis .Infère sur l'entrée oracle [1,1,28,28] reproduit la sortie
+// [1,10] capturée par onnxruntime, à une tolérance flottante près.
+PROCEDURE PUBLIQUE scenario_charge_onnx_biais_add_separe_egale_oracle()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/mnist-8.onnx")
+	// Capture immédiate : la RAZ-auto consomme la sentinelle d'erreur au 1er
+	// appel natif suivant, lire ErreurDétectée avant tout autre appel
+	// (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import du réseau à biais-Add séparé réussit (biais Conv et Dense repliés)")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 783
+			brut.Ajoute(k / 784.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 1, 28, 28])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [classes]
+		// (sémantique d'import ONNX). L'oracle onnxruntime [1,10] correspond aux
+		// mêmes 10 valeurs lues ici comme un Vecteur.
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu est un tableau de réels
+		attendu.Ajoute(-0.075412318110466)
+		attendu.Ajoute(-0.6369168758392334)
+		attendu.Ajoute(0.12419326603412628)
+		attendu.Ajoute(0.4131368100643158)
+		attendu.Ajoute(-0.2941473126411438)
+		attendu.Ajoute(1.177760124206543)
+		attendu.Ajoute(0.1696843057870865)
+		attendu.Ajoute(-2.166900873184204)
+		attendu.Ajoute(0.9284112453460693)
+		attendu.Ajoute(0.20145969092845917)
+
+		POUR i = 1 À 10
+			dbgVérifieVrai(Abs(val[i] - attendu[i]) < 0.0001, "sortie[" + i + "] proche de l'oracle onnxruntime (biais-Add replié, tolérance flottante)")
+		FIN
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur le même réseau produit le même
+// comportement observable que .ChargeONNX (mêmes valeurs, même tolérance).
+PROCEDURE PUBLIQUE scenario_load_onnx_biais_add_separe_egale_oracle()
+	mon is an AIModel
+	ErreurRAZ()
+	mon.LoadONNX("tests/internal_fixtures/onnx/mnist-8.onnx")
+	// Immediate capture: the auto-reset mechanism consumes the error sentinel
+	// on the next native call (cf. skill test-writing-pitfalls §6).
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "separate bias-Add network import succeeds (Conv and Dense biases folded)")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 783
+			raw.Ajoute(k / 784.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 1, 28, 28])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected is an array of reals
+		expected.Ajoute(-0.075412318110466)
+		expected.Ajoute(-0.6369168758392334)
+		expected.Ajoute(0.12419326603412628)
+		expected.Ajoute(0.4131368100643158)
+		expected.Ajoute(-0.2941473126411438)
+		expected.Ajoute(1.177760124206543)
+		expected.Ajoute(0.1696843057870865)
+		expected.Ajoute(-2.166900873184204)
+		expected.Ajoute(0.9284112453460693)
+		expected.Ajoute(0.20145969092845917)
+
+		POUR i = 1 À 10
+			dbgCheckTrue(Abs(val[i] - expected[i]) < 0.0001, "AIModel.LoadONNX, English form: output[" + i + "] within tolerance of the onnxruntime oracle")
+		FIN
+	FIN
+FIN

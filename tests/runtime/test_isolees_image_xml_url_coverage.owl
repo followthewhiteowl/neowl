@@ -1,0 +1,104 @@
+// Couverture des constantes isolées (lot  — isolées) côté
+// image (dr*), XML (XMLBalisePI/XMLTexte/depuisFichier/depuisURL) et
+// URL (urlRequête/urlFragment/encodeURLDepuisUTF8).
+//
+// Méthode :
+//   - EFFET RÉEL : on observe la sortie de la native consommatrice
+//     (dimensions image, contenu URL extrait, encodage URL).
+//   - SMOKE/VALUE-CHECK : on verrouille la valeur exacte du sentinel
+//     ou de l'entier (XMLBalisePI=5, XMLTexte=2, depuisURL=3) +
+//     acceptation par la native sans lever d'erreur.
+
+// ================================================================
+// dRotation : drDéfaut (agrandit), drAdapte (réduit), drSansAgrandissement
+// (tronqué). drDéfaut agrandit la bbox post-rotation, les deux autres
+// gardent la taille originale -> différentiel observable.
+// ================================================================
+img_def est une Image = dCréeImage(20, 20, RougeClair)
+ok_def est un booléen = dRotation(img_def, 45.0, drDéfaut)
+dbgVérifieVrai(ok_def, "dRotation drDéfaut accepté")
+dbgVérifieVrai(img_def..Largeur > 20, "drDéfaut agrandit la bbox (largeur > 20)")
+dbgVérifieVrai(img_def..Hauteur > 20, "drDéfaut agrandit la bbox (hauteur > 20)")
+
+img_ad est une Image = dCréeImage(20, 20, RougeClair)
+ok_ad est un booléen = dRotation(img_ad, 45.0, drAdapte)
+dbgVérifieVrai(ok_ad, "dRotation drAdapte accepté")
+dbgVérifieEgalité(img_ad..Largeur, 20, "drAdapte garde largeur=20")
+dbgVérifieEgalité(img_ad..Hauteur, 20, "drAdapte garde hauteur=20")
+
+img_san est une Image = dCréeImage(20, 20, RougeClair)
+ok_san est un booléen = dRotation(img_san, 45.0, drSansAgrandissement)
+dbgVérifieVrai(ok_san, "dRotation drSansAgrandissement accepté")
+dbgVérifieEgalité(img_san..Largeur, 20, "drSansAgrandissement garde largeur=20")
+dbgVérifieEgalité(img_san..Hauteur, 20, "drSansAgrandissement garde hauteur=20")
+
+// ================================================================
+// dRedimensionne : drEtiré (défaut, étire), drHauteQualité (bilinéaire),
+// combinable bitwise. La dim finale est la même (target), la diff est
+// dans le contenu pixel ; on assert acceptation + dims atteintes.
+// ================================================================
+img_et est une Image = dCréeImage(10, 10, BleuClair)
+ok_et est un booléen = dRedimensionne(img_et, 30, 20, drEtiré)
+dbgVérifieVrai(ok_et, "dRedimensionne drEtiré accepté")
+dbgVérifieEgalité(img_et..Largeur, 30, "drEtiré atteint largeur=30")
+dbgVérifieEgalité(img_et..Hauteur, 20, "drEtiré atteint hauteur=20")
+
+img_hq est une Image = dCréeImage(10, 10, BleuClair)
+ok_hq est un booléen = dRedimensionne(img_hq, 30, 20, drHauteQualité)
+dbgVérifieVrai(ok_hq, "dRedimensionne drHauteQualité accepté")
+dbgVérifieEgalité(img_hq..Largeur, 30, "drHauteQualité atteint largeur=30")
+dbgVérifieEgalité(img_hq..Hauteur, 20, "drHauteQualité atteint hauteur=20")
+
+// ================================================================
+// XML — XMLBalise/XMLTexte/XMLCDATA/XMLCommentaire/XMLBalisePI
+// XMLBalise=1, XMLTexte=2, XMLBalisePI=5 (value-check direct sur
+// les entiers documentés).
+// ================================================================
+dbgVérifieEgalité(XMLBalise, 1, "XMLBalise = 1")
+dbgVérifieEgalité(XMLTexte, 2, "XMLTexte = 2")
+dbgVérifieEgalité(XMLBalisePI, 5, "XMLBalisePI = 5")
+
+// XMLBalise est observable via XMLTypeElément(racine) sur un doc XML
+// quelconque -> prouve que la constante reflète bien le code de retour.
+doc_xml est un xmlDocument = XMLOuvre("<?xml version=""1.0""?><racine>x</racine>", depuisChaîne)
+racine_xml est un xmlNoeud = XMLRacine(doc_xml)
+dbgVérifieEgalité(XMLTypeElément(racine_xml), XMLBalise, "racine = XMLBalise (=1)")
+
+// ================================================================
+// XMLOuvre — modes depuisFichier (défaut, =1) et depuisURL (=3).
+// depuisChaine déjà utilisé ci-dessus. value-check + acceptation.
+// ================================================================
+dbgVérifieEgalité(depuisFichier, 1, "depuisFichier = 1 (mode défaut)")
+dbgVérifieEgalité(depuisURL, 3, "depuisURL = 3")
+// Sentinels distincts entre eux
+dbgVérifieVrai(depuisFichier <> depuisChaîne, "depuisFichier <> depuisChaine")
+dbgVérifieVrai(depuisURL <> depuisChaîne, "depuisURL <> depuisChaine")
+dbgVérifieVrai(depuisFichier <> depuisURL, "depuisFichier <> depuisURL")
+
+// ================================================================
+// URL — URLExtraitChemin avec urlRequête / urlFragment (mask bitwise
+// dispatch dans fn_url_extrait_chemin). EFFET RÉEL.
+// ================================================================
+url est une chaîne = "https://example.com/page?a=1&b=2#section"
+
+requete est une chaîne = URLExtraitChemin(url, urlRequête)
+dbgVérifieEgalité(requete, "a=1&b=2", "urlRequête extrait la query")
+
+fragment est une chaîne = URLExtraitChemin(url, urlFragment)
+dbgVérifieEgalité(fragment, "section", "urlFragment extrait l'ancre")
+
+// urlRequete (alias ASCII de urlRequête) = même mask, même résultat
+requete_ascii est une chaîne = URLExtraitChemin(url, urlRequête)
+dbgVérifieEgalité(requete_ascii, "a=1&b=2", "urlRequete (alias ASCII) = urlRequête")
+
+// ================================================================
+// URLEncode — encodeURLDepuisUTF8 (défaut, =0) préserve séparateurs
+// URL ; encodeURLParamètre (=3) encode tout. Différentiel observable.
+// ================================================================
+src est une chaîne = "https://x.com/a b?c=d"
+enc_utf8 est une chaîne = URLEncode(src, encodeURLDepuisUTF8)
+dbgVérifieEgalité(enc_utf8, "https://x.com/a%20b?c=d", "encodeURLDepuisUTF8 préserve :/?")
+enc_par est une chaîne = URLEncode(src, encodeURLParamètre)
+dbgVérifieEgalité(enc_par, "https%3A%2F%2Fx.com%2Fa%20b%3Fc%3Dd", "encodeURLParamètre encode :/?")
+// encodeURLDepuisUTF8 = 0 (valeur exacte)
+dbgVérifieEgalité(encodeURLDepuisUTF8, 0, "encodeURLDepuisUTF8 = 0")

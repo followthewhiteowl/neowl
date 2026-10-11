@@ -1,0 +1,26 @@
+// Runtime GUI (widgets montés, offscreen) : jauge horizontale avec texte,
+// avec et sans CouleurJauge. Le texte doit être centré dans les deux cas
+// (harmonisation designer↔runtime). Le centrage pixel n'est pas testable
+// offscreen (validation visuelle = dev). Ici on garantit : pas de crash au
+// paint des deux chemins horizontaux (couleur via QSS + Fusion) et round-trip
+// de la Valeur et de la CouleurJauge.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_JaugeTexteHorizontal)
+
+// --- Chemin horizontal AVEC CouleurJauge (QSS ::chunk) ---
+dbgVérifieEgalité(JAU_TxtColor..Valeur, 65, "JAU_TxtColor : valeur déclarée = 65")
+dbgVérifieEgalité(JAU_TxtColor..CouleurJauge, 0x00CC66, "JAU_TxtColor : couleur déclarée round-trip")
+dbgVérifieEgalité(JAU_TxtColor..Vertical, Faux, "JAU_TxtColor : orientation horizontale")
+JAU_TxtColor..Valeur = 30
+dbgVérifieEgalité(JAU_TxtColor..Valeur, 30, "JAU_TxtColor : set puis get = 30 (repaint sans crash)")
+
+// --- Chemin horizontal SANS couleur (Fusion, reste centré) ---
+dbgVérifieEgalité(JAU_TxtPlain..Valeur, 40, "JAU_TxtPlain : valeur déclarée = 40")
+dbgVérifieEgalité(JAU_TxtPlain..Vertical, Faux, "JAU_TxtPlain : orientation horizontale")
+JAU_TxtPlain..Valeur = 90
+dbgVérifieEgalité(JAU_TxtPlain..Valeur, 90, "JAU_TxtPlain : set puis get = 90 (repaint sans crash)")
+
+Ferme(FEN_JaugeTexteHorizontal)
+dbgBilanTest()

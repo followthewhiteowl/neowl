@@ -1,0 +1,19 @@
+// Test : sous-widget cross-fichier peut recevoir un littéral
+// multilingue inline sans passer par une variable typée intermédiaire.
+//
+// La fenêtre voisine FEN_Repro.owl déclare BTN_Test est un Bouton (slot
+// Libellé multilingue). Sans le pré-scan des voisins, l'affectation directe
+// échouait avec E_SYNTAX_BRACE_LITERAL_NO_TYPE : le compileur ne connaissait
+// pas le sous-widget cross-fichier (seuls les FEN top-level étaient pré-populés
+// dans g_prescan_widgets). Le pré-scan systématique des voisins via
+// prescan_source_unified(_, registerTopLevelDecls=false) ancre le sous-widget.
+
+Ouvre(FEN_Repro)
+
+BTN_Test..Libellé = {langueFrançais: "Tester", langueAnglais: "Test"}
+
+dbgVérifieEgalité(BTN_Test..Libellé[langueFrançais], "Tester")
+dbgVérifieEgalité(BTN_Test..Libellé[langueAnglais], "Test")
+
+Ferme(FEN_Repro)
+dbgBilanTest()

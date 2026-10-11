@@ -1,0 +1,167 @@
+Trace("=== RACCOURCIS DATE (Age, Demain, Hier, Paques, JourEnCours) ===")
+
+// --- Age ---
+// spécification de référence : Age renvoie une chaîne AAAAMMJJ (années/mois/jours) ou "" si erreur.
+dateNaissance est une date = "19900101"
+ageResult est une chaîne = Age(dateNaissance, "20250101")
+dbgVérifieEgalité(ageResult, "00350000", "Age ne 1990-01-01, calc 2025-01-01 = 35 ans")
+
+// Age d'une date future > date de calcul -> chaîne vide (erreur)
+dateFuture est une date = "20500101"
+ageFutur est une chaîne = Age(dateFuture)
+dbgVérifieEgalité(ageFutur, "", "Age date future (> aujourd'hui) = vide")
+
+// --- Demain / Tomorrow ---
+dateRef est une date = "20260416"
+dateDemain est une date = Demain(dateRef)
+dbgVérifieEgalité(dateDemain..Jour, 17, "Demain(16 avril) = 17")
+dbgVérifieEgalité(dateDemain..Mois, 4, "Demain mois inchange")
+
+// Demain() sans argument = date du jour + 1
+dateDemainToday est une date = Demain()
+dbgVérifieVrai(dateDemainToday..Année >= 2026, "Demain() sans arg fonctionne")
+
+// Traversee fin mois
+dateFinMois est une date = "20260430"
+dateApres est une date = Demain(dateFinMois)
+dbgVérifieEgalité(dateApres..Mois, 5, "Demain 30 avril = mai")
+dbgVérifieEgalité(dateApres..Jour, 1, "Demain 30 avril = 1 mai")
+
+// Traversee fin annee
+dateFinAnnee est une date = "20261231"
+dateNouvelleAnnee est une date = Demain(dateFinAnnee)
+dbgVérifieEgalité(dateNouvelleAnnee..Année, 2027, "Demain 31 dec = 2027")
+dbgVérifieEgalité(dateNouvelleAnnee..Mois, 1, "Demain 31 dec = janvier")
+dbgVérifieEgalité(dateNouvelleAnnee..Jour, 1, "Demain 31 dec = 1")
+
+// --- Hier / Yesterday ---
+dateHier est une date = Hier(dateRef)
+dbgVérifieEgalité(dateHier..Jour, 15, "Hier(16 avril) = 15")
+
+// Hier 1 janvier = 31 decembre annee precedente
+dateDebutAnnee est une date = "20260101"
+dateAvant est une date = Hier(dateDebutAnnee)
+dbgVérifieEgalité(dateAvant..Année, 2025, "Hier 1 jan 2026 = 2025")
+dbgVérifieEgalité(dateAvant..Mois, 12, "Hier 1 jan = decembre")
+dbgVérifieEgalité(dateAvant..Jour, 31, "Hier 1 jan = 31")
+
+// --- JourEnCours ---
+jourAuj est un entier = JourEnCours()
+dbgVérifieVrai(jourAuj >= 1, "JourEnCours >= 1")
+dbgVérifieVrai(jourAuj <= 31, "JourEnCours <= 31")
+
+// --- Paques / Easter ---
+// 2026: 5 avril
+datePaques2026 est une date = Pâques(2026)
+dbgVérifieEgalité(datePaques2026..Année, 2026, "Paques 2026 annee")
+dbgVérifieEgalité(datePaques2026..Mois, 4, "Paques 2026 mois = avril")
+dbgVérifieEgalité(datePaques2026..Jour, 5, "Paques 2026 = 5 avril")
+
+// 2024: 31 mars
+datePaques2024 est une date = Pâques(2024)
+dbgVérifieEgalité(datePaques2024..Mois, 3, "Paques 2024 = mars")
+dbgVérifieEgalité(datePaques2024..Jour, 31, "Paques 2024 = 31 mars")
+
+// 2025: 20 avril
+datePaques2025 est une date = Pâques(2025)
+dbgVérifieEgalité(datePaques2025..Mois, 4, "Paques 2025 = avril")
+dbgVérifieEgalité(datePaques2025..Jour, 20, "Paques 2025 = 20 avril")
+
+// Paques accepte une chaine numerique (coerce interne)
+ErreurRAZ()
+datePaques2026Str est une date = Pâques("2026")
+dbgVérifieFaux(ErreurDétectée, "Paques chaine 2026 sans erreur")
+dbgVérifieEgalité(datePaques2026Str..Année, 2026, "Paques chaine 2026 annee")
+dbgVérifieEgalité(datePaques2026Str..Mois, 4, "Paques chaine 2026 mois avril")
+dbgVérifieEgalité(datePaques2026Str..Jour, 5, "Paques chaine 2026 = 5 avril")
+
+// Paques accepte une date (extrait l'annee) - non-regression
+dateRefPaques est une date = "20240615"
+datePaquesDate est une date = Pâques(dateRefPaques)
+dbgVérifieEgalité(datePaquesDate..Année, 2024, "Paques(date 2024) annee = 2024")
+dbgVérifieEgalité(datePaquesDate..Mois, 3, "Paques(date 2024) = mars")
+dbgVérifieEgalité(datePaquesDate..Jour, 31, "Paques(date 2024) = 31 mars")
+
+// Paques sur chaine non-numerique -> erreur claire, pas annee 0 silencieuse
+ErreurRAZ()
+datePaquesBad est une date = Pâques("abc")
+dbgVérifieVrai(ErreurInfo() <> "", "Paques chaine non-numerique -> ErreurDetectee")
+
+// Paques annee < 1583 -> erreur (calendrier gregorien debut 1582)
+ErreurRAZ()
+datePaquesTropTot est une date = Pâques(1500)
+dbgVérifieVrai(ErreurInfo() <> "", "Paques(1500) hors borne -> ErreurDetectee")
+
+// Paques annee > 9999 -> erreur (borne haute)
+ErreurRAZ()
+datePaquesTropTard est une date = Pâques(10000)
+dbgVérifieVrai(ErreurInfo() <> "", "Paques(10000) hors borne -> ErreurDetectee")
+
+// --- JourDansLAnneeVersDate (inverse de DateVersJourDansLAnnee) ---
+dateJ106 est une date = JourDansLAnnéeVersDate(106, 2026)
+dbgVérifieEgalité(dateJ106..Mois, 4, "Jour 106 2026 = avril")
+dbgVérifieEgalité(dateJ106..Jour, 16, "Jour 106 2026 = 16")
+
+// --- EntierVersJourEnLettre ---
+// Exemple canon : 73773 jours depuis 01/01/1800 (=1er) -> Mardi (non-regression)
+jourCanon est une chaîne = EntierVersJourEnLettre(73773)
+dbgVérifieEgalité(jourCanon, "Mardi", "EntierVersJourEnLettre(73773) = Mardi (canon)")
+
+// Coerce chaine numerique -> entier
+ErreurRAZ()
+jourStr est une chaîne = EntierVersJourEnLettre("73773")
+dbgVérifieFaux(ErreurDétectée, "EntierVersJourEnLettre chaine numerique sans erreur")
+dbgVérifieEgalité(jourStr, "Mardi", "EntierVersJourEnLettre chaine 73773 = Mardi")
+
+// Coerce date -> entier interne
+dateNoel2001 est une date = "20011225"
+jourNoel est une chaîne = EntierVersJourEnLettre(dateNoel2001)
+dbgVérifieEgalité(jourNoel, "Mardi", "EntierVersJourEnLettre(date 25/12/2001) = Mardi")
+
+// Chaine non-numerique -> erreur claire, pas Mardi silencieux
+ErreurRAZ()
+jourBad est une chaîne = EntierVersJourEnLettre("abc")
+dbgVérifieVrai(ErreurInfo() <> "", "EntierVersJourEnLettre chaine abc -> ErreurDetectee")
+
+// Entier 0 -> erreur (refus borne basse, plus strict que de référence)
+ErreurRAZ()
+jourZero est une chaîne = EntierVersJourEnLettre(0)
+dbgVérifieVrai(ErreurInfo() <> "", "EntierVersJourEnLettre(0) -> ErreurDetectee")
+
+// Entier negatif -> erreur
+ErreurRAZ()
+jourNeg est une chaîne = EntierVersJourEnLettre(-100)
+dbgVérifieVrai(ErreurInfo() <> "", "EntierVersJourEnLettre(-100) -> ErreurDetectee")
+
+// --- EntierVersMoisEnLettre ---
+// Exemple canon : 73773 jours depuis 01/01/1800 (=1er) -> 25/12/2001 -> Decembre
+moisCanon est une chaîne = EntierVersMoisEnLettre(73773)
+dbgVérifieEgalité(moisCanon, "Décembre", "EntierVersMoisEnLettre(73773) = Decembre (canon)")
+
+// Coerce chaine numerique -> entier
+ErreurRAZ()
+moisStr est une chaîne = EntierVersMoisEnLettre("73773")
+dbgVérifieFaux(ErreurDétectée, "EntierVersMoisEnLettre chaine numerique sans erreur")
+dbgVérifieEgalité(moisStr, "Décembre", "EntierVersMoisEnLettre chaine 73773 = Decembre")
+
+// Coerce date -> entier interne
+dateNoel2001Mois est une date = "20011225"
+moisNoel est une chaîne = EntierVersMoisEnLettre(dateNoel2001Mois)
+dbgVérifieEgalité(moisNoel, "Décembre", "EntierVersMoisEnLettre(date 25/12/2001) = Decembre")
+
+// Chaine non-numerique -> erreur claire, pas mois silencieux
+ErreurRAZ()
+moisBad est une chaîne = EntierVersMoisEnLettre("abc")
+dbgVérifieVrai(ErreurInfo() <> "", "EntierVersMoisEnLettre chaine abc -> ErreurDetectee")
+
+// Entier 0 -> erreur (refus borne basse, plus strict que de référence ; sans garde mois[0] silencieux)
+ErreurRAZ()
+moisZero est une chaîne = EntierVersMoisEnLettre(0)
+dbgVérifieVrai(ErreurInfo() <> "", "EntierVersMoisEnLettre(0) -> ErreurDetectee")
+
+// Entier negatif -> erreur (sans garde, mois[m] lit indice aleatoire)
+ErreurRAZ()
+moisNeg est une chaîne = EntierVersMoisEnLettre(-100)
+dbgVérifieVrai(ErreurInfo() <> "", "EntierVersMoisEnLettre(-100) -> ErreurDetectee")
+
+dbgBilanTest()

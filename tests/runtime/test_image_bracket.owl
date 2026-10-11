@@ -1,0 +1,70 @@
+// ================================================================
+// Image natif — Lot I.2.5 : syntaxe bracket MaImage[x,y]
+//
+// Documentation de référence, section "Accès aux pixels"
+//
+// Exemple canon de référence :
+//   MonImage[220, 300] = JauneClair
+//   couleur = MonImage[220, 300]
+//
+// Coordonnées (0,0) = coin haut gauche, conformément à la référence.
+// ================================================================
+
+// ----- Lecture pixel via bracket -----
+img est une Image = dCréeImage(4, 3, RougeClair)
+couleur1 est un entier = img[0, 0]
+dbgVérifieEgalité(couleur1, RougeClair, "Image[0,0] lit RougeClair (uniforme)")
+
+couleur2 est un entier = img[3, 2]
+dbgVérifieEgalité(couleur2, RougeClair, "Image[3,2] lit RougeClair")
+
+// ----- Écriture pixel via bracket (canon de référence) -----
+img[1, 1] = BleuClair
+dbgVérifieEgalité(img[1, 1], BleuClair, "Image[1,1] = BleuClair (set+get)")
+dbgVérifieEgalité(img[0, 0], RougeClair, "Image[0,0] inchangé")
+dbgVérifieEgalité(img[2, 2], RougeClair, "Image[2,2] inchangé")
+
+// ----- Cohérence avec dPixelCouleur (canonique) -----
+img[2, 1] = VertClair
+dbgVérifieEgalité(dPixelCouleur(img, 2, 1), VertClair,
+"img[x,y] = c <=> dPoint puis dPixelCouleur cohérent")
+
+// ----- Hors limites en lecture : silencieux retour 0 -----
+horsLim est un entier = img[100, 100]
+dbgVérifieEgalité(horsLim, 0, "Image[hors,limites] = 0 silencieux")
+
+// ----- Hors limites en écriture : silencieux no-op -----
+img[100, 100] = BleuClair // ne crash pas
+dbgVérifieEgalité(img[0, 0], RougeClair, "Écriture hors limites n'altère rien")
+
+// ----- Roundtrip via PNG -----
+sChemin est une chaîne = "test_image_bracket_tmp.png"
+img2 est une Image = dCréeImage(2, 2, Noir)
+img2[0, 0] = RougeClair
+img2[1, 0] = VertClair
+img2[0, 1] = BleuClair
+img2[1, 1] = Blanc
+dSauveImagePNG(img2, sChemin)
+
+img3 est une Image = dChargeImage(sChemin)
+dbgVérifieEgalité(img3[0, 0], RougeClair, "Roundtrip bracket: pixel rouge")
+dbgVérifieEgalité(img3[1, 0], VertClair, "Roundtrip bracket: pixel vert")
+dbgVérifieEgalité(img3[0, 1], BleuClair, "Roundtrip bracket: pixel bleu")
+dbgVérifieEgalité(img3[1, 1], Blanc, "Roundtrip bracket: pixel blanc")
+fSupprime(sChemin)
+
+// ----- Compatibilité tableau 2D nested (régression) -----
+// La syntaxe `tab[i, j]` doit continuer à fonctionner sur les tableaux
+// 2D nested OWL (cf VISION §5bis).
+mat est un tableau de 2 par 3 entiers
+mat[1, 1] = 10
+mat[1, 2] = 20
+mat[1, 3] = 30
+mat[2, 1] = 40
+mat[2, 2] = 50
+mat[2, 3] = 60
+
+dbgVérifieEgalité(mat[1, 1], 10, "Tableau 2D nested [1,1] inchangé")
+dbgVérifieEgalité(mat[2, 3], 60, "Tableau 2D nested [2,3] inchangé")
+mat[1, 2] = 999
+dbgVérifieEgalité(mat[1, 2], 999, "Tableau 2D nested écriture inchangée")

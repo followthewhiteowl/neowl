@@ -1,0 +1,408 @@
+// @sujet : IAModèle — bloc résiduel (connexions résiduelles, style ResNet) via
+// branches parallèles
+// @résumé : un résiduel identité s'exprime avec le mécanisme de branches :
+// mon.DébutBranches() capture l'entrée x du bloc (le tenseur courant à ce point
+// de la pile), une branche porte F (les couches empilées), mon.BrancheSuivante()
+// ouvre une branche VIDE (= identité, laisse passer x), et
+// mon.FusionneParAddition() calcule sortie = F(x) + x. Les dimensions de la
+// sortie de F DOIVENT rester identiques à celles de x (la fusion par addition
+// préserve la forme) — sinon erreur claire. Un marqueur sans bloc ouvert
+// (BrancheSuivante/FusionneParAddition sans DébutBranches, ou DébutBranches sans
+// fusion) est également une erreur claire. Un modèle sans marqueur n'est pas
+// affecté : comportement strictement inchangé.
+//
+// Convention de vérification retenue (comme pour le socle .Infère et pour
+// .Entraîne) : jamais de valeur de poids/gradient hardcodée — tout est
+// extrait du modèle via .Poids/.Biais puis recalculé indépendamment avec
+// les briques Tenseur bas niveau (ProduitMatriciel, +, ErreurQuadratique,
+// Rétropropage, DescenteGradient), pour comparaison exacte ou à faible
+// tolérance.
+//
+// Point dur du contrat (scenario_backward_...) : .Infère ne construit
+// JAMAIS de graphe autograd (contrat existant, test_IAModeleInferenceSans
+// Gradient) — la seule fenêtre pour observer le gradient qui remonte par
+// le skip est donc au travers de .Entraîne, sur le poids d'une couche
+// AVANT le bloc (dont le gradient dépend de la règle de la chaîne à
+// travers x, qui a lui-même deux chemins vers la sortie : le chemin F et
+// le chemin identité). C'est cette dépendance à deux chemins qui rend le
+// test décisif : un bloc qui ajouterait x à la sortie SANS le relier au
+// graphe (bug plausible : addition "figée", valeur seulement) donnerait un
+// gradient différent sur cette couche antérieure — la sortie F(x) seule
+// n'a pas la même dérivée par rapport à x que F(x)+x.
+
+// Bloc résiduel minimal, F = une seule couche dense qui préserve les
+// dimensions (2 -> 2). Forward exact : sortie = F(x) + x, comparé à un
+// calcul manuel avec les poids extraits (ProduitMatriciel + biais, puis
+// addition du skip), comme le socle .Infère (parité bit à bit, cf.
+// test_IAModele.owl / test_IAModeleInferenceSansGradient.owl).
+PROCEDURE PUBLIQUE scenario_forward_bloc_residuel_egal_calcul_manuel()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2, initHe)
+	mon.BrancheSuivante()
+	mon.FusionneParAddition()
+
+	tW est un Tenseur = mon.Poids(1)
+	tb est un Tenseur = mon.Biais(1)
+
+	x est un Tenseur = Tenseur([1.0,-2.0])
+
+	matX est une Matrice = [[1.0,-2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tF est un Tenseur = tX.ProduitMatriciel(tW) + tb
+	tManuel est un Tenseur = tF + tX
+
+	sortie est un Tenseur = mon.Infère(x)
+
+	valManuel est une Matrice = tManuel..Valeur
+	valSortie est un Vecteur = sortie..Valeur
+
+	dbgVérifieEgalité(valSortie..Taille, 2, "Le bloc préserve les dimensions : sortie de taille 2 comme l'entrée")
+	POUR i = 1 À 2
+		dbgVérifieEgalité(valSortie[i], valManuel[1][i], "mon.Infère(x) à travers un bloc résiduel = F(x)+x calculé à la main, AU BIT PRÈS")
+	FIN
+FIN
+
+
+// Cœur du contrat : le gradient qui remonte à une couche AVANT le bloc
+// reçoit bien la contribution du chemin identité (skip), en plus de celle
+// qui traverse F. Architecture : Dense1 (avant le bloc, produit x) ->
+// [DébutBranches] Dense2 = F (préserve 2->2) [BrancheSuivante vide]
+// [FusionneParAddition]. Un seul pas SGD (1 époque, 1 échantillon, taille de
+// lot 1) : le poids de Dense1 après .Entraîne doit être EXACTEMENT
+// poids - taux*gradient, gradient recalculé indépendamment à la main AVEC le
+// skip (x1 réutilisé deux fois dans le graphe : comme entrée de F ET comme
+// terme additif direct). Pour prouver que ce test est décisif (pas une
+// coïncidence), on calcule aussi l'hypothèse SANS skip (sortie = F(x) seul) et
+// on vérifie qu'elle diverge de l'hypothèse AVEC skip — le modèle réel doit
+// matcher AVEC skip, pas SANS.
+PROCEDURE PUBLIQUE scenario_backward_gradient_remonte_par_le_skip()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2)
+	mon.BrancheSuivante()
+	mon.FusionneParAddition()
+
+	tW1avant est un Tenseur = mon.Poids(1)
+	tb1avant est un Tenseur = mon.Biais(1)
+	tW2avant est un Tenseur = mon.Poids(2)
+	tb2avant est un Tenseur = mon.Biais(2)
+
+	matX est une Matrice = [[1.0,-1.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[0.5,-0.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 1
+	opts..TailleLot         = 1
+	opts..TauxApprentissage = 0.1
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	tW1apres est un Tenseur = mon.Poids(1)
+	tb1apres est un Tenseur = mon.Biais(1)
+
+	// Calcul indépendant AVEC skip : x1 = Dense1(x0), F(x1) = Dense2(x1),
+	// sortie = F(x1) + x1 (x1 réutilisé deux fois -> deux contributions au
+	// gradient qui remonte, cf. le piège "noeud réutilisé" de
+	// test_TenseurAutograd.owl).
+	tx1 est un Tenseur = tX.ProduitMatriciel(tW1avant) + tb1avant
+	tf est un Tenseur = tx1.ProduitMatriciel(tW2avant) + tb2avant
+	tSortieAvecSkip est un Tenseur = tf + tx1
+	tperteAvecSkip est un Tenseur = tSortieAvecSkip.ErreurQuadratique(tY)
+	tperteAvecSkip.Rétropropage()
+
+	// Extraction IMMÉDIATE : DescenteGradient lit le gradient courant sans
+	// le remettre à zéro, mais un futur Rétropropage() le remettrait à zéro
+	// (cf. test_TenseurDescenteGradient.owl) — on capture donc avant toute
+	// autre passe.
+	tW1attenduAvecSkip est un Tenseur = tW1avant.DescenteGradient(0.1)
+	tb1attenduAvecSkip est un Tenseur = tb1avant.DescenteGradient(0.1)
+
+	// Hypothèse SANS skip (sortie = F(x1) seul), pour prouver la divergence :
+	// même tW1avant, nouveau Rétropropage() qui repart de zéro sur tout le
+	// graphe atteignable (dont tW1avant).
+	tperteSansSkip est un Tenseur = tf.ErreurQuadratique(tY)
+	tperteSansSkip.Rétropropage()
+	tW1attenduSansSkip est un Tenseur = tW1avant.DescenteGradient(0.1)
+
+	valW1apres est une Matrice = tW1apres..Valeur
+	valW1avecSkip est une Matrice = tW1attenduAvecSkip..Valeur
+	valW1sansSkip est une Matrice = tW1attenduSansSkip..Valeur
+	valB1apres est un Vecteur = tb1apres..Valeur
+	valB1avecSkip est un Vecteur = tb1attenduAvecSkip..Valeur
+
+	// Précondition : les deux hypothèses divergent réellement (sinon le
+	// test ne serait pas décisif).
+	uneDivergence est un booléen = Faux
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 2
+			SI Abs(valW1avecSkip[iLigne][iCol] - valW1sansSkip[iLigne][iCol]) > 0.0000001 ALORS
+				uneDivergence = Vrai
+			FIN
+		FIN
+	FIN
+	dbgVérifieVrai(uneDivergence, "Précondition : le poids AVEC skip diffère du poids SANS skip (le cas choisi est bien décisif)")
+
+	POUR iLigne = 1 À 2
+		POUR iCol = 1 À 2
+			dbgVérifieVrai(Abs(valW1apres[iLigne][iCol] - valW1avecSkip[iLigne][iCol]) < 0.0000001, "Poids(1) (couche AVANT le bloc) après .Entraîne = calcul manuel AVEC skip (chemin identité inclus dans le gradient)")
+		FIN
+	FIN
+	dbgVérifieVrai(Abs(valB1apres[1] - valB1avecSkip[1]) < 0.0000001, "Biais(1) après .Entraîne = calcul manuel AVEC skip")
+	dbgVérifieVrai(Abs(valB1apres[2] - valB1avecSkip[2]) < 0.0000001, "Biais(1) après .Entraîne = calcul manuel AVEC skip")
+FIN
+
+
+// Si F change les dimensions (ici 2 entrées -> 3 sorties), la fusion par
+// addition ne peut pas ajouter x (2) à F(x) (3) : erreur claire attendue. Les
+// dimensions des couches denses sont connues statiquement dès leur ajout ; le
+// mécanisme de branches ne matérialise la fusion qu'au forward, où les formes
+// réelles se confirment (.Infère).
+PROCEDURE PUBLIQUE scenario_erreur_dimensions_incoherentes_a_fin_bloc()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 3)
+	mon.BrancheSuivante()
+
+	ErreurRAZ()
+	mon.FusionneParAddition()
+	erreurALaFin est un booléen = ErreurDétectée
+
+	SI erreurALaFin ALORS
+		dbgVérifieVrai(erreurALaFin, "F qui change les dimensions (2->3) dans une branche signale une erreur à FusionneParAddition()")
+	SINON
+		x est un Tenseur = Tenseur([1.0,-1.0])
+		ErreurRAZ()
+		mon.Infère(x)
+		dbgVérifieVrai(ErreurDétectée, "F qui change les dimensions (2->3) dans une branche signale une erreur au forward (.Infère), à défaut d'être détectée à FusionneParAddition()")
+	FIN
+FIN
+
+
+// Marqueurs non appariés : FusionneParAddition() sans DébutBranches()
+// préalable signale une erreur immédiate (aucune donnée nécessaire, l'appel
+// seul suffit à détecter l'absence de bloc ouvert — même famille que
+// les autres validations immédiates de IAModèle, cf.
+// test_IAModeleCheminsErreur.owl).
+PROCEDURE PUBLIQUE scenario_erreur_fin_bloc_sans_debut()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+
+	ErreurRAZ()
+	mon.FusionneParAddition()
+	dbgVérifieVrai(ErreurDétectée, "FusionneParAddition() sans DébutBranches() correspondant signale une erreur")
+FIN
+
+
+// Marqueurs non appariés : DébutBranches() jamais fusionné par
+// FusionneParAddition(). Comme il n'y a pas de second appel qui pourrait
+// échouer immédiatement, l'erreur ne peut se manifester qu'au moment où le
+// modèle est réellement utilisé (.Infère) : le bloc ouvert ne peut pas être
+// résolu en une sortie valide.
+PROCEDURE PUBLIQUE scenario_erreur_debut_bloc_sans_fin()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.DébutBranches()
+	mon.AjouteCoucheReLU()
+
+	x est un Tenseur = Tenseur([1.0,-1.0])
+	ErreurRAZ()
+	mon.Infère(x)
+	dbgVérifieVrai(ErreurDétectée, "DébutBranches() sans FusionneParAddition() correspondant signale une erreur au forward")
+FIN
+
+
+// Les formes anglaises (.BeginBranches / .NextBranch / .MergeByAdd) produisent
+// exactement le même comportement observable que leurs équivalents
+// français, sur le même contrat forward exact que le scénario français
+// d'ouverture.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_bloc_residuel()
+	mon is an AIModel
+	mon.BeginBranches()
+	mon.AddDenseLayer(2, 2, initHe)
+	mon.NextBranch()
+	mon.MergeByAdd()
+
+	tW is a Tensor = mon.Weights(1)
+	tb is a Tensor = mon.Bias(1)
+
+	x is a Tensor = Tensor([1.0,-2.0])
+
+	matX is a Matrix = [[1.0,-2.0]]
+	tX is a Tensor = Tensor(matX)
+	tF is a Tensor = tX.ProduitMatriciel(tW) + tb
+	tManuel is a Tensor = tF + tX
+
+	sortie is a Tensor = mon.Infer(x)
+
+	valManuel is a Matrix = tManuel..Valeur
+	valSortie is a Vector = sortie..Value
+
+	dbgCheckEqual(valSortie..Length, 2, "English forms: the block preserves dimensions -> output size 2")
+	POUR i = 1 À 2
+		dbgCheckEqual(valSortie[i], valManuel[1][i], "English forms: mon.Infer(x) through a residual block = F(x)+x, bit for bit")
+	FIN
+FIN
+
+
+// Non-régression : un modèle SANS aucun marqueur se comporte
+// strictement selon le contrat de base — même contrat que
+// test_IAModele.owl::scenario_forward_egal_calcul_manuel_deux_couches (pas
+// de duplication de cette couverture, seulement un rappel local + une
+// preuve que la présence de marqueurs sur un AUTRE modèle, dans le même
+// test, n'a aucun effet de bord global).
+PROCEDURE PUBLIQUE scenario_sans_marqueur_comportement_inchange()
+	monAvecBloc est un IAModèle
+	monAvecBloc.DébutBranches()
+	monAvecBloc.AjouteCoucheDense(2, 2)
+	monAvecBloc.BrancheSuivante()
+	monAvecBloc.FusionneParAddition()
+
+	monSansBloc est un IAModèle
+	monSansBloc.AjouteCoucheDense(2, 2)
+
+	tW est un Tenseur = monSansBloc.Poids(1)
+	tb est un Tenseur = monSansBloc.Biais(1)
+
+	x est un Tenseur = Tenseur([1.0, 3.0])
+	matX est une Matrice = [[1.0, 3.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tManuel est un Tenseur = tX.ProduitMatriciel(tW) + tb
+
+	sortie est un Tenseur = monSansBloc.Infère(x)
+	valManuel est une Matrice = tManuel..Valeur
+	valSortie est un Vecteur = sortie..Valeur
+
+	POUR i = 1 À 2
+		dbgVérifieEgalité(valSortie[i], valManuel[1][i], "Un modèle sans marqueur calcule strictement F(x) (pas de +x), contrat de base inchangé")
+	FIN
+FIN
+
+
+// Bonus (critère d'acceptation « un ResNet minimal s'entraîne ») : une pile
+// Dense -> [bloc résiduel Dense] apprend une cible linéairement
+// représentable (perte erreur quadratique). Assertion en INÉGALITÉ (la
+// perte diminue nettement), pas de valeur exacte — même style que
+// test_IAModeleEntrainement.owl::scenario_entraine_reduit_perte_erreur_qu
+// adratique_regression_lineaire.
+PROCEDURE PUBLIQUE scenario_bloc_residuel_sentraine_perte_diminue()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2)
+	mon.BrancheSuivante()
+	mon.FusionneParAddition()
+
+	matX est une Matrice = [[1.0, 2.0], [2.0, 1.0], [3.0, 0.0], [0.0, 3.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[4.5, 1.0], [5.5, 0.5], [6.5, 0.0], [3.5, 1.5]]
+	tY est un Tenseur = Tenseur(matY)
+
+	sortieAvant est un Tenseur = mon.Infère(tX)
+	tperteAvant est un Tenseur = sortieAvant.ErreurQuadratique(tY)
+	valPerteAvant est un réel = tperteAvant..Valeur[1]
+
+	opts est un OptionsEntraînement
+	opts..Époques           = 300
+	opts..TailleLot         = 4
+	opts..TauxApprentissage = 0.02
+	opts..Optimiseur        = optimSGD
+	opts..Perte             = perteErreurQuadratique
+
+	mon.Entraîne(tX, tY, opts)
+
+	sortieApres est un Tenseur = mon.Infère(tX)
+	tperteApres est un Tenseur = sortieApres.ErreurQuadratique(tY)
+	valPerteApres est un réel = tperteApres..Valeur[1]
+
+	dbgVérifieVrai(valPerteApres < valPerteAvant * 0.5, "Un réseau avec un bloc résiduel apprend : la perte finale est nettement inférieure à la perte initiale")
+FIN
+
+
+// Cas limite : deux branches vides (aucune couche) doivent rendre 2*x —
+// l'addition de deux copies de x inchangé.
+PROCEDURE PRIVÉE scenario_edge_bloc_residuel_vide_rend_deux_fois_x()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.BrancheSuivante()
+	mon.FusionneParAddition()
+
+	x est un Tenseur = Tenseur([1.0,-2.0, 3.0])
+	sortie est un Tenseur = mon.Infère(x)
+	val est un Vecteur = sortie..Valeur
+
+	dbgVérifieEgalité(val[1], 2.0, "Deux branches vides : sortie = x + x = 2*1.0 = 2.0")
+	dbgVérifieEgalité(val[2],-4.0, "Deux branches vides : sortie = x + x = 2*(-2.0) = -4.0")
+	dbgVérifieEgalité(val[3], 6.0, "Deux branches vides : sortie = x + x = 2*3.0 = 6.0")
+FIN
+
+
+// Cas limite : F = deux couches (Dense puis ReLU) dans une branche,
+// dimensions préservées par la couche dense (2->2). Forward exact, comme
+// le scénario d'ouverture mais avec un F à deux couches.
+PROCEDURE PRIVÉE scenario_edge_bloc_residuel_deux_couches_dans_f()
+	mon est un IAModèle
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2, initHe)
+	mon.AjouteCoucheReLU()
+	mon.BrancheSuivante()
+	mon.FusionneParAddition()
+
+	tW est un Tenseur = mon.Poids(1)
+	tb est un Tenseur = mon.Biais(1)
+
+	x est un Tenseur = Tenseur([1.0,-2.0])
+	matX est une Matrice = [[1.0,-2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	tF est un Tenseur = (tX.ProduitMatriciel(tW) + tb).ReLU()
+	tManuel est un Tenseur = tF + tX
+
+	sortie est un Tenseur = mon.Infère(x)
+	valManuel est une Matrice = tManuel..Valeur
+	valSortie est un Vecteur = sortie..Valeur
+
+	POUR i = 1 À 2
+		dbgVérifieEgalité(valSortie[i], valManuel[1][i], "F à deux couches (Dense+ReLU) : sortie du bloc = F(x)+x, calcul manuel AU BIT PRÈS")
+	FIN
+FIN
+
+// Persistance : un modèle contenant des marqueurs de branches doit
+// survivre à un aller-retour .Sauve / .Charge (marqueurs reconstruits), et
+// .Infère(x) rendre EXACTEMENT la même sortie qu'avant sauvegarde.
+PROCEDURE PUBLIQUE scenario_persistance_bloc_residuel_round_trip()
+	mon est un IAModèle
+	mon.AjouteCoucheDense(2, 2)
+	mon.DébutBranches()
+	mon.AjouteCoucheDense(2, 2)
+	mon.AjouteCoucheReLU()
+	mon.BrancheSuivante()
+	mon.FusionneParAddition()
+
+	x est un Tenseur = Tenseur([1.0, -2.0])
+	sortieOrigine est un Tenseur = mon.Infère(x)
+	valOrigine est un Vecteur = sortieOrigine..Valeur
+
+	chemin est une chaîne = fRepTemp() + "owl_test_1719_residuel_roundtrip.json"
+	succèsSauve est un booléen = mon.Sauve(chemin)
+	dbgVérifieEgalité(succèsSauve, Vrai, ".Sauve d'un modèle avec bloc à branches réussit")
+
+	frais est un IAModèle
+	succèsCharge est un booléen = frais.Charge(chemin)
+	dbgVérifieEgalité(succèsCharge, Vrai, ".Charge d'un modèle avec bloc à branches réussit")
+	dbgVérifieEgalité(frais..NbCouches, mon..NbCouches, "NbCouches identique après .Charge (marqueurs inclus)")
+
+	SI succèsCharge ALORS
+		sortieFraiche est un Tenseur = frais.Infère(x)
+		valFraiche est un Vecteur = sortieFraiche..Valeur
+		POUR i = 1 À 2
+			dbgVérifieVrai(Abs(valFraiche[i] - valOrigine[i]) < 0.000000001, ".Infère(x) sur le modèle résiduel rechargé égale exactement l'original")
+		FIN
+	FIN
+
+	fSupprime(chemin)
+FIN

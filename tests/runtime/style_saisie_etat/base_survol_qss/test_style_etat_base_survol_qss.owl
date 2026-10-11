@@ -1,0 +1,29 @@
+//  — la couleur de BASE d'un champ stylé doit rester ancrée quand un
+// état survol coexiste. Régression : la feuille ne portait la couleur de base
+// que sur `* { color }` ; sous le style natif/Fusion Windows, une fois une
+// pseudo-classe présente (`*:hover`) et le champ focalisé, `*` n'était plus
+// honoré pour le texte du QLineEdit -> texte de base noir. Le correctif ajoute
+// un ancrage `QLineEdit { color: ... }` (sélecteur de type, matche tout état).
+//
+// Test structurel (pas de capture-pixel : l'offscreen respecte `*` là où le
+// natif Windows ne le fait pas). On vérifie la feuille QSS effective du widget
+// qui rend le texte via __DebugFeuilleStyle.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleEtatBaseSurvol)
+
+feuille est une chaîne = __DebugFeuilleStyle(SAI_BaseSurvol)
+
+// L'état survol est bien émis (pivot de la régression : sa présence cassait la base).
+dbgVérifieVrai(Contient(feuille, ":hover"), "Style base+survol : la feuille QSS contient un bloc :hover")
+
+// La couleur de base doit être ancrée sur le sélecteur de TYPE QLineEdit, pas
+// seulement sur `*` (qui n'est plus honoré au focus quand une pseudo-classe coexiste).
+dbgVérifieVrai(Contient(feuille, "QLineEdit { color: rgb(255,0,0)"), "Style base+survol : couleur de base ancrée sur QLineEdit { color }")
+
+// La couleur de survol reste distincte et présente.
+dbgVérifieVrai(Contient(feuille, "*:hover { color: rgb(255, 165, 0)"), "Style base+survol : couleur de survol présente dans *:hover")
+
+Ferme(FEN_StyleEtatBaseSurvol)
+dbgBilanTest()

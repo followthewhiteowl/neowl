@@ -1,0 +1,48 @@
+// Tests des fonctions presse-papier de référence : VersPressePapier / DuPressePapier
+// / EffacePressePapier. Documentation de référence.
+//
+// IMPORTANT : on mock systematiquement pour ne PAS polluer le clipboard
+// utilisateur a chaque run de test. La verification du comportement REEL
+// (Win32 OpenClipboard/SetClipboardData) est faite manuellement via un
+// petit script ad-hoc, pas via la suite automatisee.
+Trace("=== PRESSE-PAPIER (mocked) ===")
+
+// ── Mock VersPressePapier : on intercepte les appels, on ne touche pas
+// au vrai clipboard. Le mock retourne Vrai (succes simule). ──
+mockSet est un MockNative = MockCrée(VersPressePapier)
+MockQuand(mockSet)
+MockAvec(mockSet, MockTout)
+MockRetourne(mockSet, Vrai)
+MockActive(mockSet)
+
+ok est un booléen = VersPressePapier("hello mock")
+dbgVérifieVrai(ok, "VersPressePapier mocke retourne Vrai")
+dbgVérifieVrai(MockVerifyCount(mockSet, 1), "1 appel intercepte")
+
+// 2eme appel
+VersPressePapier("autre texte")
+dbgVérifieVrai(MockVerifyCount(mockSet, 2), "2 appels au total")
+
+MockDésactive(mockSet)
+
+// ── Mock DuPressePapier : retourne une chaine simulee ──
+mockGet est un MockNative = MockCrée(DuPressePapier)
+MockQuand(mockGet)
+MockRetourne(mockGet, "contenu simule")
+MockActive(mockGet)
+
+dbgVérifieEgalité(DuPressePapier(), "contenu simule", "DuPressePapier mocke")
+
+MockDésactive(mockGet)
+
+// ── Mock EffacePressePapier ──
+mockClear est un MockNative = MockCrée(EffacePressePapier)
+MockQuand(mockClear)
+MockRetourne(mockClear, Vrai)
+MockActive(mockClear)
+
+dbgVérifieVrai(EffacePressePapier(), "EffacePressePapier mocke")
+
+MockDésactive(mockClear)
+
+dbgBilanTest()

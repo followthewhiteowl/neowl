@@ -1,0 +1,28 @@
+// Non-regression  : une declaration `tableau associatif de <type>`
+// suivie d'un appel de procedure ne doit PAS faire croire au compilo que
+// l'identifiant de la ligne suivante est un type struct inconnu.
+//
+// Reproduction historique : sans le garde `!typeSpecHandled` sur la branche
+// "identifier-after-EST = struct type", parser.current (qui pointe sur le
+// token suivant la spec deja consommee) etait passe a record_pending_type_ref,
+// produisant un faux "Type inconnu 'dbgVerifieEgalite'" / "Type inconnu 'Insere'".
+
+Trace("=== assoc array decl + call sans regression ===")
+
+t est un tableau associatif de chaînes
+dbgVérifieEgalité(t..Occurrence, 0, "vide apres declaration")
+
+t["k1"] = "v1"
+dbgVérifieEgalité(t["k1"], "v1", "lecture cle")
+
+// Variante : decl puis affectation sur ligne suivante
+u est un tableau associatif de entiers
+u["a"] = 42
+dbgVérifieEgalité(u["a"], 42, "lecture cle entier")
+
+// Variante : tableau (non assoc) suivi d'un appel
+arr est un tableau de 3 chaînes
+arr[1] = "x"
+dbgVérifieEgalité(arr[1], "x", "lecture index tableau")
+
+Trace("=== OK ===")

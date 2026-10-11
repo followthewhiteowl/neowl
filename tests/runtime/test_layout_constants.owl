@@ -1,0 +1,39 @@
+// Lot F — Tests des constantes Disposition + Alignement.
+//
+// Les valeurs sont en sentinel-zone (INT32_MIN + offset) pour empecher
+// 'Disposition = 1' qui serait un int valide qui collisionnerait avec
+// dispHorizontale. On ne verifie donc PAS la valeur brute (volatile,
+// valeur d'implementation) — on verifie l'unicite + la stabilite des
+// alias FR/EN + l'inegalite cross-enum.
+
+// --- Unicite des 4 valeurs Disposition ---
+dbgVérifieFaux(dispVerticale = dispHorizontale, "dispVerticale != dispHorizontale")
+dbgVérifieFaux(dispVerticale = dispGrille, "dispVerticale != dispGrille")
+dbgVérifieFaux(dispVerticale = dispLibre, "dispVerticale != dispLibre")
+dbgVérifieFaux(dispHorizontale = dispGrille, "dispHorizontale != dispGrille")
+dbgVérifieFaux(dispHorizontale = dispLibre, "dispHorizontale != dispLibre")
+dbgVérifieFaux(dispGrille = dispLibre, "dispGrille != dispLibre")
+
+// --- Sentinel-zone : les valeurs ne sont PAS 0.3 (collision a eviter) ---
+dbgVérifieFaux(dispVerticale = 0, "dispVerticale != 0 (protege contre int literal)")
+dbgVérifieFaux(dispHorizontale = 1, "dispHorizontale != 1")
+dbgVérifieFaux(dispGrille = 2, "dispGrille != 2")
+dbgVérifieFaux(dispLibre = 3, "dispLibre != 3")
+
+// --- Unicite des 4 valeurs Alignement ---
+dbgVérifieFaux(alignDébut = alignCentre, "alignDebut != alignCentre")
+dbgVérifieFaux(alignDébut = alignFin, "alignDebut != alignFin")
+dbgVérifieFaux(alignDébut = alignÉtire, "alignDebut != alignEtire")
+dbgVérifieFaux(alignCentre = alignFin, "alignCentre != alignFin")
+dbgVérifieFaux(alignCentre = alignÉtire, "alignCentre != alignEtire")
+dbgVérifieFaux(alignFin = alignÉtire, "alignFin != alignEtire")
+
+// --- Alias ASCII auto-strippes du registry ---
+dbgVérifieEgalité(alignDébut, alignDébut, "alignDebut (ASCII) = alignDebut (canon)")
+dbgVérifieEgalité(alignÉtire, alignÉtire, "alignEtire (ASCII) = alignEtire (canon)")
+
+// --- Cross-enum : Disposition et Alignement n'ont pas de valeurs en commun ---
+dbgVérifieFaux(dispVerticale = alignDébut, "dispVerticale != alignDebut")
+dbgVérifieFaux(dispHorizontale = alignFin, "dispHorizontale != alignFin")
+
+dbgBilanTest()

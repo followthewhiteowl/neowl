@@ -1,0 +1,64 @@
+// Régression : POUR TOUT + Supprime(target, ÉlémentCourant) doit itérer
+// sur tous les éléments même si chacun est supprimé pendant le body.
+//
+// Bug historique :
+//   1) TableauSupprime(assoc, ÉlémentCourant) ne supprimait rien (path
+//      assoc spécifique de fn_tableau_supprime rejetait les non-string).
+//   2) La boucle POUR TOUT incrémentait toujours le counter, ce qui faisait
+//      sauter l'élément suivant après une suppression de l'élément courant
+//      (les éléments [counter+2..end] étaient décalés à [counter+1..end-1]).
+//
+// Fix dans :
+//   - src/stdlib_array.c::fn_tableau_supprime → délégation pure à fn_supprime
+//   - src/compiler.c::foreach_statement → snapshot length + incrément
+//     conditionnel après le body
+
+Trace("=== POUR TOUT + Supprime(ÉlémentCourant) ===")
+
+// === Cas 1 : assoc vidage intégral via TableauSupprime ===
+ta1 est un tableau associatif de chaînes
+TableauInsère(ta1, "A", "1")
+TableauInsère(ta1, "B", "2")
+TableauInsère(ta1, "C", "3")
+nbVus1 est un entier = 0
+POUR TOUT ELEMENT v, k DE ta1
+	nbVus1 = nbVus1 + 1
+	TableauSupprime(ta1, ÉlémentCourant)
+FIN
+dbgVérifieEgalité(nbVus1, 3, "assoc : 3 éléments visités")
+dbgVérifieEgalité(ta1..Occurrence, 0, "assoc : intégralement vidé")
+
+// === Cas 2 : assoc vidage via Supprime (alias canon) ===
+ta2 est un tableau associatif de chaînes
+Insère(ta2, "X", "1")
+Insère(ta2, "Y", "2")
+nbVus2 est un entier = 0
+POUR TOUT ELEMENT v, k DE ta2
+	nbVus2 = nbVus2 + 1
+	Supprime(ta2, ÉlémentCourant)
+FIN
+dbgVérifieEgalité(nbVus2, 2, "Supprime alias : 2 visités")
+dbgVérifieEgalité(ta2..Occurrence, 0, "Supprime alias : assoc vidé")
+
+// === Cas 3 : tableau 1D — suppression sélective au milieu ===
+tab3 est un tableau de chaînes = ["a", "b", "c", "d"]
+nbVus3 est un entier = 0
+POUR TOUT e DE tab3
+	nbVus3 = nbVus3 + 1
+	SI e = "b" OU e = "c" ALORS
+		Supprime(tab3, ÉlémentCourant)
+	FIN
+FIN
+dbgVérifieEgalité(nbVus3, 4, "1D : 4 éléments visités (a, b, c, d)")
+dbgVérifieEgalité(tab3..Occurrence, 2, "1D : 2 restants après suppr de b et c")
+dbgVérifieEgalité(tab3[1], "a", "1D : a en tête")
+dbgVérifieEgalité(tab3[2], "d", "1D : d après décalage")
+
+// === Cas 4 : tableau 1D — vidage intégral ===
+tab4 est un tableau de chaînes = ["x", "y", "z"]
+POUR TOUT e DE tab4
+	Supprime(tab4, ÉlémentCourant)
+FIN
+dbgVérifieEgalité(tab4..Occurrence, 0, "1D : intégralement vidé")
+
+dbgBilanTest()

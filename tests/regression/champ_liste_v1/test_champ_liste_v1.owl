@@ -1,0 +1,52 @@
+// Regression : Champ Liste V1 — kind, props, events, natives
+//
+// Verifie que :
+//  1. `LISTE_X est un Champ Liste` parse comme widget (pas comme collection)
+//  2. `mL est une Liste de chaine` reste une collection
+//  3. Les natives ListeXXX sont des fonctions natives accessibles
+//  4. La prop Multiselection / Triee / HauteurLigne sont acceptees
+//  5. PROCEDURE surSelection est un event valide ; le top-level du champ s'execute a l'ouverture
+//
+// Pattern : la fenêtre voisine FEN_TestCompile.owl porte la déclaration.
+
+PROCEDURE Main()
+	// Cas 1 : collection (sans modifier Champ) — TypeVar = owlListe (44)
+	mColl est une Liste de chaînes
+	ListeAjoute_Coll(mColl)
+	dbgVérifieEgalité(TypeVar(mColl), 44, "collection Liste -> owlListe (44)")
+
+	// Cas 3 : natives Liste enregistrees
+	dbgVérifieEgalité(TypeVar(ListeAjoute), 70, "ListeAjoute = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeOccurrence), 70, "ListeOccurrence = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeTrie), 70, "ListeTrie = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeSelect), 70, "ListeSelect = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeSupprime), 70, "ListeSupprime = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeSupprimeTout), 70, "ListeSupprimeTout = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeModifie), 70, "ListeModifie = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeAffiche), 70, "ListeAffiche = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeCherche), 70, "ListeCherche = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeInsère), 70, "ListeInsere = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeSelectPlus), 70, "ListeSelectPlus = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeSelectMoins), 70, "ListeSelectMoins = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeSelectOccurrence), 70, "ListeSelectOccurrence = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeDéplaceLigne), 70, "ListeDeplaceLigne = procedure native")
+	dbgVérifieEgalité(TypeVar(ListeInfoXY), 70, "ListeInfoXY = procedure native")
+	// Constantes td* + ligneSelectionnee
+	dbgVérifieEgalité(TypeVar(tdDéplace), 8, "tdDeplace = entier (owlEntier_8)")
+	dbgVérifieEgalité(TypeVar(tdEchange), 8, "tdEchange = entier")
+	dbgVérifieEgalité(TypeVar(tdSuivant), 8, "tdSuivant = entier")
+	dbgVérifieEgalité(TypeVar(ligneSélectionnée), 8, "ligneSelectionnee = entier")
+
+	// Cas 5 : la constante owlChampListe existe et = 88
+	dbgVérifieEgalité(owlChampListe, 88, "owlChampListe constante = 88")
+FIN
+
+PROCEDURE ListeAjoute_Coll(mL est un tableau de chaînes)
+	// Verifie que la methode prefix .Ajoute marche sur la collection
+	// (METHOD_TYPE_COLLECTION_LIST — pas le widget).
+	mL.Ajoute("test")
+	dbgVérifieEgalité(mL..Occurrence, 1, "collection.Ajoute fonctionne")
+FIN
+
+Main()
+dbgBilanTest()

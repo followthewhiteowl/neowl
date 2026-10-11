@@ -1,0 +1,50 @@
+// Fixture  — ExclureDeOpenAPI : une opération servie mais omise du
+// document OpenAPI. Reproduit le cas Scalar (routes de plomberie doc qui ne
+// doivent PAS polluer le contrat) sur un service facture.
+ServiceFacture est un ServiceREST
+
+PROPRIETES
+	UrlBase = ["api", "v1"]
+FIN
+
+Facture est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpGet
+		Chemin   = ["facture"]
+		Réponses = [httpOK]
+		CodeÉtat = httpOK
+	FIN
+	PROCEDURE surRequête()
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = "facture"
+	FIN
+FIN
+
+Bundle est une OpérationHTTP
+	PROPRIETES
+		Méthode          = httpGet
+		Chemin           = ["bundle"]
+		Réponses         = [httpOK]
+		CodeÉtat         = httpOK
+		ExclureDeOpenAPI = Faux
+	FIN
+	PROCEDURE surRequête()
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = "bundle"
+	FIN
+FIN
+
+DocScalar est une OpérationHTTP
+	PROPRIETES
+		Méthode          = httpGet
+		Chemin           = ["scalar"]
+		Réponses         = [httpOK]
+		CodeÉtat         = httpOK
+		ExclureDeOpenAPI = Vrai
+	FIN
+	PROCEDURE surRequête()
+		MoiMême..Réponse..CodeÉtat = httpOK
+		MoiMême..Réponse..Corps    = "<html>scalar</html>"
+	FIN
+FIN
+FIN

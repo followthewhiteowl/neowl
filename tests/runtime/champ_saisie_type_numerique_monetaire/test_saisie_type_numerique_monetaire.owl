@@ -1,0 +1,30 @@
+//  — Lot A : types de saisie Numérique + Monétaire (MVP).
+//
+// 1. Les constantes canon `typSaisieNum` / `typSaisieMonétaire` (documentation de référence)
+//    existent dans l'enum `typeSaisie` et sont distinctes des 3 valeurs déjà
+//    câblées (Texte/MotDePasse/Multiligne).
+// 2. Round-trip runtime sur un VRAI widget Qt (offscreen) : un champ créé
+//    avec TypeSaisie = typSaisieNum, relu via ..TypeSaisie, doit renvoyer
+//    cette valeur — pas de repli vers typSaisieTexte. Idem monétaire.
+//
+// Nature : ROUGE avant impl. Aujourd'hui `typSaisieNum`/`typSaisieMonétaire`
+// n'existent pas dans l'enum -> échec de compilation (symbole inconnu) sur
+// la fenêtre voisine et sur ce fichier. Après impl : vert, round-trip fidèle.
+
+dbgVérifieDifférence(typSaisieNum, typSaisieTexte, "typSaisieNum != typSaisieTexte")
+dbgVérifieDifférence(typSaisieNum, typSaisieMotDePasse, "typSaisieNum != typSaisieMotDePasse")
+dbgVérifieDifférence(typSaisieNum, typSaisieMultiligne, "typSaisieNum != typSaisieMultiligne")
+dbgVérifieDifférence(typSaisieMonétaire, typSaisieTexte, "typSaisieMonétaire != typSaisieTexte")
+dbgVérifieDifférence(typSaisieMonétaire, typSaisieMotDePasse, "typSaisieMonétaire != typSaisieMotDePasse")
+dbgVérifieDifférence(typSaisieMonétaire, typSaisieMultiligne, "typSaisieMonétaire != typSaisieMultiligne")
+dbgVérifieDifférence(typSaisieNum, typSaisieMonétaire, "typSaisieNum != typSaisieMonétaire")
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_SaisieNumMonetaire)
+
+dbgVérifieEgalité(SAI_Num..TypeSaisie, typSaisieNum, "champ créé TypeSaisie=typSaisieNum, relu ..TypeSaisie renvoie typSaisieNum (pas de repli Texte)")
+dbgVérifieEgalité(SAI_Monetaire..TypeSaisie, typSaisieMonétaire, "champ créé TypeSaisie=typSaisieMonétaire, relu ..TypeSaisie renvoie typSaisieMonétaire (pas de repli Texte)")
+
+Ferme(FEN_SaisieNumMonetaire)
+dbgBilanTest()

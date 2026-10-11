@@ -1,0 +1,31 @@
+// TestSimuleSouris(IMG, BoutonGauche, x, y) declenche surBoutonGauche
+// avec les coordonnees fournies.
+TestModeHeadless(Vrai)
+
+compteurObs est un entier = 0
+xObs est un entier = -1
+yObs est un entier = -1
+
+PROCEDURE callback_etat(c est un entier, x est un entier, y est un entier)
+	compteurObs = c
+	xObs        = x
+	yObs        = y
+FIN
+
+Ouvre(FEN_Demo)
+
+TestSimuleSouris(IMG_Cible, BoutonGauche, 42, 73)
+RemonteEtat()
+dbgVérifieVrai(compteurObs = 1, `surBoutonGauche declenche une fois`)
+dbgVérifieVrai(xObs = 42, `x recu = 42`)
+dbgVérifieVrai(yObs = 73, `y recu = 73`)
+
+TestSimuleSouris(IMG_Cible, BoutonGauche, 0, 0)
+RemonteEtat()
+dbgVérifieVrai(compteurObs = 2, `second appel incremente le compteur`)
+dbgVérifieVrai(xObs = 0, `x recu = 0`)
+dbgVérifieVrai(yObs = 0, `y recu = 0`)
+
+Ferme(FEN_Demo)
+
+dbgBilanTest()

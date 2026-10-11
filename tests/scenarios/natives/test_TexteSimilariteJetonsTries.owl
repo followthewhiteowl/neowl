@@ -1,0 +1,129 @@
+// @sujet : TexteSimilaritéJetonsTriés
+// @résumé : Similarité avec tri alphabétique des jetons (mots) avant comparaison — ignore l'ordre des mots. Découpe sur espaces, trie, puis applique le ratio Indel. Retourne un réel entre 0 et 1. Insensible à la casse et aux accents par défaut. Utile pour comparer des noms complets où l'ordre peut varier (Jean Dupont vs Dupont Jean).
+
+
+// Ordre des mots ignoré : les jetons sont triés alphabétiquement avant
+// d'appliquer le ratio. "Jean Dupont" et "Dupont Jean" donnent tous
+// deux "Dupont Jean" après tri → identiques → ratio = 1.0.
+PROCEDURE scenario_texte_similarite_jetons_tries_ordre_ignore()
+	sim est un réel = TexteSimilaritéJetonsTriés("Jean Dupont", "Dupont Jean")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "ordre ignoré, jetons triés identiques", 0.0001)
+FIN
+
+
+// Cas trivial : chaînes identiques → similarité 1.0.
+PROCEDURE scenario_texte_similarite_jetons_tries_identiques()
+	sim est un réel = TexteSimilaritéJetonsTriés("Jean Dupont", "Jean Dupont")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaînes identiques → 1.0", 0.0001)
+FIN
+
+
+// Insensible casse par défaut : "JEAN dupont" et "Dupont Jean" après
+// folding casse + tri → identiques → 1.0.
+PROCEDURE scenario_texte_similarite_jetons_tries_insensible_casse()
+	sim est un réel = TexteSimilaritéJetonsTriés("JEAN dupont", "Dupont Jean")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "casse ignorée, jetons triés identiques", 0.0001)
+FIN
+
+
+// Insensible accents par défaut : "Jean Dupônt" et "Dupont Jean" après
+// folding accents + tri → identiques → 1.0.
+PROCEDURE scenario_texte_similarite_jetons_tries_insensible_accents()
+	sim est un réel = TexteSimilaritéJetonsTriés("Jean Dupônt", "Dupont Jean")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "accents ignorés, jetons triés identiques", 0.0001)
+FIN
+
+
+// Cohérence un seul jeton : sur un seul mot (pas d'espace), JetonsTriés
+// doit donner le même résultat que TexteSimilarité (pas de découpe).
+PROCEDURE scenario_texte_similarite_jetons_tries_coherence_un_jeton()
+	simTriés est un réel = TexteSimilaritéJetonsTriés("chat", "chat")
+	simRatio est un réel = TexteSimilarité("chat", "chat")
+
+	dbgVérifieÉgalitéRéel(simTriés, simRatio, "un seul jeton = identique à ratio", 0.0001)
+	dbgVérifieÉgalitéRéel(simTriés, 1.0, "un seul jeton identique → 1.0", 0.0001)
+FIN
+
+
+// Cas limite : deux chaînes vides → 1.0 (convention identiques).
+PROCEDURE scenario_texte_similarite_jetons_tries_deux_vides()
+	sim est un réel = TexteSimilaritéJetonsTriés("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → 1.0", 0.0001)
+FIN
+
+
+// Cas limite : l'une des chaînes est vide → 0.0 (convention ratio).
+PROCEDURE scenario_texte_similarite_jetons_tries_une_vide()
+	sim1 est un réel = TexteSimilaritéJetonsTriés("abc", "")
+	sim2 est un réel = TexteSimilaritéJetonsTriés("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → 0.0", 0.0001)
+FIN
+
+
+// Alias EN : TextSimilaritySortedTokens() équivalent à TexteSimilaritéJetonsTriés().
+PROCEDURE scenario_text_similarity_sorted_tokens_alias_en()
+	simFR est un réel = TexteSimilaritéJetonsTriés("Jean Dupont", "Dupont Jean")
+	simEN est un réel = TextSimilaritySortedTokens("Jean Dupont", "Dupont Jean")
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR", 0.0001)
+	dbgVérifieÉgalitéRéel(simEN, 1.0, "alias EN calcule correctement", 0.0001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Espaces multiples : "a  b" (2 espaces) vs "b a" (1 espace).
+// Tokenisation whitespace : "a  b" → ["a","","b"] (jeton vide au milieu).
+// Après tri alpha : ["","a","b"] → " a b" (espace en tête).
+// "b a" → ["b","a"] → ["a","b"] → "a b".
+// ratio(" a b", "a b") : pas de calcul exact, juste vérifier bornes.
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_tries_espaces_multiples()
+	sim est un réel = TexteSimilaritéJetonsTriés("a  b", "b a")
+
+	// On ne vérifie pas la valeur exacte (traitement jetons vides non spécifié),
+	// juste que ça retourne un réel plausible sans crash.
+	dbgVérifieVrai(sim >= 0.0, "similarité >= 0 (espaces multiples gérés)")
+	dbgVérifieVrai(sim <= 1.0, "similarité <= 1 (bornes respectées)")
+FIN
+
+
+// Ponctuation non strippée : "chat!" vs "chat" (point d'exclamation non enlevé).
+// Tokenisation whitespace uniquement : "chat!" = 1 jeton "chat!", "chat" = 1 jeton "chat".
+// ratio("chat!", "chat") : LCS="chat" (4), indel=5+4-8=1, total=9, ratio=1-1/9=8/9.
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_tries_ponctuation_non_strippee()
+	sim est un réel = TexteSimilaritéJetonsTriés("chat!", "chat")
+	attendu est un réel = 8.0 / 9.0
+
+	dbgVérifieÉgalitéRéel(sim, attendu, "ponctuation non strippée, ratio global 8/9", 0.0001)
+FIN
+
+
+// Jetons dupliqués : "chat chat" vs "chat" (duplication dans a).
+// JetonsTriés trie mais ne déduplique PAS (≠ ensemble).
+// "chat chat" → ["chat","chat"] → trié ["chat","chat"] → "chat chat".
+// "chat" → ["chat"] → "chat".
+// ratio("chat chat", "chat") : LCS="chat" (4), indel=9+4-8=5, total=13, ratio=1-5/13=8/13.
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_tries_jetons_dupliques()
+	sim est un réel = TexteSimilaritéJetonsTriés("chat chat", "chat")
+	attendu est un réel = 8.0 / 13.0
+
+	dbgVérifieÉgalitéRéel(sim, attendu, "duplication non dédupliquée, ratio 8/13", 0.0001)
+FIN
+
+
+// Symétrie : JetonsTriés est symétrique (ratio sous-jacent est symétrique).
+PROCEDURE PRIVÉE scenario_texte_similarite_jetons_tries_symetrie()
+	sim1 est un réel = TexteSimilaritéJetonsTriés("abc def", "def abc")
+	sim2 est un réel = TexteSimilaritéJetonsTriés("def abc", "abc def")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "similarité symétrique", 0.0001)
+FIN

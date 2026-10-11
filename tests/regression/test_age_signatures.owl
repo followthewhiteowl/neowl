@@ -1,0 +1,28 @@
+// Régression : Age accepte chaîne AAAAMMJJ, Date, DateHeure, et 1 ou 2 args.
+// spécification de référence: Age(<naissance>[, <calcul>]) -> chaîne AAAAMMJJ (ans/mois/jours) ou "".
+
+// 2 args, string AAAAMMJJ
+dbgVérifieEgalité(Age("19690513", "20051010"), "00360427", "Age chaîne/chaîne")
+dbgVérifieEgalité(Age("19730912", "20050812"), "00311100", "Age mois seulement")
+
+// 2 args, Date variable
+dNaissance est une date = "19790201"
+dCalcul est une date = "20061025"
+dbgVérifieEgalité(Age(dNaissance, dCalcul), "00270824", "Age Date/Date")
+
+// Mélange string + Date
+dbgVérifieEgalité(Age("19790201", dCalcul), "00270824", "Age chaîne/Date")
+dbgVérifieEgalité(Age(dNaissance, "20061025"), "00270824", "Age Date/chaîne")
+
+// Naissance après calcul -> ""
+dbgVérifieEgalité(Age("20200101", "20100101"), "", "Age inversé -> vide")
+
+// Chaîne invalide -> ""
+dbgVérifieEgalité(Age("xxxxxxxx", "20050812"), "", "Age naissance invalide")
+dbgVérifieEgalité(Age("19730912", "abcdefgh"), "", "Age calcul invalide")
+
+// 1 arg (calcul = aujourd'hui) : on vérifie juste que ça retourne une chaîne non vide
+age1 est une chaîne = Age("19800101")
+dbgVérifieVrai(Taille(age1) = 8, "Age 1 arg renvoie AAAAMMJJ")
+
+dbgBilanTest()

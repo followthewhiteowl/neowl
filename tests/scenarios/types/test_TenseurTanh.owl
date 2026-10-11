@@ -1,0 +1,59 @@
+// @sujet : Tenseur.Tanh
+// @résumé : Activation tangente hyperbolique différentiable sur un
+// Tenseur — écrase toute valeur réelle dans l'intervalle ouvert
+// (-1, 1) ; Rétropropage() applique la règle de dérivation propre à
+// Tanh, exprimée à partir de sa propre sortie.
+
+// Tanh(0.0) vaut exactement 0.0.
+PROCEDURE PUBLIQUE scenario_tanh_zero_exact_forward()
+	ta est un Tenseur = Tenseur([0.0])
+	tr est un Tenseur = ta.Tanh()
+	dbgVérifieEgalité(tr..Valeur[1], 0.0, "Tanh(0.0) = 0.0")
+FIN
+
+
+// dTanh/dx = 1 - y², avec y = sortie. En x = 0.0, y = 0.0, donc le
+// gradient vaut 1 - 0² = 1.0 (amorcé à 1.0 par Rétropropage()).
+PROCEDURE PUBLIQUE scenario_tanh_zero_exact_backward()
+	ta est un Tenseur = Tenseur([0.0])
+	tr est un Tenseur = ta.Tanh()
+	tr.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 1.0, "y=0.0 -> gradient = 1 - y*y = 1.0")
+FIN
+
+
+// .Tanh() est identique en français et en anglais : même nom des deux
+// côtés.
+PROCEDURE PUBLIQUE scenario_forme_identique_fr_en()
+	ta est un Tenseur = Tenseur([0.0, 0.0])
+	tr est un Tenseur = ta.Tanh()
+	tr.Rétropropage()
+	dbgVérifieEgalité(tr..Valeur[1], 0.0, "Tanh(0.0) = 0.0")
+	dbgVérifieEgalité(ta..Gradient[2], 1.0, "Composante 2 : gradient = 1 - y*y = 1.0")
+FIN
+
+
+// Sur une grande valeur positive la sortie sature au voisinage de 1 et
+// le gradient s'effondre vers 0 ; symétriquement vers -1 pour une grande
+// valeur négative. Tolérance nécessaire (saturation asymptotique).
+PROCEDURE PRIVÉE scenario_edge_saturation_valeurs_extremes()
+	ta est un Tenseur = Tenseur([50.0,-50.0])
+	tr est un Tenseur = ta.Tanh()
+	tr.Rétropropage()
+	dbgVérifieVrai(Abs(tr..Valeur[1] - 1.0) < 0.0001, "Tanh(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(tr..Valeur[2] - (-1.0)) < 0.0001, "Tanh(-50.0) proche de -1.0")
+	dbgVérifieVrai(Abs(ta..Gradient[1] - 0.0) < 0.0001, "Sortie saturée : gradient proche de 0.0")
+	dbgVérifieVrai(Abs(ta..Gradient[2] - 0.0) < 0.0001, "Sortie saturée : gradient proche de 0.0")
+FIN
+
+
+// À une valeur non nulle connue (x = 1.0), la valeur exacte de Tanh
+// n'est pas un nombre rond : vérification à tolérance, sur la forme et
+// le gradient dérivés.
+PROCEDURE PRIVÉE scenario_edge_valeur_non_nulle()
+	ta est un Tenseur = Tenseur([1.0])
+	tr est un Tenseur = ta.Tanh()
+	tr.Rétropropage()
+	dbgVérifieVrai(Abs(tr..Valeur[1] - 0.7615941559557649) < 0.0000001, "Tanh(1.0) ~= 0.7615941559557649")
+	dbgVérifieVrai(Abs(ta..Gradient[1] - 0.4199743416140261) < 0.0000001, "gradient = 1 - Tanh(1.0)^2 ~= 0.4199743416140261")
+FIN

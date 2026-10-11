@@ -1,0 +1,51 @@
+//  lot B — Event surToucheAppuyée / surToucheRelâchée sur Table.
+// Cas d'usage support d'origine : gérer tkSuppr sur une ligne de Table.
+// EnvoieTouche poste un vrai QKeyEvent. Interdiction DéclencheÉvénement.
+//
+// ROUGE ATTENDU (compile) : FAM_KEYBOARD_EVENTS n'est pas encore enregistrée
+// pour OWL_CONTROL_TABLE -> check_event_signature rejette les procédures
+// clavier dans le bloc TABLE_Cible -> le fichier voisin ne compile pas ->
+// `owl test` classe ce fichier CRASH tant que le catalogue n'est pas étendu.
+
+TestModeHeadless(Faux)
+
+bTblTouchePrete est un booléen = Faux
+nTblAppCap est un entier = 0
+nTblRelCap est un entier = 0
+nTblDerniereAppCap est un entier = -1
+nTblDerniereRelCap est un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bTblTouchePrete = Vrai
+FIN
+
+PROCEDURE callback_lit_compteurs(nA est un entier, nR est un entier, nDA est un entier, nDR est un entier)
+	nTblAppCap         = nA
+	nTblRelCap         = nR
+	nTblDerniereAppCap = nDA
+	nTblDerniereRelCap = nDR
+FIN
+
+OuvreSoeur(FEN_TableTouche)
+dbgVérifieVrai(bTblTouchePrete, "FinInitialisation appelée : Table focusée dès l'ouverture")
+
+// Touche spéciale : tkSuppr, le cas d'usage support d'origine.
+EnvoieTouche(tkSuppr)
+
+LireCompteurs()
+dbgVérifieEgalité(nTblAppCap, 1, "surToucheAppuyée Table : 1 tir pour tkSuppr")
+dbgVérifieEgalité(nTblDerniereAppCap, tkSuppr, "surToucheAppuyée Table : code = tkSuppr")
+dbgVérifieEgalité(nTblRelCap, 1, "surToucheRelâchée Table : 1 tir pour tkSuppr")
+dbgVérifieEgalité(nTblDerniereRelCap, tkSuppr, "surToucheRelâchée Table : code = tkSuppr")
+
+// Caractère ASCII.
+EnvoieTouche(Asc("A"))
+
+LireCompteurs()
+dbgVérifieEgalité(nTblAppCap, 2, "surToucheAppuyée Table : 2 tirs après le caractère 'A'")
+dbgVérifieEgalité(nTblDerniereAppCap, Asc("A"), "surToucheAppuyée Table : code = Asc('A')")
+dbgVérifieEgalité(nTblRelCap, 2, "surToucheRelâchée Table : 2 tirs après le caractère 'A'")
+dbgVérifieEgalité(nTblDerniereRelCap, Asc("A"), "surToucheRelâchée Table : code = Asc('A')")
+
+Ferme(FEN_TableTouche)
+dbgBilanTest()

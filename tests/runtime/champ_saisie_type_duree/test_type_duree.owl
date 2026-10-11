@@ -1,0 +1,148 @@
+//  — Lot D « types de saisie » : ajout de typSaisieDurée au champ
+// de saisie (approche PRAGMATIQUE choisie par le dev). Miroir structurel de
+//  (type owlDurée round-trip),  (guidage de frappe fixed-
+// only) et  (bornes fixed-only), mais avec un moteur de masque
+// DÉDIÉ à la durée (vocabulaire J/H/MI/S/CC/CCC, MI=minutes PAS mois — cf.
+// audit Durée aa00dfa3, cohérence  avec le masque Heure) et une
+// règle de bornage propre : HH n'est PAS borné à 23 dans une durée (une
+// durée de 99 heures existe), seuls MI/SS restent bornés à 59.
+//
+// Nature : ROUGE avant impl, y compris à la COMPILATION — typSaisieDurée
+// n'existe pas encore dans l'enum typeSaisie (7 valeurs canon documentées,
+// 6 câblées aujourd'hui : Texte/MotDePasse/Multiligne/Num/Monétaire/Date/
+// Heure, cf. src/ui_catalog.c). Le compile-check échoue donc pour la BONNE
+// raison : symbole inconnu "typSaisieDurée".
+//
+// Construction des valeurs de référence : ChaîneVersDurée(chaîne, gabarit)
+// existe déjà (audit) mais son moteur générique BORNE HH à 23 même sans
+// jetons JJ/J (cf. stdlib_date.c parse_duree_with_format, symétrique de
+// owl_parse_duration_multi) — c'est le comportement canon de référence de la native
+// publique, pas celui attendu du futur moteur masque durée dédié au champ
+// de saisie. Pour bâtir une référence de durée > 23 h SANS dépendre du
+// widget (feature non encore posée), on décompose systématiquement en
+// jours + heures (<=23) via le gabarit "J HH:MM:SS" : 99h = 4j + 3h.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TypeDuree)
+
+// ===== 1. Round-trip type : TypeSaisie = typSaisieDurée =====
+
+dbgVérifieEgalité(SAI_Duree..TypeSaisie, typSaisieDurée, "Durée : ..TypeSaisie relu vaut typSaisieDurée")
+
+// ===== 2. Non-régression : Texte et Numérique témoins inchangés =====
+
+SAI_Texte..Valeur = "bonjour"
+dbgVérifieEgalité(TypeVar(SAI_Texte..Valeur), owlChaîne, "Texte témoin : ..Valeur reste une chaîne (non-régression)")
+dbgVérifieEgalité(SAI_Texte..Valeur, "bonjour", "Texte témoin : round-trip fidèle")
+
+SAI_Num..Valeur = ""
+TestSimuleSaisie(SAI_Num, "12345")
+dbgVérifieEgalité(TypeVar(SAI_Num..Valeur), owlRéel, "Numérique témoin : ..Valeur reste un owlRéel (non-régression, non affecté par la Durée)")
+
+// ===== 3. Round-trip valeur typée : owlDurée fidèle, défaut sans masque
+// = HH:MI:SS (SAI_Duree n'a aucun MasqueAffichage posé) =====
+//
+// Garde SI/SINON : tant que ..Valeur reste une chaîne générique (avant
+// impl), TypeVar ne vaudra pas owlDuree -> on isole l'assertion de
+// fidélité pour ne pas la faire dépendre d'un chemin encore non câblé.
+
+dRéférence est une durée = ChaîneVersDurée("14:30:45", "HH:MM:SS")
+SAI_Duree..Valeur = dRéférence
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Durée : ..Valeur est un owlDuree")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	sLue est une chaîne = SAI_Duree..Valeur
+	dbgVérifieEgalité(sLue, "14:30:45", "Durée : round-trip fidèle à 14h30m45s (défaut masque HH:MI:SS, coercion chaîne canon HH:MM:SS)")
+SINON
+	dbgVérifieVrai(Faux, "Durée : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 4. Édition utilisateur (, Qt-first) : TestSimuleSaisie
+// après ..Valeur = doit refléter la frappe, pas la valeur périmée =====
+
+SAI_Duree..Valeur = ChaîneVersDurée("08:00:00", "HH:MM:SS")
+TestSimuleSaisie(SAI_Duree, "184530")
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Durée : édition utilisateur -> ..Valeur reste un owlDuree")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	sLueEditee est une chaîne = SAI_Duree..Valeur
+	dbgVérifieEgalité(sLueEditee, "18:45:30", "Durée : édition utilisateur reflétée (18h45m30s, pas 08h00m00s périmé)")
+SINON
+	dbgVérifieVrai(Faux, "Durée : édition utilisateur ignorée (Valeur encore typée autrement)")
+FIN
+
+// ===== 5. Guidage frappe format fixe HH:MI:SS + preuve que HH n'est PAS
+// borné à 23 dans une durée (HH=99 accepté dès le premier chiffre '9',
+// alors qu'aucune heure valide ne commence par 9) =====
+
+SAI_Duree..Valeur = ""
+TestSimuleSaisie(SAI_Duree, "990545")
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Bornes durée : HH=99 accepté (chiffres seuls, : auto-insérés par le guidage fixe)")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	dRéfNonBornee est une durée = ChaîneVersDurée("4 03:05:45", "J HH:MM:SS")
+	sLueNonBornee est une chaîne = SAI_Duree..Valeur
+	sRefNonBornee est une chaîne = dRéfNonBornee
+	dbgVérifieEgalité(sLueNonBornee, sRefNonBornee, "Bornes durée : 99h05m45s (= 4j 03:05:45) accepté, HH n'est pas plafonné à 23 comme pour une Heure")
+SINON
+	dbgVérifieVrai(Faux, "Bornes durée (HH=99) : round-trip ignoré")
+FIN
+
+// ===== 6. Bornes durée : MI/SS restent bornés à 59, MÊME QUAND HH ne
+// l'est pas. Le chiffre '6' en position dizaine de MI (aucune minute
+// valide ne commence par 6) est rejeté ; la frappe reprend et recompose
+// MI=07 -- démontre que le validateur de plages est actif sur MI alors
+// que HH=10 est resté libre juste avant =====
+
+SAI_Duree..Valeur = ""
+TestSimuleSaisie(SAI_Duree, "1060745")
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Bornes durée : chiffre MI hors-borne (6) rejeté, la frappe recompose une durée valide")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	dRéfBornee est une durée = ChaîneVersDurée("10:07:45", "HH:MM:SS")
+	sLueBornee est une chaîne = SAI_Duree..Valeur
+	sRefBornee est une chaîne = dRéfBornee
+	dbgVérifieEgalité(sLueBornee, sRefBornee, "Bornes durée : « 1060745 » recompose 10h07m45s (le 6 rejeté en tête de MI ne s'insère pas)")
+SINON
+	dbgVérifieVrai(Faux, "Bornes durée (MI) : round-trip ignoré")
+FIN
+
+// ===== 7. Format fixe JJ HH:MI:SS : jours + heures/min/sec guidés/bornés
+// (jetons largeur fixe, deux champs à 2 chiffres pour les jours) =====
+
+SAI_DureeJours..Valeur = ""
+TestSimuleSaisie(SAI_DureeJours, "02143045")
+dbgVérifieEgalité(TypeVar(SAI_DureeJours..Valeur), owlDuree, "Durée JJ HH:MI:SS : chiffres seuls composent 2j 14h30m45s")
+SI TypeVar(SAI_DureeJours..Valeur) = owlDuree ALORS
+	dRéfJours est une durée = ChaîneVersDurée("2 14:30:45", "J HH:MM:SS")
+	sLueJours est une chaîne = SAI_DureeJours..Valeur
+	sRefJours est une chaîne = dRéfJours
+	dbgVérifieEgalité(sLueJours, sRefJours, "Durée JJ HH:MI:SS : « 02143045 » guidé vers 2j 14h30m45s")
+SINON
+	dbgVérifieVrai(Faux, "Durée JJ HH:MI:SS : round-trip ignoré")
+FIN
+
+// ===== 8. Format variable J HH:MI:SS (J seul, largeur variable) : saisie
+// LIBRE (pas de masque de frappe Qt, pas de validateur de plages) — la
+// valeur est relue via le même moteur de masque au GET, mais rien ne
+// guide/rejette pendant la frappe. L'utilisateur tape lui-même les
+// séparateurs =====
+
+SAI_DureeVariable..Valeur = ""
+TestSimuleSaisie(SAI_DureeVariable, "3 14:30:45")
+dbgVérifieEgalité(TypeVar(SAI_DureeVariable..Valeur), owlDuree, "Format variable : saisie libre reconnue par le moteur de masque au GET (3j 14h30m45s)")
+SI TypeVar(SAI_DureeVariable..Valeur) = owlDuree ALORS
+	dRéfVariable est une durée = ChaîneVersDurée("3 14:30:45", "J HH:MM:SS")
+	sLueVariable est une chaîne = SAI_DureeVariable..Valeur
+	sRefVariable est une chaîne = dRéfVariable
+	dbgVérifieEgalité(sLueVariable, sRefVariable, "Format variable : round-trip fidèle en saisie libre (3j 14h30m45s)")
+SINON
+	dbgVérifieVrai(Faux, "Format variable : round-trip ignoré")
+FIN
+
+// Non-régression : texte non conforme au gabarit -> pas de plantage,
+// repli sur une chaîne (aucune durée valide ne peut être composée).
+
+SAI_DureeVariable..Valeur = ""
+TestSimuleSaisie(SAI_DureeVariable, "abc")
+dbgVérifieEgalité(TypeVar(SAI_DureeVariable..Valeur), owlChaîne, "Format variable : texte non conforme -> pas de plantage, repli chaîne")
+
+Ferme(FEN_TypeDuree)
+dbgBilanTest()

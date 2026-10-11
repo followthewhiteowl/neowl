@@ -1,0 +1,56 @@
+//  : Arrondi réel vs numérique doit donner le même résultat sur cas tie.
+// Avant fix : Arrondi(2.5r) = 3 (demi-away, round() C) ≠ Arrondi(2.5n) = 2 (demi-pair).
+// Après fix : demi-pair uniforme — résultats identiques pour réel et numérique.
+
+// Verrouille : Arrondi(2.5) demi-pair = 2, réel ET numérique.
+PROCEDURE PUBLIQUE test_tie_25_reel_demi_pair()
+	r est un réel = 2.5
+	res est un entier = Arrondi(r)
+	dbgVérifieEgalité(res, 2, "Arrondi(2.5r) demi-pair = 2 (pas 3 demi-away)")
+FIN
+
+PROCEDURE PUBLIQUE test_tie_25_numerique_demi_pair()
+	n est un numérique = 2.5
+	res est un entier = Arrondi(n)
+	dbgVérifieEgalité(res, 2, "Arrondi(2.5n) demi-pair = 2 (déjà correct via ADR_0106)")
+FIN
+
+// Verrouille : Arrondi(0.5) demi-pair = 0, réel ET numérique.
+PROCEDURE PUBLIQUE test_tie_05_reel_demi_pair()
+	r est un réel = 0.5
+	res est un entier = Arrondi(r)
+	dbgVérifieEgalité(res, 0, "Arrondi(0.5r) demi-pair = 0 (pas 1 demi-away)")
+FIN
+
+PROCEDURE PUBLIQUE test_tie_05_numerique_demi_pair()
+	n est un numérique = 0.5
+	res est un entier = Arrondi(n)
+	dbgVérifieEgalité(res, 0, "Arrondi(0.5n) demi-pair = 0")
+FIN
+
+// Verrouille : Arrondi(-2.5) demi-pair = -2, réel ET numérique.
+PROCEDURE PUBLIQUE test_tie_n25_reel_demi_pair()
+	r est un réel = -2.5
+	res est un entier = Arrondi(r)
+	dbgVérifieEgalité(res,-2, "Arrondi(-2.5r) demi-pair = -2 (pas -3 demi-away)")
+FIN
+
+PROCEDURE PUBLIQUE test_tie_n25_numerique_demi_pair()
+	n est un numérique = -2.5
+	res est un entier = Arrondi(n)
+	dbgVérifieEgalité(res,-2, "Arrondi(-2.5n) demi-pair = -2")
+FIN
+
+// Verrouille : réel et numérique donnent exactement le même entier sur les cas tie.
+// Ce test garantit la COHÉRENCE (aucune divergence possible après fix).
+PROCEDURE PUBLIQUE test_coherence_reel_numerique()
+	reel25 est un réel = 2.5
+	num25 est un numérique = 2.5
+	reel05 est un réel = 0.5
+	num05 est un numérique = 0.5
+	reel_n25 est un réel = -2.5
+	num_n25 est un numérique = -2.5
+	dbgVérifieEgalité(Arrondi(reel25), Arrondi(num25), "Arrondi(2.5) : réel == numérique")
+	dbgVérifieEgalité(Arrondi(reel05), Arrondi(num05), "Arrondi(0.5) : réel == numérique")
+	dbgVérifieEgalité(Arrondi(reel_n25), Arrondi(num_n25), "Arrondi(-2.5) : réel == numérique")
+FIN

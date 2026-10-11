@@ -1,0 +1,40 @@
+//  — NON-RÉGRESSION : les contextes RÉFÉRENCE doivent toujours
+// recevoir le contrôle, pas sa valeur par défaut.
+//
+// VERT ATTENDU maintenant ET après impl : l'implémentation du 
+// ne doit pas casser les usages légitimes du contrôle comme référence.
+//
+// Contextes référence verrouillés :
+//   1. TestSimuleSouris(BTN_Ok, ClicGauche)     → le widget, pas sa valeur
+//   2. TestSimuleSaisie(SAI_Input, "test")      → le widget, pas sa valeur
+//   3. Écriture ..Valeur = X (sens assignation) → inchangée (déjà impl)
+TestModeHeadless(Vrai)
+
+nClicObs_nr est un entier = 0
+
+PROCEDURE callback_clic(n est un entier)
+	nClicObs_nr = n
+FIN
+
+Ouvre(FEN_Ref)
+
+// Pré-condition : aucun clic au départ.
+LireClicCount()
+dbgVérifieEgalité(nClicObs_nr, 0, "Aucun clic au départ")
+
+// 1. TestSimuleSouris reçoit le contrôle BTN_Ok (pas sa valeur "Valeur").
+TestSimuleSouris(BTN_Ok, ClicGauche)
+LireClicCount()
+dbgVérifieEgalité(nClicObs_nr, 1, "TestSimuleSouris recoit le contrôle BTN_Ok : callback Clic déclenché")
+
+// 2. TestSimuleSaisie reçoit le contrôle SAI_Input (pas sa valeur).
+TestSimuleSaisie(SAI_Input, "hello_ref")
+dbgVérifieEgalité(SAI_Input..Valeur, "hello_ref", "TestSimuleSaisie écrit dans SAI_Input via référence contrôle")
+
+// 3. Écriture via ..Valeur (sens assignation, déjà fonctionnel).
+SAI_Input..Valeur = "explicit"
+dbgVérifieEgalité(SAI_Input..Valeur, "explicit", "Écriture explicite ..Valeur inchangée après fix")
+
+Ferme(FEN_Ref)
+
+dbgBilanTest()

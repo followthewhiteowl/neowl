@@ -1,0 +1,261 @@
+// @sujet : Matrice
+// @résumé : Arithmétique de la Matrice — opérateurs élément-par-élément (+ - * /), broadcast scalaire, négation unaire, méthodes fluentes équivalentes, immutabilité des opérandes et coercion entier -> réel.
+
+
+// Les opérateurs + - * / appliqués à deux Matrice de mêmes dimensions
+// opèrent élément par élément : le résultat est une nouvelle Matrice.
+PROCEDURE PUBLIQUE scenario_addition_element_par_element()
+	m1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	m2 est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	mSomme est une Matrice = m1 + m2
+	dbgVérifieEgalité(mSomme..Lignes, 2, "Addition élément-par-élément conserve le nombre de lignes")
+	dbgVérifieEgalité(mSomme..Colonnes, 2, "Addition élément-par-élément conserve le nombre de colonnes")
+	dbgVérifieEgalité(mSomme[1][1], 6.0, "1.0 + 5.0 = 6.0")
+	dbgVérifieEgalité(mSomme[1][2], 8.0, "2.0 + 6.0 = 8.0")
+	dbgVérifieEgalité(mSomme[2][1], 10.0, "3.0 + 7.0 = 10.0")
+	dbgVérifieEgalité(mSomme[2][2], 12.0, "4.0 + 8.0 = 12.0")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_soustraction_element_par_element()
+	m1 est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	m2 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	mDiff est une Matrice = m1 - m2
+	dbgVérifieEgalité(mDiff[1][1], 4.0, "5.0 - 1.0 = 4.0")
+	dbgVérifieEgalité(mDiff[1][2], 4.0, "6.0 - 2.0 = 4.0")
+	dbgVérifieEgalité(mDiff[2][1], 4.0, "7.0 - 3.0 = 4.0")
+	dbgVérifieEgalité(mDiff[2][2], 4.0, "8.0 - 4.0 = 4.0")
+FIN
+
+
+// * est le produit élément-par-élément (Hadamard) — PAS le produit
+// matriciel, qui est une fonction nommée à part.
+PROCEDURE PUBLIQUE scenario_multiplication_element_par_element()
+	m1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	m2 est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	mProduit est une Matrice = m1 * m2
+	dbgVérifieEgalité(mProduit[1][1], 5.0, "1.0 * 5.0 = 5.0")
+	dbgVérifieEgalité(mProduit[1][2], 12.0, "2.0 * 6.0 = 12.0")
+	dbgVérifieEgalité(mProduit[2][1], 21.0, "3.0 * 7.0 = 21.0")
+	dbgVérifieEgalité(mProduit[2][2], 32.0, "4.0 * 8.0 = 32.0")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_division_element_par_element()
+	m1 est une Matrice = [[4.0, 9.0], [6.0, 8.0]]
+	m2 est une Matrice = [[2.0, 3.0], [3.0, 2.0]]
+	mQuotient est une Matrice = m1 / m2
+	dbgVérifieEgalité(mQuotient[1][1], 2.0, "4.0 / 2.0 = 2.0")
+	dbgVérifieEgalité(mQuotient[1][2], 3.0, "9.0 / 3.0 = 3.0")
+	dbgVérifieEgalité(mQuotient[2][1], 2.0, "6.0 / 3.0 = 2.0")
+	dbgVérifieEgalité(mQuotient[2][2], 4.0, "8.0 / 2.0 = 4.0")
+FIN
+
+
+// Une Matrice combinée avec un scalaire réel applique l'opération à chaque
+// élément (broadcast). + et * sont commutatifs avec le scalaire.
+PROCEDURE PUBLIQUE scenario_broadcast_scalaire()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+
+	mMulDroite est une Matrice = m * 2.0
+	dbgVérifieEgalité(mMulDroite[1][1], 2.0, "m * 2.0 : élément [1][1]")
+	dbgVérifieEgalité(mMulDroite[2][2], 8.0, "m * 2.0 : élément [2][2]")
+
+	mMulGauche est une Matrice = 2.0 * m
+	dbgVérifieEgalité(mMulGauche[1][1], 2.0, "2.0 * m commutatif : élément [1][1]")
+	dbgVérifieEgalité(mMulGauche[2][2], 8.0, "2.0 * m commutatif : élément [2][2]")
+
+	mDivScalaire est une Matrice = m / 2.0
+	dbgVérifieEgalité(mDivScalaire[1][1], 0.5, "m / 2.0 : élément [1][1]")
+	dbgVérifieEgalité(mDivScalaire[2][2], 2.0, "m / 2.0 : élément [2][2]")
+
+	mAjoutDroite est une Matrice = m + 1.0
+	mAjoutGauche est une Matrice = 1.0 + m
+	dbgVérifieEgalité(mAjoutDroite[1][1], 2.0, "m + 1.0 : élément [1][1]")
+	dbgVérifieEgalité(mAjoutGauche[1][1], 2.0, "1.0 + m commutatif : élément [1][1]")
+
+	mSoustractionScalaire est une Matrice = m - 1.0
+	dbgVérifieEgalité(mSoustractionScalaire[1][1], 0.0, "m - 1.0 : élément [1][1]")
+	dbgVérifieEgalité(mSoustractionScalaire[2][2], 3.0, "m - 1.0 : élément [2][2]")
+FIN
+
+
+// La négation unaire inverse le signe de chaque élément dans une nouvelle
+// Matrice.
+PROCEDURE PUBLIQUE scenario_negation_unaire()
+	m est une Matrice = [[1.0,-2.0], [3.0,-4.0]]
+	mNeg est une Matrice = -m
+	dbgVérifieEgalité(mNeg[1][1],-1.0, "-m : élément [1][1]")
+	dbgVérifieEgalité(mNeg[1][2], 2.0, "-m : élément [1][2] (double négation)")
+	dbgVérifieEgalité(mNeg[2][1],-3.0, "-m : élément [2][1]")
+	dbgVérifieEgalité(mNeg[2][2], 4.0, "-m : élément [2][2] (double négation)")
+FIN
+
+
+// Les méthodes fluentes .Ajoute/.Soustrait/.Multiplie/.Divise produisent
+// exactement le même résultat que les opérateurs correspondants.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_operateurs()
+	m1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	m2 est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+
+	mViaFluent est une Matrice = m1.Ajoute(m2)
+	mViaOperateur est une Matrice = m1 + m2
+	dbgVérifieEgalité(mViaFluent[1][1], mViaOperateur[1][1], "m1.Ajoute(m2) == m1 + m2 : élément [1][1]")
+	dbgVérifieEgalité(mViaFluent[2][2], mViaOperateur[2][2], "m1.Ajoute(m2) == m1 + m2 : élément [2][2]")
+
+	mSoustraitFluent est une Matrice = m2.Soustrait(m1)
+	mSoustraitOperateur est une Matrice = m2 - m1
+	dbgVérifieEgalité(mSoustraitFluent[1][1], mSoustraitOperateur[1][1], "m2.Soustrait(m1) == m2 - m1")
+
+	mMultiplieFluent est une Matrice = m1.Multiplie(m2)
+	mMultiplieOperateur est une Matrice = m1 * m2
+	dbgVérifieEgalité(mMultiplieFluent[1][1], mMultiplieOperateur[1][1], "m1.Multiplie(m2) == m1 * m2")
+
+	mDiviseFluent est une Matrice = m2.Divise(m1)
+	mDiviseOperateur est une Matrice = m2 / m1
+	dbgVérifieEgalité(mDiviseFluent[1][1], mDiviseOperateur[1][1], "m2.Divise(m1) == m2 / m1")
+FIN
+
+
+// Les formes anglaises Add/Subtract/Multiply/Divide désignent les mêmes
+// méthodes que leurs équivalents français.
+PROCEDURE PUBLIQUE scenario_fluent_formes_anglaises()
+	m1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	m2 est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+
+	mAdd est une Matrice = m1.Add(m2)
+	dbgVérifieEgalité(mAdd[1][1], 6.0, "m1.Add(m2) : élément [1][1]")
+
+	mSubtract est une Matrice = m2.Subtract(m1)
+	dbgVérifieEgalité(mSubtract[1][1], 4.0, "m2.Subtract(m1) : élément [1][1]")
+
+	mMultiply est une Matrice = m1.Multiply(m2)
+	dbgVérifieEgalité(mMultiply[1][1], 5.0, "m1.Multiply(m2) : élément [1][1]")
+
+	mDivide est une Matrice = m2.Divide(m1)
+	dbgVérifieEgalité(mDivide[1][1], 5.0, "m2.Divide(m1) : élément [1][1]")
+FIN
+
+
+// Toute opération arithmétique produit une nouvelle Matrice : les opérandes
+// d'origine ne sont jamais modifiés.
+PROCEDURE PUBLIQUE scenario_immutabilite_operandes()
+	m1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	m2 est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+
+	mRésultat est une Matrice = m1 + m2
+	dbgVérifieEgalité(m1[1][1], 1.0, "m1 intact après m1 + m2 : élément [1][1]")
+	dbgVérifieEgalité(m1[2][2], 4.0, "m1 intact après m1 + m2 : élément [2][2]")
+	dbgVérifieEgalité(m2[1][1], 5.0, "m2 intact après m1 + m2 : élément [1][1]")
+
+	mRésultatFluent est une Matrice = m1.Multiplie(m2)
+	dbgVérifieEgalité(m1[1][1], 1.0, "m1 intact après m1.Multiplie(m2)")
+	dbgVérifieEgalité(m2[1][1], 5.0, "m2 intact après m1.Multiplie(m2)")
+FIN
+
+
+// Un opérande entier est coercé en réel avant l'opération, comme pour une
+// variable réelle affectée depuis un entier.
+PROCEDURE PUBLIQUE scenario_coercion_entier_vers_reel()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	nFacteur est un entier = 2
+	mMulEntier est une Matrice = m * nFacteur
+	dbgVérifieEgalité(mMulEntier[1][1], 2.0, "m * entier(2) coercé en réel : élément [1][1]")
+	dbgVérifieEgalité(mMulEntier[2][2], 8.0, "m * entier(2) coercé en réel : élément [2][2]")
+
+	mAjoutEntier est une Matrice = m + 1
+	dbgVérifieEgalité(mAjoutEntier[1][1], 2.0, "m + entier(1) coercé en réel")
+FIN
+
+
+// Diviser une Matrice par un élément nul lève une exception récupérable,
+// exactement comme la division scalaire réelle par zéro — pas de Inf/NaN
+// silencieux.
+PROCEDURE PUBLIQUE scenario_division_par_zero_leve_exception()
+	m1 est une Matrice = [[4.0, 5.0], [6.0, 7.0]]
+	mAvecZero est une Matrice = [[2.0, 0.0], [3.0, 1.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		mRésultat est une Matrice = m1 / mAvecZero
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Division par un élément nul de la Matrice est attrapée")
+FIN
+
+
+// Un débordement multiplicatif produit Inf en silence, comme la
+// multiplication scalaire réelle qui déborde.
+PROCEDURE PUBLIQUE scenario_overflow_multiplicatif_infini()
+	m est une Matrice = [[1e308, 1.0], [1.0, 1.0]]
+	mMultiplicateur est une Matrice = [[10.0, 1.0], [1.0, 1.0]]
+	mRésultat est une Matrice = m * mMultiplicateur
+	dbgVérifieVrai(mRésultat[1][1] > 1.7976931348623157e308, "1e308 * 10.0 déborde vers Inf, sans exception")
+	dbgVérifieEgalité(mRésultat[1][2], 1.0, "1.0 * 1.0 reste inchangé, pas de débordement")
+FIN
+
+
+// Des Matrice de dimensions différentes ne peuvent pas être combinées
+// élément-par-élément : l'opération lève une exception plutôt que de
+// tronquer ou compléter silencieusement.
+PROCEDURE PRIVÉE scenario_edge_dimensions_incompatibles_lignes()
+	mCourte est une Matrice = [[1.0, 2.0]]
+	mLongue est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est une Matrice = mCourte + mLongue
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Addition de nombres de lignes différents attrapée")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_dimensions_incompatibles_colonnes()
+	m1 est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	m2 est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est une Matrice = m1 + m2
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "Addition de nombres de colonnes différents attrapée")
+FIN
+
+
+// Une Matrice combinée avec un tableau/littéral nu (pas de Matrice) est
+// refusée en expression : pas d'inférence, conversion explicite requise.
+PROCEDURE PRIVÉE scenario_edge_operande_litteral_nu_refuse()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est une Matrice = m + [[1.0, 2.0], [3.0, 4.0]]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "m + [[littéral]] nu lève une exception")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_operande_tableau_variable_refuse()
+	m est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	tArr est un tableau = [[10.0, 10.0], [10.0, 10.0]]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		x est une Matrice = m + tArr
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "m + tableau(variable) lève une exception")
+FIN

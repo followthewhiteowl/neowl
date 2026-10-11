@@ -1,0 +1,54 @@
+// Runtime GUI (widgets montés, offscreen) : Champ Jauge — get/set de la
+// Valeur en linéaire horizontale ET verticale, bornage [BorneMin, BorneMax],
+// accès bilingue FR/EN, round-trip de l'orientation et du mode symétrique.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_JaugeRuntime)
+
+// --- Valeur par défaut lue depuis la déclaration (horizontale) ---
+dbgVérifieEgalité(JAU_H..Valeur, 40, "JAU_H : valeur déclarée = 40")
+
+// --- get / set Valeur (horizontale) ---
+JAU_H..Valeur = 75
+dbgVérifieEgalité(JAU_H..Valeur, 75, "JAU_H : set puis get = 75")
+
+// --- Bornage à [BorneMin, BorneMax] = [0, 100] (horizontale) ---
+JAU_H..Valeur = 500
+dbgVérifieEgalité(JAU_H..Valeur, 100, "JAU_H : valeur au-dessus du max bornée à 100")
+JAU_H..Valeur = -30
+dbgVérifieEgalité(JAU_H..Valeur, 0, "JAU_H : valeur sous le min bornée à 0")
+
+// --- get / set Valeur (verticale) ---
+dbgVérifieEgalité(JAU_V..Valeur, 3, "JAU_V : valeur déclarée = 3")
+JAU_V..Valeur = 8
+dbgVérifieEgalité(JAU_V..Valeur, 8, "JAU_V : set puis get = 8 (vertical)")
+JAU_V..Valeur = 42
+dbgVérifieEgalité(JAU_V..Valeur, 10, "JAU_V : bornage au max 10 (vertical)")
+
+// --- Orientation lue en propriété ---
+dbgVérifieEgalité(JAU_H..Vertical, Faux, "JAU_H : orientation horizontale")
+dbgVérifieEgalité(JAU_V..Vertical, Vrai, "JAU_V : orientation verticale")
+
+// --- Accès bilingue FR <-> EN sur la valeur et les bornes ---
+JAU_H..Value = 25
+dbgVérifieEgalité(JAU_H..Valeur, 25, "JAU_H : ..Value (EN) équivaut à ..Valeur (FR)")
+dbgVérifieEgalité(JAU_H..MinValue, 0, "JAU_H : ..MinValue (EN) = BorneMin")
+dbgVérifieEgalité(JAU_H..MaxValue, 100, "JAU_H : ..MaxValue (EN) = BorneMax")
+dbgVérifieEgalité(JAU_H..BorneMax, JAU_H..MaxValue, "JAU_H : BorneMax = MaxValue")
+
+// --- Mode symétrique : round-trip déclaration -> lecture, bilingue ---
+dbgVérifieEgalité(JAU_Sym..Symétrique, Vrai, "JAU_Sym : symétrique déclaré = Vrai")
+dbgVérifieEgalité(JAU_Sym..Symmetric, Vrai, "JAU_Sym : ..Symmetric (EN) équivaut à ..Symetrique")
+dbgVérifieEgalité(JAU_H..Symétrique, Faux, "JAU_H : non symétrique par défaut")
+JAU_H..Symétrique = Vrai
+dbgVérifieEgalité(JAU_H..Symétrique, Vrai, "JAU_H : symétrique posé au runtime = Vrai")
+
+// --- Valeur symétrique négative bornée ---
+JAU_Sym..Valeur = -20
+dbgVérifieEgalité(JAU_Sym..Valeur,-20, "JAU_Sym : valeur négative depuis le centre")
+JAU_Sym..Valeur = -999
+dbgVérifieEgalité(JAU_Sym..Valeur,-50, "JAU_Sym : bornage au min -50")
+
+Ferme(FEN_JaugeRuntime)
+dbgBilanTest()

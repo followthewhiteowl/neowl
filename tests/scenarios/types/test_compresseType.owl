@@ -1,0 +1,40 @@
+// @sujet : compresseType
+// @résumé : Enum regroupant les algorithmes acceptés par le paramètre type de Compresse et Décompresse : gzip, LZW (deflate) et passthrough store. Chaque membre route vers une implémentation différente dans le moteur de compression.
+
+
+// compresseGZIP : compression gzip (round-trip déterministe).
+PROCEDURE PUBLIQUE scenario_round_trip_gzip()
+	source est une chaîne = "owl owl owl owl owl owl"
+	comp est un buffer = Compresse(source, compresseGZIP)
+	dbgVérifieVrai(Taille(comp) > 0, "le buffer compressé n'est pas vide")
+	restitue est un buffer = Décompresse(comp, compresseGZIP)
+	dbgVérifieEgalité(BufferVersChaîne(restitue), source, "round-trip gzip restitue la source exacte")
+FIN
+
+
+// compresseAucun : passthrough — le buffer de sortie est identique à l'entrée.
+PROCEDURE PUBLIQUE scenario_store_passthrough()
+	source est une chaîne = "abc123"
+	comp est un buffer = Compresse(source, compresseAucun)
+	dbgVérifieEgalité(BufferVersChaîne(comp), source, "compresseAucun renvoie les octets source inchangés")
+FIN
+
+
+// compresseLZW : round-trip deflate (LZW).
+PROCEDURE PRIVÉE scenario_round_trip_lzw()
+	source est une chaîne = "owl langage owl langage owl langage"
+	comp est un buffer = Compresse(source, compresseLZW)
+	dbgVérifieVrai(Taille(comp) > 0, "le buffer compressé LZW n'est pas vide")
+	restitue est un buffer = Décompresse(comp, compresseLZW)
+	dbgVérifieEgalité(BufferVersChaîne(restitue), source, "round-trip LZW restitue la source exacte")
+FIN
+
+
+// compresseChaîneCourte : optimisation courte chaîne (round-trip).
+PROCEDURE PRIVÉE scenario_round_trip_courte_chaine()
+	source est une chaîne = "ab"
+	comp est un buffer = Compresse(source, compresseChaîneCourte)
+	dbgVérifieVrai(Taille(comp) > 0, "buffer compressé courte chaîne non vide")
+	restitue est un buffer = Décompresse(comp, compresseChaîneCourte)
+	dbgVérifieEgalité(BufferVersChaîne(restitue), source, "round-trip courte chaîne restitue la source")
+FIN

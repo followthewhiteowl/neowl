@@ -1,0 +1,143 @@
+// Tests XML avancés : CDATA, commentaires, namespaces, insertion positionnelle,
+// escape/unescape entités, XMLInsèreFils, XMLDocumentValide
+
+// ================================================================
+// Escape / Unescape entités
+// ================================================================
+s_brut est une chaîne = "<livre titre=""Dune"" & genre='SF'>"
+s_esc est une chaîne = TexteVersXML(s_brut)
+dbgVérifieVrai(Position(s_esc, "&amp;") > 0, "& → &amp;")
+dbgVérifieVrai(Position(s_esc, "&lt;") > 0, "< → &lt;")
+dbgVérifieVrai(Position(s_esc, "&gt;") > 0, "> → &gt;")
+dbgVérifieVrai(Position(s_esc, "&quot;") > 0, """ → &quot;")
+dbgVérifieVrai(Position(s_esc, "&apos;") > 0, "' → &apos;")
+
+s_retour est une chaîne = XMLVersTexte(s_esc)
+dbgVérifieEgalité(s_retour, s_brut, "XMLVersTexte annule TexteVersXML")
+
+// Entité numérique décimale
+dbgVérifieEgalité(XMLVersTexte("&#65;"), "A", "entité numérique &#65; = A")
+// Entité numérique hexadécimale
+dbgVérifieEgalité(XMLVersTexte("&#x41;"), "A", "entité hex &#x41; = A")
+
+// ================================================================
+// XMLAjouteCommentaire
+// ================================================================
+doc_c est un xmlDocument = XMLDocument()
+root_c est un xmlNoeud = XMLAjouteFils(doc_c, "document")
+comment est un xmlNoeud = XMLAjouteCommentaire(root_c, " ceci est un commentaire ")
+dbgVérifieVrai(comment <> Null, "XMLAjouteCommentaire retourne un nœud")
+dbgVérifieEgalité(XMLTypeElément(comment), XMLCommentaire, "type = XMLCommentaire")
+// Le commentaire est dans la sérialisation
+xml_c est une chaîne = XMLConstruitChaîne(doc_c)
+dbgVérifieVrai(Position(xml_c, "ceci est un commentaire") > 0, "commentaire dans la sortie")
+
+// Méthode .AjouteCommentaire()
+root_c.AddComment(" un autre commentaire ")
+xml_c2 est une chaîne = doc_c.BuildString()
+dbgVérifieVrai(Position(xml_c2, "un autre commentaire") > 0, "méthode .AddComment()")
+
+// ================================================================
+// XMLAjouteCDATA
+// ================================================================
+doc_d est un xmlDocument = XMLDocument()
+root_d est un xmlNoeud = XMLAjouteFils(doc_d, "data")
+cdata est un xmlNoeud = XMLAjouteCDATA(root_d, "<contenu brut> & spécial")
+dbgVérifieVrai(cdata <> Null, "XMLAjouteCDATA retourne un nœud")
+dbgVérifieEgalité(XMLTypeElément(cdata), XMLCDATA, "type = XMLCDATA")
+xml_d est une chaîne = XMLConstruitChaîne(doc_d)
+dbgVérifieVrai(Position(xml_d, "CDATA") > 0, "CDATA dans la sérialisation")
+dbgVérifieVrai(Position(xml_d, "<contenu brut>") > 0, "contenu CDATA non escapé")
+
+// Méthode .AjouteCDATA()
+root_d.AddCDATA("autre données brutes")
+xml_d2 est une chaîne = doc_d.BuildString()
+dbgVérifieVrai(Position(xml_d2, "autre données brutes") > 0, "méthode .AddCDATA()")
+
+// ================================================================
+// XMLInsèreFils — insertion positionnelle
+// ================================================================
+doc_i est un xmlDocument = XMLDocument()
+root_i est un xmlNoeud = XMLAjouteFils(doc_i, "liste")
+nA est un xmlNoeud = root_i.AddChild("item", "A")
+nB est un xmlNoeud = root_i.AddChild("item", "B")
+nC est un xmlNoeud = root_i.AddChild("item", "C")
+// Liste actuelle : A, B, C
+
+// Insérer avant le 1er (position=1)
+x est un xmlNoeud = XMLInsèreFils(root_i, "item", 1)
+x.Ecrit("X")
+fils_i est un tableau = root_i.Fils()
+dbgVérifieEgalité(fils_i..Occurrence, 4, "4 fils après insertion")
+dbgVérifieEgalité(XMLLit(fils_i[1]), "X", "X inséré en position 1")
+dbgVérifieEgalité(XMLLit(fils_i[2]), "A", "A repoussé en position 2")
+
+// Insérer avant le 3e (position=3 → avant B)
+y est un xmlNoeud = root_i.InsertChild("item", 3)
+y.Ecrit("Y")
+fils_i2 est un tableau = root_i.Fils()
+dbgVérifieEgalité(fils_i2..Occurrence, 5, "5 fils après 2e insertion")
+dbgVérifieEgalité(XMLLit(fils_i2[3]), "Y", "Y en position 3")
+dbgVérifieEgalité(XMLLit(fils_i2[4]), "B", "B repoussé en 4")
+
+// position=0 → append
+z est un xmlNoeud = XMLInsèreFils(root_i, "item", 0)
+z.Ecrit("Z")
+fils_i3 est un tableau = root_i.Fils()
+dbgVérifieEgalité(fils_i3..Occurrence, 6, "6 fils après append")
+dbgVérifieEgalité(XMLLit(fils_i3[6]), "Z", "Z en dernière position")
+
+// ================================================================
+// Namespaces
+// ================================================================
+doc_n est un xmlDocument = XMLDocument()
+root_n est un xmlNoeud = XMLAjouteFils(doc_n, "root")
+ns est un xmlNamespace = XMLAjouteEspaceNom(root_n, "bk", "http://exemple.com/livre")
+dbgVérifieVrai(ns <> Null, "XMLAjouteEspaceNom retourne un xmlNamespace")
+dbgVérifieEgalité(XMLEspaceNomPréfixe(ns), "bk", "XMLEspaceNomPréfixe = bk")
+dbgVérifieEgalité(XMLEspaceNomURI(ns), "http://exemple.com/livre", "XMLEspaceNomURI")
+
+// Méthodes sur xmlNamespace
+dbgVérifieEgalité(ns..Préfixe(), "bk", "méthode ..Préfixe()")
+dbgVérifieEgalité(ns.Prefix(), "bk", "méthode .Prefix()")
+dbgVérifieEgalité(ns.URI(), "http://exemple.com/livre", "méthode .URI()")
+
+// Namespace par défaut (préfixe vide)
+ns2 est un xmlNamespace = XMLAjouteEspaceNom(root_n, "", "http://exemple.com/default")
+dbgVérifieVrai(ns2 <> Null, "namespace par défaut créé")
+dbgVérifieEgalité(ns2.URI(), "http://exemple.com/default", "URI namespace par défaut")
+
+// XMLListeEspacesNom
+liste_ns est un tableau = XMLListeEspacesNom(root_n)
+dbgVérifieVrai(liste_ns..Occurrence >= 2, "XMLListeEspacesNom retourne >= 2 namespaces")
+
+// Méthode .ListeEspacesNom()
+liste_ns2 est un tableau = root_n.ListNamespaces()
+dbgVérifieVrai(liste_ns2..Occurrence >= 2, "méthode .ListNamespaces()")
+
+// Vérifier les préfixes
+pref1 est une chaîne = XMLEspaceNomPréfixe(liste_ns[1])
+dbgVérifieVrai(Taille(pref1) >= 0, "préfixe du 1er namespace accessible")
+
+// ================================================================
+// XMLInsèreFils via méthode sur xmlDocument
+// ================================================================
+doc_root est un xmlDocument = XMLDocument()
+r est un xmlNoeud = XMLAjouteFils(doc_root, "menu")
+r.AddChild("item", "Fichier")
+r.AddChild("item", "Édition")
+// Insérer "Affichage" avant "Édition" (position 2)
+r.InsertChild("item", 2).Ecrit("Affichage")
+fils_menu est un tableau = r.Fils()
+dbgVérifieEgalité(fils_menu..Occurrence, 3, "3 items menu")
+dbgVérifieEgalité(XMLLit(fils_menu[2]), "Affichage", "Affichage en position 2")
+dbgVérifieEgalité(XMLLit(fils_menu[3]), "Édition", "Édition repoussé en 3")
+
+// Nettoyage
+XMLTermine(doc_c)
+XMLTermine(doc_d)
+XMLTermine(doc_i)
+XMLTermine(doc_n)
+XMLTermine(doc_root)
+
+Trace("test_xml_advanced : OK")

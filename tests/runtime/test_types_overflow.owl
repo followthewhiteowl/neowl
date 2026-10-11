@@ -1,0 +1,72 @@
+Trace("=== MODELE DE NOMBRE V2 : entier = contrat strict, overflow = exception ===")
+
+// --- Cas normal: pas d'overflow, reste entier ---
+n1 est un entier = 1000
+n2 est un entier = 2000
+normal est un entier = n1 + n2
+dbgVérifieEgalité(TypeVar(normal), owlEntier, "somme normale = entier")
+dbgVérifieEgalité(normal, 3000, "1000 + 2000 = 3000")
+
+// --- Addition qui overflow INT64_MAX ---
+maxInt est un entier = 9223372036854775807
+plusUn est un numérique = maxInt + 1
+dbgVérifieEgalité(TypeVar(plusUn), owlNumerique, "add overflow -> numerique")
+
+// --- Multiplication qui overflow ---
+gros est un entier = 5000000000
+carre est un numérique = gros * gros
+dbgVérifieEgalité(TypeVar(carre), owlNumerique, "mult overflow -> numerique")
+dbgVérifieEgalité(carre, 0n25000000000000000000, "5G * 5G = 25Q exact")
+
+// --- Soustraction qui overflow vers le negatif ---
+minPresque est un entier = -9223372036854775807
+petit est un numérique = minPresque - 10
+dbgVérifieEgalité(TypeVar(petit), owlNumerique, "sub overflow negatif")
+
+// --- Factorielle 20 tient en int64 ---
+fact20 est un entier = 1
+POUR i = 1 À 20
+	fact20 = fact20 * i
+FIN
+dbgVérifieEgalité(TypeVar(fact20), owlEntier, "20! tient en entier")
+dbgVérifieEgalité(fact20, 2432902008176640000, "20! = 2.4 * 10^18")
+
+// --- Factorielle 25 deborde dans un slot entier : le mur leve une exception ---
+// Nouveau modele : entier est un contrat strict. Accumuler au-dela de int64
+// dans un slot entier leve une exception (plus d'auto-promotion silencieuse).
+bException_fact25 est un booléen = Faux
+QUAND EXCEPTION DANS
+	fact25_entier est un entier = 1
+	POUR j = 1 À 25
+		fact25_entier = fact25_entier * j
+	FIN
+FAIRE
+	bException_fact25 = Vrai
+FIN
+dbgVérifieVrai(bException_fact25, "25! dans entier leve une exception (mur)")
+
+// --- Meme factorielle declaree numerique : resultat exact ---
+// Declarer numerique des le depart = type correct pour les grands entiers.
+fact25n est un numérique = 1
+POUR k = 1 À 25
+	fact25n = fact25n * k
+FIN
+dbgVérifieEgalité(TypeVar(fact25n), owlNumerique, "25! en numerique reste numerique")
+dbgVérifieEgalité(fact25n, 0n15511210043330985984000000, "25! exact en numerique")
+
+// --- Test securite : plus de wrap silencieux ---
+// Si on faisait ca en C pur: overflow donne resultat faux et negatif
+// En OWL: le resultat est mathematiquement correct
+x est un entier = 1000000000000000000
+y est un entier = 9000000000000000000
+somme est un numérique = x + y
+// Total theorique: 10^19 qui deborde int64 (max ~9.2 * 10^18)
+dbgVérifieEgalité(TypeVar(somme), owlNumerique, "addition proche overflow")
+dbgVérifieVrai(somme > 9000000000000000000, "resultat mathematiquement correct")
+
+// --- Negation INT64_MIN ---
+minVal est un entier = -9223372036854775807
+negMinAlmost est un entier = -minVal
+dbgVérifieEgalité(negMinAlmost, 9223372036854775807, "negation normale OK")
+
+dbgBilanTest()

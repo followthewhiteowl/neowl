@@ -1,0 +1,34 @@
+// ============================================================
+// TEST: zipArchive — surface de méthodes (forme receveur)
+// Chaque opération est appelable en fonction libre (canon) ET en
+// méthode sur l'archive ; les deux formes appellent la même impl.
+// ============================================================
+
+Trace("=== zipArchive — méthodes ===")
+
+// -- Création + ajout en forme méthode --
+arch est un zipArchive = zipCrée("/tmp/owl_test_meth.zip")
+dbgVérifieVrai(PAS EstNul(arch), "zipCrée renvoie un handle")
+
+// .Ajoute() est branchée sur zipAjouteFichier : ajout depuis un buffer
+// via la constante zipEnMémoire, le chemin à conserver en dernier argument.
+arch.Ajoute("Premier", zipEnMémoire, "a.txt")
+arch.Ajoute("Deuxième éàü", zipEnMémoire, "dossier/b.txt")
+dbgVérifieEgalité(arch.NbFichier(), 2, "NbFichier() = 2 après deux .Ajoute()")
+arch.Ferme()
+
+// -- Réouverture + lecture en forme méthode --
+b est un zipArchive = zipOuvre("/tmp/owl_test_meth.zip")
+dbgVérifieEgalité(b.NbFichier(), 2, "NbFichier() après réouverture")
+
+// méthode vs fonction libre : même résultat
+dbgVérifieEgalité(b.Liste(), zipListeFichier(b), "Liste() == zipListeFichier()")
+dbgVérifieEgalité(b.Cherche("a.txt"), 1, "Cherche() renvoie index 1-based")
+dbgVérifieEgalité(b.Cherche("inexistant.xyz"), 0, "Cherche() renvoie 0 si absent")
+dbgVérifieVrai(b.ExisteFichier("a.txt"), "ExisteFichier() vrai sur entrée présente")
+dbgVérifieVrai(PAS b.ExisteFichier("zzz"), "ExisteFichier() faux sur entrée absente")
+
+buf est un buffer = b.Extrait(1, 65535)
+dbgVérifieEgalité(BufferVersChaîne(buf), "Premier", "Extrait(1) restitue le contenu")
+
+b.Ferme()

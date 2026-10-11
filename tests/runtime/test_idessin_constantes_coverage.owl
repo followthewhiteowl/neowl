@@ -1,0 +1,404 @@
+Trace("=== Couverture comportementale des options de dessin/impression PDF ===")
+
+// Ces constantes sont des OPTIONS passees aux natives de dessin PDF
+// (iLigne / iCadre / iCréePolice / iImprimeZone / iImprimeImage). Elles ne
+// portent pas de valeur "lisible" : on prouve leur cablage par l'EFFET
+// OBSERVABLE sur le PDF genere.
+//
+// Methode :
+//   1. Smoke   : l'appel avec la constante ne leve pas d'erreur + PDF non vide.
+//   2. Differ. : deux PDFs produits avec deux valeurs differentes de la meme
+//                 option DIFFERENT en contenu. Une difference de contenu prouve
+//                 que la constante a un effet => elle est branchee, pas orpheline.
+//
+// Le contenu PDF compresse peut avoir une taille identique pour des sorties
+// pourtant differentes (coincidence d'entropie) : on compare donc le CONTENU
+// (fChargeTexte) et non la taille pour les differentiels fins (polices, brosses).
+
+base est une chaîne = fRepTemp() + "/owl_idessin_cov"
+
+// Helper : genere un PDF a partir d'un dessin et renvoie son contenu brut.
+// (inline par scenario — pas de PROCEDURE helper : compile capricieuse en
+//  mode suite sur signatures multi-params, cf notes lot zip.)
+
+// ============================================================
+// 1. TRAITS (iContinu / iTiret / iPointillé / iMixte) -> iLigne
+// ============================================================
+pCont est une chaîne = base + "_t_cont.pdf"
+iDestination(iPDFGénérique, pCont)
+iLigne(10, 10, 100, 10, iContinu, 2)
+iFinImprime()
+dbgVérifieVrai(fFichierExiste(pCont), "iContinu : PDF genere")
+dbgVérifieVrai(fTaille(pCont) > 0, "iContinu : PDF non vide")
+cCont est une chaîne = fChargeTexte(pCont)
+
+pTiret est une chaîne = base + "_t_tiret.pdf"
+iDestination(iPDFGénérique, pTiret)
+iLigne(10, 10, 100, 10, iTiret, 2)
+iFinImprime()
+cTiret est une chaîne = fChargeTexte(pTiret)
+dbgVérifieVrai(fTaille(pTiret) > 0, "iTiret : PDF non vide")
+dbgVérifieVrai(cTiret <> cCont, "iTiret produit un trace different d'iContinu (branche)")
+
+pPoint est une chaîne = base + "_t_point.pdf"
+iDestination(iPDFGénérique, pPoint)
+iLigne(10, 10, 100, 10, iPointillé, 2)
+iFinImprime()
+cPoint est une chaîne = fChargeTexte(pPoint)
+dbgVérifieVrai(cPoint <> cTiret, "iPointillé != iTiret (distinction de style)")
+
+pMixte est une chaîne = base + "_t_mixte.pdf"
+iDestination(iPDFGénérique, pMixte)
+iLigne(10, 10, 100, 10, iMixte, 2)
+iFinImprime()
+cMixte est une chaîne = fChargeTexte(pMixte)
+dbgVérifieVrai(cMixte <> cPoint, "iMixte != iPointillé (distinction de style)")
+dbgVérifieVrai(cMixte <> cCont, "iMixte != iContinu (branche)")
+
+// ============================================================
+// 2. BROSSES / HACHURES -> iCadre
+//    iPleine / iHorizontale / iVerticale / iCroisée /
+//    iCroiséeDiagonale / iDiagonaleDescendante / iDiagonaleMontante
+// ============================================================
+bleu est un entier = RVB(0, 0, 255)
+
+pPleine est une chaîne = base + "_b_pleine.pdf"
+iDestination(iPDFGénérique, pPleine)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iPleine)
+iFinImprime()
+dbgVérifieVrai(fTaille(pPleine) > 0, "iPleine : PDF non vide")
+cPleine est une chaîne = fChargeTexte(pPleine)
+
+pHoriz est une chaîne = base + "_b_horiz.pdf"
+iDestination(iPDFGénérique, pHoriz)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iHorizontale)
+iFinImprime()
+cHoriz est une chaîne = fChargeTexte(pHoriz)
+dbgVérifieVrai(cHoriz <> cPleine, "iHorizontale != iPleine (hachure branchee)")
+
+pVert est une chaîne = base + "_b_vert.pdf"
+iDestination(iPDFGénérique, pVert)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iVerticale)
+iFinImprime()
+cVert est une chaîne = fChargeTexte(pVert)
+dbgVérifieVrai(cVert <> cHoriz, "iVerticale != iHorizontale (orientation distincte)")
+
+pCroix est une chaîne = base + "_b_croix.pdf"
+iDestination(iPDFGénérique, pCroix)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iCroisée)
+iFinImprime()
+cCroix est une chaîne = fChargeTexte(pCroix)
+dbgVérifieVrai(cCroix <> cVert, "iCroisée != iVerticale (hachure croisee branchee)")
+
+pCroixD est une chaîne = base + "_b_croixd.pdf"
+iDestination(iPDFGénérique, pCroixD)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iCroiséeDiagonale)
+iFinImprime()
+cCroixD est une chaîne = fChargeTexte(pCroixD)
+dbgVérifieVrai(cCroixD <> cCroix, "iCroiséeDiagonale != iCroisée")
+
+pDiagD est une chaîne = base + "_b_diagd.pdf"
+iDestination(iPDFGénérique, pDiagD)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iDiagonaleDescendante)
+iFinImprime()
+cDiagD est une chaîne = fChargeTexte(pDiagD)
+dbgVérifieVrai(cDiagD <> cCroixD, "iDiagonaleDescendante != iCroiséeDiagonale")
+
+pDiagM est une chaîne = base + "_b_diagm.pdf"
+iDestination(iPDFGénérique, pDiagM)
+iCadre(10, 10, 90, 90, 1, 50, bleu, iContinu, iDiagonaleMontante)
+iFinImprime()
+cDiagM est une chaîne = fChargeTexte(pDiagM)
+dbgVérifieVrai(cDiagM <> cDiagD, "iDiagonaleMontante != iDiagonaleDescendante (sens oppose)")
+
+// ============================================================
+// 3. BORDURES (bitmask) -> iCadre
+//    iBordTous / iBordHaut / iBordBas / iBordGauche / iBordDroit / iBordAucun
+// ============================================================
+noir est un entier = RVB(0, 0, 0)
+
+pBTous est une chaîne = base + "_bd_tous.pdf"
+iDestination(iPDFGénérique, pBTous)
+iCadre(10, 10, 90, 90, 1, 0, noir, iContinu, iPleine, iBordTous)
+iFinImprime()
+dbgVérifieVrai(fTaille(pBTous) > 0, "iBordTous : PDF non vide")
+cBTous est une chaîne = fChargeTexte(pBTous)
+
+pBAucun est une chaîne = base + "_bd_aucun.pdf"
+iDestination(iPDFGénérique, pBAucun)
+iCadre(10, 10, 90, 90, 1, 0, noir, iContinu, iPleine, iBordAucun)
+iFinImprime()
+cBAucun est une chaîne = fChargeTexte(pBAucun)
+dbgVérifieVrai(cBAucun <> cBTous, "iBordAucun != iBordTous (aucun trait de bord)")
+
+pBHaut est une chaîne = base + "_bd_haut.pdf"
+iDestination(iPDFGénérique, pBHaut)
+iCadre(10, 10, 90, 90, 1, 0, noir, iContinu, iPleine, iBordHaut)
+iFinImprime()
+cBHaut est une chaîne = fChargeTexte(pBHaut)
+dbgVérifieVrai(cBHaut <> cBTous, "iBordHaut != iBordTous (1 cote seulement)")
+dbgVérifieVrai(cBHaut <> cBAucun, "iBordHaut != iBordAucun (1 cote trace)")
+
+pBBas est une chaîne = base + "_bd_bas.pdf"
+iDestination(iPDFGénérique, pBBas)
+iCadre(10, 10, 90, 90, 1, 0, noir, iContinu, iPleine, iBordBas)
+iFinImprime()
+cBBas est une chaîne = fChargeTexte(pBBas)
+dbgVérifieVrai(cBBas <> cBHaut, "iBordBas != iBordHaut (cote oppose)")
+
+pBGauche est une chaîne = base + "_bd_gauche.pdf"
+iDestination(iPDFGénérique, pBGauche)
+iCadre(10, 10, 90, 90, 1, 0, noir, iContinu, iPleine, iBordGauche)
+iFinImprime()
+cBGauche est une chaîne = fChargeTexte(pBGauche)
+dbgVérifieVrai(cBGauche <> cBBas, "iBordGauche != iBordBas")
+
+pBDroit est une chaîne = base + "_bd_droit.pdf"
+iDestination(iPDFGénérique, pBDroit)
+iCadre(10, 10, 90, 90, 1, 0, noir, iContinu, iPleine, iBordDroit)
+iFinImprime()
+cBDroit est une chaîne = fChargeTexte(pBDroit)
+dbgVérifieVrai(cBDroit <> cBGauche, "iBordDroit != iBordGauche (cote oppose)")
+
+// ============================================================
+// 4. POLICES NOMMEES + FAMILLES -> iCréePolice / iPolice
+//    Familles canon : iSwiss / iRoman / iCourier
+//    Polices nommees : iPoliceCalibri / ComicSansMS / CourierNew / Georgia /
+//      Helvetica / Tahoma / TimesNewRoman / TrebuchetMS / Verdana
+// ============================================================
+texteRef est une chaîne = "AbcXyz 0123 reference police"
+
+// Helper inline : on fixe une police et on imprime le meme texte. On compare
+// le contenu PDF resultant entre familles/polices.
+pSwiss est une chaîne = base + "_p_swiss.pdf"
+iDestination(iPDFGénérique, pSwiss)
+iCréePolice(1, 12, iNormal, iSwiss)
+iPolice(1)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pSwiss) > 0, "iSwiss : PDF non vide")
+cSwiss est une chaîne = fChargeTexte(pSwiss)
+
+pRoman est une chaîne = base + "_p_roman.pdf"
+iDestination(iPDFGénérique, pRoman)
+iCréePolice(2, 12, iNormal, iRoman)
+iPolice(2)
+iImprime(texteRef)
+iFinImprime()
+cRoman est une chaîne = fChargeTexte(pRoman)
+dbgVérifieVrai(cRoman <> cSwiss, "iRoman (serif) != iSwiss (sans-serif) : famille branchee")
+
+pCourier est une chaîne = base + "_p_courier.pdf"
+iDestination(iPDFGénérique, pCourier)
+iCréePolice(3, 12, iNormal, iCourier)
+iPolice(3)
+iImprime(texteRef)
+iFinImprime()
+cCourier est une chaîne = fChargeTexte(pCourier)
+dbgVérifieVrai(cCourier <> cRoman, "iCourier (mono) != iRoman (serif)")
+dbgVérifieVrai(cCourier <> cSwiss, "iCourier != iSwiss")
+
+// Police par defaut systeme (iDéfaut) : famille distincte d'une famille nommee.
+pDefaut est une chaîne = base + "_p_defaut.pdf"
+iDestination(iPDFGénérique, pDefaut)
+iCréePolice(4, 12, iNormal, iDéfaut)
+iPolice(4)
+iImprime(texteRef)
+iFinImprime()
+cDefaut est une chaîne = fChargeTexte(pDefaut)
+dbgVérifieVrai(fTaille(pDefaut) > 0, "iDéfaut : PDF non vide")
+dbgVérifieVrai(cDefaut <> cSwiss, "iDéfaut (famille systeme) != iSwiss (branche)")
+
+// Polices nommees : chacune est acceptee et genere un PDF non vide (smoke).
+// Calibri vs Helvetica : differentiel explicite (deux mappings de fonte).
+pCalibri est une chaîne = base + "_p_calibri.pdf"
+iDestination(iPDFGénérique, pCalibri)
+iCréePolice(5, 12, iNormal, iPoliceCalibri)
+iPolice(5)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pCalibri) > 0, "iPoliceCalibri : PDF non vide")
+cCalibri est une chaîne = fChargeTexte(pCalibri)
+
+pHelv est une chaîne = base + "_p_helv.pdf"
+iDestination(iPDFGénérique, pHelv)
+iCréePolice(6, 12, iNormal, iPoliceHelvetica)
+iPolice(6)
+iImprime(texteRef)
+iFinImprime()
+cHelv est une chaîne = fChargeTexte(pHelv)
+dbgVérifieVrai(fTaille(pHelv) > 0, "iPoliceHelvetica : PDF non vide")
+
+pTimes est une chaîne = base + "_p_times.pdf"
+iDestination(iPDFGénérique, pTimes)
+iCréePolice(7, 12, iNormal, iPoliceTimesNewRoman)
+iPolice(7)
+iImprime(texteRef)
+iFinImprime()
+cTimes est une chaîne = fChargeTexte(pTimes)
+dbgVérifieVrai(fTaille(pTimes) > 0, "iPoliceTimesNewRoman : PDF non vide")
+// Times New Roman (serif) vs Calibri (sans-serif) : fontes distinctes.
+dbgVérifieVrai(cTimes <> cCalibri, "iPoliceTimesNewRoman != iPoliceCalibri (fonte distincte)")
+
+pCourierN est une chaîne = base + "_p_couriern.pdf"
+iDestination(iPDFGénérique, pCourierN)
+iCréePolice(8, 12, iNormal, iPoliceCourierNew)
+iPolice(8)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pCourierN) > 0, "iPoliceCourierNew : PDF non vide")
+dbgVérifieVrai(fChargeTexte(pCourierN) <> cCalibri, "iPoliceCourierNew (mono) != iPoliceCalibri")
+
+pGeorgia est une chaîne = base + "_p_georgia.pdf"
+iDestination(iPDFGénérique, pGeorgia)
+iCréePolice(9, 12, iNormal, iPoliceGeorgia)
+iPolice(9)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pGeorgia) > 0, "iPoliceGeorgia : PDF non vide")
+
+pTahoma est une chaîne = base + "_p_tahoma.pdf"
+iDestination(iPDFGénérique, pTahoma)
+iCréePolice(10, 12, iNormal, iPoliceTahoma)
+iPolice(10)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pTahoma) > 0, "iPoliceTahoma : PDF non vide")
+
+pTrebuchet est une chaîne = base + "_p_treb.pdf"
+iDestination(iPDFGénérique, pTrebuchet)
+iCréePolice(11, 12, iNormal, iPoliceTrebuchetMS)
+iPolice(11)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pTrebuchet) > 0, "iPoliceTrebuchetMS : PDF non vide")
+
+pVerdana est une chaîne = base + "_p_verdana.pdf"
+iDestination(iPDFGénérique, pVerdana)
+iCréePolice(12, 12, iNormal, iPoliceVerdana)
+iPolice(12)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pVerdana) > 0, "iPoliceVerdana : PDF non vide")
+
+pComic est une chaîne = base + "_p_comic.pdf"
+iDestination(iPDFGénérique, pComic)
+iCréePolice(13, 12, iNormal, iPoliceComicSansMS)
+iPolice(13)
+iImprime(texteRef)
+iFinImprime()
+dbgVérifieVrai(fTaille(pComic) > 0, "iPoliceComicSansMS : PDF non vide")
+
+// Style barre (iBarré) : applique sur la meme famille, modifie le rendu.
+pStyleNorm est une chaîne = base + "_p_stylenorm.pdf"
+iDestination(iPDFGénérique, pStyleNorm)
+iCréePolice(14, 12, iNormal, iSwiss)
+iPolice(14)
+iImprime(texteRef)
+iFinImprime()
+cStyleNorm est une chaîne = fChargeTexte(pStyleNorm)
+
+pStyleBarre est une chaîne = base + "_p_stylebarre.pdf"
+iDestination(iPDFGénérique, pStyleBarre)
+iCréePolice(15, 12, iBarré, iSwiss)
+iPolice(15)
+iImprime(texteRef)
+iFinImprime()
+cStyleBarre est une chaîne = fChargeTexte(pStyleBarre)
+dbgVérifieVrai(cStyleBarre <> cStyleNorm, "iBarré (barre) != iNormal sur meme famille (branche)")
+
+// ============================================================
+// 5. AFFICHAGE / ECHELLE IMAGE -> iImprimeImage
+//    iAffichageNormal / iAffichageHomothétique / iAffichageHomoCentré
+// ============================================================
+imgPath est une chaîne = base + "_src.png"
+img est une Image = dCréeImage(40, 80, RVB(0, 0, 255))
+dSauveImagePNG(img, imgPath)
+dbgVérifieVrai(fFichierExiste(imgPath), "image source PNG creee")
+
+// Zone d'affichage carree (60x60) pour une image non carree (40x80) :
+// les 3 modes d'echelle donnent des placements differents.
+zx est un entier = 70
+zy est un entier = 70
+
+pAffN est une chaîne = base + "_aff_normal.pdf"
+iDestination(iPDFGénérique, pAffN)
+iImprimeImage(imgPath, 10, 10, zx, zy, iAffichageNormal)
+iFinImprime()
+dbgVérifieVrai(fTaille(pAffN) > 0, "iAffichageNormal : PDF non vide")
+cAffN est une chaîne = fChargeTexte(pAffN)
+
+pAffH est une chaîne = base + "_aff_homo.pdf"
+iDestination(iPDFGénérique, pAffH)
+iImprimeImage(imgPath, 10, 10, zx, zy, iAffichageHomothétique)
+iFinImprime()
+cAffH est une chaîne = fChargeTexte(pAffH)
+dbgVérifieVrai(cAffH <> cAffN, "iAffichageHomothétique != iAffichageNormal (echelle branchee)")
+
+pAffC est une chaîne = base + "_aff_homoc.pdf"
+iDestination(iPDFGénérique, pAffC)
+iImprimeImage(imgPath, 10, 10, zx, zy, iAffichageHomoCentré)
+iFinImprime()
+cAffC est une chaîne = fChargeTexte(pAffC)
+dbgVérifieVrai(cAffC <> cAffN, "iAffichageHomoCentré != iAffichageNormal")
+dbgVérifieVrai(cAffC <> cAffH, "iAffichageHomoCentré != iAffichageHomothétique (centrage distinct)")
+
+// ============================================================
+// 6. ALIGNEMENT ZONE -> iImprimeZone (straggler iGauche)
+//    iGauche / iDroite (alignement horizontal combinable)
+// ============================================================
+pAlGauche est une chaîne = base + "_al_gauche.pdf"
+iDestination(iPDFGénérique, pAlGauche)
+iImprimeZone("Texte aligne dans la zone", 10, 10, 120, 40, iGauche)
+iFinImprime()
+dbgVérifieVrai(fTaille(pAlGauche) > 0, "iGauche : PDF non vide")
+cAlGauche est une chaîne = fChargeTexte(pAlGauche)
+
+pAlDroite est une chaîne = base + "_al_droite.pdf"
+iDestination(iPDFGénérique, pAlDroite)
+iImprimeZone("Texte aligne dans la zone", 10, 10, 120, 40, iDroite)
+iFinImprime()
+cAlDroite est une chaîne = fChargeTexte(pAlDroite)
+dbgVérifieVrai(cAlDroite <> cAlGauche, "iDroite != iGauche : alignement branche")
+
+// Nettoyage
+fSupprime(pCont)
+fSupprime(pTiret)
+fSupprime(pPoint)
+fSupprime(pMixte)
+fSupprime(pPleine)
+fSupprime(pHoriz)
+fSupprime(pVert)
+fSupprime(pCroix)
+fSupprime(pCroixD)
+fSupprime(pDiagD)
+fSupprime(pDiagM)
+fSupprime(pBTous)
+fSupprime(pBAucun)
+fSupprime(pBHaut)
+fSupprime(pBBas)
+fSupprime(pBGauche)
+fSupprime(pBDroit)
+fSupprime(pSwiss)
+fSupprime(pRoman)
+fSupprime(pCourier)
+fSupprime(pDefaut)
+fSupprime(pCalibri)
+fSupprime(pHelv)
+fSupprime(pTimes)
+fSupprime(pCourierN)
+fSupprime(pGeorgia)
+fSupprime(pTahoma)
+fSupprime(pTrebuchet)
+fSupprime(pVerdana)
+fSupprime(pComic)
+fSupprime(pStyleNorm)
+fSupprime(pStyleBarre)
+fSupprime(imgPath)
+fSupprime(pAffN)
+fSupprime(pAffH)
+fSupprime(pAffC)
+fSupprime(pAlGauche)
+fSupprime(pAlDroite)
+
+dbgBilanTest()

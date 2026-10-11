@@ -1,0 +1,81 @@
+// @sujet : fChargeTexte
+// @résumé : Chargement du contenu d'un fichier texte avec décodage selon l'encodage indiqué. Sans argument d'encodage, lit le fichier en UTF-8 (comportement inchangé). Avec un encodage explicite (encUTF8, encLatin1, encWindows1252, encUTF16LE, encUTF16BE), les octets du fichier sont décodés depuis l'encodage demandé avant de produire la chaîne résultante.
+
+
+// Cas A : comportement par défaut sans argument d'encodage — rétro-compatible UTF-8.
+PROCEDURE PUBLIQUE scenario_fct_utf8_defaut_retrocompatible()
+	chemin est une chaîne = "_tmp_fct_0778_A.txt"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "café")
+	sLu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(sLu, "café", "fChargeTexte sans encodage lit un fichier UTF-8 correctement")
+	fSupprime(chemin)
+FIN
+
+
+// Cas B : décodage encodage hérité Europe occidentale (encWindows1252) — café€ sur 5 octets.
+// Prépare le fichier avec les octets exacts via ChaîneVersBuffer + fSauveBuffer (APIs existantes),
+// puis vérifie que fChargeTexte avec encWindows1252 restitue la chaîne d'origine.
+PROCEDURE PUBLIQUE scenario_fct_windows1252_cafe_euro()
+	chemin est une chaîne = "_tmp_fct_0778_B.txt"
+	fSupprime(chemin)
+	// Préparation : octets Windows-1252 de "café€" = 5 octets (c a f é=0xE9 €=0x80)
+	buf est un buffer = ChaîneVersBuffer("café€", encWindows1252)
+	fSauveBuffer(chemin, buf)
+	dbgVérifieEgalité(Taille(buf), 5, "café€ en encodage hérité Europe occidentale = 5 octets")
+	// Lecture avec décodage
+	sLu est une chaîne = fChargeTexte(chemin, encWindows1252)
+	dbgVérifieEgalité(sLu, "café€", "fChargeTexte encWindows1252 restitue café€")
+	fSupprime(chemin)
+FIN
+
+
+// Cas C : décodage Latin-1 — àéî sur 3 octets (1 par caractère en Latin-1).
+PROCEDURE PUBLIQUE scenario_fct_latin1_trois_caracteres()
+	chemin est une chaîne = "_tmp_fct_0778_C.txt"
+	fSupprime(chemin)
+	// Préparation : octets Latin-1 de "àéî"
+	buf est un buffer = ChaîneVersBuffer("àéî", encLatin1)
+	fSauveBuffer(chemin, buf)
+	dbgVérifieEgalité(Taille(buf), 3, "àéî en Latin-1 = 3 octets")
+	// Lecture avec décodage
+	sLu est une chaîne = fChargeTexte(chemin, encLatin1)
+	dbgVérifieEgalité(sLu, "àéî", "fChargeTexte encLatin1 restitue àéî")
+	fSupprime(chemin)
+FIN
+
+
+// Cas D : décodage UTF-16 petit-boutiste (encUTF16LE) — Aé sur 4 octets (41 00 E9 00).
+PROCEDURE PUBLIQUE scenario_fct_utf16le_deux_caracteres()
+	chemin est une chaîne = "_tmp_fct_0778_D.txt"
+	fSupprime(chemin)
+	// Préparation : octets UTF-16LE de "Aé" = 4 octets
+	buf est un buffer = ChaîneVersBuffer("Aé", encUTF16LE)
+	fSauveBuffer(chemin, buf)
+	dbgVérifieEgalité(Taille(buf), 4, "Aé en UTF-16LE = 4 octets (2 par codepoint BMP)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "octet 1 : poids faible de A (65)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 0, "octet 2 : poids fort de A (0)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 233, "octet 3 : poids faible de é (233)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 4), 0, "octet 4 : poids fort de é (0)")
+	// Lecture avec décodage
+	sLu est une chaîne = fChargeTexte(chemin, encUTF16LE)
+	dbgVérifieEgalité(sLu, "Aé", "fChargeTexte encUTF16LE restitue Aé")
+	fSupprime(chemin)
+FIN
+
+
+// Edge case : incohérence d'encodage — fichier avec des octets invalides en UTF-8
+// relu via le comportement par défaut (UTF-8). L'opération ne doit pas déclencher
+// ErreurDétectée (les octets sont réinterprétés sans plantage).
+// Utilise l'API existante (1 arg) : garde anti-régression sur la robustesse du lecteur.
+PROCEDURE PRIVÉE scenario_fct_edge_octets_invalides_utf8()
+	chemin est une chaîne = "_tmp_fct_0778_Z.txt"
+	fSupprime(chemin)
+	// Octet 0xE9 = é en Latin-1/Windows-1252, invalide seul en UTF-8
+	buf est un buffer = ChaîneVersBuffer("é", encLatin1)
+	fSauveBuffer(chemin, buf)
+	sLu est une chaîne = fChargeTexte(chemin)
+	bErreur est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErreur, "lecture d'un fichier avec octets invalides UTF-8 ne déclenche pas ErreurDétectée")
+	fSupprime(chemin)
+FIN

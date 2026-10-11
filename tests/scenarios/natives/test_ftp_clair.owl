@@ -1,0 +1,415 @@
+// @sujet : FTPConnecte
+// @résumé : Connexion à un serveur FTP en clair via un objet ftpClient typé, et manipulation de fichiers/répertoires distants : envoi, récupération, listage, suppression, renommage, gestion de répertoires — en forme fonction (l'objet en premier paramètre) ou en forme méthode (cnx.Xxx()).
+
+// Chaque native FTP est mockée individuellement : le serveur distant est une
+// dépendance externe, le mock l'isole comme pour un appel HTTP (cf.
+// tests/scenarios/types/test_httpRequete.owl). Le mock est créé, activé puis
+// désactivé localement dans chaque scénario. Les scénarios qui manipulent
+// des opérations sur une connexion déjà établie construisent l'objet
+// ftpClient directement (sans repasser par FTPConnecte, lui-même testé à
+// part) : seule sa présence en premier paramètre importe pour ces natives-là.
+
+// Callback appelé par FTPListeFichier pour chaque entrée trouvée. Compte le
+// nombre d'entrées dont le nom se termine par ".csv" et s'arrête dès qu'une
+// entrée vide est rencontrée (RENVOYER Faux). Déclaré en PRIVÉE et appelé
+// directement dans les scénarios : la logique du callback est du code OWL
+// ordinaire, elle s'exerce sans passer par la native mockée.
+PROCEDURE PRIVÉE compteCSVCallback(sNom est une chaîne, nTaille est un entier, sAttribut est une chaîne, sDate est une chaîne, sHeure est une chaîne, nParam est un entier) : booléen
+	SI sNom = "" ALORS
+		RENVOYER Faux
+	FIN
+	SI Droite(sNom, 4) = ".csv" ALORS
+		nParam++
+	FIN
+	RENVOYER Vrai
+FIN
+
+// Callback de progression appelé par FTPEnvoie/FTPRécupère. Signale l'arrêt
+// du transfert (RENVOYER Faux) dès que la taille transférée atteint la
+// taille totale annoncée.
+PROCEDURE PRIVÉE progressionTransfertCallback(nTailleTotale est un entier, nTailleTransferee est un entier) : booléen
+	SI nTailleTransferee >= nTailleTotale ALORS
+		RENVOYER Faux
+	FIN
+	RENVOYER Vrai
+FIN
+
+// Connexion réussie : FTPConnecte retourne un objet ftpClient typé, pas
+// un identifiant brut. Ses propriétés se relisent après coup, comme une
+// httpRéponse retournée par HTTPEnvoie.
+PROCEDURE PUBLIQUE scenario_connexion_etablit_objet_type()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Serveur     = "ftp.exemple.test"
+	cnxAttendue..Utilisateur = "alice"
+	cnxAttendue..Connectée   = Vrai
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftp.exemple.test", "alice", "secret42")
+
+	dbgVérifieVrai(cnx..Connectée, "FTPConnecte retourne une connexion active")
+	dbgVérifieEgalité(cnx..Serveur, "ftp.exemple.test", "le serveur cible est relu sur l'objet retourné")
+
+	mockConnecte.Desactive()
+FIN
+
+// Connexion en échec : la cible est réellement contactée (pas de mock ici,
+// comme pour l'échec d'ouverture d'une sqlConnexion) sur un port fermé.
+// ErreurDétectée se lit en premier, avant tout autre appel — le drapeau est
+// remis à zéro par l'appel suivant.
+PROCEDURE PUBLIQUE scenario_connexion_echec_detail_recuperable()
+	cnx est une ftpClient = FTPConnecte("127.0.0.1", "", "", 1)
+
+	dbgVérifieVrai(ErreurDétectée, "l'échec de connexion est signalé")
+
+	sDétail est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieVrai(Contient(sDétail, "FTPConnecte"), "le détail nomme l'opération")
+	dbgVérifieVrai(Contient(sDétail, "127.0.0.1"), "le détail nomme la cible contactée")
+FIN
+
+// Connexion explicitement active : la constante d'énumération se passe en
+// argument de la native, sans jamais être manipulée comme une valeur brute.
+PROCEDURE PUBLIQUE scenario_connexion_mode_actif()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Mode = ftpModeActif
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftp.exemple.test", "", "", 21, ftpModeActif)
+
+	dbgVérifieEgalité(cnx..Mode, ftpModeActif, "connexion en mode actif relue sur l'objet")
+
+	mockConnecte.Desactive()
+FIN
+
+// Connexion passive étendue : franchit certains pare-feux en IPv6, se pose
+// avec la même signature que le mode passif simple.
+PROCEDURE PUBLIQUE scenario_connexion_mode_passif_etendu()
+	cnxAttendue est une ftpClient
+	cnxAttendue..Mode = ftpModePassifEtendu
+
+	mockConnecte est un MockNative = MockCrée(FTPConnecte)
+	mockConnecte.Quand().Retourne(cnxAttendue).Active()
+
+	cnx est une ftpClient = FTPConnecte("ftp.exemple.test", "", "", 21, ftpModePassifEtendu)
+
+	dbgVérifieEgalité(cnx..Mode, ftpModePassifEtendu, "connexion en mode passif étendu relue sur l'objet")
+
+	mockConnecte.Desactive()
+FIN
+
+// Déconnexion propre, forme fonction : FTPDéconnecte prend la connexion en
+// premier paramètre à la place d'un identifiant entier.
+PROCEDURE PUBLIQUE scenario_deconnexion_confirme_fermeture()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockDeconnecte est un MockNative = MockCrée(FTPDéconnecte)
+	mockDeconnecte.Quand().Retourne(Vrai).Active()
+
+	bFerme est un booléen = FTPDéconnecte(cnx)
+
+	dbgVérifieVrai(bFerme, "FTPDéconnecte confirme la fermeture")
+
+	mockDeconnecte.Desactive()
+FIN
+
+// Déconnexion propre, forme méthode : cnx.Déconnecte() fait exactement ce
+// que FTPDéconnecte(cnx) ferait.
+PROCEDURE PUBLIQUE scenario_deconnexion_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockDeconnecte est un MockNative = MockCrée(FTPDéconnecte)
+	mockDeconnecte.Quand().Retourne(Vrai).Active()
+
+	bFerme est un booléen = cnx.Déconnecte()
+
+	dbgVérifieVrai(bFerme, "la forme méthode ferme la connexion")
+
+	mockDeconnecte.Desactive()
+FIN
+
+// Envoi d'un fichier local vers le serveur en mode binaire, forme fonction :
+// le contenu transféré doit rester strictement identique à l'original.
+PROCEDURE PUBLIQUE scenario_envoi_fichier_binaire_reussi()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockEnvoie est un MockNative = MockCrée(FTPEnvoie)
+	mockEnvoie.Quand().Retourne(Vrai).Active()
+
+	bEnvoye est un booléen = FTPEnvoie(cnx, "C:/tmp/rapport.zip", "/depot/rapport.zip", progressionTransfertCallback, ftpModeBinaire)
+
+	dbgVérifieVrai(bEnvoye, "envoi binaire réussi")
+
+	mockEnvoie.Desactive()
+FIN
+
+// Même envoi, forme méthode : cnx.Envoie(...) sans repasser la connexion en
+// paramètre.
+PROCEDURE PUBLIQUE scenario_envoi_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockEnvoie est un MockNative = MockCrée(FTPEnvoie)
+	mockEnvoie.Quand().Retourne(Vrai).Active()
+
+	bEnvoye est un booléen = cnx.Envoie("C:/tmp/rapport.zip", "/depot/rapport.zip", progressionTransfertCallback, ftpModeBinaire)
+
+	dbgVérifieVrai(bEnvoye, "la forme méthode envoie le fichier")
+
+	mockEnvoie.Desactive()
+FIN
+
+// Récupération d'un répertoire complet depuis le serveur vers le poste
+// local.
+PROCEDURE PUBLIQUE scenario_recuperation_dossier_complet()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRecupere est un MockNative = MockCrée(FTPRécupère)
+	mockRecupere.Quand().Retourne(Vrai).Active()
+
+	bRecupere est un booléen = FTPRécupère(cnx, "/depot/archives", "C:/tmp/archives")
+
+	dbgVérifieVrai(bRecupere, "récupération du répertoire réussie")
+
+	mockRecupere.Desactive()
+FIN
+
+// Récupération rapide d'un seul fichier existant, en mode ASCII pour un
+// transfert texte entre systèmes différents.
+PROCEDURE PUBLIQUE scenario_recuperation_fichier_unique_ascii()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRecupereFichier est un MockNative = MockCrée(FTPRécupèreFichier)
+	mockRecupereFichier.Quand().Retourne(Vrai).Active()
+
+	bRecupere est un booléen = FTPRécupèreFichier(cnx, "/depot/notes.txt", "C:/tmp/notes.txt", progressionTransfertCallback, ftpModeASCII)
+
+	dbgVérifieVrai(bRecupere, "récupération d'un fichier unique en ASCII réussie")
+
+	mockRecupereFichier.Desactive()
+FIN
+
+// Listage d'un répertoire distant, forme fonction : le résultat est le
+// nombre d'entrées trouvées.
+PROCEDURE PUBLIQUE scenario_liste_fichiers_compte_resultats()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockListe est un MockNative = MockCrée(FTPListeFichier)
+	mockListe.Quand().Retourne(3).Active()
+
+	nCompte est un entier = FTPListeFichier(cnx, "/depot/*.csv", compteCSVCallback)
+
+	dbgVérifieEgalité(nCompte, 3, "FTPListeFichier retourne le nombre d'entrées listées")
+
+	mockListe.Desactive()
+FIN
+
+// Même listage, forme méthode.
+PROCEDURE PUBLIQUE scenario_liste_fichiers_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockListe est un MockNative = MockCrée(FTPListeFichier)
+	mockListe.Quand().Retourne(3).Active()
+
+	nCompte est un entier = cnx.ListeFichier("/depot/*.csv", compteCSVCallback)
+
+	dbgVérifieEgalité(nCompte, 3, "la forme méthode retourne le même compte")
+
+	mockListe.Desactive()
+FIN
+
+// La logique du callback de listage s'exerce indépendamment de la native :
+// il compte les fichiers .csv et s'arrête sur une entrée vide.
+PROCEDURE PUBLIQUE scenario_callback_listage_compte_csv_et_sarrete()
+	nParam est un entier = 0
+
+	dbgVérifieVrai(compteCSVCallback("rapport.csv", 100, "", "", "", nParam), "poursuite du parcours sur une entrée .csv")
+	dbgVérifieVrai(compteCSVCallback("notes.txt", 50, "", "", "", nParam), "poursuite du parcours sur une entrée non .csv")
+	dbgVérifieFaux(compteCSVCallback("", 0, "", "", "", nParam), "arrêt du parcours sur une entrée vide")
+FIN
+
+// Test d'existence d'un fichier distant, forme fonction.
+PROCEDURE PUBLIQUE scenario_fichier_existe_verifie_presence()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockExiste est un MockNative = MockCrée(FTPFichierExiste)
+	mockExiste.Quand().Retourne(Vrai).Active()
+
+	bExiste est un booléen = FTPFichierExiste(cnx, "/depot/rapport.zip")
+
+	dbgVérifieVrai(bExiste, "le fichier distant est signalé présent")
+
+	mockExiste.Desactive()
+FIN
+
+// Même vérification, forme méthode.
+PROCEDURE PUBLIQUE scenario_fichier_existe_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockExiste est un MockNative = MockCrée(FTPFichierExiste)
+	mockExiste.Quand().Retourne(Vrai).Active()
+
+	bExiste est un booléen = cnx.FichierExiste("/depot/rapport.zip")
+
+	dbgVérifieVrai(bExiste, "la forme méthode signale la présence")
+
+	mockExiste.Desactive()
+FIN
+
+// Suppression d'un fichier distant.
+PROCEDURE PUBLIQUE scenario_suppression_fichier_confirme()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockSupprime est un MockNative = MockCrée(FTPSupprimeFichier)
+	mockSupprime.Quand().Retourne(Vrai).Active()
+
+	bSupprime est un booléen = FTPSupprimeFichier(cnx, "/depot/ancien.zip")
+
+	dbgVérifieVrai(bSupprime, "suppression du fichier distant confirmée")
+
+	mockSupprime.Desactive()
+FIN
+
+// Renommage/déplacement d'un fichier distant.
+PROCEDURE PUBLIQUE scenario_renommage_fichier_deplace()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRenomme est un MockNative = MockCrée(FTPRenommeFichier)
+	mockRenomme.Quand().Retourne(Vrai).Active()
+
+	bRenomme est un booléen = FTPRenommeFichier(cnx, "/depot/brouillon.txt", "/depot/final.txt")
+
+	dbgVérifieVrai(bRenomme, "renommage du fichier distant confirmé")
+
+	mockRenomme.Desactive()
+FIN
+
+// Création d'un répertoire distant.
+PROCEDURE PUBLIQUE scenario_creation_repertoire_reussie()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRepCree est un MockNative = MockCrée(FTPRepCrée)
+	mockRepCree.Quand().Retourne(Vrai).Active()
+
+	bCree est un booléen = FTPRepCrée(cnx, "/depot/archives_2026")
+
+	dbgVérifieVrai(bCree, "création du répertoire distant confirmée")
+
+	mockRepCree.Desactive()
+FIN
+
+// Suppression d'un répertoire distant et de son contenu.
+PROCEDURE PUBLIQUE scenario_suppression_repertoire_reussie()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRepSupprime est un MockNative = MockCrée(FTPRepSupprime)
+	mockRepSupprime.Quand().Retourne(Vrai).Active()
+
+	bSupprime est un booléen = FTPRepSupprime(cnx, "/depot/archives_2019")
+
+	dbgVérifieVrai(bSupprime, "suppression du répertoire distant confirmée")
+
+	mockRepSupprime.Desactive()
+FIN
+
+// Lecture du répertoire courant sur le serveur distant, forme fonction.
+PROCEDURE PUBLIQUE scenario_repertoire_courant_lecture()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRepEnCours est un MockNative = MockCrée(FTPRepEnCours)
+	mockRepEnCours.Quand().Retourne("/depot").Active()
+
+	sRep est une chaîne = FTPRepEnCours(cnx)
+
+	dbgVérifieEgalité(sRep, "/depot", "lecture du répertoire courant distant")
+
+	mockRepEnCours.Desactive()
+FIN
+
+// Modification du répertoire courant sur le serveur distant, forme
+// fonction.
+PROCEDURE PUBLIQUE scenario_repertoire_courant_modification()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRepEnCours est un MockNative = MockCrée(FTPRepEnCours)
+	mockRepEnCours.Quand().Retourne(Vrai).Active()
+
+	bChange est un booléen = FTPRepEnCours(cnx, "/depot/archives")
+
+	dbgVérifieVrai(bChange, "modification du répertoire courant distant confirmée")
+
+	mockRepEnCours.Desactive()
+FIN
+
+// Même lecture, forme méthode.
+PROCEDURE PUBLIQUE scenario_repertoire_courant_forme_methode()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRepEnCours est un MockNative = MockCrée(FTPRepEnCours)
+	mockRepEnCours.Quand().Retourne("/depot").Active()
+
+	sRep est une chaîne = cnx.RepEnCours()
+
+	dbgVérifieEgalité(sRep, "/depot", "la forme méthode relit le répertoire courant")
+
+	mockRepEnCours.Desactive()
+FIN
+
+// Cas limite : un listage sans aucune correspondance retourne 0, distinct
+// d'une erreur.
+PROCEDURE PRIVÉE scenario_edge_liste_fichiers_aucun_resultat()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockListe est un MockNative = MockCrée(FTPListeFichier)
+	mockListe.Quand().Retourne(0).Active()
+
+	nCompte est un entier = FTPListeFichier(cnx, "/depot/*.iso", compteCSVCallback)
+
+	dbgVérifieEgalité(nCompte, 0, "aucune correspondance retourne 0")
+
+	mockListe.Desactive()
+FIN
+
+// Cas limite : répertoire courant à la racine du serveur.
+PROCEDURE PRIVÉE scenario_edge_repertoire_courant_racine()
+	cnx est une ftpClient
+	cnx..Serveur = "ftp.exemple.test"
+
+	mockRepEnCours est un MockNative = MockCrée(FTPRepEnCours)
+	mockRepEnCours.Quand().Retourne("/").Active()
+
+	sRep est une chaîne = FTPRepEnCours(cnx)
+
+	dbgVérifieEgalité(sRep, "/", "répertoire courant à la racine")
+
+	mockRepEnCours.Desactive()
+FIN
+
+// Cas limite : le callback de progression ne coupe pas tant que le
+// transfert n'est pas achevé, y compris à taille nulle (rien à transférer,
+// déjà "achevé").
+PROCEDURE PRIVÉE scenario_edge_callback_progression_taille_nulle()
+	dbgVérifieFaux(progressionTransfertCallback(0, 0), "transfert de taille nulle est immédiatement considéré achevé")
+	dbgVérifieVrai(progressionTransfertCallback(1000, 250), "transfert partiel se poursuit")
+FIN
+
+dbgBilanTest()

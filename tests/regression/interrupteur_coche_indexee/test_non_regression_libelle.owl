@@ -1,0 +1,39 @@
+// Non-régression : les propriétés Libellé / SousLibellé par option de
+// l'Interrupteur ( / ) restent lisibles ET écrivables après
+// l'introduction de la coche indexée. L'occurrence du champ reste correcte
+// après manipulation des coches (via la propriété de champ ..Valeur,
+// bitmask, déjà livrée).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Interrupteur)
+
+// --- Lecture, indice littéral et variable ---
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Lecture",
+"Libellé lu, indice littéral")
+dbgVérifieEgalité(INT_Perms[1]..SousLibellé, "Voir",
+"SousLibellé lu, indice littéral")
+
+i est un entier = 3
+dbgVérifieEgalité(INT_Perms[i]..Libellé, "Suppression",
+"Libellé lu, indice variable")
+dbgVérifieEgalité(INT_Perms[i]..SousLibellé, "Effacer",
+"SousLibellé lu, indice variable")
+
+// --- Écriture, indice littéral et variable ---
+INT_Perms[2]..Libellé = "Édition"
+dbgVérifieEgalité(INT_Perms[2]..Libellé, "Édition",
+"Libellé écrit puis relu, indice littéral")
+
+INT_Perms[i]..SousLibellé = "Nettoyer"
+dbgVérifieEgalité(INT_Perms[i]..SousLibellé, "Nettoyer",
+"SousLibellé écrit puis relu, indice variable")
+
+// --- Occurrence inchangée après manipulation des coches (champ, bitmask) ---
+INT_Perms..Valeur = 5
+dbgVérifieEgalité(INT_Perms..Occurrence, 3,
+"l'Interrupteur garde ses 3 options après manipulation des coches")
+
+Ferme(FEN_Interrupteur)
+
+dbgBilanTest()

@@ -1,0 +1,109 @@
+// @sujet : Age
+// @résumé : Calcule l'âge (durée écoulée) depuis une date de naissance jusqu'à une date de calcul. Retourne une chaîne au format AAAAMMJJ encodant les années, mois et jours écoulés (ex: "00450203" = 45 ans, 2 mois, 3 jours). Chaîne vide si la date n'est pas valide.
+
+
+// Cas canonique : calcul de l'âge depuis une naissance passée jusqu'à aujourd'hui.
+// La native calcule la durée écoulée et encode le résultat au format AAAAMMJJ.
+PROCEDURE scenario_naissance_passee_aujourd_hui()
+	naissance est une date = ChaîneVersDate("19800512")
+	aujourdhui est une date = DateDuJour()
+	ageCalcule est une chaîne = Age(naissance, aujourdhui)
+	// Vérifie que l'âge est encodé au format AAAAMMJJ (8 chiffres).
+	dbgVérifieEgalité(Taille(ageCalcule), 8, "format AAAAMMJJ = 8 caractères")
+	// Vérifie que la partie année est cohérente (>= 40 ans si on est après 2020).
+	anneesStr est une chaîne = Gauche(ageCalcule, 4)
+	annees est un entier = ChaîneVersEntier(anneesStr)
+	dbgVérifieVrai(annees >= 40, "années écoulées >= 40 pour naissance 1980")
+FIN
+
+
+// Calcul de l'âge à une date de calcul explicite (pas aujourd'hui).
+// Permet de vérifier l'âge qu'aurait une personne à une date donnée du passé ou du futur.
+PROCEDURE scenario_calcul_date_explicite()
+	naissance est une date = ChaîneVersDate("19800512")
+	calcul est une date = ChaîneVersDate("20260512")
+	ageCalcule est une chaîne = Age(naissance, calcul)
+	// Le 12 mai 2026, une personne née le 12 mai 1980 a exactement 46 ans, 0 mois, 0 jours.
+	dbgVérifieEgalité(ageCalcule, "00460000", "46 ans exactement le jour de l'anniversaire")
+FIN
+
+
+// Même jour : calcul à la date de naissance (anniversaire zéro).
+PROCEDURE scenario_meme_jour_zero()
+	naissance est une date = ChaîneVersDate("20260512")
+	ageCalcule est une chaîne = Age(naissance, naissance)
+	dbgVérifieEgalité(ageCalcule, "00000000", "âge nul si naissance = calcul")
+FIN
+
+
+// Cast implicite : entrée chaîne AAAAMMJJ acceptée directement sans conversion intermédiaire.
+PROCEDURE scenario_cast_implicite_chaine()
+	ageCalcule est une chaîne = Age("19800512", "20260512")
+	dbgVérifieEgalité(ageCalcule, "00460000", "chaînes AAAAMMJJ acceptées directement")
+FIN
+
+
+// Cas limite : date invalide en entrée retourne chaîne vide.
+// Note : le retour vide est le seul marqueur d'échec pour cette native.
+PROCEDURE scenario_date_invalide_vide()
+	ageCalcule est une chaîne = Age("", "20260512")
+	dbgVérifieEgalité(ageCalcule, "", "date invalide retourne chaîne vide")
+FIN
+
+
+// Cas limite : calcul avant naissance (date future comme naissance).
+// L'âge n'est pas calculable, la native renvoie une chaîne vide.
+PROCEDURE scenario_naissance_future_vide()
+	naissance est une date = ChaîneVersDate("20300512")
+	calcul est une date = ChaîneVersDate("20260512")
+	ageCalcule est une chaîne = Age(naissance, calcul)
+	dbgVérifieEgalité(ageCalcule, "", "naissance future retourne chaîne vide")
+FIN
+
+
+// Calcul incluant années, mois et jours non nuls.
+// Vérifie que les 3 composantes (AAAA, MM, JJ) sont correctement encodées.
+PROCEDURE scenario_annees_mois_jours_non_nuls()
+	naissance est une date = ChaîneVersDate("19800512")
+	calcul est une date = ChaîneVersDate("20261118")
+	ageCalcule est une chaîne = Age(naissance, calcul)
+	// Du 12 mai 1980 au 18 novembre 2026 : 46 ans, 6 mois, 6 jours.
+	dbgVérifieEgalité(ageCalcule, "00460606", "46 ans 6 mois 6 jours encodés correctement")
+FIN
+
+
+// Entrée invalide pour la date de naissance : retourne chaîne vide et
+// signale via ErreurDétectée. Permet de distinguer un échec de parse
+// d'un calcul légitime retournant une chaîne vide.
+PROCEDURE PRIVÉE scenario_birth_invalide_signale_erreur()
+	ErreurRAZ()
+	ageCalcule est une chaîne = Age("not a date", "20260512")
+	// Vérifier ErreurDétectée d'abord — l'ordre user idiomatique
+	// est `Si ErreurDétectée Alors ...` avant toute autre instruction
+	// (la sentinelle d'erreur fraîche ne survit qu'à
+	// UN OP_CALL intercalé).
+	dbgVérifieVrai(ErreurDétectée, "Age sur entrée invalide doit poser ErreurDétectée")
+	dbgVérifieEgalité(ageCalcule, "", "entrée invalide retourne chaîne vide")
+FIN
+
+
+// Entrée invalide pour la date de référence (signature 2 args) :
+// retourne chaîne vide et signale l'erreur.
+PROCEDURE PRIVÉE scenario_reference_invalide_signale_erreur()
+	ErreurRAZ()
+	ageCalcule est une chaîne = Age("19900101", "not a date")
+	dbgVérifieVrai(ErreurDétectée, "Age avec ref invalide doit poser ErreurDétectée")
+	dbgVérifieEgalité(ageCalcule, "", "ref invalide retourne chaîne vide")
+FIN
+
+
+// Naissance dans le futur (birth > référence) : retourne chaîne vide
+// et signale l'erreur via ErreurDétectée. Cohérence avec le principe
+// général OWL : toute valeur vide sur erreur est accompagnée d'un
+// marqueur détectable.
+PROCEDURE PRIVÉE scenario_naissance_future_signale_erreur()
+	ErreurRAZ()
+	ageCalcule est une chaîne = Age("20990101", "20260512")
+	dbgVérifieVrai(ErreurDétectée, "Age naissance future doit poser ErreurDétectée")
+	dbgVérifieEgalité(ageCalcule, "", "naissance future retourne chaîne vide")
+FIN

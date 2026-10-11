@@ -1,0 +1,31 @@
+//  — un champ Heure SANS MasqueAffichage doit suivre le format posé
+// au niveau du manifeste Projet (FormatHeure = "HH:MI:SS" ici), et pas le
+// défaut tronqué HH:MI. Cas discriminant : la valeur owlHeure round-trip en
+// "HHMMSSCC" (contrat ). Sans pilotage projet, un champ Heure sans
+// masque tronque aux minutes (14300000). Avec FormatHeure = "HH:MI:SS" sur le
+// projet, la relecture préserve les secondes (14304500).
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatHeure n'existe pas au catalogue (champ inconnu). Une fois le champ
+// ajouté sans le câblage runtime, ce test rougirait quand même sur
+// l'assertion de relecture (14300000 tronqué au lieu de 14304500 attendu) —
+// prouvant que le simple ajout du champ au catalogue ne suffit pas.
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatHeurePilote..FormatHeure, "HH:MI:SS", "Projet..FormatHeure : lisible en cascade, valeur posée")
+
+OuvreSoeur(FEN_ProjetFormatHeurePilote)
+
+hPrécision est une heure = ChaîneVersHeure("143045")
+SAI_Heure..Valeur = hPrécision
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Champ Heure sans masque, projet FormatHeure posé : ..Valeur reste un owlHeure")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLue est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLue, "14304500", "FormatHeure projet HH:MI:SS : secondes préservées (14:30:45), pas le défaut tronqué HH:MI")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetFormatHeurePilote)
+dbgBilanTest()

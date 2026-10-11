@@ -1,0 +1,30 @@
+// Deux thèmes déclarent un style HOMONYME ; un seul est désigné. Le namespace
+// doit rendre la valeur du thème DÉSIGNÉ, quel que soit l'ordre de compilation
+// des fichiers — l'ambiance de réserve ne partage aucun emplacement avec lui.
+//
+// Le style que seule la réserve déclare n'est atteignable par aucun chemin :
+// `theme.` ne le connaît pas (il n'appartient pas au thème actif). Son nom nu
+// n'existe pas davantage — un style de thème est encapsulé, désigné ou non.
+
+Trace("=== homonymie entre thème désigné et thème de réserve ===")
+
+// --- 1. L'homonyme rend la valeur de l'ambiance ACTIVE ---
+dbgVérifieEgalité(theme.boutonCommun..CadreExtérieur..CouleurFond, RVB(10, 20, 30),
+"style homonyme : le namespace rend la valeur du thème désigné")
+dbgVérifieDifférence(theme.boutonCommun..CadreExtérieur..CouleurFond, RVB(200, 210, 220),
+"style homonyme : la valeur de l'ambiance de réserve n'atteint pas le namespace")
+
+// --- 2. Le style propre à l'ambiance active reste lisible ---
+dbgVérifieEgalité(theme.saisieActive..ZoneSaisie..CouleurFond, RVB(40, 50, 60),
+"style propre au thème désigné : relu par le namespace")
+
+// --- 3. Le style propre à la réserve n'est pas dans le thème actif ---
+ErreurRAZ()
+styRéserve est un styleSaisie = theme.saisieRéserve
+bErreur est un booléen = ErreurDétectée
+dbgVérifieVrai(bErreur,
+"un style que seule l'ambiance de réserve déclare n'est pas dans le thème actif")
+dbgVérifieDifférence(styRéserve..ZoneSaisie..CouleurFond, RVB(230, 240, 250),
+"la couleur de l'ambiance de réserve n'est appliquée nulle part")
+
+dbgBilanTest()

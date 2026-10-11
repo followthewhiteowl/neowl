@@ -1,0 +1,23 @@
+//  — FEN_A : ouvre FEN_B depuis sa FinInitialisation pour
+// reproduire le motif "Ouvre imbrique". La trace de pile est ecrite
+// dans la globale trace_pile partagee avec le test voisin.
+
+FEN_A est une Fenêtre
+	PROPRIETES
+		Titre       = "Fenetre A"
+		Disposition = dispLibre
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Avant Ouvre imbrique : top doit etre FEN_A. On lit via le proxy
+		// global FEN_A (qui delegue au top de la window_stack).
+		trace_pile = trace_pile + "A_avant(" + FEN_A..Titre + ");"
+		// Ouvre imbrique. Canon : Ouvre est modal et retourne la valeur
+		// passee a Ferme.
+		valeur_recue est une chaîne = Ouvre(FEN_B)
+		// Apres retour : top doit etre redevenu FEN_A, et la valeur de
+		// Ferme doit etre transmise (contrat modal canon).
+		trace_pile = trace_pile + "A_apres(" + FEN_A..Titre + ",val=" + valeur_recue + ");"
+		Ferme(FEN_A)
+	FIN
+FIN

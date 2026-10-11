@@ -1,0 +1,24 @@
+// Non-régression  : la validation d'un nom de colonne sur une
+// cellule de Table (TABLE_X[ligne].<nom> / TABLE_X.<nom>[ligne]) ne doit
+// jamais bloquer une colonne réellement déclarée de la BONNE Table, même
+// quand une Table voisine porte une colonne homonyme (COL_Nom existe dans
+// TABLE_Un ET TABLE_Deux, chacune doit résoudre la sienne).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_TableLegit)
+
+dbgVérifieEgalité(LireUnNom(), "Alice", "TABLE_Un[1].COL_Nom lit sa propre colonne")
+dbgVérifieEgalité(LireUnAge(), 30, "TABLE_Un[1].COL_Age lit sa propre colonne numerique")
+dbgVérifieEgalité(LireDeuxNom(), "Bob", "TABLE_Deux[1].COL_Nom (homonyme) lit sa propre colonne")
+dbgVérifieEgalité(LireDeuxVille(), "Nyon", "TABLE_Deux[1].COL_Ville lit sa propre colonne")
+
+dbgVérifieEgalité(LireUnNomColFirst(), "Alice", "TABLE_Un.COL_Nom[1] (colonne-first) lit sa propre colonne")
+dbgVérifieEgalité(LireDeuxVilleColFirst(), "Nyon", "TABLE_Deux.COL_Ville[1] (colonne-first) lit sa propre colonne")
+
+dbgVérifieEgalité(EcritEtRelitUn(), "Alicia", "TABLE_Un[1].COL_Nom ecriture puis relecture")
+dbgVérifieEgalité(EcritEtRelitDeux(), "Genève", "TABLE_Deux[1].COL_Ville ecriture puis relecture (Table differente)")
+
+Ferme(FEN_TableLegit)
+
+dbgBilanTest()

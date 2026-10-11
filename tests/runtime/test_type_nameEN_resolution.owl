@@ -1,0 +1,88 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des TYPES reifies (, Lot 1)
+//
+// Verrouille le contrat : declarer une variable avec la forme EN d'un type
+// instancie exactement comme la forme FR canon (meme TypeVar).
+//
+// Types couverts (forme EN deja resoluble via alias runtime, nameEN pose
+// en Lot 1) :
+//   langue              -> language
+//   chaineMultilingue   -> multilingualString
+//   sqlConnexion        -> sqlConnection         (build OWL_HAS_SQL)
+//   sqlRequete          -> sqlQuery              (build OWL_HAS_SQL)
+//   sqlReponse          -> sqlResponse           (build OWL_HAS_SQL)
+//
+// Codes TypeVar ancres sur sortie reelle de l'interpreteur (probe 2026-06-15).
+// =============================================================================
+
+// --- langue : la forme EN instancie le meme type que la forme FR ---
+langueFR est un langue
+langueEN est un language
+dbgVérifieEgalité(TypeVar(langueEN), TypeVar(langueFR),
+"language instancie le meme type que langue")
+
+// --- chaineMultilingue : forme EN == forme FR ---
+mlFR est un chaîneMultilingue
+mlEN est un multilingualString
+dbgVérifieEgalité(TypeVar(mlEN), TypeVar(mlFR),
+"multilingualString instancie le meme type que chaineMultilingue")
+
+// --- sqlConnexion : forme EN instanciable, type compose (TypeVar = 50) ---
+cnxEN est un sqlConnection
+dbgVérifieEgalité(TypeVar(cnxEN), 50,
+"sqlConnection instancie un type compose (code TypeVar 50)")
+
+// --- Le champ Provider du sqlConnection (forme EN) lit la valeur defaut canon ---
+dbgVérifieEgalité(cnxEN..Provider, sqlSqlite,
+"sqlConnection..Provider vaut la valeur defaut canon (sqlSqlite)")
+
+// --- sqlRequete : forme EN instanciable ---
+reqEN est un sqlQuery
+dbgVérifieEgalité(TypeVar(reqEN), 50,
+"sqlQuery instancie un type compose (code TypeVar 50)")
+
+// --- sqlReponse : forme EN instanciable, defaut Succes = Faux ---
+repEN est un sqlResponse
+dbgVérifieEgalité(repEN..Succès, Faux,
+"sqlResponse..Succes vaut Faux par defaut")
+
+// =============================================================================
+// Lot 2 : types supplementaires (forme EN sourcee doc canon de référence)
+//   Couleur       -> Color
+//   Icône         -> Icon
+//   xmlNoeud      -> xmlNode
+//   FichierDisque -> DiskFile
+//   httpRequête   -> httpRequest
+// =============================================================================
+
+// --- Couleur : la forme EN instancie le meme type que la forme FR ---
+couleurFR est un Couleur
+couleurEN est un Color
+dbgVérifieEgalité(TypeVar(couleurEN), TypeVar(couleurFR),
+"Color instancie le meme type que Couleur")
+
+// --- Couleur : la forme EN expose les memes sous-proprietes ---
+dbgVérifieEgalité(couleurEN..Rouge, couleurFR..Rouge,
+"Color..Rouge vaut la valeur defaut canon (idem Couleur)")
+
+// --- Icône : la forme EN instancie le meme type que la forme FR ---
+iconeFR est un Icône
+iconeEN est un Icon
+dbgVérifieEgalité(TypeVar(iconeEN), TypeVar(iconeFR),
+"Icon instancie le meme type que Icône")
+
+// --- FichierDisque : la forme EN instancie le meme type que la forme FR ---
+// (les types XML xmlNoeud/xmlAttribut sont des handles opaques non
+//  instanciables en variable nue ; leur resolution EN est couverte par le
+//  self-test registry, pas par une instanciation runtime.)
+fdFR est un FichierDisque
+fdEN est un DiskFile
+dbgVérifieEgalité(TypeVar(fdEN), TypeVar(fdFR),
+"DiskFile instancie le meme type que FichierDisque")
+
+// --- httpRequête : la forme EN instancie un type compose (TypeVar = 50) ---
+reqHttpEN est un httpRequest
+dbgVérifieEgalité(TypeVar(reqHttpEN), 50,
+"httpRequest instancie un type compose (code TypeVar 50)")
+
+dbgBilanTest()

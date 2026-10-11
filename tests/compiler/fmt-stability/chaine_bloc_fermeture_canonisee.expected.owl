@@ -1,0 +1,46 @@
+// La frontière entre la donnée et le code est exactement au `]` fermant. Ce
+// qui précède est le contenu de la chaîne, intouchable. Ce qui suit est du
+// code ordinaire : sa casse et ses accents sont restaurés vers la forme du
+// registre, comme sur n'importe quelle autre ligne.
+PROCEDURE T()
+	r est une chaîne = ChaîneConstruit([
+Bonjour %1
+], Majuscule("alice"))
+	Trace(r)
+FIN
+
+PROCEDURE U(b est un booléen)
+	s est une chaîne = ChaîneConstruit([
+Valeur %1
+], b ET Vrai)
+	Trace(s)
+FIN
+
+PROCEDURE V()
+	m est une chaîneMultilingue = {
+		langueFrançais: [
+Bonjour
+], langueAnglais: "Hello"}
+	Trace(m)
+FIN
+
+// Un second bloc peut s'ouvrir sur la ligne de fermeture du premier : le
+// contenu du bloc imbriqué reste une donnée, y compris ses mots du langage.
+PROCEDURE W()
+	t est une chaîne = ChaîneConstruit([
+%1 et %2
+], ChaîneConstruit([
+Bonjour %1
+], Majuscule("bob")), Minuscule("CAROL"))
+	Trace(t)
+FIN
+
+// Une ligne de contenu qui commence par `]` suivi de texte ne ferme rien : le
+// texte reste une donnée, ses mots du langage ne sont pas canonisés.
+PROCEDURE X()
+	contenu est une chaîne = [
+debut
+] fin si pour
+]
+	Trace(contenu)
+FIN

@@ -1,0 +1,35 @@
+//  — `Style..ZoneSaisie..Ombre` pose réellement un
+// QGraphicsDropShadowEffect sur le QLineEdit d'un Champ Saisie. On monte les
+// VRAIS widgets Qt (TestModeHeadless(Faux) + OuvreSoeur) et on lit le rayon de
+// flou de l'effet courant via __DebugOmbreFlou (mesure directe de l'effet Qt,
+// pattern ) : -1 = aucun effet, 0 = ombre dure présente, >0 = ombre
+// floue.
+//
+// __DebugOmbreFlou(SAI) lit l'effet du QLineEdit interne (le widget logique du
+// Champ Saisie). L'ombre ZoneSaisie cible donc bien le QLineEdit.
+//
+// ROUGE attendu avant  : `Ombre` inconnu sur styleZoneSaisie -> erreur
+// sémantique au compile (le fichier ne se lance pas).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleElementZoneSaisieOmbre)
+
+// --- 1. Ombre floue : Flou 12 posé sur le QLineEdit ---
+dbgVérifieEgalité(__DebugOmbreFlou(SAI_Floue), 12,
+"ZoneSaisie..Ombre floue : effet présent sur le QLineEdit, rayon de flou 12")
+
+// --- 2. Ombre dure (Flou 0 + décalage) : effet présent, rayon 0 ---
+dbgVérifieEgalité(__DebugOmbreFlou(SAI_Dure), 0,
+"ZoneSaisie..Ombre dure : effet présent avec rayon de flou 0 (offset 6/6)")
+
+// --- 3. Non-régression : l'ombre du CadreExtérieur reste effective (Flou 8) ---
+dbgVérifieEgalité(__DebugOmbreFlou(SAI_CadreOmbre), 8,
+"CadreExtérieur..Ombre : reste appliquée au champ quand ZoneSaisie n'a pas d'ombre (Flou 8)")
+
+// --- 4. Aucune ombre déclarée : pas d'effet fantôme ---
+dbgVérifieEgalité(__DebugOmbreFlou(SAI_Vide),-1,
+"Saisie sans ombre : aucun effet posé sur le QLineEdit")
+
+Ferme(FEN_StyleElementZoneSaisieOmbre)
+dbgBilanTest()

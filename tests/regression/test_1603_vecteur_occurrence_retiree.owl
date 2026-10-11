@@ -1,0 +1,44 @@
+//  : ..Occurrence retirée du type Vecteur.
+// ..Occurrence avait été câblé sur Vecteur par calque sur tableau, hors scope.
+// Redondant avec ..Taille -> retiré. ..Taille/..Length et ..Vide/..Empty restent.
+// ..Occurrence sur un tableau reste le canon collection existant (inchangé).
+
+// Verrouille : ..Taille / ..Length toujours = nombre d'éléments.
+PROCEDURE PUBLIQUE test_vecteur_taille_conservee()
+	v est un Vecteur = [10.0, 20.0, 30.0]
+	dbgVérifieEgalité(v..Taille, 3, "..Taille conservée = nombre d'éléments")
+	dbgVérifieEgalité(v..Length, 3, "..Length conservée, forme anglaise")
+FIN
+
+// Verrouille : ..Vide / ..Empty toujours booléen (non-redondant avec Taille).
+PROCEDURE PUBLIQUE test_vecteur_vide_conservee()
+	vPlein est un Vecteur = [1.0, 2.0]
+	vVide est un Vecteur = []
+	dbgVérifieFaux(vPlein..Vide, "..Vide = Faux sur vecteur non vide")
+	dbgVérifieFaux(vPlein..Empty, "..Empty = Faux, forme anglaise")
+	dbgVérifieVrai(vVide..Vide, "..Vide = Vrai sur vecteur vide")
+FIN
+
+// Verrouille le retrait : ..Occurrence n'est plus une propriété du Vecteur.
+// Elle n'est plus résolue en nombre d'éléments (avant fix : renvoyait la taille) ;
+// y accéder lève désormais une exception récupérable au lieu d'un Null silencieux.
+PROCEDURE PUBLIQUE test_vecteur_occurrence_retiree()
+	v est un Vecteur = [10.0, 20.0, 30.0]
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		x est un entier = v..Occurrence
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "..Occurrence n'est plus une propriété du Vecteur")
+FIN
+
+// Non-régression : ..Occurrence sur un tableau reste fonctionnel (canon collection).
+PROCEDURE PUBLIQUE test_tableau_occurrence_intacte()
+	t est un tableau de 3 entiers
+	t[1] = 1
+	t[2] = 2
+	t[3] = 3
+	dbgVérifieEgalité(t..Occurrence, 3, "..Occurrence intacte sur tableau (non touché)")
+FIN

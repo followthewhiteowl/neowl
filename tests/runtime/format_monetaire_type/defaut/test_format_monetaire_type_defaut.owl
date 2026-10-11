@@ -1,0 +1,27 @@
+//  — type `FormatMonétaire` : instance PAR DÉFAUT (littéral inline
+// vide `{ }` posé directement sur le champ). Le défaut doit reproduire la
+// forme plate actuelle du champ Monétaire (pas de symbole affiché), sans
+// jamais corrompre la valeur exacte VAL_CURRENCY au round-trip.
+//
+// Discriminant : 0m1234.50 posé en ..Valeur, round-trippé identique — si le
+// défaut affichait un symbole non retiré au reparse ou basculait sur une
+// autre précision, le round-trip rendrait une valeur différente ou une
+// erreur de coercion.
+//
+// ROUGE attendu : le type `FormatMonétaire` n'existe pas au catalogue —
+// compilation de la fenêtre voisine échoue (propriété/type inconnu), pas
+// une faute de syntaxe `.`/`..`.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatMonetaireTypeDefaut)
+
+sSymboleDefaut est une chaîne = SAI_Montant..FormatMonétaire..Symbole
+dbgVérifieEgalité(sSymboleDefaut, "", "FormatMonétaire par défaut : Symbole vide (affichage monétaire plat actuel, pas de symbole imposé)")
+
+SAI_Montant..Valeur = 0m1234.50
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234.50, "FormatMonétaire par défaut : round-trip SET->affiché->GET rend 1234.50 exact (forme plate), pas une valeur corrompue")
+
+Ferme(FEN_FormatMonetaireTypeDefaut)
+dbgBilanTest()

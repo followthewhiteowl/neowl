@@ -1,0 +1,219 @@
+// @sujet : EntierVersMoisEnLettre
+// @résumé : Conversion entier (nb jours depuis 1800-01-01) ou date vers nom de mois en français
+
+// ==============================================================================
+// PROCEDURES PUBLIQUES - Cas nominaux pour la doc utilisateur
+// ==============================================================================
+
+PROCEDURE PUBLIQUE scenario_conversion_entier_vers_mois()
+	// EntierVersMoisEnLettre convertit un entier (nb jours depuis 01/01/1800) en nom de mois
+	// Retour : chaîne capitalisée (Janvier a Decembre)
+
+	mois1 est une chaîne = EntierVersMoisEnLettre(1)
+	dbgVérifieEgalité(mois1, "Janvier", "Entier 1 (01/01/1800) → Janvier")
+
+	mois2 est une chaîne = EntierVersMoisEnLettre(32)
+	dbgVérifieEgalité(mois2, "Février", "Entier 32 (01/02/1800) → Fevrier")
+
+	mois3 est une chaîne = EntierVersMoisEnLettre(60)
+	dbgVérifieEgalité(mois3, "Mars", "Entier 60 (01/03/1800, non-bissextile) → Mars")
+
+	mois4 est une chaîne = EntierVersMoisEnLettre(91)
+	dbgVérifieEgalité(mois4, "Avril", "Entier 91 (01/04/1800) → Avril")
+
+	mois5 est une chaîne = EntierVersMoisEnLettre(121)
+	dbgVérifieEgalité(mois5, "Mai", "Entier 121 (01/05/1800) → Mai")
+
+	mois6 est une chaîne = EntierVersMoisEnLettre(152)
+	dbgVérifieEgalité(mois6, "Juin", "Entier 152 (01/06/1800) → Juin")
+
+	mois7 est une chaîne = EntierVersMoisEnLettre(182)
+	dbgVérifieEgalité(mois7, "Juillet", "Entier 182 (01/07/1800) → Juillet")
+
+	mois8 est une chaîne = EntierVersMoisEnLettre(213)
+	dbgVérifieEgalité(mois8, "Août", "Entier 213 (01/08/1800) → Aout avec accent circonflexe")
+
+	mois9 est une chaîne = EntierVersMoisEnLettre(244)
+	dbgVérifieEgalité(mois9, "Septembre", "Entier 244 (01/09/1800) → Septembre")
+
+	mois10 est une chaîne = EntierVersMoisEnLettre(274)
+	dbgVérifieEgalité(mois10, "Octobre", "Entier 274 (01/10/1800) → Octobre")
+
+	mois11 est une chaîne = EntierVersMoisEnLettre(305)
+	dbgVérifieEgalité(mois11, "Novembre", "Entier 305 (01/11/1800) → Novembre")
+
+	mois12 est une chaîne = EntierVersMoisEnLettre(335)
+	dbgVérifieEgalité(mois12, "Décembre", "Entier 335 (01/12/1800) → Decembre avec accent")
+FIN
+
+PROCEDURE PUBLIQUE scenario_conversion_chaine_numerique()
+	// La native accepte une chaîne numerique representant un entier
+
+	mois1 est une chaîne = EntierVersMoisEnLettre("1")
+	dbgVérifieEgalité(mois1, "Janvier", "Chaine '1' → Janvier")
+
+	mois2 est une chaîne = EntierVersMoisEnLettre("32")
+	dbgVérifieEgalité(mois2, "Février", "Chaine '32' → Fevrier")
+
+	mois3 est une chaîne = EntierVersMoisEnLettre("73773")
+	dbgVérifieEgalité(mois3, "Décembre", "Chaine '73773' (25/12/2001) → Decembre")
+FIN
+
+PROCEDURE PUBLIQUE scenario_conversion_date_objet()
+	// La native accepte un objet date (type date) et extrait le mois
+
+	d1 est une date = "18000101"
+	mois1 est une chaîne = EntierVersMoisEnLettre(d1)
+	dbgVérifieEgalité(mois1, "Janvier", "Date objet 18000101 → Janvier")
+
+	d2 est une date = "18000601"
+	mois2 est une chaîne = EntierVersMoisEnLettre(d2)
+	dbgVérifieEgalité(mois2, "Juin", "Date objet 18000601 → Juin")
+
+	d3 est une date = "20251225"
+	mois3 est une chaîne = EntierVersMoisEnLettre(d3)
+	dbgVérifieEgalité(mois3, "Décembre", "Date objet 20251225 → Decembre")
+
+	d4 est une date = "20240229"
+	mois4 est une chaîne = EntierVersMoisEnLettre(d4)
+	dbgVérifieEgalité(mois4, "Février", "Date objet 20240229 (bissextile) → Fevrier")
+FIN
+
+PROCEDURE PUBLIQUE scenario_coherence_dateVersMoisEnLettre()
+	// EntierVersMoisEnLettre(date) et DateVersMoisEnLettre(date) sont equivalents
+
+	d1 est une date = "20250315"
+	resultat1 est une chaîne = EntierVersMoisEnLettre(d1)
+	attendu1 est une chaîne = DateVersMoisEnLettre(d1)
+	dbgVérifieEgalité(resultat1, attendu1, "Coherence avec DateVersMoisEnLettre pour 20250315")
+
+	d2 est une date = "19991231"
+	resultat2 est une chaîne = EntierVersMoisEnLettre(d2)
+	attendu2 est une chaîne = DateVersMoisEnLettre(d2)
+	dbgVérifieEgalité(resultat2, attendu2, "Coherence avec DateVersMoisEnLettre pour 19991231")
+FIN
+
+// ==============================================================================
+// PROCEDURES PRIVEES - Cas limites et edge cases
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_entier_negatif()
+	// Entier negatif : retourne Null (hors plage)
+
+	mois1 est une chaîne = EntierVersMoisEnLettre(-1)
+	dbgVérifieNull(mois1, "Entier -1 hors plage → Null")
+
+	mois2 est une chaîne = EntierVersMoisEnLettre(-32)
+	dbgVérifieNull(mois2, "Entier -32 hors plage → Null")
+
+	mois3 est une chaîne = EntierVersMoisEnLettre(-366)
+	dbgVérifieNull(mois3, "Entier -366 hors plage → Null")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_entier_zero()
+	// Entier 0 : retourne Null (hors plage)
+
+	mois1 est une chaîne = EntierVersMoisEnLettre(0)
+	dbgVérifieNull(mois1, "Entier 0 hors plage → Null")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_annee_bissextile()
+	// Annee bissextile : 29/02/2000 → Fevrier
+	// 73049 = 01/01/2000, +59 = 29/02/2000
+
+	entier1 est un entier = 73049 + 59
+	mois1 est une chaîne = EntierVersMoisEnLettre(entier1)
+	dbgVérifieEgalité(mois1, "Février", "Jour 60 de 2000 (29/02/2000) → Fevrier")
+
+	// 1800 non-bissextile : jour 60 = 01/03/1800 → Mars
+	entier2 est un entier = 1 + 59
+	mois2 est une chaîne = EntierVersMoisEnLettre(entier2)
+	dbgVérifieEgalité(mois2, "Mars", "Jour 60 de 1800 (01/03/1800, non-bissextile) → Mars")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaine_invalide()
+	// Chaine non-numerique : pose erreur et retourne Null
+
+	ErreurRAZ()
+	sInvalide1 est une chaîne = EntierVersMoisEnLettre("abc")
+	bErr1 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr1, "Chaine non-numerique 'abc' pose ErreurDetectee")
+	dbgVérifieNull(sInvalide1, "Chaine non-numerique 'abc' → Null")
+
+	// Chaine vide : pose erreur et retourne Null
+	ErreurRAZ()
+	sInvalide2 est une chaîne = EntierVersMoisEnLettre("")
+	bErr2 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr2, "Chaine vide pose ErreurDetectee")
+	dbgVérifieNull(sInvalide2, "Chaine vide → Null")
+FIN
+
+// scenario_edge_date_invalide() volontairement absent.
+// EVMEL prend un nb de jours depuis 01/01/1800 + 1, pas une date AAAAMMJJ.
+// Des assertions "mois 00/13 invalide → Aout" testeraient un comportement
+// runtime qui ne reflète pas un bug de EVMEL — la cause apparente
+// serait en amont (coerce string → date silencieuse).
+
+PROCEDURE PRIVÉE scenario_edge_entiers_extremes()
+	// Limites documentees : 01/01/0001 a 31/12/9999
+	// Verifier que les mois restent coherents aux extremites
+
+	// 31/12/9999 → Decembre
+	d1 est une date = "99991231"
+	entierMax est un entier = DateVersEntier(d1)
+	moisMax est une chaîne = EntierVersMoisEnLettre(entierMax)
+	dbgVérifieEgalité(moisMax, "Décembre", "Entier max (31/12/9999) → Decembre")
+
+	// 01/01/0001 → entier negatif → Null (hors plage acceptee)
+	d2 est une date = "00010101"
+	entierMin est un entier = DateVersEntier(d2)
+	moisMin est une chaîne = EntierVersMoisEnLettre(entierMin)
+	dbgVérifieNull(moisMin, "Entier min (01/01/0001 negatif) → Null hors plage")
+
+	// Juin 9999 : coherence extremite haute
+	d3 est une date = "99990601"
+	entier3 est un entier = DateVersEntier(d3)
+	mois3 est une chaîne = EntierVersMoisEnLettre(entier3)
+	dbgVérifieEgalité(mois3, "Juin", "Juin 9999 → Juin")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_coherence_numeroDeMoisVersLettre()
+	// EntierVersMoisEnLettre(entier_mois_X) = NuméroDeMoisVersLettre(X)
+	// Verification : premier jour de chaque mois
+
+	entier1 est un entier = 1 // 01/01/1800 → mois 1
+	mois1a est une chaîne = EntierVersMoisEnLettre(entier1)
+	mois1b est une chaîne = NuméroDeMoisVersLettre(1)
+	dbgVérifieEgalité(mois1a, mois1b, "Coherence mois 1 (Janvier)")
+
+	entier6 est un entier = 152 // 01/06/1800 → mois 6
+	mois6a est une chaîne = EntierVersMoisEnLettre(entier6)
+	mois6b est une chaîne = NuméroDeMoisVersLettre(6)
+	dbgVérifieEgalité(mois6a, mois6b, "Coherence mois 6 (Juin)")
+
+	entier12 est un entier = 335 // 01/12/1800 → mois 12
+	mois12a est une chaîne = EntierVersMoisEnLettre(entier12)
+	mois12b est une chaîne = NuméroDeMoisVersLettre(12)
+	dbgVérifieEgalité(mois12a, mois12b, "Coherence mois 12 (Decembre)")
+FIN
+
+// ==============================================================================
+// POINT D'ENTREE
+// ==============================================================================
+
+// Procedures publiques (doc utilisateur)
+scenario_conversion_entier_vers_mois()
+scenario_conversion_chaine_numerique()
+scenario_conversion_date_objet()
+scenario_coherence_dateVersMoisEnLettre()
+
+// Procedures privees (edge cases)
+scenario_edge_entier_negatif()
+scenario_edge_entier_zero()
+scenario_edge_annee_bissextile()
+scenario_edge_chaine_invalide()
+// scenario_edge_date_invalide() — volontairement absent
+scenario_edge_entiers_extremes()
+scenario_edge_coherence_numeroDeMoisVersLettre()
+
+dbgBilanTest()

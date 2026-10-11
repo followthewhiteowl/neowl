@@ -1,0 +1,73 @@
+// Ressource fenêtre — voisine de test_table_colonne_first_mise_en_forme.owl.
+// Mise en forme conditionnelle par cellule, forme colonne-first
+// (TABLE_X.COL_A[ligne]..Prop), avec un indice qui est un PARAMÈTRE — la
+// graphie réelle d'une boucle de mise en forme, pas un littéral.
+
+FEN_ColonneFirstMEF est une Fenêtre
+	PROPRIETES
+		Titre       = "Mise en forme, colonne d'abord"
+		Disposition = dispVerticale
+		Largeur     = 400
+		Hauteur     = 300
+	FIN
+
+	TABLE_ColFirst est un Champ Table
+		PROPRIETES
+			Étire = Vrai
+		FIN
+
+		COL_Trésorerie est une Colonne
+			PROPRIETES
+				Libellé = "Trésorerie"
+				Type    = colTypeNumerique
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_ColFirst, 100)
+		TableAjouteLigne(TABLE_ColFirst, 200)
+	FIN
+
+	// Écriture colonne-first, nom de colonne dans sa graphie accentuée.
+	PROCEDURE EcritCouleurGraphieAccentuée(ligne est un entier, v est un entier)
+		TABLE_ColFirst.COL_Trésorerie[ligne]..Couleur = v
+	FIN
+
+	// Écriture colonne-first, nom de colonne dans sa graphie nue (sans accent).
+	PROCEDURE EcritCouleurGraphieNue(ligne est un entier, v est un entier)
+		TABLE_ColFirst.COL_Tresorerie[ligne]..Couleur = v
+	FIN
+
+	// Lecture colonne-first, casse et accent mélangés.
+	PROCEDURE LireCouleurColFirst(ligne est un entier)
+		RENVOYER TABLE_ColFirst.col_trésorerie[ligne]..Couleur
+	FIN
+
+	// Lecture ligne-first, pour la cohérence croisée avec l'écriture colonne-first.
+	PROCEDURE LireCouleurLigneFirst(ligne est un entier, col est un entier)
+		RENVOYER TABLE_ColFirst[ligne][col]..Couleur
+	FIN
+
+	// Écriture ligne-first, pour la cohérence croisée avec la lecture colonne-first.
+	PROCEDURE EcritCouleurFondLigneFirst(ligne est un entier, col est un entier, v est un entier)
+		TABLE_ColFirst[ligne][col]..CouleurFond = v
+	FIN
+
+	// Lecture colonne-first EN.
+	PROCEDURE LireCouleurFondColFirstEN(ligne est un entier)
+		RENVOYER TABLE_ColFirst.COL_Trésorerie[ligne]..BackgroundColor
+	FIN
+
+	// Écriture colonne-first EN.
+	PROCEDURE EcritCouleurColFirstEN(ligne est un entier, v est un entier)
+		TABLE_ColFirst.COL_Trésorerie[ligne]..Color = v
+	FIN
+
+	// Lecture de la VALEUR de la cellule (sans propriété), pour vérifier
+	// qu'elle reste inchangée après écriture d'une mise en forme.
+	PROCEDURE LireValeur(ligne est un entier)
+		RENVOYER TABLE_ColFirst.COL_Trésorerie[ligne]
+	FIN
+FIN

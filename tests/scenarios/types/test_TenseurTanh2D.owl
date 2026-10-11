@@ -1,0 +1,55 @@
+// @sujet : Tenseur.Tanh (2D)
+// @résumé : Tanh s'applique élément par élément sur un Tenseur 2D (B×n),
+// forme préservée. Rétropropage() applique la même règle de dérivation
+// que la version 1D (1 - y²), case par case.
+
+// Tanh(0.0) vaut exactement 0.0 sur chaque case d'une Matrice 2×2
+// entièrement nulle.
+PROCEDURE PUBLIQUE scenario_tanh2d_zero_forward()
+	matX est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.Tanh()
+	valR est une Matrice = tR..Valeur
+	dbgVérifieEgalité(valR..Lignes, 2, "Tanh préserve la forme : 2 lignes")
+	dbgVérifieEgalité(valR..Colonnes, 2, "Tanh préserve la forme : 2 colonnes")
+	dbgVérifieEgalité(valR[1][1], 0.0, "Tanh(0.0) = 0.0")
+	dbgVérifieEgalité(valR[2][2], 0.0, "Tanh(0.0) = 0.0")
+FIN
+
+
+// dTanh/dx = 1 - y². En x=0.0, y=0.0, donc le gradient vaut 1.0 sur
+// chaque case (amorce Rétropropage() à 1.0 partout).
+PROCEDURE PUBLIQUE scenario_tanh2d_zero_backward()
+	matX est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.Tanh()
+	tR.Rétropropage()
+
+	gradX est une Matrice = tX..Gradient
+	dbgVérifieEgalité(gradX[1][1], 1.0, "y=0.0 -> gradient = 1 - y*y = 1.0")
+	dbgVérifieEgalité(gradX[1][2], 1.0, "y=0.0 -> gradient = 1 - y*y = 1.0")
+	dbgVérifieEgalité(gradX[2][1], 1.0, "y=0.0 -> gradient = 1 - y*y = 1.0")
+	dbgVérifieEgalité(gradX[2][2], 1.0, "y=0.0 -> gradient = 1 - y*y = 1.0")
+FIN
+
+
+// Diagonale à 1.0, reste à 0.0 : chaque case suit sa propre valeur.
+// Tanh(1.0) ~= 0.7615941559557649, gradient = 1 - Tanh(1.0)² ~= 0.4199743416140261
+// (constantes reprises de test_TenseurTanh.owl, cas 1D).
+PROCEDURE PRIVÉE scenario_edge_tanh2d_valeur_non_nulle()
+	matX est une Matrice = [[1.0, 0.0], [0.0, 1.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.Tanh()
+	tR.Rétropropage()
+
+	valR est une Matrice = tR..Valeur
+	dbgVérifieVrai(Abs(valR[1][1] - 0.7615941559557649) < 0.0000001, "Tanh(1.0) ~= 0.7615941559557649")
+	dbgVérifieEgalité(valR[1][2], 0.0, "Tanh(0.0) = 0.0, case indépendante")
+
+	gradX est une Matrice = tX..Gradient
+	dbgVérifieVrai(Abs(gradX[1][1] - 0.4199743416140261) < 0.0000001, "gradient = 1 - Tanh(1.0)^2 ~= 0.4199743416140261")
+	dbgVérifieEgalité(gradX[1][2], 1.0, "Entrée nulle : gradient = 1.0, indépendant des voisines")
+FIN

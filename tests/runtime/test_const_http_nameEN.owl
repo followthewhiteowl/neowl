@@ -1,0 +1,69 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille HTTP
+// (, lot A6 - module stdlib_http).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   ProtocoleDefaut                -> ProtocolDefault                (= 0)
+//   ProtocoleTLS1_2                -> ProtocolTLS1_2                 (= 4)
+//   ProtocoleTLS1_3                -> ProtocolTLS1_3                 (= 8)
+//   httpIgnoreCertificatInvalide   -> httpIgnoreInvalidCertificate  (= 1)
+//   httpIgnoreCertificatExpire     -> httpIgnoreExpiredCertificate  (= 4)
+//   httpIgnoreRenvoiHTTP           -> httpIgnoreRedirectToHTTP       (= 16)
+//   typeMimeJSON                   -> mimeTypeJSON                   (= "application/json")
+//   typeMimePDF                    -> mimeTypePDF                    (= "application/pdf")
+//
+// Deux couches d'assertion par couple : EN == FR, ET EN == valeur exacte.
+// =============================================================================
+
+PROCEDURE scenario_const_http_en_resout_vers_fr()
+	// --- Versions TLS (bitflags, valeurs ancrees) ---
+	dbgVérifieEgalité(ProtocolDefault, ProtocoleDefaut,
+	"ProtocolDefault resout vers la meme valeur que ProtocoleDefaut")
+	dbgVérifieEgalité(ProtocolDefault, 0,
+	"ProtocolDefault vaut exactement 0 (defaut mbedtls)")
+
+	dbgVérifieEgalité(ProtocolTLS1_2, ProtocoleTLS1_2,
+	"ProtocolTLS1_2 resout vers la meme valeur que ProtocoleTLS1_2")
+	dbgVérifieEgalité(ProtocolTLS1_2, 4,
+	"ProtocolTLS1_2 vaut exactement 4")
+
+	dbgVérifieEgalité(ProtocolTLS1_3, ProtocoleTLS1_3,
+	"ProtocolTLS1_3 resout vers la meme valeur que ProtocoleTLS1_3")
+	dbgVérifieEgalité(ProtocolTLS1_3, 8,
+	"ProtocolTLS1_3 vaut exactement 8")
+
+	// --- Erreurs TLS ignorables (bitflags, valeurs ancrees) ---
+	dbgVérifieEgalité(httpIgnoreInvalidCertificate, httpIgnoreCertificatInvalide,
+	"httpIgnoreInvalidCertificate resout vers httpIgnoreCertificatInvalide")
+	dbgVérifieEgalité(httpIgnoreInvalidCertificate, 1,
+	"httpIgnoreInvalidCertificate vaut exactement 1")
+
+	dbgVérifieEgalité(httpIgnoreExpiredCertificate, httpIgnoreCertificatExpire,
+	"httpIgnoreExpiredCertificate resout vers httpIgnoreCertificatExpire")
+	dbgVérifieEgalité(httpIgnoreExpiredCertificate, 4,
+	"httpIgnoreExpiredCertificate vaut exactement 4")
+
+	dbgVérifieEgalité(httpIgnoreRedirectToHTTP, httpIgnoreRenvoiHTTP,
+	"httpIgnoreRedirectToHTTP resout vers httpIgnoreRenvoiHTTP")
+	dbgVérifieEgalité(httpIgnoreRedirectToHTTP, 16,
+	"httpIgnoreRedirectToHTTP vaut exactement 16")
+
+	// --- Types MIME (string consts) ---
+	dbgVérifieEgalité(mimeTypeJSON, typeMimeJSON,
+	"mimeTypeJSON resout vers la meme valeur que typeMimeJSON")
+	dbgVérifieEgalité(mimeTypeJSON, "application/json",
+	"mimeTypeJSON vaut exactement application/json")
+
+	dbgVérifieEgalité(mimeTypePDF, typeMimePDF,
+	"mimeTypePDF resout vers la meme valeur que typeMimePDF")
+	dbgVérifieEgalité(mimeTypePDF, "application/pdf",
+	"mimeTypePDF vaut exactement application/pdf")
+FIN
+
+scenario_const_http_en_resout_vers_fr()
+dbgBilanTest()

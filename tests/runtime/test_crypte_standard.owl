@@ -1,0 +1,60 @@
+// Coverage CrypteStandard / DécrypteStandard (documentation de référence).
+// OWL : AES-256-CBC, clé dérivée SHA-256.
+// Recommandé récemment (Crypte/Décrypte sont dépréciés).
+
+// ============================================================================
+// Round-trip ASCII simple
+// ============================================================================
+bufChiffre est un buffer = CrypteStandard("Hello World", "ma-clef-secrete")
+dbgVérifieVrai(Taille(bufChiffre) > 0, "CrypteStandard retourne un buffer non vide")
+
+bufClair est un buffer = DécrypteStandard(bufChiffre, "ma-clef-secrete")
+dbgVérifieEgalité(bufClair, "Hello World", "round-trip AES-256 ASCII")
+
+// ============================================================================
+// Round-trip UTF-8
+// ============================================================================
+bufFr est un buffer = CrypteStandard("Voici un texte avec accents: café, déjà, été", "pwd")
+bufFrClair est un buffer = DécrypteStandard(bufFr, "pwd")
+dbgVérifieEgalité(bufFrClair, "Voici un texte avec accents: café, déjà, été", "round-trip UTF-8")
+
+// ============================================================================
+// IV aléatoire : 2 cryptages du même message avec la même clé → ciphertext différents
+// ============================================================================
+c1 est un buffer = CrypteStandard("same message", "same key")
+c2 est un buffer = CrypteStandard("same message", "same key")
+// Les tailles sont identiques
+dbgVérifieEgalité(Taille(c1), Taille(c2), "tailles identiques")
+// Les contenus sont différents (IV random)
+dbgVérifieFaux(c1 = c2, "ciphertexts différents grâce à l'IV aléatoire")
+
+// Mais les deux décryptent vers le même clair
+dbgVérifieEgalité(DécrypteStandard(c1, "same key"), "same message", "c1 décrypte OK")
+dbgVérifieEgalité(DécrypteStandard(c2, "same key"), "same message", "c2 décrypte OK")
+
+// ============================================================================
+// Buffer structurellement invalide → erreur déterministe.
+// Tronquer sous la taille minimale de l'IV (16 octets) : le déchiffreur rejette
+// à coup sûr, sans dépendre de la validité fortuite du padding.
+// ============================================================================
+cBad est un buffer = CrypteStandard("secret", "correct-key")
+cTronqué est un buffer = Tronque(cBad, 10)
+ErreurRAZ()
+bad est une chaîne = DécrypteStandard(cTronqué, "correct-key")
+dbgVérifieVrai(ErreurInfo() <> "", "buffer tronqué (<16 octets) rejeté à coup sûr")
+
+// Mauvaise clé : ne restitue jamais le clair exact (invariant déterministe,
+// indépendant de la validité fortuite du padding).
+cWrong est un buffer = CrypteStandard("secret", "correct-key")
+mauvais est une chaîne = DécrypteStandard(cWrong, "wrong-key")
+dbgVérifieFaux(mauvais = "secret", "mauvaise clé ne restitue jamais le clair")
+
+// ============================================================================
+// Accepte Buffer en entrée aussi
+// ============================================================================
+bufMsg est un buffer = ChaîneVersBuffer("message binaire")
+c3 est un buffer = CrypteStandard(bufMsg, "k")
+clair3 est un buffer = DécrypteStandard(c3, "k")
+dbgVérifieEgalité(clair3, "message binaire", "Buffer en entrée = OK")
+
+dbgBilanTest()

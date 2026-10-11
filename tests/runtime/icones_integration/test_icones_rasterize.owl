@@ -1,0 +1,120 @@
+// ================================================================
+// Test integration : rasterisation headless des icones du catalogue
+// Iconify embarque via IconeVersImage().
+//
+// Verifie pour quelques icones representatives :
+//   - ..Valide = Vrai (rasterizer Qt6Svg a marche)
+//   - ..Largeur > 0, ..Hauteur > 0
+//   - Aspect ratio preserve : Largeur == Hauteur pour viewBox carre,
+//     Largeur != Hauteur pour viewBox rectangulaire ( ratio
+//     Qt6Svg)
+//
+// LIMITE V1 connue : fn_IconeVersImage (src/stdlib_icones.c L770)
+// libere le buffer RGBA apres rasterize ; l'Image retournee porte
+// les dimensions mais pas les pixels. Donc impossible de verifier
+// les couleurs via dPixelCouleur. Si un test pixel-cle devient
+// necessaire, etendre fn_IconeVersImage pour conserver le buffer
+// dans un champ `_rgba` de l'Image (sous-bug suivi separement).
+//
+// Couvre les 6 categories OWL au niveau dimensions :
+//   - ui (home, save mono)
+//   - marques (microsoft_icon carre, youtube_icon rectangle)
+//   - emoji (pizza)
+//   - jeu (crown)
+//
+// Rasterizing default : OWL_ICONE_RENDER_SIZE = 64 (cote hauteur).
+// ================================================================
+
+
+// ----------------------------------------------------------------
+// Test 1 : icones.home (ui mono, material-symbols viewBox 24x24)
+//   Carre 64x64.
+// ----------------------------------------------------------------
+ICN_Home est une Icône = icones.home
+IMG_Home est une Image = IconeVersImage(ICN_Home)
+
+dbgVérifieVrai(IMG_Home..Valide,
+"home : Image rasterisee valide")
+dbgVérifieEgalité(IMG_Home..Largeur, IMG_Home..Hauteur,
+"home : Largeur == Hauteur (icone carre 24x24)")
+dbgVérifieEgalité(IMG_Home..Hauteur, 64,
+"home : Hauteur = 64 (OWL_ICONE_RENDER_SIZE)")
+
+
+// ----------------------------------------------------------------
+// Test 2 : icones.microsoft_icon (marques logos viewBox 256x256)
+//   Carre 64x64 apres scaling.
+// ----------------------------------------------------------------
+ICN_MS est une Icône = icones.microsoft_icon
+IMG_MS est une Image = IconeVersImage(ICN_MS)
+
+dbgVérifieVrai(IMG_MS..Valide,
+"microsoft_icon : Image valide")
+dbgVérifieEgalité(IMG_MS..Largeur, IMG_MS..Hauteur,
+"microsoft_icon : carre (256x256 source)")
+
+
+// ----------------------------------------------------------------
+// Test 3 : icones.youtube_icon (marques logos viewBox rectangulaire)
+//   Largeur > Hauteur ( ratio Qt6Svg).
+// ----------------------------------------------------------------
+ICN_YT est une Icône = icones.youtube_icon
+IMG_YT est une Image = IconeVersImage(ICN_YT)
+
+dbgVérifieVrai(IMG_YT..Valide,
+"youtube_icon : Image valide")
+dbgVérifieVrai(IMG_YT..Largeur <> IMG_YT..Hauteur,
+"youtube_icon : Largeur != Hauteur (viewBox non-carre, ratio preserve)")
+dbgVérifieVrai(IMG_YT..Largeur > IMG_YT..Hauteur,
+"youtube_icon : plus large que haut (proportions video)")
+
+
+// ----------------------------------------------------------------
+// Test 4 : icones.crown (jeu game-icons viewBox 512x512)
+//   Carre apres scaling.
+// ----------------------------------------------------------------
+ICN_Crown est une Icône = icones.crown
+IMG_Crown est une Image = IconeVersImage(ICN_Crown)
+
+dbgVérifieVrai(IMG_Crown..Valide,
+"crown : Image valide")
+dbgVérifieEgalité(IMG_Crown..Largeur, IMG_Crown..Hauteur,
+"crown : carre (512x512 source)")
+
+
+// ----------------------------------------------------------------
+// Test 5 : icones.pizza (emoji fluent-emoji-flat viewBox 32x32)
+//   Carre apres scaling.
+// ----------------------------------------------------------------
+ICN_Pizza est une Icône = icones.pizza
+IMG_Pizza est une Image = IconeVersImage(ICN_Pizza)
+
+dbgVérifieVrai(IMG_Pizza..Valide,
+"pizza : Image valide")
+dbgVérifieEgalité(IMG_Pizza..Largeur, IMG_Pizza..Hauteur,
+"pizza : carre (32x32 source)")
+
+
+// ----------------------------------------------------------------
+// Test 6 : icones.save avec coloration via ..Couleur
+//   Verifie au moins que l'Image reste Valide post-coloration
+//   (rasterizer a applique le replace currentColor).
+// ----------------------------------------------------------------
+ICN_Save est une Icône = icones.save
+ICN_Save..Couleur = Bleu
+IMG_Save est une Image = IconeVersImage(ICN_Save)
+
+dbgVérifieVrai(IMG_Save..Valide,
+"save+Couleur=Bleu : Image valide apres coloration")
+dbgVérifieEgalité(IMG_Save..Largeur, 64,
+"save+Couleur=Bleu : dimensions inchangees par coloration")
+
+
+// ----------------------------------------------------------------
+// Test 7 : icone non-existante -> Icone invalide.
+//   Verifie le comportement degrade : Icone..Valide = Faux.
+// ----------------------------------------------------------------
+// Note : la resolution de icones.X_inexistant emet une erreur
+// runtime via did-you-mean. On capture via try/catch implicite ?
+// Le namespace_lookup retourne Icone invalide en cas de miss.
+// Pas teste ici : flux d'erreur runtime separe.

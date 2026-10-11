@@ -1,0 +1,56 @@
+// @sujet : Tenseur.Sigmoïde (2D)
+// @résumé : Sigmoïde s'applique élément par élément sur un Tenseur 2D
+// (B×n), forme préservée. Rétropropage() applique la même règle de
+// dérivation que la version 1D (y*(1-y)), case par case.
+
+// Sigmoïde(0.0) vaut exactement 0.5, sur chaque case d'une Matrice 2×2
+// entièrement nulle.
+PROCEDURE PUBLIQUE scenario_sigmoide2d_zero_forward()
+	matX est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.Sigmoïde()
+	valR est une Matrice = tR..Valeur
+	dbgVérifieEgalité(valR..Lignes, 2, "Sigmoïde préserve la forme : 2 lignes")
+	dbgVérifieEgalité(valR..Colonnes, 2, "Sigmoïde préserve la forme : 2 colonnes")
+	dbgVérifieEgalité(valR[1][1], 0.5, "Sigmoïde(0.0) = 0.5")
+	dbgVérifieEgalité(valR[2][2], 0.5, "Sigmoïde(0.0) = 0.5")
+FIN
+
+
+// dSigmoïde/dx = y*(1-y). En x=0.0, y=0.5, donc le gradient vaut
+// 0.5*0.5 = 0.25 sur chaque case (amorce Rétropropage() à 1.0 partout).
+PROCEDURE PUBLIQUE scenario_sigmoide2d_zero_backward()
+	matX est une Matrice = [[0.0, 0.0], [0.0, 0.0]]
+	tX est un Tenseur = Tenseur(matX)
+
+	tR est un Tenseur = tX.Sigmoïde()
+	tR.Rétropropage()
+
+	gradX est une Matrice = tX..Gradient
+	dbgVérifieEgalité(gradX[1][1], 0.25, "y=0.5 -> gradient = y*(1-y) = 0.25")
+	dbgVérifieEgalité(gradX[1][2], 0.25, "y=0.5 -> gradient = y*(1-y) = 0.25")
+	dbgVérifieEgalité(gradX[2][1], 0.25, "y=0.5 -> gradient = y*(1-y) = 0.25")
+	dbgVérifieEgalité(gradX[2][2], 0.25, "y=0.5 -> gradient = y*(1-y) = 0.25")
+FIN
+
+
+// Valeurs mêlées case par case : deux cases saturantes (50.0, -50.0) et
+// deux cases nulles sur la même Matrice 2×2. Chaque case suit sa propre
+// règle, indépendamment de ses voisines.
+PROCEDURE PRIVÉE scenario_edge_sigmoide2d_valeurs_melangees()
+	matZ est une Matrice = [[50.0,-50.0], [0.0, 0.0]]
+	tZ est un Tenseur = Tenseur(matZ)
+
+	tR est un Tenseur = tZ.Sigmoïde()
+	tR.Rétropropage()
+
+	valR est une Matrice = tR..Valeur
+	dbgVérifieVrai(Abs(valR[1][1] - 1.0) < 0.0001, "Sigmoïde(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(valR[1][2] - 0.0) < 0.0001, "Sigmoïde(-50.0) proche de 0.0")
+	dbgVérifieEgalité(valR[2][1], 0.5, "Sigmoïde(0.0) = 0.5, case indépendante")
+
+	gradZ est une Matrice = tZ..Gradient
+	dbgVérifieVrai(Abs(gradZ[1][1] - 0.0) < 0.0001, "Sortie saturée : gradient proche de 0.0")
+	dbgVérifieEgalité(gradZ[2][2], 0.25, "Case non saturée : gradient = 0.25, indépendante des voisines")
+FIN

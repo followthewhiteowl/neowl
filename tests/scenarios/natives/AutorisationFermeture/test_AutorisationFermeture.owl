@@ -1,0 +1,40 @@
+// @sujet : AutorisationFermeture, CloseAuthorization
+// @résumé : Interroge le code avant de fermer une fenêtre pour demander
+// confirmation. Renvoyer Faux annule la fermeture (la fenêtre reste
+// ouverte, Fermeture ne se déclenche pas) ; renvoyer Vrai la laisse se
+// poursuivre normalement, dans l'ordre AutorisationFermeture puis
+// Fermeture.
+//
+// Cas d'usage classique : une fenêtre porte des modifications non
+// enregistrées et refuse de se fermer tant que le document n'a pas été
+// sauvegardé.
+//
+// La fenêtre voisine FEN_Document.owl remonte chaque étape via
+// callback_observe ; la séquence accumulée au niveau script permet de
+// vérifier l'ordre des appels même après que l'instance ait été
+// détruite par la fermeture qui aboutit.
+
+seq est une chaîne = ""
+
+PROCEDURE callback_observe(s est une chaîne)
+	seq += s
+FIN
+
+PROCEDURE avantChaqueTest()
+	seq = ""
+FIN
+
+
+// Modifications non enregistrées : la fermeture est refusée, puis une
+// fois le document enregistré, la même fenêtre se ferme normalement.
+PROCEDURE scenario_confirmation_avant_fermeture()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Document)
+
+	Ferme(FEN_Document)
+	dbgVérifieEgalité(seq, "AF;", "modifications non enregistrées : fermeture annulée, Fermeture ne tire pas")
+
+	Enregistrer()
+	Ferme(FEN_Document)
+	dbgVérifieEgalité(seq, "AF;AF;FER;", "document enregistré : la fenêtre se ferme, dans l'ordre AutorisationFermeture puis Fermeture")
+FIN

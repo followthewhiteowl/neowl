@@ -1,0 +1,30 @@
+// Regression : asymétrie format-side sur token MI (minutes).
+// Parse-side acceptait `mm` ET `MI` comme minutes (cf. test mm) ;
+// format-side ne reconnaissait que `mm` — `MI` était imprimé littéralement
+// ("2026060514MI45" au lieu de "20260605143045"). Symétrie restaurée :
+// format-side accepte aussi `MI`.
+
+// Repro principal : MI format-side doit produire les minutes
+dh est une dateheure = ChaîneVersDate("20260605143045", "AAAAMMJJHHMISS")
+dbgVérifieVrai(DateHeureValide(dh), "parse MI 14char valide")
+dbgVérifieEgalité(DateHeureVersChaîne(dh, "AAAAMMJJHHMISS"), "20260605143045",
+"format MI produit minutes (plus de MI litteral)")
+
+// Round-trip symétrique : même masque MI dans les deux sens
+dbgVérifieEgalité(DateHeureVersChaîne(dh, "AAAA-MM-JJ HH:MI:SS"), "2026-06-05 14:30:45",
+"format MI avec separateurs symetrique")
+
+// Non-régression : `mm` minutes continue à fonctionner format-side
+dbgVérifieEgalité(DateHeureVersChaîne(dh, "AAAAMMJJHHmmSS"), "20260605143045",
+"format mm minuscule reste minutes")
+
+// Non-régression : MM majuscule = mois sur date seule (pas d'ambiguité)
+d est une date = ChaîneVersDate("20260605", "AAAAMMJJ")
+dbgVérifieEgalité(DateVersChaîne(d, "AAAAMMJJ"), "20260605",
+"MM majuscule reste mois sur date seule")
+
+// Non-régression : MM majuscule = mois sur datetime (token MM mois, MI minutes coexistent)
+dbgVérifieEgalité(DateHeureVersChaîne(dh, "AAAA/MM/JJ HH:MI:SS"), "2026/06/05 14:30:45",
+"MM mois et MI minutes coexistent sur datetime")
+
+dbgBilanTest()

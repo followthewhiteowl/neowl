@@ -1,0 +1,102 @@
+// @sujet : TestSimuleMenu
+// @résumé : Déclenche par code le surSélection() d'une OptionMenu du menu
+// principal affecté à une fenêtre, sans interaction réelle. Utile pour
+// piloter les tests en mode headless sur les items de menu (une OptionMenu
+// n'est pas un champ, elle n'est donc pas couverte par TestSimuleSouris).
+//
+// La fenêtre voisine FEN_TSimulMenu.owl porte la déclaration et expose
+// RemonteEtat() pour transmettre l'état muté par les callbacks menu (via
+// callback_etat défini ici) et RAZEtat() pour réinitialiser entre
+// scénarios. FEN_TSimulMenuSansMenu.owl sert au cas défensif fenêtre
+// sans menu affecté.
+
+// État observé côté script — alimenté par callback_etat, invoqué depuis
+// FEN_TSimulMenu.RemonteEtat().
+nNouveau_obs est un entier = -1
+nQuitter_obs est un entier = -1
+nCopier_obs est un entier = -1
+sStatut_obs est une chaîne = ""
+
+PROCEDURE callback_etat(nNouveau est un entier, nQuitter est un entier, nCopier est un entier, sStatut est une chaîne)
+	nNouveau_obs = nNouveau
+	nQuitter_obs = nQuitter
+	nCopier_obs  = nCopier
+	sStatut_obs  = sStatut
+FIN
+
+
+// Cas nominal : une OptionMenu de premier niveau (dans un SousMenu direct)
+// déclenche son surSélection(), qui incrémente un compteur et met à jour
+// le libellé d'un champ voisin.
+PROCEDURE PUBLIQUE scenario_declenche_selection_option_premier_niveau()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimulMenu)
+	RAZEtat()
+
+	TestSimuleMenu(FEN_TSimulMenu, "OPT_Nouveau")
+	RemonteEtat()
+	dbgVérifieEgalité(nNouveau_obs, 1, "surSélection de OPT_Nouveau déclenché une fois")
+	dbgVérifieEgalité(sStatut_obs, "Nouveau déclenché", "le libellé voisin est mis à jour par le handler")
+
+	Ferme(FEN_TSimulMenu)
+FIN
+
+
+// Une OptionMenu logée dans un sous-menu imbriqué à deux niveaux
+// (SM_Édition > SM_Avancé > OPT_Copier) est résolue et déclenchée.
+PROCEDURE PUBLIQUE scenario_declenche_selection_option_sous_menu_imbrique()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimulMenu)
+	RAZEtat()
+
+	TestSimuleMenu(FEN_TSimulMenu, "OPT_Copier")
+	RemonteEtat()
+	dbgVérifieEgalité(nCopier_obs, 1, "surSélection de OPT_Copier (sous-menu imbriqué) déclenché une fois")
+
+	Ferme(FEN_TSimulMenu)
+FIN
+
+
+// Deux déclenchements successifs sur des options différentes n'interfèrent
+// pas entre eux : chaque compteur reste indépendant.
+PROCEDURE PUBLIQUE scenario_declenche_selections_multiples_independantes()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimulMenu)
+	RAZEtat()
+
+	TestSimuleMenu(FEN_TSimulMenu, "OPT_Nouveau")
+	TestSimuleMenu(FEN_TSimulMenu, "OPT_Quitter")
+	TestSimuleMenu(FEN_TSimulMenu, "OPT_Nouveau")
+	RemonteEtat()
+	dbgVérifieEgalité(nNouveau_obs, 2, "OPT_Nouveau déclenché deux fois")
+	dbgVérifieEgalité(nQuitter_obs, 1, "OPT_Quitter déclenché une fois")
+
+	Ferme(FEN_TSimulMenu)
+FIN
+
+
+// Cas défensif : une option inexistante dans l'arbre de menu est une
+// erreur explicite, pas un no-op silencieux.
+PROCEDURE PRIVÉE scenario_option_inexistante_leve_erreur()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimulMenu)
+	RAZEtat()
+
+	TestSimuleMenu(FEN_TSimulMenu, "OPT_NExistePas")
+	dbgVérifieVrai(ErreurDétectée, "option de menu introuvable : erreur détectée")
+
+	Ferme(FEN_TSimulMenu)
+FIN
+
+
+// Cas défensif : une fenêtre sans MenuPrincipal affecté ne peut pas
+// recevoir de sélection simulée.
+PROCEDURE PRIVÉE scenario_fenetre_sans_menu_leve_erreur()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimulMenuSansMenu)
+
+	TestSimuleMenu(FEN_TSimulMenuSansMenu, "OPT_Quelconque")
+	dbgVérifieVrai(ErreurDétectée, "fenêtre sans menu principal affecté : erreur détectée")
+
+	Ferme(FEN_TSimulMenuSansMenu)
+FIN

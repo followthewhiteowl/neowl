@@ -1,0 +1,97 @@
+// @sujet : TexteSimilaritéPartielle
+// @résumé : Similarité partielle par sliding window — glisse la chaîne la plus courte sur la plus longue et retourne le meilleur score local. Retourne un réel entre 0 et 1. Insensible à la casse et aux accents par défaut. Utile pour détecter une correspondance exacte ou proche dans un contexte plus large (trouver un nom dans une phrase).
+
+
+// Cas typique : sous-chaîne exacte → similarité 1.0. "Dupont" apparaît
+// exactement dans "Jean Dupont" (sous-chaîne contiguë de longueur 6).
+// Après folding casse, c'est identique → score 1.0.
+PROCEDURE scenario_texte_similarite_partielle_sous_chaine_exacte()
+	sim est un réel = TexteSimilaritéPartielle("Dupont", "Jean Dupont")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "sous-chaîne exacte → 1.0", 0.0001)
+FIN
+
+
+// Différence avec TexteSimilarité : "chat" vs "le chat noir".
+// TexteSimilarité("chat","le chat noir") = ratio global (LCS=4 "chat",
+// indel=4+12-8=8, total=16, ratio=1-8/16=0.5).
+// TexteSimilaritéPartielle slide "chat" (4 chars) sur "le chat noir" (12 chars),
+// trouve "chat" exact → 1.0 (meilleur score partiel > score global).
+PROCEDURE scenario_texte_similarite_partielle_vs_globale()
+	simGlobale est un réel = TexteSimilarité("chat", "le chat noir")
+	simPartielle est un réel = TexteSimilaritéPartielle("chat", "le chat noir")
+
+	dbgVérifieVrai(simPartielle > simGlobale, "partielle trouve match exact > global")
+	dbgVérifieÉgalitéRéel(simPartielle, 1.0, "match exact détecté", 0.0001)
+FIN
+
+
+// Cas trivial : chaînes identiques → partielle == globale = 1.0.
+PROCEDURE scenario_texte_similarite_partielle_identiques()
+	sim est un réel = TexteSimilaritéPartielle("test", "test")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaînes identiques → 1.0", 0.0001)
+FIN
+
+
+// Cas limite : l'une des chaînes est vide → 0.0.
+PROCEDURE scenario_texte_similarite_partielle_une_vide()
+	sim1 est un réel = TexteSimilaritéPartielle("abc", "")
+	sim2 est un réel = TexteSimilaritéPartielle("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → 0.0", 0.0001)
+FIN
+
+
+// Cas limite : deux vides → 1.0 (convention identique à TexteSimilarité).
+PROCEDURE scenario_texte_similarite_partielle_deux_vides()
+	sim est un réel = TexteSimilaritéPartielle("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → 1.0", 0.0001)
+FIN
+
+
+// Insensible casse+accents : "CAFÉ" vs "café au lait" trouve "cafe"
+// après folding dans la chaîne plus longue → match exact → 1.0.
+PROCEDURE scenario_texte_similarite_partielle_insensible()
+	sim est un réel = TexteSimilaritéPartielle("CAFÉ", "café au lait")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "casse+accents ignorés, match exact détecté", 0.0001)
+FIN
+
+
+// Alias EN : TextSimilarityPartial() équivalent à TexteSimilaritéPartielle().
+PROCEDURE scenario_text_similarity_partial_alias_en()
+	simFR est un réel = TexteSimilaritéPartielle("Dupont", "Jean Dupont")
+	simEN est un réel = TextSimilarityPartial("Dupont", "Jean Dupont")
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR", 0.0001)
+	dbgVérifieÉgalitéRéel(simEN, 1.0, "alias EN calcule correctement", 0.0001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Meilleur score partiel < 1.0. "toto" vs "totalement" : sliding "toto"
+// (4 chars) sur "totalement" (10 chars). Meilleur match probable vers début
+// "tota" vs "toto" : LCS=3 "tot", indel=4+4-6=2, total=8, ratio=1-2/8=6/8=0.75
+// (approximatif, pas calculé exhaustivement — juste vérifier > 0.5).
+PROCEDURE PRIVÉE scenario_texte_similarite_partielle_score_inferieur_un()
+	sim est un réel = TexteSimilaritéPartielle("toto", "totalement")
+
+	dbgVérifieVrai(sim > 0.5, "meilleur score partiel plausible > 0.5")
+	dbgVérifieVrai(sim < 1.0, "pas de match exact, score < 1.0")
+FIN
+
+
+// Ordre inversé : TexteSimilaritéPartielle("longue","courte") doit glisser
+// "courte" sur "longue" (la plus courte glisse sur la plus longue).
+PROCEDURE PRIVÉE scenario_texte_similarite_partielle_ordre_inverse()
+	sim1 est un réel = TexteSimilaritéPartielle("Dupont", "Jean Dupont Martin")
+	sim2 est un réel = TexteSimilaritéPartielle("Jean Dupont Martin", "Dupont")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "ordre n'affecte pas partielle (sliding auto)", 0.0001)
+FIN

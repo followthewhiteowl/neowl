@@ -1,0 +1,75 @@
+//  — Style..Image..Image doit exister sur styleImageBouton et
+// rendre l'icone du bouton, au meme titre que la prop top-level Image
+//. Ce test utilise TestModeHeadless(Faux) + OuvreSoeur pour
+// monter les vrais widgets Qt (offscreen) et capturer le rendu reel.
+//
+// Discrimination :
+//   - BTN_StylePlat (Image = icones.add, chemin deja resolu) et
+//     BTN_StyleImage (Style..Image..Image = icones.add, meme icone, meme
+//     geometrie) doivent produire des captures IDENTIQUES (convergence
+//     pixel same-icone same-geometrie, meme pattern que ).
+//   - BTN_StyleImage et BTN_Nu (aucune icone) doivent produire des
+//     captures DIFFERENTES (l'icone est bien rendue).
+//
+// ROUGE ATTENDU : la feuille Style..Image..Image n'existe pas encore sur
+// styleImageBouton (seule Position existe) -> echec de compilation du
+// fichier voisin FEN_StyleBoutonImageSource.owl ("Champ 'Image' inconnu
+// sur type styleImageBouton. Champs disponibles : Position.").
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleBoutonImageSource)
+
+imgPlat est une Image = CaptureStylePlat()
+dbgVérifieEgalité(imgPlat..Valide, Vrai, "GUI : capture BTN_StylePlat valide")
+
+imgStyle est une Image = CaptureStyleImage()
+dbgVérifieEgalité(imgStyle..Valide, Vrai, "GUI : capture BTN_StyleImage valide")
+
+imgNu est une Image = CaptureNu()
+dbgVérifieEgalité(imgNu..Valide, Vrai, "GUI : capture BTN_Nu valide")
+
+// --- Comparaison BTN_StylePlat vs BTN_StyleImage : doivent converger ---
+nbDiffConvergence est un entier = 0
+wConv est un entier = imgPlat..Largeur
+hConv est un entier = imgPlat..Hauteur
+yConv est un entier = 0
+TANTQUE yConv < hConv
+	xConv est un entier = 0
+	TANTQUE xConv < wConv
+		cPlat est un entier = dPixelCouleur(imgPlat, xConv, yConv)
+		cStyle est un entier = dPixelCouleur(imgStyle, xConv, yConv)
+		SI cPlat <> cStyle ALORS
+			nbDiffConvergence = nbDiffConvergence + 1
+		FIN
+		xConv = xConv + 1
+	FIN
+	yConv = yConv + 1
+FIN
+
+dbgVérifieEgalité(nbDiffConvergence, 0,
+"BTN..Image = icones.add et BTN..Style..Image..Image = icones.add (meme icone, meme geometrie) rendent pixel-identiques")
+
+// --- Comparaison BTN_StyleImage vs BTN_Nu : doivent diverger ---
+nbDiffPresence est un entier = 0
+wPres est un entier = imgStyle..Largeur
+hPres est un entier = imgStyle..Hauteur
+yPres est un entier = 0
+TANTQUE yPres < hPres
+	xPres est un entier = 0
+	TANTQUE xPres < wPres
+		cStyle2 est un entier = dPixelCouleur(imgStyle, xPres, yPres)
+		cNu est un entier = dPixelCouleur(imgNu, xPres, yPres)
+		SI cStyle2 <> cNu ALORS
+			nbDiffPresence = nbDiffPresence + 1
+		FIN
+		xPres = xPres + 1
+	FIN
+	yPres = yPres + 1
+FIN
+
+dbgVérifieVrai(nbDiffPresence > 50,
+"BTN..Style..Image..Image = icones.add rend une icone visible (capture differente du bouton nu)")
+
+Ferme(FEN_StyleBoutonImageSource)
+dbgBilanTest()

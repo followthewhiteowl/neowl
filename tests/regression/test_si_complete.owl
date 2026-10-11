@@ -1,0 +1,170 @@
+// Régression et cas limites pour les ajouts SI complets :
+//  - opérateurs DANS / _DANS_ (full-eval / short-circuit)
+//  - négations PAS DANS, v PAS DANS, PAS v DANS, PAS _DANS_
+//  - liste à 1, 5, N éléments ; types homogènes et mixtes ; LHS composé
+//  - forme courte SI ALORS instr SINON instr avec instructions diverses
+//  - non-régression des formes SI déjà en place (bloc, SINON SI cascade, courte sans SINON)
+Trace("=== SI COMPLETE ===")
+
+
+// ── 1. DANS forme bloc — équivalent à v = e1 OU v = e2 OU ... ──────────
+v est une chaîne = "PARIS"
+dbgVérifieVrai(v DANS ("LYON", "PARIS", "NICE"), "v DANS liste : match au milieu")
+dbgVérifieFaux(v DANS ("LYON", "MARSEILLE", "NICE"), "v DANS liste : aucun match")
+
+
+// ── 2. DANS à un seul élément — équivaut à v = e ──────────────────────
+n est un entier = 42
+dbgVérifieVrai(n DANS (42), "DANS 1 élément : match")
+dbgVérifieFaux(n DANS (41), "DANS 1 élément : pas match")
+
+
+// ── 3. DANS à 5 éléments — couvre les listes longues ──────────────────
+j est un entier = 3
+dbgVérifieVrai(j DANS (1, 2, 3, 4, 5), "DANS 5 éléments : match au milieu")
+dbgVérifieVrai(j DANS (5, 4, 3, 2, 1), "DANS 5 éléments : ordre indifférent")
+dbgVérifieFaux(j DANS (10, 20, 30, 40, 50), "DANS 5 éléments : aucun")
+
+
+// ── 4. Types mixtes — délégué à OP_EQUAL existant ─────────────────────
+// L'utilisateur écrit volontairement un mix : on doit accepter au compile
+// et laisser la comparaison cross-type d'OP_EQUAL trancher au runtime.
+m est un entier = 5
+dbgVérifieVrai(m DANS (1, "abc", 5), "Types mixtes : match sur l'entier 5")
+dbgVérifieFaux(m DANS (1, "abc", Vrai), "Types mixtes : pas de match sur 5")
+
+
+// ── 5. LHS expression composée — précédence : DANS au niveau égalité ──
+n1 est un entier = 2
+n2 est un entier = 3
+dbgVérifieVrai((n1 + n2) DANS (4, 5, 6), "LHS expression composée : (2+3)=5 dans liste")
+dbgVérifieVrai(n1 + n2 DANS (4, 5, 6), "Sans parenthèses : + lie plus fort que DANS")
+
+
+// ── 6. DANS combiné avec ET — DANS lie plus fort que ET ────────────────
+x est un entier = 2
+y est un entier = 7
+dbgVérifieVrai(x DANS (1, 2) ET y > 0, "DANS prioritaire sur ET (parse OK)")
+dbgVérifieFaux(x DANS (3, 4) ET y > 0, "DANS faux invalide la conjonction")
+
+
+// ── 7. PAS DANS — négation directe ────────────────────────────────────
+sV est une chaîne = "TOULOUSE"
+dbgVérifieVrai(sV PAS DANS ("LYON", "PARIS", "NICE"), "PAS DANS : absence détectée")
+dbgVérifieFaux(sV PAS DANS ("LYON", "TOULOUSE"), "PAS DANS : présence → faux")
+
+
+// ── 8. PAS v DANS — forme alternative historique ──────────────────────
+// Sémantiquement identique à v PAS DANS (...).
+dbgVérifieVrai(PAS sV DANS ("LYON", "PARIS"), "PAS v DANS : absence détectée")
+dbgVérifieFaux(PAS sV DANS ("LYON", "TOULOUSE"), "PAS v DANS : présence → faux")
+
+
+// ── 9. _DANS_ short-circuit — l'expression après match n'est pas évaluée ──
+// Compteur global incrémenté par une fonction utilisée comme expression
+// APRÈS le premier match. Si _DANS_ court-circuite, le compteur reste à 0.
+nCompteur est un entier = 0
+
+FONCTION CompteEtRetourne(nVal est un entier) : entier
+	nCompteur = nCompteur + 1
+	RENVOYER nVal
+FIN
+
+cible est un entier = 1
+// 1 matche immédiatement → CompteEtRetourne(99) et (100) ne doivent pas s'exécuter
+bMatch est un booléen = cible _DANS_(1, CompteEtRetourne(99), CompteEtRetourne(100))
+dbgVérifieVrai(bMatch, "_DANS_ : match trouvé sur le premier élément")
+dbgVérifieEgalité(nCompteur, 0, "_DANS_ short-circuit : expressions après match non évaluées")
+
+// Reset, puis cible absente : tout doit être évalué
+nCompteur = 0
+cibleAbsente est un entier = 999
+bAbsent est un booléen = cibleAbsente _DANS_(1, CompteEtRetourne(2), CompteEtRetourne(3))
+dbgVérifieFaux(bAbsent, "_DANS_ : aucun match")
+dbgVérifieEgalité(nCompteur, 2, "_DANS_ sans match : toutes les expressions sont évaluées")
+
+
+// ── 10. PAS _DANS_ — négation de la forme court-circuit ───────────────
+nCompteur = 0
+cible2 est un entier = 1
+bPasDansSc est un booléen = cible2 PAS _DANS_(1, CompteEtRetourne(2), CompteEtRetourne(3))
+dbgVérifieFaux(bPasDansSc, "PAS _DANS_ : présent → faux")
+dbgVérifieEgalité(nCompteur, 0, "PAS _DANS_ : short-circuit préservé sous négation")
+
+
+// ── 11. Forme courte SI ALORS instr SINON instr — assignation ────────
+nA est un entier = 5
+sCat est une chaîne = ""
+SI nA > 0 ALORS sCat = "positif" SINON sCat = "négatif"
+dbgVérifieEgalité(sCat, "positif", "SINON court : branche ALORS prise")
+
+nA = -3
+SI nA > 0 ALORS sCat = "positif" SINON sCat = "négatif"
+dbgVérifieEgalité(sCat, "négatif", "SINON court : branche SINON prise")
+
+
+// ── 12. Forme courte SI ALORS instr SINON instr — appel native ────────
+nB est un entier = 0
+SI nB = 0 ALORS Trace("zéro") SINON Trace("non zéro")
+dbgVérifieVrai(Vrai, "SINON court avec appel native compile et exécute")
+
+
+// ── 13. Forme courte avec RENVOYER dans une fonction ──────────────────
+FONCTION classifie(nVal est un entier) : chaîne
+	SI nVal >= 0 ALORS RENVOYER "positif" SINON RENVOYER "négatif"
+FIN
+
+dbgVérifieEgalité(classifie(10), "positif", "SINON court avec RENVOYER : branche ALORS")
+dbgVérifieEgalité(classifie(-2), "négatif", "SINON court avec RENVOYER : branche SINON")
+
+
+// ── 14. Forme courte avec SORTIR dans une boucle ──────────────────────
+nIter est un entier = 0
+POUR i = 1 À 10
+	nIter = i
+	SI i = 4 ALORS SORTIR SINON Trace("itération continue")
+FIN
+dbgVérifieEgalité(nIter, 4, "SORTIR depuis forme courte SINON : sortie à i=4")
+
+
+// ── 15. Forme courte avec CONTINUER dans une boucle ───────────────────
+nSomme est un entier = 0
+POUR k = 1 À 5
+	SI k = 3 ALORS CONTINUER SINON nSomme = nSomme + k
+FIN
+// Itère 1..5, saute k=3 → somme = 1+2+4+5 = 12
+dbgVérifieEgalité(nSomme, 12, "CONTINUER depuis forme courte SINON : saut k=3")
+
+
+// ── 16. NON-RÉGRESSION — SI bloc simple sans SINON ────────────────────
+nReg est un entier = 7
+sReg est une chaîne = "défaut"
+SI nReg > 0 ALORS
+	sReg = "positif"
+FIN
+dbgVérifieEgalité(sReg, "positif", "Régression : SI bloc simple toujours fonctionnel")
+
+
+// ── 17. NON-RÉGRESSION — SINON SI cascade existante ───────────────────
+nNote est un entier = 13
+sM est une chaîne = ""
+SI nNote >= 16 ALORS
+	sM = "TB"
+SINON SI nNote >= 14 ALORS
+	sM = "B"
+SINON SI nNote >= 12 ALORS
+	sM = "AB"
+SINON
+	sM = "passable"
+FIN
+dbgVérifieEgalité(sM, "AB", "Régression : SINON SI cascade toujours fonctionnel")
+
+
+// ── 18. NON-RÉGRESSION — forme courte sans SINON ──────────────────────
+nC est un entier = 4
+sCC est une chaîne = "init"
+SI nC > 0 ALORS sCC = "ok"
+dbgVérifieEgalité(sCC, "ok", "Régression : SI ALORS instr (sans SINON) toujours fonctionnel")
+
+
+dbgBilanTest()

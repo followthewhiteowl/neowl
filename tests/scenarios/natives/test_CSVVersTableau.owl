@@ -1,0 +1,113 @@
+// @sujet : CSVVersTableau
+// @résumé : Conversion chaîne CSV vers tableau 1D (sans séparateur colonne) ou 2D (avec séparateur colonne), conforme RFC-4180 (guillemets, séparateurs imbriqués)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_tableau_1d_lignes_simples()
+	// Parsing CSV sans séparateur de colonne produit un tableau 1D.
+	// Chaque ligne devient un élément de tableau.
+	csv1d est une chaîne = "A" + CRLF + "B" + CRLF + "C"
+	tab1d est un tableau de chaînes = CSVVersTableau(csv1d)
+
+	dbgVérifieEgalité(tab1d..Occurrence, 3, "1D : 3 lignes → 3 éléments")
+	dbgVérifieEgalité(tab1d[1], "A", "1D : élément 1 = A")
+	dbgVérifieEgalité(tab1d[2], "B", "1D : élément 2 = B")
+	dbgVérifieEgalité(tab1d[3], "C", "1D : élément 3 = C")
+FIN
+
+PROCEDURE PUBLIQUE scenario_tableau_2d_lignes_colonnes()
+	// Parsing CSV avec séparateur produit un tableau 2D.
+	// Lignes séparées par CRLF, colonnes par le séparateur fourni.
+	csv2d est une chaîne = "A;B" + CRLF + "C;D" + CRLF + "E;F"
+	tab2d est un tableau = CSVVersTableau(csv2d, ";")
+
+	dbgVérifieEgalité(tab2d..Occurrence, 3, "2D : 3 lignes")
+	dbgVérifieEgalité(tab2d[1]..Occurrence, 2, "2D : ligne 1 a 2 colonnes")
+	dbgVérifieEgalité(tab2d[1][1], "A", "2D : [1][1] = A")
+	dbgVérifieEgalité(tab2d[1][2], "B", "2D : [1][2] = B")
+	dbgVérifieEgalité(tab2d[2][1], "C", "2D : [2][1] = C")
+	dbgVérifieEgalité(tab2d[3][2], "F", "2D : [3][2] = F")
+FIN
+
+PROCEDURE PUBLIQUE scenario_guillemets_rfc4180_preserves()
+	// RFC-4180 : champ encadré de guillemets, guillemets internes doublés.
+	// Parsing restitue les guillemets simples.
+	csv_quote est une chaîne = "Il dit ""oui"""
+	tab_quote est un tableau de chaînes = CSVVersTableau(csv_quote)
+
+	dbgVérifieEgalité(tab_quote..Occurrence, 1, "Guillemets : 1 élément restitué")
+	dbgVérifieEgalité(tab_quote[1], "Il dit ""oui""", "Guillemets : internes préservés")
+FIN
+
+PROCEDURE PUBLIQUE scenario_separateur_custom_tabulation()
+	// Le séparateur de colonne peut être custom (ici TAB).
+	csv_tab est une chaîne = "col1" + TAB + "col2" + CRLF + "val1" + TAB + "val2"
+	tab_tab est un tableau = CSVVersTableau(csv_tab, TAB)
+
+	dbgVérifieEgalité(tab_tab..Occurrence, 2, "TAB sep : 2 lignes")
+	dbgVérifieEgalité(tab_tab[1][1], "col1", "TAB sep : [1][1] = col1")
+	dbgVérifieEgalité(tab_tab[2][2], "val2", "TAB sep : [2][2] = val2")
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : edge cases et cas limites (initiative test_writer)
+// ═════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_csv_vide_tableau_vide()
+	// CSV vide produit un tableau vide (0 élément).
+	tab_vide est un tableau = CSVVersTableau("")
+
+	dbgVérifieEgalité(tab_vide..Occurrence, 0, "CSV vide : 0 élément")
+FIN
+
+PROCEDURE PRIVÉE scenario_champ_vide_preserve()
+	// Champ vide entre séparateurs reste présent (colonne vide).
+	csv_colonne_vide est une chaîne = "A;;C"
+	tab_colonne_vide est un tableau = CSVVersTableau(csv_colonne_vide, ";")
+
+	dbgVérifieEgalité(tab_colonne_vide..Occurrence, 1, "Colonne vide : 1 ligne")
+	dbgVérifieEgalité(tab_colonne_vide[1]..Occurrence, 3, "Colonne vide : 3 colonnes")
+	dbgVérifieEgalité(tab_colonne_vide[1][2], "", "Colonne vide : [1][2] = chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_separateur_imbrique_dans_guillemets()
+	// Séparateur à l'intérieur d'un champ quoté ne coupe pas.
+	// Le champ encadré de guillemets reste une seule colonne.
+	csv_sep_imbriqué est une chaîne = """A;B"";C"
+	tab_sep_imbriqué est un tableau = CSVVersTableau(csv_sep_imbriqué, ";")
+
+	dbgVérifieEgalité(tab_sep_imbriqué..Occurrence, 1, "Sep imbriqué : 1 ligne")
+	dbgVérifieEgalité(tab_sep_imbriqué[1]..Occurrence, 2, "Sep imbriqué : 2 colonnes (pas 3)")
+	dbgVérifieEgalité(tab_sep_imbriqué[1][1], "A;B", "Sep imbriqué : [1][1] contient le sep intact")
+FIN
+
+PROCEDURE PRIVÉE scenario_retour_ligne_dans_champ_quote()
+	// Champ quoté contenant CRLF reste une seule ligne logique (1 colonne).
+	csv_rc_imbriqué est une chaîne = """ligne1" + CRLF + "ligne2"""
+	tab_rc_imbriqué est un tableau = CSVVersTableau(csv_rc_imbriqué)
+
+	dbgVérifieEgalité(tab_rc_imbriqué..Occurrence, 1, "CRLF imbriqué : 1 ligne logique")
+	dbgVérifieVrai(Contient(tab_rc_imbriqué[1], "ligne1"), "CRLF imbriqué : contient ligne1")
+	dbgVérifieVrai(Contient(tab_rc_imbriqué[1], "ligne2"), "CRLF imbriqué : contient ligne2")
+FIN
+
+PROCEDURE PRIVÉE scenario_espaces_leading_trailing_preserves()
+	// Espaces avant/après un champ sont préservés (RFC-4180 ne trim pas).
+	csv_espaces est une chaîne = "  A  ;  B  "
+	tab_espaces est un tableau = CSVVersTableau(csv_espaces, ";")
+
+	dbgVérifieEgalité(tab_espaces[1][1], "  A  ", "Espaces : [1][1] avec leading/trailing")
+	dbgVérifieEgalité(tab_espaces[1][2], "  B  ", "Espaces : [1][2] avec leading/trailing")
+FIN
+
+PROCEDURE PRIVÉE scenario_separateur_multichar()
+	// Séparateur peut être multi-caractères (ex: "||").
+	csv_multisep est une chaîne = "A||B||C"
+	tab_multisep est un tableau = CSVVersTableau(csv_multisep, "||")
+
+	dbgVérifieEgalité(tab_multisep..Occurrence, 1, "Sep multi : 1 ligne")
+	dbgVérifieEgalité(tab_multisep[1]..Occurrence, 3, "Sep multi : 3 colonnes")
+	dbgVérifieEgalité(tab_multisep[1][2], "B", "Sep multi : [1][2] = B")
+FIN

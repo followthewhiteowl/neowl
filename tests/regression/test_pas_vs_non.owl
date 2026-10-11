@@ -1,0 +1,45 @@
+// Regression : `Non` est une constante UI (= 0), pas un alias de l'operateur
+// PAS. Aligné sur le canon de référence (fonction OuiNon).
+//
+// Bug historique : le scanner OWL aliassait `non` -> TOKEN_PAS, ce qui :
+//   - empechait `SI x = Non ALORS` de compiler (tokenise comme operateur)
+//   - permettait abusivement `SI Non x ALORS` (faux en canon de référence)
+// Fix : retrait de `{"non", TOKEN_PAS}` dans scanner.c.
+
+// --- 1. Constantes Oui / Non ---
+dbgVérifieEgalité(Oui, 1, "Oui = 1")
+dbgVérifieEgalité(Non, 0, "Non = 0")
+
+// --- 2. Operateur PAS = negation logique ---
+dbgVérifieEgalité(PAS Vrai, Faux, "PAS Vrai = Faux")
+dbgVérifieEgalité(PAS Faux, Vrai, "PAS Faux = Vrai")
+
+// --- 3. Pattern canon de référence : SI OuiNon(...) = Non ALORS ---
+// (on ne peut pas appeler OuiNon en mode test, mais on simule la valeur)
+reponse est un entier = 0 // simule fermeture par X / clic Non
+SI reponse = Non ALORS
+	dbgVérifieEgalité(reponse, 0, "branche Non prise (reponse = Non)")
+SINON
+	dbgVérifieVrai(Faux, "branche Non aurait du etre prise")
+FIN
+
+reponse = 1
+SI reponse = Oui ALORS
+	dbgVérifieEgalité(reponse, 1, "branche Oui prise (reponse = Oui)")
+SINON
+	dbgVérifieVrai(Faux, "branche Oui aurait du etre prise")
+FIN
+
+// --- 4. Non n'est PAS un operateur unaire ---
+// L'expression `Non x` n'a aucun sens comme operateur ; au mieux c'est
+// `Non` (constante = 0) suivi de `x` -> deux expressions sans operateur.
+// Couvert par tests/check/test_non_pas_operator si on veut le test
+// compile-error explicite.
+
+// --- 5. PAS via parens ne marche PAS comme une fonction ---
+// `PAS(expr)` est une expression entre parentheses precedee de PAS.
+// Equivalent a `PAS expr`.
+dbgVérifieEgalité(PAS(Vrai = Vrai), Faux, "PAS(Vrai = Vrai) = Faux")
+dbgVérifieEgalité(PAS(1 + 1 = 3), Vrai, "PAS(1+1=3) = Vrai")
+
+dbgBilanTest()

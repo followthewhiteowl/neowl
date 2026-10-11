@@ -1,0 +1,34 @@
+// Une procédure de fenêtre est un identifiant : sa résolution ignore les
+// accents comme la casse. La graphie écrite à la déclaration et celle écrite
+// à l'appel n'ont donc pas à coïncider.
+//
+// Contrepartie du refus du doublon accentué : si deux graphies ne pouvaient
+// pas s'atteindre l'une l'autre, refuser leur coexistence enfermerait le code
+// appelant dans une seule orthographe.
+
+TestModeHeadless(Vrai)
+
+traceGC est une chaîne = ""
+
+PROCEDURE marqueGC(m est une chaîne)
+	traceGC = traceGC + m + ";"
+FIN
+
+// Déclarée « aidé », appelée « aide ».
+Ouvre(FEN_GC1)
+aide()
+dbgVérifieEgalité(traceGC, "aide-accentuee;", "procédure accentuée atteinte par la graphie nue")
+
+// Déclarée « resume », appelée « résumé ».
+traceGC = ""
+Ouvre(FEN_GC2)
+résumé()
+dbgVérifieEgalité(traceGC, "resume-nu;", "procédure nue atteinte par la graphie accentuée")
+
+// Évènement déclaré dans sa seule graphie anglaise : toujours câblé.
+traceGC = ""
+Ouvre(FEN_GC3)
+Ferme(FEN_GC3)
+dbgVérifieEgalité(traceGC, "closing-en;", "évènement de fermeture déclaré en anglais toujours câblé")
+
+dbgBilanTest()

@@ -1,0 +1,65 @@
+// @sujet : stompMessage
+// @résumé : Type composé décrivant un message STOMP échangé avec un courtier (corps, destination, type de contenu). Se passe à STOMPPublie et reçu depuis STOMPAbonne.
+
+
+// Un message déclaré sans initialisation reçoit des propriétés par défaut
+// prêtes à l'emploi : corps vide, destination vide, aucun identifiant de
+// livraison avant réception (jeton d'acquittement : chaîne vide).
+PROCEDURE PUBLIQUE scenario_creation_avec_defauts()
+	msg est un stompMessage
+	dbgVérifieEgalité(msg..Corps, "", "corps vide par défaut")
+	dbgVérifieEgalité(msg..Destination, "", "destination vide par défaut")
+	dbgVérifieEgalité(msg..TypeContenu, "", "type de contenu vide par défaut")
+	dbgVérifieEgalité(msg..Identifiant, "", "identifiant vide (chaîne) avant réception")
+FIN
+
+
+// Le databinding est direct : on assigne aux propriétés avec la notation
+// `..`, on relit de la même façon.
+PROCEDURE PUBLIQUE scenario_configuration_message()
+	msg est un stompMessage
+	msg..Corps       = "bonjour"
+	msg..Destination = "/queue/notifications"
+	msg..TypeContenu = "text/plain"
+
+	dbgVérifieEgalité(msg..Corps, "bonjour", "corps relu tel quel")
+	dbgVérifieEgalité(msg..Destination, "/queue/notifications", "destination relue telle quelle")
+	dbgVérifieEgalité(msg..TypeContenu, "text/plain", "type de contenu relu tel quel")
+FIN
+
+
+// Formes bilingues : Corps (FR) et Body (EN) sont un seul et même champ.
+PROCEDURE PUBLIQUE scenario_bilingue_corps_body()
+	msg est un stompMessage
+	msg..Corps = "valeur-fr"
+	dbgVérifieEgalité(msg..Body, "valeur-fr", "Body (EN) relit ce qu'écrit Corps (FR)")
+
+	msg..Body = "valeur-en"
+	dbgVérifieEgalité(msg..Corps, "valeur-en", "Corps (FR) relit ce qu'écrit Body (EN)")
+FIN
+
+
+// Formes bilingues : TypeContenu (FR) et ContentType (EN).
+PROCEDURE PUBLIQUE scenario_bilingue_typecontenu_contenttype()
+	msg est un stompMessage
+	msg..TypeContenu = "application/json"
+	dbgVérifieEgalité(msg..ContentType, "application/json", "ContentType (EN) relit ce qu'écrit TypeContenu (FR)")
+
+	msg..ContentType = "text/xml"
+	dbgVérifieEgalité(msg..TypeContenu, "text/xml", "TypeContenu (FR) relit ce qu'écrit ContentType (EN)")
+FIN
+
+
+// Formes bilingues : Identifiant (FR) et Tag (EN) — renseigné en réception
+// (jeton d'acquittement STOMP, une chaîne), mais le champ reste assignable
+// pour la symétrie du round-trip.
+PROCEDURE PUBLIQUE scenario_bilingue_identifiant_tag()
+	msg est un stompMessage
+	msg..Identifiant = "msg-42"
+	dbgVérifieEgalité(msg..Tag, "msg-42", "Tag (EN) relit ce qu'écrit Identifiant (FR)")
+
+	msg..Tag = "msg-7"
+	dbgVérifieEgalité(msg..Identifiant, "msg-7", "Identifiant (FR) relit ce qu'écrit Tag (EN)")
+FIN
+
+dbgBilanTest()

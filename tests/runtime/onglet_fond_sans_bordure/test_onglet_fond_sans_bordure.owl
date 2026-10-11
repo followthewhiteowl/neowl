@@ -1,0 +1,66 @@
+//  — un fond de cadre extérieur posé SEUL doit peindre le volet.
+//
+// Défaut observé : sur un Champ Onglet, `Style..CadreExtérieur..CouleurFond`
+// posé sans aucune propriété de bordure ne peignait pas le volet ; la surface
+// était recouverte d'un aplat parasite (mesuré RVB(0,0,0) pour un fond Blanc
+// demandé), donc un résultat PIRE que de ne rien poser du tout.
+//
+// Trou de couverture à l'origine du défaut : tous les témoins existants du
+// Champ Onglet posent une bordure ou un arrondi en même temps que le fond, et
+// ces combinaisons-là ont toujours fonctionné. Le cas « fond seul » n'était
+// exercé nulle part. Ce test le verrouille, et vérifie au passage que les trois
+// autres habillages du cadre extérieur restent inchangés.
+//
+// Méthode : fenêtre au VERT FRANC RVB(0,200,0), volet du premier onglet demandé
+// en BLEU FRANC. Aucune couleur du rendu par défaut n'approche ces deux teintes,
+// donc chaque lecture est sans ambiguïté. Les quatre champs sont empilés tous
+// les 130 px ; leur bande de languettes occupe les 27 premiers pixels, la
+// colonne x=250 tombe donc en plein volet à partir de y0+45.
+//
+// Widgets réels obligatoires : un Champ Onglet re-matérialisé en mode headless
+// rend une surface vide, donc aveugle à tout ça.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OngletFondSansBordure)
+
+img est une Image = dCopieImageFenêtre(FEN_OngletFondSansBordure)
+dbgVérifieEgalité(img..Valide, Vrai, "Capture de la fenêtre : valide")
+
+// --- 1. Fond SEUL : le cas qui régressait --------------------------------
+// Aucune propriété de bordure n'est posée : le fond demandé doit quand même
+// être peint, sur toute la surface du volet.
+dbgVérifieEgalité(dPixelCouleur(img, 250, 80), Bleu,
+"Fond posé seul : le volet est peint de la couleur demandée (centre)")
+dbgVérifieEgalité(dPixelCouleur(img, 20, 110), Bleu,
+"Fond posé seul : peint jusqu'au bord gauche du volet")
+dbgVérifieEgalité(dPixelCouleur(img, 470, 60), Bleu,
+"Fond posé seul : peint jusqu'au bord droit du volet")
+dbgVérifieDifférence(dPixelCouleur(img, 250, 80), Noir,
+"Fond posé seul : plus aucun aplat noir parasite à la place du fond")
+dbgVérifieDifférence(dPixelCouleur(img, 250, 80), RVB(0, 200, 0),
+"Fond posé seul : le volet ne laisse pas voir la fenêtre (il est bien opaque)")
+
+// La bande de languettes reste transparente : poser un fond sur le cadre
+// extérieur ne doit rien peindre au-dessus de lui.
+dbgVérifieEgalité(dPixelCouleur(img, 300, 20), RVB(0, 200, 0),
+"Fond posé seul : la bande de languettes laisse toujours voir la fenêtre")
+
+// --- 2. Non-régression : les habillages qui fonctionnaient déjà -----------
+dbgVérifieEgalité(dPixelCouleur(img, 250, 210), Blanc,
+"Fond + bordure : volet toujours peint du fond demandé")
+dbgVérifieEgalité(dPixelCouleur(img, 250, 340), Blanc,
+"Fond + arrondi : volet toujours peint du fond demandé")
+
+// --- 3. Non-régression : onglet nu, rendu par défaut intact ---------------
+// Aucun style posé -> aucune feuille de style -> le volet garde le fond clair
+// du rendu par défaut, ni la couleur demandée ailleurs, ni un aplat noir.
+dbgVérifieDifférence(dPixelCouleur(img, 250, 470), Bleu,
+"Onglet nu : le volet garde le fond du rendu par défaut")
+dbgVérifieDifférence(dPixelCouleur(img, 250, 470), Noir,
+"Onglet nu : aucun aplat noir non plus")
+dbgVérifieDifférence(dPixelCouleur(img, 250, 470), RVB(0, 200, 0),
+"Onglet nu : le volet reste opaque")
+
+Ferme(FEN_OngletFondSansBordure)
+dbgBilanTest()

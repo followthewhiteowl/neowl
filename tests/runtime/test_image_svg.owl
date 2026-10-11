@@ -1,0 +1,62 @@
+// ================================================================
+// Image natif — Lot I.6 : SVG
+//
+// Étend dChargeImage pour rasteriser les fichiers SVG (.svg) à
+// l'ouverture. Les dimensions optionnelles <Largeur>/<Hauteur>
+// permettent de contrôler la résolution de rasterisation.
+// ================================================================
+
+// ----- On crée un fichier SVG basique pour le test -----
+sChemin est une chaîne = "test_image_svg_rouge.svg"
+
+// Un simple cercle rouge sur fond blanc, viewBox 100x100
+sSVG est une chaîne = "<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 100 100"" width=""100"" height=""100"">"
+sSVG = sSVG + "<rect width=""100"" height=""100"" fill=""white""/>"
+sSVG = sSVG + "<circle cx=""50"" cy=""50"" r=""30"" fill=""red""/>"
+sSVG = sSVG + "</svg>"
+fSauveTexte(sChemin, sSVG)
+
+// ----- dChargeImage : SVG rasterisé à la taille du viewBox -----
+img est une Image = dChargeImage(sChemin)
+dbgVérifieEgalité(img..Valide, Vrai, "SVG: chargement OK")
+dbgVérifieEgalité(img..Largeur, 100, "SVG: largeur viewBox respectée")
+dbgVérifieEgalité(img..Hauteur, 100, "SVG: hauteur viewBox respectée")
+
+// Pixel central est rouge (centre du cercle)
+c est un entier = dPixelCouleur(img, 50, 50)
+// On attend RougeClair (255 = 0xFF en BGR sur 24 bits)
+// Mais le rasterizer peut faire de l'antialiasing, on accepte une teinte rouge
+r est un entier = Modulo(c, 256)
+dbgVérifieVrai(r > 200,
+"SVG: pixel central rouge (R > 200)")
+
+// Pixel de coin est blanc (zone hors cercle)
+ccoin est un entier = dPixelCouleur(img, 5, 5)
+dbgVérifieEgalité(ccoin, Blanc, "SVG: coin blanc")
+
+// ----- dChargeImage avec dimensions explicites pour rasterisation -----
+img2 est une Image = dChargeImage(sChemin, imgDéfaut, 200, 200)
+dbgVérifieEgalité(img2..Valide, Vrai, "SVG redimensionné: valide")
+dbgVérifieEgalité(img2..Largeur, 200, "SVG redimensionné: 200x200")
+dbgVérifieEgalité(img2..Hauteur, 200, "SVG redimensionné: 200x200")
+// Pixel central toujours rouge (centre 100, 100)
+c2 est un entier = dPixelCouleur(img2, 100, 100)
+r2 est un entier = Modulo(c2, 256)
+dbgVérifieVrai(r2 > 200, "SVG agrandi: pixel central reste rouge")
+
+// ----- Coercion implicite via assignation directe -----
+img3 est une Image = sChemin
+dbgVérifieEgalité(img3..Valide, Vrai, "SVG via MaImage = chemin: chargé")
+
+// ----- Roundtrip via PNG (rasterisation préservée) -----
+sCheminPNG est une chaîne = "test_image_svg_tmp.png"
+dSauveImagePNG(img, sCheminPNG)
+img4 est une Image = dChargeImage(sCheminPNG)
+dbgVérifieEgalité(img4..Largeur, 100, "Roundtrip SVG→PNG: largeur")
+c4 est un entier = dPixelCouleur(img4, 50, 50)
+r4 est un entier = Modulo(c4, 256)
+dbgVérifieVrai(r4 > 200, "Roundtrip SVG→PNG: pixel rouge préservé")
+fSupprime(sCheminPNG)
+
+// ----- Cleanup -----
+fSupprime(sChemin)

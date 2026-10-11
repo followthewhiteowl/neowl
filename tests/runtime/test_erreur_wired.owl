@@ -1,0 +1,35 @@
+Trace("=== ErreurDetectee wired ===")
+
+okDir est une chaîne = fRepTemp() + "/owl_err_test"
+fRepCree(okDir)
+
+// Happy path: no error
+fSauveTexte(okDir + "/ok.txt", "hello")
+dbgVérifieFaux(ErreurDétectée, "Sauvegarde reussie: pas d'erreur")
+
+// Failure: open non-existent
+h est un entier = fOuvre("/chemin/vraiment/inexistant/zzz.txt", foLecture)
+dbgVérifieEgalité(h,-1, "fOuvre fail: retour -1")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres fail")
+dbgVérifieVrai(Position(ErreurInfo(errMessage), "fOuvre") > 0, "Message contient 'fOuvre'")
+
+// Sauvegarde sur chemin inexistant
+fSauveTexte("/totalement/invalide/chemin.txt", "data")
+dbgVérifieVrai(ErreurDétectée, "fSauveTexte fail detecte")
+
+// fSupprime d'un fichier qui n'existe pas
+fSupprime("/fichier/inexistant/zz.xyz")
+dbgVérifieVrai(ErreurDétectée, "fSupprime fail detecte")
+
+// Copie: source inexistante
+fCopieFichier("/inexistant/src.txt", okDir + "/dst.txt")
+dbgVérifieVrai(ErreurDétectée, "fCopieFichier fail detecte")
+dbgVérifieVrai(Position(ErreurInfo(errMessage), "source") > 0, "Message mentionne source")
+
+// Reset après succès
+fSauveTexte(okDir + "/ok2.txt", "data")
+dbgVérifieFaux(ErreurDétectée, "Reset apres reussite")
+
+fRepSupprime(okDir, Vrai)
+
+dbgBilanTest()

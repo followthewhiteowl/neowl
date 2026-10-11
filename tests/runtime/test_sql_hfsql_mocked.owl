@@ -1,0 +1,102 @@
+// Tests sqlHFSQL — déterministes, zéro réseau, zéro pack extract.
+//
+// Couvre :
+//   1. Constante sqlHFSQL existe et est lisible
+//   2. SQLConnexionOuvre dispatcheable via mock (contrat retour booléen)
+//   3. Fields HFSQL (Provider, Serveur, BaseDeDonnees, Utilisateur, MotDePasse)
+//      lus/relus correctement
+//   4. Unicode round-trip : accents français + CJK + Latin étendu dans
+//      les champs cnx, pas de corruption UTF-8
+//   5. cnx..ModeTLS est ignoré silencieusement pour HFSQL (le driver
+//      HFSQL ne supporte pas TLS standard, le chiffrement client/serveur
+//      est géré côté serveur HFSQL)
+//   6. Source vide + Serveur vide → erreur claire au dispatch
+//
+// La validation réseau réelle (extract pack, dlopen driver, SQLDriverConnect,
+// fetch lignes) vit dans examples/sql/hfsql_bypass/main.owl + tests manuels
+// avec une instance HFSQL — pas d'env CI prêt à recevoir ça.
+
+// --- 1. Constante sqlHFSQL existe (enum sqlBackend) ---
+// L'enum sqlBackend est tague differemment d'un INTEGER brut donc on
+// compare contre un autre enum de la meme famille pour valider l'existence.
+dbgVérifieVrai(sqlHFSQL <> sqlSqlite, "sqlHFSQL different de sqlSqlite")
+dbgVérifieVrai(sqlHFSQL <> sqlODBC, "sqlHFSQL different de sqlODBC")
+
+
+// --- 2. Mock SQLConnexionOuvre → simule échec ---
+mockOuvre est un MockNative = MockCrée(SQLConnexionOuvre)
+MockQuand(mockOuvre)
+MockAvec(mockOuvre, MockTout)
+MockRetourne(mockOuvre, Faux)
+MockActive(mockOuvre)
+
+cnx est une sqlConnexion
+cnx..Provider      = sqlHFSQL
+cnx..Serveur       = "10.255.255.1:4900"
+cnx..BaseDeDonnées = "MaBase"
+cnx..Utilisateur   = "admin"
+cnx..MotDePasse    = "secret"
+
+res est un booléen = SQLConnexionOuvre(cnx)
+dbgVérifieEgalité(res, Faux, "mock SQLConnexionOuvre HFSQL retourne Faux")
+MockVérifieAppelé(mockOuvre)
+MockDésactive(mockOuvre)
+
+
+// --- 3. Lecture des fields HFSQL ---
+dbgVérifieEgalité(cnx..Provider, sqlHFSQL, "Provider sqlHFSQL lu")
+dbgVérifieEgalité(cnx..Serveur, "10.255.255.1:4900", "Serveur lu (host:port)")
+dbgVérifieEgalité(cnx..BaseDeDonnées, "MaBase", "BaseDeDonnees lu")
+dbgVérifieEgalité(cnx..Utilisateur, "admin", "Utilisateur lu")
+dbgVérifieEgalité(cnx..MotDePasse, "secret", "MotDePasse lu")
+
+
+// --- 4. Unicode round-trip dans les champs ---
+// Accents français, char CJK, latin étendu. Aucun n'est hors BMP donc
+// fonctionne identique sur SQLWCHAR 2 bytes (Windows) et 4 bytes (Linux iODBC).
+cnxU est une sqlConnexion
+cnxU..Provider      = sqlHFSQL
+cnxU..Serveur       = "héberge.local:4900"
+cnxU..BaseDeDonnées = "café_münchen_中文"
+cnxU..Utilisateur   = "Étienne"
+cnxU..MotDePasse    = "MotDePâsse_éàü"
+
+dbgVérifieEgalité(cnxU..Serveur, "héberge.local:4900", "Serveur accents OK")
+dbgVérifieEgalité(cnxU..BaseDeDonnées, "café_münchen_中文", "BDD multi-script OK")
+dbgVérifieEgalité(cnxU..Utilisateur, "Étienne", "Utilisateur accents OK")
+dbgVérifieEgalité(cnxU..MotDePasse, "MotDePâsse_éàü", "MotDePasse accents OK")
+
+
+// --- 5. ModeTLS sur HFSQL : champ accepté mais ignoré + warning runtime ---
+// La sqlConnexion a un champ ModeTLS pour Postgres/MySQL/MSSQL.
+// Le poser sur sqlHFSQL ne doit pas crasher : ouvre_hfsql l'ignore
+// pour la conn string (cf commentaire dans stdlib_sql.c) MAIS emet
+// un warning sur stderr si la valeur != tlsDesactive — eviter la
+// fausse impression de securite. Le user qui sait met tlsDesactive
+// pour silencer.
+cnxTLS est une sqlConnexion
+cnxTLS..Provider      = sqlHFSQL
+cnxTLS..Serveur       = "tls.local:4900"
+cnxTLS..BaseDeDonnées = "base"
+cnxTLS..ModeTLS       = tlsVerifieComplet
+dbgVérifieEgalité(cnxTLS..ModeTLS, tlsVerifieComplet, "ModeTLS lecture OK sur HFSQL (non appliqué)")
+
+// Cas silence : tlsDesactive set explicitement, lecture round-trip OK.
+cnxSilence est une sqlConnexion
+cnxSilence..Provider = sqlHFSQL
+cnxSilence..ModeTLS  = tlsDesactive
+dbgVérifieEgalité(cnxSilence..ModeTLS, tlsDesactive, "ModeTLS tlsDesactive lu (silence warning HFSQL)")
+
+
+// --- 6. Source + Serveur vides : dispatch HFSQL doit échouer proprement ---
+// Sans mock cette fois — on veut que le code de ouvre_hfsql soit
+// vraiment exécuté pour valider le chemin erreur "rien à connecter".
+cnxVide est une sqlConnexion
+cnxVide..Provider = sqlHFSQL
+// pas de Serveur, pas de Source
+resVide est un booléen = cnxVide.Ouvre()
+dbgVérifieEgalité(resVide, Faux, "ouvre_hfsql sans Serveur ni Source échoue")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+
+dbgBilanTest()

@@ -1,0 +1,56 @@
+//  — la config FormatMonétaire d'un Champ Saisie est validée à DEUX
+// niveaux :
+//   - littéral inline `{ … }` -> refusé AU COMPILE (voir les fixtures
+//     tests/compile-error/monetaire_champ_*), non re-testé ici ;
+//   - config posée DYNAMIQUEMENT à chaud (`SAI..FormatMonétaire..X = …`) ->
+//     refus RUNTIME (repli fmn_config_from_instance, drapeau ErreurDétectée)
+//     quand la résolution du format est déclenchée (lecture de ..Valeur).
+//
+// Ce test couvre le repli RUNTIME (mutation dynamique invalide, dont les cas
+// spécifiques au SYMBOLE) et la non-régression des configs saines.
+//
+// Vrais widgets Qt montés (TestModeHeadless(Faux)) : en headless le champ n'est
+// jamais construit et la config n'est jamais lue.
+
+TestModeHeadless(Faux)
+
+// Cas 1 : milliers muté dynamiquement pour égaler le décimal (',') -> conflit
+// séparateurs détecté à la résolution du format (lecture de ..Valeur).
+OuvreSoeur(FEN_FmnDynamique)
+SAI_MonDyn..FormatMonétaire..SéparateurMilliers = ","
+ErreurRAZ()
+mIdent est un monétaire = SAI_MonDyn..Valeur
+bIdent est un booléen = ErreurDétectée
+Ferme(FEN_FmnDynamique)
+dbgVérifieVrai(bIdent, "FormatMonétaire dynamique milliers == décimal (',') : erreur claire levée à la résolution")
+
+// Cas 2 : symbole muté dynamiquement vers un chiffre ('5') -> conflit détecté
+// (indistinguable des chiffres du montant).
+OuvreSoeur(FEN_FmnDynamique)
+SAI_MonDyn..FormatMonétaire..Symbole = "5"
+ErreurRAZ()
+mSymChiffre est un monétaire = SAI_MonDyn..Valeur
+bSymChiffre est un booléen = ErreurDétectée
+Ferme(FEN_FmnDynamique)
+dbgVérifieVrai(bSymChiffre, "FormatMonétaire dynamique symbole = chiffre ('5') : erreur claire levée à la résolution")
+
+// Cas 3 : symbole muté dynamiquement pour égaler le séparateur décimal (',') ->
+// conflit détecté (ambigu au reparse).
+OuvreSoeur(FEN_FmnDynamique)
+SAI_MonDyn..FormatMonétaire..Symbole = ","
+ErreurRAZ()
+mSymSep est un monétaire = SAI_MonDyn..Valeur
+bSymSep est un booléen = ErreurDétectée
+Ferme(FEN_FmnDynamique)
+dbgVérifieVrai(bSymSep, "FormatMonétaire dynamique symbole == séparateur décimal (',') : erreur claire levée à la résolution")
+
+// Cas 4 : config valide (symbole '€', milliers ' ', décimal ',') -> AUCUNE
+// erreur (non-régression ).
+ErreurRAZ()
+OuvreSoeur(FEN_FmnValide)
+mValide est un monétaire = SAI_MonValide..Valeur
+bValide est un booléen = ErreurDétectée
+Ferme(FEN_FmnValide)
+dbgVérifieFaux(bValide, "FormatMonétaire valide (symbole '€', milliers ' ', décimal ',') : aucune erreur")
+
+dbgBilanTest()

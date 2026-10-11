@@ -1,0 +1,46 @@
+//  — Style sans Couleur de texte : la police suit le thème.
+//
+// Régression : une brique de Style seed sa Couleur à 0 (=noir) dès qu'un autre
+// sous-champ est touché (CouleurFond, Cadre...). Ce 0 était appliqué (garde
+// `>= 0`) et posait owl_fg=0 -> `color: rgb(0,0,0)` dur dans la feuille QSS.
+// Résultat : dès qu'on stylait un champ (même juste CouleurFond, sans Couleur),
+// la police passait en noir, écrasant la couleur de texte du thème (illisible
+// sur fond sombre). Le correctif traite Couleur=0 comme non-posée (garde `> 0`,
+// aligné sur la Police et les fragments d'état) : la couleur de base n'est plus
+// émise, la police suit la palette applicative du thème (blanc sur sombre).
+//
+// Test structurel (pas de capture-pixel : l'offscreen honore la palette là où
+// le natif Windows la voit via Fusion ; le rendu sombre est validé côté dev).
+// On inspecte la feuille QSS effective via __DebugFeuilleStyle.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleCouleurDefaut)
+
+// --- Champ stylé SANS Couleur (CouleurFond seul) ---
+feuilleFond est une chaîne = __DebugFeuilleStyle(SAI_FondSeul)
+
+// Le fond est bien appliqué (le style a bien pris).
+dbgVérifieVrai(Contient(feuilleFond, "background-color: rgb(200,220,240)"),
+"CouleurFond seul : le fond du thème est émis dans la feuille")
+
+// PIVOT : aucune couleur de texte noire codée en dur. La police suit le thème.
+dbgVérifieFaux(Contient(feuilleFond, "color: rgb(0,0,0)"),
+"CouleurFond seul : PAS de color: rgb(0,0,0) codé en dur (police suit le thème)")
+
+// Aucune règle de couleur de texte de base n'est émise du tout : la palette
+// applicative (thème) fournit la couleur, pas un noir seed.
+dbgVérifieFaux(Contient(feuilleFond, "QLineEdit { color:"),
+"CouleurFond seul : pas d'ancrage de couleur de base (laisse le thème décider)")
+
+// --- Non-régression : Couleur explicite (> 0) prime toujours ---
+feuilleExpl est une chaîne = __DebugFeuilleStyle(SAI_CouleurExplicite)
+
+dbgVérifieVrai(Contient(feuilleExpl, "QLineEdit { color: rgb(255,0,0)"),
+"Couleur explicite : ancrée sur QLineEdit { color } (prime sur le thème)")
+
+dbgVérifieVrai(Contient(feuilleExpl, "background-color: rgb(200,220,240)"),
+"Couleur explicite : le fond coexiste avec la couleur de texte")
+
+Ferme(FEN_StyleCouleurDefaut)
+dbgBilanTest()

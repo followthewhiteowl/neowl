@@ -1,0 +1,59 @@
+Trace("=== Arites valides des natives PDF (formes discretes fix/0583) ===")
+
+// Verifie que les bornes min/max de chaque native PDF migree vers des
+// signatures discretes compilent ET s'executent. Le compilateur rejette
+// desormais toute arite hors plage ; ce test garantit que les arites
+// canon a l'interieur des bornes restent acceptees.
+
+chemin est une chaîne = fRepTemp() + "/owl_pdf_arity.pdf"
+iDestination(iPDFGénérique, chemin)
+
+// --- iLigne : 4 (min) a 7 (max) ---
+iLigne(10, 20, 30, 40)
+iLigne(10, 25, 30, 45, iContinu)
+iLigne(10, 30, 30, 50, iContinu, 2)
+iLigne(10, 35, 30, 55, iContinu, 2, 0)
+
+// --- iTrait : 4 (min) a 7 (max) ---
+iTrait(10, 60, 30, 80)
+iTrait(10, 65, 30, 85, 2, 0, iTiret)
+
+// --- iTraitH : 2 (min) a 5 (max) ---
+iTraitH(10, 50)
+iTraitH(10, 50, 2, 0, iContinu)
+
+// --- iTraitV : 2 (min) a 5 (max) ---
+iTraitV(90, 110)
+iTraitV(90, 110, 2, 0, iContinu)
+
+// --- iCadre : 4 (min) a 10 (max) ---
+iCadre(10, 120, 50, 140)
+iCadre(10, 120, 50, 140, 1, 100, 0, iContinu, iPleine, iBordTous)
+
+// --- iCadreArrondi : 6 (min) a 11 (max) ---
+iCadreArrondi(10, 150, 50, 170, 3, 3)
+iCadreArrondi(10, 150, 50, 170, 3, 3, 1, 100, 0, iContinu, iPleine)
+
+// --- iEllipse : 4 (min) a 9 (max) ---
+iEllipse(10, 180, 50, 200)
+iEllipse(10, 180, 50, 200, 1, 100, 0, iContinu, iPleine)
+
+// --- iImprimeZone : 5 (min) a 8 (max), retourne le nb de caracteres ---
+n5 est un entier = iImprimeZone("abcde", 10, 210, 60, 220)
+dbgVérifieEgalité(n5, 5, "iImprimeZone 5 args : 5 caracteres imprimes")
+n8 est un entier = iImprimeZone("abcdefgh", 10, 230, 60, 240, iGauche, 2, 6)
+dbgVérifieEgalité(n8, 5, "iImprimeZone 8 args : sous-texte [2..6] = 5 caracteres")
+
+// --- iSauteLigne : 0 (min) a 1 (max) ---
+iSauteLigne()
+iSauteLigne(2)
+
+// --- iDestination : getter 0 arg ---
+dest est un entier = iDestination()
+dbgVérifieEgalité(dest, iPDFGénérique, "iDestination() getter = iPDFGenerique")
+
+iFinImprime()
+dbgVérifieVrai(fFichierExiste(chemin), "PDF genere par le pipeline arity")
+dbgVérifieVrai(fTaille(chemin) > 0, "PDF non vide")
+
+Trace("=== OK ===")

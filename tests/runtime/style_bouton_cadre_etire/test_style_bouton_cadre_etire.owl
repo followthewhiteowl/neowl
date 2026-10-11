@@ -1,0 +1,121 @@
+//  — ROUGE attendu : le wrapper CadreExtérieur (fond + bordure du
+// Champ Bouton stylé) doit respecter la taille figée de l'axe PRINCIPAL du
+// layout (Hauteur) sous Alignement=alignÉtire, en dispVerticale. Canon
+// (`owl explain alignÉtire`) : Étire remplit l'axe TRANSVERSE (horizontal
+// en dispVerticale), pas l'axe principal. BTN_Temoin (même Style, sans
+// Étire) sert de référence : sa Hauteur=30 déclarée doit être identique à
+// celle du bouton étiré. Reproduction du bug corrigé : le wrapper étiré
+// remplit l'axe PRINCIPAL (vertical, jusqu'en bas de la fenêtre) au lieu
+// de rester à sa Hauteur déclarée comme le témoin.
+//
+// Note : le discriminant du fix est exclusivement la Hauteur (axe
+// principal) qui ne doit pas déborder sous Étire. La largeur diffère
+// désormais entre les deux : le témoin sans Étire reste à sa
+// Largeur=100 accrochée à gauche (défaut alignDébut), le bouton étiré
+// occupe toute la largeur transverse — mais la sonde verticale x=20 tombe
+// dans les deux, donc la mesure de Hauteur reste comparable.
+//
+// BTN_Temoin a une couleur de bordure de Cadre DIFFÉRENTE (magenta) de
+// celle du bouton étiré (orange) : la sonde du bas de fenêtre qui cherche
+// la couleur de bordure du wrapper ÉTIRÉ ne peut donc capter QUE ce
+// widget-là, et pas la bordure du témoin qui occupe naturellement cette
+// zone dans le layout (sinon faux-positif indépendant du bug testé).
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteCouleurZone(im est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(im, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+PROCEDURE TrouveLignePremiereCouleur(im est une Image, xSonde est un entier, hauteurImg est un entier, couleur est un entier)
+	yy est un entier = 0
+	TANTQUE yy < hauteurImg
+		SI dPixelCouleur(im, xSonde, yy) = couleur ALORS
+			RENVOYER yy
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER -1
+FIN
+
+PROCEDURE CompteHauteurBande(im est une Image, xSonde est un entier, hauteurImg est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = 0
+	TANTQUE yy < hauteurImg
+		SI dPixelCouleur(im, xSonde, yy) = couleur ALORS
+			n = n + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+couleurFondWrapper est un entier = RVB(0, 200, 0)
+couleurBordureWrapper est un entier = RVB(255, 128, 0)
+couleurFondTemoin est un entier = RVB(0, 0, 200)
+couleurBordureTemoin est un entier = RVB(255, 0, 255)
+
+OuvreSoeur(FEN_BoutonCadreEtire)
+Temporise(50)
+
+img est une Image = dCopieImageFenêtre(FEN_BoutonCadreEtire)
+dbgVérifieEgalité(img..Valide, Vrai, "capture de la fenêtre valide")
+
+// Localise la bande verticale du wrapper étiré et celle du témoin (non
+// étiré) via une sonde x=20, dans les 100px de Largeur déclarée commune.
+//  — sonde déplacée de x=50 à x=20 : le témoin (sans Étire) s'aligne
+// désormais à gauche à sa Largeur=100 (défaut alignDébut), le libellé centré
+// occupe la colonne x=50 et masquait quelques pixels de fond. x=20 sonde le
+// fond hors glyphe. Le wrapper étiré (pleine largeur transverse) reste couvert.
+yBandeWrapper est un entier = TrouveLignePremiereCouleur(img, 20, 240, couleurFondWrapper)
+yBandeTemoin est un entier = TrouveLignePremiereCouleur(img, 20, 240, couleurFondTemoin)
+dbgVérifieVrai(yBandeWrapper >= 0, "le wrapper CadreExtérieur du Bouton étiré est visible dans la fenêtre")
+dbgVérifieVrai(yBandeTemoin >= 0, "le Bouton témoin (non étiré) est visible dans la fenêtre")
+
+// Référence : le témoin (sans Étire) rend à sa Hauteur déclarée, 30px
+// pleins (bordure haut/bas + fond), sur la sonde verticale x=50.
+nHauteurTemoin est un entier = CompteHauteurBande(img, 20, 240, couleurFondTemoin)
+dbgVérifieVrai(nHauteurTemoin >= 20 ET nHauteurTemoin <= 40,
+"le Bouton témoin (sans Étire) rend à sa Hauteur déclarée de 30px")
+
+// Discriminant du fix : le bouton ÉTIRÉ doit rendre à la MÊME hauteur que
+// le témoin (Hauteur=30 = axe principal figé, respecté même sous Étire).
+// Bug actuel : le wrapper étiré remplit tout l'axe principal (vertical)
+// jusqu'en bas de la fenêtre, donc largement > 40px.
+nHauteurWrapper est un entier = CompteHauteurBande(img, 20, 240, couleurFondWrapper)
+dbgVérifieVrai(nHauteurWrapper >= 20 ET nHauteurWrapper <= 40,
+"la Hauteur=30 du Bouton étiré est respectée (axe principal figé, pas d'étirement vertical)")
+
+// Garde anti-tautologie : la bordure magenta du témoin doit bien être
+// rendue quelque part dans la fenêtre (sinon la sonde ci-dessous serait
+// vide par construction, pas par discrimination réelle).
+nBordureTemoinPresente est un entier = CompteCouleurZone(img, 0, 0, 300, 240, couleurBordureTemoin)
+dbgVérifieVrai(nBordureTemoinPresente > 0,
+"la bordure magenta du Bouton témoin est bien rendue dans la fenêtre")
+
+// Confirmation directe et lisible du bug : le fond/bordure du wrapper
+// étiré NE doit PAS atteindre le bas de la fenêtre (dernier tiers). La
+// bordure du témoin (magenta) n'interfère pas car de couleur distincte de
+// couleurBordureWrapper (orange).
+nFondBasFenetre est un entier = CompteCouleurZone(img, 0, 160, 300, 240, couleurFondWrapper)
+nBordureBasFenetre est un entier = CompteCouleurZone(img, 0, 160, 300, 240, couleurBordureWrapper)
+
+dbgVérifieEgalité(nFondBasFenetre, 0,
+"la Hauteur=30 du Bouton étiré est respectée : le fond du wrapper n'atteint pas le bas de la fenêtre")
+dbgVérifieEgalité(nBordureBasFenetre, 0,
+"la Hauteur=30 du Bouton étiré est respectée : la bordure du wrapper n'atteint pas le bas de la fenêtre")
+
+Ferme(FEN_BoutonCadreEtire)
+dbgBilanTest()

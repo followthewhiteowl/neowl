@@ -1,0 +1,71 @@
+// @sujet : sCalculeCrc32
+// @résumé : Calcule le CRC-32 (somme de contrôle sur 32 bits, variante
+// utilisée par zip, zlib et PNG) des octets d'une chaîne ou d'un buffer.
+// Un second argument optionnel reprend un CRC déjà calculé pour enchaîner
+// le calcul sur plusieurs fragments successifs (chaînage) ; omis ou nul,
+// le calcul repart de zéro.
+
+// ============================================
+// Cas pedagogiques (publics)
+// ============================================
+
+PROCEDURE PUBLIQUE scenario_valeur_de_controle()
+	// La séquence "123456789" est le vecteur de contrôle de référence du
+	// CRC-32 : toute implémentation correcte produit cette valeur.
+	n est un entier = sCalculeCrc32("123456789")
+	dbgVérifieEgalité(n, 3421780262, "valeur de contrôle CRC-32 canonique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chaine_vide()
+	// Une entrée vide n'a rien à sommer : le CRC-32 vaut zéro.
+	n est un entier = sCalculeCrc32("")
+	dbgVérifieEgalité(n, 0, "chaîne vide vaut 0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_texte_simple()
+	// Un texte court produit un CRC-32 stable et reproductible.
+	n est un entier = sCalculeCrc32("abc")
+	dbgVérifieEgalité(n, 891568578, "CRC-32 de abc")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chainage()
+	// Calculer un fragment puis reprendre son CRC pour le fragment suivant
+	// donne le même résultat qu'un calcul en une seule passe sur la
+	// concaténation des deux fragments.
+	partiel est un entier = sCalculeCrc32("123")
+	enchaine est un entier = sCalculeCrc32("456", partiel)
+	direct est un entier = sCalculeCrc32("123456")
+	dbgVérifieEgalité(enchaine, direct, "chaînage équivalent au calcul direct")
+	dbgVérifieEgalité(direct, 158520161, "CRC-32 de 123456")
+FIN
+
+// ============================================
+// Cas limites (prives)
+// ============================================
+
+PROCEDURE PRIVÉE scenario_edge_partiel_zero()
+	// Un CRC partiel valant zéro équivaut à un calcul frais.
+	avec_zero est un entier = sCalculeCrc32("abc", 0)
+	frais est un entier = sCalculeCrc32("abc")
+	dbgVérifieEgalité(avec_zero, frais, "partiel 0 équivaut à un calcul frais")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise()
+	// La forme anglaise désigne la même fonction.
+	n est un entier = sComputeCrc32("123456789")
+	dbgVérifieEgalité(n, 3421780262, "forme anglaise sComputeCrc32")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_casse_indifferente()
+	// Le nom est reconnu quelle que soit la casse.
+	n est un entier = SCALCULECRC32("123456789")
+	dbgVérifieEgalité(n, 3421780262, "nom en majuscules reconnu")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_buffer()
+	// Le calcul porte sur les octets réels : un buffer contenant les mêmes
+	// octets que la chaîne produit le même CRC-32.
+	b est un Buffer = "123456789"
+	n est un entier = sCalculeCrc32(b)
+	dbgVérifieEgalité(n, 3421780262, "buffer et chaîne d'octets identiques")
+FIN

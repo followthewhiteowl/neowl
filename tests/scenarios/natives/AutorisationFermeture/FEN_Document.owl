@@ -1,0 +1,33 @@
+// Fenêtre voisine — ressource pour test_AutorisationFermeture.owl.
+//
+// Modélise un document avec des modifications non enregistrées : tant
+// que ce n'est pas le cas, AutorisationFermeture refuse la fermeture.
+// La procédure publique Enregistrer() lève la condition, exactement
+// comme un clic sur un bouton "Enregistrer" le ferait dans une
+// application réelle.
+
+FEN_Document est une Fenêtre
+	PROPRIETES
+		Titre       = "Document"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	modificationsNonEnregistrees est un booléen = Vrai
+
+	PROCEDURE AutorisationFermeture()
+		callback_observe("AF;")
+		RENVOYER PAS modificationsNonEnregistrees
+	FIN
+
+	PROCEDURE Fermeture()
+		callback_observe("FER;")
+	FIN
+
+	// Procédure publique invocable par nom nu depuis le script voisin :
+	// simule l'enregistrement du document.
+	PROCEDURE Enregistrer()
+		modificationsNonEnregistrees = Faux
+	FIN
+FIN

@@ -1,0 +1,45 @@
+// DSL PROPRIETES avec littéral inline dict pour chaîneMultilingue.
+//
+// Extension parser DSL props pour accepter les littéraux inline
+// dict ({langueFrançais: "...", langueAnglais: "..."}) dans les slots typés
+// chaîneMultilingue. Permet de définir plusieurs traductions directement
+// dans le bloc PROPRIETES du designer, équivalent à des affectations
+// indexées successives.
+//
+// La fenêtre voisine FEN_DslLitteralInline.owl porte la déclaration et
+// exerce le littéral inline DSL en bloc PROPRIETES (compile-time du
+// designer). Le script test exerce la forme directe post-déclaration
+// (slot multilingue ancré cross-fichier via pre-scan voisins).
+
+PROCEDURE PUBLIQUE scenario_litteral_inline_multilingue()
+	Ouvre(FEN_DslLitteralInline)
+
+	// Affectation littéral inline directe puis lecture indexée.
+	BTN_Valider..Libellé = {langueFrançais: "Valider", langueAnglais: "Submit"}
+
+	dbgVérifieEgalité(BTN_Valider..Libellé[langueFrançais], "Valider")
+	dbgVérifieEgalité(BTN_Valider..Libellé[langueAnglais], "Submit")
+
+
+	// Multi-langues avec 3 entrées.
+	BTN_Annuler..Libellé = {langueFrançais: "Annuler", langueAnglais: "Cancel", langueAllemand: "Abbrechen"}
+
+	dbgVérifieEgalité(BTN_Annuler..Libellé[langueFrançais], "Annuler")
+	dbgVérifieEgalité(BTN_Annuler..Libellé[langueAnglais], "Cancel")
+	dbgVérifieEgalité(BTN_Annuler..Libellé[langueAllemand], "Abbrechen")
+
+
+	// Note : la backward-compat string simple sur slot multilangue est validée
+	// côté FEN_DslLitteralInline.owl (BTN_Aide..Libellé = "Aide" en DSL
+	// PROPRIETES) : le compile-time du designer voit le retypage et applique
+	// le coerce auto. Post-Ouvre (sans typage compile-time visible côté
+	// script), le coerce ne se déclenche pas — on ne le ré-exerce donc pas ici.
+
+
+	// Titre de fenêtre retypé : même mécanique sur Fenêtre..Titre.
+	FEN_DslLitteralInline..Titre = {langueFrançais: "Accueil", langueAnglais: "Home"}
+	dbgVérifieEgalité(FEN_DslLitteralInline..Titre[langueFrançais], "Accueil")
+	dbgVérifieEgalité(FEN_DslLitteralInline..Titre[langueAnglais], "Home")
+
+	Ferme(FEN_DslLitteralInline)
+FIN

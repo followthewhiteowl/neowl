@@ -1,0 +1,101 @@
+// @subject: Mix FR/EN — same file, each token in its own language
+// @summary: A single file mixing French and English keywords freely. FR declarations
+// coexist with EN control flow; FR control flow coexists with EN declarations;
+// FR natives mix with EN assertions. Each token stays in its original language
+// after formatting (no cross-language translation). Verifies that a mixed file
+// compiles, executes, and produces correct results.
+
+// FR declaration + EN if block
+PROCEDURE PUBLIQUE scenario_decl_fr_control_en()
+	nValeur est un entier = 10
+	nResult is an integer = 0
+	IF nValeur > 5 THEN
+		nResult = 1
+	ELSE
+		nResult = 2
+	END
+	dbgCheckEqual(nResult, 1, "FR declaration + EN IF: branch taken correctly")
+FIN
+
+// EN declaration + FR si block
+PROCEDURE PUBLIQUE scenario_decl_en_control_fr()
+	nVal is an integer = 3
+	nRes est un entier = 0
+	SI nVal < 10 ALORS
+		nRes = 42
+	FIN
+	dbgCheckEqual(nRes, 42, "EN declaration + FR SI: branch taken correctly")
+FIN
+
+// EN for loop + FR arithmetic assignment
+PROCEDURE PUBLIQUE scenario_en_for_fr_body()
+	nSomme est un entier = 0
+	i is an integer
+	FOR i = 1 TO 4
+		nSomme = nSomme + i
+	END
+	dbgCheckEqual(nSomme, 10, "EN FOR loop accumulates in FR-named variable: 1+2+3+4=10")
+FIN
+
+// FR pour loop + EN break
+PROCEDURE PUBLIQUE scenario_fr_pour_en_break()
+	nStop is an integer = 0
+	POUR j = 1 À 10
+		nStop = nStop + 1
+		IF nStop >= 3 THEN
+			BREAK
+		END
+	FIN
+	dbgCheckEqual(nStop, 3, "FR POUR + EN BREAK: exits after 3 iterations")
+FIN
+
+// FR native + EN assertion
+PROCEDURE PUBLIQUE scenario_fr_native_en_assert()
+	sSource est une chaîne = "Bonjour le monde"
+	nLen is an integer = Taille(sSource)
+	dbgCheckEqual(nLen, 16, "FR native Taille returns length, EN assertion checks value")
+	sUp is a string = Majuscule(sSource)
+	dbgCheckEqual(sUp, "BONJOUR LE MONDE", "FR native Majuscule + EN assert")
+FIN
+
+// EN native + FR assertion
+PROCEDURE PUBLIQUE scenario_en_native_fr_assert()
+	s is a string = "hello"
+	sUp is a string = Upper(s)
+	dbgVérifieEgalité(sUp, "HELLO", "EN native Upper + FR assertion")
+FIN
+
+// EN procedure, FR call site
+FUNCTION PRIVÉE en_double(n is an integer) : integer
+	RETURN n * 2
+FIN
+
+PROCEDURE PUBLIQUE scenario_en_proc_fr_call()
+	nValeur est un entier = en_double(7)
+	dbgVérifieEgalité(nValeur, 14, "EN function called from FR-named variable: 7*2=14")
+FIN
+
+// FR procedure, EN call site and assertion
+PROCEDURE PRIVÉE fr_triple(n est un entier) : entier
+	RENVOYER n * 3
+FIN
+
+PROCEDURE PUBLIQUE scenario_fr_proc_en_call()
+	nResult is an integer = fr_triple(5)
+	dbgCheckEqual(nResult, 15, "FR function called from EN-named variable: 5*3=15")
+FIN
+
+// Switch mixing FR SWITCH keyword form + EN CASE / OTHER
+PROCEDURE PUBLIQUE scenario_fr_switch_en_case()
+	nVal est un entier = 3
+	nOut is an integer = 0
+	SELON nVal
+		CASE 1
+		nOut = 10
+		CASE 3
+		nOut = 30
+		OTHER
+		nOut = 99
+	FIN
+	dbgCheckEqual(nOut, 30, "FR SELON + EN CASE/OTHER: correct branch for value 3")
+FIN

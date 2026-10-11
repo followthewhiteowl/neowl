@@ -1,0 +1,59 @@
+//  — un Champ Saisie doit grandir visiblement quand on augmente sa
+// Hauteur OU ses retraits verticaux, au runtime, fond plein (pas de bande
+// transparente). Auparavant le retrait rognait le contents-rect du QLineEdit
+// (inset) : la CouleurFond ne peignait qu'une bande centrale ~24 px et le champ
+// paraissait resté bas malgré Hauteur=52. Corrigé, le retrait se comporte comme
+// un padding CSS : le fond remplit toute la boîte et le retrait agrandit la
+// hauteur (layout) ou insère le contenu (Hauteur figée).
+//
+// Mode GUI réel (TestModeHeadless(Faux) + OuvreSoeur) : vrais widgets Qt montés
+// offscreen. On capture la fenêtre et on lit des pixels au fond du champ.
+
+TestModeHeadless(Faux)
+
+// ---- Levier Hauteur : Hauteur=52 + retrait 12/12, boîte Y[40..92] en dispLibre.
+// Le fond (vert) doit couvrir toute la boîte de 52 px, pas juste une bande
+// centrale. Pixels près du haut (Y=46) et du bas (Y=86) de la boîte.
+OuvreSoeur(FEN_SaisieHauteur)
+imgH est une Image = dCopieImageFenêtre(FEN_SaisieHauteur)
+dbgVérifieEgalité(imgH..Valide, Vrai, "capture Hauteur valide")
+
+// Contrôle : le centre du champ porte son fond plein.
+dbgVérifieEgalité(dPixelCouleur(imgH, 110, 65), RVB(50, 200, 50),
+"centre du champ = fond plein")
+
+// Cible : près du HAUT de la boîte de 52 px -> fond plein (ROUGE avant fix :
+// fond fenêtre, la bande de fond ne commençait qu'à ~54).
+dbgVérifieEgalité(dPixelCouleur(imgH, 110, 46), RVB(50, 200, 50),
+"haut de la boîte Hauteur=52 = fond plein")
+
+// Cible : près du BAS de la boîte de 52 px -> fond plein (ROUGE avant fix :
+// fond fenêtre, la bande de fond s'arrêtait à ~77).
+dbgVérifieEgalité(dPixelCouleur(imgH, 110, 86), RVB(50, 200, 50),
+"bas de la boîte Hauteur=52 = fond plein")
+
+Ferme(FEN_SaisieHauteur)
+
+// ---- Levier retraits en layout : le champ à retrait 16/16 (rouge) doit être
+// nettement plus haut que le témoin nu (bleu), fond plein. Boîte du champ à
+// retrait ~ Y[33..82] en dispVerticale.
+OuvreSoeur(FEN_SaisiePile)
+imgP est une Image = dCopieImageFenêtre(FEN_SaisiePile)
+dbgVérifieEgalité(imgP..Valide, Vrai, "capture Pile valide")
+
+// Contrôle : le témoin nu porte son fond plein.
+dbgVérifieEgalité(dPixelCouleur(imgP, 110, 12), RVB(50, 50, 200),
+"témoin nu = fond plein")
+
+// Cible : près du HAUT de la boîte agrandie par le retrait -> fond plein
+// (ROUGE avant fix : fond fenêtre, la boîte ne commençait qu'à ~49).
+dbgVérifieEgalité(dPixelCouleur(imgP, 110, 37), RVB(200, 50, 50),
+"haut du champ à retrait = fond plein (boîte agrandie)")
+
+// Cible : près du BAS de la boîte agrandie par le retrait -> fond plein
+// (ROUGE avant fix : fond fenêtre, la boîte s'arrêtait à ~70).
+dbgVérifieEgalité(dPixelCouleur(imgP, 110, 78), RVB(200, 50, 50),
+"bas du champ à retrait = fond plein (boîte agrandie)")
+
+Ferme(FEN_SaisiePile)
+dbgBilanTest()

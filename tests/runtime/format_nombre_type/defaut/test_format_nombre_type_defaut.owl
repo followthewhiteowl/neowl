@@ -1,0 +1,30 @@
+//  — type `FormatNombre` : instance PAR DÉFAUT (littéral inline
+// vide `{ }` posé directement sur le champ). Le défaut doit reproduire la
+// forme plate courte (`1234.5`), PAS `1234.500000` (défaut du type
+// `FormatNumérique`, abandonné pour ce socle).
+//
+// Discriminant : 1234.5 posé en ..Valeur (une seule décimale) round-trippé
+// identique — un défaut à 6 décimales (ancien `FormatNumérique`) donnerait
+// "1.500000" affiché puis une valeur reparse toujours numériquement égale
+// (1234.5 == 1234.500000), donc ce discriminant seul ne suffirait pas à
+// distinguer les deux défauts : on vérifie donc aussi que le champ objet
+// `FormatNombre` du champ expose `..ChiffresAprèsVirgule` à sa valeur
+// sentinelle "auto/court" et non 6 (valeur `FormatNumérique`).
+//
+// ROUGE attendu : le type `FormatNombre` n'existe pas au catalogue —
+// compilation de la fenêtre voisine échoue (propriété/type inconnu), pas
+// une faute de syntaxe `.`/`..`.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatNombreTypeDefaut)
+
+nChiffres est un entier = SAI_Num..FormatNombre..ChiffresAprèsVirgule
+dbgVérifieVrai(nChiffres <> 6, "FormatNombre par défaut : ChiffresAprèsVirgule <> 6 (défaut FormatNumérique abandonné, sentinelle auto/court attendue)")
+
+SAI_Num..Valeur = 1234.5
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234.5) < 0.0001, "FormatNombre par défaut : round-trip SET->affiché->GET rend 1234.5 (forme plate courte), pas une valeur corrompue")
+
+Ferme(FEN_FormatNombreTypeDefaut)
+dbgBilanTest()

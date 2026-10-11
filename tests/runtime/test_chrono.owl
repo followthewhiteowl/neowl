@@ -1,0 +1,131 @@
+Trace("=== CHRONOMETRE ===")
+
+// --- ChronoDebut et ChronoValeur ---
+ChronoDébut()
+nAvant est un entier = ChronoValeur()
+dbgVérifieVrai(nAvant >= 0, "ChronoValeur >= 0 juste apres debut")
+
+// --- Faire un peu de travail ---
+total est un entier = 0
+POUR i = 1 À 1000
+	total = total + i
+FIN
+dbgVérifieEgalité(total, 500500, "travail calcul")
+
+nApres est un entier = ChronoValeur()
+dbgVérifieVrai(nApres >= nAvant, "ChronoValeur croit avec le temps")
+
+// --- ChronoFin ---
+nFin est un entier = ChronoFin()
+dbgVérifieVrai(nFin >= nApres, "ChronoFin >= derniere valeur")
+
+// --- Apres fin, les valeurs ne changent plus ---
+nFin2 est un entier = ChronoValeur()
+// Apres ChronoFin, chrono est arrete, donc ChronoValeur = 0
+dbgVérifieEgalité(nFin2, 0, "ChronoValeur apres Fin = 0")
+
+// --- ChronoRAZ ---
+ChronoDébut()
+POUR i = 1 À 100
+	total = total + i
+FIN
+ChronoRAZ()
+nApresRAZ est un entier = ChronoValeur()
+dbgVérifieEgalité(nApresRAZ, 0, "apres RAZ = 0")
+
+// --- ChronoPause et ChronoReprend ---
+ChronoDébut()
+POUR i = 1 À 1000
+	total = total + 1
+FIN
+ChronoPause()
+nPause est un entier = ChronoValeur()
+
+// Faire du travail pendant la pause
+POUR i = 1 À 100000
+	total = total + 1
+FIN
+
+nEncorePause est un entier = ChronoValeur()
+dbgVérifieEgalité(nEncorePause, nPause, "ChronoValeur constante pendant pause")
+
+ChronoReprend()
+POUR i = 1 À 1000
+	total = total + 1
+FIN
+nApresReprend est un entier = ChronoValeur()
+dbgVérifieVrai(nApresReprend >= nPause, "chrono reprend apres Reprend")
+
+ChronoFin()
+
+// --- Nom alias EN ---
+ChronoStart()
+nStart est un entier = ChronoValue()
+dbgVérifieVrai(nStart >= 0, "alias EN ChronoStart/ChronoValue")
+ChronoEnd()
+
+// --- Variable de type Chrono (argument form) ---
+c est un Chrono
+dbgVérifieFaux(c..Démarré, "c..Demarre = Faux a l'init")
+
+ChronoDébut(c)
+dbgVérifieVrai(c..Démarré, "c..Demarre = Vrai apres Debut")
+dbgVérifieVrai(c..Valeur >= 0, "c..Valeur >= 0 apres Debut")
+
+POUR i = 1 À 500
+	total = total + 1
+FIN
+
+dureeResult est un entier = ChronoFin(c)
+dbgVérifieVrai(dureeResult >= 0, "ChronoFin(c) retourne dureeResult")
+dbgVérifieFaux(c..Démarré, "c..Demarre = Faux apres Fin")
+
+// --- Syntaxe préfixée: c.Debut() / c.Fin() ---
+c2 est un Chrono
+c2.Début()
+dbgVérifieVrai(c2..Démarré, "Prefix: c2.Debut() demarre")
+POUR i = 1 À 100
+	total = total + 1
+FIN
+vPrefix est un entier = c2.Fin()
+dbgVérifieVrai(vPrefix >= 0, "Prefix: c2.Fin() retourne dureeResult")
+
+// --- Deux chronos independants en parallele ---
+cA est un Chrono
+cB est un Chrono
+cA.Début()
+cB.Début()
+POUR i = 1 À 1000
+	total = total + 1
+FIN
+vA est un entier = cA.Fin()
+POUR i = 1 À 1000
+	total = total + 1
+FIN
+vB est un entier = cB.Fin()
+// B a tourne plus longtemps que A puisqu'il reste demarre plus longtemps.
+// Sous OWL_STRESS_GC=1, le setup de cB (apres cA) peut prendre plus que la
+// boucle simple "total = total + 1" (pas d'alloc Obj), ce qui inverse
+// l'ordre temporel. Hors stress, l'ordre est garanti.
+SI PAS EnModeStressGC() ALORS
+	dbgVérifieVrai(vB >= vA, "Chronos independants: B >= A")
+FIN
+
+// --- Pause / Reprend sur instance ---
+c3 est un Chrono
+c3.Début()
+POUR i = 1 À 100
+	total = total + 1
+FIN
+c3.Pause()
+dbgVérifieVrai(c3..Démarré, "Demarre reste Vrai pendant Pause")
+valPause est un entier = ChronoValeur(c3)
+POUR i = 1 À 10000
+	total = total + 1
+FIN
+dbgVérifieEgalité(ChronoValeur(c3), valPause, "Valeur constante pendant pause")
+c3.Reprend()
+c3.RAZ()
+dbgVérifieFaux(c3..Démarré, "RAZ: Demarre = Faux")
+
+dbgBilanTest()

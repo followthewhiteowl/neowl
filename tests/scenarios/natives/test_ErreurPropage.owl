@@ -1,0 +1,92 @@
+// @sujet : ErreurPropage
+// @résumé : Promeut l'erreur soft courante (posée par ErreurDéclenche) en
+// exception. La zone protégée par QUAND EXCEPTION DANS peut alors la
+// rattraper via FAIRE, exactement comme une exception native. Sans erreur
+// soft active, l'appel ne fait rien : ni exception, ni effet de bord.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// Cas nominal : une erreur soft posée par ErreurDéclenche est promue en
+// exception par ErreurPropage, et la zone protégée la rattrape avec le
+// message d'origine intact.
+PROCEDURE scenario_soft_error_promue_en_exception_rattrapee()
+	bRattrapee est un booléen = Faux
+	sMessageRattrape est une chaîne = ""
+
+	ErreurDéclenche(7, "Quota de requêtes dépassé.")
+
+	QUAND EXCEPTION DANS
+		ErreurPropage()
+	FAIRE
+		bRattrapee       = Vrai
+		sMessageRattrape = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieVrai(bRattrapee, "ErreurPropage lève bien une exception rattrapable par FAIRE")
+	dbgVérifieEgalité(sMessageRattrape, "Quota de requêtes dépassé.", "Le message de l'erreur soft d'origine est conservé dans l'exception")
+FIN
+
+
+// Sans message explicite, ErreurDéclenche pose le message générique par
+// défaut : ce message par défaut traverse lui aussi la promotion en
+// exception sans être altéré.
+PROCEDURE scenario_message_par_defaut_conserve_a_la_propagation()
+	sMessageRattrape est une chaîne = ""
+
+	ErreurDéclenche()
+
+	QUAND EXCEPTION DANS
+		ErreurPropage()
+	FAIRE
+		sMessageRattrape = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieEgalité(sMessageRattrape, "Erreur", "Le message générique par défaut est repris tel quel dans l'exception")
+FIN
+
+
+// Après une propagation rattrapée, l'état d'erreur ne laisse aucun résidu :
+// ErreurDétectée retombe à Faux, et une nouvelle erreur soft déclenchée
+// ensuite se comporte normalement, sans interférence avec l'ancienne.
+PROCEDURE scenario_etat_coherent_apres_propagation_rattrapee()
+	bAbsorbee est un booléen = Faux
+
+	ErreurDéclenche(7, "Quota de requêtes dépassé.")
+
+	QUAND EXCEPTION DANS
+		ErreurPropage()
+	FAIRE
+		bAbsorbee = Vrai
+	FIN
+
+	dbgVérifieVrai(bAbsorbee, "L'exception a bien été rattrapée par FAIRE")
+	dbgVérifieFaux(ErreurDétectée, "ErreurDétectée retombe à Faux après une propagation rattrapée")
+
+	ErreurDéclenche(3, "Nouvelle panne.")
+	dbgVérifieVrai(ErreurDétectée, "Une nouvelle erreur soft déclenchée après coup lève bien le flag")
+	dbgVérifieEgalité(ErreurInfo(errCode), 3, "La nouvelle erreur porte son propre code, sans résidu de l'ancienne")
+FIN
+
+
+// Cas limite à haute valeur pédagogique : sans erreur soft active (après
+// ErreurRAZ, ou en l'absence de tout ErreurDéclenche préalable), ErreurPropage
+// ne fait RIEN — ni exception, ni effet de bord. Le flux continue normalement
+// après l'appel, et le bloc FAIRE n'est jamais atteint.
+PROCEDURE PRIVÉE scenario_sans_erreur_active_ne_leve_aucune_exception()
+	bCatchAtteint est un booléen = Faux
+	bApresAppelAtteint est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		ErreurPropage()
+		bApresAppelAtteint = Vrai
+	FAIRE
+		bCatchAtteint = Vrai
+	FIN
+
+	dbgVérifieVrai(bApresAppelAtteint, "Sans erreur active, le flux continue juste après l'appel")
+	dbgVérifieFaux(bCatchAtteint, "Sans erreur active, aucune exception n'est levée : FAIRE n'est jamais atteint")
+FIN

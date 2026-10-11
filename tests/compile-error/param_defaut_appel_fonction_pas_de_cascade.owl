@@ -1,0 +1,16 @@
+// Compile-error : un appel de fonction en valeur par defaut d'un
+// parametre n'est pas const-foldable (les defauts doivent etre des
+// litteraux / constantes compile-time) et doit etre rejete.
+//
+// VERROU anti-cascade : le rejet ne doit PAS desynchroniser le parseur.
+// Un seul message doit sortir (sur la valeur par defaut invalide de `y`),
+// sans erreur parasite, et le parametre SUIVANT `z` doit rester
+// correctement declare -> `Trace(z)` dans le corps ne doit PAS produire
+// de "variable inconnue z". Noms de params volontairement non reserves
+// pour isoler ce bug (un nom reserve emettrait sa propre erreur, hors sujet).
+PROCEDURE P(x est un entier, y est un entier = Taille("xx"), z est un entier = 3)
+    Trace(x)
+    Trace(y)
+    Trace(z)
+FIN
+P(1)

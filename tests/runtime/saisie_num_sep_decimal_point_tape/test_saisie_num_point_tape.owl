@@ -1,0 +1,22 @@
+//  — modèle strict config : dans un champ typSaisieNum configuré
+// décimal "," / milliers ".", TOUTE touche décimale tapée (le "." OU le ",")
+// insère le séparateur décimal CONFIGURÉ. L'utilisateur tape "1234.56" (point,
+// réflexe pavé numérique) : le "." tapé doit être traité comme DÉCIMAL, pas
+// comme milliers.
+//
+// ROUGE ATTENDU (HEAD) : fnb_deformat supprime le "." tapé comme séparateur de
+// milliers configuré -> valeur corrompue 123456 (au lieu de 1234.56).
+// Discriminant fort : facteur 100, ne peut pas passer par accident.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_SaisieNumPointTape)
+
+TestSimuleSaisie(SAI_Num, "1234.56")
+DonneFocus(SAI_Autre)
+
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234.56) < 0.0001, "point tapé (pavé num) traité comme décimal configuré : 1234.56 relu, pas 123456")
+
+Ferme(FEN_SaisieNumPointTape)
+dbgBilanTest()

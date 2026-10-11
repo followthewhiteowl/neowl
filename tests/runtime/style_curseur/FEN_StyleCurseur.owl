@@ -1,0 +1,57 @@
+// Fenêtre voisine — ressource pour test_style_curseur.owl.
+//
+// Couvre la cohérence de CurseurSouris désormais câblé partout :
+//   1. CurseurSouris direct sur les champs jadis KO (Saisie, Bouton,
+//      Conteneur) — le catalogue les accepte et le store les conserve.
+//   2. Un descripteur Style portant CurseurSouris au niveau de base ET
+//      dans son sous-état Survol, appliqué à un champ via ..Style.
+//
+// Les valeurs curXXX sont des sentinelles toutes négatives (zone
+// réservée) : on vérifie qu'aucune ne déclenche un faux reset au build.
+
+FEN_StyleCurseur est une Fenêtre
+	PROPRIETES
+		Disposition = dispLibre
+		Largeur     = 240
+		Hauteur     = 320
+	FIN
+
+	// Style avec CurseurSouris de base + sous-état Survol portant son
+	// propre curseur (appliqués via apply_style_to_control).
+	STY_Curseur est un Style
+	STY_Curseur..CurseurSouris         = curMain
+	STY_Curseur..Survol..CurseurSouris = curInterdit
+
+	SAI_Cur est un Champ Saisie
+		PROPRIETES
+			X             = 10
+			Y             = 10
+			CurseurSouris = curMain
+		FIN
+	FIN
+	BTN_Cur est un Champ Bouton
+		PROPRIETES
+			X             = 10
+			Y             = 50
+			Libellé       = "btn"
+			CurseurSouris = curInterdit
+		FIN
+	FIN
+	CONT_Cur est un Champ Conteneur
+		PROPRIETES
+			X             = 10
+			Y             = 90
+			Largeur       = 200
+			Hauteur       = 80
+			CurseurSouris = curAide
+		FIN
+	FIN
+
+	// Surface recevant un Style générique (chemin apply_style_to_control :
+	// base + sous-état Survol). La Fenêtre est le seul support acceptant
+	// encore le descripteur Style non typé (les champs ont chacun leur
+	// styleXxx typé) — support incident. La forme posée n'est pas relue
+	// depuis le store (le Style agit sur le widget Qt), on vérifie
+	// l'absence de crash.
+	FEN_StyleCurseur..Style = STY_Curseur
+FIN

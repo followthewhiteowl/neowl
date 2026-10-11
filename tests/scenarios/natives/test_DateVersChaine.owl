@@ -1,0 +1,78 @@
+// @sujet : DateVersChaîne
+// @résumé : Formate une date en chaîne. Sans format explicite produit JJ/MM/AAAA ; accepte un format texte (AAAA, MM, JJ, MMMM, JJJJ…) ou une constante de masque (maskDateInternet/Email…).
+
+
+// Cas canonique : sans deuxième argument, le format par défaut est JJ/MM/AAAA.
+PROCEDURE scenario_format_par_defaut()
+	d est une date = ChaîneVersDate("20260512")
+	s est une chaîne = DateVersChaîne(d)
+	dbgVérifieEgalité(s, "12/05/2026")
+FIN
+
+
+// Format explicite ISO (AAAA-MM-JJ) pour sérialisation propre.
+PROCEDURE scenario_format_iso_explicite()
+	d est une date = ChaîneVersDate("20260512")
+	s est une chaîne = DateVersChaîne(d, "AAAA-MM-JJ")
+	dbgVérifieEgalité(s, "2026-05-12")
+FIN
+
+
+// Format explicite avec mois en lettres long (MMMM) et jour en lettres long
+// (JJJJ). La locale française est utilisée pour les noms.
+PROCEDURE scenario_format_lettres_long()
+	d est une date = ChaîneVersDate("20260512")
+	s est une chaîne = DateVersChaîne(d, "JJJJ JJ MMMM AAAA")
+	dbgVérifieEgalité(s, "Mardi 12 Mai 2026")
+FIN
+
+
+// Format avec mois en lettres court (MMM) et jour en lettres court (JJJ).
+PROCEDURE scenario_format_lettres_court()
+	d est une date = ChaîneVersDate("20261225")
+	s est une chaîne = DateVersChaîne(d, "JJJ JJ MMM AAAA")
+	dbgVérifieEgalité(s, "Ven. 25 Déc. 2026")
+FIN
+
+
+// Année sur 2 chiffres (AA).
+PROCEDURE scenario_format_annee_courte()
+	d est une date = ChaîneVersDate("20260512")
+	s est une chaîne = DateVersChaîne(d, "JJ/MM/AA")
+	dbgVérifieEgalité(s, "12/05/26")
+FIN
+
+
+// Masque RFC-3339 (maskDateInternet) pour API et logs. Sur une date pure
+// (sans heure), les composantes horaires sortent à zéro.
+PROCEDURE scenario_mask_internet_rfc3339()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateVersChaîne(dh, maskDateInternet)
+	// RFC-3339 produit AAAA-MM-JJTHH:MM:SS+offset ; vérifie le préfixe stable.
+	dbgVérifieEgalité(Gauche(s, 19), "2026-05-12T14:30:45")
+FIN
+
+
+// Masque RFC-5322 (maskDateEmail) pour en-têtes de courriels.
+PROCEDURE scenario_mask_email_rfc5322()
+	dh est une dateheure = ChaîneVersDate("2026-05-12 14:30:45", "AAAA-MM-JJ HH:MI:SS")
+	s est une chaîne = DateVersChaîne(dh, maskDateEmail)
+	// Forme : "Jour, JJ Mmm AAAA HH:MM:SS +ZZZZ" — vérifie la portion stable.
+	dbgVérifieVrai(Position(s, "12") > 0)
+	dbgVérifieVrai(Position(s, "2026") > 0)
+	dbgVérifieVrai(Position(s, "14:30:45") > 0)
+FIN
+
+
+// Entrée chaîne AAAAMMJJ acceptée directement (cast implicite).
+PROCEDURE scenario_entree_chaine_compacte()
+	s est une chaîne = DateVersChaîne("20260512", "AAAA-MM-JJ")
+	dbgVérifieEgalité(s, "2026-05-12")
+FIN
+
+
+// Cas limite défensif : chaîne vide en entrée retourne chaîne vide.
+PROCEDURE scenario_entree_vide()
+	s est une chaîne = DateVersChaîne("")
+	dbgVérifieEgalité(s, "")
+FIN

@@ -1,0 +1,148 @@
+//  lot3 — Gardes overflow : natives math sur grand numérique / grand monétaire
+//
+// Notes reviewer reportées de lot1 (N1, N2) et lot2 (N5) :
+//
+//   N1 : Arrondi(numérique, décimales>0) retourne une valeur lossy (double en transit)
+//        sur un numérique de grande magnitude. La précision décimale est perdue.
+//
+//   N2 : PartieEntière(grand numérique > INT64_MAX) retourne INTEGER_VAL tronqué
+//        (actuellement saturé à INT64_MAX). Magnitude non préservée, silencieux.
+//
+//   N5 : PartieEntière / NumériqueTronque sur monétaire dont la partie entière
+//        > INT64_MAX (~9.2×10^18) caste en (int64_t) sans garde → garbage (overflow C).
+//        Avant lot2, la borne monétaire int64 plafonnait à ~9.2×10^12.
+//        Après lot2 (int128), la magnitude monétaire peut dépasser INT64_MAX.
+//
+// Tous les tests ROUGE (N1 / N2 / N5) échouent pour la BONNE raison :
+// valeur calculée ≠ valeur attendue (magnitude perdue ou overflow C silencieux).
+// Vérifié empiriquement sur le binaire post-lot2 (2026-06-28).
+
+// =========================================================================
+// N1 — Arrondi(grand numérique, décimales>0) : doit retourner valeur exacte
+// =========================================================================
+
+// N1a : Arrondi(26-chiffres.75, 2) → doit conserver toute la précision
+// BUG : Arrondi transite par double → 0n99999999999999999999999999.75
+//       arrondi en double → 1.0e26 = 100000000000000000000000000 (magnitude OK mais
+//       la valeur est inexacte : 0.75 et toute la précision basse sont perdus)
+// ATTENDU : 0n99999999999999999999999999.75 (inchangé, déjà à 2 décimales exactes)
+// RAISON ROUGE : nRes = 100000000000000000000000000 ≠ 0n99999999999999999999999999.75
+PROCEDURE PUBLIQUE test_n1_arrondi_grand_numerique_2dec_exact()
+	nGrand est un numérique = 0n99999999999999999999999999.75
+	nRes est un numérique = Arrondi(nGrand, 2)
+	dbgVérifieEgalité(nRes, 0n99999999999999999999999999.75,
+	"Arrondi(grand_n.75, 2) : magnitude + décimales exactes (pas double lossy)")
+FIN
+
+
+// N1b : Arrondi(grand numérique négatif, 2) → symétrie du cas positif
+// Vérifie que le chemin négatif n'introduit pas de biais supplémentaire.
+// ATTENDU : -(0n99999999999999999999999999.25) inchangé (2 décimales exactes)
+PROCEDURE PUBLIQUE test_n1_arrondi_grand_numerique_negatif_2dec()
+	nGrand est un numérique = -(0n99999999999999999999999999.25)
+	nRef est un numérique = -(0n99999999999999999999999999.25)
+	nRes est un numérique = Arrondi(nGrand, 2)
+	dbgVérifieEgalité(nRes, nRef,
+	"Arrondi(-grand_n.25, 2) : symétrie négative exacte")
+FIN
+
+
+// N1c : Arrondi avec arrondi réel nécessaire sur grand numérique
+// 0n99999999999999999999999999.456 arrondi à 2 déc. = 0n99999999999999999999999999.46
+// (demi-pair : .456 → .46 car 3e déc. = 6 > 5, arrondi vers le haut)
+// ATTENDU : 0n99999999999999999999999999.46
+PROCEDURE PUBLIQUE test_n1_arrondi_grand_numerique_avec_arrondi()
+	nGrand est un numérique = 0n99999999999999999999999999.456
+	nRes est un numérique = Arrondi(nGrand, 2)
+	dbgVérifieEgalité(nRes, 0n99999999999999999999999999.46,
+	"Arrondi(grand_n.456, 2) = grand_n.46 (arrondi demi-pair exact)")
+FIN
+
+
+// =========================================================================
+// N2 — PartieEntière(grand numérique > INT64_MAX) : doit préserver la magnitude
+// =========================================================================
+
+// N2a : PartieEntière(numérique 20 chiffres > INT64_MAX)
+// BUG : numeric_to_i64 ignore le flag overflow → entier saturé à INT64_MAX
+//       (9223372036854775807), pas la valeur exacte.
+// ATTENDU : 0n99999999999999999999 (magnitude préservée, retour numérique)
+// RAISON ROUGE : nRes = 9223372036854775807 ≠ 0n99999999999999999999
+PROCEDURE PUBLIQUE test_n2_partie_entiere_grand_numerique_magnitude_preservee()
+	nGrand est un numérique = 0n99999999999999999999
+	nRes est un numérique = PartieEntière(nGrand)
+	dbgVérifieEgalité(nRes, 0n99999999999999999999,
+	"PartieEntière(grand_n > INT64_MAX) : magnitude préservée (pas saturation INT64_MAX)")
+FIN
+
+
+// N2b : PartieEntière exactement INT64_MAX+1 (2^63) : premier entier qui ne rentre pas
+// BUG : saturé à INT64_MAX = 9223372036854775807 au lieu de 9223372036854775808
+// ATTENDU : 0n9223372036854775808 (magnitude préservée)
+PROCEDURE PUBLIQUE test_n2_partie_entiere_int64max_plus_1()
+	nMax est un entier = 9223372036854775807
+	n2pow63 est un numérique = nMax + 1
+	nRes est un numérique = PartieEntière(n2pow63)
+	dbgVérifieEgalité(nRes, 0n9223372036854775808,
+	"PartieEntière(2^63) : magnitude préservée (2^63, pas INT64_MAX saturé)")
+FIN
+
+
+// N2c : PartieEntière(numérique entier exact tenant dans int64) → reste correct
+// Garde anti-régression : le fix N2 ne doit pas casser le cas nominal (< INT64_MAX).
+// VERT aujourd'hui, doit rester VERT après le fix.
+PROCEDURE PUBLIQUE test_n2_partie_entiere_petit_numerique_inchange()
+	nPetit est un numérique = 0n42
+	nRes est un numérique = PartieEntière(nPetit)
+	dbgVérifieEgalité(nRes, 42,
+	"PartieEntière(42n) : cas nominal non régressé (garde)")
+FIN
+
+
+// =========================================================================
+// N5 — PartieEntière / NumériqueTronque sur grand monétaire (post-int128)
+// =========================================================================
+// Avant lot2 : borne monétaire int64 × 10^6 → partie entière max ~9.2×10^12
+// Après lot2 : borne monétaire __int128 × 10^6 → partie entière max ~1.7×10^26
+// La partie entière d'un monétaire > 9.2×10^18 ne tient plus dans int64.
+// Le cast (int64_t)q sans garde provoque un UB C → valeur garbage.
+
+// Construction d'un grand monétaire via coerce numérique → monétaire.
+// Valeur : 10^19 (10 quintillions) — dans la borne int128 monétaire, hors borne int64.
+
+// N5a : PartieEntière(grand monétaire > INT64_MAX) : ne doit pas retourner garbage
+// BUG : (int64_t)(__int128 q) où q=10^19 → overflow UB → -8446744073709551616 (garbage)
+// ATTENDU : 0n10000000000000000000 (magnitude préservée)
+// RAISON ROUGE : nRes = -8446744073709551616 ≠ 0n10000000000000000000
+PROCEDURE PUBLIQUE test_n5_partie_entiere_grand_monetaire_magnitude_preservee()
+	nSource est un numérique = 0n10000000000000000000
+	mGrand est un monétaire = nSource
+	nRes est un numérique = PartieEntière(mGrand)
+	dbgVérifieEgalité(nRes, 0n10000000000000000000,
+	"PartieEntière(10^19 monétaire) : magnitude préservée (pas overflow int64 garbage)")
+FIN
+
+
+// N5b : NumériqueTronque(grand monétaire > INT64_MAX) : ne doit pas retourner garbage
+// BUG : même cast (int64_t)q → garbage, puis INTEGER_VAL → lossy réel → -8.44...e+18
+// ATTENDU : 0n10000000000000000000 (magnitude préservée)
+// RAISON ROUGE : nRes = -8.446...e+18 ≠ 0n10000000000000000000
+PROCEDURE PUBLIQUE test_n5_numerique_tronque_grand_monetaire_magnitude_preservee()
+	nSource est un numérique = 0n10000000000000000000
+	mGrand est un monétaire = nSource
+	nRes est un numérique = NumériqueTronque(mGrand)
+	dbgVérifieEgalité(nRes, 0n10000000000000000000,
+	"NumériqueTronque(10^19 monétaire) : magnitude préservée (pas overflow int64 garbage)")
+FIN
+
+
+// N5c : PartieEntière(monétaire < INT64_MAX) → garde anti-régression
+// La borne monétaire ~9.2×10^12 pour int64 était safe. Après int128, le fix N5
+// ne doit pas régresser les valeurs nominales (< INT64_MAX).
+// VERT aujourd'hui, doit rester VERT après le fix.
+PROCEDURE PUBLIQUE test_n5_partie_entiere_monetaire_nominal_inchange()
+	mNominal est un monétaire = 12345.75
+	nRes est un entier = PartieEntière(mNominal)
+	dbgVérifieEgalité(nRes, 12345,
+	"PartieEntière(12345.75 monétaire) : cas nominal non régressé (garde)")
+FIN

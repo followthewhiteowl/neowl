@@ -1,0 +1,103 @@
+// test_matmul_parite_echelle.owl — 
+// Digue de parité bit-à-bit AVANT le threading + AVX2 de ProduitMatriciel.
+// Complète test_matrice_produit_kernel_bords.owl, qui ne
+// dépasse jamais les tuiles de blocage (BI=64, BK=256, BJ=256) : les cas
+// ci-dessous DÉPASSENT explicitement ces bornes (multi-tuiles réelles) et
+// choisissent des colonnes non multiples des largeurs SIMD 2 (SSE2) ET 4
+// (AVX2 futur), pour verrouiller le reste AXPY sur plusieurs largeurs.
+//
+// Chaque valeur attendue vient d'un oracle OWL naïf indépendant : la même
+// formule d'accumulation en k croissant que le kernel natif (owl_matmul,
+// boucle ikj avec k intérieur croissant), pas une valeur recopiée depuis
+// la sortie binaire. Le threading sur les lignes `i` et un futur AXPY
+// AVX2 non-FMA NE changent PAS cet ordre d'accumulation par cellule —
+// natif == oracle doit tenir bit-à-bit avant ET après le refactor perf.
+// Un réordonnancement (split de k, fusion FMA) casserait l'égalité EXACTE.
+
+Trace("=== MATMUL PARITÉ À L'ÉCHELLE (digue perf feat/1634) ===")
+
+// --- Construit une Matrice n×k à valeurs FRACTIONNAIRES bornées (division
+// par 7.0, fraction binaire non terminante) : les sommes accumulées ne sont
+// PAS exactement représentables en double, contrairement à des entiers purs
+// (qui masqueraient tout réordonnancement d'accumulation ou fusion FMA). ---
+PROCEDURE mmParite_construitMatrice(n est un entier, k est un entier, decalage est un entier)
+	arr est un tableau = []
+	POUR i = 1 À n
+		ligne est un tableau = []
+		POUR j = 1 À k
+			v est un réel = (((i * 7 + j * 3 + decalage) % 11) + 1) / 7.0
+			Ajoute(ligne, v)
+		FIN
+		Ajoute(arr, [ligne])
+	FIN
+	RENVOYER TableauVersMatrice(arr)
+FIN
+
+// --- Oracle naïf d'une cellule C[i][j] = somme sur k croissant de A[i][k]*B[k][j] ---
+PROCEDURE mmParite_oracleCellule(matA est une Matrice, matB est une Matrice, i est un entier, j est un entier)
+	kMax est un entier = matA..Colonnes
+	s est un réel = 0.0
+	POUR kk = 1 À kMax
+		s += matA[i][kk] * matB[kk][j]
+	FIN
+	RENVOYER s
+FIN
+
+// --- Cas A : M=300, K=300, N=261 — dépasse largement BI/BK/BJ dans les 3
+// dimensions ; M assez grand pour une partition multi-thread réelle sur
+// les lignes ; N=261 non multiple de 2 (impair) ni de 4 (261%4=1). ---
+PROCEDURE scenario_matmul_echelle_cas_a()
+	matA est une Matrice = mmParite_construitMatrice(300, 300, 0)
+	matB est une Matrice = mmParite_construitMatrice(300, 261, 50)
+	c est une Matrice = ProduitMatriciel(matA, matB)
+
+	dbgVérifieEgalité(c..Lignes, 300, "cas A : 300 lignes")
+	dbgVérifieEgalité(c..Colonnes, 261, "cas A : 261 colonnes")
+
+	dbgVérifieEgalité(c[1][1], mmParite_oracleCellule(matA, matB, 1, 1), "cas A : coin [1][1] == oracle")
+	dbgVérifieEgalité(c[300][261], mmParite_oracleCellule(matA, matB, 300, 261), "cas A : coin [300][261] == oracle")
+	dbgVérifieEgalité(c[1][261], mmParite_oracleCellule(matA, matB, 1, 261), "cas A : coin [1][261] == oracle")
+	dbgVérifieEgalité(c[300][1], mmParite_oracleCellule(matA, matB, 300, 1), "cas A : coin [300][1] == oracle")
+	dbgVérifieEgalité(c[150][130], mmParite_oracleCellule(matA, matB, 150, 130), "cas A : intérieur [150][130] == oracle")
+	dbgVérifieEgalité(c[65][257], mmParite_oracleCellule(matA, matB, 65, 257), "cas A : frontière tuile BI/BK [65][257] == oracle")
+FIN
+
+// --- Cas B : M=65, K=257, N=259 — dépassement MINIMAL des tuiles (juste
+// une ligne / colonne / profondeur au-delà de BI/BK/BJ), avec un reste
+// SIMD différent (259%4=3, 259%2=1). ---
+PROCEDURE scenario_matmul_echelle_cas_b()
+	matA est une Matrice = mmParite_construitMatrice(65, 257, 9)
+	matB est une Matrice = mmParite_construitMatrice(257, 259, 3)
+	c est une Matrice = ProduitMatriciel(matA, matB)
+
+	dbgVérifieEgalité(c..Lignes, 65, "cas B : 65 lignes")
+	dbgVérifieEgalité(c..Colonnes, 259, "cas B : 259 colonnes")
+
+	dbgVérifieEgalité(c[1][1], mmParite_oracleCellule(matA, matB, 1, 1), "cas B : coin [1][1] == oracle")
+	dbgVérifieEgalité(c[65][259], mmParite_oracleCellule(matA, matB, 65, 259), "cas B : coin [65][259] == oracle")
+	dbgVérifieEgalité(c[33][130], mmParite_oracleCellule(matA, matB, 33, 130), "cas B : intérieur [33][130] == oracle")
+FIN
+
+// --- Cas C : N=6 (259%4=... non, ici N=6 -> 6%4=2, 6%2=0) — comble le
+// reste AVX2-only (mod 4 == 2, pile absorbé par SSE2 mais pas AVX2) que
+// ni ce fichier ni test_matrice_produit_kernel_bords.owl ne couvrent
+// encore. Échelle volontairement petite : le reste SIMD se manifeste
+// dans la DERNIÈRE tuile de large de chaque ligne, peu importe M/K. ---
+PROCEDURE scenario_matmul_reste_simd_mod4_egale_2()
+	matA est une Matrice = mmParite_construitMatrice(9, 13, 1)
+	matB est une Matrice = mmParite_construitMatrice(13, 6, 4)
+	c est une Matrice = ProduitMatriciel(matA, matB)
+
+	dbgVérifieEgalité(c..Lignes, 9, "cas C : 9 lignes")
+	dbgVérifieEgalité(c..Colonnes, 6, "cas C : 6 colonnes (6%4=2, 6%2=0)")
+
+	dbgVérifieEgalité(c[1][1], mmParite_oracleCellule(matA, matB, 1, 1), "cas C : coin [1][1] == oracle")
+	dbgVérifieEgalité(c[9][6], mmParite_oracleCellule(matA, matB, 9, 6), "cas C : coin [9][6] == oracle")
+	dbgVérifieEgalité(c[5][3], mmParite_oracleCellule(matA, matB, 5, 3), "cas C : intérieur [5][3] == oracle")
+FIN
+
+scenario_matmul_echelle_cas_a()
+scenario_matmul_echelle_cas_b()
+scenario_matmul_reste_simd_mod4_egale_2()
+
+dbgBilanTest()

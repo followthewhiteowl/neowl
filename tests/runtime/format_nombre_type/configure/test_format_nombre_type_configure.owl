@@ -1,0 +1,32 @@
+//  — type `FormatNombre` : instance CONFIGURÉE inline (littéral
+// `{ SéparateurMilliers = " ", SéparateurDécimal = ",", ChiffresAprèsVirgule
+// = 2 }` posé directement sur le champ, sans passer par un projet). Vérifie
+// l'accès aux propriétés (`..SéparateurMilliers`, `..ChiffresAprèsVirgule`)
+// et l'effet observable sur le round-trip d'affichage.
+//
+// Discriminant : 1234567.891 posé en ..Valeur, ARRONDI à 2 décimales par le
+// format du champ (-> 1234567.89), relu en ..Valeur DOIT rendre 1234567.89 —
+// PAS 1234567.891 (ce que rendrait l'absence de formatage) et PAS une valeur
+// corrompue (ce que rendrait un reparse naïf qui ne dé-formate pas le
+// séparateur de milliers/décimal avant le parsing numérique, cf. 
+// Qt-first).
+//
+// ROUGE attendu : le type `FormatNombre` n'existe pas au catalogue —
+// compilation de la fenêtre voisine échoue (propriété/type inconnu).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatNombreTypeConfigure)
+
+sSepMilliers est une chaîne = SAI_Num..FormatNombre..SéparateurMilliers
+dbgVérifieEgalité(sSepMilliers, " ", "FormatNombre configuré : ..SéparateurMilliers accessible et vaut la valeur posée inline")
+
+nChiffres est un entier = SAI_Num..FormatNombre..ChiffresAprèsVirgule
+dbgVérifieEgalité(nChiffres, 2, "FormatNombre configuré : ..ChiffresAprèsVirgule accessible et vaut la valeur posée inline")
+
+SAI_Num..Valeur = 1234567.891
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234567.89) < 0.0001, "FormatNombre configuré (2 décimales, séparateurs) : round-trip SET->affiché formaté->GET rend 1234567.89 (arrondi), pas 1234567.891 ni une valeur corrompue")
+
+Ferme(FEN_FormatNombreTypeConfigure)
+dbgBilanTest()

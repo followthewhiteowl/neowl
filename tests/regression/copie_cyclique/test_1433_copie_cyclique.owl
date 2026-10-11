@@ -1,0 +1,140 @@
+// Verrou  — copier une valeur qui se contient elle-même.
+//
+// Construire un graphe qui se referme sur lui-même est permis : un nœud qui
+// pointe vers son parent, une liste doublement chaînée, un graphe de
+// dépendances. Ce qui ne l'était pas, c'est le copier — la copie descendait
+// dans le cycle sans fin et le programme disparaissait sans un mot.
+//
+// Ce fichier vérifie les deux moitiés :
+//   1. les trois portes qui recopient une valeur en profondeur refusent
+//      désormais le cycle avec un message qui nomme la cause ;
+//   2. les copies légitimes gardent EXACTEMENT le comportement d'avant —
+//      en particulier, un sous-objet référencé deux fois reste DUPLIQUÉ dans
+//      la copie, jamais partagé.
+
+sMsgCycle1433 est une chaîne = "Copie impossible : cette valeur se contient elle-même (un de ses champs renvoie vers elle). Rompre ce lien avant de la copier."
+
+// ----------------------------------------------------------------------
+// Porte 3 : le paramètre LOCAL. Aucun opérateur de copie visible — chaque
+// appel recopie l'argument. C'est la porte la plus vicieuse.
+// ----------------------------------------------------------------------
+PROCEDURE ParCopie1433(LOCAL o est un cNoeud1433)
+	Trace("jamais atteint : " + o.sNom)
+FIN
+
+
+// ----------------------------------------------------------------------
+// 1. Cycle direct : a.oEnfant = a, puis copie explicite.
+// ----------------------------------------------------------------------
+bLevee1433a est un booléen = Faux
+sRecu1433a est une chaîne = ""
+a1433 est un cNoeud1433()
+a1433.sNom = "a"
+a1433.oEnfant = a1433
+
+QUAND EXCEPTION DANS
+	aCopie1433 est un cNoeud1433 <= a1433
+	Trace("jamais atteint : " + aCopie1433.sNom)
+FAIRE
+	bLevee1433a = Vrai
+	sRecu1433a  = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bLevee1433a, "cycle direct : la copie est refusee, pas de disparition du programme")
+dbgVérifieEgalité(sRecu1433a, sMsgCycle1433, "cycle direct : le message nomme la cause")
+
+
+// ----------------------------------------------------------------------
+// 2. Cycle indirect : b -> c -> b. Le vrai piege : aucun champ ne pointe
+//    vers son propre porteur, c'est la boucle a deux qui se referme.
+// ----------------------------------------------------------------------
+bLevee1433b est un booléen = Faux
+sRecu1433b est une chaîne = ""
+b1433 est un cNoeud1433()
+b1433.sNom = "b"
+c1433 est un cNoeud1433()
+c1433.sNom = "c"
+b1433.oEnfant = c1433
+c1433.oEnfant = b1433
+
+QUAND EXCEPTION DANS
+	bCopie1433 est un cNoeud1433 <= b1433
+	Trace("jamais atteint : " + bCopie1433.sNom)
+FAIRE
+	bLevee1433b = Vrai
+	sRecu1433b  = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bLevee1433b, "cycle indirect b->c->b : la copie est refusee")
+dbgVérifieEgalité(sRecu1433b, sMsgCycle1433, "cycle indirect : meme message que le cycle direct")
+
+
+// ----------------------------------------------------------------------
+// 3. Paramètre LOCAL : la copie est implicite, le refus doit l'etre aussi.
+// ----------------------------------------------------------------------
+bLevee1433c est un booléen = Faux
+sRecu1433c est une chaîne = ""
+
+QUAND EXCEPTION DANS
+	ParCopie1433(a1433)
+FAIRE
+	bLevee1433c = Vrai
+	sRecu1433c  = ExceptionInfo(errMessage)
+FIN
+
+dbgVérifieVrai(bLevee1433c, "parametre LOCAL : l'appel est refuse au lieu de faire disparaitre le programme")
+dbgVérifieEgalité(sRecu1433c, sMsgCycle1433, "parametre LOCAL : meme message")
+
+
+// ----------------------------------------------------------------------
+// 4. Le programme continue : le refus est une erreur rattrapable, pas une
+//    sortie brutale. La valeur source n'a pas ete abimee au passage.
+// ----------------------------------------------------------------------
+dbgVérifieEgalité(a1433.sNom, "a", "apres refus : la valeur source est intacte")
+dbgVérifieEgalité(a1433.oEnfant.sNom, "a", "apres refus : le cycle de la source est intact")
+
+
+// ----------------------------------------------------------------------
+// 5. NON-REGRESSION — une chaine profonde legitime se copie toujours.
+//    11 niveaux, soit largement au-dela de l'imbrication reelle observee
+//    dans le depot (7, chaine de style).
+// ----------------------------------------------------------------------
+racine1433 est un cNoeud1433()
+racine1433.sNom = "n0"
+courant1433 est un cNoeud1433 = racine1433
+POUR i1433 = 1 À 10
+	suivant1433 est un cNoeud1433()
+	suivant1433.sNom = "n" + i1433
+	courant1433.oEnfant = suivant1433
+	courant1433 = suivant1433
+FIN
+
+profonde1433 est un cNoeud1433 <= racine1433
+dbgVérifieEgalité(profonde1433.sNom, "n0", "chaine profonde : la racine est copiee")
+dbgVérifieEgalité(profonde1433.oEnfant.oEnfant.oEnfant.sNom, "n3", "chaine profonde : le niveau 3 est copie")
+dbgVérifieEgalité(profonde1433.oEnfant.oEnfant.oEnfant.oEnfant.oEnfant.oEnfant.oEnfant.oEnfant.oEnfant.oEnfant.sNom, "n10", "chaine profonde : le niveau 10 est copie")
+
+// La copie est bien independante de la source.
+profonde1433.oEnfant.sNom = "modifie"
+dbgVérifieEgalité(racine1433.oEnfant.sNom, "n1", "chaine profonde : ecrire dans la copie ne touche pas la source")
+
+
+// ----------------------------------------------------------------------
+// 6. NON-REGRESSION — un sous-objet reference DEUX FOIS reste DUPLIQUE.
+//    C'est le comportement d'aujourd'hui et il doit le rester : ecrire dans
+//    l'un des deux champs de la copie ne doit pas se voir dans l'autre.
+// ----------------------------------------------------------------------
+gabarit1433 est un cGabarit1433()
+gabarit1433.sTexte = "modele"
+porteur1433 est un cPorteur1433()
+porteur1433.oPrimaire = gabarit1433
+porteur1433.oSecondaire = gabarit1433
+
+copiePorteur1433 est un cPorteur1433 <= porteur1433
+copiePorteur1433.oPrimaire.sTexte = "touche"
+
+dbgVérifieEgalité(copiePorteur1433.oPrimaire.sTexte, "touche", "sous-objet partage : le champ ecrit vaut la nouvelle valeur")
+dbgVérifieEgalité(copiePorteur1433.oSecondaire.sTexte, "modele", "sous-objet partage : les deux champs de la copie restent DEUX objets distincts")
+dbgVérifieEgalité(gabarit1433.sTexte, "modele", "sous-objet partage : la source n'est pas touchee")
+
+dbgBilanTest()

@@ -1,0 +1,58 @@
+// @ticket : 
+// @resume : verrouillage signature 2-arg canon de référence ChaîneVersDurée(<Chaîne>, <Format>)
+//
+// Couvre :
+// - 2-arg avec constante duréeMillième (VERT)
+// - 2-arg avec constante duréeCentième (VERT)
+// - 2-arg avec template chaîne (VERT)
+// - Chaîne invalide avec format (durée 0 attendue, pas de crash)
+
+PROCEDURE test_2arg_duree_millieme()
+	// Parse "+0013000000" = 1h30 (5 400 000 ms) avec format millième (signe obligatoire Q5-bis)
+	dur est une durée = ChaîneVersDurée("+0013000000", duréeMillième)
+
+	dbgVérifieVrai(dur..EnMillisecondes = 5400000, "millième: 1h30 = 5 400 000 ms")
+	dbgVérifieVrai(dur..Heure = 1, "millième: heure = 1")
+	dbgVérifieVrai(dur..Minute = 30, "millième: minute = 30")
+FIN
+
+PROCEDURE test_2arg_duree_centieme()
+	// Parse "+001300000" = 1h30 (5 400 000 ms) avec format centième (signe obligatoire Q5-bis)
+	// (après  storage ms, centième x10)
+	dur est une durée = ChaîneVersDurée("+001300000", duréeCentième)
+
+	dbgVérifieVrai(dur..EnMillisecondes = 5400000, "centième: 1h30 = 5 400 000 ms")
+	dbgVérifieVrai(dur..Heure = 1, "centième: heure = 1")
+	dbgVérifieVrai(dur..Minute = 30, "centième: minute = 30")
+FIN
+
+PROCEDURE test_2arg_template_chaine()
+	// Parse "01:30:00" avec template HH:MM:SS
+	dur est une durée = ChaîneVersDurée("01:30:00", "HH:MM:SS")
+
+	dbgVérifieVrai(dur..EnMillisecondes = 5400000, "template: 1h30 = 5 400 000 ms")
+	dbgVérifieVrai(dur..Heure = 1, "template: heure = 1")
+	dbgVérifieVrai(dur..Minute = 30, "template: minute = 30")
+FIN
+
+PROCEDURE test_chaine_invalide_format_millieme()
+	// Chaîne invalide avec format → durée 0 (pas de crash)
+	dur est une durée = ChaîneVersDurée("not a duration", duréeMillième)
+
+	dbgVérifieVrai(dur..EnMillisecondes = 0, "invalide: durée 0 sans crash")
+FIN
+
+PROCEDURE test_chaine_vide_format_millieme()
+	// Chaîne vide avec format → durée 0
+	dur est une durée = ChaîneVersDurée("", duréeMillième)
+
+	dbgVérifieVrai(dur..EnMillisecondes = 0, "vide: durée 0")
+FIN
+
+PROCEDURE PUBLIQUE test_chaineversduree_signature()
+	test_2arg_duree_millieme()
+	test_2arg_duree_centieme()
+	test_2arg_template_chaine()
+	test_chaine_invalide_format_millieme()
+	test_chaine_vide_format_millieme()
+FIN

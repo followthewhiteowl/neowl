@@ -1,0 +1,26 @@
+//  : ordre de resolution du type d'element d'une collection — le nom
+// EXACT d'abord, le repli au singulier seulement ensuite. Un type utilisateur
+// dont le nom finit par `s` (ici la structure `Dates`) doit continuer a
+// resoudre vers lui-meme, jamais vers le primitif `date`.
+//
+// Fichier separe a dessein : declarer une structure `Dates` detourne toutes
+// les formes `tableau de dates` du fichier (resolution casse-insensible).
+
+Trace("=== fix/1141 : le nom exact prime sur le repli au singulier ===")
+
+Dates est une Structure
+	debut est une chaîne
+	arret est une chaîne
+FIN
+
+p1141x_periodes est un tableau de Dates
+Ajoute(p1141x_periodes, ["20250101", "20251231"])
+dbgVérifieEgalité(p1141x_periodes[1].debut, "20250101",
+"tableau de Dates : le type utilisateur exact gagne (1er membre coerce)")
+dbgVérifieEgalité(p1141x_periodes[1].arret, "20251231",
+"tableau de Dates : le type utilisateur exact gagne (2e membre coerce)")
+
+p1141x_filePeriodes est une file de Dates
+dbgVérifieEgalité(p1141x_filePeriodes..Occurrence, 0, "file de Dates : declaration acceptee")
+
+dbgBilanTest()

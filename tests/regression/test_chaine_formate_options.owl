@@ -1,0 +1,33 @@
+// Régression : ChaîneFormate(<chaîne>, <options cc*>)
+// spécification de référence — formatage de chaîne avec constantes combinables.
+
+// ccNormal -> passthrough
+dbgVérifieEgalité(ChaîneFormate("abc", ccNormal), "abc", "ccNormal passthrough")
+
+// ccMajuscule / ccMinuscule (ASCII-level)
+dbgVérifieEgalité(ChaîneFormate("hello", ccMajuscule), "HELLO", "majuscule ASCII")
+dbgVérifieEgalité(ChaîneFormate("HELLO", ccMinuscule), "hello", "minuscule ASCII")
+
+// ccSansEspace (trim outer)
+dbgVérifieEgalité(ChaîneFormate("  hello  ", ccSansEspace), "hello", "trim outer")
+dbgVérifieEgalité(ChaîneFormate(TAB + "hello" + LF, ccSansEspace), "hello", "trim tab/newline")
+
+// ccSansEspaceIntérieur (strip internal)
+dbgVérifieEgalité(ChaîneFormate("a b c", ccSansEspaceIntérieur), "abc", "strip internal")
+dbgVérifieEgalité(ChaîneFormate("a" + TAB + "b" + LF + "c", ccSansEspaceIntérieur), "abc", "strip all whitespace")
+
+// ccSansPonctuationNiEspace (strip punct + spaces)
+dbgVérifieEgalité(ChaîneFormate("a, b; c.d", ccSansPonctuationNiEspace), "abcd", "strip punct+space")
+dbgVérifieEgalité(ChaîneFormate("hello!", ccSansPonctuationNiEspace), "hello", "strip trailing punct")
+
+// ccSansAccent
+dbgVérifieEgalité(ChaîneFormate("developpement", ccSansAccent), "developpement", "no-op si pas d'accent")
+dbgVérifieEgalité(ChaîneFormate("élégant", ccSansAccent), "elegant", "strip accents")
+
+// Combinaisons
+dbgVérifieEgalité(ChaîneFormate("hello world", ccMajuscule + ccSansEspaceIntérieur),
+"HELLOWORLD", "maj + strip espace interne")
+dbgVérifieEgalité(ChaîneFormate("  Hello  ", ccSansEspace + ccMinuscule),
+"hello", "trim + minuscule")
+
+dbgBilanTest()

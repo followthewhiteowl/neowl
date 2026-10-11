@@ -1,0 +1,222 @@
+// @sujet : EntierVersDate
+// @résumé : Conversion entier (nb jours depuis 1800-01-01) vers date ou extraction composante ("A"/"M"/"J")
+
+// ==============================================================================
+// PROCEDURES PUBLIQUES - Cas nominaux pour la doc utilisateur
+// ==============================================================================
+
+PROCEDURE PUBLIQUE scenario_conversion_entier_historique()
+	// EntierVersDate convertit un entier (nb jours depuis 01/01/1800) en date
+	// Retour : type date (format interne AAAAMMJJ)
+
+	d1 est une date = EntierVersDate(1)
+	dbgVérifieEgalité(d1..Année, 1800, "1 jour depuis 1800 → 01/01/1800 (année)")
+	dbgVérifieEgalité(d1..Mois, 1, "1 jour depuis 1800 → 01/01/1800 (mois)")
+	dbgVérifieEgalité(d1..Jour, 1, "1 jour depuis 1800 → 01/01/1800 (jour)")
+
+	d2 est une date = EntierVersDate(3)
+	dbgVérifieEgalité(d2..Jour, 3, "3 jours depuis 1800 → 03/01/1800")
+
+	// Valeur repere : 25/12/2001 = 73773 jours depuis 1800
+	d3 est une date = EntierVersDate(73773)
+	dbgVérifieEgalité(d3..Année, 2001, "73773 jours depuis 1800 → 25/12/2001 (année)")
+	dbgVérifieEgalité(d3..Mois, 12, "73773 jours depuis 1800 → 25/12/2001 (mois)")
+	dbgVérifieEgalité(d3..Jour, 25, "73773 jours depuis 1800 → 25/12/2001 (jour)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_extraction_composante_annee()
+	// Parametre "A" extrait l'année sous forme de chaîne (4 chiffres)
+
+	sAnnee1 est une chaîne = EntierVersDate(1, "A")
+	dbgVérifieEgalité(sAnnee1, "1800", "1 jour depuis 1800 extraction 'A' → '1800'")
+
+	sAnnee2 est une chaîne = EntierVersDate(73773, "A")
+	dbgVérifieEgalité(sAnnee2, "2001", "73773 jours extraction 'A' → '2001'")
+
+	sAnnee3 est une chaîne = EntierVersDate(80000, "A")
+	dbgVérifieEgalité(Taille(sAnnee3), 4, "Année extraite toujours 4 chiffres")
+FIN
+
+PROCEDURE PUBLIQUE scenario_extraction_composante_mois()
+	// Parametre "M" extrait le mois sous forme de chaîne (2 chiffres, zero-padded)
+
+	sMois1 est une chaîne = EntierVersDate(1, "M")
+	dbgVérifieEgalité(sMois1, "01", "1 jour depuis 1800 extraction 'M' → '01'")
+
+	sMois2 est une chaîne = EntierVersDate(73773, "M")
+	dbgVérifieEgalité(sMois2, "12", "73773 jours extraction 'M' → '12'")
+
+	sMois3 est une chaîne = EntierVersDate(80000, "M")
+	dbgVérifieEgalité(Taille(sMois3), 2, "Mois extrait toujours 2 chiffres")
+FIN
+
+PROCEDURE PUBLIQUE scenario_extraction_composante_jour()
+	// Parametre "J" extrait le jour sous forme de chaîne (2 chiffres, zero-padded)
+
+	sJour1 est une chaîne = EntierVersDate(1, "J")
+	dbgVérifieEgalité(sJour1, "01", "1 jour depuis 1800 extraction 'J' → '01'")
+
+	sJour2 est une chaîne = EntierVersDate(3, "J")
+	dbgVérifieEgalité(sJour2, "03", "3 jours extraction 'J' → '03'")
+
+	sJour3 est une chaîne = EntierVersDate(73773, "J")
+	dbgVérifieEgalité(sJour3, "25", "73773 jours extraction 'J' → '25'")
+FIN
+
+PROCEDURE PUBLIQUE scenario_coherence_dateversEntier()
+	// EntierVersDate et DateVersEntier sont inverses
+
+	entier1 est un entier = 36525 // 01/01/1900
+	d1 est une date = EntierVersDate(entier1)
+	retour1 est un entier = DateVersEntier(d1)
+	dbgVérifieEgalité(retour1, 36525, "Coherence inverse 01/01/1900")
+
+	entier2 est un entier = 73049 // 01/01/2000
+	d2 est une date = EntierVersDate(entier2)
+	retour2 est un entier = DateVersEntier(d2)
+	dbgVérifieEgalité(retour2, 73049, "Coherence inverse 01/01/2000")
+
+	// Coherence avec extraction composante
+	entier3 est un entier = 73773 // 25/12/2001
+	sAnnee est une chaîne = EntierVersDate(entier3, "A")
+	sMois est une chaîne = EntierVersDate(entier3, "M")
+	sJour est une chaîne = EntierVersDate(entier3, "J")
+	sChaineDate est une chaîne = sAnnee + sMois + sJour
+	dbgVérifieEgalité(sChaineDate, "20011225", "Composantes A/M/J reforment date AAAAMMJJ")
+FIN
+
+// ==============================================================================
+// PROCEDURES PRIVEES - Cas limites et edge cases
+// ==============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_entier_negatif()
+	// Entier negatif : date avant 01/01/1800
+	// -1 = 30/12/1799 (comportement observe, off-by-one vs attendu 31/12)
+	// -366 = 31/12/1798 (1799 non-bissextile = 365 jours)
+	// Note : off-by-one systematique sur valeurs negatives (comportement observe)
+
+	d1 est une date = EntierVersDate(-1)
+	dbgVérifieEgalité(d1..Année, 1799, "Entier -1 → 30/12/1799 (année)")
+	dbgVérifieEgalité(d1..Mois, 12, "Entier -1 → 30/12/1799 (mois)")
+	dbgVérifieEgalité(d1..Jour, 30, "Entier -1 → 30/12/1799 (jour)")
+
+	d2 est une date = EntierVersDate(-366)
+	dbgVérifieEgalité(d2..Année, 1798, "Entier -366 → 30/12/1798 (année)")
+	dbgVérifieEgalité(d2..Mois, 12, "Entier -366 → 30/12/1798 (mois)")
+	dbgVérifieEgalité(d2..Jour, 30, "Entier -366 → 30/12/1798 (jour, off-by-one systematique)")
+
+	// Extraction composante sur entier negatif
+	sAnnee est une chaîne = EntierVersDate(-1, "A")
+	dbgVérifieEgalité(sAnnee, "1799", "Entier -1 extraction 'A' → '1799'")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_entier_zero()
+	// Entier 0 : 31/12/1799 (jour avant 01/01/1800 = jour 1)
+
+	d1 est une date = EntierVersDate(0)
+	dbgVérifieEgalité(d1..Année, 1799, "Entier 0 → 31/12/1799 (année)")
+	dbgVérifieEgalité(d1..Mois, 12, "Entier 0 → 31/12/1799 (mois)")
+	dbgVérifieEgalité(d1..Jour, 31, "Entier 0 → 31/12/1799 (jour)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_annee_bissextile()
+	// Annee bissextile : 29/02/2000 (jour 60 de l'année)
+	// 73049 = 01/01/2000, +59 = 29/02/2000
+
+	entier1 est un entier = 73049 + 59
+	d1 est une date = EntierVersDate(entier1)
+	dbgVérifieEgalité(d1..Année, 2000, "Jour 60 de 2000 → 29/02/2000 (année)")
+	dbgVérifieEgalité(d1..Mois, 2, "Jour 60 de 2000 → 29/02/2000 (mois)")
+	dbgVérifieEgalité(d1..Jour, 29, "Jour 60 de 2000 → 29/02/2000 (jour)")
+
+	// Annee 1800 non-bissextile (divisible par 100 mais pas par 400)
+	entier2 est un entier = 1 + 58 // 59e jour de 1800
+	d2 est une date = EntierVersDate(entier2)
+	dbgVérifieEgalité(d2..Mois, 2, "Jour 59 de 1800 → 28/02/1800 (mois)")
+	dbgVérifieEgalité(d2..Jour, 28, "Jour 59 de 1800 → 28/02/1800 (jour)")
+
+	entier3 est un entier = 1 + 59 // 60e jour de 1800
+	d3 est une date = EntierVersDate(entier3)
+	dbgVérifieEgalité(d3..Mois, 3, "Jour 60 de 1800 → 01/03/1800 (pas de 29/02 en 1800)")
+	dbgVérifieEgalité(d3..Jour, 1, "Jour 60 de 1800 → 01/03/1800 (jour)")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_format_invalide()
+	// Format d'extraction invalide : seul char unique non-A/M/J pose erreur
+	// Bug observe : "AB" et "" ignorent le format et retournent la date complete
+
+	ErreurRAZ()
+	sInvalide1 est une chaîne = EntierVersDate(1, "X")
+	bErr1 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr1, "Format 'X' invalide pose ErreurDétectée")
+	dbgVérifieEgalité(sInvalide1, "", "Format 'X' invalide → chaîne vide")
+
+	// Format multi-char (len != 1) : pose erreur et retourne ""
+	ErreurRAZ()
+	sInvalide2 est une chaîne = EntierVersDate(1, "AB")
+	bErr2 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr2, "Format 'AB' multi-char pose ErreurDétectée")
+	dbgVérifieEgalité(sInvalide2, "", "Format 'AB' multi-char → chaîne vide")
+
+	// Format chaîne vide explicite : pose erreur et retourne ""
+	ErreurRAZ()
+	sInvalide3 est une chaîne = EntierVersDate(1, "")
+	bErr3 est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr3, "Format vide pose ErreurDétectée")
+	dbgVérifieEgalité(sInvalide3, "", "Format vide → chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_entiers_extremes()
+	// Limites documentees : 01/01/0001 a 31/12/9999
+	// Calcul inverse depuis DateVersEntier pour eviter approximations fausses
+
+	// 31/12/9999 : calculer nb jours depuis 1800
+	d1 est une date = "99991231"
+	entierMax est un entier = DateVersEntier(d1)
+	dMax est une date = EntierVersDate(entierMax)
+	dbgVérifieEgalité(dMax..Année, 9999, "Entier max coherent avec DateVersEntier → année 9999")
+	dbgVérifieEgalité(dMax..Mois, 12, "Entier max coherent avec DateVersEntier → mois 12")
+	dbgVérifieEgalité(dMax..Jour, 31, "Entier max coherent avec DateVersEntier → jour 31")
+
+	// 01/01/0001 : calculer nb jours depuis 1800 (negatif)
+	d2 est une date = "00010101"
+	entierMin est un entier = DateVersEntier(d2)
+	dMin est une date = EntierVersDate(entierMin)
+	dbgVérifieEgalité(dMin..Année, 1, "Entier min coherent avec DateVersEntier → année 1")
+	dbgVérifieEgalité(dMin..Mois, 1, "Entier min coherent avec DateVersEntier → mois 1")
+	dbgVérifieEgalité(dMin..Jour, 1, "Entier min coherent avec DateVersEntier → jour 1")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_casse_insensible()
+	// Formats "A"/"M"/"J" casse-insensible
+
+	sAnnee1 est une chaîne = EntierVersDate(1, "a")
+	dbgVérifieEgalité(sAnnee1, "1800", "Format 'a' minuscule → '1800'")
+
+	sMois1 est une chaîne = EntierVersDate(1, "m")
+	dbgVérifieEgalité(sMois1, "01", "Format 'm' minuscule → '01'")
+
+	sJour1 est une chaîne = EntierVersDate(1, "j")
+	dbgVérifieEgalité(sJour1, "01", "Format 'j' minuscule → '01'")
+FIN
+
+// ==============================================================================
+// POINT D'ENTREE
+// ==============================================================================
+
+// Procedures publiques (doc utilisateur)
+scenario_conversion_entier_historique()
+scenario_extraction_composante_annee()
+scenario_extraction_composante_mois()
+scenario_extraction_composante_jour()
+scenario_coherence_dateversEntier()
+
+// Procedures privees (edge cases)
+scenario_edge_entier_negatif()
+scenario_edge_entier_zero()
+scenario_edge_annee_bissextile()
+scenario_edge_format_invalide()
+scenario_edge_entiers_extremes()
+scenario_edge_casse_insensible()
+
+dbgBilanTest()

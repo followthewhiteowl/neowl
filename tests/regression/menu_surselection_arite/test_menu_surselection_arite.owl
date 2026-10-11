@@ -1,0 +1,23 @@
+// Régression : le déclenchement de surSélection() sur une OptionMenu ne
+// doit jamais planter pour cause d'arité (le dispatcher ne pousse que le
+// slot MaFenêtre implicite, pas MonChamp — une option de menu n'est pas
+// un champ). Verrouille par un déclenchement réel via TestSimuleMenu,
+// pas seulement par l'ouverture de la fenêtre (qui ne suffit pas à
+// exercer le chemin de dispatch).
+//
+// Pattern : la fenêtre voisine FEN_MenuArite.owl porte la déclaration.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_MenuArite)
+dbgVérifieFaux(ErreurDétectée, "ouverture fenêtre avec MenuPrincipal : pas d'erreur")
+
+TestSimuleMenu(FEN_MenuArite, "OPT_Nouveau")
+dbgVérifieFaux(ErreurDétectée, "déclenchement surSélection() : pas de crash d'arité")
+
+n est un entier = LireDeclenchements()
+dbgVérifieEgalité(n, 1, "surSélection() déclenché exactement une fois")
+
+Ferme(FEN_MenuArite)
+
+dbgBilanTest()

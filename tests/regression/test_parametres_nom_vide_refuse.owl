@@ -1,0 +1,24 @@
+//  : un nom de paramètre vide est refusé par ParamètreEnregistre et
+// ParamètreCharge — erreur runtime explicite, pas un échec silencieux.
+
+PROCEDURE PUBLIQUE test_sauve_nom_vide_refuse()
+	chemin est une chaîne = fRepTemp() + "test_regr_parametres_nomvide_sauve.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	ParamètreEnregistre("", "peu-importe")
+	bErr est un booléen = ErreurDétectée // capture immédiate avant tout autre OP_CALL
+
+	dbgVérifieVrai(bErr, "ParamètreEnregistre avec un nom vide déclenche ErreurDétectée")
+FIN
+
+PROCEDURE PUBLIQUE test_charge_nom_vide_refuse()
+	chemin est une chaîne = fRepTemp() + "test_regr_parametres_nomvide_charge.json"
+	ParamètreInitialise(paramJSON, chemin)
+
+	valeur est une chaîne = ParamètreCharge("", "repli")
+	bErr est un booléen = ErreurDétectée // capture immédiate avant tout autre OP_CALL
+
+	dbgVérifieVrai(bErr, "ParamètreCharge avec un nom vide déclenche ErreurDétectée")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,33 @@
+// Témoin scoping : variable du top-level CHAMP visible dans les procédures du MÊME champ.
+//
+// Attendu (vert avant ET après Lot 1b — garde-fou non-régression) :
+// - Une variable déclarée dans le top-level d'un champ est visible dans toutes
+//   ses procédures/events.
+// - L'isolation (Lot 1b) ne doit PAS casser cet accès intra-champ.
+//
+// Pattern : la fenêtre voisine FEN_Test_Scoping_Intra.owl expose
+// LireLibelleCompteur qui appelle callback_verifie. Le script déclenche 3 clics
+// puis demande la lecture.
+
+TestModeHeadless(Vrai)
+
+valLibelle est une chaîne = ""
+
+PROCEDURE callback_verifie(t est une chaîne)
+	valLibelle = t
+FIN
+
+Ouvre(FEN_Test_Scoping_Intra)
+
+// Déclencher 3 fois l'event Clic du champ pour vérifier la visibilité intra-champ
+TestSimuleSouris(BTN_Compteur, ClicGauche)
+TestSimuleSouris(BTN_Compteur, ClicGauche)
+TestSimuleSouris(BTN_Compteur, ClicGauche)
+
+// Remontée de la valeur via la procedure publique de la fenêtre
+LireLibelleCompteur()
+
+dbgVérifieEgalité(valLibelle, "Clics : 3", "Variable top-level champ visible dans event du même champ")
+
+Ferme(FEN_Test_Scoping_Intra)
+dbgBilanTest()

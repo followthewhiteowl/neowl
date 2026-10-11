@@ -1,0 +1,84 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — sélection de la sortie du
+// graphe d'après la sortie DÉCLARÉE (`GraphProto.output`), et non d'après
+// l'heuristique fragile « dernier nœud dont la sortie n'est consommée par
+// personne ».
+// @résumé : le réseau importé contient un nœud `Split` (qui force l'exécuteur
+// de graphe général) découpant l'entrée en deux canaux, chacun alimentant une
+// tête `Flatten`+`Gemm`. La première tête produit `real_out`, DÉCLARÉE comme
+// sortie du graphe ; la seconde produit `junk`, une branche parasite non
+// déclarée, non consommée, dont le nœud arrive EN DERNIER dans la liste. Une
+// sélection par « dernier nœud terminal » renverrait `junk` ; la sélection par
+// sortie déclarée renvoie `real_out`. Les deux tenseurs ont la même forme
+// [1,3] : seules les VALEURS les distinguent, ce qui verrouille que le BON
+// tenseur est choisi (pas seulement la bonne forme).
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_declared_output.onnx —
+// [Split, Flatten(a), Gemm -> real_out, Flatten(b), Gemm -> junk],
+// graph.output = [real_out]. Entrée image [1,2,1,2] = [0, 0.25, 0.5, 0.75].
+// Oracle : tests/internal_fixtures/onnx/fixture_declared_output_oracle.json
+// (real_out capturé via onnxruntime ; junk = Gemm du 2e canal, [-0.187, 0.272, 0.642]).
+
+PROCEDURE PUBLIQUE scenario_charge_onnx_sortie_declaree_pas_dernier_noeud()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_declared_output.onnx")
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import du réseau à sortie déclarée réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		brut.Ajoute(0.0)
+		brut.Ajoute(0.25)
+		brut.Ajoute(0.5)
+		brut.Ajoute(0.75)
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 2, 1, 2])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique -> sortie [1,3] rétrogradée en Tenseur 1D [3].
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		// Oracle real_out = Gemm(canal 0). junk = Gemm(canal 1) vaudrait
+		// [-0.187, 0.272, 0.642] : des valeurs franchement distinctes.
+		attendu1 est un réel = 0.10999999940395355
+		attendu2 est un réel = 0.10500000417232513
+		attendu3 est un réel = -0.12000000476837158
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] == oracle real_out (sortie déclarée, pas junk=-0.187)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] == oracle real_out (sortie déclarée, pas junk=0.272)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] == oracle real_out (sortie déclarée, pas junk=0.642)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture, même résultat.
+PROCEDURE PUBLIQUE scenario_load_onnx_declared_output_not_last_node()
+	mon is an AIModel
+	ErrorReset()
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_declared_output.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing the declared-output network succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		raw.Ajoute(0.0)
+		raw.Ajoute(0.25)
+		raw.Ajoute(0.5)
+		raw.Ajoute(0.75)
+		input is a Tensor = Tensor(raw).Redimensionne([1, 2, 1, 2])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = 0.10999999940395355
+		expected2 is a real = 0.10500000417232513
+		expected3 is a real = -0.12000000476837158
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "output[1] == real_out oracle (declared output, not junk)")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "output[2] == real_out oracle (declared output, not junk)")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "output[3] == real_out oracle (declared output, not junk)")
+	FIN
+FIN

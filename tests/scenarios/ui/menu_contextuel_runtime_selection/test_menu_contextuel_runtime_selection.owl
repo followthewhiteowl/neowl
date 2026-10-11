@@ -1,0 +1,27 @@
+// TestSimuleMenu(fenêtre, "OPT_X") déclenche par code le surSélection()
+// d'une option d'un menu CONTEXTUEL attaché à un champ (pas un
+// MenuPrincipal classique), sans clic droit réel, en headless.
+//
+// TestSimuleMenu résout aussi bien le MenuPrincipal effectif de la fenêtre
+// que les arbres de menu contextuel attachés à un champ.
+
+TestModeHeadless(Vrai)
+
+nCopier_obs est un entier = -1
+sStatut_obs est une chaîne = ""
+
+PROCEDURE callback_etat_runtime(nCopier est un entier, sStatut est une chaîne)
+	nCopier_obs = nCopier
+	sStatut_obs = sStatut
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_contextuel_testsimulemenu_declenche_selection()
+	Ouvre(FEN_MenuContextuelRuntime)
+
+	TestSimuleMenu(FEN_MenuContextuelRuntime, "OPT_Copier")
+	RemonteEtatRuntime()
+	dbgVérifieEgalité(nCopier_obs, 1, "surSélection de OPT_Copier (menu contextuel) déclenché une fois")
+	dbgVérifieEgalité(sStatut_obs, "Copié", "le libellé voisin est mis à jour par le handler")
+
+	Ferme(FEN_MenuContextuelRuntime)
+FIN

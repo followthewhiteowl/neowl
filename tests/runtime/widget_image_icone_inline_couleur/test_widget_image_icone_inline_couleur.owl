@@ -1,0 +1,64 @@
+// Test : brace literal d'Icône à props nommées accepté en prop widget
+//. Pendant longtemps `Image = {icones.X, Couleur = ...}` etait
+// rejete dans un bloc PROPRIETES alors qu'il marchait deja sur une init de
+// variable Icône. Le fix factorise le parseur Icône literal et le branche
+// aussi sur les props widget de type variant (Image / Bouton / Champ Image).
+//
+// Verifie :
+//   - le fichier-fenêtre compile et s'ouvre sans diagnostic
+//   - les Icônes inline produites par le widget portent la Couleur attendue
+//     (preuve : variable Icône avec meme init -> meme Couleur)
+//   - rendu effectif : sur un Champ Image, `IMG..Image..Valide` reste Vrai
+//     post-Ouvre, signe que la rasterisation Qt6Svg a ete declenchee avec
+//     une Icône valide (et non une chaine vide silencieuse)
+
+PROCEDURE PUBLIQUE scenario_parse_inline_widget_image_couleur()
+	Ouvre(FEN_IconeInline)
+
+	// La fenetre doit etre ouverte sans erreur de parse/runtime. Le simple
+	// fait d'arriver ici prouve que le brace literal a ete consomme proprement
+	// (avant le fix, on avait "Affectation a un nom de type interdite" sur
+	// Couleur, et la fenetre ne s'ouvrait pas).
+	dbgVérifieVrai(Vrai,
+	"FEN_IconeInline ouverte sans erreur de parse")
+
+	Ferme(FEN_IconeInline)
+FIN
+
+PROCEDURE PUBLIQUE scenario_variable_icone_meme_literal_couleur_exacte()
+	// La forme variable a toujours marche : on s'en sert comme oracle pour
+	// l'init widget. Si le helper Icône est bien partage entre les deux,
+	// l'ObjIcone produite doit avoir exactement la meme Couleur.
+	ICN_Rouge est une Icône = {icones.close, Couleur = RVB(200, 65, 65)}
+	ICN_Bleu est une Icône = {icones.close, Couleur = RVB(20, 80, 200)}
+	ICN_Vert est une Icône = {icones.add, Couleur = RVB(10, 150, 30)}
+
+	dbgVérifieEgalité(ICN_Rouge..Couleur, RVB(200, 65, 65),
+	"ICN_Rouge..Couleur = RVB(200, 65, 65)")
+	dbgVérifieEgalité(ICN_Bleu..Couleur, RVB(20, 80, 200),
+	"ICN_Bleu..Couleur = RVB(20, 80, 200)")
+	dbgVérifieEgalité(ICN_Vert..Couleur, RVB(10, 150, 30),
+	"ICN_Vert..Couleur = RVB(10, 150, 30)")
+
+	dbgVérifieVrai(ICN_Rouge..Valide,
+	"ICN_Rouge..Valide apres init litterale")
+	dbgVérifieVrai(ICN_Bleu..Valide,
+	"ICN_Bleu..Valide apres init litterale")
+	dbgVérifieVrai(ICN_Vert..Valide,
+	"ICN_Vert..Valide apres init litterale")
+FIN
+
+PROCEDURE PUBLIQUE scenario_widget_image_rendu_effectif()
+	Ouvre(FEN_IconeInline)
+
+	// Sur un Champ Image, `..Image..Valide` reste lisible apres Ouvre
+	// (pattern de tests/runtime/repaint_widget_image_mutation/). Une
+	// Icône inline mal parsee aurait donne une chaine vide -> Image
+	// invalide.
+	dbgVérifieVrai(IMG_Cible..Image..Valide,
+	"IMG_Cible..Image..Valide apres Ouvre")
+
+	Ferme(FEN_IconeInline)
+FIN
+
+dbgBilanTest()

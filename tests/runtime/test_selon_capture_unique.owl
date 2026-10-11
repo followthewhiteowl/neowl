@@ -1,0 +1,63 @@
+// Verrouillage : la variable de comparaison d'un SELON est capturee une
+// seule fois au demarrage, jamais re-evaluee a chaque CAS. Une expression
+// avec effet de bord (compteur, appel reseau, random) ne doit s'executer
+// qu'une fois, peu importe le nombre de CAS dans le SELON.
+
+nAppels est un entier = 0
+
+PROCEDURE PRIVÉE GetVal() : entier
+	nAppels = nAppels + 1
+	RENVOYER 2
+FIN
+
+// Cas 1 : SELON avec appel direct. Plusieurs CAS. La fonction GetVal
+// renvoie 2, donc le second CAS matche. nAppels doit valoir 1 a la fin,
+// pas 2, 3, ou 4 (pas de re-evaluation par CAS, pas de double evaluation
+// pour le matching).
+PROCEDURE test_capture_unique_simple()
+	nAppels = 0
+	sMatched est une chaîne = ""
+	SELON GetVal()
+		CAS 1 : sMatched = "un"
+		CAS 2 : sMatched = "deux"
+		CAS 3 : sMatched = "trois"
+		AUTRE CAS : sMatched = "autre"
+	FIN
+	dbgVérifieEgalité(sMatched, "deux", "GetVal() renvoie 2, CAS 2 matche")
+	dbgVérifieEgalité(nAppels, 1, "GetVal() appelee exactement une fois malgre 4 clauses CAS")
+FIN
+
+// Cas 2 : memes garanties quand AUCUN CAS ne matche (chemin AUTRE CAS).
+// nAppels doit toujours valoir 1 — la capture initiale est independante
+// du chemin pris pour le matching.
+PROCEDURE test_capture_unique_chemin_autre_cas()
+	nAppels = 0
+	sMatched est une chaîne = ""
+	SELON GetVal()
+		CAS 5 : sMatched = "cinq"
+		CAS 6 : sMatched = "six"
+		AUTRE CAS : sMatched = "autre"
+	FIN
+	dbgVérifieEgalité(sMatched, "autre", "Aucun CAS ne matche, AUTRE CAS pris")
+	dbgVérifieEgalité(nAppels, 1, "GetVal() appelee une seule fois meme via AUTRE CAS")
+FIN
+
+// Cas 3 : capture unique aussi avec plages, comparateurs et sandwich melanges.
+// Chaque pattern referme implicitement la variable capturee — pas de
+// re-evaluation de l'expression source par pattern.
+PROCEDURE test_capture_unique_avec_patterns_etendus()
+	nAppels = 0
+	sMatched est une chaîne = ""
+	SELON GetVal()
+		CAS 1 À 5            : sMatched = "plage"
+		CAS > 100            : sMatched = "comparateur"
+		CAS 50 < * < 60      : sMatched = "sandwich"
+		AUTRE CAS            : sMatched = "autre"
+	FIN
+	dbgVérifieEgalité(sMatched, "plage", "GetVal() = 2 ∈ [1, 5] capture le premier CAS plage")
+	dbgVérifieEgalité(nAppels, 1, "Capture unique respectee avec patterns etendus")
+FIN
+
+test_capture_unique_simple()
+test_capture_unique_chemin_autre_cas()
+test_capture_unique_avec_patterns_etendus()

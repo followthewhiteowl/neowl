@@ -1,0 +1,112 @@
+// @sujet : Applique
+// @résumé : forEach sur chaque élément d'un tableau. Applique exécute une procédure sur chaque élément (forEach pur).
+// Retourne le tableau source pour permettre le chainage fluent.
+//
+// Pour transformer un tableau en obtenant un nouveau resultat sans toucher
+// la source, voir Transforme / Map.
+
+compteurGlobal est un entier = 0
+accumulateurLog est une chaîne = ""
+
+// Callbacks de demonstration (declared avant usage)
+PROCEDURE callback_incrementer(_v est un entier)
+	compteurGlobal = compteurGlobal + 1
+FIN
+
+PROCEDURE callback_logger(v est un entier)
+	accumulateurLog = accumulateurLog + "[" + v + "]"
+FIN
+
+PROCEDURE callback_logger_assoc(val est une chaîne, cle est une chaîne)
+	accumulateurLog = accumulateurLog + cle + "=" + val + ";"
+FIN
+
+FONCTION callback_doubler(v est un entier) : entier
+	RENVOYER v * 2
+FIN
+
+// Forme fonction : comptage sans modifier la source
+PROCEDURE PUBLIQUE scenario_foreach_compteur()
+	valeurs est un tableau d'entiers = [10, 20, 30, 40]
+	compteurGlobal = 0
+
+	Applique(valeurs, callback_incrementer)
+
+	dbgVérifieEgalité(compteurGlobal, 4, "callback invoque 4 fois (forEach complet)")
+	dbgVérifieEgalité(valeurs[1], 10, "source non mutee : valeur 1 inchangee")
+	dbgVérifieEgalité(valeurs[2], 20, "source non mutee : valeur 2 inchangee")
+FIN
+
+// Forme methode : journalisation via effets de bord
+PROCEDURE PUBLIQUE scenario_methode_journalisation()
+	valeurs est un tableau d'entiers = [5, 10, 15]
+	accumulateurLog = ""
+
+	valeurs.Applique(callback_logger)
+
+	dbgVérifieEgalité(accumulateurLog, "[5][10][15]", "log accumule pour chaque element")
+FIN
+
+// Tableau associatif : callback (valeur, cle)
+PROCEDURE PUBLIQUE scenario_associatif_cle_valeur()
+	parametres est un tableau associatif de chaînes
+	parametres["host"] = "localhost"
+	parametres["port"] = "8080"
+	parametres["path"] = "/api"
+	accumulateurLog = ""
+
+	Applique(parametres, callback_logger_assoc)
+
+	// Ordre non garanti dans tableau associatif, mais on verifie presence
+	dbgVérifieVrai(Contient(accumulateurLog, "host=localhost;"), "cle host loggee")
+	dbgVérifieVrai(Contient(accumulateurLog, "port=8080;"), "cle port loggee")
+	dbgVérifieVrai(Contient(accumulateurLog, "path=/api;"), "cle path loggee")
+FIN
+
+// Chainage fluent avec autres natives fonctionnelles
+PROCEDURE PUBLIQUE scenario_chainage_fluent()
+	valeurs est un tableau d'entiers = [1, 2, 3]
+	compteurGlobal = 0
+
+	// Applique (forEach log) → Transforme (map doubler) → coherence
+	resultat est un tableau d'entiers = valeurs.Applique(callback_incrementer).Transforme(callback_doubler)
+
+	dbgVérifieEgalité(compteurGlobal, 3, "Applique a execute le forEach complet")
+	dbgVérifieEgalité(resultat[1], 2, "Transforme apres Applique : 1 → 2")
+	dbgVérifieEgalité(resultat[2], 4, "Transforme apres Applique : 2 → 4")
+	dbgVérifieEgalité(resultat[3], 6, "Transforme apres Applique : 3 → 6")
+	dbgVérifieEgalité(valeurs[1], 1, "source preservee (forEach non destructif)")
+FIN
+
+// Cas limite : tableau vide ne declenche aucun appel
+PROCEDURE PUBLIQUE scenario_tableau_vide()
+	vide est un tableau d'entiers
+	compteurGlobal = 0
+
+	Applique(vide, callback_incrementer)
+
+	dbgVérifieEgalité(compteurGlobal, 0, "tableau vide ne declenche aucun callback")
+FIN
+
+// Cas limite : tableau a un seul element
+PROCEDURE PRIVÉE scenario_un_seul_element()
+	unique est un tableau d'entiers = [42]
+	compteurGlobal = 0
+
+	Applique(unique, callback_incrementer)
+
+	dbgVérifieEgalité(compteurGlobal, 1, "un element → un appel callback")
+FIN
+
+// Edge case : accents dans cles tableau associatif
+PROCEDURE PRIVÉE scenario_cles_accentuees()
+	donneesAccent est un tableau associatif de chaînes
+	donneesAccent["prénom"] = "Émilie"
+	donneesAccent["métier"] = "développeuse"
+	accumulateurLog = ""
+
+	Applique(donneesAccent, callback_logger_assoc)
+
+	dbgVérifieVrai(Contient(accumulateurLog, "prénom=Émilie;"), "cle accentuee preservee")
+	dbgVérifieVrai(Contient(accumulateurLog, "métier=développeuse;"), "valeur accentuee preservee")
+FIN

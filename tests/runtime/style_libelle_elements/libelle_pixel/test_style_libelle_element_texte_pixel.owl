@@ -1,0 +1,46 @@
+//  — `Style..Libellé..CouleurFond` sur un Champ Libellé autonome :
+// le sous-élément Libellé désigne ici le widget lui-même (pas de zone de
+// saisie à côté). Choix de CouleurFond (fond) plutôt que Couleur (texte) :
+// un aplat de fond se vérifie par comptage de pixels fiable.
+//
+// ROUGE attendu : `Style..Libellé..CouleurFond` ne compile pas encore (la
+// prop 'Style' n'existe pas sur le champ Libellé). Cf.
+// FEN_StyleLibelleElementTexte.owl.
+
+TestModeHeadless(Faux)
+
+couleurLibelleFond est un entier = RVB(200, 0, 200)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleLibelleElementTexte)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleLibelleElementTexte)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// LIB_X occupe [X=20..320, Y=20..80] : échantillon intérieur pour éviter les
+// bords/marges.
+nbFondLibelle est un entier = CompteCouleurZone(img, 30, 30, 310, 70, couleurLibelleFond)
+seuilFond est un entier = 2240 // (310-30) * (70-30) * 0.20, arrondi (marge basse : glyphes/marges internes)
+dbgVérifieVrai(nbFondLibelle > seuilFond, "LIB_X : Style..Libellé..CouleurFond peint le fond du champ")
+
+// Contrôle négatif : le fond de la fenêtre (hors du champ) reste inchangé.
+nbFondHorsChamp est un entier = CompteCouleurZone(img, 340, 30, 390, 70, couleurLibelleFond)
+dbgVérifieVrai(nbFondHorsChamp = 0, "LIB_X : la couleur du libellé ne déborde pas hors du champ")
+
+Ferme(FEN_StyleLibelleElementTexte)
+dbgBilanTest()

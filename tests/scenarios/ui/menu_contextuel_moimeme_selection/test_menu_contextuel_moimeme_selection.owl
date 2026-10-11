@@ -1,0 +1,33 @@
+// Verrouille MoiMême dans une surSélection de menu CONTEXTUEL : le sender
+// doit être le CHAMP déclencheur (celui auquel le menu est attaché), pas
+// l'option de menu. Régression du crash "Acces a un champ sur une valeur
+// Null" (MoiMême résolvait au nom de l'option -> NIL -> crash sur
+// MoiMême..NomChamp).
+//
+// TestSimuleMenu déclenche la surSélection en headless en câblant le champ
+// déclencheur comme sender, sur le même chemin de dispatch que le vrai clic
+// droit. Le handler lit MoiMême..Nom (nom déclaré du champ) et
+// MoiMême..Indication (valeur distincte du nom) puis met à jour un champ
+// voisin de la fenêtre — les accès qui crashaient quand MoiMême valait Null.
+
+TestModeHeadless(Vrai)
+
+sStatut_obs est une chaîne = "<absent>"
+bErreur_obs est un booléen = Vrai
+
+PROCEDURE cb_moimeme_statut(sStatut est une chaîne, bErreur est un booléen)
+	sStatut_obs = sStatut
+	bErreur_obs = bErreur
+FIN
+
+PROCEDURE PUBLIQUE scenario_moimeme_resout_au_champ_declencheur_sans_crash()
+	Ouvre(FEN_MenuContextuelMoiMeme)
+
+	TestSimuleMenu(FEN_MenuContextuelMoiMeme, "OPT_Copier")
+	RemonteStatutMoiMeme()
+
+	dbgVérifieFaux(bErreur_obs, "surSélection de menu contextuel : aucune erreur (MoiMême n'est plus Null)")
+	dbgVérifieEgalité(sStatut_obs, "ZS_Zone | Saisissez ici", "MoiMême résout au champ déclencheur : ..Nom rend le nom déclaré (ZS_Zone) et ..Indication le texte distinct, le champ fenêtre voisin est mis à jour")
+
+	Ferme(FEN_MenuContextuelMoiMeme)
+FIN

@@ -1,0 +1,182 @@
+// @sujet : AwsS3Client
+// @résumé : Client objet fluent pour le service S3 (protocole rest-xml, corps binaire). Instancié via `s3 est un AwsS3Client`, la session se pose via `..Session`, les opérations (Upload/Télécharge/Liste/Supprime) s'appellent en `.Méthode(...)`.
+
+
+// Mock partagé : les méthodes AwsS3Client signent puis délèguent l'envoi
+// réseau à HTTPEnvoie, exactement comme AWSRequête. On intercepte cette
+// dépendance externe pour rester déterministe (pas de vrai appel S3 en
+// test).
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat            = 200
+	rep..DescriptionCodeEtat = "OK"
+	rep..Contenu             = ""
+
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Desactive()
+FIN
+
+
+// Construit une session de test partageable entre scénarios.
+PROCEDURE PRIVÉE sessionDeTest() : AWSSession
+	sess est une AWSSession
+	sess..Région     = "eu-west-3"
+	sess..CléAccès   = "AKIAIOSFODNN7EXAMPLE"
+	sess..CléSecrète = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	RENVOYER sess
+FIN
+
+
+// Cas canonique : un AwsS3Client déclaré sans initialisation existe, la
+// session se pose via la propriété ..Session.
+PROCEDURE PUBLIQUE scenario_creation_et_session()
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	dbgVérifieEgalité(s3..Session..Région, "eu-west-3", "session relue via la propriété ..Session")
+FIN
+
+
+// Upload : la requête déléguée à HTTPEnvoie est un PUT signé, l'URL porte
+// le bucket et la clé, le Content-Type transmis est celui fourni, et le
+// corps envoyé est exactement le Buffer donné (pas de retour polymorphe).
+PROCEDURE PUBLIQUE scenario_upload_put_signe()
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	buf est un buffer = "contenu de test"
+	s3.Upload("mon-bucket-test", "dossier/fichier.txt", buf, "text/plain")
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+
+	dbgVérifieEgalité(req..Méthode, httpPut, "Upload envoie une requête PUT")
+	dbgVérifieVrai(Contient(req..URL, "s3.eu-west-3.amazonaws.com"), "l'URL cible l'hôte S3 régional")
+	dbgVérifieVrai(Contient(req..URL, "/mon-bucket-test/dossier/fichier.txt"), "l'URL est path-style : /bucket/clé après l'hôte")
+	dbgVérifieEgalité(req..ContentType, "text/plain", "Content-Type transmis tel quel")
+	dbgVérifieEgalité(req..Contenu, buf, "le corps envoyé est exactement le Buffer fourni")
+
+	sAutorisation est une chaîne = req..Entête["Authorization"]
+	dbgVérifieVrai(Contient(sAutorisation, "AWS4-HMAC-SHA256"), "Upload signe la requête (SigV4)")
+	dbgVérifieDifférence(req..Entête["X-Amz-Date"], "", "X-Amz-Date posé sur la requête signée")
+FIN
+
+
+// Empreinte du corps : X-Amz-Content-Sha256 porte une empreinte réelle du
+// Buffer (64 caractères hexadécimaux), pas un placeholder générique — la
+// signature en chunked/UNSIGNED-PAYLOAD n'est pas couverte ici.
+PROCEDURE PUBLIQUE scenario_upload_empreinte_corps_reelle()
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	buf est un buffer = "contenu dont on calcule l'empreinte"
+	s3.Upload("mon-bucket-test", "clé.bin", buf, "application/octet-stream")
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sEmpreinte est une chaîne = req..Entête["X-Amz-Content-Sha256"]
+
+	dbgVérifieEgalité(Taille(sEmpreinte), 64, "empreinte SHA-256 hexadécimale (64 caractères)")
+	dbgVérifieDifférence(sEmpreinte, "UNSIGNED-PAYLOAD", "empreinte réelle, pas un placeholder non-signé")
+FIN
+
+
+// Télécharge : GET signé sur bucket+clé, le Buffer retourné restitue
+// exactement les octets du corps de la réponse mockée — y compris des
+// octets non-UTF8 (0x00, 0x80, 0xFF), sans corruption.
+PROCEDURE PUBLIQUE scenario_telecharge_get_signe_corps_binaire()
+	octetsSource est un buffer = "XXXX"
+	BufferÉcritOctet(octetsSource, 1, 0)
+	BufferÉcritOctet(octetsSource, 2, 255)
+	BufferÉcritOctet(octetsSource, 3, 128)
+	BufferÉcritOctet(octetsSource, 4, 65)
+
+	rep est un httpRéponse
+	rep..CodeEtat = 200
+	rep..Contenu  = octetsSource
+	mockHttp      = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	octetsRecus est un buffer = s3.Télécharge("mon-bucket-test", "dossier/fichier.bin")
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Méthode, httpGet, "Télécharge envoie une requête GET")
+	dbgVérifieVrai(Contient(req..URL, "s3.eu-west-3.amazonaws.com"), "l'URL cible l'hôte S3 régional")
+	dbgVérifieVrai(Contient(req..URL, "/mon-bucket-test/dossier/fichier.bin"), "l'URL est path-style : /bucket/clé après l'hôte")
+
+	dbgVérifieEgalité(BufferLitOctet(octetsRecus, 1), 0, "octet 0x00 restitué sans corruption")
+	dbgVérifieEgalité(BufferLitOctet(octetsRecus, 2), 255, "octet 0xFF restitué sans corruption")
+	dbgVérifieEgalité(BufferLitOctet(octetsRecus, 3), 128, "octet 0x80 restitué sans corruption")
+	dbgVérifieEgalité(BufferLitOctet(octetsRecus, 4), 65, "octet ASCII restitué sans corruption")
+FIN
+
+
+// Liste : GET signé sur le bucket, réponse rest-xml (ListBucketResult)
+// parsée — au moins la clé du premier objet listé est extraite.
+PROCEDURE PUBLIQUE scenario_liste_get_signe_reponse_xml_parsee()
+	rep est un httpRéponse
+	rep..CodeEtat = 200
+	rep..Contenu  = `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult>
+    <Name>mon-bucket-test</Name>
+    <Contents>
+        <Key>dossier/fichier.txt</Key>
+        <Size>42</Size>
+    </Contents>
+</ListBucketResult>`
+	mockHttp = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	resultat est un JSON = s3.Liste("mon-bucket-test", "dossier/")
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Méthode, httpGet, "Liste envoie une requête GET")
+	dbgVérifieVrai(Contient(req..URL, "s3.eu-west-3.amazonaws.com"), "l'URL cible l'hôte S3 régional")
+	dbgVérifieVrai(Contient(req..URL, "/mon-bucket-test"), "l'URL est path-style : /bucket après l'hôte")
+
+	dbgVérifieEgalité(resultat.Contents[1].Key, "dossier/fichier.txt", "clé du premier objet extraite de la réponse rest-xml (calque AWS Contents/Key)")
+	dbgVérifieEgalité(resultat.Contents[1].Size, 42, "taille du premier objet extraite de la réponse rest-xml (calque AWS)")
+FIN
+
+
+// Supprime : DELETE signé sur bucket+clé.
+PROCEDURE PUBLIQUE scenario_supprime_delete_signe()
+	rep est un httpRéponse
+	rep..CodeEtat = 204
+	rep..Contenu  = ""
+	mockHttp      = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	s3.Supprime("mon-bucket-test", "dossier/fichier.txt")
+
+	req est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(req..Méthode, httpDelete, "Supprime envoie une requête DELETE")
+	dbgVérifieVrai(Contient(req..URL, "s3.eu-west-3.amazonaws.com"), "l'URL cible l'hôte S3 régional")
+	dbgVérifieVrai(Contient(req..URL, "/mon-bucket-test/dossier/fichier.txt"), "l'URL est path-style : /bucket/clé après l'hôte")
+FIN
+
+
+// Cas limite défensif : deux appels successifs de méthodes différentes sur
+// le même client comptent bien deux délégations distinctes à HTTPEnvoie
+// (pas de mise en cache implicite de la requête signée).
+PROCEDURE PRIVÉE scenario_deux_appels_successifs_deux_delegations()
+	s3 est un AwsS3Client
+	s3..Session = sessionDeTest()
+
+	buf est un buffer = "abc"
+	s3.Upload("mon-bucket-test", "un.txt", buf, "text/plain")
+	s3.Supprime("mon-bucket-test", "un.txt")
+
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 2), "deux appels de méthode, deux délégations HTTPEnvoie")
+FIN

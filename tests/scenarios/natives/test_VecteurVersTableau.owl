@@ -1,0 +1,35 @@
+// @sujet : VecteurVersTableau
+// @résumé : Convertit explicitement un Vecteur en tableau de réels, sans coercion implicite entre les deux types.
+
+
+// Cas nominal : un Vecteur devient un tableau de réels de même taille,
+// avec les mêmes valeurs aux mêmes positions.
+PROCEDURE PUBLIQUE scenario_conversion_nominale()
+	v est un Vecteur = [10.0, 20.0, 30.0]
+	arrTab est un tableau de réels = VecteurVersTableau(v)
+	dbgVérifieEgalité(Taille(arrTab), 3, "Tableau converti a la même taille que le Vecteur source")
+	dbgVérifieEgalité(arrTab[1], 10.0, "arrTab[1] = v[1]")
+	dbgVérifieEgalité(arrTab[2], 20.0, "arrTab[2] = v[2]")
+	dbgVérifieEgalité(arrTab[3], 30.0, "arrTab[3] = v[3]")
+FIN
+
+
+// Round-trip complet : Vecteur -> tableau -> Vecteur préserve taille et
+// valeurs à l'identique.
+PROCEDURE PUBLIQUE scenario_round_trip_fidele()
+	vOriginal est un Vecteur = [1.1, 2.2, 3.3, 4.4]
+	arrIntermediaire est un tableau de réels = VecteurVersTableau(vOriginal)
+	vRetour est un Vecteur = TableauVersVecteur(arrIntermediaire)
+
+	dbgVérifieEgalité(vRetour..Taille, vOriginal..Taille, "Round-trip : taille préservée")
+	dbgVérifieEgalité(vRetour[1], vOriginal[1], "Round-trip : élément 1 préservé")
+	dbgVérifieEgalité(vRetour[4], vOriginal[4], "Round-trip : élément 4 préservé")
+FIN
+
+
+// Un Vecteur vide se convertit en tableau vide, pas d'erreur.
+PROCEDURE PRIVÉE scenario_edge_vecteur_vide()
+	v est un Vecteur = []
+	arrTab est un tableau de réels = VecteurVersTableau(v)
+	dbgVérifieEgalité(Taille(arrTab), 0, "Vecteur vide -> tableau vide")
+FIN

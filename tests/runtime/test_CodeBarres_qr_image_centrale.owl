@@ -1,0 +1,44 @@
+// Verrouillage : QR Code avec image centrale (prop Image + ProportionImage +
+// CorrectionErreur) génère sans erreur, Image de sortie avec dimensions saines.
+// Rendu visuel réel = validation humaine ultérieure (hors scope de ce test).
+
+imgCentre est une Image = dCréeImage(20, 20, RVB(0, 80, 160))
+
+cb est un CodeBarres
+cb..TypeCodeBarres   = CB_QRCODE
+cb..TypeContenu      = cbTypeTexte
+cb..Contenu          = "https://www.example.com/logo"
+cb..ImageCentrale    = imgCentre
+cb..CorrectionErreur = qrcodeNiveauH
+cb..ProportionImage  = 3
+
+ErreurRAZ()
+imgResultat est une Image = CodeBarreVersImage(cb)
+
+dbgVérifieVrai(ErreurInfo() = "", "QR avec image centrale (ECC H, proportion 3%) - pas d'erreur")
+dbgVérifieVrai(imgResultat..Valide, "QR avec image centrale - Image résultat valide")
+dbgVérifieVrai(imgResultat..Largeur > 0, "QR avec image centrale - Largeur > 0")
+dbgVérifieVrai(imgResultat..Hauteur > 0, "QR avec image centrale - Hauteur > 0")
+
+// Sans image centrale (référence) : même contenu, dimensions également saines.
+cbSansImage est un CodeBarres
+cbSansImage..TypeCodeBarres = CB_QRCODE
+cbSansImage..TypeContenu    = cbTypeTexte
+cbSansImage..Contenu        = "https://www.example.com/logo"
+
+imgSansImage est une Image = CodeBarreVersImage(cbSansImage)
+dbgVérifieVrai(imgSansImage..Valide, "QR sans image centrale - Image valide")
+dbgVérifieVrai(imgSansImage..Largeur > 0 ET imgSansImage..Hauteur > 0, "QR sans image centrale - dimensions non-nulles")
+
+// Forme EN canon de la propriété : CenterImage résout vers le même stockage.
+cbEN est un BarCodes
+cbEN..TypeCodeBarres   = CB_QRCODE
+cbEN..Contenu          = "https://www.example.com/logo"
+cbEN..CenterImage      = imgCentre
+cbEN..CorrectionErreur = qrcodeNiveauH
+cbEN..ProportionImage  = 3
+
+imgEN est une Image = CodeBarreVersImage(cbEN)
+dbgVérifieVrai(imgEN..Valide, "CenterImage (EN) - Image résultat valide")
+
+dbgBilanTest()

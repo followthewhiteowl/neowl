@@ -1,0 +1,23 @@
+//  — état sur une VARIABLE NUE styleSaisie déclarée au top-level
+// d'un body de fenêtre (`sty..ZoneSaisie..Etats[survol]..X`). Ce chemin doit
+// résoudre le type de `sty` (global mangled `<FEN>$sty`) comme en script plat,
+// sinon la cascade profonde `..ZoneSaisie..Etats[état]..` ne compile pas.
+//
+// Preuve = round-trip : les valeurs surchargées par état sur la variable nue
+// de la fenêtre sont bien lues (donc le type est résolu, la syntaxe état
+// compile) ET transférées au champ via
+// `SAI..Style..ZoneSaisie..Etats[état]..X = sty..ZoneSaisie..Etats[état]..X`.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleEtatVarNue)
+
+// 1. Lecture directe des surcharges d'état sur la variable nue top-level.
+//    (Si le type de `sty` n'était pas résolu, la cascade profonde ne
+//    compilerait même pas — ce test serait un CRASH compile, pas un FAIL.)
+dbgVérifieEgalité(SAI_VN..Style..CouleurFond, RVB(30, 60, 90), "base : CouleurFond transférée depuis la variable nue")
+dbgVérifieEgalité(SAI_VN..Style..ZoneSaisie..Etats[survol]..CouleurFond, RVB(0, 255, 0), "survol : CouleurFond transférée depuis la variable nue")
+dbgVérifieEgalité(SAI_VN..Style..ZoneSaisie..Etats[focus]..Couleur, RVB(200, 0, 0), "focus : Couleur transférée depuis la variable nue")
+
+Ferme(FEN_StyleEtatVarNue)
+dbgBilanTest()

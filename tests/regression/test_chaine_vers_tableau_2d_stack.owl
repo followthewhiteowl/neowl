@@ -1,0 +1,17 @@
+// Régression : ChaîneVersTableau forme 2D fuyait un slot sur la stack VM.
+// Avant le fix, la séquence "callable_avant_le_call_2d puis OP_CALL N"
+// voyait son callee remplacé par celui de l'appel 2D — bug invisible dans
+// les cas isolés mais qui cassait l'initialisation d'un tableau de chaînes
+// depuis un appel à ChaîneVersTableau.
+
+sm est une chaîne = "A" + TAB + "B" + CRLF + "C" + TAB + "D" + CRLF + "E" + TAB + "F"
+
+// Forme 2D : ChaîneVersTableau(s, CRLF, TAB) doit retourner un tableau imbriqué
+// (3 lignes × 2 colonnes) affecté directement au tableau déclaré.
+arrT est un tableau de chaînes = ChaîneVersTableau(sm, CRLF, TAB)
+dbgVérifieEgalité(arrT..Occurrence, 3, "3 lignes (tableau imbriqué)")
+dbgVérifieEgalité(arrT[1]..Occurrence, 2, "2 colonnes ligne 1")
+dbgVérifieEgalité(arrT[1][1], "A", "[1,1] = A")
+dbgVérifieEgalité(arrT[3][2], "F", "[3,2] = F")
+
+dbgBilanTest()

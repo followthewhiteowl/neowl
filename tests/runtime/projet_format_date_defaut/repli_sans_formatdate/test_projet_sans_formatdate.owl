@@ -1,0 +1,29 @@
+//  — repli quand ni le champ (pas de MasqueAffichage) ni le projet
+// (pas de FormatDate) ne posent de format : la relecture doit suivre le
+// défaut en dur JJ/MM/AAAA (comportement / préservé).
+// Vérifie aussi que Projet..FormatDate rend "" par défaut (jamais nil) quand
+// le champ n'est pas posé dans PROPRIETES.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que le champ
+// FormatDate n'existe pas au catalogue manifeste Projet — même absent de
+// PROPRIETES ici, le CATALOGUE doit connaître le champ pour matérialiser sa
+// valeur par défaut dans l'ObjInstance (sinon MonApp..FormatDate lève un
+// symbole inconnu à la lecture).
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppSansFormatDate..FormatDate, "", "Projet..FormatDate : chaîne vide par défaut quand non posé (jamais nil)")
+
+OuvreSoeur(FEN_ProjetSansFormatDate)
+
+TestSimuleSaisie(SAI_Date, "05/12/2026")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Repli défaut : ..Valeur reste un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLue est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLue, "20261205", "Repli JJ/MM/AAAA (ni masque champ, ni FormatDate projet) : « 05/12/2026 » interprété comme 5 décembre 2026")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetSansFormatDate)
+dbgBilanTest()

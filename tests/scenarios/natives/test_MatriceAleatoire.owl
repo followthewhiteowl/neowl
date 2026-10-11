@@ -1,0 +1,77 @@
+// @sujet : MatriceAléatoire
+// @résumé : Construit une Matrice de dimensions données (lignes × colonnes) remplie de réels aléatoires uniformes dans [0, 1[, disponible en native préfixée avec forme anglaise. Utile pour initialiser des poids ; l'échelle et le centrage se font ensuite via l'arithmétique Matrice. Des dimensions non strictement positives lèvent une exception.
+
+
+// MatriceAléatoire(lignes, colonnes) rend une Matrice aux dimensions
+// demandées ; chaque élément est un réel dans [0, 1[. La séquence n'étant
+// pas graînée ici, on vérifie l'appartenance à l'intervalle, pas des
+// valeurs exactes.
+PROCEDURE PUBLIQUE scenario_dimensions_et_borne()
+	m est une Matrice = MatriceAléatoire(3, 5)
+	dbgVérifieEgalité(m..Lignes, 3, "MatriceAléatoire(3, 5) a 3 lignes")
+	dbgVérifieEgalité(m..Colonnes, 5, "MatriceAléatoire(3, 5) a 5 colonnes")
+
+	bToutDansBorne est un booléen = Vrai
+	POUR nL = 1 À 3
+		POUR nC = 1 À 5
+			v est un réel = m[nL][nC]
+			SI v < 0.0 OU v >= 1.0 ALORS
+				bToutDansBorne = Faux
+			FIN
+		FIN
+	FIN
+	dbgVérifieVrai(bToutDansBorne, "Toutes les valeurs sont dans [0, 1[")
+FIN
+
+
+// La forme anglaise MatrixRandom désigne la même opération et produit le
+// même contrat (dimensions correctes, valeurs dans [0, 1[).
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	m est une Matrice = MatrixRandom(2, 4)
+	dbgVérifieEgalité(m..Rows, 2, "MatrixRandom(2, 4)..Rows = 2")
+	dbgVérifieEgalité(m..Columns, 4, "MatrixRandom(2, 4)..Columns = 4")
+
+	bToutDansBorne est un booléen = Vrai
+	POUR nL = 1 À 2
+		POUR nC = 1 À 4
+			v est un réel = m[nL][nC]
+			SI v < 0.0 OU v >= 1.0 ALORS
+				bToutDansBorne = Faux
+			FIN
+		FIN
+	FIN
+	dbgVérifieVrai(bToutDansBorne, "MatrixRandom : toutes les valeurs dans [0, 1[")
+FIN
+
+
+// Une matrice à une seule cellule (1 × 1) est une dimension valide : borne
+// inférieure du contrat « au moins une ligne et une colonne ».
+PROCEDURE PUBLIQUE scenario_dimension_minimale()
+	m est une Matrice = MatriceAléatoire(1, 1)
+	dbgVérifieEgalité(m..Lignes, 1, "MatriceAléatoire(1, 1) a 1 ligne")
+	dbgVérifieEgalité(m..Colonnes, 1, "MatriceAléatoire(1, 1) a 1 colonne")
+	dbgVérifieVrai(m[1][1] >= 0.0 ET m[1][1] < 1.0, "L'unique cellule est dans [0, 1[")
+FIN
+
+
+// Des dimensions non strictement positives ne définissent pas une matrice
+// valide : chaque cas lève une exception récupérable.
+PROCEDURE PRIVÉE scenario_edge_dimensions_non_positives_refusees()
+	capturéLignes est une chaîne = ""
+	QUAND EXCEPTION DANS
+		mZéro est une Matrice = MatriceAléatoire(0, 5)
+		capturéLignes = "no-throw"
+	FAIRE
+		capturéLignes = "caught"
+	FIN
+	dbgVérifieEgalité(capturéLignes, "caught", "MatriceAléatoire(0, 5) refusé")
+
+	capturéColonnes est une chaîne = ""
+	QUAND EXCEPTION DANS
+		mNég est une Matrice = MatriceAléatoire(3, -2)
+		capturéColonnes = "no-throw"
+	FAIRE
+		capturéColonnes = "caught"
+	FIN
+	dbgVérifieEgalité(capturéColonnes, "caught", "MatriceAléatoire(3, -2) refusé")
+FIN

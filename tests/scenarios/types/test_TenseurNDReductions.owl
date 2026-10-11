@@ -1,0 +1,111 @@
+// @sujet : Tenseur.Somme / Tenseur.Moyenne (par axe, N-D)
+// @résumé : Somme(axe) et Moyenne(axe) réduisent un Tenseur N-D le long
+// d'un seul axe, en abaissant le rang d'un niveau. Rétropropage()
+// rediffuse le gradient reçu sur tous les éléments de l'axe réduit (divisé
+// par la taille de l'axe pour Moyenne).
+
+// Somme(3) réduit le dernier axe d'un Tenseur 3D (2x2x3, éléments
+// 1.0..12.0) : chaque triplet de la dernière dimension est additionné.
+// Calcul à la main : [1,2,3]->6, [4,5,6]->15, [7,8,9]->24, [10,11,12]->33.
+PROCEDURE PUBLIQUE scenario_somme_axe_forward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	s est un Tenseur = t.Somme(3)
+
+	dbgVérifieEgalité(s..Rang, 2, "Somme(3) sur un Tenseur 3D -> Rang 2 (l'axe réduit disparaît)")
+	dbgVérifieEgalité(s..Forme[1], 2, "Forme[1] inchangée")
+	dbgVérifieEgalité(s..Forme[2], 2, "Forme[2] inchangée")
+	dbgVérifieEgalité(s..Valeur[1][1], 6.0, "1.0+2.0+3.0 = 6.0")
+	dbgVérifieEgalité(s..Valeur[1][2], 15.0, "4.0+5.0+6.0 = 15.0")
+	dbgVérifieEgalité(s..Valeur[2][1], 24.0, "7.0+8.0+9.0 = 24.0")
+	dbgVérifieEgalité(s..Valeur[2][2], 33.0, "10.0+11.0+12.0 = 33.0")
+FIN
+
+
+// Somme(1) réduit le premier axe (taille 2) du même Tenseur : les deux
+// blocs 2x3 sont additionnés élément à élément. Confirme que l'axe
+// choisi est bien celui qui est réduit, pas systématiquement le dernier.
+PROCEDURE PUBLIQUE scenario_somme_axe_different_axe_forward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	s est un Tenseur = t.Somme(1)
+
+	dbgVérifieEgalité(s..Rang, 2, "Somme(1) sur un Tenseur 3D -> Rang 2")
+	dbgVérifieEgalité(s..Forme[1], 2, "Forme[1] = ancienne Forme[2]")
+	dbgVérifieEgalité(s..Forme[2], 3, "Forme[2] = ancienne Forme[3]")
+	dbgVérifieEgalité(s..Valeur[1][1], 8.0, "1.0+7.0 = 8.0")
+	dbgVérifieEgalité(s..Valeur[1][2], 10.0, "2.0+8.0 = 10.0")
+	dbgVérifieEgalité(s..Valeur[1][3], 12.0, "3.0+9.0 = 12.0")
+	dbgVérifieEgalité(s..Valeur[2][1], 14.0, "4.0+10.0 = 14.0")
+	dbgVérifieEgalité(s..Valeur[2][2], 16.0, "5.0+11.0 = 16.0")
+	dbgVérifieEgalité(s..Valeur[2][3], 18.0, "6.0+12.0 = 18.0")
+FIN
+
+
+// Rétropropage() à travers Somme(axe) rediffuse le gradient reçu sur
+// chaque élément de l'axe réduit. Calcul à la main : sur s = t.Somme(3),
+// q = s*s (carré élément à élément), le gradient de s vaut 2*s (comme
+// ta*ta) ; ce gradient est ensuite recopié sur les 3 éléments du triplet
+// d'origine (dérivée de la somme = 1 par élément contributeur).
+PROCEDURE PUBLIQUE scenario_somme_axe_backward_via_carre()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	s est un Tenseur = t.Somme(3)
+	q est un Tenseur = s * s
+	q.Rétropropage()
+
+	dbgVérifieEgalité(s..Gradient[1][1], 12.0, "2*s[1][1] = 2*6.0")
+	dbgVérifieEgalité(s..Gradient[2][2], 66.0, "2*s[2][2] = 2*33.0")
+
+	dbgVérifieEgalité(t..Gradient[1][1][1], 12.0, "Rediffusé sur les 3 éléments du triplet [1][1][*]")
+	dbgVérifieEgalité(t..Gradient[1][1][2], 12.0, "Rediffusé sur les 3 éléments du triplet [1][1][*]")
+	dbgVérifieEgalité(t..Gradient[1][1][3], 12.0, "Rediffusé sur les 3 éléments du triplet [1][1][*]")
+	dbgVérifieEgalité(t..Gradient[1][2][1], 30.0, "2*s[1][2] = 2*15.0, rediffusé sur le triplet [1][2][*]")
+	dbgVérifieEgalité(t..Gradient[2][1][1], 48.0, "2*s[2][1] = 2*24.0, rediffusé sur le triplet [2][1][*]")
+	dbgVérifieEgalité(t..Gradient[2][2][3], 66.0, "2*s[2][2] = 2*33.0, rediffusé sur le triplet [2][2][*]")
+FIN
+
+
+// Moyenne(3) divise chaque somme de triplet par 3 (la taille de l'axe
+// réduit) : 6.0/3=2.0, 15.0/3=5.0, 24.0/3=8.0, 33.0/3=11.0.
+PROCEDURE PUBLIQUE scenario_moyenne_axe_forward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	m est un Tenseur = t.Moyenne(3)
+
+	dbgVérifieEgalité(m..Rang, 2, "Moyenne(3) sur un Tenseur 3D -> Rang 2")
+	dbgVérifieEgalité(m..Valeur[1][1], 2.0, "6.0/3 = 2.0")
+	dbgVérifieEgalité(m..Valeur[1][2], 5.0, "15.0/3 = 5.0")
+	dbgVérifieEgalité(m..Valeur[2][1], 8.0, "24.0/3 = 8.0")
+	dbgVérifieEgalité(m..Valeur[2][2], 11.0, "33.0/3 = 11.0")
+FIN
+
+
+// Rétropropage() à travers Moyenne(axe) rediffuse le gradient divisé par
+// la taille de l'axe réduit (3 ici) sur chaque élément d'origine. Calcul
+// à la main : m..Gradient (via m*m) vaut 2*m, puis divisé par 3 pour
+// revenir à t.
+PROCEDURE PUBLIQUE scenario_moyenne_axe_backward_via_carre()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	m est un Tenseur = t.Moyenne(3)
+	q est un Tenseur = m * m
+	q.Rétropropage()
+
+	dbgVérifieEgalité(m..Gradient[1][1], 4.0, "2*m[1][1] = 2*2.0")
+	dbgVérifieEgalité(m..Gradient[2][2], 22.0, "2*m[2][2] = 2*11.0")
+
+	dbgVérifieVrai(Abs(t..Gradient[1][1][1] - 1.3333333333333333) < 0.0000001, "4.0/3 ~= 1.3333333333333333, rediffusé sur [1][1][*]")
+	dbgVérifieVrai(Abs(t..Gradient[1][2][1] - 3.3333333333333335) < 0.0000001, "10.0/3 ~= 3.3333333333333335, rediffusé sur [1][2][*]")
+	dbgVérifieVrai(Abs(t..Gradient[2][1][1] - 5.333333333333333) < 0.0000001, "16.0/3 ~= 5.333333333333333, rediffusé sur [2][1][*]")
+	dbgVérifieVrai(Abs(t..Gradient[2][2][3] - 7.333333333333333) < 0.0000001, "22.0/3 ~= 7.333333333333333, rediffusé sur [2][2][*]")
+FIN
+
+
+// Les formes anglaises .Sum(axis) et .Mean(axis) désignent les mêmes
+// réductions par axe que .Somme(axe) et .Moyenne(axe).
+PROCEDURE PRIVÉE scenario_edge_reduction_forme_anglaise()
+	tEN is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Reshape([2, 2, 3])
+	sEN is a Tensor = tEN.Sum(3)
+	mEN is a Tensor = tEN.Mean(3)
+
+	dbgVérifieEgalité(sEN..Value[1][1], 6.0, "tEN.Sum(3)[1][1] = 6.0")
+	dbgVérifieEgalité(sEN..Value[2][2], 33.0, "tEN.Sum(3)[2][2] = 33.0")
+	dbgVérifieEgalité(mEN..Value[1][1], 2.0, "tEN.Mean(3)[1][1] = 2.0")
+	dbgVérifieEgalité(mEN..Value[2][2], 11.0, "tEN.Mean(3)[2][2] = 11.0")
+FIN

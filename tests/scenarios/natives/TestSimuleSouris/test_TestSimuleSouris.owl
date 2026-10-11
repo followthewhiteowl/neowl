@@ -1,0 +1,108 @@
+// @sujet : TestSimuleSouris
+// @résumé : Déclenche par code le callback d'un événement souris d'un
+// champ UI sans interaction réelle. Utile pour piloter les tests en mode
+// headless. Surcharge à 4 arguments pour les événements à coordonnées
+// (BoutonGauche, BoutonDroit, SurvolSouris) et à payload (MoletteHaut,
+// MoletteBas).
+//
+// La fenêtre voisine FEN_TSimul.owl porte la déclaration et expose
+// RemonteDrapeaux() pour transmettre l'état muté par les callbacks souris
+// (via callback_drapeaux défini ici) et RAZDrapeaux() pour réinitialiser
+// entre scenarios.
+
+// Drapeaux observés côté script — alimentés par callback_drapeaux,
+// invoqué depuis FEN_TSimul.RemonteDrapeaux().
+drapeauClicObs est un booléen = Faux
+xObs est un entier = -1
+yObs est un entier = -1
+mvtObs est un entier = 0
+
+PROCEDURE callback_drapeaux(clic est un booléen, x est un entier, y est un entier, mvt est un entier)
+	drapeauClicObs = clic
+	xObs           = x
+	yObs           = y
+	mvtObs         = mvt
+FIN
+
+
+// Cas canonique 2-arguments : un Clic gauche sur un Bouton déclenche
+// son callback Clic. Pas de coordonnées, c'est l'action « clic basique ».
+PROCEDURE scenario_clic_gauche_simple()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimul)
+	RAZDrapeaux()
+
+	TestSimuleSouris(BTN_OK, ClicGauche)
+	RemonteDrapeaux()
+	dbgVérifieVrai(drapeauClicObs, "Clic déclenché")
+
+	Ferme(FEN_TSimul)
+FIN
+
+
+// Surcharge 4-arguments BoutonGauche : transmet les coordonnées (x, y)
+// au callback surBoutonGauche du champ Image. Utile pour tester une
+// surface canvas qui réagit à la position du clic.
+PROCEDURE scenario_bouton_gauche_avec_coordonnees()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimul)
+	RAZDrapeaux()
+
+	TestSimuleSouris(IMG_Canvas, BoutonGauche, 50, 100)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(xObs, 50, "x transmis au callback")
+	dbgVérifieEgalité(yObs, 100, "y transmis au callback")
+
+	Ferme(FEN_TSimul)
+FIN
+
+
+// MoletteHaut transmet mouvement = +1. Les coordonnées (x, y) sont
+// passées telles quelles. Le callback surMolette reçoit (mouvement, x, y).
+PROCEDURE scenario_molette_haut_transmet_plus_un()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimul)
+	RAZDrapeaux()
+
+	TestSimuleSouris(IMG_Canvas, MoletteHaut, 10, 20)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(mvtObs, 1, "MoletteHaut transmet +1")
+	dbgVérifieEgalité(xObs, 10, "x transmis (MoletteHaut)")
+	dbgVérifieEgalité(yObs, 20, "y transmis (MoletteHaut)")
+
+	Ferme(FEN_TSimul)
+FIN
+
+
+// MoletteBas transmet mouvement = -1.
+PROCEDURE scenario_molette_bas_transmet_moins_un()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimul)
+	RAZDrapeaux()
+
+	TestSimuleSouris(IMG_Canvas, MoletteBas, 30, 40)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(mvtObs,-1, "MoletteBas transmet -1")
+	dbgVérifieEgalité(xObs, 30, "x transmis (MoletteBas)")
+	dbgVérifieEgalité(yObs, 40, "y transmis (MoletteBas)")
+
+	Ferme(FEN_TSimul)
+FIN
+
+
+// Si le champ n'a pas déclaré le callback ciblé, la native est un no-op
+// silencieux : pas d'erreur, pas de plantage. Permet d'écrire des tests
+// robustes qui n'imposent pas tous les handlers.
+PROCEDURE scenario_callback_absent_no_op()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_TSimul)
+	RAZDrapeaux()
+
+	// IMG_Vide n'a pas de surBoutonGauche : appel silencieux, drapeaux inchangés.
+	TestSimuleSouris(IMG_Vide, BoutonGauche, 50, 50)
+	RemonteDrapeaux()
+	dbgVérifieEgalité(xObs,-1, "xObs reste à sa valeur d'init")
+	dbgVérifieEgalité(yObs,-1, "yObs reste à sa valeur d'init")
+
+	Ferme(FEN_TSimul)
+FIN

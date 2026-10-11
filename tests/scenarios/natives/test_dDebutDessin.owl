@@ -1,0 +1,176 @@
+// @sujet : dDébutDessin
+// @resume : Initialiser une session de dessin sur une image (précède tous les appels d*)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_nominal_effacer_defaut()
+	img est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCentre est un entier
+	res est un booléen
+
+	// Créer une image rouge, puis spécifier CouleurRemplissage = vert
+	img = dCréeImage(50, 50, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image creee valide")
+	img..CouleurRemplissage = couleurVert
+
+	// Débuter une nouvelle session avec dEffacer (option par défaut)
+	// dEffacer efface vers CouleurRemplissage de l'image
+	res = dDébutDessin(img, dEffacer)
+	dbgVérifieEgalité(res, Vrai, "session dessin initialisee")
+
+	// Terminer la session (sans dessiner — l'image doit être effacée vers vert)
+	dFinDessin(img)
+
+	// dEffacer efface vers CouleurRemplissage (vert) → centre = vert
+	pixelCentre = dPixelCouleur(img, 25, 25)
+	dbgVérifieEgalité(pixelCentre, couleurVert, "dEffacer efface vers CouleurRemplissage")
+FIN
+
+PROCEDURE PUBLIQUE scenario_option_sans_effacer()
+	img est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentre est un entier
+	res est un booléen
+
+	// Créer une image rouge initiale
+	img = dCréeImage(50, 50, couleurRouge)
+
+	// Débuter une session SANS effacer le contenu existant
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "session avec dSansEffacer initialisee")
+
+	// Terminer la session (sans dessiner)
+	dFinDessin(img)
+
+	// Le fond rouge doit être préservé → centre = rouge
+	pixelCentre = dPixelCouleur(img, 25, 25)
+	dbgVérifieEgalité(pixelCentre, couleurRouge, "dSansEffacer preserve le fond rouge")
+FIN
+
+PROCEDURE PUBLIQUE scenario_option_avec_opacite()
+	img est un Image
+	couleurNoir est un entier = RVB(0, 0, 0)
+	res est un booléen
+
+	// Créer une image noire (sera effacée au dDébutDessin)
+	img = dCréeImage(30, 30, couleurNoir)
+
+	// Débuter avec gestion opacité (permet alpha dans dStylo, dFond, etc.)
+	res = dDébutDessin(img, dAvecOpacité)
+	dbgVérifieEgalité(res, Vrai, "session avec dAvecOpacite initialisee")
+
+	// Vérifier que l'image a le canal alpha activé
+	dbgVérifieEgalité(img..AvecAlpha, Vrai, "canal alpha active avec dAvecOpacite")
+
+	dFinDessin(img)
+FIN
+
+PROCEDURE PUBLIQUE scenario_session_sequentielle()
+	img est un Image
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+	res est un booléen
+
+	// Créer une image verte
+	img = dCréeImage(40, 40, couleurVert)
+
+	// Première session : dessiner un cercle bleu
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "premiere session initialisee")
+	dCercle(img, 10, 10, 30, 30, couleurBleu)
+	dFinDessin(img)
+
+	// Vérifier que le bleu est visible au centre du cercle
+	pixelCentre = dPixelCouleur(img, 20, 20)
+	dbgVérifieEgalité(pixelCentre, couleurBleu, "cercle bleu visible au centre")
+
+	// Deuxième session : sans effacer (le cercle reste)
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "deuxieme session initialisee sans effacer")
+	dFinDessin(img)
+
+	// Le cercle doit toujours être présent après la 2ème session sans effacer
+	pixelCentre = dPixelCouleur(img, 20, 20)
+	dbgVérifieEgalité(pixelCentre, couleurBleu, "cercle preserve entre sessions successives")
+FIN
+
+PROCEDURE PUBLIQUE scenario_image_invalide()
+	imgInvalide est un Image
+	res est un booléen
+
+	// Image invalide (pas initialisée)
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "image invalide au depart")
+
+	// Tenter de démarrer une session sur image invalide
+	res = dDébutDessin(imgInvalide)
+
+	// dDébutDessin doit retourner Faux
+	dbgVérifieEgalité(res, Faux, "dDebutDessin retourne Faux sur image invalide")
+
+	// Vérifier qu'une erreur est enregistrée
+	dbgVérifieVrai(ErreurInfo() <> "", "erreur enregistree apres tentative sur image invalide")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_sessions_imbriquees()
+	img1 est un Image
+	img2 est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre1 est un entier
+	pixelCentre2 est un entier
+	res1 est un booléen
+	res2 est un booléen
+
+	// Créer deux images distinctes
+	img1 = dCréeImage(20, 20, couleurRouge)
+	img2 = dCréeImage(20, 20, couleurBleu)
+
+	// Débuter session sur img1
+	res1 = dDébutDessin(img1, dSansEffacer)
+	dbgVérifieEgalité(res1, Vrai, "session img1 initialisee")
+
+	// Débuter session sur img2 (imbrication)
+	res2 = dDébutDessin(img2, dSansEffacer)
+	dbgVérifieEgalité(res2, Vrai, "session img2 initialisee (imbrication)")
+
+	// Terminer img2
+	dFinDessin(img2)
+
+	pixelCentre2 = dPixelCouleur(img2, 10, 10)
+	dbgVérifieEgalité(pixelCentre2, couleurBleu, "img2 preserve sa couleur bleue")
+
+	// Terminer img1
+	dFinDessin(img1)
+
+	pixelCentre1 = dPixelCouleur(img1, 10, 10)
+	dbgVérifieEgalité(pixelCentre1, couleurRouge, "img1 preserve sa couleur rouge")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_option_zero()
+	img est un Image
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelCentre est un entier
+	res est un booléen
+
+	// Créer une image verte
+	img = dCréeImage(25, 25, couleurVert)
+
+	// Débuter avec option = 0 (comportement : n'efface pas, comme dSansEffacer)
+	res = dDébutDessin(img, 0)
+	dbgVérifieEgalité(res, Vrai, "session avec option=0 initialisee")
+
+	dFinDessin(img)
+
+	// Option 0 n'efface pas → fond vert préservé
+	pixelCentre = dPixelCouleur(img, 12, 12)
+	dbgVérifieEgalité(pixelCentre, couleurVert, "option=0 preserve le fond vert")
+FIN

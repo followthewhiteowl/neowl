@@ -1,0 +1,195 @@
+// @sujet : TexteSimilaritéJaroWinkler
+// @résumé : Distance de Jaro-Winkler pour rapprochement de noms propres — favorise les chaînes partageant un préfixe commun (boost p=0.1, préfixe max 4 chars). Retourne un réel entre 0 (aucune correspondance) et 1 (identiques). Insensible à la casse et aux accents par défaut. Utile pour rapprochement de noms de personnes, adresses.
+
+
+// Vecteur canon : "MARTHA" → "MARHTA" (référence académique Jaro-Winkler).
+// Jaro = 0.9444 (m=6, t=1 transposition), préfixe "MAR"=3, p=0.1,
+// jw = 0.9444 + 3·0.1·(1-0.9444) ≈ 0.961. Référence classique pour
+// valider l'implémentation conforme aux attentes standard.
+PROCEDURE scenario_texte_similarite_jaro_winkler_vecteur_canon()
+	sim est un réel = TexteSimilaritéJaroWinkler("MARTHA", "MARHTA")
+
+	dbgVérifieÉgalitéRéel(sim, 0.961, "Jaro-Winkler MARTHA/MARHTA ≈ 0.961", 0.001)
+FIN
+
+
+// Cas trivial : chaînes identiques → 1.0 (Jaro=1.0, boost préfixe ne change rien).
+PROCEDURE scenario_texte_similarite_jaro_winkler_identiques()
+	sim est un réel = TexteSimilaritéJaroWinkler("dupont", "dupont")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "chaînes identiques → 1.0", 0.001)
+FIN
+
+
+// Cas trivial : chaînes totalement disjointes (aucune correspondance) → 0.0.
+// Exemple : "abc" vs "xyz" (aucun caractère commun, fenêtre insuffisante).
+PROCEDURE scenario_texte_similarite_jaro_winkler_disjointes()
+	sim est un réel = TexteSimilaritéJaroWinkler("abc", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "aucune correspondance → 0.0", 0.001)
+FIN
+
+
+// Boost préfixe vérifiable : "DIXON" vs "DICKSONX" (8 chars).
+// Jaro pur donne une valeur intermédiaire. Jaro-Winkler avec préfixe "DI"=2
+// donne un boost : jw = Jaro + 2·0.1·(1-Jaro). On vérifie que jw > 0.7
+// (valeur empirique, le calcul exact nécessite de dérouler Jaro — ici on
+// démontre juste que le boost préfixe améliore le score).
+PROCEDURE scenario_texte_similarite_jaro_winkler_boost_prefixe()
+	sim est un réel = TexteSimilaritéJaroWinkler("DIXON", "DICKSONX")
+
+	// Boost préfixe "DI" (2 chars) augmente le score au-delà de Jaro pur.
+	// Valeur empirique attendue > 0.7 (vérifié manuellement avec implémentation
+	// de référence : Jaro ≈ 0.767, jw ≈ 0.813).
+	dbgVérifieVrai(sim > 0.7, "boost préfixe détecté, jw > Jaro pur")
+FIN
+
+
+// Insensible casse+accents : "MARTHA" vs "marhta" (tout en minuscules)
+// après folding → identique au vecteur canon → même score ≈ 0.961.
+PROCEDURE scenario_texte_similarite_jaro_winkler_insensible_defaut()
+	simMaj est un réel = TexteSimilaritéJaroWinkler("MARTHA", "MARHTA")
+	simMin est un réel = TexteSimilaritéJaroWinkler("martha", "marhta")
+
+	dbgVérifieÉgalitéRéel(simMin, simMaj, "casse ignorée par défaut", 0.001)
+	dbgVérifieÉgalitéRéel(simMin, 0.961, "résultat identique après folding", 0.001)
+FIN
+
+
+// Bornes vides : deux chaînes vides → 1.0 (convention : identiques).
+PROCEDURE scenario_texte_similarite_jaro_winkler_deux_vides()
+	sim est un réel = TexteSimilaritéJaroWinkler("", "")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "deux vides → 1.0", 0.001)
+FIN
+
+
+// Bornes vides : une chaîne vide, l'autre non → 0.0 (aucune correspondance).
+PROCEDURE scenario_texte_similarite_jaro_winkler_une_vide()
+	sim1 est un réel = TexteSimilaritéJaroWinkler("abc", "")
+	sim2 est un réel = TexteSimilaritéJaroWinkler("", "xyz")
+
+	dbgVérifieÉgalitéRéel(sim1, 0.0, "vide vs abc → 0.0", 0.001)
+	dbgVérifieÉgalitéRéel(sim2, 0.0, "xyz vs vide → 0.0", 0.001)
+FIN
+
+
+// Alias EN : TextSimilarityJaroWinkler() (sans accent) équivalent à
+// TexteSimilaritéJaroWinkler().
+PROCEDURE scenario_text_similarity_jaro_winkler_alias_en()
+	simFR est un réel = TexteSimilaritéJaroWinkler("MARTHA", "MARHTA")
+	simEN est un réel = TextSimilarityJaroWinkler("MARTHA", "MARHTA")
+
+	dbgVérifieÉgalitéRéel(simFR, simEN, "alias EN équivalent à FR", 0.001)
+	dbgVérifieÉgalitéRéel(simEN, 0.961, "alias EN calcule correctement", 0.001)
+FIN
+
+
+// ================================================================
+// PROCÉDURES PRIVÉES (edge cases défensifs)
+// ================================================================
+
+// Symétrie : Jaro-Winkler est symétrique (comme Jaro sous-jacent).
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_symetrie()
+	sim1 est un réel = TexteSimilaritéJaroWinkler("MARTHA", "MARHTA")
+	sim2 est un réel = TexteSimilaritéJaroWinkler("MARHTA", "MARTHA")
+
+	dbgVérifieÉgalitéRéel(sim1, sim2, "similarité symétrique", 0.001)
+FIN
+
+
+// Casse+accents combiné : "Müller" vs "MULLER" (umlaut + casse).
+// Après folding (ü→u, tout en minuscules) → "muller" identique → 1.0.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_umlaut_casse()
+	sim est un réel = TexteSimilaritéJaroWinkler("Müller", "MULLER")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "umlaut + casse foldés → 1.0", 0.001)
+FIN
+
+
+// Préfixe maximal 4 : "préfixe" vs "préfixer" (préfixe commun "préf"=4 chars,
+// plafonné à 4). Boost = 4·0.1·(1-Jaro). Jaro pur sur "prefixe"/"prefixer"
+// (après folding accents) : longueurs 7 et 8, correspondances élevées.
+// Tous les 7 premiers caractères correspondent (positions exactes 0-6 vs 0-6).
+// m=7, t=0 (aucune transposition, ordre identique).
+// Jaro = (7/7 + 7/8 + 7/7)/3 = (1 + 0.875 + 1)/3 = 2.875/3 ≈ 0.958.
+// jw = 0.958 + 4·0.1·(1-0.958) = 0.958 + 0.4·0.042 = 0.958 + 0.0168 ≈ 0.975.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_prefixe_plafond_4()
+	sim est un réel = TexteSimilaritéJaroWinkler("préfixe", "préfixer")
+
+	// Valeur empirique attendue ≈ 0.975 (préfixe "préf"=4, plafonné).
+	dbgVérifieVrai(sim > 0.97, "préfixe plafonné à 4, boost maximal appliqué")
+FIN
+
+
+// Préfixe commun mais décalé : "xMARTHA" vs "xMARHTA".
+// Préfixe commun = "xMAR" = 4 chars. Même logique que le vecteur canon
+// mais avec un 'x' en tête. Jaro similaire à canon, boost préfixe appliqué.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_prefixe_non_debut()
+	sim est un réel = TexteSimilaritéJaroWinkler("xMARTHA", "xMARHTA")
+
+	// Jaro proche du canon MARTHA/MARHTA (transposition similaire),
+	// préfixe "xMAR"=4, boost maximal. Attendu ≈ 0.96+ (proche de 0.961).
+	dbgVérifieVrai(sim > 0.95, "préfixe 'xMAR' détecté, boost appliqué")
+FIN
+
+
+// Chaînes courtes : "AL" vs "LA" (2 chars, transposition complète).
+// Jaro : w = floor(2/2)-1 = 0 (fenêtre de correspondance = 0 → pas de match
+// autorisé sauf position exacte). Correspondances : A en pos 0 de "AL" ne
+// peut matcher qu'à pos 0 de "LA" (L, pas A) → pas de match. L en pos 1 de
+// "AL" ne peut matcher qu'à pos 1 de "LA" (A, pas L) → pas de match.
+// m=0 → Jaro=0.0 → jw=0.0 (pas de boost car Jaro=0).
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_chaines_courtes()
+	sim est un réel = TexteSimilaritéJaroWinkler("AL", "LA")
+
+	dbgVérifieÉgalitéRéel(sim, 0.0, "transposition hors fenêtre courte → 0.0", 0.001)
+FIN
+
+
+// Aucun préfixe commun : "MARTHA" vs "XARHTA" (premier char différent).
+// Jaro sans boost préfixe (L=0). Jaro pur : m=5 (A-R-H-T-A correspondent),
+// t=1 transposition (H/T), Jaro = (5/6 + 5/6 + 4/5)/3 = (0.833 + 0.833 + 0.8)/3
+// = 2.466/3 ≈ 0.822. jw = 0.822 + 0·0.1·(1-0.822) = 0.822 (pas de boost).
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_sans_prefixe()
+	sim est un réel = TexteSimilaritéJaroWinkler("MARTHA", "XARHTA")
+
+	// Pas de boost préfixe, Jaro pur attendu ≈ 0.822.
+	dbgVérifieVrai(sim > 0.8, "Jaro pur sans boost ≈ 0.82")
+	dbgVérifieVrai(sim < 0.85, "pas de boost préfixe, score < 0.85")
+FIN
+
+
+// Caractères multibyte : "café" vs "cafè" (é vs è, différents codepoints
+// mais après folding accents → identiques "cafe" vs "cafe" → 1.0).
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_multibyte_accents()
+	sim est un réel = TexteSimilaritéJaroWinkler("café", "cafè")
+
+	dbgVérifieÉgalitéRéel(sim, 1.0, "accents foldés, identiques après normalisation", 0.001)
+FIN
+
+
+// Chaînes longues : vérifier que l'algo ne crash pas sur 50+ chars.
+// Pas de calcul manuel, juste vérifier bornes plausibles [0, 1].
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_chaines_longues()
+	s1 est une chaîne = "Le rapide renard brun saute par-dessus le chien paresseux et continue sa course"
+	s2 est une chaîne = "Le renard brun rapide bondit au-dessus du chien endormi et poursuit son chemin"
+
+	sim est un réel = TexteSimilaritéJaroWinkler(s1, s2)
+
+	dbgVérifieVrai(sim >= 0.0, "similarité >= 0 (chaînes longues)")
+	dbgVérifieVrai(sim <= 1.0, "similarité <= 1 (bornes respectées)")
+	dbgVérifieVrai(sim > 0.5, "chaînes longues similaires → score plausible > 0.5")
+FIN
+
+
+// Un seul caractère différent en position médiane : "ABCDEF" vs "ABXDEF".
+// Correspondances : A-B (match), C/X (pas match), D-E-F (match).
+// m=5, t=0, Jaro=(5/6 + 5/6 + 5/5)/3 = (0.833+0.833+1)/3 = 2.666/3 ≈ 0.889.
+// Préfixe "AB"=2, jw = 0.889 + 2·0.1·(1-0.889) = 0.889 + 0.0222 ≈ 0.911.
+PROCEDURE PRIVÉE scenario_texte_similarite_jaro_winkler_un_char_diff()
+	sim est un réel = TexteSimilaritéJaroWinkler("ABCDEF", "ABXDEF")
+
+	// Valeur empirique attendue ≈ 0.91 (préfixe "AB"=2, Jaro ≈ 0.889).
+	dbgVérifieVrai(sim > 0.9, "un seul char diffère, score élevé avec boost")
+FIN

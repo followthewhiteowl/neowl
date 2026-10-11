@@ -1,0 +1,23 @@
+// Test  : methode declaree sur classe user dont le nom est homonyme
+// d'une propriete builtin (ici Demarre/Démarré, prop de Chrono). La canon
+// user doit gagner : ni la declaration `PROCEDURE MaClasse.Demarre()`, ni
+// l'appel `c.Demarre()` ne doivent etre re-canonises vers `Démarré`.
+//
+// Bug corrige (branche afterDot) : MaClasse n'etait pas reconnue comme classe
+// user (non-variable typee), le formatter tombait sur le canon prop builtin
+// `Démarré` via la branche rkind==0.
+//
+// La branche afterDoubleDot avait le meme defaut (`find_property_norm` applique
+// sans discriminer le type du receveur) ; elle n'est plus atteignable depuis du
+// code legal : `c..Demarre()` est refuse a la compilation.
+
+MaClasse est une Classe
+	compteur est un entier
+FIN
+
+PROCEDURE MaClasse.Demarre()
+	:compteur = 1
+FIN
+
+c est un MaClasse
+c.Demarre()

@@ -1,0 +1,31 @@
+//  — regression : combo « position d'image bouton » + « feuille de
+// style QSS » sur le MÊME Champ Bouton. Voir FEN_BoutonPositionImageStyle
+// pour le détail du montage et l'historique UAF (classe ).
+//
+// Ce test monte le bouton pour de vrai (headless=Faux) et le capture : la
+// capture provoque le show/polish natif où l'ancien montage style-par-widget
+// + QSS déclenchait un use-after-free. Assertions :
+//   - capture valide -> le widget stylé + positionné s'est monté et peint
+//     sans crash (le combo tient) ;
+//   - la position appliquée au QPushButton réel reste posBtnImageSeule (offset
+//     sentinelle interne) -> le placement d'image n'a pas régressé en migrant
+//     le proxy au niveau application.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_BoutonPositionImageStyle)
+
+imgCombo est une Image = CaptureCombo()
+dbgVérifieEgalité(imgCombo..Valide, Vrai,
+"GUI : capture BTN_Combo valide (bouton position image + style QSS monté sans crash)")
+
+// posBtnImageSeule appliqué au QPushButton réel (getter test-only lisant la
+// property Qt). Valeur brute = offset sentinelle interne, comparée à la
+// constante d'enum résolue au même offset : c'est la valeur exacte attendue,
+// pas un fallback "champ introuvable".
+posCombo est un entier = __DebugPositionImageBouton(BTN_Combo)
+dbgVérifieEgalité(posCombo, posBtnImageSeule,
+"Style..Image..Position (posBtnImageSeule) toujours appliqué au bouton stylé après migration app-level")
+
+Ferme(FEN_BoutonPositionImageStyle)
+dbgBilanTest()

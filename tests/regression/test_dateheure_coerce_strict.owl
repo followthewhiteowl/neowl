@@ -1,0 +1,94 @@
+// Regression: fn_dateheure_coerce valide strictement les composants
+// (heures 0-23, minutes 0-59, secondes 0-59, mois 1-12, jours selon mois).
+//
+// Avant fix : "20260605256100" (h=25, m=61) construisait silencieusement
+// un DateHeure invalide, propageant l'invalidite a tout downstream.
+//  rattrapait defensivement dans DateHeureVersReel/Epoch ;
+// ce fix bloque a la source (point de construction).
+//
+// Coherent avec ChaineVersHeure stricte : OWL valide les
+// composants temporels au plus tot.
+//
+// Semantique en cas d'invalide : DateHeure(0,0,0,0,0,0,0) silencieux +
+// ErreurDetectee = Vrai (pattern fn_duree_coerce, runtime dynamique).
+// Compile-time : on n'introduit PAS de rejet (parser reste tolerant
+// sur litteraux, cf. ).
+
+// === Cas legitimes (non-regression) ===
+
+dhValide est une dateheure = "20260605143045"
+dbgVérifieEgalité(dhValide..Année, 2026, "Coerce legitime : annee preservee")
+dbgVérifieEgalité(dhValide..Mois, 6, "Coerce legitime : mois preserve")
+dbgVérifieEgalité(dhValide..Jour, 5, "Coerce legitime : jour preserve")
+dbgVérifieEgalité(dhValide..Heure, 14, "Coerce legitime : heure preservee")
+dbgVérifieEgalité(dhValide..Minute, 30, "Coerce legitime : minute preservee")
+dbgVérifieEgalité(dhValide..Seconde, 45, "Coerce legitime : seconde preservee")
+
+// Date seule (8 chars) reste valide.
+dhDateSeule est une dateheure = "20260605"
+dbgVérifieEgalité(dhDateSeule..Année, 2026, "Coerce date seule 8 chars : annee OK")
+dbgVérifieEgalité(dhDateSeule..Heure, 0, "Coerce date seule 8 chars : heure=0")
+
+// Limites legitimes : h=23, m=59, s=59.
+dhMaxValide est une dateheure = "20261231235959"
+dbgVérifieEgalité(dhMaxValide..Heure, 23, "Coerce limite haute h=23 OK")
+dbgVérifieEgalité(dhMaxValide..Minute, 59, "Coerce limite haute m=59 OK")
+dbgVérifieEgalité(dhMaxValide..Seconde, 59, "Coerce limite haute s=59 OK")
+
+// === Cas invalides via chaine dynamique (runtime) ===
+// Le parser litteral statique n'est PAS rendu strict (hors scope) :
+// on passe par une variable chaine pour activer le chemin runtime.
+//
+// Note de cadrage : parse_date_string valide deja mois/jour/leap-year ;
+// les longueurs 8/12/14 ou la partie date est invalide tombent dans
+// "return v" (chaine preservee, comportement preexistant hors scope).
+// Le gap couvert ici concerne specifiquement HH/MM/SS hors borne sur
+// une date par ailleurs valide (12/14/16/17 chars).
+
+// Heure 25, minute 61 (cas du ticket). Note : ErreurDetectee est testee
+// EN PREMIER apres le coerce ; la sentinelle de fraicheur (g_err_fresh,
+// cf. stdlib_erreur.c) ne survit qu'un cran de OP_CALL, donc on ne peut
+// pas la lire apres plusieurs assertions intermediaires.
+sInv1 est une chaîne = "20260605256100"
+dhInv1 est une dateheure = sInv1
+dbgVérifieVrai(ErreurDétectée,
+"ErreurDetectee active sur h=25/m=61 invalide")
+dbgVérifieEgalité(dhInv1..Année, 0, "Invalide h=25/m=61 : annee=0 (DateHeure null)")
+dbgVérifieEgalité(dhInv1..Heure, 0, "Invalide h=25/m=61 : heure=0")
+
+// Seconde 60 (limite stricte : 0-59).
+sInv2 est une chaîne = "20260605143560"
+dhInv2 est une dateheure = sInv2
+dbgVérifieEgalité(dhInv2..Année, 0, "Invalide s=60 : DateHeure null")
+dbgVérifieVrai(ErreurDétectée, "ErreurDetectee active sur s=60")
+
+// Heure 24 (limite stricte : 0-23).
+sInv3 est une chaîne = "202606052400"
+dhInv3 est une dateheure = sInv3
+dbgVérifieEgalité(dhInv3..Année, 0, "Invalide h=24 : DateHeure null")
+dbgVérifieVrai(ErreurDétectée, "ErreurDetectee active sur h=24")
+
+// Minute 60 (limite stricte : 0-59).
+sInv4 est une chaîne = "202606051460"
+dhInv4 est une dateheure = sInv4
+dbgVérifieEgalité(dhInv4..Année, 0, "Invalide m=60 : DateHeure null")
+dbgVérifieVrai(ErreurDétectée, "ErreurDetectee active sur m=60")
+
+// 17 chars avec h=25 : la branche FFF (ms direct) doit aussi valider.
+sInv5 est une chaîne = "20260605250000123"
+dhInv5 est une dateheure = sInv5
+dbgVérifieEgalité(dhInv5..Heure, 0, "Invalide 17 chars h=25 : heure=0")
+dbgVérifieVrai(ErreurDétectée, "ErreurDetectee active sur 17 chars h=25")
+
+// === Coherence avec downstream (post , defense en profondeur) ===
+// Une fois la coerce stricte, DateHeureVersReel sur invalide retourne
+// toujours -1 (la source est deja nulle, donc -1 par dh_components_valid
+// defensif sur 0,0,0,0,0,0).
+
+sCheck est une chaîne = "20260605256100"
+dhCheck est une dateheure = sCheck
+resCheck est un réel = DateHeureVersRéel(dhCheck)
+dbgVérifieEgalité(resCheck,-1.0,
+"DateHeureVersReel sur coerce invalide : -1 (coherence post fix/0301)")
+
+dbgBilanTest()

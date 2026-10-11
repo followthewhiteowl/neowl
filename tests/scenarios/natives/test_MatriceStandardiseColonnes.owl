@@ -1,0 +1,101 @@
+// @sujet : MatriceStandardiseColonnes
+// @résumé : Centre-réduit (z-score) chaque colonne d'une Matrice indépendamment : (x - moyenne_colonne) / écartType_colonne, écart-type de population (division par n). Une colonne constante (écart-type nul) sort à 0.0 partout, jamais NaN.
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Colonne 1 = [1, 2, 3] : moyenne = 2, variance population = ((1²+0²+1²))/3
+// = 2/3, écart-type = racine(2/3) ≈ 0.8164966.
+// Colonne 2 = [10, 20, 30] : moyenne = 20, variance = ((10²+0²+10²))/3
+// = 200/3, écart-type ≈ 8.164966.
+// Les deux colonnes sont proportionnelles (col2 = col1 * 10), donc le
+// z-score retombe sur les mêmes valeurs normalisées pour les deux colonnes :
+// (1-2)/0.8164966 ≈ -1.224745, (2-2)/... = 0, (3-2)/... ≈ 1.224745.
+PROCEDURE PUBLIQUE scenario_standardise_deux_colonnes_main_calculees()
+	m est une Matrice = [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]]
+	sortie est une Matrice = MatriceStandardiseColonnes(m)
+
+	dbgVérifieEgalité(sortie..Lignes, 3, "Dimensions conservées : 3 lignes")
+	dbgVérifieEgalité(sortie..Colonnes, 2, "Dimensions conservées : 2 colonnes")
+
+	dbgVérifieÉgalitéRéel(sortie[1][1],-1.224745, "col1 : (1-2)/0.8164966 ≈ -1.224745", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[2][1], 0.0, "col1 : (2-2)/0.8164966 = 0", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[3][1], 1.224745, "col1 : (3-2)/0.8164966 ≈ 1.224745", 0.0001)
+
+	dbgVérifieÉgalitéRéel(sortie[1][2],-1.224745, "col2 : (10-20)/8.164966 ≈ -1.224745", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[2][2], 0.0, "col2 : (20-20)/8.164966 = 0", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[3][2], 1.224745, "col2 : (30-20)/8.164966 ≈ 1.224745", 0.0001)
+FIN
+
+// Une colonne constante a un écart-type nul : la convention figée met la
+// colonne entière à 0.0, jamais NaN ni division par zéro silencieuse.
+PROCEDURE PUBLIQUE scenario_colonne_constante_donne_zero()
+	m est une Matrice = [[1.0, 5.0], [2.0, 5.0], [3.0, 5.0]]
+	sortie est une Matrice = MatriceStandardiseColonnes(m)
+
+	dbgVérifieÉgalitéRéel(sortie[1][2], 0.0, "Colonne constante : ligne 1 = 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[2][2], 0.0, "Colonne constante : ligne 2 = 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[3][2], 0.0, "Colonne constante : ligne 3 = 0.0", 0.0001)
+
+	// La colonne non-constante voisine reste standardisée normalement.
+	dbgVérifieÉgalitéRéel(sortie[1][1],-1.224745, "Colonne voisine non-constante : toujours standardisée", 0.0001)
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	// MatrixStandardizeColumns désigne la même opération.
+	m est une Matrice = [[1.0], [2.0], [3.0]]
+	sortie est une Matrice = MatrixStandardizeColumns(m)
+
+	dbgVérifieÉgalitéRéel(sortie[1][1],-1.224745, "MatrixStandardizeColumns (EN) : ligne 1 ≈ -1.224745", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[2][1], 0.0, "MatrixStandardizeColumns (EN) : ligne 2 = 0", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[3][1], 1.224745, "MatrixStandardizeColumns (EN) : ligne 3 ≈ 1.224745", 0.0001)
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : edge cases et cas limites (initiative test_writer)
+// ═════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_toutes_colonnes_constantes()
+	// Une Matrice entièrement constante ressort entièrement à 0.0.
+	m est une Matrice = [[7.0, 7.0], [7.0, 7.0]]
+	sortie est une Matrice = MatriceStandardiseColonnes(m)
+
+	dbgVérifieÉgalitéRéel(sortie[1][1], 0.0, "Tout constant : [1][1] = 0.0", 0.0001)
+	dbgVérifieÉgalitéRéel(sortie[2][2], 0.0, "Tout constant : [2][2] = 0.0", 0.0001)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_ne_modifie_pas_la_source()
+	// La Matrice source n'est jamais mutée, comme toute autre opération
+	// Matrice (immutabilité des opérandes).
+	m est une Matrice = [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]]
+	sortie est une Matrice = MatriceStandardiseColonnes(m)
+
+	dbgVérifieEgalité(m[1][1], 1.0, "Source intacte après standardisation : m[1][1]")
+	dbgVérifieEgalité(m[3][2], 30.0, "Source intacte après standardisation : m[3][2]")
+FIN
+
+// Digue e2e (transversal, documenté au ticket) : une chaîne CSV numérique
+// devient, en deux appels, une Matrice standardisée prête à l'entraînement.
+PROCEDURE PRIVÉE scenario_digue_csv_vers_matrice_standardisee()
+	csv est une chaîne = "1.0;10.0" + CRLF + "2.0;20.0" + CRLF + "3.0;30.0"
+	brute est une Matrice = CSVVersMatrice(csv, ";", Faux)
+	prête est une Matrice = MatriceStandardiseColonnes(brute)
+
+	dbgVérifieEgalité(prête..Lignes, 3, "Digue e2e : dimensions conservées bout en bout")
+	dbgVérifieÉgalitéRéel(prête[1][1],-1.224745, "Digue e2e : première cellule standardisée", 0.0001)
+FIN
+
+// Un tableau brut n'est pas une Matrice : conversion explicite requise,
+// pas de coercion implicite (types distincts). L'opérande tableau est refusé.
+PROCEDURE PRIVÉE scenario_edge_operande_tableau_refuse()
+	brut est un tableau = [[1.0, 2.0], [3.0, 4.0]]
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sortie est une Matrice = MatriceStandardiseColonnes(brut)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "opérande tableau refusé (conversion explicite requise)")
+FIN

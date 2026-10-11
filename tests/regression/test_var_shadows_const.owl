@@ -1,0 +1,23 @@
+// Regression: une variable peut etre nommee comme une constante canon de référence
+// (Vrai/Faux/Nul) et la masquer effectivement dans le scope. Avant ce fix :
+//   - compile error 'Expected expression.' (TOKEN_VRAI rejete au debut d'une
+//     declaration)
+//   - shadow factice : la declaration passait mais l'usage 'Vrai' continuait
+//     a referencer la constante (faux warning emis).
+//
+// Apres fix : declaration + usage convergent. La coloration LSP/TextMate
+// ne marque plus le mot comme constant.language.owl quand suivi par 'est
+// un/une' (cf generate_vscode.py::make_keyword_pattern(exclude_var_decl=
+// True) et lsp_handlers.c::handle_semantic_tokens 2-pass context check).
+
+Vrai est un booléen = Faux // Vrai (var) = 0 ; Faux ici = constante (= 0)
+Nul est une chaîne = "shadow" // Nul (var) = "shadow"
+
+dbgVérifieEgalité(Vrai, 0, "Vrai shadowee par variable user (= Faux constant = 0)")
+dbgVérifieEgalité(Nul, "shadow", "Nul shadowee par variable user")
+
+// Consommation du warning attendu pour qu'il ne pollue pas le bilan global.
+__dbgAvertissementAttendu("shadow la constante native 'Vrai'",
+"Le shadow de Vrai emet bien un warning compile-time")
+
+dbgBilanTest()

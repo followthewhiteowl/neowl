@@ -1,0 +1,100 @@
+//  — Lot C « types de saisie » : ajout de typSaisieHeure au champ
+// de saisie (miroir de  Lot B, Date,  valeur typée
+// Qt-first).
+//
+// Canon (documentation de référence, "TypeSaisie") : Heure est l'une des 7 valeurs
+// canon de l'enum TypeSaisie. Sa Valeur programmatique est une heure (pas
+// une chaîne, pas un Variant de référence) : OWL n'a pas de Variant (pilier 2), donc
+// SAI_Heure..Valeur doit renvoyer un owlHeure, comme SAI_Date renvoie
+// owlDate.
+//
+// Nature : ROUGE avant impl, y compris à la compilation — typSaisieHeure
+// n'existe pas encore dans l'enum typeSaisie (6 valeurs câblées aujourd'hui :
+// Texte/MotDePasse/Multiligne/Num/Monétaire/Date). Le compile-check échoue
+// donc pour la BONNE raison : symbole inconnu "typSaisieHeure".
+//
+// Format de saisie utilisateur (TestSimuleSaisie) : "18:45:30" (HH:MM:SS)
+// est un format déjà auto-détecté par ChaîneVersHeure (séparateurs deux-points,
+// voir tests/scenarios/natives/test_ChaineVersHeure.owl). Le format
+// d'AFFICHAGE exact que le futur widget choisira par défaut reste une
+// décision d'implémentation testée séparément (cf.
+// test_masque_affichage_heure.owl) : ce fichier n'assert JAMAIS le texte
+// affiché, seulement la VALEUR (owlHeure) relue — donc robuste au choix de
+// masque retenu.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TypeHeure)
+
+// ===== 1. Round-trip type : TypeSaisie = typSaisieHeure =====
+
+dbgVérifieEgalité(SAI_Heure..TypeSaisie, typSaisieHeure, "Heure : ..TypeSaisie relu vaut typSaisieHeure")
+
+// ===== 2. Non-régression : Texte témoin reste chaîne =====
+
+SAI_Texte..Valeur = "bonjour"
+dbgVérifieEgalité(TypeVar(SAI_Texte..Valeur), owlChaîne, "Texte témoin : ..Valeur reste une chaîne (non-régression)")
+dbgVérifieEgalité(SAI_Texte..Valeur, "bonjour", "Texte témoin : round-trip fidèle")
+
+// ===== 3. Round-trip valeur typée : owlHeure fidèle =====
+//
+// Garde SI/SINON : tant que ..Valeur reste une chaîne générique (avant
+// impl), le cast implicite chaîne->chaîne ne lève rien, mais TypeVar ne
+// vaudra pas owlHeure -> on isole l'assertion de fidélité pour ne pas la
+// faire dépendre d'un chemin encore non câblé.
+
+hRéférence est une heure = ChaîneVersHeure("083000")
+SAI_Heure..Valeur = hRéférence
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Heure : ..Valeur est un owlHeure")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLue est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLue, "08300000", "Heure : round-trip fidèle à 08:30:00")
+SINON
+	dbgVérifieVrai(Faux, "Heure : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// Cas limite : minuit pile (00:00:00).
+
+hMinuit est une heure = ChaîneVersHeure("000000")
+SAI_Heure..Valeur = hMinuit
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLueMinuit est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLueMinuit, "00000000", "Heure : round-trip fidèle sur minuit pile")
+SINON
+	dbgVérifieVrai(Faux, "Heure (minuit) : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// Cas limite : dernière seconde de la journée (23:59:59), avec masque
+// secondes posé. Sans masque, le défaut d'affichage HH:MI tronque les
+// secondes (cf. test_masque_affichage_heure.owl scénario 2) : un round-trip
+// fidèle à la seconde près n'est possible que masque secondes posé
+// (cf. scénario 3 du même fichier).
+
+SAI_Heure..MasqueAffichage = "HH:MI:SS"
+hMax est une heure = ChaîneVersHeure("235959")
+SAI_Heure..Valeur = hMax
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLueMax est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLueMax, "23595900", "Heure : round-trip fidèle sur 23:59:59 (masque HH:MI:SS posé)")
+SINON
+	dbgVérifieVrai(Faux, "Heure (23:59:59) : round-trip ignoré (Valeur encore typée autrement)")
+FIN
+
+// ===== 4. Édition utilisateur réelle après pré-remplissage programmatique =====
+//
+// Contrat  (Qt-first) : ..Valeur doit lire le widget VIVANT, pas un
+// store figé au dernier SET programmatique. TestSimuleSaisie poste de vrais
+// QKeyEvents (widget monté, TestModeHeadless(Faux) actif en tête de fichier).
+
+SAI_Heure..Valeur = ChaîneVersHeure("080000")
+TestSimuleSaisie(SAI_Heure, "18:45:30")
+dbgVérifieEgalité(TypeVar(SAI_Heure..Valeur), owlHeure, "Heure : édition utilisateur -> ..Valeur reste un owlHeure")
+SI TypeVar(SAI_Heure..Valeur) = owlHeure ALORS
+	sLueEditee est une chaîne = SAI_Heure..Valeur
+	dbgVérifieEgalité(sLueEditee, "18453000", "Heure : édition utilisateur reflétée (18:45:30, pas 08:00:00 périmé)")
+SINON
+	dbgVérifieVrai(Faux, "Heure : édition utilisateur ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_TypeHeure)
+dbgBilanTest()

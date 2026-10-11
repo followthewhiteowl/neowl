@@ -1,0 +1,26 @@
+// Classic window menu, English canon forms: MainMenu / Submenu /
+// MenuOption / MenuSeparator / Caption / Shortcut / onSelection compile
+// and open without error. This scenario checks the declaration and the
+// structure of the menu. The onSelection counters are read right after
+// opening, before any interaction, so they hold zero.
+
+TestModeHeadless(Vrai)
+
+nNew_obs est un entier = -1
+nQuit_obs est un entier = -1
+
+PROCEDURE cb_menu_en_compteurs(nNew est un entier, nQuit est un entier)
+	nNew_obs  = nNew
+	nQuit_obs = nQuit
+FIN
+
+PROCEDURE PUBLIQUE scenario_menu_classique_en_arbre_complet_compile()
+	Ouvre(FEN_MenuClassiqueEN)
+	dbgVérifieFaux(ErreurDétectée, "MainMenu/Submenu/MenuOption/MenuSeparator (EN) : ouverture sans erreur")
+
+	LireCompteursMenuEN()
+	dbgVérifieEgalité(nNew_obs, 0, "New option: onSelection counter at zero before any interaction")
+	dbgVérifieEgalité(nQuit_obs, 0, "Quit option: onSelection counter at zero before any interaction")
+
+	Ferme(FEN_MenuClassiqueEN)
+FIN

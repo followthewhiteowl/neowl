@@ -1,0 +1,40 @@
+//  — Focus initial automatique à Ouvre(FEN_X)
+//
+// Spec : à l'ouverture d'une fenêtre, le premier champ saisissable dans
+// l'ordre lexical du body reçoit le focus → son surEntrée se déclenche.
+//
+// Trois Saisie déclarées dans l'ordre : SAI_Premier, SAI_Deuxieme, SAI_Troisieme.
+// Après Ouvre() : SAI_Premier doit avoir surEntrée = 1, les autres = 0.
+//
+// Test ROUGE attendu : focus initial auto non implémenté (surEntrée non
+// déclenché à l'ouverture).
+
+TestModeHeadless(Vrai)
+
+nP_obs est un entier = 0
+nD_obs est un entier = 0
+nT_obs est un entier = 0
+
+PROCEDURE callback_entrees_init(p est un entier, d est un entier, t est un entier)
+	nP_obs = p
+	nD_obs = d
+	nT_obs = t
+FIN
+
+Ouvre(FEN_InitAuto)
+
+// Immédiatement après Ouvre : le premier champ lexical a reçu le focus.
+RemonteEntrees()
+dbgVérifieEgalité(nP_obs, 1, "focus initial auto : surEntree SAI_Premier = 1")
+dbgVérifieEgalité(nD_obs, 0, "focus initial auto : surEntree SAI_Deuxieme = 0")
+dbgVérifieEgalité(nT_obs, 0, "focus initial auto : surEntree SAI_Troisieme = 0")
+
+// Double ouverture : même comportement lors de la 2e ouverture.
+Ferme(FEN_InitAuto)
+Ouvre(FEN_InitAuto)
+RemonteEntrees()
+dbgVérifieEgalité(nP_obs, 1, "focus initial auto : SAI_Premier = 1 a la 2e ouverture")
+
+Ferme(FEN_InitAuto)
+
+dbgBilanTest()

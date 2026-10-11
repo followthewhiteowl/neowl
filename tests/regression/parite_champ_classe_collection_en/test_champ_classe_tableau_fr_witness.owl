@@ -1,0 +1,38 @@
+//  : verrou non-regression. Ces formes fonctionnaient deja avant
+// le fix et doivent le rester : champ de classe tableau dynamique declare
+// avec l'article FR (un/une), champ de classe scalaire declare avec
+// l'article EN (an), variable locale EN tableau dynamique + tableau
+// associatif. La matrice EN cassee (champ de classe collection) est
+// verrouillee dans des fichiers voisins.
+
+Trace("=== fix/1204 : temoins non-regression parite champ classe ===")
+
+// --- Champ de classe tableau dynamique FR (reference de comportement) ---
+oFr est un cChampArrFr()
+oFr.tabCases.Ajoute(10)
+oFr.tabCases.Add(20)
+dbgVérifieEgalité(Taille(oFr.tabCases), 2, "FR : champ tableau, 2 elements apres Ajoute+Add")
+dbgVérifieEgalité(oFr.tabCases[1], 10, "FR : lecture element 1 via Ajoute")
+dbgVérifieEgalité(oFr.tabCases[2], 20, "FR : lecture element 2 via Add")
+
+// --- Champ de classe scalaire EN (deja correct avant ) ---
+oScal est un cChampScalaireEn()
+oScal.n = 5
+dbgVérifieEgalité(oScal.n, 5, "EN : champ scalaire 'n is an integer' reste correct")
+
+// --- Variable locale EN tableau dynamique (deja correct avant ) ---
+tabLocalEn is an array of integers
+tabLocalEn.Add(1)
+tabLocalEn.Ajoute(2)
+dbgVérifieEgalité(Taille(tabLocalEn), 2, "EN : variable locale tableau, 2 elements apres Add+Ajoute")
+dbgVérifieEgalité(tabLocalEn[1], 1, "EN : variable locale, lecture element 1")
+dbgVérifieEgalité(tabLocalEn[2], 2, "EN : variable locale, lecture element 2")
+
+// --- Variable locale EN tableau associatif (deja correct avant ) ---
+dictLocalEn is an associative array of integers
+dictLocalEn["un"] = 1
+dictLocalEn["deux"] = 2
+dbgVérifieEgalité(dictLocalEn["un"], 1, "EN : variable locale associative, lecture cle 'un'")
+dbgVérifieEgalité(dictLocalEn["deux"], 2, "EN : variable locale associative, lecture cle 'deux'")
+
+dbgBilanTest()

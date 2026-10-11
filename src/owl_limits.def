@@ -1,0 +1,156 @@
+/* owl_limits.def — Single source de toutes les limites compile-time OWL.
+ *
+ * Format : OWL_LIMIT(name, value, category, descFR, descEN)
+ *   - name      : identifiant C (devient enum value + clé d'introspection)
+ *   - value     : entier > 0
+ *   - category  : "Compiler/Types", "Compiler/POO", "Compiler/Bytecode", …
+ *   - descFR    : description utilisateur final, neutre (cf. regle 7)
+ *   - descEN    : pareil en anglais
+ *
+ * Inclus en double-include depuis owl_limits.h :
+ *   - Passe 1 : OWL_LIMIT(n,v,c,fr,en) → n = v,  → enum compilable
+ *   - Passe 2 : OWL_LIMIT(n,v,c,fr,en) → struct row → tableau introspectable
+ *
+ * Ne plus ajouter de #define MAX_* hors de ce fichier (cf. ).
+ */
+
+OWL_LIMIT(MAX_LOOP_DEPTH,         16,   "Compiler/Controle",
+          "Profondeur maximale d'imbrication de boucles (POUR / TANTQUE / "
+          "BOUCLE) ou SELON au sein d'une même procédure.",
+          "Maximum nesting depth of loops (FOR / WHILE / LOOP) or SWITCH within "
+          "a single procedure.")
+
+OWL_LIMIT(MAX_BREAKS,             64,   "Compiler/Controle",
+          "Nombre maximal d'instructions SORTIR ou CONTINUER (break/continue) "
+          "dans une même boucle ou un même SELON.",
+          "Maximum number of BREAK or CONTINUE statements inside a single loop "
+          "or SWITCH.")
+
+OWL_LIMIT(MAX_DSL_PROC_ALIASES,   256,  "Compiler/DSL",
+          "Nombre maximal d'alias de procédures DSL (PROCEDURE Win.surClic, etc.) "
+          "par compilation.",
+          "Maximum number of DSL procedure aliases (PROCEDURE Win.surClic, etc.) "
+          "per compilation.")
+
+OWL_LIMIT(MAX_CONST_GLOBALS,      512,  "Compiler/Globales",
+          "Nombre maximal de constantes globales utilisateur déclarées par compilation.",
+          "Maximum number of user-declared global constants per compilation.")
+
+OWL_LIMIT(MAX_AVEC_DEPTH,         8,    "Compiler/Controle",
+          "Profondeur maximale d'imbrication de blocs AVEC (WITH).",
+          "Maximum nesting depth of AVEC (WITH) blocks.")
+
+OWL_LIMIT(MAX_USER_TYPES,         256,  "Compiler/Types",
+          "Nombre maximal de types composés déclarés par compilation. Les "
+          "Structures, les Classes et les Interfaces se partagent ce budget.",
+          "Maximum number of compound types declared per compilation. "
+          "Structures, Classes and Interfaces share this budget.")
+
+OWL_LIMIT(MAX_USER_TYPE_FIELDS_TOTAL, 16384, "Compiler/Types",
+          "Nombre total de champs de types composés déclarables par "
+          "compilation, toutes déclarations confondues. Il n'y a pas de "
+          "plafond par type : une seule Structure peut consommer tout ce "
+          "budget.",
+          "Total number of compound-type fields declarable per compilation, "
+          "across all declarations. There is no per-type ceiling: a single "
+          "Structure may consume the whole budget.")
+
+OWL_LIMIT(MAX_DECLARED_METHODS,   1024, "Compiler/POO",
+          "Nombre maximal de méthodes de classe déclarées par compilation.",
+          "Maximum number of class methods declared per compilation.")
+
+OWL_LIMIT(MAX_CLASS_FIELD_VIS,    1024, "Compiler/POO",
+          "Nombre maximal d'entrées dans la table de visibilité des champs "
+          "de classes (PUBLIC / PROTEGE / PRIVE).",
+          "Maximum number of entries in the class field visibility table "
+          "(PUBLIC / PROTECTED / PRIVATE).")
+
+OWL_LIMIT(MAX_CLASS_CONSTANTS,    1024, "Compiler/POO",
+          "Nombre maximal de constantes de classe (bloc CONSTANT dans le "
+          "corps d'une Classe) enregistrées par compilation.",
+          "Maximum number of class constants (CONSTANT block inside a "
+          "class body) registered per compilation.")
+
+OWL_LIMIT(MAX_CLASS_SUPER,        128,  "Compiler/POO",
+          "Nombre maximal de relations d'héritage de classes (HERITE DE) "
+          "enregistrées par compilation.",
+          "Maximum number of class inheritance relations (INHERITS FROM) "
+          "registered per compilation.")
+
+/* Table distincte de g_class_super, meme si les deux valent 128 : une classe
+ * abstraite n'a pas besoin d'heriter de quoi que ce soit. Partager la limite
+ * revenait a signaler l'heritage en saturant sur un source qui n'en contient
+ * pas. */
+OWL_LIMIT(MAX_ABSTRACT_CLASSES,   128,  "Compiler/POO",
+          "Nombre maximal de classes abstraites enregistrées par compilation. "
+          "Une classe est abstraite si elle est déclarée ainsi ou si elle "
+          "déclare au moins une méthode abstraite.",
+          "Maximum number of abstract classes registered per compilation. "
+          "A class is abstract if declared as such, or if it declares at "
+          "least one abstract method.")
+
+OWL_LIMIT(MAX_INTERFACE_METHODS,  512,  "Compiler/POO",
+          "Nombre maximal de signatures de méthodes d'interfaces "
+          "(toutes interfaces confondues) suivies par compilation.",
+          "Maximum number of interface method signatures (all interfaces "
+          "combined) tracked per compilation.")
+
+OWL_LIMIT(MAX_CLASS_INTERFACES,   256,  "Compiler/POO",
+          "Nombre maximal de relations 'classe implemente interface' "
+          "(toutes classes confondues) suivies par compilation.",
+          "Maximum number of 'class implements interface' relations "
+          "(all classes combined) tracked per compilation.")
+
+/* KEEP IN SYNC avec PRESCAN_MAX_METHOD_PARAMS dans prescan.h (cf. ). */
+OWL_LIMIT(MAX_METHOD_PARAMS,      64,   "Compiler/POO",
+          "Nombre maximal de paramètres d'une méthode de classe ou "
+          "d'interface.",
+          "Maximum number of parameters of a class or interface method.")
+
+OWL_LIMIT(MAX_USER_PROCS,         512,  "Compiler/Procedures",
+          "Nombre maximal de procédures utilisateur déclarées par compilation.",
+          "Maximum number of user procedures declared per compilation.")
+
+OWL_LIMIT(MAX_USER_PROC_PARAMS,   64,   "Compiler/Procedures",
+          "Nombre maximal de paramètres par procédure utilisateur.",
+          "Maximum number of parameters per user procedure.")
+
+OWL_LIMIT(MAX_PENDING_TYPE_REFS,  256,  "Compiler/Types",
+          "Nombre maximal de références à des types forward (utilisés avant "
+          "déclaration) en attente de résolution.",
+          "Maximum number of pending forward type references (types used "
+          "before declaration) awaiting resolution.")
+
+/* Dimensionne aussi g_typed_globals (metadonnees de type des globales
+ * declarees avec un type explicite) : cette table est peuplee par les memes
+ * declarations, elle ne doit donc jamais saturer avant celle-ci. Une limite
+ * propre a elle revenait a poser un second mur, plus bas, sous un nom que le
+ * source de l'utilisateur ne pouvait pas reconnaitre. */
+OWL_LIMIT(MAX_DECLARED_GLOBALS,   4096, "Compiler/Globales",
+          "Nombre maximal de déclarations de portée globale par compilation. "
+          "Les variables globales, les procédures et les noms de types "
+          "déclarés au niveau supérieur d'un fichier se partagent ce budget.",
+          "Maximum number of global-scope declarations per compilation. "
+          "Global variables, procedures and type names declared at the top "
+          "level of a file share this budget.")
+
+OWL_LIMIT(MAX_TOP_LEVEL_RANGES,   4096, "Compiler/Hoisting",
+          "Nombre maximal de plages de déclarations top-level analysées "
+          "pour le hoisting du code runtime.",
+          "Maximum number of top-level declaration ranges scanned during "
+          "runtime code hoisting.")
+
+OWL_LIMIT(MAX_CHUNK_CONSTANTS,    65535, "Compiler/Bytecode",
+          "Nombre maximal de constantes (littéraux, noms de variables, de types, "
+          "de champs et de méthodes) référencées par un même fichier compilé. "
+          "Limite structurelle du bytecode : l'index de constante est encodé "
+          "sur deux octets.",
+          "Maximum number of constants (literals, variable, type, field and "
+          "method names) referenced by a single compiled file. Structural "
+          "bytecode limit: the constant index is encoded on two bytes.")
+
+OWL_LIMIT(MAX_LOCALS_PER_FUNCTION,256,  "Compiler/Bytecode",
+          "Nombre maximal de variables locales (paramètres compris) par fonction. "
+          "Limite structurelle du bytecode VM (slot indexé sur un octet, alias UINT8_COUNT).",
+          "Maximum number of local variables (including parameters) per function. "
+          "Structural bytecode VM limit (slot indexed on one byte, alias UINT8_COUNT).")

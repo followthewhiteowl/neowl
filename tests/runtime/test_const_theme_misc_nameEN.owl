@@ -1,0 +1,51 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES (derniere fournee, 
+// Track B) — familles themeSnapshot, PoliceEtirement, zrSens, formatAffichage,
+// options JSON.
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose au registre) resout vers EXACTEMENT la meme valeur que la
+// forme FR canon. La forme EN est enregistree comme alias runtime-only dans
+// vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   themeClair          -> themeLight
+//   themeSombre         -> themeDark
+//   etirCondense        -> etirCondensed
+//   etirEtendu          -> etirExtended
+//   etirLarge           -> etirWide
+//   formatTexte         -> formatText
+//   formatTexteRiche    -> formatRichText
+//   jsonAvecCommentaires-> jsonWithComments
+//
+// Sentinels (valeurs opaques) : assertion EN == FR (contrat de resolution).
+// =============================================================================
+
+PROCEDURE scenario_const_theme_misc_en_resout_vers_fr()
+	// --- themeSnapshot (capture dCopieImage*) ---
+	dbgVérifieEgalité(themeLight, themeClair,
+	"themeLight resout vers la meme valeur que themeClair")
+	dbgVérifieEgalité(themeDark, themeSombre,
+	"themeDark resout vers la meme valeur que themeSombre")
+
+	// --- PoliceEtirement (apparence caractere) ---
+	dbgVérifieEgalité(etirCondensed, etirCondensé,
+	"etirCondensed resout vers la meme valeur que etirCondense")
+	dbgVérifieEgalité(etirExtended, etirÉtendu,
+	"etirExtended resout vers la meme valeur que etirEtendu")
+	dbgVérifieEgalité(etirWide, etirLarge,
+	"etirWide resout vers la meme valeur que etirLarge")
+
+	// --- formatAffichage (interpretation contenu Libelle/Saisie) ---
+	dbgVérifieEgalité(formatText, formatTexte,
+	"formatText resout vers la meme valeur que formatTexte")
+	dbgVérifieEgalité(formatRichText, formatTexteRiche,
+	"formatRichText resout vers la meme valeur que formatTexteRiche")
+
+	// --- options JSON ---
+	dbgVérifieEgalité(jsonWithComments, jsonAvecCommentaires,
+	"jsonWithComments resout vers la meme valeur que jsonAvecCommentaires")
+FIN
+
+scenario_const_theme_misc_en_resout_vers_fr()
+dbgBilanTest()

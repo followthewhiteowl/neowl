@@ -1,0 +1,190 @@
+// @sujet : Tenseur.ProduitMatriciel (Matrice × Matrice)
+// @résumé : ProduitMatriciel se généralise au produit matrice×matrice —
+// A(p×q).ProduitMatriciel(B(q×r)) rend un Tenseur 2D (p×r), calculé comme
+// un vrai produit matriciel. Rétropropage() remonte le gradient vers les
+// deux opérandes : dA = dSortie @ Bᵀ (p×q), dB = Aᵀ @ dSortie (q×r).
+
+// A (2×3) × B (3×2) -> C (2×2). Calcul à la main :
+// ligne1 = [1*1+2*0+3*1, 1*0+2*1+3*1] = [4, 5]
+// ligne2 = [4*1+5*0+6*1, 4*0+5*1+6*1] = [10, 11]
+PROCEDURE PUBLIQUE scenario_forward_matmul_2x3_3x2()
+	matA est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	matB est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC..Lignes, 2, "C garde le nombre de lignes de A : 2")
+	dbgVérifieEgalité(valC..Colonnes, 2, "C garde le nombre de colonnes de B : 2")
+	dbgVérifieEgalité(valC[1][1], 4.0, "1*1 + 2*0 + 3*1 = 4")
+	dbgVérifieEgalité(valC[1][2], 5.0, "1*0 + 2*1 + 3*1 = 5")
+	dbgVérifieEgalité(valC[2][1], 10.0, "4*1 + 5*0 + 6*1 = 10")
+	dbgVérifieEgalité(valC[2][2], 11.0, "4*0 + 5*1 + 6*1 = 11")
+FIN
+
+
+// Forme différente : A (3×2) × B (2×3) -> C (3×3). Calcul à la main :
+// ligne1 = [1*2+0*4, 1*3+0*5, 1*1+0*6] = [2, 3, 1]
+// ligne2 = [0*2+1*4, 0*3+1*5, 0*1+1*6] = [4, 5, 6]
+// ligne3 = [1*2+1*4, 1*3+1*5, 1*1+1*6] = [6, 8, 7]
+PROCEDURE PUBLIQUE scenario_forward_matmul_3x2_2x3()
+	matA est une Matrice = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+	matB est une Matrice = [[2.0, 3.0, 1.0], [4.0, 5.0, 6.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC..Lignes, 3, "C garde le nombre de lignes de A : 3")
+	dbgVérifieEgalité(valC..Colonnes, 3, "C garde le nombre de colonnes de B : 3")
+	dbgVérifieEgalité(valC[1][1], 2.0, "ligne1 : 1*2+0*4 = 2")
+	dbgVérifieEgalité(valC[1][3], 1.0, "ligne1 : 1*1+0*6 = 1")
+	dbgVérifieEgalité(valC[2][2], 5.0, "ligne2 : 0*3+1*5 = 5")
+	dbgVérifieEgalité(valC[3][1], 6.0, "ligne3 : 1*2+1*4 = 6")
+	dbgVérifieEgalité(valC[3][3], 7.0, "ligne3 : 1*1+1*6 = 7")
+FIN
+
+
+// Backward matmul m×m : Rétropropage() appelé directement sur le résultat
+// C (2×2) amorce le gradient à 1.0 sur chacune de ses composantes (comme
+// pour toute sortie multi-composantes). Calcul à la main :
+// A=[[1,2],[3,4]], B=[[1,0],[1,1]] -> C = A@B = [[1*1+2*1,1*0+2*1],[3*1+4*1,3*0+4*1]] = [[3,2],[7,4]]
+// dSortie = [[1,1],[1,1]] (amorce)
+// dA = dSortie @ Bᵀ, Bᵀ=[[1,1],[0,1]] :
+//   dA[1][1]=1*1+1*0=1 ; dA[1][2]=1*1+1*1=2 ; dA[2][1]=1*1+1*0=1 ; dA[2][2]=1*1+1*1=2
+//   dA = [[1,2],[1,2]]
+// dB = Aᵀ @ dSortie, Aᵀ=[[1,3],[2,4]] :
+//   dB[1][1]=1*1+3*1=4 ; dB[1][2]=1*1+3*1=4 ; dB[2][1]=2*1+4*1=6 ; dB[2][2]=2*1+4*1=6
+//   dB = [[4,4],[6,6]]
+PROCEDURE PUBLIQUE scenario_backward_matmul_formes_et_valeurs()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	matB est une Matrice = [[1.0, 0.0], [1.0, 1.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC[1][1], 3.0, "C[1][1] = 1*1+2*1 = 3")
+	dbgVérifieEgalité(valC[1][2], 2.0, "C[1][2] = 1*0+2*1 = 2")
+	dbgVérifieEgalité(valC[2][1], 7.0, "C[2][1] = 3*1+4*1 = 7")
+	dbgVérifieEgalité(valC[2][2], 4.0, "C[2][2] = 3*0+4*1 = 4")
+
+	tC.Rétropropage()
+
+	gradA est une Matrice = tA..Gradient
+	dbgVérifieEgalité(gradA..Lignes, 2, "dA garde la forme de A : 2 lignes")
+	dbgVérifieEgalité(gradA..Colonnes, 2, "dA garde la forme de A : 2 colonnes")
+	dbgVérifieEgalité(gradA[1][1], 1.0, "dA[1][1] = dSortie[1]·Bᵀcol1 = 1*1+1*0 = 1")
+	dbgVérifieEgalité(gradA[1][2], 2.0, "dA[1][2] = dSortie[1]·Bᵀcol2 = 1*1+1*1 = 2")
+	dbgVérifieEgalité(gradA[2][1], 1.0, "dA[2][1] = dSortie[2]·Bᵀcol1 = 1*1+1*0 = 1")
+	dbgVérifieEgalité(gradA[2][2], 2.0, "dA[2][2] = dSortie[2]·Bᵀcol2 = 1*1+1*1 = 2")
+
+	gradB est une Matrice = tB..Gradient
+	dbgVérifieEgalité(gradB..Lignes, 2, "dB garde la forme de B : 2 lignes")
+	dbgVérifieEgalité(gradB..Colonnes, 2, "dB garde la forme de B : 2 colonnes")
+	dbgVérifieEgalité(gradB[1][1], 4.0, "dB[1][1] = Aᵀrow1·dSortiecol1 = 1*1+3*1 = 4")
+	dbgVérifieEgalité(gradB[1][2], 4.0, "dB[1][2] = Aᵀrow1·dSortiecol2 = 1*1+3*1 = 4")
+	dbgVérifieEgalité(gradB[2][1], 6.0, "dB[2][1] = Aᵀrow2·dSortiecol1 = 2*1+4*1 = 6")
+	dbgVérifieEgalité(gradB[2][2], 6.0, "dB[2][2] = Aᵀrow2·dSortiecol2 = 2*1+4*1 = 6")
+FIN
+
+
+// Cas dégénéré : ligne (1×3) × colonne (3×1) rend un Tenseur 2D (1×1), pas
+// un scalaire aplati — à la différence du cas historique 1D·1D. Calcul à
+// la main : C = 1*1+2*1+3*1 = 6. Backward : dSortie=[[1]] (amorce 1×1),
+// dA = dSortie @ Bᵀ = [[1,1,1]] (1×3), dB = Aᵀ @ dSortie = [[1],[2],[3]] (3×1).
+PROCEDURE PRIVÉE scenario_edge_matmul_1x3_3x1_degenere_matrice()
+	matA est une Matrice = [[1.0, 2.0, 3.0]]
+	matB est une Matrice = [[1.0], [1.0], [1.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC..Lignes, 1, "Résultat 1x3 @ 3x1 reste 2D : 1 ligne")
+	dbgVérifieEgalité(valC..Colonnes, 1, "Résultat 1x3 @ 3x1 reste 2D : 1 colonne")
+	dbgVérifieEgalité(valC[1][1], 6.0, "1*1 + 2*1 + 3*1 = 6")
+
+	tC.Rétropropage()
+
+	gradA est une Matrice = tA..Gradient
+	dbgVérifieEgalité(gradA[1][1], 1.0, "dA = dSortie @ Bᵀ : colonne 1 de Bᵀ vaut 1")
+	dbgVérifieEgalité(gradA[1][2], 1.0, "dA[1][2] = 1")
+	dbgVérifieEgalité(gradA[1][3], 1.0, "dA[1][3] = 1")
+
+	gradB est une Matrice = tB..Gradient
+	dbgVérifieEgalité(gradB[1][1], 1.0, "dB = Aᵀ @ dSortie : dB[1][1] = A[1][1] = 1")
+	dbgVérifieEgalité(gradB[2][1], 2.0, "dB[2][1] = A[1][2] = 2")
+	dbgVérifieEgalité(gradB[3][1], 3.0, "dB[3][1] = A[1][3] = 3")
+FIN
+
+
+// Valeurs négatives des deux côtés : la règle de calcul ne change pas.
+// A=[[-1,2],[3,-4]], B=[[1,-1],[-2,1]]
+// ligne1 = [-1*1+2*(-2), -1*(-1)+2*1] = [-5, 3]
+// ligne2 = [3*1+(-4)*(-2), 3*(-1)+(-4)*1] = [11, -7]
+PROCEDURE PRIVÉE scenario_edge_matmul_valeurs_negatives()
+	matA est une Matrice = [[-1.0, 2.0], [3.0, -4.0]]
+	matB est une Matrice = [[1.0, -1.0], [-2.0, 1.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC[1][1],-5.0, "-1*1 + 2*(-2) = -5")
+	dbgVérifieEgalité(valC[1][2], 3.0, "-1*(-1) + 2*1 = 3")
+	dbgVérifieEgalité(valC[2][1], 11.0, "3*1 + (-4)*(-2) = 11")
+	dbgVérifieEgalité(valC[2][2],-7.0, "3*(-1) + (-4)*1 = -7")
+FIN
+
+
+// Trois dimensions distinctes (2×3 @ 3×4 -> 2×4) : ni A ni B ni C ne sont
+// carrées, le cas le plus exposé à un bug de transposition ou d'indexation.
+// A=[[1,2,3],[4,5,6]], B=[[1,0,1,2],[0,1,1,0],[1,1,0,1]]
+// C = A@B (calcul à la main) :
+//   C[1] = [1*1+2*0+3*1, 1*0+2*1+3*1, 1*1+2*1+3*0, 1*2+2*0+3*1] = [4, 5, 3, 5]
+//   C[2] = [4*1+5*0+6*1, 4*0+5*1+6*1, 4*1+5*1+6*0, 4*2+5*0+6*1] = [10, 11, 9, 14]
+// Rétropropage() amorce dSortie à 1.0 sur les 8 composantes de C (2×4).
+// dA = dSortie @ Bᵀ (2×4 @ 4×3 = 2×3) : dSortie tout à 1 donc chaque colonne
+// de dA est la somme de la ligne correspondante de B (identique sur les 2
+// lignes de A, ce qui est attendu vu l'amorce uniforme) :
+//   ligne1 de B : 1+0+1+2=4 ; ligne2 : 0+1+1+0=2 ; ligne3 : 1+1+0+1=3
+//   dA = [[4,2,3],[4,2,3]]
+// dB = Aᵀ @ dSortie (3×2 @ 2×4 = 3×4) : chaque ligne de dB est la somme de
+// la colonne correspondante de A, répétée sur les 4 colonnes :
+//   colonne1 de A : 1+4=5 ; colonne2 : 2+5=7 ; colonne3 : 3+6=9
+//   dB = [[5,5,5,5],[7,7,7,7],[9,9,9,9]]
+PROCEDURE PUBLIQUE scenario_backward_matmul_non_carre_2x3_3x4()
+	matA est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	matB est une Matrice = [[1.0, 0.0, 1.0, 2.0], [0.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 1.0]]
+	tA est un Tenseur = Tenseur(matA)
+	tB est un Tenseur = Tenseur(matB)
+
+	tC est un Tenseur = tA.ProduitMatriciel(tB)
+	valC est une Matrice = tC..Valeur
+	dbgVérifieEgalité(valC..Lignes, 2, "C garde le nombre de lignes de A : 2")
+	dbgVérifieEgalité(valC..Colonnes, 4, "C garde le nombre de colonnes de B : 4")
+	dbgVérifieEgalité(valC[1][1], 4.0, "C[1][1] = 1*1+2*0+3*1 = 4")
+	dbgVérifieEgalité(valC[1][4], 5.0, "C[1][4] = 1*2+2*0+3*1 = 5")
+	dbgVérifieEgalité(valC[2][3], 9.0, "C[2][3] = 4*1+5*1+6*0 = 9")
+	dbgVérifieEgalité(valC[2][4], 14.0, "C[2][4] = 4*2+5*0+6*1 = 14")
+
+	tC.Rétropropage()
+
+	gradA est une Matrice = tA..Gradient
+	dbgVérifieEgalité(gradA..Lignes, 2, "dA garde la forme de A : 2 lignes")
+	dbgVérifieEgalité(gradA..Colonnes, 3, "dA garde la forme de A : 3 colonnes")
+	dbgVérifieEgalité(gradA[1][1], 4.0, "dA[1][1] = somme ligne1 de B = 1+0+1+2 = 4")
+	dbgVérifieEgalité(gradA[1][2], 2.0, "dA[1][2] = somme ligne2 de B = 0+1+1+0 = 2")
+	dbgVérifieEgalité(gradA[1][3], 3.0, "dA[1][3] = somme ligne3 de B = 1+1+0+1 = 3")
+	dbgVérifieEgalité(gradA[2][1], 4.0, "dA[2][1] = même valeur, amorce uniforme")
+	dbgVérifieEgalité(gradA[2][3], 3.0, "dA[2][3] = même valeur, amorce uniforme")
+
+	gradB est une Matrice = tB..Gradient
+	dbgVérifieEgalité(gradB..Lignes, 3, "dB garde la forme de B : 3 lignes")
+	dbgVérifieEgalité(gradB..Colonnes, 4, "dB garde la forme de B : 4 colonnes")
+	dbgVérifieEgalité(gradB[1][1], 5.0, "dB[1][1] = somme colonne1 de A = 1+4 = 5")
+	dbgVérifieEgalité(gradB[2][2], 7.0, "dB[2][2] = somme colonne2 de A = 2+5 = 7")
+	dbgVérifieEgalité(gradB[3][4], 9.0, "dB[3][4] = somme colonne3 de A = 3+6 = 9")
+FIN

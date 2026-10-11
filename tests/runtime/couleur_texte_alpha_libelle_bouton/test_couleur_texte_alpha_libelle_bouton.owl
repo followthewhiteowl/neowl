@@ -1,0 +1,78 @@
+//  — les lecteurs de couleur de TEXTE (fg) sur Libellé/Bouton
+// ignorent l'Opacité d'une instance Couleur : le texte rend BLANC dès que
+// Opacité<255 au lieu de mélanger avec le fond (contrairement à
+// CouleurFond, déjà migré en ).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur), cf ui-snapshot-testing + qt-owl-rendering-gotchas :
+// MESURER au pixel, pas de dbgVérifie sur un getter store.
+//
+// Fond de chaque champ ROUGE PUR opaque : RVB(255, 0, 0).
+// Texte testé : VERT PUR (0, 255, 0), Opacité = 128 pour le cas bug.
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// Choix fg=VERT(0,255,0) sur bg=ROUGE(255,0,0) tombe pile (numérateur
+// multiple exact de 255 sur chaque canal, aucune tolérance nécessaire) :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Volontairement différent du blanc
+// (255,255,255) que produit le bug, pour que le rouge attendu soit sans
+// ambiguïté (pas un faux vert par coïncidence).
+//
+// Échantillonnage : comptage des pixels EXACTEMENT égaux à la couleur
+// attendue dans un rectangle intérieur du champ (coeur des glyphes "WWWW",
+// police 48 grasse). Mesure préalable (rig headless réel) : le témoin
+// opaque produit ~14-16 pixels verts purs exacts (le coeur des glyphes,
+// hors antialiasing des contours). Seuil bas (>5), repris du témoin
+// analogue tests/runtime/libelle_couleur_statique_snapshot : robuste à
+// l'antialiasing sans être une tautologie (un rendu totalement faux —
+// noir ou une autre couleur par défaut — ne produit aucun pixel à la
+// couleur exacte attendue, mesuré à 0 sur le cas bug).
+
+TestModeHeadless(Faux)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+mixVert est un entier = RVB(127, 128, 0)
+pureVert est un entier = RVB(0, 255, 0)
+seuil est un entier = 5
+
+OuvreSoeur(FEN_CouleurTexteAlpha)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurTexteAlpha)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque : LIB_Opaque [X=20..480,Y=20..120] --------------------
+// Zone intérieure pour éviter les marges du champ.
+nbOpaque est un entier = CompteCouleurZone(img, 30, 30, 470, 110, pureVert)
+dbgVérifieVrai(nbOpaque > seuil,
+"LIB_Opaque : texte vert pur (sans Opacité) rendu correctement, avant ET après le fix (non-régression)")
+
+// --- 2. Le bug : LIB_Alpha [X=20..480,Y=140..240] ---------------------------
+nbAlphaLibelle est un entier = CompteCouleurZone(img, 30, 150, 470, 230, mixVert)
+dbgVérifieVrai(nbAlphaLibelle > seuil,
+"LIB_Alpha : Style..Libellé..Couleur = <Couleur Opacité=128> mélange le texte avec le fond (127,128,0), pas blanc")
+
+// --- 3. Le bug sur Bouton : BTN_Alpha [X=20..480,Y=260..360] ----------------
+nbAlphaBouton est un entier = CompteCouleurZone(img, 30, 270, 470, 350, mixVert)
+dbgVérifieVrai(nbAlphaBouton > seuil,
+"BTN_Alpha : Style..Libellé..Couleur = <Couleur Opacité=128> sur Bouton mélange le texte avec le fond, pas blanc")
+
+Ferme(FEN_CouleurTexteAlpha)
+dbgBilanTest()

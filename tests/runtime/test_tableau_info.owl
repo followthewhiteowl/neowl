@@ -1,0 +1,66 @@
+// Coverage TableauInfo() (documentation de référence).
+// Toutes les constantes ti* qui ont du sens en OWL sont testées.
+
+// ============================================================================
+// tiNombreTotal — nombre total d'éléments (leaf cells)
+// ============================================================================
+t1 est un tableau de 5 entiers
+dbgVérifieEgalité(TableauInfo(t1, tiNombreTotal), 5, "1D fixe: 5 total")
+
+t1b est un tableau de 3 par 4 chaînes
+dbgVérifieEgalité(TableauInfo(t1b, tiNombreTotal), 12, "2D: 3*4 = 12 total")
+
+t1c est un tableau de 2 par 2 par 3 entiers
+dbgVérifieEgalité(TableauInfo(t1c, tiNombreTotal), 12, "3D: 2*2*3 = 12 total")
+
+// ============================================================================
+// tiNombreDimensions
+// ============================================================================
+dbgVérifieEgalité(TableauInfo(t1, tiNombreDimensions), 1, "1D → 1 dim")
+dbgVérifieEgalité(TableauInfo(t1b, tiNombreDimensions), 2, "2D → 2 dims")
+dbgVérifieEgalité(TableauInfo(t1c, tiNombreDimensions), 3, "3D → 3 dims")
+
+// ============================================================================
+// tiNombreLignes / tiNombreColonnes (uniquement 2D)
+// ============================================================================
+dbgVérifieEgalité(TableauInfo(t1b, tiNombreLignes), 3, "2D: 3 lignes")
+dbgVérifieEgalité(TableauInfo(t1b, tiNombreColonnes), 4, "2D: 4 colonnes")
+
+// Sur 1D : 0 (doc explicite)
+dbgVérifieEgalité(TableauInfo(t1, tiNombreLignes), 0, "1D: tiNombreLignes = 0")
+dbgVérifieEgalité(TableauInfo(t1, tiNombreColonnes), 0, "1D: tiNombreColonnes = 0")
+
+// ============================================================================
+// tiDimension(tab, dim) — taille d'une dimension par index
+// ============================================================================
+dbgVérifieEgalité(TableauInfo(t1b, tiDimension, 1), 3, "dim 1 = 3 lignes")
+dbgVérifieEgalité(TableauInfo(t1b, tiDimension, 2), 4, "dim 2 = 4 cols")
+dbgVérifieEgalité(TableauInfo(t1c, tiDimension, 3), 3, "3D dim 3 = 3")
+
+// Équivalence doc: tiNombreLignes == tiDimension avec param=1
+dbgVérifieEgalité(TableauInfo(t1b, tiNombreLignes),
+TableauInfo(t1b, tiDimension, 1),
+"tiNombreLignes == tiDimension(,1)")
+
+// ============================================================================
+// tiDynamique
+// ============================================================================
+tStatique est un tableau de 5 entiers
+dbgVérifieEgalité(TableauInfo(tStatique, tiDynamique), Faux, "sans agrandissement = non dynamique")
+
+tDyn est un tableau <agrandissement=N> d'entiers
+dbgVérifieEgalité(TableauInfo(tDyn, tiDynamique), Vrai, "<agrandissement=N> = dynamique")
+
+// ============================================================================
+// tiTailleElement / tiTailleTotale (approximatif en OWL)
+// ============================================================================
+dbgVérifieVrai(TableauInfo(t1, tiTailleElement) > 0, "taille élément > 0")
+dbgVérifieVrai(TableauInfo(t1, tiTailleTotale) > 0, "taille totale > 0")
+
+// ============================================================================
+// Dimension() conforme documentation de référence (doublon de check pour sécurité)
+// ============================================================================
+dbgVérifieEgalité(Dimension(t1b), 12, "Dimension(t 3x4) = 12")
+dbgVérifieEgalité(Dimension(t1c), 12, "Dimension(t 2x2x3) = 12")
+
+dbgBilanTest()

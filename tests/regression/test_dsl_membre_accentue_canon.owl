@@ -1,0 +1,29 @@
+// Vérifie l'accès membre DSL `..` sur des champs à graphie canonique
+// accentuée (BaseDeDonnées, Répertoire, DuréeNonRéponse) : l'écriture puis
+// la relecture résolvent correctement, sur plusieurs types DSL.
+
+PROCEDURE scenario_sqlConnexion_base_de_donnees()
+	cnx est une sqlConnexion
+	cnx..BaseDeDonnées = "compta"
+	dbgVérifieEgalité(cnx..BaseDeDonnées, "compta",
+	"sqlConnexion : champ accentué canonique doit se relire")
+FIN
+
+PROCEDURE scenario_sqlConnexion_repertoire()
+	cnx est une sqlConnexion
+	cnx..Répertoire = "C:\\data"
+	dbgVérifieEgalité(cnx..Répertoire, "C:\\data",
+	"sqlConnexion : second champ accentué canonique doit se relire")
+FIN
+
+PROCEDURE scenario_httpRequete_duree_non_reponse()
+	req est un httpRequête
+	req..DuréeNonRéponse = 5000
+	dbgVérifieEgalité(req..DuréeNonRéponse, 5000,
+	"httpRequête : l'accès membre accentué canonique vaut pour tous les types DSL")
+FIN
+
+scenario_sqlConnexion_base_de_donnees()
+scenario_sqlConnexion_repertoire()
+scenario_httpRequete_duree_non_reponse()
+dbgBilanTest()

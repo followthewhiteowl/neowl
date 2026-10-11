@@ -1,0 +1,31 @@
+// @sujet : AMQPPrefetch
+// @résumé : Limite (Basic.Qos) le nombre de messages non acquittés que le serveur envoie d'avance à un consommateur.
+
+// Régler le prefetch sur une connexion qui n'a jamais été ouverte échoue
+// proprement : la native renvoie Faux et pose une erreur, sans émettre sur
+// le fil.
+PROCEDURE PUBLIQUE scenario_prefetch_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPPrefetch(cnx, 1)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bOk, "AMQPPrefetch renvoie Faux sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+
+// Le nombre demandé doit être un entier : une chaîne en 2e argument est
+// refusée avec le code d'erreur canonique de type d'argument invalide, pas
+// juste un Faux muet.
+PROCEDURE PUBLIQUE scenario_prefetch_nombre_type_invalide()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPPrefetch(cnx, "pas-un-entier")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPPrefetch refuse un nombre qui n'est pas un entier")
+	dbgVérifieVrai(bErr, "une erreur est posée sur un nombre de mauvais type")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

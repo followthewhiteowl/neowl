@@ -1,0 +1,50 @@
+//  — le bloc Style d'un MenuPrincipal accepte les littéraux
+// Couleur(r,v,b) / Couleur(r,v,b,a) const-foldés, en plus des couleurs nommées.
+// Vérification par lecture de la feuille QSS effective de la barre de menu
+// (__DebugFeuilleStyleMenu, même approche que __DebugFeuilleStyle des champs) :
+// on lit la feuille générée plutôt que de capturer des pixels.
+//
+// ROUGE attendu AVANT  : Couleur(...) est refusé au compile
+// (« la valeur doit être une constante »), donc la fenêtre ne s'ouvre pas et
+// __DebugFeuilleStyleMenu n'existe pas encore.
+
+TestModeHeadless(Faux)
+
+// --- 1. Formes FR : opaque (rgb) et semi-transparent (rgba).
+OuvreSoeur(FEN_MenuCouleurLitterale)
+dbgVérifieFaux(ErreurDétectée,
+"MenuPrincipal avec littéraux Couleur(...) : ouverture sans erreur")
+
+feuille est une chaîne = __DebugFeuilleStyleMenu()
+Trace("=== MNU_Custom ===")
+Trace(feuille)
+
+dbgVérifieVrai(Contient(feuille, "rgb(10,20,30)"),
+"Barre..CouleurFond = Couleur(10,20,30) : la feuille QSS émet rgb(10,20,30)")
+dbgVérifieVrai(Contient(feuille, "rgb(245,245,245)"),
+"Barre..Couleur = Couleur(245,245,245) : la feuille QSS émet rgb(245,245,245)")
+dbgVérifieVrai(Contient(feuille, "rgba(30,30,40,180)"),
+"SousMenu..CouleurFond = Couleur(30,30,40,180) : la feuille QSS émet rgba(30,30,40,180)")
+dbgVérifieVrai(Contient(feuille, "rgb(200,100,50)"),
+"SousMenu..CouleurBordure = Couleur(200,100,50) : la feuille QSS émet rgb(200,100,50)")
+dbgVérifieVrai(Contient(feuille, "rgb(240,240,240)"),
+"OptionMenu..Couleur = Couleur(240,240,240) : la feuille QSS émet rgb(240,240,240)")
+
+Ferme(FEN_MenuCouleurLitterale)
+
+// --- 2. Forme EN (Color) : opaque + alpha, bilingue.
+OuvreSoeur(FEN_MenuCouleurLitteraleEN)
+dbgVérifieFaux(ErreurDétectée,
+"MainMenu avec littéraux Color(...) (forme EN) : ouverture sans erreur")
+
+feuilleEN est une chaîne = __DebugFeuilleStyleMenu()
+Trace("=== MNU_CustomEN ===")
+Trace(feuilleEN)
+
+dbgVérifieVrai(Contient(feuilleEN, "rgb(50,60,70)"),
+"Submenu..BackgroundColor = Color(50,60,70) : la feuille QSS émet rgb(50,60,70)")
+dbgVérifieVrai(Contient(feuilleEN, "rgba(80,90,100,120)"),
+"Submenu..BorderColor = Color(80,90,100,120) : la feuille QSS émet rgba(80,90,100,120)")
+
+Ferme(FEN_MenuCouleurLitteraleEN)
+dbgBilanTest()

@@ -1,0 +1,31 @@
+// Regression : Champ Interrupteur V1 — kind, props, options polymorphique, natives.
+//
+// Pattern : la fenêtre voisine FEN_TestInterrupteur.owl porte la déclaration
+// compile-only (modes d'affichage + options array/struct + multi-colonnes).
+// Toutes les déclarations `Options` y sont écrites en forme mono-ligne (seule
+// forme canon pour un littéral tableau, cf. ) : un `[` en fin de
+// ligne ouvre une chaîne multi-ligne, jamais un tableau.
+//
+//  — durcissement : ce test ne vérifiait avant que `TypeVar(...)` sur
+// les natives, jamais le CONTENU réel des Options. C'est ce qui a laissé
+// passer un bug où une forme multi-ligne rendait des Interrupteurs vides
+// (Occurrence = 0) sans le moindre diagnostic ni échec de test. On vérifie
+// maintenant le contenu réel au banc headless.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_TestInterrupteur)
+
+dbgVérifieEgalité(InterrupteurOccurrence(INT_Permissions), 3,
+"INT_Permissions (Options mono-ligne, chaînes) a 3 options")
+dbgVérifieEgalité(InterrupteurOccurrence(INT_Notifs), 3,
+"INT_Notifs (Options mono-ligne, structs) a 3 options")
+dbgVérifieEgalité(InterrupteurOccurrence(INT_Sources), 6,
+"INT_Sources (Options mono-ligne, chaînes) a 6 options")
+
+dbgVérifieEgalité(owlChampInterrupteur, 91, "owlChampInterrupteur = 91")
+dbgVérifieEgalité(TypeVar(InterrupteurAjoute), 70, "InterrupteurAjoute = procedure native")
+dbgVérifieEgalité(TypeVar(InterrupteurInsère), 70, "InterrupteurInsere = procedure native")
+dbgVérifieEgalité(TypeVar(InterrupteurSupprime), 70, "InterrupteurSupprime = procedure native")
+dbgVérifieEgalité(TypeVar(InterrupteurOccurrence), 70, "InterrupteurOccurrence = procedure native")
+
+dbgBilanTest()

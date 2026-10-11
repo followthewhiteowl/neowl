@@ -1,0 +1,70 @@
+// Fenêtre ressource pour test_zr_fininitialisation_set_get.owl.
+// FinInitialisation ajoute 3 lignes et peuple ZR[i].champ pour chaque.
+// Le script test lit ensuite les valeurs posées (callback via procedure publique).
+
+FEN_ZRIndex est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR indexation cellule"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 400
+	FIN
+
+	ZR_Liste est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 480
+			Hauteur           = 350
+			Sens              = zrVertical
+			HauteurRepetition = 40
+		FIN
+
+		LIB_Num est un Champ Libellé
+			PROPRIETES
+				X       = 5
+				Y       = 8
+				Largeur = 40
+				Libellé = ""
+			FIN
+		FIN
+
+		LIB_Nom est un Champ Libellé
+			PROPRIETES
+				X       = 50
+				Y       = 8
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Ajout de 3 lignes + SET sur chaque cellule — c'est le scénario qui
+		// était impossible avant  (throw E_RT_INDEX_NEEDS_ARRAY_OR_COMBI).
+		i1 est un entier = ZoneRépétéeAjouteLigne(ZR_Liste)
+		ZR_Liste[i1].LIB_Num = "#1"
+		ZR_Liste[i1].LIB_Nom = "Alice"
+
+		i2 est un entier = ZoneRépétéeAjouteLigne(ZR_Liste)
+		ZR_Liste[i2].LIB_Num = "#2"
+		ZR_Liste[i2].LIB_Nom = "Bob"
+
+		i3 est un entier = ZoneRépétéeAjouteLigne(ZR_Liste)
+		ZR_Liste[i3].LIB_Num = "#3"
+		ZR_Liste[i3].LIB_Nom = "Charlie"
+
+		// Rapport vers le script voisin (callback par nom nu)
+		cb_fininitialisation_done()
+	FIN
+
+	// PROCEDURE PUBLIQUE invocable par nom nu depuis le script voisin.
+	// Lit la valeur d'une cellule : ZR_Liste[ligne].LIB_Nom ..Libellé
+	PROCEDURE LireNom(n est un entier)
+		RENVOYER ZR_Liste[n].LIB_Nom
+	FIN
+
+	PROCEDURE LireNum(n est un entier)
+		RENVOYER ZR_Liste[n].LIB_Num
+	FIN
+FIN

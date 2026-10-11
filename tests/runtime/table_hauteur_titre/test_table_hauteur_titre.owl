@@ -1,0 +1,50 @@
+// Hauteur de l'en-tête d'un Champ Table : ..HauteurTitre / ..TitleHeight.
+//
+// La propriété rend la hauteur RÉELLE de la bande de titre du champ monté
+// (pas l'écho de ce qui a été déclaré) : c'est la seule mesure qui prouve
+// que la bande a bien disparu. 0 = en-tête masqué, > 0 = hauteur imposée,
+// hauteur naturelle sinon.
+//
+// Rig GUI réel obligatoire : en mode sans affichage aucun widget n'est monté,
+// la bande n'existe pas et la mesure serait aveugle.
+//
+// Valeur de référence : 19 px, hauteur naturelle relevée sur la bande de
+// titre d'une Table de ce dépôt (police et métriques Qt par défaut). Elle
+// sert aussi de témoin de non-régression : une Table dont les colonnes ont
+// des libellés doit rendre exactement la même hauteur qu'avant.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableHauteurTitre)
+
+// --- Bande naturelle : présente, y compris sans aucun libellé de colonne ---
+dbgVérifieEgalité(TAB_Nu..HauteurTitre, 19, "Sans libellé de colonne : bande naturelle de 19 px")
+dbgVérifieEgalité(TAB_Ref..HauteurTitre, 19, "Non-régression : avec libellés, bande inchangée à 19 px")
+
+// --- HauteurTitre = 0 déclaratif : la bande disparaît ---
+dbgVérifieEgalité(TAB_Masque..HauteurTitre, 0, "HauteurTitre = 0 déclaratif : plus aucune bande")
+
+// --- HauteurTitre = 40 déclaratif : hauteur imposée, forme FR et EN ---
+dbgVérifieEgalité(TAB_Fixe..HauteurTitre, 40, "HauteurTitre = 40 déclaratif : bande de 40 px")
+dbgVérifieEgalité(TAB_Fixe..TitleHeight, 40, "Forme anglaise TitleHeight : même mesure")
+
+// --- Pilotage après l'ouverture (le widget suit, pas seulement le store) ---
+TAB_Ref..HauteurTitre = 0
+dbgVérifieEgalité(TAB_Ref..HauteurTitre, 0, "HauteurTitre = 0 après ouverture : bande retirée")
+
+TAB_Ref..HauteurTitre = 30
+dbgVérifieEgalité(TAB_Ref..HauteurTitre, 30, "HauteurTitre = 30 après ouverture : bande à 30 px")
+
+TAB_Ref..TitleHeight = 0
+dbgVérifieEgalité(TAB_Ref..HauteurTitre, 0, "Forme anglaise en écriture : TitleHeight = 0 masque")
+
+// --- Retour à la hauteur naturelle ---
+TAB_Masque..HauteurTitre = -1
+dbgVérifieEgalité(TAB_Masque..HauteurTitre, 19, "HauteurTitre = -1 : retour à la bande naturelle")
+
+// --- Le champ lui-même ne change pas de taille : la place va au contenu ---
+dbgVérifieEgalité(TAB_Masque..Hauteur, 300, "Masquer l'en-tête ne redimensionne pas le champ")
+
+Ferme(FEN_TableHauteurTitre)
+
+dbgBilanTest()

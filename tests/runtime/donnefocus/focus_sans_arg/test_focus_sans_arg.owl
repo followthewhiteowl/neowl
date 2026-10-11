@@ -1,0 +1,46 @@
+//  — DonneFocus() sans argument : redonne le focus au champ courant.
+//
+// spécification de référence : « si ce paramètre n'est pas spécifié, le focus est
+// donné au champ en cours ».
+//
+// Séquence testée :
+//   1. Focus initial auto sur SAI_Verif (surEntrée = 1).
+//   2. DonneFocus(SAI_Suivant) : focus passe à SAI_Suivant (surEntrée = 1).
+//   3. DonneFocus() sans arg : le champ courant EST déjà SAI_Suivant
+//      → aucun code exécuté, aucun événement re-déclenché (canon documentation de référence :
+//        « aucun code exécuté si le champ est le champ en cours »).
+//      → surEntrée SAI_Suivant reste à 1.
+//
+// Test ROUGE attendu : DonneFocus n'existe pas encore.
+
+TestModeHeadless(Vrai)
+
+nSAI_obs est un entier = 0
+nSuiv_obs est un entier = 0
+
+PROCEDURE callback_entrees_sansarg(nV est un entier, nS est un entier)
+	nSAI_obs  = nV
+	nSuiv_obs = nS
+FIN
+
+Ouvre(FEN_SansArg)
+
+// Etat initial : SAI_Verif a le focus (premier lexical).
+RemonteEntrees()
+dbgVérifieEgalité(nSAI_obs, 1, "focus initial auto : surEntree SAI_Verif = 1")
+dbgVérifieEgalité(nSuiv_obs, 0, "focus initial auto : surEntree SAI_Suivant = 0")
+
+// DonneFocus(SAI_Suivant) : le focus passe sur SAI_Suivant.
+DonneFocus(SAI_Suivant)
+RemonteEntrees()
+dbgVérifieEgalité(nSuiv_obs, 1, "surEntree SAI_Suivant = 1 apres DonneFocus(SAI_Suivant)")
+
+// DonneFocus() sans argument : champ courant = SAI_Suivant déjà focalisé →
+// aucun événement re-déclenché (canon : aucun code exécuté).
+DonneFocus()
+RemonteEntrees()
+dbgVérifieEgalité(nSuiv_obs, 1, "surEntree SAI_Suivant reste 1 apres DonneFocus() sans arg (champ deja courant, aucun code execute)")
+
+Ferme(FEN_SansArg)
+
+dbgBilanTest()

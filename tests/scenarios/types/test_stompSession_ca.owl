@@ -1,0 +1,33 @@
+// @sujet : stompSession
+// @résumé : Propriété CertificatCA (bilingue CACertificate) d'une session STOMP : chemin d'un fichier PEM de CA à truster en plus du bundle standard, pour se connecter en TLS strict à un courtier à certificat privé.
+
+
+// Une session déclarée sans initialisation n'a pas de CA personnalisé : le
+// mode SSL retombe sur le bundle de certificats public standard.
+PROCEDURE PUBLIQUE scenario_creation_avec_defauts()
+	sess est un stompSession
+	dbgVérifieEgalité(sess..CertificatCA, "", "CertificatCA vide par défaut")
+FIN
+
+
+// Le databinding est direct : on assigne le chemin du fichier PEM avec la
+// notation `..`, on relit de la même façon.
+PROCEDURE PUBLIQUE scenario_configuration_certificat_ca()
+	sess est un stompSession
+	sess..CertificatCA = "/chemin/vers/ca-interne.pem"
+	dbgVérifieEgalité(sess..CertificatCA, "/chemin/vers/ca-interne.pem", "CertificatCA relu tel quel")
+FIN
+
+
+// Formes bilingues : CertificatCA (FR) et CACertificate (EN) sont un seul et
+// même champ, quel que soit le nom utilisé pour écrire ou lire.
+PROCEDURE PUBLIQUE scenario_bilingue_certificatca_cacertificate()
+	sess est un stompSession
+	sess..CertificatCA = "/etc/ssl/ca-fr.pem"
+	dbgVérifieEgalité(sess..CACertificate, "/etc/ssl/ca-fr.pem", "CACertificate (EN) relit ce qu'écrit CertificatCA (FR)")
+
+	sess..CACertificate = "/etc/ssl/ca-en.pem"
+	dbgVérifieEgalité(sess..CertificatCA, "/etc/ssl/ca-en.pem", "CertificatCA (FR) relit ce qu'écrit CACertificate (EN)")
+FIN
+
+dbgBilanTest()

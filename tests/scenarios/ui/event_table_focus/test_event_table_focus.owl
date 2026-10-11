@@ -1,0 +1,46 @@
+// Events surEntree / surSortie (focus) sur un champ Table.
+//
+// DonneFocus vers le champ Table declenche surEntree ; quitter le champ
+// declenche surSortie. Verifie que les deux handlers sont bien appeles.
+
+TestModeHeadless(Vrai)
+
+bTableFocusPrete est un booléen = Faux
+nEntree_obs est un entier = -1
+nSortie_obs est un entier = -1
+
+PROCEDURE cb_evt_table_focus_prete()
+	bTableFocusPrete = Vrai
+FIN
+
+PROCEDURE cb_evt_table_focus_compteurs(nE est un entier, nS est un entier)
+	nEntree_obs = nE
+	nSortie_obs = nS
+FIN
+
+PROCEDURE PUBLIQUE scenario_focus_table_entree_sortie()
+	OuvreSoeur(FEN_EvenementsTableFocus)
+	dbgVérifieVrai(bTableFocusPrete, "FinInitialisation appelee : fenetre prete")
+
+	// -- Etape 1 : donner le focus a la Table via DonneFocus (depuis la fenetre).
+	//    surEntree doit tirer 1 fois.
+	DonnerFocusTable()
+	LireCompteursTableFocus()
+	dbgVérifieEgalité(nEntree_obs, 1, "surEntree Table : 1 tir apres DonneFocus(TABLE_Focus)")
+	dbgVérifieEgalité(nSortie_obs, 0, "surSortie Table : 0 tir (toujours focuse)")
+
+	// -- Etape 2 : deplacer le focus vers la Saisie.
+	//    surSortie de la Table doit tirer 1 fois.
+	DonnerFocusSaisie()
+	LireCompteursTableFocus()
+	dbgVérifieEgalité(nSortie_obs, 1, "surSortie Table : 1 tir apres DonneFocus(SAI_Focus)")
+	dbgVérifieEgalité(nEntree_obs, 1, "surEntree Table : toujours 1 (pas de re-entree)")
+
+	// -- Etape 3 : re-donner le focus a la Table.
+	//    surEntree doit tirer une 2e fois.
+	DonnerFocusTable()
+	LireCompteursTableFocus()
+	dbgVérifieEgalité(nEntree_obs, 2, "surEntree Table : 2 tirs apres 2e focus")
+
+	Ferme(FEN_EvenementsTableFocus)
+FIN

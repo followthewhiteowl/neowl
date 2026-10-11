@@ -1,0 +1,35 @@
+//  — Style sans Couleur de texte sur un Champ Libellé : le texte
+// suit le thème (garde `> 0` partagée avec le Saisie, ). Test
+// structurel (pas de capture-pixel : la couleur du texte dépend de
+// l'anti-crénelage des glyphes, pas un critère pixel robuste) via
+// __DebugFeuilleStyle.
+//
+// ROUGE attendu : `Style..Libellé..CouleurFond` ne compile pas encore (la
+// prop 'Style' n'existe pas sur le champ Libellé). Cf.
+// FEN_StyleLibelleCouleurDefaut.owl.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleLibelleCouleurDefaut)
+
+// --- Champ stylé SANS Couleur (CouleurFond seul) ---
+feuilleFond est une chaîne = __DebugFeuilleStyle(LIB_FondSeul)
+
+dbgVérifieVrai(Contient(feuilleFond, "background-color: rgb(200,220,240)"),
+"CouleurFond seul : le fond du thème est émis dans la feuille")
+
+// PIVOT : aucune couleur de texte noire codée en dur. Le texte suit le thème.
+dbgVérifieFaux(Contient(feuilleFond, "color: rgb(0,0,0)"),
+"CouleurFond seul : PAS de color: rgb(0,0,0) codé en dur (texte suit le thème)")
+
+// --- Non-régression : Couleur explicite (> 0) prime toujours ---
+feuilleExpl est une chaîne = __DebugFeuilleStyle(LIB_CouleurExplicite)
+
+dbgVérifieVrai(Contient(feuilleExpl, "color: rgb(255,0,0)"),
+"Couleur explicite : ancrée sur le QLabel (prime sur le thème)")
+
+dbgVérifieVrai(Contient(feuilleExpl, "background-color: rgb(200,220,240)"),
+"Couleur explicite : le fond coexiste avec la couleur de texte")
+
+Ferme(FEN_StyleLibelleCouleurDefaut)
+dbgBilanTest()

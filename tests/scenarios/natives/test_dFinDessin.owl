@@ -1,0 +1,194 @@
+// @sujet : dFinDessin
+// @resume : Terminer une session de dessin ouverte par dDébutDessin et libérer les ressources
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_nominal_fermeture_session()
+	img est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelCentre est un entier
+	res est un booléen
+
+	// Créer une image rouge et démarrer une session de dessin
+	img = dCréeImage(50, 50, couleurRouge)
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "session dessin ouverte")
+
+	// Dessiner un cercle bleu
+	dCercle(img, 10, 10, 40, 40, couleurBleu)
+
+	// Terminer la session de dessin (commit des modifications)
+	dFinDessin(img)
+
+	// Le cercle bleu doit être visible au centre du cercle (25,25)
+	pixelCentre = dPixelCouleur(img, 25, 25)
+	dbgVérifieEgalité(pixelCentre, couleurBleu, "cercle bleu applique apres fermeture session")
+FIN
+
+PROCEDURE PUBLIQUE scenario_sans_argument_efface_tout()
+	img est un Image
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCentre est un entier
+	res est un booléen
+
+	// Créer une image verte et ouvrir une session
+	img = dCréeImage(30, 30, couleurVert)
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "session ouverte")
+
+	// Dessiner un point jaune au centre
+	dPoint(img, 15, 15, couleurJaune)
+
+	// Terminer SANS argument (efface toutes les images selon doc)
+	dFinDessin()
+
+	// L'image doit rester majoritairement verte (effacée vers fond initial ou jamais modifiée
+	// sur les zones hors point). On échantillonne hors du point jaune.
+	pixelCentre = dPixelCouleur(img, 5, 5)
+	dbgVérifieEgalité(pixelCentre, couleurVert, "dFinDessin sans argument : fond reste vert hors zone du point")
+FIN
+
+PROCEDURE PUBLIQUE scenario_multi_images_fermeture_selective()
+	img1 est un Image
+	img2 est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixel1 est un entier
+	pixel2 est un entier
+	res1 est un booléen
+
+	// Créer deux images distinctes
+	img1 = dCréeImage(40, 40, couleurRouge)
+	img2 = dCréeImage(40, 40, couleurBleu)
+
+	// Ouvrir session sur img1
+	res1 = dDébutDessin(img1, dSansEffacer)
+	dbgVérifieEgalité(res1, Vrai, "session img1 ouverte")
+
+	// Dessiner un point vert sur img1
+	dPoint(img1, 20, 20, couleurVert)
+
+	// Fermer uniquement img1 (img2 n'a pas de session ouverte)
+	dFinDessin(img1)
+
+	// img1 : le point vert tracé est visible à (20,20)
+	pixel1 = dPixelCouleur(img1, 20, 20)
+	dbgVérifieEgalité(pixel1, couleurVert, "img1 point vert visible apres fermeture")
+
+	// img2 doit rester bleue (pas de session ouverte ni dessin)
+	pixel2 = dPixelCouleur(img2, 20, 20)
+	dbgVérifieEgalité(pixel2, couleurBleu, "img2 non modifiee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_liberation_ressources_optionnel()
+	img est un Image
+	couleurNoir est un entier = RVB(0, 0, 0)
+	res est un booléen
+
+	// Créer une image noire
+	img = dCréeImage(25, 25, couleurNoir)
+
+	// Ouvrir une session de dessin
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "session ouverte")
+
+	// Ne pas appeler dFinDessin — les ressources seront libérées automatiquement
+	// (remarque doc : libération automatique à la fermeture fenêtre/page)
+	// Ici, on vérifie juste que l'omission ne casse rien
+
+	// Vérifier que l'image reste valide après ouverture de session sans fermeture
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide sans dFinDessin explicite")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisible dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_appel_sans_session_ouverte()
+	img est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelCentre est un entier
+
+	// Créer une image rouge SANS ouvrir de session
+	img = dCréeImage(20, 20, couleurRouge)
+
+	// Appeler dFinDessin sans session ouverte (devrait être sans effet)
+	dFinDessin(img)
+
+	// L'image doit rester rouge (aucune session à fermer)
+	pixelCentre = dPixelCouleur(img, 10, 10)
+	dbgVérifieEgalité(pixelCentre, couleurRouge, "appel sans session ouverte sans effet")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_double_appel()
+	img est un Image
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	pixelPoint est un entier
+	res est un booléen
+
+	// Créer une image verte
+	img = dCréeImage(30, 30, couleurVert)
+
+	// Ouvrir session et dessiner
+	res = dDébutDessin(img, dSansEffacer)
+	dbgVérifieEgalité(res, Vrai, "session ouverte")
+	dPoint(img, 15, 15, couleurBleu)
+
+	// Premier appel dFinDessin
+	dFinDessin(img)
+
+	pixelPoint = dPixelCouleur(img, 15, 15)
+	dbgVérifieEgalité(pixelPoint, couleurBleu, "point bleu applique apres premier appel")
+
+	// Deuxième appel dFinDessin sur la même image (session déjà fermée)
+	dFinDessin(img)
+
+	// L'image doit rester inchangée après le second appel
+	pixelPoint = dPixelCouleur(img, 15, 15)
+	dbgVérifieEgalité(pixelPoint, couleurBleu, "second appel sans effet sur image deja fermee")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_sessions_imbriquees()
+	img1 est un Image
+	img2 est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixel1 est un entier
+	pixel2 est un entier
+	res1 est un booléen
+	res2 est un booléen
+
+	// Créer deux images distinctes
+	img1 = dCréeImage(25, 25, couleurRouge)
+	img2 = dCréeImage(25, 25, couleurBleu)
+
+	// Ouvrir session sur img1
+	res1 = dDébutDessin(img1, dSansEffacer)
+	dbgVérifieEgalité(res1, Vrai, "session img1 ouverte")
+	dPoint(img1, 12, 12, couleurVert)
+
+	// Ouvrir session sur img2 (imbrication)
+	res2 = dDébutDessin(img2, dSansEffacer)
+	dbgVérifieEgalité(res2, Vrai, "session img2 ouverte imbriquee")
+	dPoint(img2, 12, 12, couleurJaune)
+
+	// Fermer img2 en premier (LIFO style)
+	dFinDessin(img2)
+
+	pixel2 = dPixelCouleur(img2, 12, 12)
+	dbgVérifieEgalité(pixel2, couleurJaune, "img2 point jaune applique")
+
+	// Fermer img1
+	dFinDessin(img1)
+
+	pixel1 = dPixelCouleur(img1, 12, 12)
+	dbgVérifieEgalité(pixel1, couleurVert, "img1 point vert applique apres fermeture imbriquee")
+FIN

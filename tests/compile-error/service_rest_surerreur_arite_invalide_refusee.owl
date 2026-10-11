@@ -1,0 +1,27 @@
+// surErreur est invoqué par le service avec 0 argument (contexte MoiMême
+// seulement) — cf. . Une signature avec 1+ paramètre compile
+// aujourd'hui (les params sont avalés sans validation, cf.
+// service_parse_lifecycle_procedure) puis échoue en silence au runtime
+// (mismatch d'arité à la frontière réentrante). La compilation doit REFUSER
+// cette signature avec un message dédié.
+//
+// ROUGE ATTENDU tant que  (partie 1) n'est pas livré : ce fichier
+// compile sans erreur aujourd'hui. Le .expected.json ci-contre sera
+// régénéré par l'implementer une fois le message d'erreur dédié posé.
+ServiceSurErreurAriteInvalide est un ServiceREST
+PROCEDURE surErreur(x est une chaîne)
+	Trace("jamais atteint proprement")
+FIN
+
+Ping est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpGet
+		Chemin   = ["ping"]
+		Réponses = [httpOK]
+		CodeÉtat = httpOK
+	FIN
+	PROCEDURE surRequête()
+		MoiMême..Réponse..CodeÉtat = httpOK
+	FIN
+FIN
+FIN

@@ -1,0 +1,82 @@
+// @sujet : JourFérié
+// @résumé : Vrai si une date est enregistrée comme jour férié. Le calendrier est vide par défaut : il faut le peupler via JourFériéAjoute avant que JourFérié(...) puisse retourner Vrai. JourFériéListe permet d'inspecter le contenu courant, JourFériéSupprimeTout de tout effacer.
+
+
+// État initial : le calendrier des jours fériés est vide. JourFérié(d)
+// retourne Faux pour toute date tant qu'aucun ajout n'a été fait. C'est le
+// point qui surprend le plus à l'arrivée — explicité ici.
+PROCEDURE scenario_calendrier_vide_par_defaut()
+	JourFériéSupprimeTout()
+	dNoel est une date = ChaîneVersDate("20261225")
+	dbgVérifieFaux(JourFérié(dNoel))
+	d1erMai est une date = ChaîneVersDate("20260501")
+	dbgVérifieFaux(JourFérié(d1erMai))
+FIN
+
+
+// Aller-retour minimal : ajout puis lecture sur la même date.
+PROCEDURE scenario_ajout_puis_lookup()
+	JourFériéSupprimeTout()
+	JourFériéAjoute("20261225")
+	dNoel est une date = ChaîneVersDate("20261225")
+	dbgVérifieVrai(JourFérié(dNoel))
+FIN
+
+
+// Date non ajoutée : retour Faux même si le calendrier contient d'autres
+// entrées. Le lookup est exact, pas approximatif.
+PROCEDURE scenario_date_non_ajoutee_reste_faux()
+	JourFériéSupprimeTout()
+	JourFériéAjoute("20261225")
+	dAutre est une date = ChaîneVersDate("20260615")
+	dbgVérifieFaux(JourFérié(dAutre))
+FIN
+
+
+// Forme récurrente "MMJJ" : un ajout sans année rend la date fériée toutes
+// les années. Lookup sur deux années différentes confirme la récurrence.
+PROCEDURE scenario_recurrent_mmjj_traverse_les_annees()
+	JourFériéSupprimeTout()
+	JourFériéAjoute("0501")
+	d2026 est une date = ChaîneVersDate("20260501")
+	dbgVérifieVrai(JourFérié(d2026))
+	d2030 est une date = ChaîneVersDate("20300501")
+	dbgVérifieVrai(JourFérié(d2030))
+FIN
+
+
+// Forme spécifique "AAAAMMJJ" : un ajout avec année ne s'applique qu'à
+// cette année-là. L'année suivante reste hors calendrier.
+PROCEDURE scenario_specifique_aaaammjj_annee_seule()
+	JourFériéSupprimeTout()
+	JourFériéAjoute("20261225")
+	d2026 est une date = ChaîneVersDate("20261225")
+	dbgVérifieVrai(JourFérié(d2026))
+	d2027 est une date = ChaîneVersDate("20271225")
+	dbgVérifieFaux(JourFérié(d2027))
+FIN
+
+
+// JourFériéListe expose les entrées enregistrées (chaîne jointe par LF).
+PROCEDURE scenario_liste_des_entrees()
+	JourFériéSupprimeTout()
+	JourFériéAjoute("0501")
+	JourFériéAjoute("20261225")
+	entrees est une chaîne = JourFériéListe()
+	dbgVérifieVrai(Position(entrees, "0501") > 0)
+	dbgVérifieVrai(Position(entrees, "20261225") > 0)
+FIN
+
+
+// JourFériéSupprimeTout vide intégralement le calendrier. Les lookups qui
+// retournaient Vrai après ajout repassent à Faux.
+PROCEDURE scenario_supprime_tout_remet_a_zero()
+	JourFériéSupprimeTout()
+	JourFériéAjoute("20261225")
+	dNoel est une date = ChaîneVersDate("20261225")
+	dbgVérifieVrai(JourFérié(dNoel))
+	JourFériéSupprimeTout()
+	dbgVérifieFaux(JourFérié(dNoel))
+	entreesApres est une chaîne = JourFériéListe()
+	dbgVérifieEgalité(entreesApres, "")
+FIN

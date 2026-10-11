@@ -1,0 +1,223 @@
+// @sujet : IAModèle — validation intégrée, garde du meilleur modèle,
+// arrêt anticipé (OptionsEntraînement..FractionValidation / ..GardeMeilleurModèle
+// / ..PatienceArrêt)
+// @résumé : trois propriétés bilingues de OptionsEntraînement pilotent un
+// mécanisme built-in anti-surapprentissage pour .Entraîne. ..FractionValidation
+// (réel, défaut 0.0) réserve automatiquement les floor(N·fraction) DERNIERS
+// échantillons de (X, Y) pour la validation (le reste sert à l'entraînement).
+// ..GardeMeilleurModèle (booléen, défaut Faux) fait qu'à la fin de .Entraîne,
+// le modèle porte les poids de l'ÉPOQUE où la perte de validation était la
+// plus basse — pas ceux de la dernière époque. ..PatienceArrêt (entier, défaut
+// 0) arrête la boucle d'entraînement dès que la validation n'a plus progressé
+// pendant ce nombre d'époques consécutives. Aux valeurs par défaut (0.0, Faux,
+// 0), aucun de ces mécanismes ne s'active : .Entraîne se comporte exactement
+// comme avant leur introduction.
+//
+// Granularité fichier (exception documentée) : les 3 propriétés forment un
+// seul mécanisme indissociable (validation ⇒ ingrédient commun de save-best
+// ET d'early-stopping), regroupées dans ce fichier plutôt que dispersées en 3
+// fichiers qui dupliqueraient la même mise en place de données.
+//
+// Le scénario de save-best (scenario_garde_meilleur_modele_...) est un cas
+// HAND-COMPUTED EXACT, pas un test différentiel approximatif : un modèle
+// dense(1,1) linéaire, entraîné en full-batch sur x={1,-1} avec une cible
+// y=2x et un taux d'apprentissage délibérément instable (3.0) suit une
+// récurrence fermée et vérifiable expérimentalement sur le moteur actuel :
+//   e_t = poids_t - 2 ;  e_(t+1) = (1 - tauxApprentissage · Σx²) · e_t
+// avec Σx² = 1² + (-1)² = 2 et tauxApprentissage = 3.0, le ratio
+// (1 - 3.0·2) = -5 : l'erreur change de signe et QUINTUPLE en valeur absolue
+// à CHAQUE époque (divergence géométrique déterministe, indépendante du
+// poids initial aléatoire puisque e_0 = poids_initial - 2 ≠ 0 presque
+// sûrement). Donc la précision/qualité de validation (mesurée sur des points
+// x=±2 tenus à l'écart via ..FractionValidation) est STRICTEMENT MEILLEURE à
+// l'époque 1 qu'à toute époque ultérieure : l'époque 1 est le pic, la
+// dernière époque est la pire. Poids extrait via .Poids(1) AVANT
+// l'entraînement (pas de valeur hardcodée), poids attendus à l'époque 1 et à
+// l'époque finale recalculés indépendamment avec cette formule, puis
+// comparés aux poids RÉELS du modèle après .Entraîne avec
+// ..GardeMeilleurModèle = Vrai (doit correspondre à l'époque 1) et = Faux
+// (doit correspondre à la dernière époque). Formule vérifiée expérimentalement
+// à l'écart flottant nul sur le moteur actuel (scratch, hors dépôt).
+//
+// Note (interaction avec l'augmentation) : .Entraîne ne reçoit que des
+// Tenseurs déjà matérialisés (X, Y),
+// jamais un Dataset — l'augmentation au vol (.RetournementHorizontalAléatoire,
+// .RecadrageAléatoire) se produit exclusivement à la matérialisation d'un lot
+// via Dataset.LotEntrées, un mécanisme entièrement distinct et antérieur à
+// l'appel de .Entraîne. Le sous-ensemble de validation que ..FractionValidation
+// réserve est donc structurellement hors d'atteinte de toute augmentation :
+// il n'y a pas de chemin de code par lequel .Entraîne pourrait réaugmenter des
+// tenseurs déjà figés. Un scénario dédié n'apporterait rien de plus que ce que
+// scenario_garde_meilleur_modele_... prouve déjà par la précision de ses
+// valeurs hand-computed (si une transformation parasite s'appliquait aux
+// tenseurs de validation, les poids obtenus ne correspondraient plus
+// exactement à la formule).
+//
+// Non-régression : verrouillée séparément dans
+// test_IAModeleEntraineNonRegressionValidation.owl, qui ne référence AUCUNE
+// des 3 propriétés ci-dessous — il compile indépendamment de leur présence
+// (contrairement à ce fichier-ci, qui exige les 3 propriétés pour compiler).
+
+
+// ================================================================
+// 2. Les 3 propriétés existent, se posent et se relisent — formes FR.
+// ================================================================
+PROCEDURE PUBLIQUE scenario_proprietes_validation_save_best_patience_lecture_ecriture_fr()
+	optsDefaut est un OptionsEntraînement
+	dbgVérifieVrai(Abs(optsDefaut..FractionValidation - 0.0) < 0.0000001, "FractionValidation par défaut = 0.0")
+	dbgVérifieVrai(optsDefaut..GardeMeilleurModèle = Faux, "GardeMeilleurModèle par défaut = Faux")
+	dbgVérifieEgalité(optsDefaut..PatienceArrêt, 0, "PatienceArrêt par défaut = 0")
+
+	opts est un OptionsEntraînement
+	opts..FractionValidation  = 0.1
+	opts..GardeMeilleurModèle = Vrai
+	opts..PatienceArrêt       = 3
+
+	dbgVérifieVrai(Abs(opts..FractionValidation - 0.1) < 0.0000001, "FractionValidation relu = valeur écrite (0.1)")
+	dbgVérifieVrai(opts..GardeMeilleurModèle = Vrai, "GardeMeilleurModèle relu = valeur écrite (Vrai)")
+	dbgVérifieEgalité(opts..PatienceArrêt, 3, "PatienceArrêt relu = valeur écrite (3)")
+FIN
+
+
+// Mêmes assertions, formes anglaises (TrainingOptions..ValidationFraction /
+// ..KeepBestModel / ..StopPatience) : même sentinelle, relecture identique.
+PROCEDURE PUBLIQUE scenario_proprietes_validation_save_best_patience_lecture_ecriture_en()
+	opts is a TrainingOptions
+	opts..ValidationFraction = 0.2
+	opts..KeepBestModel      = Vrai
+	opts..StopPatience       = 5
+
+	dbgCheckTrue(Abs(opts..ValidationFraction - 0.2) < 0.0000001, "ValidationFraction relu = valeur écrite (0.2)")
+	dbgCheckTrue(opts..KeepBestModel = Vrai, "KeepBestModel relu = valeur écrite (Vrai)")
+	dbgVérifieEgalité(opts..StopPatience, 5, "StopPatience relu = valeur écrite (5)")
+
+	// Convergence FR/EN : même sentinelle sous-jacente.
+	optsFR est un OptionsEntraînement
+	optsFR..FractionValidation  = 0.2
+	optsFR..GardeMeilleurModèle = Vrai
+	optsFR..PatienceArrêt       = 5
+
+	dbgVérifieEgalité(opts..StopPatience, optsFR..PatienceArrêt, "..StopPatience=5 relu = ..PatienceArrêt=5 relu")
+FIN
+
+
+// ================================================================
+// 3. Verrou central save-best : cas hand-computed exact (voir @résumé).
+// dense(1,1) linéaire, x={1,-1,2,-2} / y=2x, FractionValidation=0.5 réserve
+// les 2 DERNIERS échantillons (x=2, x=-2) comme validation, entraîne sur les
+// 2 premiers (x=1, x=-1). tauxApprentissage=3.0 rend la récurrence
+// instable (ratio -5 par époque, vérifié expérimentalement) : l'époque 1 est
+// LE pic de qualité de validation, chaque époque suivante est strictement
+// pire. Avec GardeMeilleurModèle=Vrai, le modèle final DOIT porter les poids
+// de l'époque 1 (pas de la dernière). Comparaison à des valeurs prédites
+// analytiquement à partir des poids extraits AVANT l'entraînement (aucune
+// valeur hardcodée).
+// ================================================================
+PROCEDURE PUBLIQUE scenario_garde_meilleur_modele_restaure_poids_meilleure_epoque_validation()
+	matX est une Matrice = [[1.0], [-1.0], [2.0], [-2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[2.0], [-2.0], [4.0], [-4.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	nEpoques est un entier = 4
+
+	// Modèle A : GardeMeilleurModèle = Vrai -> doit finir sur les poids de
+	// l'époque 1 (le pic, seule époque la moins mauvaise).
+	monA est un IAModèle
+	monA.AjouteCoucheDense(1, 1)
+	w0A est un réel = monA.Poids(1)..Valeur[1][1]
+
+	optsA est un OptionsEntraînement
+	optsA..Époques             = nEpoques
+	optsA..TailleLot           = 2
+	optsA..TauxApprentissage   = 3.0
+	optsA..Optimiseur          = optimSGD
+	optsA..Perte               = perteErreurQuadratique
+	optsA..FractionValidation  = 0.5
+	optsA..GardeMeilleurModèle = Vrai
+
+	monA.Entraîne(tX, tY, optsA)
+	wApresA est un réel = monA.Poids(1)..Valeur[1][1]
+
+	e0A est un réel = w0A - 2.0
+	ratio est un réel = -5.0
+	// Époque 1 : e_1 = e_0 * ratio^1
+	e1Predit est un réel = e0A * ratio
+	w1PreditA est un réel = 2.0 + e1Predit
+
+	dbgVérifieVrai(Abs(wApresA - w1PreditA) < 0.0001, "GardeMeilleurModèle=Vrai : poids final = poids de l'époque 1 (pic de validation), pas de l'époque 4")
+
+	// Modèle B : GardeMeilleurModèle = Faux (défaut) -> doit finir sur les
+	// poids de la DERNIÈRE époque (4), nettement pires que ceux de l'époque 1.
+	monB est un IAModèle
+	monB.AjouteCoucheDense(1, 1)
+	w0B est un réel = monB.Poids(1)..Valeur[1][1]
+
+	optsB est un OptionsEntraînement
+	optsB..Époques             = nEpoques
+	optsB..TailleLot           = 2
+	optsB..TauxApprentissage   = 3.0
+	optsB..Optimiseur          = optimSGD
+	optsB..Perte               = perteErreurQuadratique
+	optsB..FractionValidation  = 0.5
+	optsB..GardeMeilleurModèle = Faux
+
+	monB.Entraîne(tX, tY, optsB)
+	wApresB est un réel = monB.Poids(1)..Valeur[1][1]
+
+	e0B est un réel = w0B - 2.0
+	// Époque 4 : e_4 = e_0 * ratio^4
+	e4PreditB est un réel = e0B * ratio.Puissance(4)
+	w4PreditB est un réel = 2.0 + e4PreditB
+
+	dbgVérifieVrai(Abs(wApresB - w4PreditB) < 0.0001, "GardeMeilleurModèle=Faux (défaut) : poids final = poids de la dernière époque (4), la plus mauvaise")
+
+	// Vérification différentielle indépendante de la formule : le poids
+	// gardé par le modèle A (meilleure époque) est BEAUCOUP plus proche de
+	// la cible réelle (poids=2.0) que celui du modèle B (dernière époque),
+	// qui a divergé (|erreur| multipliée par 625 = 5^4 en 4 époques).
+	dbgVérifieVrai(Abs(wApresA - 2.0) < Abs(wApresB - 2.0), "GardeMeilleurModèle=Vrai reste bien plus proche de la cible que GardeMeilleurModèle=Faux sur ce cas divergent")
+FIN
+
+
+// ================================================================
+// 4. Early stopping : avec PatienceArrêt > 0, sur le même cas divergent
+// (aucune époque > 1 n'améliore jamais la validation), l'entraînement doit
+// s'arrêter BIEN avant le nombre total d'époques demandé. Observation via
+// ..SurÉpoque : nombre d'appels < Époques demandées (le off-by-one exact du
+// mécanisme de patience n'est pas tranché ici — assertion large
+// mais non triviale : la patience est très petite (2) par rapport au budget
+// d'époques demandé (20), donc un arrêt correct doit couper très tôt).
+// ================================================================
+compteurAppelsPatience est un entier = 0
+
+PROCEDURE CompteEpoque(_numÉpoque est un entier, _totalÉpoques est un entier, _perte est un réel)
+	compteurAppelsPatience = compteurAppelsPatience + 1
+FIN
+
+PROCEDURE PUBLIQUE scenario_patience_arret_stoppe_avant_le_nombre_total_epoques()
+	matX est une Matrice = [[1.0], [-1.0], [2.0], [-2.0]]
+	tX est un Tenseur = Tenseur(matX)
+	matY est une Matrice = [[2.0], [-2.0], [4.0], [-4.0]]
+	tY est un Tenseur = Tenseur(matY)
+
+	mon est un IAModèle
+	mon.AjouteCoucheDense(1, 1)
+
+	compteurAppelsPatience = 0
+
+	opts est un OptionsEntraînement
+	opts..Époques            = 20
+	opts..TailleLot          = 2
+	opts..TauxApprentissage  = 3.0
+	opts..Optimiseur         = optimSGD
+	opts..Perte              = perteErreurQuadratique
+	opts..FractionValidation = 0.5
+	opts..PatienceArrêt      = 2
+	opts..SurÉpoque          = CompteEpoque
+
+	mon.Entraîne(tX, tY, opts)
+
+	dbgVérifieVrai(compteurAppelsPatience < 20, "PatienceArrêt=2 sur un cas qui ne progresse jamais après l'époque 1 : arrêt AVANT les 20 époques demandées")
+	dbgVérifieVrai(compteurAppelsPatience <= 6, "Arrêt anticipé rapide : la patience (2) est très petite devant le budget (20), le nombre d'époques réellement jouées reste faible")
+FIN

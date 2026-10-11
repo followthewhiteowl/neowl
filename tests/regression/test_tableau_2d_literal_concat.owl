@@ -1,0 +1,49 @@
+// Régression : littéraux 2D [[...],[...]] et Ajoute(t1, t2) concaténation.
+// spécification de référence (doc Ajoute) : Ajoute concatène les éléments si le 2e arg est un tableau.
+
+// ── 2D literal ──────────────────────────────────────────────────────
+tab2d est un tableau de entiers = [[1, 2], [3, 4]]
+dbgVérifieEgalité(tab2d..Occurrence, 2, "2D literal -> 2 rows")
+dbgVérifieEgalité(tab2d[1][2], 2, "[1][2]")
+dbgVérifieEgalité(tab2d[2][1], 3, "[2][1]")
+
+// Plusieurs rows
+b est un tableau de entiers = [[5,6],[7,8],[9,10]]
+dbgVérifieEgalité(b..Occurrence, 3, "3 rows")
+dbgVérifieEgalité(b[3][2], 10, "[3][2]")
+
+// Un seul row
+c est un tableau de entiers = [[42, 43]]
+dbgVérifieEgalité(c..Occurrence, 1, "1 row")
+dbgVérifieEgalité(c[1][1], 42, "[1][1]")
+dbgVérifieEgalité(c[1][2], 43, "[1][2]")
+
+// ── Ajoute concat 1D ────────────────────────────────────────────────
+t1 est un tableau de entiers = [1, 2]
+t2 est un tableau de entiers = [3, 4, 5]
+Ajoute(t1, t2)
+dbgVérifieEgalité(t1..Occurrence, 5, "1D concat: 2 + 3 = 5")
+dbgVérifieEgalité(t1[1], 1, "t1 pos 1")
+dbgVérifieEgalité(t1[3], 3, "premier élément de t2 en pos 3")
+dbgVérifieEgalité(t1[5], 5, "dernier élément en pos 5")
+
+// ── Ajoute concat 2D ────────────────────────────────────────────────
+m1 est un tableau de entiers = [[1,2],[3,4]]
+m2 est un tableau de entiers = [[5,6]]
+Ajoute(m1, m2)
+dbgVérifieEgalité(m1..Occurrence, 3, "2D concat: 2 rows + 1 row")
+dbgVérifieEgalité(m1[3][1], 5, "nouvelle row col 1")
+dbgVérifieEgalité(m1[3][2], 6, "nouvelle row col 2")
+
+// ── Ajoute élément simple (non-tableau) reste append ──────────────────
+u est un tableau de entiers = [10, 20]
+Ajoute(u, 30)
+dbgVérifieEgalité(u..Occurrence, 3, "Ajoute scalaire -> append")
+dbgVérifieEgalité(u[3], 30, "scalaire en fin")
+
+// ── Slice [[1 À 5]] (infix) pas cassé par le prefix 2D ─────────────────
+s est une chaîne = "Hello World"
+dbgVérifieEgalité(s[[1 À 5]], "Hello", "slice infix reste OK")
+dbgVérifieEgalité(s[[7 À 11]], "World", "slice avec borne sup")
+
+dbgBilanTest()

@@ -1,0 +1,119 @@
+// @sujet : ChargeImagesÉtiquetéesDepuisDossier
+// @résumé : Charge une arborescence « un dossier = une classe » en un
+// Dataset de ImageÉtiquetée : chaque sous-dossier de la racine devient une
+// classe (étiquette = nom du dossier), chaque fichier image qu'il contient
+// devient un exemple étiqueté. Le Dataset rend sa taille, ses classes et le
+// chemin source ; chaque exemple s'inspecte via l'indexation ds[i].
+
+// Une arborescence à 2 classes (2 images dans "bleu", 3 dans "rouge") donne
+// un Dataset dont la taille = le nombre total d'images, le nombre de classes
+// = le nombre de sous-dossiers, et les classes correspondent aux noms de
+// dossiers (ordre alphabétique).
+PROCEDURE PUBLIQUE scenario_charge_dossier_taille_nbclasses_classes_source()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dossier_taille"
+	fRepCree(racine + "\bleu")
+	fRepCree(racine + "\rouge")
+
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 0, 255)), racine + "\bleu\b1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 0, 255)), racine + "\bleu\b2.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 0, 0)), racine + "\rouge\r1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 0, 0)), racine + "\rouge\r2.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 0, 0)), racine + "\rouge\r3.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	dbgVérifieEgalité(ds..Taille, 5, "5 images au total (2 + 3)")
+	dbgVérifieEgalité(ds..NbClasses, 2, "2 sous-dossiers -> 2 classes")
+	dbgVérifieEgalité(ds..Classes[1], "bleu", "Classes[1] = premier dossier par ordre alphabétique")
+	dbgVérifieEgalité(ds..Classes[2], "rouge", "Classes[2] = second dossier par ordre alphabétique")
+	dbgVérifieEgalité(ds..Source, racine, "..Source = chemin racine passé au chargeur")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// L'indexation ds[i] rend une ImageÉtiquetée dont ..Chemin est le fichier
+// disque exact, ..Étiquette le nom du dossier parent, et ..Image une
+// matérialisation paresseuse : ..Image..Largeur/..Hauteur reflètent les
+// dimensions réelles du fichier PNG une fois lues.
+PROCEDURE PUBLIQUE scenario_indexation_expose_chemin_etiquette_et_image_paresseuse()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dossier_indexation"
+	fRepCree(racine + "\rouge")
+
+	cheminImage est une chaîne = racine + "\rouge\carre.png"
+	dSauveImagePNG(dCréeImage(4, 3, RVB(255, 0, 0)), cheminImage)
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	exemple est un ImageÉtiquetée = ds[1]
+
+	dbgVérifieEgalité(exemple..Chemin, cheminImage, "..Chemin pointe le fichier exact sur disque")
+	dbgVérifieEgalité(exemple..Étiquette, "rouge", "..Étiquette = nom du dossier parent")
+	dbgVérifieEgalité(exemple..Image..Largeur, 4, "..Image matérialisée : largeur réelle du PNG")
+	dbgVérifieEgalité(exemple..Image..Hauteur, 3, "..Image matérialisée : hauteur réelle du PNG")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// La forme anglaise LoadLabeledImagesFromFolder / ..Count / ..ClassCount /
+// ..Classes / ..Source désigne le même chargement.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	root est a string = fRepTemp() + "\owl_test_1675_dossier_english"
+	fRepCree(root + "\cat")
+	fRepCree(root + "\dog")
+
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), root + "\cat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), root + "\dog\d1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), root + "\dog\d2.png")
+
+	ds is a Dataset of LabeledImage = LoadLabeledImagesFromFolder(root)
+
+	dbgVérifieEgalité(ds..Count, 3, "LoadLabeledImagesFromFolder : ..Count = 3")
+	dbgVérifieEgalité(ds..ClassCount, 2, "LoadLabeledImagesFromFolder : ..ClassCount = 2")
+	dbgVérifieEgalité(ds..Classes[1], "cat", "LoadLabeledImagesFromFolder : ..Classes[1] = cat")
+	dbgVérifieEgalité(ds..Source, root, "LoadLabeledImagesFromFolder : ..Source = root")
+
+	fRepSupprime(root, frRécursif)
+FIN
+
+
+// Cas limite : un chemin de dossier inexistant est refusé proprement (pas de
+// plantage), signalé par une exception attrapable.
+PROCEDURE PRIVÉE scenario_edge_dossier_inexistant_leve_exception()
+	cheminInexistant est une chaîne = fRepTemp() + "\owl_test_1675_dossier_absent_xyzzy"
+	dbgVérifieEgalité(fRepExiste(cheminInexistant), Faux, "précondition : le dossier n'existe pas")
+
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(cheminInexistant)
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ChargeImagesÉtiquetéesDepuisDossier sur dossier inexistant lève une exception")
+FIN
+
+
+// Cas limite : un fichier non-image (ou image corrompue) présent dans un
+// dossier-classe n'empêche pas le chargement du Dataset (la matérialisation
+// est paresseuse) mais lève une exception attrapable à la lecture de
+// ..Image sur cet exemple précis.
+PROCEDURE PRIVÉE scenario_edge_fichier_image_invalide_echoue_a_la_lecture()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dossier_image_invalide"
+	fRepCree(racine + "\classeA")
+
+	cheminInvalide est une chaîne = racine + "\classeA\pasuneimage.png"
+	fSauveTexte(cheminInvalide, "ceci n'est pas un fichier PNG")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dbgVérifieEgalité(ds..Taille, 1, "le fichier invalide est listé comme exemple (matérialisation différée)")
+
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		largeur est un entier = ds[1]..Image..Largeur
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "la lecture paresseuse d'une image invalide lève une exception")
+
+	fRepSupprime(racine, frRécursif)
+FIN

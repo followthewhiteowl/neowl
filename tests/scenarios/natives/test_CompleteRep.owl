@@ -1,0 +1,80 @@
+// @sujet : CompleteRep
+// @resume : Ajout du separateur de repertoire final si absent
+
+// CompleteRep ajoute le separateur de repertoire approprie a la plateforme
+// (\ sous Windows, / sous Linux/macOS) a la fin d'un chemin, si celui-ci
+// ne se termine pas deja par un tel separateur. Utilise pour normaliser
+// les chemins avant concatenation avec un nom de fichier.
+
+PROCEDURE PUBLIQUE scenario_ajout_separateur_nominal()
+	// Chemin standard sans separateur final : doit ajouter le separateur
+	chemin est une chaîne = "C:\donnees\projet"
+	resultat est une chaîne = ComplèteRep(chemin)
+
+	dbgVérifieVrai(FinitPar(resultat, "\") OU FinitPar(resultat, " / "), "Separateur final Ajoute")
+	dbgVérifieVrai(Taille(resultat) = Taille(chemin) + 1, "Un seul caractere ajoute")
+FIN
+
+PROCEDURE PUBLIQUE scenario_separateur_deja_present()
+	// Chemin qui se termine deja par un separateur : ne doit rien ajouter
+	chemin_windows est une chaîne = "C:\donnees\"
+	resultat_win est une chaîne = ComplèteRep(chemin_windows)
+	dbgVérifieEgalité(resultat_win, chemin_windows, "Separateur Windows deja present")
+
+	chemin_unix est une chaîne = "/home/user/"
+	resultat_unix est une chaîne = ComplèteRep(chemin_unix)
+	dbgVérifieEgalité(resultat_unix, chemin_unix, "Separateur Unix deja present")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chemins_limites()
+	// Cas limite : chemin vide reste vide (rien a completer)
+	vide est une chaîne = ""
+	res_vide est une chaîne = ComplèteRep(vide)
+	dbgVérifieEgalité(res_vide, "", "Chemin vide reste vide")
+
+	// Racine Windows : doit ajouter le separateur apres le deux-points
+	racine_win est une chaîne = "C:"
+	res_racine_win est une chaîne = ComplèteRep(racine_win)
+	dbgVérifieEgalité(res_racine_win, "C:\", "Racine Windows completee")
+
+	// Racine Unix : deja un separateur, ne change rien
+	racine_unix est une chaîne = "/"
+	res_racine_unix est une chaîne = ComplèteRep(racine_unix)
+	dbgVérifieEgalité(res_racine_unix, "/", "Racine Unix inchangee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chemins_relatifs()
+	// Chemins relatifs doivent aussi recevoir le separateur final
+	relatif_simple est une chaîne = "..\parent"
+	res_relatif est une chaîne = ComplèteRep(relatif_simple)
+	dbgVérifieVrai(FinitPar(res_relatif, "\") OU FinitPar(res_relatif, " / "), "Chemin relatif Complète")
+
+	point_seul est une chaîne = "."
+	res_point est une chaîne = ComplèteRep(point_seul)
+	dbgVérifieVrai(res_point = ".\" OU res_point = ". / ", "Point courant Complète")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_double_separateur_interne()
+	// Verifie que les doubles separateurs internes ne sont PAS normalises
+	// (CompleteRep ajoute uniquement a la fin, ne touche pas le reste)
+	chemin_double est une chaîne = "C:\dossier\\sous_dossier"
+	res_double est une chaîne = ComplèteRep(chemin_double)
+	dbgVérifieVrai(Contient(res_double, "\\"), "Double separateur interne preserve")
+	dbgVérifieVrai(FinitPar(res_double, "\") OU FinitPar(res_double, " / "), "Separateur final Ajoute malgre double interne")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chemin_avec_espaces()
+	// Chemins contenant des espaces doivent etre traites normalement
+	avec_espaces est une chaîne = "C:\Mes Documents\Projet OWL"
+	res_espaces est une chaîne = ComplèteRep(avec_espaces)
+	dbgVérifieVrai(FinitPar(res_espaces, "\") OU FinitPar(res_espaces, " / "), "Chemin AVEC espaces Complète")
+	dbgVérifieVrai(Contient(res_espaces, "Mes Documents"), "Contenu avec espaces preserve")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_separateurs_mixtes()
+	// Verifie le comportement avec des separateurs mixtes Windows/Unix
+	// (CompleteRep ajoute le separateur plateforme, mais ne convertit pas l'existant)
+	mixte est une chaîne = "C:/donnees\projet"
+	res_mixte est une chaîne = ComplèteRep(mixte)
+	dbgVérifieVrai(FinitPar(res_mixte, "\") OU FinitPar(res_mixte, " / "), "Separateur final Ajoute meme AVEC melange")
+FIN

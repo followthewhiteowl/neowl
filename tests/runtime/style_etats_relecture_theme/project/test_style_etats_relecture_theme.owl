@@ -1,0 +1,71 @@
+// Relecture d'un ÉTAT depuis un style déclaré dans un fichier VOISIN. Deux
+// chemins de lecture cohabitent et doivent rendre la même valeur :
+//   1. le namespace du thème (`theme.<style>`) — seul chemin d'un style de
+//      thème, qui n'expose aucun nom nu ;
+//   2. une variable de style ordinaire déclarée chez un voisin, hors de tout
+//      bloc thème, lue par son nom nu.
+//
+// Le crochet `[survol]` doit être résolu comme une palette d'états, pas comme
+// une indexation de tableau — sur les DEUX chemins. La contre-épreuve
+// d'indexation vit dans le même fichier : les tableaux voisins doivent
+// continuer à s'indexer normalement.
+
+Trace("=== relecture d'états depuis un style déclaré chez un voisin ===")
+
+// --- 1. styleSaisie du thème : l'état relu rend la valeur posée, forme FR ---
+dbgVérifieEgalité(theme.stRelSaisie..ZoneSaisie..Etats[survol]..CouleurFond, RVB(200, 10, 10),
+"styleSaisie : Etats[survol]..CouleurFond relu = la valeur posée")
+dbgVérifieEgalité(theme.stRelSaisie..ZoneSaisie..Etats[focus]..CouleurFond, RVB(10, 200, 10),
+"styleSaisie : Etats[focus]..CouleurFond relu = la valeur posée")
+
+// --- 2. styleSaisie du thème : forme EN, même valeur (invariant bilingue) ---
+dbgVérifieEgalité(theme.stRelSaisie..ZoneSaisie..Etats[hover]..CouleurFond, RVB(200, 10, 10),
+"styleSaisie : Etats[hover] (EN) relu = Etats[survol] (FR)")
+
+// --- 3. styleOnglet : même relecture sur l'autre famille ---
+dbgVérifieEgalité(theme.stRelOnglet..VoletActif..Etats[survol]..CouleurFond, RVB(10, 10, 200),
+"styleOnglet : VoletActif..Etats[survol]..CouleurFond relu = la valeur posée")
+dbgVérifieEgalité(theme.stRelOnglet..VoletActif..Etats[hover]..CouleurFond, RVB(10, 10, 200),
+"styleOnglet : Etats[hover] (EN) relu = Etats[survol] (FR)")
+
+// --- 4. La base reste lisible et distincte de l'état ---
+dbgVérifieEgalité(theme.stRelSaisie..ZoneSaisie..CouleurFond, RVB(255, 255, 255),
+"styleSaisie : la propriété de base reste celle posée hors état")
+dbgVérifieDifférence(theme.stRelSaisie..ZoneSaisie..CouleurFond,
+theme.stRelSaisie..ZoneSaisie..Etats[survol]..CouleurFond,
+"styleSaisie : base et état sont bien deux valeurs distinctes")
+dbgVérifieEgalité(theme.stRelOnglet..VoletActif..CouleurFond, RVB(255, 255, 255),
+"styleOnglet : la propriété de base reste celle posée hors état")
+
+// --- 5. Second chemin : variable de style ordinaire d'un fichier voisin ---
+// Ce style-là n'appartient à aucun thème : son nom nu est le chemin normal.
+dbgVérifieEgalité(stRelVoisin..ZoneSaisie..Etats[survol]..CouleurFond, RVB(200, 10, 10),
+"variable voisine : Etats[survol] relu = la valeur posée")
+dbgVérifieEgalité(stRelVoisin..ZoneSaisie..Etats[focus]..CouleurFond, RVB(10, 200, 10),
+"variable voisine : Etats[focus] relu = la valeur posée")
+dbgVérifieEgalité(stRelVoisin..ZoneSaisie..Etats[hover]..CouleurFond, RVB(200, 10, 10),
+"variable voisine : Etats[hover] (EN) relu = Etats[survol] (FR)")
+dbgVérifieEgalité(stRelVoisin..ZoneSaisie..CouleurFond, RVB(255, 255, 255),
+"variable voisine : la propriété de base reste celle posée hors état")
+
+// Les deux chemins rendent la même valeur pour le même état.
+dbgVérifieEgalité(theme.stRelSaisie..ZoneSaisie..Etats[survol]..CouleurFond,
+stRelVoisin..ZoneSaisie..Etats[survol]..CouleurFond,
+"état relu : namespace du thème = variable de style voisine")
+
+// --- 6. Contre-épreuve : l'indexation de tableau reste intacte ---
+dbgVérifieEgalité(tRelPlat[1], 10, "indexation voisine : t[1] inchangé")
+dbgVérifieEgalité(tRelPlat[3], 30, "indexation voisine : t[3] inchangé")
+
+nIdx est un entier = 2
+dbgVérifieEgalité(tRelPlat[nIdx], 20, "indexation voisine par variable : t[i] inchangé")
+
+tRelGrille[1, 1] = 11
+tRelGrille[2, 2] = 22
+dbgVérifieEgalité(tRelGrille[1, 1], 11, "indexation 2D voisine : t[i, j] inchangé")
+dbgVérifieEgalité(tRelGrille[2, 2], 22, "indexation 2D voisine : t[i, j] inchangé (2)")
+
+tLocal est un tableau de entiers = [7, 8]
+dbgVérifieEgalité(tLocal[2], 8, "indexation locale : t[i] inchangé")
+
+dbgBilanTest()

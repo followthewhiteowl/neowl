@@ -1,0 +1,23 @@
+// test_ui_arity.owl
+// Verrouille les formes d'arite discretes des natives UI
+// migrees depuis une signature variadique a minimum masque : les formes
+// valides continuent de compiler ET de s'executer hors contexte GUI.
+
+PROCEDURE PUBLIQUE test_donne_focus_formes()
+	// DonneFocus migre de variadique masque vers {0, 1}. Hors fenetre
+	// ouverte les deux formes sont des no-op silencieux (pas de crash,
+	// pas d'erreur). On verifie que chaque forme valide s'execute.
+	DonneFocus() // forme 0 arg : focus au champ courant
+	DonneFocus("SAI_Inexistant") // forme 1 arg : champ cible par nom
+	dbgVérifieVrai(Vrai, "DonneFocus 0 et 1 arg : executes sans crash")
+FIN
+
+PROCEDURE PUBLIQUE test_mode_headless_getter_setter()
+	// Sanity getter/setter (forme variadique conservee) : reste appelable
+	// en 0 arg (getter) et 1 arg (setter).
+	dbgVérifieVrai(TestModeHeadless(), "TestModeHeadless 0 arg : getter actif sous test")
+	TestModeHeadless(Faux)
+	dbgVérifieFaux(TestModeHeadless(), "TestModeHeadless 1 arg : setter Faux")
+	TestModeHeadless(Vrai)
+	dbgVérifieVrai(TestModeHeadless(), "TestModeHeadless 1 arg : setter Vrai")
+FIN

@@ -1,0 +1,99 @@
+//  — CadrageHorizontal du texte % d'un Champ Jauge (canon de référence,
+// documentation de référence : « cadrage horizontal du pourcentage de progression affiché
+// dans la jauge »). Réutilise l'enum d'alignement canon (chGauche / chCentre
+// / chDroite). Défaut de rendu = centre (comportement historique inchangé).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageChamp +
+// dPixelCouleur). Cf. FEN_JaugeCadrageH.owl. Valeur = 0 => barre entièrement
+// remplie par CouleurFond (aucun chunk), fond uniforme ; le texte % est peint
+// par-dessus en RVB(230,0,0). On localise le centroïde horizontal des pixels
+// de texte sur la ligne médiane. Le fond de référence est échantillonné sur
+// une ligne haute (y=3), au-dessus des glyphes.
+//
+// Lecture d'une prop enum NON déclarée : renvoie Null (« non défini »),
+// convention OWL de read-back des contrôles nommés (cf.
+// champ_jauge_couleur : JAU_Sans..CouleurJauge = Null). Le défaut de rendu
+// (centre) est prouvé au pixel, pas par la valeur relue.
+
+TestModeHeadless(Faux)
+
+// Centroïde horizontal (moyenne des X) des pixels de texte sur la ligne
+// médiane du champ. -1 si aucun pixel de texte détecté.
+PROCEDURE CentroideTexte(img est une Image)
+	yBg est un entier = 3
+	xMid est un entier = img..Largeur / 2
+	bg est un entier = dPixelCouleur(img, xMid, yBg)
+	yMed est un entier = img..Hauteur / 2
+	somme est un entier = 0
+	nb est un entier = 0
+	x est un entier = 0
+	TANTQUE x < img..Largeur
+		c est un entier = dPixelCouleur(img, x, yMed)
+		SI c <> bg ALORS
+			somme = somme + x
+			nb    = nb + 1
+		FIN
+		x = x + 1
+	FIN
+	SI nb = 0 ALORS
+		RENVOYER -1
+	FIN
+	RENVOYER somme / nb
+FIN
+
+OuvreSoeur(FEN_JaugeCadrageH)
+
+// ---------- Round-trip exact de la propriété déclarée (lecture) ----------
+dbgVérifieEgalité(JAU_Gauche..CadrageHorizontal, chGauche,
+"JAU_Gauche : CadrageHorizontal déclaré = chGauche relu à l'identique")
+dbgVérifieEgalité(JAU_Droite..CadrageHorizontal, chDroite,
+"JAU_Droite : CadrageHorizontal déclaré = chDroite relu à l'identique")
+// Alias EN cohérent.
+dbgVérifieEgalité(JAU_Droite..HorizontalAlignment, chDroite,
+"JAU_Droite : ..HorizontalAlignment (EN) cohérent avec ..CadrageHorizontal")
+// Non déclaré : Null (« non défini »), le rendu par défaut restant centré
+// (prouvé au pixel plus bas).
+dbgVérifieVrai(JAU_Centre..CadrageHorizontal = Null,
+"JAU_Centre : CadrageHorizontal non déclaré renvoie Null (non défini)")
+
+// ---------- Preuve pixel : le texte se cale réellement (état déclaré) -----
+imgG est une Image = dCopieImageChamp(JAU_Gauche)
+dbgVérifieEgalité(imgG..Valide, Vrai, "chGauche : capture valide")
+imgD est une Image = dCopieImageChamp(JAU_Droite)
+dbgVérifieEgalité(imgD..Valide, Vrai, "chDroite : capture valide")
+// JAU_Centre capturé AVANT toute écriture runtime : état défaut pur (centre).
+imgC est une Image = dCopieImageChamp(JAU_Centre)
+dbgVérifieEgalité(imgC..Valide, Vrai, "défaut : capture valide")
+
+cG est un entier = CentroideTexte(imgG)
+cD est un entier = CentroideTexte(imgD)
+cC est un entier = CentroideTexte(imgC)
+
+// Du texte est rendu dans les trois cas.
+dbgVérifieVrai(cG > 0, "chGauche : du texte % est rendu")
+dbgVérifieVrai(cD > 0, "chDroite : du texte % est rendu")
+dbgVérifieVrai(cC > 0, "défaut : du texte % est rendu")
+
+demi est un entier = imgG..Largeur / 2
+
+// chGauche : centroïde du texte dans la moitié gauche.
+dbgVérifieVrai(cG < demi, "chGauche : texte calé dans la moitié gauche")
+// chDroite : centroïde du texte dans la moitié droite.
+dbgVérifieVrai(cD > demi, "chDroite : texte calé dans la moitié droite")
+// Ordre strict gauche < centre(défaut) < droite (mêmes glyphes, même largeur).
+dbgVérifieVrai(cG < cC, "cadrage : gauche plus à gauche que le défaut (centre)")
+dbgVérifieVrai(cC < cD, "cadrage : défaut (centre) plus à gauche que droite")
+
+// ---------- Application runtime : set chGauche recale le texte à gauche ----
+JAU_Centre..CadrageHorizontal = chGauche
+dbgVérifieEgalité(JAU_Centre..CadrageHorizontal, chGauche,
+"JAU_Centre : set runtime chGauche puis get = chGauche")
+imgC2 est une Image = dCopieImageChamp(JAU_Centre)
+cC2 est un entier = CentroideTexte(imgC2)
+dbgVérifieVrai(cC2 < demi,
+"JAU_Centre : après set runtime chGauche, texte recalé dans la moitié gauche")
+dbgVérifieVrai(cC2 < cC,
+"JAU_Centre : set runtime chGauche déplace le texte vers la gauche vs défaut")
+
+Ferme(FEN_JaugeCadrageH)
+dbgBilanTest()

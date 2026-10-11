@@ -1,0 +1,72 @@
+// Regression : verifie que les types SQL respectent le pattern OWL standard
+// (cf httpRequete) : un seul field stocke en ASCII, le compilateur fait
+// l'accent-strip au lookup. Pas de doublon dans le template.
+//
+// Bugs historiques couverts par ce test :
+// 1. obj_copy_string("sqlRequête", 9) tronquait a "sqlRequê" (9 bytes au
+//    lieu des 11 reels en UTF-8) -> le structName etait casse, SQLEnvoie
+//    rejetait la requete avec "arg2 doit etre une sqlRequete".
+// 2. Le template stockait deux fields distincts (Paramètres + Parametres)
+//    au lieu d'un seul ASCII. Resultat : `req..Parametres["x"] = "y"` puis
+//    lecture de `req..Paramètres["x"]` retournait Null.
+
+// --- 1. Declaration avec nom accentue, lecture/ecriture mixees ---
+req est une sqlRequête
+req..Code            = "SELECT 1"
+req..Paramètres["a"] = "valeur_accentuee"
+req..Paramètres["b"] = "valeur_ascii" // ecrit dans le meme map
+dbgVérifieEgalité(req..Paramètres["a"], "valeur_accentuee", "Paramètres[a] OK")
+dbgVérifieEgalité(req..Paramètres["a"], "valeur_accentuee", "lecture sans accent voit la meme valeur")
+dbgVérifieEgalité(req..Paramètres["b"], "valeur_ascii", "ecriture ASCII visible cote accentue")
+
+// --- 2. Declaration ASCII puis acces accentue ---
+req2 est une sqlRequête
+req2..Code            = "X"
+req2..Paramètres["k"] = 42
+dbgVérifieEgalité(req2..Paramètres["k"], 42, "Paramètres lue accentue depuis decl ASCII")
+
+// --- 3. Declaration EN (sqlQuery) pointe vers le meme template ---
+// Les fields restent FR (canon de référence) — l'EN concerne les types et fonctions,
+// pas les proprietes (cf httpRequete : pas de Method, juste Methode).
+req3 est une sqlQuery
+req3..Code            = "Y"
+req3..Paramètres["k"] = "ok"
+dbgVérifieEgalité(req3..Paramètres["k"], "ok", "Paramètres FR lue depuis decl EN")
+
+// --- 4. sqlConnexion : meme test sur field BaseDeDonnées ---
+cnx est une sqlConnexion
+cnx..BaseDeDonnées = "X"
+dbgVérifieEgalité(cnx..BaseDeDonnées, "X", "Connexion : BaseDeDonnées lu sans accent")
+
+// --- 5. sqlReponse : Succès + LignesAffectées ---
+rep est une sqlRéponse
+dbgVérifieEgalité(rep..Succès, Faux, "Reponse : Succès initial Faux (accentue)")
+dbgVérifieEgalité(rep..Succès, Faux, "Reponse : Succes lu ASCII")
+dbgVérifieEgalité(rep..LignesAffectées, 0, "LignesAffectées initial 0 (accentue)")
+dbgVérifieEgalité(rep..LignesAffectées, 0, "LignesAffectees lu ASCII")
+
+// --- 6. structName non tronque : SQLEnvoie matche les requetes
+//        creees via les 3 variantes (accentue / ASCII / EN) ---
+cnxRun est une sqlConnexion
+cnxRun..Provider = sqlSqlite
+cnxRun..Source   = ":memory:"
+cnxRun.Ouvre()
+
+reqA est une sqlRequête
+reqA..Code = "SELECT 1 AS n"
+repA est une sqlRéponse = SQLEnvoie(cnxRun, reqA)
+dbgVérifieEgalité(repA..Succès, Vrai, "SQLEnvoie accepte une requete decl accentuee")
+
+reqB est une sqlRequête
+reqB..Code = "SELECT 2 AS n"
+repB est une sqlRéponse = SQLEnvoie(cnxRun, reqB)
+dbgVérifieEgalité(repB..Succès, Vrai, "SQLEnvoie accepte une requete decl ASCII")
+
+reqC est une sqlQuery
+reqC..Code = "SELECT 3 AS n"
+repC est une sqlRéponse = SQLEnvoie(cnxRun, reqC)
+dbgVérifieEgalité(repC..Succès, Vrai, "SQLEnvoie accepte une requete decl EN")
+
+cnxRun.Ferme()
+
+dbgBilanTest()

@@ -1,0 +1,179 @@
+// Scenarios : collision nom variable vs type de données
+//
+// Vérifie la règle de mots réservés pour les TOKEN_TYPE primitifs du scanner :
+// - BLOQUÉS : scalaires primitifs (chaîne, entier, ...), composites structurels
+//   (tableau, structure, ...), modificateurs (fixe, dynamique, ...), déclarateurs
+//   OOP/proc (classe, procedure, ...)
+// - LIBRES : types valeur datetime (date, heure, durée, dateheure), types valeur
+//   (json, uuid), types registry (httpRequête, chrono, ...), types user
+//   (Structure/Classe déclarées par l'utilisateur)
+//
+// Ce scénario couvre uniquement les CAS LIBRES avec assertions runtime.
+// Les cas BLOQUÉS sont couverts par les fixtures compile-error dédiées.
+
+
+// Classe déclarée au top-level (pour tester collision nom var vs type user)
+TestCollisionClasse est une Classe
+PUBLIC
+	Val est un entier
+FIN
+
+
+PROCEDURE scenario_types_datetime_toplevel()
+	// Les types valeur datetime (date, heure, dateheure, durée) sont LIBRES
+	// comme noms de variable — ils ne sont PAS des mots-clés réservés.
+
+	// Durée : 5 secondes (5000 ms)
+	durée est une durée = 5000
+	dbgVérifieEgalité(durée, 5000, "durée top-level")
+
+	// Date : 4 juin 2026
+	date est une date = ChaîneVersDate("20260604")
+	dbgVérifieEgalité(date..Année, 2026, "date.Année top-level")
+	dbgVérifieEgalité(date..Mois, 6, "date.Mois top-level")
+	dbgVérifieEgalité(date..Jour, 4, "date.Jour top-level")
+
+	// Heure : 14:30:00
+	heure est une heure = ChaîneVersHeure("143000")
+	sHeure est une chaîne = heure
+	dbgVérifieEgalité(sHeure, "14300000", "heure top-level cast chaîne")
+
+	// DateHeure : 2026-06-04 14:30:00
+	dateheure est une dateheure = ChaîneVersDate("2026-06-04 14:30:00", "AAAA-MM-JJ HH:MI:SS")
+	dbgVérifieEgalité(dateheure..Année, 2026, "dateheure.Année top-level")
+	dbgVérifieEgalité(dateheure..Mois, 6, "dateheure.Mois top-level")
+	dbgVérifieEgalité(dateheure..Jour, 4, "dateheure.Jour top-level")
+FIN
+
+
+PROCEDURE scenario_types_valeur_toplevel()
+	// Les types valeur (json, uuid) sont également libres
+
+	// JSON : objet simple
+	json est un json = ChaîneVersJSON(`{"cle":"valeur"}`)
+	sCle est une chaîne = json.cle
+	dbgVérifieEgalité(sCle, "valeur", "json top-level accès membre")
+
+	// UUID : v4 aléatoire
+	UUID est un UUID = DonneUUID()
+	dbgVérifieVrai(UUID <> Null, "uuid top-level non-null")
+FIN
+
+
+PROCEDURE scenario_types_datetime_local()
+	// Même règle en scope local de procédure
+	PROCEDURE TestLocal()
+		durée est une durée = 10000
+		dbgVérifieEgalité(durée, 10000, "durée local")
+
+		date est une date = ChaîneVersDate("20000101")
+		dbgVérifieEgalité(date..Année, 2000, "date local")
+
+		heure est une heure = ChaîneVersHeure("120000")
+		sH est une chaîne = heure
+		dbgVérifieEgalité(sH, "12000000", "heure local")
+
+		json est un json = ChaîneVersJSON(`{"x":42}`)
+		nX est un entier = json.x
+		dbgVérifieEgalité(nX, 42, "json local")
+
+		UUID est un UUID = DonneUUID()
+		dbgVérifieVrai(UUID <> Null, "uuid local non-null")
+	FIN
+
+	TestLocal()
+FIN
+
+
+PROCEDURE scenario_types_datetime_parametre()
+	// Types libres comme noms de paramètre
+	PROCEDURE AccepteDurée(durée est une durée)
+		dbgVérifieEgalité(durée, 15000, "durée param")
+	FIN
+
+	PROCEDURE AccepteDate(date est une date)
+		dbgVérifieEgalité(date..Année, 2026, "date param")
+	FIN
+
+	PROCEDURE AccepteHeure(heure est une heure)
+		sH est une chaîne = heure
+		dbgVérifieEgalité(sH, "14300000", "heure param")
+	FIN
+
+	PROCEDURE AccepteJson(json est un json)
+		sVal est une chaîne = json.test
+		dbgVérifieEgalité(sVal, "ok", "json param")
+	FIN
+
+	PROCEDURE AccepteUuid(UUID est un UUID)
+		dbgVérifieVrai(UUID <> Null, "uuid param non-null")
+	FIN
+
+	AccepteDurée(15000)
+	AccepteDate(ChaîneVersDate("20260604"))
+	AccepteHeure(ChaîneVersHeure("143000"))
+	AccepteJson(ChaîneVersJSON(`{"test":"ok"}`))
+	AccepteUuid(DonneUUID())
+FIN
+
+
+PROCEDURE scenario_types_registry_libres()
+	// Les types registry (httpRequête, chrono, etc.) sont libres
+	// comme noms de variable — ils ne sont PAS des mots-clés réservés du langage.
+
+	httpRequête est une chaîne = "nom de var libre"
+	dbgVérifieEgalité(httpRequête, "nom de var libre", "httpRequête comme nom de var")
+
+	chrono est un entier = 42
+	dbgVérifieEgalité(chrono, 42, "chrono comme nom de var")
+FIN
+
+
+PROCEDURE scenario_types_user_libres()
+	// Les types user (Structure/Classe/Énumération déclarées par l'utilisateur)
+	// sont libres comme noms de variable.
+
+	MaStruct est une Structure
+		x est un entier
+	FIN
+
+	// Note : déclarer ici `MaStruct est une chaîne = "collision"` est désormais
+	// une erreur compile (cf. tests/compile-error/var_collides_struct_in_proc.owl).
+	// La règle : on ne peut PAS réutiliser comme variable un nom déjà pris par
+	// une Structure/Énumération déclarée dans la MÊME procédure.
+
+	// L'accès au type user classe top-level reste valide ici (pas de shadow
+	// dans cette procédure).
+	inst est un TestCollisionClasse
+	inst.Val = 123
+	dbgVérifieEgalité(inst.Val, 123, "type user classe accessible")
+FIN
+
+
+// Edge cases PRIVÉS : cas limites proactifs (HARD RULE 2bis)
+
+PROCEDURE PRIVÉE scenario_edge_datetime_zero()
+	// Durée zéro
+	durée est une durée = 0
+	dbgVérifieEgalité(durée, 0, "durée zéro collision nom")
+
+	// Date epoch
+	date est une date = ChaîneVersDate("19700101")
+	dbgVérifieEgalité(date..Année, 1970, "date epoch collision nom")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_json_null()
+	// JSON null littéral : ChaîneVersJSON("null") retourne un JSON valide (pas Null OWL)
+	json est un json = ChaîneVersJSON("null")
+	dbgVérifieVrai(json <> Null, "json null collision nom — json valide")
+	sJson est une chaîne = JSONVersChaîne(json)
+	dbgVérifieEgalité(sJson, "null", "json null collision nom — roundtrip")
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_registry_chaine_vide()
+	// Type registry utilisé comme nom de var avec valeur sentinelle
+	httpRequête est une chaîne = ""
+	dbgVérifieEgalité(httpRequête, "", "httpRequête chaîne vide collision nom")
+FIN

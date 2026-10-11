@@ -1,0 +1,39 @@
+//  : un tableau associatif de type non-primitif (objets, ex.
+// httpRequête) doit auto-vivifier ses entrées aussi bien en ECRITURE qu'en
+// LECTURE d'une clé absente. Comportement de référence mesuré (cf. ticket
+// ) :
+//   - objets    : écriture ET lecture d'une clé absente créent l'entrée
+//   - scalaires : seule l'écriture crée l'entrée ; la lecture rend le
+//                 défaut SANS créer (asymétrie assumée, mesurée à l'oracle)
+
+// --- Objets : écriture d'un champ sur clé absente auto-vivifie ---
+r1547_reqs est un tableau associatif de httpRequête
+r1547_reqs["principale"]..URL = "https://exemple.test/api"
+dbgVérifieEgalité(r1547_reqs["principale"]..URL, "https://exemple.test/api",
+"1547 : écriture d'un champ sur clé absente crée l'entrée, relecture rend la valeur écrite")
+dbgVérifieEgalité(r1547_reqs..Occurrence, 1, "1547 : écriture clé absente (objet) -> occurrence = 1")
+
+// --- Objets : lecture d'un champ sur clé absente auto-vivifie aussi ---
+r1547_lecture est un tableau associatif de httpRequête
+dbgVérifieEgalité(r1547_lecture..Occurrence, 0, "1547 : tableau vide avant toute lecture")
+r1547_urlDefaut est une chaîne = r1547_lecture["absente"]..URL
+dbgVérifieEgalité(r1547_urlDefaut, "", "1547 : lecture d'une clé absente (objet) rend la valeur par défaut")
+dbgVérifieEgalité(r1547_lecture..Occurrence, 1, "1547 : lecture d'une clé absente (objet) crée l'entrée (occurrence = 1)")
+
+// --- Objets : indépendance des cellules créées ---
+r1547_indep est un tableau associatif de httpRequête
+r1547_indep["a"]..URL = "https://exemple.test/a"
+r1547_indep["b"]..URL = "https://exemple.test/b"
+dbgVérifieEgalité(r1547_indep["a"]..URL, "https://exemple.test/a", "1547 : cellule a porte sa propre valeur")
+dbgVérifieEgalité(r1547_indep["b"]..URL, "https://exemple.test/b", "1547 : cellule b porte sa propre valeur")
+dbgVérifieEgalité(r1547_indep..Occurrence, 2, "1547 : deux clés distinctes -> occurrence = 2")
+
+// --- Scalaires : écriture crée, lecture ne crée PAS (asymétrie assumée) ---
+r1547_scalaires est un tableau associatif de chaînes
+dbgVérifieEgalité(r1547_scalaires["absente_lecture"], "", "1547 : lecture clé absente (scalaire) rend le défaut")
+dbgVérifieEgalité(r1547_scalaires..Occurrence, 0, "1547 : lecture clé absente (scalaire) NE crée PAS l'entrée")
+r1547_scalaires["nouvelle"] = "X"
+dbgVérifieEgalité(r1547_scalaires["nouvelle"], "X", "1547 : écriture clé absente (scalaire) crée l'entrée, relecture rend la valeur")
+dbgVérifieEgalité(r1547_scalaires..Occurrence, 1, "1547 : écriture clé absente (scalaire) -> occurrence = 1")
+
+dbgBilanTest()

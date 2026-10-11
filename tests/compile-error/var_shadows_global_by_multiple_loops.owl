@@ -1,0 +1,29 @@
+// Compile-time error : stress-test multi-loops shadow
+//
+//  audit complet declare_variable + resolve_local sans check -1.
+// Cette fixture empile QUATRE types de boucles avec shadow scope-different.
+// Objectif : si l'implementer rate un site, cette fixture crashe (avec pad debug).
+// Sans le fix, elle doit emettre 4 erreurs shadow (pas de crash car bug silencieux).
+
+i est un entier = 100
+elem est une chaine = "global"
+sc est une chaine = "global"
+pos est un entier = 999
+
+POUR i = 1 À 3
+	Trace(i)
+FIN
+
+POUR TOUT elem DANS ["a", "b"]
+	Trace(elem)
+FIN
+
+POUR TOUTE CHAÎNE sc DE "x|y" SÉPARÉE PAR "|"
+	Trace(sc)
+FIN
+
+POUR TOUTE POSITION pos DE "z" DANS "zzz"
+	Trace(pos)
+FIN
+
+Trace(i, elem, sc, pos)

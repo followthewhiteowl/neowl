@@ -1,0 +1,87 @@
+//  — PoliceCouleur raccourci plat (FR) et FontColor (EN) doivent
+// colorer le texte, declare ET runtime, sur Libelle et Bouton.
+//
+// ROUGE attendu avant impl :
+//   - Compile-error "propriete inconnue" pour PoliceCouleur/FontColor dans
+//     le DSL declare (FEN_PoliceCouleur.owl ne compile pas).
+//   - Apres ajout au registry : pixels de couleur absents tant que le
+//     dispatch runtime n'est pas branche.
+//
+// Volet DECLARE : capture pixel (dCopieImageChamp headless).
+// Volet RUNTIME : getter PoliceCouleur relu apres set (biais headless
+//   connu : rematerialise depuis declaratif, pas depuis l'etat live).
+//
+// Encoding dPixelCouleur : BGR 24-bit = R + V*256 + B*65536, identique RVB.
+//   Libelle  cyan    RVB(0,255,255) = 16776960
+//   Bouton   jaune   RVB(255,255,0) = 65535
+
+CONSTANTE FOND_SOMBRE_RC = 1315860 // RVB(20,20,20)
+CONSTANTE TXT_CYAN_RC = 16776960 // RVB(0,255,255)  Libelle
+CONSTANTE TXT_JAUNE_RC = 65535 // RVB(255,255,0)  Bouton
+
+Ouvre(FEN_PoliceCouleur)
+
+// ===== VOLET DECLARE : capture pixel =====
+
+// ---------- Libelle : PoliceCouleur cyan declare ----------
+imgLib2 est une Image = dCopieImageChamp(LIB_RaccourciCyan)
+dbgVérifieEgalité(imgLib2..Valide, Vrai, "Libelle : capture valide")
+nbTxtLib2 est un entier = 0
+nbFondLib2 est un entier = 0
+yLib2 est un entier = 0
+TANTQUE yLib2 < imgLib2..Hauteur
+	xLib2 est un entier = 0
+	TANTQUE xLib2 < imgLib2..Largeur
+		cLib2 est un entier = dPixelCouleur(imgLib2, xLib2, yLib2)
+		SI cLib2 = TXT_CYAN_RC ALORS
+			nbTxtLib2 = nbTxtLib2 + 1
+		FIN
+		SI cLib2 = FOND_SOMBRE_RC ALORS
+			nbFondLib2 = nbFondLib2 + 1
+		FIN
+		xLib2 = xLib2 + 1
+	FIN
+	yLib2 = yLib2 + 1
+FIN
+dbgVérifieVrai(nbFondLib2 > 100, "Libelle : CouleurFond sombre appliquee (fond present)")
+dbgVérifieVrai(nbTxtLib2 > 30, "Libelle : PoliceCouleur cyan declare appliquee (glyphes cyan)")
+
+// ---------- Bouton : PoliceCouleur jaune declare ----------
+imgBtn2 est une Image = dCopieImageChamp(BTN_RaccourciJaune)
+dbgVérifieEgalité(imgBtn2..Valide, Vrai, "Bouton : capture valide")
+nbTxtBtn2 est un entier = 0
+yBtn2 est un entier = 0
+TANTQUE yBtn2 < imgBtn2..Hauteur
+	xBtn2 est un entier = 0
+	TANTQUE xBtn2 < imgBtn2..Largeur
+		cBtn2 est un entier = dPixelCouleur(imgBtn2, xBtn2, yBtn2)
+		SI cBtn2 = TXT_JAUNE_RC ALORS
+			nbTxtBtn2 = nbTxtBtn2 + 1
+		FIN
+		xBtn2 = xBtn2 + 1
+	FIN
+	yBtn2 = yBtn2 + 1
+FIN
+dbgVérifieVrai(nbTxtBtn2 > 30, "Bouton : PoliceCouleur jaune declare appliquee (glyphes jaunes)")
+
+// ===== VOLET RUNTIME : getter/setter PoliceCouleur =====
+// Biais headless : la grab repart du declaratif. On verifie la coherence
+// getter/setter sans recourir a une nouvelle capture.
+
+// FR : PoliceCouleur getter/setter sur Libelle
+LIB_RaccourciCyan..PoliceCouleur = RVB(255, 0, 0)
+dbgVérifieEgalité(LIB_RaccourciCyan..PoliceCouleur, RVB(255, 0, 0),
+"runtime FR : PoliceCouleur setter/getter coherent (Libelle)")
+
+// EN : FontColor getter/setter sur Bouton
+BTN_RaccourciJaune..FontColor = RVB(0, 255, 255)
+dbgVérifieEgalité(BTN_RaccourciJaune..FontColor, RVB(0, 255, 255),
+"runtime EN : FontColor setter/getter coherent (Bouton)")
+
+// Symetrie FR/EN : ecriture FontColor lisible via PoliceCouleur
+BTN_RaccourciJaune..FontColor = RVB(128, 0, 255)
+dbgVérifieEgalité(BTN_RaccourciJaune..PoliceCouleur, RVB(128, 0, 255),
+"runtime : FontColor ecrit, PoliceCouleur lit (symetrie EN→FR)")
+
+Ferme(FEN_PoliceCouleur)
+dbgBilanTest()

@@ -1,0 +1,97 @@
+// @sujet : DernierJourDeLaSemaine
+// @résumé : Retourne le dimanche (dernier jour) de la semaine d'une date donnée.
+
+
+// Cas nominal : date milieu de semaine retourne le dimanche suivant.
+PROCEDURE PUBLIQUE scenario_milieu_semaine()
+	d est une date = ChaîneVersDate("20260603")
+	dimanche est une date = DernierJourDeLaSemaine(d)
+	// 3 juin 2026 = mercredi → dimanche 7 juin 2026.
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260607"), "mercredi 3 juin → dimanche 7 juin")
+FIN
+
+
+// Lundi (début de semaine) doit retourner le dimanche de cette même semaine.
+PROCEDURE PUBLIQUE scenario_lundi_debut_semaine()
+	lundi est une date = ChaîneVersDate("20260601")
+	dimanche est une date = DernierJourDeLaSemaine(lundi)
+	// 1er juin 2026 = lundi → dimanche 7 juin 2026 (même semaine).
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260607"), "lundi 1er juin → dimanche 7 juin même semaine")
+FIN
+
+
+// Samedi (avant-dernier jour) doit retourner le dimanche suivant (lendemain).
+PROCEDURE PUBLIQUE scenario_samedi()
+	samedi est une date = ChaîneVersDate("20260606")
+	dimanche est une date = DernierJourDeLaSemaine(samedi)
+	// 6 juin 2026 = samedi → dimanche 7 juin 2026 (lendemain).
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260607"), "samedi 6 juin → dimanche 7 juin lendemain")
+FIN
+
+
+// Dimanche (déjà dernier jour) : comportement idempotent.
+PROCEDURE PUBLIQUE scenario_dimanche_idempotent()
+	dimanche est une date = ChaîneVersDate("20260607")
+	resultat est une date = DernierJourDeLaSemaine(dimanche)
+	// Dimanche 7 juin 2026 → reste 7 juin 2026.
+	dbgVérifieEgalité(resultat, ChaîneVersDate("20260607"), "dimanche retourne lui-même")
+FIN
+
+
+// Transition fin de mois : semaine à cheval sur deux mois.
+PROCEDURE PRIVÉE scenario_edge_transition_mois()
+	d est une date = ChaîneVersDate("20260629")
+	dimanche est une date = DernierJourDeLaSemaine(d)
+	// 29 juin 2026 = lundi → dimanche 5 juillet 2026 (mois suivant).
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260705"), "29 juin lundi → 5 juillet dimanche mois suivant")
+FIN
+
+
+// Transition fin d'année : semaine à cheval sur deux années.
+PROCEDURE PRIVÉE scenario_edge_transition_annee()
+	d est une date = ChaîneVersDate("20251229")
+	dimanche est une date = DernierJourDeLaSemaine(d)
+	// 29 décembre 2025 = lundi → dimanche 4 janvier 2026.
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260104"), "29 décembre 2025 lundi → 4 janvier 2026 dimanche année suivante")
+FIN
+
+
+// Année bissextile : semaine incluant le 29 février.
+PROCEDURE PRIVÉE scenario_edge_bissextile()
+	d est une date = ChaîneVersDate("20240227")
+	dimanche est une date = DernierJourDeLaSemaine(d)
+	// 27 février 2024 = mardi → dimanche 3 mars 2024.
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20240303"), "27 février 2024 mardi → 3 mars 2024 dimanche (bissextile)")
+FIN
+
+
+// Entrée chaîne AAAAMMJJ : cast implicite.
+PROCEDURE PRIVÉE scenario_edge_entree_chaine()
+	dimanche est une date = DernierJourDeLaSemaine("20260615")
+	// 15 juin 2026 = lundi → dimanche 21 juin 2026.
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260621"), "15 juin 2026 (chaîne) lundi → 21 juin dimanche")
+FIN
+
+
+// Sans argument : dimanche de la semaine courante (basé sur DateSys()).
+PROCEDURE PUBLIQUE scenario_aucun_arg()
+	dimanche est une date = DernierJourDeLaSemaine()
+	// Doit être un dimanche (JourDeLaSemaine = 7 selon convention 1=lundi..7=dimanche).
+	dbgVérifieEgalité(JourDeLaSemaine(dimanche), 7, "DernierJourDeLaSemaine() retourne un dimanche")
+	// Et doit être dans la fenêtre [aujourd'hui, aujourd'hui+6] (semaine courante).
+	aujourdhui est une date = DateSys()
+	ecart est un entier = DateDifférence(aujourdhui, dimanche)
+	dbgVérifieVrai(ecart >= 0, "dimanche >= aujourd'hui (même semaine ou aujourd'hui dimanche)")
+	dbgVérifieVrai(ecart <= 6, "dimanche <= aujourd'hui + 6 jours (toujours dans la semaine courante)")
+FIN
+
+
+// Forme méthode : d.DernierJourDeLaSemaine() équivalent à DernierJourDeLaSemaine(d).
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	d est une date = ChaîneVersDate("20260603")
+	dimanche est une date = d.DernierJourDeLaSemaine()
+	// 3 juin 2026 = mercredi → dimanche 7 juin 2026.
+	dbgVérifieEgalité(dimanche, ChaîneVersDate("20260607"), "forme méthode : mercredi 3 juin → dimanche 7 juin")
+	// Cohérence avec la forme fonction globale.
+	dbgVérifieEgalité(d.DernierJourDeLaSemaine(), DernierJourDeLaSemaine(d), "forme méthode == forme globale")
+FIN

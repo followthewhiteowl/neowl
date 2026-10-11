@@ -1,0 +1,370 @@
+// @sujet : Tenseur.TrancheCanaux / Tenseur.ChannelSlice
+// @résumé : .TrancheCanaux(début, longueur) (alias .ChannelSlice(start,
+// length)) extrait les canaux [début, début+longueur) de l'axe 2 d'un
+// Tenseur de rang >= 2, forme [N, C, ...spatial] -> [N, longueur,
+// ...spatial]. Les indices sont 1-based, comme partout ailleurs dans
+// l'indexation Tenseur (..Valeur[1], ..Forme[1]). L'opération est
+// DIFFÉRENTIABLE : la rétropropagation renvoie le gradient reçu dans la
+// plage de canaux source, et zéro pour les canaux laissés de côté.
+
+// Entrée déterministe [4,7] (4 « cellules », 7 canaux) partagée par les
+// scénarios de tranche 2D.
+PROCEDURE PRIVÉE entréeTrancheRang2() : Tenseur
+	v est un tableau de réels
+	POUR k = 0 À 27
+		v.Ajoute(k / 28.0)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([4, 7])
+FIN
+
+// Entrée déterministe [1,6,2,2] (1 image, 6 canaux, 2x2 spatial) partagée
+// par le scénario de tranche 4D.
+PROCEDURE PRIVÉE entréeTrancheRang4() : Tenseur
+	v est un tableau de réels
+	POUR k = 0 À 23
+		v.Ajoute(k / 24.0)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([1, 6, 2, 2])
+FIN
+
+
+// Tranche canaux 3..4 (début=3, longueur=2) d'un Tenseur [4,7] : la sortie a
+// la forme [4,2] et ses valeurs sont EXACTEMENT celles des canaux 3 et 4 de
+// l'entrée (copie, pas de recalcul).
+PROCEDURE PUBLIQUE scenario_tranchecanaux_rang2_extrait_plage_canaux()
+	t est un Tenseur = entréeTrancheRang2()
+	s est un Tenseur = t.TrancheCanaux(3, 2)
+
+	dbgVérifieEgalité(s..Rang, 2, "tranche 2D : rang préservé = 2")
+	dbgVérifieEgalité(s..Forme[1], 4, "tranche 2D : N préservé = 4")
+	dbgVérifieEgalité(s..Forme[2], 2, "tranche 2D : longueur = 2")
+
+	dbgVérifieEgalité(s..Valeur[1][1], t..Valeur[1][3], "canal 3 de l'entrée copié en position 1 de la sortie, ligne 1")
+	dbgVérifieEgalité(s..Valeur[1][2], t..Valeur[1][4], "canal 4 de l'entrée copié en position 2 de la sortie, ligne 1")
+	dbgVérifieEgalité(s..Valeur[4][1], t..Valeur[4][3], "canal 3 de l'entrée copié en position 1 de la sortie, ligne 4")
+	dbgVérifieEgalité(s..Valeur[4][2], t..Valeur[4][4], "canal 4 de l'entrée copié en position 2 de la sortie, ligne 4")
+FIN
+
+
+// Même opération sur un Tenseur de rang 4 [1,6,2,2] (image + canaux +
+// spatial) : la tranche porte sur l'axe canal (2ᵉ axe) uniquement, les axes
+// spatiaux (H,W) restent intacts.
+PROCEDURE PUBLIQUE scenario_tranchecanaux_rang4_preserve_axes_spatiaux()
+	t est un Tenseur = entréeTrancheRang4()
+	s est un Tenseur = t.TrancheCanaux(2, 3)
+
+	dbgVérifieEgalité(s..Rang, 4, "tranche 4D : rang préservé = 4")
+	dbgVérifieEgalité(s..Forme[1], 1, "tranche 4D : N préservé = 1")
+	dbgVérifieEgalité(s..Forme[2], 3, "tranche 4D : longueur = 3")
+	dbgVérifieEgalité(s..Forme[3], 2, "tranche 4D : H préservé = 2")
+	dbgVérifieEgalité(s..Forme[4], 2, "tranche 4D : W préservé = 2")
+
+	dbgVérifieEgalité(s..Valeur[1][1][1][1], t..Valeur[1][2][1][1], "canal 2 de l'entrée copié en position 1 de la sortie")
+	dbgVérifieEgalité(s..Valeur[1][3][2][2], t..Valeur[1][4][2][2], "canal 4 de l'entrée copié en position 3 de la sortie")
+FIN
+
+
+// Forme anglaise : .ChannelSlice(start, length) désigne la même opération.
+PROCEDURE PUBLIQUE scenario_formes_anglaises_channelslice_rang2()
+	t is a Tensor = entréeTrancheRang2()
+	s is a Tensor = t.ChannelSlice(3, 2)
+
+	dbgCheckEqual(s..Rank, 2, "English forms: rank preserved = 2")
+	dbgCheckEqual(s..Shape[1], 4, "English forms: N preserved = 4")
+	dbgCheckEqual(s..Shape[2], 2, "English forms: length = 2")
+
+	dbgCheckEqual(s..Value[1][1], t..Valeur[1][3], "English forms: channel 3 copied to output position 1, row 1")
+	dbgCheckEqual(s..Value[4][2], t..Valeur[4][4], "English forms: channel 4 copied to output position 2, row 4")
+FIN
+
+
+// Preuve directe (gradient exact, à la main) que le backward de
+// TrancheCanaux SCATTER le gradient reçu dans la plage source, et laisse
+// EXACTEMENT zéro ailleurs. t = [[1,2,3,4,5],[6,7,8,9,10]] (2x5),
+// s = t.TrancheCanaux(2,3) -> canaux 2,3,4 -> s = [[2,3,4],[7,8,9]].
+// q = s*s (dq/ds = 2s) : grad_s = [[4,6,8],[14,16,18]].
+// grad_t : canaux 2,3,4 = grad_s, canaux 1 et 5 = 0 EXACTEMENT (pas de
+// diffusion, pas de résidu).
+PROCEDURE PUBLIQUE scenario_tranchecanaux_gradient_scatter_zero_hors_plage()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]).Redimensionne([2, 5])
+	ts est un Tenseur = ta.TrancheCanaux(2, 3)
+	tq est un Tenseur = ts * ts
+	tq.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1], 0.0, "canal 1 (hors plage tranchée) : gradient exactement zéro, ligne 1")
+	dbgVérifieEgalité(ta..Gradient[1][2], 4.0, "canal 2 (dans la plage) : grad = 2*s = 2*2 = 4, ligne 1")
+	dbgVérifieEgalité(ta..Gradient[1][3], 6.0, "canal 3 (dans la plage) : grad = 2*3 = 6, ligne 1")
+	dbgVérifieEgalité(ta..Gradient[1][4], 8.0, "canal 4 (dans la plage) : grad = 2*4 = 8, ligne 1")
+	dbgVérifieEgalité(ta..Gradient[1][5], 0.0, "canal 5 (hors plage tranchée) : gradient exactement zéro, ligne 1")
+
+	dbgVérifieEgalité(ta..Gradient[2][1], 0.0, "canal 1 (hors plage tranchée) : gradient exactement zéro, ligne 2")
+	dbgVérifieEgalité(ta..Gradient[2][2], 14.0, "canal 2 (dans la plage) : grad = 2*7 = 14, ligne 2")
+	dbgVérifieEgalité(ta..Gradient[2][4], 18.0, "canal 4 (dans la plage) : grad = 2*9 = 18, ligne 2")
+	dbgVérifieEgalité(ta..Gradient[2][5], 0.0, "canal 5 (hors plage tranchée) : gradient exactement zéro, ligne 2")
+FIN
+
+
+// Entrée déterministe [3,4] (3 lignes, 4 canaux) du gradient-check par
+// différences finies, avec une composante optionnellement perturbée
+// (idxPerturbe = -1 : forward de référence, aucune perturbation).
+PROCEDURE PRIVÉE construitEntréeGradientCheckTranche(idxPerturbe est un entier, delta est un réel) : Tenseur
+	v est un tableau de réels
+	POUR k = 0 À 11
+		val est un réel = (k + 1) / 12.0
+		SI k = idxPerturbe ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([3, 4])
+FIN
+
+// Cible nulle [3,2] pour une perte ErreurQuadratique qui se réduit à
+// moyenne(sortie²) sur la tranche extraite.
+PROCEDURE PRIVÉE cibleNulleGradientCheckTranche() : Tenseur
+	v est un tableau de réels
+	POUR k = 1 À 6
+		v.Ajoute(0.0)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([3, 2])
+FIN
+
+// Perte scalaire pour une entrée perturbée à l'indice idxPerturbe (0-based,
+// ordre ligne puis canal). N'appelle QUE le chemin forward — jamais
+// Rétropropage() — pour rester indépendante du backward analytique qu'elle
+// vérifie (patron test_TenseurConvolution2DGroupe.owl).
+PROCEDURE PRIVÉE perteTrancheEntréePerturbée(idxPerturbe est un entier, delta est un réel) : réel
+	entrée est un Tenseur = construitEntréeGradientCheckTranche(idxPerturbe, delta)
+	sortie est un Tenseur = entrée.TrancheCanaux(2, 2)
+	tperte est un Tenseur = sortie.ErreurQuadratique(cibleNulleGradientCheckTranche())
+	RENVOYER tperte..Valeur[1]
+FIN
+
+
+// Gradient-check : le gradient analytique de Rétropropage() est comparé à
+// des différences finies centrées calculées indépendamment (le findiff ne
+// touche jamais Rétropropage(), seulement le forward). Une composante DANS
+// la plage tranchée (canal 2, tranché) doit avoir un gradient non nul qui
+// colle au findiff ; une composante HORS plage (canal 1, pas tranché) doit
+// avoir un gradient EXACTEMENT nul, confirmé par un findiff proche de zéro.
+PROCEDURE PUBLIQUE scenario_tranchecanaux_gradient_verifie_par_differences_finies()
+	entrée est un Tenseur = construitEntréeGradientCheckTranche(-1, 0.0)
+	sortie est un Tenseur = entrée.TrancheCanaux(2, 2)
+	tperte est un Tenseur = sortie.ErreurQuadratique(cibleNulleGradientCheckTranche())
+	tperte.Rétropropage()
+
+	eps est un réel = 0.0001
+	tolérance est un réel = 0.001
+
+	// canal 2 (dans la plage [2,3]), ligne 1 -> indice à plat 0-based = 1.
+	dDansPlageFindiff est un réel = (perteTrancheEntréePerturbée(1, eps) - perteTrancheEntréePerturbée(1,-eps)) / (2 * eps)
+	dDansPlageAnalytique est un réel = entrée..Gradient[1][2]
+	dbgVérifieVrai(Abs(dDansPlageAnalytique - dDansPlageFindiff) < tolérance, "canal 2 (dans la plage tranchée), ligne 1 : gradient analytique proche des différences finies")
+
+	// canal 1 (hors plage [2,3]), ligne 1 -> indice à plat 0-based = 0.
+	dHorsPlageFindiff est un réel = (perteTrancheEntréePerturbée(0, eps) - perteTrancheEntréePerturbée(0,-eps)) / (2 * eps)
+	dHorsPlageAnalytique est un réel = entrée..Gradient[1][1]
+	dbgVérifieVrai(Abs(dHorsPlageFindiff) < tolérance, "canal 1 (hors plage tranchée) : différences finies proches de zéro (aucune contribution à la perte)")
+	dbgVérifieEgalité(dHorsPlageAnalytique, 0.0, "canal 1 (hors plage tranchée) : gradient analytique exactement zéro")
+FIN
+
+
+// Entrée déterministe [3,7] (3 « cellules », 4 boîte + 1 objectness + 2
+// classes) du gradient-check de la digue métier « tête de détection », avec
+// une composante optionnellement perturbée.
+PROCEDURE PRIVÉE construitTeteDetectionGradientCheck(idxPerturbe est un entier, delta est un réel) : Tenseur
+	v est un tableau de réels
+	POUR k = 0 À 20
+		val est un réel = (k + 1) / 21.0
+		SI k = idxPerturbe ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([3, 7])
+FIN
+
+// Cible nulle [3,nCanaux] pour une perte ErreurQuadratique sur l'un des
+// trois groupes de canaux de la tête (boîte, objectness, classes).
+PROCEDURE PRIVÉE citeNulleGroupeTete(nCanaux est un entier) : Tenseur
+	v est un tableau de réels
+	POUR k = 1 À (3 * nCanaux)
+		v.Ajoute(0.0)
+	FIN
+	RENVOYER Tenseur(v).Redimensionne([3, nCanaux])
+FIN
+
+// Perte scalaire pour une entrée « tête de détection » perturbée à l'indice
+// idxPerturbe (0-based, ordre ligne puis canal). Forward seul, indépendant
+// du backward qu'il vérifie.
+PROCEDURE PRIVÉE perteTeteDetectionPerturbée(idxPerturbe est un entier, delta est un réel) : réel
+	tete est un Tenseur = construitTeteDetectionGradientCheck(idxPerturbe, delta)
+	boite est un Tenseur = tete.TrancheCanaux(1, 4)
+	obj est un Tenseur = tete.TrancheCanaux(5, 1)
+	classes est un Tenseur = tete.TrancheCanaux(6, 2)
+	pBoite est un Tenseur = boite.ErreurQuadratique(citeNulleGroupeTete(4))
+	pObj est un Tenseur = obj.ErreurQuadratique(citeNulleGroupeTete(1))
+	pClasses est un Tenseur = classes.ErreurQuadratique(citeNulleGroupeTete(2))
+	pTotale est un Tenseur = pBoite + pObj + pClasses
+	RENVOYER pTotale..Valeur[1]
+FIN
+
+
+// Digue métier : une tête de détection [cellules=3, 7] (4 canaux boîte + 1
+// objectness + 2 classes) est découpée en trois tranches via .TrancheCanaux,
+// chacune recomposée en une perte partielle, sommées en une perte totale
+// scalaire. Le gradient qui traverse chacune des trois tranches est vérifié
+// par différences finies indépendantes — preuve que les trois groupes de
+// canaux (boîte / objectness / classes) sont routés séparément, sans se
+// mélanger.
+PROCEDURE PUBLIQUE scenario_tranchecanaux_tete_detection_boite_objectness_classes_gradient_findiff()
+	tete est un Tenseur = construitTeteDetectionGradientCheck(-1, 0.0)
+	boite est un Tenseur = tete.TrancheCanaux(1, 4)
+	obj est un Tenseur = tete.TrancheCanaux(5, 1)
+	classes est un Tenseur = tete.TrancheCanaux(6, 2)
+
+	dbgVérifieEgalité(boite..Forme[2], 4, "tranche boîte : 4 canaux")
+	dbgVérifieEgalité(obj..Forme[2], 1, "tranche objectness : 1 canal")
+	dbgVérifieEgalité(classes..Forme[2], 2, "tranche classes : 2 canaux")
+
+	pBoite est un Tenseur = boite.ErreurQuadratique(citeNulleGroupeTete(4))
+	pObj est un Tenseur = obj.ErreurQuadratique(citeNulleGroupeTete(1))
+	pClasses est un Tenseur = classes.ErreurQuadratique(citeNulleGroupeTete(2))
+	pTotale est un Tenseur = pBoite + pObj + pClasses
+	pTotale.Rétropropage()
+
+	eps est un réel = 0.0001
+	tolérance est un réel = 0.001
+
+	// canal 2 (boîte), ligne 1 -> indice à plat 0-based = 1 (7 canaux/ligne).
+	dBoiteFindiff est un réel = (perteTeteDetectionPerturbée(1, eps) - perteTeteDetectionPerturbée(1,-eps)) / (2 * eps)
+	dBoiteAnalytique est un réel = tete..Gradient[1][2]
+	dbgVérifieVrai(Abs(dBoiteAnalytique - dBoiteFindiff) < tolérance, "canal boîte (2), ligne 1 : gradient analytique proche des différences finies")
+
+	// canal 5 (objectness), ligne 2 -> indice à plat 0-based = 7*1+4 = 11.
+	dObjFindiff est un réel = (perteTeteDetectionPerturbée(11, eps) - perteTeteDetectionPerturbée(11,-eps)) / (2 * eps)
+	dObjAnalytique est un réel = tete..Gradient[2][5]
+	dbgVérifieVrai(Abs(dObjAnalytique - dObjFindiff) < tolérance, "canal objectness (5), ligne 2 : gradient analytique proche des différences finies")
+
+	// canal 7 (classe 2), ligne 3 -> indice à plat 0-based = 7*2+6 = 20.
+	dClasseFindiff est un réel = (perteTeteDetectionPerturbée(20, eps) - perteTeteDetectionPerturbée(20,-eps)) / (2 * eps)
+	dClasseAnalytique est un réel = tete..Gradient[3][7]
+	dbgVérifieVrai(Abs(dClasseAnalytique - dClasseFindiff) < tolérance, "canal classes (7), ligne 3 : gradient analytique proche des différences finies")
+FIN
+
+
+// Même digue, formes anglaises : .ChannelSlice au lieu de .TrancheCanaux,
+// .Backpropagate() au lieu de .Rétropropage(). Helpers dupliqués pour
+// exercer réellement le chemin anglais (pas un simple alias de test FR).
+PROCEDURE PRIVÉE buildDetectionHeadGradientCheck(idxPerturb est un entier, delta est un réel) : Tenseur
+	v is an array of reals
+	POUR k = 0 À 20
+		val is a real = (k + 1) / 21.0
+		SI k = idxPerturb ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tensor(v).Redimensionne([3, 7])
+FIN
+
+PROCEDURE PRIVÉE zeroTargetHeadGroup(nChannels est un entier) : Tenseur
+	v is an array of reals
+	POUR k = 1 À (3 * nChannels)
+		v.Ajoute(0.0)
+	FIN
+	RENVOYER Tensor(v).Redimensionne([3, nChannels])
+FIN
+
+PROCEDURE PRIVÉE detectionHeadLossPerturbed(idxPerturb est un entier, delta est un réel) : réel
+	head is a Tensor = buildDetectionHeadGradientCheck(idxPerturb, delta)
+	box is a Tensor = head.ChannelSlice(1, 4)
+	obj is a Tensor = head.ChannelSlice(5, 1)
+	classes is a Tensor = head.ChannelSlice(6, 2)
+	pBox is a Tensor = box.ErreurQuadratique(zeroTargetHeadGroup(4))
+	pObj is a Tensor = obj.ErreurQuadratique(zeroTargetHeadGroup(1))
+	pClasses is a Tensor = classes.ErreurQuadratique(zeroTargetHeadGroup(2))
+	pTotal is a Tensor = pBox + pObj + pClasses
+	RENVOYER pTotal..Valeur[1]
+FIN
+
+PROCEDURE PUBLIQUE scenario_formes_anglaises_channelslice_detection_head_gradient_findiff()
+	head is a Tensor = buildDetectionHeadGradientCheck(-1, 0.0)
+	box is a Tensor = head.ChannelSlice(1, 4)
+	obj is a Tensor = head.ChannelSlice(5, 1)
+	classes is a Tensor = head.ChannelSlice(6, 2)
+
+	dbgCheckEqual(box..Shape[2], 4, "English forms: box slice has 4 channels")
+	dbgCheckEqual(obj..Shape[2], 1, "English forms: objectness slice has 1 channel")
+	dbgCheckEqual(classes..Shape[2], 2, "English forms: classes slice has 2 channels")
+
+	pBox is a Tensor = box.ErreurQuadratique(zeroTargetHeadGroup(4))
+	pObj is a Tensor = obj.ErreurQuadratique(zeroTargetHeadGroup(1))
+	pClasses is a Tensor = classes.ErreurQuadratique(zeroTargetHeadGroup(2))
+	pTotal is a Tensor = pBox + pObj + pClasses
+	pTotal.Backpropagate()
+
+	eps is a real = 0.0001
+	tolerance is a real = 0.001
+
+	dBoxFindiff is a real = (detectionHeadLossPerturbed(1, eps) - detectionHeadLossPerturbed(1,-eps)) / (2 * eps)
+	dBoxAnalytical is a real = head..Gradient[1][2]
+	dbgCheckTrue(Abs(dBoxAnalytical - dBoxFindiff) < tolerance, "English forms: box channel (2), row 1: analytical gradient close to finite differences")
+
+	dClassFindiff is a real = (detectionHeadLossPerturbed(20, eps) - detectionHeadLossPerturbed(20,-eps)) / (2 * eps)
+	dClassAnalytical is a real = head..Gradient[3][7]
+	dbgCheckTrue(Abs(dClassAnalytical - dClassFindiff) < tolerance, "English forms: classes channel (7), row 3: analytical gradient close to finite differences")
+FIN
+
+
+// Cas limite : un Tenseur de rang 1 n'a pas d'axe canal (axe 2) — pas de
+// crash, erreur claire.
+PROCEDURE PRIVÉE scenario_edge_tranchecanaux_rang1_refuse()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	ErreurRAZ()
+	s est un Tenseur = t.TrancheCanaux(1, 2)
+	dbgVérifieVrai(ErreurDétectée, "TrancheCanaux sur un Tenseur de rang 1 (pas d'axe canal) signale une erreur")
+FIN
+
+// Cas limite : début=0 est hors de la plage 1-based valide (le premier
+// canal est 1, pas 0).
+PROCEDURE PRIVÉE scenario_edge_tranchecanaux_debut_zero_refuse()
+	t est un Tenseur = entréeTrancheRang2()
+	ErreurRAZ()
+	s est un Tenseur = t.TrancheCanaux(0, 2)
+	dbgVérifieVrai(ErreurDétectée, "début=0 (hors plage 1-based) signale une erreur")
+FIN
+
+// Cas limite : longueur=0 ne désigne aucun canal.
+PROCEDURE PRIVÉE scenario_edge_tranchecanaux_longueur_zero_refuse()
+	t est un Tenseur = entréeTrancheRang2()
+	ErreurRAZ()
+	s est un Tenseur = t.TrancheCanaux(1, 0)
+	dbgVérifieVrai(ErreurDétectée, "longueur=0 signale une erreur")
+FIN
+
+// Cas limite : longueur négative.
+PROCEDURE PRIVÉE scenario_edge_tranchecanaux_longueur_negative_refuse()
+	t est un Tenseur = entréeTrancheRang2()
+	ErreurRAZ()
+	s est un Tenseur = t.TrancheCanaux(1,-3)
+	dbgVérifieVrai(ErreurDétectée, "longueur négative signale une erreur")
+FIN
+
+// Cas limite : début+longueur dépasse le nombre de canaux (entrée à 7
+// canaux, tranche demandée 6..8 -> hors bornes).
+PROCEDURE PRIVÉE scenario_edge_tranchecanaux_hors_bornes_refuse()
+	t est un Tenseur = entréeTrancheRang2()
+	ErreurRAZ()
+	s est un Tenseur = t.TrancheCanaux(6, 3)
+	dbgVérifieVrai(ErreurDétectée, "début+longueur dépassant le nombre de canaux (6+3=9 > 7) signale une erreur")
+FIN
+
+// Cas limite, forme anglaise : même vérification hors-bornes via
+// .ChannelSlice.
+PROCEDURE PRIVÉE scenario_edge_channelslice_hors_bornes_refuse()
+	t is a Tensor = entréeTrancheRang2()
+	ErreurRAZ()
+	s is a Tensor = t.ChannelSlice(6, 3)
+	dbgCheckTrue(ErrorOccurred, "English forms: start+length exceeding the channel count (6+3=9 > 7) reports an error")
+FIN

@@ -1,0 +1,46 @@
+// Vérification pixel : `BTN..CouleurFond` (raccourci plat) peint réellement
+// le fond du QPushButton, et la lecture croisée via
+// `BTN..Style..CadreExtérieur..CouleurFond` reflète bien la même couleur
+// (, commit bd39c665). Complément pixel à
+// test_unification_plat_style_bouton.owl qui couvre déjà l'équivalence au
+// niveau store (get/set croisés, sans widget réel monté).
+
+TestModeHeadless(Faux)
+
+couleurBoutonFond est un entier = RVB(200, 0, 200)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_UnifStyleBoutonPixel)
+
+// --- Ecriture via le raccourci plat CouleurFond ---
+BTN_UnifPixel..CouleurFond = couleurBoutonFond
+
+// Lecture croisée : le plat doit rester lisible via le chemin Style complet.
+dbgVérifieEgalité(BTN_UnifPixel..Style..CadreExtérieur..CouleurFond, couleurBoutonFond, "CouleurFond plat visible via Style..CadreExtérieur..CouleurFond (pixel)")
+
+img est une Image = dCopieImageChamp(BTN_UnifPixel)
+dbgVérifieEgalité(img..Valide, Vrai, "capture BTN_UnifPixel valide")
+
+// BTN_UnifPixel occupe 300x60 : échantillon intérieur pour éviter le pourtour
+// (arrondis, bordure native) que Qt peut peindre différemment.
+nbFondBouton est un entier = CompteCouleurZone(img, 10, 10, 290, 50, couleurBoutonFond)
+seuilFond est un entier = 2240 // (290-10) * (50-10) * 0.20, arrondi (marge basse : texte/marges internes)
+dbgVérifieVrai(nbFondBouton > seuilFond, "BTN..CouleurFond (plat) peint réellement le fond du bouton")
+
+Ferme(FEN_UnifStyleBoutonPixel)
+dbgBilanTest()

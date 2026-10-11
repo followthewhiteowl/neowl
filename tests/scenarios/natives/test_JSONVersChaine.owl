@@ -1,0 +1,138 @@
+// @sujet : JSONVersChaîne
+// @résumé : Sérialise une valeur JSON en chaîne, soit minifiée soit présentée avec retours à la ligne et indentation.
+
+
+// Cas canonique : un objet simple sérialisé en mode minifié donne une chaîne
+// compacte. Le mode psdMinifie est le seul déterministe au caractère près,
+// idéal pour comparer dans un test.
+//
+// Note d'écriture : les littéraux JSON sont rédigés en chaîne `backtick`,
+// qui n'exige pas d'échapper les guillemets. C'est la forme la plus lisible
+// pour ce genre de contenu.
+PROCEDURE scenario_objet_simple_minifie()
+	j est un JSON = ChaîneVersJSON(`{"nom":"Alice","age":32}`)
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, `{"nom":"Alice","age":32}`)
+FIN
+
+
+// Forme méthode équivalente : le receveur fournit le JSON à sérialiser.
+PROCEDURE scenario_forme_methode()
+	j est un JSON = ChaîneVersJSON(`{"x":1}`)
+	sRes est une chaîne = j.VersChaîne(psdMinifie)
+	dbgVérifieEgalité(sRes, `{"x":1}`)
+FIN
+
+
+// Sans deuxième argument, le mode est psdMiseEnForme : le résultat contient
+// des retours à la ligne et des tabulations pour la lisibilité humaine.
+PROCEDURE scenario_mode_pretty_par_defaut()
+	j est un JSON = ChaîneVersJSON(`{"nom":"Alice"}`)
+	sPretty est une chaîne = JSONVersChaîne(j)
+	sMinifie est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieVrai(Taille(sPretty) > Taille(sMinifie))
+FIN
+
+
+// Un tableau JSON est sérialisé entre crochets, valeurs séparées par des virgules.
+PROCEDURE scenario_tableau()
+	j est un JSON = ChaîneVersJSON(`[1,2,3]`)
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, `[1,2,3]`)
+FIN
+
+
+// Les types primitifs JSON sont préservés : entier, réel, booléen, null,
+// chaîne. La représentation textuelle suit la convention JSON canonique.
+PROCEDURE scenario_types_primitifs()
+	j est un JSON = ChaîneVersJSON(`{"n":42,"r":3.14,"b":true,"z":null,"s":"ok"}`)
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, `{"n":42,"r":3.14,"b":true,"z":null,"s":"ok"}`)
+FIN
+
+
+// Les objets et tableaux peuvent être imbriqués sans limite de profondeur ;
+// la sérialisation reflète la structure exacte de l'arbre.
+PROCEDURE scenario_objet_imbrique()
+	j est un JSON = ChaîneVersJSON(`{"user":{"nom":"Alice","tags":["admin","dev"]}}`)
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, `{"user":{"nom":"Alice","tags":["admin","dev"]}}`)
+FIN
+
+
+// Quand l'entrée JSON est volumineuse, le backtick supporte le multi-ligne
+// natif : aucun échappement, indentation libre, et les `]` internes ne posent
+// pas de problème (la chaîne multi-ligne `[…]` clôt sur un `]` en début de
+// ligne, ce qui n'arrive pas avec le backtick). La sérialisation minifiée
+// colle l'ensemble sur une seule ligne quoi qu'il arrive.
+PROCEDURE scenario_input_multiligne_lisible()
+	sInput est une chaîne = `
+        {
+            "client": "Alice",
+            "panier": [
+                { "ref": "A100", "qte": 2 },
+                { "ref": "B200", "qte": 1 }
+            ]
+        }
+    `
+	j est un JSON = ChaîneVersJSON(sInput)
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, `{"client":"Alice","panier":[{"ref":"A100","qte":2},{"ref":"B200","qte":1}]}`)
+FIN
+
+
+// La syntaxe historique "..." reste disponible pour un littéral JSON, au prix
+// d'un doublage des guillemets internes ("" → "). Plus pénible à écrire que le
+// backtick mais utile dans les cas où un seul "..." sert à la fois de modèle
+// et de chaîne calculée.
+PROCEDURE scenario_input_avec_guillemets_owl()
+	j est un JSON = ChaîneVersJSON("{""produit"":""café""}")
+	sRes est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sRes, `{"produit":"café"}`)
+FIN
+
+
+// Aller-retour parse + sérialise sur une chaîne JSON déjà minifiée doit
+// produire exactement la chaîne d'origine.
+PROCEDURE scenario_round_trip()
+	sOriginal est une chaîne = `{"a":1,"b":[2,3],"c":null}`
+	j est un JSON = ChaîneVersJSON(sOriginal)
+	sFinal est une chaîne = JSONVersChaîne(j, psdMinifie)
+	dbgVérifieEgalité(sFinal, sOriginal)
+FIN
+
+
+// Cas limite défensif : un objet JSON vide se sérialise en "{}" et un tableau
+// vide en "[]" ; aucune simplification n'est appliquée.
+PROCEDURE PRIVÉE scenario_structures_vides()
+	jObjet est un JSON = ChaîneVersJSON(`{}`)
+	jTableau est un JSON = ChaîneVersJSON(`[]`)
+	dbgVérifieEgalité(JSONVersChaîne(jObjet, psdMinifie), `{}`)
+	dbgVérifieEgalité(JSONVersChaîne(jTableau, psdMinifie), `[]`)
+FIN
+
+
+// Un JSON déclaré sans initialiseur prend la valeur par défaut du type,
+// à savoir l'object vide {}. Cohérent avec `entier n` → 0, `chaine s` → "",
+// `tableau t` → []. Pour obtenir un JSON null explicite, parser `"null"`.
+PROCEDURE PRIVÉE scenario_default_json_serialise_object_vide()
+	j est un JSON
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), "{}")
+FIN
+
+
+// Un JSON_T_NULL explicite (obtenu par parse du littéral "null") se sérialise
+// fidèlement en "null". Le round-trip parse→serialize est invariant.
+PROCEDURE PRIVÉE scenario_json_null_explicite_serialise_null()
+	j est un JSON = ChaîneVersJSON("null")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), "null")
+FIN
+
+
+// OWL Null passé en argument à une fonction attendant un JSON non-nullable
+// se comporte comme `s est une chaine = Null` : coerce vers le défaut du
+// type d'entrée. Pour JSON, le défaut est l'object vide {}, donc la chaîne
+// résultante est "{}" — pas "null" (qui demande un JSON_T_NULL explicite).
+PROCEDURE PRIVÉE scenario_owl_null_arg_coerce_au_default_json()
+	dbgVérifieEgalité(JSONVersChaîne(Null), "{}")
+FIN

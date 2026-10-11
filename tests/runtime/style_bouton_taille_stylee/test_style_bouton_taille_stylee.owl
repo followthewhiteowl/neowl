@@ -1,0 +1,80 @@
+//  — habiller un Champ Bouton le faisait grossir. Mesure du défaut, à
+// libellé identique et police constante, sans taille déclarée :
+//   nu 23 × 80 / couleur de libellé 38 × 114 / fond de libellé 30 × 100 /
+//   fond de cadre extérieur 30 × 100.
+// 15 pixels de hauteur et 34 de largeur pour une couleur.
+//
+// Le bouton nu est l'oracle : aucune taille naturelle n'est écrite en dur ici.
+// Un style change l'apparence, pas la géométrie — et une taille explicitement
+// demandée reste due, au-dessus comme en dessous de la taille naturelle.
+
+TestModeHeadless(Faux)
+
+btsRouge       est un entier = RVB(255, 0, 0)
+btsFondFenetre est un entier = RVB(10, 10, 10)
+
+OuvreSoeur(FEN_BoutonTailleStylee)
+
+// ---- 1. Sans taille déclarée : les trois feuilles mesurées rendent la même
+// géométrie que le bouton nu.
+dbgVérifieEgalité(BTSCouleurLibelle..Hauteur, BTSNu..Hauteur,
+	"Couleur de libellé : même hauteur que le bouton nu")
+dbgVérifieEgalité(BTSCouleurLibelle..Largeur, BTSNu..Largeur,
+	"Couleur de libellé : même largeur que le bouton nu")
+
+dbgVérifieEgalité(BTSFondLibelle..Hauteur, BTSNu..Hauteur,
+	"Fond de libellé : même hauteur que le bouton nu")
+dbgVérifieEgalité(BTSFondLibelle..Largeur, BTSNu..Largeur,
+	"Fond de libellé : même largeur que le bouton nu")
+
+dbgVérifieEgalité(BTSFondCadre..Hauteur, BTSNu..Hauteur,
+	"Fond de cadre extérieur : même hauteur que le bouton nu")
+dbgVérifieEgalité(BTSFondCadre..Largeur, BTSNu..Largeur,
+	"Fond de cadre extérieur : même largeur que le bouton nu")
+
+// ---- 2. Taille déclarée au-dessus du naturel, sous layout : due des deux
+// côtés (le nu sert d'oracle, la valeur écrite sert de contrôle).
+dbgVérifieEgalité(BTSGrandNu..Hauteur, 50,
+	"Bouton nu : Hauteur 50 déclarée, 50 rendue (oracle)")
+dbgVérifieEgalité(BTSGrandStyle..Hauteur, BTSGrandNu..Hauteur,
+	"Bouton stylé : Hauteur 50 déclarée, même hauteur que le nu")
+dbgVérifieEgalité(BTSGrandStyle..Largeur, BTSGrandNu..Largeur,
+	"Bouton stylé : Largeur 150 déclarée, même largeur que le nu")
+
+// ---- 3. Taille déclarée EN DESSOUS du naturel, en placement libre : le
+// plancher de taille ne doit pas la relever.
+dbgVérifieEgalité(BTSPetitNu..Hauteur, 18,
+	"Bouton nu : Hauteur 18 déclarée sous le naturel, 18 rendue (oracle)")
+dbgVérifieEgalité(BTSPetitStyle..Hauteur, BTSPetitNu..Hauteur,
+	"Bouton stylé : Hauteur 18 déclarée sous le naturel, même hauteur que le nu")
+dbgVérifieEgalité(BTSPetitStyle..Largeur, BTSPetitNu..Largeur,
+	"Bouton stylé : Largeur 60 déclarée sous le naturel, même largeur que le nu")
+
+// ---- 4. Placement libre sans taille déclarée : stylé et nu rendent pareil.
+dbgVérifieEgalité(BTSLibreStyle..Hauteur, BTSLibreNu..Hauteur,
+	"Placement libre sans taille déclarée : stylé et nu ont la même hauteur")
+dbgVérifieEgalité(BTSLibreStyle..Largeur, BTSLibreNu..Largeur,
+	"Placement libre sans taille déclarée : stylé et nu ont la même largeur")
+
+// ---- 5. Pixel : la boîte réellement peinte ne dépasse pas celle du nu. Une
+// hauteur juste lue sur le champ ne prouve pas que le widget occupe la boîte.
+// Le bouton à fond de cadre extérieur peint une aplat rouge sur toute sa boîte ;
+// on sonde son intérieur, puis une ligne située juste sous la hauteur du nu,
+// qui doit rester au fond de fenêtre.
+btsImg est une Image = dCopieImageFenêtre(FEN_BoutonTailleStylee)
+dbgVérifieEgalité(btsImg..Valide, Vrai, "capture fenêtre valide")
+
+// `..X` / `..Y` d'un champ sont déjà exprimés dans le repère de la fenêtre,
+// conteneur compris : les additionner à ceux de la pile viserait 30 px plus bas
+// et la sonde basse passerait sans rien prouver (elle tomberait sous le bouton
+// quelle que soit sa hauteur).
+btsX est un entier = BTSFondCadre..X + 5
+btsY est un entier = BTSFondCadre..Y
+
+dbgVérifieEgalité(dPixelCouleur(btsImg, btsX, btsY + 2), btsRouge,
+	"Fond de cadre extérieur : la boîte du bouton est bien peinte")
+dbgVérifieEgalité(dPixelCouleur(btsImg, btsX, btsY + BTSNu..Hauteur + 3), btsFondFenetre,
+	"Fond de cadre extérieur : rien n'est peint sous la hauteur du bouton nu")
+
+Ferme(FEN_BoutonTailleStylee)
+dbgBilanTest()

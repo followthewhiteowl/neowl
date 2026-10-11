@@ -1,0 +1,39 @@
+//  — preuve de câblage réel : surClic / surDoubleClic sur ZoneRépétée.
+//
+// TestSimuleSouris poste un vrai QMouseEvent quand le widget est monté
+// : le clic n'a d'effet que si le champ est réellement câblé
+// côté Qt. Aucun câblage n'existe pour ZoneRépétée ( lot 2) : ce
+// test rougit tant qu'il n'est pas posé. Une ligne est présente
+// (ZoneRépétéeAjouteLigne) pour que le clic tombe sur du contenu réel.
+//
+// ROUGE ATTENDU : nZrClic_obs / nZrDoubleClic_obs restent à 0 après
+// TestSimuleSouris -- surClic/surDoubleClic déclarés mais jamais tirés.
+
+TestModeHeadless(Faux)
+
+bZrPrete est un booléen = Faux
+nZrClic_obs est un entier = -1
+nZrDoubleClic_obs est un entier = -1
+
+PROCEDURE callback_zr_clic_prete()
+	bZrPrete = Vrai
+FIN
+
+PROCEDURE callback_zr_clic_compteurs(nC est un entier, nD est un entier)
+	nZrClic_obs       = nC
+	nZrDoubleClic_obs = nD
+FIN
+
+OuvreSoeur(FEN_ClicZoneRepetee)
+dbgVérifieVrai(bZrPrete, "FinInitialisation appelée : fenêtre prête")
+
+TestSimuleSouris(ZR_Cible, ClicGauche)
+LireCompteursZrClic()
+dbgVérifieEgalité(nZrClic_obs, 1, "surClic ZoneRépétée : 1 tir après clic simulé réel")
+
+TestSimuleSouris(ZR_Cible, DoubleClicGauche)
+LireCompteursZrClic()
+dbgVérifieEgalité(nZrDoubleClic_obs, 1, "surDoubleClic ZoneRépétée : 1 tir après double-clic simulé réel")
+
+Ferme(FEN_ClicZoneRepetee)
+dbgBilanTest()

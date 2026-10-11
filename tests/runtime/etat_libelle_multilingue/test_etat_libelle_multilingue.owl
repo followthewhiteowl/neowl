@@ -1,0 +1,21 @@
+// Un littéral colon-brace multilingue en bloc PROPRIETES d'un widget dans
+// le corps d'un Etat doit compiler et résoudre la langue active, exactement
+// comme en Fenêtre. Parité de référence côté Fenêtre — même widget
+// (Champ Libellé), même littéral, même lecture bare `..Libellé` :
+// tests/scenarios/ui/langue_hotswitch/{FEN_HotSwitchLangue.owl,test_langue_hotswitch.owl}
+// (assertion "libellé fr avant switch", déjà verte). Ce test-ci verrouille
+// le même comportement côté Etat.
+
+seqEtat est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqEtat += sEvenement
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_libelle_multilingue/temp.pdf")
+iImprimeEtat(ETAT_LibelleMultilingue)
+iFinImprime()
+
+dbgVérifieEgalité(seqEtat, "libelle:Bonjour", "Libellé multilingue en corps d'Etat résout la langue active")
+
+dbgBilanTest()

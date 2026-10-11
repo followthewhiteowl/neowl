@@ -1,0 +1,42 @@
+// Fenêtre voisine — ressource pour test_scoping_top_level_champ_intra.owl.
+//
+// Témoin scoping intra-champ : une variable déclarée dans le top-level d'un
+// champ est visible dans toutes ses procédures/events. L'isolation (Lot 1b)
+// ne doit PAS casser cet accès intra-champ.
+
+FEN_Test_Scoping_Intra est une Fenêtre
+	PROPRIETES
+		Titre       = "Scoping intra-champ"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	// Champ avec variable de top-level + event qui la manipule
+	BTN_Compteur est un Champ Bouton
+		PROPRIETES
+			X       = 50
+			Y       = 50
+			Largeur = 150
+			Hauteur = 30
+			Libellé = "Compteur"
+		FIN
+
+		// TOP-LEVEL CHAMP : variable locale au champ
+		nClics est un entier = 0
+		// Initialisation de l'affichage
+		BTN_Compteur..Libellé = "Clics : " + nClics
+
+		PROCEDURE surClic()
+			// Référence à la variable du top-level du MÊME champ
+			nClics += 1
+			BTN_Compteur..Libellé = "Clics : " + nClics
+			Trace("Compteur intra-champ : " + nClics)
+		FIN
+	FIN
+
+	// Procédure publique appelée par le script test après les clics simulés
+	PROCEDURE LireLibelleCompteur()
+		callback_verifie(BTN_Compteur..Libellé)
+	FIN
+FIN

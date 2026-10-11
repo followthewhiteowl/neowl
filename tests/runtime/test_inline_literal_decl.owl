@@ -1,0 +1,45 @@
+// Lot inline literal — Phase 1+2+4 : init litéral en RHS de declaration.
+// Le type cible vient de la decl variable (`var est un T = {`).
+
+monCadre est un Cadre = {
+	Couleur   = RougeClair
+	Epaisseur = 5
+	Trait     = TraitContinu
+	Arrondi   = 6
+	Bords     = BordHaut + BordBas
+}
+
+dbgVérifieEgalité(monCadre..Couleur, RougeClair, "Inline Couleur")
+dbgVérifieEgalité(monCadre..Epaisseur, 5, "Inline Epaisseur")
+dbgVérifieEgalité(monCadre..Trait, TraitContinu, "Inline Trait")
+dbgVérifieEgalité(monCadre..Arrondi, 6, "Inline Arrondi")
+dbgVérifieEgalité(monCadre..Bords, BordHaut + BordBas, "Inline Bords combinable")
+
+// Recursivite : sous-objet Coin
+monCadre2 est un Cadre = {
+	Couleur        = BleuFoncé
+	CoinHautGauche = {
+		Largeur = 8
+		Hauteur = 4
+	}
+}
+
+dbgVérifieEgalité(monCadre2..Couleur, BleuFoncé, "Recursive root field")
+dbgVérifieEgalité(monCadre2..CoinHautGauche..Largeur, 8, "Recursive sub-field Largeur")
+dbgVérifieEgalité(monCadre2..CoinHautGauche..Hauteur, 4, "Recursive sub-field Hauteur")
+
+// Recursivite : sous-objet Trait
+monCadre3 est un Cadre = {
+	Epaisseur = 1
+	TraitBas  = {
+		Couleur   = RougeFoncé
+		Epaisseur = 3
+		Type      = TraitTiret
+	}
+}
+
+dbgVérifieEgalité(monCadre3..TraitBas..Couleur, RougeFoncé, "Trait sub Couleur")
+dbgVérifieEgalité(monCadre3..TraitBas..Epaisseur, 3, "Trait sub Epaisseur")
+dbgVérifieEgalité(monCadre3..TraitBas..Type, TraitTiret, "Trait sub Type")
+
+dbgBilanTest()

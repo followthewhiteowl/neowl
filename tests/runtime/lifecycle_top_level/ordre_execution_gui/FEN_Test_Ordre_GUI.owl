@@ -1,0 +1,62 @@
+// Fenêtre voisine — ressource pour test_ordre_execution_gui.owl.
+//
+// Témoin ordre d'exécution du cycle de vie (GUI, snapshot manuel) :
+// 1. matérialisation/seed du déclaratif
+// 2. top-level FENÊTRE
+// 3. top-levels des CHAMPS (ordre d'écriture)
+// 4. [dessin/affichage]
+// 5. FinInitialisation FENÊTRE (après dessin)
+
+FEN_Test_Ordre_GUI est une Fenêtre
+	PROPRIETES
+		Titre       = "Témoin ordre GUI"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 400
+	FIN
+
+	// Variable globale fenêtre (portée FEN_Test_Ordre_GUI — visible dans ses champs/events/procédures)
+	marqueurSeq est une chaîne = "1-TOP_FENETRE"
+
+	// Libellé pour afficher la séquence
+	LIB_Sequence est un Champ Libellé
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 460
+			Hauteur = 200
+			Libellé = "(en attente...)"
+		FIN
+
+		// TOP-LEVEL CHAMP
+		// Accès à la variable globale fenêtre (portée parent) : nom nu, pas FEN..
+		marqueurSeq += "2-TOP_LIBELLE"
+	FIN
+
+	// Bouton pour afficher la séquence
+	BTN_Afficher est un Champ Bouton
+		PROPRIETES
+			X       = 150
+			Y       = 250
+			Largeur = 200
+			Hauteur = 40
+			Libellé = "Afficher séquence"
+		FIN
+
+		// TOP-LEVEL CHAMP
+		// Accès à la variable globale fenêtre (portée parent) : nom nu, pas FEN..
+		marqueurSeq += "3-TOP_BOUTON"
+
+		PROCEDURE surClic()
+			// Lecture de la variable globale fenêtre (portée parent)
+			LIB_Sequence..Libellé = marqueurSeq
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Accès à la variable globale fenêtre (portée parent) : nom nu, pas FEN..
+		marqueurSeq += "4-FININIT"
+		// Affichage auto de la séquence après init complète (lecture variable globale)
+		LIB_Sequence..Libellé = marqueurSeq
+	FIN
+FIN

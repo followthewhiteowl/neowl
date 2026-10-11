@@ -1,0 +1,30 @@
+// Témoin parité headless — FinInitialisation + Fermeture fenêtre.
+//
+// Attendu :
+// - FinInitialisation fenêtre déclenché en headless (comme en GUI)
+// - Fermeture fenêtre déclenché en headless (comme en GUI)
+//
+// Pattern : la fenêtre voisine FEN_Test_Parite_HL.owl appelle callback_verifie
+// depuis FinInitialisation pour remonter la séquence d'events au script test.
+// Note : Fermeture n'est pas vérifiable depuis le script (lecture impossible
+// après Ferme()) — seul FinInit est vérifié ici.
+
+TestModeHeadless(Vrai)
+
+seqApresOuverture est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seqApresOuverture = s
+FIN
+
+Ouvre(FEN_Test_Parite_HL)
+
+Trace("=== Parité headless FinInit + Fermeture ===")
+Trace("Séquence après ouverture : [" + seqApresOuverture + "] (attendu : FININIT,)")
+
+Ferme(FEN_Test_Parite_HL)
+
+// Vérifier que FinInit a tourné (rouge attendu : absent en headless aujourd'hui)
+dbgVérifieEgalité(seqApresOuverture, "FININIT,", "FinInitialisation en headless")
+
+dbgBilanTest()

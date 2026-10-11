@@ -1,0 +1,58 @@
+// @sujet : EnumérationDepuisNom
+// @résumé : Retrouve le membre d'une énumération à partir de son nom.
+// Sans valeur par défaut, un nom introuvable lève une exception ; avec un
+// défaut, la fonction renvoie ce défaut plutôt que d'échouer.
+
+ENuance est une Énumération
+	Rouge = "R"
+	Vert  = "V"
+	Bleu  = "B"
+FIN
+
+Statut est une Énumération
+	Actif    = 1
+	Suspendu = 5
+FIN
+
+PROCEDURE PUBLIQUE scenario_lookup_par_nom_valeur_chaine()
+	m est un ENuance = EnumérationDepuisNom(ENuance, "Rouge")
+	dbgVérifieEgalité(m..Nom, "Rouge", "Le membre trouvé porte le nom Rouge")
+	dbgVérifieEgalité(m..Valeur, "R", "Le membre trouvé porte la valeur R associée")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lookup_par_nom_valeur_entiere()
+	m est un Statut = EnumérationDepuisNom(Statut, "Suspendu")
+	dbgVérifieEgalité(m..Valeur, 5, "Le membre trouvé porte la valeur entière 5")
+FIN
+
+PROCEDURE PUBLIQUE scenario_introuvable_avec_defaut()
+	m est un ENuance = EnumérationDepuisNom(ENuance, "Jaune", ENuance.Vert)
+	dbgVérifieEgalité(m..Nom, "Vert", "Nom introuvable : le défaut fourni est renvoyé")
+FIN
+
+PROCEDURE PUBLIQUE scenario_introuvable_sans_defaut_leve_exception()
+	bLevée est un booléen = Faux
+	sMessage est une chaîne = ""
+
+	QUAND EXCEPTION DANS
+		m est un ENuance = EnumérationDepuisNom(ENuance, "Jaune")
+	FAIRE
+		bLevée   = Vrai
+		sMessage = ExceptionInfo(errMessage)
+	FIN
+
+	dbgVérifieVrai(bLevée, "Nom introuvable sans défaut : une exception est levée")
+	dbgVérifieVrai(Taille(sMessage) > 0, "Le message d'exception n'est pas vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_nom_vide_leve_exception()
+	bLevée est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		m est un ENuance = EnumérationDepuisNom(ENuance, "")
+	FAIRE
+		bLevée = Vrai
+	FIN
+
+	dbgVérifieVrai(bLevée, "Le nom vide ne correspond à aucun membre : une exception est levée")
+FIN

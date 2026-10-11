@@ -1,0 +1,79 @@
+// ============================================
+// TEST (Qt réel, offscreen) : propriété Table MenuLoupe + TestSimuleMenu
+// (fenêtre, "OPT_X", TABLE.COL) — 
+//
+// MenuLoupe attache un bloc MenuContextuel au menu de la loupe (clic droit
+// sur l'en-tête de colonne d'un champ Table) : attaché, il REMPLACE le menu
+// loupe intégré. Dans le surSélection() d'une option de ce menu, MoiMême
+// désigne la colonne cliquée (forme TABLE.COL, ) : les natifs de
+// filtre déjà câblés (TableActiveFiltre, TableDésactiveFiltre) branchent
+// directement dessus sans adaptation.
+//
+// TestSimuleMenu(fenêtre, "OPT_X", TABLE.COL) est l'extension à 3 arguments
+// qui fixe la colonne contexte de la loupe sans clic droit réel : le 3e
+// argument devient MoiMême dans le surSélection() déclenché. La forme à 2
+// arguments garde son comportement d'origine (MoiMême = le champ attaché,
+// non-Table).
+//
+// ROUGE attendu, deux verrous indépendants :
+//   - MenuLoupe est une propriété inconnue sur Champ Table : la fenêtre
+//     voisine échoue dès la compilation.
+//   - TestSimuleMenu n'accepte aujourd'hui que 2 arguments (arité fixe,
+//     src/stdlib_ui.c::sig_test_simule_menu) : tout appel à 3 arguments est
+//     un compile-rouge tant que la signature n'est pas étendue.
+// Les deux tombent avec l'implémentation ; ce fichier redevient vert d'un
+// coup (même dépendance croisée que le combo Fenêtre/Table du reste de
+// objuicontrol_headless).
+//
+// Widget réel (TestModeHeadless(Faux)) pour observer aussi le masquage de
+// lignes via __DebugTableColonneVisible, pas seulement l'appel.
+// Pattern : la fenêtre voisine FEN_MenuLoupe.owl porte la déclaration
+// (TAB_Donnees : COL_Nom, COL_Ville — MNU_Loupe attaché via MenuLoupe ;
+// ZS_Champ : MNU_Classique attaché via MenuContextuel, non-régression).
+// ============================================
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MenuLoupe)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+TableAjouteLigne(TAB_Donnees, "Dupont", "Digne")
+TableAjouteLigne(TAB_Donnees, "Durand", "Lyon")
+TableAjouteLigne(TAB_Donnees, "Martin", "Dijon")
+
+// --- 1/2. clic droit loupe sur COL_Ville : le filtre se pose sur COL_Ville ---
+TestSimuleMenu(FEN_MenuLoupe, "OPT_Filtrer", TAB_Donnees.COL_Ville)
+dbgVérifieVrai(Contient(TableColonnesFiltrées(TAB_Donnees), "COL_Ville"),
+"le filtre se pose sur COL_Ville (la colonne passée en 3e argument)")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Donnees.COL_Nom),
+"Dupont" + CRLF + "Martin",
+"MoiMême = COL_Ville : seules les lignes dont la Ville commence par D restent visibles")
+
+TableDésactiveFiltre(TAB_Donnees)
+
+// --- 3. MoiMême cible la BONNE colonne : même option, colonne différente ---
+TestSimuleMenu(FEN_MenuLoupe, "OPT_Filtrer", TAB_Donnees.COL_Nom)
+dbgVérifieVrai(Contient(TableColonnesFiltrées(TAB_Donnees), "COL_Nom"),
+"cette fois le filtre se pose sur COL_Nom (3e argument différent)")
+dbgVérifieFaux(Contient(TableColonnesFiltrées(TAB_Donnees), "COL_Ville"),
+"COL_Ville n'est pas affectée : MoiMême a bien ciblé COL_Nom, pas COL_Ville")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Donnees.COL_Nom),
+"Dupont" + CRLF + "Durand",
+"filtre sur Nom commençant par D : Dupont et Durand restent visibles")
+
+// --- 4. Effacement ciblé via OPT_Effacer, MoiMême = COL_Nom ---
+TestSimuleMenu(FEN_MenuLoupe, "OPT_Effacer", TAB_Donnees.COL_Nom)
+dbgVérifieFaux(Contient(TableColonnesFiltrées(TAB_Donnees), "COL_Nom"),
+"OPT_Effacer retire le filtre de la colonne ciblée par MoiMême")
+dbgVérifieEgalité(__DebugTableColonneVisible(TAB_Donnees.COL_Nom),
+"Dupont" + CRLF + "Durand" + CRLF + "Martin",
+"plus aucun filtre actif : les 3 lignes redeviennent visibles")
+
+// --- 5. Non-régression : TestSimuleMenu à 2 arguments garde son comportement ---
+TestSimuleMenu(FEN_MenuLoupe, "OPT_Z")
+dbgVérifieEgalité(ZS_Champ..Valeur, "moimeme_ok",
+"forme à 2 arguments inchangée : MoiMême reste le champ attaché (non-Table)")
+
+Ferme(FEN_MenuLoupe)
+
+dbgBilanTest()

@@ -1,0 +1,158 @@
+// @sujet : Dataset (de ImageÉtiquetée)
+// @résumé : Un Dataset de ImageÉtiquetée regroupe des exemples pour
+// l'entraînement d'un classifieur : .NombreLots/.LotEntrées/.LotCibles
+// découpent la collection en lots exploitables par un modèle (X en
+// B×C×H×W, Y en indices de classe), et .Mélange rebat l'ordre sans perdre
+// ni dupliquer d'exemple. Chargé ici via
+// ChargeImagesÉtiquetéesDepuisDossier (dossier-par-classe), déterministe :
+// les classes sont énumérées par ordre alphabétique, donc "chat" (2
+// exemples, indice de classe 0) précède "chien" (2 exemples, indice de
+// classe 1) dans le Dataset non mélangé.
+
+// .NombreLots(taille) rend le nombre de lots nécessaires pour couvrir tous
+// les exemples ; quand la taille du lot ne divise pas exactement la taille
+// du Dataset, le dernier lot est partiel mais compte tout autant.
+PROCEDURE PUBLIQUE scenario_nombre_lots_division_exacte_et_partielle()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dataset_nblots"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c2.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d2.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	dbgVérifieEgalité(ds..Taille, 4, "précondition : 4 exemples au total")
+
+	dbgVérifieEgalité(ds.NombreLots(2), 2, "4 exemples / lot de 2 = 2 lots (division exacte)")
+	dbgVérifieEgalité(ds.NombreLots(3), 2, "4 exemples / lot de 3 = 2 lots (1 lot plein + 1 lot partiel)")
+	dbgVérifieEgalité(ds.NombreLots(4), 1, "4 exemples / lot de 4 = 1 lot")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// .LotEntrées(taille, i) rend un Tenseur B×C×H×W : B = taille du lot
+// demandée, C×H×W = la forme de ImageVersTenseur appliquée à chaque
+// exemple du lot.
+PROCEDURE PUBLIQUE scenario_lot_entrees_forme_bxcxhxw()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dataset_lotentrees"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c2.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d2.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	tX est un Tenseur = ds.LotEntrées(2, 1)
+	dbgVérifieEgalité(tX..Rang, 4, "B×C×H×W -> rang 4")
+	dbgVérifieEgalité(tX..Forme[1], 2, "B = taille de lot demandée")
+	dbgVérifieEgalité(tX..Forme[2], 3, "C = 3 canaux RGB")
+	dbgVérifieEgalité(tX..Forme[3], 2, "H = hauteur des images (2 px)")
+	dbgVérifieEgalité(tX..Forme[4], 2, "W = largeur des images (2 px)")
+
+	// Le lot 1 (2 premiers exemples, classe "chat") a le canal Vert à 1.0.
+	dbgVérifieVrai(Abs(tX..Valeur[1][2][1][1] - 1.0) < 0.0001, "exemple 1 du lot : canal Vert (chat) à 1.0")
+	dbgVérifieVrai(Abs(tX..Valeur[2][2][1][1] - 1.0) < 0.0001, "exemple 2 du lot : canal Vert (chat) à 1.0")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// .LotCibles(taille, i) rend un Tenseur des indices de classe du lot :
+// même taille de lot que .LotEntrées, valeurs = l'indice (0..NbClasses-1)
+// de la classe de chaque exemple, dans l'ordre des classes énumérées.
+PROCEDURE PUBLIQUE scenario_lot_cibles_indices_de_classe()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dataset_lotcibles"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c2.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d2.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+
+	tYChat est un Tenseur = ds.LotCibles(2, 1)
+	dbgVérifieEgalité(tYChat..Forme[1], 2, "lot 1 : 2 cibles (taille de lot demandée)")
+	dbgVérifieVrai(Abs(tYChat..Valeur[1] - 0.0) < 0.0001, "lot 1, exemple 1 : classe 'chat' -> indice 0")
+	dbgVérifieVrai(Abs(tYChat..Valeur[2] - 0.0) < 0.0001, "lot 1, exemple 2 : classe 'chat' -> indice 0")
+
+	tYChien est un Tenseur = ds.LotCibles(2, 2)
+	dbgVérifieVrai(Abs(tYChien..Valeur[1] - 1.0) < 0.0001, "lot 2, exemple 1 : classe 'chien' -> indice 1")
+	dbgVérifieVrai(Abs(tYChien..Valeur[2] - 1.0) < 0.0001, "lot 2, exemple 2 : classe 'chien' -> indice 1")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// .Mélange() rebat l'ordre des exemples, mais ne change ni la taille du
+// Dataset ni l'ensemble des chemins qu'il contient (aucune perte, aucun
+// doublon) — on ne teste pas un ordre précis, seulement la préservation de
+// l'ensemble.
+PROCEDURE PUBLIQUE scenario_melange_preserve_taille_et_ensemble_des_exemples()
+	racine est une chaîne = fRepTemp() + "\owl_test_1675_dataset_melange"
+	fRepCree(racine + "\chat")
+	fRepCree(racine + "\chien")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), racine + "\chat\c2.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), racine + "\chien\d2.png")
+
+	ds est un Dataset de ImageÉtiquetée = ChargeImagesÉtiquetéesDepuisDossier(racine)
+	tailleAvant est un entier = ds..Taille
+
+	cheminsAvant est un tableau de chaînes
+	POUR i = 1 À ds..Taille
+		cheminsAvant.Ajoute(ds[i]..Chemin)
+	FIN
+	TableauTrie(cheminsAvant)
+
+	ds.Mélange()
+
+	dbgVérifieEgalité(ds..Taille, tailleAvant, ".Mélange() ne change pas ..Taille")
+
+	cheminsApres est un tableau de chaînes
+	POUR i = 1 À ds..Taille
+		cheminsApres.Ajoute(ds[i]..Chemin)
+	FIN
+	TableauTrie(cheminsApres)
+
+	sAvant est une chaîne = ""
+	sApres est une chaîne = ""
+	POUR i = 1 À tailleAvant
+		sAvant += cheminsAvant[i] + "|"
+		sApres += cheminsApres[i] + "|"
+	FIN
+	dbgVérifieEgalité(sApres, sAvant, ".Mélange() préserve l'ensemble des chemins (même multi-ensemble trié)")
+
+	fRepSupprime(racine, frRécursif)
+FIN
+
+
+// Les formes anglaises .Shuffle() / .BatchCount / .BatchInputs /
+// .BatchTargets désignent les mêmes opérations.
+PROCEDURE PUBLIQUE scenario_formes_anglaises()
+	root est a string = fRepTemp() + "\owl_test_1675_dataset_english"
+	fRepCree(root + "\cat")
+	fRepCree(root + "\dog")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(0, 255, 0)), root + "\cat\c1.png")
+	dSauveImagePNG(dCréeImage(2, 2, RVB(255, 255, 0)), root + "\dog\d1.png")
+
+	ds is a Dataset of LabeledImage = LoadLabeledImagesFromFolder(root)
+
+	dbgVérifieEgalité(ds.BatchCount(1), 2, "BatchCount(1) : 2 exemples / lot de 1 = 2 lots")
+
+	tX is a Tensor = ds.BatchInputs(1, 1)
+	dbgVérifieEgalité(tX..Shape[1], 1, "BatchInputs : B = 1")
+
+	tY is a Tensor = ds.BatchTargets(1, 1)
+	dbgVérifieEgalité(tY..Shape[1], 1, "BatchTargets : 1 cible pour le lot")
+
+	ds.Shuffle()
+	dbgVérifieEgalité(ds..Count, 2, "Shuffle() ne change pas ..Count")
+
+	fRepSupprime(root, frRécursif)
+FIN

@@ -1,0 +1,51 @@
+//  — Unification BTN..Image ⇄ BTN..Style..Image..Image en mode GUI
+// réel (widgets Qt montés, pas seulement le store headless). BTN_A pose
+// Style..Image..Image = icones.close puis écrase via le plat BTN..Image =
+// icones.add (dernier écrit gagne) ; BTN_B pose directement icones.add via
+// le plat. Si l'unification tient, les deux rendus convergent pixel.
+//
+// ROUGE ATTENDU : la feuille Style..Image..Image n'existe pas encore ->
+// échec de compilation du fichier voisin FEN_UnifImageBoutonGui.owl.
+//
+// Seule couverture de l'unification (pas de volet headless en complément) :
+// en mode CLI pur sans rasterizer Qt réel, une Image issue d'une coercion
+// Icône->Image reste "Valide" mais son contenu pixel n'est pas discriminant
+// (CouleurDominanteImage et l'accès pixel direct renvoient une valeur
+// constante quelle que soit l'icône source) — aucun oracle de contenu
+// fiable n'existe hors GUI réel pour ce cas. Le test pixel ci-dessous est
+// donc la seule preuve de non-régression sur cette unification.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_UnifImageBoutonGui)
+
+EcraseImagePlatSurA()
+
+imgA est une Image = CaptureA()
+dbgVérifieEgalité(imgA..Valide, Vrai, "GUI : capture BTN_A valide")
+
+imgB est une Image = CaptureB()
+dbgVérifieEgalité(imgB..Valide, Vrai, "GUI : capture BTN_B valide")
+
+nbDiff est un entier = 0
+w est un entier = imgA..Largeur
+h est un entier = imgA..Hauteur
+yy est un entier = 0
+TANTQUE yy < h
+	xx est un entier = 0
+	TANTQUE xx < w
+		cA est un entier = dPixelCouleur(imgA, xx, yy)
+		cB est un entier = dPixelCouleur(imgB, xx, yy)
+		SI cA <> cB ALORS
+			nbDiff = nbDiff + 1
+		FIN
+		xx = xx + 1
+	FIN
+	yy = yy + 1
+FIN
+
+dbgVérifieEgalité(nbDiff, 0,
+"BTN_A (Style..Image..Image ecrase par le plat BTN..Image = icones.add) et BTN_B (plat direct icones.add) rendent pixel-identiques : dernier-ecrit-gagne tient en mode GUI reel")
+
+Ferme(FEN_UnifImageBoutonGui)
+dbgBilanTest()

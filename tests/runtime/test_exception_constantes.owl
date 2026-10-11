@@ -1,0 +1,32 @@
+// Vérifie que toutes les constantes errXxx documentées ExceptionInfo
+// (documentation de référence) sont accessibles et retournent quelque chose de cohérent.
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(99, "test message")
+FAIRE
+	// Constantes implémentées en OWL (standard de référence)
+	dbgVérifieEgalité(ExceptionInfo(errCode), 99, "errCode")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "test message", "errMessage")
+	dbgVérifieVrai(Taille(ExceptionInfo(errComplet)) > 0, "errComplet non-vide")
+	dbgVérifieEgalité(ExceptionInfo(errNombreSousErreur), 0, "errNombreSousErreur")
+
+	// errInfo = 3e arg d'ExceptionDéclenche, vide ici (2 args seulement)
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"errInfo vide sans 3e arg à ExceptionDéclenche")
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 0,
+	"errCodeSystème = 0 sans opt-in syscall")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "",
+	"errMessageSystème vide sans opt-in syscall")
+
+	// Aliases ASCII
+	dbgVérifieEgalité(ExceptionInfo(errCodeSystème), 0,
+	"errCodeSysteme (alias ASCII) = errCodeSystème")
+	dbgVérifieEgalité(ExceptionInfo(errMessageSystème), "",
+	"errMessageSysteme (alias ASCII)")
+
+	// errRésumé (canon de référence accentué) + alias ASCII errResume
+	dbgVérifieEgalité(ExceptionInfo(errRésumé), "test message", "errRésumé canon")
+	dbgVérifieEgalité(ExceptionInfo(errRésumé), "test message", "errResume alias ASCII")
+FIN
+
+dbgBilanTest()

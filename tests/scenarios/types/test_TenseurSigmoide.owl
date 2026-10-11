@@ -1,0 +1,59 @@
+// @sujet : Tenseur.Sigmoïde
+// @résumé : Activation sigmoïde différentiable sur un Tenseur — écrase
+// toute valeur réelle dans l'intervalle ouvert (0, 1) ; Rétropropage()
+// applique la règle de dérivation propre à la sigmoïde, exprimée à
+// partir de sa propre sortie.
+
+// La sigmoïde de 0.0 vaut exactement 0.5, valeur pivot de la courbe.
+PROCEDURE PUBLIQUE scenario_sigmoide_zero_exact_forward()
+	ta est un Tenseur = Tenseur([0.0])
+	tr est un Tenseur = ta.Sigmoïde()
+	dbgVérifieEgalité(tr..Valeur[1], 0.5, "Sigmoïde(0.0) = 0.5")
+FIN
+
+
+// dSigmoïde/dx = y*(1-y), avec y = sortie. En x = 0.0, y = 0.5, donc le
+// gradient vaut 0.5*0.5 = 0.25 (amorcé à 1.0 par Rétropropage()).
+PROCEDURE PUBLIQUE scenario_sigmoide_zero_exact_backward()
+	ta est un Tenseur = Tenseur([0.0])
+	tr est un Tenseur = ta.Sigmoïde()
+	tr.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 0.25, "y=0.5 -> gradient = y*(1-y) = 0.25")
+FIN
+
+
+// La forme anglaise .Sigmoid() désigne la même opération que
+// .Sigmoïde(), avec le même calcul de gradient.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	ta est un Tenseur = Tenseur([0.0])
+	tr est un Tenseur = ta.Sigmoid()
+	tr.Rétropropage()
+	dbgVérifieEgalité(tr..Valeur[1], 0.5, "Sigmoid(0.0) = 0.5")
+	dbgVérifieEgalité(ta..Gradient[1], 0.25, "Sigmoid : gradient = y*(1-y) = 0.25")
+FIN
+
+
+// Sur une grande valeur positive la sortie sature au voisinage de 1 et
+// le gradient s'effondre vers 0 ; symétriquement pour une grande valeur
+// négative. Tolérance nécessaire (saturation asymptotique, jamais
+// exactement atteinte).
+PROCEDURE PRIVÉE scenario_edge_saturation_valeurs_extremes()
+	ta est un Tenseur = Tenseur([50.0,-50.0])
+	tr est un Tenseur = ta.Sigmoïde()
+	tr.Rétropropage()
+	dbgVérifieVrai(Abs(tr..Valeur[1] - 1.0) < 0.0001, "Sigmoïde(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(tr..Valeur[2] - 0.0) < 0.0001, "Sigmoïde(-50.0) proche de 0.0")
+	dbgVérifieVrai(Abs(ta..Gradient[1] - 0.0) < 0.0001, "Sortie saturée : gradient proche de 0.0")
+	dbgVérifieVrai(Abs(ta..Gradient[2] - 0.0) < 0.0001, "Sortie saturée : gradient proche de 0.0")
+FIN
+
+
+// Deux composantes nulles côte à côte : chacune reçoit indépendamment
+// son propre gradient amorcé à 1.0 par Rétropropage().
+PROCEDURE PRIVÉE scenario_edge_multi_composantes()
+	ta est un Tenseur = Tenseur([0.0, 0.0])
+	tr est un Tenseur = ta.Sigmoïde()
+	tr.Rétropropage()
+	dbgVérifieEgalité(ta..Gradient[1], 0.25, "Composante 1 : gradient = 0.25")
+	dbgVérifieEgalité(ta..Gradient[2], 0.25, "Composante 2 : gradient = 0.25")
+FIN

@@ -1,0 +1,27 @@
+// Support #268 : affectation libre "NOM = {...}" dans le corps de Fenêtre
+// (hors PROPRIETES, hors procédure) est lue comme affectation de propriété.
+// EDT_Contenu n'étant pas une propriété de Fenêtre -> erreur réelle "propriété
+// inconnue" PUIS cascade fantôme (bloc fermé trop tôt, +N hors bloc) faute de
+// resync, à cause du widget déclaré ensuite (BTN_OK) qui retombe hors bloc.
+// BASELINE (, avant fix) : 4 erreurs (1 réelle + 3 fantômes).
+// CIBLE : 1 erreur (la propriété inconnue), aucune cascade.
+
+FEN_Test est une Fenêtre
+	PROPRIETES
+		Titre       = "T"
+		Largeur     = 400
+		Hauteur     = 300
+		Disposition = dispLibre
+	FIN
+
+	EDT_Contenu = {
+		langueAnglais: "hi",
+		langueFrançais: "salut"
+	}
+
+	BTN_OK est un Champ Bouton
+		PROPRIETES
+			Libellé = "OK"
+		FIN
+	FIN
+FIN

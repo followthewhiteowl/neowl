@@ -1,0 +1,104 @@
+// test_matrice_noyau.owl — 
+// Verrouille les cas limites techniques du noyau Matrice : bornes
+// extrêmes d'index (ligne et colonne), non-corruption après accès hors
+// borne (lecture ET écriture), matrice à une seule ligne/colonne,
+// distinction TypeVar avec buffer. Complément technique au scenario
+// pédagogique de tests/scenarios/types/test_Matrice.owl et
+// tests/scenarios/natives/test_{Matrice,TableauVersMatrice,MatriceVersTableau}*.owl.
+
+Trace("=== MATRICE NOYAU ===")
+
+// --- Index hors borne extrêmes (ligne) ---
+mBorne est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+
+capturéLigneMax est une chaîne = ""
+QUAND EXCEPTION DANS
+	x est un réel = mBorne[2147483647][1]
+	capturéLigneMax = "no-throw"
+FAIRE
+	capturéLigneMax = "caught"
+FIN
+dbgVérifieEgalité(capturéLigneMax, "caught", "index ligne INT32_MAX attrapé")
+
+capturéLigneMin est une chaîne = ""
+QUAND EXCEPTION DANS
+	y est un réel = mBorne[-2147483648][1]
+	capturéLigneMin = "no-throw"
+FAIRE
+	capturéLigneMin = "caught"
+FIN
+dbgVérifieEgalité(capturéLigneMin, "caught", "index ligne INT32_MIN attrapé")
+
+// --- Index hors borne extrêmes (colonne) ---
+capturéColonneMax est une chaîne = ""
+QUAND EXCEPTION DANS
+	z est un réel = mBorne[1][2147483647]
+	capturéColonneMax = "no-throw"
+FAIRE
+	capturéColonneMax = "caught"
+FIN
+dbgVérifieEgalité(capturéColonneMax, "caught", "index colonne INT32_MAX attrapé")
+
+capturéColonneNegatif est une chaîne = ""
+QUAND EXCEPTION DANS
+	w est un réel = mBorne[1][-1]
+	capturéColonneNegatif = "no-throw"
+FAIRE
+	capturéColonneNegatif = "caught"
+FIN
+dbgVérifieEgalité(capturéColonneNegatif, "caught", "index colonne -1 attrapé")
+
+// --- Écriture hors borne : pas de corruption ensuite ---
+capturéEcriture est une chaîne = ""
+QUAND EXCEPTION DANS
+	mBorne[999][999] = 42.0
+	capturéEcriture = "no-throw"
+FAIRE
+	capturéEcriture = "caught"
+FIN
+dbgVérifieEgalité(capturéEcriture, "caught", "écriture hors borne (ligne ET colonne) attrapée")
+dbgVérifieEgalité(mBorne[1][1], 1.0, "mBorne[1][1] intact après écriture hors borne")
+dbgVérifieEgalité(mBorne[2][3], 6.0, "mBorne[2][3] intact après écriture hors borne")
+dbgVérifieEgalité(mBorne..Lignes, 2, "..Lignes inchangé après écriture hors borne")
+dbgVérifieEgalité(mBorne..Colonnes, 3, "..Colonnes inchangé après écriture hors borne")
+
+// --- TypeVar distingue Matrice d'un buffer et d'un Vecteur ---
+bufTemoin est un buffer = BufferVide(4)
+vTemoin est un Vecteur = [1.0, 2.0]
+nTagMatrice est un entier = TypeVar(mBorne)
+nTagBuffer est un entier = TypeVar(bufTemoin)
+nTagVecteur est un entier = TypeVar(vTemoin)
+dbgVérifieDifférence(nTagMatrice, nTagBuffer, "TypeVar(Matrice) distinct de TypeVar(buffer)")
+dbgVérifieDifférence(nTagMatrice, nTagVecteur, "TypeVar(Matrice) distinct de TypeVar(Vecteur)")
+
+// --- Matrice à une seule ligne : bord bas = bord haut sur les lignes ---
+mUneLigne est une Matrice = [[7.0, 8.0, 9.0]]
+dbgVérifieEgalité(mUneLigne..Lignes, 1, "Matrice à une ligne : ..Lignes = 1")
+dbgVérifieEgalité(mUneLigne..Colonnes, 3, "Matrice à une ligne : ..Colonnes = 3")
+dbgVérifieEgalité(mUneLigne[1][3], 9.0, "mUneLigne[1][3] = dernier élément")
+
+capturéLigneUnique est une chaîne = ""
+QUAND EXCEPTION DANS
+	q est un réel = mUneLigne[2][1]
+	capturéLigneUnique = "no-throw"
+FAIRE
+	capturéLigneUnique = "caught"
+FIN
+dbgVérifieEgalité(capturéLigneUnique, "caught", "mUneLigne[2][1] hors borne sur matrice à 1 ligne, attrapé")
+
+// --- Matrice à une seule colonne : bord bas = bord haut sur les colonnes ---
+mUneColonne est une Matrice = [[1.0], [2.0], [3.0]]
+dbgVérifieEgalité(mUneColonne..Lignes, 3, "Matrice à une colonne : ..Lignes = 3")
+dbgVérifieEgalité(mUneColonne..Colonnes, 1, "Matrice à une colonne : ..Colonnes = 1")
+dbgVérifieEgalité(mUneColonne[3][1], 3.0, "mUneColonne[3][1] = dernier élément")
+
+capturéColonneUnique est une chaîne = ""
+QUAND EXCEPTION DANS
+	r est un réel = mUneColonne[1][2]
+	capturéColonneUnique = "no-throw"
+FAIRE
+	capturéColonneUnique = "caught"
+FIN
+dbgVérifieEgalité(capturéColonneUnique, "caught", "mUneColonne[1][2] hors borne sur matrice à 1 colonne, attrapé")
+
+dbgBilanTest()

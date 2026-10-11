@@ -1,0 +1,35 @@
+//  : le type d'element d'un PARAMETRE collection de METHODE de classe
+// (`tableau de <Type>`) est validé au meme titre qu'un param collection de
+// procedure. Preuve par EXECUTION (bind + iteration) que les formes
+// valides restent LIEES :
+//   - param collection type utilisateur declaré (r1160Ligne)
+//   - param collection primitif pluriel (`tableau de chaînes`)
+//   - param sans type (tableau libre)
+// La forme rejetée (element inconnu) est verrouillée dans tests/compile-error/.
+
+r1160Ligne est une Structure
+	quantite est un entier
+FIN
+
+r1160Lignes est un tableau de r1160Ligne
+r1160A est un r1160Ligne
+r1160A.quantite = 3
+Ajoute(r1160Lignes, r1160A)
+r1160B est un r1160Ligne
+r1160B.quantite = 4
+Ajoute(r1160Lignes, r1160B)
+
+r1160Mots est un tableau de chaînes
+Ajoute(r1160Mots, "promo")
+Ajoute(r1160Mots, "solde")
+
+r1160Sac est un tableau
+Ajoute(r1160Sac, 10)
+Ajoute(r1160Sac, 20)
+
+r1160Calc est un c1160Calc
+dbgVérifieEgalité(r1160Calc.total(r1160Lignes), 7, "param methode tableau de type utilisateur : somme quantites liees")
+dbgVérifieEgalité(r1160Calc.premier(r1160Mots), "promo", "param methode tableau de chaînes : lecture element lie")
+dbgVérifieEgalité(r1160Calc.compte(r1160Sac), 2, "param methode tableau sans type : taille lue")
+
+dbgBilanTest()

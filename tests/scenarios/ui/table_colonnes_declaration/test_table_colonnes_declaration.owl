@@ -1,0 +1,44 @@
+// @sujet : Table, Colonne
+// @résumé : Déclarer un champ Table et ses colonnes, puis lire une cellule par le nom de sa colonne.
+//
+// Un champ Table regroupe des colonnes déclarées comme sous-blocs Colonne.
+// Chaque colonne porte ses propriétés courantes : Libellé (en-tête), Type
+// (nature des cellules) et Largeur. Une cellule se lit par le nom de sa
+// colonne : TABLE_X[ligne].COL_A rend la valeur affichée.
+//
+// La déclaration complète (FEN_Repertoire.owl) :
+//
+//   TABLE_Repertoire est un Champ Table
+//       COL_Nom est une Colonne
+//           PROPRIETES
+//               Libellé = "Nom"
+//               Type    = colTypeTexte
+//               Largeur = 220
+//           FIN
+//       FIN
+//       COL_Age est une Colonne ...
+//   FIN
+//
+// Note technique : TestModeHeadless(Faux) monte le champ Table réel (hors
+// écran), ce qui permet à TableAjouteLigne de peupler les lignes et à la
+// lecture par nom de colonne de rendre une valeur.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_declaration_table_colonnes()
+	OuvreSoeur(FEN_Repertoire)
+
+	// Deux lignes ont été ajoutées dans FinInitialisation.
+	dbgVérifieEgalité(TableOccurrence(TABLE_Repertoire), 2,
+	"la Table compte les deux lignes peuplées")
+
+	// Lecture d'une cellule par le nom de sa colonne (colonne texte).
+	dbgVérifieEgalité(TABLE_Repertoire[1].COL_Nom, "Ada",
+	"cellule de la colonne Nom, première ligne")
+
+	// Lecture d'une cellule d'une colonne numérique.
+	dbgVérifieEgalité(TABLE_Repertoire[2].COL_Age, 41,
+	"cellule de la colonne Âge, deuxième ligne")
+
+	Ferme(FEN_Repertoire)
+FIN

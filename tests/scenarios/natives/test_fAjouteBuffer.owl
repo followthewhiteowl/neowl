@@ -1,0 +1,60 @@
+// @sujet : fAjouteBuffer
+// @résumé : Ajoute un buffer à la fin d'un fichier, en le créant s'il n'existe pas. Retourne Vrai en cas de succès. Des appels successifs concatènent les octets sur disque dans l'ordre d'ajout.
+
+
+// Cas A : fichier inexistant — fAjouteBuffer le crée avec le contenu du buffer.
+PROCEDURE PUBLIQUE scenario_fab_creation_fichier_inexistant()
+	chemin est une chaîne = "_tmp_fab_0142_A.bin"
+	fSupprime(chemin)
+	buf est un buffer = ChaîneVersBuffer("café")
+	ok est un booléen = fAjouteBuffer(chemin, buf)
+	dbgVérifieVrai(ok, "fAjouteBuffer sur fichier inexistant retourne Vrai et le crée")
+	bufLu est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(BufferVersChaîne(bufLu), "café", "contenu relu identique au buffer ajouté")
+	fSupprime(chemin)
+FIN
+
+
+// Cas B : fichier existant — deux ajouts successifs concatènent les octets sur disque.
+PROCEDURE PUBLIQUE scenario_fab_concatenation_fichier_existant()
+	chemin est une chaîne = "_tmp_fab_0142_B.bin"
+	fSupprime(chemin)
+	ok1 est un booléen = fAjouteBuffer(chemin, ChaîneVersBuffer("bonjour "))
+	dbgVérifieVrai(ok1, "premier fAjouteBuffer retourne Vrai")
+	ok2 est un booléen = fAjouteBuffer(chemin, ChaîneVersBuffer("monde"))
+	dbgVérifieVrai(ok2, "second fAjouteBuffer retourne Vrai")
+	bufLu est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(BufferVersChaîne(bufLu), "bonjour monde", "les deux ajouts sont concaténés dans l'ordre")
+	fSupprime(chemin)
+FIN
+
+
+// Cas C : vérification octet-à-octet — un buffer de 3 octets précis est retrouvé intact sur disque.
+PROCEDURE PUBLIQUE scenario_fab_verification_octets()
+	chemin est une chaîne = "_tmp_fab_0142_C.bin"
+	fSupprime(chemin)
+	buf est un buffer = ChaîneVersBuffer("abc")
+	ok est un booléen = fAjouteBuffer(chemin, buf)
+	dbgVérifieVrai(ok, "fAjouteBuffer retourne Vrai pour un buffer ASCII de 3 octets")
+	bufLu est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(Taille(bufLu), 3, "le fichier contient exactement 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(bufLu, 1), 97, "premier octet = 'a' (97)")
+	dbgVérifieEgalité(BufferLitOctet(bufLu, 2), 98, "second octet = 'b' (98)")
+	dbgVérifieEgalité(BufferLitOctet(bufLu, 3), 99, "troisième octet = 'c' (99)")
+	fSupprime(chemin)
+FIN
+
+
+// Cas limite : ajout d'un buffer vide sur un fichier déjà existant — le contenu ne change pas.
+PROCEDURE PRIVÉE scenario_fab_edge_buffer_vide()
+	chemin est une chaîne = "_tmp_fab_0142_D.bin"
+	fSupprime(chemin)
+	ok1 est un booléen = fAjouteBuffer(chemin, ChaîneVersBuffer("intact"))
+	dbgVérifieVrai(ok1, "création initiale du fichier retourne Vrai")
+	bufVide est un buffer = ChaîneVersBuffer("")
+	ok2 est un booléen = fAjouteBuffer(chemin, bufVide)
+	dbgVérifieVrai(ok2, "ajout d'un buffer vide retourne Vrai sans erreur")
+	bufLu est un buffer = fChargeBuffer(chemin)
+	dbgVérifieEgalité(BufferVersChaîne(bufLu), "intact", "le contenu reste inchangé après ajout d'un buffer vide")
+	fSupprime(chemin)
+FIN

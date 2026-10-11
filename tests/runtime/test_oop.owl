@@ -1,0 +1,43 @@
+// POO de base — instanciation, acces membre, methode, methode avec retour.
+//
+// Note : la branche heritage (cChat herite de cAnimal) n'est plus couverte
+// par la suite "owl test" depuis l'enforce 1 classe = 1 fichier : un test
+// est compile dans une VM isolee qui ne charge pas les classes des autres
+// fichiers. La couverture heritage en mode test demanderait soit un
+// harness multi-fichier dedie, soit une evolution du test runner pour
+// charger les helpers cross-file. Ticket de suivi a creer cote dev.
+
+cAnimal est une Classe
+PUBLIC
+	sNom est une chaîne
+	nAge est un entier
+
+	PROCEDURE Constructeur(sNom est une chaîne, nAge est un entier)
+		:sNom = sNom
+		:nAge = nAge
+	FIN
+
+	PROCEDURE Presenter()
+		Trace("Je suis " + :sNom + ", " + :nAge + " ans")
+	FIN
+
+	PROCEDURE GetNom() : chaîne
+		RENVOYER :sNom
+	FIN
+FIN
+
+PROCEDURE scenario_classe_base()
+	oChat est un cAnimal("Moustache", 5)
+	oChat.Presenter()
+	dbgVérifieEgalité(oChat.sNom, "Moustache", "Member access")
+	dbgVérifieEgalité(oChat.GetNom(), "Moustache", "Method with return")
+
+	// Seconde instance
+	oChien est un cAnimal("Rex", 3)
+	oChien.Presenter()
+	dbgVérifieDifférence(oChat.sNom, oChien.sNom, "Instances independantes")
+
+	// Modify member
+	oChat.nAge = 6
+	dbgVérifieEgalité(oChat.nAge, 6, "Member modification")
+FIN

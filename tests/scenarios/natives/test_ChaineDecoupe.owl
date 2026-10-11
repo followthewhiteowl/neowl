@@ -1,0 +1,113 @@
+// @sujet : ChaîneDécoupe
+// @résumé : Découpe une chaîne en segments selon un ou plusieurs séparateurs et retourne un tableau de sous-chaînes.
+
+
+// Cas canonique : un séparateur à un seul caractère, plusieurs occurrences.
+// Vérification complète pour servir de référence à la lecture.
+PROCEDURE scenario_separateur_simple()
+	parts est un tableau de chaînes = ChaîneDécoupe("a,b,c", ",")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[1], "a")
+	dbgVérifieEgalité(parts[2], "b")
+	dbgVérifieEgalité(parts[3], "c")
+FIN
+
+
+// Forme méthode équivalente : la chaîne réceptrice fournit le premier argument.
+// Pratique pour le chaînage avec d'autres méthodes de chaîne.
+PROCEDURE scenario_forme_methode()
+	sLigne est une chaîne = "a,b,c"
+	parts est un tableau de chaînes = sLigne.Decoupe(",")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[2], "b")
+FIN
+
+
+// Quand le séparateur n'apparaît pas, la chaîne d'origine est retournée
+// comme unique élément du tableau.
+PROCEDURE scenario_separateur_absent()
+	parts est un tableau de chaînes = ChaîneDécoupe("Bonjour", ",")
+	dbgVérifieEgalité(parts..Occurrence, 1)
+	dbgVérifieEgalité(parts[1], "Bonjour")
+FIN
+
+
+// Une chaîne vide produit un tableau d'un élément vide, pas un tableau vide.
+PROCEDURE scenario_chaine_vide()
+	parts est un tableau de chaînes = ChaîneDécoupe("", ",")
+	dbgVérifieEgalité(parts..Occurrence, 1)
+	dbgVérifieEgalité(parts[1], "")
+FIN
+
+
+// Deux séparateurs côte à côte produisent un segment vide entre eux.
+PROCEDURE scenario_separateurs_consecutifs()
+	parts est un tableau de chaînes = ChaîneDécoupe("a,,b", ",")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[2], "")
+FIN
+
+
+// Un séparateur en début ou fin de chaîne produit un segment vide à l'extrémité.
+PROCEDURE scenario_separateurs_en_bordure()
+	parts est un tableau de chaînes = ChaîneDécoupe(",a,", ",")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[1], "")
+	dbgVérifieEgalité(parts[3], "")
+FIN
+
+
+// Le séparateur peut être une séquence de plusieurs caractères ; la coupe se fait
+// sur la séquence exacte, pas caractère par caractère.
+PROCEDURE scenario_separateur_multi_caracteres()
+	parts est un tableau de chaînes = ChaîneDécoupe("alice<>bob<>eve", "<>")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[2], "bob")
+FIN
+
+
+// Le séparateur peut contenir des caractères non-ASCII (UTF-8 multi-octets).
+PROCEDURE scenario_separateur_utf8()
+	parts est un tableau de chaînes = ChaîneDécoupe("a→b→c", "→")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[2], "b")
+FIN
+
+
+// Forme cascade : plusieurs séparateurs passés en arguments sont appliqués
+// successivement, chacun à son tour sur ce qui reste de la chaîne. Le dernier
+// séparateur n'est utilisé qu'une fois — d'où "d-e" non recoupé.
+PROCEDURE scenario_cascade_plusieurs_separateurs()
+	parts est un tableau de chaînes = ChaîneDécoupe("a|b;c-d-e", "|", ";", "-")
+	dbgVérifieEgalité(parts..Occurrence, 4)
+	dbgVérifieEgalité(parts[4], "d-e")
+FIN
+
+
+// Forme any-of : un tableau de séparateurs en deuxième argument coupe la chaîne
+// à n'importe quelle occurrence de l'un des séparateurs.
+PROCEDURE scenario_any_of_avec_tableau()
+	seps est un tableau de chaînes
+	seps.Ajoute(",").Ajoute(";").Ajoute("|")
+	parts est un tableau de chaînes = ChaîneDécoupe("a,b;c|d", seps)
+	dbgVérifieEgalité(parts..Occurrence, 4)
+FIN
+
+
+// Le retour chariot peut servir de séparateur, par exemple pour traiter ligne
+// par ligne le contenu d'un fichier texte.
+PROCEDURE scenario_separateur_retour_chariot()
+	contenu est une chaîne = "ligne1" + LF + "ligne2" + LF + "ligne3"
+	parts est un tableau de chaînes = ChaîneDécoupe(contenu, LF)
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[2], "ligne2")
+FIN
+
+
+// Cas limite défensif : un séparateur vide fait découper caractère par caractère.
+// Comportement à connaître mais à éviter en pratique — préférer ChaîneVersTableau
+// ou une approche explicite si l'on veut itérer sur les caractères.
+PROCEDURE PRIVÉE scenario_separateur_vide()
+	parts est un tableau de chaînes = ChaîneDécoupe("abc", "")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+FIN

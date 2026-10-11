@@ -1,0 +1,64 @@
+// test_ajoute_retour_tableau.owl
+// Verrouille le comportement uniforme Ajoute : forme fonction ET methode
+// renvoient tous deux le tableau (divergence assumee canon de référence → Entier, ).
+
+PROCEDURE PUBLIQUE test_ajoute_forme_fonction_renvoie_tableau()
+	t est un tableau de chaînes
+	t2 est un tableau de chaînes = Ajoute(t, "premier")
+	dbgVérifieEgalité(t2..Occurrence, 1, "Ajoute fonction renvoie tableau avec bon contenu")
+	dbgVérifieEgalité(t..Occurrence, 1, "element bien ajoute dans t")
+	dbgVérifieEgalité(t[1], "premier", "valeur correcte dans t")
+	dbgVérifieEgalité(t2[1], "premier", "valeur correcte dans t2")
+	// Verifier que t2 et t partagent la meme reference : mutation via t2 affecte t
+	t2.Ajoute("second")
+	dbgVérifieEgalité(t..Occurrence, 2, "mutation via t2 affecte t (meme reference)")
+FIN
+
+PROCEDURE PUBLIQUE test_ajoute_forme_methode_renvoie_tableau()
+	t est un tableau de chaînes
+	t2 est un tableau de chaînes = t.Ajoute("alpha")
+	dbgVérifieEgalité(t2..Occurrence, 1, "Ajoute methode renvoie tableau avec contenu")
+	dbgVérifieEgalité(t..Occurrence, 1, "element ajoute dans t")
+	dbgVérifieEgalité(t[1], "alpha", "valeur ok dans t")
+	dbgVérifieEgalité(t2[1], "alpha", "valeur ok dans t2")
+	t2.Ajoute("beta")
+	dbgVérifieEgalité(t..Occurrence, 2, "mutation via t2 affecte t")
+FIN
+
+PROCEDURE PUBLIQUE test_ajoute_chainabilite_complete()
+	t est un tableau de chaînes
+	t.Ajoute("a").Ajoute("b").Ajoute("c")
+	dbgVérifieEgalité(t..Occurrence, 3, "chainage 3 ajouts OK")
+	dbgVérifieEgalité(t[1], "a", "ordre preserve 1er")
+	dbgVérifieEgalité(t[2], "b", "ordre preserve 2e")
+	dbgVérifieEgalité(t[3], "c", "ordre preserve dernier")
+FIN
+
+PROCEDURE PUBLIQUE test_ajoute_statement_form_sans_assignation()
+	t est un tableau de chaînes
+	Ajoute(t, "x")
+	dbgVérifieEgalité(t..Occurrence, 1, "Ajoute statement form OK")
+	dbgVérifieEgalité(t[1], "x", "valeur bien ajoutee")
+FIN
+
+PROCEDURE PUBLIQUE test_ajoute_workaround_position_via_occurrence()
+	t est un tableau de chaînes
+	t.Ajoute("zero")
+	t.Ajoute("un")
+	t.Ajoute("deux")
+	pos est un entier = t..Occurrence
+	dbgVérifieEgalité(pos, 3, "..Occurrence apres Ajoute donne la position du dernier ajout")
+	dbgVérifieEgalité(t[pos], "deux", "acces par position obtenue")
+FIN
+
+PROCEDURE PUBLIQUE test_ajoute_type_entier_chainabilite()
+	ti est un tableau d'entiers
+	r est un tableau d'entiers = ti.Ajoute(42).Ajoute(100).Ajoute(-5)
+	dbgVérifieEgalité(r..Occurrence, 3, "type entiers chaine OK")
+	dbgVérifieEgalité(ti..Occurrence, 3, "ti aussi a 3 elements")
+	dbgVérifieEgalité(ti[1], 42, "valeur 1")
+	dbgVérifieEgalité(ti[2], 100, "valeur 2")
+	dbgVérifieEgalité(ti[3],-5, "valeur 3")
+	r.Ajoute(999)
+	dbgVérifieEgalité(ti..Occurrence, 4, "mutation via r affecte ti")
+FIN

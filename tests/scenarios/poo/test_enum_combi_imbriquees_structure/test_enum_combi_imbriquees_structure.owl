@@ -1,0 +1,46 @@
+// @sujet : Structure — enumeration et combinaison imbriquees dans le corps
+// @resume : Une Structure peut declarer une Enumeration et une Combinaison
+// dans son propre corps, a parite du comportement deja etabli pour une
+// Classe (cf. tests/scenarios/poo/test_enum_combi_imbriquees_classe). Les
+// types imbriques deviennent utilisables comme type d'un champ suivant, avec
+// une valeur par defaut qualifiee (Type.Membre) resolue des la declaration.
+
+CT_Statut est une Structure
+	nom est une chaîne
+
+	eStatut est une Énumération
+		actif   = "A"
+		Inactif = "I"
+	FIN
+	statutCourant est un eStatut = eStatut.Actif
+
+	cDroits est une Combinaison
+		Lecture
+		Ecriture
+		Suppression
+	FIN
+	droitsCourants est un cDroits = cDroits.Lecture + cDroits.Suppression
+
+	taille est un entier
+	actif est un booléen
+FIN
+
+PROCEDURE PUBLIQUE scenario_enum_combi_imbriquees_structure()
+	c est un CT_Statut
+	c.nom = "config"
+	c.taille = 5
+	c.actif = Vrai
+
+	// Champ AVANT les types imbriques : reste intact.
+	dbgVérifieEgalité(c.nom, "config", "champ avant le type imbrique reste accessible")
+
+	// Enumeration imbriquee : valeur par defaut qualifiee (Enum.Membre).
+	dbgVérifieEgalité(c.statutCourant..Valeur, "A", "valeur par defaut de l'enumeration imbriquee")
+
+	// Combinaison imbriquee : cumul par defaut via l'operateur +.
+	dbgVérifieEgalité(c.droitsCourants..Valeur, 5, "cumul par defaut de la combinaison imbriquee, Lecture + Suppression = 5")
+
+	// Champs APRES les types imbriques : ne sont plus des globales orphelines.
+	dbgVérifieEgalité(c.taille, 5, "champ scalaire apres le type imbrique n'est plus orpheline")
+	dbgVérifieVrai(c.actif, "champ booleen apres le type imbrique n'est plus orpheline")
+FIN

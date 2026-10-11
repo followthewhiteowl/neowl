@@ -1,0 +1,52 @@
+//  — DonneFocus(SAI_X) : focus simulé headless
+//
+// Vérifie que DonneFocus(SAI_X) déclenche surSortie sur le champ quitté
+// et surEntrée sur le champ ciblé, en mode headless.
+//
+// Test ROUGE attendu : DonneFocus n'existe pas encore → ErreurSymboleInconnu
+// au compile-check ou RuntimeError "native inconnue".
+
+TestModeHeadless(Vrai)
+
+nEA est un entier = 0
+nSA est un entier = 0
+nEB est un entier = 0
+nSB est un entier = 0
+
+PROCEDURE callback_compteurs_focus(ea est un entier, sa est un entier, eb est un entier, sb est un entier)
+	nEA = ea
+	nSA = sa
+	nEB = eb
+	nSB = sb
+FIN
+
+Ouvre(FEN_FocusSimple)
+
+// --- Etat initial : focus initial automatique sur SAI_A (premier champ) ---
+RemonteCompteurs()
+dbgVérifieEgalité(nEA, 1, "focus initial auto : surEntree SAI_A = 1 a l'ouverture")
+dbgVérifieEgalité(nSA, 0, "focus initial auto : surSortie SAI_A = 0 a l'ouverture")
+dbgVérifieEgalité(nEB, 0, "focus initial auto : surEntree SAI_B = 0 a l'ouverture")
+dbgVérifieEgalité(nSB, 0, "focus initial auto : surSortie SAI_B = 0 a l'ouverture")
+
+// --- DonneFocus(SAI_B) : SAI_A perd le focus, SAI_B le gagne ---
+DonneFocus(SAI_B)
+RemonteCompteurs()
+dbgVérifieEgalité(nSA, 1, "surSortie SAI_A declenche apres DonneFocus(SAI_B)")
+dbgVérifieEgalité(nEB, 1, "surEntree SAI_B declenche apres DonneFocus(SAI_B)")
+
+// --- DonneFocus(SAI_A) : SAI_B perd le focus, SAI_A le regagne ---
+DonneFocus(SAI_A)
+RemonteCompteurs()
+dbgVérifieEgalité(nSB, 1, "surSortie SAI_B declenche apres DonneFocus(SAI_A)")
+dbgVérifieEgalité(nEA, 2, "surEntree SAI_A : 2eme entree apres DonneFocus(SAI_A)")
+
+// --- Forme EN : SetFocus ---
+SetFocus(SAI_B)
+RemonteCompteurs()
+dbgVérifieEgalité(nEB, 2, "forme EN SetFocus(SAI_B) declenche surEntree SAI_B")
+dbgVérifieEgalité(nSA, 2, "forme EN SetFocus(SAI_B) declenche surSortie SAI_A")
+
+Ferme(FEN_FocusSimple)
+
+dbgBilanTest()

@@ -1,0 +1,26 @@
+//  — non-regression : sans TestModeHeadless(Faux), le mode reste headless
+//
+// Un test ordinaire sans appel a TestModeHeadless(Faux) doit :
+//   - avoir TestModeHeadless() = Vrai (le runner pose Vrai en debut de fichier)
+//   - OuvreSoeur ne bloque pas (pas d'event loop Qt)
+//   - TestSimuleSaisie ecrit dans le store headless
+//   - ..Valeur retourne le texte ecrit
+//   - Ferme() pop l'instance proprement
+//
+// Nature : VERT attendu des le depot (comportement actuel inchange).
+
+// Pas d'appel TestModeHeadless(Faux) — mode headless par defaut.
+dbgVérifieEgalité(TestModeHeadless(), Vrai, "headless = Vrai par defaut, sans appel setter")
+
+OuvreSoeur(FEN_HeadlessDefaut)
+
+// En headless : TestSimuleSaisie ecrit dans le store, ..Valeur le relit.
+TestSimuleSaisie(SAI_Champ, "hello")
+dbgVérifieEgalité(SAI_Champ..Valeur, "hello", "headless : ..Valeur relit le texte pose par TestSimuleSaisie")
+
+Ferme(FEN_HeadlessDefaut)
+
+// Apres Ferme : le mode headless est toujours actif.
+dbgVérifieEgalité(TestModeHeadless(), Vrai, "headless reste Vrai apres Ferme")
+
+dbgBilanTest()

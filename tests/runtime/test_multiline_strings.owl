@@ -1,0 +1,81 @@
+Trace("=== MULTI-LINE STRINGS ===")
+
+// --- Syntaxe basique ---
+sql est une chaîne = [
+SELECT *
+FROM clients
+WHERE actif = 1
+]
+dbgVérifieVrai(Taille(sql) > 0, "multiline capturee")
+dbgVérifieVrai(Contient(sql, "SELECT"), "contient SELECT")
+dbgVérifieVrai(Contient(sql, "WHERE"), "contient WHERE")
+
+// --- Sauts de ligne preserves ---
+multi est une chaîne = [
+ligne 1
+ligne 2
+ligne 3
+]
+dbgVérifieVrai(Contient(multi, "ligne 1"), "ligne 1 presente")
+dbgVérifieVrai(Contient(multi, "ligne 2"), "ligne 2 presente")
+// Doit contenir des sauts de ligne entre les lignes
+// Mesure : le scanner normalise les fins de ligne d'un litteral multi-ligne
+// en LF, quel que soit l'encodage du fichier source. La disjonction reste
+// posee par tolerance.
+dbgVérifieVrai(Contient(multi, "ligne 1" + CRLF + "ligne 2") OU
+Contient(multi, "ligne 1" + LF + "ligne 2"),
+"retour ligne entre lignes (CRLF ou LF selon EOL fichier)")
+
+// --- Guillemets non echappes ---
+html est une chaîne = [
+<div class="container">
+  <p>Hello "world"</p>
+</div>
+]
+dbgVérifieVrai(Contient(html, "class=""container"""), "guillemets litteraux OK")
+dbgVérifieVrai(Contient(html, """world"""), "guillemets dans le contenu")
+
+// --- JSON sans echappement ---
+sJson est une chaîne = [
+{"nom":"Roger","age":46}
+]
+dbgVérifieEgalité(sJson, "{""nom"":""Roger"",""age"":46}", "JSON literal")
+
+// --- Contenu vide OK ---
+vide est une chaîne = [
+]
+dbgVérifieEgalité(vide, "", "multiline vide")
+
+// --- Une seule ligne de contenu ---
+uneLigne est une chaîne = [
+contenu
+]
+dbgVérifieEgalité(uneLigne, "contenu", "une seule ligne")
+
+// --- Code Python / template ---
+code est une chaîne = [
+def hello(name):
+    print(f"Hello, {name}!")
+    return True
+]
+dbgVérifieVrai(Contient(code, "def hello"), "code Python literal")
+dbgVérifieVrai(Contient(code, "{name}"), "brackets simples OK")
+
+// --- Multiline avec quotes simples, doubles, accolades ---
+complexe est une chaîne = [
+{ "key": 'value', "n": 42 }
+]
+dbgVérifieVrai(Contient(complexe, "'value'"), "quotes simples OK")
+dbgVérifieVrai(Contient(complexe, """key"""), "quotes doubles OK")
+
+// --- Une multiline peut etre utilisee dans une procedure ---
+PROCEDURE GetSQL() : chaîne
+	RENVOYER[
+SELECT * FROM users
+]
+FIN
+
+sRequete est une chaîne = GetSQL()
+dbgVérifieVrai(Contient(sRequete, "SELECT"), "multiline dans procedure")
+
+dbgBilanTest()

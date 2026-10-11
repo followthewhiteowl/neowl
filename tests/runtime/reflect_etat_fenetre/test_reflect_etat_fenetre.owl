@@ -1,0 +1,55 @@
+// Test : RécupèreDéfinitionType + constantes wl*/famille* sur Etats.
+// Itérations 1-2 : codes owlEtat + introspection des paramètres (noms).
+// Itération 4 : Parametres typés (Nom + Type + TypeNom).
+// (Test Fenêtre dans test_reflect_window_fields.owl, séparation imposée
+// par OWL : un fichier ne peut pas contenir Etat + Fenêtre.)
+//
+// Pattern : deux Etats voisins (ETAT_Facture.owl avec params, ETAT_Simple.owl
+// sans params).
+
+// ===== Etat avec paramètres formels =====
+dEtat est une Definition = RécupèreDéfinitionType("ETAT_Facture")
+dbgVérifieEgalité(dEtat..Nom, "ETAT_Facture", "Etat : Nom récupéré")
+dbgVérifieEgalité(dEtat..Type, owlEtat, "Etat : Type = owlEtat")
+dbgVérifieEgalité(dEtat..FamilleDéfinition, familleEtat, "Etat : Famille = familleEtat")
+dbgVérifieEgalité(dEtat..ChampsNoms..Occurrence, 2, "Etat : 2 paramètres formels")
+dbgVérifieEgalité(dEtat..ChampsNoms[1], "client", "Etat : 1er paramètre = client")
+dbgVérifieEgalité(dEtat..ChampsNoms[2], "total", "Etat : 2e paramètre = total")
+
+// ===== Itération 4 : Parametres typés =====
+dbgVérifieEgalité(dEtat..Paramètres..Occurrence, 2, "Etat : Parametres array peuplé")
+p1 est une Definition = dEtat..Paramètres[1]
+dbgVérifieEgalité(p1..Nom, "client", "Parametres[1]..Nom = client")
+dbgVérifieEgalité(p1..Type, owlChaine, "Parametres[1]..Type = owlChaine")
+dbgVérifieEgalité(p1..FamilleDéfinition, familleTypeSimple, "Parametres[1].Famille = simple")
+dbgVérifieEgalité(p1..TypeNom, "chaîne", "Parametres[1]..TypeNom = chaîne (forme déclarée)")
+p2 est une Definition = dEtat..Paramètres[2]
+dbgVérifieEgalité(p2..Nom, "total", "Parametres[2]..Nom = total")
+dbgVérifieEgalité(p2..Type, owlReel, "Parametres[2]..Type = owlReel")
+dbgVérifieEgalité(p2..TypeNom, "réel", "Parametres[2]..TypeNom = réel")
+
+// ===== Etat sans paramètres =====
+dSimple est une Definition = RécupèreDéfinitionType("ETAT_Simple")
+dbgVérifieEgalité(dSimple..Type, owlEtat, "Etat sans param : Type = owlEtat")
+dbgVérifieEgalité(dSimple..ChampsNoms..Occurrence, 0, "Etat sans param : ChampsNoms vide")
+dbgVérifieEgalité(dSimple..Paramètres..Occurrence, 0, "Etat sans param : Parametres vide")
+
+// ===== Constantes wl* + famille* exposées =====
+dbgVérifieEgalité(owlEtat, 80, "owlEtat = 80")
+dbgVérifieEgalité(owlFenetre, 81, "owlFenetre = 81")
+dbgVérifieEgalité(owlChampLibelle, 82, "owlChampLibelle = 82")
+dbgVérifieEgalité(owlChampBouton, 83, "owlChampBouton = 83")
+dbgVérifieEgalité(owlChampSaisie, 84, "owlChampSaisie = 84")
+dbgVérifieEgalité(owlChampTable, 85, "owlChampTable = 85")
+dbgVérifieEgalité(owlChampConteneur, 86, "owlChampConteneur = 86")
+dbgVérifieEgalité(owlChampImage, 87, "owlChampImage = 87")
+
+dbgVérifieEgalité(familleEtat, 12, "familleEtat = 12")
+dbgVérifieEgalité(familleFenetre, 13, "familleFenetre = 13")
+dbgVérifieEgalité(familleChamp, 14, "familleChamp = 14")
+
+// ===== Lookup d'un nom inexistant =====
+dInconnu est une Definition = RécupèreDéfinitionType("ETAT_Inexistant")
+dbgVérifieNull(dInconnu, "type inconnu → NIL")
+
+dbgBilanTest()

@@ -1,0 +1,46 @@
+// Régression : déclaration séparée + affectation doit préserver le type
+// (cast auto comme la forme combinée `est un T = ...`).
+// Bug historique: `d est une Date; d = "20191225"` transformait d en chaîne.
+// Conformité de référence : les deux formes sont équivalentes.
+
+// --- Date ---
+d1 est une date
+d1 = "20191225"
+dbgVérifieEgalité(d1.VersChaîne(), "25/12/2019", "Date split: cast string → Date")
+dbgVérifieEgalité(d1..Jour, 25, "Date split: composante Jour")
+dbgVérifieEgalité(d1..Mois, 12, "Date split: composante Mois")
+dbgVérifieEgalité(d1..Année, 2019, "Date split: composante Annee")
+
+// --- Heure ---
+h1 est une heure
+h1 = "143025"
+dbgVérifieEgalité(h1..Heure, 14, "Heure split: composante Heure")
+dbgVérifieEgalité(h1..Minute, 30, "Heure split: composante Minute")
+dbgVérifieEgalité(h1..Seconde, 25, "Heure split: composante Seconde")
+
+// --- DateHeure ---
+dh1 est une dateheure
+dh1 = "199801011215"
+dbgVérifieEgalité(dh1..Année, 1998, "DH split: Annee")
+dbgVérifieEgalité(dh1..Heure, 12, "DH split: Heure")
+dbgVérifieEgalité(dh1..Minute, 15, "DH split: Minute")
+
+// --- chaîne (conversion depuis Buffer via __BufferVersChaine) ---
+// Note: OWL caste Buffer→String mais pas int→String à l'assignement.
+// Pour convertir un entier, utiliser la concaténation ou un cast explicite.
+s1 est une chaîne
+s1 = "hello"
+dbgVérifieEgalité(s1, "hello", "chaîne split: affectation string")
+dbgVérifieEgalité(Taille(s1), 5, "chaîne split: Taille après affectation")
+
+// --- Réaffectation multiple (le type reste collant) ---
+d2 est une date
+d2 = "20200101"
+d2 = "20210615"
+dbgVérifieEgalité(d2.VersChaîne(), "15/06/2021", "Date split: réaffectation multiple")
+
+// --- Forme combinée (référence, ne doit pas casser) ---
+d3 est une date = "20191225"
+dbgVérifieEgalité(d3.VersChaîne(), "25/12/2019", "Date combiné: sanity check")
+
+dbgBilanTest()

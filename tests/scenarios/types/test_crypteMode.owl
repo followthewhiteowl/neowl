@@ -1,0 +1,56 @@
+// @sujet : crypteMode
+// @résumé : Enum des modes d'opération acceptés par CrypteStandard et DécrypteStandard. Quatre membres : CBC (crypteCBC), CFB (crypteCFB), CTR (crypteCTR) et GCM authentifié (crypteGCM). ECB est absent (retiré, non sécure).
+
+
+// crypteCBC : mode CBC (round-trip AES-256-CBC).
+PROCEDURE PUBLIQUE scenario_mode_cbc()
+	msg est une chaîne = "message en mode CBC"
+	cle est une chaîne = "clé"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCBC)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256-CBC restitue le message d'origine")
+FIN
+
+
+// crypteCFB : mode CFB (round-trip AES-256-CFB).
+PROCEDURE PUBLIQUE scenario_mode_cfb()
+	msg est une chaîne = "message en mode CFB"
+	cle est une chaîne = "clé"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCFB)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCFB)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256-CFB restitue le message d'origine")
+FIN
+
+
+// crypteCTR : mode CTR (round-trip AES-256-CTR).
+PROCEDURE PUBLIQUE scenario_mode_ctr()
+	msg est une chaîne = "message en mode CTR"
+	cle est une chaîne = "clé"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCTR)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteCTR)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256-CTR restitue le message d'origine")
+FIN
+
+
+// crypteGCM : mode GCM authentifié (round-trip AES-256-GCM).
+PROCEDURE PUBLIQUE scenario_mode_gcm()
+	msg est une chaîne = "message en mode GCM"
+	cle est une chaîne = "clé"
+	buf est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteGCM)
+	clair est un buffer = DécrypteStandard(buf, cle, crypteAES256, crypteGCM)
+	dbgVérifieEgalité(clair, msg, "round-trip AES-256-GCM restitue le message d'origine")
+FIN
+
+
+// Les quatre modes produisent des chiffrés distincts pour la même entrée.
+PROCEDURE PRIVÉE scenario_modes_different_cipher()
+	msg est une chaîne = "même message"
+	cle est une chaîne = "clé-commune"
+	bufCBC est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCBC)
+	bufCFB est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCFB)
+	bufCTR est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteCTR)
+	bufGCM est un buffer = CrypteStandard(msg, cle, crypteAES256, crypteGCM)
+	dbgVérifieVrai(bufCBC <> bufCFB, "CBC et CFB produisent des chiffrés distincts")
+	dbgVérifieVrai(bufCFB <> bufCTR, "CFB et CTR produisent des chiffrés distincts")
+	dbgVérifieVrai(bufCTR <> bufGCM, "CTR et GCM produisent des chiffrés distincts")
+FIN

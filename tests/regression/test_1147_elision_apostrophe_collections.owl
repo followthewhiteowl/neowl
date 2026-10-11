@@ -1,0 +1,75 @@
+//  : l'elision `d'<type>` (francais naturel) etait geree uniquement
+// sur le tableau simple (`tableau d'entiers`). Les autres collections
+// (tableau associatif, file, pile, liste) la refusaient avec « Expression
+// attendue. », alors qu'elles acceptaient la forme bancale `de entiers`.
+// Ce test verrouille la parite : `d'<type>` doit compiler ET lier le type
+// REELLEMENT (pas seulement supprimer l'erreur) sur toutes les collections.
+
+Trace("=== fix/1147 : elision d'apostrophe sur toutes les collections ===")
+
+// --- tableau associatif : elision + TYPAGE REEL (cle absente -> defaut type) ---
+// C'est la preuve anti-variant : `d'entiers` doit donner 0 (entier typé),
+// PAS Null (non type). Parite stricte avec `de entiers`.
+r1147_assocEnt est un tableau associatif d'entiers
+dbgVérifieEgalité(r1147_assocEnt["absent"], 0, "assoc d'entiers : cle absente -> 0 (typé entier)")
+
+r1147_assocChaine est un tableau associatif d'chaînes
+dbgVérifieEgalité(r1147_assocChaine["absent"], "", "assoc d'chaînes : cle absente -> chaine vide")
+
+r1147_assocBool est un tableau associatif d'booléens
+dbgVérifieEgalité(r1147_assocBool["absent"], Faux, "assoc d'booléens : cle absente -> Faux")
+
+// Sans accent (invariant 2) : `d'entiers` sur assoc.
+r1147_assocSansAccent est un tableau associatif d'entiers
+dbgVérifieEgalité(r1147_assocSansAccent["absent"], 0, "assoc d'entiers (sans accent aval) -> 0")
+
+// Ordre anglais naturel + elision non pertinente en EN, mais on verrouille
+// que la forme FR elidee cohabite avec l'ordre naturel de meme genre.
+r1147_assocNat est un tableau associatif d'réels
+dbgVérifieEgalité(r1147_assocNat["absent"], 0, "assoc d'réels : cle absente -> 0")
+
+// --- file / pile / liste : elision compile clean et fonctionne ---
+r1147_file est une file d'entiers
+Enfile(r1147_file, 11)
+Enfile(r1147_file, 22)
+dbgVérifieEgalité(Défile(r1147_file), 11, "file d'entiers : FIFO")
+
+r1147_pile est une pile d'chaînes
+Empile(r1147_pile, "a")
+Empile(r1147_pile, "b")
+dbgVérifieEgalité(Dépile(r1147_pile), "b", "pile d'chaînes : LIFO")
+
+r1147_liste est une Liste d'réels
+	r1147_liste.Ajoute(1.5)
+	dbgVérifieEgalité(r1147_liste..Occurrence, 1, "liste d'réels : 1 element")
+
+	// --- elision sur type utilisateur (identifiant, forward ref) ---
+	r1147_assocPoints est un tableau associatif d'r1147Point
+	r1147_assocPoints["origine"] = Null
+	dbgVérifieEgalité(r1147_assocPoints..Occurrence, 1, "assoc d'<type user> : 1 entree")
+
+	r1147Point est une Structure
+		x est un entier
+		y est un entier
+	FIN
+
+	// --- NON-REGRESSION : les formes deja valides restent valides ---
+	// La forme `de <type>` (bancale mais toleree) continue de marcher.
+	r1147_deEntiers est un tableau associatif de entiers
+	dbgVérifieEgalité(r1147_deEntiers["absent"], 0, "non-reg : assoc de entiers -> 0")
+
+	// La forme EN `of <type>` continue de marcher.
+	r1147_ofInt is associative array of integers
+	dbgVérifieEgalité(r1147_ofInt["absent"], 0, "non-reg : assoc of integers -> 0")
+
+	// La forme sans type (heterogene) reste valide.
+	r1147_libre est un tableau associatif
+	r1147_libre["nb"] = 42
+	dbgVérifieVrai(r1147_libre["absent"] = Null, "non-reg : assoc sans type -> Null")
+
+	// tableau simple d'entiers (deja valide avant ) reste valide.
+	r1147_tabSimple est un tableau d'entiers
+	Ajoute(r1147_tabSimple, 7)
+	dbgVérifieEgalité(r1147_tabSimple[1], 7, "non-reg : tableau d'entiers : element ajoute")
+
+	dbgBilanTest()

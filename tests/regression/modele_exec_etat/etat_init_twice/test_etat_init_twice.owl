@@ -1,0 +1,20 @@
+// Verrou  — etat imprime 2x : top-level tourne exactement 1x (init UNIQUE).
+//
+// ETAT_InitTwice appelle __dbgNoteExecution("ETAT_Twice") dans son top-level.
+// Attendu post-fix : 2 iImprimeEtat => compteur = 1 (pas de re-init par impression).
+// => Ce test est ROUGE avant fix si le top-level s'execute 2x (une par impression).
+
+TestModeHeadless(Vrai)
+
+iDestination(iPDFGénérique, "tests/regression/modele_exec_etat/etat_init_twice/temp.pdf")
+iImprimeEtat(ETAT_InitTwice)
+iFinImprime()
+
+iDestination(iPDFGénérique, "tests/regression/modele_exec_etat/etat_init_twice/temp2.pdf")
+iImprimeEtat(ETAT_InitTwice)
+iFinImprime()
+
+dbgVérifieEgalité(__dbgNombreExecutions("ETAT_Twice"), 1,
+"etat imprime 2x : top-level execute exactement 1x (init UNIQUE, pas par impression)")
+
+dbgBilanTest()

@@ -1,0 +1,36 @@
+// @sujet : chaîneMultilingue — littéral en affectation indexée
+// @résumé : Le littéral {tag: valeur, ...} se construit correctement quand il est affecté directement à un élément de tableau (associatif ou indexé) typé chaîneMultilingue, pas seulement à une variable simple ou un argument d'appel.
+
+
+// Cas nominal : dictionnaire de messages traduits, indexé par clé
+// applicative, dont chaque entrée est construite par un littéral inline
+// directement affecté à l'emplacement du tableau associatif.
+PROCEDURE scenario_litteral_affecte_a_un_tableau_associatif()
+	messages est un tableau associatif de chaîneMultilingue
+	messages["BIENVENUE"] = {langueFrançais: "Bienvenue", langueAnglais: "Welcome"}
+
+	dbgVérifieEgalité(messages["BIENVENUE"][langueFrançais], "Bienvenue")
+	dbgVérifieEgalité(messages["BIENVENUE"][langueAnglais], "Welcome")
+FIN
+
+
+// Cas nominal : même littéral affecté à un élément de tableau indexé par
+// position entière plutôt que par clé.
+PROCEDURE scenario_litteral_affecte_a_un_tableau_indexe()
+	messages est un tableau de 2 chaîneMultilingue
+	messages[1] = {langueFrançais: "Premier", langueAnglais: "First"}
+
+	dbgVérifieEgalité(messages[1][langueFrançais], "Premier")
+	dbgVérifieEgalité(messages[1][langueAnglais], "First")
+FIN
+
+
+// Cas limite défensif : la clé de tag peut aussi être un tag BCP 47 libre
+// entre guillemets plutôt qu'une constante enum langueXxx.
+PROCEDURE PRIVÉE scenario_litteral_tag_bcp47_affecte_a_un_tableau_associatif()
+	messages est un tableau associatif de chaîneMultilingue
+	messages["ERREUR"] = {"fr-FR": "Erreur", "en-GB": "Error"}
+
+	dbgVérifieEgalité(messages["ERREUR"]["fr-FR"], "Erreur")
+	dbgVérifieEgalité(messages["ERREUR"]["en-GB"], "Error")
+FIN

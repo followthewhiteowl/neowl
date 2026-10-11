@@ -1,0 +1,95 @@
+// Ressource fenetre pour  — cellule ZoneRepetee / Saisie : contrat chaine.
+// ZRT contient deux sous-controles :
+//   ZS_Num  est une Saisie  (sous-controle sujet du fix)
+//   LIB_Txt est un Libelle  (sous-controle non-regression)
+//
+// FinInitialisation ajoute 1 ligne et notifie le script via cb_0557_init_done().
+// Chaque PROCEDURE PUBLIQUE SET une valeur dans la cellule puis relit — le script
+// test verifie le type retourne (attendu : toujours chaine apres fix).
+
+FEN_ZR557 est une Fenêtre
+	PROPRIETES
+		Titre       = "ZR cellule Saisie contrat chaine"
+		Disposition = dispLibre
+		Largeur     = 500
+		Hauteur     = 300
+	FIN
+
+	ZRT est un Champ ZoneRépétée
+		PROPRIETES
+			X                 = 10
+			Y                 = 10
+			Largeur           = 460
+			Hauteur           = 240
+			Sens              = zrVertical
+			HauteurRepetition = 40
+		FIN
+
+		ZS_Num est un Champ Saisie
+			PROPRIETES
+				X       = 5
+				Y       = 8
+				Largeur = 200
+				Hauteur = 24
+			FIN
+		FIN
+
+		LIB_Txt est un Champ Libellé
+			PROPRIETES
+				X       = 215
+				Y       = 8
+				Largeur = 200
+				Libellé = ""
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Ajoute une ligne pour avoir un indice valide (1) dans les PROCEDURE PUBLIQUE.
+		i est un entier = ZoneRépétéeAjouteLigne(ZRT)
+		// Laisser les cellules a leur valeur par defaut (seed non set).
+		cb_0557_init_done()
+	FIN
+
+	// --- PROCEDURES PUBLIQUES : chaque SET + GET sur ZS_Num ---
+
+	// Cas entier : SET 42 -> renvoie la cellule (attendu chaine "42" apres fix)
+	PROCEDURE SetGetEntier()
+		ZRT[1].ZS_Num = 42
+		RENVOYER ZRT[1].ZS_Num
+	FIN
+
+	// Cas reel : SET 3.5 -> renvoie la cellule (attendu chaine "3.5")
+	PROCEDURE SetGetReel()
+		ZRT[1].ZS_Num = 3.5
+		RENVOYER ZRT[1].ZS_Num
+	FIN
+
+	// Cas booleen : SET Vrai -> renvoie la cellule (attendu chaine "1")
+	PROCEDURE SetGetBooleen()
+		ZRT[1].ZS_Num = Vrai
+		RENVOYER ZRT[1].ZS_Num
+	FIN
+
+	// Cas chaine : SET "hello" -> renvoie la cellule (attendu "hello")
+	PROCEDURE SetGetChaine()
+		ZRT[1].ZS_Num = "hello"
+		RENVOYER ZRT[1].ZS_Num
+	FIN
+
+	// Cas seed : lit la cellule sans avoir jamais SET (attendu chaine vide "")
+	PROCEDURE LireSeed()
+		RENVOYER ZRT[1].ZS_Num
+	FIN
+
+	// Non-regression Libelle : SET "Alice" -> renvoie LIB_Txt (chaîne, doit rester vert)
+	PROCEDURE SetGetLibelle()
+		ZRT[1].LIB_Txt = "Alice"
+		RENVOYER ZRT[1].LIB_Txt
+	FIN
+
+	// OOB : accede a ZRT[2] sur 1 seule ligne -> doit poser ErreurDetectee
+	PROCEDURE LireOOB()
+		RENVOYER ZRT[2].ZS_Num
+	FIN
+FIN

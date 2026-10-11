@@ -1,0 +1,55 @@
+//  — le cadre d'ÉTAT (focus) d'un Champ Bouton stylé doit suivre
+// l'arrondi de la pilule, pas rendre CARRÉ.
+//
+// Config du bug : Hauteur=44 avec un état Focus dont le Cadre porte Arrondi=24
+// (rayon > moitié de la hauteur = 22). Le clamp  ne bornait QUE la règle
+// de base du bouton ; le fragment de pseudo-classe `:focus` gardait son rayon
+// brut (24) → le QPushButton rend alors ses coins CARRÉS au focus → gros cadre
+// violet rectangulaire autour du bouton arrondi.
+//
+// Un leurre en première position capte le focus automatique à l'ouverture ;
+// BTN_Focus ne reçoit le focus que via DonneFocus (contrôle négatif valide).
+FEN_BoutonCadreEtat est une Fenêtre
+	PROPRIETES
+		Disposition = dispLibre
+		Largeur     = 200
+		Hauteur     = 140
+		Titre       = "Bouton cadre état focus"
+		CouleurFond = RVB(15, 15, 15)
+	FIN
+
+	BTN_Leurre est un Champ Bouton
+		PROPRIETES
+			X       = 30
+			Y       = 100
+			Largeur = 120
+			Hauteur = 30
+			Libellé = "Leurre"
+		FIN
+	FIN
+
+	BTN_Focus est un Champ Bouton
+		PROPRIETES
+			X       = 30
+			Y       = 30
+			Largeur = 120
+			Hauteur = 44
+			Style   = {
+				Libellé        = { Couleur = RVB(255, 255, 255) }
+				CadreExtérieur = {
+					CouleurFond = RVB(50, 50, 200)
+					Cadre       = { Epaisseur = 0, Arrondi = 24 }
+					Etats       = {
+						Focus = {
+							Cadre = {
+								Epaisseur = 3
+								Couleur   = RVB(150, 0, 200)
+								Arrondi   = 24
+							}
+						}
+					}
+				}
+			}
+		FIN
+	FIN
+FIN

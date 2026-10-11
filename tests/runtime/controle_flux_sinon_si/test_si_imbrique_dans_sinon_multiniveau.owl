@@ -1,0 +1,62 @@
+//  — SI imbriqué dans SINON à plusieurs niveaux
+// STATUT INITIAL : ROUGE (compile error cascade) avant fix
+// Apres fix : VERT
+
+// Niveau 2 : SINON > SI > branche ALORS interne prise
+nMulti_deuxNiveaux est un entier = 0
+SI Faux ALORS
+	nMulti_deuxNiveaux = 1
+SINON
+	SI Vrai ALORS
+		nMulti_deuxNiveaux = 2
+	SINON
+		nMulti_deuxNiveaux = 3
+	FIN
+FIN
+dbgVérifieEgalité(nMulti_deuxNiveaux, 2, "2 niveaux SINON>SI, branche ALORS interne : = 2")
+
+// Niveau 2 : SINON > SI > branche SINON interne prise
+nMulti_deuxNiveauxSinon est un entier = 0
+SI Faux ALORS
+	nMulti_deuxNiveauxSinon = 1
+SINON
+	SI Faux ALORS
+		nMulti_deuxNiveauxSinon = 2
+	SINON
+		nMulti_deuxNiveauxSinon = 3
+	FIN
+FIN
+dbgVérifieEgalité(nMulti_deuxNiveauxSinon, 3, "2 niveaux SINON>SI, branche SINON interne : = 3")
+
+// Niveau 3 : chemin le plus profond, SINON final atteint
+nMulti_troisNiveaux est un entier = 0
+SI Faux ALORS
+	nMulti_troisNiveaux = 1
+SINON
+	SI Faux ALORS
+		nMulti_troisNiveaux = 2
+	SINON
+		SI Faux ALORS
+			nMulti_troisNiveaux = 3
+		SINON
+			nMulti_troisNiveaux = 4
+		FIN
+	FIN
+FIN
+dbgVérifieEgalité(nMulti_troisNiveaux, 4, "3 niveaux, chemin SINON tout du long : = 4")
+
+// Deux SI successifs dans le même SINON (accumulation)
+nMulti_deuxSiSuccessifs est un entier = 0
+SI Faux ALORS
+	nMulti_deuxSiSuccessifs = 99
+SINON
+	SI Vrai ALORS
+		nMulti_deuxSiSuccessifs = nMulti_deuxSiSuccessifs + 1
+	FIN
+	SI Vrai ALORS
+		nMulti_deuxSiSuccessifs = nMulti_deuxSiSuccessifs + 2
+	FIN
+FIN
+dbgVérifieEgalité(nMulti_deuxSiSuccessifs, 3, "2 SI successifs dans SINON : 1+2 = 3")
+
+dbgBilanTest()

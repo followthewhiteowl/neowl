@@ -1,0 +1,102 @@
+// @sujet : MatriceSousLignes
+// @résumé : Rend une nouvelle Matrice composée des lignes d'une Matrice source aux indices donnés, dans l'ordre exact du tableau d'indices.
+
+
+// Cas nominal : l'ordre du tableau d'indices est respecté, même quand il
+// diffère de l'ordre des lignes dans la Matrice source.
+PROCEDURE PUBLIQUE scenario_ordre_preserve()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = [3, 1]
+	sousMat est une Matrice = MatriceSousLignes(src, indices)
+	dbgVérifieEgalité(sousMat..Lignes, 2, "Sous-matrice a autant de lignes que d'indices")
+	dbgVérifieEgalité(sousMat..Colonnes, 2, "Sous-matrice conserve le nombre de colonnes de la source")
+	dbgVérifieEgalité(sousMat[1][1], 30.0, "sousMat[1][1] = src[3][1]")
+	dbgVérifieEgalité(sousMat[1][2], 31.0, "sousMat[1][2] = src[3][2]")
+	dbgVérifieEgalité(sousMat[2][1], 10.0, "sousMat[2][1] = src[1][1]")
+	dbgVérifieEgalité(sousMat[2][2], 11.0, "sousMat[2][2] = src[1][2]")
+FIN
+
+
+// La répétition d'un indice est autorisée : la ligne sélectionnée est
+// dupliquée autant de fois que demandé.
+PROCEDURE PUBLIQUE scenario_indice_repete()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = [2, 2, 2]
+	sousMat est une Matrice = MatriceSousLignes(src, indices)
+	dbgVérifieEgalité(sousMat..Lignes, 3, "Sous-matrice a 3 lignes malgré un seul indice distinct")
+	dbgVérifieEgalité(sousMat[1][1], 20.0, "sousMat[1][1] = src[2][1]")
+	dbgVérifieEgalité(sousMat[1][2], 21.0, "sousMat[1][2] = src[2][2]")
+	dbgVérifieEgalité(sousMat[2][1], 20.0, "sousMat[2][1] = src[2][1]")
+	dbgVérifieEgalité(sousMat[3][2], 21.0, "sousMat[3][2] = src[2][2]")
+FIN
+
+
+// Sélection de toutes les lignes dans un ordre inversé.
+PROCEDURE PUBLIQUE scenario_selection_complete_inversee()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = [4, 3, 2, 1]
+	sousMat est une Matrice = MatriceSousLignes(src, indices)
+	dbgVérifieEgalité(sousMat..Lignes, 4, "Sous-matrice a autant de lignes que la source")
+	dbgVérifieEgalité(sousMat[1][1], 40.0, "sousMat[1][1] = src[4][1]")
+	dbgVérifieEgalité(sousMat[4][1], 10.0, "sousMat[4][1] = src[1][1]")
+FIN
+
+
+// La forme anglaise MatrixSubRows désigne la même opération.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = [3, 1]
+	sousMat est une Matrice = MatrixSubRows(src, indices)
+	dbgVérifieEgalité(sousMat..Lignes, 2, "MatrixSubRows(src, [3, 1]) a 2 lignes")
+	dbgVérifieEgalité(sousMat[1][1], 30.0, "sousMat[1][1] = src[3][1]")
+	dbgVérifieEgalité(sousMat[2][2], 11.0, "sousMat[2][2] = src[1][2]")
+FIN
+
+
+// Un indice supérieur au nombre de lignes de la source est une erreur récupérable.
+PROCEDURE PRIVÉE scenario_edge_indice_hors_borne_haut()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = [5]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousMat est une Matrice = MatriceSousLignes(src, indices)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "MatriceSousLignes(src, [indice > ..Lignes]) est attrapé")
+FIN
+
+
+// Un indice nul ou négatif est une erreur récupérable (indexation 1-based).
+PROCEDURE PRIVÉE scenario_edge_indice_hors_borne_bas()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = [0]
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousMat est une Matrice = MatriceSousLignes(src, indices)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "MatriceSousLignes(src, [0]) est attrapé")
+FIN
+
+
+// Un tableau d'indices vide est une erreur récupérable : une Matrice ne
+// peut pas être vide (invariant lignes >= 1).
+PROCEDURE PRIVÉE scenario_edge_indices_vides()
+	src est une Matrice = [[10.0, 11.0], [20.0, 21.0], [30.0, 31.0], [40.0, 41.0]]
+	indices est un tableau = []
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		sousMat est une Matrice = MatriceSousLignes(src, indices)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "MatriceSousLignes(src, []) est attrapé")
+FIN

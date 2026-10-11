@@ -1,0 +1,71 @@
+// @subject: Associative array as a procedure parameter type
+// @summary: The composite type `tableau associatif de <T>` is accepted as a
+// procedure parameter type, at parity with its acceptance as a local variable
+// type. The parameter is usable in the body (index by key, add, read back,
+// Occurrence). Covers a scalar value type (chaînes) and an object value type
+// (JSON), plus the FR/EN word-order calque.
+
+// --- Helpers : le paramètre est un tableau associatif, utilisé dans le corps ---
+
+PROCEDURE lireCléChaine(params est un tableau associatif de chaînes, clé est une chaîne)
+	RENVOYER params[clé]
+FIN
+
+PROCEDURE compterEntrées(params est un tableau associatif de chaînes)
+	RENVOYER params..Occurrence
+FIN
+
+PROCEDURE ajouterPuisLire(clé est une chaîne, valeur est une chaîne)
+	local_params est un tableau associatif de chaînes
+	local_params[clé] = valeur
+	RENVOYER lireCléChaine(local_params, clé)
+FIN
+
+// Type exact de la repro : tableau associatif de JSON en paramètre.
+PROCEDURE compterEntréesJSON(params est un tableau associatif de JSON)
+	RENVOYER params..Occurrence
+FIN
+
+// Ordre calque EN accepté aussi en position de paramètre.
+PROCEDURE lireCléCalque(params is array associative of strings, clé est une chaîne)
+	RENVOYER params[clé]
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_param_assoc_lecture_par_cle()
+	m est un tableau associatif de chaînes
+	m["nom"] = "Alice"
+	m["ville"] = "Paris"
+	dbgVérifieEgalité(lireCléChaine(m, "nom"), "Alice", "param assoc : lecture clé nom")
+	dbgVérifieEgalité(lireCléChaine(m, "ville"), "Paris", "param assoc : lecture clé ville")
+	dbgVérifieEgalité(compterEntrées(m), 2, "param assoc : Occurrence lue depuis le paramètre")
+FIN
+
+PROCEDURE PUBLIQUE scenario_param_assoc_ajout_dans_corps()
+	// Le paramètre sert à alimenter un assoc local puis à le relire.
+	dbgVérifieEgalité(ajouterPuisLire("langue", "OWL"), "OWL",
+		"param assoc : ajout d'une clé dans le corps puis relecture")
+FIN
+
+PROCEDURE PUBLIQUE scenario_param_assoc_json_repro()
+	// Type exact ayant déclenché le bug : `tableau associatif de JSON`.
+	reqs est un tableau associatif de JSON
+	dbgVérifieEgalité(compterEntréesJSON(reqs), 0,
+		"param assoc de JSON (type de la repro) : compile et Occurrence lisible")
+FIN
+
+PROCEDURE PUBLIQUE scenario_param_assoc_ordre_calque()
+	m est un tableau associatif de chaînes
+	m["clé"] = "valeur"
+	dbgVérifieEgalité(lireCléCalque(m, "clé"), "valeur",
+		"param assoc ordre calque EN : lecture clé")
+FIN
+
+PROCEDURE PUBLIQUE scenario_parite_param_et_variable_locale()
+	// Parité : le MÊME type accepté en variable locale ET en paramètre.
+	varLocale est un tableau associatif de chaînes
+	varLocale["a"] = "1"
+	dbgVérifieEgalité(varLocale["a"], "1", "variable locale assoc : lecture directe")
+	dbgVérifieEgalité(lireCléChaine(varLocale, "a"), "1",
+		"parité : la variable locale assoc est acceptée comme argument du paramètre assoc")
+FIN

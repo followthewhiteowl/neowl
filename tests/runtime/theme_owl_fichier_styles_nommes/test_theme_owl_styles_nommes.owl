@@ -1,0 +1,31 @@
+//  lot 1 : theme.owl (fichier voisin) déclare des styles typés
+// NOMMÉS (boutonPrimaire est un styleBouton, saisieCompacte est un
+// styleSaisie). Ce test verrouille 2 choses :
+//   1. Les instances nommées déclarées dans theme.owl sont bien visibles et
+//      lisibles depuis ce fichier voisin (même mécanisme que STY_X existant,
+//      pas de nouveau parsing — juste vérifier que le nom de fichier
+//      "theme.owl" ne casse rien de spécifique).
+//   2. Résilience à l'évolution du modèle de style : un style qui ne
+//      renseigne QU'UN sous-élément a tous les AUTRES sous-éléments aux
+//      défauts du template styleXxx (pas d'obligation de tout renseigner).
+//
+// Attendu VERT dès le dépôt (le pattern STY_X est un styleXxx existe déjà,
+// /) — test documentaire pour le nom de fichier theme.owl,
+// pas une feature rouge. Voir note test_writer sur ce point.
+
+Trace("=== theme.owl : styles nommés typés + résilience défauts ===")
+
+// --- Valeur overridée : lue correctement ---
+dbgVérifieEgalité(boutonPrimaire..CadreExtérieur..CouleurFond, Bleu, "boutonPrimaire..CadreExtérieur..CouleurFond overridé")
+dbgVérifieEgalité(saisieCompacte..ZoneSaisie..RetraitGauche, 2, "saisieCompacte..ZoneSaisie..RetraitGauche overridé")
+
+// --- Résilience : sous-éléments NON renseignés restent aux défauts du
+//     template styleXxx (pas de réécriture manuelle imposée par theme.owl) ---
+dbgVérifieEgalité(boutonPrimaire..CadreExtérieur..RetraitGauche, 0, "boutonPrimaire..CadreExtérieur..RetraitGauche = défaut (non renseigné)")
+dbgVérifieEgalité(boutonPrimaire..CadreExtérieur..Cadre..Epaisseur, 0, "boutonPrimaire..CadreExtérieur..Cadre..Epaisseur = défaut Cadre (non renseigné)")
+dbgVérifieEgalité(boutonPrimaire..Libellé..Couleur, 0, "boutonPrimaire..Libellé..Couleur = défaut noir (non renseigné)")
+
+dbgVérifieEgalité(saisieCompacte..ZoneSaisie..CouleurFond,-1, "saisieCompacte..ZoneSaisie..CouleurFond = défaut (non renseigné)")
+dbgVérifieEgalité(saisieCompacte..CadreExtérieur..CouleurFond,-1, "saisieCompacte..CadreExtérieur..CouleurFond = défaut (non renseigné, autre sous-élément)")
+
+dbgBilanTest()

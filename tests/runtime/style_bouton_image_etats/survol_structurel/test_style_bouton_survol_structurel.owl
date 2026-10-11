@@ -1,0 +1,22 @@
+//  — swap d'icone au survol via event filter.
+// QIcon::Active n'etant pas declenche par le mouse-over ( posait
+// l'icone survol dans Active, jamais affichee), le runtime installe desormais
+// un event filter qui swappe setIcon a l'entree/sortie souris. Le hover reel
+// n'est PAS postable en offscreen : on verifie donc STRUCTURELLEMENT que le
+// cablage est arme sur le bon bouton (icone survol stockee + filter installe).
+// La validation visuelle du swap au survol reste a la charge du dev.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleBoutonSurvolStructurel)
+
+// BTN_Survol declare Etats[survol]..Image -> event filter arme.
+dbgVérifieEgalité(__DebugBoutonIconeSurvol(BTN_Survol), Vrai,
+"BTN_Survol : icone de survol armee (event filter + icone stockee)")
+
+// BTN_Nu n'a pas d'etat survol -> aucun armement.
+dbgVérifieEgalité(__DebugBoutonIconeSurvol(BTN_Nu), Faux,
+"BTN_Nu : pas d'icone de survol, aucun event filter arme")
+
+Ferme(FEN_StyleBoutonSurvolStructurel)
+dbgBilanTest()

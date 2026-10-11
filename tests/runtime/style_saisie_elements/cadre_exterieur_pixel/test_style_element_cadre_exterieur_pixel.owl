@@ -1,0 +1,45 @@
+//  — `Style..CadreExtérieur..X` : sous-élément STATIQUE, le
+// conteneur (wrapper) qui enveloppe la totalité du Saisie (Libellé +
+// ZoneSaisie). Vérifié via la bordure du wrapper : le QLineEdit peint son
+// propre fond par-dessus l'intérieur, donc seule la marge externe (bordure
+// du wrapper, hors zone interne du champ) porte de façon fiable la couleur
+// et l'épaisseur du Cadre du CadreExtérieur.
+//
+// ROUGE attendu : `Style..CadreExtérieur..X` ne compile pas encore (le
+// sous-élément CadreExtérieur n'existe pas sur styleSaisie — champ inconnu).
+// Cf. FEN_StyleElementCadreExterieur.owl.
+
+TestModeHeadless(Faux)
+
+couleurCadreCouleur est un entier = RVB(0, 128, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementCadreExterieur)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleElementCadreExterieur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// Le SAI_Zone occupe [20,20]-[520,80] ; le pourtour élargi [15,15]-[525,85]
+// capte la bordure du CadreExtérieur (épaisseur 5), hors zone interne du
+// QLineEdit (qui peint son propre fond par-dessus).
+nbBordure est un entier = CompteCouleurZone(img, 15, 15, 525, 85, couleurCadreCouleur)
+seuilBordure est un entier = 60 // pourtour fin, seuil bas mais sûr
+dbgVérifieVrai(nbBordure > seuilBordure, "SAI_Zone : Style..CadreExtérieur..Cadre..Couleur/Epaisseur peint la bordure du conteneur")
+
+Ferme(FEN_StyleElementCadreExterieur)
+dbgBilanTest()

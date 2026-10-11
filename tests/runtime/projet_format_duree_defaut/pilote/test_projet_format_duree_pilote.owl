@@ -1,0 +1,32 @@
+//  — un champ Durée SANS MasqueAffichage doit suivre le format posé au
+// niveau du manifeste Projet (FormatDurée = "HH:MI" ici), et pas le défaut
+// HH:MI:SS. Cas discriminant : une durée de 14h30m45s.
+//   - défaut HH:MI:SS (pas de FormatDurée)  -> "14:30:45" (secondes préservées)
+//   - FormatDurée projet "HH:MI"            -> "14:30:00" (secondes tronquées)
+// Le résultat "14:30:00" prouve que le champ Durée sans masque hérite du format
+// du projet (round-trip via l'affichage : le masque projet tronque à la minute).
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que FormatDurée
+// n'existe pas au catalogue (champ inconnu). Une fois le champ ajouté sans le
+// câblage runtime, ce test rougirait quand même sur l'assertion de relecture
+// ("14:30:45" au lieu de "14:30:00") — prouvant que le simple ajout du champ au
+// catalogue ne suffit pas.
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatDureePilote..FormatDurée, "HH:MI", "Projet..FormatDurée : lisible en cascade, valeur posée")
+
+OuvreSoeur(FEN_ProjetFormatDureePilote)
+
+dRéférence est une durée = ChaîneVersDurée("14:30:45", "HH:MM:SS")
+SAI_Duree..Valeur = dRéférence
+dbgVérifieEgalité(TypeVar(SAI_Duree..Valeur), owlDuree, "Champ Durée sans masque, projet FormatDurée posé : ..Valeur reste un owlDuree")
+SI TypeVar(SAI_Duree..Valeur) = owlDuree ALORS
+	sLue est une chaîne = SAI_Duree..Valeur
+	dbgVérifieEgalité(sLue, "14:30:00", "FormatDurée projet HH:MI : secondes tronquées (14:30), pas le défaut HH:MI:SS qui les préserve")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_ProjetFormatDureePilote)
+dbgBilanTest()

@@ -1,0 +1,162 @@
+// @sujet : dSauveImageJPEG
+// @résumé : Sauver une image au format JPEG avec qualité paramétrable (compression lossy, canal alpha non préservé)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_sauvegarde_qualite_defaut()
+	couleurVert est un entier = RVB(0, 255, 0)
+	cheminJPEG est une chaîne = "test_jpeg_defaut.jpg"
+	img est une Image
+	res est un booléen
+
+	// Créer une image en mémoire (20x15 pixels, fond vert)
+	img = dCréeImage(20, 15, couleurVert)
+	dbgVérifieEgalité(img..Valide, Vrai, "image créée valide")
+
+	// Sauver au format JPEG avec qualité par défaut (80)
+	res = dSauveImageJPEG(img, cheminJPEG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde JPEG qualité défaut réussie")
+
+	// Vérifier que le fichier existe sur disque
+	dbgVérifieVrai(fFichierExiste(cheminJPEG), "fichier JPEG créé sur disque")
+
+	// Nettoyer
+	fSupprime(cheminJPEG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_qualite_personnalisee()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	cheminHauteQualite est une chaîne = "test_jpeg_qualite_100.jpg"
+	cheminBasseQualite est une chaîne = "test_jpeg_qualite_10.jpg"
+	img est une Image
+	resHaute est un booléen
+	resBasse est un booléen
+	tailleHaute est un entier
+	tailleBasse est un entier
+
+	// Créer une image complexe (pour observer l'impact compression)
+	img = dCréeImage(50, 50, couleurBleu)
+	dbgVérifieEgalité(img..Valide, Vrai, "image créée valide")
+
+	// Sauver avec qualité maximale (100)
+	resHaute = dSauveImageJPEG(img, cheminHauteQualite, 100)
+	dbgVérifieEgalité(resHaute, Vrai, "sauvegarde qualité 100 réussie")
+	tailleHaute = fTailleFichier(cheminHauteQualite)
+	dbgVérifieVrai(tailleHaute > 0, "fichier haute qualité non vide")
+
+	// Sauver avec qualité basse (10)
+	resBasse = dSauveImageJPEG(img, cheminBasseQualite, 10)
+	dbgVérifieEgalité(resBasse, Vrai, "sauvegarde qualité 10 réussie")
+	tailleBasse = fTailleFichier(cheminBasseQualite)
+	dbgVérifieVrai(tailleBasse > 0, "fichier basse qualité non vide")
+
+	// Compression forte doit produire fichier plus petit
+	dbgVérifieVrai(tailleBasse < tailleHaute, "qualité basse produit fichier plus léger")
+
+	// Nettoyer
+	fSupprime(cheminHauteQualite)
+	fSupprime(cheminBasseQualite)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_ecrase_fichier_existant()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	cheminJPEG est une chaîne = "test_jpeg_ecrase.jpg"
+	img1 est une Image
+	img2 est une Image
+	res1 est un booléen
+	res2 est un booléen
+	taille1 est un entier
+	taille2 est un entier
+
+	// Créer et sauver une première image
+	img1 = dCréeImage(30, 30, couleurJaune)
+	res1 = dSauveImageJPEG(img1, cheminJPEG)
+	dbgVérifieEgalité(res1, Vrai, "première sauvegarde réussie")
+	taille1 = fTailleFichier(cheminJPEG)
+	dbgVérifieVrai(taille1 > 0, "fichier créé non vide")
+
+	// Créer et sauver une deuxième image (taille différente, même chemin)
+	img2 = dCréeImage(60, 60, couleurCyan)
+	res2 = dSauveImageJPEG(img2, cheminJPEG)
+	dbgVérifieEgalité(res2, Vrai, "écrasement fichier réussi")
+	taille2 = fTailleFichier(cheminJPEG)
+	dbgVérifieVrai(taille2 > 0, "fichier écrasé non vide")
+
+	// La taille doit avoir changé (nouvelle image plus grande)
+	dbgVérifieVrai(taille2 <> taille1, "taille fichier modifiée après écrasement")
+
+	// Nettoyer
+	fSupprime(cheminJPEG)
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_qualite_limite_0_et_100()
+	couleurGris est un entier = RVB(128, 128, 128)
+	cheminQ0 est une chaîne = "test_jpeg_q0.jpg"
+	cheminQ100 est une chaîne = "test_jpeg_q100.jpg"
+	img est une Image
+	res0 est un booléen
+	res100 est un booléen
+
+	// Créer image test
+	img = dCréeImage(15, 15, couleurGris)
+
+	// Qualité 0 (compression maximale — valeur limite basse)
+	res0 = dSauveImageJPEG(img, cheminQ0, 0)
+	dbgVérifieEgalité(res0, Vrai, "qualité 0 acceptée")
+	dbgVérifieVrai(fFichierExiste(cheminQ0), "fichier créé avec qualité 0")
+
+	// Qualité 100 (compression minimale — valeur limite haute)
+	res100 = dSauveImageJPEG(img, cheminQ100, 100)
+	dbgVérifieEgalité(res100, Vrai, "qualité 100 acceptée")
+	dbgVérifieVrai(fFichierExiste(cheminQ100), "fichier créé avec qualité 100")
+
+	// Nettoyer
+	fSupprime(cheminQ0)
+	fSupprime(cheminQ100)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	cheminUTF8 est une chaîne = "test_éàü_jpeg.jpg"
+	img est une Image
+	res est un booléen
+
+	// Créer et sauver image avec chemin contenant accents
+	img = dCréeImage(8, 8, couleurMagenta)
+	res = dSauveImageJPEG(img, cheminUTF8)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde avec chemin UTF-8 accents réussie")
+	dbgVérifieVrai(fFichierExiste(cheminUTF8), "fichier créé avec chemin UTF-8")
+
+	// Nettoyer
+	fSupprime(cheminUTF8)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
+	couleurNoir est un entier = RVB(0, 0, 0)
+	cheminJPEG est une chaîne = "test_jpeg_1x1.jpg"
+	img est une Image
+	res est un booléen
+
+	// Créer une image minimale 1x1 pixel
+	img = dCréeImage(1, 1, couleurNoir)
+	res = dSauveImageJPEG(img, cheminJPEG)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde 1x1 pixel réussie")
+	dbgVérifieVrai(fFichierExiste(cheminJPEG), "fichier JPEG 1x1 créé")
+
+	// Vérifier round-trip (charge + dimensions préservées)
+	imgRechargee est une Image = dChargeImage(cheminJPEG)
+	dbgVérifieEgalité(imgRechargee..Valide, Vrai, "image 1x1 rechargée valide")
+	dbgVérifieEgalité(imgRechargee..Largeur, 1, "largeur 1 pixel préservée")
+	dbgVérifieEgalité(imgRechargee..Hauteur, 1, "hauteur 1 pixel préservée")
+
+	// Nettoyer
+	fSupprime(cheminJPEG)
+FIN

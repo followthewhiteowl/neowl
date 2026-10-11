@@ -1,0 +1,37 @@
+// Régression : ChaîneConstruit 2e forme — tableau de paramètres
+// spécification de référence : ChaîneConstruit(<format>, <tableau>) spread le tableau comme
+// paramètres positionnels %1, %2, ...
+// Régression mémoire : la boucle de free lisait args[i+1] hors bornes
+// quand les paramètres venaient d'un array spread (paramCount > argCount-1).
+
+fmt est une chaîne = "Bonjour %1, vous avez %2 messages."
+
+// Forme 1 : paramètres positionnels explicites (comportement existant)
+dbgVérifieEgalité(ChaîneConstruit(fmt, "Alice", 3),
+"Bonjour Alice, vous avez 3 messages.",
+"forme 1: paramètres positionnels")
+
+// Forme 2 : tableau de paramètres via variable
+params est un tableau de chaînes = ["Bob", "7"]
+dbgVérifieEgalité(ChaîneConstruit(fmt, params),
+"Bonjour Bob, vous avez 7 messages.",
+"forme 2: tableau variable")
+
+// Forme 2 bis : tableau inline (array literal)
+dbgVérifieEgalité(ChaîneConstruit(fmt, ["Charlie", 42]),
+"Bonjour Charlie, vous avez 42 messages.",
+"forme 2: array literal")
+
+// %1 répété plusieurs fois dans le format
+fmt2 est une chaîne = "%1 et encore %1 et %2"
+dbgVérifieEgalité(ChaîneConstruit(fmt2, ["A", "B"]),
+"A et encore A et B",
+"%1 répété")
+
+// Mix forme 1 + forme 2 dans le même script — vérifie que le free()
+// après la forme 1 ne corrompt pas la forme 2 qui suit.
+dbgVérifieEgalité(ChaîneConstruit(fmt, "Zoe", 99),
+"Bonjour Zoe, vous avez 99 messages.",
+"mix forme 1 après spread")
+
+dbgBilanTest()

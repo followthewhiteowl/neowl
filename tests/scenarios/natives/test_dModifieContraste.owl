@@ -1,0 +1,187 @@
+// @sujet : dModifieContraste
+// @resume : Ajuster le contraste d'une image (variation -100..+100, transformation en place)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_nominal_augmente_contraste()
+	// Une image grise moyenne (128,128,128) devient plus contrastée avec variation positive
+	couleurGris est un entier = RVB(128, 128, 128)
+	img est une Image
+	res est un booléen
+
+	// Créer une image 10x10 grise moyenne
+	img = dCréeImage(10, 10, couleurGris)
+	dbgVérifieEgalité(img..Valide, Vrai, "image créée valide")
+
+	// Augmenter le contraste de +50
+	res = dModifieContraste(img, 50)
+	dbgVérifieEgalité(res, Vrai, "modification contraste réussie")
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide après modification")
+
+	// Le gris 128 avec +50 contraste reste proche de 128 (valeur pivot médiane)
+	// mais des variations subtiles peuvent apparaître selon l'implémentation
+	pixelCentral est un entier = dPixelCouleur(img, 5, 5)
+	dbgVérifieVrai(pixelCentral <> 0, "pixel central non noir après augmentation contraste")
+FIN
+
+PROCEDURE PUBLIQUE scenario_diminue_contraste()
+	// Une image colorée devient moins contrastée avec variation négative
+	couleurRouge est un entier = RVB(200, 50, 50)
+	img est une Image
+	res est un booléen
+	pixelAvant est un entier
+	pixelApres est un entier
+
+	// Créer une image rouge (contraste fort)
+	img        = dCréeImage(10, 10, couleurRouge)
+	pixelAvant = dPixelCouleur(img, 5, 5)
+
+	// Diminuer le contraste de -50
+	res = dModifieContraste(img,-50)
+	dbgVérifieEgalité(res, Vrai, "diminution contraste réussie")
+
+	// Le pixel doit se rapprocher du gris médian 128
+	pixelApres = dPixelCouleur(img, 5, 5)
+	dbgVérifieVrai(pixelAvant <> pixelApres, "couleur modifiée par diminution contraste")
+FIN
+
+PROCEDURE PUBLIQUE scenario_contraste_zero_no_op()
+	// Variation 0 ne modifie pas l'image (no-op attendu)
+	couleurBleu est un entier = RVB(50, 100, 200)
+	img est une Image
+	res est un booléen
+	pixelAvant est un entier
+	pixelApres est un entier
+
+	// Créer une image bleue
+	img        = dCréeImage(8, 8, couleurBleu)
+	pixelAvant = dPixelCouleur(img, 4, 4)
+
+	// Appliquer contraste 0 (no-op attendu)
+	res = dModifieContraste(img, 0)
+	dbgVérifieEgalité(res, Vrai, "contraste 0 réussit")
+
+	// Le pixel doit être inchangé
+	pixelApres = dPixelCouleur(img, 4, 4)
+	dbgVérifieEgalité(pixelApres, pixelAvant, "contraste 0 préserve les couleurs")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites techniques (edge cases hors vitrine)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_contraste_min_gris_uniforme()
+	// Variation -100 produit une image grise uniforme (tous pixels vers 128)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	res est un booléen
+	pixelCentre est un entier
+	pixelCoin est un entier
+
+	// Créer une image jaune vif (255,255,0)
+	img = dCréeImage(10, 10, couleurJaune)
+
+	// Appliquer contraste -100 (aplatir vers gris)
+	res = dModifieContraste(img,-100)
+	dbgVérifieEgalité(res, Vrai, "contraste -100 réussit")
+
+	// Tous les pixels doivent converger vers le gris médian (~128,128,128)
+	pixelCentre = dPixelCouleur(img, 5, 5)
+	pixelCoin   = dPixelCouleur(img, 0, 0)
+
+	// La valeur exacte peut varier légèrement selon l'algo (128±10)
+	// On vérifie que les composantes R/G/B sont proches
+	rCentre est un entier = (pixelCentre / 65536) % 256
+	gCentre est un entier = (pixelCentre / 256) % 256
+	bCentre est un entier = pixelCentre % 256
+
+	// Toutes les composantes doivent être proches (gris uniforme)
+	dbgVérifieVrai(Abs(rCentre - gCentre) < 20, "composante R proche de G pour gris")
+	dbgVérifieVrai(Abs(gCentre - bCentre) < 20, "composante G proche de B pour gris")
+	dbgVérifieVrai(rCentre > 100 ET rCentre < 160, "composante R dans plage gris médian")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_contraste_max_saturation()
+	// Variation +100 amplifie la séparation des tons (saturation max)
+	couleurGris est un entier = RVB(128, 128, 128)
+	img est une Image
+	res est un booléen
+	pixelAvant est un entier
+	pixelApres est un entier
+
+	// Créer une image grise médiane
+	img        = dCréeImage(10, 10, couleurGris)
+	pixelAvant = dPixelCouleur(img, 5, 5)
+
+	// Appliquer contraste +100 (amplification max)
+	res = dModifieContraste(img, 100)
+	dbgVérifieEgalité(res, Vrai, "contraste +100 réussit")
+
+	// La valeur pivot 128 avec +100 peut rester gris ou saturer selon algo
+	pixelApres = dPixelCouleur(img, 5, 5)
+	dbgVérifieVrai(img..Valide, "image reste valide après saturation max")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_out_of_range_positive()
+	// Variation > 100 doit échouer ou être clampée
+	couleurVert est un entier = RVB(0, 255, 0)
+	img est une Image
+	res est un booléen
+	bExceptionLevee est un booléen = Faux
+
+	// Créer une image verte
+	img = dCréeImage(5, 5, couleurVert)
+
+	// Tenter d'appliquer contraste hors bornes (+150)
+	QUAND EXCEPTION DANS
+		res = dModifieContraste(img, 150)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+
+	// Soit exception levée, soit retour Faux (échec silencieux)
+	dbgVérifieVrai(bExceptionLevee OU res = Faux, "contraste hors bornes (+150) échoue")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_out_of_range_negative()
+	// Variation < -100 doit échouer ou être clampée
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	img est une Image
+	res est un booléen
+	bExceptionLevee est un booléen = Faux
+
+	// Créer une image magenta
+	img = dCréeImage(5, 5, couleurMagenta)
+
+	// Tenter d'appliquer contraste hors bornes (-150)
+	QUAND EXCEPTION DANS
+		res = dModifieContraste(img,-150)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+
+	// Soit exception levée, soit retour Faux
+	dbgVérifieVrai(bExceptionLevee OU res = Faux, "contraste hors bornes (-150) échoue")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_invalide()
+	// Tenter de modifier le contraste d'une image invalide doit échouer
+	imgInvalide est une Image
+	res est un booléen
+	bExceptionLevee est un booléen = Faux
+
+	// Image invalide (pas initialisée)
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "image non initialisée invalide")
+
+	// Tenter de modifier contraste sur image invalide
+	QUAND EXCEPTION DANS
+		res = dModifieContraste(imgInvalide, 50)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+
+	// Doit lever exception ou retourner Faux
+	dbgVérifieVrai(bExceptionLevee OU res = Faux, "contraste sur image invalide échoue")
+FIN

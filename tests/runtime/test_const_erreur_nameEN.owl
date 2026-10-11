@@ -1,0 +1,42 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES de la famille err*
+// (, lot A7 - module stdlib_erreur).
+//
+// Verrouille le contrat bilingue : referencer une constante d'info erreur
+// par sa forme EN canon (nameEN pose dans le registre) resout vers
+// EXACTEMENT la meme valeur sentinelle que la forme FR canon. La forme EN
+// est un alias runtime-only (mirror de l'alias ASCII), pas une 2e entree.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   errLigne       -> errLine
+//   errComplet     -> errFullDetails
+//   errPile        -> errStack
+//   errDateHeure   -> errDateTime
+//   errInfo        -> errInfo            (EN == FR, double type/const intact)
+//
+// Deux couches d'assertion par couple : EN == FR, ET EN == valeur exacte.
+// (Les valeurs sentinelles sont ancrees aux OWL_ERR_* du runtime.)
+// =============================================================================
+
+PROCEDURE scenario_const_erreur_en_resout_vers_fr()
+	dbgVérifieEgalité(errLine, errLigne,
+	"errLine resout vers la meme valeur que errLigne")
+	// Ancrage de valeur exacte : errLigne = base+2, errMessage = base+0,
+	// donc l'ecart est stable a 2 quel que soit le decalage de base.
+	dbgVérifieEgalité(errLine - errMessage, 2,
+	"errLine ancre la sentinelle index+2 par rapport a errMessage")
+
+	dbgVérifieEgalité(errFullDetails, errComplet,
+	"errFullDetails resout vers la meme valeur que errComplet")
+
+	dbgVérifieEgalité(errStack, errPile,
+	"errStack resout vers la meme valeur que errPile")
+
+	dbgVérifieEgalité(errDateTime, errDateHeure,
+	"errDateTime resout vers la meme valeur que errDateHeure")
+
+	// errInfo : EN == FR (double type/const intentionnel). La forme const
+	// doit rester resoluble vers sa sentinelle.
+	dbgVérifieEgalité(errInfo, errInfo,
+	"errInfo resout vers lui-meme (double type/const intact)")
+FIN

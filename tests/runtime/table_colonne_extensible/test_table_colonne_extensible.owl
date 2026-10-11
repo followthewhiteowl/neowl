@@ -1,0 +1,30 @@
+//  — prop ColonneExtensible sur le Champ Table : contient le NOM
+// d'une colonne, le backend ancre (stretch) cette colonne au montage.
+//
+// Vérifie que la déclaration + relecture après matérialisation fonctionnent,
+// et que le montage (Ouvre) ne crashe pas quand la prop désigne une colonne
+// existante. Un nom qui ne matche aucune colonne = no-op (comportement par
+// défaut conservé).
+//
+// ROUGE attendu : ColonneExtensible n'existe pas encore côté catalogue
+// (compile-fail : propriété inconnue en cascade dès la déclaration du bloc
+// PROPRIETES).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_TableExtensible)
+
+// Valeur déclarative conservée après matérialisation.
+dbgVérifieEgalité(TAB_Produits..ColonneExtensible, "COL_Libelle", "Table..ColonneExtensible déclaratif conservé")
+
+// Réaffectation runtime + relecture (ne doit pas régresser une fois posé).
+TAB_Produits..ColonneExtensible = "COL_Reference"
+dbgVérifieEgalité(TAB_Produits..ColonneExtensible, "COL_Reference", "Table..ColonneExtensible réaffecté au runtime")
+
+// Nom inexistant : pas de crash, valeur relue telle quelle.
+TAB_Produits..ColonneExtensible = "COL_Inexistante"
+dbgVérifieEgalité(TAB_Produits..ColonneExtensible, "COL_Inexistante", "Table..ColonneExtensible nom inconnu = no-op sans crash")
+
+Ferme(FEN_TableExtensible)
+
+dbgBilanTest()

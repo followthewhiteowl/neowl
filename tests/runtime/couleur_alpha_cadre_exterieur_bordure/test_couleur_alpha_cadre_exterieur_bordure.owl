@@ -1,0 +1,39 @@
+//  (LOT 1) — opacité sur `Style..CadreExtérieur..Cadre..Couleur`
+// (bordure), rendu en QSS (border: Npx solid rgb/rgba(...)) via
+// cadre_instance_to_spec. Trou d'ingestion connu : la couleur de bordure est
+// lue par `instance_get_int(cadre, "Couleur", 0)`, qui renvoie le défaut 0
+// (noir) sur une instance Couleur au lieu d'en extraire (bgr, alpha) — la
+// bordure translucide n'affiche PAS le mélange attendu.
+//
+// Point d'échantillonnage : conteneur [X=20,Y=20/140,L=200,H=100], bordure
+// épaisseur 20px. Point (30,70)/(30,190) — 10px à l'intérieur du bord gauche
+// (couvert par la bordure de 20px, hors coin, hors zone de fond intérieure).
+//
+// Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur + dCopieImageFenêtre +
+// dPixelCouleur).
+//
+// Calcul du mélange (alpha compositing source-over, a = Opacité/255) :
+//   résultat_composante = fg*a + bg*(1-a)
+// fg = VERT PUR (0,255,0), bg = ROUGE PUR (255,0,0), a = 128/255 :
+//   R : fg=0,   bg=255 -> résultat = bg*(255-a)/255 = 127
+//   V : fg=255, bg=0   -> résultat = fg*a/255        = 128
+//   B : fg=0,   bg=0   -> résultat = 0
+// Mélange attendu : RVB(127, 128, 0). Aucune tolérance nécessaire.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_CouleurAlphaCadreExtBordure)
+
+img est une Image = dCopieImageFenêtre(FEN_CouleurAlphaCadreExtBordure)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// --- 1. Témoin opaque : CNT_BordureOpaque, bordure gauche, point=(30,70) --
+dbgVérifieEgalité(dPixelCouleur(img, 30, 70), RVB(0, 255, 0),
+"CNT_BordureOpaque : Style..CadreExtérieur..Cadre..Couleur = RVB(0,255,0) (entier nu opaque) : bordure vert pur, non-régression")
+
+// --- 2. CNT_BordureAlpha, bordure gauche, point=(30,190) -------------------
+dbgVérifieEgalité(dPixelCouleur(img, 30, 190), RVB(127, 128, 0),
+"CNT_BordureAlpha : Style..CadreExtérieur..Cadre..Couleur = <Couleur Opacité=128> : bordure mélangée avec le fond rouge de la fenêtre")
+
+Ferme(FEN_CouleurAlphaCadreExtBordure)
+dbgBilanTest()

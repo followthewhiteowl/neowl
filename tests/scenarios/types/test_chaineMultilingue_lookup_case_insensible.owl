@@ -1,0 +1,41 @@
+// @sujet : chaîneMultilingue (indexation case-insensible)
+// @résumé : BCP47 est case-insensible (RFC 5646). L'indexation d'une chaîneMultilingue par tag ("en-gb", "EN-GB") retrouve la même entrée qu'un tag canonique ("en-GB") ou qu'une constante langueXxx, quelle que soit la casse saisie.
+
+
+// Indexation par tag en casse minuscule doit retrouver l'entrée posée sous
+// forme canonique. Langue NON-source choisie exprès : si le lookup rate,
+// le fallback silencieux vers la langue source masquerait le bug.
+PROCEDURE scenario_lookup_tag_minuscule_retrouve_entree()
+	m est une chaîneMultilingue = {"fr-FR": "Salut", "en-GB": "Hi"}
+
+	dbgVérifieEgalité(m["en-gb"], "Hi", "tag minuscule retrouve l'entrée en-GB")
+FIN
+
+
+// Indexation par tag tout en majuscules doit aussi retrouver l'entrée.
+PROCEDURE scenario_lookup_tag_majuscule_retrouve_entree()
+	m est une chaîneMultilingue = {"fr-FR": "Salut", "en-GB": "Hi"}
+
+	dbgVérifieEgalité(m["EN-GB"], "Hi", "tag tout majuscule retrouve l'entrée en-GB")
+FIN
+
+
+// Indexation via la constante langueXxx correspondante doit retrouver la
+// même valeur que l'indexation par tag, quelle que soit la casse du tag
+// utilisé pour poser l'entrée.
+PROCEDURE scenario_lookup_constante_coherente_avec_tag_casse_variable()
+	m est une chaîneMultilingue = {"fr-FR": "Salut", "en-GB": "Hi"}
+
+	dbgVérifieEgalité(m[langueAnglaisRoyaumeUni], "Hi", "constante retrouve l'entrée en-GB")
+	dbgVérifieEgalité(m["en-gb"], m[langueAnglaisRoyaumeUni], "tag minuscule et constante retrouvent la même valeur")
+FIN
+
+
+// Langue source elle-même indexée en casse non-canonique doit aussi
+// retrouver son entrée (pas de régression sur le cas déjà couvert par le
+// fallback source).
+PROCEDURE scenario_lookup_langue_source_casse_non_canonique()
+	m est une chaîneMultilingue = {"fr-FR": "Salut", "en-GB": "Hi"}
+
+	dbgVérifieEgalité(m["fr-fr"], "Salut", "tag minuscule de la langue source retrouve l'entrée fr-FR")
+FIN

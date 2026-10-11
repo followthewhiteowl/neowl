@@ -1,0 +1,148 @@
+// test_conv_backward_parite_echelle.owl — 
+// Digue de parité bit-à-bit AVANT le fractionnement en deux passes du
+// backward de Convolution2D (scatter dPoids ET dEntrée aujourd'hui fait
+// dans UNE seule boucle b,co,i,j -> sera scindé en deux passes bit-exactes :
+// dPoids parallélisé sur co, dEntrée sur b). L'oracle OWL naïf ci-dessous
+// recalcule chaque gradient indépendamment (gradient de sortie non uniforme
+// via q = sortie*sortie, puis les deux règles de diffusion
+// dPoids[co,ci,kh,kw] += entrée[b,ci,ih,iw]*grad_sortie[b,co,i,j] et
+// dEntrée[b,ci,ih,iw] += poids[co,ci,kh,kw]*grad_sortie[b,co,i,j], mêmes
+// bornes de fenêtre que le natif). Si le passage en deux passes change
+// l'ordre d'accumulation par cellule ou fait fuiter une contribution d'un
+// côté vers l'autre, natif == oracle casse net (égalité EXACTE).
+
+Trace("=== CONV2D BACKWARD PARITÉ À L'ÉCHELLE (digue perf feat/1634) ===")
+
+// Valeurs FRACTIONNAIRES bornées (division par 9.0, fraction binaire non
+// terminante) : les sommes accumulées côté forward ET côté gradients (dPoids,
+// dEntrée) ne sont pas exactement représentables en double, contrairement à
+// des entiers purs.
+PROCEDURE convBwParite_construitTenseur4D(dimA est un entier, dimB est un entier, dimC est un entier, dimD est un entier, decalage est un entier)
+	arr est un tableau de réels
+	POUR ia = 1 À dimA
+		POUR ib = 1 À dimB
+			POUR ic = 1 À dimC
+				POUR id = 1 À dimD
+					vi est un entier = ((ia * 11 + ib * 7 + ic * 5 + id * 3 + decalage) % 9) + 1
+					v est un réel = vi / 9.0
+					Ajoute(arr, v)
+				FIN
+			FIN
+		FIN
+	FIN
+	t est un Tenseur = Tenseur(arr).Redimensionne([dimA, dimB, dimC, dimD])
+	RENVOYER t
+FIN
+
+// Forward d'une cellule de sortie (1-based), somme ci,kh,kw croissants —
+// même ordre que la triple boucle native.
+PROCEDURE convBwParite_oracleForward(entree est un Tenseur, poids est un Tenseur, b est un entier, co est un entier, i est un entier, j est un entier, cin est un entier, kTaille est un entier, avance est un entier, remplissage est un entier, H est un entier, Wd est un entier)
+	s est un réel = 0.0
+	i0 est un entier = i - 1
+	j0 est un entier = j - 1
+	POUR ci = 1 À cin
+		POUR kh = 1 À kTaille
+			POUR kw = 1 À kTaille
+				ih0 est un entier = i0 * avance - remplissage + (kh - 1)
+				iw0 est un entier = j0 * avance - remplissage + (kw - 1)
+				SI ih0 >= 0 ET ih0 < H ET iw0 >= 0 ET iw0 < Wd ALORS
+					s += entree..Valeur[b][ci][ih0 + 1][iw0 + 1] * poids..Valeur[co][ci][kh][kw]
+				FIN
+			FIN
+		FIN
+	FIN
+	RENVOYER s
+FIN
+
+// grad_sortie[b][co][i][j] = 2 * sortie[b][co][i][j] (dérivée de q=sortie²)
+PROCEDURE convBwParite_oracleGradSortie(entree est un Tenseur, poids est un Tenseur, b est un entier, co est un entier, i est un entier, j est un entier, cin est un entier, kTaille est un entier, avance est un entier, remplissage est un entier, H est un entier, Wd est un entier)
+	RENVOYER 2.0 * convBwParite_oracleForward(entree, poids, b, co, i, j, cin, kTaille, avance, remplissage, H, Wd)
+FIN
+
+// dPoids[co][ci][kh][kw] = somme sur b, i, j croissants de
+// entrée[b,ci,ih,iw] * grad_sortie[b,co,i,j], ih = i0*avance-remplissage+(kh-1).
+PROCEDURE convBwParite_oracleWg(entree est un Tenseur, poids est un Tenseur, co est un entier, ci est un entier, kh est un entier, kw est un entier, cin est un entier, kTaille est un entier, avance est un entier, remplissage est un entier, H est un entier, Wd est un entier, nbLots est un entier, hOut est un entier, wOut est un entier)
+	s est un réel = 0.0
+	POUR b = 1 À nbLots
+		POUR i = 1 À hOut
+			POUR j = 1 À wOut
+				i0 est un entier = i - 1
+				j0 est un entier = j - 1
+				ih0 est un entier = i0 * avance - remplissage + (kh - 1)
+				iw0 est un entier = j0 * avance - remplissage + (kw - 1)
+				SI ih0 >= 0 ET ih0 < H ET iw0 >= 0 ET iw0 < Wd ALORS
+					s += entree..Valeur[b][ci][ih0 + 1][iw0 + 1] * convBwParite_oracleGradSortie(entree, poids, b, co, i, j, cin, kTaille, avance, remplissage, H, Wd)
+				FIN
+			FIN
+		FIN
+	FIN
+	RENVOYER s
+FIN
+
+// dEntrée[b][ci][ih][iw] en ORDRE IM2COL : le canal de sortie
+// co est collapsé EN PREMIER (réduction interne, par position spatiale
+// (i,j)) — c'est dCol[(ci,kh,kw),(i,j)] = Σ_co poids[co,ci,kh,kw] *
+// grad_sortie[b,co,i,j]. L'accumulation EXTERNE balaie ensuite (i,j)
+// croissants (col2im), en ajoutant la valeur de dCol déjà réduite sur co.
+// Différent de l'ordre direct (co externe interleavé avec le spatial) :
+// regroupement d'additions flottantes différent -> valeurs au dernier ULP
+// potentiellement différentes sur données fractionnaires.
+PROCEDURE convBwParite_oracleIg(entree est un Tenseur, poids est un Tenseur, b est un entier, ci est un entier, ih est un entier, iw est un entier, cout est un entier, cin est un entier, kTaille est un entier, avance est un entier, remplissage est un entier, H est un entier, Wd est un entier, hOut est un entier, wOut est un entier)
+	s est un réel = 0.0
+	ihCible0 est un entier = ih - 1
+	iwCible0 est un entier = iw - 1
+	POUR i = 1 À hOut
+		POUR j = 1 À wOut
+			i0 est un entier = i - 1
+			j0 est un entier = j - 1
+			kh0 est un entier = ihCible0 - i0 * avance + remplissage
+			kw0 est un entier = iwCible0 - j0 * avance + remplissage
+			SI kh0 >= 0 ET kh0 < kTaille ET kw0 >= 0 ET kw0 < kTaille ALORS
+				dColVal est un réel = 0.0
+				POUR co = 1 À cout
+					dColVal += poids..Valeur[co][ci][kh0 + 1][kw0 + 1] * convBwParite_oracleGradSortie(entree, poids, b, co, i, j, cin, kTaille, avance, remplissage, H, Wd)
+				FIN
+				s += dColVal
+			FIN
+		FIN
+	FIN
+	RENVOYER s
+FIN
+
+// B=2, Cin=2, Cout=3, noyau 3×3, pas=1, remplissage=1, H=W=6 -> Hout=Wout=6.
+// Échelle explicitement demandée pour verrouiller le futur découpage en
+// deux passes (wg parallélisé sur co, ig sur b).
+PROCEDURE scenario_conv2d_backward_wg_et_ig_echelle()
+	nbLots est un entier = 2
+	Cin est un entier = 2
+	Cout est un entier = 3
+	H est un entier = 6
+	Wd est un entier = 6
+	kTaille est un entier = 3
+	avance est un entier = 1
+	remplissage est un entier = 1
+
+	entree est un Tenseur = convBwParite_construitTenseur4D(nbLots, Cin, H, Wd, 2)
+	poids est un Tenseur = convBwParite_construitTenseur4D(Cout, Cin, kTaille, kTaille, 15)
+	sortie est un Tenseur = entree.Convolution2D(poids, avance, remplissage)
+
+	dbgVérifieEgalité(sortie..Forme[3], 6, "Hout = (6+2-3)/1+1 = 6")
+	dbgVérifieEgalité(sortie..Forme[4], 6, "Wout = (6+2-3)/1+1 = 6")
+
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	// --- dPoids : coins + intérieur, canaux d'entrée/sortie différents ---
+	dbgVérifieEgalité(poids..Gradient[1][1][1][1], convBwParite_oracleWg(entree, poids, 1, 1, 1, 1, Cin, kTaille, avance, remplissage, H, Wd, nbLots, 6, 6), "dPoids[co=1,ci=1,1,1] == oracle")
+	dbgVérifieEgalité(poids..Gradient[3][2][3][3], convBwParite_oracleWg(entree, poids, 3, 2, 3, 3, Cin, kTaille, avance, remplissage, H, Wd, nbLots, 6, 6), "dPoids[co=3,ci=2,3,3] == oracle")
+	dbgVérifieEgalité(poids..Gradient[2][1][2][1], convBwParite_oracleWg(entree, poids, 2, 1, 2, 1, Cin, kTaille, avance, remplissage, H, Wd, nbLots, 6, 6), "dPoids[co=2,ci=1,2,1] == oracle")
+
+	// --- dEntrée : coins + intérieur, lots/canaux différents ---
+	dbgVérifieEgalité(entree..Gradient[1][1][1][1], convBwParite_oracleIg(entree, poids, 1, 1, 1, 1, Cout, Cin, kTaille, avance, remplissage, H, Wd, 6, 6), "dEntrée[b=1,ci=1,1,1] == oracle")
+	dbgVérifieEgalité(entree..Gradient[2][2][6][6], convBwParite_oracleIg(entree, poids, 2, 2, 6, 6, Cout, Cin, kTaille, avance, remplissage, H, Wd, 6, 6), "dEntrée[b=2,ci=2,6,6] == oracle")
+	dbgVérifieEgalité(entree..Gradient[1][2][3][4], convBwParite_oracleIg(entree, poids, 1, 2, 3, 4, Cout, Cin, kTaille, avance, remplissage, H, Wd, 6, 6), "dEntrée[b=1,ci=2,3,4] == oracle")
+FIN
+
+scenario_conv2d_backward_wg_et_ig_echelle()
+
+dbgBilanTest()

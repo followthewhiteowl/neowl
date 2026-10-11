@@ -1,0 +1,102 @@
+Trace("=== HMAC COVERAGE (algos supportes, anti-orphelin) ===")
+
+// =====================================================================
+// Couverture des constantes HMAC supportees mais jamais exercees.
+// HMACChaîne(algo, message, cle) -> chaine hex minuscule (2 char / octet).
+//
+// Strategie d'assertion :
+//   - valeurs exactes ancrees sur un oracle openssl quand dispo
+//     (SHA-1 / SHA-384 / SHA-512 / SHA3-384) ;
+//   - sinon proprietes oracle-free : longueur de sortie, determinisme,
+//     sensibilite a la cle, HMAC != hash simple.
+// =====================================================================
+
+msg est une chaîne = "message-test"
+cle est une chaîne = "ma-cle-secrete"
+cle2 est une chaîne = "autre-cle"
+
+// ---------------------------------------------------------------------
+// 1. Valeurs exactes (oracle openssl 3.5.5 : printf msg | openssl dgst -<algo> -hmac cle -r)
+// ---------------------------------------------------------------------
+
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA_160, msg, cle),
+"10c615c3476aace7efea96c121e2688579dad73d",
+"HMAC-SHA-1 = oracle openssl")
+
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA_384, msg, cle),
+"5512f0c996b0a6632519df9c758f0afc38a8bad4d05b90e9e7caee5fe409ec93d0822974009fd7fce8bd1e94b29bab25",
+"HMAC-SHA-384 = oracle openssl")
+
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA_512, msg, cle),
+"642155383fcb02931ed6764fc594866093c949c64649bffc5c0d512b1c748644a90e8b372dd4e0e3914f28028e5cf261917ab5fa17959a6010117285bfcca1b7",
+"HMAC-SHA-512 = oracle openssl")
+
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA3_384, msg, cle),
+"e6955330ef167f92e3a2f46e56cdcf8a1efd389a142670ccdf5e1f6e039e129bb31a2ee0d800dc6735a1d916d5efa622",
+"HMAC-SHA3-384 = oracle openssl")
+
+// ---------------------------------------------------------------------
+// 2. Longueur de sortie coherente avec l'algo (octets -> 2 hex char/octet)
+// ---------------------------------------------------------------------
+
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA_160, msg, cle)), 40,
+"HMAC-SHA-1 -> 20 octets (40 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA_256_DOUBLE, msg, cle)), 64,
+"HMAC-SHA-256-DOUBLE -> 32 octets (64 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA_384, msg, cle)), 96,
+"HMAC-SHA-384 -> 48 octets (96 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA_512, msg, cle)), 128,
+"HMAC-SHA-512 -> 64 octets (128 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_RIPEMD_128, msg, cle)), 32,
+"HMAC-RIPEMD-128 -> 16 octets (32 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA3_224, msg, cle)), 56,
+"HMAC-SHA3-224 -> 28 octets (56 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA3_384, msg, cle)), 96,
+"HMAC-SHA3-384 -> 48 octets (96 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_SHA3_512, msg, cle)), 128,
+"HMAC-SHA3-512 -> 64 octets (128 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_BLAKE2B_384, msg, cle)), 96,
+"HMAC-BLAKE2B-384 -> 48 octets (96 hex)")
+dbgVérifieEgalité(Taille(HMACChaîne(HA_HMAC_BLAKE2B_512, msg, cle)), 128,
+"HMAC-BLAKE2B-512 -> 64 octets (128 hex)")
+
+// ---------------------------------------------------------------------
+// 3. Determinisme : meme (algo, msg, cle) -> meme sortie
+// ---------------------------------------------------------------------
+
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_RIPEMD_128, msg, cle),
+HMACChaîne(HA_HMAC_RIPEMD_128, msg, cle),
+"HMAC-RIPEMD-128 deterministe")
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA3_224, msg, cle),
+HMACChaîne(HA_HMAC_SHA3_224, msg, cle),
+"HMAC-SHA3-224 deterministe")
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_BLAKE2B_512, msg, cle),
+HMACChaîne(HA_HMAC_BLAKE2B_512, msg, cle),
+"HMAC-BLAKE2B-512 deterministe")
+dbgVérifieEgalité(HMACChaîne(HA_HMAC_SHA_256_DOUBLE, msg, cle),
+HMACChaîne(HA_HMAC_SHA_256_DOUBLE, msg, cle),
+"HMAC-SHA-256-DOUBLE deterministe")
+
+// ---------------------------------------------------------------------
+// 4. Sensibilite a la cle : 2 cles differentes -> 2 sorties differentes
+// ---------------------------------------------------------------------
+
+dbgVérifieVrai(HMACChaîne(HA_HMAC_SHA3_512, msg, cle) <> HMACChaîne(HA_HMAC_SHA3_512, msg, cle2),
+"HMAC-SHA3-512 sensible a la cle")
+dbgVérifieVrai(HMACChaîne(HA_HMAC_BLAKE2B_384, msg, cle) <> HMACChaîne(HA_HMAC_BLAKE2B_384, msg, cle2),
+"HMAC-BLAKE2B-384 sensible a la cle")
+dbgVérifieVrai(HMACChaîne(HA_HMAC_RIPEMD_128, msg, cle) <> HMACChaîne(HA_HMAC_RIPEMD_128, msg, cle2),
+"HMAC-RIPEMD-128 sensible a la cle")
+
+// ---------------------------------------------------------------------
+// 5. HMAC != hash simple du meme message (la cle doit influer)
+// ---------------------------------------------------------------------
+
+dbgVérifieVrai(HMACChaîne(HA_HMAC_SHA_512, msg, cle) <> HashChaîne(HA_SHA_512, msg),
+"HMAC-SHA-512 != SHA-512 simple")
+dbgVérifieVrai(HMACChaîne(HA_HMAC_SHA3_384, msg, cle) <> HashChaîne(HA_SHA3_384, msg),
+"HMAC-SHA3-384 != SHA3-384 simple")
+dbgVérifieVrai(HMACChaîne(HA_HMAC_BLAKE2B_512, msg, cle) <> HashChaîne(HA_BLAKE2B_512, msg),
+"HMAC-BLAKE2B-512 != BLAKE2B-512 simple")
+
+dbgBilanTest()

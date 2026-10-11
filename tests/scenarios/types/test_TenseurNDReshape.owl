@@ -1,0 +1,118 @@
+// @sujet : Tenseur.Redimensionne / Permute / Transpose (N-D)
+// @résumé : Redimensionne change la forme d'un Tenseur en conservant
+// l'ordre de lecture de ses éléments (comme un applatissement puis un
+// nouveau découpage). Permute réordonne tous les axes selon un ordre
+// donné. Les deux sont des réindexations bijectives : Rétropropage()
+// renvoie chaque gradient à la position d'origine, sans le déformer.
+
+// Redimensionne un Tenseur 3D (2x2x2, 8 éléments) en 2D (4x2). L'ordre de
+// lecture des éléments (1.0 à 8.0) est préservé : le premier élément
+// d'origine reste le premier élément après redimensionnement.
+PROCEDURE PUBLIQUE scenario_redimensionne_forward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	r est un Tenseur = t.Redimensionne([4, 2])
+
+	dbgVérifieEgalité(r..Rang, 2, "Redimensionne(2x2x2 -> 4x2) -> Rang 2")
+	dbgVérifieEgalité(r..Forme[1], 4, "Nouvelle forme : 4 lignes")
+	dbgVérifieEgalité(r..Forme[2], 2, "Nouvelle forme : 2 colonnes")
+	dbgVérifieEgalité(r..Valeur[1][1], 1.0, "Ordre de lecture préservé : 1er élément")
+	dbgVérifieEgalité(r..Valeur[1][2], 2.0, "2e élément")
+	dbgVérifieEgalité(r..Valeur[3][1], 5.0, "5e élément")
+	dbgVérifieEgalité(r..Valeur[4][2], 8.0, "Dernier élément")
+FIN
+
+
+// Rétropropage() à travers Redimensionne renvoie chaque gradient à sa
+// position d'origine dans le Tenseur source. Calcul à la main : sur
+// r = t.Redimensionne(...), q = r*r (carré élément à élément), le
+// gradient de r vaut 2*r (comme pour ta*ta), et celui de t est le même
+// gradient replacé à sa position d'origine avant redimensionnement :
+// t..Gradient[i][j][k] = 2 * t..Valeur[i][j][k].
+PROCEDURE PUBLIQUE scenario_redimensionne_backward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Redimensionne([2, 2, 2])
+	r est un Tenseur = t.Redimensionne([4, 2])
+	q est un Tenseur = r * r
+	q.Rétropropage()
+
+	dbgVérifieEgalité(r..Gradient[1][1], 2.0, "2*r[1][1] = 2*1.0")
+	dbgVérifieEgalité(r..Gradient[4][2], 16.0, "2*r[4][2] = 2*8.0")
+
+	dbgVérifieEgalité(t..Gradient[1][1][1], 2.0, "2*t[1][1][1] = 2*1.0, replacé à sa position d'origine")
+	dbgVérifieEgalité(t..Gradient[1][1][2], 4.0, "2*t[1][1][2] = 2*2.0")
+	dbgVérifieEgalité(t..Gradient[1][2][1], 6.0, "2*t[1][2][1] = 2*3.0")
+	dbgVérifieEgalité(t..Gradient[1][2][2], 8.0, "2*t[1][2][2] = 2*4.0")
+	dbgVérifieEgalité(t..Gradient[2][1][1], 10.0, "2*t[2][1][1] = 2*5.0")
+	dbgVérifieEgalité(t..Gradient[2][2][2], 16.0, "2*t[2][2][2] = 2*8.0")
+FIN
+
+
+// Permute([2,1,3]) échange les deux premiers axes d'un Tenseur 3D
+// (2x2x3) : p[i][j][k] = t[j][i][k]. Calcul à la main de quelques
+// éléments à partir du littéral 1.0..12.0.
+PROCEDURE PUBLIQUE scenario_permute_forward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	p est un Tenseur = t.Permute([2, 1, 3])
+
+	dbgVérifieEgalité(p..Forme[1], 2, "Permute([2,1,3]) : forme[1] = ancienne forme[2]")
+	dbgVérifieEgalité(p..Forme[2], 2, "Permute([2,1,3]) : forme[2] = ancienne forme[1]")
+	dbgVérifieEgalité(p..Forme[3], 3, "Permute([2,1,3]) : forme[3] inchangée")
+
+	dbgVérifieEgalité(p..Valeur[1][1][1], 1.0, "p[1][1][1] = t[1][1][1]")
+	dbgVérifieEgalité(p..Valeur[1][2][1], 7.0, "p[1][2][1] = t[2][1][1]")
+	dbgVérifieEgalité(p..Valeur[2][1][1], 4.0, "p[2][1][1] = t[1][2][1]")
+	dbgVérifieEgalité(p..Valeur[2][2][3], 12.0, "p[2][2][3] = t[2][2][3]")
+FIN
+
+
+// Rétropropage() à travers Permute renvoie chaque gradient à sa position
+// d'origine. Comme Permute([2,1,3]) est une simple réindexation
+// bijective (aucune valeur dupliquée ni perdue), le gradient de
+// q = p*p ramené à t vaut exactement 2 * t..Valeur à la même position,
+// quelle que soit la réorganisation intermédiaire.
+PROCEDURE PUBLIQUE scenario_permute_backward()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	p est un Tenseur = t.Permute([2, 1, 3])
+	q est un Tenseur = p * p
+	q.Rétropropage()
+
+	dbgVérifieEgalité(t..Gradient[1][1][1], 2.0, "2*t[1][1][1] = 2*1.0")
+	dbgVérifieEgalité(t..Gradient[1][2][1], 8.0, "2*t[1][2][1] = 2*4.0")
+	dbgVérifieEgalité(t..Gradient[2][1][1], 14.0, "2*t[2][1][1] = 2*7.0")
+	dbgVérifieEgalité(t..Gradient[2][2][3], 24.0, "2*t[2][2][3] = 2*12.0")
+FIN
+
+
+// Transpose(axe1, axe2) échange deux axes précis d'un Tenseur N-D — la
+// généralisation à N axes du .Transpose() sans argument déjà canon sur
+// Matrice (qui n'a que deux axes possibles). Ici on échange l'axe 2
+// (taille 2) et l'axe 3 (taille 3) d'un Tenseur 3D (2x2x3) : la nouvelle
+// forme est (2x3x2), et tt[i][j][k] = t[i][k][j].
+PROCEDURE PRIVÉE scenario_edge_transpose_axes_explicites()
+	t est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).Redimensionne([2, 2, 3])
+	tt est un Tenseur = t.Transpose(2, 3)
+
+	dbgVérifieEgalité(tt..Forme[1], 2, "Axe 1 inchangé")
+	dbgVérifieEgalité(tt..Forme[2], 3, "Axe 2 = ancien axe 3")
+	dbgVérifieEgalité(tt..Forme[3], 2, "Axe 3 = ancien axe 2")
+
+	dbgVérifieEgalité(tt..Valeur[1][1][1], 1.0, "tt[1][1][1] = t[1][1][1]")
+	dbgVérifieEgalité(tt..Valeur[1][2][1], 2.0, "tt[1][2][1] = t[1][1][2]")
+	dbgVérifieEgalité(tt..Valeur[2][3][2], 12.0, "tt[2][3][2] = t[2][2][3]")
+
+	q est un Tenseur = tt * tt
+	q.Rétropropage()
+	dbgVérifieEgalité(t..Gradient[2][2][3], 24.0, "2*t[2][2][3] = 2*12.0, gradient replacé à sa position d'origine")
+FIN
+
+
+// La forme anglaise .Reshape(...) désigne la même opération que
+// .Redimensionne(...).
+PROCEDURE PRIVÉE scenario_edge_reshape_forme_anglaise()
+	tEN is a Tensor = Tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]).Reshape([2, 2, 2])
+	rEN is a Tensor = tEN.Reshape([4, 2])
+
+	dbgVérifieEgalité(rEN..Shape[1], 4, "Reshape(...)..Shape[1] = 4")
+	dbgVérifieEgalité(rEN..Shape[2], 2, "Reshape(...)..Shape[2] = 2")
+	dbgVérifieEgalité(rEN..Value[1][1], 1.0, "Ordre de lecture préservé")
+	dbgVérifieEgalité(rEN..Value[4][2], 8.0, "Dernier élément")
+FIN

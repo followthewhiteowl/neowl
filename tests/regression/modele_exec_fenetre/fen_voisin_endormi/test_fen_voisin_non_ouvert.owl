@@ -1,0 +1,16 @@
+// Verrou  (bug 648) — voisin FENETRE non ouvert : top-level ne tourne pas au boot.
+//
+// FEN_VoisinEndormi appelle __dbgNoteExecution("FEN_Dormant") dans son top-level.
+// Ce test n'ouvre JAMAIS FEN_VoisinEndormi.
+// Attendu post-fix : compteur = 0 (fenetre endormie => top-level jamais execute).
+// Etat actuel pre-fix (bug 648) : eager au boot => compteur = 1.
+// => Ce test est ROUGE avant fix, VERT apres fix.
+
+TestModeHeadless(Vrai)
+
+// Deliberement : PAS de Ouvre(FEN_VoisinEndormi).
+
+dbgVérifieEgalité(__dbgNombreExecutions("FEN_Dormant"), 0,
+"FEN non ouverte : top-level ne tourne pas au boot (bug 648)")
+
+dbgBilanTest()

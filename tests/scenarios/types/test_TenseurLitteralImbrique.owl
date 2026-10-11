@@ -1,0 +1,120 @@
+// @sujet : Tenseur (littéral tableau-de-tableaux)
+// @résumé : Passer un tableau dont chaque élément est lui-même un tableau de
+// réels à Tenseur(...) construit un Tenseur 2D, exactement comme envelopper
+// une Matrice de même forme. Un tableau imbriqué irrégulier (lignes de
+// longueurs différentes) est refusé par une erreur claire à la construction,
+// jamais par un Nul silencieux.
+
+// Tenseur([[...]]) construit un Tenseur 2D : ..Rang vaut 2, ..Forme rend les
+// dimensions [lignes, colonnes] et ..Valeur restitue les éléments d'origine.
+PROCEDURE PUBLIQUE scenario_construction_2d_depuis_litteral_imbrique()
+	tImb est un Tenseur = Tenseur([[1.0, 2.0], [3.0, 4.0]])
+
+	dbgVérifieVrai(tImb <> Null, "Tenseur([[...]]) ne renvoie pas Nul")
+	dbgVérifieEgalité(tImb..Rang, 2, "Tableau imbriqué -> Tenseur de rang 2")
+	dbgVérifieEgalité(tImb..Forme[1], 2, "Forme axe 1 : 2 lignes")
+	dbgVérifieEgalité(tImb..Forme[2], 2, "Forme axe 2 : 2 colonnes")
+
+	valImb est une Matrice = tImb..Valeur
+	dbgVérifieEgalité(valImb..Lignes, 2, "..Valeur a 2 lignes")
+	dbgVérifieEgalité(valImb..Colonnes, 2, "..Valeur a 2 colonnes")
+	dbgVérifieEgalité(valImb[1][1], 1.0, "valImb[1][1] = élément d'origine")
+	dbgVérifieEgalité(valImb[1][2], 2.0, "valImb[1][2] = élément d'origine")
+	dbgVérifieEgalité(valImb[2][1], 3.0, "valImb[2][1] = élément d'origine")
+	dbgVérifieEgalité(valImb[2][2], 4.0, "valImb[2][2] = élément d'origine")
+FIN
+
+
+// Le Tenseur construit depuis un littéral imbriqué est identique en forme et
+// en valeurs à celui construit depuis une Matrice de mêmes éléments : les
+// deux chemins de construction convergent.
+PROCEDURE PUBLIQUE scenario_equivalence_avec_tenseur_matrice()
+	matRef est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	tMat est un Tenseur = Tenseur(matRef)
+	tImb est un Tenseur = Tenseur([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+	dbgVérifieEgalité(tImb..Rang, tMat..Rang, "Même rang que Tenseur(Matrice)")
+	dbgVérifieEgalité(tImb..Forme[1], tMat..Forme[1], "Même nombre de lignes")
+	dbgVérifieEgalité(tImb..Forme[2], tMat..Forme[2], "Même nombre de colonnes")
+
+	valImb est une Matrice = tImb..Valeur
+	valMat est une Matrice = tMat..Valeur
+	dbgVérifieEgalité(valImb[1][1], valMat[1][1], "Élément [1][1] identique")
+	dbgVérifieEgalité(valImb[1][3], valMat[1][3], "Élément [1][3] identique")
+	dbgVérifieEgalité(valImb[2][2], valMat[2][2], "Élément [2][2] identique")
+	dbgVérifieEgalité(valImb[2][3], valMat[2][3], "Élément [2][3] identique")
+FIN
+
+
+// Le gradient d'un Tenseur 2D construit depuis un littéral imbriqué est une
+// Matrice de même forme, entièrement à zéro.
+PROCEDURE PUBLIQUE scenario_gradient_initial_zero_litteral_imbrique()
+	tImb est un Tenseur = Tenseur([[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]])
+
+	dbgVérifieEgalité(tImb..Rang, 2, "3x2 -> rang 2")
+	dbgVérifieEgalité(tImb..Forme[1], 3, "3 lignes")
+	dbgVérifieEgalité(tImb..Forme[2], 2, "2 colonnes")
+
+	gradImb est une Matrice = tImb..Gradient
+	dbgVérifieEgalité(gradImb..Lignes, 3, "Gradient : 3 lignes")
+	dbgVérifieEgalité(gradImb..Colonnes, 2, "Gradient : 2 colonnes")
+	dbgVérifieEgalité(gradImb[1][1], 0.0, "Gradient initial nul, coin haut-gauche")
+	dbgVérifieEgalité(gradImb[3][2], 0.0, "Gradient initial nul, coin bas-droit")
+FIN
+
+
+// Un tableau imbriqué irrégulier (lignes de longueurs différentes) est refusé
+// par une erreur claire à la construction : ErreurDétectée est posée, pas de
+// Nul silencieux qui exploserait plus loin.
+PROCEDURE PUBLIQUE scenario_litteral_imbrique_irregulier_rejete()
+	ErreurRAZ()
+	tBad est un Tenseur = Tenseur([[1.0], [2.0, 3.0]])
+	dbgVérifieVrai(ErreurDétectée, "Lignes de longueurs différentes -> erreur claire")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_ARG_TYPE_MISMATCH", "Erreur de type d'argument")
+	dbgVérifieVrai(tBad = Null, "Après erreur, le Tenseur reste Nul (pas de forme invalide)")
+FIN
+
+
+// Non-régression : un littéral plat (tableau 1D de réels) construit toujours
+// un Tenseur 1D de rang 1, pas un 2D.
+PROCEDURE PUBLIQUE scenario_non_regression_litteral_plat_1d()
+	t1d est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+
+	dbgVérifieEgalité(t1d..Rang, 1, "Littéral plat -> rang 1")
+	dbgVérifieEgalité(t1d..Forme[1], 3, "Forme axe 1 : 3 éléments")
+
+	val1d est un Vecteur = t1d..Valeur
+	dbgVérifieEgalité(val1d..Taille, 3, "..Valeur reste un Vecteur de taille 3")
+	dbgVérifieEgalité(val1d[1], 1.0, "val1d[1] = élément d'origine")
+	dbgVérifieEgalité(val1d[3], 3.0, "val1d[3] = élément d'origine")
+FIN
+
+
+// Non-régression : Tenseur(Vecteur) et Tenseur(Matrice) construisent toujours
+// respectivement un Tenseur 1D et 2D inchangés.
+PROCEDURE PUBLIQUE scenario_non_regression_vecteur_et_matrice()
+	vec est un Vecteur = [10.0, 20.0]
+	tVec est un Tenseur = Tenseur(vec)
+	dbgVérifieEgalité(tVec..Rang, 1, "Tenseur(Vecteur) -> rang 1")
+	valVec est un Vecteur = tVec..Valeur
+	dbgVérifieEgalité(valVec[2], 20.0, "Tenseur(Vecteur) préserve les valeurs")
+
+	mat est une Matrice = [[5.0, 6.0], [7.0, 8.0]]
+	tMat est un Tenseur = Tenseur(mat)
+	dbgVérifieEgalité(tMat..Rang, 2, "Tenseur(Matrice) -> rang 2")
+	valMat est une Matrice = tMat..Valeur
+	dbgVérifieEgalité(valMat[2][1], 7.0, "Tenseur(Matrice) préserve les valeurs")
+FIN
+
+
+// La forme anglaise Tensor([[...]]) désigne la même construction 2D, avec
+// ..Rank/..Value équivalents.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise_litteral_imbrique()
+	tEN is a Tensor = Tensor([[1.0, 2.0], [3.0, 4.0]])
+
+	dbgVérifieEgalité(tEN..Rank, 2, "Tensor([[...]]) -> rank 2")
+	valEN is a Matrix = tEN..Value
+	dbgVérifieEgalité(valEN..Rows, 2, "..Value a 2 lignes (..Rows)")
+	dbgVérifieEgalité(valEN..Columns, 2, "..Value a 2 colonnes (..Columns)")
+	dbgVérifieEgalité(valEN[2][2], 4.0, "valEN[2][2] = élément d'origine")
+FIN

@@ -1,0 +1,56 @@
+//  lot B — Event surToucheAppuyée / surToucheRelâchée sur Bouton.
+// EnvoieTouche poste un vrai QKeyEvent (appui puis relâchement) vers le
+// widget focusé. Interdiction DéclencheÉvénement (appellerait le handler en
+// direct, vert sans câblage réel — piège fondateur de ce chantier).
+//
+// ROUGE ATTENDU (compile) : FAM_KEYBOARD_EVENTS n'est pas encore enregistrée
+// pour OWL_CONTROL_BUTTON dans event_catalog_widgets.c -> check_event_signature
+// rejette 'surToucheAppuyée'/'surToucheRelâchée' déclarées dans le bloc
+// BTN_Cible ("ne peut être déclarée qu'au niveau de la Fenêtre"). Le fichier
+// voisin FEN_BoutonTouche.owl ne compile pas -> `owl test` classe ce fichier
+// CRASH tant que le catalogue n'est pas étendu. Une fois l'enregistrement
+// posé, la compilation passe et les assertions runtime ci-dessous prennent
+// le relais comme signal de rougeur/verdeur.
+
+TestModeHeadless(Faux)
+
+bBtnTouchePrete est un booléen = Faux
+nBtnAppCap est un entier = 0
+nBtnRelCap est un entier = 0
+nBtnDerniereAppCap est un entier = -1
+nBtnDerniereRelCap est un entier = -1
+
+PROCEDURE callback_fen_prete()
+	bBtnTouchePrete = Vrai
+FIN
+
+PROCEDURE callback_lit_compteurs(nA est un entier, nR est un entier, nDA est un entier, nDR est un entier)
+	nBtnAppCap         = nA
+	nBtnRelCap         = nR
+	nBtnDerniereAppCap = nDA
+	nBtnDerniereRelCap = nDR
+FIN
+
+OuvreSoeur(FEN_BoutonTouche)
+dbgVérifieVrai(bBtnTouchePrete, "FinInitialisation appelée : Bouton focusé dès l'ouverture")
+
+// Touche spéciale (flèche) : chemin sans caractère textuel.
+EnvoieTouche(tkHaut)
+
+LireCompteurs()
+dbgVérifieEgalité(nBtnAppCap, 1, "surToucheAppuyée Bouton : 1 tir pour tkHaut")
+dbgVérifieEgalité(nBtnDerniereAppCap, tkHaut, "surToucheAppuyée Bouton : code = tkHaut")
+dbgVérifieEgalité(nBtnRelCap, 1, "surToucheRelâchée Bouton : 1 tir pour tkHaut")
+dbgVérifieEgalité(nBtnDerniereRelCap, tkHaut, "surToucheRelâchée Bouton : code = tkHaut")
+
+// Caractère ASCII.
+EnvoieTouche(Asc("A"))
+
+LireCompteurs()
+dbgVérifieEgalité(nBtnAppCap, 2, "surToucheAppuyée Bouton : 2 tirs après le caractère 'A'")
+dbgVérifieEgalité(nBtnDerniereAppCap, Asc("A"), "surToucheAppuyée Bouton : code = Asc('A')")
+dbgVérifieEgalité(nBtnRelCap, 2, "surToucheRelâchée Bouton : 2 tirs après le caractère 'A'")
+dbgVérifieEgalité(nBtnDerniereRelCap, Asc("A"), "surToucheRelâchée Bouton : code = Asc('A')")
+
+Ferme(FEN_BoutonTouche)
+dbgBilanTest()

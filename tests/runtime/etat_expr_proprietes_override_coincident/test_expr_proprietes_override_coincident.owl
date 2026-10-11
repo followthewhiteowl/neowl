@@ -1,0 +1,91 @@
+// Verrou ( — dégel, reprise après BLOCKED) : trou de correction
+// du témoin par valeur. Quand un override impératif ..Libellé = pose
+// EXACTEMENT la valeur que l'expression PROPRIETES (Libellé = sVal)
+// produit à ce moment ("A" == "A"), puis la variable de l'expression
+// change ("BB"), l'override doit rester sticky sur les rendus suivants.
+// Le mécanisme actuel à témoin par valeur perd l'override dès que la
+// coïncidence disparaît : il re-résout l'expression et affiche "BB".
+// La ressource ETAT_ExprProprietesOverrideCoincident vit dans le
+// voisin ETAT_ExprProprietesOverrideCoincident.owl.
+//
+// Séquence de rendus du Corps :
+//   R1 : sVal="A",  ..Libellé="A"  (coïncidence)      -> "A"  (1 Tj)
+//   R2 : sVal="BB" (override toujours "A" attendu)    -> "A"  (1 Tj)
+//   R3 : rendu automatique final, même état que R2    -> "A"  (1 Tj)
+//
+// Assertion indirecte : le total d'opérateurs "Tj" (un par caractère
+// dessiné) cumulés sur les 3 rendus doit valoir 1+1+1=3 si l'override
+// reste sticky. Le témoin par valeur actuel perd l'override dès R2 (et
+// R3 hérite du même état perdu) : R1="A"(1) + R2="BB"(2) + R3="BB"(2) =
+// 5, PAS 3.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+// Extrait et décompresse le 1er flux de contenu (celui référencé par
+// /Contents) du PDF produit. Recherche purement en domaine Buffer
+// (BufferLitOctet) pour ne jamais tronquer sur un octet nul du flux
+// compressé.
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_expr_proprietes_override_coincident/temp.pdf")
+iImprimeEtat(ETAT_ExprProprietesOverrideCoincident)
+iFinImprime()
+
+sContenu est une chaîne = StreamContenuPDF("tests/runtime/etat_expr_proprietes_override_coincident/temp.pdf")
+nTj est un entier = Occurrence(sContenu, "Tj")
+
+dbgVérifieEgalité(nTj, 3,
+"l'override impérative ..Libellé = reste sticky même après coïncidence avec l'expression PROPRIETES suivie d'un changement de la variable (1+1+1=3, pas 1+2+2=5)")
+
+dbgBilanTest()

@@ -1,0 +1,60 @@
+// @sujet : enum-coerce-vers-chaine-extraction-valeur
+// @résumé : Quand on affecte `s est une chaîne = TypeEnum.membre` ou qu'on
+// concatène un membre d'énumération dans une chaîne, le coerce doit extraire
+// la valeur sous-jacente du membre (comme le fait déjà le coerce vers entier),
+// pas préserver l'instance enum. Couvre l'affectation directe, la
+// concaténation, et la conversion d'un membre à valeur entière vers chaîne.
+// Vérifie aussi que les accès explicites ..Valeur/..Nom et les contextes où
+// l'instance enum est légitimement conservée (variable typée enum,
+// comparaison entre membres) restent inchangés.
+
+
+Statut est une Énumération
+	Actif   = "A"
+	Inactif = "I"
+FIN
+
+Numero est une Énumération
+	Premier = 1
+	Deux    = 2
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_affectation_chaine_extrait_valeur_chaine()
+	sv est une chaîne = Statut.Actif
+	dbgVérifieEgalité(sv, "A", "affectation chaîne extrait la valeur sous-jacente du membre enum")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_concatenation_extrait_valeur_chaine()
+	s est une chaîne = "x=" + Statut.Actif
+	dbgVérifieEgalité(s, "x=A", "concaténation extrait la valeur sous-jacente")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_affectation_chaine_valeur_entiere_convertie()
+	s est une chaîne = Numero.Deux
+	dbgVérifieEgalité(s, "2", "membre enum à valeur entière converti en chaîne comme un entier brut")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_affectation_entiere_extrait_valeur_non_regression()
+	n est un entier = Numero.Deux
+	dbgVérifieEgalité(n, 2, "non-régression : affectation entière continue d'extraire la valeur")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_acces_explicite_valeur_nom_non_regression()
+	dbgVérifieEgalité(Statut.Actif..Valeur, "A", "non-régression : accès explicite ..Valeur inchangé")
+	dbgVérifieEgalité(Statut.Actif..Nom, "Actif", "non-régression : accès explicite ..Nom inchangé")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_variable_typee_enum_preserve_objet_non_regression()
+	m est un Statut = Statut.Actif
+	dbgVérifieEgalité(m..Valeur, "A", "non-régression : variable typée enum conserve l'objet, ..Valeur reste accessible")
+	dbgVérifieVrai(m = Statut.Actif, "non-régression : comparaison entre membres enum reste vraie")
+FIN
+
+
+dbgBilanTest()

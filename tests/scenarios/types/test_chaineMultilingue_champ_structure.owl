@@ -1,0 +1,55 @@
+// @sujet : chaîneMultilingue — cohérence champ de structure typé chaine
+// @résumé : Un champ de structure typé chaine qui reçoit une chaîneMultilingue (littéral ou variable) aplatit à la langue active, exactement comme une variable simple — plus de stockage de l'objet brut multilingue derrière un champ typé chaine.
+
+
+Point est une Structure
+	Nom est une chaîne
+FIN
+
+
+// Cas nominal : littéral colon-brace affecté directement à un champ de
+// structure typé chaîne. Aplatit à la langue active, comme une variable.
+PROCEDURE scenario_litteral_vers_champ_structure_chaine()
+	p est un Point
+	p.Nom = {langueFrançais: "bonjour", langueAnglais: "hello"}
+
+	dbgVérifieEgalité(p.Nom, "bonjour", "champ structure typé chaîne aplatit le littéral multilingue")
+FIN
+
+
+// Cas nominal : une variable chaîneMultilingue affectée à un champ de
+// structure typé chaîne doit aplatir au STOCKAGE, pas seulement à la
+// lecture. Sonde par TypeVar : une chaîne aplatie vaut 16 (WL_CHAINE),
+// jamais 0 (objet composite brut retenu).
+PROCEDURE scenario_variable_multilingue_vers_champ_structure_aplatit_au_stockage()
+	p est un Point
+	m est une chaîneMultilingue = {langueFrançais: "bonjour", langueAnglais: "hello"}
+	p.Nom = m
+
+	dbgVérifieEgalité(p.Nom, "bonjour", "champ structure lit la traduction de la langue active")
+	dbgVérifieEgalité(TypeVar(p.Nom), 16, "champ structure stocke une chaîne aplatie, pas l'objet multilingue brut")
+FIN
+
+
+// Distinction avec le comportement retenu : une fois aplati au stockage,
+// le champ de structure ne doit plus bouger si la langue active change
+// après coup — c'est un snapshot, pas une référence vivante.
+PROCEDURE scenario_champ_structure_aplati_fige_apres_switch_langue()
+	p est un Point
+	p.Nom = {langueFrançais: "bonjour", langueAnglais: "hello"}
+	dbgVérifieEgalité(p.Nom, "bonjour", "valeur initiale aplatie sur la langue active")
+
+	Langue(langueAnglais)
+	dbgVérifieEgalité(p.Nom, "bonjour", "champ structure figé malgré le switch de langue ultérieur")
+
+	Langue(langueFrançais) // restore
+FIN
+
+
+// Cas limite défensif : champ structure recevant un littéral mono-langue.
+PROCEDURE PRIVÉE scenario_litteral_une_langue_vers_champ_structure()
+	p est un Point
+	p.Nom = {langueFrançais: "seul"}
+
+	dbgVérifieEgalité(p.Nom, "seul", "littéral mono-langue aplati sur champ structure")
+FIN

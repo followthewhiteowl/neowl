@@ -1,0 +1,34 @@
+// @sujet : chaîneMultilingue — cohérence membre de classe typé chaine
+// @résumé : Un membre de classe typé chaine aplatit un littéral multilingue affecté directement, et un paramètre de procédure typé chaine accepte aussi un littéral multilingue en argument (aplati avant d'entrer dans la procédure).
+
+
+// Cas nominal : affectation directe d'un littéral multilingue à un membre
+// typé chaîne, depuis une méthode de la classe (`:sNom = {...}`).
+PROCEDURE scenario_membre_classe_aplatit_litteral_direct()
+	o est un cMembreTexte()
+	o.DefinirNomDirect()
+
+	dbgVérifieEgalité(o.LireNom(), "bonjour", "membre classe aplatit le littéral multilingue affecté directement")
+	dbgVérifieEgalité(o.LireTypeNom(), 16, "membre classe stocke une chaîne aplatie, pas l'objet multilingue brut")
+FIN
+
+
+// Cas nominal : paramètre de méthode typé chaîne recevant un littéral
+// multilingue en argument d'appel — aplati avant d'entrer dans la méthode.
+PROCEDURE scenario_parametre_methode_typee_chaine_accepte_litteral_multilingue()
+	o est un cMembreTexte()
+	o.DefinirNomViaParametre({langueFrançais: "salut", langueAnglais: "hi"})
+
+	dbgVérifieEgalité(o.LireNom(), "salut", "paramètre de méthode typé chaîne aplatit le littéral reçu")
+FIN
+
+
+// Cas nominal : littéral multilingue en 2e position d'argument de méthode
+// (le 1er argument est une chaîne ordinaire). La coercition doit s'appliquer
+// quelle que soit la position du littéral dans la liste d'arguments.
+PROCEDURE scenario_parametre_methode_litteral_multilingue_position_deux()
+	o est un cMembreTexte()
+	o.DefinirNomViaDeuxParametres("Info: ",{langueFrançais: "bonjour", langueAnglais: "hello"})
+
+	dbgVérifieEgalité(o.LireNom(), "Info: bonjour", "littéral multilingue en 2e position aplati comme en 1re")
+FIN

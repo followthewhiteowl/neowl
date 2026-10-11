@@ -1,0 +1,129 @@
+// @sujet : ChaîneVersTableau
+// @résumé : Découpe une chaîne en tableau de sous-chaînes selon un ou plusieurs séparateurs, avec support des formes 1D et 2D.
+
+
+// Forme par défaut : découpe sur les retours chariot. Pratique pour traiter
+// un fichier ligne par ligne ou un contenu multiligne.
+PROCEDURE scenario_defaut_retour_chariot()
+	contenu est une chaîne = "ligne1" + CRLF + "ligne2" + CRLF + "ligne3"
+	lignes est un tableau de chaînes = ChaîneVersTableau(contenu)
+	dbgVérifieEgalité(lignes..Occurrence, 3, "3 lignes découvertes")
+	dbgVérifieEgalité(lignes[1], "ligne1")
+	dbgVérifieEgalité(lignes[2], "ligne2")
+	dbgVérifieEgalité(lignes[3], "ligne3")
+FIN
+
+
+// Forme avec séparateur explicite : découpe selon le caractère ou la chaîne fournie.
+// Idéal pour parser des données CSV ou des listes simples.
+PROCEDURE scenario_separateur_simple()
+	sListe est une chaîne = "alice,bob,charlie"
+	noms est un tableau de chaînes = ChaîneVersTableau(sListe, ",")
+	dbgVérifieEgalité(noms..Occurrence, 3, "3 éléments")
+	dbgVérifieEgalité(noms[1], "alice")
+	dbgVérifieEgalité(noms[2], "bob")
+	dbgVérifieEgalité(noms[3], "charlie")
+FIN
+
+
+// Forme 2D : découpe d'abord par séparateur de ligne, puis chaque ligne par séparateur
+// de colonne. Retourne un tableau de tableaux pour représenter une grille.
+PROCEDURE scenario_forme_2d()
+	sGrille est une chaîne = "A,B,C" + CRLF + "D,E,F" + CRLF + "G,H,I"
+	grille est un tableau de chaînes = ChaîneVersTableau(sGrille, CRLF, ",")
+	dbgVérifieEgalité(grille..Occurrence, 3, "3 lignes")
+	dbgVérifieEgalité(grille[1]..Occurrence, 3, "3 colonnes")
+	dbgVérifieEgalité(grille[1][1], "A")
+	dbgVérifieEgalité(grille[2][2], "E")
+	dbgVérifieEgalité(grille[3][3], "I")
+FIN
+
+
+// Quand le séparateur n'est pas trouvé, la chaîne entière est retournée comme unique
+// élément du tableau. Comportement cohérent avec la découpe nulle.
+PROCEDURE scenario_separateur_absent()
+	sTexte est une chaîne = "Bonjour le monde"
+	parts est un tableau de chaînes = ChaîneVersTableau(sTexte, ",")
+	dbgVérifieEgalité(parts..Occurrence, 1, "1 seul élément")
+	dbgVérifieEgalité(parts[1], "Bonjour le monde")
+FIN
+
+
+// Une chaîne vide produit un tableau d'un élément vide, pas un tableau vide.
+// Important pour distinguer "rien à découper" de "pas de données".
+PROCEDURE scenario_chaine_vide()
+	parts est un tableau de chaînes = ChaîneVersTableau("", ",")
+	dbgVérifieEgalité(parts..Occurrence, 1, "1 élément vide")
+	dbgVérifieEgalité(parts[1], "", "élément est vide")
+FIN
+
+
+// Deux séparateurs consécutifs produisent un élément vide entre eux.
+// Respecte la position structurelle des données même vides.
+PROCEDURE scenario_separateurs_consecutifs()
+	sListe est une chaîne = "a,,c"
+	parts est un tableau de chaînes = ChaîneVersTableau(sListe, ",")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[1], "a")
+	dbgVérifieEgalité(parts[2], "")
+	dbgVérifieEgalité(parts[3], "c")
+FIN
+
+
+// Le séparateur peut être une séquence multi-caractères. La découpe se fait sur
+// la séquence exacte, pas caractère par caractère.
+PROCEDURE scenario_separateur_multi_caracteres()
+	sChemin est une chaîne = "racine=>branche=>feuille"
+	parties est un tableau de chaînes = ChaîneVersTableau(sChemin, "=>")
+	dbgVérifieEgalité(parties..Occurrence, 3, "3 parties")
+	dbgVérifieEgalité(parties[2], "branche")
+FIN
+
+
+// Les séparateurs multiples peuvent être fournis comme tableau (any-of) : toute
+// occurrence de l'un des séparateurs déclenche une coupure.
+PROCEDURE PRIVÉE scenario_separateurs_multiples_tableau()
+	sSources est une chaîne = "a,b;c|d"
+	seps est un tableau de chaînes = [",", ";", "|"]
+	parts est un tableau de chaînes = ChaîneVersTableau(sSources, seps)
+	dbgVérifieEgalité(parts..Occurrence, 4)
+	dbgVérifieEgalité(parts[1], "a")
+	dbgVérifieEgalité(parts[2], "b")
+	dbgVérifieEgalité(parts[3], "c")
+	dbgVérifieEgalité(parts[4], "d")
+FIN
+
+
+// Forme 2D avec séparateurs multiples : les séparateurs de ligne et de colonne
+// peuvent chacun être un tableau any-of.
+PROCEDURE PRIVÉE scenario_2d_separateurs_multiples()
+	sGrille est une chaîne = "a|b-c" + CRLF + "d|e-f"
+	t est un tableau de chaînes = ChaîneVersTableau(sGrille, CRLF, ["|", "-"])
+	dbgVérifieEgalité(t..Occurrence, 2, "2 lignes")
+	dbgVérifieEgalité(t[1]..Occurrence, 3, "3 colonnes via [|, -]")
+	dbgVérifieEgalité(t[1][1], "a")
+	dbgVérifieEgalité(t[1][2], "b")
+	dbgVérifieEgalité(t[1][3], "c")
+	dbgVérifieEgalité(t[2][2], "e")
+FIN
+
+
+// Le séparateur peut contenir des caractères UTF-8 multi-octets.
+// Traite correctement les caractères accentués, émojis, symboles Unicode.
+PROCEDURE PRIVÉE scenario_separateur_utf8()
+	sListe est une chaîne = "Paris→Lyon→Marseille"
+	villes est un tableau de chaînes = ChaîneVersTableau(sListe, "→")
+	dbgVérifieEgalité(villes..Occurrence, 3)
+	dbgVérifieEgalité(villes[2], "Lyon")
+FIN
+
+
+// Un séparateur en début ou fin de chaîne produit un élément vide à l'extrémité.
+// Cohérence structurelle : le séparateur délimite toujours deux positions.
+PROCEDURE PRIVÉE scenario_separateurs_bordure()
+	parts est un tableau de chaînes = ChaîneVersTableau(",x,", ",")
+	dbgVérifieEgalité(parts..Occurrence, 3)
+	dbgVérifieEgalité(parts[1], "")
+	dbgVérifieEgalité(parts[2], "x")
+	dbgVérifieEgalité(parts[3], "")
+FIN

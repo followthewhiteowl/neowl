@@ -1,0 +1,45 @@
+//  — languettes noires quand un Champ Onglet a un style de cadre de
+// volet SANS aucune couleur de volet posée. Voir FEN_OngletLanguetteNonColoree.owl.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OngletLanguetteNonColoree)
+
+imgFen est une Image = dCopieImageFenêtre(FEN_OngletLanguetteNonColoree)
+dbgVérifieEgalité(imgFen..Valide, Vrai, "Capture de la fenêtre : valide")
+
+imgPane est une Image = dCopieImageChamp(ONG_PaneSeul)
+dbgVérifieEgalité(imgPane..Valide, Vrai, "Capture du champ au cadre stylé seul : valide")
+
+imgColo est une Image = dCopieImageChamp(ONG_VoletColo)
+dbgVérifieEgalité(imgColo..Valide, Vrai, "Capture du champ aux couleurs de volet posées : valide")
+
+// --- CAS CIBLE : cadre de volet stylé, aucune couleur de volet -----------
+// Les deux languettes ("Profil"/"Options") sont lues au centre de leur zone
+// de texte. Le fond de la bande de languettes ne doit pas être peint en
+// noir plein (rendu gris Fusion natif, texte lisible).
+dbgVérifieDifférence(dPixelCouleur(imgPane, 25, 12), RVB(0, 0, 0),
+"Cadre stylé sans couleur de volet : languette active pas noire")
+dbgVérifieDifférence(dPixelCouleur(imgPane, 90, 12), RVB(0, 0, 0),
+"Cadre stylé sans couleur de volet : languette inactive pas noire")
+
+// Preuve que ce n'est pas un artefact de capture isolée : dans la fenêtre
+// entière (fond vert franc), le fond de bande SANS languette laisse voir le
+// vert (transparence intacte), tandis que la languette elle-même est peinte
+// (pas transparente) mais pas en noir — donc la couleur ne vient ni d'une
+// zone jamais peinte, ni du bug corrigé.
+dbgVérifieEgalité(dPixelCouleur(imgFen, 400, 22), RVB(0, 200, 0),
+"Cadre stylé sans couleur de volet : la bande sans languette laisse voir la fenêtre")
+dbgVérifieDifférence(dPixelCouleur(imgFen, 35, 22), RVB(0, 200, 0),
+"Cadre stylé sans couleur de volet : la languette active ne laisse pas voir la fenêtre (peinte, pas transparente)")
+dbgVérifieDifférence(dPixelCouleur(imgFen, 35, 22), RVB(0, 0, 0),
+"Cadre stylé sans couleur de volet : la languette active pas noire (pleine fenêtre)")
+
+// --- NON-RÉGRESSION : couleurs de volet posées -> rendu correct ----------
+dbgVérifieEgalité(dPixelCouleur(imgColo, 10, 12), Rouge,
+"Couleurs de volet posées : languette active peinte en rouge")
+dbgVérifieEgalité(dPixelCouleur(imgColo, 70, 12), Bleu,
+"Couleurs de volet posées : languette inactive peinte en bleu")
+
+Ferme(FEN_OngletLanguetteNonColoree)
+dbgBilanTest()

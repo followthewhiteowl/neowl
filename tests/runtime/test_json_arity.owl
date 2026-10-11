@@ -1,0 +1,50 @@
+// test_json_arity.owl
+// Verrouille les formes d'arite discretes des natives JSON
+// migrees depuis une signature variadique masquee : chaque forme valide
+// continue de compiler ET de s'executer correctement.
+
+PROCEDURE PUBLIQUE test_jsonverschaine_formes()
+	j est un JSON = ChaîneVersJSON("{""a"":1}")
+	// 1 arg : serialisation par defaut
+	dbgVérifieVrai(JSONVersChaîne(j) <> "", "JSONVersChaine 1 arg non vide")
+	// 2 args : mode minifie
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), "{""a"":1}", "JSONVersChaine 2 args minifie")
+FIN
+
+PROCEDURE PUBLIQUE test_jsonvalide_formes()
+	// 1 arg : validation stricte par defaut
+	dbgVérifieEgalité(JSONValide("{""a"":1}"), Vrai, "JSONValide 1 arg valide")
+	dbgVérifieEgalité(JSONValide("{bad"), Faux, "JSONValide 1 arg invalide")
+	// 2 args : avec options (jsonAvecCommentaires tolere les commentaires)
+	dbgVérifieEgalité(JSONValide("{/*c*/""a"":1}", jsonAvecCommentaires), Vrai, "JSONValide 2 args commentaires")
+FIN
+
+PROCEDURE PUBLIQUE test_serialise_formes()
+	v est un entier = 42
+	buf est une chaîne
+	// 3 args : variable, buffer (out), mode
+	Sérialise(v, buf, psdJSON)
+	dbgVérifieEgalité(buf, "42", "Serialise 3 args remplit buffer")
+	buf2 est une chaîne
+	// 4 args : avec nom de racine (ignore pour psdJSON, mais accepte)
+	Sérialise(v, buf2, psdJSON, "racine")
+	dbgVérifieEgalité(buf2, "42", "Serialise 4 args avec racine")
+FIN
+
+PROCEDURE PUBLIQUE test_jsonserialise_formes()
+	v est un entier = 7
+	// 1 arg : retour direct de la chaine JSON
+	dbgVérifieEgalité(JSONSérialise(v), "7", "JSONSerialise 1 arg")
+	// 2 args : avec mode
+	dbgVérifieEgalité(JSONSérialise(v, psdJSON), "7", "JSONSerialise 2 args mode")
+FIN
+
+PROCEDURE PUBLIQUE test_jsondeserialise_formes()
+	tpl est un entier = 0
+	// 2 args : buffer + template
+	r est un entier = JSONDésérialise("99", tpl)
+	dbgVérifieEgalité(r, 99, "JSONDeserialise 2 args")
+	// 3 args : avec mode
+	r2 est un entier = JSONDésérialise("123", tpl, psdJSON)
+	dbgVérifieEgalité(r2, 123, "JSONDeserialise 3 args mode")
+FIN

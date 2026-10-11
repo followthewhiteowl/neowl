@@ -1,0 +1,60 @@
+// @sujet : MatriceIdentité
+// @résumé : Construit une Matrice identité n×n — 1 sur la diagonale, 0 ailleurs, disponible en native préfixée avec forme anglaise, élément neutre du produit matriciel.
+
+
+// MatriceIdentité(n) produit une Matrice n×n avec 1 sur la diagonale et 0
+// partout ailleurs.
+PROCEDURE PUBLIQUE scenario_identite_valeurs()
+	i est une Matrice = MatriceIdentité(3)
+	dbgVérifieEgalité(i..Lignes, 3, "MatriceIdentité(3) a 3 lignes")
+	dbgVérifieEgalité(i..Colonnes, 3, "MatriceIdentité(3) a 3 colonnes")
+	dbgVérifieEgalité(i[1][1], 1.0, "Diagonale i[1][1] = 1")
+	dbgVérifieEgalité(i[2][2], 1.0, "Diagonale i[2][2] = 1")
+	dbgVérifieEgalité(i[3][3], 1.0, "Diagonale i[3][3] = 1")
+	dbgVérifieEgalité(i[1][2], 0.0, "Hors diagonale i[1][2] = 0")
+	dbgVérifieEgalité(i[3][1], 0.0, "Hors diagonale i[3][1] = 0")
+FIN
+
+
+// La forme anglaise MatrixIdentity désigne la même opération.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	i est une Matrice = MatrixIdentity(2)
+	dbgVérifieEgalité(i..Rows, 2, "MatrixIdentity(2)..Rows = 2")
+	dbgVérifieEgalité(i[1][1], 1.0, "MatrixIdentity(2)[1][1] = 1")
+	dbgVérifieEgalité(i[1][2], 0.0, "MatrixIdentity(2)[1][2] = 0")
+FIN
+
+
+// La matrice identité est l'élément neutre du produit matriciel :
+// A · I = A.
+PROCEDURE PUBLIQUE scenario_identite_neutre_produit()
+	matA est une Matrice = [[1.0, 2.0], [3.0, 4.0]]
+	i est une Matrice = MatriceIdentité(2)
+	c est une Matrice = ProduitMatriciel(matA, i)
+	dbgVérifieEgalité(c[1][1], matA[1][1], "A · I préserve A[1][1]")
+	dbgVérifieEgalité(c[1][2], matA[1][2], "A · I préserve A[1][2]")
+	dbgVérifieEgalité(c[2][1], matA[2][1], "A · I préserve A[2][1]")
+	dbgVérifieEgalité(c[2][2], matA[2][2], "A · I préserve A[2][2]")
+FIN
+
+
+// Une taille non positive n'est pas une dimension de matrice valide.
+PROCEDURE PRIVÉE scenario_edge_taille_non_positive_refusee()
+	capturéZéro est une chaîne = ""
+	QUAND EXCEPTION DANS
+		iZéro est une Matrice = MatriceIdentité(0)
+		capturéZéro = "no-throw"
+	FAIRE
+		capturéZéro = "caught"
+	FIN
+	dbgVérifieEgalité(capturéZéro, "caught", "MatriceIdentité(0) refusé")
+
+	capturéNégatif est une chaîne = ""
+	QUAND EXCEPTION DANS
+		iNégatif est une Matrice = MatriceIdentité(-1)
+		capturéNégatif = "no-throw"
+	FAIRE
+		capturéNégatif = "caught"
+	FIN
+	dbgVérifieEgalité(capturéNégatif, "caught", "MatriceIdentité(-1) refusé")
+FIN

@@ -1,0 +1,62 @@
+//  lot2 — frontière SQL : dépassement capacité colonne DuckDB → soft-error
+//
+// Convention OWL : les erreurs SQL sont des erreurs SOFT (modèle de référence check-after).
+// On vérifie rep..Succès / ErreurDétectée après l'appel. Les exceptions (QUAND EXCEPTION)
+// sont réservées au mur de coercition du langage (erreurs de contrat de type côté OWL),
+// pas aux rejets backend SQL.
+//
+// Comportement attendu : INSERT 100000 → DECIMAL(5,0) retourne rep..Succès = Faux
+// + ErreurDétectée = Vrai. DuckDB rejette via Conversion Error — non-silencieux,
+// signalé proprement. Pas de troncature silencieuse, pas d'exception.
+//
+// Note : le chemin complet (numérique OWL → paramètre bindé → colonne) nécessite
+// les prepared statements DuckDB (feature future). Ce test couvre le mécanisme
+// (rejet backend → soft-error non-silencieux) via littéral SQL.
+//
+// Tests G* (VERTS) : infrastructure SQL DuckDB :memory: opérationnelle (garde).
+// Tests R* (VERTS ATTENDUS) : comportement soft-error vérifié empiriquement.
+
+// ===== GARDE VERTE : DuckDB :memory: opérationnel =====
+PROCEDURE PUBLIQUE test_g1_duckdb_memoire_connexion_ok()
+	cnxG est une sqlConnexion
+	cnxG..Provider = sqlDuckDB
+	cnxG..Source   = ":memory:"
+	SQLConnexionOuvre(cnxG)
+	bErrOuv est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErrOuv = Faux, "SQLConnexionOuvre DuckDB :memory: sans erreur")
+	reqPing est une sqlRequête
+	reqPing..Code = "SELECT 42"
+	repPing est une sqlRéponse = SQLEnvoie(cnxG, reqPing)
+	dbgVérifieVrai(repPing..Succès, "SELECT 42 DuckDB réussit (infra opérationnelle)")
+	SQLConnexionFerme(cnxG)
+FIN
+
+
+// ===== R1 : INSERT dépassant DECIMAL(5,0) → soft-error non-silencieux =====
+// DECIMAL(5,0) supporte au plus 99999 (5 chiffres).
+// 100000 (6 chiffres) → DuckDB Conversion Error → rep..Succès = Faux + ErreurDétectée.
+// Rien n'est écrit silencieusement (pas de troncature). C'est la frontière SQL non-silencieuse.
+// Vérification empirique lot2 commit 07791140 : comportement confirmé.
+PROCEDURE PUBLIQUE test_r1_duckdb_decimal_overflow_signale_soft_error()
+	cnxR est une sqlConnexion
+	cnxR..Provider = sqlDuckDB
+	cnxR..Source   = ":memory:"
+	SQLConnexionOuvre(cnxR)
+
+	reqCr est une sqlRequête
+	reqCr..Code = "CREATE TABLE t_frontier (v DECIMAL(5, 0))"
+	repCr est une sqlRéponse = SQLEnvoie(cnxR, reqCr)
+	dbgVérifieVrai(repCr..Succès, "CREATE TABLE t_frontier (garde setup)")
+
+	reqIns est une sqlRequête
+	reqIns..Code = "INSERT INTO t_frontier VALUES (100000)"
+
+	// SQL = soft-error (convention OWL) : capturer ErreurDétectée immédiatement
+	// avant tout autre appel qui consommerait la sentinelle.
+	rep est une sqlRéponse = SQLEnvoie(cnxR, reqIns)
+	bErrInsert est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErrInsert, "INSERT 100000 dans DECIMAL(5,0) → ErreurDétectée (soft-error)")
+	dbgVérifieVrai(rep..Succès = Faux, "INSERT 100000 dans DECIMAL(5,0) → Succès = Faux (rejet non-silencieux)")
+
+	SQLConnexionFerme(cnxR)
+FIN

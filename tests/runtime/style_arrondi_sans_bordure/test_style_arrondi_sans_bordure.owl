@@ -1,0 +1,84 @@
+//  — border-radius jeté quand Epaisseur = 0 (arrondi sans bordure).
+//
+// Plusieurs constructeurs QSS émettaient le `border-radius` À L'INTÉRIEUR du
+// bloc `if (thickness > 0)`. Résultat : un thème voulant un arrondi SANS
+// bordure (carte/champ à coins arrondis, liseré nul) rendait des coins carrés.
+//
+// Vérification par lecture de la feuille QSS effective (__DebugFeuilleStyle),
+// même approche que les tests d'états CadreExtérieur : on lit la
+// feuille générée plutôt que de capturer des pixels.
+//
+// ROUGE attendu AVANT le fix : les feuilles ne contiennent aucun
+// `border-radius` pour les widgets sans bordure (arrondi jeté). VERT après.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ArrondiSansBordure)
+
+// --- 1. Conteneur arrondi SANS bordure : radius émis malgré Epaisseur = 0.
+feuilleSans est une chaîne = __DebugFeuilleStyle(CONT_SansBordure)
+Trace("=== CONT_SansBordure ===")
+Trace(feuilleSans)
+dbgVérifieVrai(Contient(feuilleSans, "border-radius: 26px"),
+"Conteneur Epaisseur=0/Arrondi=26 : la feuille QSS contient border-radius: 26px")
+dbgVérifieVrai(Contient(feuilleSans, "background-color: rgb(255,255,255)"),
+"Conteneur sans bordure : le fond blanc est toujours peint")
+
+// --- 2. Conteneur arrondi AVEC bordure : comportement inchangé (border + radius).
+feuilleAvec est une chaîne = __DebugFeuilleStyle(CONT_AvecBordure)
+Trace("=== CONT_AvecBordure ===")
+Trace(feuilleAvec)
+dbgVérifieVrai(Contient(feuilleAvec, "border-radius: 18px"),
+"Conteneur Epaisseur=2/Arrondi=18 : la feuille QSS contient border-radius: 18px")
+dbgVérifieVrai(Contient(feuilleAvec, "border: 2px"),
+"Conteneur avec bordure : la bordure 2px est toujours émise (pas de régression)")
+
+// --- 3. État texte survol : Cadre arrondi sans bordure émet aussi le radius.
+feuilleEtat est une chaîne = __DebugFeuilleStyle(SAI_EtatArrondi)
+Trace("=== SAI_EtatArrondi ===")
+Trace(feuilleEtat)
+dbgVérifieVrai(Contient(feuilleEtat, ":hover"),
+"État survol : la feuille QSS contient un bloc :hover")
+dbgVérifieVrai(Contient(feuilleEtat, "border-radius: 10px"),
+"État survol Epaisseur=0/Arrondi=10 : la feuille QSS contient border-radius: 10px")
+
+// --- 4. Liste : CadreExtérieur arrondi sans bordure émet le radius.
+feuilleListe est une chaîne = __DebugFeuilleStyle(LST_Arrondi)
+Trace("=== LST_Arrondi ===")
+Trace(feuilleListe)
+dbgVérifieVrai(Contient(feuilleListe, "border-radius: 12px"),
+"Liste Epaisseur=0/Arrondi=12 : la feuille QSS contient border-radius: 12px")
+
+// --- 5. Combo : CadreExtérieur arrondi sans bordure émet le radius.
+feuilleCombo est une chaîne = __DebugFeuilleStyle(CMB_Arrondi)
+Trace("=== CMB_Arrondi ===")
+Trace(feuilleCombo)
+dbgVérifieVrai(Contient(feuilleCombo, "border-radius: 14px"),
+"Combo Epaisseur=0/Arrondi=14 : la feuille QSS contient border-radius: 14px")
+
+// --- 6. Sélecteur : CadreExtérieur arrondi sans bordure émet le radius.
+feuilleSel est une chaîne = __DebugFeuilleStyle(SEL_Arrondi)
+Trace("=== SEL_Arrondi ===")
+Trace(feuilleSel)
+dbgVérifieVrai(Contient(feuilleSel, "border-radius: 16px"),
+"Sélecteur Epaisseur=0/Arrondi=16 : la feuille QSS contient border-radius: 16px")
+
+// --- 7. Interrupteur : CadreExtérieur arrondi sans bordure émet le radius.
+feuilleInt est une chaîne = __DebugFeuilleStyle(INT_Arrondi)
+Trace("=== INT_Arrondi ===")
+Trace(feuilleInt)
+dbgVérifieVrai(Contient(feuilleInt, "border-radius: 18px"),
+"Interrupteur Epaisseur=0/Arrondi=18 : la feuille QSS contient border-radius: 18px")
+
+// --- 8. Bouton : garde de non-régression. Le CadreExtérieur d'un Bouton passe
+// par owl_cadre_body (radius per-coin, déjà hors gate épaisseur) — cette
+// assertion était DÉJÀ verte avant ce lot ; elle verrouille le chemin bouton
+// pour qu'il le reste.
+feuilleBtn est une chaîne = __DebugFeuilleStyle(BTN_Arrondi)
+Trace("=== BTN_Arrondi ===")
+Trace(feuilleBtn)
+dbgVérifieVrai(Contient(feuilleBtn, "border-top-left-radius: 24px"),
+"Bouton Epaisseur=0/Arrondi=24 : la feuille QSS contient border-top-left-radius: 24px")
+
+Ferme(FEN_ArrondiSansBordure)
+dbgBilanTest()

@@ -1,0 +1,91 @@
+// ============================================
+// TEST: NumeriqueVersChaine (canon de référence printf-like) + ExtraitChaine + ChaineInverse
+// ============================================
+// Refait depuis zéro après le retrait du formatter "style champ de saisie"
+// (masques #,##0.00) qui n'est PAS le format documenté pour
+// NumériqueVersChaîne. La spécification de référence définit un format
+// printf-like : [Cadrage][Signe][Zéro][Taille][.Précision]Type[Millier]
+// avec Type ∈ {d, e, f, x, X, o}. Cf chantier complet.
+
+Trace("=== NumeriqueVersChaine -- canon de référence printf-like ===")
+
+// Override locale pour reproductibilité (séparateur milliers ' / décimal .)
+OwlConfigureLocale(".", "'")
+
+// --- Cas par défaut (sans masque) ---
+dbgVérifieEgalité(NumériqueVersChaîne(123), "123", "entier sans masque")
+dbgVérifieEgalité(NumériqueVersChaîne(1.23), "1.23", "réel sans masque")
+dbgVérifieEgalité(NumériqueVersChaîne(0), "0", "zéro")
+dbgVérifieEgalité(NumériqueVersChaîne(-42), "-42", "négatif sans masque")
+
+// --- Type 'f' : virgule fixe (precision défaut = 6) ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345, "f"), "12345.000000", "f sans width/precision")
+dbgVérifieEgalité(NumériqueVersChaîne(3.14159, ".2f"), "3.14", "f précision 2")
+dbgVérifieEgalité(NumériqueVersChaîne(3.14159, ".4f"), "3.1416", "f précision 4")
+dbgVérifieEgalité(NumériqueVersChaîne(3.9999, ".2f"), "4.00", "f arrondi sup")
+dbgVérifieEgalité(NumériqueVersChaîne(0, "+5.2f"), "+0.00", "f signe forcé sur 0")
+
+// --- Cadrage (-) : justification gauche ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "-+10.2f"), "+12345.50 ", "left-align signe forcé")
+
+// --- Signe (+) : force le + sur positifs ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "+10.2f"), " +12345.50", "right + signe forcé")
+
+// --- Zéro (0) : padding zéros ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "+010.2f"), "+012345.50", "zéro-pad + signe")
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "010.2f"), "0012345.50", "zéro-pad sans signe")
+dbgVérifieEgalité(NumériqueVersChaîne(7, "03d"), "007", "zéro-pad 3 chars sur entier")
+
+// --- Précision > Taille : taille ignorée (doc) ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "5.10f"), "12345.5000000000", "precision>width => width ignored")
+
+// --- Type 'd' : entier décimal, .Précision ignoré ---
+dbgVérifieEgalité(NumériqueVersChaîne(123, "5d"), "  123", "d width 5")
+dbgVérifieEgalité(NumériqueVersChaîne(123, "5.2d"), "  123", "d ignore precision")
+dbgVérifieEgalité(NumériqueVersChaîne(1.5, "5.0f"), "    2", "f precision=0 + banker's rounding (1.5->2)")
+
+// --- Suffixe S/s : séparateur milliers locale ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "10.2fS"), " 12'345.50", "S = sep milliers locale")
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "10.2fs"), " 12'345.50", "s minuscule = S")
+
+// --- Virgule décimale (,N au lieu de .N) ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, "10,2fS"), " 12'345,50", "virgule décimale + sep milliers")
+
+// --- Type 'x' / 'X' / 'o' : hex et octal ---
+dbgVérifieEgalité(NumériqueVersChaîne(255, "x"), "ff", "hex minuscule")
+dbgVérifieEgalité(NumériqueVersChaîne(255, "X"), "FF", "hex majuscule")
+dbgVérifieEgalité(NumériqueVersChaîne(255, "5X"), "   FF", "hex padding right")
+dbgVérifieEgalité(NumériqueVersChaîne(255, "05X"), "000FF", "hex zero-pad")
+dbgVérifieEgalité(NumériqueVersChaîne(8, "o"), "10", "octal 8 -> 10")
+
+// --- Type 'e' : exponentielle ---
+dbgVérifieEgalité(NumériqueVersChaîne(12345.5, ".2e"), "1.23e+04", "exponentielle 2 dec")
+
+// --- Pass-through pour string en entrée (documentation de référence) ---
+dbgVérifieEgalité(NumériqueVersChaîne("hello"), "hello", "string passthrough sans masque")
+dbgVérifieEgalité(NumériqueVersChaîne("hello", "+10.2f"), "hello", "string passthrough ignore le masque")
+
+// --- Sentinels système ---
+sNum est une chaîne = NumériqueVersChaîne(12345.5, maskNombreSystème)
+dbgVérifieEgalité(sNum, "12'345.50", "maskNombreSystème = format locale")
+
+// =====================================================================
+// ExtraitChaine
+// =====================================================================
+dbgVérifieEgalité(ExtraitChaîne("a;b;c;d", 1, ";"), "a", "Token 1er")
+dbgVérifieEgalité(ExtraitChaîne("a;b;c;d", 2, ";"), "b", "Token 2e")
+dbgVérifieEgalité(ExtraitChaîne("a;b;c;d", 4, ";"), "d", "Token dernier")
+dbgVérifieEgalité(ExtraitChaîne("a;b;c;d", 5, ";"), EOT, "Rang hors limite -> EOT")
+dbgVérifieEgalité(ExtraitChaîne("alpha", 1, ";"), "alpha", "Sans separateur")
+dbgVérifieEgalité(ExtraitChaîne("key=value", 1, "="), "key", "Sep '='")
+dbgVérifieEgalité(ExtraitChaîne("key=value", 2, "="), "value", "Sep '=' token 2")
+dbgVérifieEgalité(ExtraitChaîne("a::b::c", 2, "::"), "b", "Sep 2 caracteres")
+
+// =====================================================================
+// ChaineInverse — XOR 0xFFFF par codepoint (documentation de référence)
+// =====================================================================
+dbgVérifieEgalité(ChaîneInverse(""), "", "ChaineInverse vide")
+dbgVérifieEgalité(ChaîneInverse(ChaîneInverse("hello")), "hello", "ChaineInverse involutif")
+dbgVérifieEgalité(ChaîneInverse(ChaîneInverse("Lorem ipsum")), "Lorem ipsum", "ChaineInverse involutif (avec espaces)")
+
+dbgBilanTest()

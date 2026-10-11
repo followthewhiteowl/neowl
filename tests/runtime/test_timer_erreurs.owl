@@ -1,0 +1,129 @@
+// test_timer_erreurs.owl — 
+// Verrouille les cas d'erreur runtime du type Timer :
+//   1. Démarre sans procédure assignée -> erreur runtime claire
+//   2. Écriture de ..Actif -> refusée avec erreur
+//   3. Deux timers indépendants
+//   4. Réassignation procédure à chaud
+//   5. Alias méthodes EN t.Start() / t.Stop()
+//
+// NB : le cas "procédure avec paramètres obligatoires -> erreur à
+// l'assignation" a été retiré : ce contrat est désormais vérifié
+// à la COMPILATION (cf. tests/compile-error/callback_sig_timer_*), plus au
+// runtime. Un tel fichier ne compilerait plus.
+
+// -----------------------------------------------------------------
+// 1. TimerDémarre sans procédure -> erreur runtime
+// -----------------------------------------------------------------
+PROCEDURE test_demarre_sans_procedure()
+	t est un Timer
+	t..Intervalle = 100
+	// Aucune procédure assignée : Démarre doit lever une erreur.
+	TimerDémarre(t)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Démarre sans procédure -> ErreurDetectée = Vrai")
+	dbgVérifieFaux(t..Actif, "Démarre sans procédure -> timer reste inactif")
+FIN
+
+// -----------------------------------------------------------------
+// 2. Écriture de ..Actif refusée
+// -----------------------------------------------------------------
+PROCEDURE test_actif_lecture_seule()
+	PROCEDURE Tick()
+	FIN
+	t est un Timer
+	t..Procédure = Tick
+	t..Actif     = Vrai
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "Écriture ..Actif -> ErreurDetectée = Vrai")
+FIN
+
+// -----------------------------------------------------------------
+// 3. Deux timers indépendants : états séparés
+// -----------------------------------------------------------------
+PROCEDURE test_deux_timers_independants()
+	PROCEDURE Tick()
+	FIN
+	tA est un Timer
+	tA..Intervalle = 100
+	tA..Procédure  = Tick
+
+	tB est un Timer
+	tB..Intervalle = 200
+	tB..Procédure  = Tick
+
+	TimerDémarre(tA)
+	dbgVérifieVrai(tA..Actif, "tA actif après Démarre")
+	dbgVérifieFaux(tB..Actif, "tB reste inactif (indépendant de tA)")
+
+	TimerArrête(tA)
+	dbgVérifieFaux(tA..Actif, "tA inactif après Arrête")
+FIN
+
+// -----------------------------------------------------------------
+// 4. Réassignation procédure à chaud (avant Démarre)
+// -----------------------------------------------------------------
+PROCEDURE test_reassignation_procedure()
+	PROCEDURE ProcA()
+	FIN
+	PROCEDURE ProcB()
+	FIN
+	t est un Timer
+	t..Procédure = ProcA
+	bErrA est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErrA, "Assignation ProcA sans erreur")
+	t..Procédure = ProcB
+	bErrB est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErrB, "Réassignation ProcB sans erreur")
+FIN
+
+// -----------------------------------------------------------------
+// 5. Alias EN t.Start() / t.Stop() — méthodes jumelles
+// -----------------------------------------------------------------
+PROCEDURE test_alias_methodes_en()
+	PROCEDURE Tick()
+	FIN
+	t est un Timer
+	t..Interval  = 150
+	t..Procédure = Tick
+	t.Start()
+	dbgVérifieVrai(t..Active, "t.Start() -> ..Active = Vrai")
+	t.Stop()
+	dbgVérifieFaux(t..Active, "t.Stop() -> ..Active = Faux")
+FIN
+
+// -----------------------------------------------------------------
+// 6. ..Intervalle / ..Répète modifiés à chaud sur un timer ACTIF
+//    (la prop relue reflète la nouvelle valeur, sans erreur ; la prise
+//    en compte réelle au tic suivant côté QTimer = re-validation GUI)
+// -----------------------------------------------------------------
+PROCEDURE test_intervalle_a_chaud()
+	PROCEDURE Tick()
+	FIN
+	t est un Timer
+	t..Intervalle = 100
+	t..Procédure  = Tick
+	TimerDémarre(t)
+	dbgVérifieVrai(t..Actif, "timer actif après Démarre")
+
+	t..Intervalle = 500
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr, "..Intervalle modifié à chaud sur timer actif : sans erreur")
+	dbgVérifieEgalité(t..Intervalle, 500, "..Intervalle relu = nouvelle valeur (500)")
+	dbgVérifieVrai(t..Actif, "timer toujours actif après modif ..Intervalle")
+
+	t..Répète = Faux
+	bErr2 est un booléen = ErreurDétectée
+	dbgVérifieFaux(bErr2, "..Répète modifié à chaud sur timer actif : sans erreur")
+	dbgVérifieFaux(t..Répète, "..Répète relu = nouvelle valeur (Faux)")
+
+	TimerArrête(t)
+FIN
+
+test_demarre_sans_procedure()
+test_actif_lecture_seule()
+test_deux_timers_independants()
+test_reassignation_procedure()
+test_alias_methodes_en()
+test_intervalle_a_chaud()
+
+dbgBilanTest()

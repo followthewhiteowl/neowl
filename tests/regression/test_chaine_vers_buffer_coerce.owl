@@ -1,0 +1,66 @@
+// Regression : `b est un Buffer = "..."` doit produire un vrai Buffer
+// (cast string -> Buffer), pas stocker silencieusement la string.
+//
+// Bug historique (avant fix) : OWL acceptait l'init typee `b est un Buffer
+// = "hello"` mais gardait la string brute -- le typage etait decoratif,
+// `Taille(b)` retournait des codepoints au lieu de bytes. Symetrique du
+// `__BufferVersChaine` deja en place pour Buffer -> chaine.
+//
+// Conformité de référence vérifiée : caste bien dans tous les
+// chemins (init combinee, split decl, reassignation). Divergence Taille
+// assumee : OWL UTF-8 vs la référence UTF-16 (cf VISION.md §5bis).
+
+Trace("=== CHAINE -> BUFFER COERCE A L'INIT TYPEE ===")
+
+// === Init combinee : ASCII ===
+b1 est un buffer = "hello"
+dbgVérifieEgalité(Taille(b1), 5, "Init combinee ASCII : 5 bytes")
+
+// === Init combinee : UTF-8 (cafe = 5 bytes UTF-8) ===
+b2 est un buffer = "cafe"
+dbgVérifieEgalité(Taille(b2), 4, "Init combinee ASCII variant : 4 bytes")
+
+// Note : "café" devrait faire 5 bytes UTF-8 (c, a, f, é=2bytes). Mais
+// l'accent dans un fichier source dépend de l'encodage. On reste ASCII
+// pour la portabilite du test.
+
+// === Split decl + assign ===
+b3 est un buffer
+b3 = "world"
+dbgVérifieEgalité(Taille(b3), 5, "Split decl + reassign string : 5 bytes")
+
+// === Reassign apres init Buffer ===
+b4 est un buffer = ChaîneVersBuffer("init")
+b4 = "remplace"
+dbgVérifieEgalité(Taille(b4), 8, "Reassign string apres init Buffer : 8 bytes")
+
+// === Init avec ChaineVersBuffer (existing path, ne doit pas regresser) ===
+b5 est un buffer = ChaîneVersBuffer("ABC")
+dbgVérifieEgalité(Taille(b5), 3, "Init via ChaineVersBuffer : 3 bytes (no-op coerce)")
+
+// === Round-trip Buffer -> chaine -> Buffer ===
+sFromBuf est une chaîne = b1
+dbgVérifieEgalité(sFromBuf, "hello", "Round-trip : Buffer -> chaine OK")
+dbgVérifieEgalité(Taille(sFromBuf), 5, "Round-trip : taille en codepoints (5 chars ASCII)")
+
+bRoundTrip est un buffer = sFromBuf
+dbgVérifieEgalité(Taille(bRoundTrip), 5, "Round-trip : chaine -> Buffer OK")
+
+// === Init avec retour de fonction Buffer (CrypteStandard, Compresse) ===
+// La coerce __ChaineVersBuffer doit etre passe-through pour Buffer.
+chiffre est un buffer = CrypteStandard("data", "key")
+dbgVérifieVrai(Taille(chiffre) > 0, "CrypteStandard -> Buffer no-op coerce")
+
+// === sticky type : la coerce reste active sur reassign ===
+// Le typage Buffer doit etre preserve, pas ecrase par une string.
+bSticky est un buffer = ChaîneVersBuffer("aaa")
+bSticky = "bbb" // string -> Buffer cast
+dbgVérifieEgalité(Taille(bSticky), 3, "Sticky Buffer : reassign string fait toujours un Buffer")
+
+// === Buffer reaffectation depuis un autre Buffer ===
+bA est un buffer = ChaîneVersBuffer("source")
+bB est un buffer = "init"
+bB = bA
+dbgVérifieEgalité(Taille(bB), 6, "Reassign Buffer -> Buffer : pass-through OK")
+
+dbgBilanTest()

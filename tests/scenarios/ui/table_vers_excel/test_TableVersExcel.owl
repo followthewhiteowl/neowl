@@ -1,0 +1,87 @@
+// @sujet : TableVersExcel, TableToExcel
+// @résumé : Exporte le contenu (entêtes + données) d'un Champ Table vers un
+// classeur Excel (.xlsx) relisable via xlsOuvre, avec forme fluente équivalente.
+
+TestModeHeadless(Vrai)
+
+init_done_tve est un booléen = Faux
+
+PROCEDURE cb_tve_init_done()
+	init_done_tve = Vrai
+FIN
+
+// Forme fonction : le fichier produit est relisable et contient entêtes + données.
+PROCEDURE PUBLIQUE scenario_export_cree_fichier_relisable()
+	Ouvre(FEN_TableVersExcel)
+	dbgVérifieVrai(init_done_tve, "FinInitialisation FEN_TableVersExcel exécutée")
+
+	chemin est une chaîne = "test_tve_relisable.xlsx"
+	ok est un booléen = TableVersExcel(TBL_Export, chemin)
+	dbgVérifieVrai(ok, "TableVersExcel retourne Vrai sur un chemin valide")
+	dbgVérifieVrai(fFichierExiste(chemin), "le fichier .xlsx a bien été produit")
+
+	relu est un xlsDocument = xlsOuvre(chemin, xlsEcriture)
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 1), "Nom", "entête colonne 1 = libellé COL_Nom")
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 2), "Ville", "entête colonne 2 = libellé COL_Ville")
+	dbgVérifieEgalité(xlsDonnée(relu, 2, 1), "Alice", "ligne 2 colonne 1 = première ligne de données")
+	dbgVérifieEgalité(xlsDonnée(relu, 2, 2), "Paris", "ligne 2 colonne 2 = première ligne de données")
+	dbgVérifieEgalité(xlsDonnée(relu, 3, 1), "Bob", "ligne 3 colonne 1 = deuxième ligne de données")
+	dbgVérifieEgalité(xlsDonnée(relu, 3, 2), "Lyon", "ligne 3 colonne 2 = deuxième ligne de données")
+	xlsFerme(relu)
+	fSupprime(chemin)
+
+	Ferme(FEN_TableVersExcel)
+FIN
+
+// Chemin invalide (dossier inexistant) : erreur douce, pas de crash.
+PROCEDURE PUBLIQUE scenario_chemin_invalide_erreur_douce()
+	Ouvre(FEN_TableVersExcel)
+
+	ErreurRAZ()
+	ok est un booléen = TableVersExcel(TBL_Export, "dossier_inexistant_zzz_2150/fichier.xlsx")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieFaux(ok, "TableVersExcel retourne Faux sur un chemin invalide")
+	dbgVérifieVrai(bErr, "TableVersExcel pose ErreurDétectée sur un chemin invalide")
+
+	Ferme(FEN_TableVersExcel)
+FIN
+
+// Forme fluente <Table>.VersExcel(...) : même chemin C, même résultat que la forme fonction.
+PROCEDURE PUBLIQUE scenario_forme_fluente_equivalente()
+	Ouvre(FEN_TableVersExcel)
+
+	cheminFonction est une chaîne = "test_tve_fonction.xlsx"
+	cheminFluent est une chaîne = "test_tve_fluent.xlsx"
+	okFonction est un booléen = TableVersExcel(TBL_Export, cheminFonction)
+	okFluent est un booléen = TBL_Export.VersExcel(cheminFluent)
+	dbgVérifieEgalité(okFluent, okFonction, "la forme fluente retourne le même résultat que la forme fonction")
+
+	docFonction est un xlsDocument = xlsOuvre(cheminFonction, xlsEcriture)
+	docFluent est un xlsDocument = xlsOuvre(cheminFluent, xlsEcriture)
+	dbgVérifieEgalité(xlsDonnée(docFluent, 2, 1), xlsDonnée(docFonction, 2, 1), "les deux formes produisent le même contenu (ligne 2 col 1)")
+	dbgVérifieEgalité(xlsDonnée(docFluent, 3, 2), xlsDonnée(docFonction, 3, 2), "les deux formes produisent le même contenu (ligne 3 col 2)")
+	xlsFerme(docFonction)
+	xlsFerme(docFluent)
+	fSupprime(cheminFonction)
+	fSupprime(cheminFluent)
+
+	Ferme(FEN_TableVersExcel)
+FIN
+
+// Forme bilingue anglaise TableToExcel : équivalente à TableVersExcel.
+PROCEDURE PUBLIQUE scenario_bilingue_tabletoexcel()
+	Ouvre(FEN_TableVersExcel)
+
+	chemin est une chaîne = "test_tve_bilingue.xlsx"
+	ok est un booléen = TableToExcel(TBL_Export, chemin)
+	dbgVérifieVrai(ok, "TableToExcel (forme anglaise) retourne Vrai")
+
+	relu est un xlsDocument = xlsOuvre(chemin, xlsEcriture)
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 1), "Nom", "TableToExcel produit le même contenu que TableVersExcel")
+	xlsFerme(relu)
+	fSupprime(chemin)
+
+	Ferme(FEN_TableVersExcel)
+FIN
+
+dbgBilanTest()

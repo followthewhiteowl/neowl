@@ -1,0 +1,94 @@
+// @sujet : ConsoleErreur
+// @résumé : Écrit une ou plusieurs valeurs sur la sortie d'erreur standard (stderr) sans retour à la ligne. Outil pour journaliser les messages d'erreur ou de diagnostic séparément de la sortie standard.
+
+
+// Cas canonique : une seule valeur. Le contenu est envoyé sur stderr
+// exactement tel que représenté, sans ajout de retour à la ligne.
+PROCEDURE scenario_valeur_simple()
+	nCode est un entier = 404
+	ConsoleErreur(nCode)
+	dbgVérifieEgalité(nCode, 404, "code erreur HTTP")
+FIN
+
+
+// Plusieurs arguments : ConsoleErreur concatène les arguments sans
+// séparateur, dans l'ordre d'apparition. Permet de construire un message
+// composé en une seule invocation.
+PROCEDURE scenario_concatenation_multiple()
+	sContexte est une chaîne = "Validation"
+	nErreur est un entier = 500
+	ConsoleErreur("Erreur", sContexte, nErreur)
+	dbgVérifieEgalité(sContexte, "Validation", "contexte preserve")
+	dbgVérifieEgalité(nErreur, 500, "code erreur preserve")
+FIN
+
+
+// Message d'erreur typique : combiner texte descriptif et variable
+// pour journaliser une situation anormale découverte pendant l'exécution.
+PROCEDURE scenario_message_erreur_structure()
+	sFichier est une chaîne = "config.json"
+	nLigne est un entier = 42
+	ConsoleErreur("Erreur de syntaxe dans ", sFichier, " ligne ", nLigne)
+	dbgVérifieEgalité(sFichier, "config.json", "nom fichier preserve")
+	dbgVérifieEgalité(nLigne, 42, "numero ligne preserve")
+FIN
+
+
+// Booléen : journalise directement l'état d'une condition problématique
+// en tant que partie du diagnostic.
+PROCEDURE scenario_booleen()
+	bConnecte est un booléen = Faux
+	ConsoleErreur("Etat connexion : ", bConnecte)
+	dbgVérifieEgalité(bConnecte, Faux, "etat booleen preserve")
+FIN
+
+
+// Chaîne vide : ConsoleErreur accepte et écrit effectivement une
+// sortie vide. Utile pour certains formats où un marqueur vide
+// a une sémantique particulière.
+PROCEDURE scenario_chaine_vide()
+	ConsoleErreur("")
+	dbgVérifieVrai(Vrai, "ConsoleErreur sur chaine vide ne leve pas d'erreur")
+FIN
+
+
+// Enchaînements : plusieurs ConsoleErreur successifs continuent sur
+// la même ligne, permettant de construire progressivement un message
+// complexe ou d'ajouter des détails au fur et à mesure.
+PROCEDURE scenario_enchainement_meme_ligne()
+	ConsoleErreur("Debut")
+	ConsoleErreur(" milieu")
+	ConsoleErreur(" fin")
+	dbgVérifieVrai(Vrai, "trois invocations concatenees sur stderr")
+FIN
+
+
+// Séparateurs explicites : ConsoleErreur ne les ajoute pas automatiquement,
+// l'appelant doit inclure espaces, virgules ou ponctuation selon le format
+// attendu.
+PROCEDURE PRIVÉE scenario_edge_separateurs_manuels()
+	ConsoleErreur("alpha")
+	ConsoleErreur(",")
+	ConsoleErreur("beta")
+	dbgVérifieVrai(Vrai, "separateurs manuels concatenes sans espace auto")
+FIN
+
+
+// Caractères accentués et UTF-8 : ConsoleErreur transmet correctement
+// les caractères multi-octets sans corruption.
+PROCEDURE PRIVÉE scenario_edge_utf8()
+	sMessage est une chaîne = "Échec : données manquantes"
+	ConsoleErreur(sMessage)
+	dbgVérifieEgalité(sMessage, "Échec : données manquantes", "UTF-8 preserve")
+FIN
+
+
+// Zéro et valeurs sentinel : ConsoleErreur affiche la valeur numérique
+// exacte sans traitement spécial pour zéro ou limites des types.
+PROCEDURE PRIVÉE scenario_edge_valeurs_sentinel()
+	nZero est un entier = 0
+	nNegatif est un entier = -1
+	ConsoleErreur("Codes : ", nZero, " et ", nNegatif)
+	dbgVérifieEgalité(nZero, 0, "zero preserve")
+	dbgVérifieEgalité(nNegatif,-1, "negatif preserve")
+FIN

@@ -1,0 +1,59 @@
+// Valeur initiale declaree sur un champ de Structure : elle doit etre
+// appliquee a chaque instanciation, comme elle l'est pour un membre de
+// Classe. Un champ sans valeur initiale garde la valeur par defaut de son
+// type, et deux instances ne partagent jamais le meme objet.
+
+stInterne est une Structure
+	nProfondeur est un entier = 7
+	sEtiquette est une chaîne = "interne"
+FIN
+
+stComplete est une Structure
+	nEntier est un entier = 5
+	rReel est un réel = 1.5
+	sChaine est une chaîne = "def"
+	bBooleen est un booléen = Vrai
+	mMonetaire est un monétaire = 0m12.34
+	nCalcule est un entier = 2 + 3 * 4
+	stSous est un stInterne
+	nSansValeur est un entier
+	sSansValeur est une chaîne
+	bSansValeur est un booléen
+FIN
+
+// --- Valeurs initiales appliquees a l'instanciation ---
+v est un stComplete
+
+dbgVérifieEgalité(v.nEntier, 5, "champ entier prend sa valeur initiale")
+dbgVérifieEgalité(v.rReel, 1.5, "champ reel prend sa valeur initiale")
+dbgVérifieEgalité(v.sChaine, "def", "champ chaine prend sa valeur initiale")
+dbgVérifieEgalité(v.bBooleen, Vrai, "champ booleen prend sa valeur initiale")
+dbgVérifieEgalité(v.mMonetaire, 0m12.34, "champ monetaire prend sa valeur initiale")
+dbgVérifieEgalité(v.nCalcule, 14, "champ initialise par une expression")
+
+// --- Champ de type compose : la valeur initiale du sous-champ suit ---
+dbgVérifieEgalité(v.stSous.nProfondeur, 7, "champ imbrique : entier initialise")
+dbgVérifieEgalité(v.stSous.sEtiquette, "interne", "champ imbrique : chaine initialisee")
+
+// --- Champ sans valeur initiale : valeur par defaut du type, inchangee ---
+dbgVérifieEgalité(v.nSansValeur, 0, "champ entier sans valeur initiale reste a 0")
+dbgVérifieEgalité(v.sSansValeur, "", "champ chaine sans valeur initiale reste vide")
+dbgVérifieEgalité(v.bSansValeur, Faux, "champ booleen sans valeur initiale reste Faux")
+
+// --- Instances distinctes : chacune sa copie ---
+w est un stComplete
+w.nEntier = 99
+w.sChaine = "modifie"
+w.stSous.nProfondeur = 42
+
+dbgVérifieEgalité(v.nEntier, 5, "ecrire sur une instance ne touche pas l'autre (scalaire)")
+dbgVérifieEgalité(v.sChaine, "def", "ecrire sur une instance ne touche pas l'autre (chaine)")
+dbgVérifieEgalité(v.stSous.nProfondeur, 7, "les sous-objets ne sont pas partages entre instances")
+dbgVérifieEgalité(w.stSous.nProfondeur, 42, "la seconde instance porte bien sa propre valeur")
+
+// --- Une troisieme instance repart des valeurs declarees ---
+x est un stComplete
+dbgVérifieEgalité(x.nEntier, 5, "une instance creee apres modification repart de la valeur initiale")
+dbgVérifieEgalité(x.stSous.nProfondeur, 7, "idem pour le sous-objet")
+
+dbgBilanTest()

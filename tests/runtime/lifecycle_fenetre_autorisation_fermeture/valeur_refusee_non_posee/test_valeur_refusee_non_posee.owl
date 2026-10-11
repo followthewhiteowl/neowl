@@ -1,0 +1,28 @@
+//  — une fermeture refusée par AutorisationFermeture ne doit PAS
+// laisser sa valeur de retour posée. Ferme(FEN, valeur) refusé, puis un
+// Ferme(FEN) autorisé SANS valeur : Ouvre doit rendre une valeur vide, jamais
+// la valeur du refus.
+//
+// ROUGE ATTENDU (pré-impl) : la valeur de retour est posée AVANT le veto de
+// fermeture, donc le refus laisse "valeurDuRefus" collée ; le 2e Ferme() sans
+// valeur ne l'écrase pas -> Ouvre rend "valeurDuRefus" au lieu de "".
+//
+// Observation : la fenêtre voisine se ferme elle-même depuis
+// FinInitialisation (refus puis fermeture autorisée sans valeur), ce qui
+// permet à Ouvre de capturer la ValeurRenvoyée finale. Seule la fermeture
+// autorisée tire Fermeture, donc seq = "FER;" (le refus ne tire pas Fermeture).
+
+TestModeHeadless(Vrai)
+
+seq est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seq += s
+FIN
+
+valRenvoyee est une chaîne = Ouvre(FEN_ValeurRefusee)
+
+dbgVérifieVrai(valRenvoyee = Null, "fermeture refusée : la valeur du refus n'est jamais posée (ValeurRenvoyée reste Null)")
+dbgVérifieEgalité(seq, "FER;", "seul le Ferme() autorisé (sans valeur) tire Fermeture ; le refus ne le tire pas")
+
+dbgBilanTest()

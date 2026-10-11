@@ -1,0 +1,62 @@
+// Fenêtre voisine — ressource pour test_table_colonne_qualifiee_couleur.owl.
+// (pattern split canon strict — cf.  / .)
+//
+// Verrouille  côté POSITIF : la forme colonne-first QUALIFIÉE NON
+// INDEXÉE `TABLE_X.COL_A..Couleur` / `..CouleurFond` reste un VRAI receveur
+// (stockage au runtime, comme la forme nue `COL_A..Prop` de  Lot B).
+// C'est la forme conseillée par le message de refus : elle doit fonctionner.
+
+FEN_ColonneQualifieeCouleur est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne qualifiée couleur"
+	FIN
+
+	TABLE_Receveur est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_Solde est une Colonne
+			PROPRIETES
+				Libellé = "Solde"
+				Type    = colTypeNumerique
+				Largeur = 100
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Receveur, 10)
+	FIN
+
+	// Écriture forme qualifiée, propriété FR.
+	PROCEDURE EcritCouleur(c est un entier)
+		TABLE_Receveur.COL_Solde..Couleur = c
+	FIN
+
+	PROCEDURE EcritCouleurFond(c est un entier)
+		TABLE_Receveur.COL_Solde..CouleurFond = c
+	FIN
+
+	// Lecture forme qualifiée, propriété FR.
+	PROCEDURE LireCouleur()
+		RENVOYER TABLE_Receveur.COL_Solde..Couleur
+	FIN
+
+	PROCEDURE LireCouleurFond()
+		RENVOYER TABLE_Receveur.COL_Solde..CouleurFond
+	FIN
+
+	// Lecture forme qualifiée, propriété EN (bilingue, Règle 6.3).
+	PROCEDURE LireCouleurEN()
+		RENVOYER TABLE_Receveur.COL_Solde..Color
+	FIN
+
+	PROCEDURE LireCouleurFondEN()
+		RENVOYER TABLE_Receveur.COL_Solde..BackgroundColor
+	FIN
+
+	// Écriture via la propriété EN qualifiée, relue en FR (parité croisée).
+	PROCEDURE EcritCouleurEN(c est un entier)
+		TABLE_Receveur.COL_Solde..Color = c
+	FIN
+FIN

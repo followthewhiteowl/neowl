@@ -1,0 +1,30 @@
+//  — verrou de non-fuite cross-projet. Ce dossier n'a PAS de
+// projet.owl (contexte SCRIPT) : aucun FormatDate posé ici. La saisie
+// "05/12/2026" doit rester interprétée jour=05, mois=12 (défaut en dur
+// JJ/MM/AAAA), MÊME APRÈS que le projet frère "a_pose_formatdate" (compilé
+// avant celui-ci, nommage "a_"/"b_" imposant l'ordre alphabétique du walk
+// du runner) a posé FormatDate = "MM/JJ/AAAA" au niveau de ses globales
+// compile-time. Si ce test lit "20260512" au lieu de "20261205", c'est que
+// l'état FormatDate du projet précédent a fuité dans ce contexte : la
+// frontière projet n'a pas réinitialisé compiler_projet_boot_langue_reset().
+//
+// ROUGE aujourd'hui (fuite mesurée, cf. ticket ) : passe SEUL,
+// rougit en batch avec "a_pose_formatdate" compilé juste avant dans le même
+// process `owl test`.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FuiteFormatDateSansProjet)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+TestSimuleSaisie(SAI_Date, "05/12/2026")
+dbgVérifieEgalité(TypeVar(SAI_Date..Valeur), owlDate, "Valeur reste un owlDate")
+SI TypeVar(SAI_Date..Valeur) = owlDate ALORS
+	sLue est une chaîne = SAI_Date..Valeur
+	dbgVérifieEgalité(sLue, "20261205", "Non-fuite : défaut JJ/MM/AAAA préservé (« 05/12/2026 » = 5 décembre 2026), pas hérité de MM/JJ/AAAA du projet voisin")
+SINON
+	dbgVérifieVrai(Faux, "Relecture ignorée (Valeur encore typée autrement)")
+FIN
+
+Ferme(FEN_FuiteFormatDateSansProjet)
+dbgBilanTest()

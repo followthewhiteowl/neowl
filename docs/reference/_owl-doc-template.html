@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OWL — Documentation</title>
+<!-- GÉNÉRÉ : ce fichier est un TEMPLATE. La sortie owl-doc.html est produite au build
+     par `owl --dump-doc-html`. Éditer le template, pas la sortie. -->
+<style>
+  :root{
+    --bg:#1b1d23; --panel:#23262e; --panel2:#2a2e38; --line:#363b47;
+    --fg:#d7dae0; --dim:#8a93a3; --accent:#B5D33D; --accent2:#6fb3ff; --com:#5c6573;
+    --c-kw:#FF8000; --c-type:#9575CD; --c-const:#BAB819; --c-str:#BA68C8;
+    --c-fn:#91B5FE; --c-proc:#009180; --c-var:#4CAF50; --c-com:#808080; --c-op:#D4D4D4;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px/1.5 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+  #app{display:grid;grid-template-columns:var(--side-w,340px) 6px 1fr;height:100vh}
+  #splitter{background:var(--line);cursor:col-resize;user-select:none}
+  #splitter:hover,#splitter.dragging{background:var(--accent2)}
+  #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  #brand{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  #brand b{font-size:16px;letter-spacing:.5px;cursor:pointer;user-select:none}
+  #brand b:hover{opacity:.78}
+  #brand b:focus-visible{outline:1px solid var(--accent);outline-offset:2px;border-radius:3px}
+  #brand .owl{color:var(--accent);font-weight:700}
+  #brand .ver{color:var(--dim);font-size:12px;letter-spacing:.3px;user-select:none}
+  #brand .lang{margin-left:auto;display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  #brand .lang button{background:transparent;color:var(--dim);border:0;padding:3px 9px;cursor:pointer;font-weight:600}
+  #brand .lang button.on{background:var(--accent);color:#1b1d23}
+  #searchwrap{position:relative;margin:10px;display:flex}
+  #search{flex:1;padding:8px 28px 8px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);outline:none}
+  #search:focus{border-color:var(--accent)}
+  #searchclear{position:absolute;top:50%;right:8px;transform:translateY(-50%);background:transparent;border:0;color:var(--dim);font-size:16px;line-height:1;padding:0 2px;cursor:pointer;user-select:none}
+  #searchclear:hover{color:var(--fg)}
+  #searchclear[hidden]{display:none}
+  #kindfilters{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 8px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  #filters{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 8px;height:var(--filter-h,140px);min-height:40px;overflow-y:auto}
+  #filtersplit{flex:0 0 6px;background:var(--line);cursor:row-resize;user-select:none}
+  #filtersplit:hover,#filtersplit.dragging{background:var(--accent2)}
+  .chip{font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:20px;color:var(--dim);cursor:pointer;user-select:none}
+  .chip.on{background:var(--accent2);border-color:var(--accent2);color:#10131a}
+  /* chips KIND : couleur ON alignée sur le .kindbadge correspondant (cohérence visuelle) */
+  .chip.kf-native.on{background:#9cc1ff;border-color:#9cc1ff;color:#10131a}
+  .chip.kf-type.on{background:#dcb0f0;border-color:#dcb0f0;color:#10131a}
+  .chip.kf-enum.on{background:#bfe88d;border-color:#bfe88d;color:#10131a}
+  .chip.kf-const.on{background:#f0d28a;border-color:#f0d28a;color:#10131a}
+  .chip.kf-keyword.on{background:#f0a0a0;border-color:#f0a0a0;color:#10131a}
+  .chip.kf-widget.on{background:#5fd0c0;border-color:#5fd0c0;color:#10131a}
+  .chip.kf-property.on{background:#a8b3c4;border-color:#a8b3c4;color:#10131a}
+  .chip.kf-event.on{background:#e89ab0;border-color:#e89ab0;color:#10131a}
+  .chip.kf-reference.on{background:#e0a96d;border-color:#e0a96d;color:#10131a}
+  #list{overflow:auto;flex:1;padding:4px 6px 20px}
+  .grp{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);padding:12px 8px 4px}
+  /* fiches de référence agrégées (erreurs / limites / opérateurs / globalvars) */
+  table.ref{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px}
+  table.ref th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);padding:6px 8px;border-bottom:1px solid var(--line)}
+  table.ref td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.ref .mono{font-family:ui-monospace,Consolas,monospace}
+  table.ref .ecode{font-family:ui-monospace,Consolas,monospace;color:var(--accent);white-space:nowrap}
+  table.ref .ename{font-family:ui-monospace,Consolas,monospace;color:var(--c-fn);white-space:nowrap}
+  table.ref .eval{font-family:ui-monospace,Consolas,monospace;color:var(--c-str);white-space:nowrap}
+  .refcatcount{color:var(--dim);font-weight:400;font-size:12px}
+  .refintro{color:var(--dim);font-size:13px;margin:0 0 20px}
+  /* mini-renderer markdown (chapitres de prose) */
+  .fiche.guide h3{font-size:16px;color:var(--fg);margin:22px 0 8px}
+  .fiche.guide h4{font-size:14px;color:var(--accent2);margin:18px 0 6px}
+  .md-p{color:var(--fg);line-height:1.6;margin:10px 0;max-width:70ch}
+  .md-ul,.md-ol{color:var(--fg);line-height:1.55;margin:10px 0 10px 22px;max-width:70ch}
+  .md-ul li,.md-ol li{margin:3px 0}
+  .md-quote{border-left:3px solid var(--accent);background:var(--panel2);padding:2px 14px;margin:12px 0;border-radius:0 6px 6px 0;color:var(--dim)}
+  .md-quote .md-p{color:var(--dim);max-width:none}
+  .md-ic{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--panel2);color:var(--accent2);padding:1px 5px;border-radius:4px}
+  .md-lnk{color:var(--accent2);text-decoration:none;border-bottom:1px dotted var(--accent2)}
+  .md-lnk:hover{color:var(--fg)}
+  .md-hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+  table.md-tbl{margin:12px 0;max-width:100%}
+  .fiche.guide strong{color:var(--fg);font-weight:700}
+  .fiche.guide em{font-style:italic;color:var(--accent2)}
+  .item{padding:6px 8px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:8px}
+  .item:hover{background:var(--panel2)}
+  .item.sel{background:var(--accent2);color:#10131a}
+  .item.sel .kindbadge{background:#10131a22;color:#10131a}
+  .item .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kindbadge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;text-transform:uppercase;flex-shrink:0}
+  .k-native{background:#2e3a52;color:#9cc1ff}   /* Fonction : bleu */
+  .k-type{background:#46314f;color:#dcb0f0}      /* Type : violet */
+  .k-enum{background:#2e4a2e;color:#bfe88d}      /* Énumération : vert */
+  .k-const{background:#4a3e22;color:#f0d28a}     /* Constante : jaune */
+  .k-widget{background:#143a36;color:#5fd0c0}    /* Widget : teal */
+  .k-property{background:#2e3540;color:#a8b3c4}  /* Propriété : gris-bleu */
+  .k-event{background:#3a2030;color:#e89ab0}     /* Événement : rose */
+  .k-reference{background:#3d2e1a;color:#e0a96d} /* Référence : ambre */
+  .k-keyword{background:#4a242c;color:#f0a0a0}   /* Mot-clé : rouge */
+  #count{font-size:11px;color:var(--com);padding:4px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  #grouptoggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;color:var(--dim);white-space:nowrap}
+  #grouptoggle:hover{color:var(--fg)}
+  #grouptoggle .sw{position:relative;width:26px;height:15px;background:var(--line);border-radius:9px;transition:background .15s;flex-shrink:0}
+  #grouptoggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:var(--dim);transition:transform .15s,background .15s}
+  #grouptoggle.on .sw{background:var(--accent)}
+  #grouptoggle.on .sw::after{transform:translateX(11px);background:#10131a}
+  #main{overflow:auto;padding:28px 40px 80px;min-width:0}
+  #main:focus{outline:none}  /* zone de scroll, pas un contrôle actionnable : pas d'anneau permanent */
+  .fiche{max-width:820px}
+  .ftitle{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .ftitle h1{font-size:26px;margin:0;font-weight:700}
+  .ftitle .en{color:var(--dim);font-size:16px}
+  .ftitle .ascii{color:var(--com);font-size:12px;font-family:ui-monospace,Consolas,monospace}
+  .meta{display:flex;gap:8px;margin:8px 0 18px;flex-wrap:wrap}
+  .tag{font-size:11px;padding:2px 9px;border-radius:5px;background:var(--panel2);color:var(--dim)}
+  .desc{font-size:15px;color:#e7eaef;margin:0 0 24px}
+  h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:6px;margin:28px 0 14px}
+  h2.sec .seeall{font-size:11px;letter-spacing:0;text-transform:none;color:var(--accent2);cursor:pointer;font-weight:400;margin-left:8px}
+  h2.sec .seeall:hover{text-decoration:underline}
+  .sig{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+  .sig code{font-family:ui-monospace,Consolas,monospace;font-size:14px;color:#fff}
+  .params{margin:10px 0 0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13px;align-items:start}
+  .params .pn{font-family:ui-monospace,Consolas,monospace;color:var(--c-var)}
+  .params .pd{color:var(--fg)}
+  .ptype{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--c-type)}
+  .pdim{color:var(--dim);font-size:12px}
+  .ret{color:var(--accent)}
+  table.fields{width:100%;border-collapse:collapse;font-size:13px}
+  table.fields td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.fields .fn{font-family:ui-monospace,Consolas,monospace;color:var(--c-var);white-space:nowrap}
+  table.fields .ft{color:var(--dim);font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+  .enumvals{display:flex;flex-wrap:wrap;gap:6px}
+  .enumvals .ev{font-family:ui-monospace,Consolas,monospace;font-size:13px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:3px 9px;color:#dcb0f0}
+  .optchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .optchips .oc{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:#4a3e2233;border:1px solid #4a3e22;border-radius:5px;padding:1px 7px}
+  .mforms{display:flex;flex-wrap:wrap;gap:6px}
+  .mform{font-family:ui-monospace,Consolas,monospace;font-size:13px;background:#1c2b3a;border:1px solid #2e3a52;border-radius:5px;padding:3px 9px;color:var(--c-fn)}
+  .codewrap{position:relative}
+  .copybtn{position:absolute;top:8px;right:8px;z-index:2;background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 9px;font-size:11px;cursor:pointer;opacity:0;transition:opacity .12s}
+  .codewrap:hover .copybtn{opacity:1}
+  .copybtn:hover{color:var(--fg);border-color:var(--accent2)}
+  .tag.tagcat{cursor:pointer}
+  .tag.tagcat:hover{background:var(--accent2);color:#10131a}
+  pre.code{background:#15171c;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.6;tab-size:4}
+  .extitle{font-weight:600;margin:0 0 6px}
+  .exsub{color:var(--dim);font-size:13px;margin:0 0 8px}
+  a.xref{color:var(--accent2);cursor:pointer;text-decoration:none;border-bottom:1px dotted var(--accent2)}
+  a.xref:hover{color:#fff}
+  .neigh{display:flex;flex-wrap:wrap;gap:6px}
+  .empty{color:var(--com);padding:60px;text-align:center}
+  mark{background:var(--accent);color:#1b1d23;border-radius:2px}
+  .tok-kw{color:var(--c-kw);font-weight:700}
+  .tok-type{color:var(--c-type)}
+  .tok-const{color:var(--c-const);font-style:italic}
+  .tok-str{color:var(--c-str)}
+  .tok-num{color:var(--c-str)}
+  .tok-fn{color:var(--c-fn)}
+  .tok-proc{color:var(--c-proc)}
+  .tok-var{color:var(--c-var)}
+  .tok-com{color:var(--c-com)}
+  .tok-op{color:var(--c-op)}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div id="brand">
+      <b id="brandhome" role="button" tabindex="0" title="Réinitialiser"><span class="owl">OWL</span> Doc</b>
+      <span id="docversion" class="ver"></span>
+      <div class="lang">
+        <button data-lang="fr" class="on">FR</button>
+        <button data-lang="en">EN</button>
+      </div>
+    </div>
+    <div id="searchwrap">
+      <input id="search" placeholder="Rechercher…  (accents ignorés)" autocomplete="off">
+      <button id="searchclear" type="button" title="Effacer" aria-label="Effacer la recherche" hidden>×</button>
+    </div>
+    <div id="kindfilters"></div>
+    <div id="filters"></div>
+    <div id="filtersplit" role="separator" aria-orientation="horizontal" title="Redimensionner la zone des catégories"></div>
+    <div id="count"><span id="counttext"></span><span id="grouptoggle" role="button" tabindex="0"><span class="sw"></span><span id="grouplabel"></span></span></div>
+    <div id="list"></div>
+  </aside>
+  <div id="splitter" role="separator" aria-orientation="vertical" title="Redimensionner le panneau"></div>
+  <main id="main" tabindex="-1"><div class="empty">Sélectionne un symbole à gauche.</div></main>
+</div>
+
+<script>
+/* helpers de base — définis AVANT l'injection (norm sert aux listes de coloration) */
+const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function span(cls,v){ return `<span class="${cls}">${esc(v)}</span>`; }
+
+/* ====== DONNÉES INJECTÉES AU BUILD (owl --dump-doc-html) ====== */
+//__OWL_DOC_DATA__
+/* ============================================================== */
+
+let lang="fr", activeCats=new Set(), activeKinds=new Set(), query="", selected=null, visibleItems=[];
+/* filtre transitoire "fonctions associées à ce type primitif" : objet
+   {forms:Set, cat:string|null} ou null. Posé par le "voir tout" de la section
+   "Fonctions associées" d'une fiche primitif ; match() applique le MÊME prédicat
+   assoc que la section (isAssocFn) → compteur section == compteur filtre. Tout
+   reset DOIT le remettre à null (sinon filtre fantôme sur la liste de gauche). */
+let assocType=null;
+/* plafond d'affichage des sections "fonctions associées" sur une fiche
+   primitif (au-delà : chip "voir tout (N)"). */
+const ASSOC_CAP=20;
+/* byName = clé nue (1er gagnant, déterministe) ; byNameKind = clé genre+nom
+   (désambiguïse les homonymes type/enum/native, ex: Couleur). */
+const byName={}, byNameKind={}, byMethod={};
+/* byRef = clé unique des fiches de référence (refkey table | doc chapitre).
+   Désambiguïse les homonymes kind:reference (ex la table "Opérateurs" cat
+   Référence vs le chapitre "Opérateurs" cat Guide), que byName/byNameKind ne
+   distinguent pas (même genre + même nom). */
+const byRef={};
+DATA.forEach(d=>{ if(d.kind==="reference"){ const rk=d.refkey||d.doc; if(rk) byRef[norm(rk)]=d; } });
+DATA.forEach(d=>{ [d.name,d.ascii,d.en,...(d.aliases||[])].forEach(x=>{ if(!x) return; const k=norm(x);
+  if(byName[k]===undefined) byName[k]=d; byNameKind[d.kind+"/"+k]=d; });
+  /* index des formes fluides : <recv>.Méthode() -> native qui la documente.
+     Permet à F1 sur la 2e syntaxe (s.VersEntier()) de tomber sur ChaîneVersEntier. */
+  if(d.methods) d.methods.forEach(m=>{ [m.fr,m.en].forEach(mn=>{ if(mn){ const k=norm(mn);
+    if(byMethod[k]===undefined) byMethod[k]=d; } }); }); });
+/* byTypeAscii : forme ascii normalisée d'un type -> son name canonique (accentué).
+   Alimenté par les entrées kind:"type" (inclut les primitifs : chaîne, durée…).
+   Sert à réaccentuer le receveur des formes pointées (m.recv émis en ascii). */
+const byTypeAscii={};
+DATA.forEach(d=>{ if(d.kind!=="type") return; const c=d.name; [d.ascii,d.name].forEach(x=>{
+  if(x){ const k=norm(x); if(byTypeAscii[k]===undefined) byTypeAscii[k]=c; } }); });
+/* Formes pointées matérialisées en entrées de liste (1 par <recv>.Méthode()),
+   dérivées des methods des natives. Badge "forme pointée" distinct, mais filtrées
+   sous le genre Fonction (cf. filterKind). Le clic redirige vers la native. */
+const METHODS=[];
+DATA.forEach(d=>{ if(d.kind!=="native"||!d.methods) return; d.methods.forEach(m=>{
+  METHODS.push({kind:"method", name:m.fr||m.en, en:m.en||m.fr, mfr:m.fr||m.en, men:m.en||m.fr,
+    recv:m.recv, native:d.name, cat:d.cat, descFR:d.descFR, descEN:d.descEN,
+    examples:d.examples, neighbors:d.neighbors, public_documentation:d.public_documentation});
+}); });
+/* Propriétés DSL : entrées distinctes (dédup par nom) avec "accepté par" widgets.
+   propsByWidget : pour la fiche d'un widget (sa table de propriétés). */
+const PROPS=[], byProp={}, propsByWidget={};
+(typeof DSLPROPS!=="undefined"?DSLPROPS:[]).forEach(p=>{
+  (propsByWidget[p.w]=propsByWidget[p.w]||[]).push(p);
+  const k=norm(p.n); let e=byProp[k];
+  if(!e){ e={kind:"property", name:p.n, en:p.en, cat:"Interface", ptype:p.t, enm:p.enm, obj:p.obj, descFR:p.descFR, descEN:p.descEN, public_documentation:p.public_documentation, widgets:[], types:[]}; byProp[k]=e; PROPS.push(e); }
+  else if(!e.public_documentation && p.public_documentation) e.public_documentation=p.public_documentation;   //  : lien fiche-propriete->guide (DSLPROPS Projet)
+  if(e.widgets.indexOf(p.w)<0) e.widgets.push(p.w);
+  if(p.en){ const ke=norm(p.en); if(byProp[ke]===undefined) byProp[ke]=e; }   //  : deep-link/F1 sur le nom EN (mirroir de byName)
+});
+/*  : champs des types composites fondus dans la MEME fiche membre que
+   les propriétés DSL — un nom → une fiche agrégeant widgets porteurs ET types
+   porteurs. F1 sur MaxTokens/CodeÉtat/Endpoint résout via byProp (fallback
+   resolve mot-nu, déjà présent) vers cette fiche. Miroir EN comme byProp. */
+(typeof TYPEFIELDS!=="undefined"?TYPEFIELDS:[]).forEach(p=>{
+  const k=norm(p.n); let e=byProp[k];
+  if(!e){ e={kind:"property", name:p.n, en:p.en, cat:"Interface", ptype:p.t, descFR:p.descFR, descEN:p.descEN, widgets:[], types:[]}; byProp[k]=e; PROPS.push(e); }
+  if(e.types.indexOf(p.tp)<0) e.types.push(p.tp);
+  if(p.en){ const ke=norm(p.en); if(byProp[ke]===undefined) byProp[ke]=e; }   // deep-link/F1 sur le nom EN du champ (mirroir de byName)
+});
+
+/* Events DSL : entrées distinctes (dédup par nom) avec "déclenché sur" widgets.
+   eventsByWidget : pour la fiche d'un widget (sa liste d'events). */
+const EVTS=[], byEvt={}, eventsByWidget={};
+(typeof EVENTS!=="undefined"?EVENTS:[]).forEach(p=>{
+  (eventsByWidget[p.w]=eventsByWidget[p.w]||[]).push(p);
+  const k=norm(p.n); let e=byEvt[k];
+  if(!e){ e={kind:"event", name:p.n, en:p.en, cat:"Interface", np:p.np, descFR:p.descFR, descEN:p.descEN, widgets:[]}; byEvt[k]=e; EVTS.push(e); }
+  if(e.widgets.indexOf(p.w)<0) e.widgets.push(p.w);
+  if(p.en){ const ke=norm(p.en); if(byEvt[ke]===undefined) byEvt[ke]=e; }   //  : deep-link/F1 sur le nom EN (mirroir de byName)
+});
+
+/* Données des 4 fiches de référence agrégées. Guards typeof : un template
+   plus vieux que le générateur (ou l'inverse) reste fonctionnel. */
+const REF_ERRORS = (typeof ERRORS!=="undefined"?ERRORS:[]);
+const REF_LIMITS = (typeof LIMITS!=="undefined"?LIMITS:[]);
+const REF_OPERATORS = (typeof OPERATORS!=="undefined"?OPERATORS:[]);
+const REF_GLOBALVARS = (typeof GLOBALVARS!=="undefined"?GLOBALVARS:[]);
+/* Chapitres de prose (docs/public_documentation) indexés par stem ; markdown
+   brut rendu par le mini-renderer. Guard typeof : template/générateur découplés. */
+const REF_GUIDES = (typeof GUIDES!=="undefined"?GUIDES:{});
+
+let grouped=false;   /* défaut : liste à plat, triée par nom (pas de groupement) */
+/*  — les enums ne sont plus une catégorie navigable (concept interne).
+   On les exclut du BROWSE (chips de genre, liste, recherche), mais ils restent
+   dans DATA / byName / byNameKind : resolve(name,"enum") fonctionne toujours,
+   donc les xref `∈ enum` (depuis une fiche constante ou un param de fonction)
+   ouvrent encore la fiche enum. Seul le parcours-comme-catégorie disparaît. */
+const BROWSE_DATA=DATA.filter(d=>d.kind!=="enum");
+function allItems(){ return BROWSE_DATA.concat(METHODS).concat(PROPS).concat(EVTS); }
+/* Genre de FILTRE (axe orthogonal aux catégories). Une forme pointée (kind method)
+   se replie sous "Fonction" : pas de chip Méthode séparé, et le filtre Fonction
+   l'inclut. Le BADGE reste sur d.kind (distinct), seul le FILTRE est fondu. */
+function filterKind(d){ return d.kind==="method" ? "native" : d.kind; }
+
+function resolve(name,kind){
+  if(kind==="property"){ const e=byProp[norm(name)]; if(e) return e; }
+  if(kind==="event"){ const e=byEvt[norm(name)]; if(e) return e; }
+  /* forme pointée : plus d'entrée distincte, on redirige vers la native qui la
+     documente. name peut être "<recv>.<méthode>" (deep-link F1) ou juste le nom
+     de méthode -> on isole le segment après le dernier '.'. */
+  if(kind==="method"){ const seg=name.indexOf(".")>=0?name.slice(name.lastIndexOf(".")+1):name;
+    const e=byMethod[norm(seg.replace(/\(\)$/,""))]; if(e) return e; }
+  /* fiche de référence : la clé du hash est le refkey/doc unique, pas le nom
+     affiché (homonymes table vs chapitre). Fallback nom pour les vieux liens. */
+  if(kind==="reference"){ const e=byRef[norm(name)]; if(e) return e; }
+  if(kind){ const d=byNameKind[kind+"/"+norm(name)]; if(d) return d; }
+  const k=norm(name);
+  return byName[k] || byMethod[k] || byProp[k] || byEvt[k];   /* fallback mot-nu : native/méthode fluide, sinon propriété/event DSL */
+}
+
+function methodLabel(e){
+  /* FR : réaccentuer le receveur ascii vers sa forme canonique (invariant 2),
+     fallback recv brut si aucun type correspondant. EN : laisser typeDisp (TYPE_EN). */
+  const recvDisp = lang==="en" ? typeDisp(e.recv) : (byTypeAscii[norm(e.recv)] || e.recv);
+  return "<"+recvDisp+">."+(lang==="en"?e.men:e.mfr)+"()"; }
+function dispName(d){ if(d.kind==="method") return methodLabel(d); return lang==="en"&&d.en?d.en:d.name; }
+/* chapitres épinglés en tête de la liste Documentation, dans cet ordre ;
+   le reste des entrées garde l'ordre alphabétique. */
+const FEATURED_DOCS=["00_apercu_du_langage","23_aide_memoire","22_pieges_courants"];
+/* clé de tri liste : chevrons retirés pour que <recv>.méthode() se range à sa lettre.
+   préfixe "0"+rang pour les chapitres épinglés (passent devant, dans l'ordre du
+   tableau), "1"+alpha pour tout le reste — n'affecte que les items avec d.doc. */
+function sortKey(d){
+  const fi=d.doc?FEATURED_DOCS.indexOf(d.doc):-1;
+  if(fi>=0) return "0"+String(fi).padStart(3,"0");
+  return "1"+dispName(d).replace(/[<>]/g,"");
+}
+/* rang de pertinence pour le tri des résultats de recherche (q déjà normalisé) :
+   calculé sur les FORMES DE NOM (name/ascii/en). 0=exact, 1=préfixe, 2=sous-chaîne,
+   3=desc-only (le match ne venait que d'une description). */
+function relevanceRank(d,q){
+  const forms=[d.name,d.ascii,d.en].filter(Boolean).map(norm);
+  if(forms.some(f=>f===q)) return 0;
+  if(forms.some(f=>f.startsWith(q))) return 1;
+  if(forms.some(f=>f.includes(q))) return 2;
+  return 3;
+}
+/* comparateur recherche : pertinence croissante, tie-break alpha stable (comme sortKey). */
+function searchCmp(a,b,q){
+  /*  (support #355) — documentation-first : miroir du boost CLI. Quand
+     AUCUN filtre n'est actif (ni catégorie ni genre coché), les fiches
+     documentation (kind reference) remontent en tête ; dès qu'un filtre est
+     actif, l'utilisateur a restreint volontairement le périmètre → tri de
+     pertinence courant préservé. L'ordre intra-groupe reste gouverné par la
+     pertinence puis l'alpha (comme hors boost). */
+  if(!activeKinds.size && !activeCats.size){
+    const da=a.kind==="reference"?0:1, db=b.kind==="reference"?0:1;
+    if(da!==db) return da-db;
+  }
+  const r=relevanceRank(a,q)-relevanceRank(b,q);
+  return r!==0 ? r : dispName(a).replace(/[<>]/g,"").localeCompare(dispName(b).replace(/[<>]/g,""));
+}
+function dispDesc(d){ return lang==="en"?(d.descEN||d.descFR):d.descFR; }
+
+/* Traduction EN des types : primitifs (table statique ci-dessous) + composés
+   (nom EN canon issu de la data, alimenté juste après). */
+const TYPE_EN={ "chaîne":"string","chaine":"string","entier":"int","réel":"real","reel":"real",
+  "booléen":"bool","booleen":"bool","monétaire":"currency","numérique":"numeric",
+  "caractère":"char","date":"date","heure":"time","dateheure":"datetime","durée":"duration",
+  "duree":"duration","buffer":"buffer","json":"json","uuid":"uuid","octet":"byte",
+  "tableau":"array","liste":"list","pile":"stack","file":"queue","tout":"any","rien":"nothing" };
+/*  — types composés : leur nom EN canon (data .en) alimente aussi typeDisp,
+   pour que la colonne « type » des tableaux de propriétés bascule en EN (plus de
+   franglais nom-EN / type-FR). Clé par forme accentuée ET ascii (f.t est ascii). */
+DATA.forEach(_t=>{ if(_t.kind==="type"&&_t.en){ if(_t.name) TYPE_EN[_t.name]=_t.en; if(_t.ascii) TYPE_EN[_t.ascii]=_t.en; } });
+function typeDisp(t){ if(!t) return ""; return lang==="en"?(TYPE_EN[t]||t):t; }
+/* Signature bâtie côté viewer (bilingue) : nom EN + types traduits + masquage enum. */
+function buildSig(d,s){
+  const ps=(s.params||[]).map(p=> p.enum ? `${p.n} ∈ ${p.enum}` : `${p.n} : ${typeDisp(p.type||p.xref||"tout")}`);
+  return `${dispName(d)}(${ps.join(", ")}) → ${typeDisp(s.rt||"")}`;
+}
+
+/* i18n de l'habillage statique (labels, sections, recherche). */
+const I18N={
+  fr:{ search:"Rechercher…  (accents ignorés)", empty:"Sélectionne un symbole à gauche.",
+       symbols:"symboles", signature:"Signature", signatures:"Signatures", props:"Propriétés",
+       values:"Valeurs", usedby:"Utilisé par", ub_functions:"fonctions", ub_family:"famille",
+       belongs:"Appartient à", examples:"Exemples",
+       seealso:"Voir aussi", combinable:"combinable", exclusive:"exclusif",
+       enumeration:"énumération", combinaison:"combinaison", typecompose:"type",
+       k_native:"Fonction", k_type:"Type", k_enum:"Énumération", k_const:"Constante",
+       dotnotation:"Notation pointée", copy:"copier", copied:"copié !", filtercat:"filtrer cette catégorie",
+       groupcat:"grouper",
+       k_widget:"Champ", k_property:"Propriété", acceptedby:"Accepté par", fieldof:"Champ de", defprop:"Propriété par défaut",
+       k_event:"Événement", triggeredon:"Déclenché sur", events_sec:"Événements", params_n:"paramètre(s)",
+       k_reference:"Documentation", k_keyword:"Mot-clé",
+       assocfns:"Fonctions associées", seeall:"voir tout",
+       ref_errors:"Erreurs", ref_limits:"Limites",
+       ref_operators:"Opérateurs", ref_globalvars:"Variables globales",
+       ref_errors_intro:"Messages d'erreur du compilateur et du runtime, groupés par catégorie.",
+       ref_limits_intro:"Limites compile-time du compilateur.",
+       ref_operators_intro:"Opérateurs du langage et leur sémantique.",
+       ref_globalvars_intro:"Variables prédéfinies posées par le runtime, consultables dans le code.",
+       ref_novelties:"Nouveautés", ref_h_kind:"Genre",
+       ref_novelties_intro:"Fiches ajoutées depuis la version précédente.",
+       ref_novelties_since:"depuis",
+       ref_h_code:"Code", ref_h_msg:"Message", ref_h_name:"Nom", ref_h_value:"Valeur",
+       ref_h_desc:"Description", ref_h_cat:"Catégorie", ref_h_form:"Forme",
+       ref_h_meaning:"Sémantique", ref_h_syntax:"Syntaxe", ref_h_type:"Type", ref_readonly:"lecture seule",
+       notfound:"Élément non trouvé", notfound_hint:"Ce mot n'est pas un symbole documenté (une variable, par exemple). Essaie la recherche à gauche." },
+  en:{ search:"Search…  (accents ignored)", empty:"Select a symbol on the left.",
+       symbols:"symbols", signature:"Signature", signatures:"Signatures", props:"Properties",
+       values:"Values", usedby:"Used by", ub_functions:"functions", ub_family:"family",
+       belongs:"Belongs to", examples:"Examples",
+       seealso:"See also", combinable:"combinable", exclusive:"exclusive",
+       enumeration:"enumeration", combinaison:"combination", typecompose:"type",
+       k_native:"Function", k_type:"Type", k_enum:"Enumeration", k_const:"Constant",
+       dotnotation:"Dot notation", copy:"copy", copied:"copied!", filtercat:"filter this category",
+       groupcat:"group",
+       k_widget:"Control", k_property:"Property", acceptedby:"Accepted by", fieldof:"Field of", defprop:"Default property",
+       k_event:"Event", triggeredon:"Triggered on", events_sec:"Events", params_n:"param(s)",
+       k_reference:"Documentation", k_keyword:"Keyword",
+       assocfns:"Related functions", seeall:"see all",
+       ref_errors:"Errors", ref_limits:"Limits",
+       ref_operators:"Operators", ref_globalvars:"Global variables",
+       ref_errors_intro:"Compiler and runtime error messages, grouped by category.",
+       ref_limits_intro:"Compile-time limits of the compiler.",
+       ref_operators_intro:"Language operators and their semantics.",
+       ref_globalvars_intro:"Predefined variables set by the runtime, readable from code.",
+       ref_novelties:"What's new", ref_h_kind:"Kind",
+       ref_novelties_intro:"Pages added since the previous version.",
+       ref_novelties_since:"since",
+       ref_h_code:"Code", ref_h_msg:"Message", ref_h_name:"Name", ref_h_value:"Value",
+       ref_h_desc:"Description", ref_h_cat:"Category", ref_h_form:"Form",
+       ref_h_meaning:"Meaning", ref_h_syntax:"Syntax", ref_h_type:"Type", ref_readonly:"read-only",
+       notfound:"Item not found", notfound_hint:"This word isn't a documented symbol (a variable, for instance). Try the search on the left." }
+};
+function t(k){ return (I18N[lang]||I18N.fr)[k] || k; }
+function kindLabel(kind){ return t("k_"+kind); }
+function applyChrome(){
+  document.getElementById("search").placeholder=t("search");
+  if(!selected) document.getElementById("main").innerHTML=`<div class="empty">${t("empty")}</div>`;
+}
+function showNotFound(name){
+  selected=null; renderList();
+  document.getElementById("main").innerHTML=
+    `<div class="empty"><div style="font-size:52px;line-height:1">🦉</div>`+
+    `<h2 style="color:var(--fg);margin:10px 0 4px">${t("notfound")}</h2>`+
+    `<p style="font-family:ui-monospace,Consolas,monospace;color:var(--accent2)">${esc(name)}</p>`+
+    `<p style="font-size:13px;max-width:380px;margin:8px auto">${t("notfound_hint")}</p></div>`;
+}
+function copyText(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(txt);
+  const ta=document.createElement("textarea"); ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); }catch(e){}
+  document.body.removeChild(ta); return Promise.resolve();
+}
+
+/* "utilisé par" : dérivé. Une enum contraint soit un param de native
+   (signatures[].params[].enum), soit un champ de type composé
+   (fields[].enum — c'est là que vit l'essentiel des usages, ex
+   httpRequête.Méthode ∈ httpMéthodes). Retourne l'union dédupliquée
+   d'objets {name, kind} pour que le xref linke vers la BONNE fiche
+   (une native vers sa fiche native, un type vers sa fiche type). */
+function enumUsedBy(enumName){
+  const q=norm(enumName), seen=new Set(), out=[];
+  const add=(name,kind)=>{ const k=kind+"/"+norm(name); if(!seen.has(k)){ seen.add(k); out.push({name,kind}); } };
+  DATA.forEach(d=>{
+    if(d.kind==="native"&&d.signatures){
+      d.signatures.forEach(s=>(s.params||[]).forEach(p=>{ if(p.enum&&norm(p.enum)===q) add(d.name,"native"); }));
+    } else if(d.kind==="type"&&d.fields){
+      d.fields.forEach(f=>{ if(f.enum&&norm(f.enum)===q) add(d.name,"type"); });
+    }
+  });
+  return out;
+}
+/* chips à kind hétérogène : chaque entrée {name,kind} résout vers sa
+   propre fiche (vs chips() qui force un kind unique). */
+function chipsKinded(items){
+  return `<div class="neigh">`+items.map(it=>`<span class="ev" style="color:var(--accent2)">${xref(it.name,it.kind)}</span>`).join("")+`</div>`;
+}
+
+/* ---------- fonctions associées à un type primitif ----------
+   Une seule section : signaux curés, dédupliqués (chaque native une fois).
+   Une native est associée à un primitif d si l'un OU l'autre :
+   (a) catégorie curée   : x.cat === PRIM_CAT[norm(d.name)] (épine dorsale,
+       inclut Taille/Gauche/Droite… qui n'ont pas le primitif en 1er param).
+   (b) méthode du type   : x a un methodBinding dont le receiverType (recv)
+       vaut une forme du primitif — appelable comme méthode préfixe
+       (ex maChaîne.Gauche()). Le recv vit dans x.methods[].recv.
+   Le filtre "1er param/retour == type" est volontairement abandonné :
+   c'était de la présence (chaîne circule partout), pas de la pertinence. */
+/* clés normalisées (accent-strip + minuscules) — alignées sur norm() */
+const PRIM_CAT={ "chaine":"Chaines", "date":"Dates", "heure":"Dates", "duree":"Dates",
+  "dateheure":"Dates", "tableau":"Tableaux", "json":"JSON" };
+/* formes normalisées du primitif (FR canon / ascii / EN). */
+function primForms(d){ return new Set([d.name,d.ascii,d.en].filter(Boolean).map(norm)); }
+/* prédicat assoc partagé section ⇄ "voir tout" : la native x est-elle associée
+   au primitif décrit par (forms, cat) ? cat OU recv. Cohérence par construction :
+   la section et le filtre "voir tout" appliquent EXACTEMENT ce prédicat. */
+function isAssocFn(x, forms, cat){
+  if(x.kind!=="native") return false;
+  if(cat && x.cat===cat) return true;
+  return !!(x.methods&&x.methods.some(m=>m.recv&&forms.has(norm(m.recv))));
+}
+/* natives associées au primitif d (cat ∪ recv), dédupliquées, triées par nom. */
+function primAssocFns(d){
+  const forms=primForms(d), cat=PRIM_CAT[norm(d.name)]||null, seen=new Set(), out=[];
+  DATA.forEach(x=>{
+    if(seen.has(norm(x.name))) return;
+    if(isAssocFn(x,forms,cat)){ seen.add(norm(x.name)); out.push(x); }
+  });
+  return out.sort((a,b)=>dispName(a).localeCompare(dispName(b)));
+}
+
+/* ---------- coloration OWL officielle ---------- */
+const HL_KW = new Set((typeof HL_KW_RAW!=="undefined"?HL_KW_RAW:[]).map(norm));
+const HL_TYPE = new Set((typeof HL_TYPE_RAW!=="undefined"?HL_TYPE_RAW:[]).map(norm));
+const HL_BUILTIN_CONST = new Set(["vrai","faux","true","false","null"]);
+const NATIVE_SET = new Set();
+DATA.forEach(d=>{ if(d.kind==="native"){ [d.name,d.ascii,d.en].forEach(x=>x&&NATIVE_SET.add(norm(x))); }});
+["dbgVérifieEgalité","dbgVérifieVrai","dbgVérifieDifférent","Trace","Info"].forEach(x=>NATIVE_SET.add(norm(x)));
+const ENUM_MEMBER_SET = new Set();
+DATA.forEach(d=>{ if(d.kind==="const")ENUM_MEMBER_SET.add(norm(d.name)); if(d.kind==="enum"&&d.values)d.values.forEach(v=>ENUM_MEMBER_SET.add(norm(v))); });
+/* types composés + enums (utilisables comme type de variable) -> couleur type */
+const TYPE_SET = new Set();
+DATA.forEach(d=>{ if(d.kind==="type"||d.kind==="enum"){ [d.name,d.ascii,d.en].forEach(x=>x&&TYPE_SET.add(norm(x))); }});
+/* widget kinds (Saisie, Bouton, Libellé…) : colorés type après `Champ`, comme
+   le widget kind l'est côté CLI (is_owl_widget_kind). Dérivé de DATA. */
+const WIDGET_KIND_SET = new Set();
+DATA.forEach(d=>{ if(d.kind==="widget"){ [d.name,d.ascii,d.en].forEach(x=>x&&WIDGET_KIND_SET.add(norm(x))); }});
+/* propriétés DSL (Disposition, Libellé…) : colorées propriété (vert foncé) dans
+   un bloc PROPRIETES, pas type/violet. Dérivé de DSLPROPS. */
+const DSLPROP_SET = new Set();
+(typeof DSLPROPS!=="undefined"?DSLPROPS:[]).forEach(p=>{ [p.n,p.en].forEach(x=>x&&DSLPROP_SET.add(norm(x))); });
+/* events/hooks (surClic, FinInitialisation, avantChaqueTest, Main…) : colorés
+   fonction (bleu, support.function.event) quand ils suivent PROCEDURE/FONCTION.
+   Union owl.exe des 4 sources event/hook, émise par main.c. */
+const EVENT_SET = new Set((typeof HL_EVENT_RAW!=="undefined"?HL_EVENT_RAW:[]).map(norm));
+/* méthodes spéciales OOP (Constructeur/Destructeur) : nom orange (keyword.oop)
+   après PROCEDURE/FONCTION, pas vert (proc-name) ni bleu (event). */
+const OOP_SPECIAL_SET = new Set(["constructeur","constructor","destructeur","destructor"].map(norm));
+/* articles d'élision (un/une/des…) : colorés comme mots-clés en déclaration */
+["un","une","uns","unes","des"].forEach(x=>HL_KW.add(norm(x)));
+
+function tokenize(line){
+  const out=[], n=line.length; let i=0;
+  while(i<n){
+    const c=line[i];
+    if(c==="/"&&line[i+1]==="/"){ out.push({t:"com",v:line.slice(i)}); break; }
+    if(/\s/.test(c)){ let j=i; while(j<n&&/\s/.test(line[j]))j++; out.push({t:"ws",v:line.slice(i,j)}); i=j; continue; }
+    if(c==='"'){ let j=i+1; while(j<n){ if(line[j]==='"'){ if(line[j+1]==='"'){j+=2;continue;} j++; break; } j++; } out.push({t:"str",v:line.slice(i,j)}); i=j; continue; }
+    if(/[0-9]/.test(c)){ let j=i;
+      if(c==="0"&&(line[i+1]==="x"||line[i+1]==="X")){ j=i+2; while(j<n&&/[0-9a-fA-F_]/.test(line[j]))j++; }
+      else { while(j<n&&/[0-9]/.test(line[j]))j++; if(line[j]==="."&&/[0-9]/.test(line[j+1])){ j++; while(j<n&&/[0-9]/.test(line[j]))j++; } }
+      out.push({t:"num",v:line.slice(i,j)}); i=j; continue; }
+    if(/[A-Za-zÀ-ɏ_]/.test(c)){ let j=i; while(j<n&&/[A-Za-z0-9À-ɏ_]/.test(line[j]))j++; out.push({t:"id",v:line.slice(i,j)}); i=j; continue; }
+    { let j=i; while(j<n&&!/[\sA-Za-z0-9À-ɏ_"]/.test(line[j])&&!(line[j]==="/"&&line[j+1]==="/"))j++; if(j===i)j++; out.push({t:"op",v:line.slice(i,j)}); i=j; continue; }
+  }
+  return out;
+}
+/* `inProps` : vrai si la ligne est à l'intérieur d'un bloc PROPRIETES…FIN —
+   suivi au niveau de hl() car hlLine est stateless ligne par ligne. Dans ce
+   mode, les noms du catalogue DSLPROPS sont colorés propriété (vert foncé)
+   plutôt que type. */
+const DECL_INTRO=new Set(["procedure","fonction","function"]);
+const IS_WORDS=new Set(["est","is","sont","are"]);
+const ARTICLES=new Set(["un","une","uns","unes","des"]);
+const CHAMP_WORDS=new Set(["champ","field"]);
+/* Mots-clés OOP qui suivent `<NOM> est un(e)` pour déclarer un type user
+   (Structure/Classe/...). Le NOM avant `est` est l'entité (déjà via
+   declaresName) ; ces mots restent keyword (orange) — canon keyword.other.oop. */
+const OOP_DECL=new Set(["structure","classe","class","enumeration","énumération",
+  "combinaison","combination","interface"]);
+/* declaredTypeIsEntity(toks, nameIdx) : nameIdx pointe le NOM, le token suivant
+   non-blanc est `est/sont`. Saute `est`+article éventuel et lit le 1er token de
+   type. Retourne vrai si c'est un widget kind ou un mot user-type OOP (le NOM
+   mérite alors la couleur entité). Une déclaration de variable primitive
+   (entier/chaîne/…) ou de type composé/enum standard -> faux (NOM = défaut). */
+function declaredTypeIsEntity(toks,nameIdx){
+  let j=nameIdx+1;
+  while(j<toks.length && toks[j].t==="ws") j++;            /* est/sont */
+  if(j>=toks.length || !IS_WORDS.has(norm(toks[j].v))) return false;
+  j++;
+  while(j<toks.length && toks[j].t==="ws") j++;            /* article éventuel */
+  if(j<toks.length && toks[j].t==="id" && ARTICLES.has(norm(toks[j].v))){
+    j++; while(j<toks.length && toks[j].t==="ws") j++;
+  }
+  if(j>=toks.length || toks[j].t!=="id") return false;     /* 1er token de type */
+  const ty=norm(toks[j].v);
+  return WIDGET_KIND_SET.has(ty) || OOP_DECL.has(ty);
+}
+/* hlLine(line, inProps, inBrace, declared) — colore une ligne en miroir de la grammaire
+   TextMate (dsl-control-decl, dsl-properties, properties). `declared` est le set
+   des noms déclarés dans le snippet (collecté par hl(), R3 ré-emploi d'instance).
+   ORDRE DE PRÉCÉDENCE (haut = gagne) :
+     1. accès `..membre` (R5)            -> tok-op (blanc, native-property canon)
+     2. nom après PROCEDURE/FONCTION     -> event/hook bleu (tok-fn) si dans
+        EVENT_SET ; Constructeur/Destructeur orange (tok-kw) ; sinon proc
+        métier vert foncé (tok-proc)
+     3. widget-type en position type     -> tok-type (R1 ; PRÉCÈDE HL_KW : Fenêtre/
+        (après est/un/une, ou après Champ)   Groupe cessent d'être orange)
+     4. HL_KW (mots-clés contrôle)        -> tok-kw
+     5. appel natif                       -> tok-fn
+     6. nom déclaré `<NOM> est un(e) <widget|user-type>` -> tok-proc (R2 entity ;
+        primitive `n est un entier` -> NOM reste tok-var ; le mot OOP reste kw)
+     7. ré-emploi d'instance déclarée     -> tok-proc (R3)
+     8. heuristique préfixe UI            -> tok-proc
+     9. propriété en bloc PROPRIETES      -> tok-proc (R4)
+    10. type primitif / composé / enum    -> tok-type
+    11. const builtin / membre d'enum     -> tok-const (R6 jaune italique)
+    12. variable                          -> tok-var
+   (une native SANS `(` n'est PAS colorée -> elle tombe au défaut tok-var,
+    parité grammaire native-functions `(?=\s*\()`) */
+function hlLine(line,inProps,inBrace,declared){
+  declared=declared||EMPTY_SET;
+  const toks=tokenize(line); let out="", prev=null, prev2=null, afterChamp=false, afterDots=false;
+  for(let k=0;k<toks.length;k++){
+    const tk=toks[k];
+    if(tk.t==="ws"){ out+=tk.v; continue; }
+    if(tk.t==="com"){ out+=span("tok-com",tk.v); continue; }
+    if(tk.t==="str"){ out+=span("tok-str",tk.v); prev2=prev; prev=null; afterChamp=false; afterDots=false; continue; }
+    if(tk.t==="num"){ out+=span("tok-num",tk.v); prev2=prev; prev=null; afterChamp=false; afterDots=false; continue; }
+    if(tk.t==="op"){ out+=span("tok-op",tk.v);
+      /* `..` (accès propriété) : marque le prochain id comme membre (R5). Un `.`
+         simple non plus ne porte pas de membre vert ici (on reste conservateur :
+         seul `..` déclenche le blanc, aligné sur native-property). */
+      afterDots = (tk.v.indexOf("..")>=0);
+      prev2=prev; prev=null; afterChamp=false; continue; }
+    const w=norm(tk.v);
+    /* mot suivant non-blanc : '(' = appel de fonction ; mot `est/is/sont/are`
+       = ce token est le nom déclaré (`<NOM> est un(e) <Type>`). */
+    let nx=null; for(let j=k+1;j<toks.length;j++){ if(toks[j].t!=="ws"){ nx=toks[j]; break; } }
+    const calls = nx && nx.t==="op" && nx.v.charAt(0)==="(";
+    /* `<NOM> est un(e) <Type>` : le NOM n'est entité (vert foncé) QUE si le type
+       déclaré est un widget kind (Fenêtre/Groupe/Saisie…) ou un type utilisateur
+       (Structure/Classe/Énumération/Combinaison/Interface). Une variable primitive
+       (`n est un entier`) garde la couleur par défaut (tok-var). Mirroir des deux
+       seules règles grammaire qui colorent le NOM : dsl-control-decl + user-type. */
+    const declaresName = nx && nx.t==="id" && IS_WORDS.has(norm(nx.v))
+                         && declaredTypeIsEntity(toks,k);
+    /* position-type : juste après `est un/une` (prev=article, prev2=est-word),
+       ou après `Champ`/`Field`. Sur cette position un widget-type/type prime. */
+    const typePos = afterChamp || (ARTICLES.has(prev) && IS_WORDS.has(prev2));
+    /* membre d'un littéral inline `{ ... }` : un identifiant à gauche d'un `=`
+       réel (écarte `==`/`=>`/`..` groupés en un autre token op) est une cible de
+       field -> vert foncé membre (tok-proc), en surcharge de la classif
+       type/widget/const (qui sortirait `Couleur`/`Type` en violet). Les valeurs
+       (RHS) ne sont pas suivies d'un `=` et passent par la classif normale. */
+    const litMember = inBrace && nx && nx.t==="op" && nx.v==="=";
+    let cls;
+    if(afterDots) cls="tok-op";                                 /* R5 : `obj..Prop` -> membre blanc */
+    else if(DECL_INTRO.has(prev)){                              /* nom après PROCEDURE/FONCTION */
+      if(EVENT_SET.has(w)) cls="tok-fn";                        /*   event/hook câblé -> bleu (support.function.event) */
+      else if(OOP_SPECIAL_SET.has(w)) cls="tok-kw";            /*   Constructeur/Destructeur -> orange (keyword.oop) */
+      else cls="tok-proc";                                      /*   nom de proc métier normal -> vert foncé (entity) */
+    }
+    else if(litMember) cls="tok-proc";                          /* membre de littéral `{ Prop = ... }` -> vert foncé */
+    else if(afterChamp && (w==="de"||w==="of")) cls="tok-type"; /* filler `Champ de Saisie` -> violet (parité grammaire) */
+    else if(typePos && (WIDGET_KIND_SET.has(w)||HL_TYPE.has(w)||TYPE_SET.has(w))) cls="tok-type"; /* R1 widget-type prime sur HL_KW */
+    else if(HL_KW.has(w)) cls="tok-kw";
+    else if(calls && NATIVE_SET.has(w)) cls="tok-fn";          /* native colorée seulement si appel (parité grammaire `(?=\s*\()`) */
+    else if(declaresName) cls="tok-proc";                      /* R2 nom déclaré `<NOM> est un(e)` -> entity */
+    else if(declared.has(w)) cls="tok-proc";                   /* R3 ré-emploi d'instance déclarée -> entity */
+    else if(/^(fen|lib|sai|btn|img|cmb|slt|int|tbl|col|lis|ctr|zr|zrp|etat|rap|gr)_/.test(w)) cls="tok-proc"; /* instance UI */
+    else if(inProps && DSLPROP_SET.has(w)) cls="tok-proc";     /* R4 propriété dans bloc PROPRIETES -> vert foncé */
+    else if(HL_TYPE.has(w)||TYPE_SET.has(w)) cls="tok-type";   /* primitif ou type composé/enum */
+    else if(HL_BUILTIN_CONST.has(w)) cls="tok-const";
+    else if(prev!=="est"&&prev!=="is"&&ENUM_MEMBER_SET.has(w)) cls="tok-const"; /* R6 membre d'enum -> jaune italique */
+    else cls="tok-var";
+    out+=span(cls,tk.v);
+    /* `Champ`/`Field` arme afterChamp ; le filler `de`/`of` le maintient pour que
+       le widget kind qui suit (`Champ de Saisie`) reste en position-type. */
+    afterChamp = CHAMP_WORDS.has(w) || (afterChamp && (w==="de"||w==="of"));
+    afterDots=false;
+    prev2=prev; prev=w;
+  }
+  return out;
+}
+const EMPTY_SET=new Set();
+/* Collecte les noms déclarés dans un snippet (R3) : `<IDENT> est un(e) ...` et
+   `PROCEDURE/FONCTION <name>`. Sert à colorer en entity (tok-proc) les ré-emplois
+   plus loin (ex `GR_Mixte est un Groupe` puis `GR_Mixte..X`). Heuristique
+   intra-snippet : le doc-browser n'a pas de contexte projet. */
+function collectDeclared(code){
+  const set=new Set();
+  code.split("\n").forEach(ln=>{
+    const toks=tokenize(ln).filter(t=>t.t!=="ws"&&t.t!=="com");
+    for(let i=0;i<toks.length;i++){
+      const t=toks[i], nx=toks[i+1];
+      /* `IDENT est un(e) <Type>` : ne tracke comme entité ré-employable que si le
+         type est widget/user-type (même règle que declaresName). Une variable
+         primitive ré-employée reste défaut (tok-var). */
+      if(t.t==="id"&&nx&&nx.t==="id"&&IS_WORDS.has(norm(nx.v))&&declaredTypeIsEntity(toks,i)) set.add(norm(t.v));
+      if(t.t==="id"&&DECL_INTRO.has(norm(t.v))&&nx&&nx.t==="id") set.add(norm(nx.v)); /* PROCEDURE name */
+    }
+  });
+  return set;
+}
+/* Itère les lignes en suivant l'état "dans un bloc PROPRIETES" (un mot
+   PROPRIETES seul ouvre, le FIN correspondant ferme). Compteur de profondeur
+   pour gérer les blocs imbriqués (sous-blocs DSL). 1er passage = collecte des
+   noms déclarés (R3), passé à chaque hlLine. */
+/* Compte le solde net `{` - `}` d'une ligne, en ignorant chaînes et commentaires
+   (tokenize les isole). Sert à suivre l'imbrication des littéraux inline `{ ... }`
+   cross-ligne, en miroir de `depth` pour les blocs PROPRIETES. */
+function braceDelta(line){
+  let d=0;
+  for(const tk of tokenize(line)){
+    if(tk.t!=="op") continue;
+    for(const ch of tk.v){ if(ch==="{") d++; else if(ch==="}") d--; }
+  }
+  return d;
+}
+function hl(code){
+  const declared=collectDeclared(code);
+  const lines=code.split("\n"); let depth=0, braceDepth=0; const out=[];
+  for(const ln of lines){
+    const t=norm(ln.trim());
+    const inProps = depth>0;
+    const inBrace = braceDepth>0;   /* état AVANT cette ligne (les membres d'un `{` ouvert plus haut) */
+    braceDepth += braceDelta(ln); if(braceDepth<0) braceDepth=0;
+    if(/^proprietes\b/.test(t)){ out.push(hlLine(ln,inProps,inBrace,declared)); depth++; continue; }
+    if(depth>0 && /^fin\b/.test(t)){ depth--; out.push(hlLine(ln,depth>0,inBrace,declared)); continue; }
+    out.push(hlLine(ln,inProps,inBrace,declared));
+  }
+  return out.join("\n");
+}
+function stripProc(code){
+  let lines=code.split("\n");
+  if(lines.length&&/^\s*(PROCEDURE|FONCTION)\b/i.test(lines[0])) lines.shift();
+  while(lines.length&&lines[lines.length-1].trim()==="") lines.pop();
+  if(lines.length&&/^\s*FIN\s*$/i.test(lines[lines.length-1])) lines.pop();
+  while(lines.length&&lines[0].trim()==="") lines.shift();
+  return lines.map(l=> l.startsWith("\t")?l.slice(1):l.replace(/^ {1,4}/,"")).join("\n");
+}
+function hlMark(text){
+  if(!query) return esc(text);
+  const nt=norm(text), nq=norm(query), i=nt.indexOf(nq);
+  if(i<0) return esc(text);
+  return esc(text.slice(0,i))+"<mark>"+esc(text.slice(i,i+query.length))+"</mark>"+esc(text.slice(i+query.length));
+}
+
+/* ---------- sidebar ---------- */
+/* Filtre par KIND (axe orthogonal aux catégories), chips dans #kindfilters. */
+const KIND_ORDER=["native","type","enum","const","keyword","widget","event","property","reference"];
+function buildKindFilters(){
+  /* chips construits sur filterKind : les formes pointées (method) se replient
+     dans le chip Fonction, donc aucun chip "Méthode" séparé n'apparaît. */
+  const present=new Set(allItems().map(filterKind));
+  /* KIND_ORDER reste la source de la LISTE des kinds ; l'AFFICHAGE est trié
+     alpha sur le label localisé (l'ordre diffère donc FR/EN, d'où le re-tri
+     au toggle de langue via setLang -> buildKindFilters). */
+  const kinds=KIND_ORDER.filter(k=>present.has(k))
+    .sort((a,b)=> a==="reference" ? -1 : b==="reference" ? 1 : kindLabel(a).localeCompare(kindLabel(b)));
+  const f=document.getElementById("kindfilters"); f.innerHTML="";
+  kinds.forEach(k=>{ const el=document.createElement("span");
+    el.className="chip kf-"+k+(activeKinds.has(k)?" on":""); el.textContent=kindLabel(k);
+    el.onclick=()=>{ activeKinds.has(k)?activeKinds.delete(k):activeKinds.add(k); buildKindFilters(); renderList(); document.getElementById("list").scrollTop=0; };
+    f.appendChild(el); });
+}
+function buildFilters(){
+  const cats=[...new Set(allItems().map(d=>d.cat))].sort(), f=document.getElementById("filters"); f.innerHTML="";
+  cats.forEach(c=>{ const el=document.createElement("span"); el.className="chip"+(activeCats.has(c)?" on":""); el.textContent=c;
+    el.onclick=()=>{ activeCats.has(c)?activeCats.delete(c):activeCats.add(c); buildFilters(); renderList(); document.getElementById("list").scrollTop=0; }; f.appendChild(el); });
+}
+function match(d){
+  /* filtre transitoire "fonctions associées" : ne garde que les natives associées
+     au primitif (même prédicat que la section). Posé par le "voir tout" ; les
+     autres axes (kind/cat) sont vidés par le clic. */
+  if(assocType){ if(!isAssocFn(d,assocType.forms,assocType.cat)) return false; }
+  if(activeKinds.size){ if(!activeKinds.has(filterKind(d))) return false; }   /* filterKind : sélectionner Fonction inclut les formes pointées */
+  if(activeCats.size&&!activeCats.has(d.cat)) return false;
+  if(!query) return true;
+  const q=norm(query);
+  return [d.name,d.ascii,d.en,d.descFR,d.descEN].some(x=>x&&norm(x).includes(q));
+}
+function renderList(){
+  const list=document.getElementById("list"), items=allItems().filter(match);
+  document.getElementById("counttext").textContent=items.length+" / "+allItems().length+" "+t("symbols");
+  list.innerHTML=""; visibleItems=[];
+  const mkItem=d=>{ const it=document.createElement("div"); it.className="item"+(selected===d?" sel":"");
+    it.innerHTML=`<span class="kindbadge k-${filterKind(d)}">${kindLabel(filterKind(d))}</span><span class="nm">${hlMark(dispName(d))}</span>`;
+    /* une forme pointée ouvre la fiche de la native qui la documente (pas de
+       fiche dédiée) ; les autres entrées s'ouvrent telles quelles. */
+    it.onclick=()=>{ const tgt = d.kind==="method" ? (byName[norm(d.native)]||d) : d; select(tgt); };
+    list.appendChild(it); visibleItems.push(d); };
+  /* requête active -> tri par pertinence (nom exact/préfixe/sous-chaîne, puis desc-only) ;
+     browse (query vide) -> tri historique sortKey (chapitres épinglés + alpha). */
+  const q=query?norm(query):null;
+  const cmp=q ? (a,b)=>searchCmp(a,b,q) : (a,b)=>sortKey(a).localeCompare(sortKey(b));
+  if(grouped){
+    const groups={}; items.forEach(d=>{(groups[d.cat]=groups[d.cat]||[]).push(d);});
+    Object.keys(groups).sort().forEach(cat=>{
+      const g=document.createElement("div"); g.className="grp"; g.textContent=cat; list.appendChild(g);
+      groups[cat].sort(cmp).forEach(mkItem);
+    });
+  } else {
+    items.slice().sort(cmp).forEach(mkItem);
+  }
+}
+
+/* ---------- fiche ---------- */
+/* xref : clé stable = nom canon + genre (data-go/data-kind), libellé EN-aware. */
+function xref(name,kind){ const d=resolve(name,kind); return d?`<a class="xref" data-go="${esc(d.name)}" data-kind="${d.kind}">${esc(dispName(d))}</a>`:esc(name); }
+function chips(names,kind){ return `<div class="neigh">`+names.map(n=>`<span class="ev" style="color:var(--accent2)">${xref(n,kind)}</span>`).join("")+`</div>`; }
+
+function select(d, fromHash, replace){
+  selected=d; renderList();
+  const m=document.getElementById("main");
+  /* fiche de référence agrégée : rendu dédié (table groupée) au lieu de la
+     fiche symbole standard. L'entrée vit dans DATA (kind reference) mais son
+     contenu est dans les consts ERRORS/… retrouvées par refkey. */
+  if(d.kind==="reference" && (REF_RENDER[d.refkey] || (d.doc && REF_GUIDES[d.doc]))){
+    /* deux formes sous l'umbrella "Documentation" : refkey -> table registry
+       agrégée ; doc -> chapitre de prose rendu par le mini-renderer markdown. */
+    m.innerHTML = d.refkey ? REF_RENDER[d.refkey]() : renderGuidePage(REF_GUIDES[d.doc]);
+    m.scrollTop=0;
+    /* clé du hash = refkey/doc unique (désambiguïse table vs chapitre homonymes),
+       pas dispName : route #<lang>/reference/<operators|05_operateurs>. */
+    const want=lang+"/reference/"+encodeURIComponent(d.refkey||d.doc);
+    if(!fromHash){
+      if(replace && history.replaceState) history.replaceState(null,"","#"+want);
+      else if(location.hash.slice(1)!==want) location.hash=want;
+    }
+    /* boutons copier des blocs de code du chapitre */
+    m.querySelectorAll(".copybtn").forEach(b=> b.onclick=()=>{ const pre=b.parentNode.querySelector("pre.code"); copyText(pre.innerText).then(()=>{ b.textContent=t("copied"); setTimeout(()=>b.textContent=t("copy"),1200); }); });
+    /* cross-refs chapitre rendus par mdInline : même câblage data-go que la
+       fiche symbole (le rendu chapitre return avant le wiring commun L865). */
+    m.querySelectorAll("[data-go]").forEach(a=> a.onclick=()=>{ const t=resolve(a.dataset.go,a.dataset.kind); if(t) select(t); });
+    const sel=document.querySelector("#list .item.sel"); if(sel) sel.scrollIntoView({block:"nearest"});
+    return;
+  }
+  let h=`<div class="fiche"><div class="ftitle"><h1>${esc(dispName(d))}</h1>`;
+  /* forme alternative seulement si elle existe et diffère (pas de doublon sur
+     les enums/consts mono-nommés) */
+  const alt = lang==="en" ? (d.en ? d.name : null) : (d.en && d.en!==d.name ? d.en : null);
+  if(alt) h+=`<span class="en">${esc(alt)}</span>`;
+  if(d.ascii&&d.ascii!==d.name&&d.ascii!==dispName(d)) h+=`<span class="ascii">${esc(d.ascii)}</span>`;
+  h+=`</div><div class="meta"><span class="tag">${kindLabel(d.kind)}</span><span class="tag tagcat" data-cat="${esc(d.cat)}" title="${esc(t("filtercat"))}">${esc(d.cat)}</span>`;
+  if(d.kind==="enum") h+=`<span class="tag">${d.combinable?t("combinable"):t("exclusive")}</span>`;
+  h+=`</div><p class="desc">${esc(dispDesc(d)||"")}</p>`;
+  /* feat/1866 : renvoi de collision — cette fiche existante partage son nom
+     avec un membre imbriqué (propriété widget et/ou champ de type composite).
+     Lien vers la fiche « membre » agrégée (resolve(name,"property")). */
+  if(d.memberXref){ const mx = lang==="en"?(d.memberXrefEN||d.memberXref):d.memberXref;
+    h+=`<p class="memberxref">→ <a class="xref" data-go="${esc(d.name)}" data-kind="property">${esc(mx)}</a></p>`; }
+  if(d.kind==="widget"){
+    if(d.defprop) h+=`<h2 class="sec">${t("defprop")}</h2>`+chips([d.defprop],"property");
+    const ps=(propsByWidget[d.ascii]||[]).slice().sort((a,b)=>a.n.localeCompare(b.n));
+    if(ps.length){
+      h+=`<h2 class="sec">${t("props")} (${ps.length})</h2><table class="fields">`;
+      ps.forEach(p=>{ let typ = p.enm?xref(p.enm,"enum") : p.obj?xref(p.obj,"type") : esc(p.t);
+        const pd = (lang==="en"?(p.descEN||p.descFR):p.descFR)||"";
+        h+=`<tr><td class="fn">${xref(p.n,"property")}</td><td class="ft">${typ}</td><td>${esc(pd)}</td></tr>`; });
+      h+=`</table>`;
+    }
+    const evs=(eventsByWidget[d.ascii]||[]).slice().sort((a,b)=>a.n.localeCompare(b.n));
+    if(evs.length){
+      h+=`<h2 class="sec">${t("events_sec")} (${evs.length})</h2><table class="fields">`;
+      evs.forEach(ev=>{ const pd=(lang==="en"?(ev.descEN||ev.descFR):ev.descFR)||"";
+        h+=`<tr><td class="fn">${xref(ev.n,"event")}</td><td class="ft">${ev.np?ev.np+" "+t("params_n"):""}</td><td>${esc(pd)}</td></tr>`; });
+      h+=`</table>`;
+    }
+  }
+  if(d.kind==="property"){
+    /* type qualifié : enum -> "énumération <nom>" (ou "combinaison" si flag
+       combinable, cf. params L724) ; objet composé -> "type <nom>" ; le nom
+       reste un xref cliquable. primitif (ptype) inchangé. */
+    let typ;
+    if(d.enm){ const e=resolve(d.enm,"enum");
+      typ=`${t(e&&e.combinable?"combinaison":"enumeration")} ${xref(d.enm,"enum")}`;
+    } else if(d.obj){ typ=`${t("typecompose")} ${xref(d.obj,"type")}`;
+    } else { typ=esc(d.ptype||""); }
+    h+=`<h2 class="sec">Type</h2><div class="enumvals"><span class="ev" style="color:var(--c-type)">${typ}</span></div>`;
+    if(d.widgets&&d.widgets.length){ h+=`<h2 class="sec">${t("acceptedby")}</h2>`+chips(d.widgets,"widget"); }
+    if(d.types&&d.types.length){ h+=`<h2 class="sec">${t("fieldof")}</h2>`+chips(d.types,"type"); }
+  }
+  if(d.kind==="event"){
+    if(d.np) h+=`<p class="exsub">${d.np} ${t("params_n")}</p>`;
+    if(d.widgets&&d.widgets.length){ h+=`<h2 class="sec">${t("triggeredon")}</h2>`+chips(d.widgets,"widget"); }
+  }
+  if(d.kind==="keyword"){
+    if(d.syntax) h+=`<h2 class="sec">${t("ref_h_syntax")}</h2><div class="codewrap"><pre class="code">${hl(d.syntax)}</pre></div>`;
+    if(d.example) h+=`<h2 class="sec">${t("examples")}</h2><div class="codewrap"><button class="copybtn">${t("copy")}</button><pre class="code">${hl(d.example)}</pre></div>`;
+  }
+
+  if(d.kind==="type"){
+    /* fonctions associées : signaux curés (catégorie ∪ méthodes du type),
+       dédupliqués. chips xref cliquables, même markup que "Voir aussi". */
+    const assocFns=primAssocFns(d);
+    if(assocFns.length){
+      /* cap d'affichage : au-delà de ASSOC_CAP, "voir tout (N)" pose le filtre
+         transitoire assocType (cf. match) — même prédicat que la section, donc
+         compteur section == compteur filtre. */
+      const shown=assocFns.slice(0,ASSOC_CAP);
+      let more = assocFns.length>ASSOC_CAP
+        ? ` <a class="seeall" data-assoc="${esc(d.name)}" data-assoc-kind="${esc(d.kind)}">${t("seeall")} (${assocFns.length})</a>`
+        : "";
+      h+=`<h2 class="sec">${t("assocfns")} (${assocFns.length})${more}</h2>`+chips(shown.map(x=>x.name),"native");
+    }
+  }
+
+  if(d.signatures&&d.signatures.length){
+    h+=`<h2 class="sec">${d.signatures.length>1?t("signatures"):t("signature")}</h2>`;
+    d.signatures.forEach(s=>{
+      h+=`<div class="sig"><code>${esc(buildSig(d,s))}</code><div class="params">`;
+      (s.params||[]).forEach(p=>{
+        let pd="";
+        if(p.enum){
+          const e=resolve(p.enum,"enum");
+          pd+=`<span class="ptype">∈ ${xref(p.enum,"enum")}</span>`;
+          if(e&&e.combinable) pd+=` <span class="pdim">${t("combinable")}</span>`;
+          if(e&&e.values) pd+=`<div class="optchips">`+e.values.map(v=>`<span class="oc">${xref(v,"const")}</span>`).join("")+`</div>`;
+          if(p.d) pd=`<div class="pdim">${esc(p.d)}</div>`+pd;
+        } else if(p.xref){
+          pd+=`<span class="ptype">${xref(p.xref,"type")}</span>`+(p.d?` ${esc(p.d)}`:"");
+        } else {
+          if(p.type) pd+=`<span class="ptype">${esc(typeDisp(p.type))}</span> `;
+          pd+=esc(p.d||"");
+        }
+        h+=`<div class="pn">${esc(p.n)}</div><div class="pd">${pd}</div>`;
+      });
+      h+=`<div class="pn ret">→</div><div class="pd ret">${esc(s.ret||"")}</div></div></div>`;
+    });
+  }
+  if(d.kind==="native"&&d.methods&&d.methods.length){
+    h+=`<h2 class="sec">${t("dotnotation")}</h2><div class="mforms">`;
+    d.methods.forEach(m=> h+=`<span class="mform">&lt;${esc(lang==="en" ? typeDisp(m.recv) : (byTypeAscii[norm(m.recv)] || m.recv))}&gt;.${esc(lang==="en"?(m.en||m.fr):(m.fr||m.en))}()</span>`);
+    h+=`</div>`;
+  }
+  if(d.fields&&d.fields.length){
+    h+=`<h2 class="sec">${t("props")} (${d.fields.length})</h2><table class="fields">`;
+    d.fields.forEach(f=>{
+      const nm=lang==="en"&&f.en?f.en:f.n; let typ=esc(typeDisp(f.t||"")); if(f.enum) typ+=` ∈ ${xref(f.enum,"enum")}`;
+      const fd=lang==="en"&&f.dEN?f.dEN:f.d;
+      h+=`<tr><td class="fn">${esc(nm)}</td><td class="ft">${typ}</td><td>${esc(fd||"")}</td></tr>`;
+    });
+    h+=`</table>`;
+  }
+  /* Utilisé par (types composés) : soit la liste liée des consommateurs
+     (natives/types), soit — au-delà du cap — un renvoi cliquable vers la
+     famille (catégorie du type), réutilisant la navigation data-cat. */
+  if(d.kind==="type"){
+    if(d.used_by&&d.used_by.length){
+      h+=`<h2 class="sec">${t("usedby")}</h2>`+chipsKinded(d.used_by);
+    } else if(d.used_by_family){
+      h+=`<h2 class="sec">${t("usedby")}</h2><div class="neigh">`+
+         `<span class="ev" style="color:var(--accent2)" data-cat="${esc(d.used_by_family)}" title="${esc(t("filtercat"))}">`+
+         `${d.used_by_total} ${t("ub_functions")} — ${t("ub_family")} ${esc(d.used_by_family)}</span></div>`;
+    }
+  }
+  if(d.values){
+    h+=`<h2 class="sec">${t("values")} (${d.values.length})</h2><div class="enumvals">`;
+    d.values.forEach(v=> h+=`<span class="ev">${xref(v,"const")}</span>`);
+    h+=`</div>`;
+    const ub=enumUsedBy(d.name);
+    if(ub.length){ h+=`<h2 class="sec">${t("usedby")}</h2>`+chipsKinded(ub); }
+  }
+  if(d.kind==="const"){
+    if(d.enum){ h+=`<h2 class="sec">${t("belongs")}</h2>`+chips([d.enum],"enum"); }
+    const ub=d.enum?enumUsedBy(d.enum):[];
+    if(ub.length){ h+=`<h2 class="sec">${t("usedby")}</h2>`+chipsKinded(ub); }
+  }
+  if(d.examples&&d.examples.length){
+    h+=`<h2 class="sec">${t("examples")}</h2>`;
+    d.examples.forEach(ex=>{
+      h+=`<p class="extitle">${esc(ex.title)}</p>`;
+      if(ex.sub) h+=`<p class="exsub">${esc(ex.sub)}</p>`;
+      h+=`<div class="codewrap"><button class="copybtn">${t("copy")}</button><pre class="code">${hl(stripProc(ex.code))}</pre></div>`;
+    });
+  }
+  /* "Voir aussi" : fiches->guides declaratifs/heuristiques (chapterLink ->
+     #<lang>/reference/<stem>) PUIS voisins registry, sous un seul en-tete
+     (parite avec la section "Voir aussi" du CLI). */
+  const hasGuides=d.public_documentation&&d.public_documentation.length;
+  const hasNbr=d.neighbors&&d.neighbors.length;
+  if(hasGuides||hasNbr){
+    h+=`<h2 class="sec">${t("seealso")}</h2>`;
+    if(hasGuides) h+=`<div class="neigh">`+d.public_documentation.map(stem=>
+      `<span class="ev">`+chapterLink(stem)+`</span>`).join("")+`</div>`;
+    if(hasNbr) h+=chips(d.neighbors,"native");
+  }
+  h+=`</div>`;
+  m.innerHTML=h; m.scrollTop=0;
+  /* historique : #<lang>/<genre>/<nom> -> Back revient en arrière, lien
+     partageable, langue préservée, homonymes désambiguïsés par le genre */
+  const slug = dispName(d);
+  const want=lang+"/"+d.kind+"/"+encodeURIComponent(slug);
+  if(!fromHash){
+    if(replace && history.replaceState) history.replaceState(null,"","#"+want);
+    else if(location.hash.slice(1)!==want) location.hash=want;
+  }
+  m.querySelectorAll("[data-go]").forEach(a=> a.onclick=()=>{ const t=resolve(a.dataset.go,a.dataset.kind); if(t) select(t); });
+  m.querySelectorAll(".copybtn").forEach(b=> b.onclick=()=>{ const pre=b.parentNode.querySelector("pre.code"); copyText(pre.innerText).then(()=>{ b.textContent=t("copied"); setTimeout(()=>b.textContent=t("copy"),1200); }); });
+  m.querySelectorAll("[data-cat]").forEach(el=> el.onclick=()=>{ assocType=null; activeCats=new Set([el.dataset.cat]); activeKinds=new Set(); query=""; document.getElementById("search").value=""; syncSearchClear(); buildKindFilters(); buildFilters(); renderList(); document.getElementById("list").scrollTop=0; });
+  /* "voir tout" de la section "Fonctions associées" : pose le filtre transitoire
+     assocType = {forms, cat} du primitif (même prédicat que la section, donc même
+     compteur), vide les autres axes, repart en tête de liste. Tous les resets
+     (resetAll/data-cat/search/searchclear) annulent assocType. */
+  m.querySelectorAll("[data-assoc]").forEach(el=> el.onclick=()=>{ const td=resolve(el.dataset.assoc,el.dataset.assocKind); if(!td) return; assocType={forms:primForms(td),cat:PRIM_CAT[norm(td.name)]||null}; activeCats=new Set(); activeKinds=new Set(); query=""; document.getElementById("search").value=""; syncSearchClear(); buildKindFilters(); buildFilters(); renderList(); document.getElementById("list").scrollTop=0; });
+  const sel=document.querySelector("#list .item.sel"); if(sel) sel.scrollIntoView({block:"nearest"});
+}
+
+/* ---------- fiches de référence agrégées ---------- */
+/* Chaque fiche est une entrée DATA (kind reference) sélectionnable comme
+   n'importe quel symbole ; son rendu (table groupée) est produit ici et
+   déclenché par select() via le refkey de l'entrée. */
+/* ordre canon d'affichage des catégories d'erreurs (pipeline compilateur →
+   runtime). Toute catégorie hors liste est rendue après, dans l'ordre registry. */
+const ERR_CAT_ORDER=["lex","syntax","semantic","runtime","native","io","warning"];
+const ERR_CAT_LABEL={
+  fr:{lex:"Analyse lexicale",syntax:"Syntaxe",semantic:"Sémantique",runtime:"Exécution",native:"Fonctions natives",io:"Entrées / sorties",warning:"Avertissements"},
+  en:{lex:"Lexing",syntax:"Syntax",semantic:"Semantic",runtime:"Runtime",native:"Native functions",io:"Input / output",warning:"Warnings"}
+};
+function errCatLabel(c){ return (ERR_CAT_LABEL[lang]||ERR_CAT_LABEL.fr)[c] || c; }
+
+function refDesc(o){ return lang==="en"?(o.descEN||o.descFR||""):(o.descFR||o.descEN||""); }
+
+function renderErrorsPage(){
+  let h=`<div class="fiche"><div class="ftitle"><h1>${esc(t("ref_errors"))}</h1></div>`;
+  h+=`<p class="refintro">${esc(t("ref_errors_intro"))} (${REF_ERRORS.length})</p>`;
+  const byCat={}; REF_ERRORS.forEach(e=>{ (byCat[e.cat]=byCat[e.cat]||[]).push(e); });
+  const cats=ERR_CAT_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>ERR_CAT_ORDER.indexOf(c)<0).sort());
+  cats.forEach(c=>{
+    const rows=byCat[c];
+    h+=`<h2 class="sec">${esc(errCatLabel(c))} <span class="refcatcount">(${rows.length})</span></h2>`;
+    h+=`<table class="ref"><tr><th>${esc(t("ref_h_code"))}</th><th>${esc(t("ref_h_name"))}</th><th>${esc(t("ref_h_msg"))}</th></tr>`;
+    rows.forEach(e=>{ h+=`<tr><td class="ecode">${esc(e.code||"")}</td><td class="ename">${esc(e.name)}</td><td>${esc(refDesc(e))}</td></tr>`; });
+    h+=`</table>`;
+  });
+  h+=`</div>`; return h;
+}
+
+function renderLimitsPage(){
+  let h=`<div class="fiche"><div class="ftitle"><h1>${esc(t("ref_limits"))}</h1></div>`;
+  h+=`<p class="refintro">${esc(t("ref_limits_intro"))} (${REF_LIMITS.length})</p>`;
+  h+=`<table class="ref"><tr><th>${esc(t("ref_h_name"))}</th><th>${esc(t("ref_h_value"))}</th><th>${esc(t("ref_h_desc"))}</th><th>${esc(t("ref_h_cat"))}</th></tr>`;
+  REF_LIMITS.forEach(L=>{ h+=`<tr><td class="ename">${esc(L.name)}</td><td class="eval">${esc(String(L.value))}</td><td>${esc(refDesc(L))}</td><td class="mono">${esc(L.cat||"")}</td></tr>`; });
+  h+=`</table></div>`; return h;
+}
+
+function renderOperatorsPage(){
+  let h=`<div class="fiche"><div class="ftitle"><h1>${esc(t("ref_operators"))}</h1></div>`;
+  h+=`<p class="refintro">${esc(t("ref_operators_intro"))} (${REF_OPERATORS.length})</p>`;
+  /* grouper par catégorie, une ligne par sens (un opérateur multi-sens occupe
+     plusieurs lignes, sa forme n'est répétée que sur la 1re). */
+  const byCat={}; REF_OPERATORS.forEach(o=>{ (byCat[o.cat]=byCat[o.cat]||[]).push(o); });
+  Object.keys(byCat).forEach(c=>{
+    h+=`<h2 class="sec">${esc(c||"")}</h2>`;
+    h+=`<table class="ref"><tr><th>${esc(t("ref_h_form"))}</th><th>${esc(t("ref_h_meaning"))}</th><th>${esc(t("ref_h_syntax"))}</th></tr>`;
+    byCat[c].forEach(o=>{
+      const senses=o.senses&&o.senses.length?o.senses:[{}];
+      senses.forEach((s,i)=>{
+        const label=lang==="en"?(s.labelEN||s.labelFR||""):(s.labelFR||s.labelEN||"");
+        const desc=lang==="en"?(s.descEN||s.descFR||""):(s.descFR||s.descEN||"");
+        const meaning=label&&desc?`${esc(label)} — ${esc(desc)}`:esc(label||desc||"");
+        h+=`<tr><td class="eval">${i===0?esc(o.form):""}</td><td>${meaning}</td><td class="mono">${esc(s.syntax||"")}</td></tr>`;
+      });
+    });
+    h+=`</table>`;
+  });
+  h+=`</div>`; return h;
+}
+
+function renderGlobalvarsPage(){
+  let h=`<div class="fiche"><div class="ftitle"><h1>${esc(t("ref_globalvars"))}</h1></div>`;
+  h+=`<p class="refintro">${esc(t("ref_globalvars_intro"))} (${REF_GLOBALVARS.length})</p>`;
+  h+=`<table class="ref"><tr><th>${esc(t("ref_h_name"))}</th><th>${esc(t("ref_h_type"))}</th><th>${esc(t("ref_h_desc"))}</th></tr>`;
+  REF_GLOBALVARS.forEach(g=>{
+    const nm=lang==="en"&&g.en?g.en:g.name;
+    const ro=g.readonly?` <span class="pdim">(${esc(t("ref_readonly"))})</span>`:"";
+    h+=`<tr><td class="ename">${esc(nm)}${ro}</td><td class="mono">${esc(g.type||"")}</td><td>${esc(refDesc(g))}</td></tr>`;
+  });
+  h+=`</table></div>`; return h;
+}
+
+/* feat/1148 — fiche "Nouveautés" : fiches ajoutées depuis la release
+   précédente. Chaque entrée (k=genre, n=clé de résolution) est reliée à sa
+   fiche via resolve() ; le nom affiché et la desc sont ceux de la fiche
+   cible (pas de duplication de contenu). Note de repli (note/noteEN) émise
+   par le générateur pour les cas où resolve() échouerait. */
+const REF_NOVELTIES = (typeof NOVELTIES!=="undefined"?NOVELTIES:[]);
+const NOV_BASE = (typeof NOVELTIES_BASE!=="undefined"?NOVELTIES_BASE:null);
+const OWL_VER  = (typeof OWL_VERSION!=="undefined"?OWL_VERSION:null);
+function renderNoveltiesPage(){
+  let h=`<div class="fiche"><div class="ftitle"><h1>${esc(t("ref_novelties"))}</h1>`;
+  if(OWL_VER) h+=`<span class="en">${esc(OWL_VER)}${NOV_BASE?` (${esc(t("ref_novelties_since"))} ${esc(NOV_BASE)})`:""}</span>`;
+  h+=`</div>`;
+  h+=`<p class="refintro">${esc(t("ref_novelties_intro"))} (${REF_NOVELTIES.length})</p>`;
+  h+=`<table class="ref"><tr><th>${esc(t("ref_h_name"))}</th><th>${esc(t("ref_h_kind"))}</th><th>${esc(t("ref_h_desc"))}</th></tr>`;
+  REF_NOVELTIES.forEach(it=>{
+    const d=resolve(it.n,it.k);
+    const disp=d?dispName(d):it.n;
+    const note=d?(dispDesc(d)||""):(lang==="en"?(it.noteEN||it.note||""):(it.note||it.noteEN||""));
+    const cell=d?`<a class="xref" data-go="${esc(it.n)}" data-kind="${esc(it.k)}">${esc(disp)}</a>`:esc(disp);
+    h+=`<tr><td class="ename">${cell}</td><td>${esc(kindLabel(it.k))}</td><td>${esc(note)}</td></tr>`;
+  });
+  h+=`</table></div>`; return h;
+}
+
+const REF_RENDER={ errors:renderErrorsPage, limits:renderLimitsPage,
+  operators:renderOperatorsPage, globalvars:renderGlobalvarsPage,
+  novelties:renderNoveltiesPage };
+
+/* ---------- mini-renderer markdown (chapitres de prose) ----------
+   Pas un parseur MD complet : couvre les constructs réellement utilisés par
+   les chapitres docs/public_documentation (titres #..####, fences ```owl```
+   colorées via hl() / autres en clair, listes - * et numérotées, citations >,
+   tableaux |, gras **, italique *, code inline `, liens [txt](url),
+   paragraphes). Rendu visé : lisible, proche de `owl learn`. */
+
+/* Cross-ref chapitre : un stem connu de GUIDES (ex 00_apercu_du_langage,
+   avec ou sans .md) devient un lien vers sa fiche #<lang>/reference/<stem>,
+   via le même mécanisme data-go que xref() (handler câblé dans select()).
+   Un stem inconnu renvoie null -> rendu inchangé (pas de lien cassé) ; on ne
+   touche donc pas aux vrais code-spans (Null, EstNul(s)…). */
+function chapterStem(raw){
+  if(!raw) return null;
+  const stem=raw.replace(/\.md$/i,"").trim();
+  return REF_GUIDES[stem] ? stem : null;
+}
+function chapterLink(stem,fallbackText){
+  const g=REF_GUIDES[stem];
+  const label=g&&g.title?g.title:(fallbackText||stem);
+  return `<a class="xref" data-go="${esc(stem)}" data-kind="reference">${esc(label)}</a>`;
+}
+
+/* inline : escape HTML d'abord, puis code inline (protégé), puis liens, gras,
+   italique. L'ordre protège le contenu des backticks des autres règles. */
+function mdInline(s){
+  /* extrait le code inline en jetons pour le soustraire aux autres règles ;
+     un code-span qui matche un stem de chapitre connu devient un lien xref
+     (navigation croisée des Documentations), sinon reste un <code>. */
+  const spans=[]; s=s.replace(/`([^`]+)`/g,(m,c)=>{ const st=chapterStem(c);
+    spans.push(st?chapterLink(st,c):"<code class=\"md-ic\">"+esc(c)+"</code>"); return ""+(spans.length-1)+""; });
+  s=esc(s);
+  /* lien markdown [txt](url) : url ciblant un chapitre connu -> lien xref
+     interne ; sinon lien externe inchangé. */
+  s=s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(m,txt,url)=>{ const st=chapterStem(url);
+    return st?chapterLink(st,txt):`<a class="md-lnk" href="${esc(url)}" target="_blank" rel="noopener">${esc(txt)}</a>`;});
+  s=s.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  s=s.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g,"$1<em>$2</em>");
+  s=s.replace(/(\d+)/g,(m,i)=>spans[+i]);
+  return s;
+}
+
+function renderMarkdown(md){
+  const lines=md.replace(/\r\n?/g,"\n").split("\n");
+  let h="", i=0;
+  const n=lines.length;
+  while(i<n){
+    let line=lines[i];
+    /* fence de code */
+    let fm=line.match(/^```(\w*)\s*$/);
+    if(fm){
+      const lang=fm[1]||""; i++; const buf=[];
+      while(i<n && !/^```\s*$/.test(lines[i])){ buf.push(lines[i]); i++; }
+      if(i<n) i++; /* skip closing fence */
+      const code=buf.join("\n");
+      const body = (lang===""||lang.toLowerCase()==="owl") ? hl(code) : esc(code);
+      h+=`<div class="codewrap"><button class="copybtn">${t("copy")}</button><pre class="code">${body}</pre></div>`;
+      continue;
+    }
+    /* titres */
+    let hm=line.match(/^(#{1,4})\s+(.*)$/);
+    if(hm){
+      const lvl=hm[1].length, txt=mdInline(hm[2].trim());
+      /* H1 = titre déjà affiché en en-tête de fiche : on le saute pour éviter le doublon */
+      if(lvl===1){ i++; continue; }
+      const tag = lvl===2?"h2":lvl===3?"h3":"h4";
+      const cls = lvl===2?' class="sec"':"";
+      h+=`<${tag}${cls}>${txt}</${tag}>`; i++; continue;
+    }
+    /* règle horizontale */
+    if(/^---+\s*$/.test(line)){ h+="<hr class=\"md-hr\">"; i++; continue; }
+    /* tableau : ligne | ... | suivie d'une ligne séparateur |---| */
+    if(/^\s*\|.*\|\s*$/.test(line) && i+1<n && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i+1])){
+      /* GFM : un pipe échappé \| n'est PAS un séparateur de colonne et se rend
+         comme | littéral. On découpe sur les | non échappés (lookbehind), puis
+         on déséchappe \| -> | dans chaque cellule (y compris à l'intérieur d'un
+         code-span `a \| b`). Sans ça, `a \| b` éclatait les colonnes. */
+      const splitRow=r=>r.trim().replace(/^\s*\||\|\s*$/g,"").split(/(?<!\\)\|/).map(c=>c.trim().replace(/\\\|/g,"|"));
+      const head=splitRow(line); i+=2;
+      h+="<table class=\"ref md-tbl\"><tr>"+head.map(c=>`<th>${mdInline(c)}</th>`).join("")+"</tr>";
+      while(i<n && /^\s*\|.*\|\s*$/.test(lines[i])){
+        const cells=splitRow(lines[i]);
+        h+="<tr>"+cells.map(c=>`<td>${mdInline(c)}</td>`).join("")+"</tr>"; i++;
+      }
+      h+="</table>"; continue;
+    }
+    /* citation > */
+    if(/^>\s?/.test(line)){
+      const buf=[];
+      while(i<n && /^>\s?/.test(lines[i])){ buf.push(lines[i].replace(/^>\s?/,"")); i++; }
+      h+=`<blockquote class="md-quote">${renderMarkdown(buf.join("\n"))}</blockquote>`; continue;
+    }
+    /* liste non ordonnée */
+    if(/^\s*[-*]\s+/.test(line)){
+      h+="<ul class=\"md-ul\">";
+      while(i<n && /^\s*[-*]\s+/.test(lines[i])){
+        h+=`<li>${mdInline(lines[i].replace(/^\s*[-*]\s+/,""))}</li>`; i++;
+      }
+      h+="</ul>"; continue;
+    }
+    /* liste ordonnée */
+    if(/^\s*\d+\.\s+/.test(line)){
+      h+="<ol class=\"md-ol\">";
+      while(i<n && /^\s*\d+\.\s+/.test(lines[i])){
+        h+=`<li>${mdInline(lines[i].replace(/^\s*\d+\.\s+/,""))}</li>`; i++;
+      }
+      h+="</ol>"; continue;
+    }
+    /* ligne vide */
+    if(line.trim()===""){ i++; continue; }
+    /* paragraphe : agrège les lignes consécutives non-blanches non-structurelles */
+    const buf=[line]; i++;
+    while(i<n && lines[i].trim()!=="" && !/^(#{1,4}\s|```|>\s?|\s*[-*]\s|\s*\d+\.\s|---+\s*$)/.test(lines[i]) && !(/^\s*\|.*\|\s*$/.test(lines[i]))){ buf.push(lines[i]); i++; }
+    h+=`<p class="md-p">${mdInline(buf.join(" "))}</p>`;
+  }
+  return h;
+}
+
+function renderGuidePage(g){
+  let h=`<div class="fiche guide"><div class="ftitle"><h1>${esc(g.title||g.name)}</h1></div>`;
+  h+=renderMarkdown(g.md||"");
+  h+=`</div>`; return h;
+}
+
+/* ---------- wiring ---------- */
+function setLangButtons(l){ document.querySelectorAll("#brand .lang button").forEach(x=>x.classList.toggle("on",x.dataset.lang===l)); }
+function setLang(l){ lang=l; setLangButtons(l); buildKindFilters(); updateGroupToggle(); renderList(); applyChrome(); if(selected) select(selected); }
+/* interrupteur "grouper" (à droite du compteur) — switch propre, pas un jeton. */
+function updateGroupToggle(){ const g=document.getElementById("grouptoggle"); g.classList.toggle("on",grouped); document.getElementById("grouplabel").textContent=t("groupcat"); }
+function toggleGroup(){ grouped=!grouped; updateGroupToggle(); renderList(); }
+const grpEl=document.getElementById("grouptoggle");
+grpEl.onclick=toggleGroup;
+grpEl.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleGroup(); } });
+/* le bouton ✕ n'est visible que lorsque le champ contient du texte. */
+function syncSearchClear(){ document.getElementById("searchclear").hidden = !document.getElementById("search").value; }
+/* Un changement de requête/filtre reconstruit la liste : on repart en tête
+   (sinon l'ancien scrollTop persiste et on voit la fin de la nouvelle liste,
+   effet "liste vide"). Reset posé ici et non dans renderList() car celle-ci
+   est aussi appelée par la nav clavier (select() ↑/↓) où il casserait le
+   défilement vers l'élément sélectionné. */
+document.getElementById("search").addEventListener("input",e=>{ assocType=null; query=e.target.value; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; });
+document.getElementById("searchclear").onclick=()=>{ const s=document.getElementById("search"); s.value=""; query=""; assocType=null; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; s.focus(); };
+document.querySelectorAll("#brand .lang button").forEach(b=> b.onclick=()=>setLang(b.dataset.lang));
+/* version de l'aide installée, injectée par le dump (robuste si un ancien
+   dump sans la variable est ouvert : pas de crash JS). */
+if (typeof OWL_VERSION !== "undefined") { document.getElementById("docversion").textContent = "· v" + OWL_VERSION; }
+
+/* clic sur le titre "OWL Doc" : reset complet (URL nue, aucun filtre, aucune
+   ancre, liste complète, vue d'accueil). La langue courante est préservée. */
+function resetAll(){
+  if(history.replaceState) history.replaceState(null,"",location.pathname+location.search);
+  else location.hash="";
+  selected=null; query=""; assocType=null; document.getElementById("search").value=""; syncSearchClear();
+  activeCats.clear(); activeKinds.clear(); grouped=false; updateGroupToggle();
+  buildKindFilters(); buildFilters(); renderList(); document.getElementById("list").scrollTop=0; applyChrome();
+}
+const brandHome=document.getElementById("brandhome");
+brandHome.onclick=resetAll;
+brandHome.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); resetAll(); } });
+
+/* URL = #<lang>/<nom affiché>. Parse langue + symbole, sans boucle. */
+function applyHash(){
+  let hraw=location.hash.replace(/^#/,""); if(!hraw) return;
+  /* décode AVANT de splitter : robuste à l'encodage du fragment (ex VSCode
+     openExternal qui peut encoder le '/'). Les noms de symboles n'ont pas de '/'. */
+  try{ hraw=decodeURIComponent(hraw); }catch(e){}
+  let parts=hraw.split("/"), l=null, kind=null;
+  if(parts[0]==="en"||parts[0]==="fr"){ l=parts[0]; parts=parts.slice(1); }
+  if(KIND_ORDER.indexOf(parts[0])>=0){ kind=parts[0]; parts=parts.slice(1); }
+  const name=parts.join("/");
+  if(l&&l!==lang){ lang=l; setLangButtons(l); }
+  document.getElementById("search").placeholder=t("search");
+  const d=resolve(name,kind);
+  if(d) select(d,true);
+  else if(name) showNotFound(name);   /* F1 sur une variable / mot-clé -> 404 owl */
+  else renderList();
+}
+window.addEventListener("hashchange",applyHash);
+
+/* Navigation clavier : / focus recherche, ↑/↓ parcourt la liste, Échap efface. */
+const searchEl=document.getElementById("search");
+document.addEventListener("keydown",e=>{
+  const inInput=document.activeElement&&document.activeElement.tagName==="INPUT";
+  if(e.key==="/"&&!inInput){ e.preventDefault(); searchEl.focus(); searchEl.select(); return; }
+  if(e.key==="Escape"&&inInput){ if(searchEl.value){ searchEl.value=""; query=""; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; } else searchEl.blur(); return; }
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+    /* focus dans le panneau détail -> on cède les flèches au scroll natif du
+       conteneur (pas de preventDefault, pas de navigation de liste). */
+    const mainEl=document.getElementById("main");
+    if(document.activeElement===mainEl||mainEl.contains(document.activeElement)) return;
+    if(!visibleItems.length) return;
+    e.preventDefault();
+    let i=visibleItems.indexOf(selected);
+    i = e.key==="ArrowDown" ? (i<0?0:Math.min(visibleItems.length-1,i+1)) : (i<0?0:Math.max(0,i-1));
+    select(visibleItems[i], false, true);
+  }
+});
+
+/* ====== Panneau gauche redimensionnable (splitter draggable) ======
+   La largeur vit dans --side-w sur #app, clampée [240,640]px, persistée
+   dans localStorage. Restaurée au chargement. */
+const SIDE_MIN=240, SIDE_MAX=640, SIDE_KEY="owldoc.sidew";
+const appEl=document.getElementById("app");
+function clampSide(px){ return Math.max(SIDE_MIN,Math.min(SIDE_MAX,px)); }
+function setSideW(px){ appEl.style.setProperty("--side-w",clampSide(px)+"px"); }
+(function restoreSideW(){
+  let v=null; try{ v=parseFloat(localStorage.getItem(SIDE_KEY)); }catch(e){}
+  if(v&&!isNaN(v)) setSideW(v);
+})();
+(function initSplitter(){
+  const sp=document.getElementById("splitter");
+  let dragging=false;
+  sp.addEventListener("mousedown",e=>{
+    dragging=true; sp.classList.add("dragging");
+    document.body.style.cursor="col-resize"; e.preventDefault();
+  });
+  document.addEventListener("mousemove",e=>{
+    if(!dragging) return;
+    setSideW(e.clientX - appEl.getBoundingClientRect().left);
+  });
+  document.addEventListener("mouseup",()=>{
+    if(!dragging) return;
+    dragging=false; sp.classList.remove("dragging"); document.body.style.cursor="";
+    const cur=getComputedStyle(appEl).getPropertyValue("--side-w").trim();
+    const px=parseFloat(cur); if(px&&!isNaN(px)){ try{ localStorage.setItem(SIDE_KEY,String(px)); }catch(e){} }
+  });
+})();
+
+/* ====== Zone des catégories redimensionnable (splitter horizontal draggable) ======
+   La hauteur vit dans --filter-h sur #filters, clampée [40px, min(contenu,60vh)],
+   persistée dans localStorage. Même logique que le splitter sidebar, axe Y.
+   Le max suit le contenu réel (scrollHeight) : on ne peut pas étirer au-delà
+   des chips → l'ascenseur (overflow-y:auto) disparaît dès que tout rentre. */
+const FILTER_MIN=40, FH_KEY="owldoc.filterh";
+const filtersEl=document.getElementById("filters");
+function filterMax(){
+  /* scrollHeight = hauteur du contenu (chips) ; on autorise jusque-là, plafonné
+     à 60vh pour ne pas dévorer la sidebar quand les catégories sont nombreuses. */
+  return Math.max(FILTER_MIN, Math.min(filtersEl.scrollHeight, Math.round(window.innerHeight*0.6)));
+}
+function clampFilter(px){ return Math.max(FILTER_MIN,Math.min(filterMax(),px)); }
+function setFilterH(px){ filtersEl.style.setProperty("--filter-h",clampFilter(px)+"px"); }
+(function restoreFilterH(){
+  let v=null; try{ v=parseFloat(localStorage.getItem(FH_KEY)); }catch(e){}
+  if(v&&!isNaN(v)) setFilterH(v);
+})();
+(function initFilterSplit(){
+  const sp=document.getElementById("filtersplit");
+  let dragging=false;
+  sp.addEventListener("mousedown",e=>{
+    dragging=true; sp.classList.add("dragging");
+    document.body.style.cursor="row-resize"; document.body.style.userSelect="none"; e.preventDefault();
+  });
+  document.addEventListener("mousemove",e=>{
+    if(!dragging) return;
+    setFilterH(e.clientY - filtersEl.getBoundingClientRect().top);
+  });
+  document.addEventListener("mouseup",()=>{
+    if(!dragging) return;
+    dragging=false; sp.classList.remove("dragging");
+    document.body.style.cursor=""; document.body.style.userSelect="";
+    const cur=getComputedStyle(filtersEl).getPropertyValue("--filter-h").trim();
+    const px=parseFloat(cur); if(px&&!isNaN(px)){ try{ localStorage.setItem(FH_KEY,String(px)); }catch(e){} }
+  });
+})();
+
+/* applyChrome AVANT applyHash : sinon applyChrome réécrit le 404/la fiche par
+   l'état vide au chargement (cas F1 ouvrant la doc avec un hash). */
+buildKindFilters(); buildFilters(); updateGroupToggle(); renderList(); applyChrome(); applyHash();
+</script>
+</body>
+</html>

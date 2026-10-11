@@ -1,0 +1,29 @@
+// Test fix 0330 : membres struct user gardent la casse de leur declaration,
+// meme si le nom matche une prop builtin (Definition.Nom, Definition.Type)
+// ou une native fonction (Age).
+//
+// Bug actuel (commit 15b706bf ) : formatter canonise les membres
+// user vers le canon builtin → oP.nom devient oP.Nom (prop Definition.Nom),
+// age devient Age (native Age()). Canon user doit gagner.
+//
+// Collisions confirmees : nom (prop Definition.Nom), age (native Age()),
+// type (prop Definition.Type), valeur (fonction anonyme improbable mais
+// testable).
+
+Personne est une Structure
+	nom est une chaîne
+	age est un entier
+	type est une chaîne
+	valeur est un entier
+FIN
+
+oP est une Personne
+oP.nom = "Roger"
+oP.age = 42
+oP.type = "humain"
+oP.valeur = 100
+
+s est une chaîne = oP.nom
+n est un entier = oP.age
+t est une chaîne = oP.type
+v est un entier = oP.valeur

@@ -1,0 +1,37 @@
+//  — prop Style (type styleListe) sur le Champ Liste.
+// Vérifie de bout en bout (backend headless) :
+//   1. Déclaration d'un styleListe + renseignement de ses sous-éléments,
+//      read-back sur l'instance (le type compose correctement) :
+//      CadreExtérieur (CouleurFond), LibelléLignes (Couleur), LigneSélectionnée
+//      (CouleurFond).
+//   2. Application au Champ Liste via LISTE..Style ne casse pas.
+//   3. La prop Style typée sur Liste : la cascade
+//      LISTE..Style..LibelléLignes..Couleur matérialise un styleListe et fait
+//      un round-trip.
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore avec le type
+// styleListe (compile-fail : type styleListe inconnu).
+
+Trace("=== styleListe : type composite + application Champ Liste ===")
+
+STY_Liste est un styleListe
+STY_Liste..CadreExtérieur..CouleurFond    = JauneClair
+STY_Liste..LibelléLignes..Couleur         = Rouge
+STY_Liste..LigneSélectionnée..CouleurFond = Bleu
+
+dbgVérifieEgalité(STY_Liste..CadreExtérieur..CouleurFond, JauneClair, "styleListe : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Liste..LibelléLignes..Couleur, Rouge, "styleListe : LibelléLignes..Couleur posée")
+dbgVérifieEgalité(STY_Liste..LigneSélectionnée..CouleurFond, Bleu, "styleListe : LigneSélectionnée..CouleurFond posée")
+
+Ouvre(FEN_ListeStyle)
+LISTE_Style..Style = STY_Liste
+dbgVérifieVrai(Vrai, "styleListe appliqué à LISTE..Style sans crash")
+
+LISTE_Style..Style..LibelléLignes..Couleur = RougeClair
+dbgVérifieEgalité(LISTE_Style..Style..LibelléLignes..Couleur, RougeClair, "LISTE..Style..LibelléLignes..Couleur round-trip")
+
+LISTE_Style..Style..LigneSélectionnée..Couleur = Blanc
+dbgVérifieEgalité(LISTE_Style..Style..LigneSélectionnée..Couleur, Blanc, "LISTE..Style..LigneSélectionnée..Couleur round-trip")
+
+Ferme(FEN_ListeStyle)
+dbgBilanTest()

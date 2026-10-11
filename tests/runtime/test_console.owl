@@ -1,0 +1,30 @@
+// ============================================
+// TEST: Console family (stdout / stderr / argv)
+// ============================================
+Trace("=== CONSOLE ===")
+
+// Les effets sur stdout/stderr ne peuvent pas etre captures dans le test;
+// on verifie au moins que les fonctions n'explosent pas et que les
+// valeurs de retour sont coherentes.
+
+ConsoleEcrit("(from ConsoleEcrit)\n")
+ConsoleEcrit(42)
+ConsoleEcrit(" ")
+ConsoleEcrit(3.14)
+ConsoleEcrit(" ")
+ConsoleEcrit(Vrai)
+ConsoleEcrit("\n")
+
+ConsoleErreur("(from ConsoleErreur)\n")
+
+// LigneCommande() retourne la chaine totale des arguments (canon de référence).
+// On ne peut pas asserter le contenu (depend du runner), juste le type
+// et la non-crash.
+ligneCmd est une chaîne = LigneCommande()
+dbgVérifieEgalité(TypeVar(ligneCmd), owlChaine, "LigneCommande() renvoie une chaine")
+dbgVérifieVrai(Taille(ligneCmd) >= 0, "Taille >= 0")
+// LigneCommande("inconnu") doit retourner "" sur option absente
+dbgVérifieEgalité(LigneCommande("optionInexistante"), "", "option absente -> chaine vide")
+dbgVérifieEgalité(LigneCommande("optionInexistante", "default"), "default", "option absente + defaut -> defaut")
+
+dbgBilanTest()

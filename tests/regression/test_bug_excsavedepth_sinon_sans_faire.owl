@@ -1,0 +1,86 @@
+// @sujet : Régression — fuite de profondeur du contexte d'exception sur
+//          QUAND EXCEPTION DANS ... SINON ... FIN sans clause FAIRE.
+// @résumé : Quand une exception est levée dans le bloc DANS d'un
+// QUAND EXCEPTION qui n'a PAS de clause FAIRE (seulement SINON), le chemin
+// exception atterrit dans un handler vide puis tombe dans le corps SINON
+// sans rééquilibrer la pile de sauvegarde du contexte d'exception. Le
+// snapshot posé par le OP_TRY fuit (+1) et le contexte périmé de ce bloc
+// contamine un bloc QUAND EXCEPTION ultérieur du même frame : à la sortie
+// de ce second handler, le contexte restauré est le stale du premier bloc
+// au lieu du contexte vide.
+//
+// Symptôme verrouillé : après un second QUAND EXCEPTION (FAIRE normal),
+// hors handler, ExceptionInfo(errCode) doit être vide ("") (et non le code
+// du premier bloc SINON-sans-FAIRE).
+//
+// Le comportement « le corps SINON s'exécute sur exception » est
+// pré-existant et HORS SCOPE : ce test le documente (non-régression) sans
+// le modifier ; seul le rééquilibrage de profondeur est corrigé.
+
+
+// Repro exacte : deux QUAND EXCEPTION séquentiels dans le même frame.
+// 1er bloc = SINON sans FAIRE qui lève dans le DANS (fuite +1).
+// 2e bloc = handler FAIRE normal. À la sortie du 2e, hors handler,
+// ExceptionInfo doit être vide (pas le stale du 1er bloc).
+PROCEDURE scenario_a_deux_blocs_sequentiels_pas_de_stale()
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(1, "a")
+	SINON
+	FIN
+
+	nCodeDans est un entier = -1
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(2, "b")
+	FAIRE
+		nCodeDans = ExceptionInfo(errCode)
+	FIN
+
+	// Non-régression : dans le 2e handler, le code lu est bien celui du 2e bloc
+	dbgVérifieEgalité(nCodeDans, 2, "Dans le 2e handler : errCode = 2 (contexte propre du 2e bloc)")
+	// Cœur du bug : hors handler après le 2e FIN, contexte vide attendu.
+	// Avant fix : vaut 1 (stale du 1er bloc restauré à tort par l'OP_EXC_RESTORE du 2e).
+	dbgVérifieEgalité(ExceptionInfo(errCode), "", "Hors handler : errCode vide (pas le stale 1 du bloc SINON-sans-FAIRE)")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "", "Hors handler : errMessage vide (pas le stale 'a')")
+FIN
+
+
+// Le corps SINON s'exécute bien sur exception (comportement pré-existant,
+// HORS SCOPE). Ce scénario le verrouille pour garantir que le fix ne
+// change PAS le flux : seul le rééquilibrage de profondeur est ajouté.
+PROCEDURE scenario_b_sinon_execute_sur_exception_non_regression()
+	bSinonExecute est un booléen = Faux
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(9, "boom")
+	SINON
+		bSinonExecute = Vrai
+	FIN
+	dbgVérifieVrai(bSinonExecute, "Le corps SINON s'exécute sur exception (comportement pré-existant conservé)")
+FIN
+
+
+// Variante en boucle : accumulation de blocs SINON-sans-FAIRE qui lèvent.
+// Sans fix, chaque itération fuit +1 sur la pile de snapshots ; le contexte
+// périmé du dernier bloc contamine ensuite le handler FAIRE final.
+// Après fix, chaque bloc rééquilibre sa profondeur → contexte vide final.
+PROCEDURE scenario_c_boucle_accumulation()
+	POUR i = 1 À 10
+		QUAND EXCEPTION DANS
+			ExceptionDéclenche(i, "iter")
+		SINON
+		FIN
+	FIN
+
+	nCodeDans est un entier = -1
+	QUAND EXCEPTION DANS
+		ExceptionDéclenche(77, "final")
+	FAIRE
+		nCodeDans = ExceptionInfo(errCode)
+	FIN
+
+	dbgVérifieEgalité(nCodeDans, 77, "Dans le handler final : errCode = 77 (contexte propre)")
+	// Avant fix : le stale de la dernière itération (10) contamine → renvoie 10.
+	dbgVérifieEgalité(ExceptionInfo(errCode), "", "Hors handler après boucle : errCode vide (pas d'accumulation stale)")
+FIN
+
+
+dbgBilanTest()

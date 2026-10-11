@@ -1,0 +1,120 @@
+// @sujet : EmailConstruitSource, EmailImporteSource
+// @résumé : Round-trip build/parse d'un en-tête non standard sur un Email : EmailConstruitSource
+// émet chaque en-tête custom déposé dans Entête[], et EmailImporteSource remplit Entête[] avec
+// les en-têtes rencontrés qui ne correspondent à aucun champ standard.
+
+
+// Cas A : build — un en-tête custom posé dans Entête[] apparaît tel quel dans la Source générée.
+PROCEDURE PUBLIQUE scenario_build_entete_custom_emis_dans_source()
+	ent est un emailEntête
+	ent..Nom    = "X-Traqueur-Interne"
+	ent..Valeur = "abc123"
+
+	e est un Email
+	e..Expéditeur   = "alice@example.org"
+	e..Destinataire = ["bob@example.org"]
+	e..Sujet        = "Suivi de commande"
+	e..Message      = "Votre commande est en cours de préparation."
+	e..Entête       = [ent]
+
+	ok est un booléen = EmailConstruitSource(e)
+	dbgVérifieVrai(ok, "EmailConstruitSource réussit avec un en-tête custom")
+	dbgVérifieVrai(Position(e..Source, "X-Traqueur-Interne: abc123") > 0, "l'en-tête custom X-Traqueur-Interne: abc123 apparaît dans la Source")
+FIN
+
+
+// Cas B : parse — un en-tête non standard rencontré dans la Source atterrit dans Entête[].
+PROCEDURE PUBLIQUE scenario_parse_entete_custom_peuple_entete()
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: Newsletter" + CRLF
+	sSource += "X-Foo: bar" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Contenu de la newsletter." + CRLF
+
+	e est un Email
+	e..Source = sSource
+	ok est un booléen = EmailImporteSource(e)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source avec en-tête non standard")
+	dbgVérifieEgalité(Taille(e..Entête), 1, "un seul en-tête custom extrait")
+	dbgVérifieEgalité(e..Entête[1]..Nom, "X-Foo", "nom de l'en-tête custom lu")
+	dbgVérifieEgalité(e..Entête[1]..Valeur, "bar", "valeur de l'en-tête custom lue")
+FIN
+
+
+// Cas C : les en-têtes standard (From/To/Subject) ne sont pas dupliqués dans Entête[] — seuls les
+// en-têtes non mappés y atterrissent.
+PROCEDURE PUBLIQUE scenario_parse_entetes_standard_non_dupliques()
+	sSource est une chaîne = ""
+	sSource += "From: alice@example.org" + CRLF
+	sSource += "To: bob@example.org" + CRLF
+	sSource += "Subject: Newsletter" + CRLF
+	sSource += "X-Foo: bar" + CRLF
+	sSource += "MIME-Version: 1.0" + CRLF
+	sSource += "Content-Type: text/plain; charset=UTF-8" + CRLF
+	sSource += CRLF
+	sSource += "Contenu de la newsletter." + CRLF
+
+	e est un Email
+	e..Source = sSource
+	EmailImporteSource(e)
+
+	dbgVérifieEgalité(Taille(e..Entête), 1, "seul l'en-tête non standard X-Foo est présent dans Entête[]")
+	dbgVérifieEgalité(e..Expéditeur, "alice@example.org", "l'en-tête From reste lu dans Expéditeur, pas dans Entête[]")
+	dbgVérifieEgalité(e..Sujet, "Newsletter", "l'en-tête Subject reste lu dans Sujet, pas dans Entête[]")
+FIN
+
+
+// Cas D : round-trip complet — un en-tête custom posé, construit puis reparsé survit à l'identique.
+PROCEDURE PUBLIQUE scenario_roundtrip_entete_custom_survit()
+	ent est un emailEntête
+	ent..Nom    = "X-Campagne-ID"
+	ent..Valeur = "camp-2026-42"
+
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = "Campagne printemps"
+	e1..Message      = "Découvrez notre nouvelle offre."
+	e1..Entête       = [ent]
+	EmailConstruitSource(e1)
+
+	e2 est un Email
+	e2..Source = e1..Source
+	ok est un booléen = EmailImporteSource(e2)
+
+	dbgVérifieVrai(ok, "EmailImporteSource réussit sur une source au round-trip d'en-tête custom")
+	dbgVérifieEgalité(Taille(e2..Entête), 1, "un seul en-tête custom restitué au round-trip")
+	dbgVérifieEgalité(e2..Entête[1]..Nom, ent..Nom, "nom de l'en-tête custom restitué à l'identique")
+	dbgVérifieEgalité(e2..Entête[1]..Valeur, ent..Valeur, "valeur de l'en-tête custom restituée à l'identique")
+FIN
+
+
+// Edge case : plusieurs en-têtes custom simultanés, tous restitués sans se marcher dessus.
+PROCEDURE PRIVÉE scenario_edge_plusieurs_entetes_custom()
+	ent1 est un emailEntête
+	ent1..Nom    = "X-Traqueur-Interne"
+	ent1..Valeur = "abc123"
+
+	ent2 est un emailEntête
+	ent2..Nom    = "X-Campagne-ID"
+	ent2..Valeur = "camp-2026-42"
+
+	e1 est un Email
+	e1..Expéditeur   = "alice@example.org"
+	e1..Destinataire = ["bob@example.org"]
+	e1..Sujet        = "Deux en-têtes custom"
+	e1..Message      = "Corps du message."
+	e1..Entête       = [ent1, ent2]
+	EmailConstruitSource(e1)
+
+	e2 est un Email
+	e2..Source = e1..Source
+	EmailImporteSource(e2)
+
+	dbgVérifieEgalité(Taille(e2..Entête), 2, "les deux en-têtes custom sont restitués")
+FIN

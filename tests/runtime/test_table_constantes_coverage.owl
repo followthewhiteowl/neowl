@@ -1,0 +1,129 @@
+// ============================================
+// TEST: constantes Table UI (navigation / selection / info / options)
+//
+// Famille t[adios]* consommee par les natives Table/Liste :
+//   - to* : type d'info pour TableOccurrence (toTotal/toAffichee/toColonne/toVisible)
+//   - ts* : type d'info pour TableSelect (tsLigne/tsColonne/tsLigneCellule/tsColonneCellule)
+//   - ti* : type d'info pour TableInfoXY (tiNumLigne/tiNumColonne/tiNomColonne/tiOrigineEcran)
+//   - ta* : option de TablePosition (taPremier/taVisible)
+//   - td* : cibles relatives de DeplaceLigne (tdPremier..tdPageSuivante)
+//
+// MUR HEADLESS (Qt) : ces natives operent sur un widget Table/Liste reel.
+// En mode test, aucune fenetre graphique n'est materialisee (widget NULL)
+// donc les getters renvoient Null — l'EFFET runtime est inobservable. La
+// couverture d'effet reel est donc impossible sans introspection headless
+// du modele (meme limite que filtre* / PoliceNom, cf. candidat ).
+//
+// COUVERTURE ICI = value-check structurel : chaque sous-famille a des
+// sentinels entiers contigus ancres sur leur base (sentinels.h). On verifie
+// les offsets exacts + la distinction entre constantes. Le smoke d'appel
+// (natives acceptent les constantes sans lever) vit dans le dossier headless
+// dedie tests/runtime/objuicontrol_headless/table_constantes_smoke/.
+//
+// EXCEPTION : tcLineairePrecedent N'EST PAS une constante Table UI — c'est
+// un mode de recherche de TableauCherche (tableau, pas widget). Pur data,
+// donc couvert ici par son EFFET reel (recherche arriere observable).
+// ============================================
+Trace("=== TABLE CONSTANTES (structurel) ===")
+
+// ---------------------------------------------------------------------
+// TableOccurrence — info type (to*). Base = toTotal, offsets contigus.
+// ---------------------------------------------------------------------
+baseTo est un entier = toTotal
+dbgVérifieEgalité(toTotal, baseTo + 0, "toTotal = base+0")
+dbgVérifieEgalité(toAffichée, baseTo + 1, "toAffichée = base+1")
+dbgVérifieEgalité(toColonne, baseTo + 2, "toColonne = base+2")
+dbgVérifieEgalité(toVisible, baseTo + 3, "toVisible = base+3")
+
+// ---------------------------------------------------------------------
+// TableSelect — info type (ts*). Base = tsLigne, offsets contigus.
+// ---------------------------------------------------------------------
+baseTs est un entier = tsLigne
+dbgVérifieEgalité(tsLigne, baseTs + 0, "tsLigne = base+0")
+dbgVérifieEgalité(tsColonne, baseTs + 1, "tsColonne = base+1")
+dbgVérifieEgalité(tsLigneCellule, baseTs + 2, "tsLigneCellule = base+2")
+dbgVérifieEgalité(tsColonneCellule, baseTs + 3, "tsColonneCellule = base+3")
+
+// ---------------------------------------------------------------------
+// TableInfoXY — info type (ti*). Base = tiNumLigne, offsets contigus.
+// tiOrigineEcran est combinable (bit) en plus des 3 types de base.
+// ---------------------------------------------------------------------
+baseTi est un entier = tiNumLigne
+dbgVérifieEgalité(tiNumLigne, baseTi + 0, "tiNumLigne = base+0")
+dbgVérifieEgalité(tiNumColonne, baseTi + 1, "tiNumColonne = base+1")
+dbgVérifieEgalité(tiNomColonne, baseTi + 2, "tiNomColonne = base+2")
+dbgVérifieEgalité(tiOrigineEcran, baseTi + 3, "tiOrigineEcran = base+3")
+
+// ---------------------------------------------------------------------
+// TablePosition — option (ta*). Base = taPremier, offsets contigus.
+// ---------------------------------------------------------------------
+baseTa est un entier = taPremier
+dbgVérifieEgalité(taPremier, baseTa + 0, "taPremier = base+0")
+dbgVérifieEgalité(taVisible, baseTa + 1, "taVisible = base+1")
+
+// ---------------------------------------------------------------------
+// DeplaceLigne — cibles relatives (td*). Base = tdPremier ; les cibles
+// relatives sont contigues a partir de tdPremier.
+// ---------------------------------------------------------------------
+baseTd est un entier = tdPremier
+dbgVérifieEgalité(tdPremier, baseTd + 0, "tdPremier = base+0")
+dbgVérifieEgalité(tdDernier, baseTd + 1, "tdDernier = base+1")
+dbgVérifieEgalité(tdPrécédent, baseTd + 2, "tdPrécédent = base+2")
+dbgVérifieEgalité(tdSuivant, baseTd + 3, "tdSuivant = base+3")
+dbgVérifieEgalité(tdPagePrécédente, baseTd + 4, "tdPagePrécédente = base+4")
+dbgVérifieEgalité(tdPageSuivante, baseTd + 5, "tdPageSuivante = base+5")
+
+// tdDéplace est l'OPERATION par defaut (pas une cible) : valeur 0, distincte
+// des cibles relatives ci-dessus.
+dbgVérifieEgalité(tdDéplace, 0, "tdDéplace = 0 (operation defaut)")
+dbgVérifieVrai(tdDéplace <> tdPremier, "tdDéplace distinct des cibles relatives")
+
+// ---------------------------------------------------------------------
+// Distinction inter-familles : les bases sont toutes distinctes entre elles
+// (chaque sous-famille a sa propre zone de sentinels).
+// ---------------------------------------------------------------------
+dbgVérifieVrai(toTotal <> tsLigne, "to* zone distincte de ts*")
+dbgVérifieVrai(tsLigne <> tiNumLigne, "ts* zone distincte de ti*")
+dbgVérifieVrai(tiNumLigne <> taPremier, "ti* zone distincte de ta*")
+dbgVérifieVrai(taPremier <> tdPremier, "ta* zone distincte de td*")
+
+// ---------------------------------------------------------------------
+// tcLineairePrecedent — EFFET REEL (TableauCherche, pur data, observable).
+// Mode de recherche lineaire arriere : depuis la position courante,
+// scanne vers le debut et renvoie l'index 1-based de l'occurrence
+// precedente. On enchaine premier -> suivant -> precedent sur un tableau
+// a occurrences multiples pour prouver le parcours arriere.
+// ---------------------------------------------------------------------
+Trace("=== tcLineairePrecedent (effet reel) ===")
+lstVal est un tableau de 5 chaînes
+lstVal[1] = "a"
+lstVal[2] = "b"
+lstVal[3] = "a"
+lstVal[4] = "c"
+lstVal[5] = "a"
+
+pos1 est un entier = TableauCherche(lstVal, tcLineairePremier, "a")
+dbgVérifieEgalité(pos1, 1, "tcLineairePremier -> 1ere occurrence")
+
+pos2 est un entier = TableauCherche(lstVal, tcLineaireSuivant, "a")
+dbgVérifieEgalité(pos2, 3, "tcLineaireSuivant -> 2eme occurrence")
+
+// precedent depuis la position courante (index 3) -> remonte a l'index 1
+pos3 est un entier = TableauCherche(lstVal, tcLineairePrecedent, "a")
+dbgVérifieEgalité(pos3, 1, "tcLineairePrecedent -> occurrence precedente")
+
+// distinct du mode dichotomique
+dbgVérifieVrai(tcLineairePrecedent <> tcDichotomique,
+"tcLineairePrecedent distinct de tcDichotomique")
+
+// ---------------------------------------------------------------------
+// tiAssociatifAvecDoublon — EFFET REEL (TableauInfo, pur data, observable).
+// N'EST PAS une info Table UI ti* : c'est un type d'info de TableauInfo
+// (doc tableaux). Sur un tableau ordinaire (non associatif), TableauInfo
+// renvoie Faux pour ce type. Observable headless (aucun widget).
+// ---------------------------------------------------------------------
+Trace("=== tiAssociatifAvecDoublon (effet reel) ===")
+dbgVérifieFaux(TableauInfo(lstVal, tiAssociatifAvecDoublon),
+"tiAssociatifAvecDoublon -> Faux sur tableau ordinaire")
+
+dbgBilanTest()

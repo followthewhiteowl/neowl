@@ -1,0 +1,114 @@
+//  — fenêtre modale ouverte depuis le gestionnaire d'une autre :
+// le nettoyage de fermeture ne doit couper que ce qu'OWL a posé.
+//
+// Ces sentinelles tournent sur les VRAIS widgets (TestModeHeadless(Faux)) et
+// atteignent la branche imbriquée du lanceur de fenêtre modale, celle qui fait
+// le nettoyage de fermeture. Deux conditions sont nécessaires et ne sont
+// réunies par aucun autre test du dépôt :
+//   1. la fenêtre parente est ouverte MODALE (une boucle tourne déjà quand la
+//      fille est ouverte) — avec une ouverture non modale, le lanceur prend le
+//      raccourci de premier niveau et le nettoyage n'est jamais exécuté ;
+//   2. la fille se ferme depuis un gestionnaire atteint PENDANT cette boucle.
+//      La pose de focus différée le permet ; un minuteur non (il saute son tic
+//      tant qu'un gestionnaire est en cours).
+//
+// Ce que ces sentinelles prouvent : le cycle imbriqué reste fonctionnel de bout
+// en bout — ouverture, fermeture, ré-ouverture, deux niveaux — et la fenêtre
+// parente conserve ses propres liaisons après le retour de la fille.
+// Ce qu'elles NE prouvent PAS, et qui n'est pas observable depuis le langage :
+// le nombre de liens internes de la bibliothèque graphique rompus au passage.
+// Cette grandeur-là se mesure sur la sortie d'erreur du moteur graphique.
+
+TestModeHeadless(Faux)
+
+nFilleInit est un entier = 0
+nFilleEntree est un entier = 0
+nFille2Entree est un entier = 0
+nPetiteFilleEntree est un entier = 0
+nRetourPetiteFille est un entier = 0
+nFilleChange est un entier = 0
+nFilleClic est un entier = 0
+nParentChange est un entier = 0
+sSequence est une chaîne = ""
+sValeurParente est une chaîne = ""
+
+PROCEDURE callback_fille_init()
+	nFilleInit += 1
+	sSequence += "i"
+FIN
+
+PROCEDURE callback_fille_entree()
+	nFilleEntree += 1
+	sSequence += "e"
+FIN
+
+PROCEDURE callback_fille_change()
+	nFilleChange += 1
+FIN
+
+PROCEDURE callback_fille_clic()
+	nFilleClic += 1
+FIN
+
+PROCEDURE callback_fille2_entree()
+	nFille2Entree += 1
+	sSequence += "E"
+FIN
+
+PROCEDURE callback_petite_fille_entree()
+	nPetiteFilleEntree += 1
+	sSequence += "g"
+FIN
+
+PROCEDURE callback_retour_petite_fille()
+	nRetourPetiteFille += 1
+	sSequence += "G"
+FIN
+
+PROCEDURE callback_parent_change()
+	nParentChange += 1
+FIN
+
+PROCEDURE callback_retour(nCycle est un entier)
+	sSequence += "r" + nCycle
+FIN
+
+PROCEDURE callback_valeur_parente(sVal est une chaîne)
+	sValeurParente = sVal
+FIN
+
+// Ouverture modale de la parente : bloque jusqu'à ce que toute la cinématique
+// se soit déroulée et que la parente se referme elle-même.
+Ouvre(FEN_PurgeParent)
+
+dbgVérifieEgalité(nFilleInit, 2,
+"La fille de premier niveau a été construite deux fois (deux cycles)")
+
+dbgVérifieEgalité(nFilleEntree, 2,
+"Le gestionnaire d'entrée de la fille a tiré une fois par cycle")
+
+dbgVérifieEgalité(nFille2Entree, 1,
+"Le gestionnaire d'entrée de la fille de deuxième niveau a tiré une fois")
+
+dbgVérifieEgalité(nPetiteFilleEntree, 1,
+"La petite-fille (troisième niveau) s'est ouverte et a rendu la main")
+
+dbgVérifieEgalité(nRetourPetiteFille, 1,
+"La fille de deuxième niveau a repris la main après la petite-fille")
+
+dbgVérifieEgalité(sSequence, "ier1ier2EgGr3",
+"Ordre complet : init/entrée/retour x2, puis niveau 2 -> niveau 3 -> retours")
+
+dbgVérifieEgalité(nFilleClic, 2,
+"Le bouton de la fille répond une fois par cycle : les gestionnaires câblés par signal fonctionnent dans une fenêtre imbriquée")
+
+dbgVérifieEgalité(nFilleChange, 4,
+"La saisie de la fille remonte deux caractères par cycle, sans rappel fantôme du cycle précédent")
+
+dbgVérifieEgalité(sValeurParente, "ok",
+"La saisie de la parente est lisible après les trois fermetures imbriquées")
+
+dbgVérifieEgalité(nParentChange, 2,
+"Les liaisons de la parente survivent : une modification par caractère saisi")
+
+dbgBilanTest()

@@ -1,0 +1,294 @@
+// @sujet : xlsDocument, xlsOuvre, xlsSauve, xlsFerme, xlsAjouteFeuille, xlsFeuilleEnCours, xlsFusionneCellule, xlsDéfusionneCellule, xlsNbLigne, xlsNbColonne, xlsNbFeuille, xlsCoordonnéesVersNom, xlsNomVersCoordonnées
+// @résumé : Écriture d'un classeur Excel (.xlsx) via le type xlsDocument : cellules, feuilles multiples, fusion, dimensions et conversions coordonnées/nom.
+
+
+// Un xlsDocument se déclare directement (pas besoin d'ouvrir un fichier existant).
+// L'écriture d'une cellule se fait par indexation [ligne, colonne], la lecture relit la même valeur après sauvegarde/réouverture.
+PROCEDURE PUBLIQUE scenario_creation_et_relecture_cellule()
+	doc est un xlsDocument
+	doc[1, 1] = "Bonjour"
+	doc[2, 3] = "Deuxième ligne"
+	résultat est un booléen = xlsSauve(doc, "test_xls_creation.xlsx")
+	dbgVérifieVrai(résultat, "xlsSauve écrit le classeur sur disque")
+	xlsFerme(doc)
+	dbgVérifieVrai(fFichierExiste("test_xls_creation.xlsx"), "le fichier .xlsx a bien été produit")
+
+	relu est un xlsDocument = xlsOuvre("test_xls_creation.xlsx", xlsEcriture)
+	valeur est une chaîne = xlsDonnée(relu, 1, 1)
+	dbgVérifieEgalité(valeur, "Bonjour", "la cellule [1,1] relue correspond à la valeur écrite")
+	valeur2 est une chaîne = xlsDonnée(relu, 2, 3)
+	dbgVérifieEgalité(valeur2, "Deuxième ligne", "la cellule [2,3] relue correspond à la valeur écrite")
+	xlsFerme(relu)
+	fSupprime("test_xls_creation.xlsx")
+FIN
+
+
+// Un classeur peut contenir plusieurs feuilles : ajout, bascule de la feuille courante, écriture indépendante par feuille.
+PROCEDURE PUBLIQUE scenario_classeur_multi_feuilles()
+	doc est un xlsDocument
+	doc[1, 1] = "Feuille 1"
+	ajoutée est un booléen = xlsAjouteFeuille(doc, "Rapport")
+	dbgVérifieVrai(ajoutée, "xlsAjouteFeuille ajoute une deuxième feuille")
+	dbgVérifieEgalité(xlsNbFeuille(doc), 2, "le classeur contient désormais 2 feuilles")
+
+	basculée est un booléen = xlsFeuilleEnCours(doc, 2)
+	dbgVérifieVrai(basculée, "xlsFeuilleEnCours bascule vers la feuille 2")
+	doc[1, 1] = "Contenu du rapport"
+
+	xlsSauve(doc, "test_xls_multi_feuilles.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_multi_feuilles.xlsx", xlsEcriture)
+	dbgVérifieEgalité(xlsNbFeuille(relu), 2, "la relecture confirme 2 feuilles enregistrées")
+	xlsFeuilleEnCours(relu, 1)
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 1), "Feuille 1", "la première feuille conserve son contenu")
+	xlsFeuilleEnCours(relu, 2)
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 1), "Contenu du rapport", "la deuxième feuille conserve son contenu")
+	xlsFerme(relu)
+	fSupprime("test_xls_multi_feuilles.xlsx")
+FIN
+
+
+// Une plage de cellules peut être fusionnée puis défusionnée.
+PROCEDURE PUBLIQUE scenario_fusion_cellules()
+	doc est un xlsDocument
+	doc[2, 2] = "Titre fusionné"
+	fusionnée est un booléen = xlsFusionneCellule(doc, "B2", "D4")
+	dbgVérifieVrai(fusionnée, "xlsFusionneCellule fusionne la plage B2:D4")
+	défusionnée est un booléen = xlsDéfusionneCellule(doc, "B2")
+	dbgVérifieVrai(défusionnée, "xlsDéfusionneCellule annule la fusion précédente")
+	xlsFerme(doc)
+FIN
+
+
+// xlsNbLigne / xlsNbColonne renvoient les dimensions réellement occupées par les données.
+PROCEDURE PUBLIQUE scenario_dimensions_classeur()
+	doc est un xlsDocument
+	doc[1, 1] = "A"
+	doc[3, 5] = "B"
+	dbgVérifieEgalité(xlsNbLigne(doc), 3, "xlsNbLigne renvoie la dernière ligne occupée")
+	dbgVérifieEgalité(xlsNbColonne(doc), 5, "xlsNbColonne renvoie la dernière colonne occupée")
+	xlsFerme(doc)
+FIN
+
+
+// xlsCoordonnéesVersNom et xlsNomVersCoordonnées convertissent entre coordonnées numériques et nom de cellule Excel ("A1").
+PROCEDURE PUBLIQUE scenario_conversion_coordonnees_nom()
+	nom est une chaîne = xlsCoordonnéesVersNom(1, 1)
+	dbgVérifieEgalité(nom, "A1", "la colonne 1 / ligne 1 correspond au nom A1")
+	nomC3 est une chaîne = xlsCoordonnéesVersNom(3, 1)
+	dbgVérifieEgalité(nomC3, "C1", "la colonne 3 / ligne 1 correspond au nom C1")
+
+	ligne est un entier = xlsNomVersCoordonnées("C1", xlsNumLigne)
+	dbgVérifieEgalité(ligne, 1, "xlsNomVersCoordonnées avec xlsNumLigne renvoie la ligne de C1")
+	colonne est un entier = xlsNomVersCoordonnées("C1", xlsNumColonne)
+	dbgVérifieEgalité(colonne, 3, "xlsNomVersCoordonnées avec xlsNumColonne renvoie la colonne de C1")
+FIN
+
+
+// Cas limite : lecture d'une cellule jamais écrite renvoie une chaîne vide, pas d'erreur.
+PROCEDURE PRIVÉE scenario_edge_cellule_vide()
+	doc est un xlsDocument
+	doc[1, 1] = "Seule case remplie"
+	xlsSauve(doc, "test_xls_edge_vide.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_edge_vide.xlsx", xlsEcriture)
+	vide est une chaîne = xlsDonnée(relu, 50, 50)
+	dbgVérifieEgalité(vide, "", "une cellule jamais écrite renvoie une chaîne vide")
+	xlsFerme(relu)
+	fSupprime("test_xls_edge_vide.xlsx")
+FIN
+
+
+// Cas limite : les propriétés en lecture seule de xlsDocument (invariant `..`) reflètent l'état du classeur.
+PROCEDURE PRIVÉE scenario_edge_proprietes_lecture_seule()
+	doc est un xlsDocument
+	doc[1, 1] = "X"
+	xlsAjouteFeuille(doc, "Deuxième")
+	dbgVérifieEgalité(doc..NombreFeuille, 2, "la propriété NombreFeuille reflète xlsNbFeuille")
+	dbgVérifieEgalité(doc..NombreLigne, 1, "la propriété NombreLigne reflète xlsNbLigne")
+	dbgVérifieEgalité(doc..NombreColonne, 1, "la propriété NombreColonne reflète xlsNbColonne")
+	xlsFerme(doc)
+FIN
+
+
+// Les caractères significatifs en XML (& < > " ') doivent survivre à l'aller-retour
+// écriture/relecture : le classeur est un ZIP de fichiers XML, un caractère mal
+// échappé produirait un fichier corrompu ou une valeur tronquée.
+PROCEDURE PUBLIQUE scenario_echappement_caracteres_speciaux()
+	doc est un xlsDocument
+	valeurOrigine est une chaîne = `Tom & Jerry <script> "guillemets" 'apostrophe'`
+	doc[1, 1] = valeurOrigine
+	xlsSauve(doc, "test_xls_echappement.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_echappement.xlsx", xlsEcriture)
+	valeurRelue est une chaîne = xlsDonnée(relu, 1, 1)
+	dbgVérifieEgalité(valeurRelue, valeurOrigine, "les caractères XML significatifs sont préservés à l'identique après écriture puis relecture")
+	xlsFerme(relu)
+	fSupprime("test_xls_echappement.xlsx")
+FIN
+
+
+// Les cellules et les noms de feuille acceptent l'UTF-8 multi-octets (accents, emoji, idéogrammes),
+// pas seulement l'ASCII.
+PROCEDURE PUBLIQUE scenario_utf8_multi_octets()
+	doc est un xlsDocument
+	texteCellule est une chaîne = "Café Zürich 日本語 🎉"
+	doc[1, 1] = texteCellule
+	ajoutée est un booléen = xlsAjouteFeuille(doc, "北京Ünïcode")
+	dbgVérifieVrai(ajoutée, "un nom de feuille en UTF-8 multi-octets est accepté")
+
+	xlsSauve(doc, "test_xls_utf8.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_utf8.xlsx", xlsEcriture)
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 1), texteCellule, "une cellule contenant accents/emoji/idéogrammes est relue à l'identique")
+	xlsFerme(relu)
+	fSupprime("test_xls_utf8.xlsx")
+FIN
+
+
+// Réécrire une cellule déjà remplie remplace sa valeur : pas d'accumulation ni de ligne fantôme.
+PROCEDURE PUBLIQUE scenario_reecriture_cellule()
+	doc est un xlsDocument
+	doc[1, 1] = "Première valeur"
+	doc[1, 1] = "Valeur finale"
+	xlsSauve(doc, "test_xls_reecriture.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_reecriture.xlsx", xlsEcriture)
+	dbgVérifieEgalité(xlsDonnée(relu, 1, 1), "Valeur finale", "la dernière écriture d'une cellule remplace la précédente")
+	dbgVérifieEgalité(xlsNbLigne(relu), 1, "réécrire une cellule existante ne crée pas de ligne supplémentaire")
+	xlsFerme(relu)
+	fSupprime("test_xls_reecriture.xlsx")
+FIN
+
+
+// Un classeur sans aucune cellule écrite se sauvegarde quand même, avec sa feuille par défaut.
+PROCEDURE PRIVÉE scenario_edge_classeur_vide()
+	doc est un xlsDocument
+	résultat est un booléen = xlsSauve(doc, "test_xls_vide.xlsx")
+	dbgVérifieVrai(résultat, "un classeur sans donnée se sauvegarde sans erreur")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_vide.xlsx", xlsEcriture)
+	dbgVérifieEgalité(xlsNbFeuille(relu), 1, "un classeur vide conserve une feuille par défaut")
+	dbgVérifieEgalité(xlsNbLigne(relu), 0, "aucune ligne occupée dans un classeur vide")
+	xlsFerme(relu)
+	fSupprime("test_xls_vide.xlsx")
+FIN
+
+
+// La conversion coordonnées <-> nom doit franchir proprement les frontières alphabétiques
+// (Z -> AA, AA -> AB, jusqu'à AZ, ZZ et au-delà), pas seulement les colonnes à une lettre.
+PROCEDURE PUBLIQUE scenario_conversion_coordonnees_frontieres()
+	dbgVérifieEgalité(xlsCoordonnéesVersNom(26, 1), "Z1", "la colonne 26 correspond à Z")
+	dbgVérifieEgalité(xlsCoordonnéesVersNom(27, 1), "AA1", "la colonne 27 franchit la frontière vers AA")
+	dbgVérifieEgalité(xlsCoordonnéesVersNom(28, 1), "AB1", "la colonne 28 suit AA")
+	dbgVérifieEgalité(xlsCoordonnéesVersNom(52, 1), "AZ1", "la colonne 52 correspond à AZ")
+	dbgVérifieEgalité(xlsCoordonnéesVersNom(702, 1), "ZZ1", "la colonne 702 correspond à ZZ")
+	dbgVérifieEgalité(xlsCoordonnéesVersNom(703, 1), "AAA1", "la colonne 703 franchit la frontière vers AAA")
+
+	colonneAA est un entier = xlsNomVersCoordonnées("AA1", xlsNumColonne)
+	dbgVérifieEgalité(colonneAA, 27, "le round-trip AA redonne la colonne 27")
+	colonneZZ est un entier = xlsNomVersCoordonnées("ZZ5", xlsNumColonne)
+	dbgVérifieEgalité(colonneZZ, 702, "le round-trip ZZ redonne la colonne 702")
+	ligneZZ est un entier = xlsNomVersCoordonnées("ZZ5", xlsNumLigne)
+	dbgVérifieEgalité(ligneZZ, 5, "la ligne reste correcte à côté d'une colonne à deux lettres")
+FIN
+
+
+// Une date écrite dans une cellule est stockée comme un numéro de série (système 1900) :
+// le 1er janvier 2020 correspond au sérial 43831. La relecture après sauvegarde/réouverture
+// ne doit jamais renvoyer une cellule vide.
+PROCEDURE PUBLIQUE scenario_ecriture_date_en_cellule()
+	doc est un xlsDocument
+	dateRef est une date = ChaîneVersDate("20200101")
+	doc[1, 1] = dateRef
+	xlsSauve(doc, "test_xls_date.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_date.xlsx", xlsEcriture)
+	valeur est une chaîne = xlsDonnée(relu, 1, 1)
+	dbgVérifieVrai(Taille(valeur) > 0, "une date écrite en cellule ne relit jamais une chaîne vide")
+	dbgVérifieEgalité(valeur, "43831", "le 1er janvier 2020 est stocké comme le sérial Excel 43831")
+	xlsFerme(relu)
+	fSupprime("test_xls_date.xlsx")
+FIN
+
+
+// Cas limite : une fusion réduite à une seule cellule (coin haut-gauche = coin bas-droit) est acceptée et réversible.
+PROCEDURE PRIVÉE scenario_edge_fusion_cellule_unique()
+	doc est un xlsDocument
+	doc[5, 5] = "Seule"
+	fusionnée est un booléen = xlsFusionneCellule(doc, "E5", "E5")
+	dbgVérifieVrai(fusionnée, "une fusion 1x1 (même cellule des deux côtés) est acceptée")
+	défusionnée est un booléen = xlsDéfusionneCellule(doc, "E5")
+	dbgVérifieVrai(défusionnée, "une fusion 1x1 se défait comme n'importe quelle autre")
+	xlsFerme(doc)
+FIN
+
+
+// Un montant monétaire écrit dans une cellule s'écrit sous sa forme décimale canonique :
+// c'est une valeur numérique, elle ne doit jamais retomber sur une cellule vide après
+// sauvegarde/réouverture.
+PROCEDURE PUBLIQUE scenario_ecriture_montant_monetaire_en_cellule()
+	doc est un xlsDocument
+	montant est un monétaire = 12.50
+	doc[1, 1] = montant
+	xlsSauve(doc, "test_xls_monetaire.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_monetaire.xlsx", xlsEcriture)
+	valeur est une chaîne = xlsDonnée(relu, 1, 1)
+	dbgVérifieVrai(Taille(valeur) > 0, "un montant monétaire écrit en cellule ne relit jamais une chaîne vide")
+	dbgVérifieEgalité(valeur, "12.5", "un montant monétaire de 12,50 est stocké sous sa forme décimale canonique 12.5")
+	xlsFerme(relu)
+	fSupprime("test_xls_monetaire.xlsx")
+FIN
+
+
+// Garde générique : chaque type scalaire écrit dans une cellule doit se relire non vide
+// après sauvegarde/réouverture. Un type scalaire oublié dans la conversion cellule
+// retomberait silencieusement sur une chaîne vide — ce scénario verrouille la classe
+// entière plutôt qu'un seul type isolé.
+PROCEDURE PUBLIQUE scenario_garde_generique_types_scalaires_non_vides()
+	doc est un xlsDocument
+	doc[1, 1] = 7 // entier
+	doc[2, 1] = 2.25 // réel
+	montant est un monétaire = 99.90
+	doc[3, 1] = montant // monétaire
+	doc[4, 1] = Vrai // booléen Vrai
+	doc[5, 1] = Faux // booléen Faux
+	doc[6, 1] = ChaîneVersDate("20210615") // date
+	doc[7, 1] = ChaîneVersDate("2021-06-15 09:00:00", "AAAA-MM-JJ HH:MI:SS") // dateheure
+	doc[8, 1] = "texte" // chaîne
+	durée est une durée = 12000
+	doc[9, 1] = durée // durée
+	xlsSauve(doc, "test_xls_garde_scalaires.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_xls_garde_scalaires.xlsx", xlsEcriture)
+	vEntier est une chaîne = xlsDonnée(relu, 1, 1)
+	dbgVérifieVrai(Taille(vEntier) > 0, "un entier écrit en cellule ne relit jamais une chaîne vide")
+	vRéel est une chaîne = xlsDonnée(relu, 2, 1)
+	dbgVérifieVrai(Taille(vRéel) > 0, "un réel écrit en cellule ne relit jamais une chaîne vide")
+	vMonétaire est une chaîne = xlsDonnée(relu, 3, 1)
+	dbgVérifieVrai(Taille(vMonétaire) > 0, "un monétaire écrit en cellule ne relit jamais une chaîne vide")
+	vVrai est une chaîne = xlsDonnée(relu, 4, 1)
+	dbgVérifieVrai(Taille(vVrai) > 0, "un booléen Vrai écrit en cellule ne relit jamais une chaîne vide")
+	vFaux est une chaîne = xlsDonnée(relu, 5, 1)
+	dbgVérifieVrai(Taille(vFaux) > 0, "un booléen Faux écrit en cellule ne relit jamais une chaîne vide")
+	vDate est une chaîne = xlsDonnée(relu, 6, 1)
+	dbgVérifieVrai(Taille(vDate) > 0, "une date écrite en cellule ne relit jamais une chaîne vide")
+	vDateHeure est une chaîne = xlsDonnée(relu, 7, 1)
+	dbgVérifieVrai(Taille(vDateHeure) > 0, "une dateheure écrite en cellule ne relit jamais une chaîne vide")
+	vChaîne est une chaîne = xlsDonnée(relu, 8, 1)
+	dbgVérifieVrai(Taille(vChaîne) > 0, "une chaîne écrite en cellule ne relit jamais une chaîne vide")
+	vDurée est une chaîne = xlsDonnée(relu, 9, 1)
+	dbgVérifieVrai(Taille(vDurée) > 0, "une durée écrite en cellule ne relit jamais une chaîne vide")
+	xlsFerme(relu)
+	fSupprime("test_xls_garde_scalaires.xlsx")
+FIN

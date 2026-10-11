@@ -1,0 +1,65 @@
+// Une fenêtre qui porte À LA FOIS une barre de menu (MenuPrincipal) ET des
+// menus contextuels (fond + champ) doit se construire et s'attacher sans
+// planter. C'est le combo qui segfaulte au show() natif (Windows) alors que
+// MenuPrincipal SEUL passe.
+//
+// Portée de ce test : il monte de VRAIS widgets Qt (TestModeHeadless(Faux) +
+// OuvreSoeur en mode offscreen) et exerce donc tout le chemin de SETUP —
+// setMenuBar de la barre, setContextMenuPolicy du fond, install du contextuel
+// de champ + raccourcis persistants — sur la même fenêtre. Un crash d'ordre /
+// d'ownership / de null-deref à la CONSTRUCTION ferait tomber le process ici.
+//
+// Limite assumée : offscreen ne déclenche pas le show() natif, donc ce test ne
+// reproduit pas le segfault de peinture native. Sa valeur = filet de
+// non-régression sur la coexistence des deux surfaces de menu à la construction.
+// La validation finale du crash reste l'affichage réel du dev (F9).
+
+TestModeHeadless(Faux)
+
+bFenPrete est un booléen = Faux
+cDernierChamp est une chaîne = ""
+nFondCount est un entier = 0
+nBarreCount est un entier = 0
+
+PROCEDURE callback_fen_prete()
+	bFenPrete = Vrai
+FIN
+
+PROCEDURE callback_champ(cNom est une chaîne)
+	cDernierChamp = cNom
+FIN
+
+PROCEDURE callback_fond()
+	nFondCount += 1
+FIN
+
+PROCEDURE callback_barre()
+	nBarreCount += 1
+FIN
+
+// Construction du combo : ne doit ni planter ni signaler d'erreur.
+OuvreSoeur(FEN_MenuPrincipalPlusContextuel)
+dbgVérifieFaux(ErreurDétectée,
+"combo barre + 2 contextuels : ouverture sans erreur")
+dbgVérifieVrai(bFenPrete, "FinInitialisation appelee : fenetre prete")
+
+// La barre de menu a bien été construite ET attachée malgré la présence des
+// contextuels : sa feuille QSS effective est non vide et porte le survol stylé.
+feuilleBarre est une chaîne = __DebugFeuilleStyleMenu()
+dbgVérifieVrai(Contient(feuilleBarre, "QMenuBar"),
+"barre de menu construite dans le combo (feuille QSS non vide)")
+
+// Le contextuel de CHAMP coexiste avec la barre : son raccourci persistant F4
+// fire la surSélection quand le champ a le focus (menu fermé).
+DonneFocus(ZS_Zone)
+EnvoieTouche(tkF4)
+dbgVérifieEgalité(cDernierChamp, "ZS_Zone",
+"contextuel de champ (F4) opérant malgré la barre de menu")
+
+// Le contextuel de FOND coexiste aussi : son raccourci F6 (WindowShortcut) fire.
+EnvoieTouche(tkF6)
+dbgVérifieEgalité(nFondCount, 1,
+"contextuel de fond (F6) opérant malgré la barre de menu")
+
+Ferme(FEN_MenuPrincipalPlusContextuel)
+dbgBilanTest()

@@ -1,0 +1,77 @@
+// Regression : `SI <cond> ALORS RENVOYER` (forme courte une ligne) doit
+// retourner sans valeur quand la condition est vraie, et continuer
+// normalement quand elle est fausse.
+//
+// Bug historique : compiler.c::statement_or_expr ne consultait pas le
+// flag crossedNewline apres match_token(RENVOYER) — du coup la ligne
+// suivante (un Trace, une instruction quelconque) etait avalee comme
+// expression de retour. Resultat : inversion totale du comportement.
+//
+//   PROCEDURE T(n est un entier)
+//       SI n < 0 ALORS RENVOYER
+//       Trace("after: " + n)
+//   FIN
+//   T(-5)  // attendu : rien (return), observe AVANT FIX : "after: -5"
+//   T(5)   // attendu : "after: 5", observe AVANT FIX : rien
+//
+// Fix : check(crossedNewline) ajoute aux conditions "RENVOYER sans
+// valeur" dans la branche TOKEN_RENVOYER de statement_or_expr.
+
+// Compteur pour observer les side-effects du body
+nbExecutionsAfter est un entier = 0
+
+PROCEDURE GardeNeg(n est un entier)
+	SI n < 0 ALORS RENVOYER
+	nbExecutionsAfter = nbExecutionsAfter + 1
+FIN
+
+// === Cas garde declenche : n negatif -> early return ===
+GardeNeg(-5)
+dbgVérifieEgalité(nbExecutionsAfter, 0,
+"GardeNeg(-5) doit early-return : body apres garde non execute")
+
+GardeNeg(-100)
+dbgVérifieEgalité(nbExecutionsAfter, 0,
+"GardeNeg(-100) idem : compteur reste a 0")
+
+// === Cas garde passante : n positif -> body execute ===
+GardeNeg(5)
+dbgVérifieEgalité(nbExecutionsAfter, 1,
+"GardeNeg(5) doit executer le body : compteur passe a 1")
+
+GardeNeg(42)
+dbgVérifieEgalité(nbExecutionsAfter, 2,
+"GardeNeg(42) idem : compteur a 2")
+
+GardeNeg(0)
+dbgVérifieEgalité(nbExecutionsAfter, 3,
+"GardeNeg(0) : 0 n'est pas < 0, body execute, compteur a 3")
+
+// === Sanity : RENVOYER avec valeur sur meme ligne marche encore ===
+FONCTION CarréOuZéro(n est un entier) : entier
+	SI n < 0 ALORS RENVOYER 0
+	RENVOYER n * n
+FIN
+
+dbgVérifieEgalité(CarréOuZéro(-3), 0,
+"RENVOYER expr sur meme ligne : n negatif -> 0")
+dbgVérifieEgalité(CarréOuZéro(4), 16,
+"RENVOYER expr sur meme ligne : n positif -> n*n")
+
+// === Sanity : RENVOYER forme bloc marche encore ===
+PROCEDURE GardeBloc(n est un entier)
+	SI n < 0 ALORS
+		RENVOYER
+	FIN
+	nbExecutionsAfter = nbExecutionsAfter + 100
+FIN
+
+nbExecutionsAfter = 0
+GardeBloc(-1)
+dbgVérifieEgalité(nbExecutionsAfter, 0,
+"GardeBloc(-1) : forme bloc early-return marche")
+GardeBloc(1)
+dbgVérifieEgalité(nbExecutionsAfter, 100,
+"GardeBloc(1) : forme bloc body execute")
+
+dbgBilanTest()

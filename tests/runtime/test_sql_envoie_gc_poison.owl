@@ -1,0 +1,65 @@
+// Digue anti-UAF sur la construction des lignes SQL (SQLite en mémoire).
+//
+// Motif : la boucle qui matérialise une ligne alloue une clé (nom de colonne)
+// PUIS une valeur ; entre les deux, la clé n'est qu'un C local non enraciné.
+// L'allocation de la valeur déclenche un GC (déterministe sous OWL_STRESS_GC)
+// qui collecte la clé non rootée ; sous OWL_GC_POISON la mémoire libérée est
+// écrite 0xDD. La clé stockée devient un pointeur mort → toute relecture par
+// ce nom de colonne rend "" (clé introuvable) au lieu de la valeur.
+//
+// Trois précautions rendent le défaut OBSERVABLE sous `owl test` (sinon il
+// reste masqué par l'internement/rétention de chaînes propre au harnais) :
+//  1. les alias de colonne sont enfouis dans le littéral SQL (jamais un
+//     littéral OWL isolé) : sinon le compilateur les internerait en constantes
+//     rootées et la clé ne serait jamais collectable ;
+//  2. on relit chaque valeur via une clé CONSTRUITE AU RUNTIME (concat) : une
+//     clé littérale serait elle-même une constante compile-time qui enracine
+//     le nom de colonne et masque le bug ;
+//  3. une colonne rend une valeur ALÉATOIRE (randomblob) — jamais internée
+//     auparavant — pour garantir qu'une allocation (donc un GC) survienne dans
+//     la fenêtre clé-allouée / valeur-allouée de CHAQUE ligne.
+//
+// Sans le rooting : les relectures rendent "" -> assertions rouges.
+// Avec : les clés survivent -> valeurs exactes.
+
+PROCEDURE PUBLIQUE scenario_lignes_sql_sous_pression_gc()
+    cnx est une sqlConnexion
+    cnx..Provider = sqlSqlite
+    cnx..Source   = ":memory:"
+    dbgVérifieEgalité(cnx.Ouvre(), Vrai, "open")
+
+    reqCreate est une sqlRequête
+    reqCreate..Code = "CREATE TABLE t (id INTEGER PRIMARY KEY, prenom TEXT)"
+    SQLEnvoie(cnx, reqCreate)
+
+    reqIns est une sqlRequête
+    reqIns..Code = "INSERT INTO t (prenom) VALUES ({p})"
+    reqIns..Paramètres["p"] = "Alice"
+    SQLEnvoie(cnx, reqIns)
+    reqIns..Paramètres["p"] = "Bruno"
+    SQLEnvoie(cnx, reqIns)
+
+    // Colonne aléatoire (force une allocation -> GC dans la fenêtre) + colonne
+    // déterministe, toutes deux avec alias enfouis dans le SQL.
+    reqSel est une sqlRequête
+    reqSel..Code = "SELECT lower(hex(randomblob(20))) AS kolonne_aleatoire_5521, ('p#'||prenom||'#'||id) AS kolonne_prenom_9981 FROM t ORDER BY id"
+    repSel est une sqlRéponse = SQLEnvoie(cnx, reqSel)
+    dbgVérifieEgalité(repSel..Succès, Vrai, "SELECT réussit")
+    dbgVérifieEgalité(repSel..Occurrence, 2, "2 lignes")
+
+    // Clés reconstruites au runtime : le nom de colonne n'est jamais une
+    // constante compile-time -> la clé stockée par la native reste collectable.
+    kAlea   est une chaine = "kolonne_aleatoire_" + "5521"
+    kPrenom est une chaine = "kolonne_prenom_" + "9981"
+
+    // Valeur aléatoire : 20 octets -> 40 hex. Si la clé a été collectée, la
+    // relecture rend "" -> Taille 0.
+    dbgVérifieEgalité(Taille(repSel..Lignes[1][kAlea]), 40, "l1 aléa 40 hex (clé survit)")
+    dbgVérifieEgalité(Taille(repSel..Lignes[2][kAlea]), 40, "l2 aléa 40 hex (clé survit)")
+
+    // Valeur déterministe : assertion sur valeur EXACTE.
+    dbgVérifieEgalité(repSel..Lignes[1][kPrenom], "p#Alice#1", "l1 prenom exact (clé survit)")
+    dbgVérifieEgalité(repSel..Lignes[2][kPrenom], "p#Bruno#2", "l2 prenom exact (clé survit)")
+
+    cnx.Ferme()
+FIN

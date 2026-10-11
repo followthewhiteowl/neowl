@@ -1,0 +1,65 @@
+// =============================================================================
+// TEST : Resolution runtime EN->FR des CONSTANTES fonts / HTTP / formats page
+// (, Track B - modules ui_catalog + stdlib_http).
+//
+// Verrouille le contrat bilingue : referencer une constante par sa forme EN
+// canon (nameEN pose dans le registre) resout vers EXACTEMENT la meme valeur
+// que la forme FR canon. La forme EN est enregistree comme alias runtime-only
+// dans vm.globals (mirror de l'alias ASCII), pas une 2e entree registre.
+//
+// Couples couverts (FR canon -> nameEN) :
+//   iPoliceArial      -> iFontArial          (prefixe iPolice -> iFont)
+//   iPoliceHelvetica  -> iFontHelvetica
+//   httpParamGardeConnexion -> httpParamKeepConnection
+//   httpParamRedirection    -> httpParamRedirect
+//   httpResultContenu       -> httpResultContent
+//   httpResultCodeEtat      -> httpResultStatusCode
+//   orientPaysage     -> orientLandscape     (migration alias -> nameEN)
+//   iImageMemoire     -> iMemoryImage        (migration alias -> nameEN)
+//   formatA4 / formatA3 (distinction valeur exacte)
+// =============================================================================
+
+PROCEDURE scenario_const_fonts_http_en_resout_vers_fr()
+	// --- iFont* (prefixe iPolice traduit) ---
+	dbgVérifieEgalité(iFontArial, iPoliceArial,
+	"iFontArial resout vers la meme valeur que iPoliceArial")
+	dbgVérifieEgalité(iFontHelvetica, iPoliceHelvetica,
+	"iFontHelvetica resout vers la meme valeur que iPoliceHelvetica")
+	dbgVérifieEgalité(iFontLiberationSans, iPoliceLiberationSans,
+	"iFontLiberationSans resout vers la meme valeur que iPoliceLiberationSans")
+
+	// --- httpParam* (prefixe garde, suffixe traduit) ---
+	dbgVérifieEgalité(httpParamKeepConnection, httpParamGardeConnexion,
+	"httpParamKeepConnection resout vers httpParamGardeConnexion")
+	dbgVérifieEgalité(httpParamRedirect, httpParamRedirection,
+	"httpParamRedirect resout vers httpParamRedirection")
+	dbgVérifieEgalité(httpParamConnectionTimeout, httpParamTimeoutConnexion,
+	"httpParamConnectionTimeout resout vers httpParamTimeoutConnexion")
+
+	// --- httpResult* ---
+	dbgVérifieEgalité(httpResultContent, httpResultContenu,
+	"httpResultContent resout vers httpResultContenu")
+	dbgVérifieEgalité(httpResultStatusCode, httpResultCodeEtat,
+	"httpResultStatusCode resout vers httpResultCodeEtat")
+	dbgVérifieEgalité(httpResultHeader, httpResultEntete,
+	"httpResultHeader resout vers httpResultEntete")
+
+	// --- migrations alias EN -> nameEN (meme sentinel que la forme FR) ---
+	dbgVérifieEgalité(orientLandscape, orientPaysage,
+	"orientLandscape resout vers la meme valeur que orientPaysage")
+	dbgVérifieEgalité(iMemoryImage, iImageMémoire,
+	"iMemoryImage resout vers la meme valeur que iImageMemoire")
+
+	// --- formats page : valeur exacte + distinction (capture non-triviale) ---
+	dbgVérifieEgalité(formatA4, formatA3 + 1,
+	"formatA4 (EN-pose) vaut exactement formatA3 + 1")
+	dbgVérifieVrai(formatA4 <> formatA3,
+	"formatA4 et formatA3 sont des valeurs distinctes (pas un fallback 0)")
+
+	// --- iNomPort canon -> iDeviceName ---
+	dbgVérifieEgalité(iDeviceName, iNomPort,
+	"iDeviceName resout vers la meme valeur que iNomPort")
+FIN
+
+scenario_const_fonts_http_en_resout_vers_fr()
+dbgBilanTest()

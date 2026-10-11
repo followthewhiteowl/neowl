@@ -1,0 +1,58 @@
+// @sujet : ErreurInfo
+// @résumé : Lit le détail de la dernière erreur soft déclenchée — message,
+// code, ligne d'origine, ou d'autres composants selon errInfo. Sans erreur
+// active, chaque composant retombe sur sa valeur neutre.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// Forme sans argument : équivaut à demander errMessage, le composant le
+// plus consulté après un ErreurDéclenche.
+PROCEDURE scenario_forme_par_defaut_equivaut_a_errMessage()
+	ErreurDéclenche(5, "Connexion perdue avec le serveur distant.")
+	dbgVérifieEgalité(ErreurInfo(), "Connexion perdue avec le serveur distant.", "La forme sans argument retourne le message")
+	dbgVérifieEgalité(ErreurInfo(errMessage), ErreurInfo(), "errMessage explicite et la forme par défaut coïncident")
+FIN
+
+
+// Composant errCode : reprend le code fourni à ErreurDéclenche, distinct
+// du message et lisible indépendamment de lui.
+PROCEDURE scenario_composant_errCode_reprend_le_code_fourni()
+	ErreurDéclenche(123, "Délai d'attente dépassé.")
+	dbgVérifieEgalité(ErreurInfo(errCode), 123, "errCode reprend le code numérique fourni")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "Délai d'attente dépassé.", "errMessage reste accessible en parallèle du code")
+FIN
+
+
+// Composant errLigne : renvoie la ligne source où ErreurDéclenche a été
+// appelé, utile pour localiser l'origine d'une erreur dans un traitement.
+PROCEDURE scenario_composant_errLigne_localise_le_declenchement()
+	ErreurDéclenche(1, "Ligne surveillée.")
+	dbgVérifieEgalité(ErreurInfo(errLigne), 33, "errLigne pointe la ligne exacte de ErreurDéclenche ci-dessus")
+FIN
+
+
+// Cas limite : forme à deux arguments avec indice de sous-erreur. Aucun
+// mécanisme de sous-erreur n'existe, l'indice est donc ignoré et
+// errNombreSousErreur reste toujours à 0.
+PROCEDURE scenario_forme_indice_ignoree_et_nombre_sous_erreur_nul()
+	ErreurDéclenche(9, "Echec composite.")
+	dbgVérifieEgalité(ErreurInfo(errNombreSousErreur), 0, "Sans mécanisme de sous-erreur, le compteur reste à 0")
+	dbgVérifieEgalité(ErreurInfo(errCode, 5), ErreurInfo(errCode), "L'indice de sous-erreur n'affecte pas le composant retourné")
+FIN
+
+
+// Cas limite : après ErreurRAZ, l'information précédente est effacée —
+// interroger ErreurInfo sur un contexte propre retombe sur des valeurs
+// neutres, pas sur les vestiges de la dernière erreur.
+PROCEDURE PRIVÉE scenario_etat_neutre_apres_erreur_raz()
+	ErreurDéclenche(77, "Erreur transitoire.")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "Erreur transitoire.", "L'erreur est bien lisible avant réinitialisation")
+
+	ErreurRAZ()
+	dbgVérifieEgalité(ErreurInfo(errMessage), "", "Après ErreurRAZ, errMessage retombe à une chaîne vide")
+	dbgVérifieEgalité(ErreurInfo(errCode), "", "Après ErreurRAZ, errCode retombe à une chaîne vide")
+FIN

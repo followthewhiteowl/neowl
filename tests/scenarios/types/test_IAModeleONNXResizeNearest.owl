@@ -1,0 +1,90 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — import d'un graphe avec un
+// nœud `Resize` en mode voisin le plus proche (upsample spatial 2×), motif
+// du cou FPN des détecteurs d'objets modernes.
+// @résumé : le scénario central importe un petit réseau qui applique une
+// convolution, un suréchantillonnage nearest-neighbor ×2, une seconde
+// convolution 1×1 puis une moyenne spatiale, et compare l'inférence à une
+// sortie de référence capturée hors OWL (onnxruntime), à une tolérance
+// flottante près.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_resize_nearest.onnx —
+// graphe Conv, Relu, Constant (facteurs d'échelle [1,1,2,2]), Resize,
+// Conv, ReduceMean (vérifié via onnx.load : le nœud Resize a bien
+// l'attribut mode="nearest", coordinate_transformation_mode="asymmetric",
+// nearest_mode="floor", et ses 3 entrées sont [X, roi(vide), scales] où
+// scales provient d'un nœud Constant — pas d'un initializer direct, c'est
+// la forme réellement émise par l'export torch de nn.Upsample). Entrée
+// [1,2,4,4] (flat[k] = k/32.0), sortie [1,2].
+// Oracle : tests/internal_fixtures/onnx/fixture_resize_nearest_oracle.json.
+
+PROCEDURE PUBLIQUE scenario_charge_onnx_resize_nearest_infere_egale_oracle()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_resize_nearest.onnx")
+	// Capture immédiate : la RAZ-auto consomme la sentinelle d'erreur au 1er
+	// appel natif suivant, lire ErreurDétectée avant tout autre appel
+	// (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un réseau avec Resize nearest (cou FPN) réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 31
+			brut.Ajoute(k / 32.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 2, 4, 4])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [2]
+		// (sémantique d'import ONNX). L'oracle onnxruntime [1,2] correspond aux
+		// mêmes 2 valeurs lues ici comme un Vecteur.
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [2]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = 0.031833406537771225
+		attendu2 est un réel = -0.01848112791776657
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (Resize nearest)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (Resize nearest)")
+	SINON
+		// Si l'exécuteur de graphe ne gère pas Resize (et le nœud Constant
+		// qui porte les facteurs d'échelle), le message nomme l'opération
+		// ONNX non reconnue, pas une syntaxe cassée côté test.
+		sDétail est une chaîne = ErreurInfo(errMessage)
+		dbgVérifieVrai(Contient(sDétail, "non supportee") OU Contient(sDétail, "non supportée"), "le détail nomme une opération ONNX non reconnue (Resize ou Constant)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le
+// même comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_resize_nearest_infer_equals_oracle()
+	mon is an AIModel
+	ErrorReset()
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_resize_nearest.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a network with a Resize nearest node (FPN neck) succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 31
+			raw.Ajoute(k / 32.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 2, 4, 4])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [2]")
+		val is a Vector = output..Value
+
+		expected1 is a real = 0.031833406537771225
+		expected2 is a real = -0.01848112791776657
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the Resize nearest oracle")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the Resize nearest oracle")
+	SINON
+		sDetail is a string = ErrorInfo(errMessage)
+		dbgCheckTrue(Contient(sDetail, "non supportee") OU Contient(sDetail, "non supportée"), "the detail names an unrecognized ONNX operation (Resize or Constant)")
+	FIN
+FIN

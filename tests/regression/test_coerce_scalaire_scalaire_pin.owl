@@ -1,0 +1,63 @@
+// ================================================================
+//  : pin du comportement actuel des coercions scalaire <-> scalaire
+// ================================================================
+//
+// Périmètre du fix 0802 = uniquement tableau <-> scalaire. Les
+// coercions scalaire <-> scalaire (chaîne, entier, réel, booléen,
+// date) restent hors-scope et NE DOIVENT PAS changer. Ce fichier
+// verrouille leur comportement mesuré sur le binaire à la date de
+// rédaction, pour qu'un effet de bord du fix tableau/scalaire ne
+// les fasse pas dériver silencieusement.
+
+PROCEDURE PUBLIQUE test_pin_chaine_numerique_valide_vers_entier()
+	n est un entier = "123"
+	dbgVérifieEgalité(n, 123, "Chaîne numérique valide coercée en entier garde sa valeur")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_chaine_non_numerique_vers_entier()
+	n est un entier = "bonjour"
+	dbgVérifieEgalité(n, 0, "Chaîne non numérique coercée en entier retombe à 0 (silencieux, hors-scope)")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_entier_vers_chaine()
+	s est une chaîne = 42
+	dbgVérifieEgalité(s, "42", "Entier coercé en chaîne donne sa représentation décimale")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_chaine_reelle_valide_vers_reel()
+	r est un réel = "3.14"
+	dbgVérifieVrai(Abs(r - 3.14) < 0.0001, "Chaîne décimale valide coercée en réel garde sa valeur")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_reel_vers_chaine()
+	s est une chaîne = 3.14
+	dbgVérifieEgalité(s, "3.14", "Réel coercé en chaîne donne sa représentation décimale")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_chaine_vers_booleen()
+	b est un booléen = "Vrai"
+	dbgVérifieVrai(b, "Chaîne 'Vrai' coercée en booléen donne Vrai")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_booleen_vers_chaine()
+	s est une chaîne = Vrai
+	dbgVérifieEgalité(s, "1", "Booléen Vrai coercé en chaîne donne '1'")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_booleen_vers_entier()
+	n est un entier = Vrai
+	dbgVérifieEgalité(n, 1, "Booléen Vrai coercé en entier donne 1")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_chaine_vers_date()
+	d est une date = "20260701"
+	dbgVérifieEgalité(d, "20260701", "Chaîne au format date valide coercée en date garde sa valeur")
+FIN
+
+PROCEDURE PUBLIQUE test_pin_date_vers_chaine()
+	d est une date = "20260701"
+	s est une chaîne = d
+	dbgVérifieEgalité(s, "20260701", "Date coercée en chaîne garde sa représentation")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,22 @@
+//  — alpha du trait de cadre par côté (TraitHaut) sur un Champ
+// Conteneur. Rig GUI réel (TestModeHeadless(Faux) + OuvreSoeur +
+// dCopieImageFenêtre + dPixelCouleur).
+//
+// ROUGE attendu (même bug que le per-side opaque) : le bord haut rend la
+// couleur GLOBALE (Cadre..Couleur, gris foncé), ni la couleur ni l'alpha de
+// TraitHaut. Une fois le wiring per-side réparé, l'ingestion alpha
+// (trait_haut_alpha, déjà câblée ) doit produire le mélange exact.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TraitParCoteConteneurAlpha)
+
+img est une Image = dCopieImageFenêtre(FEN_TraitParCoteConteneurAlpha)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// CNT_AlphaHaut [20,20]-[320,220], épaisseur 12 : bande haut y=20..32, milieu (170,26).
+dbgVérifieEgalité(dPixelCouleur(img, 170, 26), RVB(127, 128, 0),
+"CNT_AlphaHaut : bord haut = TraitHaut..Couleur {Vert, Opacité=128} mélangé au fond rouge (127,128,0)")
+
+Ferme(FEN_TraitParCoteConteneurAlpha)
+dbgBilanTest()

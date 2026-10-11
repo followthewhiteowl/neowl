@@ -1,0 +1,146 @@
+// @sujet : ChaîneVersJSON, JSONVersChaîne, JSONDésérialise
+// @résumé : Round-trip JSON avec précision exacte pour numérique et monétaire. Parse et sérialisation sans perte. Un nombre décimal qui dépasse la précision standard reste exact au re-parse.
+
+// Structure pour test typé Désérialise
+stMesureExacte est une Structure
+	nom est une chaîne
+	valeur est un numérique
+FIN
+
+stFactureExacte est une Structure
+	reference est une chaîne
+	montant est un monétaire
+FIN
+
+
+// Parse non-typé d'un gros décimal doit rester exact.
+// Un nombre décimal au-delà de la précision standard (~15-17 chiffres significatifs)
+// ne doit pas être corrompu au parsing via ChaîneVersJSON.
+PROCEDURE scenario_parse_gros_decimal_exact()
+	sJSON est une chaîne = `{"x": 99999999999999999999999999999999.123456}`
+	doc est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un numérique = doc.x
+	attendu est un numérique = 0n99999999999999999999999999999999.123456
+	dbgVérifieEgalité(obtenu, attendu)
+FIN
+
+
+// Round-trip complet non-typé : un numérique exact affecté, sérialisé puis re-parsé
+// doit redonner la valeur exacte sans perte.
+// Cas critique : la sérialisation produit le bon texte, mais le
+// re-parse ne doit pas perdre la précision.
+PROCEDURE scenario_roundtrip_complet_non_type()
+	original est un numérique = 0n99999999999999999999999999999999.123456
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.v = original
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+
+	// Re-parse depuis la chaîne JSON
+	docLu est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un numérique = docLu.v
+	dbgVérifieEgalité(obtenu, original)
+FIN
+
+
+// Non-régression : un petit décimal dans la plage double reste correct.
+// Le fix de précision ne doit pas corrompre les cas standards déjà fonctionnels.
+PROCEDURE scenario_petit_decimal_reste_correct()
+	sJSON est une chaîne = `{"y": 3.14}`
+	doc est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un réel = doc.y
+	dbgVérifieEgalité(obtenu, 3.14)
+FIN
+
+
+// Path typé : Désérialise vers un champ numérique doit parser le nombre directement
+// en exact sans passer par double intermédiaire.
+PROCEDURE scenario_deserialise_vers_numerique()
+	sJSON est une chaîne = `{"nom":"grand","valeur":99999999999999999999999999999999.123456}`
+	template est un stMesureExacte
+	cible est un stMesureExacte = JSONDésérialise(sJSON, template, psdJSON)
+	attendu est un numérique = 0n99999999999999999999999999999999.123456
+	dbgVérifieEgalité(cible.valeur, attendu)
+FIN
+
+
+// Path typé : Désérialise vers un champ monétaire doit parser le nombre directement
+// en exact avec les 6 décimales de précision monétaire.
+// Valeur dans la plage int64×10^6 (partie entière <= ~9.2×10^12).
+PROCEDURE scenario_deserialise_vers_monetaire()
+	sJSON est une chaîne = `{"reference":"FAC-001","montant":9000000000000.123456}`
+	template est un stFactureExacte
+	cible est un stFactureExacte = JSONDésérialise(sJSON, template, psdJSON)
+	attendu est un monétaire = 0n9000000000000.123456
+	dbgVérifieEgalité(cible.montant, attendu)
+FIN
+
+
+// Non-régression : un entier reste entier et exact.
+PROCEDURE scenario_entier_reste_exact()
+	sJSON est une chaîne = `{"n": 42}`
+	doc est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un entier = doc.n
+	dbgVérifieEgalité(obtenu, 42)
+FIN
+
+
+// Non-régression : un grand entier dans la plage int64 reste exact.
+PROCEDURE scenario_grand_entier_exact()
+	sJSON est une chaîne = `{"big": 9000000000000000000}`
+	doc est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un entier = doc.big
+	dbgVérifieEgalité(obtenu, 9000000000000000000)
+FIN
+
+
+// Cas défensif : round-trip avec décimal négatif de forte précision.
+PROCEDURE PRIVÉE scenario_decimal_negatif_exact()
+	original est un numérique = 0n - 88888888888888888888888888888888.987654
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.negatif = original
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	docLu est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un numérique = docLu.negatif
+	dbgVérifieEgalité(obtenu, original)
+FIN
+
+
+// Cas défensif : parse d'un décimal avec beaucoup de zéros non-significatifs.
+// Le parseur doit capturer la précision effective sans corruption.
+PROCEDURE PRIVÉE scenario_decimal_zeros_nonsignificatifs()
+	sJSON est une chaîne = `{"val": 0.00000000000000000000000000000001234}`
+	doc est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un numérique = doc.Val
+	attendu est un numérique = 0n0.00000000000000000000000000000001234
+	dbgVérifieEgalité(obtenu, attendu)
+FIN
+
+
+// Cas défensif : round-trip avec monétaire de forte précision (6 décimales max).
+// Valeur dans la plage int64×10^6 (partie entière <= ~9.2×10^12).
+PROCEDURE PRIVÉE scenario_monetaire_precision_maximale()
+	original est un monétaire = 0n7777777777777.999999
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.montant = original
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	docLu est un JSON = ChaîneVersJSON(sJSON)
+	obtenu est un monétaire = docLu.montant
+	dbgVérifieEgalité(obtenu, original)
+FIN
+
+
+// Cas défensif : vérification par forme chaîne sérialisée (alternative robuste).
+// Au lieu de comparer numérique == numérique, on vérifie que le texte JSON contient
+// bien les chiffres exacts, éliminant ainsi toute ambiguïté d'égalité cross-type.
+PROCEDURE PRIVÉE scenario_verification_forme_chaine()
+	original est un numérique = 0n12345678901234567890.98765
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.test = original
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sJSON, `12345678901234567890.98765`))
+
+	// Re-parse et vérifier round-trip par texte
+	docLu est un JSON = ChaîneVersJSON(sJSON)
+	sReJSON est une chaîne = JSONVersChaîne(docLu, psdMinifie)
+	dbgVérifieVrai(Contient(sReJSON, `12345678901234567890.98765`))
+FIN

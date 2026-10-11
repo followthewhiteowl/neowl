@@ -1,0 +1,51 @@
+// Regression : POUR TOUTE POSITION au-delà de 2048 occurrences.
+//
+// Les positions étaient collectées dans un tableau borné à 2048 : au-delà,
+// la collecte s'arrêtait silencieusement (tableau tronqué, résultat faux
+// sans erreur ni crash).
+//
+// On construit "abab...ab" (3000 occurrences de "ab", non chevauchantes).
+// Occurrence k (base 1) à la position 1 + 2*(k-1).
+
+sBig est une chaîne = ""
+POUR i = 1 A 3000
+	sBig = sBig + "ab"
+FIN
+
+tabPos est un tableau de entiers
+POUR TOUTE Position p DE "ab" DANS sBig
+	Ajoute(tabPos, p)
+FIN
+
+// La longueur du tableau doit refléter les 3000 occurrences (> 2048).
+dbgVérifieEgalité(tabPos..Occurrence, 3000,
+	"POUR TOUTE POSITION : 3000 occurrences collectées (au-delà de 2048)")
+
+// Position profonde : occurrence 2050 = 1 + 2*2049 = 4099.
+dbgVérifieEgalité(tabPos[2050], 4099,
+	"POUR TOUTE POSITION : 2050e occurrence à la position 4099")
+
+// Dernière occurrence : 3000 = 1 + 2*2999 = 5999.
+dbgVérifieEgalité(tabPos[3000], 5999,
+	"POUR TOUTE POSITION : dernière occurrence à la position 5999")
+
+// Sens DepuisFin au-delà du plafond : ordre inversé.
+tabFin est un tableau de entiers
+POUR TOUTE Position p DE "ab" DANS sBig DepuisFin
+	Ajoute(tabFin, p)
+FIN
+dbgVérifieEgalité(tabFin..Occurrence, 3000, "DepuisFin : 3000 occurrences")
+dbgVérifieEgalité(tabFin[1], 5999, "DepuisFin : 1re = dernière position (5999)")
+dbgVérifieEgalité(tabFin[3000], 1, "DepuisFin : dernière = 1re position (1)")
+
+// Non-régression cas nominal (< 2048).
+sPetit est une chaîne = "abcabcabc"
+tabPetit est un tableau de entiers
+POUR TOUTE Position p DE "abc" DANS sPetit
+	Ajoute(tabPetit, p)
+FIN
+dbgVérifieEgalité(tabPetit..Occurrence, 3, "Cas nominal : 3 occurrences")
+dbgVérifieEgalité(tabPetit[1], 1, "Cas nominal : pos 1")
+dbgVérifieEgalité(tabPetit[3], 7, "Cas nominal : pos 7")
+
+dbgBilanTest()

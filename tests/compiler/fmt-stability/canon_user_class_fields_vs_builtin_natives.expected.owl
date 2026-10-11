@@ -1,0 +1,39 @@
+//  : champ declare dans une Classe user conserve sa casse de
+// declaration meme s'il collisionne avec une native FONCTION homonyme
+// (val vs Val(), taille vs Taille(), nom vs Nom()).
+//
+// Extension du  (qui protegeait deja les user_fields de
+// Structure et les acces afterDot prop builtin) aux class_members
+// standalone (declaration + acces via `:`).
+//
+// Le canon native est verrouille par d'autres fixtures
+// (canon_builtin_legitimate_non_regression,  round 2 sur
+// is_call_position). On ne le re-teste pas ici pour eviter d'embarquer
+// un bug orthogonal observe pendant  (cf rapport reviewer) :
+// dans le scope d'une declaration user d'un nom homonyme native, un
+// VRAI appel natif standalone peut etre degrade (`Val("...")` ->
+// `val("...")`). Ce bug existe deja sur les user_fields (Structure) —
+// il est pre-existant , signale au coordinator pour ticket
+// dedie.
+
+MaClasse est une Classe
+	val est un entier
+	taille est un entier
+	nom est une chaîne
+FIN
+
+PROCEDURE PUBLIQUE Init()
+	:val = 42
+	:taille = 100
+	:nom = "hello"
+FIN
+
+PROCEDURE PUBLIQUE Affiche()
+	// trace est un nom natif sans collision avec un champ user ici :
+	// il reste canonise vers Trace, comme attendu.
+	Trace(:nom)
+FIN
+
+c est un MaClasse
+c..Init()
+c..Affiche()

@@ -1,0 +1,206 @@
+// ============================================
+// TEST: ExceptionInfo — sémantiques distinctes des constantes errXxx
+//
+// Verrouille les 5 constantes différenciées (option A du polish 0015) :
+//   errTraitement = nom de la procédure courante au moment de la levée
+//   errPendant    = nom de la fonction qui a réellement levé (ex. ExceptionDéclenche)
+//   errÉlément    = nom du fichier source .owl où la levée a eu lieu
+//   errRésumé     = première ligne du message, tronquée à 80 caractères
+//   errInfo       = 3e argument d'ExceptionDéclenche, vide sinon
+//
+// + cas limites : indiceSousErreur ignoré silencieusement, top-level "<script>",
+// re-raise via EXCEPTION qui ne touche pas errPendant.
+// ============================================
+Trace("=== EXCEPTION INFO POLISH ===")
+
+// ---------------------------------------------------------------------
+// CA-2 — errTraitement = procédure courante (pas le littéral ExceptionDéclenche)
+// ---------------------------------------------------------------------
+FONCTION ProcQuiLeve() : chaîne
+	ExceptionDéclenche(1, "boom dans ProcQuiLeve")
+	RENVOYER ""
+FIN
+
+QUAND EXCEPTION DANS
+	ProcQuiLeve()
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errTraitement), "ProcQuiLeve",
+	"errTraitement = nom de la procédure courante")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-2bis — errTraitement = "<script>" au top-level (hors procédure user)
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(2, "boom top-level")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errTraitement), "<script>",
+	"errTraitement = <script> au top-level")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-3 — errPendant = "ExceptionDéclenche" pour une levée user
+// (distinct de errTraitement qui donne la procédure appelante)
+// ---------------------------------------------------------------------
+FONCTION ProcLeve3() : chaîne
+	ExceptionDéclenche(3, "boom CA-3")
+	RENVOYER ""
+FIN
+
+QUAND EXCEPTION DANS
+	ProcLeve3()
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errPendant), "ExceptionDéclenche",
+	"errPendant = nom de la fonction qui lève (ExceptionDéclenche)")
+	dbgVérifieEgalité(ExceptionInfo(errTraitement), "ProcLeve3",
+	"errTraitement = procédure appelante, distinct de errPendant")
+	// La distinction sémantique tient : les deux constantes ne sont plus alias.
+	dbgVérifieVrai(ExceptionInfo(errPendant) <> ExceptionInfo(errTraitement),
+	"errPendant et errTraitement renvoient des valeurs distinctes")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-4 — errÉlément = nom du fichier source .owl
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(4, "boom CA-4")
+FAIRE
+	sFichier est une chaîne = ExceptionInfo(errElement)
+	dbgVérifieVrai(Taille(sFichier) > 0, "errÉlément non vide")
+	dbgVérifieVrai(PositionOccurrence(sFichier, ".owl", 1) > 0,
+	"errÉlément contient .owl")
+	dbgVérifieVrai(PositionOccurrence(sFichier, "test_exception_info_polish", 1) > 0,
+	"errÉlément pointe sur ce fichier de test")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-5 — errInfo = 3e arg d'ExceptionDéclenche, vide sinon
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(5, "boom CA-5", "ctx=42")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "ctx=42",
+	"errInfo = 3e arg d'ExceptionDéclenche")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "boom CA-5",
+	"errMessage reste le message (2e arg), distinct d'errInfo")
+FIN
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(6, "boom sans info")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"errInfo vide quand pas de 3e arg")
+FIN
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche("message seul, pas de code, pas d'info")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"errInfo vide quand seul un message est fourni")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-6 — errRésumé : 1ère ligne si message multi-ligne, tronqué à 80 sinon
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(7, "premiere ligne" + LF + "deuxieme ligne" + LF + "troisieme")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errRésumé), "premiere ligne",
+	"errRésumé = 1ère ligne du message multi-ligne")
+	dbgVérifieVrai(Taille(ExceptionInfo(errMessage)) > Taille(ExceptionInfo(errRésumé)),
+	"errMessage complet est plus long que errRésumé")
+FIN
+
+// Message court non multi-ligne : errRésumé = errMessage
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(8, "court et net")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errRésumé), "court et net",
+	"errRésumé = message complet si court et mono-ligne")
+FIN
+
+// Message long sans \n : tronqué à 80 caractères
+sLong est une chaîne = ""
+POUR i = 1 À 120
+	sLong = sLong + "x"
+FIN
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(9, sLong)
+FAIRE
+	dbgVérifieEgalité(Taille(ExceptionInfo(errRésumé)), 80,
+	"errRésumé tronqué à 80 caractères sur message long mono-ligne")
+	dbgVérifieEgalité(Taille(ExceptionInfo(errMessage)), 120,
+	"errMessage non tronqué (120 caractères)")
+FIN
+
+// Message vide : errRésumé reste vide, pas de crash
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(10, "")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errRésumé), "",
+	"errRésumé vide si message vide")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-8 — indiceSousErreur fourni mais ignoré silencieusement (Q1)
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(42, "msg indice")
+FAIRE
+	// indice 5 alors qu'aucune sous-erreur n'existe : aucun crash, valeur principale renvoyée
+	dbgVérifieEgalité(ExceptionInfo(errCode, 5), 42,
+	"indiceSousErreur=5 ignoré, errCode retourne la valeur principale")
+	dbgVérifieEgalité(ExceptionInfo(errMessage, 99), "msg indice",
+	"indiceSousErreur=99 ignoré, errMessage retourne la valeur principale")
+	dbgVérifieEgalité(ExceptionInfo(errMessage, 0), "msg indice",
+	"indiceSousErreur=0 ignoré, errMessage retourne la valeur principale")
+	// errNombreSousErreur reste 0 (mécanisme sous-erreurs non implémenté)
+	dbgVérifieEgalité(ExceptionInfo(errNombreSousErreur), 0,
+	"errNombreSousErreur reste à 0 (alpha)")
+FIN
+
+// ---------------------------------------------------------------------
+// CA-9 — re-raise via EXCEPTION : errPendant ne change pas
+// ---------------------------------------------------------------------
+FONCTION InnerRR() : chaîne
+	ExceptionDéclenche(77, "inner re-raise")
+	RENVOYER ""
+FIN
+
+FONCTION OuterRR() : chaîne
+	QUAND EXCEPTION DANS
+		InnerRR()
+	FAIRE
+		// On re-raise tel quel
+		EXCEPTION
+	FIN
+	RENVOYER ""
+FIN
+
+QUAND EXCEPTION DANS
+	OuterRR()
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 77,
+	"errCode intact après re-raise")
+	dbgVérifieEgalité(ExceptionInfo(errPendant), "ExceptionDéclenche",
+	"errPendant intact après re-raise (toujours ExceptionDéclenche d'origine)")
+FIN
+
+// ---------------------------------------------------------------------
+// Lecture hors handler : valeurs vides, pas de crash
+// ---------------------------------------------------------------------
+// Note : on entre dans un handler vide pour réinitialiser l'état n'est PAS
+// le comportement attendu — les globales persistent. Mais une fois la dernière
+// exception consommée, on vérifie juste qu'aucune lecture ne crashe.
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(0, "")
+FAIRE
+	// Lectures défensives : aucune ne doit lever
+	dbgVérifieEgalité(ExceptionInfo(errCode), 0, "errCode = 0 sur exception code=0")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "", "errMessage vide accepté")
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "", "errInfo vide accepté")
+	dbgVérifieEgalité(ExceptionInfo(errRésumé), "", "errRésumé vide accepté")
+FIN
+
+dbgBilanTest()

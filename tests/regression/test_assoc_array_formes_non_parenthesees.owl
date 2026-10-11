@@ -1,0 +1,40 @@
+//  : le refus de la forme parenthesee `tableau associatif(...)` ne
+// doit toucher AUCUNE des formes canon sans parentheses. Verrou de
+// non-regression sur les deux ordres de mots (FR / calque / EN naturel),
+// les pluriels toleres et la forme SANS type d'element.
+
+Trace("=== tableau associatif : formes non parenthesees ===")
+
+// Forme FR avec type d'element
+frTypes est un tableau associatif de chaînes
+frTypes["nom"] = "Alice"
+dbgVérifieEgalité(frTypes["nom"], "Alice", "FR: lecture cle nom")
+dbgVérifieEgalité(frTypes["absent"], "", "FR: chaine -> defaut vide")
+
+// Forme FR pluriel entiers
+frEntiers est un tableau associatif de entiers
+frEntiers["a"] = 7
+dbgVérifieEgalité(frEntiers["a"], 7, "FR: lecture cle a")
+dbgVérifieEgalité(frEntiers["absent"], 0, "FR: entier -> defaut 0")
+
+// Forme calque "array associative"
+calqueReels is array associative of reals
+calqueReels["pi"] = 3.5
+dbgVérifieEgalité(calqueReels["pi"], 3.5, "calque: lecture cle pi")
+dbgVérifieEgalité(calqueReels["absent"], 0, "calque: reel -> defaut 0")
+
+// Forme anglaise naturelle "associative array"
+enNaturel is associative array of integers
+enNaturel["x"] = 12
+dbgVérifieEgalité(enNaturel["x"], 12, "EN naturel: lecture cle x")
+dbgVérifieEgalité(enNaturel..Occurrence, 1, "EN naturel: 1 entree")
+
+// Forme SANS type d'element (valeurs heterogenes) : reste valide
+sansType est un tableau associatif
+sansType["s"] = "texte"
+sansType["n"] = 42
+dbgVérifieEgalité(sansType["s"], "texte", "sans type: valeur chaine")
+dbgVérifieEgalité(sansType["n"], 42, "sans type: valeur entiere")
+dbgVérifieEgalité(sansType..Occurrence, 2, "sans type: 2 entrees")
+
+dbgBilanTest()

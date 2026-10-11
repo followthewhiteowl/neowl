@@ -1,0 +1,99 @@
+// Tests XPath : XMLExécuteXPath, XMLLitXPath, XMLEcritXPath, XMLExécuteXPathNS
+
+xml est une chaîne = "<?xml version=""1.0""?><catalogue><livre genre=""SF""><titre>Dune</titre><auteur>Herbert</auteur><prix>29.90</prix></livre><livre genre=""SF""><titre>Fondation</titre><auteur>Asimov</auteur><prix>19.50</prix></livre><livre genre=""polar""><titre>Le Nom de la Rose</titre><auteur>Eco</auteur><prix>12.00</prix></livre></catalogue>"
+doc est un xmlDocument = XMLOuvre(xml, depuisChaîne)
+
+// --- XMLExécuteXPath : nodeset ---
+resultats est un tableau = XMLExécuteXPath(doc, "//livre")
+dbgVérifieEgalité(resultats..Occurrence, 3, "XPath //livre retourne 3 nœuds")
+
+// Vérifier le type des éléments retournés
+dbgVérifieEgalité(XMLNomElément(resultats[1]), "livre", "résultat[1] = livre")
+dbgVérifieEgalité(XMLNomElément(resultats[3]), "livre", "résultat[3] = livre")
+
+// --- XPath avec prédicat ---
+sf est un tableau = XMLExécuteXPath(doc, "//livre[@genre='SF']")
+dbgVérifieEgalité(sf..Occurrence, 2, "XPath avec prédicat [@genre='SF'] retourne 2")
+
+polars est un tableau = XMLExécuteXPath(doc, "//livre[@genre='polar']")
+dbgVérifieEgalité(polars..Occurrence, 1, "XPath polar retourne 1")
+
+// --- XPath sur les valeurs texte ---
+titres est un tableau = XMLExécuteXPath(doc, "//titre")
+dbgVérifieEgalité(titres..Occurrence, 3, "//titre retourne 3 nœuds")
+dbgVérifieEgalité(XMLLit(titres[1]), "Dune", "1er titre = Dune")
+dbgVérifieEgalité(XMLLit(titres[2]), "Fondation", "2e titre = Fondation")
+
+// --- Méthode .ExecuteXPath() ---
+resultats2 est un tableau = doc.ExécuteXPath("//auteur")
+dbgVérifieEgalité(resultats2..Occurrence, 3, "méthode .ExecuteXPath() retourne 3 auteurs")
+
+// --- XMLLitXPath : raccourci string ---
+premier_titre est une chaîne = XMLLitXPath(doc, "//titre[1]")
+dbgVérifieEgalité(premier_titre, "Dune", "XMLLitXPath retourne Dune")
+
+premier_auteur est une chaîne = XMLLitXPath(doc, "//auteur[1]")
+dbgVérifieEgalité(premier_auteur, "Herbert", "XMLLitXPath auteur[1] = Herbert")
+
+// XPath string() function
+prix_str est une chaîne = XMLLitXPath(doc, "string(//prix[1])")
+dbgVérifieEgalité(prix_str, "29.90", "XMLLitXPath string() = 29.90")
+
+// --- Méthode .LitXPath() ---
+// (//titre)[2] = 2nd titre in document order (// sur parents différents → parens obligatoires)
+titre_m est une chaîne = doc.LitXPath("(//titre)[2]")
+dbgVérifieEgalité(titre_m, "Fondation", "méthode .LitXPath()")
+
+// --- XMLEcritXPath : écriture sur nœud existant ---
+ok est un booléen = XMLEcritXPath(doc, "//titre[1]", "Dune Messiah")
+dbgVérifieVrai(ok, "XMLEcritXPath retourne Vrai")
+dbgVérifieEgalité(XMLLitXPath(doc, "//titre[1]"), "Dune Messiah", "valeur modifiée via XPath")
+
+// Restaurer
+XMLEcritXPath(doc, "//titre[1]", "Dune")
+dbgVérifieEgalité(XMLLitXPath(doc, "//titre[1]"), "Dune", "restauré via XMLEcritXPath")
+
+// --- Méthode .EcritXPath() ---
+doc.WriteXPath("(//prix)[3]", "11.00")
+dbgVérifieEgalité(doc.ReadXPath("(//prix)[3]"), "11.00", "méthode .WriteXPath()")
+
+// --- XMLEcritXPath : création de nœuds manquants ---
+doc2 est un xmlDocument = XMLDocument()
+XMLAjouteFils(doc2, "root")
+ok2 est un booléen = XMLEcritXPath(doc2, "/root/config/theme", "dark")
+dbgVérifieVrai(ok2, "XMLEcritXPath crée les nœuds manquants")
+dbgVérifieEgalité(XMLLitXPath(doc2, "/root/config/theme"), "dark", "valeur créée par chemin simple")
+
+// Deuxième appel sur le même chemin → mise à jour
+XMLEcritXPath(doc2, "/root/config/theme", "light")
+dbgVérifieEgalité(doc2.ReadXPath("/root/config/theme"), "light", "XMLEcritXPath met à jour un nœud existant")
+
+// XPath complexe sur nœud inexistant → ErreurDétectée
+ok3 est un booléen = XMLEcritXPath(doc2, "//item[@id='42']", "valeur")
+dbgVérifieVrai(PAS ok3, "XPath complexe sans nœud → Faux + ErreurDétectée")
+dbgVérifieVrai(ErreurInfo() <> "", "ErreurInfo capture erreur apres echec")
+
+XMLTermine(doc)
+XMLTermine(doc2)
+
+// --- XMLExécuteXPathNS : requête avec namespace ---
+xml_ns est une chaîne = "<?xml version=""1.0""?><root xmlns:bk=""http://exemple.com/livre""><bk:catalogue><bk:item>A</bk:item><bk:item>B</bk:item></bk:catalogue></root>"
+doc_ns est un xmlDocument = XMLOuvre(xml_ns, depuisChaîne)
+
+// Sans NS → requête échoue
+sans_ns est un tableau = XMLExécuteXPath(doc_ns, "//bk:item")
+dbgVérifieEgalité(sans_ns..Occurrence, 0, "XPath sans NS binding retourne 0 résultats")
+
+// Avec NS → succès
+prefixes est un tableau de chaînes = ["bk"]
+uris est un tableau de chaînes = ["http://exemple.com/livre"]
+avec_ns est un tableau = XMLExécuteXPathNS(doc_ns, "//bk:item", prefixes, uris)
+dbgVérifieEgalité(avec_ns..Occurrence, 2, "XPath avec NS binding retourne 2 résultats")
+dbgVérifieEgalité(XMLLit(avec_ns[1]), "A", "1er item via NS = A")
+
+// Méthode .ExecuteXPathNS()
+avec_ns2 est un tableau = doc_ns.ExécuteXPathNS("//bk:item", prefixes, uris)
+dbgVérifieEgalité(avec_ns2..Occurrence, 2, "méthode .ExecuteXPathNS()")
+
+XMLTermine(doc_ns)
+Trace("test_xml_xpath : OK")

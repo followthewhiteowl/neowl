@@ -1,0 +1,45 @@
+// @sujet visibilite methodes PROTEGEE avec heritage
+// @resume methode PROTEGEE appelable depuis la classe et ses derivees
+// NOTE : contourne bug runtime appel interne :M() (self non propage)
+
+PROCEDURE scenario_methode_protegee_depuis_base()
+	oBase est un cBase()
+	oBase.Initialiser()
+	dbgVérifieEgalité(oBase.nValeur, 10,
+	"methode PROTEGEE : acces champs depuis classe de base")
+FIN
+
+PROCEDURE scenario_methode_protegee_depuis_derivee()
+	oDer est un cDerivee()
+	oDer.TraiterDerivee()
+	dbgVérifieEgalité(oDer.nValeur, 10,
+	"methode PROTEGEE heritee : acces champs depuis classe derivee")
+FIN
+
+PROCEDURE scenario_methode_protegee_initialisation_puis_derivee()
+	oDer est un cDerivee()
+	oDer.Initialiser() // heritee de cBase
+	oDer.TraiterDerivee()
+	dbgVérifieEgalité(oDer.nValeur, 20,
+	"methode PROTEGEE appelable multiples fois via heritage")
+FIN
+
+PROCEDURE scenario_derivee_n_appels()
+	oDer est un cDerivee()
+	POUR i = 1 À 5
+		oDer.TraiterDerivee()
+	FIN
+	dbgVérifieEgalité(oDer.nValeur, 50,
+	"methode PROTEGEE appelable N fois depuis derivee")
+FIN
+
+PROCEDURE scenario_base_et_derivee_instances_separees()
+	oBase est un cBase()
+	oDer est un cDerivee()
+	oBase.Initialiser()
+	oDer.TraiterDerivee()
+	dbgVérifieEgalité(oBase.nValeur, 10,
+	"instance base : valeur isolee")
+	dbgVérifieEgalité(oDer.nValeur, 10,
+	"instance derivee : valeur isolee")
+FIN

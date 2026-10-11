@@ -1,0 +1,220 @@
+// @sujet : Tenseur — entraînement d'une tête de détection minuscule
+// @résumé : Preuve, sur un cas synthétique contrôlé, qu'une perte de
+// détection multi-parties (boîte + objectness + classe) se rétropropage
+// et entraîne une petite tête par descente de gradient manuelle. La perte
+// combine trois briques différentiables : ErreurQuadratique (MSE) pour la
+// boîte, ErreurQuadratique sur une Sigmoïde pour l'objectness,
+// EntropieCroisée pour la classe. On les additionne, on rétropropage, puis
+// on met à jour chaque poids avec DescenteGradient. Sur une cible fixe, la
+// tête sur-apprend : la perte finale chute d'au moins un ordre de grandeur
+// et la boîte prédite rejoint la cible.
+
+
+// Une seule cellule, tête à trois sorties séparées (une matrice de poids par
+// partie de la prédiction). L'entrée est une caractéristique fixe. Chaque
+// partie a sa cible : boîte [cx, cy, l, h], objectness attendu à 1 (cellule
+// responsable), classe connue (one-hot sur la classe 2). La perte totale est
+// la somme des trois pertes ; 400 pas de descente de gradient suffisent à la
+// faire fondre.
+PROCEDURE PUBLIQUE scenario_tete_une_cellule_surapprend()
+	x est un Tenseur = Tenseur([1.0, 0.5,-0.5])
+
+	poidsBoite est un Tenseur = Tenseur([[0.1, 0.0, 0.0], [0.0, 0.1, 0.0], [0.1, 0.1, 0.0], [0.0, 0.0, 0.1]])
+	poidsObjet est un Tenseur = Tenseur([[0.0, 0.0, 0.0]])
+	poidsClasse est un Tenseur = Tenseur([[0.1, 0.0, 0.0], [0.0, 0.1, 0.0]])
+
+	cibleBoite est un Tenseur = Tenseur([0.5, 0.4, 0.3, 0.2])
+	cibleObjet est un Tenseur = Tenseur([1.0])
+	cibleClasse est un Tenseur = Tenseur([0.0, 1.0])
+
+	// Prédiction initiale de la boîte, déterministe : poidsBoite @ x.
+	// Ligne 1 : 0.1*1 = 0.1 ; ligne 2 : 0.1*0.5 = 0.05 ;
+	// ligne 3 : 0.1*1 + 0.1*0.5 = 0.15 ; ligne 4 : 0.1*(-0.5) = -0.05.
+	boiteDepart est un Tenseur = poidsBoite.ProduitMatriciel(x)
+	dbgVérifieEgalité(boiteDepart..Valeur[1], 0.1, "Boîte de départ, composante 1 = 0.1*1")
+	dbgVérifieEgalité(boiteDepart..Valeur[2], 0.05, "Boîte de départ, composante 2 = 0.1*0.5")
+	dbgVérifieVrai(Abs(boiteDepart..Valeur[3] - 0.15) < 0.000001, "Boîte de départ, composante 3 = 0.1*1 + 0.1*0.5")
+	dbgVérifieEgalité(boiteDepart..Valeur[4],-0.05, "Boîte de départ, composante 4 = 0.1*(-0.5)")
+
+	taux est un réel = 0.3
+	perteInitiale est un réel = 0.0
+	perteFinale est un réel = 0.0
+	boitePredite est un Tenseur = boiteDepart
+	objetPredit est un Tenseur = Tenseur([0.0])
+	classePredite est un Tenseur = Tenseur([0.0, 0.0])
+
+	POUR i = 1 À 400
+		boitePredite  = poidsBoite.ProduitMatriciel(x)
+		objetPredit   = poidsObjet.ProduitMatriciel(x).Sigmoïde()
+		classePredite = poidsClasse.ProduitMatriciel(x)
+
+		perteBoite est un Tenseur = boitePredite.ErreurQuadratique(cibleBoite)
+		perteObjet est un Tenseur = objetPredit.ErreurQuadratique(cibleObjet)
+		perteClasse est un Tenseur = classePredite.EntropieCroisée(cibleClasse)
+		perteTotale est un Tenseur = perteBoite + perteObjet + perteClasse
+		perteTotale.Rétropropage()
+
+		SI i = 1 ALORS
+			perteInitiale = perteTotale..Valeur[1]
+		FIN
+		SI i = 400 ALORS
+			perteFinale = perteTotale..Valeur[1]
+		FIN
+
+		poidsBoite  = poidsBoite.DescenteGradient(taux)
+		poidsObjet  = poidsObjet.DescenteGradient(taux)
+		poidsClasse = poidsClasse.DescenteGradient(taux)
+	FIN
+
+	// Sur-apprentissage net : la perte finale est au moins dix fois plus
+	// petite que la perte initiale.
+	dbgVérifieVrai(perteFinale < perteInitiale * 0.1, "La perte finale a chuté d'au moins un ordre de grandeur")
+
+	// La boîte prédite a rejoint la cible (chaque composante à moins de 0.01).
+	dbgVérifieVrai(Abs(boitePredite..Valeur[1] - 0.5) < 0.01, "Boîte apprise, composante 1 proche de 0.5")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[2] - 0.4) < 0.01, "Boîte apprise, composante 2 proche de 0.4")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[3] - 0.3) < 0.01, "Boîte apprise, composante 3 proche de 0.3")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[4] - 0.2) < 0.01, "Boîte apprise, composante 4 proche de 0.2")
+
+	// L'objectness de la cellule responsable est monté vers 1.
+	dbgVérifieVrai(objetPredit..Valeur[1] > 0.9, "Objectness de la cellule responsable au-dessus de 0.9")
+
+	// La classe prédite est la bonne : le score de la classe 2 dépasse celui
+	// de la classe 1.
+	dbgVérifieVrai(classePredite..Valeur[2] > classePredite..Valeur[1], "La classe 2 (attendue) domine la classe 1")
+FIN
+
+
+// Même preuve, mais avec UNE seule tête linéaire qui produit d'un coup les 7
+// canaux d'une cellule [4 boîte, 1 objectness, 2 classes]. Les canaux sont
+// découpés en trois morceaux par un produit matriciel avec des matrices de
+// sélection constantes (une ligne 1 par canal à extraire). Ce découpage reste
+// différentiable, donc le gradient de chaque partie remonte jusqu'aux bons
+// canaux de la tête. La tête sur-apprend la même cible.
+PROCEDURE PUBLIQUE scenario_tete_unique_decoupage_par_selection()
+	x est un Tenseur = Tenseur([1.0, 0.5,-0.5])
+
+	tete est un Tenseur = Tenseur([[0.1, 0.0, 0.0], [0.0, 0.1, 0.0], [0.1, 0.1, 0.0], [0.0, 0.0, 0.1], [0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.0, 0.1, 0.0]])
+
+	selBoite est un Tenseur = Tenseur([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]])
+	selObjet est un Tenseur = Tenseur([[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]])
+	selClasse est un Tenseur = Tenseur([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
+
+	cibleBoite est un Tenseur = Tenseur([0.5, 0.4, 0.3, 0.2])
+	cibleObjet est un Tenseur = Tenseur([1.0])
+	cibleClasse est un Tenseur = Tenseur([0.0, 1.0])
+
+	taux est un réel = 0.3
+	perteInitiale est un réel = 0.0
+	perteFinale est un réel = 0.0
+	boitePredite est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0])
+	objetPredit est un Tenseur = Tenseur([0.0])
+
+	POUR i = 1 À 400
+		sortie est un Tenseur = tete.ProduitMatriciel(x)
+		boitePredite = selBoite.ProduitMatriciel(sortie)
+		objetPredit  = selObjet.ProduitMatriciel(sortie).Sigmoïde()
+		classePredite est un Tenseur = selClasse.ProduitMatriciel(sortie)
+
+		perteBoite est un Tenseur = boitePredite.ErreurQuadratique(cibleBoite)
+		perteObjet est un Tenseur = objetPredit.ErreurQuadratique(cibleObjet)
+		perteClasse est un Tenseur = classePredite.EntropieCroisée(cibleClasse)
+		perteTotale est un Tenseur = perteBoite + perteObjet + perteClasse
+		perteTotale.Rétropropage()
+
+		SI i = 1 ALORS
+			perteInitiale = perteTotale..Valeur[1]
+		FIN
+		SI i = 400 ALORS
+			perteFinale = perteTotale..Valeur[1]
+		FIN
+
+		tete = tete.DescenteGradient(taux)
+	FIN
+
+	// Le découpage par sélection extrait bien 4 composantes de boîte.
+	dbgVérifieEgalité(boitePredite..Forme[1], 4, "La sélection de boîte produit 4 composantes")
+
+	dbgVérifieVrai(perteFinale < perteInitiale * 0.1, "Tête unique découpée : la perte finale chute d'un ordre de grandeur")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[1] - 0.5) < 0.01, "Boîte apprise via découpage, composante 1 proche de 0.5")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[4] - 0.2) < 0.01, "Boîte apprise via découpage, composante 4 proche de 0.2")
+	dbgVérifieVrai(objetPredit..Valeur[1] > 0.9, "Objectness monté vers 1 via découpage")
+FIN
+
+
+// Grille 2x2 (quatre cellules), assignation sans ancre : la cellule qui
+// contient le centre de la boîte est responsable, les trois autres sont du
+// fond. La tête d'objectness est partagée et vue quatre fois ; la perte
+// d'objectness pousse la cellule responsable vers 1 et les trois cellules de
+// fond vers 0. Les pertes de boîte et de classe ne portent QUE sur la cellule
+// responsable. L'assignation se fait en OWL : on choisit la caractéristique
+// de la cellule responsable pour les pertes de boîte et de classe.
+PROCEDURE PUBLIQUE scenario_grille_2x2_assignation()
+	cellule1 est un Tenseur = Tenseur([1.0, 0.0, 0.0])
+	cellule2 est un Tenseur = Tenseur([0.0, 1.0, 0.0])
+	cellule3 est un Tenseur = Tenseur([0.0, 0.0, 1.0])
+	cellule4 est un Tenseur = Tenseur([0.7, 0.7, 0.0])
+
+	poidsBoite est un Tenseur = Tenseur([[0.1, 0.0, 0.0], [0.0, 0.1, 0.0], [0.1, 0.1, 0.0], [0.0, 0.0, 0.1]])
+	poidsObjet est un Tenseur = Tenseur([[0.0, 0.0, 0.0]])
+	poidsClasse est un Tenseur = Tenseur([[0.1, 0.0, 0.0], [0.0, 0.1, 0.0]])
+
+	cibleBoite est un Tenseur = Tenseur([0.5, 0.4, 0.3, 0.2])
+	cibleClasse est un Tenseur = Tenseur([0.0, 1.0])
+	positif est un Tenseur = Tenseur([1.0])
+	fond est un Tenseur = Tenseur([0.0])
+
+	taux est un réel = 0.3
+	perteInitiale est un réel = 0.0
+	perteFinale est un réel = 0.0
+	boitePredite est un Tenseur = Tenseur([0.0, 0.0, 0.0, 0.0])
+	objetResponsable est un Tenseur = Tenseur([0.0])
+	objetFond1 est un Tenseur = Tenseur([0.0])
+	objetFond2 est un Tenseur = Tenseur([0.0])
+	objetFond3 est un Tenseur = Tenseur([0.0])
+	classePredite est un Tenseur = Tenseur([0.0, 0.0])
+
+	POUR i = 1 À 500
+		objetFond1       = poidsObjet.ProduitMatriciel(cellule1).Sigmoïde()
+		objetResponsable = poidsObjet.ProduitMatriciel(cellule2).Sigmoïde()
+		objetFond2       = poidsObjet.ProduitMatriciel(cellule3).Sigmoïde()
+		objetFond3       = poidsObjet.ProduitMatriciel(cellule4).Sigmoïde()
+
+		perteObjet est un Tenseur = objetFond1.ErreurQuadratique(fond) + objetResponsable.ErreurQuadratique(positif) + objetFond2.ErreurQuadratique(fond) + objetFond3.ErreurQuadratique(fond)
+
+		boitePredite = poidsBoite.ProduitMatriciel(cellule2)
+		perteBoite est un Tenseur = boitePredite.ErreurQuadratique(cibleBoite)
+		classePredite = poidsClasse.ProduitMatriciel(cellule2)
+		perteClasse est un Tenseur = classePredite.EntropieCroisée(cibleClasse)
+
+		perteTotale est un Tenseur = perteBoite + perteObjet + perteClasse
+		perteTotale.Rétropropage()
+
+		SI i = 1 ALORS
+			perteInitiale = perteTotale..Valeur[1]
+		FIN
+		SI i = 500 ALORS
+			perteFinale = perteTotale..Valeur[1]
+		FIN
+
+		poidsBoite  = poidsBoite.DescenteGradient(taux)
+		poidsObjet  = poidsObjet.DescenteGradient(taux)
+		poidsClasse = poidsClasse.DescenteGradient(taux)
+	FIN
+
+	dbgVérifieVrai(perteFinale < perteInitiale * 0.1, "Grille 2x2 : la perte finale chute d'un ordre de grandeur")
+
+	// Boîte apprise sur la cellule responsable.
+	dbgVérifieVrai(Abs(boitePredite..Valeur[1] - 0.5) < 0.01, "Boîte apprise, composante 1 proche de 0.5")
+	dbgVérifieVrai(Abs(boitePredite..Valeur[4] - 0.2) < 0.01, "Boîte apprise, composante 4 proche de 0.2")
+
+	// L'objectness sépare le premier plan du fond : cellule responsable au-
+	// dessus de 0.9, chaque cellule de fond en dessous de 0.2.
+	dbgVérifieVrai(objetResponsable..Valeur[1] > 0.9, "Objectness de la cellule responsable au-dessus de 0.9")
+	dbgVérifieVrai(objetFond1..Valeur[1] < 0.2, "Objectness de la cellule de fond 1 sous 0.2")
+	dbgVérifieVrai(objetFond2..Valeur[1] < 0.2, "Objectness de la cellule de fond 2 sous 0.2")
+	dbgVérifieVrai(objetFond3..Valeur[1] < 0.2, "Objectness de la cellule de fond 3 sous 0.2")
+
+	// Classe correcte sur la cellule responsable.
+	dbgVérifieVrai(classePredite..Valeur[2] > classePredite..Valeur[1], "La classe 2 (attendue) domine la classe 1")
+FIN

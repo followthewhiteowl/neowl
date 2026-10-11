@@ -1,0 +1,55 @@
+// Coverage <agrandissement> (documentation de référence).
+//
+// Modes référence :
+//   rien (0)              : out-of-bounds = erreur
+//   <agrandissement=1>    : grow by exactly 1 when idx == count+1 only
+//   <agrandissement=N>    : grow to any idx, fill intermediate with NIL
+
+// ============================================================================
+// Mode par défaut (0) — strict bounds
+// ============================================================================
+t1 est un tableau de 3 entiers
+t1[1] = 10
+t1[3] = 30
+dbgVérifieEgalité(t1[1], 10, "strict: écriture in-bounds OK")
+dbgVérifieEgalité(t1[3], 30, "strict: écriture in-bounds OK")
+
+// ============================================================================
+// <agrandissement> (= agrandissement=1) — grow by 1
+// ============================================================================
+t2 est un tableau <agrandissement> de 2 entiers
+t2[1] = 10
+t2[2] = 20
+// Grow by 1 — index = count+1 OK
+t2[3] = 30
+dbgVérifieEgalité(t2..Occurrence, 3, "<agrandissement>: grow by 1 OK")
+dbgVérifieEgalité(t2[3], 30, "<agrandissement>: valeur écrite")
+
+// ============================================================================
+// <agrandissement=N> — grow to any idx
+// ============================================================================
+t3 est un tableau <agrandissement=N> d'entiers
+t3[1] = 10
+t3[5] = 50
+dbgVérifieEgalité(t3..Occurrence, 5, "<agrandissement=N>: grow to 5")
+dbgVérifieEgalité(t3[1], 10, "val[1]")
+dbgVérifieEgalité(t3[5], 50, "val[5]")
+// Intermediate slots sont NIL (coercent vers 0 pour int)
+dbgVérifieEgalité(t3[2], 0, "[2] = NIL coerce 0")
+dbgVérifieEgalité(t3[3], 0, "[3] = NIL coerce 0")
+dbgVérifieEgalité(t3[4], 0, "[4] = NIL coerce 0")
+
+// ============================================================================
+// <agrandissement=1> et =0 explicites
+// ============================================================================
+t4 est un tableau <agrandissement=0> de 2 entiers
+t4[1] = 1
+t4[2] = 2
+dbgVérifieEgalité(t4..Occurrence, 2, "=0 : pas d'agrandissement")
+
+t5 est un tableau <agrandissement=1> de chaînes
+Ajoute(t5, "a")
+t5[2] = "b"
+dbgVérifieEgalité(t5[2], "b", "=1 : grow by 1 après Ajoute")
+
+dbgBilanTest()

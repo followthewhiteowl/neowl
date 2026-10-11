@@ -1,0 +1,33 @@
+// Contrôle positif bilingue (, invariant 3) : un ServiceREST écrit
+// ENTIÈREMENT en formes EN canon (HTTPOperation, Method, Path, Responses,
+// StatusCode, BaseUrl, Authentication, onRequest, MySelf..Response..StatusCode)
+// doit compiler sans erreur ni warning, binding du paramètre de chemin inclus.
+//
+// Statut aujourd'hui : ROUGE. Le parser (src/compiler.c ~l.18451-18784) ne
+// reconnaît que les orthographes FR des propriétés de service, et
+// « OpérationHTTP » n'a pas d'alternative EN à mot-ordre traduit
+// (seul l'ASCII sans accent « OperationHTTP » passe déjà, ce qui est de
+// l'accent-insensibilité, pas du bilinguisme). Migré  vers la
+// forme imbriquée `MySelf..Response..StatusCode` (Response reconnue au
+// 1er niveau, requise avant l'impl du sous-modèle Requête/Réponse).
+//
+// Statut attendu après impl : {"errors":[],"warnings":[]}.
+ServiceCatalogueEN is a ServiceREST
+	PROPERTIES
+		BaseUrl        = ["api", "clients"]
+		Authentication = httpAuthAucune
+	FIN
+
+	ReadClient is a HTTPOperation
+		PROPERTIES
+			Method     = httpGet
+			Path       = ["clients", id]
+			Responses  = [httpOK]
+			StatusCode = httpOK
+		FIN
+		PROCEDURE onRequest(id is an integer) : integer
+			MySelf..Response..StatusCode = httpOK
+			RETURN id
+		FIN
+	FIN
+FIN

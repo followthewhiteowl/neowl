@@ -1,0 +1,34 @@
+//  — Une colonne de Table sans Caption/Libelle affiche un en-tete
+// VIDE au runtime (aligne sur le designer canvas, ), pas le nom
+// d'identifiant. Avant le fix, Caption absente repliait sur col->name :
+// incoherence avec le designer (en-tete vide) et avec Caption="" (deja vide).
+//
+// Le texte d'en-tete de colonne n'est PAS observable depuis un test OWL
+// (colonnes rendues par Qt dans le store de la Table parente, aucun acces
+// dot runtime). La preuve "en-tete vide" reste VISUELLE (validation dev).
+// Ce test garantit ce qui est observable headless : une Table avec une
+// colonne sans Caption + une colonne avec Caption compile ET s'execute sans
+// crash (le chemin NULL -> "" ne regresse pas), et les cellules restent
+// lisibles des deux cotes.
+
+TestModeHeadless(Vrai)
+
+init_done_colsanscaption est un booléen = Faux
+
+PROCEDURE cb_colsanscaption_init_done()
+	init_done_colsanscaption = Vrai
+FIN
+
+Ouvre(FEN_ColSansCaption)
+
+dbgVérifieVrai(init_done_colsanscaption, "FinInitialisation executee (pas de crash malgre colonne sans Caption)")
+
+sSans est une chaîne = LireSans(1)
+dbgVérifieEgalité(sSans, "sans", "TBL[1].COL_Sans == sans (colonne sans Caption lisible)")
+
+sAvec est une chaîne = LireAvec(1)
+dbgVérifieEgalité(sAvec, "avec", "TBL[1].COL_Avec == avec (colonne avec Caption lisible)")
+
+Ferme(FEN_ColSansCaption)
+
+dbgBilanTest()

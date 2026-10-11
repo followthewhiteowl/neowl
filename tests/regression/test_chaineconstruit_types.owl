@@ -1,0 +1,95 @@
+// Régression : ChaîneConstruit interpolation %N sur types non-primitifs
+// Bug  : interpolation %1 retournait chaîne vide pour durée, date,
+// heure, dateheure, buffer. Aligné sur value_to_string (même cast que Trace).
+
+// =========================================================================
+// NON-REGRESSION : types primitifs (marchaient avant fix)
+// =========================================================================
+
+// 1. Entier
+nVal est un entier = 42
+dbgVérifieEgalité(ChaîneConstruit("[%1]", nVal), "[42]", "entier : non-régression")
+
+// 2. Réel
+rVal est un réel = 3.14
+dbgVérifieEgalité(ChaîneConstruit("[%1]", rVal), "[3.14]", "réel : non-régression")
+
+// 3. Chaîne
+sVal est une chaîne = "hello"
+dbgVérifieEgalité(ChaîneConstruit("[%1]", sVal), "[hello]", "chaîne : non-régression")
+
+// 4. Booléen
+bVrai est un booléen = Vrai
+bFaux est un booléen = Faux
+dbgVérifieEgalité(ChaîneConstruit("%1", bVrai), "1", "booléen Vrai -> '1'")
+dbgVérifieEgalité(ChaîneConstruit("%1", bFaux), "0", "booléen Faux -> '0'")
+
+// =========================================================================
+// FIX : types non-primitifs (retournaient [] avant fix)
+// =========================================================================
+
+// 5. Durée (format OWL canon : HH:MM:SS ou "N j HH:MM:SS" si jours)
+// 1h30 = 90 min = 5400000 ms → "01:30:00"
+dur est une durée = "+001300000" // format de référence JHHMMSSCC (1h30), signe obligatoire Q5-bis
+dbgVérifieEgalité(ChaîneConstruit("[%1]", dur), "[01:30:00]", "durée : format canon OWL HH:MM:SS")
+
+// Durée avec jours (36h = 1j 12h, via arithmétique ms canon)
+dur2j est une durée = 36 * 3600 * 1000
+dbgVérifieEgalité(ChaîneConstruit("[%1]", dur2j), "[1 j 12:00:00]", "durée avec jours")
+
+// 6. Date (format canon OWL : AAAAMMJJ)
+d est une date = "20260604"
+dbgVérifieEgalité(ChaîneConstruit("[%1]", d), "[20260604]", "date : format canon OWL AAAAMMJJ")
+
+// 7. Heure (format canon OWL : HHMMSSCC)
+h est une heure = "14300000" // 14h30
+dbgVérifieEgalité(ChaîneConstruit("[%1]", h), "[14300000]", "heure : format canon OWL HHMMSSCC")
+
+// 8. DateHeure (format canon OWL : AAAAMMJJHHMMSSFFF)
+dh est une dateheure = "20260604143000000"
+dbgVérifieEgalité(ChaîneConstruit("[%1]", dh), "[20260604143000000]", "dateheure : format canon OWL")
+
+// 9. Buffer (contenu texte)
+buf est un buffer = ChaîneVersBuffer("hello")
+dbgVérifieEgalité(ChaîneConstruit("[%1]", buf), "[hello]", "buffer : contenu texte")
+
+// 10. Monétaire (décimal fixe 6 digits, notation canonique)
+mon est un monétaire = 42.50
+dbgVérifieEgalité(ChaîneConstruit("[%1]", mon), "[42.5]", "monétaire : format canon shortest")
+
+// 11. Numérique (high-precision decimal)
+num est un numérique = 123.456789
+dbgVérifieEgalité(ChaîneConstruit("[%1]", num), "[123.456789]", "numérique : high-precision")
+
+// =========================================================================
+// COMBINAISON : plusieurs types mixés dans un même format
+// =========================================================================
+
+// Multi-paramètres cross-types (durée, chaîne, entier)
+dbgVérifieEgalité(
+ChaîneConstruit("d=%1, t=%2, n=%3", dur, "label", 42),
+"d=01:30:00, t=label, n=42",
+"interpolation multi-types : durée + chaîne + entier"
+)
+
+// Mix date + heure + entier
+dbgVérifieEgalité(
+ChaîneConstruit("Date: %1, Heure: %2, Count: %3", d, h, 99),
+"Date: 20260604, Heure: 14300000, Count: 99",
+"interpolation multi-types : date + heure + entier"
+)
+
+// =========================================================================
+// CAS LIMITE : Null
+// =========================================================================
+
+// Null en interpolation → "" (canon de référence : Null en contexte chaîne = vide)
+dbgVérifieEgalité(ChaîneConstruit("[%1]", Null), "[]", "Null en interpolation → chaîne vide")
+
+// =========================================================================
+// EDGE CASE : format sans %N (non-régression)
+// =========================================================================
+
+dbgVérifieEgalité(ChaîneConstruit("texte fixe sans placeholder"), "texte fixe sans placeholder", "format sans %N")
+
+dbgBilanTest()

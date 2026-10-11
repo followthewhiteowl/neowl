@@ -1,0 +1,123 @@
+// Fenêtre support  : surcharge de sous-propriété de Style posée en
+// PROPRIETES, en présence d'une affectation de Style entier (thème ou
+// littéral). Chaque bouton isole un cas précis du ticket.
+FEN_SurchargeStyle est une Fenêtre
+	PROPRIETES
+		Titre       = "Surcharge sous-propriété Style"
+		Largeur     = 400
+		Hauteur     = 500
+		Disposition = dispLibre
+	FIN
+
+	// Cas 1 : Style = { littéral } PUIS surcharge du sous-bloc Dégradé.
+	BTN_LitteralDegrade est un Champ Bouton
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 300
+			Hauteur = 30
+			Libellé = "Littéral + surcharge Dégradé"
+			Style   = {
+				CadreExtérieur = {
+					Dégradé = {
+						Type         = dégradéLinéaire
+						CouleurDébut = RVB(10, 20, 30)
+						CouleurFin   = RVB(40, 50, 60)
+					}
+				}
+			}
+			Style..CadreExtérieur..Dégradé..CouleurDébut = RougeClair
+		FIN
+	FIN
+
+	// Cas 2a : Style = theme.bp PUIS surcharge du sous-bloc Dégradé.
+	BTN_ThemeDegrade est un Champ Bouton
+		PROPRIETES
+			X                                            = 20
+			Y                                            = 60
+			Largeur                                      = 300
+			Hauteur                                      = 30
+			Libellé                                      = "Thème + surcharge Dégradé"
+			Style                                        = theme.bp
+			Style..CadreExtérieur..Dégradé..CouleurDébut = RougeClair
+		FIN
+	FIN
+
+	// Cas 2b (témoin isolation) : même theme.bp, AUCUNE surcharge. Doit
+	// rester à la valeur d'origine du thème (thème partagé non muté).
+	BTN_ThemeTemoin est un Champ Bouton
+		PROPRIETES
+			X       = 20
+			Y       = 100
+			Largeur = 300
+			Hauteur = 30
+			Libellé = "Thème sans surcharge (témoin)"
+			Style   = theme.bp
+		FIN
+	FIN
+
+	// Cas 3 : sous-propriété scalaire simple (pas dans un sous-bloc profond).
+	BTN_ScalarFond est un Champ Bouton
+		PROPRIETES
+			X                                  = 20
+			Y                                  = 140
+			Largeur                            = 300
+			Hauteur                            = 30
+			Libellé                            = "Thème + surcharge CouleurFond"
+			Style                              = theme.bp
+			Style..CadreExtérieur..CouleurFond = VertClair
+		FIN
+	FIN
+
+	// Cas 4 : sous-bloc profond Ombre..Flou.
+	BTN_OmbreFlou est un Champ Bouton
+		PROPRIETES
+			X                                  = 20
+			Y                                  = 180
+			Largeur                            = 300
+			Hauteur                            = 30
+			Libellé                            = "Thème + surcharge Ombre..Flou"
+			Style                              = theme.bp
+			Style..CadreExtérieur..Ombre..Flou = 40
+		FIN
+	FIN
+
+	// Cas 5 : ordre inverse — surcharge posée AVANT Style = X. Le reset
+	// du Style entier doit gagner (écraser la surcharge).
+	BTN_OrdreInverse est un Champ Bouton
+		PROPRIETES
+			X                                  = 20
+			Y                                  = 220
+			Largeur                            = 300
+			Hauteur                            = 30
+			Libellé                            = "Surcharge puis reset Style"
+			Style..CadreExtérieur..CouleurFond = VertClair
+			Style                              = theme.bp
+		FIN
+	FIN
+
+	// Cas 6a (non-régression) : Style = X seul, sans surcharge.
+	BTN_StyleSeul est un Champ Bouton
+		PROPRIETES
+			X       = 20
+			Y       = 260
+			Largeur = 300
+			Hauteur = 30
+			Libellé = "Style seul, sans surcharge"
+			Style   = theme.bp
+		FIN
+	FIN
+
+	// Cas 6b (non-régression) : surcharge seule, sans affectation Style
+	// entier — sur le style par défaut du widget.
+	BTN_SurchargeSeule est un Champ Bouton
+		PROPRIETES
+			X                                  = 20
+			Y                                  = 300
+			Largeur                            = 300
+			Hauteur                            = 30
+			Libellé                            = "Surcharge seule, sans Style="
+			Style..CadreExtérieur..CouleurFond = VertClair
+		FIN
+	FIN
+FIN

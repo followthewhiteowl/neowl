@@ -1,0 +1,24 @@
+//  : une Structure déclarée au top-level DANS le bloc ServiceREST
+// (co-localisée avec le service qui l'utilise) doit compiler sans erreur et
+// être résolue comme type de paramètre d'une opération du même service.
+// ROUGE ATTENDU AUJOURD'HUI : la grammaire du corps ServiceREST n'accepte
+// que « <Nom> est une OpérationHTTP » au top-level du bloc — une Structure y
+// tombe dans la branche d'erreur générique en cascade.
+ServiceStructureDansBloc est un ServiceREST
+stDemandeInterne est une Structure
+	nom est une chaîne
+FIN
+
+Creer est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpPost
+		Chemin   = ["creer"]
+		Réponses = [httpCréé]
+		CodeÉtat = httpCréé
+	FIN
+	PROCEDURE surRequête(demande est une stDemandeInterne)
+		MoiMême..Réponse..CodeÉtat = httpCréé
+		MoiMême..Réponse..Corps    = demande.nom
+	FIN
+FIN
+FIN

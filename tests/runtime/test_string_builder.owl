@@ -1,0 +1,153 @@
+// ============================================
+// TEST: String-builder pattern (peephole OP_APPEND_IN_PLACE)
+// ============================================
+// Couvre les cas où le compilateur émet OP_APPEND_IN_PLACE pour
+// `s = s + ...` en boucle, et où le runtime garde la chaîne en mode
+// "buffer mutable" (interned=false) entre les appends. Vérifie que :
+//   1. La valeur finale est correcte après une longue boucle d'appends
+//   2. Une lecture intercalée dans la boucle voit la VRAIE valeur courante
+//      (pas un snapshot obsolète issu d'un cache éventuel)
+//   3. Concat + read + concat + read alternés fonctionnent
+//   4. Le pattern Milieu/Gauche/Droite après un build retourne le bon sous-chaîne
+//   5. Hash/égalité reste correcte après mutations
+// ============================================
+Trace("=== STRING BUILDER ===")
+
+// --- Cas 1 : valeur finale après long build (locale) ---
+sLocal est une chaîne = ""
+POUR i = 1 _A_ 100
+	sLocal = sLocal + "x"
+FIN
+dbgVérifieEgalité(Taille(sLocal), 100, "Build local: 100x 'x' -> longueur 100")
+dbgVérifieEgalité(sLocal, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "Build local: contenu = 100 fois 'x'")
+
+// --- Cas 2 : valeur finale après long build (globale) ---
+sGlobal est une chaîne = ""
+POUR i = 1 _A_ 100
+	sGlobal = sGlobal + "y"
+FIN
+dbgVérifieEgalité(Taille(sGlobal), 100, "Build global: 100x 'y' -> longueur 100")
+
+// --- Cas 3 : LECTURE INTERCALÉE pendant le build ---
+// Le piège: si un cache freeze n'est pas invalidé après chaque append,
+// la lecture intercalée verrait une valeur obsolète (la longueur d'avant).
+sBuild est une chaîne = ""
+sBuild = sBuild + "a" // longueur 1
+dbgVérifieEgalité(Taille(sBuild), 1, "Read after 1 append: longueur 1")
+sBuild = sBuild + "b" // longueur 2
+dbgVérifieEgalité(Taille(sBuild), 2, "Read after 2 appends: longueur 2 (pas cached à 1)")
+sBuild = sBuild + "c" // longueur 3
+dbgVérifieEgalité(Taille(sBuild), 3, "Read after 3 appends: longueur 3")
+dbgVérifieEgalité(sBuild, "abc", "Contenu après 3 appends = abc")
+
+// --- Cas 4 : ALTERNANCE append/read sur globale ---
+sAlt est une chaîne = "init"
+POUR i = 1 _A_ 5
+	sAlt = sAlt + "_"
+	// lecture entre 2 appends consécutifs : doit refléter l'état courant
+	dbgVérifieEgalité(Taille(sAlt), 4 + i, "Alt: read entre append " + i)
+FIN
+dbgVérifieEgalité(sAlt, "init_____", "Contenu final après 5 alternances")
+
+// --- Cas 5 : Milieu/Gauche/Droite après build (lecture sur buffer-mode) ---
+sMid est une chaîne = ""
+POUR i = 1 _A_ 26
+	sMid = sMid + "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[[i]]
+FIN
+dbgVérifieEgalité(sMid, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "Build alphabet")
+dbgVérifieEgalité(Gauche(sMid, 3), "ABC", "Gauche(buffer, 3) = ABC")
+dbgVérifieEgalité(Droite(sMid, 3), "XYZ", "Droite(buffer, 3) = XYZ")
+dbgVérifieEgalité(Milieu(sMid, 13, 4), "MNOP", "Milieu(buffer, 13, 4) = MNOP")
+
+// --- Cas 6 : Égalité entre 2 strings construites identiquement ---
+// Si l'une est en mode buffer et l'autre interned, l'égalité doit marcher.
+sA est une chaîne = ""
+POUR i = 1 _A_ 5
+	sA = sA + "z"
+FIN
+sB est une chaîne = "zzzzz"
+dbgVérifieEgalité(sA = sB, Vrai, "Buffer-mode == interned avec même valeur")
+dbgVérifieEgalité(sA, sB, "Égalité directe via dbgVerifieEgalite")
+
+// --- Cas 7 : Concat de deux buffers + freeze implicite ---
+sBuf1 est une chaîne = ""
+POUR i = 1 _A_ 5
+	sBuf1 = sBuf1 + "a"
+FIN
+sBuf2 est une chaîne = ""
+POUR i = 1 _A_ 5
+	sBuf2 = sBuf2 + "b"
+FIN
+sCombined est une chaîne = sBuf1 + sBuf2
+dbgVérifieEgalité(sCombined, "aaaaabbbbb", "Concat de 2 buffers donne le bon résultat")
+
+// --- Cas 8 : Long build (1000 caractères) puis multiples reads ---
+// Stress test : si le freeze recopie à chaque lecture sans cache,
+// ce test reste correct mais lent. Si le cache est buggué (pas
+// invalidé après mutation), il échouera car il retournera une
+// version obsolète.
+sLong est une chaîne = ""
+POUR i = 1 _A_ 1000
+	sLong = sLong + "L"
+FIN
+POUR j = 1 _A_ 10
+	dbgVérifieEgalité(Taille(sLong), 1000, "Long build: read #" + j + " = 1000")
+FIN
+sLong = sLong + "M"
+dbgVérifieEgalité(Taille(sLong), 1001, "Long build: après nouvel append = 1001")
+dbgVérifieEgalité(Droite(sLong, 1), "M", "Long build: dernier char = M")
+
+// --- Cas 9 : Concat puis Position dans buffer ---
+sNeedle est une chaîne = ""
+POUR i = 1 _A_ 50
+	sNeedle = sNeedle + "x"
+FIN
+sNeedle = sNeedle + "TARGET"
+sNeedle = sNeedle + "tail"
+pos est un entier = Position(sNeedle, "TARGET")
+dbgVérifieEgalité(pos, 51, "Position dans buffer après mutations = 51")
+
+// --- Cas 10 : Hash stable après freeze (table associative comme clé) ---
+// Le piège : si la chaîne est en mode buffer quand utilisée comme clé,
+// puis modifiée après, la clé doit rester valide (snapshot pris).
+sKey est une chaîne = ""
+POUR i = 1 _A_ 5
+	sKey = sKey + "k"
+FIN
+arrT est un tableau associatif de entiers
+arrT[sKey] = 42
+sKey = sKey + "MUTATED" // ne doit PAS affecter la clé déjà stockée
+dbgVérifieEgalité(arrT["kkkkk"], 42, "Clé table reste valide après mutation source")
+
+// --- Cas 11 : peephole coexiste avec coerce Buffer→String ---
+// Bug historique 2026-04-25 (bb37f80) : la coerce __BufferVersChaine
+// systématique sur réaffectation cassait la peephole. Fix : peephole
+// d'abord, coerce en fallback. Ce cas mélange les deux mécanismes.
+sBuilder est une chaîne = ""
+POUR i = 1 _A_ 200
+	sBuilder = sBuilder + "B"
+FIN
+dbgVérifieEgalité(Taille(sBuilder), 200, "Cas 11: 200 appends via peephole")
+// Reaffect Buffer après build → coerce doit être active.
+bRaw est un buffer = ChaîneVersBuffer("reset")
+sBuilder = bRaw
+dbgVérifieEgalité(sBuilder, "reset", "Cas 11: coerce Buffer après peephole loop")
+// Reprendre des appends après coerce → peephole doit redémarrer.
+POUR i = 1 _A_ 50
+	sBuilder = sBuilder + "C"
+FIN
+dbgVérifieEgalité(Taille(sBuilder), 55, "Cas 11: re-build après coerce = 5+50")
+dbgVérifieEgalité(Gauche(sBuilder, 5), "reset", "Cas 11: prefix conserve")
+dbgVérifieEgalité(Droite(sBuilder, 5), "CCCCC", "Cas 11: suffix bien ajoute")
+
+// --- Cas 12 : peephole shape 2 (whitelisted call) ---
+// `s = s + Milieu(t, i, 1)` doit déclencher OP_APPEND_IN_PLACE même avec
+// l'appel de fonction dans le RHS. Pattern de CLBG k-nucleotide.
+sShape2 est une chaîne = ""
+src est une chaîne = "ACGT"
+POUR i = 1 _A_ 500
+	c est une chaîne = Milieu(src,((i - 1) % 4) + 1, 1)
+	sShape2 = sShape2 + c
+FIN
+dbgVérifieEgalité(Taille(sShape2), 500, "Cas 12: shape 2 (Milieu in RHS) OK")
+dbgVérifieEgalité(Gauche(sShape2, 4), "ACGT", "Cas 12: contenu cyclique correct")

@@ -1,0 +1,42 @@
+//  — Lot 1 (digue test-first) : type styleJauge, modèle par
+// sous-éléments CadreExtérieur (piste : fond + bordure + arrondi + états),
+// Remplissage, Libellé (texte du pourcentage). Calqué sur le pattern
+// des widgets stylés existants (styleTable/styleSaisie : CadreExtérieur
+// composé, Etats indexés, brique Police imbriquée).
+//
+// ROUGE attendu : le type styleJauge n'existe pas encore (compile-fail :
+// type inconnu, ou membre CadreExtérieur/Remplissage/Libellé inconnu).
+
+Trace("=== styleJauge : type composite 3 sous-éléments ===")
+
+STY_Jauge est un styleJauge
+STY_Jauge..CadreExtérieur..CouleurFond                = GrisClair
+STY_Jauge..CadreExtérieur..Cadre..Couleur             = GrisFoncé
+STY_Jauge..CadreExtérieur..Cadre..Epaisseur           = 2
+STY_Jauge..CadreExtérieur..Cadre..Arrondi             = 6
+STY_Jauge..Remplissage..CouleurFond                   = Vert
+STY_Jauge..Libellé..Couleur                           = Noir
+STY_Jauge..Libellé..Police..Gras                      = Vrai
+STY_Jauge..CadreExtérieur..Etats[survol]..CouleurFond = JauneClair
+
+dbgVérifieEgalité(STY_Jauge..CadreExtérieur..CouleurFond, GrisClair, "styleJauge : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Jauge..CadreExtérieur..Cadre..Couleur, GrisFoncé, "styleJauge : CadreExtérieur..Cadre..Couleur posée")
+dbgVérifieEgalité(STY_Jauge..CadreExtérieur..Cadre..Epaisseur, 2, "styleJauge : CadreExtérieur..Cadre..Epaisseur posée")
+dbgVérifieEgalité(STY_Jauge..CadreExtérieur..Cadre..Arrondi, 6, "styleJauge : CadreExtérieur..Cadre..Arrondi posée")
+dbgVérifieEgalité(STY_Jauge..Remplissage..CouleurFond, Vert, "styleJauge : Remplissage..CouleurFond posée")
+dbgVérifieEgalité(STY_Jauge..Libellé..Couleur, Noir, "styleJauge : Libellé..Couleur posée")
+dbgVérifieEgalité(STY_Jauge..Libellé..Police..Gras, Vrai, "styleJauge : Libellé..Police..Gras (composé)")
+dbgVérifieEgalité(STY_Jauge..CadreExtérieur..Etats[survol]..CouleurFond, JauneClair, "styleJauge : CadreExtérieur..Etats[survol]..CouleurFond (état)")
+
+Trace("=== styleJauge : bilingue (écriture EN, relecture FR — même slot) ===")
+
+STY_Gauge est un styleGauge
+STY_Gauge..OuterFrame..BackgroundColor = Bleu
+STY_Gauge..Fill..BackgroundColor       = Rouge
+STY_Gauge..Label..Color                = Blanc
+
+dbgVérifieEgalité(STY_Gauge..CadreExtérieur..CouleurFond, Bleu, "styleGauge (EN) : OuterFrame..BackgroundColor relu via CadreExtérieur..CouleurFond (FR)")
+dbgVérifieEgalité(STY_Gauge..Remplissage..CouleurFond, Rouge, "styleGauge (EN) : Fill..BackgroundColor relu via Remplissage..CouleurFond (FR)")
+dbgVérifieEgalité(STY_Gauge..Libellé..Couleur, Blanc, "styleGauge (EN) : Label..Color relu via Libellé..Couleur (FR)")
+
+dbgBilanTest()

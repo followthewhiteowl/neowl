@@ -1,0 +1,60 @@
+// AVEC / WITH — bloc d'abreviation d'acces a un objet/struct.
+// Couverture sur STRUCTURE ici. La branche AVEC sur CLASSE est couverte
+// par test_avec_classe.owl (regle OWL 1 classe = 1 fichier interdit le
+// melange classe + runtime dans un meme fichier).
+
+Trace("=== AVEC / WITH ===")
+
+// --- Test 1: AVEC avec structure ---
+stPoint est une Structure
+	nX est un entier
+	nY est un entier
+FIN
+
+oP est un stPoint
+AVEC oP
+	.nX = 10
+	.nY = 20
+FIN
+dbgVérifieEgalité(oP.nX, 10, "AVEC struct set nX")
+dbgVérifieEgalité(oP.nY, 20, "AVEC struct set nY")
+
+// --- Test 2: AVEC lecture de membres ---
+nSomme est un entier = 0
+AVEC oP
+	nSomme = .nX +.nY
+FIN
+dbgVérifieEgalité(nSomme, 30, "AVEC struct read nX + nY")
+
+// --- Test 3: AVEC imbrique ---
+oP2 est un stPoint
+oP2.nX = 100
+oP2.nY = 200
+
+oP3 est un stPoint
+AVEC oP3
+	.nX = 50
+	.nY = 60
+FIN
+
+// Nested AVEC: inner overrides outer
+nInnerX est un entier = 0
+AVEC oP2
+	AVEC oP3
+		nInnerX = .nX
+	FIN
+FIN
+dbgVérifieEgalité(nInnerX, 50, "AVEC nested inner .nX from oP3")
+
+// Outer still works after inner ends
+nOuterX est un entier = 0
+AVEC oP2
+	nOuterX = .nX
+FIN
+dbgVérifieEgalité(nOuterX, 100, "AVEC outer .nX from oP2")
+
+// --- Test 4: AVEC avec modification et relecture ---
+AVEC oP
+	.nX =.nX + 5
+FIN
+dbgVérifieEgalité(oP.nX, 15, "AVEC read-modify-write")

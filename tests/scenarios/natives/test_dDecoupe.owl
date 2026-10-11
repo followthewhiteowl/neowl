@@ -1,0 +1,45 @@
+// @sujet : dDécoupe
+// @resume : Extrait une zone rectangulaire d'une image source et retourne une nouvelle image contenant uniquement cette zone. L'image source reste intacte (non-mutative).
+
+
+// Cas canonique : extraire une zone centrale d'une image source.
+// Le retour est une nouvelle image de taille (largeur, hauteur), la source est inchangée.
+PROCEDURE PUBLIQUE scenario_decoupe_zone_centrale()
+	source est une Image = dCréeImage(100, 100, RVB(0, 255, 0))
+	zone est une Image = dDécoupe(source, 10, 10, 50, 50)
+	dbgVérifieEgalité(zone..Largeur, 50, "zone découpée a la largeur demandée")
+	dbgVérifieEgalité(zone..Hauteur, 50, "zone découpée a la hauteur demandée")
+	dbgVérifieEgalité(source..Largeur, 100, "source intacte (largeur)")
+	dbgVérifieEgalité(source..Hauteur, 100, "source intacte (hauteur)")
+FIN
+
+
+// Vérifier que la zone découpée préserve les pixels de la source à cet endroit.
+// La couleur dominante de la zone doit correspondre à celle de la source au point découpé.
+PROCEDURE PUBLIQUE scenario_decoupe_preserve_pixels()
+	source est une Image = dCréeImage(50, 50, RVB(255, 0, 0))
+	zone est une Image = dDécoupe(source, 0, 0, 20, 20)
+	couleurZone est un entier = CouleurDominanteImage(zone)
+	couleurSource est un entier = CouleurDominanteImage(source)
+	dbgVérifieEgalité(couleurZone, couleurSource, "zone préserve la couleur dominante de la source")
+FIN
+
+
+// Cas limite : zone identique à la source (pleine taille).
+// Retourne une nouvelle image équivalente, la source reste séparée.
+PROCEDURE PUBLIQUE scenario_decoupe_pleine_taille()
+	source est une Image = dCréeImage(30, 30, RVB(0, 0, 255))
+	copie est une Image = dDécoupe(source, 0, 0, 30, 30)
+	dbgVérifieEgalité(copie..Largeur, 30, "copie a même largeur que source")
+	dbgVérifieEgalité(copie..Hauteur, 30, "copie a même hauteur que source")
+FIN
+
+
+// Cas limite : zone 1x1 (pixel unique).
+// Retourne une mini-image valide.
+PROCEDURE PRIVÉE scenario_edge_decoupe_pixel_unique()
+	source est une Image = dCréeImage(20, 20, RVB(128, 128, 128))
+	pixel est une Image = dDécoupe(source, 5, 5, 1, 1)
+	dbgVérifieEgalité(pixel..Largeur, 1, "pixel unique largeur = 1")
+	dbgVérifieEgalité(pixel..Hauteur, 1, "pixel unique hauteur = 1")
+FIN

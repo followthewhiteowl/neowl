@@ -1,0 +1,23 @@
+// Régression EOL (axe A, ) — 6e site trouvé en inventaire  :
+// l'attribut de champ <Sérialise="rename"> (user_type_set_field_serialise,
+// src/compiler.c) copie les octets du littéral chaîne brut (memcpy), sans
+// passer par la règle unique de suppression du CR. Un CR isolé dans le nom
+// de clé JSON survit et se retrouve dans la sortie sérialisée.
+
+CompteEolSerialiseCR est une Structure
+	champ est une chaîne < Sérialise = "avantapres" >
+FIN
+
+c est un CompteEolSerialiseCR
+c.champ = "valeur"
+
+buf est une chaîne
+Sérialise(c, buf, psdMinifie)
+
+sBackslashR est une chaîne = Caract(92) + "r"
+dbgVérifieVrai(Position(buf, sBackslashR) = 0,
+"clé JSON Sérialise= : pas d'échappement résiduel du CR (supprimé avant sérialisation)")
+dbgVérifieVrai(Position(buf, "avantapres") > 0,
+"clé JSON Sérialise= : avant + apres collés (CR disparu)")
+
+dbgBilanTest()

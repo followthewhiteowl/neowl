@@ -1,0 +1,107 @@
+//  — Champ Bouton avec Image = icones.X doit rendre l'icone.
+// Regression de /0651 : l'icone est bien materialisee sur
+// l'instance (BTN..Image..Valide = 1) mais jamais appliquee au rendu
+// (owl_ui_button_set_icon_rgba non appele a l'ouverture).
+//
+// Methode : dCopieImageChamp capture le rendu pixel reel du widget Qt
+// en mode headless. On compare la capture d'un bouton AVEC icone vs
+// un bouton SANS icone (reference) via un comptage de pixels differents.
+// Si les deux rendus sont pixel-identiques -> l'icone n'est pas rendue
+// -> rouge attendu (regression confirmee). Avec le fix -> difference
+// significative -> vert.
+//
+// Cas couverts :
+//   1. Bouton + icone mono (icones.add)           ROUGE attendu (bug)
+//   2. Bouton + icone couleur (icones.github_icon) ROUGE attendu (bug)
+//   3. BTN..Image..Valide = Vrai post-Ouvre        VERT (prop materialisee OK)
+//   4. Guard Champ Image + icones.add -> pixels    VERT (chemin non-regressee)
+
+Ouvre(FEN_BoutonIcone)
+
+// ---- Capture initiale : validite ----
+imgAvecMono est une Image = dCopieImageChamp(BTN_AvecMono)
+dbgVérifieEgalité(imgAvecMono..Valide, Vrai, "BTN_AvecMono : capture valide")
+
+imgSansMono est une Image = dCopieImageChamp(BTN_SansMono)
+dbgVérifieEgalité(imgSansMono..Valide, Vrai, "BTN_SansMono : capture valide")
+
+imgAvecCouleur est une Image = dCopieImageChamp(BTN_AvecCouleur)
+dbgVérifieEgalité(imgAvecCouleur..Valide, Vrai, "BTN_AvecCouleur : capture valide")
+
+imgGuard est une Image = dCopieImageChamp(IMG_Guard)
+dbgVérifieEgalité(imgGuard..Valide, Vrai, "IMG_Guard : capture valide")
+
+// ---- Cas 3 : prop Image materialisee sur le Bouton (acquis) ----
+// BTN..Image..Valide doit etre Vrai independamment du rendu.
+dbgVérifieEgalité(BTN_AvecMono..Image..Valide, Vrai,
+"BTN_AvecMono : Image..Valide = Vrai (materialisation OK, hors-bug)")
+dbgVérifieEgalité(BTN_AvecCouleur..Image..Valide, Vrai,
+"BTN_AvecCouleur : Image..Valide = Vrai (materialisation OK, hors-bug)")
+
+// ---- Cas 4 : guard Champ Image (chemin non-regressee) ----
+// Compter les pixels qui ne sont pas le fond sombre de la fenetre.
+// Si l'icone est rendue, il y en a.
+nbNonFondGuard est un entier = 0
+CONSTANTE FOND_FEN = 986895 // RVB(15, 15, 15) = 15 + 15*256 + 15*65536
+yGuard est un entier = 0
+TANTQUE yGuard < imgGuard..Hauteur
+	xGuard est un entier = 0
+	TANTQUE xGuard < imgGuard..Largeur
+		cGuard est un entier = dPixelCouleur(imgGuard, xGuard, yGuard)
+		SI cGuard <> FOND_FEN ALORS
+			nbNonFondGuard = nbNonFondGuard + 1
+		FIN
+		xGuard = xGuard + 1
+	FIN
+	yGuard = yGuard + 1
+FIN
+dbgVérifieVrai(nbNonFondGuard > 50,
+"IMG_Guard (Champ Image + icones.add) : pixels non-fond presents -> icone rendue (garde)")
+
+// ---- Cas 1 : bouton + icone mono (icones.add) vs bouton nu ----
+// Compter les pixels qui different entre les deux captures.
+// Memes dimensions garanties (meme Largeur/Hauteur declarees : 96x96).
+nbDiffMono est un entier = 0
+wMono est un entier = imgAvecMono..Largeur
+hMono est un entier = imgAvecMono..Hauteur
+yyMono est un entier = 0
+TANTQUE yyMono < hMono
+	xxMono est un entier = 0
+	TANTQUE xxMono < wMono
+		cAvec est un entier = dPixelCouleur(imgAvecMono, xxMono, yyMono)
+		cSans est un entier = dPixelCouleur(imgSansMono, xxMono, yyMono)
+		SI cAvec <> cSans ALORS
+			nbDiffMono = nbDiffMono + 1
+		FIN
+		xxMono = xxMono + 1
+	FIN
+	yyMono = yyMono + 1
+FIN
+// ROUGE ATTENDU : avec la regression , nbDiffMono = 0.
+// L'assertion suivante echoue tant que le bug est present.
+dbgVérifieVrai(nbDiffMono > 50,
+"CAS1-BUG : BTN icone mono (icones.add) vs BTN nu : captures different (icone rendue)")
+
+// ---- Cas 2 : bouton + icone couleur (icones.github_icon) vs bouton nu ----
+nbDiffCouleur est un entier = 0
+wCouleur est un entier = imgAvecCouleur..Largeur
+hCouleur est un entier = imgAvecCouleur..Hauteur
+yyCol est un entier = 0
+TANTQUE yyCol < hCouleur
+	xxCol est un entier = 0
+	TANTQUE xxCol < wCouleur
+		cAvecC est un entier = dPixelCouleur(imgAvecCouleur, xxCol, yyCol)
+		cSansC est un entier = dPixelCouleur(imgSansMono, xxCol, yyCol)
+		SI cAvecC <> cSansC ALORS
+			nbDiffCouleur = nbDiffCouleur + 1
+		FIN
+		xxCol = xxCol + 1
+	FIN
+	yyCol = yyCol + 1
+FIN
+// ROUGE ATTENDU : meme cause que cas 1.
+dbgVérifieVrai(nbDiffCouleur > 50,
+"CAS2-BUG : BTN icone couleur (icones.github_icon) vs BTN nu : captures different (icone rendue)")
+
+Ferme(FEN_BoutonIcone)
+dbgBilanTest()

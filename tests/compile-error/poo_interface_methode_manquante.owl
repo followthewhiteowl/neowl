@@ -1,0 +1,26 @@
+// Compile-error : classe implemente interface mais methode manquante.
+// Pre-impl : compile OK (interface ignoree).
+// Post-impl : doit echouer avec message methode Foo() manquante.
+// Note : viole 1c1f (interface + classe meme fichier) mais delibere pour
+// tester check interface AVANT que 1c1f ne catche.
+
+iTest est une Interface
+	PROCEDURE Foo()
+FIN
+
+cTest est une Classe
+	implemente iTest
+PUBLIC
+	nVal est un entier
+
+	PROCEDURE Constructeur(n est un entier)
+		:nVal = n
+	FIN
+
+	// MANQUE : PROCEDURE Foo() — doit declencher compile-error post-impl.
+FIN
+
+PROCEDURE Main()
+	o est un cTest(42)
+	dbgVerifieEgalite(o.nVal, 42, "Classe instanciee OK")
+FIN

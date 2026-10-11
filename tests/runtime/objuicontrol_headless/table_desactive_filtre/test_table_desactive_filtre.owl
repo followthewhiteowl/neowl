@@ -1,0 +1,40 @@
+// ============================================
+// TEST (headless): TableDesactiveFiltre / TableDisableFilter
+//
+// TableDesactiveFiltre(TAB.COL) annule le filtre utilisateur d'UNE colonne
+// (forme proxy-colonne ) ; TableDesactiveFiltre(TAB) annule TOUS
+// les filtres actifs du champ Table. Canon de référence. L'effet est
+// observe via TableColonnesFiltrees (etat interrogeable headless, 
+// voisin) : cette suite ne lit jamais de widget, uniquement le retour des
+// deux natives.
+// Pattern : la fenêtre voisine FEN_Filtre.owl porte la déclaration
+// (2 colonnes : COL_Nom, COL_Ville).
+// ============================================
+
+Ouvre(FEN_Filtre)
+
+// --- retirer un filtre inexistant ne leve pas (edge, aucun etat) ---
+TableDesactiveFiltre(TAB_Donnees.COL_Nom)
+dbgVérifieEgalité(TableColonnesFiltrees(TAB_Donnees), "", "retrait sur colonne non filtree : aucun effet, aucune erreur")
+
+// --- retrait cible sur UNE colonne : elle disparait, l'autre reste -
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreEgal, "Dupont")
+TableActiveFiltre(TAB_Donnees.COL_Ville, filtreCommencePar, "Pa")
+TableDesactiveFiltre(TAB_Donnees.COL_Nom)
+sApresUneColonne est une chaîne = TableColonnesFiltrees(TAB_Donnees)
+dbgVérifieVrai(PAS Contient(sApresUneColonne, "COL_Nom"), "TableDesactiveFiltre(TAB.COL_Nom) retire uniquement COL_Nom")
+dbgVérifieVrai(Contient(sApresUneColonne, "COL_Ville"), "COL_Ville reste filtree apres retrait cible de COL_Nom")
+
+// --- retrait global (TAB seul) : toutes les colonnes filtrees s'effacent
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreEgal, "Dupont")
+TableDesactiveFiltre(TAB_Donnees)
+dbgVérifieEgalité(TableColonnesFiltrees(TAB_Donnees), "", "TableDesactiveFiltre(TAB) retire tous les filtres actifs")
+
+// --- bilingue : TableDisableFilter produit le meme effet ------------
+TableActiveFiltre(TAB_Donnees.COL_Ville, filtreEgal, "Paris")
+TableDisableFilter(TAB_Donnees.COL_Ville)
+dbgVérifieEgalité(TableColonnesFiltrees(TAB_Donnees), "", "TableDisableFilter (EN) retire le filtre comme TableDesactiveFiltre")
+
+Ferme(FEN_Filtre)
+
+dbgBilanTest()

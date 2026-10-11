@@ -1,0 +1,19 @@
+// fix/couleur-texte (suite ) — edge case découvert pendant le
+// diagnostic du ticket, HORS scope Couleur-texte strict : quand tout le
+// bloc `Style` est réaffecté EN UN SEUL littéral imbriqué
+// (`X..Style = { SousElement = { Couleur = {...} } }`, par opposition à la
+// cascade profonde SET `X..Style..SousElement..Couleur = {...}` déjà
+// verrouillée verte dans couleur_texte_litteral_nonreg_cascade_profonde_set),
+// le compilateur ne propage pas le type cible Couleur au littéral le plus
+// interne. Reproductible identiquement sur `Couleur` (texte) ET
+// `CouleurFond` (fond) — ce n'est donc PAS un trou spécifique au champ
+// Couleur texte, mais un gap plus large sur la réaffectation globale de
+// Style via littéral imbriqué. Signalé au coordinator pour triage (dans ou
+// hors périmètre de ce ticket).
+// Snapshot attendu (aujourd'hui, AVANT correction) : 2 erreurs
+// « Littéral { ... } sans type cible », une par ligne.
+TestModeHeadless(Vrai)
+Ouvre(FEN_ProbeCouleurTexteEdge)
+SAI_Champ..Style = {ZoneSaisie = {Couleur = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 97}}}
+SAI_Champ..Style = {ZoneSaisie = {CouleurFond = {Rouge = 255, Vert = 255, Bleu = 255, Opacité = 97}}}
+Ferme(FEN_ProbeCouleurTexteEdge)

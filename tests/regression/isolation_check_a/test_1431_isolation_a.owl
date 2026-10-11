@@ -1,0 +1,20 @@
+// Verrou  — volet suite de tests.
+//
+// Le registre de déclaration des fenêtres vit dans la VM, pas dans l'unité de
+// compilation. La suite compile beaucoup de fichiers dans un seul process : si
+// ce registre survivait d'un fichier de test au suivant, le second des deux
+// dossiers frères (..._a et ..._b, qui déclarent tous deux FEN_1431) verrait un
+// faux doublon et son bloc Fenêtre ne serait plus compilé.
+//
+// Ce fichier et son jumeau de ..._b se vérifient donc mutuellement : chacun
+// affirme les valeurs de SA fenêtre. Si l'isolation se perd, celui qui passe en
+// second rougit — et si la portée fuyait entre les deux dossiers, le marqueur
+// lu serait celui du voisin.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_1431)
+dbgVérifieEgalité(FEN_1431.nMarqueur, 1431, "cote A : marqueur de la fenetre locale")
+dbgVérifieEgalité(FEN_1431.sCote, "A", "cote A : la fenetre compilee est bien celle de ce dossier")
+dbgVérifieEgalité(FEN_1431..Titre, "A", "cote A : propriete Titre de la fenetre locale")
+Ferme(FEN_1431)
+dbgBilanTest()

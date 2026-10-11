@@ -1,0 +1,34 @@
+// Témoin FR : parité events de champ bilingues.
+//
+// Un Champ Image avec surBoutonGauche et un Champ Bouton avec surClic
+// doivent voir leur callback s'exécuter suite a TestSimuleSouris. Sert de
+// référence verte au cas EN équivalent (test_en/), qui rougit aujourd'hui.
+//
+// Statut attendu : VERT (comportement FR canon déjà câblé).
+
+TestModeHeadless(Vrai)
+
+gX est un entier = -99
+gY est un entier = -99
+gBoutonClique est un booléen = Faux
+
+PROCEDURE callback_image_clic(nX est un entier, nY est un entier)
+	gX = nX
+	gY = nY
+FIN
+
+PROCEDURE callback_bouton_clic()
+	gBoutonClique = Vrai
+FIN
+
+Ouvre(FEN_EventChampFR)
+
+TestSimuleSouris(IMG_Canvas, BoutonGauche, 12, 34)
+dbgVérifieEgalité(gX, 12, "surBoutonGauche (FR) reçoit x")
+dbgVérifieEgalité(gY, 34, "surBoutonGauche (FR) reçoit y")
+
+TestSimuleSouris(BTN_OK, ClicGauche)
+dbgVérifieVrai(gBoutonClique, "surClic (FR) déclenché")
+
+Ferme(FEN_EventChampFR)
+dbgBilanTest()

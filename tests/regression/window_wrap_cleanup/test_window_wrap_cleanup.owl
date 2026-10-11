@@ -1,0 +1,17 @@
+// REGRESSION (historique) : le pre-scan des declarations top-level
+// confondait les PROCEDURE imbriquees dans le DSL Fenetre avec des
+// PROCEDURE top-level. Le scanner doit reconnaitre la syntaxe DSL v2
+// (IDENT est un/une Type) avec bloc PROPRIETES et PROCEDURE adjacents.
+//
+// Toujours pertinent post-B.2 : le pre-scan single-file dans compiler.c
+// (prescan_top_level_decls) doit aussi gerer correctement les blocs DSL.
+//
+// Ce test compile + execute. S'il loope, le bug est revenu.
+//
+// Pattern : la fenêtre voisine FEN_Wrap.owl porte la déclaration. Le code
+// top-level après Fenetre ci-dessous doit être placé HORS du body de Fenetre
+// par le pre-scan (le depth tracker ne sort pas trop tôt de la Fenetre).
+
+Trace("apres Fenetre")
+dbgVérifieVrai(Vrai, "Pre-scan ne casse pas une Fenetre suivie de code top-level")
+dbgBilanTest()

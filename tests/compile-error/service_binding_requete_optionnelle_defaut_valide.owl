@@ -1,0 +1,29 @@
+// Contrôle positif (chantier 3, ) : un paramètre de query
+// (déclaré dans Requête) devient optionnel via une valeur par défaut sur
+// le paramètre de surRequête. Comme toute procédure OWL, un paramètre
+// optionnel se déclare EN DERNIER (règle universelle : pas de paramètre
+// requis après un paramètre à défaut). Ici l'ordre est : chemin (id),
+// corps (client), puis l'optionnel de query (tri) en queue — le binding
+// par nom reste non ambigu et doit compiler sans erreur.
+ServiceBindingRequeteDefautValide est un ServiceREST
+stClientBindingReqDefaut est une Structure
+	nom est une chaîne
+FIN
+
+PROPRIETES
+	UrlBase = ["api", "v1", "clients"]
+FIN
+
+MajClient est une OpérationHTTP
+	PROPRIETES
+		Méthode  = httpPut
+		Chemin   = ["clients", id]
+		Requête  = [tri]
+		Réponses = [httpOK]
+		CodeÉtat = httpOK
+	FIN
+	PROCEDURE surRequête(id est un entier, client est une stClientBindingReqDefaut, tri est une chaîne = "nom") : entier
+		RENVOYER id
+	FIN
+FIN
+FIN

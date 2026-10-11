@@ -1,0 +1,32 @@
+//  : chaîne réentrante à DEUX niveaux (un comparateur réentrant qui,
+// lui-même, rappelle un TableauTrie ttFonction avec un second comparateur qui
+// diverge). L'ancêtre le plus haut (QUAND EXCEPTION du scénario) doit
+// rattraper l'erreur qui a traversé DEUX frontières réentrantes imbriquées.
+//
+// ROUGE aujourd'hui : même symptôme que test_1655_reentrant_incomplet.owl —
+// diagnostic « Erreur d'exécution : Division par zéro. » fuite sur stderr et
+// fichier classé SCENARIOS FAILED malgré l'assertion interne PASS.
+// VERT attendu après fix.
+PROCEDURE cmpNiveau2(gauche est un entier, droite est un entier)
+	diviseur est un entier = droite - droite
+	r est un entier = gauche / diviseur
+	RENVOYER r
+FIN
+
+PROCEDURE cmpNiveau1(gauche est un entier, droite est un entier)
+	interne est un tableau de 2 entiers = [2, 1]
+	TableauTrie(interne, ttFonction, cmpNiveau2)
+	RENVOYER gauche - droite
+FIN
+
+PROCEDURE PUBLIQUE test_chaine_reentrante_deux_niveaux()
+	données est un tableau de 3 entiers = [3, 1, 2]
+	capturé est une chaîne = "init"
+	QUAND EXCEPTION DANS
+		TableauTrie(données, ttFonction, cmpNiveau1)
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "erreur levée à 2 niveaux réentrants est rattrapée par l'ancêtre")
+FIN

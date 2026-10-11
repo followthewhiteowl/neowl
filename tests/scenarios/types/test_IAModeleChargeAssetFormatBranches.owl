@@ -1,0 +1,64 @@
+// @sujet : IAModèle — chargement d'un modèle enregistré contenant un bloc de
+// branches (garde durable du format de sérialisation).
+// @résumé : .Charge(chemin) doit reconnaître les marqueurs de bloc de branches
+// (début de branches, branche suivante, fusion par addition) écrits par .Sauve.
+// Un renommage de ces marqueurs dans la sérialisation ferait échouer .Charge
+// avec « type de couche inconnu » — ce test le rougit immédiatement, au lieu de
+// laisser un asset enregistré devenir illisible en silence.
+//
+// Le fixture tests/internal_fixtures/iamodele/fixture_branches.json est un petit
+// réseau (dense 4→4, bloc de branches résiduel identité dense 4→4, dense 4→3)
+// enregistré une fois : ses poids sont donc figés. L'oracle ci-dessous est la
+// sortie mesurée de ce fixture rechargé, sur une entrée déterministe. La
+// reconstruction du même réseau à partir des mêmes poids doit rendre exactement
+// la même sortie ; toute dérive (marqueur non reconnu, poids mal relus, bloc de
+// branches mal recomposé) casse ce test.
+
+PROCEDURE PRIVÉE entréeFixtureBranches() : Tenseur
+	RENVOYER Tenseur([0.5, -0.5, 1.0, -1.0])
+FIN
+
+
+// Chargement du fixture au format branches + inférence == oracle (formes FR).
+PROCEDURE PUBLIQUE scenario_charge_modele_bloc_branches_egal_oracle()
+	mon est un IAModèle
+	bChargé est un booléen = mon.Charge("tests/internal_fixtures/iamodele/fixture_branches.json")
+	bÉchec est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bÉchec, "le chargement d'un modèle contenant un bloc de branches réussit (aucun « type de couche inconnu »)")
+	dbgVérifieEgalité(bChargé, Vrai, ".Charge renvoie Vrai sur un modèle au format branches")
+
+	sortie est un Tenseur = mon.Infère(entréeFixtureBranches())
+	v est un Vecteur = sortie..Valeur
+	dbgVérifieEgalité(v..Taille, 3, "la couche dense de sortie (4→3) donne 3 scores")
+
+	attendu1 est un réel = -1.3483387978501329
+	attendu2 est un réel = 0.44957069207528355
+	attendu3 est un réel = -2.152994136441362
+
+	dbgVérifieVrai(Abs(v[1] - attendu1) < 0.0001, "sortie[1] du modèle rechargé == oracle (bloc de branches correctement recomposé)")
+	dbgVérifieVrai(Abs(v[2] - attendu2) < 0.0001, "sortie[2] du modèle rechargé == oracle")
+	dbgVérifieVrai(Abs(v[3] - attendu3) < 0.0001, "sortie[3] du modèle rechargé == oracle")
+FIN
+
+
+// Verrou de la forme anglaise : .Load / .Infer sur le même fixture produit le
+// même comportement observable.
+PROCEDURE PUBLIQUE scenario_load_branch_block_model_equals_oracle()
+	mon is an AIModel
+	bLoaded is a boolean = mon.Load("tests/internal_fixtures/iamodele/fixture_branches.json")
+	bFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bFailed, "loading a model containing a branch block succeeds (no « unknown layer type »)")
+	dbgCheckEqual(bLoaded, Vrai, ".Load returns True on a branch-format model")
+
+	output is a Tensor = mon.Infer(entréeFixtureBranches())
+	v is a Vector = output..Value
+	dbgCheckEqual(v..Length, 3, "the output dense layer (4->3) yields 3 scores")
+
+	expected1 is a real = -1.3483387978501329
+	expected2 is a real = 0.44957069207528355
+	expected3 is a real = -2.152994136441362
+
+	dbgCheckTrue(Abs(v[1] - expected1) < 0.0001, "output[1] of the reloaded model == oracle (branch block correctly reassembled)")
+	dbgCheckTrue(Abs(v[2] - expected2) < 0.0001, "output[2] of the reloaded model == oracle")
+	dbgCheckTrue(Abs(v[3] - expected3) < 0.0001, "output[3] of the reloaded model == oracle")
+FIN

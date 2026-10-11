@@ -1,0 +1,25 @@
+//  — projet SANS `FormatNombre` posé : `Projet..FormatNombre` doit
+// quand même rendre un OBJET `FormatNombre` (jamais nil, jamais ""), avec son
+// propre défaut plat (`ChiffresAprèsVirgule` sentinelle "auto/court", pas 6 —
+// même contrat que le test type_defaut). L'affichage num du champ voisin
+// (ni MasqueAffichage ni FormatNombre) doit rester identique à l'entrée
+// (non-régression ).
+//
+// ROUGE attendu : compilation échoue tant que le champ `FormatNombre`
+// n'existe pas au catalogue manifeste Projet.
+
+dbgVérifieVrai(MonAppFormatNombreDefautProjet..FormatNombre <> Null, "Projet..FormatNombre : jamais nil même non configuré (objet FormatNombre par défaut)")
+
+nChiffresDefaut est un entier = MonAppFormatNombreDefautProjet..FormatNombre..ChiffresAprèsVirgule
+dbgVérifieVrai(nChiffresDefaut <> 6, "Projet..FormatNombre non configuré : ChiffresAprèsVirgule <> 6 (défaut plat, pas défaut FormatNumérique)")
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ProjetFormatNombreDefaut)
+
+SAI_Num..Valeur = 1234567.891
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234567.891) < 0.0001, "Repli défaut plat (ni champ ni projet configurés) : round-trip inchangé, 1234567.891 relu tel quel")
+
+Ferme(FEN_ProjetFormatNombreDefaut)
+dbgBilanTest()

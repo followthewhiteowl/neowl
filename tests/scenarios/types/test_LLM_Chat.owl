@@ -1,0 +1,174 @@
+// @sujet : LLM — dialogue multi-tours réel sur un modèle chargé (gatée)
+// @résumé : .Chat prend l'historique complet de la conversation (tableau de
+// MessageLLM) et rend une RéponseLLM, sans conserver d'état entre deux
+// appels — l'historique doit être repassé à chaque fois. Ce fichier ne
+// s'exécute réellement que si un modèle est déposé au chemin conventionnel
+// tests/_local/llm_test.gguf (dossier local non versionné). Sans modèle à
+// cet emplacement, chaque scénario constate l'absence via fFichierExiste et
+// reste vert.
+//
+// Le scénario, quand un modèle est disponible, verrouille :
+//   1. Une conversation système + utilisateur rend un Contenu non vide,
+//      une Raison cohérente, et des compteurs de jetons positifs.
+//   2. Un MaxTokens bas coupe la réponse : Raison = stopMaxTokens.
+//   3. ..ContrainteDeSortie = contrainteJSON façonne le Contenu rendu.
+//   4. ..SurToken(morceau, terminé) est rappelé pendant .Chat exactement
+//      comme pendant .Génère, avec terminé=Vrai une seule fois.
+//   5. .Chat et .Génère sur la même instance sont indépendants : rien de
+//      l'un ne fuite dans l'autre.
+
+cheminModèleTest est une chaîne = "tests/_local/llm_test.gguf"
+
+compteurTokensRecusChat est un entier = 0
+texteAccumuleParTokenChat est une chaîne = ""
+compteurTerminaisonsChat est un entier = 0
+
+PROCEDURE AccumuleTokenChat(morceau est une chaîne, terminé est un booléen)
+	compteurTokensRecusChat = compteurTokensRecusChat + 1
+	texteAccumuleParTokenChat += morceau
+	SI terminé ALORS
+		compteurTerminaisonsChat = compteurTerminaisonsChat + 1
+	FIN
+FIN
+
+
+// Conversation système + utilisateur : Contenu non vide, Raison valide,
+// compteurs de jetons d'entrée et de sortie strictement positifs.
+PROCEDURE PUBLIQUE scenario_chat_systeme_utilisateur_reel_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : chat réel ignoré, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		messages est un tableau de MessageLLM
+		mSys est un MessageLLM = {Rôle = rôleSystème, Contenu = "Tu es un assistant concis."}
+		messages.Ajoute(mSys)
+		mUser est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Explique la photosynthèse en une phrase."}
+		messages.Ajoute(mUser)
+
+		opts est un OptionsGénération
+		opts..Température = 0
+		opts..MaxTokens   = 32
+
+		ErreurRAZ()
+		rep est un RéponseLLM = mon.Chat(messages, opts)
+
+		dbgVérifieFaux(ErreurDétectée, "un dialogue système + utilisateur sur un modèle chargé ne signale aucune erreur")
+		dbgVérifieVrai(Taille(rep..Contenu) > 0, "le dialogue rend un Contenu non vide")
+		dbgVérifieVrai(rep..Raison = stopNaturel OU rep..Raison = stopMaxTokens, "Raison rendue est une valeur valide de l'énumération stricte")
+		dbgVérifieVrai(rep..JetonsEntrée > 0, "JetonsEntrée est strictement positif (invite non vide)")
+		dbgVérifieVrai(rep..JetonsSortie > 0, "JetonsSortie est strictement positif (réponse non vide)")
+	FIN
+FIN
+
+
+// Un MaxTokens délibérément bas coupe la génération avant la fin naturelle :
+// Raison rendue = stopMaxTokens.
+PROCEDURE PUBLIQUE scenario_chat_maxtokens_bas_coupe_raison_stopmaxtokens_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : troncature chat ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		messages est un tableau de MessageLLM
+		mUser est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Raconte une longue histoire détaillée sur un dragon."}
+		messages.Ajoute(mUser)
+
+		opts est un OptionsGénération
+		opts..Température = 0
+		opts..MaxTokens   = 2
+
+		rep est un RéponseLLM = mon.Chat(messages, opts)
+
+		dbgVérifieEgalité(rep..Raison, stopMaxTokens, "un plafond de jetons bas coupe la réponse : Raison = stopMaxTokens")
+	FIN
+FIN
+
+
+// ..ContrainteDeSortie = contrainteJSON façonne le Contenu rendu par .Chat,
+// même invariant que pour .Génère : la sortie est un JSON valide si et
+// seulement si aucune erreur n'est signalée.
+PROCEDURE PUBLIQUE scenario_chat_contrainte_json_facon_contenu_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : contrainte JSON chat ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		messages est un tableau de MessageLLM
+		mUser est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Donne un objet JSON avec un champ nom et un champ age."}
+		messages.Ajoute(mUser)
+
+		opts est un OptionsGénération
+		opts..Température        = 0
+		opts..MaxTokens          = 128
+		opts..ContrainteDeSortie = contrainteJSON
+
+		ErreurRAZ()
+		rep est un RéponseLLM = mon.Chat(messages, opts)
+
+		dbgVérifieEgalité(JSONValide(rep..Contenu), PAS ErreurDétectée, "contrainteJSON sur .Chat : Contenu valide ssi aucune erreur — jamais cassé en silence")
+	FIN
+FIN
+
+
+// ..SurToken(morceau, terminé) se déclenche pendant .Chat exactement comme
+// pendant .Génère : terminé=Vrai exactement une fois, et l'accumulation des
+// morceaux reçus correspond au Contenu final rendu.
+PROCEDURE PUBLIQUE scenario_chat_surtoken_deux_parametres_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : SurToken chat ignoré, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		messages est un tableau de MessageLLM
+		mUser est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Bonjour"}
+		messages.Ajoute(mUser)
+
+		opts est un OptionsGénération
+		opts..Température = 0
+		opts..MaxTokens   = 16
+		opts..SurToken    = AccumuleTokenChat
+
+		compteurTokensRecusChat   = 0
+		texteAccumuleParTokenChat = ""
+		compteurTerminaisonsChat  = 0
+
+		rep est un RéponseLLM = mon.Chat(messages, opts)
+
+		dbgVérifieVrai(compteurTokensRecusChat > 0, "..SurToken a été rappelé au moins une fois pendant .Chat")
+		dbgVérifieEgalité(compteurTerminaisonsChat, 1, "terminé=Vrai est signalé exactement une fois, sur le dernier morceau")
+		dbgVérifieEgalité(texteAccumuleParTokenChat, rep..Contenu, "le texte accumulé token par token correspond au Contenu final rendu")
+	FIN
+FIN
+
+
+// Indépendance : .Chat puis .Génère puis .Chat sur la MÊME instance ne se
+// contaminent pas — le second .Chat, avec le même historique et les mêmes
+// réglages déterministes, rend le même Contenu que le premier, malgré le
+// .Génère intercalé.
+PROCEDURE PUBLIQUE scenario_chat_genere_chat_independance_meme_instance_si_modele_disponible()
+	SI PAS fFichierExiste(cheminModèleTest) ALORS
+		dbgVérifieVrai(Vrai, "aucun modèle au chemin conventionnel : indépendance chat/génère ignorée, dépôt ne bundle aucun modèle")
+	SINON
+		mon est un LLM
+		mon.Charge(cheminModèleTest)
+
+		messages est un tableau de MessageLLM
+		mUser est un MessageLLM = {Rôle = rôleUtilisateur, Contenu = "Bonjour"}
+		messages.Ajoute(mUser)
+
+		opts est un OptionsGénération
+		opts..Température = 0
+		opts..MaxTokens   = 16
+
+		rep1 est un RéponseLLM = mon.Chat(messages, opts)
+		texteGenere est une chaîne = mon.Génère("Autre chose entièrement différente.", opts)
+		rep2 est un RéponseLLM = mon.Chat(messages, opts)
+
+		dbgVérifieEgalité(rep1..Contenu, rep2..Contenu, ".Génère intercalé ne modifie pas le résultat déterministe d'un .Chat identique sur la même instance")
+	FIN
+FIN

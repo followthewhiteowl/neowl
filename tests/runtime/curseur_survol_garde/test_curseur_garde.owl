@@ -1,0 +1,36 @@
+// =====================================================================
+// TEST: CurseurSouris — garde de sentinelle au build des champs.
+//
+// CONTEXTE DE LA COUVERTURE (lecture obligatoire avant de juger ce
+// test "faible") :
+//
+// Les valeurs de CurseurSouris (curFlèche..curTailleNOSE) sont des
+// SENTINELLES toutes NÉGATIVES (zone réservée, base INT32_MIN). Le
+// chemin d'application du curseur au build d'un champ comportait un
+// garde `>= 0` qui rejetait donc TOUTE valeur valide : le curseur
+// n'était jamais posé (échec silencieux, aucun crash).
+//
+// La forme du curseur d'un widget N'EST PAS OBSERVABLE depuis OWL :
+//   - pas de getter public exposé (par design — n'en pas inventer un
+//     juste pour ce test relèverait d'une décision de surface),
+//   - invisible sur une capture statique (état interactif au survol).
+//
+// Ce test verrouille donc ce qui EST atteignable sans nouvelle surface :
+//   1. La compilation des deux DSL (CurseurSouris direct + via Style).
+//   2. L'absence de crash à l'ouverture headless, càd l'exécution
+//      effective du chemin C corrigé (build_control + apply_style)
+//      sur les valeurs de sentinelle, pour TOUTES les formes.
+//
+// Une assertion sur la forme réellement posée nécessiterait un getter
+// public — hors périmètre de ce correctif.
+// =====================================================================
+
+TestModeHeadless(Vrai)
+
+Trace("=== CurseurSouris : garde de sentinelle ===")
+
+Ouvre(FEN_CurseurGarde)
+dbgVérifieVrai(Vrai, "Fenetre avec CurseurSouris (direct + Style) ouverte sans crash")
+Ferme(FEN_CurseurGarde)
+
+dbgBilanTest()

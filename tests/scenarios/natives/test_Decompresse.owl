@@ -1,0 +1,157 @@
+// @sujet : Décompresse
+// @résumé : Décompresse un buffer gzip ou deflate. Auto-détection par défaut ou type explicite. Réciproque de Compresse.
+
+
+// Cas canonique : décompression auto-détectée. Un buffer compressé gzip est
+// décompressé sans spécifier l'algorithme. Round-trip complet.
+PROCEDURE scenario_decompression_auto()
+	sOriginal est une chaîne = "Texte répété. Texte répété. Texte répété."
+	bCompresse est un buffer = Compresse(sOriginal)
+
+	// Décompression auto-détecte le format gzip.
+	bDecompresse est un buffer = Décompresse(bCompresse)
+	sRestauree est une chaîne = BufferVersChaîne(bDecompresse)
+
+	dbgVérifieEgalité(sRestauree, sOriginal, "Auto-détection round-trip OK")
+FIN
+
+
+// Décompression avec type explicite (compresseGZIP). Un buffer compressé
+// gzip est décompressé en passant le type. Vérification identique.
+PROCEDURE scenario_type_explicite_gzip()
+	sTexte est une chaîne = "ABC ABC ABC"
+	bComp est un buffer = Compresse(sTexte, compresseGZIP)
+	bDec est un buffer = Décompresse(bComp, compresseGZIP)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(sRestau, sTexte, "Type explicite gzip OK")
+FIN
+
+
+// Décompression d'un buffer deflate brut. Compresse avec compresseLZW (alias
+// deflate brut), puis décompresse avec le même type. Round-trip identique.
+PROCEDURE scenario_deflate_brut()
+	sSource est une chaîne = "Déflation répétée. Déflation répétée."
+	bComp est un buffer = Compresse(sSource, compresseLZW)
+	bDec est un buffer = Décompresse(bComp, compresseLZW)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(sRestau, sSource, "Deflate brut (LZW) round-trip OK")
+FIN
+
+
+// compresseAucun : mode store. Pas de compression effective, les données
+// passent telles quelles. Décompression retourne le buffer d'origine.
+PROCEDURE scenario_compresse_aucun()
+	sOriginal est une chaîne = "Pas de compression"
+	bStore est un buffer = Compresse(sOriginal, compresseAucun)
+	bRestau est un buffer = Décompresse(bStore, compresseAucun)
+	sRestau est une chaîne = BufferVersChaîne(bRestau)
+
+	dbgVérifieEgalité(sRestau, sOriginal, "compresseAucun passthrough OK")
+FIN
+
+
+// compresseLZW : alias de deflate dans l'implémentation actuelle. Round-trip
+// identique à deflate.
+PROCEDURE scenario_lzw()
+	sTexte est une chaîne = "LZW test LZW test"
+	bComp est un buffer = Compresse(sTexte, compresseLZW)
+	bDec est un buffer = Décompresse(bComp, compresseLZW)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(sRestau, sTexte, "compresseLZW round-trip OK")
+FIN
+
+
+// Décompression d'un buffer compressé avec niveau 9 (compression maximale).
+// Le niveau de compression n'affecte pas la décompression, seul le format compte.
+PROCEDURE scenario_niveau_max()
+	sRepetitif est une chaîne = Répète("Z", 500)
+	bComp est un buffer = Compresse(sRepetitif, compresseGZIP, 9)
+	bDec est un buffer = Décompresse(bComp)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(Taille(sRestau), 500, "Niveau 9 décompresse OK (taille)")
+	dbgVérifieEgalité(sRestau, sRepetitif, "Niveau 9 décompresse OK (contenu)")
+FIN
+
+
+// Décompression de données UTF-8 multi-octets : accents, caractères spéciaux.
+// Round-trip préserve exactement la chaîne d'origine.
+PROCEDURE scenario_utf8()
+	sSource est une chaîne = "éàüç日本 répété éàüç日本 répété"
+	bComp est un buffer = Compresse(sSource)
+	bDec est un buffer = Décompresse(bComp)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(sRestau, sSource, "UTF-8 multi-octets round-trip OK")
+FIN
+
+
+// Cas limite : buffer compressé d'une chaîne vide. Compresse produit un
+// overhead structurel (header gzip + trailer). Décompresse retourne Null.
+PROCEDURE PRIVÉE scenario_chaine_vide()
+	bVide est un buffer = Compresse("")
+	bRestau est un buffer = Décompresse(bVide)
+
+	dbgVérifieVrai(EstNul(bRestau), "Décompression chaîne vide retourne Null")
+FIN
+
+
+// Cas limite : buffer compressé très long (1000 caractères répétés). Le
+// buffer compressé est minuscule grâce au ratio. La décompression restaure
+// la longueur complète.
+PROCEDURE PRIVÉE scenario_fort_ratio()
+	sLongue est une chaîne = Répète("Y", 1000)
+	bComp est un buffer = Compresse(sLongue, compresseGZIP, 9)
+
+	// Vérification : le compressé est < 100 octets (ratio très fort).
+	dbgVérifieVrai(Taille(bComp) < 100, "Buffer compressé < 100 octets")
+
+	bDec est un buffer = Décompresse(bComp)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(Taille(sRestau), 1000, "Décompression restaure taille 1000")
+FIN
+
+
+// Cas limite : buffer compressé de données non compressibles (aléatoires).
+// Le ratio de compression est proche de 1. La décompression restaure
+// exactement l'original.
+PROCEDURE PRIVÉE scenario_non_compressible()
+	sAleatoire est une chaîne = "abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()"
+	bComp est un buffer = Compresse(sAleatoire, compresseGZIP)
+	bDec est un buffer = Décompresse(bComp)
+	sRestau est une chaîne = BufferVersChaîne(bDec)
+
+	dbgVérifieEgalité(sRestau, sAleatoire, "Données non compressibles round-trip OK")
+FIN
+
+
+// Cas limite : buffer corrompu (bytes non-valides). Un buffer de caractères
+// aléatoires ne forme pas un format gzip ou deflate valide. La décompression
+// échoue gracieusement et retourne Null (pas d'exception levée).
+PROCEDURE PRIVÉE scenario_buffer_corrompu()
+	// Chaîne de 20 octets qui ne matche aucun header gzip/deflate valide.
+	sCorrompu est une chaîne = "BBBBBBBBBBBBBBBBBBBB"
+	bCorrompu est un buffer = ChaîneVersBuffer(sCorrompu)
+
+	bRestau est un buffer = Décompresse(bCorrompu)
+
+	dbgVérifieVrai(EstNul(bRestau), "Buffer corrompu retourne Null")
+FIN
+
+
+// Cas limite : algorithme incompatible. Compression gzip, décompression avec
+// LZW explicite (deflate brut). Le format ne matche pas (gzip a header/footer,
+// LZW attend deflate brut), la décompression échoue gracieusement (retourne Null).
+PROCEDURE PRIVÉE scenario_algo_incompatible()
+	sTexte est une chaîne = "Test incompatibilité"
+	bComp est un buffer = Compresse(sTexte, compresseGZIP)
+
+	// Décompression forcée en LZW (header gzip != deflate brut).
+	bRestau est un buffer = Décompresse(bComp, compresseLZW)
+
+	dbgVérifieVrai(EstNul(bRestau), "Algo incompatible retourne Null")
+FIN

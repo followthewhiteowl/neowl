@@ -1,0 +1,33 @@
+// @sujet : AMQPDéclareQueue
+// @résumé : Déclare une queue AMQP, avec les options durable / exclusive / autoSuppression.
+
+// Verrou de non-régression de signature : sur une connexion qui n'a jamais
+// été ouverte, la déclaration échoue proprement (nom vide + erreur posée),
+// que les options booléennes soient fournies ou non.
+PROCEDURE PUBLIQUE scenario_declare_queue_connexion_non_ouverte()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	sNom est une chaîne = AMQPDéclareQueue(cnx, "q-non-ouverte", Faux, Faux, Faux)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieEgalité(sNom, "", "AMQPDéclareQueue renvoie une chaîne vide sur une connexion non ouverte")
+	dbgVérifieVrai(bErr, "une erreur est posée sur une connexion non ouverte")
+FIN
+
+// Le 6e argument (arguments étendus de la queue) est un tableau associatif
+// dont chaque valeur doit être une chaîne, un entier ou un booléen. Une
+// valeur d'un autre type (ici un réel) est refusée avec le code d'erreur
+// canonique de type d'argument invalide, pas silencieusement ignorée.
+PROCEDURE PUBLIQUE scenario_declare_queue_argument_valeur_type_invalide()
+	cnx est un amqpConnection
+	argsInvalides est un tableau associatif de réels
+	argsInvalides["x-message-ttl"] = 3.14
+	ErreurRAZ()
+	sNom est une chaîne = AMQPDéclareQueue(cnx, "q-args-invalides", Faux, Faux, Faux, argsInvalides)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieEgalité(sNom, "", "AMQPDéclareQueue renvoie une chaîne vide quand un argument étendu a un type invalide")
+	dbgVérifieVrai(bErr, "une erreur est posée quand un argument étendu a un type invalide")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

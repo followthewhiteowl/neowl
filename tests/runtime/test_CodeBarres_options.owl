@@ -1,0 +1,104 @@
+// Verrouillage : propriété Options (sous-ensemble génération) sur CodeBarres.
+//  - CB_SansTexte / CB_Texte : masque/affiche le texte lisible (HRT) sous un
+//    code 1D -> l'image sans texte est moins haute que celle avec texte.
+//  - CB_Etendu : bascule un Code 39 vers le jeu ASCII complet (Extended) ->
+//    contenu minuscule accepté sans erreur.
+//  - CB_Vérification : ajoute un caractère de contrôle -> symbole plus large.
+//  - CB_90 : rotation 90° -> largeur et hauteur du rendu échangées.
+
+// ============================================================================
+// HRT : CB_SansTexte vs CB_Texte (Code 128, 1D)
+// ============================================================================
+cbTexte est un CodeBarres
+cbTexte..TypeCodeBarres = CB_CODE128
+cbTexte..Contenu        = "OWL-HRT-128"
+cbTexte..Options        = CB_Texte
+
+cbSansTexte est un CodeBarres
+cbSansTexte..TypeCodeBarres = CB_CODE128
+cbSansTexte..Contenu        = "OWL-HRT-128"
+cbSansTexte..Options        = CB_SansTexte
+
+ErreurRAZ()
+imgTexte est une Image = CodeBarreVersImage(cbTexte)
+imgSansTexte est une Image = CodeBarreVersImage(cbSansTexte)
+dbgVérifieVrai(ErreurInfo() = "", "HRT - génération sans erreur")
+dbgVérifieVrai(imgTexte..Valide ET imgSansTexte..Valide, "HRT - images valides")
+dbgVérifieVrai(imgSansTexte..Hauteur <> imgTexte..Hauteur, "CB_SansTexte modifie la hauteur du rendu (HRT masqué) vs CB_Texte")
+
+// ============================================================================
+// CB_Etendu : Code 39 étendu encode le jeu ASCII complet (minuscules incluses)
+// ============================================================================
+// Code 39 standard normalise les minuscules en majuscules ("owl" -> "OWL") ;
+// le Code 39 étendu (CB_Etendu, symbologie zint distincte) encode réellement
+// les minuscules via des paires d'échappement -> symbole structurellement
+// différent, à contenu identique.
+cbStd est un CodeBarres
+cbStd..TypeCodeBarres = CB_CODE39
+cbStd..Contenu        = "owl"
+
+ErreurRAZ()
+imgStd est une Image = CodeBarreVersImage(cbStd)
+dbgVérifieVrai(ErreurInfo() = "", "Code 39 standard - génération sans erreur")
+
+cbExt est un CodeBarres
+cbExt..TypeCodeBarres = CB_CODE39
+cbExt..Contenu        = "owl"
+cbExt..Options        = CB_Etendu
+
+ErreurRAZ()
+imgExt est une Image = CodeBarreVersImage(cbExt)
+dbgVérifieVrai(ErreurInfo() = "", "Code 39 étendu (CB_Etendu) - génération sans erreur")
+dbgVérifieVrai(imgExt..Valide, "Code 39 étendu - Image valide")
+dbgVérifieVrai(imgExt..Largeur <> imgStd..Largeur OU imgExt..Hauteur <> imgStd..Hauteur, "CB_Etendu produit un symbole différent du Code 39 standard (minuscules encodées)")
+
+// ============================================================================
+// CB_Vérification : caractère de contrôle ajouté (Code 39)
+// ============================================================================
+cbSansV est un CodeBarres
+cbSansV..TypeCodeBarres = CB_CODE39
+cbSansV..Contenu        = "OWL123"
+
+cbAvecV est un CodeBarres
+cbAvecV..TypeCodeBarres = CB_CODE39
+cbAvecV..Contenu        = "OWL123"
+cbAvecV..Options        = CB_Vérification
+
+ErreurRAZ()
+imgSansV est une Image = CodeBarreVersImage(cbSansV)
+imgAvecV est une Image = CodeBarreVersImage(cbAvecV)
+dbgVérifieVrai(ErreurInfo() = "", "Vérification - génération sans erreur")
+dbgVérifieVrai(imgAvecV..Largeur <> imgSansV..Largeur, "CB_Vérification ajoute un caractère de contrôle (symbole plus large)")
+
+// ============================================================================
+// CB_90 : rotation -> dimensions du rendu échangées (Code 128, 1D)
+// ============================================================================
+cbNorm est un CodeBarres
+cbNorm..TypeCodeBarres = CB_CODE128
+cbNorm..Contenu        = "ROTATION-OWL"
+
+cbRot est un CodeBarres
+cbRot..TypeCodeBarres = CB_CODE128
+cbRot..Contenu        = "ROTATION-OWL"
+cbRot..Options        = CB_90
+
+ErreurRAZ()
+imgNorm est une Image = CodeBarreVersImage(cbNorm)
+imgRot est une Image = CodeBarreVersImage(cbRot)
+dbgVérifieVrai(ErreurInfo() = "", "Rotation - génération sans erreur")
+dbgVérifieVrai(imgRot..Largeur <> imgNorm..Largeur, "CB_90 change la largeur du rendu (rotation appliquée)")
+
+// ============================================================================
+// Combinaison : Options est un champ de bits combinable
+// ============================================================================
+cbCombo est un CodeBarres
+cbCombo..TypeCodeBarres = CB_CODE39
+cbCombo..Contenu        = "owl"
+cbCombo..Options        = CB_Etendu + CB_SansTexte
+
+ErreurRAZ()
+imgCombo est une Image = CodeBarreVersImage(cbCombo)
+dbgVérifieVrai(ErreurInfo() = "", "Combinaison CB_Etendu + CB_SansTexte - sans erreur")
+dbgVérifieVrai(imgCombo..Valide, "Combinaison d'options - Image valide")
+
+dbgBilanTest()

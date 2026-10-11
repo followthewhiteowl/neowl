@@ -1,0 +1,123 @@
+// ================================================================
+// Sérialise / Désérialise — couverture basique
+// ================================================================
+
+// ----- Sérialiser une structure simple -----
+Personne est une Structure
+    nom est une chaine
+    age est un entier
+    actif est un booleen
+FIN
+
+p est une Personne
+p.nom = "Roger"
+p.age = 45
+p.actif = Vrai
+
+buf est une chaine
+Sérialise(p, buf, psdJSON)
+dbgVerifieVrai(Position(buf, "Roger") > 0,  "Sérialise: nom dans le JSON")
+dbgVerifieVrai(Position(buf, "45") > 0,     "Sérialise: age dans le JSON")
+dbgVerifieVrai(Position(buf, "true") > 0,   "Sérialise: actif=true")
+
+// ----- Sérialiser en mode compact -----
+bufCompact est une chaine
+Sérialise(p, bufCompact, psdMinifie)
+dbgVerifieVrai(Position(bufCompact, LF) = 0, "psdMinifie: pas de newline")
+dbgVerifieVrai(Taille(bufCompact) < Taille(buf), "psdMinifie plus court que pretty")
+
+// ----- Désérialiser dans une instance vierge -----
+p2 est une Personne
+Désérialise(p2, buf, psdJSON)
+dbgVerifieEgalite(p2.nom, "Roger",  "Désérialise: nom restauré")
+dbgVerifieEgalite(p2.age, 45,        "Désérialise: age restauré")
+dbgVerifieEgalite(p2.actif, Vrai,    "Désérialise: actif restauré")
+
+// ----- Roundtrip exact -----
+buf2 est une chaine
+Sérialise(p2, buf2, psdJSON)
+dbgVerifieEgalite(buf, buf2, "Roundtrip Sérialise→Désérialise→Sérialise est stable")
+
+// ----- Sérialiser une structure imbriquée -----
+Adresse est une Structure
+    rue est une chaine
+    ville est une chaine
+FIN
+
+Contact est une Structure
+    nom est une chaine
+    adr est une Adresse
+FIN
+
+c est un Contact
+c.nom = "Michel"
+c.adr.rue = "1 rue de la Paix"
+c.adr.ville = "Lyon"
+
+bufC est une chaine
+Sérialise(c, bufC, psdJSON)
+dbgVerifieVrai(Position(bufC, "Michel") > 0, "Sérialise nested: nom")
+dbgVerifieVrai(Position(bufC, "Lyon")   > 0, "Sérialise nested: ville imbriquée")
+
+c2 est un Contact
+Désérialise(c2, bufC, psdJSON)
+dbgVerifieEgalite(c2.nom, "Michel",        "Désérialise nested: nom")
+dbgVerifieEgalite(c2.adr.ville, "Lyon",    "Désérialise nested: ville")
+dbgVerifieEgalite(c2.adr.rue, "1 rue de la Paix", "Désérialise nested: rue")
+
+// ----- Tableau de structures -----
+arrT est un tableau de Personne
+p3 est une Personne
+p3.nom = "Alice"
+p3.age = 30
+p3.actif = Vrai
+Ajoute(arrT, p3)
+
+p4 est une Personne
+p4.nom = "Bob"
+p4.age = 25
+p4.actif = Faux
+Ajoute(arrT, p4)
+
+bufTab est une chaine
+Sérialise(arrT, bufTab, psdJSON)
+dbgVerifieVrai(Position(bufTab, "Alice") > 0, "Sérialise tableau: élément 1")
+dbgVerifieVrai(Position(bufTab, "Bob")   > 0, "Sérialise tableau: élément 2")
+
+tab2 est un tableau de Personne
+Désérialise(tab2, bufTab, psdJSON)
+dbgVerifieEgalite(tab2..Occurrence, 2,         "Désérialise tableau: 2 éléments")
+dbgVerifieEgalite(tab2[1].nom, "Alice",       "Désérialise tableau: nom[1]")
+dbgVerifieEgalite(tab2[2].nom, "Bob",         "Désérialise tableau: nom[2]")
+dbgVerifieEgalite(tab2[1].age, 30,            "Désérialise tableau: age[1]")
+dbgVerifieEgalite(tab2[2].actif, Faux,        "Désérialise tableau: actif[2]")
+
+// ----- Types primitifs -----
+n est un entier = 42
+bufN est une chaine
+Sérialise(n, bufN, psdJSON)
+dbgVerifieEgalite(bufN, "42", "Sérialise entier")
+
+s est une chaine = "hello"
+bufS est une chaine
+Sérialise(s, bufS, psdJSON)
+dbgVerifieEgalite(bufS, """hello""", "Sérialise chaine quotée")
+
+// ----- JSON -----
+v est un JSON
+v = ChaineVersJSON("{""x"":1,""y"":[2,3]}")
+bufV est une chaine
+Sérialise(v, bufV, psdMinifie)
+dbgVerifieEgalite(bufV, "{""x"":1,""y"":[2,3]}", "Sérialise JSON compact")
+
+// ----- Désérialiser dans un JSON -----
+v2 est un JSON
+Désérialise(v2, "{""ok"":true,""n"":7}", psdJSON)
+dbgVerifieEgalite(v2.ok, Vrai, "Désérialise JSON: champ bool")
+dbgVerifieEgalite(v2.n, 7,     "Désérialise JSON: champ int")
+
+// ----- Échec gracieux sur JSON invalide -----
+v3 est un JSON
+res est un booleen = Désérialise(v3, "{broken", psdJSON)
+dbgVerifieEgalite(res, Faux, "Désérialise: retour Faux sur JSON invalide")
+dbgVerifieVrai(ErreurInfo() <> "", "Désérialise: ErreurInfo capture echec JSON invalide")

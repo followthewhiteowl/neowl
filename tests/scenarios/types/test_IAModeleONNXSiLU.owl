@@ -1,0 +1,89 @@
+// @sujet : IAModèle.ChargeONNX / .LoadONNX — import de l'activation SiLU
+// (Swish, `x·sigmoid(x)`), exportée en ONNX comme deux nœuds séparés
+// `Sigmoid` puis `Mul` (le Mul multipliant le tenseur par son propre
+// Sigmoid) — motif dominant des réseaux de détection d'objets modernes.
+// @résumé : le scénario central importe un petit réseau (Conv → SiLU →
+// moyenne spatiale globale → couche dense) et compare l'inférence à une
+// sortie de référence capturée hors OWL (onnxruntime), à une tolérance
+// flottante près.
+//
+// Fixture : tests/internal_fixtures/onnx/fixture_silu.onnx — graphe
+// Conv, Sigmoid, Mul, GlobalAveragePool, Flatten, Gemm (vérifié : Sigmoid
+// et Mul restent deux nœuds distincts à l'export, aucune fusion SiLU).
+// Entrée [1,3,8,8] (flat[k] = k/192.0), sortie [1,3].
+// Oracle : tests/internal_fixtures/onnx/fixture_silu_oracle.json.
+
+PROCEDURE PUBLIQUE scenario_charge_onnx_silu_infere_egale_oracle()
+	mon est un IAModèle
+	ErreurRAZ()
+	mon.ChargeONNX("tests/internal_fixtures/onnx/fixture_silu.onnx")
+	// Capture immédiate : la RAZ-auto consomme la sentinelle d'erreur au 1er
+	// appel natif suivant, lire ErreurDétectée avant tout autre appel
+	// (cf. skill test-writing-pitfalls §6).
+	bImportEchoue est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bImportEchoue, "l'import d'un réseau à activation SiLU (Sigmoid+Mul) réussit")
+
+	SI PAS bImportEchoue ALORS
+		brut est un tableau de réels
+		POUR k = 0 À 191
+			brut.Ajoute(k / 192.0)
+		FIN
+		entrée est un Tenseur = Tenseur(brut).Redimensionne([1, 3, 8, 8])
+
+		sortie est un Tenseur = mon.Infère(entrée)
+
+		// Image unique (lot=1) : sortie rétrogradée en Tenseur 1D [classes]
+		// (sémantique d'import ONNX). L'oracle onnxruntime [1,3] correspond aux
+		// mêmes 3 valeurs lues ici comme un Vecteur.
+		dbgVérifieEgalité(sortie..Rang, 1, "sortie image unique : Tenseur 1D [classes]")
+		val est un Vecteur = sortie..Valeur
+
+		attendu1 est un réel = -0.07884813845157623
+		attendu2 est un réel = -0.12764696776866913
+		attendu3 est un réel = 0.24771417677402496
+
+		dbgVérifieVrai(Abs(val[1] - attendu1) < 0.0001, "sortie[1] proche de l'oracle onnxruntime (SiLU)")
+		dbgVérifieVrai(Abs(val[2] - attendu2) < 0.0001, "sortie[2] proche de l'oracle onnxruntime (SiLU)")
+		dbgVérifieVrai(Abs(val[3] - attendu3) < 0.0001, "sortie[3] proche de l'oracle onnxruntime (SiLU)")
+	SINON
+		// Si le mapping SiLU (Sigmoid+Mul) n'existe pas, le message nomme
+		// l'opération ONNX non reconnue, pas une syntaxe cassée côté test.
+		sDétail est une chaîne = ErreurInfo(errMessage)
+		dbgVérifieVrai(Contient(sDétail, "non supportee") OU Contient(sDétail, "non supportée"), "le détail nomme une opération ONNX non reconnue (Sigmoid ou Mul)")
+	FIN
+FIN
+
+
+// Verrou de la forme anglaise : .LoadONNX sur la même fixture produit le
+// même comportement observable que .ChargeONNX.
+PROCEDURE PUBLIQUE scenario_load_onnx_silu_infer_equals_oracle()
+	mon is an AIModel
+	ErrorReset()
+	mon.LoadONNX("tests/internal_fixtures/onnx/fixture_silu.onnx")
+	bImportFailed is a boolean = ErrorOccurred
+	dbgCheckTrue(PAS bImportFailed, "importing a network with a SiLU activation (Sigmoid+Mul) succeeds")
+
+	SI PAS bImportFailed ALORS
+		raw is an array of reals
+		POUR k = 0 À 191
+			raw.Ajoute(k / 192.0)
+		FIN
+		input is a Tensor = Tensor(raw).Redimensionne([1, 3, 8, 8])
+
+		output is a Tensor = mon.Infer(input)
+
+		dbgCheckEqual(output..Rank, 1, "single-image output: 1D Tensor [classes]")
+		val is a Vector = output..Value
+
+		expected1 is a real = -0.07884813845157623
+		expected2 is a real = -0.12764696776866913
+		expected3 is a real = 0.24771417677402496
+
+		dbgCheckTrue(Abs(val[1] - expected1) < 0.0001, "AIModel.LoadONNX, English form: output[1] within tolerance of the SiLU oracle")
+		dbgCheckTrue(Abs(val[2] - expected2) < 0.0001, "AIModel.LoadONNX, English form: output[2] within tolerance of the SiLU oracle")
+		dbgCheckTrue(Abs(val[3] - expected3) < 0.0001, "AIModel.LoadONNX, English form: output[3] within tolerance of the SiLU oracle")
+	SINON
+		sDetail is a string = ErrorInfo(errMessage)
+		dbgCheckTrue(Contient(sDetail, "non supportee") OU Contient(sDetail, "non supportée"), "the detail names an unrecognized ONNX operation (Sigmoid or Mul)")
+	FIN
+FIN

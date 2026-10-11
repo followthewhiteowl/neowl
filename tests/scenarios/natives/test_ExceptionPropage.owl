@@ -1,0 +1,54 @@
+// @sujet : ExceptionPropage
+// @résumé : Relance l'exception courante vers le bloc appelant, depuis un
+// handler qui décide qu'il ne sait pas la traiter — équivalent fonction du
+// mot-clé EXCEPTION.
+
+
+// Nominal : un handler interne attrape puis relance, un handler externe qui
+// enveloppe le tout reçoit la même exception, code et message intacts.
+PROCEDURE PUBLIQUE scenario_relance_imbriquee_conserve_code_et_message()
+	QUAND EXCEPTION DANS
+		QUAND EXCEPTION DANS
+			ExceptionDéclenche(42, "Paiement refusé par la banque.")
+		FAIRE
+			ExceptionPropage()
+		FIN
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errCode), 42, "Le handler externe reçoit le code de l'exception d'origine")
+		dbgVérifieEgalité(ExceptionInfo(errMessage), "Paiement refusé par la banque.", "Le handler externe reçoit le message de l'exception d'origine")
+	FIN
+FIN
+
+
+// Cas limite : la ligne qui suit l'appel dans le handler interne n'est
+// jamais atteinte, la relance sort immédiatement du bloc protégé.
+PROCEDURE PUBLIQUE scenario_code_apres_relance_non_execute()
+	bLigneApresAtteinte est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		QUAND EXCEPTION DANS
+			ExceptionDéclenche(7, "Quota de requêtes dépassé.")
+		FAIRE
+			ExceptionPropage()
+			bLigneApresAtteinte = Vrai
+		FIN
+	FAIRE
+		dbgVérifieEgalité(ExceptionInfo(errCode), 7, "Le handler externe capture bien l'exception relancée")
+	FIN
+
+	dbgVérifieEgalité(bLigneApresAtteinte, Faux, "Le code posé après ExceptionPropage() dans le handler interne n'est jamais exécuté")
+FIN
+
+
+// Cas limite (edge) : appelée en dehors de tout handler, l'appel ne fait
+// rien de perceptible — le flux qui suit s'exécute normalement.
+PROCEDURE PRIVÉE scenario_hors_handler_est_sans_effet()
+	bAvant est un booléen = Vrai
+
+	ExceptionPropage()
+
+	dbgVérifieVrai(bAvant, "Hors handler, ExceptionPropage() n'interrompt pas le flux du programme")
+FIN
+
+
+dbgBilanTest()

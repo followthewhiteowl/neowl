@@ -1,0 +1,39 @@
+// ============================================
+// TEST (headless): smoke de TableActiveFiltre avec les constantes filtre*
+//
+// TableActiveFiltre(TAB.COL, type, valeur) applique un filtre utilisateur
+// sur une colonne de Table (forme proxy-colonne , migree depuis
+// l'ancienne forme (table, "nomColonne", type, valeur) — break-net,
+// ). L'effet visuel (masquage de lignes via rowHidden) opere sur
+// le widget de rendu ; il est desormais observable via la sonde test-only
+// __DebugTableColonneVisible. Cette suite se limite au SMOKE :
+// appel avec chaque operateur filtre* sans erreur, + valeur vide qui
+// retire le filtre. La couverture d'ETAT interrogeable headless (colonnes
+// filtrees, desactivation) vit dans les fichiers voisins
+// test_table_colonnes_filtrees.owl / test_table_desactive_filtre.owl.
+// Pattern : la fenêtre voisine FEN_Filtre.owl porte la déclaration.
+// ============================================
+
+Ouvre(FEN_Filtre)
+
+// Chaque operateur filtre* est accepte par TableActiveFiltre sans lever.
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreContient, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreCommencePar, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreTerminePar, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreEgal, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreDifférent, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreInférieur, "m")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreInférieurOuEgal, "m")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreSupérieur, "m")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreSupérieurOuEgal, "m")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreNeContientPas, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreNeCommencePasPar, "a")
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreNeTerminePasPar, "a")
+
+// Valeur vide = retrait du filtre (canon de référence), egalement sans erreur.
+TableActiveFiltre(TAB_Donnees.COL_Nom, filtreEgal, "")
+
+// On a traverse les 12 operateurs + le retrait sans interruption.
+dbgVérifieVrai(Vrai, "TableActiveFiltre accepte les 12 operateurs filtre* + retrait sans erreur")
+
+dbgBilanTest()

@@ -1,0 +1,54 @@
+// Fenêtre voisine — ressource pour
+// test_table_colonne_type_duree.owl ( lot 2, câblage colTypeDurée
+// sur le framework type-driven de colonne posé par ).
+//
+// COL_Duree       : Type = colTypeDurée, AUCUN masque brut déclaré → doit
+//                   être pilotée par le format durée défaut projet
+//                   (HH:MI:SS, mesuré src/stdlib_ui.c L1720), donc dériver
+//                   masque + validateur de plages DURÉE (HH non plafonné à
+//                   23, contrairement à Heure — miroir Saisie ).
+// COL_DureeMasque : Type = colTypeDurée ET MasqueSaisie brut déclaré → le
+//                   masque brut explicite reste un override bas-niveau
+//                   (comportement , non affecté par ce ticket).
+// COL_Texte       : Type = colTypeTexte, aucun masque/validateur → non-
+//                   régression (toute saisie acceptée, pas de contrainte).
+
+FEN_TableColonneTypeDuree est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne type Durée, masque + validation"
+	FIN
+
+	TAB_ColTypes est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_Duree est une Colonne
+			PROPRIETES
+				Libellé = "Durée"
+				Type    = colTypeDurée
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_DureeMasque est une Colonne
+			PROPRIETES
+				Libellé      = "Durée (masque brut)"
+				Type         = colTypeDurée
+				Largeur      = 140
+				MasqueSaisie = "99-99-99"
+			FIN
+		FIN
+
+		COL_Texte est une Colonne
+			PROPRIETES
+				Libellé = "Texte"
+				Type    = colTypeTexte
+				Largeur = 140
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TAB_ColTypes, "01:30:00", "01-30-00", "abc")
+	FIN
+FIN

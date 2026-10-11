@@ -1,0 +1,35 @@
+//  — DonneFocus sur un champ inexistant → ErreurDétectée
+//
+// Comportement de référence : cibler un champ absent de la fenêtre ou de la
+// page courante lève une erreur gérée plutôt qu'un plantage.
+//
+// Implémentation OWL attendue : soft-error (ErreurDétectée = Vrai), pas de crash.
+// Modèle canonique : erreurs Timer.
+//
+// Note : le passage d'un nom de champ inexistant est simulé par un paramètre
+// chaîne contenant le nom — la forme retenue pour les tests runtime est de
+// passer directement un identifiant non déclaré. Si le compilateur détecte
+// l'absence de symbole au compile-time, la raison du rouge est alors
+// "symbole non résolu" (acceptable : la raison est claire et correcte).
+//
+// Test ROUGE attendu : DonneFocus n'existe pas encore.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Inexistant)
+
+// Appel DonneFocus avec un champ existant : pas d'erreur attendue.
+DonneFocus(SAI_Seul)
+bErrOk est un booléen = ErreurDétectée
+dbgVérifieFaux(bErrOk, "DonneFocus sur champ existant : pas d'erreur")
+
+// Appel DonneFocus avec un nom de champ chaîne inexistant.
+// La native doit poser ErreurDétectée = Vrai.
+nomInexistant est une chaîne = "SAI_PasLa"
+DonneFocus(nomInexistant)
+bErrInexistant est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrInexistant, "DonneFocus sur champ inexistant (nom chaine) -> ErreurDetectee")
+
+Ferme(FEN_Inexistant)
+
+dbgBilanTest()

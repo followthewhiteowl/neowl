@@ -1,0 +1,22 @@
+// Input du test : formes legerement bruitees pour verifier que la
+// canonisation generale du formatter fonctionne ET que les noms de
+// variables shadow-ables sont preserves verbatim.
+//
+// Regression : `tab est un tableau` est canon de référence (variable shadow autorisee
+// avec warning compile). Le formatter ne doit PAS canoniser le nom de
+// variable vers la constante TAB. is_var_name() doit gagner sur
+// find_keyword() quand le keyword est en categorie CAT_BOOL.
+//
+// Si ce test echoue (le formatter veut transformer `tab` en `TAB`), c'est
+// que quelqu'un a re-introduit l'ordre buggy. Voir formatter.c autour de
+// la garde "shadow constante built-in".
+
+tab est un tableau de chaînes
+rc est un entier = 13
+crlf est une chaîne = "x"
+lf est un entier = 10
+
+// Une fois `tab` declare comme variable, toute occurrence lowercase reste
+// la variable (shadowing complet). Pour viser la constante TAB on doit
+// ecrire `TAB` uppercase explicitement (deja canon, pas de transform).
+s est une chaîne = "a" + tab + "b"

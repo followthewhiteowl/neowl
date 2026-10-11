@@ -1,0 +1,47 @@
+// Fixture  (BUG 4) — le document OpenAPI doit refléter le mode Flux
+// d'une opération : une route fluxSSE se décrit text/event-stream, une route
+// fluxOctets application/octet-stream, et une route sans Flux reste sur
+// application/json (non-régression).
+DiffusionFlux est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Notifications est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["notifications"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+			Flux     = fluxSSE
+		FIN
+		PROCEDURE surRequête() : entier
+			RENVOYER 1
+		FIN
+	FIN
+
+	Telechargement est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["telechargement"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+			Flux     = fluxOctets
+		FIN
+		PROCEDURE surRequête() : entier
+			RENVOYER 1
+		FIN
+	FIN
+
+	Statut est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["statut"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : entier
+			RENVOYER 1
+		FIN
+	FIN
+FIN

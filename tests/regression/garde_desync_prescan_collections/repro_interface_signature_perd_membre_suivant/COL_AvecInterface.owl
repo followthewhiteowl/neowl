@@ -1,0 +1,22 @@
+//  — reproduction MINIMALE de la désynchronisation pré-scan /
+// parse réel : le pré-scan lexical incrémente sa profondeur de bloc sur
+// TOUT token `PROCEDURE`, en pariant qu'un `FIN` viendra le refermer. Or une
+// signature de méthode dans un bloc Interface (`PROCEDURE Aire() : entier`)
+// N'A PAS de `FIN` propre — seul le bloc Interface englobant en a un. Le
+// pré-scan sur-incrémente donc sa profondeur d'un cran non apparié : le
+// comptage dérape et tout membre déclaré APRÈS l'Interface est perdu.
+//
+// Le parse RÉEL, lui, sait qu'une signature d'Interface n'ouvre pas un
+// corps de procédure : `Suivante` est un membre parfaitement défini de
+// COL_AvecInterface. `owl --check` de ce fichier seul est PROPRE — le
+// symptôme n'apparaît qu'au runtime, depuis un fichier voisin qui appelle
+// `Suivante()` en nom nu.
+COL_AvecInterface est une CollectionDeProcédures
+	iForme est une Interface
+		PROCEDURE Aire() : entier
+	FIN
+
+	PROCEDURE Suivante()
+		RENVOYER 42
+	FIN
+FIN

@@ -1,0 +1,120 @@
+// ============================================
+// TEST: ExceptionDéclenche — signature étendue à 3 paramètres optionnels
+//
+// Signature OWL : ExceptionDéclenche([code], [message], [info])
+// Discrimination sur le type du 1er arg :
+//   - chaîne → message seul (code=0, info="")
+//   - entier → code seul, ou code+message, ou code+message+info
+//
+// Toutes les formes héritées doivent rester opérationnelles (compat backward),
+// le 3e argument est strictement additif.
+// ============================================
+Trace("=== EXCEPTION DÉCLENCHE 3 ARGS ===")
+
+// ---------------------------------------------------------------------
+// 0 argument : message et code par défaut
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche()
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 0,
+	"0 arg : code par défaut = 0")
+	dbgVérifieVrai(Taille(ExceptionInfo(errMessage)) > 0,
+	"0 arg : message par défaut non vide")
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"0 arg : errInfo vide")
+FIN
+
+// ---------------------------------------------------------------------
+// 1 argument chaîne : message seul
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche("message seul")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "message seul",
+	"1 arg chaîne : message renseigné")
+	dbgVérifieEgalité(ExceptionInfo(errCode), 0,
+	"1 arg chaîne : code = 0")
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"1 arg chaîne : errInfo vide")
+FIN
+
+// ---------------------------------------------------------------------
+// 1 argument entier : code seul
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(404)
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 404,
+	"1 arg entier : code renseigné")
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"1 arg entier : errInfo vide")
+FIN
+
+// ---------------------------------------------------------------------
+// 2 arguments (entier, chaîne) : code + message
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(500, "Internal error")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 500,
+	"2 args : code")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "Internal error",
+	"2 args : message")
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"2 args : errInfo vide (compat backward)")
+FIN
+
+// ---------------------------------------------------------------------
+// 3 arguments (entier, chaîne, chaîne) : la nouveauté
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(404, "Ressource absente", "url=/api/users/42")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errCode), 404,
+	"3 args : code")
+	dbgVérifieEgalité(ExceptionInfo(errMessage), "Ressource absente",
+	"3 args : message")
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "url=/api/users/42",
+	"3 args : errInfo = 3e arg, distinct du message")
+FIN
+
+// ---------------------------------------------------------------------
+// 3 arguments : info peut être une chaîne JSON courte
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(13, "Permission refusée", `{"path":"/etc/shadow","uid":1000}`)
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), `{"path":"/etc/shadow","uid":1000}`,
+	"errInfo accepte un JSON court (chaîne brute, pas de parsing)")
+FIN
+
+// ---------------------------------------------------------------------
+// 3 arguments : info chaîne vide explicite — équivalent à 2 args
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(11, "msg", "")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"3 args avec info vide : errInfo reste vide (cohérent avec 2 args)")
+FIN
+
+// ---------------------------------------------------------------------
+// Reset entre exceptions successives : errInfo de la 2e levée n'hérite pas
+// de la 1ère
+// ---------------------------------------------------------------------
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(1, "first", "info-first")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "info-first",
+	"1ère exception : errInfo = info-first")
+FIN
+
+QUAND EXCEPTION DANS
+	ExceptionDéclenche(2, "second")
+FAIRE
+	dbgVérifieEgalité(ExceptionInfo(errInfo), "",
+	"2e exception sans 3e arg : errInfo reset à vide (pas d'hérédité)")
+FIN
+
+dbgBilanTest()

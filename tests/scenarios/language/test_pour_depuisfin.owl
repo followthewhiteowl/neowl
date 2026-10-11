@@ -1,0 +1,89 @@
+// @sujet : POUR ... DepuisFin — parcours d'indices en sens inverse
+// @résumé : POUR i = a A b DepuisFin parcourt les indices de b vers a, strictement équivalent à POUR i = b A a PAS -1. DepuisDébut est accepté comme suffixe explicite pour symétrie de lecture, sans changer le sens (= défaut ascendant). DepuisFin et PAS sont mutuellement exclusifs : le sens étant déjà imposé par DepuisFin, écrire un PAS explicite serait ambigu et provoque une erreur de compilation.
+
+
+// Forme la plus courante : parcours descendant d'indices. La variable i
+// prend successivement les valeurs 5, 4, 3, 2, 1. Lisible « pour i de 1 à
+// 5 en partant de la fin ». Idiomatique quand on traite un intervalle dont
+// les premiers indices doivent être traités en dernier.
+PROCEDURE scenario_parcours_inverse()
+	sOrdre est une chaîne = ""
+	POUR i = 1 À 5 DepuisFin
+		sOrdre = sOrdre + i + "|"
+	FIN
+	dbgVérifieEgalité(sOrdre, "5|4|3|2|1|", "DepuisFin parcourt i de 5 jusqu'à 1 inclus")
+FIN
+
+
+// DepuisDébut écrit explicitement : strictement équivalent à l'absence
+// de suffixe. Utile pour rendre le sens visible au lecteur quand il
+// importe (par exemple si DepuisFin existe ailleurs dans la même fonction
+// et qu'on veut souligner la différence).
+PROCEDURE scenario_depuis_debut_explicite()
+	sOrdre est une chaîne = ""
+	POUR i = 1 À 5 DepuisDébut
+		sOrdre = sOrdre + i + "|"
+	FIN
+	dbgVérifieEgalité(sOrdre, "1|2|3|4|5|", "DepuisDébut explicite produit la même trace que l'absence de suffixe")
+FIN
+
+
+// Bornes égales : une seule itération, avec i égal à la borne. Comportement
+// symétrique aux deux sens — DepuisFin ne change rien quand il n'y a qu'une
+// seule valeur à parcourir.
+PROCEDURE scenario_bornes_egales()
+	nIter est un entier = 0
+	nVu est un entier = -1
+	POUR i = 3 À 3 DepuisFin
+		nIter = nIter + 1
+		nVu   = i
+	FIN
+	dbgVérifieEgalité(nIter, 1, "Bornes égales : une seule itération")
+	dbgVérifieEgalité(nVu, 3, "Bornes égales : i vaut la borne unique")
+FIN
+
+
+// SORTIR fonctionne normalement dans une boucle inversée : sortie franche
+// à la condition rencontrée, peu importe le sens du parcours.
+PROCEDURE scenario_sortir_dans_parcours_inverse()
+	sVus est une chaîne = ""
+	POUR i = 1 À 10 DepuisFin
+		sVus = sVus + i + "|"
+		SI i = 7 ALORS
+			SORTIR
+		FIN
+	FIN
+	dbgVérifieEgalité(sVus, "10|9|8|7|", "SORTIR à i=7 termine la boucle, traces 10, 9, 8, 7")
+FIN
+
+
+// CONTINUER saute le reste du body et passe à la valeur suivante du
+// parcours inverse (i - 1 dans ce cas). Permet de filtrer en cours de
+// route sans changer la structure de la boucle.
+PROCEDURE scenario_continuer_dans_parcours_inverse()
+	sPairs est une chaîne = ""
+	POUR i = 1 À 6 DepuisFin
+		SI i % 2 = 1 ALORS
+			CONTINUER
+		FIN
+		sPairs = sPairs + i + "|"
+	FIN
+	dbgVérifieEgalité(sPairs, "6|4|2|", "CONTINUER sur impairs : trace 6, 4, 2 en sens inverse")
+FIN
+
+
+// DepuisFin est strictement équivalent à inverser les bornes et imposer
+// un pas de -1. Ce scénario démontre l'équivalence côte à côte : les deux
+// formes produisent la même trace, DepuisFin n'est qu'un sucre lisible.
+PROCEDURE scenario_equivalence_avec_bornes_inversees()
+	sAvecDepuisFin est une chaîne = ""
+	POUR i = 1 À 4 DepuisFin
+		sAvecDepuisFin = sAvecDepuisFin + i + "|"
+	FIN
+	sAvecPasNegatif est une chaîne = ""
+	POUR i = 4 À 1 PAS -1
+		sAvecPasNegatif = sAvecPasNegatif + i + "|"
+	FIN
+	dbgVérifieEgalité(sAvecDepuisFin, sAvecPasNegatif, "DepuisFin équivaut à bornes inversées avec PAS -1")
+	dbgVérifieEgalité(sAvecDepuisFin, "4|3|2|1|", "Trace canonique : 4, 3, 2, 1")
+FIN

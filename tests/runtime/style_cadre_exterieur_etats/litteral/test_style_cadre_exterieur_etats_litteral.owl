@@ -1,0 +1,57 @@
+//  — Lot 1 (modèle + round-trip) : `Etats` sur `styleCadreExtérieur`
+// posé en LITTÉRAL inline sur une variable typée `styleBouton`. Couvre
+// survol/appuyé/focus/grisé ET la préservation des props de base (hors
+// Etats) du CadreExtérieur.
+//
+// Lecture via variable typée locale (`sty..CadreExtérieur..Etats[état]..X`).
+// La lecture par le namespace du thème (`theme.<style>..Etats[état]..X`) est
+// couverte à part, dans tests/runtime/theme_namespace_etats_relecture/, qui
+// vérifie en plus que ce chemin et celui-ci rendent la même valeur.
+
+Trace("=== styleBouton..CadreExtérieur..Etats (littéral, variable typée) ===")
+
+sty est un styleBouton = {
+	CadreExtérieur = {
+		CouleurFond = RVB(50, 50, 50)
+		Dégradé     = {
+			Type         = dégradéLinéaire
+			CouleurDébut = RVB(10, 10, 10)
+			CouleurFin   = RVB(20, 20, 20)
+		}
+		Ombre = { Flou = 8 }
+		Cadre = { Arrondi = 6 }
+		Etats = {
+			Survol = {
+				Dégradé = { CouleurDébut = RVB(255, 0, 0) }
+				Ombre   = { Flou = 22 }
+			}
+			Appuyé = { CouleurFond = RVB(0, 200, 0) }
+			Focus  = { Cadre = { Couleur = RVB(0, 0, 255) } }
+			Grisé  = { CouleurFond = RVB(120, 120, 120) }
+		}
+	}
+}
+
+// --- 1. Survol : Dégradé..CouleurDébut ET Ombre..Flou surchargés ---
+dbgVérifieEgalité(sty..CadreExtérieur..Etats[survol]..Dégradé..CouleurDébut, RVB(255, 0, 0), "survol : Dégradé..CouleurDébut round-trip")
+dbgVérifieEgalité(sty..CadreExtérieur..Etats[survol]..Ombre..Flou, 22, "survol : Ombre..Flou round-trip")
+
+// --- 2. Appuyé : CouleurFond surchargé ---
+dbgVérifieEgalité(sty..CadreExtérieur..Etats[appuyé]..CouleurFond, RVB(0, 200, 0), "appuyé : CouleurFond round-trip")
+
+// --- 3. Focus : Cadre..Couleur surchargé ---
+dbgVérifieEgalité(sty..CadreExtérieur..Etats[focus]..Cadre..Couleur, RVB(0, 0, 255), "focus : Cadre..Couleur round-trip")
+
+// --- 4. Grisé : CouleurFond surchargé ---
+dbgVérifieEgalité(sty..CadreExtérieur..Etats[grisé]..CouleurFond, RVB(120, 120, 120), "grisé : CouleurFond round-trip")
+
+// --- 5. Base préservée : les props de base du CadreExtérieur (hors Etats)
+// restent lisibles et intactes une fois des Etats posés (pas de récursion,
+// pas d'écrasement — cohérent ) ---
+dbgVérifieEgalité(sty..CadreExtérieur..CouleurFond, RVB(50, 50, 50), "base préservée : CouleurFond intact")
+dbgVérifieEgalité(sty..CadreExtérieur..Dégradé..CouleurDébut, RVB(10, 10, 10), "base préservée : Dégradé..CouleurDébut intact")
+dbgVérifieEgalité(sty..CadreExtérieur..Dégradé..CouleurFin, RVB(20, 20, 20), "base préservée : Dégradé..CouleurFin intact")
+dbgVérifieEgalité(sty..CadreExtérieur..Ombre..Flou, 8, "base préservée : Ombre..Flou intact")
+dbgVérifieEgalité(sty..CadreExtérieur..Cadre..Arrondi, 6, "base préservée : Cadre..Arrondi intact")
+
+dbgBilanTest()

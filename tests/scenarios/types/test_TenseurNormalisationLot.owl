@@ -1,0 +1,89 @@
+// @sujet : Tenseur.NormalisationLot — normalisation par lot (avant + arrière)
+// @résumé : NormalisationLot(gamma, beta, epsilon) normalise chaque CANAL
+// indépendamment : moyenne et variance calculées sur les axes lot/hauteur/
+// largeur (B,H,W) de ce canal, puis mise à l'échelle (gamma) et décalage
+// (beta) : sortie = gamma * (entrée - moyenne) / racine(variance + epsilon) + beta.
+// Toutes les valeurs sont calculées à la main.
+//
+// Hypothèse de signature (à confirmer par l'implémenteur) : gamma et beta
+// sont des Tenseurs de taille = nombre de canaux (ici 1 canal -> taille 1),
+// epsilon est un réel ajouté à la variance avant la racine (évite la
+// division par zéro quand la variance est nulle).
+
+// Entrée 2×1×1×2 (B=2, 1 canal, H=1, W=2) = [0, 0, 2, 2] (les 4 valeurs
+// du seul canal, dans l'ordre B puis W).
+// moyenne = (0+0+2+2)/4 = 1
+// variance = ((0-1)² + (0-1)² + (2-1)² + (2-1)²)/4 = (1+1+1+1)/4 = 1
+// racine(variance + 0) = 1
+// normalisé = (x - 1)/1 = [-1, -1, 1, 1]
+// gamma=3, beta=2 -> sortie = 3*normalisé + 2 = [-1, -1, 5, 5]
+PROCEDURE PUBLIQUE scenario_normalisationlot_forward_moyenne_variance_par_canal()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+	gamma est un Tenseur = Tenseur([3.0])
+	beta est un Tenseur = Tenseur([2.0])
+	sortie est un Tenseur = entrée.NormalisationLot(gamma, beta, 0.0)
+
+	dbgVérifieEgalité(sortie..Forme[1], 2, "B=2 conservé")
+	dbgVérifieEgalité(sortie..Forme[2], 1, "1 canal conservé")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1],-1.0, "3*(0-1)/1 + 2 = -1")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2],-1.0, "3*(0-1)/1 + 2 = -1")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][1], 5.0, "3*(2-1)/1 + 2 = 5")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][2], 5.0, "3*(2-1)/1 + 2 = 5")
+FIN
+
+
+// Rétropropagation : gradients vers gamma, beta ET vers l'entrée, tous
+// dérivés à la main. Comme q=sortie*sortie donne un gradient de sortie qui
+// reste une fonction affine du canal normalisé (la normalisation par lot
+// annule exactement ce type de gradient — propriété connue de la couche),
+// on multiplie plutôt sortie par un tenseur de poids EXTERNE non lié à
+// l'entrée pour obtenir un gradient de sortie librement choisi et non
+// dégénéré : m = [1, 2, 3, 4] (même forme que l'entrée).
+// grad_sortie = m (car q = sortie*m -> dq/dsortie = m, et le gradient
+// initial de q est 1 sur chaque cellule).
+//
+// normalisé = [-1, -1, 1, 1] (cf. scénario forward)
+// dbeta = somme(grad_sortie) = 1+2+3+4 = 10
+// dgamma = somme(grad_sortie * normalisé) = 1*(-1)+2*(-1)+3*1+4*1 = -1-2+3+4 = 4
+//
+// Formule standard de rétropropagation de la normalisation par lot
+// (N=4 éléments par canal, racine=1, gamma=3) :
+//   dEntrée[i] = (gamma/(N*racine)) * (N*grad_sortie[i] - dbeta - normalisé[i]*dgamma)
+//   dEntrée[1] = (3/4) * (4*1 - 10 - (-1)*4) = (3/4) * (4-10+4) = (3/4)*(-2) = -1.5
+//   dEntrée[2] = (3/4) * (4*2 - 10 - (-1)*4) = (3/4) * (8-10+4) = (3/4)*(2) = 1.5
+//   dEntrée[3] = (3/4) * (4*3 - 10 - 1*4)    = (3/4) * (12-10-4) = (3/4)*(-2) = -1.5
+//   dEntrée[4] = (3/4) * (4*4 - 10 - 1*4)    = (3/4) * (16-10-4) = (3/4)*(2) = 1.5
+PROCEDURE PUBLIQUE scenario_normalisationlot_backward_gamma_beta_et_entree()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+	gamma est un Tenseur = Tenseur([3.0])
+	beta est un Tenseur = Tenseur([2.0])
+	sortie est un Tenseur = entrée.NormalisationLot(gamma, beta, 0.0)
+
+	m est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0]).Redimensionne([2, 1, 1, 2])
+	q est un Tenseur = sortie * m
+	q.Rétropropage()
+
+	dbgVérifieEgalité(beta..Gradient[1], 10.0, "dbeta = somme(grad_sortie) = 1+2+3+4 = 10")
+	dbgVérifieEgalité(gamma..Gradient[1], 4.0, "dgamma = somme(grad_sortie * normalisé) = -1-2+3+4 = 4")
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][1],-1.5, "dEntrée[1] = -1.5 (formule BN standard)")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][2], 1.5, "dEntrée[2] = 1.5")
+	dbgVérifieEgalité(entrée..Gradient[2][1][1][1],-1.5, "dEntrée[3] = -1.5")
+	dbgVérifieEgalité(entrée..Gradient[2][1][1][2], 1.5, "dEntrée[4] = 1.5")
+FIN
+
+
+// La forme native TenseurNormalisationLot(entrée, gamma, beta, epsilon)
+// doit rendre exactement le même résultat que la méthode fluente.
+PROCEDURE PUBLIQUE scenario_normalisationlot_forme_native_egale_methode()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+	gamma est un Tenseur = Tenseur([3.0])
+	beta est un Tenseur = Tenseur([2.0])
+
+	sortieMéthode est un Tenseur = entrée.NormalisationLot(gamma, beta, 0.0)
+	sortieNative est un Tenseur = TenseurNormalisationLot(entrée, gamma, beta, 0.0)
+
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], sortieMéthode..Valeur[1][1][1][1], "native et méthode rendent la même cellule [1][1][1][1]")
+	dbgVérifieEgalité(sortieNative..Valeur[2][1][1][2], sortieMéthode..Valeur[2][1][1][2], "native et méthode rendent la même cellule [2][1][1][2]")
+FIN

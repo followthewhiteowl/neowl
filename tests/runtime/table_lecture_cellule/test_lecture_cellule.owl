@@ -1,0 +1,59 @@
+//  — Table : lecture cellule par programme (syntaxe TBL[ligne].COL)
+//
+// ROUGE ATTENDU tant que  n'est pas implemente.
+// Raison du rouge : OP_ARRAY_GET ne gere pas kind==TABLE → throw
+// E_RT_INDEX_NEEDS_ARRAY_OR_COMBI, ou store headless absent → valeur nulle.
+//
+// Ce test verrouille :
+//   1. TBL[2].COL_Nom == "Bob"     (chaine, ligne-first)
+//   2. TBL[1].COL_Id == 1         (numerique type)
+//   3. TBL[1].COL_Id + 1 == 2    (arithmetique, pas concat → Q3 valeur typee)
+//   4. TBL[1].COL_Nom == "Alice"  (symetrie/coherence)
+//   5. TBL[0] → OOB              (borne basse invalide)
+//   6. TBL[3] → OOB              (borne haute invalide apres 2 lignes)
+//   7. TableModifieLigne + relecture (coherence ecriture/lecture)
+
+TestModeHeadless(Vrai)
+
+init_done_0553 est un booléen = Faux
+
+PROCEDURE cb_0553_init_done()
+	init_done_0553 = Vrai
+FIN
+
+Ouvre(FEN_TBL553)
+
+dbgVérifieVrai(init_done_0553, "FinInitialisation FEN_TBL553 executee")
+
+// --- Cas 1 : lecture COL_Nom ligne 2 (chaine) ---
+sNom2 est une chaîne = LireNom(2)
+dbgVérifieEgalité(sNom2, "Bob", "TBL[2].COL_Nom == Bob")
+
+// --- Cas 2 + 3 : lecture COL_Id ligne 1 (numerique + arithmetique) ---
+nId1 est un entier = LireId(1)
+dbgVérifieEgalité(nId1, 1, "TBL[1].COL_Id == 1")
+dbgVérifieEgalité(nId1 + 1, 2, "TBL[1].COL_Id + 1 == 2 (type numerique, pas concat)")
+
+// --- Cas 4 : symetrie COL_Nom ligne 1 ---
+sNom1 est une chaîne = LireNom(1)
+dbgVérifieEgalité(sNom1, "Alice", "TBL[1].COL_Nom == Alice")
+
+// --- Cas 5 : OOB borne basse (ligne 0) ---
+ErreurRAZ()
+sHorsBas est une chaîne = LireNom(0)
+bOOBBas est un booléen = ErreurDétectée
+dbgVérifieVrai(bOOBBas, "TBL[0].COL_Nom → ErreurDetectee (borne basse OOB)")
+
+// --- Cas 6 : OOB borne haute (ligne 3 sur 2 lignes) ---
+ErreurRAZ()
+sHorsHaut est une chaîne = LireNom(3)
+bOOBHaut est un booléen = ErreurDétectée
+dbgVérifieVrai(bOOBHaut, "TBL[3].COL_Nom → ErreurDetectee (borne haute OOB)")
+
+// --- Cas 7 : TableModifieLigne puis relecture ---
+sApresModif est une chaîne = ModifierEtLireNom()
+dbgVérifieEgalité(sApresModif, "Charlie", "apres TableModifieLigne(TBL,1,99,Charlie) : TBL[1].COL_Nom == Charlie")
+
+Ferme(FEN_TBL553)
+
+dbgBilanTest()

@@ -1,0 +1,42 @@
+// @sujet : HeureVersChaîne
+// @résumé : Convertit une heure (type Heure, DateHeure ou chaîne) en sa représentation texte, selon un format optionnel. Retourne une chaîne vide si l'entrée n'est pas convertible.
+
+
+// Cas canonique : conversion d'un objet Heure en chaîne par défaut (format avec séparateurs).
+PROCEDURE scenario_heure_vers_chaine_format_defaut()
+	h est une heure = ChaîneVersHeure("143000")
+	sHeure est une chaîne = HeureVersChaîne(h)
+	dbgVérifieEgalité(sHeure, "14:30:00:00", "format défaut avec séparateurs HH:MM:SS:CC")
+FIN
+
+
+// Cast implicite : une chaîne bien formée est acceptée directement sans
+// conversion préalable en type Heure, retourne format par défaut.
+PROCEDURE scenario_cast_implicite_chaine()
+	sHeure est une chaîne = HeureVersChaîne("143000")
+	dbgVérifieEgalité(sHeure, "14:30:00:00", "chaîne HHMMSS convertie vers format séparateurs")
+FIN
+
+
+// Entrée chaîne mal formée (non parseable) : retourne chaîne vide et
+// signale l'erreur via ErreurDétectée. Permet de distinguer un échec
+// de parse d'un résultat légitime.
+PROCEDURE PRIVÉE scenario_parse_fail_signale_erreur()
+	ErreurRAZ()
+	sHeure est une chaîne = HeureVersChaîne("not a time")
+	dbgVérifieVrai(ErreurDétectée, "HeureVersChaîne string mal formé doit poser ErreurDétectée")
+	dbgVérifieEgalité(sHeure, "", "string mal formé retourne chaîne vide")
+FIN
+
+
+// Type non supporté (ni Heure, ni DateHeure, ni Chaîne) : retourne
+// chaîne vide et signale l'erreur via ErreurDétectée. Cohérence avec
+// le principe général OWL : toute valeur vide sur erreur est
+// accompagnée d'un marqueur détectable.
+PROCEDURE PRIVÉE scenario_type_invalide_signale_erreur()
+	ErreurRAZ()
+	n est un entier = 42
+	sHeure est une chaîne = HeureVersChaîne(n)
+	dbgVérifieVrai(ErreurDétectée, "HeureVersChaîne type non supporté doit poser ErreurDétectée")
+	dbgVérifieEgalité(sHeure, "", "type non supporté retourne chaîne vide")
+FIN

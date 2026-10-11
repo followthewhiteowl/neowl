@@ -1,0 +1,32 @@
+// =====================================================================
+// Test : prescan widgets - widget inexistant reste rejete
+// =====================================================================
+// Garde anti-permissivite : une procedure qui reference un widget qui
+// n'est declare NULLE PART dans la fenetre doit produire l'erreur
+// "'LIB_TYPO' inconnu ou inaccessible". Le prescan ne doit pas rendre
+// tout permissif — il autorise l'ordre libre des widgets declares,
+// mais rejette toujours les vrais inconnus.
+//
+// Ce test doit rester ROUGE-ERREUR (compile-error) meme apres le prescan.
+// C'est un verrouillage : on ne casse pas la detection des vrais inconnus.
+
+FEN_UnknownWidget est une Fenêtre
+	PROPRIETES
+		Disposition = dispLibre
+		Largeur     = 200
+		Hauteur     = 100
+	FIN
+
+	PROCEDURE TesterTypo()
+		// LIB_TYPO n'est declare NULLE PART dans la fenetre
+		LIB_TYPO..Libellé = "inexistant"
+	FIN
+
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Libellé = "existant"
+		FIN
+	FIN
+FIN

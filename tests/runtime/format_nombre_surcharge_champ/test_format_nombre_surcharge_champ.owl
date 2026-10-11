@@ -1,0 +1,23 @@
+//  — surcharge : `FormatNombre` du CHAMP (inline, 4 décimales)
+// l'emporte sur `FormatNombre` du PROJET (2 décimales, séparateurs). Pour la
+// même valeur posée 1234567.891 :
+//   - format_nombre_heritage_champ (pas de format champ) -> 1234567.89  (arrondi projet, 2 déc.)
+//   - ce dossier (FormatNombre champ, 4 déc.)            -> 1234567.891 (4 déc., exact, pas d'arrondi projet)
+// Les deux résultats DIVERGENT pour la même entrée : preuve que le format du
+// champ prend le dessus sur celui du projet, pas l'inverse.
+//
+// ROUGE attendu : compilation du projet.owl voisin échoue tant que
+// FormatNombre n'existe pas au catalogue.
+
+TestModeHeadless(Faux)
+
+dbgVérifieEgalité(MonAppFormatNombreSurchargeChamp..FormatNombre..ChiffresAprèsVirgule, 2, "Projet..FormatNombre : objet configuré à 2 décimales, lisible en cascade")
+
+OuvreSoeur(FEN_SurchargeChamp)
+
+SAI_Num..Valeur = 1234567.891
+nLu est un réel = SAI_Num..Valeur
+dbgVérifieVrai(Abs(nLu - 1234567.891) < 0.0001, "FormatNombre du champ (4 décimales) l'emporte sur FormatNombre du projet (2 décimales) : round-trip rend 1234567.891 (4 décimales, pas d'arrondi à 2), pas 1234567.89")
+
+Ferme(FEN_SurchargeChamp)
+dbgBilanTest()

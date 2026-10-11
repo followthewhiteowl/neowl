@@ -1,0 +1,39 @@
+// Retitrer et masquer un volet au runtime.
+//
+// Ressource DSL : FEN_OngletMasquage.owl (voisin, 2 volets).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_onglet_retitre_volet_runtime()
+	Ouvre(FEN_OngletMasquage)
+
+	RetitreVoletB("Renommé")
+	dbgVérifieEgalité(LireLibelleVoletB(), "Renommé", "libellé du volet relu après retitrage runtime")
+
+	Ferme(FEN_OngletMasquage)
+FIN
+
+// Masquer un volet non actif ne change pas le volet actif : il devient
+// simplement inaccessible.
+PROCEDURE PUBLIQUE scenario_onglet_masque_volet_non_actif()
+	Ouvre(FEN_OngletMasquage)
+
+	MasqueVoletB()
+	dbgVérifieFaux(LireVisibiliteVoletB(), "volet B masqué : Visible relu à Faux")
+	dbgVérifieEgalité(LireVoletActifTest(), 1, "volet actif inchangé (le volet masqué n'était pas actif)")
+
+	Ferme(FEN_OngletMasquage)
+FIN
+
+// Masquer le volet actif reporte automatiquement le volet actif sur le
+// prochain volet resté visible (ici le seul volet restant, B) : un volet
+// masqué ne peut pas rester "affiché".
+PROCEDURE PUBLIQUE scenario_onglet_masque_volet_actif_reporte_sur_volet_visible()
+	Ouvre(FEN_OngletMasquage)
+
+	dbgVérifieEgalité(LireVoletActifTest(), 1, "volet actif au démarrage")
+	MasqueVoletA()
+	dbgVérifieEgalité(LireVoletActifTest(), 2, "volet actif reporté sur le volet B (seul volet visible restant)")
+
+	Ferme(FEN_OngletMasquage)
+FIN

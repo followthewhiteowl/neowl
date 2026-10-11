@@ -1,0 +1,36 @@
+// Référence en fin de ligne Unix (LF) pour la valeur d'un littéral multiligne.
+// Sert de repère : la valeur observée ici doit être exactement la même que
+// celle produite par un fichier écrit avec d'autres fins de ligne (CRLF,
+// mélangées), voir les fichiers voisins test_eol_litteraux_crlf_*.owl et
+// test_eol_litteraux_mixte.owl.
+
+txt1 est une chaîne = `ligne1
+ligne2`
+dbgVérifieEgalité(Taille(txt1), 13, "backtick 2 lignes (LF) = 13 octets")
+dbgVérifieEgalité(txt1, "ligne1" + LF + "ligne2", "backtick 2 lignes (LF) = ligne1 + LF + ligne2")
+
+txt2 est une chaîne = [
+ligne1
+ligne2
+]
+dbgVérifieEgalité(Taille(txt2), 13, "crochets 2 lignes (LF) = 13 octets")
+dbgVérifieEgalité(txt2, "ligne1" + LF + "ligne2", "crochets 2 lignes (LF) = ligne1 + LF + ligne2")
+
+txt5 est une chaîne = `un
+deux
+trois
+quatre
+cinq`
+dbgVérifieEgalité(Taille(txt5), 25, "5 lignes (LF) = 25 octets")
+dbgVérifieEgalité(txt5, "un" + LF + "deux" + LF + "trois" + LF + "quatre" + LF + "cinq",
+"5 lignes (LF) = concaténation attendue")
+
+// Ligne vide volontaire au milieu d'un littéral : elle reste une ligne vide,
+// pas fusionnée avec ses voisines.
+txt3 est une chaîne = `ligne1
+
+ligne3`
+dbgVérifieEgalité(Taille(txt3), 14, "ligne vide préservée = 14 octets")
+dbgVérifieEgalité(txt3, "ligne1" + LF + LF + "ligne3", "ligne vide préservée = ligne1 + LF + LF + ligne3")
+
+dbgBilanTest()

@@ -1,0 +1,144 @@
+//  — Régression : représentation numérique à précision infinie (bignum décimal)
+// Verrouille le comportement observable du type `numérique` après la refonte en mpdecimal.
+//
+// SECTION VERTE (G*) — comportements déjà corrects aujourd'hui (gardes anti-régression).
+// SECTION ROUGE (R*) — bugs capturés à corriger par  :
+//   R1-R2 : littéraux > int64 tronqués silencieusement (parse compile-time cassé)
+//   R3-R4 : arithmétique numérique × numérique wrappant au-delà de ~10^38 (__int128)
+//   R5-R6 : division à 6 sig figs seulement (au lieu de 50 chiffres mpdecimal)
+// Chaque test rouge échoue pour la BONNE raison (valeur incohérente, pas erreur syntax).
+
+// =========================================================================
+// SECTION VERTE — gardes anti-régression
+// =========================================================================
+
+// G1 : 0.1 + 0.2 = 0.3 exact en numérique (et la comparaison = est VRAIE)
+// La précision décimale exacte du numérique distingue ce type du réel IEEE754.
+PROCEDURE PUBLIQUE test_g1_decimal_exact()
+	n_01 est un numérique = 0.1
+	n_02 est un numérique = 0.2
+	n_03 est un numérique = 0.3
+	n_sum est un numérique = n_01 + n_02
+	dbgVérifieEgalité(n_sum, n_03, "0.1 + 0.2 = 0.3 exact en numérique (pas de flottant IEEE)")
+	dbgVérifieVrai(n_sum = n_03, "0.1 + 0.2 = 0.3 : comparaison = renvoie Vrai en numérique")
+FIN
+
+// G2 : TypeVar d'un numérique renvoie owlNumerique
+PROCEDURE PUBLIQUE test_g2_typevar_numerique()
+	n est un numérique = 42
+	dbgVérifieEgalité(TypeVar(n), owlNumerique, "TypeVar(numérique) = owlNumerique")
+FIN
+
+// G3 : INT64_MAX + 1 promeut automatiquement en numérique (montée sûre)
+PROCEDURE PUBLIQUE test_g3_promotion_int64max()
+	nMax est un entier = 9223372036854775807 // INT64_MAX = 2^63 - 1
+	nPromo est un numérique = nMax + 1 // débordement → promotion numérique
+	dbgVérifieEgalité(TypeVar(nPromo), owlNumerique, "INT64_MAX + 1 promu en numérique")
+	// Cohérence : retour soustraction
+	nCheck est un numérique = nPromo - 1
+	dbgVérifieEgalité(nCheck, nMax, "INT64_MAX + 1 - 1 = INT64_MAX (round-trip)")
+FIN
+
+// G4 : entier * entier débordant int64 promeut en numérique exact
+// 10^10 * 10^10 = 10^20 dépasse int64 (~9.2×10^18) → promotion correcte
+PROCEDURE PUBLIQUE test_g4_promotion_mul_int64()
+	b est un entier = 10000000000 // 10^10 (tient dans int64)
+	n_20 est un numérique = b * b // 10^20 : débordement int64 → promu en numérique
+	dbgVérifieEgalité(TypeVar(n_20), owlNumerique, "10^10 * 10^10 promu en numérique")
+	// Cohérence : 10^20 / 10^10 = 10^10 (round-trip exact)
+	n_check est un numérique = n_20 / b
+	dbgVérifieEgalité(n_check, b, "10^20 / 10^10 = 10^10 (round-trip)")
+FIN
+
+// G5 : arithmétique numérique basique sur petits nombres
+PROCEDURE PUBLIQUE test_g5_arithmetique_base()
+	n_x est un numérique = 123456789
+	n_y est un numérique = 987654321
+	dbgVérifieEgalité(n_x + n_y, 1111111110, "123456789 + 987654321 = 1111111110")
+	dbgVérifieEgalité(n_y - n_x, 864197532, "987654321 - 123456789 = 864197532")
+	dbgVérifieEgalité(n_x * 2, 246913578, "123456789 * 2 = 246913578")
+	n_p est un numérique = 100
+	n_q est un numérique = 4
+	dbgVérifieEgalité(n_p / n_q, 25, "100 / 4 = 25 (exact)")
+FIN
+
+// =========================================================================
+// SECTION ROUGE — bugs capturés (rouges attendus jusqu'à impl )
+// =========================================================================
+
+// R1 : Littéral numérique de 30 chiffres — tronqué en valeur négative aujourd'hui
+// BUG ACTUEL  : 99999999999999999999999999 → -2537764290115403777 (troncature parse)
+// ATTENDU     : valeur positive, exacte, = 99999999999999999999999999
+// RAISON ROUGE: valeur actuelle < 0 → dbgVérifieVrai échoue avec résultat Faux
+PROCEDURE PUBLIQUE test_r1_litteral_30chiffres()
+	n_lit est un numérique = 99999999999999999999999999
+	dbgVérifieVrai(n_lit > 0, "littéral 30 chiffres est positif (non tronqué)")
+FIN
+
+// R2 : Littéral numérique de 50 chiffres — troncature encore plus marquée
+// BUG ACTUEL  : → valeur négative (troncature compile-time, __int128 trop court)
+// ATTENDU     : valeur positive, exacte
+// RAISON ROUGE: valeur actuelle < 0 → dbgVérifieVrai échoue avec résultat Faux
+PROCEDURE PUBLIQUE test_r2_litteral_50chiffres()
+	n_big est un numérique = 12345678901234567890123456789012345678901234567890
+	dbgVérifieVrai(n_big > 0, "littéral 50 chiffres est positif (non tronqué)")
+FIN
+
+// R3 : Arithmétique numérique × numérique au-delà de 10^38 (plafond __int128)
+// Construction : 10^20 via promotion int64 (exact et vert aujourd'hui),
+//               puis 10^40 = 10^20 × 10^20 (au-delà du plafond → wrap silencieux)
+// BUG ACTUEL  : 10^20 * 10^20 = 131811... (valeur fausse, __int128 wrap)
+// ATTENDU     : 10^40 exact → 10^40 / 10^20 = 10^20
+// RAISON ROUGE: n_back ≠ n_20 car la valeur wrappée ne se divise pas correctement
+PROCEDURE PUBLIQUE test_r3_calcul_10_40()
+	b est un entier = 10000000000 // 10^10 (int64)
+	n_20 est un numérique = b * b // 10^20 : promotion int64 (vert, exact)
+	n_40 est un numérique = n_20 * n_20 // 10^40 : au-delà __int128 → wrap actuel
+	n_back est un numérique = n_40 / n_20
+	dbgVérifieEgalité(n_back, n_20, "10^40 / 10^20 = 10^20 (round-trip exact)")
+FIN
+
+// R4 : Arithmétique encore plus grande : 10^60 (très au-delà de __int128)
+// Construction : 10^30 = 10^20 × 10^10 (dans __int128 → exact aujourd'hui),
+//               puis 10^60 = 10^30 × 10^30 (clairement au-delà → wrap)
+// BUG ACTUEL  : 10^30 * 10^30 wrappe silencieusement
+// ATTENDU     : 10^60 exact → 10^60 / 10^30 = 10^30
+// RAISON ROUGE: n_back ≠ n_30 car la valeur wrappée ne se divise pas correctement
+PROCEDURE PUBLIQUE test_r4_calcul_10_60()
+	b est un entier = 10000000000 // 10^10 (int64)
+	n_20 est un numérique = b * b // 10^20 (promotion int64, exact)
+	n_30 est un numérique = n_20 * b // 10^30 (numérique × int64, dans __int128)
+	n_60 est un numérique = n_30 * n_30 // 10^60 : très au-delà → wrap actuel
+	n_back est un numérique = n_60 / n_30
+	dbgVérifieEgalité(n_back, n_30, "10^60 / 10^30 = 10^30 (round-trip exact)")
+FIN
+
+// R5 : Division 1/3 à 50 chiffres significatifs (précision cible mpdecimal)
+// BUG ACTUEL  : 1/3 = 0.333333 (6 sig figs, précision interne __int128 limitée)
+// ATTENDU     : 50 décimales : "0.33333333333333333333333333333333333333333333333333"
+// RAISON ROUGE: ".50f" sur la valeur actuelle donne "0.33333300000..." (zéros après 6 figs)
+PROCEDURE PUBLIQUE test_r5_division_tiers_50dec()
+	n_num est un numérique = 1
+	n_den est un numérique = 3
+	n_tiers est un numérique = n_num / n_den
+	s_tiers est une chaîne = NumériqueVersChaîne(n_tiers, ".50f")
+	dbgVérifieEgalité(s_tiers,
+	"0.33333333333333333333333333333333333333333333333333",
+	"1/3 à 50 décimales exactes (précision mpdecimal 50 chiffres)")
+FIN
+
+// R6 : Division 2/3 à 50 chiffres — arrondi demi-pair (HALF_EVEN) sur dernier chiffre
+// BUG ACTUEL  : 2/3 = 0.666667 (6 sig figs seulement)
+// ATTENDU     : 49 chiffres de 6 puis 7 (le 51ème chiffre = 6 → arrondi vers le haut)
+// RAISON ROUGE: ".50f" sur valeur actuelle donne "0.66666700000..." (pas 50 chiffres exacts)
+PROCEDURE PUBLIQUE test_r6_division_deux_tiers_arrondi()
+	n_num est un numérique = 2
+	n_den est un numérique = 3
+	n_dt est un numérique = n_num / n_den
+	s_dt est une chaîne = NumériqueVersChaîne(n_dt, ".50f")
+	dbgVérifieEgalité(s_dt,
+	"0.66666666666666666666666666666666666666666666666667",
+	"2/3 à 50 décimales avec arrondi demi-pair (HALF_EVEN, dernier chiffre = 7)")
+FIN
+
+// owl test auto-découvre et appelle les PROCEDURE PUBLIQUE ci-dessus.

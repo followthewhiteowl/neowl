@@ -1,0 +1,24 @@
+//  — ContenuInitial d'un champ typSaisieMonétaire doit être formaté
+// selon le FormatMonétaire effectif (ici hérité du projet, 2 décimales) DÈS
+// L'OUVERTURE, sans SET ni interaction utilisateur.
+//
+// Discriminant : ContenuInitial = "1234567.891" (3 décimales), format effectif
+// à 2 décimales. Si le formatage est appliqué à la création du widget,
+// ..Valeur relit l'affichage arrondi -> 0m1234567.89. Sinon (HEAD), le texte
+// brut du design est posé tel quel -> ..Valeur relit 0m1234567.891 (montant
+// EXACT, pas de perte de précision monétaire contrairement au réel).
+//
+// ROUGE ATTENDU (HEAD) : ContenuInitial est pour l'instant posé tel quel dans
+// le widget (owl_ui_control_set_text direct), le formatage à l'ouverture reste
+// gardé `typeSaisie == OWL_TYPESAISIE_NUM` seul (stdlib_ui.c:1629) -> pas de
+// reformat monétaire à l'ouverture.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MonetaireInteractifContenuInitial)
+
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234567.89, "ContenuInitial formaté à l'ouverture selon FormatMonétaire effectif (2 décimales) : 1234567.891 -> 1234567.89")
+
+Ferme(FEN_MonetaireInteractifContenuInitial)
+dbgBilanTest()

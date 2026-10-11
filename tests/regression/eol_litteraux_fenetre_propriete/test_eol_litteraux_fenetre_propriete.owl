@@ -1,0 +1,17 @@
+// Régression EOL (axe A, ) — 5e site trouvé en revue de  :
+// window_try_parse_const_atom (bloc PROPRIETES fenêtre/champ) matérialise un
+// littéral de chaîne via obj_copy_string brut, sans passer par la règle
+// unique de suppression du CR. Le CR isolé posé dans Titre survit alors que
+// le même littéral hors DSL fenêtre est déjà correctement nettoyé.
+//
+// La fenêtre voisine FEN_EolFenetrePropriete.owl porte un CR isolé (0x0D
+// sans 0x0A) au milieu de la valeur de Titre.
+
+Ouvre(FEN_EolFenetrePropriete)
+dbgVérifieEgalité(Taille(FEN_EolFenetrePropriete..Titre), 10,
+"Titre PROPRIETES fenêtre : CR isolé supprimé (10 octets, pas 11)")
+dbgVérifieEgalité(FEN_EolFenetrePropriete..Titre, "avant" + "apres",
+"Titre PROPRIETES fenêtre : valeur = avant + apres collés")
+Ferme(FEN_EolFenetrePropriete)
+
+dbgBilanTest()

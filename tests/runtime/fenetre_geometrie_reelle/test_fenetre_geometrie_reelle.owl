@@ -1,0 +1,111 @@
+// Runtime GUI (widgets montés, offscreen) : ..Largeur / ..Hauteur / ..X / ..Y
+// d'une fenêtre ouverte rendent sa géométrie RÉELLE, celle qu'elle occupe à
+// l'écran, et non la valeur écrite dans son fichier de description.
+//
+// Le cas nominal ne prouve rien : une fenêtre dont la taille déclarée est
+// respectée rend la même valeur dans les deux lectures. Les cas qui comptent
+// sont ceux où déclaré ≠ réel :
+//   - une fenêtre poussée par la taille minimale d'un de ses champs ;
+//   - une taille écrite puis refusée par la disposition.
+//
+// L'objectif du verrou est de rendre la mesure lisible SANS capture d'image :
+// chaque valeur attendue est écrite en clair. La capture n'intervient qu'en
+// second, comme source indépendante de la propriété lue.
+
+TestModeHeadless(Faux)
+
+// Relevés faits par FinInitialisation() de FEN_GeoFen, donc AVANT affichage.
+gFenLargeurFinInit est un entier = -1
+gFenHauteurFinInit est un entier = -1
+
+
+// --- 1. Fenêtre pas encore ouverte.
+// Contrat propre à la fenêtre, inchangé : tant qu'aucune instance n'est
+// ouverte, une propriété rend ce qui a été déclaré (comme ..Titre). Une
+// position, elle, n'est pas déclarée : elle rend Null, jamais un 0 qui aurait
+// l'air d'une mesure.
+dbgVérifieEgalité(FEN_GeoFen..Largeur, 400,
+"Avant ouverture : ..Largeur rend la largeur déclarée (400)")
+dbgVérifieEgalité(FEN_GeoFen..Hauteur, 300,
+"Avant ouverture : ..Hauteur rend la hauteur déclarée (300)")
+dbgVérifieVrai(FEN_GeoFen..X = Null,
+"Avant ouverture : ..X rend Null (la fenêtre n'est nulle part)")
+dbgVérifieVrai(FEN_GeoFen..Y = Null,
+"Avant ouverture : ..Y rend Null")
+
+
+// ============================================================
+//  Fenêtre ouverte : déclaré 400 x 300, réel 400 x 420
+//  (le bouton réclame 420 de haut, la fenêtre ne peut pas être plus courte)
+// ============================================================
+
+OuvreSoeur(FEN_GeoFen)
+Temporise(120)
+
+im est une Image = dCopieImageFenêtre(FEN_GeoFen)
+
+// --- 2. Source indépendante : l'image de la fenêtre fait bien 400 x 420,
+// donc la hauteur déclarée (300) n'est pas la hauteur à l'écran.
+dbgVérifieEgalité(im..Largeur, 400, "Image de la fenêtre : 400 de large")
+dbgVérifieEgalité(im..Hauteur, 420,
+"Image de la fenêtre : 420 de haut, alors que 300 sont déclarés")
+
+// --- 3. Les propriétés rendent cette géométrie réelle.
+dbgVérifieEgalité(FEN_GeoFen..Largeur, 400, "Ouverte : ..Largeur rend 400")
+dbgVérifieEgalité(FEN_GeoFen..Hauteur, 420,
+"Ouverte : ..Hauteur rend la hauteur à l'écran (420), pas la déclarée (300)")
+dbgVérifieEgalité(FEN_GeoFen..Largeur, im..Largeur,
+"Ouverte : ..Largeur = largeur de l'image capturée")
+dbgVérifieEgalité(FEN_GeoFen..Hauteur, im..Hauteur,
+"Ouverte : ..Hauteur = hauteur de l'image capturée")
+
+// --- 4. Lecture depuis FinInitialisation, donc avant l'affichage : la
+// géométrie rendue est déjà la géométrie finale, pas une taille provisoire.
+// Le même programme ne doit pas rendre deux valeurs selon le moment.
+dbgVérifieEgalité(gFenLargeurFinInit, 400,
+"FinInitialisation : ..Largeur rend déjà 400")
+dbgVérifieEgalité(gFenHauteurFinInit, 420,
+"FinInitialisation : ..Hauteur rend déjà la hauteur finale (420)")
+dbgVérifieEgalité(gFenHauteurFinInit, FEN_GeoFen..Hauteur,
+"FinInitialisation : même hauteur qu'après affichage")
+
+
+// --- 5. Écriture REFUSÉE par la disposition. La fenêtre ne peut pas
+// descendre sous 420 : elle reste à 420, et la relecture doit le dire.
+FEN_GeoFen..Hauteur = 50
+Temporise(120)
+im2 est une Image = dCopieImageFenêtre(FEN_GeoFen)
+
+dbgVérifieEgalité(im2..Hauteur, 420,
+"Écriture refusée : la fenêtre mesure toujours 420 après ..Hauteur = 50")
+dbgVérifieEgalité(FEN_GeoFen..Hauteur, 420,
+"Écriture refusée : ..Hauteur relit 420, pas la valeur refusée (50)")
+dbgVérifieEgalité(FEN_GeoFen..Hauteur, im2..Hauteur,
+"Écriture refusée : ..Hauteur = hauteur de l'image capturée")
+
+
+// --- 6. Non-régression : une taille acceptable redimensionne toujours la
+// fenêtre, et la relecture rend la nouvelle taille.
+FEN_GeoFen..Largeur = 500
+FEN_GeoFen..Hauteur = 700
+Temporise(120)
+im3 est une Image = dCopieImageFenêtre(FEN_GeoFen)
+
+dbgVérifieEgalité(im3..Largeur, 500,
+"Écriture acceptée : la fenêtre mesure réellement 500 de large")
+dbgVérifieEgalité(im3..Hauteur, 700,
+"Écriture acceptée : la fenêtre mesure réellement 700 de haut")
+dbgVérifieEgalité(FEN_GeoFen..Largeur, 500, "Écriture acceptée : ..Largeur relit 500")
+dbgVérifieEgalité(FEN_GeoFen..Hauteur, 700, "Écriture acceptée : ..Hauteur relit 700")
+
+
+// --- 7. Position : écrire puis relire rend la position réelle de la fenêtre.
+FEN_GeoFen..X = 120
+FEN_GeoFen..Y = 90
+Temporise(120)
+
+dbgVérifieEgalité(FEN_GeoFen..X, 120, "Position : ..X relit 120")
+dbgVérifieEgalité(FEN_GeoFen..Y, 90, "Position : ..Y relit 90")
+
+Ferme(FEN_GeoFen)
+dbgBilanTest()

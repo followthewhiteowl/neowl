@@ -1,0 +1,26 @@
+//  (couverture) — verrouille PositionSymbole = posAvant sur un champ
+// typSaisieMonétaire. Le reviewer  a vérifié le comportement par
+// probe (symbole affiché DEVANT le montant, ex. "€ 1 234,50") mais aucune
+// assertion ne le protégeait d'une régression. Ce test comble ce trou.
+//
+// Deux discriminants :
+//   1. ..PositionSymbole relit exactement l'enum posAvant posé inline (distinct
+//      du défaut posAprès) — preuve que la position est bien portée par le format
+//      du champ, pas repliée sur le défaut.
+//   2. Round-trip SET->affiché (symbole devant + séparateur de milliers)->GET
+//      rend 1234.50 EXACT : le symbole en tête et le séparateur sont retirés au
+//      reparse VAL_CURRENCY, quelle que soit la position du symbole.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_FormatMonetairePositionAvant)
+
+nPosition est un entier = SAI_Montant..FormatMonétaire..PositionSymbole
+dbgVérifieEgalité(nPosition, posAvant, "FormatMonétaire du champ : ..PositionSymbole relit posAvant (symbole devant), pas le défaut posAprès")
+
+SAI_Montant..Valeur = 0m1234.50
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234.50, "PositionSymbole = posAvant : round-trip SET->affiché (€ devant)->GET rend 1234.50 exact, symbole et séparateur de milliers retirés au reparse")
+
+Ferme(FEN_FormatMonetairePositionAvant)
+dbgBilanTest()

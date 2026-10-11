@@ -1,0 +1,227 @@
+// @sujet : Tenseur.EntropieCroiséeBinaire / Tenseur.BinaryCrossEntropy
+// @résumé : Perte différentiable entropie croisée binaire avec sigmoïde
+// fusionnée — le receveur porte des scores bruts (logits, avant sigmoïde),
+// l'argument porte une cible 0/1 ; la fusion évite tout log(0) numérique.
+// Rétropropage() remonte vers les logits un gradient fusionné
+// (probabilité sigmoïde moins cible), jamais vers la cible. Perte de choix
+// pour un score d'objectness binaire (présence/absence), mieux conditionnée
+// que composer manuellement Sigmoïde() puis ErreurQuadratique().
+
+// logit = 0.0 (score neutre, sigmoïde = 0.5), cible = 0.5 (à mi-chemin
+// entre 0 et 1) : perte = -log(0.5) = log(2) ~= 0.6931471805599453.
+PROCEDURE PUBLIQUE scenario_bce_logit_zero_cible_demi_forward()
+	tp est un Tenseur = Tenseur([0.0])
+	tc est un Tenseur = Tenseur([0.5])
+	tperte est un Tenseur = tp.EntropieCroiséeBinaire(tc)
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.6931471805599453) < 0.0000001, "-log(sigmoïde(0.0)) avec cible 0.5 : log(2) ~= 0.6931471805599453")
+FIN
+
+
+// Deux logits, cibles 0/1 distinctes : logits = [0.0, 2.0], cibles =
+// [0.0, 1.0]. perte moyenne ~= 0.41003759580145888 (calcul à la main via
+// la forme stable softplus). Gradient fusionné dPerte/dLogit = (sigmoïde(x)
+// - cible) / 2 : [0.25, -0.05960146101105884]. La cible ne porte pas de
+// gradient.
+PROCEDURE PUBLIQUE scenario_bce_deux_composantes_backward()
+	tp est un Tenseur = Tenseur([0.0, 2.0])
+	tc est un Tenseur = Tenseur([0.0, 1.0])
+	tperte est un Tenseur = tp.EntropieCroiséeBinaire(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.41003759580145888) < 0.0000001, "moyenne des deux pertes élémentaires ~= 0.41003759580145888")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - 0.25) < 0.0000001, "(sigmoïde(0.0) - 0.0) / 2 = 0.25")
+	dbgVérifieVrai(Abs(tp..Gradient[2] - (-0.05960146101105884)) < 0.0000001, "(sigmoïde(2.0) - 1.0) / 2 ~= -0.05960146101105884")
+	dbgVérifieEgalité(tc..Gradient[1], 0.0, "La cible ne porte pas de gradient")
+	dbgVérifieEgalité(tc..Gradient[2], 0.0, "La cible ne porte pas de gradient")
+FIN
+
+
+// La forme anglaise .BinaryCrossEntropy() désigne la même perte, avec le
+// même calcul de gradient.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	tp est un Tenseur = Tenseur([0.0, 2.0])
+	tc est un Tenseur = Tenseur([0.0, 1.0])
+	tperte est un Tenseur = tp.BinaryCrossEntropy(tc)
+	tperte.Rétropropage()
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.41003759580145888) < 0.0000001, "BinaryCrossEntropy : même calcul que EntropieCroiséeBinaire")
+	dbgVérifieVrai(Abs(tp..Gradient[1] - 0.25) < 0.0000001, "BinaryCrossEntropy : même gradient que EntropieCroiséeBinaire")
+FIN
+
+
+// Entrée déterministe [4] de logits et de cibles pour le gradient-check par
+// différences finies, avec une composante optionnellement perturbée.
+PROCEDURE PRIVÉE construitLogitsGradientCheckBCE(idxPerturbe est un entier, delta est un réel) : Tenseur
+	v est un tableau de réels
+	base est un tableau de réels
+	base.Ajoute(-1.0)
+	base.Ajoute(0.5)
+	base.Ajoute(2.0)
+	base.Ajoute(-0.3)
+	POUR k = 0 À 3
+		val est un réel = base[k + 1]
+		SI k = idxPerturbe ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tenseur(v)
+FIN
+
+PROCEDURE PRIVÉE ciblesGradientCheckBCE() : Tenseur
+	RENVOYER Tenseur([0.0, 1.0, 0.0, 1.0])
+FIN
+
+// Perte scalaire pour des logits perturbés à l'indice idxPerturbe (0-based).
+// N'appelle QUE le chemin forward — jamais Rétropropage() — pour rester
+// indépendante du backward analytique qu'elle vérifie.
+PROCEDURE PRIVÉE perteBCEPerturbee(idxPerturbe est un entier, delta est un réel) : réel
+	logits est un Tenseur = construitLogitsGradientCheckBCE(idxPerturbe, delta)
+	tperte est un Tenseur = logits.EntropieCroiséeBinaire(ciblesGradientCheckBCE())
+	RENVOYER tperte..Valeur[1]
+FIN
+
+// Gradient-check : le gradient analytique de Rétropropage() est comparé à
+// des différences finies centrées calculées indépendamment (le findiff ne
+// touche jamais Rétropropage(), seulement le forward).
+PROCEDURE PUBLIQUE scenario_bce_gradient_verifie_par_differences_finies()
+	logits est un Tenseur = construitLogitsGradientCheckBCE(-1, 0.0)
+	tperte est un Tenseur = logits.EntropieCroiséeBinaire(ciblesGradientCheckBCE())
+	tperte.Rétropropage()
+
+	eps est un réel = 0.0001
+	tolérance est un réel = 0.001
+
+	d1Findiff est un réel = (perteBCEPerturbee(0, eps) - perteBCEPerturbee(0,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(logits..Gradient[1] - d1Findiff) < tolérance, "composante 1 : gradient analytique proche des différences finies")
+
+	d2Findiff est un réel = (perteBCEPerturbee(1, eps) - perteBCEPerturbee(1,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(logits..Gradient[2] - d2Findiff) < tolérance, "composante 2 : gradient analytique proche des différences finies")
+
+	d3Findiff est un réel = (perteBCEPerturbee(2, eps) - perteBCEPerturbee(2,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(logits..Gradient[3] - d3Findiff) < tolérance, "composante 3 : gradient analytique proche des différences finies")
+
+	d4Findiff est un réel = (perteBCEPerturbee(3, eps) - perteBCEPerturbee(3,-eps)) / (2 * eps)
+	dbgVérifieVrai(Abs(logits..Gradient[4] - d4Findiff) < tolérance, "composante 4 : gradient analytique proche des différences finies")
+FIN
+
+
+// Même gradient-check, formes anglaises : .BinaryCrossEntropy au lieu de
+// .EntropieCroiséeBinaire, .Backpropagate() au lieu de .Rétropropage().
+// Helpers dupliqués pour exercer réellement le chemin anglais.
+PROCEDURE PRIVÉE buildLogitsGradientCheckBCE(idxPerturb est un entier, delta est un réel) : Tenseur
+	v is an array of reals
+	base is an array of reals
+	base.Ajoute(-1.0)
+	base.Ajoute(0.5)
+	base.Ajoute(2.0)
+	base.Ajoute(-0.3)
+	POUR k = 0 À 3
+		val is a real = base[k + 1]
+		SI k = idxPerturb ALORS
+			val += delta
+		FIN
+		v.Ajoute(val)
+	FIN
+	RENVOYER Tensor(v)
+FIN
+
+PROCEDURE PRIVÉE targetsGradientCheckBCE() : Tenseur
+	RENVOYER Tensor([0.0, 1.0, 0.0, 1.0])
+FIN
+
+PROCEDURE PRIVÉE bceLossPerturbed(idxPerturb est un entier, delta est un réel) : réel
+	logits is a Tensor = buildLogitsGradientCheckBCE(idxPerturb, delta)
+	tloss is a Tensor = logits.BinaryCrossEntropy(targetsGradientCheckBCE())
+	RENVOYER tloss..Valeur[1]
+FIN
+
+PROCEDURE PUBLIQUE scenario_formes_anglaises_bce_gradient_findiff()
+	logits is a Tensor = buildLogitsGradientCheckBCE(-1, 0.0)
+	tloss is a Tensor = logits.BinaryCrossEntropy(targetsGradientCheckBCE())
+	tloss.Backpropagate()
+
+	eps is a real = 0.0001
+	tolerance is a real = 0.001
+
+	d1Findiff is a real = (bceLossPerturbed(0, eps) - bceLossPerturbed(0,-eps)) / (2 * eps)
+	dbgCheckTrue(Abs(logits..Gradient[1] - d1Findiff) < tolerance, "English forms: component 1: analytical gradient close to finite differences")
+
+	d2Findiff is a real = (bceLossPerturbed(1, eps) - bceLossPerturbed(1,-eps)) / (2 * eps)
+	dbgCheckTrue(Abs(logits..Gradient[2] - d2Findiff) < tolerance, "English forms: component 2: analytical gradient close to finite differences")
+
+	d3Findiff is a real = (bceLossPerturbed(2, eps) - bceLossPerturbed(2,-eps)) / (2 * eps)
+	dbgCheckTrue(Abs(logits..Gradient[3] - d3Findiff) < tolerance, "English forms: component 3: analytical gradient close to finite differences")
+
+	d4Findiff is a real = (bceLossPerturbed(3, eps) - bceLossPerturbed(3,-eps)) / (2 * eps)
+	dbgCheckTrue(Abs(logits..Gradient[4] - d4Findiff) < tolerance, "English forms: component 4: analytical gradient close to finite differences")
+FIN
+
+
+// Digue métier : un score d'objectness scalaire, entraîné par descente de
+// gradient à partir d'un logit initial nul contre une cible « présent »
+// (1.0), converge fortement avec la BCE-logits fusionnée — la même
+// dynamique que composer Sigmoïde() puis ErreurQuadratique(), mais sans
+// jamais matérialiser de probabilité dans le graphe de la perte. Après 400
+// pas, la perte est tombée sous un dixième de sa valeur initiale et la
+// probabilité (calculée après-coup avec Sigmoïde(), hors du graphe de
+// perte) dépasse 0.9.
+PROCEDURE PUBLIQUE scenario_bce_remplace_mse_sigmoide_objectness_converge()
+	x est un Tenseur = Tenseur([1.0])
+	poidsObjet est un Tenseur = Tenseur([[0.0]])
+	cibleObjet est un Tenseur = Tenseur([1.0])
+	taux est un réel = 0.3
+
+	perteInitiale est un réel = 0.0
+	perteFinale est un réel = 0.0
+	logitFinal est un Tenseur = Tenseur([0.0])
+
+	POUR i = 1 À 400
+		logitFinal = poidsObjet.ProduitMatriciel(x)
+		perte est un Tenseur = logitFinal.EntropieCroiséeBinaire(cibleObjet)
+		perte.Rétropropage()
+
+		SI i = 1 ALORS
+			perteInitiale = perte..Valeur[1]
+		FIN
+		SI i = 400 ALORS
+			perteFinale = perte..Valeur[1]
+		FIN
+
+		poidsObjet = poidsObjet.DescenteGradient(taux)
+	FIN
+
+	dbgVérifieVrai(perteFinale < perteInitiale * 0.1, "BCE-logits sur l'objectness : la perte finale a chuté d'au moins un ordre de grandeur")
+
+	probaFinale est un Tenseur = logitFinal.Sigmoïde()
+	dbgVérifieVrai(probaFinale..Valeur[1] > 0.9, "La probabilité (calculée après-coup, hors graphe de perte) dépasse 0.9")
+FIN
+
+
+// Cas limite : prédiction confiante et correcte (logit très positif, cible
+// 1.0) -> perte proche de zéro (sigmoïde(10) très proche de 1).
+PROCEDURE PRIVÉE scenario_edge_bce_confiant_correct_perte_proche_zero()
+	tp est un Tenseur = Tenseur([10.0])
+	tc est un Tenseur = Tenseur([1.0])
+	tperte est un Tenseur = tp.EntropieCroiséeBinaire(tc)
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 0.0000453988992168646) < 0.0000001, "logit=10, cible=1 : perte proche de zéro")
+FIN
+
+// Cas limite : prédiction confiante et fausse (logit très positif, cible
+// 0.0) -> perte élevée, environ égale au logit lui-même (softplus(x) ~= x
+// pour x grand).
+PROCEDURE PRIVÉE scenario_edge_bce_confiant_faux_perte_elevee()
+	tp est un Tenseur = Tenseur([10.0])
+	tc est un Tenseur = Tenseur([0.0])
+	tperte est un Tenseur = tp.EntropieCroiséeBinaire(tc)
+	dbgVérifieVrai(Abs(tperte..Valeur[1] - 10.000045398899218) < 0.0000001, "logit=10, cible=0 : perte ~= 10 (prédiction confiante et fausse, pénalisée)")
+FIN
+
+// Cas limite : formes incompatibles entre logits et cible -> erreur, pas de
+// résultat silencieusement faux.
+PROCEDURE PRIVÉE scenario_edge_bce_formes_incompatibles_refusee()
+	tp est un Tenseur = Tenseur([1.0, 2.0, 3.0])
+	tcAutreForme est un Tenseur = Tenseur([1.0, 2.0])
+
+	ErreurRAZ()
+	tperte est un Tenseur = tp.EntropieCroiséeBinaire(tcAutreForme)
+	dbgVérifieVrai(ErreurDétectée, "logits(3) et cible(2) de formes incompatibles : refusé")
+FIN

@@ -1,0 +1,47 @@
+//  — Init littérale durée : Site C (champ struct user typé durée)
+// Rouge attendu : { } ciblant durée non câblé → erreur compile.
+// Ce test sera vert après impl (owl_implementer).
+//
+// Non-régression : champ struct durée = <entier> (coercion) doit rester vert.
+
+ConfigTimer est une Structure
+	delai est une durée
+	repete est un booléen
+FIN
+
+PROCEDURE test_struct_champ_duree_coerce_entier()
+	cfg est un ConfigTimer
+	cfg.delai = 3000
+	n est un entier = cfg.delai
+	dbgVérifieEgalité(n, 3000, "struct.champDuree = 3000 (entier coerce) → 3000 ms")
+FIN
+
+PROCEDURE test_struct_champ_duree_zero()
+	cfg est un ConfigTimer
+	cfg.delai = 0
+	n est un entier = cfg.delai
+	dbgVérifieEgalité(n, 0, "struct.champDuree = 0 → 0 ms")
+FIN
+
+// ROUGE ATTENDU jusqu'à impl 
+
+PROCEDURE test_struct_champ_duree_litteral_seconde()
+	cfg est un ConfigTimer
+	cfg.delai = {Seconde = 3}
+	n est un entier = cfg.delai
+	dbgVérifieEgalité(n, 3000, "struct.champDuree = { Seconde=3 } → 3000 ms")
+FIN
+
+PROCEDURE test_struct_champ_duree_litteral_heure()
+	cfg est un ConfigTimer
+	cfg.delai = {heure = 1}
+	n est un entier = cfg.delai
+	dbgVérifieEgalité(n, 3600000, "struct.champDuree = { Heure=1 } → 3600000 ms")
+FIN
+
+test_struct_champ_duree_coerce_entier()
+test_struct_champ_duree_zero()
+test_struct_champ_duree_litteral_seconde()
+test_struct_champ_duree_litteral_heure()
+
+dbgBilanTest()

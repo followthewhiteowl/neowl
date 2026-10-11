@@ -1,0 +1,140 @@
+// @sujet : dModifieTSL
+// @resume : Modifier teinte, saturation et luminosité d'une image en une seule passe
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_modification_nominale()
+	couleurRouge est un entier = RVB(255, 0, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image 10x10 pixels rouge pur
+	img = dCréeImage(10, 10, couleurRouge)
+	dbgVérifieEgalité(img..Valide, Vrai, "image initiale valide")
+
+	// Modifier teinte +50°, saturation +20%, luminosité -10%
+	res = dModifieTSL(img, 50, 20,-10)
+	dbgVérifieEgalité(res, Vrai, "modification appliquée")
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide après modification")
+FIN
+
+// Modifier chaque paramètre individuellement pour isoler les effets
+PROCEDURE PUBLIQUE scenario_variations_separees()
+	couleurBleu est un entier = RVB(0, 0, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image de référence
+	img = dCréeImage(8, 8, couleurBleu)
+	dbgVérifieEgalité(img..Valide, Vrai, "image reference valide")
+
+	// Modifier uniquement la teinte (saturation et luminosité = 0)
+	res = dModifieTSL(img, 180, 0, 0)
+	dbgVérifieEgalité(res, Vrai, "variation teinte seule appliquée")
+
+	// Modifier uniquement la saturation (teinte et luminosité = 0)
+	res = dModifieTSL(img, 0,-50, 0)
+	dbgVérifieEgalité(res, Vrai, "variation saturation seule appliquée")
+
+	// Modifier uniquement la luminosité (teinte et saturation = 0)
+	res = dModifieTSL(img, 0, 0, 30)
+	dbgVérifieEgalité(res, Vrai, "variation luminosité seule appliquée")
+FIN
+
+// Tester les bornes maximales et minimales autorisées par la documentation
+PROCEDURE PUBLIQUE scenario_valeurs_extremes()
+	couleurGris est un entier = RVB(128, 128, 128)
+	img est une Image
+	res est un booléen
+
+	// Créer une image grise neutre
+	img = dCréeImage(5, 5, couleurGris)
+	dbgVérifieEgalité(img..Valide, Vrai, "image grise valide")
+
+	// Appliquer variation maximale teinte +360° (rotation complète)
+	res = dModifieTSL(img, 360, 0, 0)
+	dbgVérifieEgalité(res, Vrai, "teinte +360 appliquée")
+
+	// Appliquer variation maximale saturation +100%
+	res = dModifieTSL(img, 0, 100, 0)
+	dbgVérifieEgalité(res, Vrai, "saturation +100 appliquée")
+
+	// Appliquer variation minimale luminosité -100% (noir total)
+	res = dModifieTSL(img, 0, 0,-100)
+	dbgVérifieEgalité(res, Vrai, "luminosité -100 appliquée")
+FIN
+
+// Appliquer des variations nulles (no-op) doit retourner Vrai sans modifier l'image
+PROCEDURE PUBLIQUE scenario_cas_limite_aucune_modification()
+	couleurVert est un entier = RVB(0, 255, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image verte
+	img = dCréeImage(12, 12, couleurVert)
+	dbgVérifieEgalité(img..Valide, Vrai, "image verte valide")
+
+	// Appliquer des variations nulles (no-op)
+	res = dModifieTSL(img, 0, 0, 0)
+	dbgVérifieEgalité(res, Vrai, "no-op retourne Vrai")
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide après no-op")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas edge technique (verrouillage non-pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_valeurs_negatives()
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	res est un booléen
+
+	// Créer une image jaune
+	img = dCréeImage(6, 6, couleurJaune)
+	dbgVérifieEgalité(img..Valide, Vrai, "image jaune valide")
+
+	// Appliquer teinte négative -180°
+	res = dModifieTSL(img,-180, 0, 0)
+	dbgVérifieEgalité(res, Vrai, "teinte -180 appliquée")
+
+	// Appliquer saturation négative -80%
+	res = dModifieTSL(img, 0,-80, 0)
+	dbgVérifieEgalité(res, Vrai, "saturation -80 appliquée")
+
+	// Appliquer luminosité négative -50%
+	res = dModifieTSL(img, 0, 0,-50)
+	dbgVérifieEgalité(res, Vrai, "luminosité -50 appliquée")
+FIN
+
+// Combiner simultanément les variations extrêmes sur les 3 axes (teinte, saturation, luminosité)
+PROCEDURE PRIVÉE scenario_edge_combinaison_extremes()
+	couleurCyan est un entier = RVB(0, 255, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image cyan
+	img = dCréeImage(4, 4, couleurCyan)
+	dbgVérifieEgalité(img..Valide, Vrai, "image cyan valide")
+
+	// Combiner variations extrêmes simultanées
+	res = dModifieTSL(img, 360,-100, 100)
+	dbgVérifieEgalité(res, Vrai, "combinaison extrême appliquée")
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide après extrêmes")
+FIN
+
+// Appliquer dModifieTSL sur une image minimale 1x1 pixel pour vérifier stabilité
+PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image minimale 1x1 pixel blanc
+	img = dCréeImage(1, 1, couleurBlanc)
+	dbgVérifieEgalité(img..Valide, Vrai, "image 1x1 valide")
+
+	// Appliquer modification sur image minimale
+	res = dModifieTSL(img, 90, 50,-20)
+	dbgVérifieEgalité(res, Vrai, "modification sur 1x1 appliquée")
+FIN

@@ -1,0 +1,46 @@
+// La relecture du Style d'un Champ Onglet doit renvoyer ce qui est RÉELLEMENT
+// appliqué : la surcharge quand une cascade en pose une, la valeur du style
+// nommé partout ailleurs.
+//
+// Le défaut couvert ici : un onglet portant `Style = theme.<nom>` PUIS
+// `Style..VoletActif..CouleurFond = JauneClair` s'affichait bien en jaune,
+// mais la relecture renvoyait la couleur du style nommé — la cascade vivait
+// hors de la valeur relue.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OngletRelecture)
+dbgVérifieFaux(ErreurDétectée,
+"Champs Onglet stylés par le thème : ouverture sans erreur")
+
+// --- Style nommé seul : la relecture rend les valeurs du style.
+dbgVérifieEgalité(ONG_Theme..Style..VoletActif..CouleurFond, RougeFoncé,
+"Style nommé seul : VoletActif..CouleurFond relu = valeur du style (RougeFoncé)")
+dbgVérifieEgalité(ONG_Theme..Style..VoletActif..Couleur, Blanc,
+"Style nommé seul : VoletActif..Couleur relu = valeur du style (Blanc)")
+dbgVérifieEgalité(ONG_Theme..Style..VoletInactif..CouleurFond, GrisFoncé,
+"Style nommé seul : VoletInactif..CouleurFond relu = valeur du style (GrisFoncé)")
+
+// --- Style nommé PUIS cascade : la relecture rend la SURCHARGE.
+dbgVérifieEgalité(ONG_Surcharge..Style..VoletActif..CouleurFond, JauneClair,
+"Surcharge : VoletActif..CouleurFond relu = la cascade (JauneClair), pas la base")
+dbgVérifieDifférence(ONG_Surcharge..Style..VoletActif..CouleurFond, RougeFoncé,
+"Surcharge : la valeur du style nommé n'est plus celle qui est relue")
+dbgVérifieEgalité(ONG_Surcharge..Style..VoletActif..Couleur, Blanc,
+"Surcharge : la propriété voisine non surchargée garde la valeur du style (Blanc)")
+dbgVérifieEgalité(ONG_Surcharge..Style..VoletInactif..CouleurFond, GrisFoncé,
+"Surcharge : la surface voisine non surchargée garde la valeur du style (GrisFoncé)")
+
+Ferme(FEN_OngletRelecture)
+
+// --- Cascade PUIS style nommé : l'affectation entière remet à zéro.
+OuvreSoeur(FEN_OngletRelectureInverse)
+
+dbgVérifieEgalité(ONG_Inverse..Style..VoletActif..CouleurFond, RougeFoncé,
+"Ordre inverse : l'affectation entière efface la cascade, la relecture rend le style")
+dbgVérifieDifférence(ONG_Inverse..Style..VoletActif..CouleurFond, JauneClair,
+"Ordre inverse : la cascade antérieure n'est plus relue")
+
+Ferme(FEN_OngletRelectureInverse)
+
+dbgBilanTest()

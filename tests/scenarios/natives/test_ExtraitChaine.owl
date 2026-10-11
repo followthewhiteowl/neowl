@@ -1,0 +1,90 @@
+// @sujet : ExtraitChaîne
+// @résumé : Découpe une chaîne selon un séparateur et retourne la portion de rang donné (base 1).
+// ExtraitChaîne(s, rang, séparateur) : équivalent à "split puis indexe", mais sans
+// jamais planter sur un rang absent — retourne le marqueur de fin de liste dans ce cas.
+// Ce marqueur est la sentinelle Caract(4) (taille 1) : elle signale « aucun morceau à ce
+// rang », ce qui permet de parcourir une liste de taille inconnue et de s'arrêter dès
+// qu'on la rencontre.
+
+
+// Cas A : extraction nominale — premier, milieu, dernier élément d'une liste.
+// Le rang est en base 1 : le rang 1 correspond au tout premier morceau.
+PROCEDURE PUBLIQUE scenario_extraction_nominale()
+	sListe est une chaîne = "pomme,poire,prune"
+	dbgVérifieEgalité(ExtraitChaîne(sListe, 1, ","), "pomme", "ExtraitChaîne(liste, rang 1) = premier élément")
+	dbgVérifieEgalité(ExtraitChaîne(sListe, 2, ","), "poire", "ExtraitChaîne(liste, rang 2) = élément du milieu")
+	dbgVérifieEgalité(ExtraitChaîne(sListe, 3, ","), "prune", "ExtraitChaîne(liste, rang 3) = dernier élément")
+FIN
+
+
+// Cas B : séparateur multi-caractères.
+// "--" est traité comme un seul jeton de coupe, pas comme deux séparateurs distincts.
+PROCEDURE PUBLIQUE scenario_separateur_multi_caracteres()
+	sListe est une chaîne = "a--b--c"
+	dbgVérifieEgalité(ExtraitChaîne(sListe, 2, "--"), "b", "ExtraitChaîne avec séparateur double tiret isole bien le morceau du milieu")
+FIN
+
+
+// Cas C : rang hors plage ou rang nul — marqueur de fin de liste, jamais d'erreur bloquante.
+// Le marqueur est la sentinelle Caract(4) (taille 1), pratique pour arrêter un parcours
+// d'une liste de taille inconnue sans devoir la compter d'abord.
+PROCEDURE PUBLIQUE scenario_rang_hors_plage()
+	sListe est une chaîne = "pomme,poire,prune"
+	dbgVérifieEgalité(ExtraitChaîne(sListe, 5, ","), Caract(4), "ExtraitChaîne(liste, rang 5) = marqueur de fin de liste (rang au-delà du nombre de parts)")
+	dbgVérifieEgalité(ExtraitChaîne(sListe, 0, ","), Caract(4), "ExtraitChaîne(liste, rang 0) = marqueur de fin de liste (rang nul invalide)")
+	dbgVérifieEgalité(Taille(ExtraitChaîne(sListe, 5, ",")), 1, "ExtraitChaîne(rang hors plage) : le marqueur de fin fait 1 octet")
+FIN
+
+
+// Cas D : sens de parcours depuis la fin (4e paramètre DepuisFin).
+// Les morceaux sont comptés à rebours : le rang 1 désigne le dernier morceau,
+// le rang 2 l'avant-dernier, etc. Le contenu du morceau reste en ordre normal
+// de lecture (il n'est pas retourné caractère par caractère).
+PROCEDURE PUBLIQUE scenario_parcours_depuis_fin()
+	sPays est une chaîne = "France, Italie, Allemagne, Espagne"
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 1, ", ", DepuisFin), "Espagne", "ExtraitChaîne rang 1 depuis la fin = dernier morceau")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 2, ", ", DepuisFin), "Allemagne", "ExtraitChaîne rang 2 depuis la fin = avant-dernier morceau")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 3, ", ", DepuisFin), "Italie", "ExtraitChaîne rang 3 depuis la fin")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 4, ", ", DepuisFin), "France", "ExtraitChaîne rang 4 depuis la fin = premier morceau")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 5, ", ", DepuisFin), Caract(4), "ExtraitChaîne rang au-delà du nombre de morceaux depuis la fin = marqueur de fin de liste")
+
+	sLettres est une chaîne = "a;b;c;d"
+	dbgVérifieEgalité(ExtraitChaîne(sLettres, 1, ";", DepuisFin), "d", "ExtraitChaîne rang 1 depuis la fin (séparateur point-virgule)")
+	dbgVérifieEgalité(ExtraitChaîne(sLettres, 2, ";", DepuisFin), "c", "ExtraitChaîne rang 2 depuis la fin (séparateur point-virgule)")
+
+	sMots est une chaîne = "abc-def-ghi"
+	dbgVérifieEgalité(ExtraitChaîne(sMots, 1, "-", DepuisFin), "ghi", "ExtraitChaîne rang 1 depuis la fin (séparateur tiret)")
+FIN
+
+
+// Cas E : sens de parcours depuis le début (4e paramètre DepuisDébut).
+// C'est le comportement par défaut : identique à l'appel à trois paramètres.
+PROCEDURE PUBLIQUE scenario_parcours_depuis_debut()
+	sPays est une chaîne = "France, Italie, Allemagne, Espagne"
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 1, ", ", DepuisDébut), "France", "ExtraitChaîne rang 1 depuis le début = premier morceau (comme l'appel à trois paramètres)")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, 4, ", ", DepuisDébut), "Espagne", "ExtraitChaîne rang 4 depuis le début = dernier morceau")
+FIN
+
+
+// Cas F : parcours à rebours via les constantes de rang (rangDernier / rangPrécédent).
+// rangDernier débute un parcours depuis la fin et restitue le dernier morceau ;
+// chaque rangPrécédent suivant remonte d'un morceau vers le début. Le marqueur de fin
+// de liste (Caract(4)) signale qu'on a dépassé le premier morceau. Le contenu de chaque
+// morceau reste en ordre normal de lecture.
+PROCEDURE PUBLIQUE scenario_parcours_inverse()
+	sPays est une chaîne = "France, Italie, Allemagne, Espagne"
+	dbgVérifieEgalité(ExtraitChaîne(sPays, rangDernier, ", "), "Espagne", "ExtraitChaîne(rangDernier) débute le parcours à rebours et renvoie le dernier morceau")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, rangPrécédent, ", "), "Allemagne", "ExtraitChaîne(rangPrécédent) remonte au morceau précédent")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, rangPrécédent, ", "), "Italie", "ExtraitChaîne(rangPrécédent) continue de remonter vers le début")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, rangPrécédent, ", "), "France", "ExtraitChaîne(rangPrécédent) atteint le premier morceau")
+	dbgVérifieEgalité(ExtraitChaîne(sPays, rangPrécédent, ", "), Caract(4), "ExtraitChaîne(rangPrécédent) au-delà du premier morceau = marqueur de fin de liste")
+FIN
+
+
+// Edge : séparateur absent de la chaîne source — la chaîne entière compte comme une seule part.
+// Le rang 1 restitue donc l'intégralité, tandis que tout rang supérieur renvoie le marqueur de fin.
+PROCEDURE PRIVÉE scenario_separateur_absent()
+	sSource est une chaîne = "abc"
+	dbgVérifieEgalité(ExtraitChaîne(sSource, 1, ","), "abc", "ExtraitChaîne sans séparateur trouvé = chaîne source entière")
+	dbgVérifieEgalité(ExtraitChaîne(sSource, 2, ","), Caract(4), "ExtraitChaîne rang 2 sans séparateur trouvé = marqueur de fin de liste")
+FIN

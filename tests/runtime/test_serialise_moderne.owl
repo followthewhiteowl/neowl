@@ -1,0 +1,86 @@
+// ================================================================
+// Forme moderne (extension OWL) :
+//   buf = JSONSérialise(var [, mode])         // retour direct
+//   var = JSONDésérialise(buf, template [, mode])  // retour direct
+// ================================================================
+
+// ----- Cas simple : structure ronde -----
+Personne est une Structure
+	nom est une chaîne
+	age est un entier
+FIN
+
+p est une Personne
+p.nom = "Roger"
+p.age = 45
+
+// Forme moderne : retour direct, pas d'out-param
+bufModerne est une chaîne = JSONSérialise(p, psdJSON)
+dbgVérifieVrai(Position(bufModerne, "Roger") > 0, "JSONSérialise: nom dans le JSON")
+dbgVérifieVrai(Position(bufModerne, "45") > 0, "JSONSérialise: age dans le JSON")
+
+// Forme moderne sans mode (psdJSON par défaut)
+bufDefaut est une chaîne = JSONSérialise(p)
+dbgVérifieVrai(Taille(bufDefaut) > 5, "JSONSérialise sans mode: produit du JSON")
+
+// Forme moderne compact
+bufCompact est une chaîne = JSONSérialise(p, psdMinifie)
+dbgVérifieEgalité(Position(bufCompact, LF), 0, "JSONSérialise psdMinifie: pas de newline")
+
+// ----- Equivalence avec la forme legacy -----
+bufLegacy est une chaîne
+Sérialise(p, bufLegacy, psdJSON)
+dbgVérifieEgalité(bufModerne, bufLegacy, "Forme moderne == forme legacy")
+
+// ----- Désérialiser : retour direct sans muter le template -----
+template est une Personne
+template.nom = "INIT"
+template.age = -1
+
+p2 est une Personne = JSONDésérialise(bufModerne, template, psdJSON)
+dbgVérifieEgalité(p2.nom, "Roger", "JSONDésérialise: nom restauré")
+dbgVérifieEgalité(p2.age, 45, "JSONDésérialise: age restauré")
+
+// Le template d'origine n'est PAS muté
+dbgVérifieEgalité(template.nom, "INIT", "Template non muté: nom intact")
+dbgVérifieEgalité(template.age,-1, "Template non muté: age intact")
+
+// ----- JSONDésérialise sans mode -----
+p3 est une Personne = JSONDésérialise("{""nom"":""Bob"",""age"":30}", template)
+dbgVérifieEgalité(p3.nom, "Bob", "JSONDésérialise sans mode: nom")
+dbgVérifieEgalité(p3.age, 30, "JSONDésérialise sans mode: age")
+
+// ----- Roundtrip moderne -----
+buf est une chaîne = JSONSérialise(p3, psdMinifie)
+p4 est une Personne = JSONDésérialise(buf, template, psdJSON)
+dbgVérifieEgalité(p4.nom, p3.nom, "Roundtrip moderne: nom")
+dbgVérifieEgalité(p4.age, p3.age, "Roundtrip moderne: age")
+
+// ----- JSONDésérialise sur primitive -----
+n est un entier = JSONDésérialise("42", 0, psdJSON)
+dbgVérifieEgalité(n, 42, "JSONDésérialise primitive: entier")
+
+s est une chaîne = JSONDésérialise("""hello""", "", psdJSON)
+dbgVérifieEgalité(s, "hello", "JSONDésérialise primitive: chaine")
+
+// ----- JSONSérialise sur tableau de structures -----
+arrT est un tableau de Personne
+ph1 est une Personne
+ph1.nom = "Alice"
+ph1.age = 30
+Ajoute(arrT, ph1)
+ph2 est une Personne
+ph2.nom = "Bob"
+ph2.age = 25
+Ajoute(arrT, ph2)
+
+bufTab est une chaîne = JSONSérialise(arrT, psdMinifie)
+dbgVérifieVrai(Position(bufTab, "Alice") > 0, "JSONSérialise tableau: élément 1")
+dbgVérifieVrai(Position(bufTab, "Bob") > 0, "JSONSérialise tableau: élément 2")
+
+// JSONDésérialise tableau via template typé
+tabTemplate est un tableau de Personne
+tab2 est un tableau de Personne = JSONDésérialise(bufTab, tabTemplate)
+dbgVérifieEgalité(tab2..Occurrence, 2, "JSONDésérialise tableau: 2 éléments")
+dbgVérifieEgalité(tab2[1].nom, "Alice", "JSONDésérialise tableau: nom[1]")
+dbgVérifieEgalité(tab2[2].age, 25, "JSONDésérialise tableau: age[2]")

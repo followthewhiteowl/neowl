@@ -1,0 +1,161 @@
+// @sujet : Enfile
+// @résumé : Ajoute un élément à la fin d'une file (structure FIFO)
+
+// ============================================================
+// PROCEDURES PUBLIQUES — vitrine pédagogique
+// ============================================================
+
+PROCEDURE PUBLIQUE scenario_nominal_ajout_ordonne()
+	// Cas classique : enfiler plusieurs éléments et vérifier l'ordre FIFO
+	maFile est une file de entiers
+
+	// Ajout de 3 valeurs
+	Enfile(maFile, 10)
+	Enfile(maFile, 20)
+	Enfile(maFile, 30)
+
+	// La file contient maintenant 3 éléments (dernier ajouté : 30 en queue)
+	dbgVérifieEgalité(maFile..Occurrence, 3, "File contient 3 éléments après enfilage")
+
+	// Vérification que le premier ajouté (10) sort en premier
+	valeur est un entier = Défile(maFile)
+	dbgVérifieEgalité(valeur, 10, "Défile renvoie premier enfilé (10)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_methode()
+	// Appel via forme méthode préfixée
+	f est une file de chaînes
+
+	f.Enfile("Premier")
+	f.Enfile("Deuxième")
+	f.Enfile("Troisième")
+
+	dbgVérifieEgalité(f..Occurrence, 3, "Forme méthode .Enfile() fonctionne")
+
+	s est une chaîne = f.Defile()
+	dbgVérifieEgalité(s, "Premier", "Forme méthode .Enfile() respecte ordre FIFO")
+FIN
+
+PROCEDURE PUBLIQUE scenario_types_varies()
+	// Enfile fonctionne avec différents types de données
+
+	// File de réels
+	fileReels est une file de réels
+	Enfile(fileReels, 3.14)
+	Enfile(fileReels, 2.71)
+	Enfile(fileReels, 1.41)
+
+	dbgVérifieEgalité(fileReels..Occurrence, 3, "Enfile file de réels : 3 éléments")
+
+	r est un réel = Défile(fileReels)
+	dbgVérifieEgalité(r, 3.14, "Défile file réels renvoie 3.14 (premier enfilé)")
+
+	// File de booléens
+	fileBool est une file de booléens
+	Enfile(fileBool, Vrai)
+	Enfile(fileBool, Faux)
+
+	dbgVérifieEgalité(fileBool..Occurrence, 2, "Enfile file de booléens : 2 éléments")
+
+	b est un booléen = Défile(fileBool)
+	dbgVérifieEgalité(b, Vrai, "Défile file bool renvoie Vrai (premier enfilé)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_occurrence_incremente()
+	// Propriété ..Occurrence incrémente correctement
+	f est une file de entiers
+
+	dbgVérifieEgalité(f..Occurrence, 0, "Occurrence initiale zéro")
+
+	Enfile(f, 100)
+	dbgVérifieEgalité(f..Occurrence, 1, "Occurrence après 1 enfilage")
+
+	Enfile(f, 200)
+	dbgVérifieEgalité(f..Occurrence, 2, "Occurrence après 2 enfilages")
+
+	Enfile(f, 300)
+	dbgVérifieEgalité(f..Occurrence, 3, "Occurrence après 3 enfilages")
+FIN
+
+// ============================================================
+// PROCEDURES PRIVEES — edge cases techniques
+// ============================================================
+
+PROCEDURE PRIVÉE scenario_edge_alternance_enfile_defile()
+	// Alternance enfile/défile intensive (ordre FIFO respecté à chaque itération)
+	f est une file de entiers
+
+	Enfile(f, 1)
+	v1 est un entier = Défile(f)
+	dbgVérifieEgalité(v1, 1, "Alternance : défile(1)")
+
+	Enfile(f, 2)
+	Enfile(f, 3)
+	v2 est un entier = Défile(f)
+	dbgVérifieEgalité(v2, 2, "Alternance : défile(2) en premier")
+
+	Enfile(f, 4)
+	v3 est un entier = Défile(f)
+	dbgVérifieEgalité(v3, 3, "Alternance : défile(3) avant 4")
+
+	v4 est un entier = Défile(f)
+	dbgVérifieEgalité(v4, 4, "Alternance : défile(4) restant")
+
+	dbgVérifieVrai(f..Vide, "File vide après alternance")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_utf8()
+	// Chaînes avec accents et UTF-8 multibytes
+	f est une file de chaînes
+
+	Enfile(f, "café")
+	Enfile(f, "été")
+	Enfile(f, "🎯")
+
+	dbgVérifieEgalité(f..Occurrence, 3, "UTF-8 : 3 chaînes enfilées")
+
+	s1 est une chaîne = Défile(f)
+	dbgVérifieEgalité(s1, "café", "UTF-8 : premier enfilé (café) défilé en premier")
+
+	s2 est une chaîne = Défile(f)
+	dbgVérifieEgalité(s2, "été", "UTF-8 : chaîne accentuée défilée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_enfilage_massif()
+	// Montée en charge : 1000 enfilages successifs
+	f est une file de entiers
+
+	i est un entier
+	POUR i = 1 À 1000
+		Enfile(f, i)
+	FIN
+
+	dbgVérifieEgalité(f..Occurrence, 1000, "1000 éléments enfilés")
+
+	// Le premier enfilé (1) doit sortir en premier
+	v est un entier = Défile(f)
+	dbgVérifieEgalité(v, 1, "Premier enfilé (1) défilé en premier")
+
+	dbgVérifieEgalité(f..Occurrence, 999, "Occurrence décrémente après défilage")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_file_apres_suppression_tout()
+	// Enfilage après SupprimeTout doit fonctionner correctement
+	f est une file de entiers
+
+	Enfile(f, 1)
+	Enfile(f, 2)
+	Enfile(f, 3)
+
+	SupprimeTout(f)
+	dbgVérifieEgalité(f..Occurrence, 0, "SupprimeTout vide la file")
+
+	// Re-enfilage après suppression
+	Enfile(f, 10)
+	Enfile(f, 20)
+
+	dbgVérifieEgalité(f..Occurrence, 2, "Re-enfilage après SupprimeTout")
+
+	v est un entier = Défile(f)
+	dbgVérifieEgalité(v, 10, "Re-enfilage respecte FIFO (premier = 10)")
+FIN

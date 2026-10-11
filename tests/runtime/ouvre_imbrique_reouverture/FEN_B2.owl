@@ -1,0 +1,27 @@
+//  — FEN_B2 : fenetre d'edition imbriquee, ouverte plusieurs
+// fois de suite depuis FEN_A2. A chaque ouverture elle seede son champ
+// de saisie depuis la globale gnCycle, RELIT ce champ (chemin live-read
+//  cote GUI / fallback store headless) et remonte la valeur lue
+// via Ferme. Le contrat verrouille : au 2e/3e cycle, la lecture du champ
+// rend la valeur fraiche du cycle courant, pas un residu vide.
+
+FEN_B2 est une Fenêtre
+	PROPRIETES
+		Titre       = "Edition B"
+		Disposition = dispLibre
+	FIN
+
+	SAI_Montant est un Champ Saisie
+		PROPRIETES
+			Indication = "montant"
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Seede le champ depuis le cycle courant, puis le relit.
+		SAI_Montant..Valeur = "montant" + NumériqueVersChaîne(gnCycle, "d")
+		valeur_lue est une chaîne = SAI_Montant..Valeur
+		trace_pile = trace_pile + "B(" + FEN_B2..Titre + ",lu=" + valeur_lue + ");"
+		Ferme(FEN_B2, valeur_lue)
+	FIN
+FIN

@@ -1,0 +1,164 @@
+//  — Constantes tk* : verification compile-time de l'existence
+// au registry (FR et EN) et utilisabilite dans un SELON/CAS.
+//
+// ROUGE ATTENDU : les constantes tk* ne sont pas encore au registry.
+// Chaque reference tk* provoque "variable inconnue" a la compilation.
+// Une fois implementees, chaque constante doit etre un entier utilisable
+// dans un SELON/CAS et dans les appels d'events clavier.
+
+TestModeHeadless(Vrai)
+
+// --- Directionnelles ---
+nVal est un entier = tkHaut
+dbgVérifieVrai(nVal > 0, "tkHaut est un entier positif")
+
+nVal = tkBas
+dbgVérifieVrai(nVal > 0, "tkBas est un entier positif")
+
+nVal = tkGauche
+dbgVérifieVrai(nVal > 0, "tkGauche est un entier positif")
+
+nVal = tkDroite
+dbgVérifieVrai(nVal > 0, "tkDroite est un entier positif")
+
+// --- Controleurs de flux ---
+nVal = tkEspace
+dbgVérifieVrai(nVal > 0, "tkEspace est un entier positif")
+
+nVal = tkEchap
+dbgVérifieVrai(nVal > 0, "tkEchap est un entier positif")
+
+nVal = tkEntrée
+dbgVérifieVrai(nVal > 0, "tkEntree est un entier positif")
+
+nVal = tkTab
+dbgVérifieVrai(nVal > 0, "tkTab est un entier positif")
+
+// --- Edition ---
+nVal = tkRetourArrière
+dbgVérifieVrai(nVal > 0, "tkRetourArriere est un entier positif")
+
+nVal = tkSuppr
+dbgVérifieVrai(nVal > 0, "tkSuppr est un entier positif")
+
+nVal = tkDébut
+dbgVérifieVrai(nVal > 0, "tkDebut est un entier positif")
+
+nVal = tkFin
+dbgVérifieVrai(nVal > 0, "tkFin est un entier positif")
+
+nVal = tkPagePréc
+dbgVérifieVrai(nVal > 0, "tkPagePrec est un entier positif")
+
+nVal = tkPageSuiv
+dbgVérifieVrai(nVal > 0, "tkPageSuiv est un entier positif")
+
+// --- Modificateurs ---
+nVal = tkMaj
+dbgVérifieVrai(nVal > 0, "tkMaj est un entier positif")
+
+nVal = tkCtrl
+dbgVérifieVrai(nVal > 0, "tkCtrl est un entier positif")
+
+nVal = tkAlt
+dbgVérifieVrai(nVal > 0, "tkAlt est un entier positif")
+
+// --- Fonctions F1..F12 ---
+nVal = tkF1
+dbgVérifieVrai(nVal > 0, "tkF1 est un entier positif")
+
+nVal = tkF12
+dbgVérifieVrai(nVal > 0, "tkF12 est un entier positif")
+
+// --- Formes EN (bilingue) ---
+nVal = tkUp
+dbgVérifieVrai(nVal = tkHaut, "tkUp = tkHaut (formes bilingues identiques)")
+
+nVal = tkDown
+dbgVérifieVrai(nVal = tkBas, "tkDown = tkBas")
+
+nVal = tkLeft
+dbgVérifieVrai(nVal = tkGauche, "tkLeft = tkGauche")
+
+nVal = tkRight
+dbgVérifieVrai(nVal = tkDroite, "tkRight = tkDroite")
+
+nVal = tkSpace
+dbgVérifieVrai(nVal = tkEspace, "tkSpace = tkEspace")
+
+nVal = tkEsc
+dbgVérifieVrai(nVal = tkEchap, "tkEsc = tkEchap")
+
+nVal = tkEnter
+dbgVérifieVrai(nVal = tkEntrée, "tkEnter = tkEntree")
+
+nVal = tkBackspace
+dbgVérifieVrai(nVal = tkRetourArrière, "tkBackspace = tkRetourArriere")
+
+nVal = tkDelete
+dbgVérifieVrai(nVal = tkSuppr, "tkDelete = tkSuppr")
+
+nVal = tkHome
+dbgVérifieVrai(nVal = tkDébut, "tkHome = tkDebut")
+
+nVal = tkEnd
+dbgVérifieVrai(nVal = tkFin, "tkEnd = tkFin")
+
+nVal = tkPageUp
+dbgVérifieVrai(nVal = tkPagePréc, "tkPageUp = tkPagePrec")
+
+nVal = tkPageDown
+dbgVérifieVrai(nVal = tkPageSuiv, "tkPageDown = tkPageSuiv")
+
+nVal = tkShift
+dbgVérifieVrai(nVal = tkMaj, "tkShift = tkMaj")
+
+// --- Toutes les constantes sont distinctes (pas d'aliasing accidentel) ---
+dbgVérifieVrai(tkHaut <> tkBas, "tkHaut != tkBas")
+dbgVérifieVrai(tkGauche <> tkDroite, "tkGauche != tkDroite")
+dbgVérifieVrai(tkEchap <> tkEntrée, "tkEchap != tkEntree")
+dbgVérifieVrai(tkF1 <> tkF12, "tkF1 != tkF12")
+
+// --- Utilisabilite dans SELON / CAS (scenario Snake-like) ---
+PROCEDURE DispatchTouche(nTouche est un entier)
+	SELON nTouche
+		CAS tkHaut
+		callback_touche_tk("haut")
+		CAS tkBas
+		callback_touche_tk("bas")
+		CAS tkGauche
+		callback_touche_tk("gauche")
+		CAS tkDroite
+		callback_touche_tk("droite")
+		CAS tkEchap
+		callback_touche_tk("echap")
+		AUTRE CAS
+		callback_touche_tk("autre")
+	FIN
+FIN
+
+sDerniereDirection est une chaîne = ""
+
+PROCEDURE callback_touche_tk(s est une chaîne)
+	sDerniereDirection = s
+FIN
+
+DispatchTouche(tkHaut)
+dbgVérifieEgalité(sDerniereDirection, "haut", "SELON/CAS tkHaut dispatche correctement")
+
+DispatchTouche(tkBas)
+dbgVérifieEgalité(sDerniereDirection, "bas", "SELON/CAS tkBas dispatche correctement")
+
+DispatchTouche(tkGauche)
+dbgVérifieEgalité(sDerniereDirection, "gauche", "SELON/CAS tkGauche dispatche correctement")
+
+DispatchTouche(tkDroite)
+dbgVérifieEgalité(sDerniereDirection, "droite", "SELON/CAS tkDroite dispatche correctement")
+
+DispatchTouche(tkEchap)
+dbgVérifieEgalité(sDerniereDirection, "echap", "SELON/CAS tkEchap dispatche correctement")
+
+DispatchTouche(99999)
+dbgVérifieEgalité(sDerniereDirection, "autre", "SELON/CAS AUTRES CAS pour code inconnu")
+
+dbgBilanTest()

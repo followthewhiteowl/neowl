@@ -1,0 +1,34 @@
+//  lot3 — Scanner : `0n-X.Y` signe collé (forme canonique)
+//
+// Fix lot3 (e1b9809d) : le signe `-` collé au préfixe `0n` est désormais
+// reconnu comme signe du littéral numérique (non comme opérateur soustraction).
+// Forme canonique : `0n-888.987654321012345` (signe collé).
+// Valeur : -888.987654321012345 exact (numérique, précision pleine mpdecimal).
+//
+// VERT après fix lot3 : nLit == nRef (précision exacte préservée).
+
+// R1 : 0n-X.Y avec nombreuses décimales : la valeur doit être exacte, pas lossy double
+// Forme canonique (signe collé) : `0n-888.987654321012345`
+// ATTENDU : -888.987654321012345 (17 décimales exactes, numérique mpdecimal)
+PROCEDURE PUBLIQUE test_scanner_0n_negatif_precision_decimale()
+	// Forme canonique après fix lot3 : signe collé au préfixe 0n
+	nLit est un numérique = 0n-888.987654321012345
+	// Référence exacte : négation explicite d'un littéral numérique positif
+	nRef est un numérique = -(0n888.987654321012345)
+	dbgVérifieEgalité(nLit, nRef,
+	"0n-X.Y doit donner précision exacte (pas soustraction de réel lossy double)")
+FIN
+
+
+// R2 : valeur exacte de la référence (verte, assure que la référence est correcte)
+// Garde : -(0n888.987654321012345) doit avoir toute la précision de ses 17 décimales.
+// Ce test est VERT aujourd'hui et le restera après la correction.
+// Il documente que la construction -(0nX.Y) est l'idiome exact correct.
+PROCEDURE PUBLIQUE test_scanner_0n_reference_exacte_est_correcte()
+	nRef est un numérique = -(0n888.987654321012345)
+	nExpected est un numérique = -(0n888.987654321012345)
+	dbgVérifieEgalité(nRef, nExpected, "-(0nX.Y) : référence exacte auto-cohérente")
+	// Vérifie que la valeur a bien ses décimales : ref*(-1) doit être positif exact
+	nPos est un numérique = -(nRef)
+	dbgVérifieEgalité(nPos, 0n888.987654321012345, "-(-(0nX.Y)) = 0nX.Y (double négation exacte)")
+FIN

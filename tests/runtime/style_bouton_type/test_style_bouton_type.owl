@@ -1,0 +1,45 @@
+//  — styleBouton (widget) = struct {Libellé, CadreExtérieur}.
+// Le sous-élément Libellé est STATEFUL (palette survol/appuyé/focus/grisé,
+// SANS lectureSeule — pas de sens sur un bouton). CadreExtérieur réutilise
+// styleCadreExtérieur (statique, déjà posé /).
+//
+// ROUGE attendu : `styleBouton` n'existe pas encore comme type (aucun champ
+// Libellé/CadreExtérieur sur un struct de ce nom). L'état "appuyé" n'existe
+// dans AUCUNE palette existante (nouvelle valeur, cf. note ticket).
+
+Trace("=== styleBouton : struct {Libellé, CadreExtérieur} ===")
+
+STY_Btn est un styleBouton
+
+// --- Sous-élément Libellé : props de base (texte/fond/cadre) ---
+STY_Btn..Libellé..Couleur          = Rouge
+STY_Btn..Libellé..CouleurFond      = Blanc
+STY_Btn..Libellé..Police..Gras     = Vrai
+STY_Btn..Libellé..Cadre..Epaisseur = 2
+
+dbgVérifieEgalité(STY_Btn..Libellé..Couleur, Rouge, "styleBouton..Libellé..Couleur posée")
+dbgVérifieEgalité(STY_Btn..Libellé..CouleurFond, Blanc, "styleBouton..Libellé..CouleurFond posée")
+dbgVérifieEgalité(STY_Btn..Libellé..Police..Gras, Vrai, "styleBouton..Libellé..Police..Gras (composé)")
+dbgVérifieEgalité(STY_Btn..Libellé..Cadre..Epaisseur, 2, "styleBouton..Libellé..Cadre..Epaisseur (composé)")
+
+// --- Sous-élément Libellé : palette d'états (NOUVELLE — survol/appuyé/focus/grisé) ---
+STY_Btn..Libellé..Etats[survol]..CouleurFond   = JauneClair
+STY_Btn..Libellé..Etats[appuyé]..CouleurFond   = Vert
+STY_Btn..Libellé..Etats[focus]..Cadre..Couleur = Bleu
+STY_Btn..Libellé..Etats[grisé]..CouleurFond    = GrisClair
+
+dbgVérifieEgalité(STY_Btn..Libellé..Etats[survol]..CouleurFond, JauneClair, "styleBouton..Libellé..Etats[survol]..CouleurFond posée")
+dbgVérifieEgalité(STY_Btn..Libellé..Etats[appuyé]..CouleurFond, Vert, "styleBouton..Libellé..Etats[appuyé]..CouleurFond posée (nouvel état)")
+dbgVérifieEgalité(STY_Btn..Libellé..Etats[focus]..Cadre..Couleur, Bleu, "styleBouton..Libellé..Etats[focus]..Cadre..Couleur (composé)")
+dbgVérifieEgalité(STY_Btn..Libellé..Etats[grisé]..CouleurFond, GrisClair, "styleBouton..Libellé..Etats[grisé]..CouleurFond posée")
+
+// --- Sous-élément CadreExtérieur : réutilisation de styleCadreExtérieur ---
+STY_Btn..CadreExtérieur..CouleurFond      = GrisClair
+STY_Btn..CadreExtérieur..Cadre..Couleur   = Noir
+STY_Btn..CadreExtérieur..Cadre..Epaisseur = 3
+
+dbgVérifieEgalité(STY_Btn..CadreExtérieur..CouleurFond, GrisClair, "styleBouton..CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Btn..CadreExtérieur..Cadre..Couleur, Noir, "styleBouton..CadreExtérieur..Cadre..Couleur (composé)")
+dbgVérifieEgalité(STY_Btn..CadreExtérieur..Cadre..Epaisseur, 3, "styleBouton..CadreExtérieur..Cadre..Epaisseur (composé)")
+
+dbgBilanTest()

@@ -1,0 +1,109 @@
+// ================================================================
+// Image natif — Lot I.3a : état du dessin (state machine)
+//
+// Natives couvertes : dDébutDessin, dFinDessin, dStylo, dFond, dEfface.
+//
+// L'état stylo + fond est attaché à l'image. dDébutDessin pose une
+// image courante pour les fonctions d* qui suivent (forme sans
+// argument <Image>). dFinDessin libère.
+// ================================================================
+
+// ----- dDébutDessin / dFinDessin -----
+img est une Image = dCréeImage(10, 10, Blanc)
+
+ok est un booléen = dDébutDessin(img)
+dbgVérifieEgalité(ok, Vrai, "dDébutDessin retourne Vrai sur image valide")
+
+dFinDessin() // sans arg explicit OK
+
+// ----- dDébutDessin sur image invalide retourne Faux -----
+imgVide est une Image
+ok2 est un booléen = dDébutDessin(imgVide)
+dbgVérifieEgalité(ok2, Faux, "dDébutDessin retourne Faux sur image invalide")
+
+// ----- dEfface : avec couleur explicite -----
+img2 est une Image = dCréeImage(4, 4, Blanc)
+dEfface(img2, RougeClair)
+dbgVérifieEgalité(dPixelCouleur(img2, 0, 0), RougeClair, "dEfface remplit (0,0) avec RougeClair")
+dbgVérifieEgalité(dPixelCouleur(img2, 3, 3), RougeClair, "dEfface remplit (3,3) avec RougeClair")
+
+// ----- dEfface : sans couleur, utilise CouleurRemplissage -----
+img3 est une Image = dCréeImage(3, 3, BleuClair)
+img3..CouleurRemplissage = VertClair
+dEfface(img3)
+dbgVérifieEgalité(dPixelCouleur(img3, 0, 0), VertClair,
+"dEfface sans couleur utilise CouleurRemplissage")
+
+// ----- dEfface via image courante (state machine) -----
+img4 est une Image = dCréeImage(3, 3, Blanc)
+dDébutDessin(img4)
+dEfface(img4, Noir) // explicite
+dbgVérifieEgalité(dPixelCouleur(img4, 1, 1), Noir, "dEfface via dDébutDessin: pixel noir")
+
+// dEfface() sans aucun arg — utilise l'image courante + sa couleur de remplissage
+img4..CouleurRemplissage = RougeClair
+dEfface()
+dbgVérifieEgalité(dPixelCouleur(img4, 1, 1), RougeClair, "dEfface() sans args via courante + CouleurRemplissage")
+
+dFinDessin()
+
+// Après dFinDessin, dEfface() sans args doit échouer (pas d'image courante)
+ErreurRAZ()
+dEfface()
+dbgVérifieEgalité(ErreurDétectée, Vrai, "dEfface sans courante après dFinDessin: erreur")
+
+// ----- dStylo : pose le stylo sur l'image cible -----
+img5 est une Image = dCréeImage(2, 2, Blanc)
+dStylo(img5, RougeClair, 0, 2, 200) // couleur, style plein, largeur 2, opacité 200
+// Pas de getter direct de référence : on vérifie que ça ne crash pas et que les
+// fonctions de dessin (Lot I.3b) utiliseront ces valeurs.
+dbgVérifieEgalité(img5..Valide, Vrai, "dStylo sur image valide ne perturbe pas Valide")
+
+// dStylo sans image, via state machine
+dDébutDessin(img5)
+dStylo(BleuClair, 1) // forme courte : couleur + style
+dFinDessin()
+
+// dStylo sans cible → erreur
+dStylo(VertClair)
+dbgVérifieEgalité(ErreurDétectée, Vrai, "dStylo sans cible: erreur")
+
+// ----- dFond : pose le fond -----
+img6 est une Image = dCréeImage(2, 2, Blanc)
+dFond(img6, JauneOr, FondPlein, 0, 255)
+dbgVérifieEgalité(img6..Valide, Vrai, "dFond sur image valide OK")
+
+dFond(img6, RougeClair, FondTransparent)
+dbgVérifieEgalité(img6..Valide, Vrai, "dFond style FondTransparent OK")
+
+// ----- Constantes options dDébutDessin disponibles -----
+dbgVérifieVrai(dEffacer <> dSansEffacer, "dEffacer != dSansEffacer")
+dbgVérifieVrai(dAvecOpacité <> dEffacer, "dAvecOpacité != dEffacer")
+dbgVérifieVrai(FondPlein = 0, "FondPlein = 0 (conforme au comportement de référence)")
+dbgVérifieVrai(FondTransparent = 1, "FondTransparent = 1 (conforme au comportement de référence)")
+dbgVérifieVrai(FondHachuré = 2, "FondHachuré = 2 (conforme au comportement de référence)")
+
+// ----- dDébutDessin avec dSansEffacer ne touche pas l'image -----
+img7 est une Image = dCréeImage(3, 3, RougeClair)
+dDébutDessin(img7, dSansEffacer)
+dbgVérifieEgalité(dPixelCouleur(img7, 0, 0), RougeClair,
+"dSansEffacer préserve les pixels existants")
+dFinDessin()
+
+// dEffacer (défaut) efface avec CouleurRemplissage de l'image
+img8 est une Image = dCréeImage(3, 3, RougeClair)
+img8..CouleurRemplissage = BleuClair
+dDébutDessin(img8, dEffacer)
+dbgVérifieEgalité(dPixelCouleur(img8, 1, 1), BleuClair,
+"dEffacer remplit avec CouleurRemplissage")
+dFinDessin()
+
+// ----- Alias EN -----
+img9 est une Image = dCréeImage(2, 2, Blanc)
+ok3 est un booléen = dStartDrawing(img9)
+dbgVérifieEgalité(ok3, Vrai, "Alias EN: dStartDrawing")
+dPen(BleuClair, 0, 1, 255)
+dBackground(VertClair)
+dErase(img9, JauneOr)
+dbgVérifieEgalité(dPixelColor(img9, 0, 0), JauneOr, "Alias EN: dErase + dPixelColor")
+dEndDrawing()

@@ -1,0 +1,30 @@
+// Regression  — helpers FEN appelables PARTOUT dans la fenetre.
+//
+// Avant le fix, le top-level d'un bloc champ qui appelle un helper FEN
+// crashait avec "Seules les fonctions et procedures peuvent etre appelees"
+// parce que la liaison des user_procs dans vm.globals se faisait APRES la
+// boucle d'execution des top-levels champs (phase 6 GUI / step 4 headless).
+//
+// Le fix deplace cette liaison AVANT toute execution de code de la fenetre
+// (top-level fenetre + top-levels champs), dans les deux chemins
+// (build_window GUI + open_window_instance headless).
+//
+// Couvre :
+//  1. top-level bloc champ -> helper FEN (le cas qui crashait)
+//  2. top-level bloc champ -> helper FEN -> helper FEN (transitif)
+//  3. FinInitialisation -> helper FEN (regression  voisine)
+
+marqueur_top_champ est une chaîne = ""
+marqueur_transitif est une chaîne = ""
+marqueur_fininit est une chaîne = ""
+
+Ouvre(FEN_HelperPartout)
+
+dbgVérifieEgalité(marqueur_top_champ, "via HelperB (top-champ)",
+"top-level bloc champ doit pouvoir appeler un helper FEN")
+dbgVérifieEgalité(marqueur_transitif, "via HelperD (transitif)",
+"helper -> helper depuis top-level champ doit fonctionner")
+dbgVérifieEgalité(marqueur_fininit, "via FinInit",
+"FinInitialisation doit avoir tourne (regression fix/0493)")
+
+dbgBilanTest()

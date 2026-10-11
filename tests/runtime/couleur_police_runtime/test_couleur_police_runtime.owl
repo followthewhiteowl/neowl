@@ -1,0 +1,48 @@
+//  — Police..Couleur runtime : le setter doit mettre a jour
+// la valeur et le getter doit la relire correctement apres Ouvre().
+//
+// ROUGE attendu avant impl : Police..Couleur est no-op silencieux
+// aujourd'hui. Mais le getter peut quand meme retourner la valeur
+// stockee si le storage est present (Police est un type compose avec
+// un champ Couleur en entier). CONSEQUENCE : certains cas getter/setter
+// peuvent passer au vert meme si la couleur n'est pas appliquee visuellement.
+// On verifie ici deux choses :
+//   1. Le getter renvoie la valeur settee (storage OK).
+//   2. La valeur initiale est 0 (defaut Police..Couleur = 0 = noir).
+// L'aspect "couleur reellement appliquee au widget" est verrouille
+// par le dossier couleur_police_composite_snapshot (capture pixel).
+//
+// Widgets couverts : Libelle, Bouton, Saisie.
+
+Ouvre(FEN_PoliceRuntime)
+
+// --- Valeur initiale Police..Couleur = 0 (defaut) ---
+dbgVérifieEgalité(LIB_R..Police..Couleur, 0,
+"Libelle : Police..Couleur initiale = 0 (defaut noir)")
+dbgVérifieEgalité(BTN_R..Police..Couleur, 0,
+"Bouton : Police..Couleur initiale = 0 (defaut noir)")
+dbgVérifieEgalité(SAI_R..Police..Couleur, 0,
+"Saisie : Police..Couleur initiale = 0 (defaut noir)")
+
+// --- Setter/getter Libelle ---
+LIB_R..Police..Couleur = RVB(255, 0, 0)
+dbgVérifieEgalité(LIB_R..Police..Couleur, RVB(255, 0, 0),
+"Libelle : Police..Couleur setter/getter coherent (rouge)")
+
+// --- Setter/getter Bouton ---
+BTN_R..Police..Couleur = RVB(0, 255, 0)
+dbgVérifieEgalité(BTN_R..Police..Couleur, RVB(0, 255, 0),
+"Bouton : Police..Couleur setter/getter coherent (vert)")
+
+// --- Setter/getter Saisie ---
+SAI_R..Police..Couleur = RVB(0, 0, 255)
+dbgVérifieEgalité(SAI_R..Police..Couleur, RVB(0, 0, 255),
+"Saisie : Police..Couleur setter/getter coherent (bleu)")
+
+// --- Reinitialisation a 0 lisible ---
+LIB_R..Police..Couleur = 0
+dbgVérifieEgalité(LIB_R..Police..Couleur, 0,
+"Libelle : Police..Couleur reinit a 0 lisible")
+
+Ferme(FEN_PoliceRuntime)
+dbgBilanTest()

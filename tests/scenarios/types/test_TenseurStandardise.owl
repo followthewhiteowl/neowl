@@ -1,0 +1,78 @@
+// @sujet : Tenseur.Standardise — standardisation z-score par canal (prétraitement)
+// @résumé : Standardise(epsilon) centre-réduit chaque CANAL d'un Tenseur 4D
+// B×C×H×W indépendamment : (x - moyenne_canal) / racine(variance_canal +
+// epsilon), moyenne et variance calculées sur les axes lot/hauteur/largeur
+// (B,H,W). Prétraitement NON différentiable (feuille du graphe). L'epsilon est
+// optionnel (défaut 1e-5). Toutes les valeurs sont calculées à la main.
+
+
+// Entrée 2×1×1×2 (B=2, 1 canal, H=1, W=2) = [0, 0, 2, 2].
+// moyenne = (0+0+2+2)/4 = 1 ; variance = (1+1+1+1)/4 = 1 ; racine(1+0) = 1.
+// standardisé = (x - 1)/1 = [-1, -1, 1, 1].
+// Ces valeurs ont bien une moyenne de 0 et un écart-type de 1 sur le canal.
+PROCEDURE PUBLIQUE scenario_standardise_un_canal()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+	sortie est un Tenseur = entrée.Standardise(0.0)
+
+	dbgVérifieEgalité(sortie..Forme[1], 2, "B=2 conservé")
+	dbgVérifieEgalité(sortie..Forme[2], 1, "1 canal conservé")
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], -1.0, "(0-1)/1 = -1")
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][2], -1.0, "(0-1)/1 = -1")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][1],  1.0, "(2-1)/1 = 1")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][2],  1.0, "(2-1)/1 = 1")
+FIN
+
+
+// Chaque canal est standardisé INDÉPENDAMMENT, avec sa propre moyenne et sa
+// propre variance. Entrée 2×2×1×1 (B=2, C=2), données à plat [10, 0, 20, 4]
+// (ordre b,c) :
+//   canal 0 = {10, 20} : moyenne 15, variance (25+25)/2 = 25, racine = 5 ;
+//             standardisé (10-15)/5 = -1, (20-15)/5 = 1 ;
+//   canal 1 = {0, 4}   : moyenne 2,  variance (4+4)/2 = 4,  racine = 2 ;
+//             standardisé (0-2)/2 = -1, (4-2)/2 = 1.
+// Malgré des échelles très différentes, les deux canaux retombent sur ±1.
+PROCEDURE PUBLIQUE scenario_standardise_par_canal_independant()
+	entrée est un Tenseur = Tenseur([10.0, 0.0, 20.0, 4.0]).Redimensionne([2, 2, 1, 1])
+	sortie est un Tenseur = entrée.Standardise(0.0)
+
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], -1.0, "canal 0 : (10-15)/5 = -1")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][1],  1.0, "canal 0 : (20-15)/5 = 1")
+	dbgVérifieEgalité(sortie..Valeur[1][2][1][1], -1.0, "canal 1 : (0-2)/2 = -1")
+	dbgVérifieEgalité(sortie..Valeur[2][2][1][1],  1.0, "canal 1 : (4-2)/2 = 1")
+FIN
+
+
+// La forme native TenseurStandardise(entrée, epsilon) rend exactement le même
+// résultat que la méthode fluente .Standardise(epsilon).
+PROCEDURE PUBLIQUE scenario_forme_native_egale_methode()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+
+	sortieMéthode est un Tenseur = entrée.Standardise(0.0)
+	sortieNative est un Tenseur = TenseurStandardise(entrée, 0.0)
+
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], sortieMéthode..Valeur[1][1][1][1], "native et méthode : même cellule [1][1][1][1]")
+	dbgVérifieEgalité(sortieNative..Valeur[2][1][1][2], sortieMéthode..Valeur[2][1][1][2], "native et méthode : même cellule [2][1][1][2]")
+FIN
+
+
+// La forme anglaise .Standardize() désigne la même opération que
+// .Standardise().
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+	sortie est un Tenseur = entrée.Standardize(0.0)
+	dbgVérifieEgalité(sortie..Valeur[1][1][1][1], -1.0, "Standardize (EN) : (0-1)/1 = -1")
+	dbgVérifieEgalité(sortie..Valeur[2][1][1][1],  1.0, "Standardize (EN) : (2-1)/1 = 1")
+FIN
+
+
+// L'epsilon est optionnel : appelé sans argument, il vaut 1e-5 par défaut.
+// racine(variance + 1e-5) = racine(1.00001) ; standardisé[1] = -1/racine(1.00001)
+// = -0.999995000... La valeur légèrement inférieure à 1 en magnitude prouve que
+// l'epsilon par défaut est bien appliqué (adoucit la division).
+PROCEDURE PUBLIQUE scenario_epsilon_par_defaut()
+	entrée est un Tenseur = Tenseur([0.0, 0.0, 2.0, 2.0]).Redimensionne([2, 1, 1, 2])
+	sortie est un Tenseur = entrée.Standardise()
+	dbgVérifieÉgalitéRéel(sortie..Valeur[1][1][1][1], -0.999995, "epsilon défaut 1e-5 : -1/racine(1.00001)", 0.000001)
+	dbgVérifieÉgalitéRéel(sortie..Valeur[2][1][1][1],  0.999995, "epsilon défaut 1e-5 : 1/racine(1.00001)", 0.000001)
+FIN

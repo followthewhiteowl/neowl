@@ -1,0 +1,146 @@
+// @sujet : BufferÉcritOctet
+// @résumé : Écrit un octet (valeur entière 0–255) à une position 1-based dans un Buffer. Mode défaut débordementErreur : lève une exception si la valeur est hors [0,255]. Modes alternatifs de l'enum octetDébordement appliqués si fournis (cyclique, borné, octetFaible). Position hors buffer lève toujours une erreur.
+
+
+// Cas A : écriture d'une valeur valide (dans [0,255]), lecture pour vérification.
+PROCEDURE PUBLIQUE scenario_ecriture_base()
+	buf est un buffer = "A"
+	BufferÉcritOctet(buf, 1, 66)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 66, "octet 66 ('B') écrit et relu correctement")
+FIN
+
+
+// Cas B : écriture de la borne basse 0 et haute 255.
+PROCEDURE PUBLIQUE scenario_bornes()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 0)
+	BufferÉcritOctet(buf, 2, 255)
+	nMin est un entier = BufferLitOctet(buf, 1)
+	nMax est un entier = BufferLitOctet(buf, 2)
+	dbgVérifieEgalité(nMin, 0, "octet 0 écrit et relu")
+	dbgVérifieEgalité(nMax, 255, "octet 255 écrit et relu")
+FIN
+
+
+// Cas C : écriture valeur hors plage, mode défaut (débordementErreur) — exception runtime levée.
+PROCEDURE PUBLIQUE scenario_hors_plage_erreur()
+	bExceptionLevee est un booléen = Faux
+	buf est un buffer = "A"
+	QUAND EXCEPTION DANS
+		BufferÉcritOctet(buf, 1, 300)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "300 hors [0,255] lève une exception en mode défaut")
+FIN
+
+
+// Cas D : mode cyclique — 300 → 44 écrit.
+PROCEDURE PUBLIQUE scenario_cyclique()
+	buf est un buffer = "A"
+	BufferÉcritOctet(buf, 1, 300, débordementCyclique)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 44, "300 cyclique → 44 écrit dans le buffer")
+FIN
+
+
+// Cas E : mode borné (clamp) — 300 → 255 écrit.
+PROCEDURE PUBLIQUE scenario_borne_clamp()
+	buf est un buffer = "A"
+	BufferÉcritOctet(buf, 1, 300, débordementBorne)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 255, "300 clamp → 255 écrit dans le buffer")
+FIN
+
+
+// Cas F : mode octetFaible — 300 → 44 écrit (300 & 0xFF).
+PROCEDURE PUBLIQUE scenario_octet_faible()
+	buf est un buffer = "A"
+	BufferÉcritOctet(buf, 1, 300, débordementOctetFaible)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 44, "300 octetFaible → 44 écrit (300 & 0xFF)")
+FIN
+
+
+// Cas G : mode octetFaible, valeur négative — -1 → 255 écrit.
+PROCEDURE PUBLIQUE scenario_octet_faible_negatif()
+	buf est un buffer = "A"
+	BufferÉcritOctet(buf, 1,-1, débordementOctetFaible)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 255, "-1 octetFaible → 255 écrit (0xFF en 8 bits)")
+FIN
+
+
+// Cas H : position hors buffer — erreur runtime quelle que soit la valeur.
+PROCEDURE PUBLIQUE scenario_position_hors_buffer()
+	ErreurRAZ()
+	buf est un buffer = "ABC"
+	BufferÉcritOctet(buf, 10, 42)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "position 10 hors buffer de 3 octets lève erreur")
+FIN
+
+
+// Cas I : forme EN (bilingue) — BufferWriteByte.
+PROCEDURE PUBLIQUE scenario_bilingue_en()
+	buf est un buffer = "A"
+	BufferWriteByte(buf, 1, 77)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 77, "BufferWriteByte (EN) écrit correctement")
+FIN
+
+
+// Cas J : forme fluent FR — buf.ÉcritOctet(position, valeur, mode).
+PROCEDURE PUBLIQUE scenario_fluent_fr()
+	buf est un buffer = "A"
+	buf.ÉcritOctet(1, 100)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 100, "fluent buf.ÉcritOctet(1, 100) écrit correctement")
+FIN
+
+
+// Cas K : forme fluent EN — buf.WriteByte(position, valeur, mode).
+PROCEDURE PUBLIQUE scenario_fluent_en()
+	buf est un buffer = "A"
+	buf.WriteByte(1, 200, overflowLowByte)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 200, "fluent buf.WriteByte(1, 200, overflowLowByte) = 200")
+FIN
+
+
+// Edge case : round-trip octet ≥ 128 — écrit 200 (0xC8) et relu sans corruption.
+PROCEDURE PRIVÉE scenario_edge_round_trip_hors_ascii()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 200)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 200, "round-trip octet 200 sans corruption codec UTF-8")
+FIN
+
+
+// Edge case : round-trip octet 128 (premier hors ASCII) — limite de corruption UTF-8.
+PROCEDURE PRIVÉE scenario_edge_round_trip_128()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 128)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 128, "round-trip octet 128 (limite ASCII) sans corruption")
+FIN
+
+
+// Edge case : écriture successive sur la même position — la valeur est bien remplacée.
+PROCEDURE PRIVÉE scenario_edge_ecriture_successive()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 100)
+	BufferÉcritOctet(buf, 1, 200)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 200, "deuxième écriture remplace la première")
+FIN
+
+
+// Edge case : valeur -1 en mode clamp → 0.
+PROCEDURE PRIVÉE scenario_edge_negatif_borne()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1,-1, débordementBorne)
+	n est un entier = BufferLitOctet(buf, 1)
+	dbgVérifieEgalité(n, 0, "-1 clamp dans [0,255] → 0 écrit")
+FIN

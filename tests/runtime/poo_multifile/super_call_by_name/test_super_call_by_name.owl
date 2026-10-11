@@ -1,0 +1,44 @@
+// @sujet super-call by-name dans body methode
+// @résumé cAncestor.M() dispatch statique direct, saute les niveaux intermediaires
+//
+// Scenarios couverts :
+// - Skip d'un niveau (cChiot.Crier appelle cAnimal.Crier, saute cChien)
+// - Parent direct by-name (cChiot.CrierViaParentDirect appelle cChien.Crier)
+// - Pas de récursion infinie (cChiot.Crier termine normalement)
+// - Instances independantes apres super-call
+
+PROCEDURE scenario_skip_niveau_intermediaire()
+	c est un cChiot()
+	c.Crier()
+	// Attendu : "animal" (de cAnimal.Crier) puis "wif" (de cChiot.Crier).
+	// "wouf" (de cChien.Crier) NE DOIT PAS apparaitre.
+	dbgVérifieEgalité(c.sBruits, "animalwif",
+	"Super-call by-name saute le niveau intermediaire (cChien)")
+FIN
+
+PROCEDURE scenario_parent_direct_by_name()
+	c est un cChiot()
+	c.CrierViaParentDirect()
+	// Attendu : "wouf" (cChien.Crier) puis "+suffixe".
+	dbgVérifieEgalité(c.sBruits, "wouf+suffixe",
+	"Super-call by-name sur parent immediat = equivalent Ancetre.Methode()")
+FIN
+
+PROCEDURE scenario_pas_de_recursion()
+	// Si dispatch etait virtuel, cAnimal.Crier appellerait re-cChiot.Crier
+	// et on aurait recursion infinie -> stack overflow. Le test passe =
+	// dispatch statique confirme.
+	c est un cChiot()
+	c.Crier()
+	c.Crier()
+	dbgVérifieEgalité(c.sBruits, "animalwifanimalwif",
+	"Pas de recursion : 2 appels = 2 cycles propres")
+FIN
+
+PROCEDURE scenario_instances_independantes()
+	c1 est un cChiot()
+	c2 est un cChiot()
+	c1.Crier()
+	dbgVérifieEgalité(c1.sBruits, "animalwif", "Instance 1 modifiee")
+	dbgVérifieEgalité(c2.sBruits, "", "Instance 2 vierge (pas de fuite d'etat)")
+FIN

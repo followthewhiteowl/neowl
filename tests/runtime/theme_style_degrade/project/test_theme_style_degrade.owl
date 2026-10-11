@@ -1,0 +1,46 @@
+//  — sous-attribut `Dégradé` (FR) / `Gradient` (EN) sur
+// `CadreExtérieur` (styleBouton). Portée : type dégradé linéaire/radial,
+// angle, couleurs de début/fin, coexistence avec Cadre + Ombre.
+//
+// ROUGE attendu : `Dégradé` / `Gradient` inconnu sur CadreExtérieur
+// aujourd'hui (champ inexistant sur styleBouton..CadreExtérieur), et/ou
+// les valeurs d'enum dégradéLinéaire/dégradéRadial/dégradéAucun/
+// gradientLinear inconnues (livrées par l'implémenteur).
+//
+// Le RENDU visuel réel du dégradé (QSS qlineargradient/qradialgradient)
+// est HORS SCOPE de ce test : on verrouille uniquement le compile +
+// round-trip headless des valeurs posées via un Thème.
+
+Trace("=== Thème : styleBouton..CadreExtérieur..Dégradé / ..Gradient ===")
+
+// --- Linéaire complet : Type, Angle, CouleurDébut, CouleurFin ---
+dbgVérifieEgalité(theme.boutonDegradeLineaire..CadreExtérieur..Dégradé..Type, dégradéLinéaire, "boutonDegradeLineaire : Dégradé..Type round-trip")
+dbgVérifieEgalité(theme.boutonDegradeLineaire..CadreExtérieur..Dégradé..Angle, 90, "boutonDegradeLineaire : Dégradé..Angle round-trip")
+dbgVérifieEgalité(theme.boutonDegradeLineaire..CadreExtérieur..Dégradé..CouleurDébut, RVB(103, 80, 164), "boutonDegradeLineaire : Dégradé..CouleurDébut round-trip")
+dbgVérifieEgalité(theme.boutonDegradeLineaire..CadreExtérieur..Dégradé..CouleurFin, RVB(29, 27, 32), "boutonDegradeLineaire : Dégradé..CouleurFin round-trip")
+
+// --- Radial ---
+dbgVérifieEgalité(theme.boutonDegradeRadial..CadreExtérieur..Dégradé..Type, dégradéRadial, "boutonDegradeRadial : Dégradé..Type round-trip")
+dbgVérifieEgalité(theme.boutonDegradeRadial..CadreExtérieur..Dégradé..CouleurDébut, RVB(255, 0, 0), "boutonDegradeRadial : Dégradé..CouleurDébut round-trip")
+dbgVérifieEgalité(theme.boutonDegradeRadial..CadreExtérieur..Dégradé..CouleurFin, RVB(0, 0, 255), "boutonDegradeRadial : Dégradé..CouleurFin round-trip")
+
+// --- Défaut : CadreExtérieur SANS Dégradé déclaré -> lecture sans crash,
+// Type par défaut dégradéAucun (pas de dégradé actif) ---
+dbgVérifieEgalité(theme.boutonSansDegrade..CadreExtérieur..Dégradé..Type, dégradéAucun, "boutonSansDegrade : pas de Dégradé déclaré -> Type défaut dégradéAucun, pas de crash")
+
+// --- Bilingue : Gradient (EN) + props EN équivalentes ---
+dbgVérifieEgalité(theme.boutonGlowEN..CadreExtérieur..Gradient..Type, gradientLinear, "boutonGlowEN : Gradient..Type (EN) round-trip")
+dbgVérifieEgalité(theme.boutonGlowEN..CadreExtérieur..Gradient..Angle, 45, "boutonGlowEN : Gradient..Angle round-trip")
+dbgVérifieEgalité(theme.boutonGlowEN..CadreExtérieur..Gradient..StartColor, RVB(0, 255, 255), "boutonGlowEN : Gradient..StartColor round-trip")
+dbgVérifieEgalité(theme.boutonGlowEN..CadreExtérieur..Gradient..EndColor, RVB(255, 0, 255), "boutonGlowEN : Gradient..EndColor round-trip")
+
+// --- Coexistence : Cadre + Ombre + Dégradé sous-blocs frères du même
+// CadreExtérieur (possible depuis ) ---
+dbgVérifieEgalité(theme.boutonTroisBlocs..CadreExtérieur..Cadre..Arrondi, 16, "boutonTroisBlocs : Cadre..Arrondi coexiste avec Dégradé")
+dbgVérifieEgalité(theme.boutonTroisBlocs..CadreExtérieur..Ombre..Flou, 16, "boutonTroisBlocs : Ombre..Flou coexiste avec Dégradé")
+dbgVérifieEgalité(theme.boutonTroisBlocs..CadreExtérieur..Dégradé..Type, dégradéLinéaire, "boutonTroisBlocs : Dégradé..Type coexiste avec Cadre + Ombre")
+dbgVérifieEgalité(theme.boutonTroisBlocs..CadreExtérieur..Dégradé..Angle, 0, "boutonTroisBlocs : Dégradé..Angle round-trip")
+dbgVérifieEgalité(theme.boutonTroisBlocs..CadreExtérieur..Dégradé..CouleurDébut, RVB(10, 20, 30), "boutonTroisBlocs : Dégradé..CouleurDébut round-trip")
+dbgVérifieEgalité(theme.boutonTroisBlocs..CadreExtérieur..Dégradé..CouleurFin, RVB(40, 50, 60), "boutonTroisBlocs : Dégradé..CouleurFin round-trip")
+
+dbgBilanTest()

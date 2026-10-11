@@ -1,0 +1,49 @@
+// Ressource Etat pure utilisee par test_init_une_fois.owl.
+//
+// Verifie que le top-level d'un sous-champ d'Etat s'execute 1x a
+// l'ouverture de l'Etat (pas N fois par impression). AvantImpression,
+// lui, s'execute a chaque impression du bloc (1x auto Corps + 3x
+// iImprimeBloc manuels = 4x).
+//
+// Le script test voisin observe via callback_top_level / callback_avant.
+
+ETAT_InitUneFois est un Etat
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+
+		LIB_Test est un Champ Libelle
+			PROPRIETES
+				Libelle      = "Test init 1x"
+				X            = 20
+				Y            = 10
+				Largeur      = 100
+				Hauteur      = 15
+				PoliceNom    = iPoliceLiberationSans
+				PoliceTaille = 11
+			FIN
+
+			// TOP-LEVEL SOUS-CHAMP (code d'init, niveau 0).
+			callback_top_level()
+
+			// Event AvantImpression : appele a chaque impression du bloc.
+			PROCEDURE AvantImpression()
+				callback_avant()
+			FIN
+		FIN
+	FIN
+
+	// PROCEDURE Lecture : imprime le Corps 3x manuellement via iImprimeBloc
+	// (en plus du 1x auto par iImprimeEtat).
+	PROCEDURE Lecture()
+		POUR i = 1 A 3
+			iImprimeBloc("corps")
+		FIN
+	FIN
+FIN

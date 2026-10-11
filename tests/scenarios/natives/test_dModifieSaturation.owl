@@ -1,0 +1,188 @@
+// @sujet : dModifieSaturation
+// @resume : Ajuster la saturation des couleurs dans une image (variation -100..+100, espace HSL)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_nominal_augmente_saturation()
+	// Une image colorée devient plus vive avec variation positive
+	couleurBleuPale est un entier = RVB(100, 120, 180)
+	img est une Image
+	res est un booléen
+
+	// Créer une image 10x10 bleu pâle (saturation moyenne)
+	img = dCréeImage(10, 10, couleurBleuPale)
+	dbgVérifieEgalité(img..Valide, Vrai, "image créée valide")
+
+	// Augmenter la saturation de +50
+	res = dModifieSaturation(img, 50)
+	dbgVérifieEgalité(res, Vrai, "augmentation saturation réussie")
+	dbgVérifieEgalité(img..Valide, Vrai, "image reste valide après modification")
+
+	// Le pixel central doit avoir une teinte amplifiée
+	pixelApres est un entier = dPixelCouleur(img, 5, 5)
+	dbgVérifieVrai(pixelApres <> couleurBleuPale, "couleur modifiée par augmentation saturation")
+FIN
+
+PROCEDURE PUBLIQUE scenario_diminue_saturation()
+	// Une image colorée vive devient plus pâle avec variation négative
+	couleurRougeFonce est un entier = RVB(220, 30, 30)
+	img est une Image
+	res est un booléen
+	pixelAvant est un entier
+	pixelApres est un entier
+
+	// Créer une image rouge vif (haute saturation)
+	img        = dCréeImage(10, 10, couleurRougeFonce)
+	pixelAvant = dPixelCouleur(img, 5, 5)
+
+	// Diminuer la saturation de -50
+	res = dModifieSaturation(img,-50)
+	dbgVérifieEgalité(res, Vrai, "diminution saturation réussie")
+
+	// Le pixel doit se rapprocher du gris (baisse saturation)
+	pixelApres = dPixelCouleur(img, 5, 5)
+	dbgVérifieVrai(pixelAvant <> pixelApres, "couleur désaturée par variation négative")
+FIN
+
+PROCEDURE PUBLIQUE scenario_saturation_zero_no_op()
+	// Variation 0 ne modifie pas l'image (no-op attendu)
+	couleurVert est un entier = RVB(50, 200, 50)
+	img est une Image
+	res est un booléen
+	pixelAvant est un entier
+	pixelApres est un entier
+
+	// Créer une image verte
+	img        = dCréeImage(8, 8, couleurVert)
+	pixelAvant = dPixelCouleur(img, 4, 4)
+
+	// Appliquer saturation 0 (no-op attendu)
+	res = dModifieSaturation(img, 0)
+	dbgVérifieEgalité(res, Vrai, "saturation 0 réussit")
+
+	// Le pixel doit être inchangé
+	pixelApres = dPixelCouleur(img, 4, 4)
+	dbgVérifieEgalité(pixelApres, pixelAvant, "saturation 0 préserve les couleurs")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites techniques (edge cases hors vitrine)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_saturation_min_gris_pur()
+	// Variation -100 produit une image gris pur (conversion HSL avec S=0)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	img est une Image
+	res est un booléen
+	pixelCentre est un entier
+
+	// Créer une image jaune vif (saturation élevée)
+	img = dCréeImage(10, 10, couleurJaune)
+
+	// Appliquer saturation -100 (désaturation totale → gris)
+	res = dModifieSaturation(img,-100)
+	dbgVérifieEgalité(res, Vrai, "saturation -100 réussit")
+
+	// Tous les pixels doivent devenir gris (composantes R=G=B)
+	pixelCentre = dPixelCouleur(img, 5, 5)
+
+	// Extraire les composantes RGB
+	rCentre est un entier = (pixelCentre / 65536) % 256
+	gCentre est un entier = (pixelCentre / 256) % 256
+	bCentre est un entier = pixelCentre % 256
+
+	// Toutes les composantes doivent être égales (gris pur)
+	dbgVérifieVrai(Abs(rCentre - gCentre) < 5, "composante R proche de G pour gris pur")
+	dbgVérifieVrai(Abs(gCentre - bCentre) < 5, "composante G proche de B pour gris pur")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_saturation_max_couleurs_vives()
+	// Variation +100 amplifie les couleurs au maximum (saturation HSL S=100%)
+	couleurRosePale est un entier = RVB(200, 150, 150)
+	img est une Image
+	res est un booléen
+	pixelAvant est un entier
+	pixelApres est un entier
+
+	// Créer une image rose pâle (faible saturation)
+	img        = dCréeImage(10, 10, couleurRosePale)
+	pixelAvant = dPixelCouleur(img, 5, 5)
+
+	// Appliquer saturation +100 (amplification maximale)
+	res = dModifieSaturation(img, 100)
+	dbgVérifieEgalité(res, Vrai, "saturation +100 réussit")
+
+	// La couleur doit être nettement différente (plus vive)
+	pixelApres = dPixelCouleur(img, 5, 5)
+	dbgVérifieVrai(pixelAvant <> pixelApres, "saturation max modifie la couleur")
+	dbgVérifieVrai(img..Valide, "image reste valide après saturation max")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_gris_reste_gris()
+	// Une image déjà grise (saturation nulle) reste grise malgré variation positive
+	couleurGris est un entier = RVB(128, 128, 128)
+	img est une Image
+	res est un booléen
+
+	// Créer une image grise
+	img = dCréeImage(8, 8, couleurGris)
+
+	// Augmenter saturation sur gris ne doit rien changer (pas de teinte définie)
+	res = dModifieSaturation(img, 50)
+	dbgVérifieEgalité(res, Vrai, "saturation sur gris réussit")
+
+	// Vérifier que l'image reste valide (pas de crash)
+	dbgVérifieVrai(img..Valide, "image reste valide après saturation sur gris")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_out_of_range_positive()
+	// Variation > 100 acceptée par runtime (clampage implicite ou tolérance large)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image cyan
+	img = dCréeImage(5, 5, couleurCyan)
+
+	// Appliquer saturation hors doc (+150) — runtime OWL accepte
+	res = dModifieSaturation(img, 150)
+	dbgVérifieEgalité(res, Vrai, "saturation hors doc (+150) acceptée par runtime")
+	dbgVérifieVrai(img..Valide, "image reste valide après valeur hors doc")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_out_of_range_negative()
+	// Variation < -100 acceptée par runtime (clampage implicite ou tolérance large)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	img est une Image
+	res est un booléen
+
+	// Créer une image magenta
+	img = dCréeImage(5, 5, couleurMagenta)
+
+	// Appliquer saturation hors doc (-150) — runtime OWL accepte
+	res = dModifieSaturation(img,-150)
+	dbgVérifieEgalité(res, Vrai, "saturation hors doc (-150) acceptée par runtime")
+	dbgVérifieVrai(img..Valide, "image reste valide après valeur hors doc")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_invalide()
+	// Tenter de modifier la saturation d'une image invalide doit échouer
+	imgInvalide est une Image
+	res est un booléen
+	bExceptionLevee est un booléen = Faux
+
+	// Image invalide (pas initialisée)
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "image non initialisée invalide")
+
+	// Tenter de modifier saturation sur image invalide
+	QUAND EXCEPTION DANS
+		res = dModifieSaturation(imgInvalide, 50)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+
+	// Doit lever exception ou retourner Faux
+	dbgVérifieVrai(bExceptionLevee OU res = Faux, "saturation sur image invalide échoue")
+FIN

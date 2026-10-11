@@ -1,0 +1,30 @@
+//  — focus-out doit reformater l'affichage d'un champ
+// typSaisieMonétaire selon son FormatMonétaire effectif (ici hérité du
+// projet, 0 décimale). Miroir  côté num.
+//
+// Discriminant : frappe RÉELLE (TestSimuleSaisie, vrais QKeyEvents postés au
+// QLineEdit) de "1234567.40" (2 décimales, PAS bloquées par le cap générique
+// à 2 décimales du champ monétaire — cf. note projet.owl), puis focus-OUT
+// réel : DonneFocus(SAI_Autre) déplace le focus Qt (setFocus différé +
+// pompe), ce qui déclenche un vrai FocusOut relayé par l'eventFilter sur
+// SAI_Montant. ..Valeur doit relire 0m1234567 (arrondi à 0 décimale par le
+// reformat au blur ; .40 arrondit vers le bas, pas d'ambiguïté de parité).
+//
+// ROUGE ATTENDU (HEAD) : owl_ui_input_num_on_focus retourne immédiatement
+// pour tout champ dont le type n'est pas OWL_TYPESAISIE_NUM (stdlib_ui.c
+// ~3457) -> aucun reformat au blur pour le monétaire -> le texte affiché
+// reste le brut tapé "1234567.40", reparsé tel quel -> ..Valeur relit
+// 0m1234567.40 (pas 0m1234567).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_MonetaireInteractifFrappeBlur)
+
+TestSimuleSaisie(SAI_Montant, "1234567.40")
+DonneFocus(SAI_Autre)
+
+mLu est un monétaire = SAI_Montant..Valeur
+dbgVérifieEgalité(mLu, 0m1234567, "focus-out reformate l'affichage monétaire : frappe 1234567.40 relue 1234567 (arrondi FormatMonétaire projet 0 décimale)")
+
+Ferme(FEN_MonetaireInteractifFrappeBlur)
+dbgBilanTest()

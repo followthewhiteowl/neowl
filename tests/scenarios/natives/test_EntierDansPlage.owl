@@ -1,0 +1,126 @@
+// @sujet : EntierDansPlage
+// @résumé : Contraint un entier à une plage [min, max] inclusive avec un mode de débordement explicite. Mode défaut débordementErreur : lève une exception si la valeur est hors plage. Modes alternatifs : débordementCyclique (repli modulo), débordementBorne (clamp vers la borne violée). débordementOctetFaible appartient à l'enum octetDébordement et est refusé à la compilation (contrainte OwlEnum).
+
+
+// Cas A : valeur dans la plage, mode défaut — retourne la valeur inchangée.
+PROCEDURE PUBLIQUE scenario_dans_plage()
+	n est un entier = EntierDansPlage(10, 0, 255)
+	dbgVérifieEgalité(n, 10, "valeur dans [0,255] retournée inchangée")
+FIN
+
+
+// Cas B : valeur égale aux bornes min et max — cas limites inclusifs.
+PROCEDURE PUBLIQUE scenario_valeur_aux_bornes()
+	nMin est un entier = EntierDansPlage(0, 0, 255)
+	dbgVérifieEgalité(nMin, 0, "valeur = min retournée telle quelle")
+	nMax est un entier = EntierDansPlage(255, 0, 255)
+	dbgVérifieEgalité(nMax, 255, "valeur = max retournée telle quelle")
+FIN
+
+
+// Cas C : valeur hors plage, mode défaut (débordementErreur) — exception runtime levée.
+PROCEDURE PUBLIQUE scenario_hors_plage_erreur_defaut()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		n est un entier = EntierDansPlage(300, 0, 255)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "300 hors [0,255] lève une exception en mode défaut")
+FIN
+
+
+// Cas D : mode cyclique, débordement par le haut — 300 dans [0,255] → 44.
+PROCEDURE PUBLIQUE scenario_cyclique_haut()
+	n est un entier = EntierDansPlage(300, 0, 255, débordementCyclique)
+	dbgVérifieEgalité(n, 44, "300 dans [0,255] cyclique = 44")
+FIN
+
+
+// Cas E : mode cyclique, débordement par le bas — -1 dans [0,255] → 255.
+PROCEDURE PUBLIQUE scenario_cyclique_bas()
+	n est un entier = EntierDansPlage(-1, 0, 255, débordementCyclique)
+	dbgVérifieEgalité(n, 255, "-1 dans [0,255] cyclique = 255")
+FIN
+
+
+// Cas F : mode borné (clamp) par le bas — -300 dans [-5,100] → -5.
+PROCEDURE PUBLIQUE scenario_borne_clamp_bas()
+	n est un entier = EntierDansPlage(-300,-5, 100, débordementBorne)
+	dbgVérifieEgalité(n,-5, "-300 dans [-5,100] clamp = -5 (plancher)")
+FIN
+
+
+// Cas G : mode borné (clamp) par le haut — 300 dans [0,255] → 255.
+PROCEDURE PUBLIQUE scenario_borne_clamp_haut()
+	n est un entier = EntierDansPlage(300, 0, 255, débordementBorne)
+	dbgVérifieEgalité(n, 255, "300 dans [0,255] clamp = 255 (plafond)")
+FIN
+
+
+// Cas H : débordementOctetFaible refusé dans EntierDansPlage — erreur de COMPILATION.
+// débordementOctetFaible appartient à l'enum octetDébordement, pas à entierDébordement.
+// Le compilateur rejette ce passage à la compilation (contrainte OwlEnum).
+// Voir tests/compile-error/entier_dans_plage_debordement_octet_faible.owl
+
+
+// Cas I : forme EN (bilingue) — IntegerInRange avec overflowWrap.
+PROCEDURE PUBLIQUE scenario_bilingue_en()
+	n est un entier = IntegerInRange(300, 0, 255, overflowWrap)
+	dbgVérifieEgalité(n, 44, "IntegerInRange (EN) équivalent à EntierDansPlage")
+FIN
+
+
+// Cas J : forme fluent — valeur.DansPlage(min, max, mode).
+PROCEDURE PUBLIQUE scenario_fluent_fr()
+	n est un entier = (300).DansPlage(0, 255, débordementCyclique)
+	dbgVérifieEgalité(n, 44, "fluent 300.DansPlage(0,255,cyclique) = 44")
+FIN
+
+
+// Cas K : forme fluent EN — value.InRange(min, max, mode).
+PROCEDURE PUBLIQUE scenario_fluent_en()
+	n est un entier = (300).InRange(0, 255, overflowClamp)
+	dbgVérifieEgalité(n, 255, "fluent 300.InRange(0,255,clamp) = 255")
+FIN
+
+
+// Edge case : mode cyclique avec plage négative (-300 dans [-5,100]) → 18.
+// Formule : min + modulo_positif(valeur - min, max-min+1) = -5 + modulo_positif(-295, 106) = -5 + 23 = 18.
+PROCEDURE PRIVÉE scenario_edge_cyclique_plage_negative()
+	n est un entier = EntierDansPlage(-300,-5, 100, débordementCyclique)
+	dbgVérifieEgalité(n, 18, "-300 dans [-5,100] cyclique = 18")
+FIN
+
+
+// Edge case : valeur = min-1 en mode borné → clamp vers min.
+PROCEDURE PRIVÉE scenario_edge_borne_min_moins_un()
+	n est un entier = EntierDansPlage(-6,-5, 100, débordementBorne)
+	dbgVérifieEgalité(n,-5, "-6 dans [-5,100] clamp = -5")
+FIN
+
+
+// Edge case : plage min == max (plage singleton).
+PROCEDURE PRIVÉE scenario_edge_plage_singleton()
+	n est un entier = EntierDansPlage(42, 42, 42)
+	dbgVérifieEgalité(n, 42, "valeur = seule valeur de la plage [42,42]")
+FIN
+
+
+// Edge case : valeur hors plage singleton en mode cyclique → min (seule valeur possible).
+PROCEDURE PRIVÉE scenario_edge_cyclique_singleton()
+	n est un entier = EntierDansPlage(99, 42, 42, débordementCyclique)
+	dbgVérifieEgalité(n, 42, "cyclique dans plage singleton [42,42] = 42")
+FIN
+
+
+// Edge case : mode défaut avec valeur négative hors plage → exception levée.
+PROCEDURE PRIVÉE scenario_edge_negatif_hors_plage_erreur()
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		n est un entier = EntierDansPlage(-1, 0, 10)
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "-1 hors [0,10] lève une exception en mode défaut")
+FIN

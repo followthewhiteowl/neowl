@@ -1,0 +1,35 @@
+// @sujet : ExtraitLigne
+// @résumé : Extrait la n-ième ligne d'une chaîne multilignes (base 1).
+// ExtraitLigne(s, n) : les lignes sont séparées par un saut de ligne (LF).
+// Comme ExtraitChaîne, un rang invalide ne bloque jamais : il renvoie le
+// marqueur de fin de liste, la sentinelle Caract(4) (taille 1).
+
+
+// Cas A : extraction nominale — première, milieu, dernière ligne d'un bloc.
+// Le rang est en base 1 : le rang 1 correspond à la toute première ligne.
+PROCEDURE PUBLIQUE scenario_extraction_nominale()
+	sTexte est une chaîne = "alpha" + LF + "beta" + LF + "gamma"
+	dbgVérifieEgalité(ExtraitLigne(sTexte, 1), "alpha", "ExtraitLigne(texte, rang 1) = première ligne")
+	dbgVérifieEgalité(ExtraitLigne(sTexte, 2), "beta", "ExtraitLigne(texte, rang 2) = ligne du milieu")
+	dbgVérifieEgalité(ExtraitLigne(sTexte, 3), "gamma", "ExtraitLigne(texte, rang 3) = dernière ligne")
+FIN
+
+
+// Cas B : rang hors plage ou rang nul — marqueur de fin de liste, jamais d'erreur bloquante.
+// Le marqueur est la sentinelle Caract(4) (taille 1), pratique pour arrêter un parcours
+// d'un texte dont on ne connaît pas le nombre de lignes à l'avance.
+PROCEDURE PUBLIQUE scenario_rang_hors_plage()
+	sTexte est une chaîne = "alpha" + LF + "beta" + LF + "gamma"
+	dbgVérifieEgalité(ExtraitLigne(sTexte, 4), Caract(4), "ExtraitLigne(texte, rang 4) = marqueur de fin de liste (rang au-delà du nombre de lignes)")
+	dbgVérifieEgalité(ExtraitLigne(sTexte, 0), Caract(4), "ExtraitLigne(texte, rang 0) = marqueur de fin de liste (rang nul invalide)")
+	dbgVérifieEgalité(Taille(ExtraitLigne(sTexte, 4)), 1, "ExtraitLigne(rang hors plage) : le marqueur de fin fait 1 octet")
+FIN
+
+
+// Edge : chaîne mono-ligne — pas de LF du tout dans la source.
+// Le rang 1 restitue la chaîne entière, tandis que le rang 2 renvoie le marqueur de fin.
+PROCEDURE PRIVÉE scenario_chaine_mono_ligne()
+	sSource est une chaîne = "ligne unique"
+	dbgVérifieEgalité(ExtraitLigne(sSource, 1), "ligne unique", "ExtraitLigne sur chaîne sans retour à la ligne = chaîne source entière")
+	dbgVérifieEgalité(ExtraitLigne(sSource, 2), Caract(4), "ExtraitLigne rang 2 sur chaîne mono-ligne = marqueur de fin de liste")
+FIN

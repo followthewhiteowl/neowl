@@ -1,0 +1,34 @@
+// La police globale d'un Champ Table (TAB..Police..Taille, ...) doit être
+// RÉELLEMENT posée sur le widget monté (setFont sur le QTableView), pas inerte.
+// Elle sert de base au rendu des cellules et des en-têtes ; le styleTable ne
+// fait que surcharger par sous-élément (titre colonnes, lignes, ligne
+// sélectionnée). On lit la police effective du widget monté (réel, offscreen)
+// via __DebugPoliceChamp.
+//
+// Descripteur renvoyé : "famille|taille|gras|italique".
+//
+// Ce test VERROUILLE la feature contre une re-suppression aveugle : si les
+// props police globales du Champ Table étaient de nouveau retirées du
+// catalogue, ce test rougirait (compile-error sur ..Police..Taille) ou la
+// mesure retomberait sur la taille par défaut.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TablePolice)
+dbgVérifieFaux(ErreurDétectée, "Table : ouverture sans erreur")
+
+// --- Preuve de mutation : la taille par défaut du widget n'est PAS 22.
+descAvant est une chaîne = __DebugPoliceChamp(TBL_A)
+Trace("=== table avant === " + descAvant)
+dbgVérifieFaux(Contient(descAvant, "|22|"),
+"Pré-condition : la police par défaut de la table n'est pas déjà en taille 22")
+
+// --- Cœur : la police globale du champ est réellement appliquée au widget.
+TBL_A..Police..Taille = 22
+descApres est une chaîne = __DebugPoliceChamp(TBL_A)
+Trace("=== table après === " + descApres)
+dbgVérifieVrai(Contient(descApres, "|22|"),
+"Police globale (Taille=22) réellement posée sur le widget Table (setFont)")
+
+Ferme(FEN_TablePolice)
+dbgBilanTest()

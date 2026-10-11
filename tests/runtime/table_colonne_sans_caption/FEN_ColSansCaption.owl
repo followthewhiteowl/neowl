@@ -1,0 +1,55 @@
+// Ressource fenetre — Table melant une colonne SANS Caption/Libelle et une
+// colonne AVEC. Sert de garde de non-crash pour le chemin en-tete vide :
+// une colonne sans Caption doit produire un en-tete VIDE au runtime (aligne
+// sur le designer canvas, ), pas replier sur le nom d'identifiant.
+// Le texte d'en-tete n'est pas observable en OWL runtime (rendu par Qt) ;
+// ce fichier verifie que la construction de la Table s'execute sans crash et
+// que les cellules restent lisibles par programme des deux cotes.
+
+FEN_ColSansCaption est une Fenêtre
+	PROPRIETES
+		Titre       = "Table colonne sans Caption"
+		Disposition = dispLibre
+		Largeur     = 600
+		Hauteur     = 400
+	FIN
+
+	TBL est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 560
+			Hauteur = 340
+		FIN
+
+		// Colonne SANS Caption/Libelle : en-tete vide attendu au runtime.
+		COL_Sans est une Colonne
+			PROPRIETES
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+
+		// Colonne AVEC Caption : non-regression, affiche "Nom".
+		COL_Avec est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TBL, "sans", "avec")
+		cb_colsanscaption_init_done()
+	FIN
+
+	PROCEDURE LireSans(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Sans
+	FIN
+
+	PROCEDURE LireAvec(nLigne est un entier)
+		RENVOYER TBL[nLigne].COL_Avec
+	FIN
+FIN

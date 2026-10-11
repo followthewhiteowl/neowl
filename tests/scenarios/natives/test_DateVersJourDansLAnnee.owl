@@ -1,0 +1,62 @@
+// @sujet : DateVersJourDansLAnnee
+// @résumé : Retourne le numéro du jour dans l'année (1..366). Le résultat tient compte des années bissextiles (366 jours) et non-bissextiles (365 jours).
+
+
+// Cas standard : jour au milieu de l'année, calcul cumulatif des mois précédents.
+PROCEDURE scenario_jour_milieu_annee()
+	d est une date = ChaîneVersDate("20260512")
+	n est un entier = DateVersJourDansLAnnée(d)
+	// 12 mai 2026 : jan(31)+fév(28)+mar(31)+avr(30)+mai(12) = 132.
+	dbgVérifieEgalité(n, 132, "12 mai 2026 doit etre le jour 132")
+FIN
+
+
+// Premier jour de l'année : 1er janvier retourne 1.
+PROCEDURE scenario_premier_jour_annee()
+	d est une date = ChaîneVersDate("20260101")
+	n est un entier = DateVersJourDansLAnnée(d)
+	dbgVérifieEgalité(n, 1, "1er janvier doit etre le jour 1")
+FIN
+
+
+// Dernier jour d'une année non-bissextile : 31 décembre retourne 365.
+PROCEDURE scenario_dernier_jour_annee_non_bissextile()
+	d est une date = ChaîneVersDate("20271231")
+	n est un entier = DateVersJourDansLAnnée(d)
+	dbgVérifieEgalité(n, 365, "31 decembre 2027 (non-bissextile) doit etre le jour 365")
+FIN
+
+
+// Dernier jour d'une année bissextile : 31 décembre retourne 366.
+PROCEDURE scenario_dernier_jour_annee_bissextile()
+	d est une date = ChaîneVersDate("20241231")
+	n est un entier = DateVersJourDansLAnnée(d)
+	dbgVérifieEgalité(n, 366, "31 decembre 2024 (bissextile) doit etre le jour 366")
+FIN
+
+
+// 29 février d'une année bissextile : vérifie le comptage avec le jour supplémentaire.
+PROCEDURE scenario_29_fevrier_bissextile()
+	d est une date = ChaîneVersDate("20240229")
+	n est un entier = DateVersJourDansLAnnée(d)
+	// 29 février 2024 : jan(31)+fév(29) = 60.
+	dbgVérifieEgalité(n, 60, "29 fevrier 2024 doit etre le jour 60")
+FIN
+
+
+// Entrée chaîne AAAAMMJJ : conversion explicite nécessaire.
+PROCEDURE scenario_entree_chaine_compacte()
+	d est une date = ChaîneVersDate("20260815")
+	n est un entier = DateVersJourDansLAnnée(d)
+	// 15 août 2026 : jan(31)+fév(28)+mar(31)+avr(30)+mai(31)+jun(30)+jul(31)+août(15) = 227.
+	dbgVérifieEgalité(n, 227, "15 aout 2026 doit etre le jour 227")
+FIN
+
+
+// Jour après 29 février en année bissextile : le décalage se propage.
+PROCEDURE scenario_apres_29_fevrier_bissextile()
+	d est une date = ChaîneVersDate("20240301")
+	n est un entier = DateVersJourDansLAnnée(d)
+	// 1er mars 2024 : jan(31)+fév(29)+mar(1) = 61.
+	dbgVérifieEgalité(n, 61, "1er mars 2024 (bissextile) doit etre le jour 61")
+FIN

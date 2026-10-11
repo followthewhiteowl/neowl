@@ -1,0 +1,126 @@
+// ================================================================
+// Image natif — Lot I.5 : effets et modifications de couleurs
+//
+//   - dInverseCouleur(img)
+//   - dIncrusteCouleur(img, couleur [, opacité])
+//   - dModifieContraste(img, variation)
+//   - dModifieOpacité(img, facteur)
+//   - dModifieSaturation(img, variation)
+//   - dModifieTeinte(img, variation)
+//   - dModifieTSL(img, dT, dS, dL)
+//   - dFlou(img [, rayon])
+//   - CouleurDominanteImage(img)
+// ================================================================
+
+// ----- dInverseCouleur : inversion R/G/B -----
+img1 est une Image = dCréeImage(5, 5, RougeClair) // R=255, G=0, B=0
+dInverseCouleur(img1)
+// Inversé : R=0, G=255, B=255 → cyan-like
+c est un entier = dPixelCouleur(img1, 2, 2)
+// On vérifie que la couleur a changé (et n'est plus pure rouge)
+dbgVérifieVrai(c <> RougeClair, "dInverseCouleur: couleur transformée")
+
+img1b est une Image = dCréeImage(5, 5, Noir)
+dInverseCouleur(img1b)
+// Noir → Blanc
+dbgVérifieEgalité(dPixelCouleur(img1b, 2, 2), Blanc, "dInverseCouleur: Noir → Blanc")
+
+img1c est une Image = dCréeImage(5, 5, Blanc)
+dInverseCouleur(img1c)
+dbgVérifieEgalité(dPixelCouleur(img1c, 2, 2), Noir, "dInverseCouleur: Blanc → Noir")
+
+// ----- dIncrusteCouleur : teinte uniforme avec opacité -----
+img2 est une Image = dCréeImage(5, 5, Blanc)
+dIncrusteCouleur(img2, RougeClair, 255) // opacité totale → remplace par RougeClair
+dbgVérifieEgalité(dPixelCouleur(img2, 2, 2), RougeClair, "dIncrusteCouleur 255: remplace")
+
+img2b est une Image = dCréeImage(5, 5, Blanc)
+dIncrusteCouleur(img2b, RougeClair, 0) // opacité 0 → pas de changement
+dbgVérifieEgalité(dPixelCouleur(img2b, 2, 2), Blanc, "dIncrusteCouleur 0: inchangé")
+
+// ----- dModifieContraste : variation -100..+100 -----
+img3 est une Image = dCréeImage(5, 5, Blanc) // tous pixels (255,255,255)
+dModifieContraste(img3,-100) // contraste minimum → tout devient gris (128,128,128)
+c3 est un entier = dPixelCouleur(img3, 2, 2)
+// Le résultat n'est plus Blanc pur
+dbgVérifieVrai(c3 <> Blanc, "dModifieContraste -100: pixels modifiés")
+
+// ----- dModifieOpacité : multiplie l'alpha -----
+img4 est une Image = dCréeImage(5, 5, RougeClair)
+opAvant est un entier = dPixelOpacité(img4, 2, 2)
+dbgVérifieEgalité(opAvant, 255, "Avant dModifieOpacité: opaque")
+
+dModifieOpacité(img4, 50.0) // facteur 50% (échelle 0..100)
+opApres est un entier = dPixelOpacité(img4, 2, 2)
+dbgVérifieVrai(opApres < opAvant, "dModifieOpacité 50: alpha réduit")
+dbgVérifieVrai(opApres > 100, "dModifieOpacité 50: ~128 (pas 0)")
+
+// ----- dModifieSaturation : variation -100..+100 -----
+img5 est une Image = dCréeImage(5, 5, RougeClair)
+dModifieSaturation(img5,-100) // désaturer entièrement
+c5 est un entier = dPixelCouleur(img5, 2, 2)
+// Désaturé entièrement → gris (R=G=B)
+// Extraction R, G, B depuis l'encoding BGR (R + G*256 + B*65536)
+r est un entier = Modulo(c5, 256)
+g est un entier = Modulo(PartieEntière(c5 / 256), 256)
+b est un entier = PartieEntière(c5 / 65536)
+dbgVérifieVrai(Abs(r - g) <= 2, "Saturation -100: R ≈ G (gris)")
+dbgVérifieVrai(Abs(g - b) <= 2, "Saturation -100: G ≈ B (gris)")
+
+// ----- dModifieTeinte : rotation HSL -----
+img6 est une Image = dCréeImage(5, 5, RougeClair)
+dModifieTeinte(img6, 120) // +120° → vert
+c6 est un entier = dPixelCouleur(img6, 2, 2)
+// Le résultat n'est plus RougeClair
+dbgVérifieVrai(c6 <> RougeClair, "dModifieTeinte 120: couleur changée")
+
+// ----- dModifieTSL : combinaison teinte/saturation/luminosité -----
+img7 est une Image = dCréeImage(5, 5, RougeClair)
+dModifieTSL(img7, 60, 0, 0)
+c7 est un entier = dPixelCouleur(img7, 2, 2)
+dbgVérifieVrai(c7 <> RougeClair, "dModifieTSL: variation appliquée")
+
+// ----- dFlou : box blur basique -----
+img8 est une Image = dCréeImage(11, 11, Blanc)
+// Pixel central noir
+dPoint(img8, 5, 5, Noir)
+dFlou(img8, 2) // rayon 2
+// Le pixel central n'est plus complètement noir (il s'est étalé sur ses voisins)
+c8 est un entier = dPixelCouleur(img8, 5, 5)
+dbgVérifieVrai(c8 <> Noir, "dFlou: pixel central éclairci")
+dbgVérifieVrai(c8 <> Blanc, "dFlou: pixel central pas tout blanc non plus")
+// Les pixels voisins sont devenus gris (étaient blancs)
+c8v est un entier = dPixelCouleur(img8, 6, 5)
+dbgVérifieVrai(c8v <> Blanc, "dFlou: voisin assombri")
+
+// ----- CouleurDominanteImage : couleur dominante d'une image uniforme -----
+img9 est une Image = dCréeImage(10, 10, BleuClair)
+dom est un entier = CouleurDominanteImage(img9)
+dbgVérifieEgalité(dom, BleuClair, "CouleurDominante: image uniforme = sa couleur")
+
+// ----- Image invalide silencieuse -----
+imgVide est une Image
+dInverseCouleur(imgVide)
+dFlou(imgVide)
+dbgVérifieEgalité(imgVide..Valide, Faux, "Effets sur image invalide: silencieux")
+
+// ----- Alias EN -----
+imgA est une Image = dCréeImage(5, 5, Noir)
+dInvertColor(imgA)
+dbgVérifieEgalité(dPixelColor(imgA, 2, 2), Blanc, "Alias EN: dInvertColor")
+
+imgB est une Image = dCréeImage(5, 5, Blanc)
+dBlur(imgB, 1)
+dbgVérifieEgalité(imgB..Valide, Vrai, "Alias EN: dBlur")
+
+imgC est une Image = dCréeImage(5, 5, Blanc)
+dColorize(imgC, RougeClair, 255)
+dbgVérifieEgalité(dPixelColor(imgC, 2, 2), RougeClair, "Alias EN: dColorize")
+
+imgD est une Image = dCréeImage(5, 5, RougeClair)
+dModifyContrast(imgD, 50)
+dbgVérifieEgalité(imgD..Valide, Vrai, "Alias EN: dModifyContrast")
+
+imgE est une Image = dCréeImage(5, 5, Blanc)
+dom2 est un entier = DominantColorImage(imgE)
+dbgVérifieEgalité(dom2, Blanc, "Alias EN: DominantColorImage")

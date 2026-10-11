@@ -1,0 +1,97 @@
+//  lot 5 — câblage de colTypeMotDePasse sur le framework de colonne
+// typée ( Date,  Heure/Durée,  Numérique/
+// Monétaire,  affichage Date/Heure/Durée). Deux dimensions :
+//
+// 1. AFFICHAGE (cellule hors édition) : sonde __DebugTableCelluleTexteAffiche
+//    (champ, ligne, colonne) -> chaîne, réutilisée telle quelle.
+//    Politique de masquage retenue : une puce U+25CF ("●", BLACK CIRCLE) par
+//    caractère de la valeur brute — mesurée dans le code source vendoré Qt6
+//    (QPlatformTheme::defaultThemeHint, qplatformtheme.cpp), valeur de repli
+//    du style hint SH_LineEdit_PasswordCharacter (QLineEdit en echo mot de
+//    passe) quand aucune plateforme (Windows/X11 dans cet arbre vendoré) ne
+//    la surcharge. PAS U+2022 ("•", BULLET) — hypothèse initiale invalidée
+//    par cette mesure.
+//
+// 2. INPUT (frappe) : sonde __DebugTableCelluleValideSaisie — ici le
+//    contrat n'est PAS un validateur restrictif (un mot de passe accepte
+//    n'importe quel caractère), mais la preuve que la valeur réelle reste
+//    modifiable/accessible malgré le masquage à l'affichage (pas détruite
+//    par la transformation de rendu).
+//
+// ROUGE attendu aujourd'hui, pour DEUX raisons distinctes :
+//  - colTypeMotDePasse n'existe pas dans l'enum colTypes -> dégrade en
+//    warning silencieux (miroir  lot 3 sur colTypeMonétaire avant
+//    son ajout), Type de COL_MotDePasse jamais posé -> retombe sur
+//    colTypeTexte (défaut) -> aucun masquage à l'affichage.
+//  - Donc __DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 1) renvoie la
+//    valeur brute "secret" (repli plat Texte) au lieu des puces attendues.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneTypeMotDePasse)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. AFFICHAGE — colonne MotDePasse : "secret" (6 caractères) masqué en
+// 6 puces U+25CF, DIFFÉRENT de la valeur brute (digue anti-tautologie) =====
+
+dbgVérifieDifférence(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 1), "secret",
+"colonne MotDePasse : l'affichage NE DOIT PAS montrer la valeur brute en clair")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 1), "●●●●●●",
+"colonne MotDePasse (colTypeMotDePasse) : 'secret' (6 caractères) affiché comme 6 puces (U+25CF)")
+
+// ===== 2. AFFICHAGE — longueur variable : "ab" (2 caractères) -> 2 puces,
+// verrouille "une puce par caractère" plutôt qu'un nombre fixe =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 2, 1), "●●",
+"colonne MotDePasse : 'ab' (2 caractères) affiché comme 2 puces, pas un compte fixe")
+
+// ===== 3. AFFICHAGE — cas limite : mot de passe vide -> aucune puce, pas de
+// crash =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 3, 1), "",
+"colonne MotDePasse : valeur vide affichée vide, sans crash")
+
+// ===== 4. INPUT — la valeur réelle reste éditable malgré le masquage à
+// l'affichage (pas détruite par la transformation de rendu) =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 1, "nouveauMotDePasse2026"),
+"colonne MotDePasse : la cellule reste éditable, la valeur réelle n'est pas figée par le masquage")
+
+// ===== 5-9. Non-régression — les 5 types "valeur" déjà câblés restent
+// intacts après l'ajout du nouveau membre d'enum colTypeMotDePasse =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 2), "1 234,56",
+"colonne Numérique : non-régression affichage formaté (feat/2149)")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 3), "1 234,56 €",
+"colonne Monétaire : non-régression affichage formaté (feat/2149)")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 4), "31/12/2026",
+"colonne Date : non-régression affichage formaté (feat/2153)")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 5), "09:05",
+"colonne Heure : non-régression affichage formaté (feat/2153)")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 6), "01:30:00",
+"colonne Durée : non-régression affichage formaté (feat/2153)")
+
+// ===== 10-12. Non-régression INPUT — Date/Heure/Durée toujours validées =====
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 4, "12/09/2026"),
+"colonne Date : non-régression validateur de plages (feat/2148)")
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 5, "14:30"),
+"colonne Heure : non-régression validateur de plages (feat/1921)")
+
+dbgVérifieVrai(__DebugTableCelluleValideSaisie(TAB_ColTypes, 1, 6, "01:30:00"),
+"colonne Durée : non-régression validateur de plages (feat/1921)")
+
+// ===== 13. Non-régression — colonne Texte : ni masquage ni formatage =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColTypes, 1, 7), "abc",
+"colonne Texte : affichage identique à la valeur brute (pas de formatage)")
+
+Ferme(FEN_TableColonneTypeMotDePasse)
+
+dbgBilanTest()

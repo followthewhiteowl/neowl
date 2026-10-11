@@ -1,0 +1,20 @@
+//  : `t2[1].msg = {"tag": "valeur", ...}` — champ imbriqué,
+// combinaison indexation + accès champ dans la même cible d'affectation.
+// L'élément de tableau est instancié via TableauAjoute (le dimensionnement
+// direct `tableau de N Structure` relève d'un bug indépendant, ).
+Trace("=== fix/1340 : littéral multilingue en affectation champ imbriqué ===")
+
+Rubrique est une Structure
+	Msg est une chaîneMultilingue
+FIN
+
+t2 est un tableau de Rubrique
+r est une Rubrique
+TableauAjoute(t2, r)
+
+t2[1].Msg = {"fr-FR": "Premier", "en-GB": "First"}
+
+dbgVérifieEgalité(t2[1].Msg[langueFrançais], "Premier", "champ imbriqué : index 1, fr-FR")
+dbgVérifieEgalité(t2[1].Msg["en-GB"], "First", "champ imbriqué : index 1, en-GB")
+
+dbgBilanTest()

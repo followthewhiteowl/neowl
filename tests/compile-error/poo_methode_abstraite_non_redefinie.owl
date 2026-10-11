@@ -1,0 +1,30 @@
+// Compile-error : classe non-abstraite herite d'une methode abstraite
+// sans la redefinir.
+// Pre-impl : compile OK (rien n'enforce la redefinition).
+// Post-impl : doit echouer avec message "methode abstraite Foo non redefinie".
+// Note : ce fichier viole aussi 1c1f (2 classes meme fichier) — le snapshot
+// capture les DEUX erreurs (1c1f + non-redefinition), ce qui est
+// deterministe. L'objectif du test est de verifier la presence du message
+// "non redefinie". La forme propre passe par le scenario multifile
+// poo_multifile/abstraite_simple/ (positif) ; un negatif multifile cross-file
+// n'est pas supporte par le compile-error runner mono-fichier.
+
+cBase est une Classe, abstraite
+PUBLIC
+	nVal est un entier
+
+	PROCEDURE ABSTRAITE Foo()
+FIN
+
+cChild est une Classe
+	Herite de cBase
+PUBLIC
+	nExtra est un entier
+
+	// MANQUE : PROCEDURE Foo() — doit declencher compile-error post-impl.
+FIN
+
+PROCEDURE Main()
+	o est un cChild()
+	dbgVérifieVrai(o <> Null, "Ne doit jamais arriver post-impl")
+FIN

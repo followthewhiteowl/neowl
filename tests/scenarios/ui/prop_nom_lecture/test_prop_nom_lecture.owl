@@ -1,0 +1,62 @@
+// @sujet : ..Nom / ..Name — propriété universelle lecture seule
+// @résumé : ..Nom retourne le nom déclaré (identifiant) d'un champ ou de la
+// Fenêtre — par exemple "BTN_Valider", "SAI_Contact", "FEN_Nom". Disponible
+// sur tous les kinds de champ et sur la Fenêtre. Lecture seule : le nom est
+// l'identité déclarée de l'élément, il ne peut pas être réassigné (cf.
+// tests/compile-error/champ_nom_lecture_seule). L'alias anglais ..Name
+// retourne exactement la même valeur.
+//
+// La fenêtre voisine FEN_Nom.owl porte la déclaration.
+
+PROCEDURE PUBLIQUE scenario_nom_bouton()
+	Ouvre(FEN_Nom)
+
+	dbgVérifieEgalité(BTN_Valider..Nom, "BTN_Valider", "..Nom d'un Bouton retourne son identifiant déclaré")
+
+	Ferme(FEN_Nom)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_nom_saisie()
+	Ouvre(FEN_Nom)
+
+	// L'Indication vaut "Saisissez un nom" — distincte de l'identifiant :
+	// ..Nom retourne bien le nom déclaré, pas le texte d'indication.
+	dbgVérifieEgalité(SAI_Contact..Nom, "SAI_Contact", "..Nom d'une Saisie retourne son identifiant déclaré, pas son Indication")
+
+	Ferme(FEN_Nom)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_nom_fenetre()
+	Ouvre(FEN_Nom)
+
+	dbgVérifieEgalité(FEN_Nom..Nom, "FEN_Nom", "..Nom de la Fenêtre retourne son identifiant déclaré")
+
+	Ferme(FEN_Nom)
+FIN
+
+
+// L'alias anglais ..Name retourne exactement la même valeur que ..Nom.
+PROCEDURE PUBLIQUE scenario_name_alias_anglais()
+	Ouvre(FEN_Nom)
+
+	dbgVérifieEgalité(LIB_Titre..Name, "LIB_Titre", "..Name (alias anglais) d'un Libellé retourne son identifiant déclaré")
+	dbgVérifieEgalité(FEN_Nom..Name, "FEN_Nom", "..Name (alias anglais) de la Fenêtre retourne son identifiant déclaré")
+
+	Ferme(FEN_Nom)
+FIN
+
+
+// --- Cas limites (PRIVÉ, hors surface documentaire) ---
+
+// Lire ..Nom ne pose aucune erreur (jamais nil sur un champ déclaré).
+PROCEDURE PRIVÉE scenario_nom_lecture_sans_erreur()
+	Ouvre(FEN_Nom)
+
+	sNom est une chaîne = BTN_Valider..Nom
+	dbgVérifieFaux(ErreurDétectée, "La lecture de ..Nom ne pose aucune erreur")
+	dbgVérifieEgalité(sNom, "BTN_Valider", "La valeur lue reste l'identifiant déclaré")
+
+	Ferme(FEN_Nom)
+FIN

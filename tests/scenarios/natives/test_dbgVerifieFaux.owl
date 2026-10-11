@@ -1,0 +1,134 @@
+// @sujet : dbgVérifieFaux
+// @resume : Vérifie qu'une condition est fausse et signale une assertion si vraie
+
+// ======================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ======================================
+
+PROCEDURE PUBLIQUE scenario_condition_fausse_simple()
+	// Cas nominal : une condition fausse déclenche une assertion réussie
+	// Aucun échec ne doit être enregistré dans le bilan
+
+	nbEchecsAvant est un entier = dbgBilanTest()
+
+	valeur est un entier = 10
+
+	// Vérifier qu'une comparaison fausse est bien détectée
+	dbgVérifieFaux(valeur > 100, "10 pas superieur a 100")
+
+	// Le compteur d'échecs ne doit pas avoir bougé
+	nbEchecsApres est un entier = dbgBilanTest()
+	deltaEchecs est un entier = nbEchecsApres - nbEchecsAvant
+
+	dbgVérifieEgalité(deltaEchecs, 0, "Aucun echec pour condition fausse")
+FIN
+
+PROCEDURE PUBLIQUE scenario_complement_dbgVerifieVrai()
+	// dbgVérifieFaux est le pendant exact de dbgVérifieVrai
+	// Utile pour des assertions de type "ne doit pas"
+
+	compteur est un entier = 0
+
+	// Vérifier qu'une liste n'est pas vide en inversant la logique
+	dbgVérifieFaux(compteur <> 0, "Compteur non initialise est zero")
+
+	// Équivalent à dbgVérifieVrai(compteur = 0, ...)
+	// Mais exprime l'intention différemment selon le contexte
+FIN
+
+PROCEDURE PUBLIQUE scenario_chaines_non_egales()
+	// Vérifier qu'une condition de non-égalité sur chaînes fonctionne
+	// Cas typique : validation que deux valeurs diffèrent
+
+	sNom1 est une chaîne = "Alice"
+	sNom2 est une chaîne = "Bob"
+
+	// La condition "sNom1 = sNom2" est fausse, donc l'assertion passe
+	dbgVérifieFaux(sNom1 = sNom2, "Alice et Bob sont differents")
+FIN
+
+// ======================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ======================================
+
+PROCEDURE PRIVÉE scenario_edge_zero_et_valeurs_negatives()
+	// Valeurs sentinel : 0, négatifs, limites arithmétiques
+
+	zero est un entier = 0
+	dbgVérifieFaux(zero > 0, "Zero pas superieur a zero")
+	dbgVérifieFaux(zero < 0, "Zero pas inferieur a zero")
+
+	negatif est un entier = -5
+	dbgVérifieFaux(negatif > 0, "Negatif pas superieur a zero")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaines_vides()
+	// Cas limites sur chaînes vides
+
+	sVide est une chaîne = ""
+	sNonVide est une chaîne = "x"
+
+	// Vérifier qu'une chaîne vide n'est pas égale à une chaîne non vide
+	dbgVérifieFaux(sVide = sNonVide, "Vide different de non vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_operateurs_logiques()
+	// Combinaison avec opérateurs logiques ET, OU
+
+	nA est un entier = 5
+	nB est un entier = 10
+
+	// Vérifier des conditions complexes fausses
+	dbgVérifieFaux(nA > 10 ET nB < 5, "Condition ET fausse")
+	dbgVérifieFaux(nA = 0 OU nB = 0, "Condition OU fausse")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_comparaisons_reels()
+	// Comparaisons sur réels : attention aux arrondis
+
+	rX est un réel = 1.0
+	rY est un réel = 2.0
+
+	dbgVérifieFaux(rX > rY, "1.0 pas superieur a 2.0")
+	dbgVérifieFaux(rX = rY, "1.0 different de 2.0")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que dbgVérifieFaux et dbgCheckFalse sont équivalents
+
+	nbEchecsAvant est un entier = dbgBilanTest()
+
+	valeur est un entier = 10
+
+	// Les deux formes doivent se comporter à l'identique
+	dbgVérifieFaux(valeur > 100, "Alias FR")
+	dbgCheckFalse(valeur > 100, "Alias EN")
+
+	// Aucun échec supplémentaire
+	nbEchecsApres est un entier = dbgBilanTest()
+	deltaEchecs est un entier = nbEchecsApres - nbEchecsAvant
+
+	dbgVérifieEgalité(deltaEchecs, 0, "Alias FR/EN coherents")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_label_vide()
+	// Cas limite : label vide (2e arg optionnel normalement)
+	// Le système doit tolérer un label vide
+
+	compteur est un entier = 0
+
+	dbgVérifieFaux(compteur > 0, "")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_comparaison_booleen_direct()
+	// Comparaison directe sur booléens
+
+	flag est un booléen = Faux
+
+	// Vérifier que flag n'est pas Vrai (il est Faux)
+	dbgVérifieFaux(flag = Vrai, "Flag pas Vrai")
+
+	// Équivalent à dbgVérifieVrai(flag = Faux, ...) mais exprime l'inverse
+FIN
+
+dbgBilanTest()

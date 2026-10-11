@@ -1,0 +1,62 @@
+// ============================================
+// TEST (headless): TableOccurrence conscient du store de lignes.
+//
+// toTotal / toVisible comptent toutes les lignes en mémoire ; toAffichée
+// ne compte que les lignes NON VIDES (au moins une cellule à contenu).
+// toColonne rend le nombre de colonnes déclarées. Tout est relisable en
+// headless via le store de lignes (pas de widget Qt matérialisé).
+// Pattern : la fenêtre voisine FEN_Occ.owl porte les déclarations.
+// ============================================
+
+Ouvre(FEN_Occ)
+
+// --- Table vide : total et affichée valent 0. ---
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toTotal), 0,
+	"table vide : toTotal = 0")
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toAffichée), 0,
+	"table vide : toAffichée = 0")
+
+// toColonne indépendant du remplissage : 2 colonnes déclarées.
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toColonne), 2,
+	"toColonne = nombre de colonnes déclarées")
+
+// --- 3 lignes pleines + 2 lignes vides. ---
+TableAjouteLigne(TAB_Mix, "a1", "b1")
+TableAjouteLigne(TAB_Mix, "a2", "b2")
+TableAjouteLigne(TAB_Mix, "a3", "b3")
+TableAjouteLigne(TAB_Mix)
+TableAjouteLigne(TAB_Mix)
+
+// toTotal = toutes les lignes en mémoire (K + M = 5).
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toTotal), 5,
+	"toTotal compte toutes les lignes (pleines + vides)")
+
+// toAffichée = lignes non vides seulement (K = 3).
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toAffichée), 3,
+	"toAffichée ne compte que les lignes non vides")
+
+// toVisible assumé = toTotal en V1 (pas de filtre géométrique headless).
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toVisible), 5,
+	"toVisible assumé = toTotal (V1)")
+
+// toColonne reste stable après remplissage.
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toColonne), 2,
+	"toColonne stable après remplissage")
+
+// Une ligne avec au moins une cellule à contenu (l'autre vide) = non vide.
+TableAjouteLigne(TAB_Mix, "", "b6")
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toTotal), 6,
+	"toTotal = 6 après ligne partielle")
+dbgVérifieEgalité(TableOccurrence(TAB_Mix, toAffichée), 4,
+	"ligne partielle (1 cellule à contenu) compte comme non vide")
+
+// --- Table entièrement pleine : toAffichée == toTotal. ---
+TableAjouteLigne(TAB_Plein, "x1")
+TableAjouteLigne(TAB_Plein, "x2")
+dbgVérifieEgalité(TableOccurrence(TAB_Plein, toTotal), 2,
+	"table pleine : toTotal = 2")
+dbgVérifieEgalité(TableOccurrence(TAB_Plein, toAffichée),
+	TableOccurrence(TAB_Plein, toTotal),
+	"table entièrement pleine : toAffichée = toTotal")
+
+dbgBilanTest()

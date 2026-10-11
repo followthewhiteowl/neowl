@@ -1,0 +1,38 @@
+// Fenêtre voisine — repro .
+//
+// Verifie que les PROCEDURE helper de niveau Fenetre sont appelables
+// depuis FinInitialisation, y compris en chaine (helper -> helper).
+//
+// Les helpers ecrivent dans des variables globales (declarees dans
+// test_fen_helper_fininit.owl) que le test lit apres Ouvre() pour
+// verifier l'execution et l'ordre.
+
+FEN_HelperFinInit est une Fenêtre
+	PROPRIETES
+		Titre   = "Helper FinInit"
+		Largeur = 200
+		Hauteur = 100
+	FIN
+
+	LIB_X est un Champ Libellé
+		PROPRIETES
+			Libellé = "init"
+		FIN
+	FIN
+
+	PROCEDURE HelperA()
+		// marqueur direct : prouve qu'on est rentre dans HelperA
+		marqueur_helper_a = "via HelperA"
+	FIN
+
+	PROCEDURE HelperB()
+		// chaine transitive : HelperB appelle HelperA
+		marqueur_helper_b = "via HelperB"
+		HelperA()
+	FIN
+
+	PROCEDURE FinInitialisation()
+		marqueur_fininit = "via FinInit"
+		HelperB()
+	FIN
+FIN

@@ -1,0 +1,117 @@
+// Coverage complet des syntaxes de déclaration de tableau de référence.
+// Documentation de référence (Tableau Type de variable).
+// OWL choix: 2D+ = array-of-arrays nested (divergence flat de la référence).
+
+// ============================================================================
+// 1D — syntaxe "de"
+// ============================================================================
+
+// Dynamique
+t1 est un tableau de chaînes
+Ajoute(t1, "a")
+dbgVérifieEgalité(t1..Occurrence, 1, "1D dynamique + Ajoute")
+
+// Fixe
+t2 est un tableau de 5 chaînes
+dbgVérifieEgalité(t2..Occurrence, 5, "1D fixe taille 5")
+
+// ============================================================================
+// 1D — syntaxe crochets
+// ============================================================================
+t3 est un tableau[5] entiers
+dbgVérifieEgalité(t3..Occurrence, 5, "1D crochets [5]")
+
+// Dynamique crochets vide
+t4 est un tableau[]chaînes
+dbgVérifieEgalité(t4..Occurrence, 0, "1D crochets vides = dynamique")
+
+// ============================================================================
+// 2D — syntaxe "par"
+// ============================================================================
+// 2 lignes x 3 colonnes
+t5 est un tableau de 2 par 3 chaînes
+dbgVérifieEgalité(t5..Occurrence, 2, "2D par: 2 lignes extérieur")
+dbgVérifieEgalité(t5[1]..Occurrence, 3, "2D par: 3 colonnes ligne 1")
+dbgVérifieEgalité(t5[2]..Occurrence, 3, "2D par: 3 colonnes ligne 2")
+
+// Assignation + lecture
+t5[1][1] = "A"
+t5[1][2] = "B"
+t5[2][3] = "F"
+dbgVérifieEgalité(t5[1][1], "A", "lecture [1][1]")
+dbgVérifieEgalité(t5[1][2], "B", "lecture [1][2]")
+dbgVérifieEgalité(t5[2][3], "F", "lecture [2][3]")
+
+// ============================================================================
+// 2D — syntaxe crochets [N, M]
+// ============================================================================
+t6 est un tableau[2, 3] chaînes
+dbgVérifieEgalité(t6..Occurrence, 2, "2D crochets [2,3]: 2 lignes")
+dbgVérifieEgalité(t6[1]..Occurrence, 3, "2D crochets [2,3]: 3 cols")
+
+// ============================================================================
+// Accès multi-index: t[i, j] alias de t[i][j]
+// ============================================================================
+t7 est un tableau de 3 par 2 entiers
+t7[1, 1] = 10
+t7[1, 2] = 20
+t7[2, 1] = 30
+t7[3, 2] = 60
+dbgVérifieEgalité(t7[1, 1], 10, "accès [i,j] lecture")
+dbgVérifieEgalité(t7[1, 2], 20, "accès [i,j] col 2")
+dbgVérifieEgalité(t7[3, 2], 60, "accès [i,j] dernière case")
+
+// Cohérence: t[i, j] == t[i][j]
+dbgVérifieEgalité(t7[1, 1], t7[1][1], "t[i,j] == t[i][j] équivalence")
+dbgVérifieEgalité(t7[3, 2], t7[3][2], "t[i,j] == t[i][j] équivalence 2")
+
+// ============================================================================
+// 3D — nested par (chantier explicite: on teste que ça compile)
+// ============================================================================
+t8 est un tableau de 2 par 2 par 2 entiers
+dbgVérifieEgalité(t8..Occurrence, 2, "3D par par: 2 outer")
+dbgVérifieEgalité(t8[1]..Occurrence, 2, "3D mid")
+dbgVérifieEgalité(t8[1][1]..Occurrence, 2, "3D inner")
+t8[1][2][1] = 42
+dbgVérifieEgalité(t8[1, 2, 1], 42, "3D accès multi-index")
+
+// ============================================================================
+// agrandissement — parsing uniquement (sémantique phase 5)
+// ============================================================================
+t9 est un tableau <agrandissement=N> d'entiers
+Ajoute(t9, 100)
+dbgVérifieEgalité(t9[1], 100, "agrandissement parsé + Ajoute fonctionne")
+
+t10 est un tableau <agrandissement=1> de 3 chaînes
+dbgVérifieEgalité(t10..Occurrence, 3, "agrandissement avec taille fixe")
+
+t11 est un tableau <agrandissement> de chaînes
+Ajoute(t11, "x")
+dbgVérifieEgalité(t11[1], "x", "agrandissement sans valeur = agrandissement=1")
+
+// ============================================================================
+// Cas limites
+// ============================================================================
+// Tableau vide puis Ajoute
+t12 est un tableau de chaînes
+dbgVérifieEgalité(t12..Occurrence, 0, "tableau dyn vide")
+Ajoute(t12, "a")
+Ajoute(t12, "b")
+dbgVérifieEgalité(t12..Occurrence, 2, "2 ajoutes")
+
+// Iteration sur 2D via POUR classique + index (vérifie accès + assignation)
+t13 est un tableau de 2 par 3 entiers
+t13[1, 1] = 1
+t13[1, 2] = 2
+t13[1, 3] = 3
+t13[2, 1] = 4
+t13[2, 2] = 5
+t13[2, 3] = 6
+dbgVérifieEgalité(t13[1, 1], 1, "2D set/get cell 1,1")
+dbgVérifieEgalité(t13[1, 2], 2, "2D set/get cell 1,2")
+dbgVérifieEgalité(t13[1, 3], 3, "2D set/get cell 1,3")
+dbgVérifieEgalité(t13[2, 1], 4, "2D set/get cell 2,1")
+dbgVérifieEgalité(t13[2, 2], 5, "2D set/get cell 2,2")
+dbgVérifieEgalité(t13[2, 3], 6, "2D set/get cell 2,3")
+
+dbgBilanTest()

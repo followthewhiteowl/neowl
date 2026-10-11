@@ -1,0 +1,107 @@
+// =====================================================================
+// Test : forward reference de globals top-level
+// =====================================================================
+// Une PROCEDURE/FONCTION peut référencer un global déclaré PLUS LOIN
+// dans le fichier (ordre source libre, alignement canon de référence).
+//
+// Mécanisme : le prescan détecte toutes les déclarations top-level
+// (`identifier est <type>`) avant le compile principal et alimente
+// la table de symboles consultée par `is_known_global_name`.
+
+Trace("=== Forward refs globals ===")
+
+// =====================================================================
+// Cas 1 : variable simple referenced from procedure declared earlier
+// =====================================================================
+PROCEDURE LireGlobal()
+	RENVOYER gMessage
+FIN
+
+gMessage est une chaîne = "salut depuis plus bas"
+dbgVérifieEgalité(LireGlobal(), "salut depuis plus bas",
+"forward ref : chaine déclarée après la PROCEDURE")
+
+// =====================================================================
+// Cas 2 : différents types primitifs
+// =====================================================================
+PROCEDURE GetEntier()
+	RENVOYER gNombre
+FIN
+PROCEDURE GetReel()
+	RENVOYER gPi
+FIN
+PROCEDURE GetBool()
+	RENVOYER gActif
+FIN
+
+gNombre est un entier = 42
+gPi est un réel = 3.14
+gActif est un booléen = Vrai
+
+dbgVérifieEgalité(GetEntier(), 42, "forward ref : entier")
+dbgVérifieEgalité(GetReel(), 3.14, "forward ref : reel")
+dbgVérifieVrai(GetBool(), "forward ref : booleen")
+
+// =====================================================================
+// Cas 3 : write puis read (mutation depuis procédure)
+// =====================================================================
+PROCEDURE Incrementer()
+	gCompteur = gCompteur + 1
+FIN
+
+gCompteur est un entier = 0
+Incrementer()
+Incrementer()
+Incrementer()
+dbgVérifieEgalité(gCompteur, 3, "forward ref : mutation depuis procedure")
+
+// =====================================================================
+// Cas 4 : entrelacement procédures + variables
+// =====================================================================
+PROCEDURE FirstFn()
+	RENVOYER gFinal + 1
+FIN
+
+gMid est un entier = 100 // déclarée entre 2 procédures
+
+PROCEDURE SecondFn()
+	RENVOYER gMid + gFinal
+FIN
+
+gFinal est un entier = 42
+
+dbgVérifieEgalité(FirstFn(), 43, "ordre source libre : FirstFn() utilise gFinal en bas")
+dbgVérifieEgalité(SecondFn(), 142, "ordre source libre : SecondFn() utilise gMid (au-dessus) + gFinal (en bas)")
+
+// =====================================================================
+// Cas 5 : forward ref tableau et structure
+// =====================================================================
+PROCEDURE GetTab()
+	RENVOYER gTab..Occurrence
+FIN
+
+PROCEDURE GetNomPersonne()
+	RENVOYER gPersonne.nom
+FIN
+
+Personne est une Structure
+	nom est une chaîne
+	age est un entier
+FIN
+
+gTab est un tableau de chaînes = ["a", "b", "c"]
+gPersonne est une Personne
+gPersonne.nom = "Roger"
+
+dbgVérifieEgalité(GetTab(), 3, "forward ref : tableau")
+dbgVérifieEgalité(GetNomPersonne(), "Roger", "forward ref : structure")
+
+// =====================================================================
+// Cas 6 : forward ref dans body de Main()
+// =====================================================================
+PROCEDURE Main()
+	dbgVérifieEgalité(gFinal, 42, "Main() lit forward ref")
+	dbgVérifieEgalité(gPersonne.age, 0, "Main() lit field forward ref")
+FIN
+
+dbgBilanTest()

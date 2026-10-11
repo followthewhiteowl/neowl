@@ -1,0 +1,121 @@
+// @sujet : Email
+// @résumé : Type composé décrivant un message électronique à envoyer : expéditeur, destinataires, contenu texte/HTML, pièces jointes, options d'accusé et de priorité.
+
+// Une variable Email regroupe tout ce qu'il faut pour décrire un message :
+// identité de l'expéditeur, listes de destinataires, contenu et pièces
+// jointes. Les propriétés se posent et se relisent avec la notation `..`.
+
+
+// Champs scalaires : expéditeur, sujet, corps texte et HTML, catégorie,
+// identifiants de conversation.
+PROCEDURE PUBLIQUE scenario_champs_scalaires_identite_et_contenu()
+	msg est un Email
+	msg..Expéditeur          = "alice@example.org"
+	msg..AdresseExpéditeur   = "reponse@example.org"
+	msg..AdresseRetourErreur = "erreurs@example.org"
+	msg..Sujet               = "Compte-rendu de réunion"
+	msg..Message             = "Voici le compte-rendu en texte brut."
+	msg..HTML                = "<p>Voici le compte-rendu en <b>HTML</b>.</p>"
+	msg..Catégorie           = "reunion;interne"
+	msg..MessageID           = "<1@example.org>"
+	msg..Référence           = "<0@example.org>"
+
+	dbgVérifieEgalité(msg..Expéditeur, "alice@example.org", "expéditeur relu")
+	dbgVérifieEgalité(msg..AdresseExpéditeur, "reponse@example.org", "adresse de réponse relue")
+	dbgVérifieEgalité(msg..AdresseRetourErreur, "erreurs@example.org", "adresse de retour d'erreur relue")
+	dbgVérifieEgalité(msg..Sujet, "Compte-rendu de réunion", "sujet relu")
+	dbgVérifieEgalité(msg..Message, "Voici le compte-rendu en texte brut.", "corps texte relu")
+	dbgVérifieEgalité(msg..HTML, "<p>Voici le compte-rendu en <b>HTML</b>.</p>", "corps HTML relu")
+	dbgVérifieEgalité(msg..Catégorie, "reunion;interne", "catégorie relue")
+	dbgVérifieEgalité(msg..MessageID, "<1@example.org>", "identifiant de message relu")
+	dbgVérifieEgalité(msg..Référence, "<0@example.org>", "référence de conversation relue")
+FIN
+
+
+// Accusé de réception et confirmation de lecture sont deux booléens
+// indépendants, tous deux à Faux par défaut.
+PROCEDURE PUBLIQUE scenario_accuse_reception_et_confirmation_lecture()
+	msg est un Email
+	dbgVérifieEgalité(msg..AccuséRéception, Faux, "accusé de réception non demandé par défaut")
+	dbgVérifieEgalité(msg..ConfirmationLecture, Faux, "confirmation de lecture non demandée par défaut")
+
+	msg..AccuséRéception     = Vrai
+	msg..ConfirmationLecture = Vrai
+
+	dbgVérifieEgalité(msg..AccuséRéception, Vrai, "accusé de réception activé")
+	dbgVérifieEgalité(msg..ConfirmationLecture, Vrai, "confirmation de lecture activée")
+FIN
+
+
+// Priorité et confidentialité se posent avec les constantes dédiées et se
+// relisent telles quelles.
+PROCEDURE PUBLIQUE scenario_priorite_et_confidentialite_via_constantes()
+	msg est un Email
+	msg..Priorité        = emailPrioritéHaute
+	msg..Confidentialité = emailConfidentiel
+
+	dbgVérifieEgalité(msg..Priorité, emailPrioritéHaute, "priorité relue")
+	dbgVérifieEgalité(msg..Confidentialité, emailConfidentiel, "confidentialité relue")
+FIN
+
+
+// Destinataire, Cc et Cci sont des tableaux de chaînes : on ajoute des
+// adresses une à une, la liste posée se relit dans l'ordre d'ajout.
+PROCEDURE PUBLIQUE scenario_listes_destinataires_cc_cci()
+	msg est un Email
+	Ajoute(msg..Destinataire, "bob@example.org")
+	Ajoute(msg..Destinataire, "carla@example.org")
+	Ajoute(msg..Cc, "chef.equipe@example.org")
+	Ajoute(msg..Cci, "archive@example.org")
+
+	dbgVérifieEgalité(Dimension(msg..Destinataire), 2, "deux destinataires principaux")
+	dbgVérifieEgalité(msg..Destinataire[1], "bob@example.org", "premier destinataire relu")
+	dbgVérifieEgalité(msg..Destinataire[2], "carla@example.org", "second destinataire relu")
+	dbgVérifieEgalité(Dimension(msg..Cc), 1, "un destinataire en copie")
+	dbgVérifieEgalité(msg..Cc[1], "chef.equipe@example.org", "copie relue")
+	dbgVérifieEgalité(Dimension(msg..Cci), 1, "un destinataire en copie cachée")
+	dbgVérifieEgalité(msg..Cci[1], "archive@example.org", "copie cachée relue")
+FIN
+
+
+// Attache est un tableau de emailAttache : on construit une pièce jointe,
+// on l'ajoute, et on relit son contenu depuis la liste du message.
+PROCEDURE PUBLIQUE scenario_piece_jointe_ajoutee_au_message()
+	msg est un Email
+	att est un emailAttache
+	att..Nom         = "rapport.pdf"
+	att..ContentType = "application/pdf"
+	att..Contenu     = ChaîneVersBuffer("contenu-simulé-du-pdf")
+	Ajoute(msg..Attache, att)
+
+	dbgVérifieEgalité(Dimension(msg..Attache), 1, "une pièce jointe ajoutée")
+	dbgVérifieEgalité(msg..Attache[1]..Nom, "rapport.pdf", "nom de la pièce jointe relu")
+	dbgVérifieEgalité(msg..Attache[1]..ContentType, "application/pdf", "type MIME de la pièce jointe relu")
+	dbgVérifieEgalité(BufferVersChaîne(msg..Attache[1]..Contenu), "contenu-simulé-du-pdf", "contenu de la pièce jointe relu")
+FIN
+
+
+// Source porte le contenu brut d'un message (aller-retour construction /
+// import). Une simple chaîne assignée puis relue.
+PROCEDURE PUBLIQUE scenario_source_brute_assignable()
+	msg est un Email
+	sSourceBrute est une chaîne = `From: alice@example.org
+Subject: Test
+
+Corps du message.`
+	msg..Source = sSourceBrute
+
+	dbgVérifieEgalité(msg..Source, sSourceBrute, "source brute relue")
+FIN
+
+
+// Cas limite : un Email fraîchement déclaré part sur des champs vides et
+// des tableaux sans élément, sans qu'il soit nécessaire de tout initialiser
+// avant lecture.
+PROCEDURE PRIVÉE scenario_defauts_email_non_initialise()
+	msg est un Email
+	dbgVérifieEgalité(msg..Expéditeur, "", "expéditeur vide par défaut")
+	dbgVérifieEgalité(msg..Sujet, "", "sujet vide par défaut")
+	dbgVérifieEgalité(Dimension(msg..Destinataire), 0, "aucun destinataire par défaut")
+	dbgVérifieEgalité(Dimension(msg..Attache), 0, "aucune pièce jointe par défaut")
+FIN

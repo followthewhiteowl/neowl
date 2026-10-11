@@ -1,0 +1,61 @@
+// Test: callback form de fListeFichier / fListeRépertoire
+// vérifie le comportement de référence (forme 2 avec procédure callback).
+
+Trace("=== FS CALLBACK ===")
+
+// --- Setup (dans fRepTemp pour ne pas polluer le cwd) ---
+S est une chaîne = fSep()
+base est une chaîne = fRepTemp() + S + "owl_test_fileio_callback"
+fRepSupprime(base, frRécursif)
+fRepCree(base)
+fRepCree(base + S + "sub1")
+fSauveTexte(base + S + "a.txt", "")
+fSauveTexte(base + S + "b.txt", "")
+fSauveTexte(base + S + "sub1" + S + "c.txt", "")
+
+// --- Constantes flChange* (test rapide avant le reste) ---
+dbgVérifieEgalité(flFichier, 0, "flFichier = 0")
+dbgVérifieEgalité(flPremierFichier, 1, "flPremierFichier = 1")
+dbgVérifieEgalité(flChangeRépertoire, 2, "flChangeRépertoire = 2")
+
+// --- fListeFichier callback : compte les fichiers ---
+gNbFichiers est un entier = 0
+
+PROCEDURE OnFichier(_rep est une chaîne, _nom est une chaîne, _change est un entier, _ptr est un entier)
+	gNbFichiers++
+	RENVOYER Vrai
+FIN
+
+n est un entier = fListeFichier(base + S + "*", OnFichier)
+dbgVérifieEgalité(n, 3, "callback fichiers : retour = nb fichiers")
+dbgVérifieEgalité(gNbFichiers, 3, "callback appelé 3 fois")
+
+// --- fListeFichier callback : interruption avec Faux ---
+gNbAvantStop est un entier = 0
+
+PROCEDURE OnFichierStop(_rep est une chaîne, _nom est une chaîne, _change est un entier, _ptr est un entier)
+	gNbAvantStop++
+	SI gNbAvantStop >= 2 ALORS
+		RENVOYER Faux
+	FIN
+	RENVOYER Vrai
+FIN
+
+m est un entier = fListeFichier(base + S + "*.txt", OnFichierStop)
+dbgVérifieEgalité(m, 2, "interruption après 2 fichiers (RENVOYER Faux)")
+
+// --- fListeRépertoire callback ---
+gNbDossiers est un entier = 0
+
+PROCEDURE OnDossier(_rep est une chaîne, _nom est une chaîne, _change est un entier, _ptr est un entier)
+	gNbDossiers++
+	RENVOYER Vrai
+FIN
+
+k est un entier = fListeRépertoire(base, OnDossier)
+dbgVérifieEgalité(k, 1, "1 sous-dossier listé via callback")
+
+// --- Cleanup recursif ---
+fRepSupprime(base, frRécursif)
+
+dbgBilanTest()

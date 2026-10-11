@@ -1,0 +1,34 @@
+// Verrouillage invariant #1/#2/#3 (casse, accent, bilingue FR/EN) sur le type CodeBarres.
+// codebarres / CodeBarres / BarCodes doivent tous résoudre au même type canon.
+
+// Casse minuscule sans accent (forme tolérée, normalisée par le formatter).
+cbCasse est un CodeBarres
+cbCasse..TypeCodeBarres = CB_CODE128
+cbCasse..TypeContenu    = cbTypeTexte
+cbCasse..Contenu        = "CASSE-TOLEREE"
+
+imgCasse est une Image = CodeBarreVersImage(cbCasse)
+dbgVérifieVrai(imgCasse..Valide, "codebarres (casse/accent tolérés) génère une Image valide")
+
+// Forme FR canon.
+cbFR est un CodeBarres
+cbFR..TypeCodeBarres = CB_CODE128
+cbFR..TypeContenu    = cbTypeTexte
+cbFR..Contenu        = "FORME-FR"
+
+imgFR est une Image = CodeBarreVersImage(cbFR)
+dbgVérifieVrai(imgFR..Valide, "CodeBarres (FR canon) génère une Image valide")
+
+// Forme EN canon.
+cbEN est un BarCodes
+cbEN..TypeCodeBarres = CB_CODE128
+cbEN..TypeContenu    = cbTypeTexte
+cbEN..Contenu        = "FORME-EN"
+
+imgEN est une Image = CodeBarreVersImage(cbEN)
+dbgVérifieVrai(imgEN..Valide, "BarCodes (EN canon) génère une Image valide")
+
+// Les trois formes produisent des images de dimensions cohérentes (même contenu longueur similaire).
+dbgVérifieVrai(imgCasse..Largeur > 0 ET imgFR..Largeur > 0 ET imgEN..Largeur > 0, "dimensions non-nulles pour les 3 formes")
+
+dbgBilanTest()

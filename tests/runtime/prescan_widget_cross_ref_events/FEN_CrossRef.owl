@@ -1,0 +1,40 @@
+// Fenêtre voisine — ressource pour test_prescan_widget_cross_ref_events.owl.
+// Un event d'un champ A (declare en 1er) modifie un champ B (declare APRES A).
+// Le prescan des widgets rend B visible au moment de compiler l'event de A.
+
+FEN_CrossRef est une Fenêtre
+	PROPRIETES
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 150
+	FIN
+
+	resultat_clic est un booléen = Faux
+
+	// Champ A declare EN PREMIER
+	BTN_ACTION est un Champ Bouton
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Libellé = "Cliquez"
+		FIN
+		PROCEDURE surClic()
+			// Reference forward : LIB_RESULTAT declare APRES BTN_ACTION
+			LIB_RESULTAT..Libellé = "Bouton clique !"
+			resultat_clic         = Vrai
+		FIN
+	FIN
+
+	// Champ B declare APRES A
+	LIB_RESULTAT est un Champ Libellé
+		PROPRIETES
+			X       = 10
+			Y       = 50
+			Libellé = "initial"
+		FIN
+	FIN
+
+	PROCEDURE RemonteEtat()
+		callback_etat(resultat_clic, LIB_RESULTAT..Libellé)
+	FIN
+FIN

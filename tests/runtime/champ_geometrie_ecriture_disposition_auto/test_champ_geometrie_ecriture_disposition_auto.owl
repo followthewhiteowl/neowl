@@ -1,0 +1,231 @@
+// Contrat d'écriture de géométrie sur un champ placé par une disposition
+// automatique (`dispVerticale` / `dispHorizontale`). `Disposition` est une
+// extension OWL, pas du canon de référence — ce contrat est un choix de langage, pas
+// une conformité externe.
+//
+// Pour les quatre propriétés, sur les deux axes :
+//
+//   1. Écrire une TAILLE (..Hauteur, ..Largeur) sur l'axe géré par la pile
+//      pose une vraie contrainte : elle est appliquée réellement, ET elle
+//      survit à une passe de disposition ultérieure (ici, un
+//      redimensionnement de la fenêtre en déclenche une).
+//   2. Écrire une POSITION (..X, ..Y) sur un axe géré par la pile est
+//      refusé — erreur explicite, le champ ne bouge pas.
+//
+// Chaque mesure est recoupée par une sonde pixel sur le fond de couleur du
+// champ, indépendante de la propriété lue.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PremierY(im est une Image, x est un entier, couleur est un entier)
+	y est un entier = 0
+	TANTQUE y < im..Hauteur
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER y
+		FIN
+		y = y + 1
+	FIN
+	RENVOYER -1
+FIN
+
+PROCEDURE PremierX(im est une Image, y est un entier, couleur est un entier)
+	x est un entier = 0
+	TANTQUE x < im..Largeur
+		SI dPixelCouleur(im, x, y) = couleur ALORS
+			RENVOYER x
+		FIN
+		x = x + 1
+	FIN
+	RENVOYER -1
+FIN
+
+// Variante colonne-agnostique de PremierY : utile quand ..X a pu bouger
+// entre deux sondes (cas transitoire du défaut historique), et qu'on ne
+// veut pas présupposer la colonne où chercher le fond de couleur.
+PROCEDURE PremierYToutesColonnes(im est une Image, couleur est un entier)
+	y est un entier = 0
+	TANTQUE y < im..Hauteur
+		x est un entier = 0
+		TANTQUE x < im..Largeur
+			SI dPixelCouleur(im, x, y) = couleur ALORS
+				RENVOYER y
+			FIN
+			x = x + 1
+		FIN
+		y = y + 1
+	FIN
+	RENVOYER -1
+FIN
+
+vert est un entier = RVB(0, 200, 0)
+
+// ============================================================
+//  Disposition verticale — FEN_GeoEcriture
+// ============================================================
+
+OuvreSoeur(FEN_GeoEcriture)
+Temporise(80)
+
+// --- Référence : ce que la disposition impose au départ.
+imDepart est une Image = dCopieImageChamp(LIB_Pile)
+dbgVérifieEgalité(imDepart..Largeur, 400, "Au départ : le champ mesure 400 de large")
+dbgVérifieEgalité(imDepart..Hauteur, 30, "Au départ : le champ mesure 30 de haut")
+
+// --- Contrat taille, axe transverse : ..Largeur sur LIB_Pile.
+LIB_Pile..Largeur = 250
+Temporise(80)
+imLargeur est une Image = dCopieImageChamp(LIB_Pile)
+dbgVérifieEgalité(imLargeur..Largeur, 250,
+"..Largeur = 250 redimensionne réellement le champ")
+dbgVérifieEgalité(LIB_Pile..Largeur, 250,
+"..Largeur relit 250, et le champ mesure bien 250")
+
+// --- Contrat taille, axe de la pile : ..Hauteur sur LIB_Pile. C'est une
+// vraie contrainte désormais : elle s'applique réellement, et elle décale
+// donc LIB_Suivant, qui vient juste après dans la pile (60 + 4 d'espacement
+// = 64, contre 34 quand LIB_Pile mesurait 30).
+LIB_Pile..Hauteur = 60
+Temporise(80)
+imHauteur est une Image = dCopieImageChamp(LIB_Pile)
+dbgVérifieEgalité(imHauteur..Hauteur, 60,
+"..Hauteur = 60 redimensionne réellement le champ")
+dbgVérifieEgalité(LIB_Pile..Hauteur, 60,
+"..Hauteur relit 60, la contrainte posée")
+
+imDecale est une Image = dCopieImageFenêtre(FEN_GeoEcriture)
+yDecale est un entier = PremierY(imDecale, 5, vert)
+dbgVérifieEgalité(yDecale, 64,
+"Sonde pixel : LIB_Suivant est repoussé à y=64 par la nouvelle hauteur de LIB_Pile")
+dbgVérifieEgalité(LIB_Suivant..Y, 64,
+"..Y de LIB_Suivant reflète le décalage causé par la contrainte de LIB_Pile")
+
+// --- Contrat position : ..X / ..Y sur LIB_Suivant, dont les deux axes sont
+// gérés par la pile (elle calcule intégralement sa position). L'écriture
+// est refusée : erreur explicite, et le champ reste à sa place de layout.
+
+LIB_Suivant..X = 33
+bErrX est un booléen = ErreurDétectée
+sErrX est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrX,
+"..X sur un champ géré par la pile : erreur explicite levée")
+dbgVérifieVrai(Taille(sErrX) > 0,
+"..X refusé : message d'erreur non vide")
+dbgVérifieEgalité(LIB_Suivant..X, 0,
+"..X refusé : la relecture rend toujours 0, la place que le layout impose")
+
+Temporise(80)
+imApresX est une Image = dCopieImageFenêtre(FEN_GeoEcriture)
+xApresX est un entier = PremierX(imApresX, yDecale + 5, vert)
+dbgVérifieEgalité(xApresX, 0,
+"Sonde pixel : le champ n'a pas bougé après le refus de ..X = 33")
+
+ErreurRAZ()
+LIB_Suivant..Y = 44
+bErrY est un booléen = ErreurDétectée
+sErrY est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrY,
+"..Y sur un champ géré par la pile : erreur explicite levée")
+dbgVérifieVrai(Taille(sErrY) > 0,
+"..Y refusé : message d'erreur non vide")
+dbgVérifieEgalité(LIB_Suivant..Y, 64,
+"..Y refusé : la relecture rend toujours 64, la place que le layout impose")
+
+Temporise(80)
+imApresY est une Image = dCopieImageFenêtre(FEN_GeoEcriture)
+// Colonne-agnostique : ..X a pu bouger transitoirement pendant le test
+// précédent (défaut historique), la sonde ne doit pas présupposer x=0.
+yApresY est un entier = PremierYToutesColonnes(imApresY, vert)
+dbgVérifieEgalité(yApresY, 64,
+"Sonde pixel : le champ n'a pas bougé après le refus de ..Y = 44")
+
+ErreurRAZ()
+
+// --- Persistance : un redimensionnement de la fenêtre déclenche une
+// nouvelle passe de disposition. La contrainte de taille posée sur
+// LIB_Pile doit survivre — c'est le point qui distingue le contrat retenu
+// du défaut historique (le correctif évident qui rend l'écriture réelle
+// mais pas persistante reproduirait le bug sous un autre chiffre).
+FEN_GeoEcriture..Hauteur = 260
+Temporise(120)
+
+imRepriseLargeur est une Image = dCopieImageChamp(LIB_Pile)
+dbgVérifieEgalité(LIB_Pile..Largeur, 250,
+"Après redimensionnement de la fenêtre : ..Largeur de LIB_Pile tient toujours à 250")
+dbgVérifieEgalité(imRepriseLargeur..Largeur, 250,
+"Après redimensionnement : le champ mesure toujours réellement 250 de large")
+
+imRepriseHauteur est une Image = dCopieImageChamp(LIB_Pile)
+dbgVérifieEgalité(LIB_Pile..Hauteur, 60,
+"Après redimensionnement de la fenêtre : ..Hauteur de LIB_Pile tient toujours à 60")
+dbgVérifieEgalité(imRepriseHauteur..Hauteur, 60,
+"Après redimensionnement : le champ mesure toujours réellement 60 de haut")
+
+// NB : cette assertion sur ..X peut se lire vraie même avant le correctif —
+// le défaut historique remet aussi X à 0 après une passe de disposition.
+// Elle n'isole donc pas le bug seule, mais elle verrouille la
+// non-régression une fois le contrat en place (cf. test-writing-pitfalls
+// §3 cas B).
+dbgVérifieEgalité(LIB_Suivant..X, 0,
+"Après redimensionnement : ..X de LIB_Suivant reste à 0 (toujours géré par la pile)")
+dbgVérifieEgalité(LIB_Suivant..Y, 64,
+"Après redimensionnement : ..Y de LIB_Suivant reste à 64, pas remis à 34")
+
+imFinal est une Image = dCopieImageFenêtre(FEN_GeoEcriture)
+yFinal est un entier = PremierY(imFinal, 5, vert)
+dbgVérifieEgalité(yFinal, 64,
+"Sonde pixel finale : LIB_Suivant est toujours à y=64 après le redimensionnement")
+
+Ferme(FEN_GeoEcriture)
+
+// ============================================================
+//  Disposition horizontale — FEN_GeoEcritureHorizontale
+//  Couverture symétrique : l'axe de la pile devient ..Largeur (au lieu de
+//  ..Hauteur), et la persistance est éprouvée par un redimensionnement
+//  horizontal. Complément minimal : refus d'écriture sur ..X.
+// ============================================================
+
+OuvreSoeur(FEN_GeoEcritureHorizontale)
+Temporise(80)
+
+imDepartH est une Image = dCopieImageChamp(LIB_PileH)
+dbgVérifieEgalité(imDepartH..Largeur, 30, "Horizontal, au départ : LIB_PileH mesure 30 de large")
+dbgVérifieEgalité(imDepartH..Hauteur, 200, "Horizontal, au départ : LIB_PileH mesure 200 de haut")
+
+// --- Contrat taille, axe de la pile horizontale : ..Largeur sur LIB_PileH.
+LIB_PileH..Largeur = 80
+Temporise(80)
+imLargeurH est une Image = dCopieImageChamp(LIB_PileH)
+dbgVérifieEgalité(imLargeurH..Largeur, 80,
+"Horizontal : ..Largeur = 80 redimensionne réellement LIB_PileH")
+dbgVérifieEgalité(LIB_PileH..Largeur, 80,
+"Horizontal : ..Largeur relit 80, la contrainte posée")
+
+dbgVérifieEgalité(LIB_SuivantH..X, 84,
+"Horizontal : LIB_SuivantH est repoussé à x=84 par la nouvelle largeur de LIB_PileH (80 + 4)")
+
+// --- Persistance : un redimensionnement horizontal de la fenêtre
+// déclenche une nouvelle passe de disposition le long de l'axe de la pile.
+FEN_GeoEcritureHorizontale..Largeur = 500
+Temporise(120)
+
+imRepriseH est une Image = dCopieImageChamp(LIB_PileH)
+dbgVérifieEgalité(LIB_PileH..Largeur, 80,
+"Horizontal, après redimensionnement : ..Largeur de LIB_PileH tient toujours à 80")
+dbgVérifieEgalité(imRepriseH..Largeur, 80,
+"Horizontal, après redimensionnement : le champ mesure toujours réellement 80 de large")
+
+// --- Contrat position (complément minimal) : ..X sur LIB_SuivantH, l'axe
+// géré par la pile horizontale, est refusé.
+LIB_SuivantH..X = 99
+bErrXH est un booléen = ErreurDétectée
+sErrXH est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrXH,
+"Horizontal : ..X sur un champ géré par la pile : erreur explicite levée")
+dbgVérifieVrai(Taille(sErrXH) > 0,
+"Horizontal : ..X refusé : message d'erreur non vide")
+dbgVérifieEgalité(LIB_SuivantH..X, 84,
+"Horizontal : ..X refusé : la relecture rend toujours 84, la place que le layout impose")
+
+Ferme(FEN_GeoEcritureHorizontale)
+
+dbgBilanTest()

@@ -1,0 +1,114 @@
+// ============================================
+// TEST: TypeVar avec codes owlXxx (renommage wl*->owl* + FIX UUID/Instance)
+// ============================================
+// Couverture systematique du renommage owl* + fix de 2 codes
+// sous-reportes (UUID, instance de classe vs structure).
+// ============================================
+
+// Declarer une classe user (klass != NULL -> owlInstance)
+cVehicule est une Classe
+PUBLIC
+	sMarque est une chaîne
+	nVitesse est un entier
+
+	PROCEDURE Constructeur(sM est une chaîne, nV est un entier)
+		:sMarque = sM
+		:nVitesse = nV
+	FIN
+FIN
+
+// Declarer une structure user (klass == NULL -> owlStructure)
+Point est une Structure
+	x est un entier
+	y est un entier
+FIN
+
+PROCEDURE scenario_typevar_owl_codes()
+	Trace("=== TypeVar codes OWL (rename owl + fix UUID/Instance) ===")
+
+	// ----------------------------------------------------------------
+	// A. FIX 1 : TypeVar(DonneUUID()) doit renvoyer owlUUID
+	//            (avant fix : renvoyait owlStructure car UUID est
+	//            une ObjInstance generique)
+	// ----------------------------------------------------------------
+	uuid1 est un UUID = DonneUUID()
+	dbgVérifieEgalité(TypeVar(uuid1), owlUUID, "FIX: TypeVar(UUID) = owlUUID")
+
+	// ----------------------------------------------------------------
+	// A. FIX 2 : TypeVar(instance de classe) vs TypeVar(struct)
+	//            doivent renvoyer des codes distincts :
+	//            - instance de classe -> owlInstance
+	//            - structure -> owlStructure
+	//            (avant fix : les deux donnaient owlStructure)
+	// ----------------------------------------------------------------
+
+	oVeh est un cVehicule("Tesla", 250)
+	p est un Point
+
+	dbgVérifieEgalité(TypeVar(oVeh), owlInstance, "FIX: TypeVar(instance classe) = owlInstance")
+	dbgVérifieEgalité(TypeVar(p), owlStructure, "FIX: TypeVar(struct) = owlStructure")
+
+	// Verifier aussi sur une structure builtin (httpRequete) pour non-regression
+	req est un httpRequête
+	dbgVérifieEgalité(TypeVar(req), owlStructure, "FIX: TypeVar(builtin struct) = owlStructure")
+
+	// ----------------------------------------------------------------
+	// B. COUVERTURE des 4 codes atteignables non testes (assertions
+	//    non-triviales — on verifie que la valeur renvoyee est exacte)
+	// ----------------------------------------------------------------
+
+	// B1. owlBuffer
+	buf est un buffer = ChaîneVersBuffer("donnees binaires")
+	dbgVérifieEgalité(TypeVar(buf), owlBuffer, "TypeVar(buffer) = owlBuffer")
+
+	// B2. owlPile
+	MaPile est une pile de entiers
+	Empile(MaPile, 1)
+	Empile(MaPile, 2)
+	dbgVérifieEgalité(TypeVar(MaPile), owlPile, "TypeVar(pile) = owlPile")
+
+	// B3. owlProcedure
+	//     Pour tester TypeVar sur une procedure, on la passe comme parametre
+	dbgVérifieEgalité(TypeVar_Helper_Proc(), owlProcedure, "TypeVar(procedure) = owlProcedure")
+
+	// B4. owlJSON
+	j est un JSON = ChaîneVersJSON(`{"nom": "OWL", "version": 1}`)
+	dbgVérifieEgalité(TypeVar(j), owlJSON, "TypeVar(JSON) = owlJSON")
+
+	// ----------------------------------------------------------------
+	// C. REGRESSIONS : verifier que les codes existants continuent
+	//    de fonctionner apres renommage (echantillon representatif)
+	// ----------------------------------------------------------------
+
+	n est un entier = 42
+	r est un réel = 3.14
+	b est un booléen = Vrai
+	s est une chaîne = "hello"
+	d est une date = "20260101"
+	dt est une dateheure = "202601011200"
+	dur est une durée = 3600 // 1 heure en secondes
+	arr est un tableau de entiers
+	assoc est un tableau associatif de chaînes
+
+	dbgVérifieEgalité(TypeVar(n), owlEntier, "Regression: owlEntier")
+	dbgVérifieEgalité(TypeVar(r), owlReel, "Regression: owlReel")
+	dbgVérifieEgalité(TypeVar(b), owlBooleen, "Regression: owlBooleen")
+	dbgVérifieEgalité(TypeVar(s), owlChaine, "Regression: owlChaine")
+	dbgVérifieEgalité(TypeVar(d), owlDate, "Regression: owlDate")
+	dbgVérifieEgalité(TypeVar(dt), owlDateHeure, "Regression: owlDateHeure")
+	dbgVérifieEgalité(TypeVar(dur), owlDuree, "Regression: owlDuree")
+	dbgVérifieEgalité(TypeVar(arr), owlTableau, "Regression: owlTableau")
+	dbgVérifieEgalité(TypeVar(assoc), owlTableauAssociatif, "Regression: owlTableauAssociatif")
+
+	dbgBilanTest()
+FIN
+
+// Helper pour tester TypeVar sur une procedure (passee comme parametre)
+// Retourne le code TypeVar de la procedure interne
+PROCEDURE TypeVar_Helper_Proc() : entier
+	PROCEDURE MaProc_Interne(n est un entier) : entier
+		RENVOYER n * 2
+	FIN
+
+	RENVOYER TypeVar(MaProc_Interne)
+FIN

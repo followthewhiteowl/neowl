@@ -1,0 +1,66 @@
+// @sujet : ImageVersTenseur
+// @résumé : Convertit une Image en Tenseur C×H×W (channels-first), les
+// valeurs de pixel normalisées dans [0, 1] (÷255), sur 3 canaux RGB (le
+// canal alpha, s'il existe, est ignoré). L'image source n'est pas modifiée.
+
+// Une image 2×2 entièrement rouge pur donne un Tenseur de rang 3, de forme
+// (3, 2, 2) : canal Rouge à 1.0 partout, canaux Vert et Bleu à 0.0 partout.
+PROCEDURE PUBLIQUE scenario_image_unie_rouge_pur_forme_et_valeurs()
+	img est une Image = dCréeImage(2, 2, RVB(255, 0, 0))
+
+	t est un Tenseur = ImageVersTenseur(img)
+
+	dbgVérifieEgalité(t..Rang, 3, "C×H×W -> rang 3")
+	dbgVérifieEgalité(t..Forme[1], 3, "3 canaux (RGB)")
+	dbgVérifieEgalité(t..Forme[2], 2, "hauteur = 2")
+	dbgVérifieEgalité(t..Forme[3], 2, "largeur = 2")
+
+	dbgVérifieVrai(Abs(t..Valeur[1][1][1] - 1.0) < 0.0001, "canal Rouge normalisé à 1.0")
+	dbgVérifieVrai(Abs(t..Valeur[1][2][2] - 1.0) < 0.0001, "canal Rouge normalisé à 1.0 (autre pixel)")
+	dbgVérifieVrai(Abs(t..Valeur[2][1][1] - 0.0) < 0.0001, "canal Vert normalisé à 0.0")
+	dbgVérifieVrai(Abs(t..Valeur[3][1][1] - 0.0) < 0.0001, "canal Bleu normalisé à 0.0")
+FIN
+
+
+// Une image unie d'une autre couleur pure (vert) confirme le mapping canal
+// par canal sur un cas différent, avec des dimensions non carrées.
+PROCEDURE PUBLIQUE scenario_image_unie_verte_dimensions_non_carrees()
+	img est une Image = dCréeImage(4, 3, RVB(0, 255, 0))
+
+	t est un Tenseur = ImageVersTenseur(img)
+
+	dbgVérifieEgalité(t..Forme[1], 3, "3 canaux (RGB)")
+	dbgVérifieEgalité(t..Forme[2], 3, "hauteur = 3")
+	dbgVérifieEgalité(t..Forme[3], 4, "largeur = 4")
+
+	dbgVérifieVrai(Abs(t..Valeur[1][2][3] - 0.0) < 0.0001, "canal Rouge à 0.0")
+	dbgVérifieVrai(Abs(t..Valeur[2][2][3] - 1.0) < 0.0001, "canal Vert normalisé à 1.0")
+	dbgVérifieVrai(Abs(t..Valeur[3][2][3] - 0.0) < 0.0001, "canal Bleu à 0.0")
+FIN
+
+
+// La forme anglaise ImageToTensor désigne la même conversion.
+PROCEDURE PUBLIQUE scenario_forme_anglaise()
+	img is an Image = dCréeImage(2, 2, RVB(0, 0, 255))
+
+	t is a Tensor = ImageToTensor(img)
+
+	dbgVérifieEgalité(t..Shape[1], 3, "ImageToTensor : 3 canaux")
+	dbgVérifieVrai(Abs(t..Value[3][1][1] - 1.0) < 0.0001, "ImageToTensor : canal Bleu normalisé à 1.0")
+FIN
+
+
+// Cas limite : une Image invalide (jamais chargée/créée avec succès) est
+// refusée proprement, signalée par une exception attrapable.
+PROCEDURE PRIVÉE scenario_edge_image_invalide_leve_exception()
+	imgInvalide est une Image = dChargeImage(fRepTemp() + "\owl_test_1675_image_absente_xyzzy.png")
+	dbgVérifieEgalité(imgInvalide..Valide, Faux, "précondition : le chargement a échoué")
+
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		t est un Tenseur = ImageVersTenseur(imgInvalide)
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ImageVersTenseur sur une image invalide lève une exception")
+FIN

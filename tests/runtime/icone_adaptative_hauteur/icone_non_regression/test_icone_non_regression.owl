@@ -1,0 +1,96 @@
+//  — CAS 4 : non-regression.
+// Verifie que l'adaptation de taille ne casse pas :
+//   -  : icone toujours rendue (pixels non-fond presents dans les deux controles).
+//   -  : couleur de l'icone preservee (pas de blanc force).
+//
+// Icone icones.github_icon : SVG avec couleur propre (non-blanc).
+// Si  est rompu, l'icone devient blanche (couleur forcee 0xFFFFFF).
+// Dans ce cas, sur fond sombre : icone blanche = pixels clairs = detectables.
+// Si  est rompu, aucun pixel d'icone n'est present : nbNonFond = 0.
+//
+// Ces tests doivent rester VERTS avant et apres le fix de .
+// Un rouge ici = regression introduite par l'implementeur.
+
+Ouvre(FEN_IcoNonReg)
+
+// ---- Captures ----
+imgBtn est une Image = dCopieImageChamp(BTN_IcoColore)
+dbgVérifieEgalité(imgBtn..Valide, Vrai, "BTN_IcoColore : capture valide")
+
+imgImg est une Image = dCopieImageChamp(IMG_IcoColore)
+dbgVérifieEgalité(imgImg..Valide, Vrai, "IMG_IcoColore : capture valide")
+
+// ---- Guard  : pixels d'icone presents ----
+fondBtn est un entier = dPixelCouleur(imgBtn, 0, 0)
+nbNonFondBtn est un entier = 0
+yyBtn est un entier = 0
+TANTQUE yyBtn < imgBtn..Hauteur
+	xxBtn est un entier = 0
+	TANTQUE xxBtn < imgBtn..Largeur
+		cBtn est un entier = dPixelCouleur(imgBtn, xxBtn, yyBtn)
+		SI cBtn <> fondBtn ALORS
+			nbNonFondBtn = nbNonFondBtn + 1
+		FIN
+		xxBtn = xxBtn + 1
+	FIN
+	yyBtn = yyBtn + 1
+FIN
+dbgVérifieVrai(nbNonFondBtn > 50,
+"fix/0658-BTN : icone github_icon presente dans BTN_IcoColore (pixels non-fond > 50)")
+
+fondImg est un entier = dPixelCouleur(imgImg, 0, 0)
+nbNonFondImg est un entier = 0
+yyImg est un entier = 0
+TANTQUE yyImg < imgImg..Hauteur
+	xxImg est un entier = 0
+	TANTQUE xxImg < imgImg..Largeur
+		cImg est un entier = dPixelCouleur(imgImg, xxImg, yyImg)
+		SI cImg <> fondImg ALORS
+			nbNonFondImg = nbNonFondImg + 1
+		FIN
+		xxImg = xxImg + 1
+	FIN
+	yyImg = yyImg + 1
+FIN
+dbgVérifieVrai(nbNonFondImg > 50,
+"fix/0658-IMG : icone github_icon presente dans IMG_IcoColore (pixels non-fond > 50)")
+
+// ---- Guard  : couleur non blanche ----
+// Si la couleur est ecrasee par blanc (0xFFFFFF en BGR = 16777215), tous les
+// pixels de l'icone seraient blanc. On verifie que l'icone n'est PAS enticement blanche :
+// au moins un pixel d'icone doit etre different de blanc pur.
+CONSTANTE BLANC_BGR = 16777215
+nbNonBlancBtn est un entier = 0
+yyNBBtn est un entier = 0
+TANTQUE yyNBBtn < imgBtn..Hauteur
+	xxNBBtn est un entier = 0
+	TANTQUE xxNBBtn < imgBtn..Largeur
+		cNBBtn est un entier = dPixelCouleur(imgBtn, xxNBBtn, yyNBBtn)
+		SI cNBBtn <> fondBtn ET cNBBtn <> BLANC_BGR ALORS
+			nbNonBlancBtn = nbNonBlancBtn + 1
+		FIN
+		xxNBBtn = xxNBBtn + 1
+	FIN
+	yyNBBtn = yyNBBtn + 1
+FIN
+dbgVérifieVrai(nbNonBlancBtn > 10,
+"fix/0360-BTN : icone github_icon n'est pas enticement blanche (couleur preservee)")
+
+nbNonBlancImg est un entier = 0
+yyNBImg est un entier = 0
+TANTQUE yyNBImg < imgImg..Hauteur
+	xxNBImg est un entier = 0
+	TANTQUE xxNBImg < imgImg..Largeur
+		cNBImg est un entier = dPixelCouleur(imgImg, xxNBImg, yyNBImg)
+		SI cNBImg <> fondImg ET cNBImg <> BLANC_BGR ALORS
+			nbNonBlancImg = nbNonBlancImg + 1
+		FIN
+		xxNBImg = xxNBImg + 1
+	FIN
+	yyNBImg = yyNBImg + 1
+FIN
+dbgVérifieVrai(nbNonBlancImg > 10,
+"fix/0360-IMG : icone github_icon n'est pas enticement blanche (couleur preservee)")
+
+Ferme(FEN_IcoNonReg)
+dbgBilanTest()

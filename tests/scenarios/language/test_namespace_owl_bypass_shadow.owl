@@ -1,0 +1,22 @@
+// @sujet : Namespace OWL. — atteindre la native d'origine malgré une procédure homonyme
+// @résumé : Quand une procédure globale porte le même nom qu'une fonction native, c'est
+// la procédure qui gagne — l'utilisateur reste maître de ses noms. Le préfixe `OWL.`
+// (point simple, pas de rapport avec les propriétés de type composé) est l'échappatoire
+// qui vise directement la fonction d'origine, en ignorant toute procédure qui la masque.
+
+PROCEDURE Taille(x est une chaîne) : entier
+	RENVOYER 999
+FIN
+
+// Cas canonique : la procédure homonyme masque la native, `OWL.Taille` la contourne
+// et retourne la vraie longueur de la chaîne.
+PROCEDURE PUBLIQUE scenario_owl_atteint_la_native_malgre_le_masquage()
+	n est un entier = OWL.Taille("abc")
+	dbgVérifieEgalité(n, 3, "OWL.Taille atteint la fonction d'origine malgré le masquage par la procédure")
+FIN
+
+// Non-régression : sans le préfixe `OWL.`, la procédure homonyme continue de gagner.
+PROCEDURE PUBLIQUE scenario_owl_sans_prefixe_la_procedure_gagne_toujours()
+	n est un entier = Taille("abc")
+	dbgVérifieEgalité(n, 999, "Sans préfixe OWL., la procédure homonyme masque toujours la native")
+FIN

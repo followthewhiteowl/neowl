@@ -1,0 +1,40 @@
+//  — Régression : la sérialisation d'un réel (JSON, cellule xlsx) doit
+// toujours utiliser le point décimal, quel que soit le LC_NUMERIC actif du
+// processus au moment de l'appel.
+//
+// Portée de ce fichier : verrous d'intégration de haut niveau sur les
+// SURFACES qui dépendent de owl_real_to_str (JSON, xlsx). Le verrou
+// déterministe qui force réellement un LC_NUMERIC à séparateur virgule et
+// prouve la fuite vit dans tests/runtime_c/real_to_str_locale/ (harness C,
+// câblé dans scripts/run_all_checks.sh) : aucune native OWL ne permet de
+// forcer LC_NUMERIC à une locale précise depuis un script (le seul
+// setlocale() du runtime lit le locale DÉJÀ actif de l'OS). Sur une machine
+// dont le locale OS utilise déjà le point décimal, les scénarios ci-dessous
+// ne reproduisent pas la fuite — ils verrouillent le comportement observable
+// pour l'avenir (CI sous locale FR/DE, ou machine dev reconfigurée).
+
+PROCEDURE PUBLIQUE test_json_reel_apres_numerique_vers_chaine()
+	// NumériqueVersChaîne déclenche l'initialisation paresseuse du module
+	// locale (lecture de LC_NUMERIC de l'OS). La sérialisation JSON d'un
+	// réel qui suit ne doit jamais en hériter la virgule.
+	sIgnore est une chaîne = NumériqueVersChaîne(1, "d")
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.Valeur = 3.14
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sJSON, `"Valeur":3.14`), "un réel sérialisé en JSON garde le point décimal après usage de NumériqueVersChaîne")
+	dbgVérifieFaux(Contient(sJSON, ","), "le JSON d'un réel ne contient jamais de virgule décimale")
+FIN
+
+PROCEDURE PUBLIQUE test_xls_cellule_reel_apres_numerique_vers_chaine()
+	sIgnore est une chaîne = NumériqueVersChaîne(1, "d")
+	doc est un xlsDocument
+	doc[1, 1] = 3.14
+	xlsSauve(doc, "test_reel_locale_xls.xlsx")
+	xlsFerme(doc)
+
+	relu est un xlsDocument = xlsOuvre("test_reel_locale_xls.xlsx", xlsEcriture)
+	valeur est une chaîne = xlsDonnée(relu, 1, 1)
+	dbgVérifieEgalité(valeur, "3.14", "une cellule xlsx contenant un réel se relit avec un point décimal")
+	xlsFerme(relu)
+	fSupprime("test_reel_locale_xls.xlsx")
+FIN

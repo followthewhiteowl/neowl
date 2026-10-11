@@ -1,0 +1,33 @@
+// @sujet : AMQPPublie
+// @résumé : Publie un message AMQP structuré (amqpMessage) sur un échange via une clé de routage ; encode persistance et propriétés depuis le message.
+
+// Verrou de rupture : l'ancienne forme (corps brut en chaîne, 4e argument)
+// n'est plus acceptée. Seul un amqpMessage est un 4e argument valide ; sinon
+// la native renvoie Faux et pose une erreur de type d'argument, plutôt que
+// de publier un corps vide en silence.
+PROCEDURE PUBLIQUE scenario_publie_rejette_ancienne_forme_chaine()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	bOk est un booléen = AMQPPublie(cnx, "mon-echange", "ma-cle", "corps-brut-ancienne-forme")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPPublie refuse un corps chaîne brute en 4e argument")
+	dbgVérifieVrai(bErr, "une erreur est posée sur l'ancienne forme (chaîne)")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+
+// Même verrou pour un Buffer brut en 4e argument.
+PROCEDURE PUBLIQUE scenario_publie_rejette_ancienne_forme_buffer()
+	cnx est un amqpConnection
+	ErreurRAZ()
+	buf est un buffer = BufferVide(4)
+	bOk est un booléen = AMQPPublie(cnx, "mon-echange", "ma-cle", buf)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bOk, "AMQPPublie refuse un corps Buffer brut en 4e argument")
+	dbgVérifieVrai(bErr, "une erreur est posée sur l'ancienne forme (Buffer)")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

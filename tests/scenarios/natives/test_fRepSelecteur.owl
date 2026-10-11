@@ -1,0 +1,115 @@
+// @sujet : fRepSélecteur
+// @résumé : Ouvre une boîte de dialogue système de sélection de répertoire et retourne le chemin complet sélectionné, ou "" si annulé. Accepte un répertoire par défaut, un titre, et des paramètres optionnels de commentaire et racine.
+
+
+// Particularité des fonctions GUI bloquantes : en mode headless (owl test),
+// fRepSélecteur retourne "" sans ouvrir de dialogue. On peut aussi intercepter
+// via le mock-system pour simuler un choix utilisateur et vérifier que la
+// native a été appelée avec les bons paramètres.
+mockFRepSel est un MockNative = MockCrée(fRepSélecteur)
+
+
+PROCEDURE avantChaqueTest()
+	mockFRepSel = MockCrée(fRepSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+PROCEDURE aprèsChaqueTest()
+	mockFRepSel.Desactive()
+FIN
+
+
+// En mode headless, fRepSélecteur retourne "" sans ouvrir de dialogue.
+// Signature minimale : <RépDéfaut>, <Titre>
+PROCEDURE scenario_headless_retourne_chaine_vide()
+	sRep est une chaîne = fRepSélecteur("C:\", "Choisir un répertoire")
+	dbgVérifieEgalité(sRep, "", "Headless retourne chaîne vide")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fRepSélecteur avec le paramètre commentaire retourne "".
+// Signature étendue : <RépDéfaut>, <Titre>, <Commentaires>
+PROCEDURE scenario_headless_avec_commentaire()
+	sRep est une chaîne = fRepSélecteur("C:\Documents", "Sélectionner le dossier cible", "Choisissez le dossier dans lequel enregistrer les fichiers.")
+	dbgVérifieEgalité(sRep, "", "Headless retourne chaîne vide avec commentaire")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 1), "Native appelée une fois")
+FIN
+
+
+// En mode headless, fRepSélecteur avec commentaire et racine retourne "".
+// Signature complète : <RépDéfaut>, <Titre>, <Commentaires>, <Racine>
+PROCEDURE scenario_headless_avec_commentaire_et_racine()
+	sRep est une chaîne = fRepSélecteur("C:\Projects", "Choisir le dossier de projet", "Sélectionnez un dossier accessible.", "C:\")
+	dbgVérifieEgalité(sRep, "", "Headless retourne chaîne vide avec commentaire et racine")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 1), "Native appelée une fois")
+FIN
+
+
+// Le mock peut simuler un retour de chemin précis, permettant de tester
+// le code appelant sans ouvrir de dialogue. Le chemin mocké est retourné
+// tel quel par la native.
+PROCEDURE scenario_mock_retourne_chemin_repertoire()
+	mockFRepSel.Desactive()
+	mockLocal est un MockNative = MockCrée(fRepSélecteur).Quand().Retourne("C:\Documents\ProjetX").Active()
+
+	sRep est une chaîne = fRepSélecteur("C:\", "Sélectionner le dossier de travail")
+	dbgVérifieEgalité(sRep, "C:\Documents\ProjetX", "Mock retourne le répertoire simulé")
+	dbgVérifieVrai(MockVérifieAppelé(mockLocal, 1), "Native interceptée une fois")
+
+	mockLocal.Desactive()
+	mockFRepSel = MockCrée(fRepSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+// Le mock peut simuler une annulation (retour "") pour tester le chemin
+// "l'utilisateur a annulé la sélection de répertoire" dans le code appelant.
+PROCEDURE scenario_mock_retourne_chaine_vide_annulation()
+	sRep est une chaîne = fRepSélecteur("C:\", "Sélectionner")
+	dbgVérifieEgalité(sRep, "", "Simulation annulation utilisateur")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 1), "Native interceptée une fois")
+FIN
+
+
+// La forme EN fSelectDir est un alias de fRepSélecteur : elle retourne ""
+// en mode headless de façon identique.
+PROCEDURE scenario_forme_en_fselectdir_headless()
+	mockFRepSel.Desactive()
+	mockEN est un MockNative = MockCrée(fSelectDir).Quand().Retourne("").Active()
+
+	sRep est une chaîne = fSelectDir("C:\", "Select directory")
+	dbgVérifieEgalité(sRep, "", "Forme EN retourne chaîne vide en headless")
+	dbgVérifieVrai(MockVérifieAppelé(mockEN, 1), "Alias EN intercepté une fois")
+
+	mockEN.Desactive()
+	mockFRepSel = MockCrée(fRepSélecteur).Quand().Retourne("").Active()
+FIN
+
+
+// Le compteur du mock reflète fidèlement le nombre d'invocations sur la
+// durée du scénario. Utile pour valider les boucles qui ouvrent
+// plusieurs sélecteurs successifs.
+PROCEDURE scenario_appels_repetes_compte_exact()
+	fRepSélecteur("C:\", "Dossier source")
+	fRepSélecteur("C:\", "Dossier destination")
+	fRepSélecteur("C:\", "Dossier d'archive")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 3), "Trois appels successifs comptabilisés")
+FIN
+
+
+// Cas limite : répertoire par défaut vide — argument légal, comportement
+// défini par le système (utilise le dernier répertoire visité ou la racine).
+PROCEDURE PRIVÉE scenario_rep_defaut_vide()
+	sRep est une chaîne = fRepSélecteur("", "Choisir un répertoire")
+	dbgVérifieEgalité(sRep, "", "Headless retourne vide quelle que soit la valeur du répertoire par défaut")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 1), "Native appelée une fois")
+FIN
+
+
+// Cas limite : titre vide — la boîte de dialogue n'affiche pas de titre
+// mais l'appel reste valide.
+PROCEDURE PRIVÉE scenario_titre_vide()
+	sRep est une chaîne = fRepSélecteur("C:\", "")
+	dbgVérifieEgalité(sRep, "", "Headless retourne vide avec titre vide")
+	dbgVérifieVrai(MockVérifieAppelé(mockFRepSel, 1), "Native appelée une fois")
+FIN

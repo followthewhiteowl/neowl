@@ -1,0 +1,135 @@
+// ================================================================
+// Image natif — Lot I.3b : formes droites (lignes, rectangles)
+//
+// Trois fonctions :
+//   - dLigne([img,] x1, y1, x2, y2 [, couleur [, largeur]])
+//   - dRectangle([img,] x1, y1, x2, y2 [, fond [, trait]])
+//   - dRectangleDégradé([img,] x1, y1, x2, y2, c1, c2 [, angle])
+// ================================================================
+
+// ----- dLigne : ligne horizontale -----
+img est une Image = dCréeImage(10, 10, Blanc)
+dLigne(img, 0, 5, 9, 5, Noir)
+
+// Tous les pixels de la ligne y=5 doivent être Noir
+dbgVérifieEgalité(dPixelCouleur(img, 0, 5), Noir, "dLigne H: pixel (0,5)")
+dbgVérifieEgalité(dPixelCouleur(img, 5, 5), Noir, "dLigne H: pixel (5,5)")
+dbgVérifieEgalité(dPixelCouleur(img, 9, 5), Noir, "dLigne H: pixel (9,5)")
+// Les pixels à côté restent Blanc
+dbgVérifieEgalité(dPixelCouleur(img, 5, 4), Blanc, "dLigne H: pixel (5,4) inchangé")
+dbgVérifieEgalité(dPixelCouleur(img, 5, 6), Blanc, "dLigne H: pixel (5,6) inchangé")
+
+// ----- dLigne : ligne verticale -----
+img2 est une Image = dCréeImage(10, 10, Blanc)
+dLigne(img2, 3, 0, 3, 9, RougeClair)
+dbgVérifieEgalité(dPixelCouleur(img2, 3, 0), RougeClair, "dLigne V: pixel (3,0)")
+dbgVérifieEgalité(dPixelCouleur(img2, 3, 9), RougeClair, "dLigne V: pixel (3,9)")
+dbgVérifieEgalité(dPixelCouleur(img2, 2, 5), Blanc, "dLigne V: pixel (2,5) inchangé")
+
+// ----- dLigne : diagonale (Bresenham) -----
+img3 est une Image = dCréeImage(10, 10, Blanc)
+dLigne(img3, 0, 0, 9, 9, BleuClair)
+dbgVérifieEgalité(dPixelCouleur(img3, 0, 0), BleuClair, "dLigne diag: début")
+dbgVérifieEgalité(dPixelCouleur(img3, 9, 9), BleuClair, "dLigne diag: fin")
+// Pixel intermédiaire sur la diagonale
+dbgVérifieEgalité(dPixelCouleur(img3, 5, 5), BleuClair, "dLigne diag: milieu")
+
+// ----- dLigne sans couleur (utilise stylo courant) -----
+img4 est une Image = dCréeImage(10, 10, Blanc)
+dStylo(img4, VertClair)
+dLigne(img4, 0, 0, 9, 0)
+dbgVérifieEgalité(dPixelCouleur(img4, 5, 0), VertClair, "dLigne sans couleur: utilise stylo")
+
+// ----- dLigne via image courante -----
+img5 est une Image = dCréeImage(5, 5, Blanc)
+dDébutDessin(img5)
+dStylo(JauneOr)
+dLigne(0, 2, 4, 2)
+dbgVérifieEgalité(dPixelCouleur(img5, 2, 2), JauneOr, "dLigne via image courante + stylo")
+dFinDessin()
+
+// ----- dRectangle : rempli avec contour -----
+img6 est une Image = dCréeImage(10, 10, Blanc)
+dRectangle(img6, 1, 1, 5, 5, BleuClair, Noir)
+
+// Coins (contour)
+dbgVérifieEgalité(dPixelCouleur(img6, 1, 1), Noir, "dRectangle contour: coin haut-gauche")
+dbgVérifieEgalité(dPixelCouleur(img6, 5, 1), Noir, "dRectangle contour: coin haut-droit")
+dbgVérifieEgalité(dPixelCouleur(img6, 1, 5), Noir, "dRectangle contour: coin bas-gauche")
+dbgVérifieEgalité(dPixelCouleur(img6, 5, 5), Noir, "dRectangle contour: coin bas-droit")
+// Intérieur (fond)
+dbgVérifieEgalité(dPixelCouleur(img6, 3, 3), BleuClair, "dRectangle: intérieur rempli")
+// Extérieur
+dbgVérifieEgalité(dPixelCouleur(img6, 7, 7), Blanc, "dRectangle: extérieur intact")
+
+// ----- dRectangle : fond seul (sans trait) -----
+img7 est une Image = dCréeImage(10, 10, Blanc)
+dStylo(img7, RougeClair) // stylo courant rouge
+dFond(img7, VertClair) // fond courant vert
+dRectangle(img7, 2, 2, 7, 7) // utilise stylo + fond courants
+dbgVérifieEgalité(dPixelCouleur(img7, 2, 2), RougeClair, "dRectangle stylo courant: bord")
+dbgVérifieEgalité(dPixelCouleur(img7, 4, 4), VertClair, "dRectangle fond courant: intérieur")
+
+// ----- dRectangle : FondTransparent (contour seul) -----
+img8 est une Image = dCréeImage(10, 10, Blanc)
+dStylo(img8, BleuClair)
+dFond(img8, RougeClair, FondTransparent)
+dRectangle(img8, 1, 1, 6, 6)
+dbgVérifieEgalité(dPixelCouleur(img8, 1, 1), BleuClair, "FondTransparent: contour bleu")
+dbgVérifieEgalité(dPixelCouleur(img8, 3, 3), Blanc,
+"FondTransparent: intérieur intact")
+
+// ----- dRectangleDégradé horizontal (angle 0) -----
+img9 est une Image = dCréeImage(10, 5, Blanc)
+dRectangleDégradé(img9, 0, 0, 9, 4, RougeClair, BleuClair)
+
+// Pixel (0,0) doit être proche de RougeClair, (9,0) proche de BleuClair
+gauche est un entier = dPixelCouleur(img9, 0, 0)
+droite est un entier = dPixelCouleur(img9, 9, 0)
+dbgVérifieEgalité(gauche, RougeClair, "Dégradé H: début = RougeClair")
+dbgVérifieEgalité(droite, BleuClair, "Dégradé H: fin = BleuClair")
+
+// Pixel intermédiaire : ni complètement rouge ni complètement bleu
+milieu est un entier = dPixelCouleur(img9, 5, 0)
+dbgVérifieVrai(milieu <> RougeClair, "Dégradé H: milieu interpolé (pas RougeClair)")
+dbgVérifieVrai(milieu <> BleuClair, "Dégradé H: milieu interpolé (pas BleuClair)")
+
+// ----- dRectangleDégradé vertical (angle 90) -----
+img10 est une Image = dCréeImage(5, 10, Blanc)
+dRectangleDégradé(img10, 0, 0, 4, 9, JauneOr, Noir, 90)
+haut est un entier = dPixelCouleur(img10, 0, 0)
+bas est un entier = dPixelCouleur(img10, 0, 9)
+dbgVérifieEgalité(haut, JauneOr, "Dégradé V: début = JauneOr")
+dbgVérifieEgalité(bas, Noir, "Dégradé V: fin = Noir")
+
+// ----- Coordonnées hors limites silencieuses -----
+img11 est une Image = dCréeImage(5, 5, Blanc)
+// Une partie hors limites — pas de crash
+dLigne(img11,-3, 2, 100, 2, Noir)
+dbgVérifieEgalité(dPixelCouleur(img11, 2, 2), Noir,
+"dLigne traverse hors limites sans crash")
+
+// dRectangle qui dépasse
+dRectangle(img11,-2,-2, 2, 2, RougeClair, Noir)
+dbgVérifieEgalité(dPixelCouleur(img11, 2, 2), Noir, "dRectangle dépasse: contour OK")
+
+// ----- Image invalide silencieuse -----
+imgVide est une Image
+dLigne(imgVide, 0, 0, 9, 9, Noir) // ne crash pas
+dbgVérifieEgalité(imgVide..Valide, Faux, "dLigne sur image invalide: silencieux")
+
+// ----- Alias EN -----
+img12 est une Image = dCréeImage(5, 5, Blanc)
+dLine(img12, 0, 0, 4, 4, RougeClair)
+dbgVérifieEgalité(dPixelColor(img12, 2, 2), RougeClair, "Alias EN: dLine")
+dRect(img12, 1, 1, 3, 3, BleuClair, Noir)
+dbgVérifieEgalité(dPixelColor(img12, 2, 2), BleuClair, "Alias EN: dRect intérieur")
+dbgVérifieEgalité(dPixelColor(img12, 1, 1), Noir, "Alias EN: dRect contour")
+
+// ----- Roundtrip PNG : pixels préservés -----
+sChemin est une chaîne = "test_image_formes_droites_tmp.png"
+dSauveImagePNG(img6, sChemin)
+img13 est une Image = dChargeImage(sChemin)
+dbgVérifieEgalité(dPixelCouleur(img13, 3, 3), BleuClair, "Roundtrip: rectangle rempli préservé")
+dbgVérifieEgalité(dPixelCouleur(img13, 1, 1), Noir, "Roundtrip: contour préservé")
+fSupprime(sChemin)

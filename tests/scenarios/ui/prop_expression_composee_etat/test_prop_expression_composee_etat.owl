@@ -1,0 +1,27 @@
+// Une valeur de propriété dans le bloc PROPRIETES d'un sous-champ d'État
+// accepte une expression composée (concaténation, somme…), à parité avec
+// l'affectation directe `CHAMP..Prop = <expression>` et avec la Fenêtre.
+//
+// L'État voisin ETAT_ProprieteExprComposee.owl porte la déclaration : sa
+// simple résolution par l'autodiscovery exige que le sous-champ Libellé
+// `Libellé = "a" + LF + "b"` COMPILE. Sans la parité, ce fichier ne
+// compilerait pas et toute la campagne du dossier échouerait. L'impression
+// réelle (iImprimeEtat) force ensuite l'évaluation des propriétés composées
+// au rendu.
+
+PROCEDURE scenario_etat_expression_composee_rend_une_fois()
+	TestModeHeadless(Vrai)
+
+	iDestination(iPDFGénérique,
+	fRepTemp() + "\owl_test_prop_etat.pdf")
+	iImprimeEtat(ETAT_ProprieteExprComposee)
+	iFinImprime()
+
+	// L'État s'imprime exactement une fois : le top-level (et donc les
+	// évaluations de propriété composées du rendu) a tourné 1 seule fois,
+	// sans erreur de compilation ni de runtime.
+	dbgVérifieEgalité(__dbgNombreExecutions("ETAT_ExprComposee"), 1,
+	"État avec expressions composées en PROPRIETES : imprimé 1 fois")
+FIN
+
+dbgBilanTest()

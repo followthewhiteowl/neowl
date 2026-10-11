@@ -1,0 +1,87 @@
+// @sujet : IconeVersImage
+// @résumé : Rasterise une icône vectorielle en Image bitmap. Utile pour sauvegarder en PNG/JPEG ou composer avec les natives dDessine*.
+
+
+// Cas A : rasterise une icône du catalogue embarqué vers Image.
+// L'Image résultante doit être valide, non-vide (largeur et hauteur > 0).
+PROCEDURE PUBLIQUE scenario_rasterise_icone_catalogue()
+	ICN est une Icône = icones.save
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "IconeVersImage retourne une Image valide")
+	dbgVérifieVrai(IMG..Largeur > 0, "Image rasterisée a Largeur > 0")
+	dbgVérifieVrai(IMG..Hauteur > 0, "Image rasterisée a Hauteur > 0")
+FIN
+
+
+// Cas B : rasterise une icône avec une couleur appliquée.
+// Vérifie que la couleur est effective dans le rendu bitmap (si CouleurModifiable).
+PROCEDURE PUBLIQUE scenario_rasterise_avec_couleur()
+	ICN est une Icône = icones.save
+	ICN..Couleur = Bleu
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Image avec couleur appliquée est valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN
+
+
+// Cas C : rasterise une icône avec rotation appliquée.
+// La rotation transforme l'icône avant rasterisation.
+PROCEDURE PUBLIQUE scenario_rasterise_avec_rotation()
+	ICN est une Icône = icones.save
+	ICN..Rotation = 90
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Image avec rotation est valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN
+
+
+// Cas D : rasterise une icône avec forme carrée appliquée.
+// Le cadrage forme impacte le rendu final.
+PROCEDURE PUBLIQUE scenario_rasterise_avec_forme_carree()
+	ICN est une Icône = icones.save
+	ICN..Forme = formeCarree
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Image avec forme carrée est valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN
+
+
+// Cas E : rasterise une icône avec forme cercle appliquée.
+PROCEDURE PUBLIQUE scenario_rasterise_avec_forme_cercle()
+	ICN est une Icône = icones.save
+	ICN..Forme = formeCercle
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Image avec forme cercle est valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN
+
+
+// Cas F : rasterise une icône avec toutes les customisations combinées.
+PROCEDURE PUBLIQUE scenario_rasterise_full_custom()
+	ICN est une Icône = icones.save
+	ICN..Couleur     = Rouge
+	ICN..Rotation    = 45
+	ICN..Forme       = formeCercle
+	ICN..CouleurFond = Bleu
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Image avec toutes les customisations est valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN
+
+
+// Edge case privé : rasterise une icône multi-color (CouleurModifiable = Faux).
+PROCEDURE PRIVÉE scenario_edge_icone_multi_color()
+	ICN est une Icône = icones.file_type_pdf2
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Icône multi-color rasterisée valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN
+
+
+// Edge case privé : rasterise une icône sans aucune customisation.
+PROCEDURE PRIVÉE scenario_edge_icone_brute()
+	ICN est une Icône = icones.save
+	IMG est une Image = IconeVersImage(ICN)
+	dbgVérifieVrai(IMG..Valide, "Icône brute rasterisée valide")
+	dbgVérifieVrai(IMG..Largeur > 0 ET IMG..Hauteur > 0, "Dimensions non-nulles")
+FIN

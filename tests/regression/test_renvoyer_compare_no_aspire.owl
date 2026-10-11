@@ -1,0 +1,76 @@
+// Test régression : ambiguïté `<=` (deep-copy assignment vs comparaison)
+// et `=` (compare vs chained assignment) dans la RHS d'un assignment.
+//
+// Bug fixé 2026-05-08 (commit "fix(compiler): RHS d'assignment et `(...)`
+// utilisent condition_expression pour ne plus aspirer `<=`/`=` comme
+// assignment chaîné).
+//
+// Mécanisme du bug : named_variable consommait `<=` ou `=` après un
+// identifiant comme assignment, même en sous-expression. Origine :
+// expression() rappelée récursivement repartait à PREC_ASSIGNMENT
+// (canAssign=true). Fix : RHS d'assignment et grouping `(...)` appellent
+// désormais condition_expression() (PREC_TERNARY → canAssign=false).
+//
+// Réf : src/compiler.c::named_variable, grouping(), var_declaration_after_est,
+// RENVOYER, struct field assigns.
+
+// ============ A. Trace direct (cas qui MARCHE actuellement) ============
+n est un entier = 0
+dbgVérifieEgalité(n <= 0, Vrai, "[A.1] direct n<=0")
+dbgVérifieEgalité(n = 0, Vrai, "[A.2] direct n=0")
+dbgVérifieEgalité(n < 1, Vrai, "[A.3] direct n<1")
+dbgVérifieEgalité(n >= 0, Vrai, "[A.4] direct n>=0")
+dbgVérifieEgalité(n > -1, Vrai, "[A.5] direct n>-1")
+dbgVérifieEgalité(n <> 1, Vrai, "[A.6] direct n<>1")
+
+// ============ B. Assignment à variable booléenne (CASSÉ pour <=, =) ============
+b1 est un booléen = n <= 0
+dbgVérifieEgalité(b1, Vrai, "[B.1] booleen = n<=0  (CASSÉ : aspiré par deep-copy)")
+
+b2 est un booléen = n = 0
+dbgVérifieEgalité(b2, Vrai, "[B.2] booleen = n=0   (CASSÉ : aspiré par chained =)")
+
+b3 est un booléen = n < 1
+dbgVérifieEgalité(b3, Vrai, "[B.3] booleen = n<1   (OK)")
+
+b4 est un booléen = n >= 0
+dbgVérifieEgalité(b4, Vrai, "[B.4] booleen = n>=0  (OK)")
+
+b5 est un booléen = n > -1
+dbgVérifieEgalité(b5, Vrai, "[B.5] booleen = n>-1  (OK)")
+
+b6 est un booléen = n <> 1
+dbgVérifieEgalité(b6, Vrai, "[B.6] booleen = n<>1  (OK)")
+
+// ============ C. Avec parens explicites (toujours CASSÉ pour <=, =) ============
+c1 est un booléen = (n <= 0)
+dbgVérifieEgalité(c1, Vrai, "[C.1] booleen = (n<=0) avec parens (CASSÉ)")
+
+c2 est un booléen = (n = 0)
+dbgVérifieEgalité(c2, Vrai, "[C.2] booleen = (n=0)  avec parens (CASSÉ)")
+
+// ============ D. RENVOYER dans procédure (CASSÉ pour <=, =) ============
+PROCEDURE TestLE(v est un entier) RENVOYER v <= 0 FIN
+	PROCEDURE TestEQ(v est un entier) RENVOYER v = 0 FIN
+		PROCEDURE TestLT(v est un entier) RENVOYER v < 1 FIN
+			PROCEDURE TestGE(v est un entier) RENVOYER v >= 0 FIN
+				PROCEDURE TestGT(v est un entier) RENVOYER v > -1 FIN
+					PROCEDURE TestNE(v est un entier) RENVOYER v <> 1 FIN
+
+						dbgVérifieEgalité(TestLE(0), Vrai, "[D.1] RENVOYER 0<=0 (CASSÉ)")
+						dbgVérifieEgalité(TestEQ(0), Vrai, "[D.2] RENVOYER 0=0  (CASSÉ)")
+						dbgVérifieEgalité(TestLT(0), Vrai, "[D.3] RENVOYER 0<1  (OK)")
+						dbgVérifieEgalité(TestGE(0), Vrai, "[D.4] RENVOYER 0>=0 (OK)")
+						dbgVérifieEgalité(TestGT(0), Vrai, "[D.5] RENVOYER 0>-1 (OK)")
+						dbgVérifieEgalité(TestNE(0), Vrai, "[D.6] RENVOYER 0<>1 (OK)")
+
+						// ============ E. Cas négatifs (autre frontière) ============
+						m est un entier = 5
+						e1 est un booléen = m <= 5
+						dbgVérifieEgalité(e1, Vrai, "[E.1] 5<=5 (CASSÉ)")
+						e2 est un booléen = m = 5
+						dbgVérifieEgalité(e2, Vrai, "[E.2] 5=5  (CASSÉ)")
+						e3 est un booléen = m <= 4
+						dbgVérifieEgalité(e3, Faux, "[E.3] 5<=4 (CASSÉ — devrait Faux)")
+
+						dbgBilanTest()

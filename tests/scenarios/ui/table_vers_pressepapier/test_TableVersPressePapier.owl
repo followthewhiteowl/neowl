@@ -1,0 +1,71 @@
+// @sujet : TableVersPressePapier, TableToClipboard
+// @résumé : Copie le contenu (entêtes + données) d'un Champ Table dans le
+// presse-papier au format texte : colonnes séparées par une tabulation,
+// lignes séparées par un saut de ligne, entêtes en première ligne.
+//
+// Mock systématique de VersPressePapier pour ne pas toucher le presse-papier
+// réel durant la suite automatisée (cf. tests/scenarios/natives/test_DuPressePapier.owl).
+
+TestModeHeadless(Vrai)
+
+init_done_tvp est un booléen = Faux
+
+PROCEDURE cb_tvp_init_done()
+	init_done_tvp = Vrai
+FIN
+
+// Forme fonction : le texte copié est tabulé, entêtes en première ligne.
+PROCEDURE PUBLIQUE scenario_copie_table_format_texte_tabule()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+
+	Ouvre(FEN_TableVersPressePapier)
+	dbgVérifieVrai(init_done_tvp, "FinInitialisation FEN_TableVersPressePapier exécutée")
+
+	résultat est un booléen = TableVersPressePapier(TBL_Copie)
+	dbgVérifieVrai(résultat, "TableVersPressePapier retourne Vrai")
+	dbgVérifieVrai(mVers.VerifieAppele(1), "VersPressePapier appelé 1 fois en interne")
+
+	texte est une chaîne = MockDernierArgument(mVers, 1)
+	attendu est une chaîne = "Nom" + TAB + "Ville" + LF + "Alice" + TAB + "Paris" + LF + "Bob" + TAB + "Lyon"
+	dbgVérifieEgalité(texte, attendu, "texte copié : entêtes + lignes, colonnes séparées par tabulation, lignes par saut de ligne")
+
+	Ferme(FEN_TableVersPressePapier)
+	mVers.Desactive()
+FIN
+
+// Forme fluente <Table>.VersPressePapier() : même chemin C, même texte copié.
+PROCEDURE PUBLIQUE scenario_forme_fluente_equivalente()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+
+	Ouvre(FEN_TableVersPressePapier)
+
+	okFluent est un booléen = TBL_Copie.VersPressePapier()
+	dbgVérifieVrai(okFluent, "la forme fluente retourne Vrai")
+	texteFluent est une chaîne = MockDernierArgument(mVers, 1)
+	attendu est une chaîne = "Nom" + TAB + "Ville" + LF + "Alice" + TAB + "Paris" + LF + "Bob" + TAB + "Lyon"
+	dbgVérifieEgalité(texteFluent, attendu, "la forme fluente copie le même texte que la forme fonction")
+
+	Ferme(FEN_TableVersPressePapier)
+	mVers.Desactive()
+FIN
+
+// Forme bilingue anglaise TableToClipboard : équivalente à TableVersPressePapier.
+PROCEDURE PUBLIQUE scenario_bilingue_tabletoclipboard()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+
+	Ouvre(FEN_TableVersPressePapier)
+
+	ok est un booléen = TableToClipboard(TBL_Copie)
+	dbgVérifieVrai(ok, "TableToClipboard (forme anglaise) retourne Vrai")
+	texte est une chaîne = MockDernierArgument(mVers, 1)
+	attendu est une chaîne = "Nom" + TAB + "Ville" + LF + "Alice" + TAB + "Paris" + LF + "Bob" + TAB + "Lyon"
+	dbgVérifieEgalité(texte, attendu, "TableToClipboard produit le même texte que TableVersPressePapier")
+
+	Ferme(FEN_TableVersPressePapier)
+	mVers.Desactive()
+FIN
+
+dbgBilanTest()

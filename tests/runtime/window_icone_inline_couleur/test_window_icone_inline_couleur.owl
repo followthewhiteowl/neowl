@@ -1,0 +1,47 @@
+//  — litteral inline teinte {icones.X, Couleur=...} sur le slot
+// Icone d'une Fenetre.
+//
+// Bug : `Icône = {icones.animal_turtle_24_filled, Couleur = RGB(204,15,15)}`
+// en PROPRIETES d'une Fenetre echouait a la compilation avec un message
+// trompeur ("litteral inline reserve aux slots chaineMultilingue"), parce
+// que le slot Icone etait type STRING.  avait rendu le runtime
+// polymorphe (Image|Icone|chemin) mais laisse le slot STRING. Le slot est
+// desormais VARIANT, comme le slot Image du Bouton / Champ Image.
+//
+// Mode GUI reel (TestModeHeadless(Faux) + OuvreSoeur) : les vrais widgets
+// Qt sont montes offscreen, donc setWindowIcon est reellement appele.
+// TestFenetreIconeLargeur lit la largeur de l'icone Qt effective :
+//   > 0 -> icone posee ; 0 -> aucune icone.
+//
+// Couvre les 3 formes de valeur du slot Icone :
+//   CAS1 : litteral inline teinte en declaration  (le repro )
+//   CAS2 : reference catalogue bare au runtime     (non-regression)
+//   CAS3 : chemin fichier disque au runtime        (non-regression)
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_IconeInlineFen)
+
+// --- CAS1 declaration : Icone = {icones.X, Couleur=RGB(...)} (le repro).
+larg_inline est un entier = TestFenetreIconeLargeur(FEN_IconeInlineFen)
+dbgVérifieEgalité(larg_inline, 256,
+"CAS1 declaration : litteral inline teinte pose l'icone (rasterisee 256px)")
+
+// --- CAS2 runtime bare : FEN..Icone = icones.save.
+PoseIconeBare()
+larg_bare est un entier = TestFenetreIconeLargeur(FEN_IconeInlineFen)
+dbgVérifieEgalité(larg_bare, 256,
+"CAS2 runtime : reference catalogue bare pose l'icone (rasterisee 256px)")
+
+// --- CAS3 runtime chemin fichier : on genere un vrai PNG puis on l'affecte.
+imgTmp est une Image = IconeVersImage(icones.save)
+cheminPng est une chaîne = "test_fen_icone_0950.png"
+dSauveImagePNG(imgTmp, cheminPng)
+PoseIconeFichier(cheminPng)
+larg_fic est un entier = TestFenetreIconeLargeur(FEN_IconeInlineFen)
+dbgVérifieVrai(larg_fic > 0,
+"CAS3 non-regression : chemin fichier disque pose toujours l'icone")
+fSupprime(cheminPng)
+
+Ferme(FEN_IconeInlineFen)
+dbgBilanTest()

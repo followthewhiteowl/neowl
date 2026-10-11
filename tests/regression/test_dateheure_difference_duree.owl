@@ -1,0 +1,71 @@
+// @sujet : DateHeureDifférence retour Durée
+// @résumé : Verrouille que DateHeureDifférence retourne directement une Durée (divergence canon de référence assumée pour cohérence avec opérateur -). Cf. .
+
+// 1. Retour Durée direct : cast implicite sans ChaîneVersDurée.
+PROCEDURE test_retour_duree_direct()
+	dh1 est une dateheure = "20260515100000"
+	dh2 est une dateheure = "20260515120000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// TypeVar Durée = 33 (post /0287)
+	dbgVérifieEgalité(TypeVar(ecart), 33, "Type attendu Durée (33)")
+FIN
+
+
+// 2. Cohérence avec opérateur - : les deux voies donnent la même Durée.
+PROCEDURE test_coherence_operateur_moins()
+	dh1 est une dateheure = "20260515100000"
+	dh2 est une dateheure = "20260515120000"
+	ecart_fonction est une durée = DateHeureDifférence(dh1, dh2)
+	ecart_operateur est une durée = dh2 - dh1
+	dbgVérifieEgalité(ecart_fonction, ecart_operateur, "Fonction et opérateur doivent donner la même Durée")
+FIN
+
+
+// 3. Stockage ms canon (post ) : 2 heures = 7200000 ms.
+PROCEDURE test_stockage_ms_canon()
+	dh1 est une dateheure = "20260515100000"
+	dh2 est une dateheure = "20260515120000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 2 heures = 7200000 ms
+	dbgVérifieEgalité(ecart, 7200000, "Durée en ms (2 heures = 7200000 ms)")
+FIN
+
+
+// 4. Signe négatif : si dh1 > dh2, retour Durée négatif (post ).
+PROCEDURE test_signe_negatif()
+	dh1 est une dateheure = "20260515120000"
+	dh2 est une dateheure = "20260515100000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// dh2 < dh1 → écart négatif
+	dbgVérifieEgalité(ecart,-7200000, "Durée négative si dh2 < dh1")
+FIN
+
+
+// 5. Cas limite : dh1 = dh2 → Durée 0.
+PROCEDURE test_cas_limite_zero()
+	dh1 est une dateheure = "20260515100000"
+	dh2 est une dateheure = "20260515100000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	dbgVérifieEgalité(ecart, 0, "Durée 0 si dh1 = dh2")
+FIN
+
+
+// EDGE CASE PRIVE : différence multi-jours avec secondes/centisecondes.
+PROCEDURE PRIVÉE test_edge_multi_jours()
+	dh1 est une dateheure = "20260101100000"
+	dh2 est une dateheure = "2026010613153045"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 5 jours = 432000000 ms, 3h = 10800000 ms, 15 min = 900000 ms, 30s = 30000 ms, 45cs = 450 ms
+	// Total = 443730450 ms
+	dbgVérifieEgalité(ecart, 443730450, "Différence multi-jours avec cs")
+FIN
+
+
+// EDGE CASE PRIVE : différence à cheval sur changement d'année.
+PROCEDURE PRIVÉE test_edge_a_cheval_annee()
+	dh1 est une dateheure = "20251231230000"
+	dh2 est une dateheure = "20260101010000"
+	ecart est une durée = DateHeureDifférence(dh1, dh2)
+	// 2 heures = 7200000 ms
+	dbgVérifieEgalité(ecart, 7200000, "À cheval sur changement d'année")
+FIN

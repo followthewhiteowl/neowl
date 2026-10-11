@@ -1,0 +1,35 @@
+//  — sentinelle headless : Ouvre imbrique RE-OUVERT plusieurs
+// cycles. Extension de test_ouvre_imbrique_stack au 2e/3e
+// cycle, qui est la ou casse le bug terrain owl_gestion :
+//
+//   1er Ouvre(FEN_B) depuis FEN_A : OK
+//   2e Ouvre(FEN_B) (re-edition apres fermeture) : lectures revides
+//     cote B => "montant pas positif" ; ou crash GUI (widget dangling).
+//
+// FEN_A2 ouvre FEN_B2 trois fois de suite, imbrique. A chaque cycle,
+// FEN_B2 seede SAI_Montant depuis gnCycle, RELIT le champ, et remonte la
+// valeur lue via Ferme. Le contrat verrouille deux choses au 2e/3e cycle :
+//   - la pile revient a FEN_A2 en top (sinon FEN_A2..Titre lit B) ;
+//   - la lecture du champ de B rend la valeur FRAICHE du cycle courant,
+//     pas un residu vide (symptome 1 : "montant pas positif").
+//
+// En headless il n'y a pas d'event loop Qt : on ne reproduit pas le crash
+// GUI (symptome 2). On verrouille le contrat de pile + de seed/lecture
+// d'instance entre cycles, qui est la cause racine cote modele C.
+
+TestModeHeadless(Vrai)
+
+gnCycle est un entier = 0
+trace_pile est une chaîne = ""
+
+Ouvre(FEN_A2)
+
+Trace("Trace pile = [" + trace_pile + "]")
+
+dbgVérifieEgalité(trace_pile,
+"A_avant1(Liste A);B(Edition B,lu=montant1);A_apres1(Liste A,val=montant1);" +
+"A_avant2(Liste A);B(Edition B,lu=montant2);A_apres2(Liste A,val=montant2);" +
+"A_avant3(Liste A);B(Edition B,lu=montant3);A_apres3(Liste A,val=montant3);",
+"3 cycles Ouvre imbrique : pile coherente + lecture champ fraiche a chaque cycle")
+
+dbgBilanTest()

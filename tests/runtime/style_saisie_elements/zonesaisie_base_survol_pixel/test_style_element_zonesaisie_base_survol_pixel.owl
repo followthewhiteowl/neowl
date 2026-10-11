@@ -1,0 +1,55 @@
+//  — modèle définitif sous-éléments : `Style..ZoneSaisie..CouleurFond`
+// (base, pixel) + `Style..ZoneSaisie..Etats[survol]..X` (surcharge, QSS
+// read-back — pas de hover simulable en headless, cf. décision documentée
+// dans survol_qss / tests/runtime/style_saisie_etat/survol_qss).
+//
+// ROUGE attendu (deux raisons cumulées, cf. FEN_StyleElementZoneSaisieSurvol.owl) :
+//   1. `Style..ZoneSaisie..CouleurFond` (base) : champ 'ZoneSaisie' inconnu sur
+//      styleSaisie (sous-élément absent) — erreur SEMANTIQUE.
+//   2. `Style..ZoneSaisie..Etats[survol]..X` (surcharge) : le crochet `[survol]`
+//      au MILIEU d'une cascade déclarative (`..Etats[état]..`, pas en position
+//      finale) n'est pas encore parsé par le DSL fenêtre → erreur de PARSING
+//      ("'=' attendu apres le nom de field"), qui masque la raison 1 (le
+//      compilateur s'arrête au premier échec de parsing dans le bloc).
+//      C'est précisément le gate déclaratif signalé "le plus incertain" par
+//      le plan du ticket (cascade_buffer_capture, bracket profond).
+
+TestModeHeadless(Faux)
+
+couleurBaseFond est un entier = RVB(0, 200, 0)
+couleurSurvolFond est un entier = RVB(0, 255, 0)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleElementZoneSaisieSurvol)
+
+// Base : peinte en permanence, capturable directement.
+imgBase est une Image = dCopieImageFenêtre(FEN_StyleElementZoneSaisieSurvol)
+dbgVérifieEgalité(imgBase..Valide, Vrai, "capture base valide")
+
+nbFondBase est un entier = CompteCouleurZone(imgBase, 30, 30, 510, 70, couleurBaseFond)
+seuilFond est un entier = 4800 // (510-30) * (70-30) * 0.30, arrondi
+dbgVérifieVrai(nbFondBase > seuilFond, "SAI_Zone : Style..ZoneSaisie..CouleurFond peint le fond de base")
+
+// Survol : lecture de la feuille QSS générée (pas de hover postable en headless).
+feuille est une chaîne = __DebugFeuilleStyle(SAI_Zone)
+dbgVérifieVrai(Contient(feuille, ":hover"), "Style..ZoneSaisie..Etats[survol] : la feuille QSS contient un bloc :hover")
+dbgVérifieVrai(Contient(feuille, "0, 255, 0") OU Contient(feuille, "#00ff00"), "Style..ZoneSaisie..Etats[survol]..CouleurFond : couleur de fond survol présente")
+dbgVérifieVrai(Contient(feuille, "0, 128, 255") OU Contient(feuille, "#0080ff"), "Style..ZoneSaisie..Etats[survol]..Cadre..Couleur : couleur de bordure survol présente")
+
+Ferme(FEN_StyleElementZoneSaisieSurvol)
+dbgBilanTest()

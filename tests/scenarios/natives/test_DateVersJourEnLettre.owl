@@ -1,0 +1,90 @@
+// @sujet : DateVersJourEnLettre
+// @résumé : Retourne le nom du jour de la semaine (Lundi, Mardi, etc.) pour une date ou chaîne AAAAMMJJ. La valeur retournée est capitalisée (première lettre majuscule, reste minuscule).
+
+
+// Cas nominal : Lundi, date sous forme de variable date.
+PROCEDURE scenario_lundi()
+	d est une date = ChaîneVersDate("20260101") // 1er janvier 2026 est un jeudi
+	j est une chaîne = DateVersJourEnLettre(d)
+	dbgVérifieEgalité(j, "Jeudi", "1er janvier 2026 est un jeudi")
+FIN
+
+
+// Mardi, passé sous forme de chaîne AAAAMMJJ directe.
+PROCEDURE scenario_mardi_chaine()
+	j est une chaîne = DateVersJourEnLettre("20260106") // 6 janvier 2026
+	dbgVérifieEgalité(j, "Mardi", "6 janvier 2026 est un mardi")
+FIN
+
+
+// Mercredi, via une chaîne avec horodatage complet (AAAAMMJJHHmmSS).
+PROCEDURE scenario_mercredi_avec_horaire()
+	j est une chaîne = DateVersJourEnLettre("20260107143000") // 7 janvier 2026 à 14h30
+	dbgVérifieEgalité(j, "Mercredi", "7 janvier 2026 est un mercredi")
+FIN
+
+
+// Jeudi — validation supplémentaire du premier cas.
+PROCEDURE scenario_jeudi()
+	j est une chaîne = DateVersJourEnLettre("20260108")
+	dbgVérifieEgalité(j, "Jeudi", "8 janvier 2026 est un jeudi")
+FIN
+
+
+// Vendredi, fin de semaine ouvrée.
+PROCEDURE scenario_vendredi()
+	j est une chaîne = DateVersJourEnLettre("20260109")
+	dbgVérifieEgalité(j, "Vendredi", "9 janvier 2026 est un vendredi")
+FIN
+
+
+// Samedi, week-end.
+PROCEDURE scenario_samedi()
+	j est une chaîne = DateVersJourEnLettre("20260110")
+	dbgVérifieEgalité(j, "Samedi", "10 janvier 2026 est un samedi")
+FIN
+
+
+// Dimanche, dernier jour de la semaine.
+PROCEDURE scenario_dimanche()
+	j est une chaîne = DateVersJourEnLettre("20260111")
+	dbgVérifieEgalité(j, "Dimanche", "11 janvier 2026 est un dimanche")
+FIN
+
+
+// Cas limite : début d'année, premier janvier.
+PROCEDURE PRIVÉE scenario_edge_debut_annee()
+	j est une chaîne = DateVersJourEnLettre("20250101") // 1er janvier 2025 est un mercredi
+	dbgVérifieEgalité(j, "Mercredi", "1er janvier 2025 vérifié")
+FIN
+
+
+// Cas limite : fin d'année, 31 décembre.
+PROCEDURE PRIVÉE scenario_edge_fin_annee()
+	j est une chaîne = DateVersJourEnLettre("20251231") // 31 décembre 2025 est un mercredi
+	dbgVérifieEgalité(j, "Mercredi", "31 décembre 2025 vérifié")
+FIN
+
+
+// Année bissextile : 29 février 2024 (samedi).
+PROCEDURE PRIVÉE scenario_edge_annee_bissextile()
+	j est une chaîne = DateVersJourEnLettre("20240229")
+	dbgVérifieEgalité(j, "Jeudi", "29 février 2024 est un jeudi")
+FIN
+
+
+// Format chaîne étendu avec horodatage complet (AAAAMMJJHHmmSSCC).
+PROCEDURE PRIVÉE scenario_edge_format_horaire_complet()
+	j est une chaîne = DateVersJourEnLettre("2026010923153076") // 9 janvier 2026 à 23:15:30.76
+	dbgVérifieEgalité(j, "Vendredi", "horodatage complet : jour extrait correctement")
+FIN
+
+
+// Capitalisation stricte : première lettre majuscule, reste minuscule.
+PROCEDURE PRIVÉE scenario_edge_capitalisation()
+	j1 est une chaîne = DateVersJourEnLettre("20260105") // Lundi
+	dbgVérifieVrai(j1 = "Lundi", "casse stricte : Lundi avec majuscule initiale")
+
+	j2 est une chaîne = DateVersJourEnLettre("20260111") // Dimanche
+	dbgVérifieVrai(j2 = "Dimanche", "casse stricte : Dimanche avec majuscule initiale")
+FIN

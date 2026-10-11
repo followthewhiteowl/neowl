@@ -1,0 +1,93 @@
+// @sujet : chemins d'erreur du Tenseur N-D (reshape incohérent, index vue hors bornes)
+// @résumé : verrouille les deux refus neufs introduits par le N-D. Un
+// Redimensionne dont le produit des dimensions ne recouvre pas le nombre
+// d'éléments pose une erreur soft (ErreurDétectée = Vrai, pas d'exception,
+// pas de crash). Un accès ..Valeur[i] hors [1, forme[0]] sur une vue N-D
+// lève une exception rattrapable par QUAND EXCEPTION. Contrôles positifs :
+// un reshape valide n'erre pas, une sous-vue au premier indice ne jette pas.
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// ==================== RESHAPE INCOHÉRENT → ErreurDétectée (soft) ====================
+
+// Un tenseur 1-D à 4 éléments redimensionné en 3×2 (produit 6 ≠ 4) : erreur
+// soft. On vérifie ErreurDétectée AVANT toute autre instruction (la sentinelle
+// g_err_fresh ne survit qu'à un seul OP_CALL intercalé).
+PROCEDURE PUBLIQUE scenario_reshape_dimensions_incoherentes()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	ErreurRAZ()
+	rejet est un Tenseur = plat.Redimensionne([3, 2])
+	dbgVérifieVrai(ErreurDétectée, "reshape [3,2] sur 4 éléments : ErreurDétectée = Vrai")
+FIN
+
+
+// ==================== INDEX VUE N-D HORS BORNES → exception ====================
+
+// mat est un 2×2 (forme[0] = 2). ..Valeur[5] est hors [1, 2] : exception
+// rattrapable. Le code après l'accès ne doit pas s'exécuter.
+PROCEDURE PUBLIQUE scenario_index_vue_nd_hors_borne_haute()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		vue est un Tenseur = mat..Valeur[5]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "..Valeur[5] hors [1,2] : exception rattrapée")
+FIN
+
+
+// ==================== CONTRÔLES POSITIFS ====================
+
+// Un reshape dont le produit recouvre exactement le nombre d'éléments ne pose
+// aucune erreur : 2×2 = 4.
+PROCEDURE PRIVÉE scenario_reshape_valide_n_erre_pas()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	ErreurRAZ()
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+	dbgVérifieVrai(ErreurDétectée = Faux, "reshape valide [2,2] n'erre pas")
+	dbgVérifieEgalité(mat..Forme[1], 2, "reshape valide : forme[1] = 2")
+	dbgVérifieEgalité(mat..Forme[2], 2, "reshape valide : forme[2] = 2")
+FIN
+
+// Indice bas hors borne (0) : hors [1, 2], exception rattrapable également.
+PROCEDURE PRIVÉE scenario_index_vue_nd_hors_borne_basse()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		vue est un Tenseur = mat..Valeur[0]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "..Valeur[0] hors [1,2] : exception rattrapée")
+FIN
+
+// Premier indice valide (1) : ne jette pas, et la sous-vue est exploitable par
+// indexation chaînée (mat..Valeur[1][col] recouvre la première rangée du 2×2).
+PROCEDURE PRIVÉE scenario_index_vue_nd_premier_indice_valide()
+	plat est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0])
+	mat est un Tenseur = plat.Redimensionne([2, 2])
+
+	capturé est une chaîne = ""
+	QUAND EXCEPTION DANS
+		vue est un Tenseur = mat..Valeur[1]
+		capturé = "no-throw"
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "no-throw", "..Valeur[1] valide : pas d'exception")
+
+	// Indexation chaînée : la sous-vue du premier axe donne la rangée [1.0, 2.0].
+	dbgVérifieEgalité(mat..Valeur[1][1], 1.0, "mat..Valeur[1][1] = 1.0")
+	dbgVérifieEgalité(mat..Valeur[1][2], 2.0, "mat..Valeur[1][2] = 2.0")
+	dbgVérifieEgalité(mat..Valeur[2][1], 3.0, "mat..Valeur[2][1] = 3.0")
+FIN

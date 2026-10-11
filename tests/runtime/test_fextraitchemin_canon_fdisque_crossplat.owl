@@ -1,0 +1,22 @@
+// Lock des 4 constantes canon de fExtraitPartie (fDisque, fRepertoire,
+// fFichier, fExtension) + comportement cross-platform de fDisque
+// ( : retrait des alias legacy fExtrait_*, ce fichier verrouille
+// ce qui reste et doit continuer a fonctionner apres le retrait).
+
+chemin est une chaîne = "C:\Temp\Data\Fichier.txt"
+
+dbgVérifieEgalité(fExtraitChemin(chemin, fFichier), "Fichier", "fFichier seul")
+dbgVérifieEgalité(fExtraitChemin(chemin, fExtension), ".txt", "fExtension seul")
+dbgVérifieEgalité(fExtraitChemin(chemin, fRepertoire), "\Temp\Data\", "fRepertoire seul(sans lecteur)")
+dbgVérifieEgalité(fExtraitChemin(chemin, fDisque), "C:", "fDisque seul")
+
+// --- Combinaisons ---
+dbgVérifieEgalité(fExtraitChemin(chemin, fFichier + fExtension), "Fichier.txt", "fFichier + fExtension")
+dbgVérifieEgalité(fExtraitChemin(chemin, fDisque + fRepertoire), "C:\Temp\Data\", "fDisque + fRepertoire")
+
+// --- fDisque cross-platform : deterministe selon le CONTENU du chemin,
+// pas la plateforme d'execution ---
+dbgVérifieEgalité(fExtraitChemin("/home/user/fichier.txt", fDisque), "", "fDisque sur chemin sans lettre de lecteur = vide")
+dbgVérifieEgalité(fExtraitChemin("C:\Temp\x.txt", fDisque), "C:", "fDisque sur chemin avec lettre de lecteur")
+
+dbgBilanTest()

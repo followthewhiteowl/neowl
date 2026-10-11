@@ -1,0 +1,57 @@
+// Regression : SORTIR(N) sortie multi-niveau de boucles imbriquees.
+// Canon de référence.
+
+// === Cas nominal — sortie de 2 niveaux ===
+trace est une chaîne = ""
+POUR x = 1 À 3
+	POUR y = 1 À 3
+		POUR z = 1 À 3
+			SI z = 2 ALORS
+				SORTIR(2) // sort de z ET y, continue avec next x
+			FIN
+			trace = trace + x + y + z + "|"
+		FIN
+	FIN
+FIN
+dbgVérifieEgalité(trace, "111|211|311|",
+"SORTIR(2) sort de 2 niveaux : seule la 1ere iteration y=1, z=1 trace, puis next x")
+
+
+// === SORTIR(1) = SORTIR simple ===
+trace1 est une chaîne = ""
+POUR i = 1 À 5
+	SI i = 3 ALORS
+		SORTIR(1)
+	FIN
+	trace1 = trace1 + i + "|"
+FIN
+dbgVérifieEgalité(trace1, "1|2|",
+"SORTIR(1) equivalent a SORTIR simple")
+
+
+// === SORTIR sans arg = SORTIR(1) ===
+trace2 est une chaîne = ""
+POUR i = 1 À 5
+	SI i = 3 ALORS
+		SORTIR
+	FIN
+	trace2 = trace2 + i + "|"
+FIN
+dbgVérifieEgalité(trace2, "1|2|",
+"SORTIR sans arg = SORTIR(1)")
+
+
+// === SORTIR(N) avec N = profondeur exacte ===
+trace3 est une chaîne = ""
+POUR n1 = 1 À 2
+	POUR n2 = 1 À 2
+		SI n1 = 1 ET n2 = 1 ALORS
+			SORTIR(2) // sort de TOUTES les boucles imbriquees
+		FIN
+		trace3 = trace3 + n1 + n2 + "|"
+	FIN
+FIN
+dbgVérifieEgalité(trace3, "",
+"SORTIR(2) sur la 1ere iteration interne sort des 2 boucles")
+
+dbgBilanTest()

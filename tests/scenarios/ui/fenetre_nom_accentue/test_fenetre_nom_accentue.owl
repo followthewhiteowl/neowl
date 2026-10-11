@@ -1,0 +1,20 @@
+// Test résolution accent-insensible du nom de Fenêtre (vs champs dans
+// test_widget_nom_accentue.owl).
+//
+// Couvre critère "fenêtre accentuée" : FEN_Réglages..Titre = ...
+// post-déclaration. Le champ Titre d'une Fenêtre est retypé chaîneMultilingue,
+// donc accepte string simple ou dict multilangue.
+//
+// La fenêtre voisine FEN_Réglages.owl porte la déclaration.
+// Cas fenêtre accentuée qui crashait en RUNTIME (vs champ : crash compile-time).
+
+PROCEDURE PUBLIQUE scenario_fenetre_nom_accentue()
+	Ouvre(FEN_Réglages)
+
+	// Fenêtre accentuée : écriture puis relecture du Titre multilingue.
+	FEN_Réglages..Titre = {langueFrançais: "Configuration", langueAnglais: "Settings"}
+	dbgVérifieEgalité(FEN_Réglages..Titre[langueFrançais], "Configuration")
+	dbgVérifieEgalité(FEN_Réglages..Titre[langueAnglais], "Settings")
+
+	Ferme(FEN_Réglages)
+FIN

@@ -1,0 +1,53 @@
+// Équivalence props plates d'apparence ⇔ instance Style.
+// ROUGE attendu aujourd'hui : CouleurFond/Couleur plats et Style..CouleurFond/
+// Style..Couleur sont deux stockages distincts, non synchronisés (le dernier
+// appliqué à Qt gagne, mais lire l'un après avoir écrit l'autre ne reflète pas
+// le changement). Après impl : les props plates deviennent des alias fins vers
+// les sous-champs correspondants de l'instance Style du store, comme
+// PoliceNom ⇔ Police..Nom (test 3, verrou de non-régression).
+//
+// Pattern : la fenêtre voisine FEN_UnifStyle.owl porte la déclaration.
+
+Ouvre(FEN_UnifStyle)
+
+// --- Test 1a : CouleurFond plat → Style..CouleurFond (écriture plate visible via Style) ---
+SAI_Unif..CouleurFond = Rouge
+dbgVérifieEgalité(SAI_Unif..Style..CouleurFond, Rouge, "CouleurFond plat visible via Style..CouleurFond")
+
+// --- Test 1b : Style..CouleurFond → CouleurFond plat (écriture composée visible via le plat) ---
+SAI_Unif..Style..CouleurFond = Vert
+dbgVérifieEgalité(SAI_Unif..CouleurFond, Vert, "Style..CouleurFond visible via raccourci plat CouleurFond")
+
+// --- Test 2a : PoliceCouleur (raccourci Police existant) → Style..Couleur ---
+// NOTE : 'SAI..Couleur' (texte plat) n'existe PAS aujourd'hui pour Saisie —
+// le compile-checker rejette la cascade (Propriété 'Couleur' inconnue pour
+// Saisie). Chemin manquant signalé à l'implémenteur (cf. rapport), non
+// testable tel quel : on couvre ici PoliceCouleur, le raccourci texte qui
+// EXISTE réellement (FONT_PROPS), contre la même vérité que Style..Couleur.
+SAI_Unif..PoliceCouleur = Bleu
+dbgVérifieEgalité(SAI_Unif..Style..Couleur, Bleu, "PoliceCouleur plat visible via Style..Couleur")
+
+// --- Test 2b : Style..Couleur → PoliceCouleur plat ---
+SAI_Unif..Style..Couleur = JauneClair
+dbgVérifieEgalité(SAI_Unif..PoliceCouleur, JauneClair, "Style..Couleur visible via raccourci plat PoliceCouleur")
+
+// --- Test 3 (VERROU non-régression) : Police déjà unifiée, ne pas casser l'acquis ---
+SAI_Unif..PoliceNom = "Verdana"
+dbgVérifieEgalité(SAI_Unif..Police..Nom, "Verdana", "PoliceNom (déjà unifié) toujours visible via Police..Nom")
+SAI_Unif..Police..Nom = "Courier New"
+dbgVérifieEgalité(SAI_Unif..PoliceNom, "Courier New", "Police..Nom (déjà unifié) toujours visible via PoliceNom")
+
+// --- Test 4 : précédence quand les DEUX chemins sont touchés dans le même flux ---
+// Une seule vérité → le dernier écrit gagne, quel que soit le chemin utilisé.
+SAI_Unif..CouleurFond        = Rouge
+SAI_Unif..Style..CouleurFond = Vert
+dbgVérifieEgalité(SAI_Unif..CouleurFond, Vert, "précédence : dernier écrit (Style..CouleurFond) gagne sur le plat")
+dbgVérifieEgalité(SAI_Unif..Style..CouleurFond, Vert, "précédence : Style..CouleurFond cohérent avec le plat après écriture Style")
+
+SAI_Unif..Style..CouleurFond = Bleu
+SAI_Unif..CouleurFond        = JauneClair
+dbgVérifieEgalité(SAI_Unif..Style..CouleurFond, JauneClair, "précédence inverse : dernier écrit (plat CouleurFond) gagne sur Style")
+dbgVérifieEgalité(SAI_Unif..CouleurFond, JauneClair, "précédence inverse : le plat reste cohérent avec lui-même")
+
+Ferme(FEN_UnifStyle)
+dbgBilanTest()

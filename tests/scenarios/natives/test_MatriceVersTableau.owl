@@ -1,0 +1,26 @@
+// @sujet : MatriceVersTableau
+// @résumé : Convertit explicitement une Matrice en tableau imbriqué (lignes de réels), sans coercion implicite entre les deux types.
+
+
+// Cas nominal : une Matrice devient un tableau imbriqué de mêmes
+// dimensions, avec les mêmes valeurs aux mêmes positions.
+PROCEDURE PUBLIQUE scenario_conversion_nominale()
+	m est une Matrice = [[10.0, 20.0], [30.0, 40.0]]
+	arrTab est un tableau = MatriceVersTableau(m)
+	dbgVérifieEgalité(arrTab[1][1], 10.0, "arrTab[1][1] = m[1][1]")
+	dbgVérifieEgalité(arrTab[2][2], 40.0, "arrTab[2][2] = m[2][2]")
+FIN
+
+
+// Round-trip complet : Matrice -> tableau -> Matrice préserve dimensions
+// et valeurs à l'identique.
+PROCEDURE PUBLIQUE scenario_round_trip_fidele()
+	mOriginale est une Matrice = [[1.1, 2.2, 3.3], [4.4, 5.5, 6.6]]
+	arrIntermediaire est un tableau = MatriceVersTableau(mOriginale)
+	mRetour est une Matrice = TableauVersMatrice(arrIntermediaire)
+
+	dbgVérifieEgalité(mRetour..Lignes, mOriginale..Lignes, "Round-trip : nombre de lignes préservé")
+	dbgVérifieEgalité(mRetour..Colonnes, mOriginale..Colonnes, "Round-trip : nombre de colonnes préservé")
+	dbgVérifieEgalité(mRetour[1][1], mOriginale[1][1], "Round-trip : élément [1][1] préservé")
+	dbgVérifieEgalité(mRetour[2][3], mOriginale[2][3], "Round-trip : élément [2][3] préservé")
+FIN

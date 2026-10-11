@@ -1,0 +1,178 @@
+// Runtime GUI (widgets montés, offscreen) : les planchers de taille que le
+// moteur impose à un champ, et ce qu'ils font à la fenêtre qui les porte.
+//
+// Un champ ne descend jamais en dessous d'une certaine taille. Sur la FENÊTRE,
+// ce plancher gagne contre la hauteur écrite : une fenêtre déclarée trop
+// petite s'ouvre plus grande, sans que rien ne le signale à la conception.
+//
+// Aucune valeur attendue n'est écrite ici. Chaque loi est vérifiée par une
+// RELATION entre deux mesures faites au même moment : un nombre écrit à la
+// main dans un test finit par mentir, une relation non.
+//
+// Les valeurs relevées le jour de l'écriture sont dans les commentaires, à
+// titre indicatif seulement.
+
+TestModeHeadless(Faux)
+
+
+// ============================================================
+//  1. Famille défilante : plancher constant
+//     (relevé : 70 x 70, quel que soit le contenu)
+// ============================================================
+
+OuvreSoeur(FEN_PlListeVide)
+plancherVideL est un entier = LST_PlVide..Largeur
+plancherVideH est un entier = LST_PlVide..Hauteur
+fenVideL est un entier = FEN_PlListeVide..Largeur
+fenVideH est un entier = FEN_PlListeVide..Hauteur
+Ferme(FEN_PlListeVide)
+
+dbgVérifieVrai(plancherVideH > 1,
+"Un champ défilant vide a bien un plancher, il ne se réduit pas à rien")
+
+// L'asymétrie du sujet : la fenêtre est déclarée 1 x 1 et s'ouvre au plancher
+// de son contenu. Sur la fenêtre, la taille écrite PERD.
+dbgVérifieEgalité(fenVideH, plancherVideH,
+"Fenêtre déclarée sous le plancher de son champ : elle s'ouvre au plancher")
+dbgVérifieEgalité(fenVideL, plancherVideL,
+"Idem en largeur : la largeur écrite perd contre le plancher du contenu")
+
+OuvreSoeur(FEN_PlListeRiche)
+ListeAjoute(LST_PlRiche, "Un élément de liste vraiment très long, pour pousser")
+ListeAjoute(LST_PlRiche, "Un deuxième élément également très long")
+ListeAjoute(LST_PlRiche, "Trois")
+ListeAjoute(LST_PlRiche, "Quatre")
+ListeAjoute(LST_PlRiche, "Cinq")
+Temporise(50)
+plancherRicheL est un entier = LST_PlRiche..Largeur
+plancherRicheH est un entier = LST_PlRiche..Hauteur
+Ferme(FEN_PlListeRiche)
+
+dbgVérifieEgalité(plancherRicheL, plancherVideL,
+"Famille défilante : le plancher en largeur ignore le contenu et la police")
+dbgVérifieEgalité(plancherRicheH, plancherVideH,
+"Famille défilante : le plancher en hauteur ignore le contenu et la police")
+
+OuvreSoeur(FEN_PlTableRiche)
+plancherTableL est un entier = TBL_PlRiche..Largeur
+plancherTableH est un entier = TBL_PlRiche..Hauteur
+Ferme(FEN_PlTableRiche)
+
+dbgVérifieEgalité(plancherTableL, plancherVideL,
+"Famille défilante : le plancher en largeur ignore aussi le nombre de colonnes")
+dbgVérifieEgalité(plancherTableH, plancherVideH,
+"Famille défilante : même plancher en hauteur pour la Table que pour la Liste")
+
+
+// ============================================================
+//  2. Champ à options : pourtour constant + une ligne par option,
+//     séparées d'un espacement constant
+//     (relevé : pourtour 8, ligne 20, espacement 2)
+// ============================================================
+
+OuvreSoeur(FEN_PlSel0)
+sel0 est un entier = SEL_Pl0..Hauteur
+Ferme(FEN_PlSel0)
+
+OuvreSoeur(FEN_PlSel1)
+sel1 est un entier = SEL_Pl1..Hauteur
+Ferme(FEN_PlSel1)
+
+OuvreSoeur(FEN_PlSel2)
+sel2 est un entier = SEL_Pl2..Hauteur
+Ferme(FEN_PlSel2)
+
+OuvreSoeur(FEN_PlSel3)
+sel3 est un entier = SEL_Pl3..Hauteur
+Ferme(FEN_PlSel3)
+
+dbgVérifieVrai(sel0 > 0,
+"Un champ à options sans option garde son pourtour")
+
+ligne est un entier = sel1 - sel0
+dbgVérifieVrai(ligne > 0,
+"La première option ajoute la hauteur de sa ligne")
+
+// La deuxième option coûte sa ligne PLUS un espacement : le saut est donc
+// strictement plus grand que celui de la première.
+dbgVérifieVrai(sel2 - sel1 > ligne,
+"À partir de la deuxième option, chaque ligne coûte en plus un espacement")
+
+// Et cet espacement est constant : la troisième option coûte exactement le
+// même supplément que la deuxième.
+dbgVérifieEgalité(sel3 - sel2, sel2 - sel1,
+"L'espacement entre deux lignes d'option est constant")
+
+// Autrement dit : hauteur = pourtour + N lignes + (N-1) espacements.
+espacement est un entier = (sel2 - sel1) - ligne
+dbgVérifieEgalité(sel3, sel0 + 3 * ligne + 2 * espacement,
+"Trois options : pourtour + 3 lignes + 2 espacements, à l'unité près")
+
+
+// ============================================================
+//  3. Champ Onglet : le volet MASQUÉ pousse aussi
+//     (relevé : chrome 127 x 31 ; 31 + 70 = 101 avec le volet masqué)
+// ============================================================
+
+OuvreSoeur(FEN_PlOngVide)
+chromeL est un entier = ONG_PlVide..Largeur
+chromeH est un entier = ONG_PlVide..Hauteur
+Ferme(FEN_PlOngVide)
+
+OuvreSoeur(FEN_PlOngMasque)
+masqueH est un entier = ONG_PlMasque..Hauteur
+fenMasqueH est un entier = FEN_PlOngMasque..Hauteur
+voletMasqueVisible est un booléen = VOL_PlMasqueB..Visible
+Ferme(FEN_PlOngMasque)
+
+dbgVérifieVrai(chromeL > 0, "Le chrome de l'onglet a une largeur propre")
+dbgVérifieVrai(chromeH > 0, "Le chrome de l'onglet a une hauteur propre")
+
+dbgVérifieEgalité(voletMasqueVisible, Faux,
+"Le volet qui porte le champ défilant est bien masqué")
+
+// Le cœur du sujet : le volet masqué, que rien ne dessine à l'écran, pousse
+// la hauteur du champ Onglet exactement de son propre plancher.
+dbgVérifieEgalité(masqueH, chromeH + plancherVideH,
+"Le plancher de l'onglet tient compte du volet MASQUÉ, à son plancher près")
+dbgVérifieVrai(masqueH > chromeH,
+"Un volet masqué agrandit l'onglet alors qu'il n'est pas affiché")
+dbgVérifieEgalité(fenMasqueH, masqueH,
+"La fenêtre subit ce plancher : elle s'ouvre plus haut que ce qui est écrit")
+
+
+// ------------------------------------------------------------
+//  3bis. Onglet : ce que la police déplace, et ce qu'elle ne
+//        déplace pas. La largeur du chrome est annoncée constante
+//        à l'éditeur ; une invariance affirmée sans faire varier
+//        le paramètre visé ne vaut rien, on le fait varier ici.
+//     (relevé : largeur 127 dans les quatre cas ; hauteur 31 en
+//      police par défaut, 63 en corps 40)
+// ------------------------------------------------------------
+
+OuvreSoeur(FEN_PlOngLibVide)
+libVideL est un entier = ONG_PlLibVide..Largeur
+Ferme(FEN_PlOngLibVide)
+
+OuvreSoeur(FEN_PlOngLibLongs)
+libLongsL est un entier = ONG_PlLibLongs..Largeur
+Ferme(FEN_PlOngLibLongs)
+
+OuvreSoeur(FEN_PlOngGrandePolice)
+gdPoliceL est un entier = ONG_PlGdPolice..Largeur
+gdPoliceH est un entier = ONG_PlGdPolice..Hauteur
+Ferme(FEN_PlOngGrandePolice)
+
+dbgVérifieEgalité(libVideL, chromeL,
+"Largeur plancher de l'onglet : une languette sans libellé ne la réduit pas")
+dbgVérifieEgalité(libLongsL, chromeL,
+"Largeur plancher de l'onglet : deux libellés très longs ne l'augmentent pas")
+dbgVérifieEgalité(gdPoliceL, chromeL,
+"Largeur plancher de l'onglet : une très grande police ne la déplace pas")
+
+// Le contraste, sans lequel les trois égalités ci-dessus ne prouveraient
+// rien : la police EST mesurée, elle déplace bel et bien la hauteur.
+dbgVérifieVrai(gdPoliceH > chromeH,
+"Hauteur du chrome de l'onglet : elle, suit la police des languettes")
+
+dbgBilanTest()

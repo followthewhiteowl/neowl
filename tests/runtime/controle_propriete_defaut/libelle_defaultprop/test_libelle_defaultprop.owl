@@ -1,0 +1,28 @@
+//  (follow-up B) — Propriété par défaut du Libellé.
+// Le contenu d'un Libellé est son texte (prop "Libellé"). La propriété par
+// défaut pointe désormais cette vraie prop (et non "Valeur" qui n'avait pas
+// de slot runtime câblé sur le texte du champ). Conséquence : le nom nu lu
+// résout le texte, et l'affectation au nom nu écrit le texte.
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_LibDef)
+
+// 1. Nom nu en LECTURE résout le texte du Libellé.
+n est une chaîne = LIB_Texte
+dbgVérifieEgalité(n, "Bonjour", "Nom nu LIB en lecture résout le texte")
+
+// 2. Affectation au nom nu écrit le texte (sens écriture, défaut).
+LIB_Texte = "Salut"
+dbgVérifieEgalité(LIB_Texte..Libellé, "Salut", "LIB = X écrit le texte via la prop par défaut")
+
+// 3. Re-lecture du nom nu reflète la nouvelle valeur.
+m est une chaîne = LIB_Texte
+dbgVérifieEgalité(m, "Salut", "Nom nu LIB relu après écriture")
+
+// 4. L'accès explicite ..Libellé reste la voie canonique du contenu.
+LIB_Texte..Libellé = "Final"
+dbgVérifieEgalité(LIB_Texte..Libellé, "Final", "Accès explicite ..Libellé inchangé")
+
+Ferme(FEN_LibDef)
+
+dbgBilanTest()

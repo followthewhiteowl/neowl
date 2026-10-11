@@ -1,0 +1,120 @@
+// @sujet : ChargeImagesAnnotéesDepuisYOLO
+// @résumé : Charge un dossier « images + labels YOLO-txt » (un `.txt` par
+// image, même nom de base, une ligne par boîte `classe cx cy largeur
+// hauteur` en coordonnées normalisées 0..1) en un `Dataset de ImageAnnotée`.
+// Chaque exemple expose `..Image` (matérialisation paresseuse, comme
+// ImageÉtiquetée) et `..Boîtes` (tableau de boîtes `[classe, cx, cy, l, h]`,
+// coordonnées telles que lues dans le fichier, sans conversion pixels). Une
+// image sans `.txt` (ou `.txt` vide) est un exemple valide à 0 boîte (fond).
+//
+// Fixture committée : tests/scenarios/natives/fixtures/yolo_mini/
+//   - img_a.png + img_a.txt : 2 boîtes (classes 0 et 1)
+//   - img_b.png + img_b.txt : 1 boîte (classe 0)
+//   - img_c.png, pas de .txt : 0 boîte (image de fond)
+//   - img_d.png + img_d.txt vide : 0 boîte (image de fond)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Le dossier fixture contient 4 images -> 4 exemples dans le Dataset, un par
+// image, peu importe le nombre de boîtes de chacune.
+PROCEDURE PUBLIQUE scenario_charge_yolo_taille_du_dataset()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	dbgVérifieEgalité(ds..Taille, 4, "4 images dans le dossier fixture -> 4 exemples")
+FIN
+
+// img_a.txt contient 2 lignes -> l'exemple correspondant expose 2 boîtes,
+// chacune restituant [classe, cx, cy, l, h] telles que lues dans le fichier
+// (pas de conversion pixels).
+PROCEDURE PUBLIQUE scenario_charge_yolo_boites_multiples_coordonnees_normalisees()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	exempleA est un ImageAnnotée = ds[1]
+
+	dbgVérifieEgalité(exempleA..Boîtes..Occurrence, 2, "img_a.txt a 2 lignes -> 2 boîtes")
+
+	boite1 est un tableau de réels = exempleA..Boîtes[1]
+	dbgVérifieVrai(Abs(boite1[1] - 0.0) < 0.0001, "boîte 1 : classe 0")
+	dbgVérifieVrai(Abs(boite1[2] - 0.5) < 0.0001, "boîte 1 : cx = 0.5")
+	dbgVérifieVrai(Abs(boite1[3] - 0.5) < 0.0001, "boîte 1 : cy = 0.5")
+	dbgVérifieVrai(Abs(boite1[4] - 1.0) < 0.0001, "boîte 1 : largeur = 1.0")
+	dbgVérifieVrai(Abs(boite1[5] - 1.0) < 0.0001, "boîte 1 : hauteur = 1.0")
+
+	boite2 est un tableau de réels = exempleA..Boîtes[2]
+	dbgVérifieVrai(Abs(boite2[1] - 1.0) < 0.0001, "boîte 2 : classe 1")
+	dbgVérifieVrai(Abs(boite2[2] - 0.25) < 0.0001, "boîte 2 : cx = 0.25")
+	dbgVérifieVrai(Abs(boite2[3] - 0.25) < 0.0001, "boîte 2 : cy = 0.25")
+	dbgVérifieVrai(Abs(boite2[4] - 0.5) < 0.0001, "boîte 2 : largeur = 0.5")
+	dbgVérifieVrai(Abs(boite2[5] - 0.5) < 0.0001, "boîte 2 : hauteur = 0.5")
+FIN
+
+// img_b.txt a une seule ligne -> 1 boîte.
+PROCEDURE PUBLIQUE scenario_charge_yolo_une_seule_boite()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	exempleB est un ImageAnnotée = ds[2]
+
+	dbgVérifieEgalité(exempleB..Boîtes..Occurrence, 1, "img_b.txt a 1 ligne -> 1 boîte")
+	boite est un tableau de réels = exempleB..Boîtes[1]
+	dbgVérifieVrai(Abs(boite[1] - 0.0) < 0.0001, "boîte : classe 0")
+	dbgVérifieVrai(Abs(boite[2] - 0.5) < 0.0001, "boîte : cx = 0.5")
+	dbgVérifieVrai(Abs(boite[3] - 0.5) < 0.0001, "boîte : cy = 0.5")
+	dbgVérifieVrai(Abs(boite[4] - 0.5) < 0.0001, "boîte : largeur = 0.5")
+	dbgVérifieVrai(Abs(boite[5] - 0.5) < 0.0001, "boîte : hauteur = 0.5")
+FIN
+
+// img_c.png n'a pas de fichier .txt du tout -> exemple valide, 0 boîte
+// (image de fond).
+PROCEDURE PUBLIQUE scenario_charge_yolo_image_sans_txt_zero_boite()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	exempleC est un ImageAnnotée = ds[3]
+	dbgVérifieEgalité(exempleC..Boîtes..Occurrence, 0, "img_c sans .txt -> 0 boîte")
+FIN
+
+// img_d.txt existe mais est vide -> exemple valide, 0 boîte également.
+PROCEDURE PUBLIQUE scenario_charge_yolo_txt_vide_zero_boite()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	exempleD est un ImageAnnotée = ds[4]
+	dbgVérifieEgalité(exempleD..Boîtes..Occurrence, 0, "img_d.txt vide -> 0 boîte")
+FIN
+
+// ..Image reste une matérialisation paresseuse comme pour ImageÉtiquetée :
+// ..Image..Largeur/..Hauteur reflètent les dimensions réelles du PNG lu.
+PROCEDURE PUBLIQUE scenario_charge_yolo_image_materialisation_paresseuse()
+	ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	exempleA est un ImageAnnotée = ds[1]
+	dbgVérifieEgalité(exempleA..Image..Largeur, 4, "..Image matérialisée : largeur réelle du PNG (4px)")
+	dbgVérifieEgalité(exempleA..Image..Hauteur, 4, "..Image matérialisée : hauteur réelle du PNG (4px)")
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : forme anglaise + cas limites
+// ═════════════════════════════════════════════════════════════════════════════
+
+// La forme anglaise LoadAnnotatedImagesFromYOLO / ..Boxes / ..Count désigne
+// le même chargement.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise()
+	ds is a Dataset of AnnotatedImage = LoadAnnotatedImagesFromYOLO("tests/scenarios/natives/fixtures/yolo_mini")
+	dbgVérifieEgalité(ds..Count, 4, "LoadAnnotatedImagesFromYOLO : ..Count = 4")
+
+	example is an AnnotatedImage = ds[1]
+	dbgVérifieEgalité(example..Boxes..Occurrence, 2, "LoadAnnotatedImagesFromYOLO : ..Boxes[1] a 2 boîtes")
+
+	box1 is an array of reals = example..Boxes[1]
+	dbgVérifieVrai(Abs(box1[1] - 0.0) < 0.0001, "..Boxes : classe 0")
+	dbgVérifieVrai(Abs(box1[2] - 0.5) < 0.0001, "..Boxes : cx = 0.5")
+FIN
+
+// Cas limite : un dossier inexistant est refusé proprement, signalé par une
+// exception attrapable (même contrat que ChargeImagesÉtiquetéesDepuisDossier).
+PROCEDURE PRIVÉE scenario_edge_dossier_inexistant_leve_exception()
+	cheminInexistant est une chaîne = fRepTemp() + "\owl_test_1843_yolo_absent_xyzzy"
+	dbgVérifieEgalité(fRepExiste(cheminInexistant), Faux, "précondition : le dossier n'existe pas")
+
+	capturé est une chaîne = "no-throw"
+	QUAND EXCEPTION DANS
+		ds est un Dataset de ImageAnnotée = ChargeImagesAnnotéesDepuisYOLO(cheminInexistant)
+	FAIRE
+		capturé = "caught"
+	FIN
+	dbgVérifieEgalité(capturé, "caught", "ChargeImagesAnnotéesDepuisYOLO sur dossier inexistant lève une exception")
+FIN

@@ -1,0 +1,53 @@
+// ============================================
+// TEST: constantes filtre* (type de TableActiveFiltre)
+//
+// Les 12 constantes filtre* sont les operateurs de comparaison passes en
+// 3e argument de TableActiveFiltre(table, colonne, type, valeur). Ce sont
+// des sentinels entiers contigus (OWL_FILTRE_BASE + 0..11) consommes par
+// owl_filter_match cote rendu de table.
+//
+// COUVERTURE = value-check structurel : chaque constante a une valeur
+// distincte et l'ordre des offsets est ancre sur la definition source
+// (sentinels.h). L'EFFET runtime du filtre (lignes masquees) n'est pas
+// observable depuis OWL en mode test (pas de getter de lignes visibles
+// expose) — le smoke d'appel vit dans le dossier headless dedie.
+// ============================================
+Trace("=== FILTRE CONSTANTES ===")
+
+// Reference : filtreContient = OWL_FILTRE_BASE + 0. Les autres sont
+// ancres comme offsets exacts par rapport a cette base.
+base est un entier = filtreContient
+
+// ---------------------------------------------------------------------
+// Offsets exacts (ordre fige dans sentinels.h, OWL_FILTRE_BASE + N)
+// ---------------------------------------------------------------------
+dbgVérifieEgalité(filtreContient, base + 0, "filtreContient = base+0")
+dbgVérifieEgalité(filtreCommencePar, base + 1, "filtreCommencePar = base+1")
+dbgVérifieEgalité(filtreTerminePar, base + 2, "filtreTerminePar = base+2")
+dbgVérifieEgalité(filtreEgal, base + 3, "filtreEgal = base+3")
+dbgVérifieEgalité(filtreDifférent, base + 4, "filtreDifférent = base+4")
+dbgVérifieEgalité(filtreInférieur, base + 5, "filtreInférieur = base+5")
+dbgVérifieEgalité(filtreInférieurOuEgal, base + 6, "filtreInférieurOuEgal = base+6")
+dbgVérifieEgalité(filtreSupérieur, base + 7, "filtreSupérieur = base+7")
+dbgVérifieEgalité(filtreSupérieurOuEgal, base + 8, "filtreSupérieurOuEgal = base+8")
+dbgVérifieEgalité(filtreNeContientPas, base + 9, "filtreNeContientPas = base+9")
+dbgVérifieEgalité(filtreNeCommencePasPar, base + 10, "filtreNeCommencePasPar = base+10")
+dbgVérifieEgalité(filtreNeTerminePasPar, base + 11, "filtreNeTerminePasPar = base+11")
+
+// ---------------------------------------------------------------------
+// Distinction : les operateurs et leurs negations sont bien distincts
+// ---------------------------------------------------------------------
+dbgVérifieVrai(filtreContient <> filtreNeContientPas,
+"filtreContient distinct de sa negation")
+dbgVérifieVrai(filtreCommencePar <> filtreNeCommencePasPar,
+"filtreCommencePar distinct de sa negation")
+dbgVérifieVrai(filtreTerminePar <> filtreNeTerminePasPar,
+"filtreTerminePar distinct de sa negation")
+dbgVérifieVrai(filtreEgal <> filtreDifférent,
+"filtreEgal distinct de filtreDifférent")
+dbgVérifieVrai(filtreInférieur <> filtreInférieurOuEgal,
+"filtreInférieur distinct de filtreInférieurOuEgal")
+dbgVérifieVrai(filtreSupérieur <> filtreSupérieurOuEgal,
+"filtreSupérieur distinct de filtreSupérieurOuEgal")
+
+dbgBilanTest()

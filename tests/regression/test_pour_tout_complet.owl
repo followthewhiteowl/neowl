@@ -1,0 +1,325 @@
+// Régression et cas limites pour les ajouts POUR TOUT canon de référence :
+//  - synonymes POUR TOUS / POUR CHAQUE (Ajout 1)
+//  - sens parcours DepuisDébut / DepuisFin (Ajout 2)
+//  - filtre inline AVEC <cond> (Ajout 3)
+//  - parcours chaîne séparée POUR TOUTE CHAÎNE ... SEPAREE PAR ... (Ajout 4)
+//  - parcours occurrences POUR TOUTE POSITION ... DE ... DANS ... (Ajout 5)
+//  - non-régression des formes POUR TOUT déjà en place
+Trace("=== POUR TOUT COMPLET ===")
+
+
+// ── 1. Synonymes équivalents — trace identique des 3 formes ─────────────
+tabSrc est un tableau de entiers = [11, 22, 33]
+sViaTout est une chaîne = ""
+sViaTous est une chaîne = ""
+sViaChaque est une chaîne = ""
+POUR TOUT v DE tabSrc
+	sViaTout = sViaTout + v + "|"
+FIN
+POUR TOUS v DE tabSrc
+	sViaTous = sViaTous + v + "|"
+FIN
+POUR CHAQUE v DE tabSrc
+	sViaChaque = sViaChaque + v + "|"
+FIN
+dbgVérifieEgalité(sViaTous, sViaTout, "POUR TOUS produit la même trace que POUR TOUT")
+dbgVérifieEgalité(sViaChaque, sViaTout, "POUR CHAQUE produit la même trace que POUR TOUT")
+dbgVérifieEgalité(sViaTout, "11|22|33|", "POUR TOUT trace canonique")
+
+
+// ── 2. DepuisDébut explicite — équivalent au défaut ─────────────────────
+tabA est un tableau de entiers = [1, 2, 3, 4]
+sDefaut est une chaîne = ""
+sExplicite est une chaîne = ""
+POUR TOUT v DE tabA
+	sDefaut = sDefaut + v
+FIN
+POUR TOUT v DE tabA DepuisDébut
+	sExplicite = sExplicite + v
+FIN
+dbgVérifieEgalité(sExplicite, sDefaut, "DepuisDébut explicite : no-op sémantique")
+dbgVérifieEgalité(sDefaut, "1234", "Sens avant trace 1234")
+
+
+// ── 3. DepuisFin sur tableau ordinal ────────────────────────────────────
+tabB est un tableau de entiers = [1, 2, 3]
+sInv est une chaîne = ""
+POUR TOUT v DE tabB DepuisFin
+	sInv = sInv + v
+FIN
+dbgVérifieEgalité(sInv, "321", "DepuisFin tableau ordinal trace inverse")
+
+
+// ── 4. DepuisFin sur tableau vide — zéro itération ──────────────────────
+tabVide est un tableau de entiers
+nIter est un entier = 0
+POUR TOUT v DE tabVide DepuisFin
+	nIter = nIter + 1
+FIN
+dbgVérifieEgalité(nIter, 0, "DepuisFin sur tableau vide : zéro itération")
+
+
+// ── 5. DepuisFin + index secondaire — index reflète le parcours inverse ─
+tabLet est un tableau de chaînes = ["a", "b", "c"]
+sIdx est une chaîne = ""
+POUR TOUT lettre, i DE tabLet DepuisFin
+	sIdx = sIdx + lettre + i + "|"
+FIN
+// En DepuisFin l'index 1-based reste celui de la position dans le tableau
+// source : c=3, b=2, a=1 (l'index suit l'élément, pas l'ordre d'itération).
+dbgVérifieEgalité(sIdx, "c3|b2|a1|", "DepuisFin : index secondaire = position source de l'élément")
+
+
+// ── 6. DepuisFin sur tableau associatif — ordre d'insertion inversé ─────
+ta est un tableau associatif de chaînes
+Insère(ta, "k1", "v1")
+Insère(ta, "k2", "v2")
+Insère(ta, "k3", "v3")
+sOrdreAssoc est une chaîne = ""
+POUR TOUT v DE ta DepuisFin
+	sOrdreAssoc = sOrdreAssoc + v
+FIN
+dbgVérifieEgalité(sOrdreAssoc, "v3v2v1", "DepuisFin assoc : ordre d'insertion inversé")
+
+
+// ── 7. Suppression élément courant en mode DepuisFin ────────────────────
+// En DepuisFin, supprimer l'élément courant ne décale pas les éléments
+// restants à parcourir (ils sont déjà passés). Pas de skip parasite.
+tabSup est un tableau de chaînes = ["w", "x", "y", "z"]
+nVus est un entier = 0
+POUR TOUT e DE tabSup DepuisFin
+	nVus = nVus + 1
+	SI e = "y" ALORS
+		Supprime(tabSup, ÉlémentCourant)
+	FIN
+FIN
+dbgVérifieEgalité(nVus, 4, "DepuisFin + suppression : tous les éléments restants visités")
+dbgVérifieEgalité(tabSup..Occurrence, 3, "DepuisFin + suppression : 1 élément supprimé")
+
+
+// ── 8. AVEC filtre — condition simple ───────────────────────────────────
+tabNb est un tableau de entiers = [1, 2, 3, 4, 5]
+sGardes est une chaîne = ""
+POUR TOUT v DE tabNb AVEC v > 2
+	sGardes = sGardes + v
+FIN
+dbgVérifieEgalité(sGardes, "345", "AVEC v > 2 : garde 3, 4, 5")
+
+
+// ── 9. AVEC référence l'index secondaire ────────────────────────────────
+tabVal est un tableau de entiers = [10, 20, 30, 40]
+sPair est une chaîne = ""
+POUR TOUT v, i DE tabVal AVEC i = 2 OU i = 4
+	sPair = sPair + v + "|"
+FIN
+dbgVérifieEgalité(sPair, "20|40|", "AVEC sur l'index secondaire : 2e et 4e éléments")
+
+
+// ── 10. AVEC condition toujours fausse — zéro body exécuté ─────────────
+tabC est un tableau de entiers = [1, 2, 3]
+nBodyExec est un entier = 0
+POUR TOUT v DE tabC AVEC v > 100
+	nBodyExec = nBodyExec + 1
+FIN
+dbgVérifieEgalité(nBodyExec, 0, "AVEC toujours fausse : body jamais exécuté")
+
+
+// ── 11. AVEC + SORTIR explicite — sortie franche depuis le body filtré ──
+tabD est un tableau de entiers = [1, 2, 3, 4, 5]
+nDernier est un entier = 0
+POUR TOUT v DE tabD AVEC v > 1
+	nDernier = v
+	SI v = 3 ALORS SORTIR
+FIN
+dbgVérifieEgalité(nDernier, 3, "AVEC + SORTIR : sortie à v=3 (premier qui passe le filtre et matche SORTIR)")
+
+
+// ── 12. AVEC + CONTINUER explicite — CONTINUER dans body filtré ─────────
+tabE est un tableau de entiers = [1, 2, 3, 4, 5]
+nSomme est un entier = 0
+POUR TOUT v DE tabE AVEC v > 1
+	SI v = 4 ALORS CONTINUER
+	nSomme = nSomme + v
+FIN
+// AVEC garde 2,3,4,5 ; CONTINUER skip 4 → somme = 2+3+5 = 10
+dbgVérifieEgalité(nSomme, 10, "AVEC + CONTINUER : garde 2,3,5 (4 sauté par CONTINUER)")
+
+
+// ── 13. Combo AVEC + DepuisFin ──────────────────────────────────────────
+tabF est un tableau de entiers = [1, 2, 3, 4, 5]
+sCombo est une chaîne = ""
+POUR TOUT v DE tabF AVEC v > 2 DepuisFin
+	sCombo = sCombo + v
+FIN
+dbgVérifieEgalité(sCombo, "543", "AVEC + DepuisFin : filtre puis parcours inverse")
+
+
+// ── 14. POUR TOUTE CHAÎNE — 1 variable, séparateur unique ──────────────
+sCSV est une chaîne = "a,b,c"
+tabMots est un tableau de chaînes
+POUR TOUTE chaîne s DE sCSV SEPAREE par ","
+	Ajoute(tabMots, s)
+FIN
+dbgVérifieEgalité(tabMots..Occurrence, 3, "Chaîne séparée 1 var : 3 sous-chaînes")
+dbgVérifieEgalité(tabMots[1], "a", "1ère sous-chaîne = a")
+dbgVérifieEgalité(tabMots[3], "c", "3e sous-chaîne = c")
+
+
+// ── 15. POUR TOUTE CHAÎNE — 3 vars, golden trace exemple canon ─────────
+sSrc est une chaîne = "A.B.C"
+tabGold est un tableau de chaînes
+POUR TOUTE chaîne sc, nPos, nCpt DE sSrc SEPAREE par "."
+	Ajoute(tabGold, sc + "-" + nPos + "-" + nCpt)
+FIN
+dbgVérifieEgalité(tabGold[1], "A-1-1", "Golden : A position 1 compteur 1")
+dbgVérifieEgalité(tabGold[2], "B-3-2", "Golden : B position 3 compteur 2")
+dbgVérifieEgalité(tabGold[3], "C-5-3", "Golden : C position 5 compteur 3")
+
+
+// ── 16. POUR TOUTE CHAÎNE — chaîne vide → zéro itération ───────────────
+sVide est une chaîne = ""
+nItVide est un entier = 0
+POUR TOUTE chaîne s DE sVide SEPAREE par ","
+	nItVide = nItVide + 1
+FIN
+dbgVérifieEgalité(nItVide, 0, "Chaîne séparée : source vide → zéro itération")
+
+
+// ── 17. POUR TOUTE CHAÎNE — fin par séparateur → dernière vide ─────────
+sFinSep est une chaîne = "a,b,"
+tabFinSep est un tableau de chaînes
+POUR TOUTE chaîne s DE sFinSep SEPAREE par ","
+	Ajoute(tabFinSep, s)
+FIN
+dbgVérifieEgalité(tabFinSep..Occurrence, 3, "Fin par séparateur : 3 sous-chaînes (a, b, '')")
+dbgVérifieEgalité(tabFinSep[3], "", "Dernière sous-chaîne = vide quand source finit par sep")
+
+
+// ── 18. POUR TOUTE CHAÎNE — séparateur multi-caractères ────────────────
+sMulti est une chaîne = "alpha::beta::gamma"
+tabMulti est un tableau de chaînes
+POUR TOUTE chaîne s DE sMulti SEPAREE par "::"
+	Ajoute(tabMulti, s)
+FIN
+dbgVérifieEgalité(tabMulti..Occurrence, 3, "Séparateur multi-caractères '::' : 3 sous-chaînes")
+dbgVérifieEgalité(tabMulti[2], "beta", "Découpe correcte sur séparateur multi-caractères")
+
+
+// ── 19. POUR TOUTE CHAÎNE — liste de séparateurs ───────────────────────
+sListeSep est une chaîne = "a b-c,d"
+tabListeSep est un tableau de chaînes
+POUR TOUTE chaîne s DE sListeSep SEPAREE par[" ", "-", ","]
+	Ajoute(tabListeSep, s)
+FIN
+dbgVérifieEgalité(tabListeSep..Occurrence, 4, "Liste de 3 séparateurs : 4 sous-chaînes")
+dbgVérifieEgalité(tabListeSep[1], "a", "Liste sép : 1ère sous-chaîne = a")
+dbgVérifieEgalité(tabListeSep[4], "d", "Liste sép : dernière sous-chaîne = d")
+
+
+// ── 20. POUR TOUTE CHAÎNE — DepuisFin sur sous-chaînes ─────────────────
+sDir est une chaîne = "X.Y.Z"
+sOrdre est une chaîne = ""
+POUR TOUTE chaîne s DE sDir SEPAREE par "." DepuisFin
+	sOrdre = sOrdre + s
+FIN
+dbgVérifieEgalité(sOrdre, "ZYX", "POUR TOUTE CHAÎNE DepuisFin : ordre inverse des sous-chaînes")
+
+
+// ── 21. POUR TOUTE CHAÎNE — séparateur vide lève erreur runtime ────────
+ErreurRAZ()
+sBoom est une chaîne = "abc"
+POUR TOUTE chaîne s DE sBoom SEPAREE par ""
+	Trace(s)
+FIN
+dbgVérifieVrai(ErreurDétectée, "Séparateur vide → erreur runtime déclenchée")
+ErreurRAZ()
+
+
+// ── 22. POUR TOUTE POSITION — cas nominal ──────────────────────────────
+sTxt est une chaîne = "a;b;c"
+tabPos est un tableau de entiers
+POUR TOUTE Position p DE ";" DANS sTxt
+	Ajoute(tabPos, p)
+FIN
+dbgVérifieEgalité(tabPos..Occurrence, 2, "Deux occurrences de ';' dans 'a;b;c'")
+dbgVérifieEgalité(tabPos[1], 2, "1ère occurrence position 2")
+dbgVérifieEgalité(tabPos[2], 4, "2e occurrence position 4")
+
+
+// ── 23. POUR TOUTE POSITION — motif introuvable → zéro itération ───────
+sAbs est une chaîne = "azerty"
+nItAbs est un entier = 0
+POUR TOUTE Position p DE "x" DANS sAbs
+	nItAbs = nItAbs + 1
+FIN
+dbgVérifieEgalité(nItAbs, 0, "Motif introuvable : zéro itération")
+
+
+// ── 24. POUR TOUTE POSITION — overlapping non comptés (canon) ──────────
+// PositionOccurrence canon de référence ne compte pas les chevauchements.
+// "aa" dans "aaaa" → positions 1 et 3 (pas 1, 2, 3).
+sOv est une chaîne = "aaaa"
+tabOv est un tableau de entiers
+POUR TOUTE Position p DE "aa" DANS sOv
+	Ajoute(tabOv, p)
+FIN
+dbgVérifieEgalité(tabOv..Occurrence, 2, "Overlapping non comptés : 2 positions pour 'aa' dans 'aaaa'")
+dbgVérifieEgalité(tabOv[1], 1, "Première position 1")
+dbgVérifieEgalité(tabOv[2], 3, "Seconde position 3 (pas 2)")
+
+
+// ── 25. POUR TOUTE POSITION — options SansCasse via AVEC ───────────────
+sCasse est une chaîne = "abcABab"
+tabIns est un tableau de entiers
+POUR TOUTE Position p DE "ab" DANS sCasse AVEC SansCasse
+	Ajoute(tabIns, p)
+FIN
+dbgVérifieEgalité(tabIns..Occurrence, 3, "POSITION + SansCasse : 3 occurrences de 'ab' insensible casse")
+dbgVérifieEgalité(tabIns[1], 1, "1ère occurrence position 1 (ab)")
+dbgVérifieEgalité(tabIns[2], 4, "2e occurrence position 4 (AB)")
+dbgVérifieEgalité(tabIns[3], 6, "3e occurrence position 6 (ab)")
+
+
+// ── 26. NON-RÉGRESSION — POUR TOUT v DE tab simple ──────────────────────
+tabReg est un tableau de entiers = [7, 8, 9]
+nSommeReg est un entier = 0
+POUR TOUT v DE tabReg
+	nSommeReg = nSommeReg + v
+FIN
+dbgVérifieEgalité(nSommeReg, 24, "Régression : POUR TOUT tableau ordinal simple")
+
+
+// ── 27. NON-RÉGRESSION — POUR TOUT v DE tab_assoc ──────────────────────
+taReg est un tableau associatif de entiers
+Insère(taReg, "x", 100)
+Insère(taReg, "y", 200)
+nSommeAssoc est un entier = 0
+POUR TOUT v DE taReg
+	nSommeAssoc = nSommeAssoc + v
+FIN
+dbgVérifieEgalité(nSommeAssoc, 300, "Régression : POUR TOUT tableau associatif")
+
+
+// ── 28. NON-RÉGRESSION — POUR TOUT v, k DE tab_assoc (clé secondaire) ──
+taKey est un tableau associatif de chaînes
+Insère(taKey, "alpha", "1")
+Insère(taKey, "beta", "2")
+sKeys est une chaîne = ""
+POUR TOUT v, k DE taKey
+	sKeys = sKeys + k + "=" + v + "|"
+FIN
+dbgVérifieEgalité(sKeys, "alpha=1|beta=2|", "Régression : POUR TOUT assoc avec clé secondaire")
+
+
+// ── 29. NON-RÉGRESSION — Supprime(tab, ÉlémentCourant) pendant POUR TOUT ─
+tabSupReg est un tableau de chaînes = ["w", "x", "y", "z"]
+POUR TOUT e DE tabSupReg
+	SI e = "x" ALORS
+		Supprime(tabSupReg, ÉlémentCourant)
+	FIN
+FIN
+dbgVérifieEgalité(tabSupReg..Occurrence, 3, "Régression : Supprime(ÉlémentCourant) en parcours avant")
+dbgVérifieEgalité(tabSupReg[2], "y", "Régression : décalage post-suppression correct")
+
+
+dbgBilanTest()

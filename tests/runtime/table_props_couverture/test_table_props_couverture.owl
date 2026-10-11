@@ -1,0 +1,54 @@
+// Couverture des propriétés communes de champ sur le Champ Table.
+//
+// Verrouille :
+//   1. La valeur d'état AffichageSansSélection (spécifique Table : champ
+//      affiché, aucune sélection possible par l'utilisateur, la sélection
+//      par programmation restant possible).
+//   2. Etat et Libellé déclarables ET réaffectables au runtime sur un Champ
+//      Table, avec round-trip de la valeur.
+//   3. La sélection par programmation (TableSelectPlus) reste possible quand
+//      la Table est en AffichageSansSélection.
+//   4. AffichageSansSélection posé sur un champ hors-Table est un no-op qui
+//      ne casse rien (round-trip de la valeur, pas de crash).
+//
+// La police globale du champ n'est PAS couverte : le Champ Table est
+// insensible à sa propre police (les lignes/titres suivent le styleTable via
+// Style..TitreColonne..Police, ...). Les props police globales sont retirées
+// du catalogue du Champ Table.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TablePropsCouv)
+
+// --- 1 + 2 : round-trip déclaratif des props communes sur la Table ---
+dbgVérifieEgalité(TAB_Decl..Etat, AffichageSansSélection,
+	"Etat=AffichageSansSélection déclaratif conservé sur Table")
+dbgVérifieEgalité(TAB_Decl..Libellé, "Synthèse",
+	"Libellé déclaratif conservé sur Table")
+
+// --- 2 (suite) : réaffectation runtime de l'Etat sur la Table ---
+TAB_Decl..Etat = Actif
+dbgVérifieEgalité(TAB_Decl..Etat, Actif,
+	"Etat réaffecté au runtime (Actif) sur Table")
+TAB_Decl..Etat = AffichageSansSélection
+dbgVérifieEgalité(TAB_Decl..Etat, AffichageSansSélection,
+	"Etat réaffecté au runtime (AffichageSansSélection) sur Table")
+
+// --- 3 : sélection par programmation possible en AffichageSansSélection ---
+TAB_Beh..Etat = AffichageSansSélection
+dbgVérifieEgalité(TableSelectOccurrence(TAB_Beh), 0,
+	"AffichageSansSélection : aucune ligne sélectionnée au départ")
+TableSelectPlus(TAB_Beh, 2)
+dbgVérifieEgalité(TableSelectOccurrence(TAB_Beh), 1,
+	"AffichageSansSélection : la sélection par programmation reste possible")
+dbgVérifieEgalité(TableSelect(TAB_Beh), 2,
+	"AffichageSansSélection : la ligne sélectionnée par programmation est lue")
+
+// --- 4 : AffichageSansSélection hors-Table = no-op qui ne casse rien ---
+SAI_NonTable..Etat = AffichageSansSélection
+dbgVérifieEgalité(SAI_NonTable..Etat, AffichageSansSélection,
+	"AffichageSansSélection posé sur une Saisie : round-trip sans crash")
+
+Ferme(FEN_TablePropsCouv)
+
+dbgBilanTest()

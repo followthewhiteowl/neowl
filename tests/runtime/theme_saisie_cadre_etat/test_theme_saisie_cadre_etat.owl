@@ -1,0 +1,42 @@
+//  — le CADRE d'ÉTAT (focus) d'un Champ Saisie doit suivre l'arrondi.
+//
+// Mode GUI réel (TestModeHeadless(Faux) + OuvreSoeur). On force le focus sur
+// SAI_Focus (DonneFocus) puis on lit des pixels.
+//
+// Le champ (fond RVB(50,50,200), 120x44) est posé à (30,30) sur un fond de
+// fenêtre RVB(15,15,15). L'état Focus pose un cadre 3px violet RVB(150,0,200)
+// avec Arrondi=24 (> moitié hauteur = 22).
+//
+// - Bord gauche milieu (31,52) : cadre 3px → violet APRÈS focus (focus a pris).
+// - Coin (31,31) : HORS de la pilule arrondie.
+//     * ROUGE (bug) : cadre focus CARRÉ → (31,31) violet.
+//     * VERT (fix) : cadre focus arrondi → (31,31) = fond fenêtre.
+
+TestModeHeadless(Faux)
+
+couleurCadre est un entier = RVB(150, 0, 200)
+fondFenetre est un entier = RVB(15, 15, 15)
+
+OuvreSoeur(FEN_SaisieCadreEtat)
+
+// Contrôle négatif : avant DonneFocus, le bord ne porte pas encore le cadre focus.
+imgAvant est une Image = dCopieImageFenêtre(FEN_SaisieCadreEtat)
+dbgVérifieEgalité(imgAvant..Valide, Vrai, "capture avant focus valide")
+dbgVérifieVrai(dPixelCouleur(imgAvant, 31, 52) <> couleurCadre,
+"SAI_Focus sans focus : pas encore de cadre violet (contrôle négatif)")
+
+DonneFocus(SAI_Focus)
+
+img est une Image = dCopieImageFenêtre(FEN_SaisieCadreEtat)
+dbgVérifieEgalité(img..Valide, Vrai, "capture après focus valide")
+
+// Le cadre focus est peint (focus a pris) : bord gauche = violet.
+dbgVérifieEgalité(dPixelCouleur(img, 31, 52), couleurCadre,
+"bord gauche du champ focus = cadre violet (état focus peint)")
+
+// Cible : le coin (1 px) est HORS de la pilule -> fond fenêtre (cadre arrondi).
+dbgVérifieEgalité(dPixelCouleur(img, 31, 31), fondFenetre,
+"coin du cadre focus = fond fenêtre (cadre d'état suit l'arrondi)")
+
+Ferme(FEN_SaisieCadreEtat)
+dbgBilanTest()

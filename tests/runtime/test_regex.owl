@@ -1,0 +1,99 @@
+Trace("=== REGEX (PCRE2-backed) ===")
+
+// === RegexVérifie: boolean test ===
+dbgVérifieVrai(RegexVérifie("hello world", "world"), "substring match")
+dbgVérifieVrai(RegexVérifie("hello world", "^hello"), "anchor start")
+dbgVérifieVrai(RegexVérifie("hello world", "world$"), "anchor end")
+dbgVérifieVrai(RegexVérifie("abc123", "[0-9]+"), "char class")
+dbgVérifieVrai(RegexVérifie("abc", "a.c"), "dot metachar")
+dbgVérifieEgalité(RegexVérifie("hello", "bye"), Faux, "no match")
+dbgVérifieEgalité(RegexVérifie("", "abc"), Faux, "no match empty subject")
+dbgVérifieVrai(RegexVérifie("", ""), "empty pattern matches empty")
+
+// Flags inline (?i) (?m) (?s) -- canon de référence : les flags vont dans le motif,
+// pas comme paramètre séparé. La forme variadique est réservée aux out-params
+// pour les groupes capturés (cf documentation de référence).
+dbgVérifieEgalité(RegexVérifie("HELLO", "hello"), Faux, "case-sensitive default")
+dbgVérifieVrai(RegexVérifie("HELLO", "(?i)hello"), "case-insensitive with (?i)")
+dbgVérifieVrai(RegexVérifie("Hello World", "(?i)HELLO WORLD"), "(?i) full string")
+
+// Flags: multiline (les flags inline (?m) le permettent)
+dbgVérifieEgalité(RegexVérifie("line1[LF]line2", "^line2"), Faux, "no multiline, no match")
+
+// Invalid pattern -> false
+dbgVérifieEgalité(RegexVérifie("abc", "[unclosed"), Faux, "invalid pattern returns false")
+
+// === English alias RegexMatch ===
+dbgVérifieVrai(RegexMatch("hello", "ell"), "RegexMatch EN alias")
+
+// === RegexCherche(source, format, &tab) -> count, fills tab (documentation de référence) ===
+tab1 est un tableau de chaînes
+dbgVérifieEgalité(RegexCherche("abc123def", "[0-9]+", tab1), 1, "1 match")
+dbgVérifieEgalité(tab1[1], "123", "match content")
+
+tab2 est un tableau de chaînes
+dbgVérifieEgalité(RegexCherche("a1 b2 c3", "[a-z][0-9]", tab2), 3, "3 matches")
+dbgVérifieEgalité(tab2[1], "a1", "match 1")
+dbgVérifieEgalité(tab2[2], "b2", "match 2")
+dbgVérifieEgalité(tab2[3], "c3", "match 3")
+
+tab3 est un tableau de chaînes
+dbgVérifieEgalité(RegexCherche("hello", "bye", tab3), 0, "no match returns 0")
+dbgVérifieEgalité(Taille(tab3), 0, "no match: tab empty")
+
+// Tab pre-rempli est ecrase
+tab4 est un tableau de chaînes
+Ajoute(tab4, "old")
+dbgVérifieEgalité(RegexCherche("a1 b2", "[a-z][0-9]", tab4), 2, "fills 2 matches")
+dbgVérifieEgalité(Taille(tab4), 2, "old content overwritten")
+dbgVérifieEgalité(tab4[1], "a1", "no leftover from old content")
+
+// Forme canon de référence avec sous-tableaux pour groupes capturés
+tabFull est un tableau de chaînes
+tabG1 est un tableau de chaînes
+tabG2 est un tableau de chaînes
+dbgVérifieEgalité(
+RegexCherche("a1 b2", "([a-z])([0-9])", tabFull, tabG1, tabG2),
+2, "matches with capture groups")
+dbgVérifieEgalité(tabFull[1], "a1", "match complet 1")
+dbgVérifieEgalité(tabG1[1], "a", "groupe 1 du match 1")
+dbgVérifieEgalité(tabG2[1], "1", "groupe 2 du match 1")
+
+// === RegexRemplace: global substitution ===
+dbgVérifieEgalité(RegexRemplace("hello world", "world", "OWL"),
+"hello OWL", "simple replace")
+dbgVérifieEgalité(RegexRemplace("a1 b2 c3", "[0-9]", "X"),
+"aX bX cX", "global replace digits")
+dbgVérifieEgalité(RegexRemplace("  spaces  here  ", " +", " "),
+" spaces here ", "collapse spaces")
+
+// Backref $1 (global swap: both sides get replaced)
+dbgVérifieEgalité(RegexRemplace("john.doe@mail.com", "([a-z]+)\.([a-z]+)", "$2-$1"),
+"doe-john@com-mail", "backref swap (global)")
+
+// Aucun match -> original inchange
+dbgVérifieEgalité(RegexRemplace("abc", "xyz", "ZZZ"), "abc", "no match: unchanged")
+
+// Flag i dans replace
+dbgVérifieEgalité(RegexRemplace("HELLO world", "hello", "bye", "i"),
+"bye world", "replace with i flag")
+
+// === Patterns realistes ===
+
+// Email validation
+dbgVérifieVrai(RegexVérifie("user@example.com",
+"^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"), "email valid")
+dbgVérifieEgalité(RegexVérifie("not-an-email",
+"^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"), Faux, "email invalid")
+
+// Date YYYY-MM-DD via RegexCherche
+tabDate est un tableau de chaînes
+dbgVérifieEgalité(RegexCherche("today: 2026-04-16 yeah",
+"[0-9]{4}-[0-9]{2}-[0-9]{2}", tabDate), 1, "1 date found")
+dbgVérifieEgalité(tabDate[1], "2026-04-16", "date extracted")
+
+// IP address
+dbgVérifieVrai(RegexVérifie("192.168.1.1",
+"^([0-9]{1,3}\.){3}[0-9]{1,3}$"), "IP format")
+
+dbgBilanTest()

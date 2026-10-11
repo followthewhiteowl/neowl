@@ -1,0 +1,56 @@
+// Fenêtre voisine — ressource pour test_window_forward_ref_var.owl.
+//
+// Régression : une variable d'état de fenêtre déclarée APRÈS un handler qui
+// l'utilise doit rester forward-référençable (symétrie avec les procédures).
+// Deux handlers en amont de leur variable : le surClic d'un Bouton (cas
+// général SANS menu) et le surSélection d'une OptionMenu (cas AVEC menu).
+
+FEN_FwdRef est une Fenêtre
+	PROPRIETES
+		Titre         = "Forward-ref variable fenêtre"
+		Disposition   = dispLibre
+		Largeur       = 200
+		Hauteur       = 100
+		MenuPrincipal = MNU_Fwd
+	FIN
+
+	// Cas SANS menu : le handler référence nClics, déclarée plus bas.
+	BTN_Inc est un Champ Bouton
+		PROPRIETES
+			X = 10
+			Y = 10
+		FIN
+		PROCEDURE surClic()
+			nClics += 1
+		FIN
+	FIN
+
+	// Cas AVEC menu : le handler référence nMenu, déclarée après le bloc menu.
+	MNU_Fwd est un MenuPrincipal
+		SM_A est un SousMenu
+			PROPRIETES
+				Libellé = "&A"
+			FIN
+			OPT_A est une OptionMenu
+				PROPRIETES
+					Libellé = "&Action"
+				FIN
+				PROCEDURE surSélection()
+					nMenu += 1
+				FIN
+			FIN
+		FIN
+	FIN
+
+	// Variables d'état déclarées APRÈS les handlers ci-dessus.
+	nClics est un entier = 0
+	nMenu est un entier = 0
+
+	PROCEDURE LireClics()
+		RENVOYER nClics
+	FIN
+
+	PROCEDURE LireMenu()
+		RENVOYER nMenu
+	FIN
+FIN

@@ -1,0 +1,201 @@
+// Accès octet direct dans un Buffer via l'opérateur [[i]].
+//
+// Un Buffer stocke des octets bruts (valeurs 0–255, sans encodage texte).
+// L'opérateur [[i]] permet de lire ou d'écrire un octet individuel en tant
+// qu'entier, sans passer par le codec UTF-8. Index 1-based.
+//
+// Cas d'usage typique : analyser l'en-tête d'un format binaire,
+// parcourir un paquet réseau octet par octet, transformer des données
+// binaires sans corruption.
+
+
+// ============================================================================
+// 1. Lecture : [[i]] renvoie un entier, pas une chaîne
+// ============================================================================
+// "Hé" en UTF-8 = 3 octets : 0x48 ('H'), 0xC3 (195), 0xA9 (169).
+// Avant le fix, [[2]] et [[3]] renvoyaient une chaîne d'1 octet invalide
+// (demi-séquence UTF-8), masquant la valeur réelle.
+
+PROCEDURE PUBLIQUE scenario_lecture_entier_type()
+	b est un buffer = "Hé"
+	// Le type renvoyé doit être entier (owlEntier), pas chaîne (owlChaine).
+	dbgVérifieEgalité(TypeVar(b[[1]]), owlEntier, "b[[1]] renvoie un entier")
+	dbgVérifieEgalité(TypeVar(b[[2]]), owlEntier, "b[[2]] renvoie un entier")
+	dbgVérifieEgalité(TypeVar(b[[3]]), owlEntier, "b[[3]] renvoie un entier")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_lecture_valeurs_utf8()
+	// "Hé" = octets 72, 195, 169.
+	b est un buffer = "Hé"
+	dbgVérifieEgalité(b[[1]], 72, "b[[1]] = 72 (0x48, 'H')")
+	dbgVérifieEgalité(b[[2]], 195, "b[[2]] = 195 (0xC3, 1er octet de 'é')")
+	dbgVérifieEgalité(b[[3]], 169, "b[[3]] = 169 (0xA9, 2e octet de 'é')")
+FIN
+
+
+// ============================================================================
+// 2. Round-trip : écrire puis relire un octet ≥ 128
+// ============================================================================
+// Valeur critique : 200 (0xC8). Avant le fix, l'écriture n'était pas
+// effective ou la relecture était corrompue.
+
+PROCEDURE PUBLIQUE scenario_round_trip_octet_superieur_128()
+	b est un buffer = "ABC" // 3 octets ASCII (65, 66, 67)
+	b[[2]] = 200
+	bErreur est un booléen = ErreurDétectée // capture immédiate avant tout OP_CALL
+	dbgVérifieFaux(bErreur, "écriture 200 (valeur valide) ne doit pas lever d'erreur")
+	dbgVérifieEgalité(b[[2]], 200, "round-trip b[[2]] = 200 : relecture correcte")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_round_trip_valeurs_limites()
+	b est un buffer = "XXXX"
+	// Borne basse : 0
+	b[[1]] = 0
+	dbgVérifieEgalité(b[[1]], 0, "round-trip valeur 0")
+	// Borne haute : 255
+	b[[1]] = 255
+	dbgVérifieEgalité(b[[1]], 255, "round-trip valeur 255")
+	// Valeur ASCII pleine gamme : 127
+	b[[1]] = 127
+	dbgVérifieEgalité(b[[1]], 127, "round-trip valeur 127 (limite ASCII)")
+	// Valeur 128 (premier hors ASCII)
+	b[[1]] = 128
+	dbgVérifieEgalité(b[[1]], 128, "round-trip valeur 128")
+FIN
+
+
+// ============================================================================
+// 3. Isolation de l'écriture : exactement 1 octet modifié
+// ============================================================================
+// [[i]] = v doit écrire 1 seul octet ; les voisins restent inchangés.
+
+PROCEDURE PUBLIQUE scenario_ecriture_1_seul_octet()
+	b est un buffer = "ABC" // octets : 65, 66, 67
+	b[[2]] = 200 // modifie uniquement la position 2
+	dbgVérifieEgalité(b[[1]], 65, "voisin gauche (pos 1) inchangé après écriture pos 2")
+	dbgVérifieEgalité(b[[2]], 200, "pos 2 modifiée à 200")
+	dbgVérifieEgalité(b[[3]], 67, "voisin droit (pos 3) inchangé après écriture pos 2")
+FIN
+
+
+// ============================================================================
+// 4. Écriture stricte : erreur si valeur hors [0, 255]
+// ============================================================================
+// Mode strict de l'opérateur [[i]] = : aucune troncature silencieuse.
+// Une valeur hors plage lève une exception runtime.
+
+PROCEDURE PUBLIQUE scenario_ecriture_hors_borne_superieure()
+	b est un buffer = "ABC"
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		b[[1]] = 300
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "b[[1]] = 300 (> 255) doit lever une exception")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_ecriture_valeur_negative()
+	b est un buffer = "ABC"
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		b[[1]] = -1
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "b[[1]] = -1 (valeur négative) doit lever une exception")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_ecriture_large_hors_borne()
+	b est un buffer = "X"
+	bExceptionLevee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		b[[1]] = 1000
+	FAIRE
+		bExceptionLevee = Vrai
+	FIN
+	dbgVérifieVrai(bExceptionLevee, "b[[1]] = 1000 doit lever une exception")
+FIN
+
+
+// ============================================================================
+// 5. Index hors buffer → erreur
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_index_zero()
+	b est un buffer = "ABC"
+	ErreurRAZ()
+	n est un entier = b[[0]]
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "b[[0]] (index 0, base 1) pose ErreurDétectée (soft-error)")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_index_negatif()
+	b est un buffer = "ABC"
+	ErreurRAZ()
+	n est un entier = b[[-1]]
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "b[[-1]] (index négatif) pose ErreurDétectée (soft-error)")
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_index_superieur_taille()
+	b est un buffer = "ABC" // taille = 3
+	ErreurRAZ()
+	n est un entier = b[[4]]
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "b[[4]] sur buffer de 3 octets pose ErreurDétectée (soft-error)")
+FIN
+
+
+// ============================================================================
+// 6. Lecture/écriture mixte ASCII + ≥ 128 : cohérence globale
+// ============================================================================
+// Construit un buffer avec un mélange d'octets ASCII et hors-ASCII,
+// puis vérifie que chaque position est relue correctement.
+
+PROCEDURE PUBLIQUE scenario_mixte_ascii_haute_gamme()
+	b est un buffer = "AAAA" // 4 octets initiaux
+	b[[1]] = 65 // 'A' ASCII
+	b[[2]] = 128 // premier hors-ASCII
+	b[[3]] = 255 // valeur max
+	b[[4]] = 0 // valeur min
+	dbgVérifieEgalité(b[[1]], 65, "pos 1 = 65 (ASCII 'A')")
+	dbgVérifieEgalité(b[[2]], 128, "pos 2 = 128")
+	dbgVérifieEgalité(b[[3]], 255, "pos 3 = 255")
+	dbgVérifieEgalité(b[[4]], 0, "pos 4 = 0")
+FIN
+
+
+// ============================================================================
+// 7. Exemple réaliste : lire l'en-tête d'un mini format binaire
+// ============================================================================
+// Un format binaire minimaliste : [version (1 octet)] [longueur (1 octet)]
+// [données brutes…].  On lit les deux octets d'en-tête et on vérifie qu'ils
+// correspondent à la structure attendue.
+
+PROCEDURE PUBLIQUE scenario_entete_format_binaire()
+	// Construit un paquet binaire : version=2, longueur=3, données 0xAA 0xBB 0xCC
+	paquet est un buffer = "XXXXX" // 5 octets à remplir
+	paquet[[1]] = 2 // version
+	paquet[[2]] = 3 // longueur des données qui suivent
+	paquet[[3]] = 170 // 0xAA
+	paquet[[4]] = 187 // 0xBB
+	paquet[[5]] = 204 // 0xCC
+
+	nVersion est un entier = paquet[[1]]
+	nLongueur est un entier = paquet[[2]]
+	dbgVérifieEgalité(nVersion, 2, "en-tête : version = 2")
+	dbgVérifieEgalité(nLongueur, 3, "en-tête : longueur = 3")
+	dbgVérifieEgalité(paquet[[3]], 170, "donnée[0] = 0xAA (170)")
+	dbgVérifieEgalité(paquet[[4]], 187, "donnée[1] = 0xBB (187)")
+	dbgVérifieEgalité(paquet[[5]], 204, "donnée[2] = 0xCC (204)")
+FIN
+
+
+dbgBilanTest()

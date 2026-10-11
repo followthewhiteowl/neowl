@@ -1,0 +1,177 @@
+// @sujet : EffacePressePapier
+// @résumé : Vider le presse-papier système. Supprime le contenu actuel, lecture ultérieure retourne "".
+//
+// Tous les scénarios mockent VersPressePapier / EffacePressePapier /
+// DuPressePapier pour ne PAS toucher le presse-papier de
+// l'utilisateur durant la suite automatisée. La vérification réelle
+// du comportement Win32 est faite manuellement, hors suite.
+
+// Effacement basique — vidage après écriture d'un texte simple
+PROCEDURE PUBLIQUE scenario_effacement_basique()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("Texte initial")
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Presse-papier vidé correctement")
+	dbgVérifieVrai(mEff.VerifieAppele(1), "EffacePressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Effacement après contenu avec accents — validation UTF-8
+PROCEDURE PUBLIQUE scenario_effacement_utf8()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("Café crème avec cœur")
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Contenu UTF-8 effacé")
+	dbgVérifieVrai(mVers.VerifieAppele(1), "VersPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Effacement multiple — appels successifs d'effacement
+PROCEDURE PUBLIQUE scenario_effacement_multiple()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("test")
+	EffacePressePapier()
+	EffacePressePapier() // Appel sur clipboard déjà vide
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Double effacement safe")
+	dbgVérifieVrai(mEff.VerifieAppele(2), "EffacePressePapier appelé 2 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Cycle écriture-effacement-écriture — validation que la suppression n'affecte pas les écritures ultérieures
+PROCEDURE PUBLIQUE scenario_cycle_ecriture_effacement()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	// Du retourne "seconde" car on simule l'état final post second Vers
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("seconde").Active()
+
+	VersPressePapier("première")
+	EffacePressePapier()
+	VersPressePapier("seconde")
+	contenu est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(contenu, "seconde", "Écriture après effacement fonctionne")
+	dbgVérifieVrai(mVers.VerifieAppele(2), "VersPressePapier appelé 2 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Effacement contenu multiligne — sauts de ligne préalables
+PROCEDURE PRIVÉE scenario_effacement_multiligne()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	multiligne est une chaîne = `Ligne 1
+Ligne 2
+Ligne 3`
+	VersPressePapier(multiligne)
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Contenu multiligne effacé")
+	dbgVérifieVrai(mEff.VerifieAppele(1), "EffacePressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Effacement après emoji — validation sur caractères multi-byte
+PROCEDURE PRIVÉE scenario_effacement_emoji()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("Test 🚀 emoji 🎉")
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Emoji effacés correctement")
+	dbgVérifieVrai(mVers.VerifieAppele(1), "VersPressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Effacement longue chaîne — montée en charge modérée
+PROCEDURE PRIVÉE scenario_effacement_longue_chaine()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	contenu est une chaîne = ""
+	POUR i = 1 _A_ 50
+		contenu += "0123456789"
+	FIN
+	VersPressePapier(contenu)
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "500 caractères effacés")
+	dbgVérifieVrai(mEff.VerifieAppele(1), "EffacePressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN
+
+// Effacement chaîne vide — comportement idempotent
+PROCEDURE PRIVÉE scenario_effacement_sur_vide()
+	mVers est un MockNative = MockCrée(VersPressePapier)
+	mVers.Quand().Avec(MockTout).Retourne(Vrai).Active()
+	mEff est un MockNative = MockCrée(EffacePressePapier)
+	mEff.Quand().Retourne(Vrai).Active()
+	mDu est un MockNative = MockCrée(DuPressePapier)
+	mDu.Quand().Retourne("").Active()
+
+	VersPressePapier("")
+	EffacePressePapier()
+	vide est une chaîne = DuPressePapier()
+	dbgVérifieEgalité(vide, "", "Effacement sur chaîne vide safe")
+	dbgVérifieVrai(mEff.VerifieAppele(1), "EffacePressePapier appelé 1 fois")
+
+	mVers.Desactive()
+	mEff.Desactive()
+	mDu.Desactive()
+FIN

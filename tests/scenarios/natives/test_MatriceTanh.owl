@@ -1,0 +1,53 @@
+// @sujet : MatriceTanh
+// @résumé : Applique la tangente hyperbolique élément par élément à une Matrice — écrase toute valeur réelle dans l'intervalle ouvert (-1, 1), disponible en native préfixée et en méthode fluente, forme identique en français et en anglais.
+
+
+// La tangente hyperbolique de 0 vaut exactement 0.0, sur chaque élément
+// d'une Matrice.
+PROCEDURE PUBLIQUE scenario_tanh_zero_exact()
+	m est une Matrice = [[0.0, 0.0]]
+	r est une Matrice = MatriceTanh(m)
+	dbgVérifieEgalité(r[1][1], 0.0, "Tanh(0.0) = 0.0")
+	dbgVérifieEgalité(r[1][2], 0.0, "Tanh(0.0) = 0.0")
+FIN
+
+
+// Sur une grande valeur positive, Tanh sature au voisinage de 1 ; sur une
+// grande valeur négative, elle sature au voisinage de -1.
+PROCEDURE PUBLIQUE scenario_saturation_valeurs_extremes()
+	m est une Matrice = [[50.0, -50.0]]
+	r est une Matrice = MatriceTanh(m)
+	dbgVérifieVrai(Abs(r[1][1] - 1.0) < 0.0001, "Tanh(50.0) proche de 1.0")
+	dbgVérifieVrai(Abs(r[1][2] - (-1.0)) < 0.0001, "Tanh(-50.0) proche de -1.0")
+FIN
+
+
+// La méthode fluente .Tanh() produit exactement le même résultat que la
+// native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	m est une Matrice = [[1.0, -1.0]]
+	rViaFluent est une Matrice = m.Tanh()
+	rViaNatif est une Matrice = MatriceTanh(m)
+	dbgVérifieVrai(Abs(rViaFluent[1][1] - rViaNatif[1][1]) < 0.0001, "m.Tanh()[1][1] == MatriceTanh(m)[1][1]")
+	dbgVérifieVrai(Abs(rViaFluent[1][2] - rViaNatif[1][2]) < 0.0001, "m.Tanh()[1][2] == MatriceTanh(m)[1][2]")
+FIN
+
+
+// Tanh est identique en français et en anglais : même nom de native et
+// même méthode fluente des deux côtés.
+PROCEDURE PUBLIQUE scenario_forme_identique_fr_en()
+	m est une Matrice = [[0.0]]
+	rNatif est une Matrice = MatriceTanh(m)
+	rFluent est une Matrice = m.Tanh()
+	dbgVérifieEgalité(rNatif[1][1], 0.0, "MatriceTanh([[0.0]])[1][1] = 0.0")
+	dbgVérifieEgalité(rFluent[1][1], 0.0, "m.Tanh()[1][1] = 0.0")
+FIN
+
+
+// Tanh d'une Matrice préserve ses dimensions d'origine.
+PROCEDURE PRIVÉE scenario_edge_dimensions_preservees()
+	m est une Matrice = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+	r est une Matrice = MatriceTanh(m)
+	dbgVérifieEgalité(r..Lignes, m..Lignes, "MatriceTanh préserve le nombre de lignes")
+	dbgVérifieEgalité(r..Colonnes, m..Colonnes, "MatriceTanh préserve le nombre de colonnes")
+FIN

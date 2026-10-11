@@ -1,0 +1,134 @@
+// @nom: fenetre
+// @description: Fenêtre avec conteneurs imbriqués, table et boutons (layout auto, pas de X/Y)
+// @niveau: intermédiaire
+
+// Démonstration du layout par conteneurs :
+//   - Fenêtre racine en Disposition = dispVerticale → enfants empilés
+//   - BAR_Toolbar (dispHorizontale) en haut : Saisie qui s'Étire + boutons
+//   - TABLE_Items (Étire = Vrai) prend tout l'espace central
+//   - PNL_Footer (dispHorizontale) en bas : Libellé qui s'Étire + bouton
+//
+// Aucun X/Y absolu sur les enfants. Le resize de la fenêtre reflue
+// automatiquement via les conteneurs.
+//
+// Un fichier-fenêtre ne contient que le bloc Fenêtre — ses helpers
+// PROCEDURE vivent DANS le bloc, jamais après son FIN. Le code
+// d'exécution (Ouvre(...)) vit dans un fichier voisin : le top-level
+// de `projet.owl` (le programme du projet), ou un script lancé par
+// son nom (`owl mon_script.owl`).
+//
+// Les boutons peuvent afficher une icône via la propriété Image.
+// `icones.<id>` référence une icône du catalogue embarqué.
+
+FEN_Demo est une Fenêtre
+	PROPRIETES
+		Largeur = 700
+		Hauteur = 450
+		Titre = "Démo conteneurs OWL"
+		Disposition = dispVerticale
+		Padding = 10
+		Espacement = 8
+	FIN
+
+	BAR_Toolbar est un Champ Conteneur
+		PROPRIETES
+			Disposition = dispHorizontale
+			Espacement = 6
+			Hauteur = 32
+		FIN
+
+		SAI_Filtre est un Champ Saisie
+			PROPRIETES
+				Indication = "Filtrer..."
+				Étire = Vrai
+			FIN
+		FIN
+
+		BTN_Ajouter est un Champ Bouton
+			PROPRIETES
+				Libellé = "+ Ajouter"
+				Image = icones.add
+				Largeur = 100
+			FIN
+
+			// Note : la table TABLE_Items est déclarée plus bas dans le
+			// bloc — l'ordre de déclaration n'a pas d'importance, ce
+			// handler pourrait l'adresser directement (TableAjouteLigne).
+			// Ici on illustre juste la mécanique d'un événement de bouton.
+			PROCEDURE surClic()
+				// MoiMême désigne le widget émetteur. Permet de partager
+				// ce handler entre plusieurs boutons et identifier celui
+				// qui a déclenché l'événement via ses propriétés.
+				Info("Cliqué : " + MoiMême..Libellé + " — à toi de compléter !")
+			FIN
+		FIN
+	FIN
+
+	TABLE_Items est un Champ Table
+		PROPRIETES
+			Étire = Vrai
+		FIN
+
+		COL_Id est une colonne
+			PROPRIETES
+				Libellé = "ID"
+				Type = colTypeNumerique
+				Largeur = 60
+			FIN
+		FIN
+
+		COL_Nom est une colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type = colTypeTexte
+				Largeur = 220
+			FIN
+		FIN
+
+		COL_Actif est une colonne
+			PROPRIETES
+				Libellé = "Actif"
+				Type = colTypeBooleen
+				Largeur = 80
+			FIN
+		FIN
+
+		PROCEDURE surChangementSelection()
+			Trace("Ligne sélectionnée : ", TABLE_Items)
+		FIN
+	FIN
+
+	PNL_Footer est un Champ Conteneur
+		PROPRIETES
+			Disposition = dispHorizontale
+			Espacement = 6
+			Hauteur = 35
+		FIN
+
+		LIB_Statut est un Champ Libellé
+			PROPRIETES
+				Libellé = "Prêt."
+				Étire = Vrai
+			FIN
+		FIN
+
+		BTN_Fermer est un Champ Bouton
+			PROPRIETES
+				Libellé = "Fermer"
+				Image = icones.close
+				Largeur = 100
+			FIN
+
+			PROCEDURE surClic()
+				Ferme()
+			FIN
+		FIN
+	FIN
+
+	// Pré-remplissage à l'ouverture de la fenêtre.
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Items, 1, "Alpha", Vrai)
+		TableAjouteLigne(TABLE_Items, 2, "Beta",  Faux)
+		TableAjouteLigne(TABLE_Items, 3, "Gamma", Vrai)
+	FIN
+FIN

@@ -1,0 +1,189 @@
+//  — Nouvelles constantes tk* (clavier physique integral).
+// Couvre les ajouts hors- : navigation (tkInser), modificateur
+// (tkMeta), verrous (tkVerrMaj, tkVerrNum, tkArretDefl), systeme
+// (tkImprEcran, tkPause, tkMenuContextuel), fonctions (tkF13..tkF24).
+//
+// ROUGE ATTENDU : constantes inconnues au registry.
+// Raison du rouge : "'tkInser' : variable inconnue ou inaccessible."
+// (et idem pour chaque nouvelle constante referencee ci-dessous).
+//
+// NON-REGRESSION : tkHaut, tkF12, tkEchap restent connus (vert attendu
+// sur ces lignes ; le bloc rouge vient avant).
+
+TestModeHeadless(Vrai)
+
+// --- NON-REGRESSION : existantes  ---
+nReg est un entier = tkHaut
+dbgVérifieVrai(nReg > 0, "non-reg tkHaut connu et > 0")
+
+nReg = tkF12
+dbgVérifieVrai(nReg > 0, "non-reg tkF12 connu et > 0")
+
+nReg = tkEchap
+dbgVérifieVrai(nReg > 0, "non-reg tkEchap connu et > 0")
+
+// --- Navigation : tkInser / tkInsert ---
+nNouv est un entier = tkInsér
+dbgVérifieVrai(nNouv > 0, "tkInser est un entier positif")
+
+nNouv = tkInsert
+dbgVérifieVrai(nNouv = tkInsér, "tkInsert = tkInser (bilingue)")
+
+// --- Modificateur : tkMeta ---
+nNouv = tkMeta
+dbgVérifieVrai(nNouv > 0, "tkMeta est un entier positif")
+
+// --- Verrous ---
+nNouv = tkVerrMaj
+dbgVérifieVrai(nNouv > 0, "tkVerrMaj est un entier positif")
+
+nNouv = tkCapsLock
+dbgVérifieVrai(nNouv = tkVerrMaj, "tkCapsLock = tkVerrMaj (bilingue)")
+
+nNouv = tkVerrNum
+dbgVérifieVrai(nNouv > 0, "tkVerrNum est un entier positif")
+
+nNouv = tkNumLock
+dbgVérifieVrai(nNouv = tkVerrNum, "tkNumLock = tkVerrNum (bilingue)")
+
+nNouv = tkArrêtDéfil
+dbgVérifieVrai(nNouv > 0, "tkArretDefil est un entier positif")
+
+nNouv = tkScrollLock
+dbgVérifieVrai(nNouv = tkArrêtDéfil, "tkScrollLock = tkArretDefil (bilingue)")
+
+// --- Systeme ---
+nNouv = tkImprÉcran
+dbgVérifieVrai(nNouv > 0, "tkImprEcran est un entier positif")
+
+nNouv = tkPrintScreen
+dbgVérifieVrai(nNouv = tkImprÉcran, "tkPrintScreen = tkImprEcran (bilingue)")
+
+nNouv = tkPause
+dbgVérifieVrai(nNouv > 0, "tkPause est un entier positif (FR=EN)")
+
+nNouv = tkMenuContextuel
+dbgVérifieVrai(nNouv > 0, "tkMenuContextuel est un entier positif")
+
+nNouv = tkContextMenu
+dbgVérifieVrai(nNouv = tkMenuContextuel, "tkContextMenu = tkMenuContextuel (bilingue)")
+
+// --- Fonctions F13..F24 ---
+nNouv = tkF13
+dbgVérifieVrai(nNouv > 0, "tkF13 est un entier positif")
+
+nNouv = tkF14
+dbgVérifieVrai(nNouv > 0, "tkF14 est un entier positif")
+
+nNouv = tkF15
+dbgVérifieVrai(nNouv > 0, "tkF15 est un entier positif")
+
+nNouv = tkF16
+dbgVérifieVrai(nNouv > 0, "tkF16 est un entier positif")
+
+nNouv = tkF17
+dbgVérifieVrai(nNouv > 0, "tkF17 est un entier positif")
+
+nNouv = tkF18
+dbgVérifieVrai(nNouv > 0, "tkF18 est un entier positif")
+
+nNouv = tkF19
+dbgVérifieVrai(nNouv > 0, "tkF19 est un entier positif")
+
+nNouv = tkF20
+dbgVérifieVrai(nNouv > 0, "tkF20 est un entier positif")
+
+nNouv = tkF21
+dbgVérifieVrai(nNouv > 0, "tkF21 est un entier positif")
+
+nNouv = tkF22
+dbgVérifieVrai(nNouv > 0, "tkF22 est un entier positif")
+
+nNouv = tkF23
+dbgVérifieVrai(nNouv > 0, "tkF23 est un entier positif")
+
+nNouv = tkF24
+dbgVérifieVrai(nNouv > 0, "tkF24 est un entier positif")
+
+// --- Toutes nouvelles distinctes entre elles ---
+dbgVérifieVrai(tkF13 <> tkF14, "tkF13 != tkF14")
+dbgVérifieVrai(tkF23 <> tkF24, "tkF23 != tkF24")
+dbgVérifieVrai(tkVerrMaj <> tkVerrNum, "tkVerrMaj != tkVerrNum")
+dbgVérifieVrai(tkVerrNum <> tkArrêtDéfil, "tkVerrNum != tkArretDefil")
+dbgVérifieVrai(tkInsér <> tkSuppr, "tkInser != tkSuppr")
+dbgVérifieVrai(tkMeta <> tkCtrl, "tkMeta != tkCtrl")
+dbgVérifieVrai(tkPause <> tkImprÉcran, "tkPause != tkImprEcran")
+dbgVérifieVrai(tkMenuContextuel <> tkAlt, "tkMenuContextuel != tkAlt (VK_MENU != tkAlt)")
+
+// --- Utilisabilite dans SELON / CAS ---
+PROCEDURE DispatchNouveauClavier(nTouche est un entier)
+	SELON nTouche
+		CAS tkInsér
+		callback_nouv_touche("inser")
+		CAS tkMeta
+		callback_nouv_touche("meta")
+		CAS tkVerrMaj
+		callback_nouv_touche("verrmaj")
+		CAS tkPause
+		callback_nouv_touche("pause")
+		CAS tkMenuContextuel
+		callback_nouv_touche("contextuel")
+		CAS tkF13
+		callback_nouv_touche("f13")
+		CAS tkF24
+		callback_nouv_touche("f24")
+		AUTRE CAS
+		callback_nouv_touche("autre")
+	FIN
+FIN
+
+sDerniereTouche est une chaîne = ""
+
+PROCEDURE callback_nouv_touche(s est une chaîne)
+	sDerniereTouche = s
+FIN
+
+DispatchNouveauClavier(tkInsér)
+dbgVérifieEgalité(sDerniereTouche, "inser", "SELON/CAS tkInser dispatche correctement")
+
+DispatchNouveauClavier(tkMeta)
+dbgVérifieEgalité(sDerniereTouche, "meta", "SELON/CAS tkMeta dispatche correctement")
+
+DispatchNouveauClavier(tkVerrMaj)
+dbgVérifieEgalité(sDerniereTouche, "verrmaj", "SELON/CAS tkVerrMaj dispatche correctement")
+
+DispatchNouveauClavier(tkPause)
+dbgVérifieEgalité(sDerniereTouche, "pause", "SELON/CAS tkPause dispatche correctement")
+
+DispatchNouveauClavier(tkMenuContextuel)
+dbgVérifieEgalité(sDerniereTouche, "contextuel", "SELON/CAS tkMenuContextuel dispatche correctement")
+
+DispatchNouveauClavier(tkF13)
+dbgVérifieEgalité(sDerniereTouche, "f13", "SELON/CAS tkF13 dispatche correctement")
+
+DispatchNouveauClavier(tkF24)
+dbgVérifieEgalité(sDerniereTouche, "f24", "SELON/CAS tkF24 dispatche correctement")
+
+DispatchNouveauClavier(99998)
+dbgVérifieEgalité(sDerniereTouche, "autre", "SELON/CAS AUTRES CAS code inconnu")
+
+// --- EnvoieTouche : nouvelles constantes passees syntaxiquement ---
+// (headless = pas de fenetre active ; le but est de verifier que les
+// constantes sont resolues sans ErreurDetectee, pas qu'un event soit capture)
+EnvoieTouche(tkInsér)
+bErr est un booléen = ErreurDétectée
+dbgVérifieVrai(bErr = Faux, "EnvoieTouche(tkInser) headless : pas ErreurDetectee")
+
+EnvoieTouche(tkMeta)
+bErr = ErreurDétectée
+dbgVérifieVrai(bErr = Faux, "EnvoieTouche(tkMeta) headless : pas ErreurDetectee")
+
+EnvoieTouche(tkF13)
+bErr = ErreurDétectée
+dbgVérifieVrai(bErr = Faux, "EnvoieTouche(tkF13) headless : pas ErreurDetectee")
+
+EnvoieTouche(tkF24)
+bErr = ErreurDétectée
+dbgVérifieVrai(bErr = Faux, "EnvoieTouche(tkF24) headless : pas ErreurDetectee")
+
+dbgBilanTest()

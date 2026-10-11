@@ -1,0 +1,41 @@
+//  — parité GUI/headless : surEntrée / surSortie sur Table.
+//
+// DonneFocus vers le champ Table doit déclencher surEntrée en mode
+// graphique exactement comme en headless (déjà vert, cf.
+// tests/scenarios/ui/event_table_focus). Aujourd'hui aucun hook focus
+// GUI n'existe pour Table : ce test rougit tant qu'il n'est pas posé.
+//
+// ROUGE ATTENDU : nEntree_obs / nSortie_obs restent à 0 -- le focus Qt réel
+// se déplace (le widget suivant peut le recevoir) mais surEntrée/surSortie
+// ne sont jamais relayés côté Table.
+
+TestModeHeadless(Faux)
+
+bFocusTableGuiPrete est un booléen = Faux
+nEntree_obs est un entier = -1
+nSortie_obs est un entier = -1
+
+PROCEDURE callback_focus_table_gui_prete()
+	bFocusTableGuiPrete = Vrai
+FIN
+
+PROCEDURE callback_focus_table_gui_compteurs(nE est un entier, nS est un entier)
+	nEntree_obs = nE
+	nSortie_obs = nS
+FIN
+
+OuvreSoeur(FEN_FocusTableGui)
+dbgVérifieVrai(bFocusTableGuiPrete, "FinInitialisation appelée : fenêtre prête")
+
+// -- Etape 1 : donner le focus à la Table. surEntrée doit tirer 1 fois.
+DonnerFocusTable()
+LireCompteursFocusTableGui()
+dbgVérifieEgalité(nEntree_obs, 1, "surEntrée Table (GUI) : 1 tir après DonneFocus(TABLE_Focus)")
+
+// -- Etape 2 : déplacer le focus vers la Saisie. surSortie doit tirer 1 fois.
+DonnerFocusSaisie()
+LireCompteursFocusTableGui()
+dbgVérifieEgalité(nSortie_obs, 1, "surSortie Table (GUI) : 1 tir après DonneFocus(SAI_Focus)")
+
+Ferme(FEN_FocusTableGui)
+dbgBilanTest()

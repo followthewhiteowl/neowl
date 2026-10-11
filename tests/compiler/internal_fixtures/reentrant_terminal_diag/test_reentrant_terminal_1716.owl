@@ -1,0 +1,21 @@
+//  : repro TERMINALE réentrante, SANS aucun QUAND EXCEPTION nulle
+// part. Le comparateur d'un TableauTrie ttFonction divise toujours par
+// zéro : l'erreur naît en réentrant, et faute de handler ancêtre, elle
+// doit remonter jusqu'au top-level, s'imprimer UNE seule fois, et arrêter
+// le tri au 1er échec (pas de comparaisons supplémentaires après).
+//
+// Ce fichier DOIT planter (EXITCODE non-nul) : il ne vit pas dans la suite
+// `owl test`, il est consommé en process-level par
+// scripts/run_reentrant_terminal_diag_test.sh.
+//
+// Nom de paramètre volontairement "gauche"/"droite" (pas "a", mot réservé
+// de boucle POUR ... A ...).
+PROCEDURE Cmp(gauche est un entier, droite est un entier)
+	Trace("APPEL-CMP-1716")
+	diviseur est un entier = gauche - gauche
+	RENVOYER (gauche - droite) / diviseur
+FIN
+
+données est un tableau de 3 entiers = [3, 1, 2]
+TableauTrie(données, ttFonction, Cmp)
+Trace("APRES-TRI-1716")

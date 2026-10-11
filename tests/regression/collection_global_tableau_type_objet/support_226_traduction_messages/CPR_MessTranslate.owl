@@ -1,0 +1,20 @@
+//  (support #226) — reproduction fidèle du cas déclarant : un
+// dictionnaire de messages traduits stocké dans le GLOBAL d'une collection
+// de procédures, en mots-clés anglais.  a débloqué la compilation
+// (littéral colon-brace) ; ce fichier vérifie le bout-en-bout au RUNTIME.
+CPR_MessTranslate is a ProcedureCollection
+	GLOBAL
+	gpraasMessages is associative array of multilingualString
+
+	PROCEDURE MessagesInit()
+		gpraasMessages["CLEX_ERROR/5000"] = {"en-GB": "Error found", "fr-FR": "Erreur rencontrée"}
+	END
+
+	PROCEDURE MessTranslate(spar_ElementName is string, ipar_MessageNumber is integer)
+		RESULT gpraasMessages[Upper(spar_ElementName + "/" + NumToString(ipar_MessageNumber))]
+	END
+
+	PROCEDURE Termination()
+		// release the resources at project close
+	END
+END

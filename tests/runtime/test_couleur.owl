@@ -1,0 +1,57 @@
+// =====================================================================
+// TEST: Fonctions et constantes couleur (comportement de référence).
+//
+// Natives couvertes : RVB, TSL, RVBVersHTML, HTMLVersRVB, Constantes Couleur.
+// =====================================================================
+
+Trace("=== COULEUR : RVB / TSL / HTML / constantes ===")
+
+// --- RVB : Couleur = R + V*256 + B*65536 (BGR encoding) ---
+dbgVérifieEgalité(RVB(255, 0, 0), 255, "RVB(255,0,0) = RougeClair = 255")
+dbgVérifieEgalité(RVB(0, 255, 0), 65280, "RVB(0,255,0) = VertClair = 65280")
+dbgVérifieEgalité(RVB(0, 0, 255), 16711680, "RVB(0,0,255) = BleuClair = 16711680")
+dbgVérifieEgalité(RVB(255, 255, 255), 16777215, "RVB(255,255,255) = Blanc")
+dbgVérifieEgalité(RVB(0, 0, 0), 0, "RVB(0,0,0) = Noir")
+
+// --- Constantes predefinies (decimal value cf doc) ---
+dbgVérifieEgalité(RougeClair, 255, "RougeClair = 255")
+dbgVérifieEgalité(VertClair, 65280, "VertClair = 65280")
+dbgVérifieEgalité(BleuClair, 16711680, "BleuClair = 16711680")
+dbgVérifieEgalité(Blanc, 16777215, "Blanc = 16777215")
+dbgVérifieEgalité(Noir, 0, "Noir = 0")
+dbgVérifieEgalité(Transparent,-1, "Transparent = -1")
+dbgVérifieEgalité(JauneOr, 55295, "JauneOr = 55295")
+dbgVérifieEgalité(GrisFoncé, 8421504, "GrisFonce (alias ASCII) = 8421504")
+
+// --- RVBVersHTML : encode -> "#RRGGBB" standard HTML ---
+dbgVérifieEgalité(RVBVersHTML(RougeClair), "#FF0000", "RougeClair -> #FF0000")
+dbgVérifieEgalité(RVBVersHTML(VertClair), "#00FF00", "VertClair -> #00FF00")
+dbgVérifieEgalité(RVBVersHTML(BleuClair), "#0000FF", "BleuClair -> #0000FF")
+dbgVérifieEgalité(RVBVersHTML(Blanc), "#FFFFFF", "Blanc -> #FFFFFF")
+dbgVérifieEgalité(RVBVersHTML(Noir), "#000000", "Noir -> #000000")
+dbgVérifieEgalité(RVBVersHTML(Transparent), "", "Transparent -> chaine vide")
+
+// --- HTMLVersRVB : reciproque ---
+dbgVérifieEgalité(HTMLVersRVB("#FF0000"), 255, "#FF0000 -> RougeClair (255)")
+dbgVérifieEgalité(HTMLVersRVB("#00FF00"), 65280, "#00FF00 -> VertClair")
+dbgVérifieEgalité(HTMLVersRVB("#0000FF"), 16711680, "#0000FF -> BleuClair")
+dbgVérifieEgalité(HTMLVersRVB("#FFF"), 16777215, "shorthand #FFF = Blanc")
+dbgVérifieEgalité(HTMLVersRVB("#abc"), 13417386, "shorthand #abc = #aabbcc")
+
+// --- TSL : Teinte 0=rouge, 120=vert, 240=bleu ; Sat 100, Lum 50 = couleurs pures ---
+dbgVérifieEgalité(TSL(0, 100, 50), 255, "TSL(0,100,50) = rouge pur")
+dbgVérifieEgalité(TSL(120, 100, 50), 65280, "TSL(120,100,50) = vert pur")
+dbgVérifieEgalité(TSL(240, 100, 50), 16711680, "TSL(240,100,50) = bleu pur")
+dbgVérifieEgalité(TSL(0, 0, 100), 16777215, "TSL(0,0,100) = blanc")
+dbgVérifieEgalité(TSL(0, 0, 0), 0, "TSL(0,0,0) = noir")
+
+// --- Type Couleur (composite, propriété par défaut Couleur) ---
+c est une Couleur = RougeClair
+dbgVérifieEgalité(c..Couleur, 255, "Couleur..Couleur = valeur packée RougeClair")
+c = RVB(128, 64, 32)
+dbgVérifieEgalité(c..Couleur, 128 + 64 * 256 + 32 * 65536, "assignation RVB remplit .Couleur")
+dbgVérifieEgalité(c..Rouge, 128, "composante Rouge cohérente")
+dbgVérifieEgalité(c..Vert, 64, "composante Vert cohérente")
+dbgVérifieEgalité(c..Bleu, 32, "composante Bleu cohérente")
+
+dbgBilanTest()

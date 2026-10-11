@@ -1,0 +1,54 @@
+// Ressource fenetre — voisin de test_event_table_affichage_ligne.owl.
+// Event surAffichageLigne(indice) sur champ Table.
+//
+// Pattern identique a ZoneRepetee (ZR_SPECIFIC_EVENTS::surAffichageLigne).
+// La Table peuple 3 lignes dans FinInitialisation. En mode non-headless,
+// le champ rend chaque ligne et doit declencher surAffichageLigne 3 fois
+// (une par ligne : Alpha=1, Beta=2, Gamma=3).
+//
+// indice : commence a 1.
+
+FEN_TableAffichageLigne est une Fenêtre
+	PROPRIETES
+		Titre       = "TableAffichageLigne"
+		Largeur     = 500
+		Hauteur     = 350
+		Disposition = dispLibre
+	FIN
+
+	nAffichageCount est un entier = 0
+	nDernierIndice est un entier = 0
+
+	TABLE_Affichage est un Champ Table
+		PROPRIETES
+			X       = 10
+			Y       = 10
+			Largeur = 460
+			Hauteur = 280
+		FIN
+
+		COL_Libelle est une Colonne
+			PROPRIETES
+				Libellé = "Libelle"
+				Type    = colTypeTexte
+				Largeur = 200
+			FIN
+		FIN
+
+		PROCEDURE surAffichageLigne(indice est un entier)
+			nAffichageCount += 1
+			nDernierIndice = indice
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Affichage, "Alpha")
+		TableAjouteLigne(TABLE_Affichage, "Beta")
+		TableAjouteLigne(TABLE_Affichage, "Gamma")
+		cb_evt_tbl_affichage_prete()
+	FIN
+
+	PROCEDURE LireCompteursAffichage()
+		cb_evt_tbl_affichage_compteurs(nAffichageCount, nDernierIndice)
+	FIN
+FIN

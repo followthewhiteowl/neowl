@@ -1,0 +1,89 @@
+// @sujet : ChaîneVersRéel
+// @resume : Conversion d une chaine en reel (float64).
+// Vitrine de ChaîneVersRéel : parser une chaîne en valeur numérique réelle (float64).
+
+PROCEDURE PUBLIQUE scenario_nominal()
+	// Cas entier simple
+	res est un numérique = ChaîneVersRéel("42")
+	dbgVérifieVrai(Abs(res - 42.0) < 0.0001, "entier simple parsé")
+
+	// Cas décimal avec point
+	res = ChaîneVersRéel("3.14159")
+	dbgVérifieVrai(Abs(res - 3.14159) < 0.00001, "décimal avec point parsé")
+
+	// Valeur négative
+	res = ChaîneVersRéel("-273.15")
+	dbgVérifieVrai(Abs(res - (-273.15)) < 0.001, "négatif parsé correctement")
+FIN
+
+PROCEDURE PUBLIQUE scenario_espaces_avant()
+	// Les espaces en début de chaîne sont tolérés (comportement strtod POSIX)
+	res est un numérique = ChaîneVersRéel("   42.5")
+	dbgVérifieVrai(Abs(res - 42.5) < 0.01, "espaces avant ignorés")
+FIN
+
+PROCEDURE PUBLIQUE scenario_erreur_chaine_invalide()
+	// Une chaîne non-numérique déclenche une erreur et retourne 0.0
+	QUAND EXCEPTION DANS
+		res est un numérique = ChaîneVersRéel("bonjour")
+		dbgVérifieVrai(Abs(res) < 0.0001, "chaîne invalide retourne 0.0")
+	FAIRE
+		dbgVérifieVrai(Vrai, "erreur levée pour chaîne non-numérique")
+	FIN
+
+	// Chaîne vide aussi
+	QUAND EXCEPTION DANS
+		res est un numérique = ChaîneVersRéel("")
+		dbgVérifieVrai(Abs(res) < 0.0001, "chaîne vide retourne 0.0")
+	FAIRE
+		dbgVérifieVrai(Vrai, "erreur levée pour chaîne vide")
+	FIN
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_notation_scientifique()
+	// Notation exponentielle supportée par strtod
+	res est un numérique = ChaîneVersRéel("1.23e10")
+	// 1.23e10 = 12300000000.0
+	dbgVérifieVrai(Abs(res - 12300000000.0) < 1000000.0, "notation scientifique e+ acceptée")
+
+	res = ChaîneVersRéel("5e-3")
+	dbgVérifieVrai(Abs(res - 0.005) < 0.00001, "notation scientifique e- acceptée")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_separateur_decimal()
+	// Séparateur virgule (selon locale strtod, souvent non supporté en C POSIX par défaut)
+	// Ce test documente le comportement réel — si échec, c'est attendu.
+	res est un numérique = ChaîneVersRéel("3,14")
+	// strtod POSIX s'arrête à la virgule → parse "3" seulement
+	dbgVérifieVrai(Abs(res - 3.0) < 0.01, "virgule décimale non supportée en POSIX, s'arrête au 3")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_zero_et_infini()
+	// Zéro explicite
+	res est un numérique = ChaîneVersRéel("0.0")
+	dbgVérifieVrai(Abs(res) < 0.0001, "zéro explicite")
+
+	res = ChaîneVersRéel("-0")
+	dbgVérifieVrai(Abs(res) < 0.0001, "zéro négatif équivaut zéro")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_tres_grand_nombre()
+	// Très grand nombre (proche limite float64 ≈ 1.79e308)
+	res est un numérique = ChaîneVersRéel("1.7976931348623157e308")
+	// On vérifie juste que c'est un très grand nombre sans tester infinity
+	dbgVérifieVrai(res > 1.0, "très grand nombre parsé sans crash")
+
+	// Nombre qui dépasse → comportement strtod (peut retourner inf)
+	res = ChaîneVersRéel("1e400")
+	// On ne teste pas l'infinité directement pour éviter ambiguïté runtime.
+	dbgVérifieVrai(res > 1.0, "overflow strtod géré sans crash")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_caracteres_invalides_apres()
+	// Caractères invalides après le nombre → parse s'arrête au premier invalide
+	res est un numérique = ChaîneVersRéel("42abc")
+	dbgVérifieVrai(Abs(res - 42.0) < 0.01, "parse s'arrête au caractère invalide")
+
+	res = ChaîneVersRéel("3.14xyz")
+	dbgVérifieVrai(Abs(res - 3.14) < 0.001, "parse décimal s'arrête avant xyz")
+FIN

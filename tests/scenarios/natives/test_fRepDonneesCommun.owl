@@ -1,0 +1,42 @@
+// @sujet : fRepDonnéesCommun
+// @résumé : Dossier de données de l'application courante partagé par tous
+// les utilisateurs de la machine (sous-dossier applicatif de
+// fRepGlobalCommun).
+
+PROCEDURE PUBLIQUE scenario_non_vide()
+	rep est une chaîne = fRepDonnéesCommun()
+	dbgVérifieVrai(Taille(rep) > 0, "non vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_prefixe_repertoire_global()
+	// Même invariant structurel que fRepDonnéesUtilisateur, côté commun :
+	// préfixe exact + séparateur + un seul segment (l'application).
+	racineGlobale est une chaîne = fRepGlobalCommun()
+	data est une chaîne = fRepDonnéesCommun()
+	dbgVérifieVrai(ChaîneCommencePar(data, racineGlobale) <> 0, "commence par le répertoire global commun")
+
+	separateur est une chaîne = Milieu(data, Taille(racineGlobale) + 1, 1)
+	dbgVérifieEgalité(separateur, fSep(), "un séparateur suit immédiatement le répertoire global")
+
+	segment est une chaîne = Milieu(data, Taille(racineGlobale) + 2, Taille(data))
+	dbgVérifieVrai(Taille(segment) > 0, "le segment application n'est pas vide")
+	dbgVérifieEgalité(Position(segment, fSep()), 0, "un seul niveau de sous-dossier (pas de séparateur dans le segment application)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_bilingue()
+	dbgVérifieEgalité(fRepDonnéesCommun(), fDataDirCommon(), "fRepDonnéesCommun() = fDataDirCommon()")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stable()
+	rep1 est une chaîne = fRepDonnéesCommun()
+	rep2 est une chaîne = fRepDonnéesCommun()
+	dbgVérifieEgalité(rep1, rep2, "appels successifs stables")
+FIN
+
+PROCEDURE PUBLIQUE scenario_meme_segment_application_que_utilisateur()
+	// Le segment applicatif (nom de l'appli) doit être le même côté commun
+	// et côté utilisateur, seule la racine globale diffère.
+	segmentUser est une chaîne = Milieu(fRepDonnéesUtilisateur(), Taille(fRepGlobalUtilisateur()) + 2, Taille(fRepDonnéesUtilisateur()))
+	segmentCommon est une chaîne = Milieu(fRepDonnéesCommun(), Taille(fRepGlobalCommun()) + 2, Taille(fRepDonnéesCommun()))
+	dbgVérifieEgalité(segmentUser, segmentCommon, "même nom d'application des deux côtés")
+FIN

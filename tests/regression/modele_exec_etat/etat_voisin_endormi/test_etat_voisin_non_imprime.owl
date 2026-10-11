@@ -1,0 +1,16 @@
+// Verrou  — voisin ETAT non imprime : top-level ne tourne pas au boot.
+//
+// ETAT_VoisinEndormi appelle __dbgNoteExecution("ETAT_Dormant") dans son top-level.
+// Ce test n'imprime JAMAIS ETAT_VoisinEndormi.
+// Attendu post-fix : compteur = 0 (etat endormi => top-level jamais execute).
+// Etat actuel pre-fix (bug 652) : eager au boot => compteur = 1.
+// => Ce test est ROUGE avant fix, VERT apres fix.
+
+TestModeHeadless(Vrai)
+
+// Deliberement : PAS de iImprimeEtat(ETAT_VoisinEndormi).
+
+dbgVérifieEgalité(__dbgNombreExecutions("ETAT_Dormant"), 0,
+"ETAT non imprime : top-level ne tourne pas au boot (bug 652)")
+
+dbgBilanTest()

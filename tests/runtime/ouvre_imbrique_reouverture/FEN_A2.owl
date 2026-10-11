@@ -1,0 +1,28 @@
+//  — FEN_A2 : fenetre "liste" qui ouvre FEN_B2 (edition) PLUSIEURS
+// fois de suite, imbrique, depuis sa FinInitialisation. Reproduit le motif
+// terrain owl_gestion : ouvrir l'edition, fermer, re-ouvrir l'edition.
+//
+// Le bug terrain : le 1er cycle imbrique marche, le 2e casse
+// (lectures revides cote B => "montant pas positif", ou crash en GUI sur
+// widget dangling). Cette sentinelle verrouille le contrat de pile + de
+// lecture sur 3 cycles imbriques successifs.
+
+FEN_A2 est une Fenêtre
+	PROPRIETES
+		Titre       = "Liste A"
+		Disposition = dispLibre
+	FIN
+
+	PROCEDURE FinInitialisation()
+		i est un entier
+		POUR i = 1 À 3
+			gnCycle = i
+			// Avant chaque Ouvre imbrique : top doit etre FEN_A2.
+			trace_pile = trace_pile + "A_avant" + NumériqueVersChaîne(i, "d") + "(" + FEN_A2..Titre + ");"
+			val est une chaîne = Ouvre(FEN_B2)
+			// Apres retour : top redevenu FEN_A2, valeur de Ferme transmise.
+			trace_pile = trace_pile + "A_apres" + NumériqueVersChaîne(i, "d") + "(" + FEN_A2..Titre + ",val=" + val + ");"
+		FIN
+		Ferme(FEN_A2)
+	FIN
+FIN

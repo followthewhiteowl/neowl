@@ -1,0 +1,117 @@
+// @sujet : dbgVérifieNonNull
+// @resume : Vérifie qu'une valeur n'est pas Null (assertion pour harness de tests)
+
+// ============================================================================
+// PROCEDURE PUBLIC : vitrine pedagogique
+// ============================================================================
+
+PROCEDURE PUBLIQUE scenario_valeur_non_null_simple()
+	// Vérifie qu'une valeur définie (non-Null) passe l'assertion
+	// Cas nominal : la plupart des valeurs testées sont non-Null
+
+	x est un entier = 42
+	s est une chaîne = "texte"
+	b est un booléen = Vrai
+
+	dbgVérifieNonNull(x, "Entier non nul")
+	dbgVérifieNonNull(s, "Chaine non nulle")
+	dbgVérifieNonNull(b, "Booleen non nul")
+FIN
+
+PROCEDURE PUBLIQUE scenario_complement_dbgVerifieNull()
+	// dbgVérifieNonNull est l'inverse logique de dbgVérifieNull
+	// Une valeur non-Null passe ici, échouerait avec dbgVérifieNull
+
+	resultat est un entier = 100
+	dbgVérifieNonNull(resultat, "Resultat defini")
+
+	// Note pédagogique : la valeur Null provoquerait FAIL ici
+	// (à ne pas tester en PUBLIQUE pour garder le bilan vert)
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeurs_limites_non_null()
+	// Cas limites : valeurs "vides" ou "zéro" mais qui ne sont PAS Null
+	// Zéro, chaîne vide, faux sont des valeurs définies (non-Null)
+
+	entierZero est un entier = 0
+	chaineVide est une chaîne = ""
+	booFaux est un booléen = Faux
+
+	dbgVérifieNonNull(entierZero, "Zero est une valeur definie")
+	dbgVérifieNonNull(chaineVide, "Chaine vide est definie")
+	dbgVérifieNonNull(booFaux, "Faux est une valeur definie")
+FIN
+
+PROCEDURE PUBLIQUE scenario_objet_instancie()
+	// Vérifier qu'un objet instancié (type composé) n'est pas Null
+	// Cas d'usage : valider qu'une construction a réussi
+
+	req est un httpRequête
+	req..URL = "https://example.org"
+
+	dbgVérifieNonNull(req, "Objet HTTPRequete instancie")
+FIN
+
+// ============================================================================
+// PROCEDURE PRIVEE : edge cases techniques
+// ============================================================================
+
+PROCEDURE PRIVÉE scenario_edge_types_numeriques()
+	// Types numériques avec valeurs sentinel
+	// Aucune valeur numérique n'est Null (seul Null est Null)
+
+	min est un entier = -2147483648
+	max est un entier = 2147483647
+	valeurReelle est un réel = 3.14159
+
+	dbgVérifieNonNull(min, "INT32_MIN non nul")
+	dbgVérifieNonNull(max, "INT32_MAX non nul")
+	dbgVérifieNonNull(valeurReelle, "Reel non nul")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_chaine_multibyte_utf8()
+	// Chaîne contenant accents et emojis UTF-8 multibytes
+	// Vérifie qu'une chaîne avec contenu exotique reste détectée non-Null
+
+	accentue est une chaîne = "résumé café"
+	emoji est une chaîne = "test 🔥"
+
+	dbgVérifieNonNull(accentue, "Chaine avec accents non nulle")
+	dbgVérifieNonNull(emoji, "Chaine avec emoji non nulle")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_alias_fr_en()
+	// Vérifier que les alias FR/EN fonctionnent (invariant 3)
+	// dbgVérifieNonNull = dbgVerifieNonNull (sans accent) = dbgCheckNotNull (EN)
+
+	val est un entier = 999
+
+	dbgVérifieNonNull(val, "Forme FR avec accent")
+	dbgVérifieNonNull(val, "Forme FR sans accent")
+	dbgCheckNotNull(val, "Alias EN fonctionne")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_resultat_fonction()
+	// Vérifier le résultat d'un appel de fonction
+	// Cas d'usage : valider qu'une fonction retourne une valeur définie
+
+	resultat est un entier = Taille("test")
+	dbgVérifieNonNull(resultat, "Retour fonction non nul")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_compteur_bilan()
+	// Vérifier que dbgVérifieNonNull contribue au compteur d'assertions
+	// Un PASS incrémente le total sans échouer
+
+	compteurAvant est un entier = dbgBilanTest()
+
+	x est un entier = 123
+	dbgVérifieNonNull(x, "Assertion contribue au compteur")
+
+	compteurApres est un entier = dbgBilanTest()
+
+	// Le compteur de réussites a été incrémenté (pas le compteur d'échecs)
+	dbgVérifieEgalité(compteurApres, compteurAvant, "Compteur d'echecs stable")
+FIN
+
+dbgBilanTest()

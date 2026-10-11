@@ -1,0 +1,17 @@
+// MonChamp dans une procédure de script appelée hors de tout handler de
+// champ : erreur runtime (pas compile). La procédure compile — elle
+// pourrait légitimement être appelée depuis un handler de champ, auquel cas
+// MonChamp hériterait du champ émetteur (chaîne d'appel). Appelée
+// directement, aucun champ n'est courant : MonChamp pose ErreurDétectée.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE UtiliseMonChamp()
+	Trace(MonChamp)
+FIN
+
+ErreurRAZ()
+UtiliseMonChamp()
+
+bErreur est un booléen = ErreurDétectée
+dbgVérifieVrai(bErreur, "MonChamp dans une procédure hors handler pose ErreurDétectée")

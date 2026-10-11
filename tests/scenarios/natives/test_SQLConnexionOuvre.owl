@@ -1,0 +1,33 @@
+// @sujet : SQLConnexionOuvre, SQLConnexionFerme
+// @résumé : Cycle de vie d'une connexion via la forme fonction — utile quand la connexion transite en paramètre plutôt que d'appeler ses méthodes.
+
+// sqlConnexion expose Ouvre()/Ferme() en méthodes, mais les deux existent
+// aussi comme fonctions autonomes prenant la connexion en paramètre —
+// pratique pour une fonction utilitaire qui reçoit une connexion déjà
+// décrite et n'a pas besoin de connaître le type sous-jacent au détail.
+
+// Forme fonction : SQLConnexionOuvre(cnx) fait exactement ce que
+// cnx.Ouvre() ferait, et renvoie le même booléen de succès.
+PROCEDURE PUBLIQUE scenario_ouvre_puis_ferme()
+	cnx est une sqlConnexion
+	cnx..Provider = sqlSqlite
+	cnx..Source   = ":memory:"
+
+	dbgVérifieEgalité(SQLConnexionOuvre(cnx), Vrai, "la connexion s'ouvre")
+	dbgVérifieEgalité(SQLConnexionFerme(cnx), Vrai, "la connexion se ferme")
+FIN
+
+
+// Une connexion fermée peut être rouverte : rien n'empêche de réutiliser
+// le même descripteur pour un second cycle ouverture/travail/fermeture.
+PROCEDURE PUBLIQUE scenario_reouverture_apres_fermeture()
+	cnx est une sqlConnexion
+	cnx..Provider = sqlSqlite
+	cnx..Source   = ":memory:"
+
+	SQLConnexionOuvre(cnx)
+	SQLConnexionFerme(cnx)
+
+	dbgVérifieEgalité(SQLConnexionOuvre(cnx), Vrai, "réouverture possible après une fermeture")
+	SQLConnexionFerme(cnx)
+FIN

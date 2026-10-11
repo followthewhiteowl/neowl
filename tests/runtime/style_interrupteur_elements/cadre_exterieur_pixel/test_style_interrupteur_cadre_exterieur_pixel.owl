@@ -1,0 +1,43 @@
+//  — `Style..CadreExtérieur..X` sur un Champ Interrupteur :
+// conteneur (wrapper) qui enveloppe les N QCheckBox. Vérifié via la bordure
+// du wrapper : les QCheckBox peignent leur propre fond par-dessus l'intérieur,
+// donc seule la marge externe (bordure du wrapper, hors zone interne du
+// champ) porte de façon fiable la couleur et l'épaisseur du Cadre.
+//
+// ROUGE attendu : `Style..CadreExtérieur..X` ne compile pas encore (le type
+// styleInterrupteur n'existe pas). Cf. FEN_StyleInterrupteurCadreExterieur.owl.
+
+TestModeHeadless(Faux)
+
+couleurCadreCouleur est un entier = RVB(0, 128, 255)
+
+PROCEDURE CompteCouleurZone(img est une Image, x1 est un entier, y1 est un entier, x2 est un entier, y2 est un entier, couleur est un entier)
+	n est un entier = 0
+	yy est un entier = y1
+	TANTQUE yy < y2
+		xx est un entier = x1
+		TANTQUE xx < x2
+			SI dPixelCouleur(img, xx, yy) = couleur ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+OuvreSoeur(FEN_StyleInterrupteurCadreExterieur)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleInterrupteurCadreExterieur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture valide")
+
+// INT_Zone occupe [20,20]-[520,80] ; le pourtour élargi [15,15]-[525,85]
+// capte la bordure du CadreExtérieur (épaisseur 5), hors zone interne des
+// QCheckBox (qui peignent leur propre fond par-dessus).
+nbBordure est un entier = CompteCouleurZone(img, 15, 15, 525, 85, couleurCadreCouleur)
+seuilBordure est un entier = 60 // pourtour fin, seuil bas mais sûr
+dbgVérifieVrai(nbBordure > seuilBordure, "INT_Zone : Style..CadreExtérieur..Cadre..Couleur/Epaisseur peint la bordure du conteneur")
+
+Ferme(FEN_StyleInterrupteurCadreExterieur)
+dbgBilanTest()

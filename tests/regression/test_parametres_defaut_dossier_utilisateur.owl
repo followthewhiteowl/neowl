@@ -1,0 +1,20 @@
+//  : le tout premier appel à ParamètreInitialise d'un programme renvoie
+// l'état antérieur — ici l'état par défaut, jamais encore résolu. Cette
+// résolution ne crée ni dossier ni fichier : rien n'est écrit sur disque tant
+// qu'aucun ParamètreEnregistre n'a eu lieu. C'est le seul canal d'introspection du
+// chemin par défaut ; ce test n'écrit rien dans le vrai dossier de données
+// utilisateur et ne code en dur aucun chemin propre à une machine.
+
+PROCEDURE PUBLIQUE test_defaut_json_dossier_utilisateur_observable_sans_ecriture()
+	// Premier appel ParamètreInitialise du programme : le retour expose l'état
+	// antérieur, c'est-à-dire l'état par défaut jamais encore résolu.
+	étatAvant est une chaîne = ParamètreInitialise(paramJSON, fRepTemp() + fSep() + "test_regr_parametres_defaut_apres.json")
+
+	dbgVérifieVrai(Contient(étatAvant, "json" + TAB), "le support par défaut est le jeton de mode neutre 'json' suivi d'une tabulation")
+	dbgVérifieVrai(Taille(étatAvant) > Taille("json" + TAB), "un chemin de source suit le jeton de mode")
+	dbgVérifieVrai(Contient(étatAvant, fSep()), "le chemin par défaut est un chemin absolu (contient au moins un séparateur système)")
+	dbgVérifieVrai(Contient(étatAvant, ".json"), "l'extension du fichier par défaut suit le support JSON")
+	dbgVérifieVrai(Contient(étatAvant, "test_parametres_defaut_dossier_utilisateur"), "le nom du programme (nom du fichier lancé, sans extension) apparaît dans le chemin par défaut")
+FIN
+
+dbgBilanTest()

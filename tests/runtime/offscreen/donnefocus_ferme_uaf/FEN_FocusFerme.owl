@@ -1,0 +1,61 @@
+// Ressource fenetre — voisin de test_donnefocus_ferme_uaf.owl.
+// Deux champs Saisie avec compteurs surEntree/surSortie.
+// Utilise pour reproduire le USE-AFTER-FREE du setFocus differe :
+// DonneFocus(SAI_2) pose un QTimer 0ms ; Ferme() immediat demonte la
+// fenetre AVANT que le timer echoie. Quand le timer tire pendant un
+// pump ulterieur (second OuvreSoeur), il dispatche un binding perime
+// -> use-after-free.
+
+FEN_FocusFerme est une Fenêtre
+	PROPRIETES
+		Titre       = "Focus Ferme UAF"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 250
+	FIN
+
+	nEntree1 est un entier = 0
+	nSortie1 est un entier = 0
+	nEntree2 est un entier = 0
+	nSortie2 est un entier = 0
+
+	SAI_1 est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 200
+		FIN
+		PROCEDURE surEntrée()
+			nEntree1 += 1
+			callback_uaf_entrees(nEntree1, nEntree2)
+		FIN
+		PROCEDURE surSortie()
+			nSortie1 += 1
+			callback_uaf_sorties(nSortie1, nSortie2)
+		FIN
+	FIN
+
+	SAI_2 est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 80
+			Largeur = 200
+		FIN
+		PROCEDURE surEntrée()
+			nEntree2 += 1
+			callback_uaf_entrees(nEntree1, nEntree2)
+		FIN
+		PROCEDURE surSortie()
+			nSortie2 += 1
+			callback_uaf_sorties(nSortie1, nSortie2)
+		FIN
+	FIN
+
+	PROCEDURE LireEntrees()
+		callback_uaf_entrees(nEntree1, nEntree2)
+	FIN
+
+	PROCEDURE LireSorties()
+		callback_uaf_sorties(nSortie1, nSortie2)
+	FIN
+FIN

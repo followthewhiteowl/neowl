@@ -1,0 +1,64 @@
+// ============================================
+// TEST: ErreurDetectee wired across stdlib families
+// ============================================
+Trace("=== ERREUR CROSS-STDLIB ===")
+
+// --- File errors ---
+fOuvre("/nope/inexistant/zzz.owl", foLecture)
+dbgVérifieVrai(ErreurDétectée, "fOuvre fail")
+dbgVérifieVrai(Position(ErreurInfo(errMessage), "fOuvre") > 0, "msg mentionne fOuvre")
+
+fSupprime("/nope/aussi/inexistant/ab.xyz")
+dbgVérifieVrai(ErreurDétectée, "fSupprime fail")
+
+fTaille("/not/a/real/path.bin")
+dbgVérifieVrai(ErreurDétectée, "fTaille fail")
+
+fCopieFichier("/src/introuvable.txt", "/dst/pas/important.txt")
+dbgVérifieVrai(ErreurDétectée, "fCopieFichier fail")
+
+// --- Parse errors on string conversions ---
+ChaîneVersEntier("pas un nombre")
+dbgVérifieVrai(ErreurDétectée, "ChaineVersEntier fail")
+dbgVérifieVrai(Position(ErreurInfo(errMessage), "ChaineVersEntier") > 0, "msg mentionne la fn")
+
+ChaîneVersRéel("abc")
+dbgVérifieVrai(ErreurDétectée, "ChaineVersReel fail")
+
+// --- Reset on success ---
+ChaîneVersEntier("42")
+dbgVérifieFaux(ErreurDétectée, "Success reset")
+
+// --- Date parsing ---
+// documentation de référence: ChaîneVersDate retourne "" sur input invalide.
+// Improvement OWL: set aussi ErreurDetectée=Vrai pour faciliter la détection.
+ChaîneVersDate("ceci n'est pas une date")
+dbgVérifieVrai(ErreurDétectée, "ChaineVersDate fail")
+
+ChaîneVersHeure("zzz")
+dbgVérifieVrai(ErreurDétectée, "ChaineVersHeure fail")
+
+// --- JSON parse error ---
+ChaîneVersJSON("{invalid")
+dbgVérifieVrai(ErreurDétectée, "ChaineVersJSON fail")
+
+ChaîneVersJSON("{""ok"": true}")
+dbgVérifieFaux(ErreurDétectée, "JSON valide = pas d'erreur")
+
+// --- Compile dynamic errors ---
+Compile("syntaxe vraiment invalide {{{")
+dbgVérifieVrai(ErreurDétectée, "Compile fail")
+
+EvalueExpression("1 + + ++")
+dbgVérifieVrai(ErreurDétectée, "EvalueExpression fail")
+
+// --- Crypto DecrypteStandard failure (buffer invalide) ---
+DécrypteStandard("pas un buffer chiffré valide", "mot de passe")
+dbgVérifieVrai(ErreurDétectée, "DecrypteStandard fail")
+
+// --- Message format ---
+fOuvre("/nope.txt", foLecture)
+dbgVérifieVrai(ErreurInfo() <> "", "errCode non nul")
+dbgVérifieVrai(Taille(ErreurInfo(errPile)) > 0, "Stack trace populee")
+
+dbgBilanTest()

@@ -1,0 +1,74 @@
+// ================================================================
+// Régression dDécoupe : vérouille sémantique non-mutative canon de référence
+//
+//  — Divergence majeure corrigée :
+//   OWL impl historique : dDécoupe mutatif (retour booléen, source modifiée)
+//   Canon de référence : <Résultat> = dDécoupe(<Image>, x, y, l, h)
+//              → nouvelle Image, source intacte
+//
+// Ce test verrouille les 2 propriétés clés :
+//   1. Source reste intacte (dimensions + pixels)
+//   2. Résultat est une nouvelle Image de taille demandée
+// ================================================================
+
+
+// Propriété 1 : source intacte après appel
+imgSource est une Image = dCréeImage(100, 100, RVB(0, 255, 0))
+largeurAvant est un entier = imgSource..Largeur
+hauteurAvant est un entier = imgSource..Hauteur
+couleurPixelAvant est un entier = dPixelCouleur(imgSource, 25, 25)
+
+imgResultat est une Image = dDécoupe(imgSource, 20, 20, 40, 40)
+
+dbgVérifieEgalité(imgSource..Largeur, largeurAvant, "source intacte: largeur inchangée")
+dbgVérifieEgalité(imgSource..Hauteur, hauteurAvant, "source intacte: hauteur inchangée")
+dbgVérifieEgalité(dPixelCouleur(imgSource, 25, 25), couleurPixelAvant, "source intacte: pixel échantillon inchangé")
+
+
+// Propriété 2 : résultat est nouvelle Image avec dimensions demandées
+dbgVérifieEgalité(imgResultat..Largeur, 40, "résultat: largeur demandée")
+dbgVérifieEgalité(imgResultat..Hauteur, 40, "résultat: hauteur demandée")
+dbgVérifieEgalité(imgResultat..Valide, Vrai, "résultat: image valide")
+
+
+// Propriété 3 : pixels copiés depuis zone source découpée
+// Pixel (5,5) du résultat correspond au pixel (25,25) de la source (20+5, 20+5)
+couleurPixelResultat est un entier = dPixelCouleur(imgResultat, 5, 5)
+dbgVérifieEgalité(couleurPixelResultat, RVB(0, 255, 0), "résultat: pixels copiés depuis zone source")
+
+
+// Edge case : zone 1x1 (pixel unique)
+imgSource2 est une Image = dCréeImage(20, 20, RVB(128, 128, 128))
+imgPixelUnique est une Image = dDécoupe(imgSource2, 10, 10, 1, 1)
+dbgVérifieEgalité(imgPixelUnique..Largeur, 1, "edge: pixel unique largeur = 1")
+dbgVérifieEgalité(imgPixelUnique..Hauteur, 1, "edge: pixel unique hauteur = 1")
+dbgVérifieEgalité(imgPixelUnique..Valide, Vrai, "edge: pixel unique valide")
+
+
+// Edge case : zone identique à source (pleine taille)
+// Doit retourner une NOUVELLE image (pas la même référence)
+imgSource3 est une Image = dCréeImage(30, 30, RVB(255, 0, 0))
+imgCopie est une Image = dDécoupe(imgSource3, 0, 0, 30, 30)
+dbgVérifieEgalité(imgCopie..Largeur, 30, "edge: copie pleine taille largeur")
+dbgVérifieEgalité(imgCopie..Hauteur, 30, "edge: copie pleine taille hauteur")
+
+
+// Edge case : largeur ou hauteur <= 0 → erreur non-fatale
+imgSource4 est une Image = dCréeImage(20, 20, RVB(0, 0, 255))
+imgInvalide1 est une Image = dDécoupe(imgSource4, 5, 5, 0, 10)
+bErreur1 est un booléen = ErreurDétectée
+dbgVérifieEgalité(bErreur1, Vrai, "edge: largeur 0 pose erreur")
+
+ErreurRAZ()
+imgInvalide2 est une Image = dDécoupe(imgSource4, 5, 5, 10,-5)
+bErreur2 est un booléen = ErreurDétectée
+dbgVérifieEgalité(bErreur2, Vrai, "edge: hauteur négative pose erreur")
+
+
+// Edge case : origine X,Y hors source
+// Documentation de référence : comportement non explicite, on vérifie juste que l'erreur est posée
+ErreurRAZ()
+imgSource5 est une Image = dCréeImage(20, 20, RVB(100, 100, 100))
+imgHorsBorne est une Image = dDécoupe(imgSource5, 25, 25, 5, 5)
+bErreur3 est un booléen = ErreurDétectée
+dbgVérifieEgalité(bErreur3, Vrai, "edge: origine hors source pose erreur")

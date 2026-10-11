@@ -1,0 +1,66 @@
+// @sujet : Tenseur.MaxPooling / .MoyennePooling — pas par défaut = fenêtre (non-régression)
+// @résumé : Avant l'ajout d'un pas (stride) optionnel distinct de la fenêtre,
+// `TenseurMaxPooling(t, fenêtre)` / `.MaxPooling(fenêtre)` (idem pour la
+// moyenne) supposent un pas implicitement égal à la fenêtre — fenêtres non
+// chevauchantes. Ce scénario verrouille exactement les mêmes valeurs que la
+// digue historique du pooling (cf. test_TenseurMaxPooling.owl /
+// test_TenseurMoyennePooling.owl) : l'appel à 2 arguments (sans pas) doit
+// rester bit-inchangé une fois le pas rendu optionnel.
+
+// Entrée 1×1×4×4 (mêmes valeurs que la digue historique du max pooling) :
+//    1  3  2  4
+//    5  6  8  7
+//    9 11 10 12
+//   13 14 16 15
+// 4 fenêtres 2×2 non chevauchantes -> max = 6, 8, 14, 16.
+PROCEDURE PUBLIQUE scenario_maxpooling_pas_defaut_egale_fenetre()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+
+	sortieMéthode est un Tenseur = entrée.MaxPooling(2)
+	sortieNative est un Tenseur = TenseurMaxPooling(entrée, 2)
+
+	dbgVérifieEgalité(sortieMéthode..Valeur[1][1][1][1], 6.0, "pas par défaut = fenêtre : max([[1,3],[5,6]]) = 6, inchangé")
+	dbgVérifieEgalité(sortieMéthode..Valeur[1][1][1][2], 8.0, "pas par défaut = fenêtre : max([[2,4],[8,7]]) = 8, inchangé")
+	dbgVérifieEgalité(sortieMéthode..Valeur[1][1][2][1], 14.0, "pas par défaut = fenêtre : max([[9,11],[13,14]]) = 14, inchangé")
+	dbgVérifieEgalité(sortieMéthode..Valeur[1][1][2][2], 16.0, "pas par défaut = fenêtre : max([[10,12],[16,15]]) = 16, inchangé")
+
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][1][1], sortieMéthode..Valeur[1][1][1][1], "forme native (2 arguments, sans pas) == forme méthode")
+	dbgVérifieEgalité(sortieNative..Valeur[1][1][2][2], sortieMéthode..Valeur[1][1][2][2], "forme native (2 arguments, sans pas) == forme méthode")
+FIN
+
+
+// Entrée 1×1×4×4 (mêmes valeurs que la digue historique de la moyenne) :
+//    1  2  3  4
+//    5  6  7  8
+//    9 10 11 12
+//   13 14 15 16
+// 4 fenêtres 2×2 non chevauchantes -> moyenne = 3.5, 5.5, 11.5, 13.5.
+PROCEDURE PUBLIQUE scenario_moyennepooling_pas_defaut_egale_fenetre()
+	entrée est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]).Redimensionne([1, 1, 4, 4])
+
+	sortieMéthode est un Tenseur = entrée.MoyennePooling(2)
+	sortieNative est un Tenseur = TenseurMoyennePooling(entrée, 2)
+
+	dbgVérifieVrai(Abs(sortieMéthode..Valeur[1][1][1][1] - 3.5) < 0.0001, "pas par défaut = fenêtre : moyenne([[1,2],[5,6]]) = 3.5, inchangé")
+	dbgVérifieVrai(Abs(sortieMéthode..Valeur[1][1][1][2] - 5.5) < 0.0001, "pas par défaut = fenêtre : moyenne([[3,4],[7,8]]) = 5.5, inchangé")
+	dbgVérifieVrai(Abs(sortieMéthode..Valeur[1][1][2][1] - 11.5) < 0.0001, "pas par défaut = fenêtre : moyenne([[9,10],[13,14]]) = 11.5, inchangé")
+	dbgVérifieVrai(Abs(sortieMéthode..Valeur[1][1][2][2] - 13.5) < 0.0001, "pas par défaut = fenêtre : moyenne([[11,12],[15,16]]) = 13.5, inchangé")
+
+	dbgVérifieVrai(Abs(sortieNative..Valeur[1][1][1][1] - sortieMéthode..Valeur[1][1][1][1]) < 0.0001, "forme native (2 arguments, sans pas) == forme méthode")
+	dbgVérifieVrai(Abs(sortieNative..Valeur[1][1][2][2] - sortieMéthode..Valeur[1][1][2][2]) < 0.0001, "forme native (2 arguments, sans pas) == forme méthode")
+FIN
+
+
+// Rétropropagation à pas par défaut : même contrat que la digue historique
+// (le gradient ne route que vers la cellule gagnante de chaque fenêtre non
+// chevauchante). Verrouille que l'ajout du pas optionnel ne modifie pas le
+// chemin de rétropropagation du cas non chevauchant.
+PROCEDURE PUBLIQUE scenario_maxpooling_pas_defaut_backward_inchange()
+	entrée est un Tenseur = Tenseur([1.0, 3.0, 2.0, 4.0, 5.0, 6.0, 8.0, 7.0, 9.0, 11.0, 10.0, 12.0, 13.0, 14.0, 16.0, 15.0]).Redimensionne([1, 1, 4, 4])
+	sortie est un Tenseur = entrée.MaxPooling(2)
+	q est un Tenseur = sortie * sortie
+	q.Rétropropage()
+
+	dbgVérifieEgalité(entrée..Gradient[1][1][2][2], 12.0, "pas par défaut : position du max 6 reçoit grad_sortie[1][1]=12, inchangé")
+	dbgVérifieEgalité(entrée..Gradient[1][1][1][1], 0.0, "pas par défaut : cellule non-max reçoit un gradient nul, inchangé")
+FIN

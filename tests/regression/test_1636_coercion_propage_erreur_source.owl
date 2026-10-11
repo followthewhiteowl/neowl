@@ -1,0 +1,57 @@
+// Non-regression  : la coercion de declaration `x est un Tenseur/
+// Vecteur/Matrice = <expr>` ne doit PAS avaler l'erreur reelle d'une
+// expression source qui a soft-errored. Le message generique de la coercion
+// ne s'emet QUE pour un vrai type non-coercible (aucune erreur prealable).
+
+matW est une Matrice = [[1.0, 2.0, 3.0]]
+tW est un Tenseur = Tenseur(matW)
+tx est un Tenseur = Tenseur([1.0, 2.0])
+
+// --- Tenseur : formes incompatibles, message enrichi propage ------------
+// La forme nue TenseurProduitMatriciel(tW, tx) rend un message enrichi ; la
+// forme idiomatique via coercion doit rendre LE MEME message, pas le generique.
+ErreurRAZ()
+tY est un Tenseur = tW.ProduitMatriciel(tx)
+msgTenseur est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(msgTenseur,
+	"TenseurProduitMatriciel: argument 'operande' attendu un vecteur de taille egale au nombre de colonnes de la matrice (3), reçu un vecteur de taille 2.",
+	"coercion Tenseur propage le message enrichi de la native source")
+
+// --- Tenseur : vrai cas non-coercible, message generique conserve -------
+ErreurRAZ()
+xbad est un Tenseur = "chaine"
+msgTenseurGen est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(msgTenseurGen,
+	"Tenseur: argument 'source' attendu tableau de reels, Vecteur ou Matrice, reçu type non pris en charge.",
+	"coercion Tenseur : vrai non-coercible garde le message generique clair")
+
+// --- Vecteur : coercion soeur, meme propagation -------------------------
+tabMixte est un tableau
+Ajoute(tabMixte, 1.0)
+Ajoute(tabMixte, "x")
+
+ErreurRAZ()
+vY est un Vecteur = TableauVersVecteur(tabMixte)
+msgVecteur est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(msgVecteur,
+	"TableauVersVecteur: argument 'element' attendu reel, reçu type non pris en charge.",
+	"coercion Vecteur propage le message enrichi de la native source")
+
+// --- Vecteur : vrai cas non-coercible, message generique conserve -------
+ErreurRAZ()
+vbad est un Vecteur = 42
+msgVecteurGen est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(msgVecteurGen,
+	"Vecteur: argument 'source' attendu tableau de reels, reçu type non pris en charge.",
+	"coercion Vecteur : vrai non-coercible garde le message generique clair")
+
+// --- Matrice : coercion soeur, la source soft-error est propagee au lieu
+// d'etre remplacee par une exception generique masquante -----------------
+ErreurRAZ()
+mY est une Matrice = TenseurProduitMatriciel(tW, tx)
+msgMatrice est une chaîne = ErreurInfo(errMessage)
+dbgVérifieEgalité(msgMatrice,
+	"TenseurProduitMatriciel: argument 'operande' attendu un vecteur de taille egale au nombre de colonnes de la matrice (3), reçu un vecteur de taille 2.",
+	"coercion Matrice propage l'erreur source au lieu de lever une generique masquante")
+
+dbgBilanTest()

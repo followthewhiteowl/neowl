@@ -1,0 +1,55 @@
+// Tests des lambdas de référence : 1-arg "X => expr" et multi-args "(a, b) => expr"
+Trace("=== LAMBDAS ===")
+
+// ── Lambda directe sur Filtre ────────────────────────────────────
+arrT est un tableau de entiers = [1, 2, 3, 4, 5, 6]
+
+pairs est un tableau de entiers = arrT.Filtre(x => x MODULO 2 = 0)
+dbgVérifieEgalité(Taille(pairs), 3, "Filtre(X => X modulo 2 = 0) -> 3 pairs")
+
+// ── Lambda dans Transforme ───────────────────────────────────────
+doubles est un tableau de entiers = arrT.Transforme(n => n * 2)
+dbgVérifieEgalité(doubles[1], 2, "Transforme(N => N*2)[1] = 2")
+dbgVérifieEgalité(doubles[6], 12, "Transforme(N => N*2)[6] = 12")
+
+// ── Lambda chainee ──────────────────────────────────────────────
+res est un tableau de entiers = arrT.Filtre(x => x > 2).Transforme(y => y * 10)
+dbgVérifieEgalité(Taille(res), 4, "chain Filtre+Transforme via lambdas: 4 elem")
+dbgVérifieEgalité(res[1], 30, "res[1] = 30 (3*10)")
+dbgVérifieEgalité(res[2], 40, "res[2] = 40")
+
+// ── Lambda comme expression (assignee a variable Procedure) ─────
+estPositif est une procédure = n => n > 0
+dbgVérifieVrai(estPositif(5), "lambda variable: positif")
+dbgVérifieFaux(estPositif(-3), "lambda variable: negatif")
+
+// ── Lambda avec expression complexe ─────────────────────────────
+nombres est un tableau de entiers = [1, 4, 9, 16, 25]
+racines est un tableau de entiers = nombres.Transforme(n => Racine(n))
+dbgVérifieEgalité(racines[1], 1, "Racine(1) = 1")
+dbgVérifieEgalité(racines[3], 3, "Racine(9) = 3")
+dbgVérifieEgalité(racines[5], 5, "Racine(25) = 5")
+
+// ── Lambda multi-args (Phase 4b) ────────────────────────────────
+add est une procédure = (nX, nY) => nX + nY
+dbgVérifieEgalité(add(3, 5), 8, "lambda 2-args (nX,nY) => nX+nY")
+
+triplet est une procédure = (nX, nY, nZ) => nX * nY + nZ
+dbgVérifieEgalité(triplet(2, 3, 1), 7, "lambda 3-args (nX,nY,nZ) => nX*nY+nZ")
+
+// Lambda 2-args dans Transforme avec cle (val, cle)
+tabIdx est un tableau de entiers = [10, 20, 30]
+indexed est un tableau de entiers = tabIdx.Transforme((v, c) => v + c)
+dbgVérifieEgalité(indexed[1], 11, "Transforme((v,c) => v+c) [1] = 10+1")
+dbgVérifieEgalité(indexed[2], 22, "Transforme(..) [2] = 20+2")
+dbgVérifieEgalité(indexed[3], 33, "Transforme(..) [3] = 30+3")
+
+// Disambiguation : "(x + 1) * 2" reste un grouping normal (pas une lambda)
+ress est un entier = (5 + 1) * 2
+dbgVérifieEgalité(ress, 12, "grouping normal (5+1)*2 = 12 (pas une lambda)")
+
+// Lambda 0-arg : "() => expr" -- generateur sans param
+gen42 est une procédure = () => 42
+dbgVérifieEgalité(gen42(), 42, "lambda 0-arg () => 42")
+
+dbgBilanTest()

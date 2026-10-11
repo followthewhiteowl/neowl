@@ -1,0 +1,153 @@
+// @sujet : dCorde
+// @resume : Dessiner une zone fermée bornée par un arc et la corde droite reliant ses extrémités, avec fond et contour
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_corde_cercle_quart_superieur_droit()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Corde de cercle (bbox carrée 100x100) : quart supérieur droit
+	// Arc de (100,50) à (50,0) + corde droite reliant ces points = zone fermée remplie jaune, contour rouge
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 0, 0, 100, 100, 100, 50, 50, 0, couleurJaune, couleurRouge)
+	dFinDessin(img)
+
+	// Échantillonnage à l'intérieur de la petite zone fermée du quart supérieur droit
+	// (entre l'arc court (100,50)→(50,0) et sa corde droite). Points bien à l'intérieur.
+	pixelA = dPixelCouleur(img, 80, 15)
+	pixelB = dPixelCouleur(img, 75, 10)
+	pixelC = dPixelCouleur(img, 85, 25)
+	dbgVérifieVrai(pixelA = couleurJaune OU pixelB = couleurJaune OU pixelC = couleurJaune, "corde cercle quart sup droit : au moins un point de la zone est jaune")
+FIN
+
+PROCEDURE PUBLIQUE scenario_corde_ellipse_large()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurBleu est un entier = RVB(0, 0, 255)
+	couleurVert est un entier = RVB(0, 255, 0)
+	pixelInterieur est un entier
+
+	// Corde d'ellipse (bbox rectangulaire 150x80) : demi-arc
+	// Arc tracé en sens anti-horaire de (0,40) à (150,40) → passe par le bas
+	// → zone fermée arc+corde = moitié inférieure de l'ellipse remplie bleu, contour vert
+	img = dCréeImage(150, 80, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 0, 0, 150, 80, 0, 40, 150, 40, couleurBleu, couleurVert)
+	dFinDessin(img)
+
+	// Point (75,55) bien à l'intérieur de la demi-ellipse inférieure remplie
+	pixelInterieur = dPixelCouleur(img, 75, 55)
+	dbgVérifieEgalité(pixelInterieur, couleurBleu, "corde ellipse demi-arc : intérieur de la zone est bleu")
+FIN
+
+PROCEDURE PUBLIQUE scenario_corde_avec_fond_seul()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurMagenta est un entier = RVB(255, 0, 255)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Corde avec fond magenta, contour non spécifié → utilise stylo courant ou fond
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 10, 10, 90, 90, 90, 50, 50, 10, couleurMagenta)
+	dFinDessin(img)
+
+	// Échantillonnage dans la zone bornée par l'arc et la corde
+	pixelA = dPixelCouleur(img, 75, 25)
+	pixelB = dPixelCouleur(img, 70, 30)
+	pixelC = dPixelCouleur(img, 65, 35)
+	dbgVérifieVrai(pixelA = couleurMagenta OU pixelB = couleurMagenta OU pixelC = couleurMagenta, "corde fond seul magenta : au moins un point de la zone est magenta")
+FIN
+
+PROCEDURE PUBLIQUE scenario_corde_petit_angle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurCyan est un entier = RVB(0, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Corde de petit angle (~30 degrés) : zone étroite remplie cyan, contour orange
+	// Arc de (100,50) à (93,25) + corde = petite zone fermée
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 0, 0, 100, 100, 100, 50, 93, 25, couleurCyan, couleurOrange)
+	dFinDessin(img)
+
+	// Échantillonnage dans la petite zone fermée (très étroite, près de la frontière droite)
+	pixelA = dPixelCouleur(img, 97, 40)
+	pixelB = dPixelCouleur(img, 96, 35)
+	pixelC = dPixelCouleur(img, 95, 30)
+	dbgVérifieVrai(pixelA = couleurCyan OU pixelB = couleurCyan OU pixelC = couleurCyan, "corde petit angle : au moins un point de la zone est cyan")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVÉE — cas limites, edge cases, valeurs extrêmes (non user-facing)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_corde_bbox_degeneree_largeur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurJaune est un entier = RVB(255, 255, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : largeur 0 (x1=x2) → corde non dessinable, image reste blanche
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 50, 10, 50, 90, 50, 10, 50, 90, couleurJaune)
+	dFinDessin(img)
+
+	// Pas de corde tracée (bbox plate) → centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "corde bbox largeur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_corde_bbox_degeneree_hauteur_nulle()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurOrange est un entier = RVB(255, 165, 0)
+	pixelCentre est un entier
+
+	// Bbox dégénérée : hauteur 0 (y1=y2) → corde non dessinable
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 10, 50, 90, 50, 10, 50, 90, 50, couleurOrange)
+	dFinDessin(img)
+
+	// Pas de corde tracée → centre reste blanc
+	pixelCentre = dPixelCouleur(img, 50, 50)
+	dbgVérifieEgalité(pixelCentre, couleurBlanc, "corde bbox hauteur=0 : rien tracé, image blanche")
+FIN
+
+PROCEDURE PRIVÉE scenario_corde_tres_petite()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurRouge est un entier = RVB(255, 0, 0)
+	pixelA est un entier
+	pixelB est un entier
+	pixelC est un entier
+
+	// Corde très petite (bbox 10x10 pixels) : vérifier qu'elle est quand même tracée
+	img = dCréeImage(100, 100, couleurBlanc)
+	dDébutDessin(img)
+	dCorde(img, 50, 50, 60, 60, 60, 55, 55, 50, couleurRouge)
+	dFinDessin(img)
+
+	// Échantillonnage dans la petite bbox 10x10
+	pixelA = dPixelCouleur(img, 56, 53)
+	pixelB = dPixelCouleur(img, 57, 53)
+	pixelC = dPixelCouleur(img, 58, 53)
+	dbgVérifieVrai(pixelA = couleurRouge OU pixelB = couleurRouge OU pixelC = couleurRouge, "corde 10x10 : trace quand même, au moins un point rouge")
+FIN

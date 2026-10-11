@@ -1,0 +1,84 @@
+// Regression : `A` ASCII (sans accent) doit etre reconnu comme keyword
+// borne-de-plage au meme titre que `À`, `à`, `a`, `to`. Les 5 formes
+// acceptees produisent le meme bytecode et donc la meme execution.
+//
+// Auparavant : `a`/`A` ASCII passaient via un fallback contextuel dans
+// le parser (compiler.c) et `A` accentue / `to` etaient seuls reconnus
+// directement comme TOKEN_A par le scanner. Apres alignement canon, la
+// table `keywords[]` reconnait `a` directement, ce qui couvre A/a/À/à
+// via le case-folding + accent-stripping standard.
+//
+// IMPORTANT : ce fichier ne doit PAS etre fmt-canonise. Les 5 formes
+// distinctes du keyword TOKEN_A sont l'essence du test. Le formatter
+// canoniserait tout en `À` et detruirait la couverture.
+
+// Helpers : chaque forme est encapsulee dans sa propre procedure pour
+// que le compteur de boucle vive dans un scope local distinct.
+
+PROCEDURE Somme_A_majuscule() : entier
+	total est un entier = 0
+	POUR idx = 1 À 5
+		total = total + idx
+	FIN
+	RENVOYER total
+FIN
+
+PROCEDURE Somme_a_minuscule() : entier
+	total est un entier = 0
+	POUR idx = 1 À 5
+		total = total + idx
+	FIN
+	RENVOYER total
+FIN
+
+PROCEDURE Somme_A_accent_majuscule() : entier
+	total est un entier = 0
+	POUR idx = 1 À 5
+		total = total + idx
+	FIN
+	RENVOYER total
+FIN
+
+PROCEDURE Somme_a_accent_minuscule() : entier
+	total est un entier = 0
+	POUR idx = 1 À 5
+		total = total + idx
+	FIN
+	RENVOYER total
+FIN
+
+PROCEDURE Somme_to_anglais() : entier
+	total est un entier = 0
+	POUR idx = 1 TO 5
+		total = total + idx
+	FIN
+	RENVOYER total
+FIN
+
+// --- Verification des 5 formes : meme somme 1+2+3+4+5 = 15 ---
+somme1 est un entier = Somme_A_majuscule()
+somme2 est un entier = Somme_a_minuscule()
+somme3 est un entier = Somme_A_accent_majuscule()
+somme4 est un entier = Somme_a_accent_minuscule()
+somme5 est un entier = Somme_to_anglais()
+
+dbgVérifieEgalité(somme1, 15,
+"POUR i = 1 A 5 (ASCII majuscule) : somme 1+2+3+4+5 = 15")
+dbgVérifieEgalité(somme2, 15,
+"POUR i = 1 a 5 (ASCII minuscule) : somme = 15")
+dbgVérifieEgalité(somme3, 15,
+"POUR i = 1 À 5 (accent majuscule) : somme = 15")
+dbgVérifieEgalité(somme4, 15,
+"POUR i = 1 à 5 (accent minuscule) : somme = 15")
+dbgVérifieEgalité(somme5, 15,
+"POUR i = 1 to 5 (alias anglais) : somme = 15")
+
+// --- Equivalence : les 5 formes produisent strictement la meme valeur ---
+dbgVérifieEgalité(somme1, somme2,
+"equivalence : A == a (casse insensible)")
+dbgVérifieEgalité(somme1, somme3,
+"equivalence : A == À (accent insensible)")
+dbgVérifieEgalité(somme1, somme4,
+"equivalence : A == à (casse + accent)")
+dbgVérifieEgalité(somme1, somme5,
+"equivalence : A == to (alias EN)")

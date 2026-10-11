@@ -1,0 +1,57 @@
+// @sujet : MatriceReLU
+// @résumé : Applique ReLU (max(0, x)) élément par élément à une Matrice — écrase les valeurs négatives à zéro et laisse les positives inchangées, disponible en native préfixée et en méthode fluente, forme identique en français et en anglais.
+
+
+// ReLU écrase les négatifs à 0.0 et laisse les positifs et le zéro
+// inchangés, élément par élément, sur les deux dimensions.
+PROCEDURE PUBLIQUE scenario_relu_melange_signes()
+	m est une Matrice = [[-1.0, 0.0], [2.0, -3.0]]
+	r est une Matrice = MatriceReLU(m)
+	dbgVérifieEgalité(r[1][1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(r[1][2], 0.0, "ReLU(0.0) = 0.0")
+	dbgVérifieEgalité(r[2][1], 2.0, "ReLU(2.0) = 2.0")
+	dbgVérifieEgalité(r[2][2], 0.0, "ReLU(-3.0) = 0.0")
+FIN
+
+
+// La méthode fluente .ReLU() produit exactement le même résultat que la
+// native préfixée.
+PROCEDURE PUBLIQUE scenario_fluent_equivalent_natif()
+	m est une Matrice = [[-3.0, 5.0], [1.0, -2.0]]
+	rViaFluent est une Matrice = m.ReLU()
+	rViaNatif est une Matrice = MatriceReLU(m)
+	dbgVérifieEgalité(rViaFluent[1][1], rViaNatif[1][1], "m.ReLU()[1][1] == MatriceReLU(m)[1][1]")
+	dbgVérifieEgalité(rViaFluent[2][2], rViaNatif[2][2], "m.ReLU()[2][2] == MatriceReLU(m)[2][2]")
+FIN
+
+
+// ReLU est identique en français et en anglais : même nom de native et
+// même méthode fluente des deux côtés.
+PROCEDURE PUBLIQUE scenario_forme_identique_fr_en()
+	m est une Matrice = [[-2.0, 4.0]]
+	rNatif est une Matrice = MatriceReLU(m)
+	rFluent est une Matrice = m.ReLU()
+	dbgVérifieEgalité(rNatif[1][1], 0.0, "MatriceReLU(m)[1][1] = 0.0")
+	dbgVérifieEgalité(rFluent[1][2], 4.0, "m.ReLU()[1][2] = 4.0")
+FIN
+
+
+// La ReLU d'une Matrice conserve ses dimensions d'origine.
+PROCEDURE PRIVÉE scenario_edge_dimensions_preservees()
+	m est une Matrice = [[-1.0, 2.0, -3.0], [4.0, -5.0, 6.0]]
+	r est une Matrice = MatriceReLU(m)
+	dbgVérifieEgalité(r..Lignes, m..Lignes, "MatriceReLU préserve le nombre de lignes")
+	dbgVérifieEgalité(r..Colonnes, m..Colonnes, "MatriceReLU préserve le nombre de colonnes")
+FIN
+
+
+// Sur une Matrice entièrement négative, ReLU produit une Matrice de même
+// forme, entièrement nulle.
+PROCEDURE PRIVÉE scenario_edge_tout_negatif()
+	m est une Matrice = [[-1.0, -5.0], [-100.0, -2.0]]
+	r est une Matrice = MatriceReLU(m)
+	dbgVérifieEgalité(r[1][1], 0.0, "ReLU(-1.0) = 0.0")
+	dbgVérifieEgalité(r[1][2], 0.0, "ReLU(-5.0) = 0.0")
+	dbgVérifieEgalité(r[2][1], 0.0, "ReLU(-100.0) = 0.0")
+	dbgVérifieEgalité(r[2][2], 0.0, "ReLU(-2.0) = 0.0")
+FIN

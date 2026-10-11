@@ -1,0 +1,28 @@
+//  — Lot E : type de saisie Numérique précis (MVP).
+//
+// 1. La constante canon `typSaisieNumériquePrécis` (documentation de référence, préfixe
+//    typSaisie*) existe dans l'enum `typeSaisie` et est distincte des valeurs
+//    déjà câblées (Texte/MotDePasse/Multiligne/Num/Monétaire).
+// 2. Round-trip runtime sur un VRAI widget Qt (offscreen) : un champ créé
+//    avec TypeSaisie = typSaisieNumériquePrécis, relu via ..TypeSaisie, doit
+//    renvoyer cette valeur — pas de repli vers typSaisieTexte ni confusion
+//    avec typSaisieNum (dont il partage le widget QLineEdit).
+//
+// Nature : ROUGE avant impl. Aujourd'hui `typSaisieNumériquePrécis` n'existe
+// pas dans l'enum -> échec de compilation (symbole inconnu) sur la fenêtre
+// voisine et sur ce fichier. Après impl : vert, round-trip fidèle.
+
+dbgVérifieDifférence(typSaisieNumériquePrécis, typSaisieTexte, "typSaisieNumériquePrécis != typSaisieTexte")
+dbgVérifieDifférence(typSaisieNumériquePrécis, typSaisieMotDePasse, "typSaisieNumériquePrécis != typSaisieMotDePasse")
+dbgVérifieDifférence(typSaisieNumériquePrécis, typSaisieMultiligne, "typSaisieNumériquePrécis != typSaisieMultiligne")
+dbgVérifieDifférence(typSaisieNumériquePrécis, typSaisieNum, "typSaisieNumériquePrécis != typSaisieNum (numérique général flottant, distinct du décimal exact)")
+dbgVérifieDifférence(typSaisieNumériquePrécis, typSaisieMonétaire, "typSaisieNumériquePrécis != typSaisieMonétaire")
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_SaisieNumPrecis)
+
+dbgVérifieEgalité(SAI_NumPrecis..TypeSaisie, typSaisieNumériquePrécis, "champ créé TypeSaisie=typSaisieNumériquePrécis, relu ..TypeSaisie renvoie typSaisieNumériquePrécis (pas de repli Texte ni confusion avec typSaisieNum)")
+
+Ferme(FEN_SaisieNumPrecis)
+dbgBilanTest()

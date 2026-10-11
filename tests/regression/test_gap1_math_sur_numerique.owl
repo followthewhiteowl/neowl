@@ -1,0 +1,112 @@
+//  lot1 — GAP-1 : natives math cassées sur numérique
+// Cause racine : helper to_double (stdlib_math.c:50) ne gère que entier/réel
+// → retourne 0.0 pour IS_NUMERIC → toutes les natives qui s'appuient sur
+//   to_double renvoient 0 quand l'argument est numérique.
+//
+// Tous les tests ROUGE ici échouent pour la bonne raison :
+// valeur attendue non nulle ≠ 0 obtenu aujourd'hui.
+// Vérifié empiriquement sur binaire pré-C (2026-06-28).
+
+// ===== NumériqueTronque — troncature vers zéro =====
+
+// Bug confirmé : NumériqueTronque(12345.75n) = 0 (attendu 12345)
+PROCEDURE PUBLIQUE test_numerique_tronque_petit_positif()
+	nIn est un numérique = 12345.75
+	nRes est un numérique = NumériqueTronque(nIn)
+	dbgVérifieEgalité(nRes, 12345, "NumériqueTronque(12345.75n) = 12345")
+FIN
+
+// Bug confirmé : NumériqueTronque(-3.75n) = 0 (attendu -3, vers zéro)
+PROCEDURE PUBLIQUE test_numerique_tronque_negatif()
+	nIn est un numérique = -3.75
+	nRes est un numérique = NumériqueTronque(nIn)
+	dbgVérifieEgalité(nRes,-3, "NumériqueTronque(-3.75n) = -3 (vers zéro, pas -4)")
+FIN
+
+// Bug confirmé + magnitude préservée : résultat doit être numérique (pas entier tronqué à int64)
+// Construction via 0n préfixé + fraction exacte — isole GAP-1 de GAP-2 (littéral décimal géant)
+PROCEDURE PUBLIQUE test_numerique_tronque_grand_preserve_magnitude()
+	nBigInt est un numérique = 0n99999999999999999999999999
+	nBigDec est un numérique = nBigInt + 0n0.75
+	nRes est un numérique = NumériqueTronque(nBigDec)
+	dbgVérifieEgalité(TypeVar(nRes), owlNumerique, "NumériqueTronque grand: TypeVar = owlNumerique (magnitude préservée)")
+	dbgVérifieEgalité(nRes, 0n99999999999999999999999999, "NumériqueTronque(grand.75n) = partie entière exacte")
+FIN
+
+// ===== PartieEntière — floor (≠ troncature) =====
+
+// Bug confirmé : PartieEntière(7.9n) = 0 (attendu 7)
+PROCEDURE PUBLIQUE test_partie_entiere_positif()
+	nIn est un numérique = 7.9
+	nRes est un entier = PartieEntière(nIn)
+	dbgVérifieEgalité(nRes, 7, "PartieEntière(7.9n) = 7")
+FIN
+
+// Bug confirmé : PartieEntière(-3.5n) = 0 (attendu -4, floor ≠ troncature vers zéro)
+PROCEDURE PUBLIQUE test_partie_entiere_negatif_floor()
+	nIn est un numérique = -3.5
+	nRes est un entier = PartieEntière(nIn)
+	dbgVérifieEgalité(nRes,-4, "PartieEntière(-3.5n) = -4 (floor, pas vers zéro)")
+FIN
+
+// ===== PartieDécimale — partie fractionnaire =====
+
+// Bug confirmé : PartieDécimale(3.14n) = 0 (attendu ≈ 0.14)
+PROCEDURE PUBLIQUE test_partie_decimale()
+	nIn est un numérique = 3.14
+	// Résultat en réel (la partie décimale d'un numérique peut transiter par double)
+	nRes est un réel = PartieDécimale(nIn)
+	dbgVérifieVrai(nRes > 0.13, "PartieDécimale(3.14n) > 0.13 (pas zéro)")
+	dbgVérifieVrai(nRes < 0.15, "PartieDécimale(3.14n) < 0.15 (≈ 0.14)")
+FIN
+
+// ===== Modulo — reste de la division =====
+
+// Bug confirmé : Modulo(10n, 3n) = 0 (attendu 1)
+PROCEDURE PUBLIQUE test_modulo_positif()
+	nA est un numérique = 10.0
+	nB est un numérique = 3.0
+	nRes est un réel = Modulo(nA, nB)
+	dbgVérifieVrai(nRes > 0.99 ET nRes < 1.01, "Modulo(10n, 3n) = 1")
+FIN
+
+// Bug : Modulo côté droit numérique (to_double sur arg numérique)
+PROCEDURE PUBLIQUE test_modulo_entier_sur_numerique()
+	nB est un numérique = 4.0
+	nRes est un réel = Modulo(10, nB)
+	dbgVérifieVrai(nRes > 1.99 ET nRes < 2.01, "Modulo(10 entier, 4n) = 2")
+FIN
+
+// ===== Arrondi — arrondi à N décimales =====
+
+// Bug confirmé : Arrondi(2.567n, 2) = 0 (attendu 2.57)
+PROCEDURE PUBLIQUE test_arrondi_2dec()
+	nIn est un numérique = 2.567
+	nRes est un réel = Arrondi(nIn, 2)
+	dbgVérifieVrai(nRes > 2.56 ET nRes < 2.58, "Arrondi(2.567n, 2) ≈ 2.57")
+FIN
+
+// Bug : Arrondi sans décimales (entier le plus proche)
+PROCEDURE PUBLIQUE test_arrondi_0dec()
+	nIn est un numérique = 2.7
+	nRes est un entier = Arrondi(nIn)
+	dbgVérifieEgalité(nRes, 3, "Arrondi(2.7n) = 3 (entier le plus proche)")
+FIN
+
+// ===== Abs — valeur absolue =====
+
+// Bug confirmé : Abs(-42.5n) = 0 (attendu 42.5)
+PROCEDURE PUBLIQUE test_abs_negatif_petit()
+	nIn est un numérique = -42.5
+	nRes est un numérique = Abs(nIn)
+	dbgVérifieVrai(nRes > 0, "Abs(-42.5n) est positif (pas zéro)")
+	dbgVérifieEgalité(nRes, 0n42.5, "Abs(-42.5n) = 42.5")
+FIN
+
+// Bug : Abs sur grand numérique négatif — magnitude préservée
+PROCEDURE PUBLIQUE test_abs_grand_negatif()
+	nGrand est un numérique = 0n99999999999999999999999999
+	nIn est un numérique = -(nGrand)
+	nRes est un numérique = Abs(nIn)
+	dbgVérifieEgalité(nRes, nGrand, "Abs(-grand_n) = grand_n exact (magnitude préservée)")
+FIN

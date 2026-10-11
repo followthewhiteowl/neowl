@@ -1,0 +1,61 @@
+// Coverage exhaustif ChaîneVersTableau forme 2D (documentation de référence).
+// OWL nested array-of-arrays.
+
+// ============================================================================
+// Forme 2D simple (sep ligne + sep colonne, strings)
+// ============================================================================
+s1 est une chaîne = "A,B,C" + CRLF + "D,E,F" + CRLF + "G,H,I"
+t1 est un tableau de chaînes = ChaîneVersTableau(s1, CRLF, ",")
+dbgVérifieEgalité(t1..Occurrence, 3, "3 lignes")
+dbgVérifieEgalité(t1[1]..Occurrence, 3, "3 colonnes")
+dbgVérifieEgalité(t1[1][1], "A", "[1,1]")
+dbgVérifieEgalité(t1[2][2], "E", "[2,2]")
+dbgVérifieEgalité(t1[3][3], "I", "[3,3]")
+
+// ============================================================================
+// Séparateurs multiples (any-of) pour les lignes
+// ============================================================================
+s2 est une chaîne = "a,b" + CRLF + "c,d" + ";" + "e,f"
+t2 est un tableau de chaînes = ChaîneVersTableau(s2, [CRLF, ";"], ",")
+dbgVérifieEgalité(t2..Occurrence, 3, "3 lignes via [CRLF, ;]")
+dbgVérifieEgalité(t2[1][1], "a", "[1,1]")
+dbgVérifieEgalité(t2[2][1], "c", "[2,1]")
+dbgVérifieEgalité(t2[3][2], "f", "[3,2]")
+
+// ============================================================================
+// Séparateurs multiples pour colonnes
+// ============================================================================
+s3 est une chaîne = "a|b-c" + CRLF + "d|e-f"
+t3 est un tableau de chaînes = ChaîneVersTableau(s3, CRLF, ["|", "-"])
+dbgVérifieEgalité(t3..Occurrence, 2, "2 lignes")
+dbgVérifieEgalité(t3[1]..Occurrence, 3, "3 cols via [|, -]")
+dbgVérifieEgalité(t3[1][1], "a", "[1,1]")
+dbgVérifieEgalité(t3[1][2], "b", "[1,2]")
+dbgVérifieEgalité(t3[1][3], "c", "[1,3]")
+
+// ============================================================================
+// Cas limite: chaîne vide
+// ============================================================================
+t4 est un tableau de chaînes = ChaîneVersTableau("", CRLF, TAB)
+dbgVérifieEgalité(t4..Occurrence, 1, "chaîne vide → 1 ligne vide")
+
+// ============================================================================
+// Cas limite: pas de séparateur ligne trouvé
+// ============================================================================
+s5 est une chaîne = "A,B,C"
+t5 est un tableau de chaînes = ChaîneVersTableau(s5, CRLF, ",")
+dbgVérifieEgalité(t5..Occurrence, 1, "pas de CRLF → 1 ligne")
+dbgVérifieEgalité(t5[1]..Occurrence, 3, "mais colonnes split OK")
+
+// ============================================================================
+// Forme 1D rétro-compat (toujours fonctionnelle)
+// ============================================================================
+s6 est une chaîne = "x" + CRLF + "y" + CRLF + "z"
+t6 est un tableau de chaînes = ChaîneVersTableau(s6)
+dbgVérifieEgalité(t6..Occurrence, 3, "1D default CRLF")
+dbgVérifieEgalité(t6[1], "x", "1D [1]")
+
+t7 est un tableau de chaînes = ChaîneVersTableau("a,b,c", ",")
+dbgVérifieEgalité(t7..Occurrence, 3, "1D sep simple")
+
+dbgBilanTest()

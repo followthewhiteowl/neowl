@@ -1,0 +1,41 @@
+// Lecture de la coche d'une option d'Interrupteur via l'indexation NUE, avec
+// de VRAIS widgets Qt montés (hors écran). Le canon veut que la forme nue
+// rende le scalaire 0/1/-1, pas une struct d'option. Aujourd'hui elle rend
+// encore la struct côté widget aussi (option_proxy_from_widget) : ces
+// assertions sont rouges pour la BONNE raison (struct comparée à un entier).
+//
+// Le réglage de l'option cochée passe par la propriété de champ existante
+// `..Valeur` (bitmask, option N -> bit N-1), déjà livrée côté widget et hors
+// périmètre de ce ticket.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_Interrupteur)
+
+INT_Perms..Valeur = 1 // coche uniquement l'option 1 (bit 0), sur le widget réel
+
+// --- Option cochée, indice littéral ---
+nCoche1 est un entier = INT_Perms[1]
+dbgVérifieEgalité(nCoche1, 1,
+"widget réel : option cochée, indice littéral, la coche nue rend 1")
+
+// --- Option décochée, indice littéral ---
+nCoche2 est un entier = INT_Perms[2]
+dbgVérifieEgalité(nCoche2, 0,
+"widget réel : option décochée, indice littéral, la coche nue rend 0")
+
+// --- Option cochée, indice variable ---
+i est un entier = 1
+nCoche1Var est un entier = INT_Perms[i]
+dbgVérifieEgalité(nCoche1Var, 1,
+"widget réel : option cochée, indice variable, la coche nue rend 1")
+
+// --- Option décochée, indice variable ---
+j est un entier = 3
+nCoche3Var est un entier = INT_Perms[j]
+dbgVérifieEgalité(nCoche3Var, 0,
+"widget réel : option décochée, indice variable, la coche nue rend 0")
+
+Ferme(FEN_Interrupteur)
+
+dbgBilanTest()

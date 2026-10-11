@@ -1,0 +1,48 @@
+//  lot3 — Garde anti-régression : `=` strict IEEE754 sur réels
+//
+// OWL applique `=` en comparaison de bits exacte sur les réels (IEEE754 strict),
+// contrairement au comportement de référence qui applique une tolérance cachée (epsilon ~5.5e-17).
+// Divergence assumée (cahier des charges ).
+//
+// Ces tests sont VERTS aujourd'hui. Ils verrouillent le comportement existant
+// pour prévenir toute régression (ajout accidentel d'une tolérance cachée).
+
+// G1 : (0.1 + 0.2) = 0.3 renvoie Faux sur les réels (IEEE754 strict, pas de tolérance)
+// En double IEEE754 : 0.1 + 0.2 = 0.30000000000000004 (≠ 0.3 exact)
+// le comportement de référence retournerait Vrai (tolérance cachée). OWL retourne Faux.
+PROCEDURE PUBLIQUE test_egal_reel_ieee754_faux()
+	r1 est un réel = 0.1 + 0.2
+	bEgal est un booléen = (r1 = 0.3)
+	dbgVérifieEgalité(bEgal, Faux, "(0.1+0.2)=0.3 sur réels : IEEE754 strict → Faux")
+FIN
+
+
+// G2 : (0.1 + 0.2) <> 0.3 renvoie Vrai sur les réels (symétrie de G1)
+// Verrouille la symétrie : si `=` est strict, `<>` doit l'être aussi.
+PROCEDURE PUBLIQUE test_egal_reel_ieee754_neq_vrai()
+	r1 est un réel = 0.1 + 0.2
+	bDiff est un booléen = (r1 <> 0.3)
+	dbgVérifieEgalité(bDiff, Vrai, "(0.1+0.2)<>0.3 sur réels : IEEE754 strict → Vrai")
+FIN
+
+
+// G4 : contraste — numérique : 0.1 + 0.2 = 0.3 renvoie Vrai (précision décimale exacte)
+// Ce test garde la distinction réel/numérique : là où le réel échoue, le numérique réussit.
+// Complète le G1 de test_numerique_bignum.owl (même sémantique, contexte anti-régression).
+PROCEDURE PUBLIQUE test_egal_numerique_decimal_exact()
+	n1 est un numérique = 0.1
+	n2 est un numérique = 0.2
+	n3 est un numérique = 0.3
+	nSom est un numérique = n1 + n2
+	bEgal est un booléen = (nSom = n3)
+	dbgVérifieEgalité(bEgal, Vrai, "numérique : 0.1 + 0.2 = 0.3 → Vrai (précision décimale exacte)")
+FIN
+
+
+// G5 : réels identiques (même littéral) : = renvoie Vrai (bits identiques)
+// Garde basique : deux réels identiques restent égaux (pas de bug de comparaison introduit).
+PROCEDURE PUBLIQUE test_egal_reel_meme_valeur_vrai()
+	rVal est un réel = 1.5
+	bEgal est un booléen = (rVal = 1.5)
+	dbgVérifieEgalité(bEgal, Vrai, "réel = même littéral 1.5 : bits identiques → Vrai")
+FIN

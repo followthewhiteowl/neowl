@@ -1,0 +1,63 @@
+//  : la detection compile-time de la division par zero refusait des
+// divisions parfaitement valides.
+//
+// Aucun des diviseurs ci-dessous ne peut valoir zero. Le refus venait d'une
+// lecture du bytecode a reculons : la detection se placait a une position
+// devinee, y trouvait un octet nul qu'elle prenait pour un debut
+// d'instruction, et lisait comme numero de constante deux octets qui n'en
+// etaient pas. Le numero fabrique tombait alors sur un zero present ailleurs
+// dans le fichier, et la division etait refusee.
+//
+// Chaque procedure reproduit une forme de diviseur qui declenchait le refus.
+// La forme est donnee par la derniere operation du diviseur (addition,
+// soustraction, multiplication, modulo, puissance, acces indice) ; le tableau
+// litteral qui la precede n'est la que pour placer un zero au numero de
+// constante fabrique par cette forme. Chaque procedure a son propre jeu de
+// constantes, ce qui rend les cas independants les uns des autres.
+//
+// Les temoins negatifs (le meme fichier avec le zero deplace ou remplace)
+// vivent dans tests/regression/temoins_negatifs/.
+
+// Zero au rang 5 du jeu de constantes.
+PROCEDURE Repro1555Addition(num est un entier, den est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 0]
+	RENVOYER num / (den + 1)
+FIN
+
+// Zero au rang 6.
+PROCEDURE Repro1555Soustraction(num est un entier, den est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 5, 0]
+	RENVOYER num / (den - 1)
+FIN
+
+// Zero au rang 7, le litteral du diviseur (2) ouvrant le jeu de constantes.
+PROCEDURE Repro1555Multiplication(num est un entier, den est un entier)
+	t est un tableau de entiers = [2, 1, 3, 4, 5, 6, 0]
+	RENVOYER num / (den * 2)
+FIN
+
+// Zero au rang 9, le litteral du diviseur (3) ouvrant le jeu de constantes.
+PROCEDURE Repro1555Modulo(num est un entier, den est un entier)
+	t est un tableau de entiers = [3, 1, 2, 4, 5, 6, 7, 9, 0]
+	RENVOYER num / (den MODULO 3)
+FIN
+
+// Zero au rang 10, le litteral du diviseur (2) ouvrant le jeu de constantes.
+PROCEDURE Repro1555Puissance(num est un entier, den est un entier)
+	t est un tableau de entiers = [2, 1, 3, 4, 5, 6, 7, 8, 10, 0]
+	RENVOYER num / (den ^ 2)
+FIN
+
+// Zero au rang 58, le litteral d'indice (1) ouvrant le jeu de constantes.
+PROCEDURE Repro1555IndiceLitteral(num est un entier)
+	t est un tableau de entiers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 0]
+	RENVOYER num / t[1]
+FIN
+
+dbgVérifieEgalité(Repro1555Addition(10, 1), 5, "diviseur termine par une addition")
+dbgVérifieEgalité(Repro1555Soustraction(10, 3), 5, "diviseur termine par une soustraction")
+dbgVérifieEgalité(Repro1555Multiplication(20, 2), 5, "diviseur termine par une multiplication")
+dbgVérifieEgalité(Repro1555Modulo(10, 5), 5, "diviseur termine par un modulo")
+dbgVérifieEgalité(Repro1555Puissance(20, 2), 5, "diviseur termine par une puissance")
+dbgVérifieEgalité(Repro1555IndiceLitteral(10), 10, "diviseur termine par un acces a indice litteral")
+dbgBilanTest()

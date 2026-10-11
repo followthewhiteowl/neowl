@@ -1,0 +1,121 @@
+// ============================================
+// TEST: Tier 3 — chaîne multi-procédures + hooks Avant/Après
+// ============================================
+Trace("=== PROCEDURE CHAIN ===")
+
+// --- Variable globale utilisée pour vérifier l'ordre d'exécution ---
+somme est un entier = 0
+trace_ordre est une chaîne = ""
+
+PROCEDURE Add1()
+	somme += 1
+	trace_ordre += "1"
+FIN
+
+PROCEDURE Add2()
+	somme += 2
+	trace_ordre += "2"
+FIN
+
+PROCEDURE Add5()
+	somme += 5
+	trace_ordre += "5"
+FIN
+
+// --- p += proc : construit une chaîne ---
+p est une procédure
+	p += Add1
+	p += Add2
+	p += Add5
+
+	somme       = 0
+	trace_ordre = ""
+	p()
+	dbgVérifieEgalité(somme, 8, "1+2+5 dans la chaîne")
+	dbgVérifieEgalité(trace_ordre, "125", "Ordre d'exécution préservé")
+
+	// --- p -= proc : retire ---
+	p -= Add2
+	somme       = 0
+	trace_ordre = ""
+	p()
+	dbgVérifieEgalité(somme, 6, "Après retrait: 1+5")
+	dbgVérifieEgalité(trace_ordre, "15", "Ordre après retrait")
+
+	// --- Retrait d'une proc absente : no-op ---
+	PROCEDURE JamaisAjoutee()
+	FIN
+
+	p -= JamaisAjoutee
+	somme       = 0
+	trace_ordre = ""
+	p()
+	dbgVérifieEgalité(somme, 6, "Retrait no-op")
+
+	// --- Hooks Avant / Après ---
+	PROCEDURE InitSomme()
+		somme = 100
+		trace_ordre += "A"
+	FIN
+
+	PROCEDURE FinalizeSomme()
+		somme *= 10
+		trace_ordre += "Z"
+	FIN
+
+	q est une procédure
+		q = Add1
+		q.Avant = InitSomme
+		q.Apres = FinalizeSomme
+
+		somme       = 0
+		trace_ordre = ""
+		q()
+		// Avant -> somme=100 "A"; Add1 -> somme=101 "1"; Apres -> somme=1010 "Z"
+		dbgVérifieEgalité(somme, 1010, "Avant -> proc -> Après")
+		dbgVérifieEgalité(trace_ordre, "A1Z", "Ordre Avant-proc-Après")
+
+		// --- Avant / Après sur une chaîne multi-procs ---
+		r est une procédure
+			r += Add1
+			r += Add2
+			r += Add5
+			r.Avant = InitSomme
+			r.Apres = FinalizeSomme
+
+			somme       = 0
+			trace_ordre = ""
+			r()
+			// 100 + 1 + 2 + 5 = 108; *10 = 1080
+			dbgVérifieEgalité(somme, 1080, "Avant + chain + Après")
+			dbgVérifieEgalité(trace_ordre, "A125Z", "Ordre complet")
+
+			// --- Promotion automatique fonction -> chaîne via .Avant ---
+			s est une procédure
+				s = Add5
+				s.Avant = InitSomme
+
+				somme       = 0
+				trace_ordre = ""
+				s()
+				// 100 + 5 = 105
+				dbgVérifieEgalité(somme, 105, "Fonction simple auto-promue en chaîne")
+				dbgVérifieEgalité(trace_ordre, "A5", "Ordre après promotion")
+
+				// --- += avec valeur de retour : le dernier wins ---
+				FONCTION Dix() : entier
+					RENVOYER 10
+				FIN
+
+				FONCTION Vingt() : entier
+					RENVOYER 20
+				FIN
+
+				pipeline est une procédure
+					pipeline += Dix
+					pipeline += Vingt
+
+					// Sans Après : la dernière valeur de la chaîne est retournée
+					dbgVérifieEgalité(pipeline(), 20, "Dernière valeur retournée")
+
+					dbgBilanTest()

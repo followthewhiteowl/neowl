@@ -1,0 +1,100 @@
+// ================================================================
+//  : coerce string invalide → date/heure/dateheure/durée
+// Facette (a) : runtime non-nullable → sentinel + ErreurDétectée
+// ================================================================
+//
+// Stratégie hybride tranchée :
+// - (a) `d est une date = sChaineInvalide` : sentinel 00/00/0000 + ErreurDétectée
+// - TypeVar préservé (pas de drift chaîne ← date)
+// - Sous-props lisibles : ..Année=0, ..Mois=0, ..Jour=0
+// - Idiome user : `SI ErreurDétectée ALORS ...`
+//
+// Alignement sur modèle fn_duree_coerce ( — existant et conforme).
+// Ce test vérifie les 4 types temporels.
+
+PROCEDURE PUBLIQUE test_coerce_date_invalide_non_nullable()
+	// ============================================================
+	// Date : mois 00 invalide
+	// ============================================================
+
+	sDate_invalide est une chaîne = "20250001"
+	d est une date = sDate_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate avant tout autre OP_CALL
+
+	// Sentinel date vide
+	dbgVérifieEgalité(d..Année, 0, "Date invalide : Année = 0")
+	dbgVérifieEgalité(d..Mois, 0, "Date invalide : Mois = 0")
+	dbgVérifieEgalité(d..Jour, 0, "Date invalide : Jour = 0")
+
+	// Type préservé (pas de drift vers chaîne)
+	dbgVérifieEgalité(TypeVar(d), 30, "TypeVar(date) = 30 (pas chaîne 16)")
+
+	// ErreurDétectée activée
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce date invalide")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_heure_invalide_non_nullable()
+	// ============================================================
+	// Heure : heures 25 invalide
+	// ============================================================
+
+	sHeure_invalide est une chaîne = "250000"
+	h est une heure = sHeure_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	// Sentinel heure vide
+	dbgVérifieEgalité(h..Heure, 0, "Heure invalide : Heure = 0")
+	dbgVérifieEgalité(h..Minute, 0, "Heure invalide : Minute = 0")
+	dbgVérifieEgalité(h..Seconde, 0, "Heure invalide : Seconde = 0")
+
+	// Type préservé
+	dbgVérifieEgalité(TypeVar(h), 31, "TypeVar(heure) = 31 (pas chaîne 16)")
+
+	// ErreurDétectée activée
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce heure invalide")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_dateheure_invalide_non_nullable()
+	// ============================================================
+	// DateHeure : secondes 70 invalide
+	// ============================================================
+
+	sDH_invalide est une chaîne = "202501011200700"
+	dh est une dateheure = sDH_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	// Sentinel dateheure vide
+	dbgVérifieEgalité(dh..Année, 0, "DateHeure invalide : Année = 0")
+	dbgVérifieEgalité(dh..Mois, 0, "DateHeure invalide : Mois = 0")
+	dbgVérifieEgalité(dh..Jour, 0, "DateHeure invalide : Jour = 0")
+	dbgVérifieEgalité(dh..Heure, 0, "DateHeure invalide : Heure = 0")
+	dbgVérifieEgalité(dh..Minute, 0, "DateHeure invalide : Minute = 0")
+	dbgVérifieEgalité(dh..Seconde, 0, "DateHeure invalide : Seconde = 0")
+
+	// Type préservé
+	dbgVérifieEgalité(TypeVar(dh), 32, "TypeVar(dateheure) = 32 (pas chaîne 16)")
+
+	// ErreurDétectée activée
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce dateheure invalide")
+FIN
+
+PROCEDURE PUBLIQUE test_coerce_duree_invalide_non_nullable()
+	// ============================================================
+	// Durée : format inconnu (DÉJÀ CONFORME — vérif non-régression)
+	// ============================================================
+
+	sDuree_invalide est une chaîne = "blabla"
+	dur est une durée = sDuree_invalide
+	bErr est un booléen = ErreurDétectée // capture immédiate
+
+	// Sentinel durée vide
+	dbgVérifieEgalité(dur..EnMillisecondes, 0, "Durée invalide : ms = 0")
+
+	// Type préservé
+	dbgVérifieEgalité(TypeVar(dur), 33, "TypeVar(durée) = 33 (pas chaîne 16)")
+
+	// ErreurDétectée activée
+	dbgVérifieVrai(bErr, "ErreurDétectée = Vrai après coerce durée invalide")
+FIN
+
+dbgBilanTest()

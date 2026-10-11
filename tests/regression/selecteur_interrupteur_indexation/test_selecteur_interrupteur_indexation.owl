@@ -1,0 +1,134 @@
+// Lecture indexée des options d'un Sélecteur et d'un Interrupteur.
+//
+// Le point à verrouiller n'est pas seulement « ça marche » mais « ça marche
+// sur les DEUX graphies d'indice » : littéral (SEL[1]) et variable (SEL[i]).
+// Avant correctif, seule la première était couverte — c'est la seconde que
+// le canon documente ([nIndice], [I]).
+//
+// Verrouille aussi l'harmonisation : une option déclarée en PROPRIETES et
+// une option ajoutée par *Ajoute / *Insère doivent se lire à l'identique.
+
+TestModeHeadless(Vrai)
+
+// Avant toute ouverture : compte réel (0), pas une valeur qui masquerait
+// l'absence de fenêtre.
+dbgVérifieEgalité(SélecteurOccurrence(SEL_Livraison), 0,
+"occurrence réelle avant ouverture de la fenêtre (Sélecteur)")
+dbgVérifieEgalité(InterrupteurOccurrence(INT_Perms), 0,
+"occurrence réelle avant ouverture de la fenêtre (Interrupteur)")
+
+Ouvre(FEN_Options)
+
+// --- Lecture, indice littéral, FR ---
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Express",
+"Sélecteur, indice littéral, Libellé")
+dbgVérifieEgalité(SEL_Livraison[2]..SousLibellé, "Sous 5 jours",
+"Sélecteur, indice littéral, SousLibellé")
+dbgVérifieEgalité(SEL_Livraison[3]..ValeurRenvoyée, "eco",
+"Sélecteur, indice littéral, ValeurRenvoyée")
+
+// --- Lecture, indice VARIABLE, FR (le point aveugle avant correctif) ---
+i est un entier = 2
+dbgVérifieEgalité(SEL_Livraison[i]..Libellé, "Standard",
+"Sélecteur, indice variable, Libellé")
+dbgVérifieEgalité(SEL_Livraison[i]..SousLibellé, "Sous 5 jours",
+"Sélecteur, indice variable, SousLibellé")
+
+// --- Lecture, formes EN, indice littéral et variable ---
+dbgVérifieEgalité(SEL_Livraison[1]..Label, "Express",
+"Sélecteur, forme EN, indice littéral, Label")
+dbgVérifieEgalité(SEL_Livraison[i]..SubLabel, "Sous 5 jours",
+"Sélecteur, forme EN, indice variable, SubLabel")
+dbgVérifieEgalité(SEL_Livraison[1]..ReturnedValue, "exp",
+"Sélecteur, forme EN, ReturnedValue")
+
+// --- Interrupteur : mêmes graphies (pas de ValeurRenvoyée, hors périmètre) ---
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Lecture",
+"Interrupteur, indice littéral, Libellé")
+j est un entier = 3
+dbgVérifieEgalité(INT_Perms[j]..SousLibellé, "Effacer",
+"Interrupteur, indice variable, SousLibellé")
+dbgVérifieEgalité(INT_Perms[2]..Label, "Écriture",
+"Interrupteur, forme EN, indice littéral")
+dbgVérifieEgalité(INT_Perms[j]..SubLabel, "Effacer",
+"Interrupteur, forme EN, indice variable")
+
+// --- Hors plage : soft error, message nommé, et le programme continue ---
+vOob est une chaîne = SEL_Livraison[9]..Libellé
+bErrSel est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrSel,
+"indice 9 sur 3 options pose ErreurDetectee (Sélecteur)")
+dbgVérifieEgalité(vOob, "",
+"option hors plage rend un libellé vide, pas un plantage (Sélecteur)")
+
+vOobZero est une chaîne = SEL_Livraison[0]..Libellé
+bErrSelZero est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrSelZero, "indice 0 pose ErreurDetectee (Sélecteur)")
+
+vOobInt est une chaîne = INT_Perms[9]..Libellé
+bErrInt est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrInt, "indice 9 sur 3 options pose ErreurDetectee (Interrupteur)")
+
+// Le programme n'est pas mort après les débordements ci-dessus : les
+// options d'origine restent lisibles et intactes.
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 3,
+"le Sélecteur garde ses 3 options après les débordements")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Express",
+"le Sélecteur reste lisible après un débordement")
+
+// --- Harmonisation : une option ajoutée se lit comme une option déclarée ---
+// SélecteurAjoute ne prend pas de ValeurRenvoyée (son 3e argument est un
+// sous-libellé, son 4e une icône) : l'option ajoutée en porte donc une vide,
+// et c'est CETTE valeur-là que la lecture indexée doit rendre — pas planter,
+// pas mentir.
+nAj est un entier = SélecteurAjoute(SEL_Livraison, "Point relais", "Sous 48h")
+dbgVérifieEgalité(nAj, 4, "SélecteurAjoute rend l'indice 1-based de la nouvelle option")
+dbgVérifieEgalité(SEL_Livraison[4]..Libellé, "Point relais",
+"option ajoutée par SélecteurAjoute lisible comme une option déclarée")
+dbgVérifieEgalité(SEL_Livraison[4]..SousLibellé, "Sous 48h",
+"SousLibellé d'une option ajoutée")
+dbgVérifieEgalité(SEL_Livraison[4]..ValeurRenvoyée, "",
+"une option ajoutée par SélecteurAjoute n'a pas de ValeurRenvoyée à lire")
+
+nIns est un entier = SélecteurInsère(SEL_Livraison, 1, "Prioritaire", "Sous 12h")
+dbgVérifieEgalité(nIns, 1, "SélecteurInsère rend l'indice d'insertion")
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Prioritaire",
+"lecture de l'option insérée en tête")
+dbgVérifieEgalité(SEL_Livraison[2]..Libellé, "Express",
+"les options existantes décalent après une insertion en tête")
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 5,
+"le compte suit l'ajout puis l'insertion")
+
+SélecteurSupprime(SEL_Livraison, 1)
+dbgVérifieEgalité(SEL_Livraison[1]..Libellé, "Express",
+"lecture après suppression retombe sur l'option suivante")
+dbgVérifieEgalité(SEL_Livraison..Occurrence, 4,
+"le compte suit la suppression")
+
+// --- Même harmonisation côté Interrupteur ---
+InterrupteurAjoute(INT_Perms, "Archivage", "Ranger")
+dbgVérifieEgalité(INT_Perms[4]..Libellé, "Archivage",
+"option ajoutée par InterrupteurAjoute lisible comme une option déclarée")
+
+InterrupteurInsère(INT_Perms, 1, "Audit", "Contrôler")
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Audit",
+"lecture de l'option Interrupteur insérée en tête")
+dbgVérifieEgalité(INT_Perms[2]..Libellé, "Lecture",
+"les options Interrupteur existantes décalent après une insertion en tête")
+
+InterrupteurSupprime(INT_Perms, 1)
+dbgVérifieEgalité(INT_Perms[1]..Libellé, "Lecture",
+"lecture Interrupteur après suppression retombe sur l'option suivante")
+dbgVérifieEgalité(INT_Perms..Occurrence, 4,
+"le compte Interrupteur suit ajout + insertion + suppression")
+
+Ferme(FEN_Options)
+
+// Fenêtre fermée : compte réel (0), pas une valeur Null qui masquerait la
+// fermeture — les deux étaient des bugs distincts avant correctif.
+dbgVérifieEgalité(SélecteurOccurrence(SEL_Livraison), 0,
+"occurrence réelle après fermeture de la fenêtre (Sélecteur)")
+dbgVérifieEgalité(InterrupteurOccurrence(INT_Perms), 0,
+"occurrence réelle après fermeture de la fenêtre (Interrupteur)")
+
+dbgBilanTest()

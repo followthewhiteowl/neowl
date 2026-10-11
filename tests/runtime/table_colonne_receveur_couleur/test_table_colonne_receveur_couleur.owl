@@ -1,0 +1,35 @@
+//  Lot B — la colonne (forme nue `COL_A..Prop`) devient un VRAI
+// receveur au runtime : l'affectation doit STOCKER, pas être un no-op
+// silencieux (Lot A avait seulement résolu le nom au compile-time).
+// Ferme aussi  (écriture dans le vide sur le proxy-colonne).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_ColonneReceveurCouleur)
+
+// Couleur : set-then-get symétrique.
+EcritCouleur(RVB(255, 0, 0))
+dbgVérifieEgalité(LireCouleur(), RVB(255, 0, 0),
+"COL_A..Couleur écrite en forme nue est relue à l'identique")
+
+// CouleurFond : set-then-get symétrique, indépendant de Couleur.
+EcritCouleurFond(RVB(0, 0, 255))
+dbgVérifieEgalité(LireCouleurFond(), RVB(0, 0, 255),
+"COL_A..CouleurFond écrite en forme nue est relue à l'identique")
+dbgVérifieEgalité(LireCouleur(), RVB(255, 0, 0),
+"CouleurFond posée ensuite : Couleur reste inchangée")
+
+// Parité bilingue : la même valeur est lisible sous sa forme EN.
+dbgVérifieEgalité(LireCouleurEN(), RVB(255, 0, 0),
+"la Couleur posée en FR est relue à l'identique sous ..Color (EN)")
+dbgVérifieEgalité(LireCouleurFondEN(), RVB(0, 0, 255),
+"la CouleurFond posée en FR est relue à l'identique sous ..BackgroundColor (EN)")
+
+// Écriture croisée : posée en EN, relue en FR.
+EcritCouleurEN(RVB(0, 255, 0))
+dbgVérifieEgalité(LireCouleur(), RVB(0, 255, 0),
+"écrite via ..Color (EN), relue à l'identique via ..Couleur (FR)")
+
+Ferme(FEN_ColonneReceveurCouleur)
+
+dbgBilanTest()

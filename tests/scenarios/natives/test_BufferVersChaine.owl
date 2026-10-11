@@ -1,0 +1,131 @@
+// @sujet : BufferVersChaîne
+// @résumé : Décode un buffer d'octets en chaîne selon l'encodage fourni. Sans deuxième argument, interprète les octets comme de l'UTF-8, comportement inchangé par rapport aux versions antérieures. Avec un encodage explicite (encUTF8, encLatin1, encWindows1252, encUTF16LE, encUTF16BE), décode les octets selon le codepage correspondant et produit la chaîne Unicode résultante. Opération symétrique de ChaîneVersBuffer.
+
+
+// Cas A : comportement par défaut (UTF-8) sans argument d'encodage.
+// Rétro-compatible avec les versions antérieures.
+PROCEDURE PUBLIQUE scenario_bvc_utf8_defaut_retrocompatible()
+	buf est un buffer = ChaîneVersBuffer("café")
+	s est une chaîne = BufferVersChaîne(buf)
+	dbgVérifieEgalité(s, "café", "décodage UTF-8 par défaut restitue la chaîne d'origine")
+FIN
+
+
+// Cas B : argument encUTF8 explicite — résultat identique au défaut.
+PROCEDURE PUBLIQUE scenario_bvc_utf8_explicite()
+	buf est un buffer = ChaîneVersBuffer("café")
+	s est une chaîne = BufferVersChaîne(buf, encUTF8)
+	dbgVérifieEgalité(s, "café", "décodage encUTF8 explicite identique au défaut")
+FIN
+
+
+// Cas C : décodage Latin-1 — octet 233 → "é".
+PROCEDURE PUBLIQUE scenario_bvc_latin1_decode_e_accent()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 233)
+	s est une chaîne = BufferVersChaîne(buf, encLatin1)
+	dbgVérifieEgalité(s, "é", "octet 233 décodé en Latin-1 → é")
+FIN
+
+
+// Cas D : décodage Windows-1252 — octet 128 → "€".
+PROCEDURE PUBLIQUE scenario_bvc_windows1252_euro_decode()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 128)
+	s est une chaîne = BufferVersChaîne(buf, encWindows1252)
+	dbgVérifieEgalité(s, "€", "octet 128 décodé en Windows-1252 → €")
+FIN
+
+
+// Cas E : décodage Windows-1252 — octet 156 → "œ".
+PROCEDURE PUBLIQUE scenario_bvc_windows1252_oe_decode()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 156)
+	s est une chaîne = BufferVersChaîne(buf, encWindows1252)
+	dbgVérifieEgalité(s, "œ", "octet 156 décodé en Windows-1252 → œ")
+FIN
+
+
+// Cas F : décodage Windows-1252 — octet 147 → guillemet courbe gauche (U+201C).
+PROCEDURE PUBLIQUE scenario_bvc_windows1252_guillemet_courbe_decode()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 147)
+	s est une chaîne = BufferVersChaîne(buf, encWindows1252)
+	dbgVérifieEgalité(s, `“`, "octet 147 décodé en Windows-1252 → guillemet courbe Gauche")
+FIN
+
+
+// Cas G : décodage UTF-16LE — séquence [65, 0, 233, 0] → "Aé".
+PROCEDURE PUBLIQUE scenario_bvc_utf16le_decode()
+	buf est un buffer = "XXXX"
+	BufferÉcritOctet(buf, 1, 65)
+	BufferÉcritOctet(buf, 2, 0)
+	BufferÉcritOctet(buf, 3, 233)
+	BufferÉcritOctet(buf, 4, 0)
+	s est une chaîne = BufferVersChaîne(buf, encUTF16LE)
+	dbgVérifieEgalité(s, "Aé", "4 octets UTF-16LE décodés → Aé")
+FIN
+
+
+// Cas H : décodage UTF-16BE — séquence [0, 65, 0, 233] → "Aé".
+PROCEDURE PUBLIQUE scenario_bvc_utf16be_decode()
+	buf est un buffer = "XXXX"
+	BufferÉcritOctet(buf, 1, 0)
+	BufferÉcritOctet(buf, 2, 65)
+	BufferÉcritOctet(buf, 3, 0)
+	BufferÉcritOctet(buf, 4, 233)
+	s est une chaîne = BufferVersChaîne(buf, encUTF16BE)
+	dbgVérifieEgalité(s, "Aé", "4 octets UTF-16BE décodés → Aé")
+FIN
+
+
+// Cas I : round-trip Latin-1 — texte Europe occidentale sans perte.
+PROCEDURE PUBLIQUE scenario_bvc_roundtrip_latin1()
+	s0 est une chaîne = "àéîôûçñ"
+	buf est un buffer = ChaîneVersBuffer(s0, encLatin1)
+	s1 est une chaîne = BufferVersChaîne(buf, encLatin1)
+	dbgVérifieEgalité(s1, s0, "round-trip Latin-1 restitue le texte d'origine sans perte")
+FIN
+
+
+// Cas J : round-trip Windows-1252 — caractères spéciaux de la zone étendue.
+PROCEDURE PUBLIQUE scenario_bvc_roundtrip_windows1252()
+	s0 est une chaîne = "€œ"
+	buf est un buffer = ChaîneVersBuffer(s0, encWindows1252)
+	s1 est une chaîne = BufferVersChaîne(buf, encWindows1252)
+	dbgVérifieEgalité(s1, s0, "round-trip Windows-1252 restitue €œ sans perte")
+FIN
+
+
+// Cas K : round-trip UTF-16LE.
+PROCEDURE PUBLIQUE scenario_bvc_roundtrip_utf16le()
+	s0 est une chaîne = "Aé"
+	buf est un buffer = ChaîneVersBuffer(s0, encUTF16LE)
+	s1 est une chaîne = BufferVersChaîne(buf, encUTF16LE)
+	dbgVérifieEgalité(s1, s0, "round-trip UTF-16LE restitue la chaîne d'origine")
+FIN
+
+
+// Cas L : round-trip UTF-16BE.
+PROCEDURE PUBLIQUE scenario_bvc_roundtrip_utf16be()
+	s0 est une chaîne = "Aé"
+	buf est un buffer = ChaîneVersBuffer(s0, encUTF16BE)
+	s1 est une chaîne = BufferVersChaîne(buf, encUTF16BE)
+	dbgVérifieEgalité(s1, s0, "round-trip UTF-16BE restitue la chaîne d'origine")
+FIN
+
+
+// Edge case : buffer vide en UTF-8 → chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_edge_buffer_vide_utf8()
+	buf est un buffer = ""
+	s est une chaîne = BufferVersChaîne(buf, encUTF8)
+	dbgVérifieEgalité(s, "", "buffer vide en UTF-8 → chaîne vide")
+FIN
+
+
+// Edge case : buffer vide en Latin-1 → chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_edge_buffer_vide_latin1()
+	buf est un buffer = ""
+	s est une chaîne = BufferVersChaîne(buf, encLatin1)
+	dbgVérifieEgalité(s, "", "buffer vide en Latin-1 → chaîne vide")
+FIN

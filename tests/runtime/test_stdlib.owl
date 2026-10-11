@@ -1,0 +1,103 @@
+// ============================================
+// TEST: Stdlib - String, Math, Array, IO
+// ============================================
+Trace("=== STDLIB ===")
+
+// --- STRING ---
+
+// Gauche / Droite / Milieu
+dbgVérifieEgalité(Gauche("Bonjour", 3), "Bon", "Gauche 3")
+dbgVérifieEgalité(Droite("Bonjour", 4), "jour", "Droite 4")
+dbgVérifieEgalité(Milieu("Bonjour", 4, 2), "jo", "Milieu(4,2)")
+dbgVérifieEgalité(Gauche("AB", 10), "AB", "Gauche depasse")
+dbgVérifieEgalité(Droite("AB", 10), "AB", "Droite depasse")
+
+// Position
+dbgVérifieEgalité(Position("Hello World", "World"), 7, "Position trouve")
+dbgVérifieEgalité(Position("Hello World", "xyz"), 0, "Position pas trouve")
+dbgVérifieEgalité(Position("abcabc", "abc"), 1, "Position premiere occurrence")
+
+// Remplace
+dbgVérifieEgalité(Remplace("Hello World", "World", "OWL"), "Hello OWL", "Remplace simple")
+dbgVérifieEgalité(Remplace("aaa", "a", "bb"), "bbbbbb", "Remplace multiple")
+dbgVérifieEgalité(Remplace("test", "x", "y"), "test", "Remplace pas trouve")
+
+// Majuscule / Minuscule
+dbgVérifieEgalité(Majuscule("hello"), "HELLO", "Majuscule")
+dbgVérifieEgalité(Minuscule("HELLO"), "hello", "Minuscule")
+
+// SansEspace
+dbgVérifieEgalité(SansEspace("  hello  "), "hello", "Trim espaces")
+dbgVérifieEgalité(SansEspace("test"), "test", "Trim sans espaces")
+
+// Occurrence sur chaine
+dbgVérifieEgalité(Occurrence("abcabcabc", "abc"), 3, "Occurrence chaine x3")
+dbgVérifieEgalité(Occurrence("hello", "xyz"), 0, "Occurrence pas trouve")
+
+// Conversion
+dbgVérifieEgalité(Val("42"), 42, "Val string->int")
+dbgVérifieEgalité(Val("abc"), 0, "Val invalide = 0")
+dbgVérifieEgalité(NumToString(42), "42", "NumToString entier")
+
+// --- MATH ---
+
+dbgVérifieEgalité(Abs(-5), 5, "Abs negatif")
+dbgVérifieEgalité(Abs(5), 5, "Abs positif")
+dbgVérifieEgalité(Arrondi(3.7), 4, "Arrondi 3.7 -> 4")
+dbgVérifieEgalité(Arrondi(3.2), 3, "Arrondi 3.2 -> 3")
+dbgVérifieEgalité(PartieEntière(3.9), 3, "PartieEntière tronque")
+dbgVérifieEgalité(Min(5, 3), 3, "Min")
+dbgVérifieEgalité(Max(5, 3), 5, "Max")
+dbgVérifieEgalité(Racine(9.0), 3.0, "Racine 9 = 3")
+dbgVérifieEgalité(Puissance(2, 10), 1024.0, "Puissance 2^10")
+
+// Hasard (juste verifier que ca ne crash pas)
+nR est un entier = Hasard(1, 10)
+dbgVérifieVrai(nR >= 1 ET nR <= 10, "Hasard dans la plage")
+
+// --- ARRAY ---
+
+arrT est un tableau de entiers
+Ajoute(arrT, 30)
+Ajoute(arrT, 10)
+Ajoute(arrT, 20)
+
+// Cherche
+dbgVérifieEgalité(Cherche(arrT, 10), 2, "Cherche trouve en pos 2")
+dbgVérifieEgalité(Cherche(arrT, 99),-1, "Cherche pas trouve = -1 (spécification de référence)")
+
+// Insere
+Insère(arrT, 1, 5)
+dbgVérifieEgalité(arrT[1], 5, "Insere en position 1")
+dbgVérifieEgalité(Taille(arrT), 4, "Taille apres Insere")
+
+// Trie
+Trie(arrT)
+dbgVérifieEgalité(arrT[1], 5, "Trie: premier = 5")
+dbgVérifieEgalité(arrT[4], 30, "Trie: dernier = 30")
+
+// Inverse
+Inverse(arrT)
+dbgVérifieEgalité(arrT[1], 30, "Inverse: premier = 30")
+dbgVérifieEgalité(arrT[4], 5, "Inverse: dernier = 5")
+
+// SupprimeTout
+SupprimeTout(arrT)
+dbgVérifieEgalité(Taille(arrT), 0, "SupprimeTout vide le tableau")
+
+// --- IO ---
+
+// TypeVar
+dbgVérifieEgalité(TypeVar(42), owlEntier, "TypeVar entier")
+dbgVérifieEgalité(TypeVar("test"), owlChaine, "TypeVar chaine")
+dbgVérifieEgalité(TypeVar(Vrai), owlBooleen, "TypeVar booleen")
+dbgVérifieEgalité(TypeVar(3.14), owlReel, "TypeVar reel")
+
+// DateSys retourne un objet Date, Taille = 8 (representation AAAAMMJJ)
+dDate est une date = DateSys()
+dbgVérifieEgalité(Taille(dDate), 8, "DateSys retourne 8 chars AAAAMMJJ")
+
+// HeureSys retourne un objet Time, Taille = 8 (representation HHMMSSCC)
+hHeure est une heure = HeureSys()
+dbgVérifieEgalité(Taille(hHeure), 8, "HeureSys retourne 8 chars HHMMSSCC")
+

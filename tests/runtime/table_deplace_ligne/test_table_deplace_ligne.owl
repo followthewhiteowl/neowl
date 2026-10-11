@@ -1,0 +1,130 @@
+// TableDéplaceLigne / TableMoveLine — déplacement d'une ligne d'un Champ Table
+// vers une destination, AVEC décalage des lignes intermédiaires (move), par
+// opposition à la permutation stricte de TableEchangeLigne.
+//
+// Deux formes de destination (tranchées sur le canon) :
+//   - un indice entier 1-based    -> destination absolue
+//   - une cible relative tdXxx    -> déplacement relatif à la ligne source
+// La distinction se fait par la VALEUR du 3e paramètre : les cibles relatives
+// sont des constantes sentinelles hors de la plage des indices réels.
+//
+// Le 4e paramètre <Opération> est un bitmask combinable : tdDéplace (défaut,
+// move+décalage), tdEchange (permutation stricte), tdAfficheDestination
+// (défilement — sans effet en headless).
+//
+// Le résultat est le nouvel indice 1-based de la ligne déplacée.
+//
+// Hors plage : soft-error sur la ligne fautive (pose ErreurDetectee, move
+// avorté, le programme continue), aligné sur TableEchangeLigne.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_Deplace)
+
+// Ordre initial : Alpha, Beta, Gamma, Delta.
+dbgVérifieEgalité(Nom(1), "Alpha", "ordre initial ligne 1")
+dbgVérifieEgalité(Nom(3), "Gamma", "ordre initial ligne 3")
+dbgVérifieEgalité(Occ(), 4, "4 lignes au départ")
+
+// --- Move descendant (1 -> 3) : décalage de l'intervalle ---------------------
+// Move : on retire Alpha (1), on le réinsère en 3 ; Beta et Gamma glissent d'un
+// cran vers le haut. Résultat attendu : Beta, Gamma, Alpha, Delta.
+nNouvel est un entier = Deplace(1, 3)
+dbgVérifieEgalité(nNouvel, 3, "retour = nouvel indice de la ligne déplacée")
+dbgVérifieEgalité(Nom(1), "Beta", "move(1->3) : Beta remonte en 1")
+dbgVérifieEgalité(Nom(2), "Gamma", "move(1->3) : Gamma remonte en 2 (DÉCALAGE, pas swap)")
+dbgVérifieEgalité(Nom(3), "Alpha", "move(1->3) : Alpha atterrit en 3")
+dbgVérifieEgalité(Nom(4), "Delta", "move(1->3) : Delta hors intervalle, inchangé")
+dbgVérifieEgalité(Rang(1), 20, "cellule numérique suit le décalage (ligne 1)")
+dbgVérifieEgalité(Rang(3), 10, "cellule numérique suit la ligne déplacée (ligne 3)")
+dbgVérifieEgalité(Occ(), 4, "occurrence inchangée après move")
+
+// Preuve DÉCALAGE ≠ SWAP : après move(1->3), la ligne 2 vaut Gamma.
+// Un swap(1,3) aurait laissé Beta en 2 et donné Gamma, Beta, Alpha, Delta.
+// La valeur "Gamma" en position 2 ne peut résulter que d'un décalage.
+
+// --- Move montant (3 -> 1) : décalage inverse --------------------------------
+Reinit()
+nNouvel = Deplace(3, 1)
+dbgVérifieEgalité(nNouvel, 1, "move(3->1) : retour = 1")
+dbgVérifieEgalité(Nom(1), "Gamma", "move(3->1) : Gamma passe en tête")
+dbgVérifieEgalité(Nom(2), "Alpha", "move(3->1) : Alpha décalé en 2")
+dbgVérifieEgalité(Nom(3), "Beta", "move(3->1) : Beta décalé en 3")
+dbgVérifieEgalité(Nom(4), "Delta", "move(3->1) : Delta inchangé")
+
+// --- Destination relative : tdSuivant (descend d'un cran) --------------------
+Reinit()
+nNouvel = Deplace(2, tdSuivant)
+dbgVérifieEgalité(nNouvel, 3, "tdSuivant : ligne 2 descend en 3")
+dbgVérifieEgalité(Nom(2), "Gamma", "tdSuivant : Gamma décalé en 2")
+dbgVérifieEgalité(Nom(3), "Beta", "tdSuivant : Beta descend en 3")
+
+// --- Destination relative : tdPremier ----------------------------------------
+Reinit()
+nNouvel = Deplace(4, tdPremier)
+dbgVérifieEgalité(nNouvel, 1, "tdPremier : ligne 4 passe en tête")
+dbgVérifieEgalité(Nom(1), "Delta", "tdPremier : Delta en tête")
+dbgVérifieEgalité(Nom(4), "Gamma", "tdPremier : Gamma décalé en 4")
+
+// --- Destination relative : tdDernier ----------------------------------------
+Reinit()
+nNouvel = Deplace(1, tdDernier)
+dbgVérifieEgalité(nNouvel, 4, "tdDernier : ligne 1 passe en queue")
+dbgVérifieEgalité(Nom(4), "Alpha", "tdDernier : Alpha en queue")
+dbgVérifieEgalité(Nom(1), "Beta", "tdDernier : Beta remonte en tête")
+
+// --- Opération tdEchange : permutation stricte (pas de décalage) -------------
+Reinit()
+nNouvel = DeplaceOp(1, 3, tdEchange)
+dbgVérifieEgalité(nNouvel, 3, "tdEchange : retour = destination")
+dbgVérifieEgalité(Nom(1), "Gamma", "tdEchange : ligne 1 <-> ligne 3")
+dbgVérifieEgalité(Nom(3), "Alpha", "tdEchange : ligne 3 <-> ligne 1")
+dbgVérifieEgalité(Nom(2), "Beta", "tdEchange : ligne intermédiaire NON décalée (≠ move)")
+dbgVérifieEgalité(Nom(4), "Delta", "tdEchange : ligne 4 inchangée")
+
+// --- Opération tdDéplace explicite = défaut ----------------------------------
+Reinit()
+nNouvel = DeplaceOp(1, 3, tdDéplace)
+dbgVérifieEgalité(Nom(2), "Gamma", "tdDéplace explicite : même décalage que le défaut")
+
+// --- tdAfficheDestination combiné : sans effet observable en headless --------
+Reinit()
+nNouvel = DeplaceOp(1, 3, tdDéplace + tdAfficheDestination)
+dbgVérifieEgalité(Nom(2), "Gamma", "tdAfficheDestination : décalage inchangé en headless")
+
+// --- Forme anglaise TableMoveLine --------------------------------------------
+Reinit()
+nNouvel = DeplaceEN(1, 3)
+dbgVérifieEgalité(nNouvel, 3, "TableMoveLine : retour identique à la forme FR")
+dbgVérifieEgalité(Nom(1), "Beta", "TableMoveLine : décalage identique (ligne 1)")
+dbgVérifieEgalité(Nom(3), "Alpha", "TableMoveLine : décalage identique (ligne 3)")
+
+// --- Move d'une ligne sur elle-même : no-op ----------------------------------
+Reinit()
+nNouvel = Deplace(2, 2)
+dbgVérifieEgalité(nNouvel, 2, "move sur soi-même : retour = même indice")
+dbgVérifieEgalité(Nom(2), "Beta", "move sur soi-même : no-op")
+
+// --- Destination hors plage : soft-error, ordre inchangé ---------------------
+Reinit()
+ErreurRAZ()
+nNouvel = Deplace(1, 99)
+bErrDest est un booléen = ErreurDétectée
+sMsgDest est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrDest, "destination hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(sMsgDest, "Table : ligne 99 hors plage (1..4).",
+"destination hors plage : message ligne dédié")
+dbgVérifieEgalité(Nom(1), "Alpha", "move avorté : ordre préservé (ligne 1)")
+dbgVérifieEgalité(Nom(3), "Gamma", "move avorté : ordre préservé (ligne 3)")
+
+// --- Source hors plage (0) : idem --------------------------------------------
+Reinit()
+ErreurRAZ()
+nNouvel = Deplace(0, 2)
+bErrSrc est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrSrc, "source 0 hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(Nom(2), "Beta", "move avorté : ordre préservé (ligne 2)")
+
+Ferme(FEN_Deplace)
+
+dbgBilanTest()

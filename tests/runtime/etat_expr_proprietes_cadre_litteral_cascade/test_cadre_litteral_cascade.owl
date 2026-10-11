@@ -1,0 +1,97 @@
+// Mesure (, re-scope — trou de rendu composite pré-existant, classe
+// ) : une cascade impérative sur un SOUS-CHAMP de composite
+// (LIB_X..Cadre..Couleur = Vert) doit rendre, même quand la prop Cadre
+// entière est un LITTÉRAL PUR au décl (Cadre = { Couleur = Rouge, ... }),
+// sans aucune expression ni reseed.
+//
+// La ressource ETAT_CadreLitteralCascade vit dans le voisin
+// ETAT_CadreLitteralCascade.owl : Lecture() fait uniquement
+//   LIB_X..Cadre..Couleur = Vert
+// puis le rendu automatique du Corps a lieu après Lecture().
+//
+// Cible correcte : le bord (Cadre, opérateur de stroke) doit être Vert sur
+// le rendu — la cascade impérative écrase le littéral posé au décl.
+//
+// MESURE (avant impl, scratchpad étape préalable) : le bord reste Rouge —
+// Vert = 0, Rouge = 1. Le rendu de la couleur du Cadre composite lit le
+// composite matérialisé du décl et ignore l'override cascade du
+// sous-champ, même sans aucune expression dynamique impliquée.
+
+TestModeHeadless(Vrai)
+
+PROCEDURE TrouveMotif(buf est un buffer, motif est une chaîne, depart est un entier)
+	nBuf est un entier = Taille(buf)
+	motifBuf est un buffer = ChaîneVersBuffer(motif)
+	nMotif est un entier = Taille(motifBuf)
+	i est un entier = depart
+	TANTQUE i <= nBuf - nMotif + 1
+		bMatch est un booléen = Vrai
+		k est un entier = 0
+		TANTQUE k < nMotif ET bMatch
+			SI BufferLitOctet(buf, i + k) <> BufferLitOctet(motifBuf, k + 1) ALORS
+				bMatch = Faux
+			FIN
+			k = k + 1
+		FIN
+		SI bMatch ALORS
+			RENVOYER i
+		FIN
+		i = i + 1
+	FIN
+	RENVOYER 0
+FIN
+
+// Extrait et décompresse le 1er flux de contenu (celui référencé par
+// /Contents) du PDF produit. Recherche purement en domaine Buffer
+// (BufferLitOctet) pour ne jamais tronquer sur un octet nul du flux
+// compressé.
+PROCEDURE StreamContenuPDF(chemin est une chaîne)
+	buf est un buffer = fChargeBuffer(chemin)
+	posContents est un entier = TrouveMotif(buf, "/Contents ", 1)
+	i est un entier = posContents + Taille(ChaîneVersBuffer("/Contents "))
+	nObj est un entier = 0
+	TANTQUE BufferLitOctet(buf, i) >= 48 ET BufferLitOctet(buf, i) <= 57
+		nObj = nObj * 10 + (BufferLitOctet(buf, i) - 48)
+		i    = i + 1
+	FIN
+	sMotifObj est une chaîne = "" + nObj + " 0 obj"
+	posObj est un entier = TrouveMotif(buf, sMotifObj, 1)
+	posStream est un entier = TrouveMotif(buf, "stream", posObj)
+	dataStart est un entier = posStream + 6
+	SI BufferLitOctet(buf, dataStart) = 13 ALORS
+		dataStart = dataStart + 1
+	FIN
+	SI BufferLitOctet(buf, dataStart) = 10 ALORS
+		dataStart = dataStart + 1
+	FIN
+	posEndstream est un entier = TrouveMotif(buf, "endstream", dataStart)
+	nSegTaille est un entier = posEndstream - dataStart
+	seg est un buffer = BufferVide(nSegTaille)
+	j est un entier = 1
+	TANTQUE j <= nSegTaille
+		BufferÉcritOctet(seg, j, BufferLitOctet(buf, dataStart + j - 1))
+		j = j + 1
+	FIN
+	decomp est un buffer = Décompresse(seg)
+	RENVOYER BufferVersChaîne(decomp, encLatin1)
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_expr_proprietes_cadre_litteral_cascade/temp.pdf")
+iImprimeEtat(ETAT_CadreLitteralCascade)
+iFinImprime()
+
+sContenu est une chaîne = StreamContenuPDF("tests/runtime/etat_expr_proprietes_cadre_litteral_cascade/temp.pdf")
+
+// Bord (Cadre = stroke) : opérateur "SCN" MAJUSCULE précédé de "CS"
+// (stroking colour space + colour, motif "<r> <g> <b> SCN"). Le fond
+// (CouleurFond = fill) utilise "scn" minuscule — pas notre sujet ici,
+// on ne compte QUE le stroke pour ne pas confondre bord et fond.
+nRougeBord est un entier = Occurrence(sContenu, "1 0 0 SCN")
+nVertBord est un entier = Occurrence(sContenu, "0 1 0 SCN")
+
+dbgVérifieVrai(nVertBord >= 1,
+"la cascade impérative LIB_X..Cadre..Couleur = Vert doit apparaître au moins une fois sur le bord, même quand Cadre est un littéral pur au décl")
+dbgVérifieVrai(nRougeBord = 0,
+"le bord ne doit JAMAIS rester Rouge (valeur littérale du décl) une fois que la cascade impérative Vert a été posée")
+
+dbgBilanTest()

@@ -1,0 +1,59 @@
+// Ressource fenetre pour test_focused_index_sync.owl.
+// Deux champs Saisie. Les compteurs surEntree ET surSortie sont remontés via
+// callbacks au script test pour observer chaque transition de focus : verrouille
+// le contrat « un focus = exactement un surSortie sur l'ancien + un surEntrée
+// sur le nouveau », sans double émission.
+
+FEN_FocusSync est une Fenêtre
+	PROPRIETES
+		Titre       = "Focus sync"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 250
+	FIN
+
+	nEntreeSAI1 est un entier = 0
+	nEntreeSAI2 est un entier = 0
+	nSortieSAI1 est un entier = 0
+	nSortieSAI2 est un entier = 0
+
+	SAI_1 est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 20
+			Largeur = 200
+		FIN
+		PROCEDURE surEntrée()
+			nEntreeSAI1 += 1
+			callback_sync_entrees(nEntreeSAI1, nEntreeSAI2)
+		FIN
+		PROCEDURE surSortie()
+			nSortieSAI1 += 1
+			callback_sync_sorties(nSortieSAI1, nSortieSAI2)
+		FIN
+	FIN
+
+	SAI_2 est un Champ Saisie
+		PROPRIETES
+			X       = 20
+			Y       = 80
+			Largeur = 200
+		FIN
+		PROCEDURE surEntrée()
+			nEntreeSAI2 += 1
+			callback_sync_entrees(nEntreeSAI1, nEntreeSAI2)
+		FIN
+		PROCEDURE surSortie()
+			nSortieSAI2 += 1
+			callback_sync_sorties(nSortieSAI1, nSortieSAI2)
+		FIN
+	FIN
+
+	PROCEDURE LireEntrees()
+		callback_sync_entrees(nEntreeSAI1, nEntreeSAI2)
+	FIN
+
+	PROCEDURE LireSorties()
+		callback_sync_sorties(nSortieSAI1, nSortieSAI2)
+	FIN
+FIN

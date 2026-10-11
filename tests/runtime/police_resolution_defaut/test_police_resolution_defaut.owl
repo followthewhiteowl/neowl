@@ -1,0 +1,67 @@
+//  Lot A — police par défaut + résolution des constantes iPolice*.
+//
+// Monte les vrais widgets Qt (TestModeHeadless(Faux) + OuvreSoeur) et compare
+// le rendu réel de libellés identiques dont seule la police change. Cible le
+// pipeline complet : une constante iPolice* doit être résolue vers la vraie
+// famille embarquée (Liberation Sans/Serif/Mono) AVANT QFont::setFamily, sinon
+// Qt ne trouve pas la famille "sentinelle" et tout retombe sur le même
+// fallback (aucune différence de rendu -> assertions rouges).
+//
+// Helper : compte les pixels différents entre deux captures de même taille.
+
+PROCEDURE nbPixelsDifferents(imgA est une Image, imgB est une Image)
+	n est un entier = 0
+	w est un entier = imgA..Largeur
+	h est un entier = imgA..Hauteur
+	yy est un entier = 0
+	TANTQUE yy < h
+		xx est un entier = 0
+		TANTQUE xx < w
+			SI dPixelCouleur(imgA, xx, yy) <> dPixelCouleur(imgB, xx, yy) ALORS
+				n = n + 1
+			FIN
+			xx = xx + 1
+		FIN
+		yy = yy + 1
+	FIN
+	RENVOYER n
+FIN
+
+// --- D (verrou) : le champ Nom d'un Style accepte une constante iPolice* -----
+// (allowedBase iFamille sur la brique Police du Style).
+STY_T est un Style
+STY_T..Police..Nom = iPoliceArial
+dbgVérifieEgalité(STY_T..Police..Nom, iPoliceArial,
+"Style..Police..Nom accepte la constante iPolice* (allowedBase iFamille)")
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_PoliceResolution)
+
+imgDef est une Image = CaptureDef()
+imgLibSans est une Image = CaptureLibSans()
+imgSerif est une Image = CaptureSerif()
+imgMono est une Image = CaptureMono()
+imgArialCst est une Image = CaptureArialCst()
+
+dbgVérifieEgalité(imgDef..Valide, Vrai, "capture LIB_Def valide")
+
+// --- B : un widget sans police explicite rend en Liberation Sans ------------
+// (identique au libellé qui fixe explicitement "Liberation Sans").
+dbgVérifieEgalité(nbPixelsDifferents(imgDef, imgLibSans), 0,
+"police par defaut = Liberation Sans (rendu identique a l'explicite)")
+
+// --- C : iPoliceArial resout vers Liberation Sans (meme rendu que l'explicite)
+dbgVérifieEgalité(nbPixelsDifferents(imgArialCst, imgLibSans), 0,
+"iPoliceArial -> Liberation Sans (meme rendu)")
+
+// --- C : iPoliceTimesNewRoman resout vers une VRAIE famille serif embarquee --
+// (rendu different du sans-serif par defaut).
+dbgVérifieVrai(nbPixelsDifferents(imgSerif, imgDef) > 20,
+"iPoliceTimesNewRoman -> Liberation Serif (rendu != sans-serif)")
+
+// --- C : iPoliceCourierNew resout vers Liberation Mono, distinct du serif ----
+dbgVérifieVrai(nbPixelsDifferents(imgMono, imgSerif) > 20,
+"iPoliceCourierNew -> Liberation Mono (rendu != serif)")
+
+Ferme(FEN_PoliceResolution)
+dbgBilanTest()

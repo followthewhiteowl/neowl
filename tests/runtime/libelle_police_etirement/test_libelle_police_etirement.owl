@@ -1,0 +1,87 @@
+// TEST: PoliceEtirement enum + PoliceTailleMin (Lot B refonte).
+//
+// Refonte des 3 props bool mutuellement exclusives (PoliceCondensee/
+// PoliceEtendue/PoliceLarge) en un enum deterministe PoliceEtirement.
+//
+// Verifie :
+//   1. Enum PoliceEtirement expose (4 valeurs : Normal/Condense/Etendu/Large)
+//   2. Effet runtime + round-trip IMPERATIF sur les 4 valeurs (setter + getter)
+//   3. Determinisme : un seul etat possible (dernier gagne, pas de cumul)
+//   4. Forme EN (FontStretch accepte les memes valeurs etir*)
+//   5. PoliceTailleMin cable complet (round-trip IMPERATIF)
+//
+// Note : le round-trip declaratif headless n'est supporte pour AUCUNE prop
+// (capacite jamais implementee, cf ). L'effet visuel Qt reel (police
+// etiree a l'ecran) est valide humainement via exemple manuel GUI.
+//
+// Pattern : huit fenêtres voisines (FEN_Normal, FEN_Condense, FEN_Etendu,
+// FEN_Large, FEN_Determ, FEN_EN, FEN_TailleMin, FEN_TailleMinEN).
+
+TestModeHeadless(Vrai)
+
+Trace("=== PoliceEtirement enum + PoliceTailleMin ===")
+
+// --- Test 1 : Round-trip imperatif etirNormal ---
+Ouvre(FEN_Normal)
+LIB_Normal..PoliceÉtirement = etirNormal
+dbgVérifieEgalité(LIB_Normal..PoliceÉtirement, etirNormal, "Normal : round-trip imperatif")
+
+// --- Test 2 : Round-trip imperatif etirCondense ---
+Ouvre(FEN_Condense)
+LIB_Condense..PoliceÉtirement = etirCondensé
+dbgVérifieEgalité(LIB_Condense..PoliceÉtirement, etirCondensé, "Condense : round-trip imperatif")
+
+// --- Test 3 : Round-trip imperatif etirEtendu ---
+Ouvre(FEN_Etendu)
+LIB_Etendu..PoliceÉtirement = etirÉtendu
+dbgVérifieEgalité(LIB_Etendu..PoliceÉtirement, etirÉtendu, "Etendu : round-trip imperatif")
+
+// --- Test 4 : Round-trip imperatif etirLarge ---
+Ouvre(FEN_Large)
+LIB_Large..PoliceÉtirement = etirLarge
+dbgVérifieEgalité(LIB_Large..PoliceÉtirement, etirLarge, "Large : round-trip imperatif")
+
+// --- Test 5 : Determinisme - un seul etat possible (dernier gagne) ---
+Ouvre(FEN_Determ)
+LIB_Determ..PoliceÉtirement = etirCondensé
+dbgVérifieEgalité(LIB_Determ..PoliceÉtirement, etirCondensé, "Determinisme : set Condense")
+
+LIB_Determ..PoliceÉtirement = etirLarge
+dbgVérifieEgalité(LIB_Determ..PoliceÉtirement, etirLarge, "Determinisme : ecrase par Large (dernier gagne)")
+
+LIB_Determ..PoliceÉtirement = etirNormal
+dbgVérifieEgalité(LIB_Determ..PoliceÉtirement, etirNormal, "Determinisme : ecrase par Normal")
+
+// --- Test 6 : Forme EN (FontStretch) round-trip imperatif ---
+Ouvre(FEN_EN)
+LIB_EN..FontStretch = etirÉtendu
+dbgVérifieEgalité(LIB_EN..FontStretch, etirÉtendu, "FontStretch : forme EN set etirEtendu")
+
+LIB_EN..FontStretch = etirLarge
+dbgVérifieEgalité(LIB_EN..FontStretch, etirLarge, "FontStretch : round-trip imperatif EN")
+
+// --- Test 7 : PoliceTailleMin cable complet (imperatif) ---
+Ouvre(FEN_TailleMin)
+LIB_TailleMin..PoliceTailleMin = 8
+dbgVérifieEgalité(LIB_TailleMin..PoliceTailleMin, 8, "TailleMin : set 8")
+
+LIB_TailleMin..PoliceTailleMin = 12
+dbgVérifieEgalité(LIB_TailleMin..PoliceTailleMin, 12, "TailleMin : round-trip imperatif")
+
+// --- Test 8 : FontMinSize (forme EN imperatif) ---
+Ouvre(FEN_TailleMinEN)
+LIB_TailleMinEN..FontMinSize = 10
+dbgVérifieEgalité(LIB_TailleMinEN..FontMinSize, 10, "FontMinSize : forme EN set 10")
+
+LIB_TailleMinEN..FontMinSize = 14
+dbgVérifieEgalité(LIB_TailleMinEN..FontMinSize, 14, "FontMinSize : round-trip imperatif EN")
+
+Ferme(FEN_Normal)
+Ferme(FEN_Condense)
+Ferme(FEN_Etendu)
+Ferme(FEN_Large)
+Ferme(FEN_Determ)
+Ferme(FEN_EN)
+Ferme(FEN_TailleMin)
+Ferme(FEN_TailleMinEN)
+dbgBilanTest()

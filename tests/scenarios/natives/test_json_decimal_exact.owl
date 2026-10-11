@@ -1,0 +1,163 @@
+// @sujet : ChaîneVersJSON, JSONVersChaîne, JSONSérialise
+// @résumé : Round-trip JSON exact pour monétaire et numérique. Affectation, read-back et sérialisation des types décimaux exacts. Les montants facturables et valeurs numériques à précision fixe ne doivent jamais devenir null.
+
+// Structures utilisées pour les tests de sérialisation
+stLigneFacture est une Structure
+	ref est une chaîne
+	prixHT est un monétaire
+FIN
+
+stMesure est une Structure
+	Nom est une chaîne
+	Valeur est un numérique
+FIN
+
+
+// Un monétaire affecté à un membre JSON se sérialise en nombre exact, jamais en null.
+// Cas typique : facture avec montants TTC.
+PROCEDURE scenario_monetaire_serialise_exact()
+	doc est un JSON = ChaîneVersJSON("{}")
+	m est un monétaire = 154.49
+	doc.montant = m
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"montant":154.49`))
+FIN
+
+
+// Un numérique affecté à un membre JSON se sérialise en nombre exact avec toute sa précision.
+// Cas typique : coordonnée GPS ou donnée scientifique à forte précision.
+PROCEDURE scenario_numerique_serialise_exact()
+	doc est un JSON = ChaîneVersJSON("{}")
+	n est un numérique = 9999.123456
+	doc.valeur = n
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"valeur":9999.123456`))
+FIN
+
+
+// Le read-back direct après affectation renvoie la valeur intacte, pas un vide ni null.
+// Bloquant : la valeur doit exister en mémoire immédiatement après affectation,
+// avant même la sérialisation.
+PROCEDURE scenario_readback_apres_affectation()
+	doc est un JSON = ChaîneVersJSON("{}")
+	m est un monétaire = 154.49
+	doc.prix = m
+	mLu est un monétaire = doc.prix
+	dbgVérifieEgalité(mLu, 154.49)
+FIN
+
+
+// Round-trip complet : sérialisation puis parse doit redonner la valeur exacte sans perte.
+// Cas monétaire avec deux décimales exactes.
+PROCEDURE scenario_round_trip_monetaire()
+	doc est un JSON = ChaîneVersJSON("{}")
+	m est un monétaire = 154.49
+	doc.montant = m
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	docLu est un JSON = ChaîneVersJSON(sJSON)
+	mLu est un monétaire = docLu.montant
+	dbgVérifieEgalité(mLu, 154.49)
+FIN
+
+
+// Round-trip complet pour numérique avec forte précision.
+PROCEDURE scenario_round_trip_numerique()
+	doc est un JSON = ChaîneVersJSON("{}")
+	n est un numérique = 9999.123456
+	doc.Valeur = n
+	sJSON est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	docLu est un JSON = ChaîneVersJSON(sJSON)
+	nLu est un numérique = docLu.Valeur
+	dbgVérifieEgalité(nLu, 9999.123456)
+FIN
+
+
+// Affectation par index (notation crochet) équivalente à la notation pointée.
+PROCEDURE scenario_affectation_par_index()
+	doc est un JSON = ChaîneVersJSON("{}")
+	m est un monétaire = 154.49
+	doc["montant"] = m
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"montant":154.49`))
+FIN
+
+
+// Un monétaire membre d'une structure sérialisée via Sérialise donne un JSON
+// avec la valeur exacte. Cas typique : ligne de facture.
+PROCEDURE scenario_serialise_struct_avec_monetaire()
+	ligne est un stLigneFacture
+	ligne.ref = "A100"
+	ligne.prixHT = 0n154.49
+	sJSON est une chaîne = JSONSérialise(ligne)
+	dbgVérifieVrai(Contient(sJSON, `"prixHT": 154.49`))
+FIN
+
+
+// Un numérique membre d'une structure sérialisée donne un JSON exact.
+PROCEDURE scenario_serialise_struct_avec_numerique()
+	mesure est un stMesure
+	mesure.Nom = "latitude"
+	mesure.Valeur = 0n48.856614
+	sJSON est une chaîne = JSONSérialise(mesure)
+	dbgVérifieVrai(Contient(sJSON, `"Valeur": 48.856614`))
+FIN
+
+
+// Non-régression : les types déjà fonctionnels (entier, réel, chaîne, booléen)
+// restent inchangés après le fix.
+PROCEDURE scenario_non_regression_types_existants()
+	doc est un JSON = ChaîneVersJSON("{}")
+	doc.i = 42
+	doc.r = 3.14
+	doc.s = "ok"
+	doc.b = Vrai
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"i":42`))
+	dbgVérifieVrai(Contient(sRes, `"r":3.14`))
+	dbgVérifieVrai(Contient(sRes, `"s":"ok"`))
+	dbgVérifieVrai(Contient(sRes, `"b":true`))
+FIN
+
+
+// Cas limite défensif : un monétaire zéro se sérialise en 0.00, jamais en null.
+PROCEDURE PRIVÉE scenario_monetaire_zero()
+	doc est un JSON = ChaîneVersJSON("{}")
+	m est un monétaire = 0.00
+	doc.zero = m
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"zero":0`))
+FIN
+
+
+// Cas limite défensif : un numérique négatif avec précision se sérialise correctement.
+PROCEDURE PRIVÉE scenario_numerique_negatif()
+	doc est un JSON = ChaîneVersJSON("{}")
+	n est un numérique = -123.456
+	doc.negatif = n
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"negatif":-123.456`))
+FIN
+
+
+// Cas limite défensif : précision maximale d'un numérique (38 chiffres significatifs).
+// Un numérique OWL garantit la précision exacte au-delà de la plage double IEEE-754,
+// donc la sérialisation JSON ne perd aucun chiffre significatif.
+PROCEDURE PRIVÉE scenario_numerique_precision_maximale()
+	doc est un JSON = ChaîneVersJSON("{}")
+	n est un numérique = 0n99999999999999999999999999999999.123456
+	doc.grand = n
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"grand":99999999999999999999999999999999.123456`))
+FIN
+
+
+// Cas limite défensif : affectation successive de monétaire à la même clé JSON ne fuit pas.
+PROCEDURE PRIVÉE scenario_affectation_successive_sans_fuite()
+	doc est un JSON = ChaîneVersJSON("{}")
+	m1 est un monétaire = 100.00
+	doc.prix = m1
+	m2 est un monétaire = 200.00
+	doc.prix = m2
+	sRes est une chaîne = JSONVersChaîne(doc, psdMinifie)
+	dbgVérifieVrai(Contient(sRes, `"prix":200`))
+FIN

@@ -1,0 +1,32 @@
+// Top-level sous-champ d'Etat s'execute 1x a l'ouverture, PAS par
+// impression du bloc (alors que AvantImpression s'execute a chaque
+// impression). La ressource ETAT_InitUneFois vit dans le voisin
+// etat_init_une_fois.owl.
+
+TestModeHeadless(Vrai)
+
+// Compteurs alimentes par les callbacks declenches depuis le bloc Etat.
+cptTopLevel est un entier = 0
+cptAvantImpression est un entier = 0
+
+PROCEDURE callback_top_level()
+	cptTopLevel += 1
+FIN
+
+PROCEDURE callback_avant()
+	cptAvantImpression += 1
+FIN
+
+iDestination(iPDFGénérique, "tests/runtime/etat_lifecycle_top_level/init_une_fois/temp.pdf")
+iImprimeEtat(ETAT_InitUneFois)
+iFinImprime()
+
+Trace("cptTopLevel        : " + cptTopLevel)
+Trace("cptAvantImpression : " + cptAvantImpression)
+
+// Top-level : execute 1x a l'ouverture de l'Etat.
+dbgVérifieEgalité(cptTopLevel, 1, "Top-level sous-champ execute 1x")
+// AvantImpression : 1x auto Corps (iImprimeEtat) + 3x iImprimeBloc manuels.
+dbgVérifieEgalité(cptAvantImpression, 4, "AvantImpression execute 4x (1 auto + 3 manuels)")
+
+dbgBilanTest()

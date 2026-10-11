@@ -1,0 +1,36 @@
+// Fenêtre voisine — ressource pour test_valeur_refusee_non_posee.owl.
+//
+// AutorisationFermeture retourne Faux au 1er appel (annule la fermeture),
+// puis Vrai au 2e (laisse fermer). FinInitialisation tente d'abord une
+// fermeture AVEC valeur (refusée), puis une fermeture SANS valeur (autorisée).
+// L'enjeu : la valeur de la fermeture refusée ne doit PAS être posée comme
+// ValeurRenvoyée. Seule la 2e fermeture (sans valeur) aboutit, donc Ouvre
+// doit rendre une valeur vide — pas la valeur du refus.
+
+FEN_ValeurRefusee est une Fenêtre
+	PROPRIETES
+		Titre       = "Valeur refusée non posée"
+		Disposition = dispLibre
+		Largeur     = 300
+		Hauteur     = 200
+	FIN
+
+	compteur est un entier = 0
+
+	PROCEDURE AutorisationFermeture()
+		compteur += 1
+		SI compteur = 1 ALORS
+			RENVOYER Faux
+		FIN
+		RENVOYER Vrai
+	FIN
+
+	PROCEDURE FinInitialisation()
+		Ferme(FEN_ValeurRefusee, "valeurDuRefus")
+		Ferme(FEN_ValeurRefusee)
+	FIN
+
+	PROCEDURE Fermeture()
+		callback_verifie("FER;")
+	FIN
+FIN

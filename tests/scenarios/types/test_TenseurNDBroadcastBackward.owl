@@ -1,0 +1,114 @@
+// @sujet : Tenseur + / Tenseur * — rétropropagation à travers une diffusion
+// @résumé : Quand + ou * diffuse un opérande de forme plus petite pour
+// l'aligner sur l'autre, la rétropropagation doit refaire le chemin inverse :
+// le gradient de l'opérande diffusé est la somme (sur chaque axe étiré ou
+// absent) du gradient reçu par la sortie, ramenée à sa forme d'origine.
+// L'opérande non diffusé, lui, reçoit son gradient sans aucune somme. Toutes
+// les valeurs ci-dessous sont calculées à la main.
+
+// c = a + b avec a (2x3) et b (3) diffusé sur les 2 lignes. On dérive à
+// travers q = c*c (dq/dc = 2c) pour obtenir un gradient de sortie non
+// uniforme, ce qui distingue une vraie somme d'une simple duplication.
+// a = [[1,2,3],[4,5,6]], b = [10,20,30] -> c = [[11,22,33],[14,25,36]]
+// grad_c = 2c = [[22,44,66],[28,50,72]]
+// grad_a = grad_c (aucune diffusion sur a, gradient transmis tel quel)
+// grad_b = somme colonne par colonne sur les 2 lignes de grad_c :
+//   col1 = 22+28 = 50, col2 = 44+50 = 94, col3 = 66+72 = 138
+PROCEDURE PUBLIQUE scenario_addition_broadcast_backward_1d_reduit_sur_lignes()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([10.0, 20.0, 30.0])
+	tc est un Tenseur = ta + tb
+	tq est un Tenseur = tc * tc
+	tq.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1], 22.0, "grad_a[1][1] = grad_c[1][1] = 2*11 = 22 (pas de diffusion sur a)")
+	dbgVérifieEgalité(ta..Gradient[1][3], 66.0, "grad_a[1][3] = 2*33 = 66")
+	dbgVérifieEgalité(ta..Gradient[2][1], 28.0, "grad_a[2][1] = 2*14 = 28")
+	dbgVérifieEgalité(ta..Gradient[2][3], 72.0, "grad_a[2][3] = 2*36 = 72")
+
+	dbgVérifieEgalité(tb..Gradient[1], 50.0, "grad_b[1] = 22+28 = 50 (somme sur les 2 lignes)")
+	dbgVérifieEgalité(tb..Gradient[2], 94.0, "grad_b[2] = 44+50 = 94")
+	dbgVérifieEgalité(tb..Gradient[3], 138.0, "grad_b[3] = 66+72 = 138")
+FIN
+
+
+// c = a * b, même diffusion (2x3) * (3), mais avec le produit : la dérivée
+// par rapport à l'opérande diffusé b est la somme de (grad_c * a), pas
+// juste la somme de grad_c.
+// a = [[1,2,3],[4,5,6]], b = [2,3,4] -> c = [[2,6,12],[8,15,24]]
+// grad_c = 2c = [[4,12,24],[16,30,48]]
+// grad_a[i][j] = grad_c[i][j] * b[j] (aucune somme, a non diffusé) :
+//   grad_a[1][1]=4*2=8, grad_a[1][2]=12*3=36, grad_a[1][3]=24*4=96
+//   grad_a[2][1]=16*2=32, grad_a[2][2]=30*3=90, grad_a[2][3]=48*4=192
+// grad_b[j] = somme sur les 2 lignes de (grad_c[i][j] * a[i][j]) :
+//   col1 = 4*1 + 16*4 = 4+64 = 68
+//   col2 = 12*2 + 30*5 = 24+150 = 174
+//   col3 = 24*3 + 48*6 = 72+288 = 360
+PROCEDURE PUBLIQUE scenario_multiplication_broadcast_backward_1d_reduit_sur_lignes()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([2.0, 3.0, 4.0])
+	tc est un Tenseur = ta * tb
+	tq est un Tenseur = tc * tc
+	tq.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1], 8.0, "grad_a[1][1] = 4*2 = 8")
+	dbgVérifieEgalité(ta..Gradient[1][3], 96.0, "grad_a[1][3] = 24*4 = 96")
+	dbgVérifieEgalité(ta..Gradient[2][1], 32.0, "grad_a[2][1] = 16*2 = 32")
+	dbgVérifieEgalité(ta..Gradient[2][3], 192.0, "grad_a[2][3] = 48*4 = 192")
+
+	dbgVérifieEgalité(tb..Gradient[1], 68.0, "grad_b[1] = 4*1 + 16*4 = 68")
+	dbgVérifieEgalité(tb..Gradient[2], 174.0, "grad_b[2] = 12*2 + 30*5 = 174")
+	dbgVérifieEgalité(tb..Gradient[3], 360.0, "grad_b[3] = 24*3 + 48*6 = 360")
+FIN
+
+
+// c = a + b avec b réduit à un seul élément (forme (1)) : les 2 axes de a
+// sont diffusés (le gradient de b est une somme sur TOUS les éléments de
+// grad_c, pas seulement une ligne ou une colonne).
+// a = [[1,2,3],[4,5,6]], b = [5] -> c = [[6,7,8],[9,10,11]]
+// grad_c = 2c = [[12,14,16],[18,20,22]]
+// grad_b = somme totale = 12+14+16+18+20+22 = 102
+// grad_a = grad_c (aucune diffusion sur a)
+PROCEDURE PUBLIQUE scenario_addition_broadcast_backward_scalaire_1d_somme_totale()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).Redimensionne([2, 3])
+	tb est un Tenseur = Tenseur([5.0])
+	tc est un Tenseur = ta + tb
+	tq est un Tenseur = tc * tc
+	tq.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1], 12.0, "grad_a[1][1] = 2*6 = 12")
+	dbgVérifieEgalité(ta..Gradient[2][3], 22.0, "grad_a[2][3] = 2*11 = 22")
+
+	dbgVérifieEgalité(tb..Gradient[1], 102.0, "grad_b = somme des 6 éléments de grad_c = 102")
+FIN
+
+
+// c = a + b avec a (2x1x3, l'axe du milieu diffusé sur 4) et b (2x4x3).
+// grad_a doit sommer sur l'axe du milieu (les 4 tranches) et retomber à la
+// forme (2x1x3) d'origine ; grad_b reste transmis tel quel (b n'est pas
+// diffusé). a = [[[1,2,3]], [[10,20,30]]], b = 1..24 rangés dans l'ordre.
+// Pour i=1 : c[1][j] = [1,2,3] + b[1][j] -> [2,4,6],[5,7,9],[8,10,12],[11,13,15]
+// grad_c[1][j] = 2*c[1][j] -> [4,8,12],[10,14,18],[16,20,24],[22,26,30]
+// grad_a[1][1] = somme sur j des grad_c[1][j] :
+//   k1 = 4+10+16+22 = 52, k2 = 8+14+20+26 = 68, k3 = 12+18+24+30 = 84
+// Pour i=2 : c[2][j] = [10,20,30] + b[2][j] -> [23,34,45],[26,37,48],[29,40,51],[32,43,54]
+// grad_c[2][j] = 2*c[2][j] -> [46,68,90],[52,74,96],[58,80,102],[64,86,108]
+// grad_a[2][1] = somme sur j :
+//   k1 = 46+52+58+64 = 220, k2 = 68+74+80+86 = 308, k3 = 90+96+102+108 = 396
+PROCEDURE PUBLIQUE scenario_addition_broadcast_backward_3d_axe_milieu_somme()
+	ta est un Tenseur = Tenseur([1.0, 2.0, 3.0, 10.0, 20.0, 30.0]).Redimensionne([2, 1, 3])
+	tb est un Tenseur = Tenseur([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0]).Redimensionne([2, 4, 3])
+	tc est un Tenseur = ta + tb
+	tq est un Tenseur = tc * tc
+	tq.Rétropropage()
+
+	dbgVérifieEgalité(ta..Gradient[1][1][1], 52.0, "grad_a[1][1][1] = 4+10+16+22 = 52")
+	dbgVérifieEgalité(ta..Gradient[1][1][2], 68.0, "grad_a[1][1][2] = 8+14+20+26 = 68")
+	dbgVérifieEgalité(ta..Gradient[1][1][3], 84.0, "grad_a[1][1][3] = 12+18+24+30 = 84")
+	dbgVérifieEgalité(ta..Gradient[2][1][1], 220.0, "grad_a[2][1][1] = 46+52+58+64 = 220")
+	dbgVérifieEgalité(ta..Gradient[2][1][2], 308.0, "grad_a[2][1][2] = 68+74+80+86 = 308")
+	dbgVérifieEgalité(ta..Gradient[2][1][3], 396.0, "grad_a[2][1][3] = 90+96+102+108 = 396")
+
+	dbgVérifieEgalité(tb..Gradient[1][1][1], 4.0, "grad_b[1][1][1] = grad_c[1][1][1] = 2*2 = 4 (b non diffusé)")
+	dbgVérifieEgalité(tb..Gradient[2][4][3], 108.0, "grad_b[2][4][3] = grad_c[2][4][3] = 2*54 = 108")
+FIN

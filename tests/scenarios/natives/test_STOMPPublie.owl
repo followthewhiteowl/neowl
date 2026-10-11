@@ -1,0 +1,59 @@
+// @sujet : STOMPPublie
+// @résumé : Publie un message STOMP (frame SEND) sur une destination du courtier et renvoie un booléen de réussite.
+
+
+// Publier sur une session qui n'a jamais été connectée échoue proprement :
+// la native renvoie Faux et pose une erreur dédiée, sans lever d'exception
+// ni bloquer.
+PROCEDURE PUBLIQUE scenario_publication_sans_connexion()
+	sess est un stompSession
+	sess..Adresse = "broker.exemple.local"
+
+	msg est un stompMessage
+	msg..Corps = "bonjour"
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPPublie(sess, "/queue/notifications", msg)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "publication sans connexion renvoie Faux")
+	dbgVérifieVrai(bErr, "publication sans connexion pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_STOMP_PUBLISH_FAILURE", "code d'erreur dédié à la publication")
+FIN
+
+
+// Validation d'argument AVANT toute tentative réseau : une destination d'un
+// autre type qu'une chaîne est refusée avec le code canonique de type
+// d'argument invalide, même sur une session jamais connectée. La validation
+// de type doit précéder le contrôle de connexion vivante (parité AMQP/MQTT).
+PROCEDURE PUBLIQUE scenario_destination_type_invalide()
+	sess est un stompSession
+	msg est un stompMessage
+	msg..Corps = "bonjour"
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPPublie(sess, 42, msg)
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "destination d'un type invalide renvoie Faux")
+	dbgVérifieVrai(bErr, "destination d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+
+// Même exigence pour le message : un argument qui n'est pas un stompMessage
+// (ici une chaîne brute) est refusé avec le code canonique de type invalide,
+// jamais publié en silence avec un corps vide.
+PROCEDURE PUBLIQUE scenario_message_type_invalide()
+	sess est un stompSession
+
+	ErreurRAZ()
+	bRetour est un booléen = STOMPPublie(sess, "/queue/notifications", "corps-brut-refuse")
+	bErr est un booléen = ErreurDétectée
+	sCode est une chaîne = ErreurInfo(errCode)
+	dbgVérifieFaux(bRetour, "message d'un type invalide renvoie Faux")
+	dbgVérifieVrai(bErr, "message d'un type invalide pose une erreur")
+	dbgVérifieEgalité(sCode, "E_NATIVE_ARG_TYPE_MISMATCH", "l'erreur est bien un type d'argument invalide")
+FIN
+
+dbgBilanTest()

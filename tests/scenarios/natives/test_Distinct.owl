@@ -1,0 +1,119 @@
+// @sujet : Distinct
+// @résumé : Retire les doublons d'un tableau en préservant la première occurrence et l'ordre stable.
+
+// Cas nominal — retirer les doublons d'un tableau d'entiers
+PROCEDURE PUBLIQUE scenario_distinct_tableau_entiers()
+	nombres est un tableau d'entiers = [1, 2, 2, 3, 1, 4, 3]
+	unique est un tableau d'entiers = Distinct(nombres)
+	dbgVérifieEgalité(unique..Occurrence, 4, "Quatre valeurs uniques")
+	dbgVérifieEgalité(unique[1], 1, "Première occurrence de 1 préservée")
+	dbgVérifieEgalité(unique[2], 2, "Première occurrence de 2 préservée")
+	dbgVérifieEgalité(unique[3], 3, "Première occurrence de 3 préservée")
+	dbgVérifieEgalité(unique[4], 4, "Valeur unique 4 préservée")
+	dbgVérifieEgalité(nombres..Occurrence, 7, "Source non modifié (7 éléments)")
+FIN
+
+// Cas nominal — forme méthode avec chaînes
+PROCEDURE PUBLIQUE scenario_forme_methode_chaines()
+	mots est un tableau de chaînes = ["alpha", "beta", "alpha", "gamma", "beta"]
+	unique est un tableau de chaînes = mots.Distinct()
+	dbgVérifieEgalité(unique..Occurrence, 3, "Trois mots uniques")
+	dbgVérifieEgalité(unique[1], "alpha", "Premier mot : alpha")
+	dbgVérifieEgalité(unique[2], "beta", "Deuxième mot : beta")
+	dbgVérifieEgalité(unique[3], "gamma", "Troisième mot : gamma")
+FIN
+
+// Cas nominal — chaînage fluent avec d'autres natives
+PROCEDURE PUBLIQUE scenario_chainabilite()
+	valeurs est un tableau d'entiers = [5, 3, 5, 8, 3, 8, 1, 1]
+	triesUniques est un tableau d'entiers = valeurs.Distinct().Trie()
+	dbgVérifieEgalité(triesUniques..Occurrence, 4, "Quatre valeurs uniques triées")
+	dbgVérifieEgalité(triesUniques[1], 1, "Ordre croissant : 1")
+	dbgVérifieEgalité(triesUniques[2], 3, "Ordre croissant : 3")
+	dbgVérifieEgalité(triesUniques[3], 5, "Ordre croissant : 5")
+	dbgVérifieEgalité(triesUniques[4], 8, "Ordre croissant : 8")
+FIN
+
+// Cas limite — tableau vide produit un tableau vide
+PROCEDURE PUBLIQUE scenario_tableau_vide()
+	vide est un tableau d'entiers
+	resultat est un tableau d'entiers = Distinct(vide)
+	dbgVérifieEgalité(resultat..Occurrence, 0, "Tableau vide reste vide")
+FIN
+
+// Cas limite — tableau déjà distinct ne change pas
+PROCEDURE PUBLIQUE scenario_deja_distinct()
+	unique est un tableau de chaînes = ["rouge", "vert", "bleu"]
+	resultat est un tableau de chaînes = Distinct(unique)
+	dbgVérifieEgalité(resultat..Occurrence, 3, "Trois éléments uniques préservés")
+	dbgVérifieEgalité(resultat[1], "rouge", "Ordre préservé : rouge")
+	dbgVérifieEgalité(resultat[2], "vert", "Ordre préservé : vert")
+	dbgVérifieEgalité(resultat[3], "bleu", "Ordre préservé : bleu")
+FIN
+
+// Cas limite — tous les éléments identiques
+PROCEDURE PUBLIQUE scenario_tout_identique()
+	repetitions est un tableau d'entiers = [7, 7, 7, 7, 7]
+	resultat est un tableau d'entiers = Distinct(repetitions)
+	dbgVérifieEgalité(resultat..Occurrence, 1, "Un seul élément unique")
+	dbgVérifieEgalité(resultat[1], 7, "Valeur unique : 7")
+FIN
+
+// Cas limite — un seul élément
+PROCEDURE PUBLIQUE scenario_un_seul_element()
+	unique est un tableau d'entiers = [42]
+	resultat est un tableau d'entiers = Distinct(unique)
+	dbgVérifieEgalité(resultat..Occurrence, 1, "Un élément reste un élément")
+	dbgVérifieEgalité(resultat[1], 42, "Valeur préservée : 42")
+FIN
+
+// Edge case — chaînes avec accents et ordre stable
+PROCEDURE PRIVÉE scenario_accents_ordre_stable()
+	prenoms est un tableau de chaînes = ["Émilie", "André", "Émilie", "Zoé", "André", "Benoît"]
+	unique est un tableau de chaînes = Distinct(prenoms)
+	dbgVérifieEgalité(unique..Occurrence, 4, "Quatre prénoms uniques")
+	dbgVérifieEgalité(unique[1], "Émilie", "Premier ordre stable : Émilie")
+	dbgVérifieEgalité(unique[2], "André", "Deuxième ordre stable : André")
+	dbgVérifieEgalité(unique[3], "Zoé", "Troisième ordre stable : Zoé")
+	dbgVérifieEgalité(unique[4], "Benoît", "Quatrième ordre stable : Benoît")
+FIN
+
+// Edge case — chaînes UTF-8 multibyte
+PROCEDURE PRIVÉE scenario_utf8_multibyte()
+	textes est un tableau de chaînes = ["日本", "中国", "日本", "한국", "中国"]
+	unique est un tableau de chaînes = Distinct(textes)
+	dbgVérifieEgalité(unique..Occurrence, 3, "Trois textes UTF-8 uniques")
+	dbgVérifieEgalité(unique[1], "日本", "Premier texte : 日本")
+	dbgVérifieEgalité(unique[2], "中国", "Deuxième texte : 中国")
+	dbgVérifieEgalité(unique[3], "한국", "Troisième texte : 한국")
+FIN
+
+// Edge case — emojis et caractères spéciaux
+PROCEDURE PRIVÉE scenario_emojis()
+	symboles est un tableau de chaînes = ["🔴", "🟢", "🔴", "🔵", "🟢"]
+	unique est un tableau de chaînes = Distinct(symboles)
+	dbgVérifieEgalité(unique..Occurrence, 3, "Trois emojis uniques")
+	dbgVérifieEgalité(unique[1], "🔴", "Emoji rouge préservé")
+	dbgVérifieEgalité(unique[2], "🟢", "Emoji vert préservé")
+	dbgVérifieEgalité(unique[3], "🔵", "Emoji bleu préservé")
+FIN
+
+// Edge case — chaînes vides parmi valeurs
+PROCEDURE PRIVÉE scenario_chaines_vides()
+	textes est un tableau de chaînes = ["", "contenu", "", "autre", "contenu"]
+	unique est un tableau de chaînes = Distinct(textes)
+	dbgVérifieEgalité(unique..Occurrence, 3, "Trois valeurs uniques")
+	dbgVérifieEgalité(unique[1], "", "Chaîne vide en première occurrence")
+	dbgVérifieEgalité(unique[2], "contenu", "Deuxième valeur : contenu")
+	dbgVérifieEgalité(unique[3], "autre", "Troisième valeur : autre")
+FIN
+
+// Edge case — réels avec précision flottante
+PROCEDURE PRIVÉE scenario_reels_precision()
+	valeurs est un tableau de réels = [1.1, 2.2, 1.1, 3.3, 2.2]
+	unique est un tableau de réels = Distinct(valeurs)
+	dbgVérifieEgalité(unique..Occurrence, 3, "Trois valeurs réelles uniques")
+	dbgVérifieVrai(Abs(unique[1] - 1.1) < 0.0001, "Premier réel : 1.1")
+	dbgVérifieVrai(Abs(unique[2] - 2.2) < 0.0001, "Deuxième réel : 2.2")
+	dbgVérifieVrai(Abs(unique[3] - 3.3) < 0.0001, "Troisième réel : 3.3")
+FIN

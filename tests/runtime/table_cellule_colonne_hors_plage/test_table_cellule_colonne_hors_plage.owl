@@ -1,0 +1,61 @@
+// Mise en forme de cellule (`TABLE_X[ligne][colonne]..Couleur`) avec un
+// indice de colonne hors plage : soft-error dédiée (pas le message générique
+// « accès à un champ sur une valeur Null »), le programme continue, et une
+// écriture légitime ultérieure fonctionne toujours.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_TableCelluleHorsPlage)
+
+// Colonne au-delà du nombre de colonnes déclarées (2).
+EcritCouleurCellule(1, 9)
+bErrColonneApres est un booléen = ErreurDétectée
+sMsgColonneApres est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrColonneApres, "colonne 9 hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(sMsgColonneApres, "Table : colonne 9 hors plage (1..2).",
+"colonne 9 hors plage : message dédié")
+
+// Le programme continue : une lecture derrière l'OOB reste possible.
+vLu est un entier = LireCouleurCellule(1, 9)
+dbgVérifieEgalité(vLu, 0, "colonne hors plage : lecture rend Null (0 pour un entier)")
+
+// Colonne à zéro : même famille de message, cohérent avec le cas précédent.
+ErreurRAZ()
+EcritCouleurCellule(1, 0)
+bErrColonneZero est un booléen = ErreurDétectée
+sMsgColonneZero est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrColonneZero, "colonne 0 hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(sMsgColonneZero, "Table : colonne 0 hors plage (1..2).",
+"colonne 0 hors plage : même famille de message")
+
+// Colonne négative : idem.
+ErreurRAZ()
+EcritCouleurCellule(1,-1)
+bErrColonneNeg est un booléen = ErreurDétectée
+sMsgColonneNeg est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrColonneNeg, "colonne -1 hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(sMsgColonneNeg, "Table : colonne -1 hors plage (1..2).",
+"colonne -1 hors plage : même famille de message")
+
+// Ligne hors plage : message distinct de celui de la colonne — c'est
+// délibéré, sinon l'utilisateur cherche une ligne fautive alors que c'est la
+// colonne (et inversement).
+ErreurRAZ()
+EcritCouleurCellule(99, 1)
+bErrLigne est un booléen = ErreurDétectée
+sMsgLigne est une chaîne = ErreurInfo()
+dbgVérifieVrai(bErrLigne, "ligne 99 hors plage : ErreurDetectee posé")
+dbgVérifieEgalité(sMsgLigne, "Table : ligne 99 hors plage (1..2).",
+"ligne hors plage : message distinct de celui de la colonne")
+
+// L'écriture perdue sur une colonne hors plage ne casse rien : une écriture
+// légitime sur une cellule valide fonctionne toujours après.
+ErreurRAZ()
+EcritCouleurCellule(1, 2)
+vLegit est un entier = LireCouleurCellule(1, 2)
+dbgVérifieFaux(ErreurDétectée, "écriture légitime après l'OOB : pas d'erreur")
+dbgVérifieEgalité(vLegit, RVB(200, 0, 0), "écriture légitime après l'OOB : valeur bien posée")
+
+Ferme(FEN_TableCelluleHorsPlage)
+
+dbgBilanTest()

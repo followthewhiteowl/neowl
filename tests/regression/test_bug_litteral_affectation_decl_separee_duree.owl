@@ -1,0 +1,41 @@
+// @sujet : Bug — littéral {…} en affectation nue après déclaration séparée — durée
+// @résumé : Partie durée du . Même bug que les autres types composés :
+// `d est une durée` puis `d = {Heure = 1, Minute = 30}` levait E_SYNTAX_BRACE_LITERAL_NO_TYPE
+// alors que `d est une durée = {Heure = 1, Minute = 30}` (init même-ligne) marchait.
+//
+// Statut décision : À TRANCHER par le coordinator/dev. Inclure durée dans le fix
+// serait cohérent avec tous les autres types. Risque : interférence avec le chemin
+// scalaire __DureeCoerce (coerce depuis chaîne/entier). Le compilateur distingue déjà
+// {…} du scalaire dans le chemin same-line, donc le risque semble faible.
+//
+// Ces tests seront ROUGES jusqu'à ce que le fix inclue durée.
+// La coercion scalaire existante (chaîne/entier) est non-régression dans test_duree_coerce.owl.
+
+// Nominal : décl séparée + affectation brace sur durée.
+// Le résultat doit correspondre à {Heure = 1, Minute = 30} = 5400000 ms.
+PROCEDURE scenario_duree_nominal()
+	d est une durée
+	d = {heure = 1, Minute = 30}
+
+	n est un entier = d
+	dbgVérifieEgalité(n, 5400000, "durée decl-sep : {Heure=1, Minute=30} = 5400000 ms")
+FIN
+
+
+// Écrasement : remplacement — composantes non citées reviennent à 0.
+// Après `d = {Seconde = 5}`, Heure et Minute reviennent à 0.
+// Résultat attendu : 5000 ms (uniquement 5 secondes).
+PROCEDURE scenario_duree_ecrasement()
+	d est une durée = {heure = 1, Minute = 30}
+
+	d = {Seconde = 5}
+
+	n est un entier = d
+	dbgVérifieEgalité(n, 5000, "écrasement durée : {Seconde=5} seul = 5000 ms (Heure/Minute écrasés à 0)")
+FIN
+
+
+scenario_duree_nominal()
+scenario_duree_ecrasement()
+
+dbgBilanTest()

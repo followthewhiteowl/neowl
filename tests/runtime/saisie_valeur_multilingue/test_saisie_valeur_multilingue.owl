@@ -1,0 +1,30 @@
+//  §3 : ..Valeur (Saisie) est retypée chaîneMultilingue — accepte
+// un littéral colon-brace multilingue via ..Valeur explicite ET via la
+// propriété par défaut (SAI_X = {...}), et retient l'objet (re-résout au
+// switch de langue), contrairement à une cible chaine simple qui aplatit.
+//
+// Mode headless (store) : pas de widget Qt réel monté, on lit/écrit via
+// le casier d'instance comme les tests SAI_X..Valeur existants (cf.
+// tests/runtime/ui_saisie_valeur_toujours_chaine).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_SaisieValeurMultilingue)
+
+// Affectation explicite via ..Valeur.
+SAI_Explicite..Valeur = {langueFrançais: "bonjour", langueAnglais: "hello"}
+dbgVérifieEgalité(SAI_Explicite..Valeur, "bonjour", "..Valeur accepte le littéral multilingue, résolu langue active")
+
+// Affectation via la propriété par défaut du widget.
+SAI_ParDefaut = {langueFrançais: "salut", langueAnglais: "hi"}
+dbgVérifieEgalité(SAI_ParDefaut..Valeur, "salut", "propriété par défaut accepte le littéral multilingue")
+
+// ..Valeur retient l'objet multilingue (contrairement à une cible chaine
+// simple) : switch de langue -> re-résolution à la lecture.
+Langue(langueAnglais)
+dbgVérifieEgalité(SAI_Explicite..Valeur, "hello", "..Valeur re-résout après switch de langue (retient, ne fige pas)")
+Langue(langueFrançais) // restore
+
+Ferme(FEN_SaisieValeurMultilingue)
+
+dbgBilanTest()

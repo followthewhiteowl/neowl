@@ -1,0 +1,52 @@
+// Équivalence props plates d'apparence ⇔ instance Style pour Bouton
+// (, réplique  depuis Saisie).
+//
+// PoliceCouleur plat <-> Style..Libellé..Couleur (le sous-élément texte du
+// styleBouton) et CouleurFond plat <-> Style..CadreExtérieur..CouleurFond
+// (le sous-élément conteneur) sont désormais unifiés en une seule vérité
+// dans le store (, commit bd39c665).
+//
+// Pattern : la fenêtre voisine FEN_UnifStyleBouton.owl porte la déclaration.
+
+Ouvre(FEN_UnifStyleBouton)
+
+// --- Test 1a : PoliceCouleur plat -> Style..Libellé..Couleur (texte) ---
+BTN_Unif..PoliceCouleur = Bleu
+dbgVérifieEgalité(BTN_Unif..Style..Libellé..Couleur, Bleu, "PoliceCouleur plat visible via Style..Libellé..Couleur")
+
+// --- Test 1b : Style..Libellé..Couleur -> PoliceCouleur plat ---
+BTN_Unif..Style..Libellé..Couleur = JauneClair
+dbgVérifieEgalité(BTN_Unif..PoliceCouleur, JauneClair, "Style..Libellé..Couleur visible via raccourci plat PoliceCouleur")
+
+// --- Test 2 : précédence dernier-écrit-gagne (PoliceCouleur / Libellé) ---
+BTN_Unif..PoliceCouleur           = Rouge
+BTN_Unif..Style..Libellé..Couleur = Vert
+dbgVérifieEgalité(BTN_Unif..PoliceCouleur, Vert, "précédence : dernier écrit (Style..Libellé..Couleur) gagne sur le plat")
+dbgVérifieEgalité(BTN_Unif..Style..Libellé..Couleur, Vert, "précédence : Style cohérent avec le plat après écriture Style")
+
+BTN_Unif..Style..Libellé..Couleur = Bleu
+BTN_Unif..PoliceCouleur           = JauneClair
+dbgVérifieEgalité(BTN_Unif..Style..Libellé..Couleur, JauneClair, "précédence inverse : dernier écrit (plat PoliceCouleur) gagne sur Style")
+dbgVérifieEgalité(BTN_Unif..PoliceCouleur, JauneClair, "précédence inverse : le plat reste cohérent avec lui-même")
+
+// --- Test 3a : CouleurFond plat -> Style..CadreExtérieur..CouleurFond ---
+BTN_Unif..CouleurFond = Rouge
+dbgVérifieEgalité(BTN_Unif..Style..CadreExtérieur..CouleurFond, Rouge, "CouleurFond plat visible via Style..CadreExtérieur..CouleurFond")
+
+// --- Test 3b : Style..CadreExtérieur..CouleurFond -> CouleurFond plat ---
+BTN_Unif..Style..CadreExtérieur..CouleurFond = Vert
+dbgVérifieEgalité(BTN_Unif..CouleurFond, Vert, "Style..CadreExtérieur..CouleurFond visible via raccourci plat CouleurFond")
+
+// --- Test 4 : précédence dernier-écrit-gagne (CouleurFond / CadreExtérieur) ---
+BTN_Unif..CouleurFond                        = Rouge
+BTN_Unif..Style..CadreExtérieur..CouleurFond = Vert
+dbgVérifieEgalité(BTN_Unif..CouleurFond, Vert, "précédence : dernier écrit (Style..CadreExtérieur..CouleurFond) gagne sur le plat")
+dbgVérifieEgalité(BTN_Unif..Style..CadreExtérieur..CouleurFond, Vert, "précédence : Style cohérent avec le plat après écriture Style")
+
+BTN_Unif..Style..CadreExtérieur..CouleurFond = Bleu
+BTN_Unif..CouleurFond                        = JauneClair
+dbgVérifieEgalité(BTN_Unif..Style..CadreExtérieur..CouleurFond, JauneClair, "précédence inverse : dernier écrit (plat CouleurFond) gagne sur Style")
+dbgVérifieEgalité(BTN_Unif..CouleurFond, JauneClair, "précédence inverse : le plat reste cohérent avec lui-même")
+
+Ferme(FEN_UnifStyleBouton)
+dbgBilanTest()

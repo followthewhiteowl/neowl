@@ -1,0 +1,39 @@
+Trace("=== FILE I/O ===")
+
+// fSauveTexte / fChargeTexte (convenience functions)
+fSauveTexte("test_output.txt", "Hello OWL!\nLine 2\nLine 3")
+sContenu est une chaîne = fChargeTexte("test_output.txt")
+dbgVérifieVrai(Position(sContenu, "Hello OWL!") = 1, "fChargeTexte lit le contenu")
+
+// fFichierExiste
+dbgVérifieVrai(fFichierExiste("test_output.txt"), "fFichierExiste sur fichier existant")
+dbgVérifieVrai(PAS fFichierExiste("nexiste_pas.xyz"), "fFichierExiste sur fichier inexistant")
+
+// fTailleFichier
+nTaille est un entier = fTailleFichier("test_output.txt")
+dbgVérifieVrai(nTaille > 0, "fTailleFichier > 0")
+
+// fOuvre / fEcritLigne / fFerme
+nHandle est un entier = fOuvre("test_lines.txt", foCréation)
+dbgVérifieVrai(nHandle > 0, "fOuvre retourne handle valide")
+fEcritLigne(nHandle, "Alpha")
+fEcritLigne(nHandle, "Beta")
+fEcritLigne(nHandle, "Gamma")
+fFerme(nHandle)
+
+// fOuvre en lecture / fLitLigne / fFinFichier
+nHandle = fOuvre("test_lines.txt", foLecture)
+dbgVérifieVrai(nHandle > 0, "fOuvre lecture retourne handle")
+sLigne est une chaîne = fLitLigne(nHandle)
+dbgVérifieEgalité(sLigne, "Alpha", "fLitLigne premiere ligne")
+sLigne = fLitLigne(nHandle)
+dbgVérifieEgalité(sLigne, "Beta", "fLitLigne deuxieme ligne")
+sLigne = fLitLigne(nHandle)
+dbgVérifieEgalité(sLigne, "Gamma", "fLitLigne troisieme ligne")
+fFerme(nHandle)
+
+// Cleanup
+fSupprime("test_output.txt")
+fSupprime("test_lines.txt")
+dbgVérifieVrai(PAS fFichierExiste("test_output.txt"), "Fichier supprime")
+

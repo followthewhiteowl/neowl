@@ -1,0 +1,25 @@
+//  — critère central : sur une fermeture AUTORISÉE, la valeur de retour
+// est bien posée et le handler Fermeture est tiré dans le chemin de fermeture.
+// La valeur reste disponible pour Ouvre (ordre observable préservé).
+//
+// VERT ATTENDU avant ET après l'impl : ce test verrouille l'ordre observable
+// existant sur fermeture autorisée (non-régression). La correction 
+// est asymétrique : elle ne retire la pose de valeur QUE sur le chemin refusé.
+//
+// Observation : la fenêtre voisine se ferme depuis FinInitialisation avec une
+// valeur ; Ouvre capture la ValeurRenvoyée finale.
+
+TestModeHeadless(Vrai)
+
+seq est une chaîne = ""
+
+PROCEDURE callback_verifie(s est une chaîne)
+	seq += s
+FIN
+
+valRenvoyee est une chaîne = Ouvre(FEN_ValeurAutorisee)
+
+dbgVérifieEgalité(valRenvoyee, "valeurAutorisee", "fermeture autorisée : la valeur est posée et remonte à Ouvre")
+dbgVérifieEgalité(seq, "FER;", "fermeture autorisée : le handler Fermeture est tiré dans le chemin de fermeture")
+
+dbgBilanTest()

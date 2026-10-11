@@ -1,0 +1,88 @@
+// @sujet : dbgSortieStandard
+// @résumé : Affiche un message dans la sortie standard du débogueur pour instrumentation et inspection pendant l'exécution. Outil de diagnostic ciblé pour le débogage.
+
+
+// Cas nominal : affichage d'une valeur simple dans la sortie standard
+// du débogueur. Utile pour inspecter rapidement l'état d'une variable
+// pendant une session de débogage.
+PROCEDURE PUBLIQUE scenario_message_simple()
+	nCompteur est un entier = 10
+	dbgSortieStandard(nCompteur)
+	dbgVérifieEgalité(nCompteur, 10, "valeur preservee apres affichage")
+FIN
+
+
+// Arguments multiples : dbgSortieStandard concatène les valeurs en les
+// séparant par un espace. Pratique pour afficher plusieurs variables
+// en un seul appel.
+PROCEDURE PUBLIQUE scenario_arguments_multiples()
+	sNom est une chaîne = "Bob"
+	nScore est un entier = 95
+	dbgSortieStandard("Joueur :", sNom, "score :", nScore)
+	dbgVérifieEgalité(sNom, "Bob", "nom inchange")
+	dbgVérifieEgalité(nScore, 95, "score inchange")
+FIN
+
+
+// Types mixtes : affiche différents types dans un même appel (entiers,
+// chaînes, booléens). Chaque valeur est convertie automatiquement en
+// chaîne pour l'affichage.
+PROCEDURE PUBLIQUE scenario_types_mixtes()
+	nAge est un entier = 28
+	bActif est un booléen = Vrai
+	sStatut est une chaîne = "premium"
+	dbgSortieStandard("age :", nAge, "actif :", bActif, "statut :", sStatut)
+	dbgVérifieEgalité(nAge, 28, "age inchange")
+	dbgVérifieEgalité(bActif, Vrai, "booleen inchange")
+	dbgVérifieEgalité(sStatut, "premium", "statut inchange")
+FIN
+
+
+// Message vide : affiche une ligne vide dans la sortie du débogueur.
+// Utile pour aérer l'affichage entre différentes sections d'inspection.
+PROCEDURE PUBLIQUE scenario_message_vide()
+	dbgSortieStandard("")
+	dbgSortieStandard("apres ligne vide")
+	dbgVérifieVrai(Vrai, "message vide n'a pas leve d'erreur")
+FIN
+
+
+// Instrumentation typique : inspecter des variables intermédiaires
+// dans un calcul pour comprendre le flux d'exécution.
+PROCEDURE PUBLIQUE scenario_inspection_calcul()
+	nQuantite est un entier = 4
+	nPrixUnitaire est un entier = 25
+	dbgSortieStandard("quantite =", nQuantite, "prix unitaire =", nPrixUnitaire)
+	nTotal est un entier = nQuantite * nPrixUnitaire
+	dbgSortieStandard("total =", nTotal)
+	dbgVérifieEgalité(nTotal, 100, "calcul total correct")
+FIN
+
+
+// Edge case : chaîne avec caractères UTF-8 multibytes (émojis). Vérifie
+// que la sortie standard gère correctement les encodages complexes.
+PROCEDURE PRIVÉE scenario_edge_utf8_emoji()
+	sEmoji est une chaîne = "🚀"
+	dbgSortieStandard("lancement :", sEmoji)
+	dbgVérifieEgalité(sEmoji, "🚀", "emoji preserve")
+FIN
+
+
+// Edge case : chaîne avec accents français. Vérifie que les caractères
+// accentués sont affichés correctement dans la sortie débogueur.
+PROCEDURE PRIVÉE scenario_edge_accents()
+	sMessage est une chaîne = "Éléphant égaré"
+	dbgSortieStandard(sMessage)
+	dbgVérifieEgalité(sMessage, "Éléphant égaré", "accents preserves")
+FIN
+
+
+// Edge case : valeur entière négative et zéro. Vérifie l'affichage
+// correct des valeurs limites.
+PROCEDURE PRIVÉE scenario_edge_valeurs_limites()
+	nNegatif est un entier = -42
+	nZero est un entier = 0
+	dbgSortieStandard("negatif :", nNegatif, "zero :", nZero)
+	dbgVérifieEgalité(nNegatif,-42, "negatif preserve")
+	dbgVérifieEgalité(nZero, 0, "zero preserve")
+FIN

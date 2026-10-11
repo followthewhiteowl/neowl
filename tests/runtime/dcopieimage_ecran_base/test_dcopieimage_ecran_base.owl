@@ -1,0 +1,27 @@
+//  — Lot 2 dCopieImageEcran : capture du desktop reel.
+//
+// Comportement :
+//   - Mode normal display : QScreen::grabWindow capture le bureau,
+//     retourne une Image valide.
+//   - Mode test headless (owl test) : pas de display physique, donc
+//     Image invalide + ErreurDétectée avec message clair.
+//
+// Ce test s'execute en mode headless (owl test), donc on attend
+// l'erreur explicite.
+
+img est une Image = dCopieImageEcran()
+// Capture ErreurDetectee AVANT toute autre operation (les appels suivants
+// peuvent reset l'etat erreur global). Pattern canon de référence.
+bErr1 est un booléen = ErreurDétectée
+infoErr1 est une chaîne = ErreurInfo()
+dbgVérifieEgalité(img..Valide, Faux, "dCopieImageEcran headless : Image invalide")
+dbgVérifieVrai(bErr1, "dCopieImageEcran headless : ErreurDétectée")
+dbgVérifieVrai(Position(infoErr1, "headless") > 0 OU Position(infoErr1, "écran") > 0 OU Position(infoErr1, "ecran") > 0, "Message erreur mentionne headless ou ecran")
+
+// Alias EN — meme comportement attendu.
+img2 est une Image = dCopyScreenImage()
+bErr2 est un booléen = ErreurDétectée
+dbgVérifieEgalité(img2..Valide, Faux, "Alias EN dCopyScreenImage headless : Image invalide")
+dbgVérifieVrai(bErr2, "Alias EN : ErreurDétectée")
+
+dbgBilanTest()

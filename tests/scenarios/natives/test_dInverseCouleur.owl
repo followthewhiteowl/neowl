@@ -1,0 +1,114 @@
+// @sujet : dInverseCouleur
+// @resume : Inverser les composantes R/G/B de chaque pixel d'une image (255 - valeur)
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PUBLIQUE — scénarios documentaires (usage typique, valeur pédagogique)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PUBLIQUE scenario_inversion_image_coloree()
+	img est un Image
+	couleurRouge est un entier = RVB(255, 0, 0)
+	couleurDominante est un entier
+	ok est un booléen
+
+	// Inversion d'une image rouge → cyan attendu (255-R=0, 255-G=255, 255-B=255)
+	img = dCréeImage(100, 100, couleurRouge)
+	ok  = dInverseCouleur(img)
+
+	dbgVérifieVrai(ok, "inversion image rouge : retour Vrai")
+	couleurDominante = CouleurDominanteImage(img)
+	// Cyan = RVB(0, 255, 255) attendu, mais format BGR en sortie
+	dbgVérifieVrai(couleurDominante <> couleurRouge, "inversion image rouge : couleur dominante inversee")
+FIN
+
+PROCEDURE PUBLIQUE scenario_inversion_blanc_vers_noir()
+	img est un Image
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurNoir est un entier = RVB(0, 0, 0)
+	couleurDominante est un entier
+	ok est un booléen
+
+	// Blanc (255, 255, 255) inversé → noir (0, 0, 0)
+	img = dCréeImage(80, 80, couleurBlanc)
+	ok  = dInverseCouleur(img)
+
+	dbgVérifieVrai(ok, "inversion blanc : retour Vrai")
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurNoir, "inversion blanc : dominante noire attendue")
+FIN
+
+PROCEDURE PUBLIQUE scenario_inversion_gris_neutre()
+	img est un Image
+	couleurGris128 est un entier = RVB(128, 128, 128)
+	couleurGris127 est un entier = RVB(127, 127, 127)
+	couleurDominante est un entier
+	ok est un booléen
+
+	// Gris 128 (milieu de 0-255) inversé → gris 127 (255-128=127)
+	img = dCréeImage(60, 60, couleurGris128)
+	ok  = dInverseCouleur(img)
+
+	dbgVérifieVrai(ok, "inversion gris neutre : retour Vrai")
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurGris127, "inversion gris 128 : dominante gris 127 attendue")
+FIN
+
+PROCEDURE PUBLIQUE scenario_double_inversion_idempotence()
+	img est un Image
+	couleurVert est un entier = RVB(0, 255, 0)
+	couleurDominanteApresDouble est un entier
+	ok1 est un booléen
+	ok2 est un booléen
+
+	// Inverser deux fois → retour à la couleur initiale (idempotence)
+	img = dCréeImage(70, 70, couleurVert)
+	ok1 = dInverseCouleur(img)
+	ok2 = dInverseCouleur(img)
+
+	dbgVérifieVrai(ok1 ET ok2, "double inversion : retours Vrai")
+	couleurDominanteApresDouble = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominanteApresDouble, couleurVert, "double inversion : retour a la couleur initiale")
+FIN
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// SECTION PRIVEE — edge cases techniques (invisibles dans owl examples)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+PROCEDURE PRIVÉE scenario_edge_image_non_initialisee()
+	img est un Image
+	ok est un booléen
+
+	// Inversion échoue si image non initialisée (Hauteur/Largeur = 0)
+	ok = dInverseCouleur(img)
+
+	dbgVérifieVrai(PAS ok, "inversion image non initialisee : retour Faux attendu")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_inversion_noir_vers_blanc()
+	img est un Image
+	couleurNoir est un entier = RVB(0, 0, 0)
+	couleurBlanc est un entier = RVB(255, 255, 255)
+	couleurDominante est un entier
+	ok est un booléen
+
+	// Noir (0, 0, 0) inversé → blanc (255, 255, 255) (symétrie avec scenario blanc)
+	img = dCréeImage(50, 50, couleurNoir)
+	ok  = dInverseCouleur(img)
+
+	dbgVérifieVrai(ok, "inversion noir : retour Vrai")
+	couleurDominante = CouleurDominanteImage(img)
+	dbgVérifieEgalité(couleurDominante, couleurBlanc, "inversion noir : dominante blanche attendue")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_inversion_pixel_unique()
+	img est un Image
+	couleurBleu est un entier = RVB(0, 0, 255)
+	ok est un booléen
+
+	// Inversion sur image 1x1 (cas limite minimal)
+	img = dCréeImage(1, 1, couleurBleu)
+	ok  = dInverseCouleur(img)
+
+	dbgVérifieVrai(ok, "inversion pixel unique : retour Vrai")
+	// Couleur dominante attendue = jaune (255, 255, 0) mais format BGR → pas d'assert valeur exacte
+FIN

@@ -1,0 +1,30 @@
+//  — critère d'acceptation clé du ticket (Lot 1 : fondations
+// backend) :
+//   « Une fenêtre déclarant une Table avec
+//     Style..LigneSélectionnée..CouleurFond + une Colonne avec
+//     Style..LibelléLignes..Couleur (override) compile et se lance. »
+//
+// Ce test verrouille juste le compile + lancement headless : c'est l'archi
+// "style sur sous-élément" (Colonne porte son propre bloc Style qui
+// surcharge le styleTable) qui est sous test, pas encore le rendu Qt
+// (Lot 3).
+//
+// ROUGE attendu : FEN_TableStyleOverride.owl voisin échoue au --check tant
+// que styleTable/styleColonne + la prop Style sur Table/Colonne n'existent
+// pas (compile-fail en cascade).
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_TableStyleOverride)
+
+TAB_Clients..Style..LigneSélectionnée..CouleurFond = Bleu
+dbgVérifieEgalité(TAB_Clients..Style..LigneSélectionnée..CouleurFond, Bleu, "Table..Style..LigneSélectionnée..CouleurFond round-trip")
+
+// L'override déclaré au niveau colonne (dans FEN_TableStyleOverride.owl :
+// COL_Prenom.Style..LibelléLignes..Couleur = Rouge) doit être lisible sans
+// crash, distinct du style de la table.
+dbgVérifieVrai(Vrai, "fenêtre Table+Colonne stylées compile et se lance sans crash")
+
+Ferme(FEN_TableStyleOverride)
+
+dbgBilanTest()

@@ -1,0 +1,25 @@
+// Non-regression  : l'extension du garde enum aux params allowedOptions
+// ne doit pas casser les usages legitimes de ChaineCompare. Cas couverts :
+// membre valide, combinaison, litteral 0, variable runtime.
+
+PROCEDURE PUBLIQUE test_membre_valide()
+	n est un entier = ChaîneCompare("abc", "ABC", ccSansCasse)
+	dbgVérifieEgalité(n, 0, "ccSansCasse : abc = ABC sans casse -> 0")
+FIN
+
+PROCEDURE PUBLIQUE test_combinaison()
+	n est un entier = ChaîneCompare("café", "CAFE", ccSansCasse + ccSansAccent)
+	dbgVérifieEgalité(n, 0, "ccSansCasse + ccSansAccent : cafe = CAFE -> 0")
+FIN
+
+PROCEDURE PUBLIQUE test_litteral_zero()
+	n est un entier = ChaîneCompare("a", "b", 0)
+	dbgVérifieEgalité(n,-1, "litteral 0 = mode normal : a < b -> -1")
+FIN
+
+PROCEDURE PUBLIQUE test_variable_runtime()
+	// Variable entiere : le compilateur ne peut pas valider au compile -> skip legitime.
+	opt est un entier = ccSansCasse
+	n est un entier = ChaîneCompare("abc", "ABC", opt)
+	dbgVérifieEgalité(n, 0, "variable entiere = ccSansCasse -> comparaison sans casse ok")
+FIN
