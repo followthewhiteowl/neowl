@@ -851,6 +851,56 @@ static void test_window_event_handler(const char* fixtures) {
     dap_kill(&p);
 }
 
+/* T9 : la sortie Trace() du debuggee (texte brut sur stdout, PAS du JSON
+ * protocole) doit remonter en OutputEvent DAP category=stdout dans la Debug
+ * Console. Regression guard : avant le fix, on_child_line jetait toute ligne
+ * non-JSON (parse echoue -> return), donc Trace() n'arrivait jamais a VSCode.
+ * On lance le fixture sans breakpoint (run jusqu'au bout) et on attend un
+ * event output dont la category est stdout et dont le texte contient le
+ * marqueur imprime par Trace. */
+static void test_trace_output_forwarded(const char* fixtures) {
+    DapProc p = {0};
+    if (!dap_spawn(&p)) { report("trace_output_forwarded", false, "spawn owl-dap echoue"); return; }
+
+    char mainRel[1024];
+    snprintf(mainRel, sizeof(mainRel), "%s/trace_output/main.owl", fixtures);
+    char* mainAbs = abspath_dup(mainRel);
+    char mainEsc[1024]; json_escape_path(mainAbs, mainEsc, sizeof(mainEsc));
+
+    int seq = 1;
+    bool seqOk = dap_handshake_launch(&p, mainEsc, &seq);
+    /* Aucun breakpoint : le script Trace puis se termine. */
+    seqOk = seqOk && dap_write_request(&p, seq++, "configurationDone", "{}");
+
+    bool gotStdoutTrace = false;
+    if (seqOk) {
+        /* Boucle sur les events output jusqu'a trouver celui du marqueur
+         * (d'autres lignes stdout peuvent precede), ou deadline. */
+        long long deadline = now_ms() + 8000;
+        for (;;) {
+            int rem = (int)(deadline - now_ms());
+            if (rem <= 0) break;
+            JsonValue* ev = dap_wait_for(&p, "output", NULL, rem);
+            if (!ev) break;  /* timeout, EOF ou terminated : plus d'output a venir */
+            JsonValue* body = json_get(ev, "body");
+            const char* category = body ? json_get_string(body, "category") : NULL;
+            const char* output   = body ? json_get_string(body, "output")   : NULL;
+            if (category && strcmp(category, "stdout") == 0
+                && output && strstr(output, "OWL_DAP_TRACE_MARKER_2266")) {
+                gotStdoutTrace = true;
+                json_free(ev);
+                break;
+            }
+            json_free(ev);
+        }
+    }
+    report("trace_output_forwarded", seqOk && gotStdoutTrace,
+           !seqOk ? "sequence DAP echouee"
+                  : "sortie Trace non remontee en OutputEvent stdout — ligne non-JSON jetee ?");
+    free(mainAbs);
+    dap_kill(&p);
+}
+
 int main(void) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -866,6 +916,7 @@ int main(void) {
     test_method_this_label(fixtures);
     test_inherited_method_frame(fixtures);
     test_window_event_handler(fixtures);
+    test_trace_output_forwarded(fixtures);
 
     printf("----------------------------------------------\n");
     printf("BILAN: %d cas, %d OK, %d FAIL\n", g_pass + g_fail, g_pass, g_fail);

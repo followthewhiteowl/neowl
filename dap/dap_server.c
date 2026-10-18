@@ -128,23 +128,32 @@ void dap_send_event(const char* eventName, JsonValue* body) {
  * par owl_debug_hook) et les traduit en events DAP que VSCode comprend.
  * Les responses synchrones (avec id) sont gerees par dap_child_request
  * en amont — elles ne passent pas par ici. */
+/* Wrap une ligne child (texte brut) en OutputEvent DAP category=stdout, pour
+ * que VSCode l'affiche dans la Debug Console. Sert aux sorties user code (Trace,
+ * messages d'erreur OWL) qui ne sont pas du protocole. */
+static void dap_forward_stdout_line(const char* line) {
+    JsonValue* body = json_new_object();
+    json_object_set(body, "category", json_new_string("stdout"));
+    char buf[8200];
+    snprintf(buf, sizeof(buf), "%s\n", line);
+    json_object_set(body, "output", json_new_string(buf));
+    dap_send_event("output", body);
+}
+
 static void on_child_line(const char* line) {
-    /* Parse rapide pour detecter un event. Si pas un event, log et
-     * ignore (les Trace user code apparaissent ici en V0). */
+    /* Parse rapide pour detecter un event. Une ligne non-JSON (ex : Trace
+     * user code en texte brut sur stdout) n'est pas du protocole : on la
+     * forward telle quelle en OutputEvent pour la Debug Console. */
     JsonValue* msg = json_parse(line, (int)strlen(line));
-    if (!msg) return;
+    if (!msg) {
+        dap_forward_stdout_line(line);
+        return;  /* msg NULL : pas de json_free */
+    }
 
     const char* eventName = json_get_string(msg, "event");
     if (!eventName) {
-        /* Pas un event JSON : c'est probablement du user code (Trace,
-         * ou un message d'erreur OWL). Wrap en OutputEvent DAP pour
-         * que VSCode l'affiche dans Debug Console. */
-        JsonValue* body = json_new_object();
-        json_object_set(body, "category", json_new_string("stdout"));
-        char buf[8200];
-        snprintf(buf, sizeof(buf), "%s\n", line);
-        json_object_set(body, "output", json_new_string(buf));
-        dap_send_event("output", body);
+        /* JSON valide sans "event" : probablement du user code aussi. */
+        dap_forward_stdout_line(line);
         json_free(msg);
         return;
     }

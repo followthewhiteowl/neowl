@@ -1,12 +1,40 @@
-// Cadre syntaxes 2 + 3 : assignation declarative Cadre = monCadre a un
-// widget dans le bloc PROPRIETES d'un Champ Libelle, monCadre etant une
-// variable declaree au top-level du bloc Fenetre voisine FEN_X.
-// Prouve que la reference declarative compile ET s'ouvre sans erreur.
+// Cadre syntaxes 2 + 3 sur widget.
+//
+// Syntaxe 2 (declaratif) : Cadre = monCadre dans le bloc PROPRIETES d'un
+// Champ Libelle, monCadre etant une variable declaree au top-level du bloc
+// Fenetre voisine FEN_X. On prouve que la reference declarative compile ET
+// s'ouvre sans erreur, puis que les sous-props declarees y arrivent bien.
+//
+// Syntaxe 3 (acces direct) : modification directe d'une sous-prop du cadre
+// APRES declaration, via la chaine `..` (LIB_X..Cadre..Epaisseur = valeur).
+// On verrouille par round-trip de la valeur effective relue.
 
 ErreurRAZ()
 Ouvre(FEN_X)
 dbgVérifieFaux(ErreurDétectée,
 "Cadre = monCadre en PROPRIETES declaratif : ouverture sans erreur")
+
+// Syntaxe 2 : les sous-props declarees dans monCadre sont bien portees par
+// le cadre du widget (valeurs posees dans FEN_X.owl).
+dbgVérifieEgalité(LIB_X..Cadre..Epaisseur, 5,
+"Syntaxe 2 : Epaisseur declaree (monCadre) portee par le widget")
+dbgVérifieEgalité(LIB_X..Cadre..Arrondi, 6,
+"Syntaxe 2 : Arrondi declare (monCadre) porte par le widget")
+
+// Syntaxe 3 : ecriture directe d'une sous-prop apres Ouvre, valeurs distinctes
+// des defauts pour prouver que l'ecriture agit (pas une relecture du defaut).
+LIB_X..Cadre..Epaisseur = 1
+dbgVérifieEgalité(LIB_X..Cadre..Epaisseur, 1,
+"Syntaxe 3 : Epaisseur ecrite en direct (round-trip 5 -> 1)")
+
+LIB_X..Cadre..Arrondi = 12
+dbgVérifieEgalité(LIB_X..Cadre..Arrondi, 12,
+"Syntaxe 3 : Arrondi ecrit en direct (round-trip 6 -> 12)")
+
+LIB_X..Cadre..Couleur = RVB(10, 20, 30)
+dbgVérifieEgalité(LIB_X..Cadre..Couleur, RVB(10, 20, 30),
+"Syntaxe 3 : Couleur ecrite en direct (round-trip)")
+
 Ferme(FEN_X)
 
 dbgBilanTest()

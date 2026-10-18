@@ -164,7 +164,7 @@ réserver aux objets sans ressource externe à fermer.
 
 Une méthode inline peut porter des modificateurs explicites entre
 `PROCEDURE` et son nom : `PUBLIC`, `PRIVÉ` / `PRIVATE`, `PROTÉGÉ` /
-`PROTECTED`, `GLOBALE` / `GLOBAL`, `ABSTRAITE` / `ABSTRACT`.
+`PROTECTED`, `GLOBALE`, `ABSTRAITE` / `ABSTRACT`.
 
 ```owl
 cCompte est une Classe

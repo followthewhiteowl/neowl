@@ -11507,6 +11507,8 @@ static OwlControl* table_arg_or_error(Value v, const char* fnName) {
 static ObjUiControlInstance* table_uici_from_arg(Value v);
 static void table_store_append_row(ObjUiControlInstance* uici,
                                     Value* values, int n);
+static void table_store_insert_row(ObjUiControlInstance* uici, int row,
+                                   Value* values, int n);
 static void table_store_set_row(ObjUiControlInstance* uici, int row,
                                 Value* values, int n);
 static void table_store_remove_row(ObjUiControlInstance* uici, int row);
@@ -11532,21 +11534,25 @@ static void ui_fire_table_row_display(ObjUiControlInstance* uici, int idx_1based
 static Value fn_table_ajoute_ligne(int argCount, Value* args) {
     if (argCount < 1) {
         fprintf(stderr, "[TableAjouteLigne] argument(s) attendu(s).\n");
-        return NIL_VAL;
+        return INTEGER_VAL(-1);
     }
     OwlControl* table = table_arg_or_error(args[0], "TableAjouteLigne");
     /* Note : table peut etre NULL en headless (pas de widget Qt) sans que ce
      * soit une erreur — table_arg_or_error retourne uici->widget. On distingue
      * l'erreur de type via le store : si l'uici est resolvable, on continue. */
     ObjUiControlInstance* uici = table_uici_from_arg(args[0]);
-    if (!table && !uici) return NIL_VAL;
+    if (!table && !uici) return INTEGER_VAL(-1);
+    /* Canon : retour = indice 1-based de la ligne ajoutee = nouveau compte du
+     * store apres append. Le store est maintenu dans les deux modes (widget ou
+     * headless), c'est donc la source unique de l'indice. */
     int n = argCount - 1;
     if (n <= 0) {
         if (table) owl_ui_table_append_row(table, NULL, 0);
         table_store_append_row(uici, NULL, 0);
         ObjArray* items0 = widget_items_store_peek_uici(uici);
-        if (items0) ui_fire_table_row_display(uici, items0->elements.count);
-        return NIL_VAL;
+        int idx0 = items0 ? items0->elements.count : -1;
+        if (idx0 >= 1) ui_fire_table_row_display(uici, idx0);
+        return INTEGER_VAL(idx0);
     }
     /* Store headless : rep ObjInstance typee (Value d'origine). */
     table_store_append_row(uici, &args[1], n);
@@ -11554,13 +11560,14 @@ static Value fn_table_ajoute_ligne(int argCount, Value* args) {
         /*  — surAffichageLigne(indice) au rendu de la ligne (calque
          * ZR). Indice 1-based = nouveau compte du store. */
         ObjArray* items = widget_items_store_peek_uici(uici);
-        if (items) ui_fire_table_row_display(uici, items->elements.count);
-        return NIL_VAL;
+        int idx = items ? items->elements.count : -1;
+        if (idx >= 1) ui_fire_table_row_display(uici, idx);
+        return INTEGER_VAL(idx);
     }
     const char** cells = (const char**)malloc((size_t)n * sizeof(char*));
     if (!cells) {
         fprintf(stderr, "[TableAjouteLigne] allocation echouee.\n");
-        return NIL_VAL;
+        return INTEGER_VAL(-1);
     }
     /* keep[] retient les ObjString temporaires (value_to_string) le temps
      * de l'appel a owl_ui_table_append_row qui copie dans QString. */
@@ -11579,10 +11586,90 @@ static Value fn_table_ajoute_ligne(int argCount, Value* args) {
     free(cells);
     free(keep);
     /*  — surAffichageLigne(indice) apres rendu de la ligne Qt. */
-    {
-        ObjArray* items = widget_items_store_peek_uici(uici);
-        if (items) ui_fire_table_row_display(uici, items->elements.count);
+    ObjArray* items = widget_items_store_peek_uici(uici);
+    int idx = items ? items->elements.count : -1;
+    if (idx >= 1) ui_fire_table_row_display(uici, idx);
+    return INTEGER_VAL(idx);
+}
+
+/* Ligne en cours (1-based) d'un champ Table monte, 0 si aucune selection ou
+ * en mode headless (pas de widget). Sert aux cas "indice absent" et "-1". */
+static int table_current_row_1based(OwlControl* table) {
+    if (!table) return 0;
+    int r = owl_ui_table_get_selected_row_n(table, 1);
+    return r > 0 ? r : 0;
+}
+
+/* TableInsereLigne(table [, indice [, col1 [... colN]]]) — canon 3074026.
+ * Insere une ligne a l'indice 1-based donne, decalant les lignes suivantes.
+ *   indice absent   -> avant la ligne en cours ; aucune -> a la fin.
+ *   indice > nb     -> a la fin.
+ *   indice = 0      -> au debut.
+ *   indice = -1     -> avant la ligne en cours ; aucune -> a la fin.
+ * Pas de valeur de retour (contraste avec TableAjouteLigne). */
+static Value fn_table_insere_ligne(int argCount, Value* args) {
+    if (argCount < 1) {
+        fprintf(stderr, "[TableInsereLigne] argument(s) attendu(s).\n");
+        return NIL_VAL;
     }
+    OwlControl* table = table_arg_or_error(args[0], "TableInsereLigne");
+    ObjUiControlInstance* uici = table_uici_from_arg(args[0]);
+    if (!table && !uici) return NIL_VAL;
+
+    ObjArray* items = widget_items_store_peek_uici(uici);
+    int count = items ? items->elements.count : 0;
+
+    bool hasIndex = (argCount >= 2);
+    Value* values = (argCount > 2) ? &args[2] : NULL;
+    int nvals = (argCount > 2) ? (argCount - 2) : 0;
+
+    int current = table_current_row_1based(table);
+    int pos;  /* indice 1-based ou la ligne inseree atterrit */
+    if (!hasIndex) {
+        pos = (current >= 1) ? current : count + 1;
+    } else {
+        if (!IS_INTEGER(args[1])) {
+            fprintf(stderr, "[TableInsereLigne] indice doit etre un entier (1-based).\n");
+            return NIL_VAL;
+        }
+        int idx = (int)AS_INTEGER(args[1]);
+        if (idx == 0)            pos = 1;
+        else if (idx == -1)      pos = (current >= 1) ? current : count + 1;
+        else if (idx > count)    pos = count + 1;
+        else if (idx < 1)        pos = 1;   /* autres negatifs : debut */
+        else                     pos = idx;
+    }
+
+    table_store_insert_row(uici, pos, values, nvals);
+
+    if (table) {
+        const char** cells = NULL;
+        ObjString** keep = NULL;
+        if (nvals > 0) {
+            cells = (const char**)malloc((size_t)nvals * sizeof(char*));
+            keep = (ObjString**)calloc((size_t)nvals, sizeof(ObjString*));
+            if (!cells) {
+                fprintf(stderr, "[TableInsereLigne] allocation echouee.\n");
+                free(keep);
+                return NIL_VAL;
+            }
+            for (int i = 0; i < nvals; i++) {
+                Value v = values[i];
+                if (IS_STRING(v)) {
+                    cells[i] = AS_CSTRING(v);
+                } else {
+                    ObjString* s = value_to_string(v);
+                    if (keep) keep[i] = s;
+                    cells[i] = s ? s->chars : "";
+                }
+            }
+        }
+        owl_ui_table_insert_row(table, pos, cells, nvals);
+        free(cells);
+        free(keep);
+    }
+
+    ui_fire_table_row_display(uici, pos);
     return NIL_VAL;
 }
 
@@ -13072,6 +13159,28 @@ static void table_store_append_row(ObjUiControlInstance* uici,
     } else {
         value_array_write(&items->elements, NIL_VAL);
     }
+}
+/* Insere une rep de ligne a l'indice row (1-based), decalant les lignes >=
+ * row vers le bas. Clamp : row<1 => debut (1), row>count+1 => fin (count+1).
+ * Symetrique de table_store_append_row. */
+static void table_store_insert_row(ObjUiControlInstance* uici, int row,
+                                   Value* values, int n) {
+    if (!uici) return;
+    ObjArray* items = widget_items_store_get_or_create_uici(uici);
+    if (!items) return;
+    int count = items->elements.count;
+    if (row < 1) row = 1;
+    if (row > count + 1) row = count + 1;
+    ObjInstance* rep = table_build_headless_rep(uici, values, n);
+    if (!rep) return;
+    /* Pousse d'abord une case (grow + GC root via obj_array_push), puis
+     * decale les lignes >= row d'un cran avant de poser la rep. */
+    vm_push(OBJ_VAL(rep));  /* root pendant le grow */
+    obj_array_push(items, NIL_VAL);
+    vm_pop();
+    for (int i = items->elements.count - 1; i >= row; i--)
+        items->elements.values[i] = items->elements.values[i - 1];
+    items->elements.values[row - 1] = OBJ_VAL(rep);
 }
 static void table_store_set_row(ObjUiControlInstance* uici, int row,
                                 Value* values, int n) {
@@ -15474,6 +15583,7 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("Iconise", fn_iconise);
     stdlib_ui_defs_set_impl("Restaure", fn_restaure);
     stdlib_ui_defs_set_impl("TableAjouteLigne", fn_table_ajoute_ligne);
+    stdlib_ui_defs_set_impl("TableInsereLigne", fn_table_insere_ligne);
     stdlib_ui_defs_set_impl("TableSupprime", fn_table_supprime);
     stdlib_ui_defs_set_impl("TableSupprimeTout", fn_table_supprime_tout);
     stdlib_ui_defs_set_impl("TableOccurrence", fn_table_occurrence);

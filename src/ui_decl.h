@@ -232,6 +232,12 @@ typedef struct OwlControlDecl {
      * effectif n'est pas bornable. */
     int                bound_max_line, bound_max_col;
     int                bound_min_line, bound_min_col;
+    /*  — position (line/col, 1-based ; 0 = non posé) d'un
+     * FormatAffichage déclaré sur un Champ Saisie. Sert au warning
+     * cross-propriété différé (le TypeSaisie peut suivre FormatAffichage dans
+     * le bloc) : émis après le parse complet du body si le format est enrichi
+     * alors que le type de saisie effectif n'est pas multiligne. */
+    int                faff_line, faff_col;
     int                line;
 } OwlControlDecl;
 

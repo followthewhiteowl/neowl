@@ -130,6 +130,10 @@ int debug_disassemble_instruction(Chunk* chunk, int offset) {
         case OP_ARRAY_LENGTH:  return simple_instruction("OP_ARRAY_LENGTH", offset);
         case OP_STRUCT_GET:    return constant_instruction("OP_STRUCT_GET", chunk, offset);
         case OP_STRUCT_SET:    return constant_instruction("OP_STRUCT_SET", chunk, offset);
+        case OP_STRUCT_GET_OR_CREATE_OBJ: return constant_instruction("OP_STRUCT_GET_OR_CREATE_OBJ", chunk, offset);
+        case OP_STRUCT_GET_OR_CREATE_ARR: return constant_instruction("OP_STRUCT_GET_OR_CREATE_ARR", chunk, offset);
+        case OP_ARRAY_GET_OR_CREATE_OBJ: return simple_instruction("OP_ARRAY_GET_OR_CREATE_OBJ", offset);
+        case OP_ARRAY_GET_OR_CREATE_ARR: return simple_instruction("OP_ARRAY_GET_OR_CREATE_ARR", offset);
         case OP_TRY:           return jump_instruction("OP_TRY", 1, chunk, offset);
         case OP_END_TRY:       return simple_instruction("OP_END_TRY", offset);
         case OP_EXC_RESTORE:   return simple_instruction("OP_EXC_RESTORE", offset);

@@ -283,6 +283,82 @@ void mysql_write_com_ping(OwlLeBuffer* buf, uint8_t seq) {
 }
 
 /* ================================================================
+ * Requetes preparees
+ * ================================================================ */
+
+void mysql_write_com_stmt_prepare(OwlLeBuffer* buf, uint8_t seq, const char* sql) {
+    size_t off = mysql_pkt_begin(buf, seq);
+    owl_le_buffer_write_u8(buf, MYSQL_COM_STMT_PREPARE);
+    if (sql) {
+        owl_le_buffer_write_bytes(buf, sql, strlen(sql));
+    }
+    mysql_pkt_end(buf, off);
+}
+
+void mysql_write_com_stmt_execute(OwlLeBuffer* buf, uint8_t seq,
+                                  uint32_t statement_id,
+                                  int n_params,
+                                  const OwlMysqlBindValue* params) {
+    size_t off = mysql_pkt_begin(buf, seq);
+    owl_le_buffer_write_u8 (buf, MYSQL_COM_STMT_EXECUTE);
+    owl_le_buffer_write_u32(buf, statement_id);
+    owl_le_buffer_write_u8 (buf, 0x00);   /* flags : CURSOR_TYPE_NO_CURSOR */
+    owl_le_buffer_write_u32(buf, 1);      /* iteration_count (toujours 1) */
+
+    if (n_params > 0) {
+        /* null-bitmap : 1 bit par parametre, set si NULL. */
+        int nb_bytes = (n_params + 7) / 8;
+        for (int i = 0; i < nb_bytes; i++) {
+            uint8_t byte = 0;
+            for (int b = 0; b < 8; b++) {
+                int idx = i * 8 + b;
+                if (idx < n_params && params[idx].kind == OWL_MYSQL_BIND_NULL) {
+                    byte |= (uint8_t)(1u << b);
+                }
+            }
+            owl_le_buffer_write_u8(buf, byte);
+        }
+
+        /* new_params_bound_flag : 1 -> les types suivent. */
+        owl_le_buffer_write_u8(buf, 0x01);
+
+        /* Un u16 (type + flag) par parametre. */
+        for (int i = 0; i < n_params; i++) {
+            owl_le_buffer_write_u16(buf, owl_mysql_bind_type_code(&params[i]));
+        }
+
+        /* Les valeurs liees (hors NULL). */
+        for (int i = 0; i < n_params; i++) {
+            if (params[i].kind != OWL_MYSQL_BIND_NULL) {
+                owl_mysql_bind_write_value(buf, &params[i]);
+            }
+        }
+    }
+
+    mysql_pkt_end(buf, off);
+}
+
+bool mysql_parse_stmt_prepare_ok(const uint8_t* payload, size_t payload_len,
+                                 MysqlStmtPrepareOk* out) {
+    if (out == NULL) return false;
+    memset(out, 0, sizeof(*out));
+    OwlLeBuffer in;
+    owl_le_buffer_attach_read(&in, payload, payload_len);
+
+    uint8_t status;
+    if (!owl_le_buffer_read_u8(&in, &status)) return false;
+    if (status != 0x00) return false;   /* COM_STMT_PREPARE_OK attendu */
+    if (!owl_le_buffer_read_u32(&in, &out->statement_id)) return false;
+    if (!owl_le_buffer_read_u16(&in, &out->num_columns))  return false;
+    if (!owl_le_buffer_read_u16(&in, &out->num_params))   return false;
+    /* reserved_1 (0x00) puis warning_count : tolerants si tronque. */
+    uint8_t reserved;
+    (void)owl_le_buffer_read_u8(&in, &reserved);
+    (void)owl_le_buffer_read_u16(&in, &out->warnings);
+    return true;
+}
+
+/* ================================================================
  * OK packet parsing
  * ================================================================ */
 

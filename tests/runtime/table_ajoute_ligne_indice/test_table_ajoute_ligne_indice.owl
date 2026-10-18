@@ -1,0 +1,34 @@
+// ============================================
+// TEST (headless) : TableAjouteLigne retourne l'indice 1-based de la ligne
+// ajoutée (nouveau nombre de lignes du store), -1 sur erreur.
+//
+// Lisible en headless via le store de lignes (pas de widget Qt matérialisé).
+// Pattern : la fenêtre voisine FEN_AjoutIndice.owl porte les déclarations.
+// ============================================
+
+Ouvre(FEN_AjoutIndice)
+
+// --- Appels successifs avec valeurs de colonnes : indices 1, 2, 3. ---
+i1 est un entier = TableAjouteLigne(TAB_Data, "a1", "b1")
+dbgVérifieEgalité(i1, 1, "1re ligne ajoutée -> indice 1")
+
+i2 est un entier = TableAjouteLigne(TAB_Data, "a2", "b2")
+dbgVérifieEgalité(i2, 2, "2e ligne ajoutée -> indice 2")
+
+i3 est un entier = TableAjouteLigne(TAB_Data, "a3", "b3")
+dbgVérifieEgalité(i3, 3, "3e ligne ajoutée -> indice 3")
+
+// --- Chemin sans valeur de colonne : append + indice suivant. ---
+i4 est un entier = TableAjouteLigne(TAB_Data)
+dbgVérifieEgalité(i4, 4, "ligne vide ajoutée -> indice 4")
+
+// --- Chemin d'erreur : argument table invalide -> -1. ---
+iErr1 est un entier = TableAjouteLigne(42, "x")
+dbgVérifieEgalité(iErr1, -1, "arg non-Table -> -1")
+
+iErr2 est un entier = TableAjouteLigne("INEXISTANT", "y")
+dbgVérifieEgalité(iErr2, -1, "nom de Table inexistant -> -1")
+
+Ferme(FEN_AjoutIndice)
+
+dbgBilanTest()

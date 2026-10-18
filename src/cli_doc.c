@@ -1697,16 +1697,17 @@ int cli_doc_help(int argc, char** argv) {
  * ------------------------------------------------------------------ */
 
 int cli_doc_primer(int argc, char** argv) {
-    /* Délègue à `learn apercu` */
-    char* primer_argv[3];
+    /* Délègue à `learn apercu` en reportant TOUS les flags reçus (--plain,
+     * --json, …). Borne : "learn" + "apercu" + les (argc-1) flags = argc+1.
+     * Plafond statique raisonnable (pas de VLA C99) ; au-delà on tronque. */
+    enum { PRIMER_ARGV_MAX = 32 };
+    char* primer_argv[PRIMER_ARGV_MAX];
     primer_argv[0] = "learn";
     primer_argv[1] = "apercu";
     int new_argc = 2;
-    /* Propage les flags reçus (--plain, --json, --lang en) */
-    for (int i = 1; i < argc && new_argc < 3; i++) {
+    for (int i = 1; i < argc && new_argc < PRIMER_ARGV_MAX; i++) {
         primer_argv[new_argc++] = argv[i];
     }
-    (void)argc;
     return cli_doc_learn(new_argc, primer_argv);
 }
 
@@ -1760,30 +1761,46 @@ static int learn_show(const DocOpts* opts, const char* query) {
         return 2;
     }
 
-    /* Bilingue (V0) : la version EN sera embarquée séparément quand
-     * disponible (docs/public_documentation/en, fichiers .md anglais). Pour
-     * l'instant, FR partout avec note explicite si EN demandé. */
-    if (opts->lang == DOC_LANG_EN && !opts->json) {
-        fprintf(stderr, "%s[FR fallback — EN translation pending]%s\n\n",
-                C_DIM, C_RESET);
+    /* Bilingue : sous --lang en, servir la variante EN appariee par stem dans
+     * la table parallele EMBEDDED_PUBLIC_DOCS_EN (modele viewer, main.c).
+     * EMBEDDED_PUBLIC_DOCS reste pur FR : on ne sert l'EN que
+     * depuis cette table, aucune fiche .en autonome ne fuite. Si la variante
+     * manque reellement -> bandeau de repli honnete (jamais de FR deguise en
+     * EN), chemin conserve meme si aujourd'hui tous les chapitres ont leur .en. */
+    const OwlEmbeddedDoc* en = NULL;
+    if (opts->lang == DOC_LANG_EN) {
+        for (const OwlEmbeddedDoc* e = EMBEDDED_PUBLIC_DOCS_EN; e->name; e++) {
+            if (strcmp(e->name, d->name) == 0) { en = e; break; }
+        }
     }
 
     if (opts->json) {
         printf("{\n  \"name\": ");
         json_write_cstr(d->name);
         printf(",\n  \"path\": ");
-        json_write_cstr(d->path);
-        printf(",\n  \"lang\": \"fr\"");
-        if (opts->lang == DOC_LANG_EN) {
-            printf(",\n  \"lang_requested\": \"en\",\n  \"lang_fallback\": true");
+        json_write_cstr(en ? en->path : d->path);
+        if (en) {
+            printf(",\n  \"lang\": \"en\"");
+        } else {
+            printf(",\n  \"lang\": \"fr\"");
+            if (opts->lang == DOC_LANG_EN) {
+                printf(",\n  \"lang_requested\": \"en\",\n  \"lang_fallback\": true");
+            }
         }
         printf(",\n  \"content\": ");
-        json_write_string(d->data, d->len);
+        if (en) json_write_string(en->data, en->len);
+        else    json_write_string(d->data, d->len);
         printf("\n}\n");
         return 0;
     }
 
-    render_markdown_to_terminal(d->data, d->len);
+    if (opts->lang == DOC_LANG_EN && !en) {
+        fprintf(stderr, "%s[not yet available in English — French fallback]%s\n\n",
+                C_DIM, C_RESET);
+    }
+
+    if (en) render_markdown_to_terminal(en->data, en->len);
+    else    render_markdown_to_terminal(d->data, d->len);
     return 0;
 }
 

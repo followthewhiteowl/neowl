@@ -137,6 +137,21 @@ done
 # Chaque cfg staged est relocalise (placeholders + DEFAULT vides) : zero chemin
 # absolu de build dans le mega.
 LINUX_BUILD_DIR="$ROOT/_local/build/release_x86_64-linux-musl"
+
+# Garde-fou de staleness. Les libs owl linux viennent d'un build separe
+# (release-linux via WSL) que mega NE relance PAS : toute modif d'owl_core
+# les perime silencieusement, et le cross-build linux casse plus tard sur un
+# symbole manquant. Si la lib linux existe mais est plus vieille qu'une source
+# de src/, on refuse ici plutot que de stager une cible morte. Si LINUX_BUILD_DIR
+# est absent (mega sans cible linux), on ne fait rien : comportement inchange.
+LIBOWL_LINUX="$LINUX_BUILD_DIR/lib/linux-x86_64/libowl_core.a"
+if [ -f "$LIBOWL_LINUX" ]; then
+    if [ -n "$(find "$ROOT/src" -maxdepth 1 \( -name '*.c' -o -name '*.h' \) -newer "$LIBOWL_LINUX" -print -quit)" ]; then
+        echo "package_dist: libs owl linux perimees (plus anciennes que src/) — relance 'make release-linux' avant 'make mega'." >&2
+        exit 1
+    fi
+fi
+
 for bd in "$BUILD_DIR" "$LINUX_BUILD_DIR"; do
     [ -d "$bd/lib" ] || continue
     for triple_dir in "$bd/lib"/*/ ; do

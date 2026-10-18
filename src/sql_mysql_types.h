@@ -20,6 +20,7 @@
 
 #include "common.h"
 #include "value.h"
+#include "net_le_buffer.h"
 
 /* Type bytes MySQL — extrait de mysql_com.h. */
 typedef enum {
@@ -66,5 +67,48 @@ typedef enum {
  * sur le heap OWL via obj_copy_string / obj_new_buffer). */
 Value owl_mysql_value_to_owl(uint8_t mysql_type, uint16_t flags,
                                const uint8_t* value_bytes, int32_t value_len);
+
+/* ================================================================
+ * Requetes preparees : valeurs liees (COM_STMT_EXECUTE binary protocol)
+ * ================================================================ */
+
+/* Type logique d'une valeur liee envoyee server-side. La conversion
+ * Value OWL -> OwlMysqlBindValue est faite par le caller (stdlib_sql),
+ * ce qui garde cette couche independante de la VM. */
+typedef enum {
+    OWL_MYSQL_BIND_NULL,
+    OWL_MYSQL_BIND_INT,
+    OWL_MYSQL_BIND_REAL,
+    OWL_MYSQL_BIND_BOOL,
+    OWL_MYSQL_BIND_STRING,   /* bytes non-ownants, valides pendant l'envoi */
+} OwlMysqlBindKind;
+
+typedef struct {
+    OwlMysqlBindKind kind;
+    int64_t     i_val;
+    double      r_val;
+    bool        b_val;
+    const uint8_t* s_bytes;
+    size_t      s_len;
+} OwlMysqlBindValue;
+
+/* Code type MySQL d'une valeur liee, sous la forme attendue dans l'entete
+ * COM_STMT_EXECUTE : octet bas = MYSQL_TYPE_*, octet haut = flag (0x80 si
+ * non signe). Ici tout est signe -> octet haut 0. */
+uint16_t owl_mysql_bind_type_code(const OwlMysqlBindValue* b);
+
+/* Ecrit la valeur liee en protocole binaire dans buf (sans le null-bitmap,
+ * qui est gere en amont). NULL n'ecrit rien (presence signalee par le
+ * bitmap). */
+void owl_mysql_bind_write_value(OwlLeBuffer* buf, const OwlMysqlBindValue* b);
+
+/* Decode une valeur de colonne en protocole binaire (resultset de
+ * COM_STMT_EXECUTE) du type `mysql_type` depuis `in`, et append sa forme
+ * texte canonique dans `textbuf`. *out_off / *out_len reperent la valeur
+ * dans textbuf (resolus en pointeur par le caller une fois textbuf stable,
+ * car l'append peut realloc). Retourne false si tronque. */
+bool owl_mysql_binary_read_to_text(OwlLeBuffer* in, uint8_t mysql_type,
+                                   uint16_t flags, OwlLeBuffer* textbuf,
+                                   size_t* out_off, size_t* out_len);
 
 #endif

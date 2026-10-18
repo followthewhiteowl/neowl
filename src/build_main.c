@@ -25,14 +25,12 @@
 
 #ifdef _WIN32
 #  include <direct.h>
-#  define MKDIR(p) _mkdir(p)
 #  define PATH_SEP "\\"
 #  define EXE_SUFFIX ".exe"
 #  define HOST_TARGET "windows-x86_64"
 #else
 #  include <sys/types.h>
 #  include <unistd.h>
-#  define MKDIR(p) mkdir((p), 0755)
 #  define PATH_SEP "/"
 #  define EXE_SUFFIX ""
 #  if defined(__APPLE__)
@@ -41,6 +39,13 @@
 #    define HOST_TARGET "linux-x86_64"
 #  endif
 #endif
+
+/* Bascule la console Windows en UTF-8 (CP 65001) le temps du process, sinon
+ * les accents de l'aide sortent en mojibake sur une console CP-1252/850.
+ * Defini dans platform.c (version _WIN32 reelle + no-op Unix) ; owl.exe
+ * l'appelle en tete de son main. owl-build a son propre main : forward-decl
+ * locale, meme convention que main.c (pas de header partage pour ce helper). */
+void owl_force_utf8_console(void);
 
 static int dir_exists(const char* path) {
     struct stat st;
@@ -64,44 +69,6 @@ static int ends_with_owl(const char* name) {
         && (s[1] == 'o' || s[1] == 'O')
         && (s[2] == 'w' || s[2] == 'W')
         && (s[3] == 'l' || s[3] == 'L');
-}
-
-/* mkdir -p equivalent. Cree tous les parents necessaires. */
-static int mkdirs(const char* path) {
-    if (dir_exists(path)) return 0;
-    char buf[1024];
-    size_t len = strlen(path);
-    if (len >= sizeof(buf)) return -1;
-    memcpy(buf, path, len + 1);
-    /* Normalise tous les separateurs vers '/' pour iteration */
-    for (size_t i = 0; i < len; i++) {
-        if (buf[i] == '\\') buf[i] = '/';
-    }
-    /* Cree chaque parent intermediaire */
-    for (size_t i = 1; i < len; i++) {
-        if (buf[i] == '/') {
-            buf[i] = '\0';
-            /* Saute les segments racine qu'on ne peut (ni ne doit) creer :
-             *   ""   -> slash de tete d'un chemin absolu POSIX ("/foo")
-             *   "C:" -> lettre de lecteur Windows (mkdir("C:") echoue). */
-            int is_root = (buf[0] == '\0') ||
-                          (buf[1] == ':' && buf[2] == '\0' &&
-                           ((buf[0] >= 'A' && buf[0] <= 'Z') ||
-                            (buf[0] >= 'a' && buf[0] <= 'z')));
-            if (!is_root && !dir_exists(buf)) {
-                if (MKDIR(buf) != 0 && !dir_exists(buf)) {
-                    fprintf(stderr, "owl-build: cannot create directory '%s'\n", buf);
-                    return -1;
-                }
-            }
-            buf[i] = '/';
-        }
-    }
-    if (MKDIR(buf) != 0 && !dir_exists(buf)) {
-        fprintf(stderr, "owl-build: cannot create directory '%s'\n", buf);
-        return -1;
-    }
-    return 0;
 }
 
 static int has_install_layout(const char* root) {
@@ -155,12 +122,16 @@ static void print_usage(void) {
             "  owl-build [PROJECT_DIR] [-o NAME] [--target TRIPLE]\n"
             "\n"
             "Arguments:\n"
-            "  PROJECT_DIR     OWL project directory (default: .)\n"
+            "  PROJECT_DIR     OWL project directory (required; use '.' for the\n"
+            "                  current directory)\n"
             "  -o NAME         Name of the produced binary (default: project folder name)\n"
             "  --target TRIPLE Target of the produced binary (default: " HOST_TARGET ", the\n"
             "                  host platform). Available targets are those embedded in\n"
             "                  this owl-build binary. Output goes into the\n"
             "                  exe/<TRIPLE>/ subfolder.\n"
+            "  --prepare       Warm up the extraction cache for the target, then exit\n"
+            "                  (no project required). The next build for that target\n"
+            "                  starts immediately. Handy for a background install step.\n"
             "  -h, --help      Show this help\n"
             "  -v, --version   Show the version\n"
             "  --lang fr|en    Output language (default: fr); --en / --fr shortcuts\n"
@@ -168,9 +139,11 @@ static void print_usage(void) {
             "Output: <PROJECT_DIR>/exe/<TARGET>/<NAME>" EXE_SUFFIX "\n"
             "\n"
             "Examples:\n"
-            "  owl-build                       # build . into ./exe/" HOST_TARGET "/<dir>" EXE_SUFFIX "\n"
+            "  owl-build .                     # build . into ./exe/" HOST_TARGET "/<dir>" EXE_SUFFIX "\n"
             "  owl-build my_project            # build my_project into my_project/exe/...\n"
             "  owl-build my_project -o app     # custom name (app" EXE_SUFFIX ")\n"
+            "  owl-build --prepare             # warm up extraction for the host target\n"
+            "  owl-build --prepare --target linux-x86_64  # warm up another target\n"
             "\n"
             "Requirements: no external compiler. owl-build embeds its own toolchain;\n"
             "it produces a standalone binary with no host dependency.\n"
@@ -184,22 +157,29 @@ static void print_usage(void) {
         "  owl-build [PROJECT_DIR] [-o NAME] [--target TRIPLE]\n"
         "\n"
         "Arguments:\n"
-        "  PROJECT_DIR     Dossier du projet OWL (default: .)\n"
-        "  -o NAME         Nom du binaire produit (default: nom du dossier projet)\n"
-        "  --target TRIPLE Cible du binaire produit (default: " HOST_TARGET ", la\n"
+        "  PROJECT_DIR     Dossier du projet OWL (requis ; `.` pour le dossier\n"
+        "                  courant)\n"
+        "  -o NAME         Nom du binaire produit (défaut : nom du dossier projet)\n"
+        "  --target TRIPLE Cible du binaire produit (défaut : " HOST_TARGET ", la\n"
         "                  plateforme hote). Les cibles disponibles sont celles\n"
         "                  embarquees dans ce binaire owl-build. La sortie va dans\n"
         "                  le sous-dossier exe/<TRIPLE>/.\n"
+        "  --prepare       Prechauffe le cache d'extraction pour la cible, puis\n"
+        "                  sort (aucun projet requis). Le build suivant pour cette\n"
+        "                  cible demarre immediatement. Utile pour une etape\n"
+        "                  d'installation en arriere-plan.\n"
         "  -h, --help      Affiche cette aide\n"
         "  -v, --version   Affiche la version\n"
-        "  --lang fr|en    Langue de sortie (defaut: fr) ; raccourcis --en / --fr\n"
+        "  --lang fr|en    Langue de sortie (défaut : fr) ; raccourcis --en / --fr\n"
         "\n"
         "Sortie : <PROJECT_DIR>/exe/<TARGET>/<NAME>" EXE_SUFFIX "\n"
         "\n"
         "Exemples:\n"
-        "  owl-build                       # build . dans ./exe/" HOST_TARGET "/<dir>" EXE_SUFFIX "\n"
+        "  owl-build .                     # build . dans ./exe/" HOST_TARGET "/<dir>" EXE_SUFFIX "\n"
         "  owl-build mon_projet            # build mon_projet dans mon_projet/exe/...\n"
         "  owl-build mon_projet -o app     # nom personnalise (app" EXE_SUFFIX ")\n"
+        "  owl-build --prepare             # prechauffe l'extraction pour la cible hote\n"
+        "  owl-build --prepare --target linux-x86_64  # prechauffe une autre cible\n"
         "\n"
         "Pré-requis : aucun compilateur externe. owl-build embarque sa propre\n"
         "toolchain ; il produit un binaire autonome sans dependance hote.\n"
@@ -213,23 +193,32 @@ static void print_usage(void) {
  * owl-build a son propre main : il ne peut pas reutiliser parse_session_flags
  * (static dans main.c), d'ou ce parsing local qui pose le meme global partage. */
 static int consume_lang_flag(const char* arg, const char* rest) {
-    if (strcmp(arg, "--en") == 0) { owl_error_render_set_lang_en(1); return 1; }
-    if (strcmp(arg, "--fr") == 0) { owl_error_render_set_lang_en(0); return 1; }
-    if (strncmp(arg, "--lang=", 7) == 0) {
-        owl_error_render_set_lang_en(strcmp(arg + 7, "en") == 0);
+    if (strcasecmp(arg, "--en") == 0) { owl_error_render_set_lang_en(1); return 1; }
+    if (strcasecmp(arg, "--fr") == 0) { owl_error_render_set_lang_en(0); return 1; }
+    if (strncasecmp(arg, "--lang=", 7) == 0) {
+        owl_error_render_set_lang_en(strcasecmp(arg + 7, "en") == 0);
         return 1;
     }
-    if (strcmp(arg, "--lang") == 0 && rest != NULL) {
-        owl_error_render_set_lang_en(strcmp(rest, "en") == 0);
+    if (strcasecmp(arg, "--lang") == 0 && rest != NULL) {
+        owl_error_render_set_lang_en(strcasecmp(rest, "en") == 0);
         return 2;
     }
     return 0;
 }
 
 int main(int argc, char* argv[]) {
-    const char* dir = ".";
+    /* UTF-8 sur la console AVANT toute sortie : l'aide et les messages
+     * bilingues contiennent des accents (« Pré-requis », « défaut »). */
+    owl_force_utf8_console();
+
+    /* Sentinelle NULL : posee UNIQUEMENT par un argument positionnel. Sans
+     * dossier projet explicite (invocation nue, ou flags seuls), on affiche
+     * l'usage et on sort, sans rien extraire ni builder. Pour packager le
+     * dossier courant, l'utilisateur le designe par `.`. */
+    const char* dir = NULL;
     const char* outputName = NULL;
     const char* target = HOST_TARGET;  /* triple : windows-x86_64, linux-x86_64 */
+    int prepareOnly = 0;  /* --prepare : prechauffe l'extraction du payload puis sort */
 
     /* Pre-scan des flags de langue avant toute emission : `--help` et les
      * messages fail-fast doivent suivre --lang/--en/--fr quel que soit leur
@@ -252,6 +241,8 @@ int main(int argc, char* argv[]) {
             outputName = argv[++i];
         } else if (strcmp(argv[i], "--target") == 0 && i + 1 < argc) {
             target = argv[++i];
+        } else if (strcmp(argv[i], "--prepare") == 0) {
+            prepareOnly = 1;
         } else if (argv[i][0] == '-') {
             fprintf(stderr, owl_error_render_lang_is_en()
                 ? "owl-build: unknown option '%s' — see --help\n"
@@ -260,6 +251,48 @@ int main(int argc, char* argv[]) {
         } else {
             dir = argv[i];
         }
+    }
+
+    /* --prepare : prechauffe le cache d'extraction du payload pour `target`,
+     * puis sort. Ne resout aucun projet, ne cree aucun dossier exe/. Pensee
+     * pour un installeur qui paie l'extraction a l'avance (en arriere-plan)
+     * afin que le 1er vrai build demarre immediatement. Traite AVANT le check
+     * `dir == NULL` : prepare n'exige pas de projet. */
+    if (prepareOnly) {
+        char selfPath[1024];
+        uint64_t pOffset, pSize;
+        int hasPayload = (owl_get_self_path(selfPath, sizeof(selfPath)) == 0
+                          && owl_payload_check(selfPath, &pOffset, &pSize) == 0);
+        if (!hasPayload) {
+            /* Binaire dev / dist non single-file : rien a extraire. Pas une
+             * erreur — l'installeur peut appeler --prepare inconditionnellement. */
+            printf(owl_error_render_lang_is_en()
+                ? "owl-build: nothing to prepare (this binary embeds no payload).\n"
+                : "owl-build: rien à préparer (ce binaire n'embarque pas de charge).\n");
+            return 0;
+        }
+        char prepRoot[1024];
+        /* owl_payload_setup affiche la progression si extraction effective, et
+         * ne dit rien si le cache est deja chaud. On emet un message unique
+         * « prêt » valable dans les deux cas pour rester simple et robuste. */
+        if (owl_payload_setup(target, prepRoot, sizeof(prepRoot)) != 0) {
+            fprintf(stderr, owl_error_render_lang_is_en()
+                ? "owl-build: failed to prepare the payload (target=%s).\n"
+                : "owl-build: échec de la préparation de la charge (cible=%s).\n", target);
+            return 70;
+        }
+        printf(owl_error_render_lang_is_en()
+            ? "owl-build: ready (target=%s). Builds for this target will start immediately.\n"
+            : "owl-build: prêt (cible=%s). Les builds pour cette cible démarreront immédiatement.\n",
+            target);
+        return 0;
+    }
+
+    /* Aucun dossier positionnel fourni -> l'usage, puis on sort. Rien n'est
+     * extrait (on n'atteint pas owl_payload_setup) ni builde. */
+    if (dir == NULL) {
+        print_usage();
+        return 0;
     }
 
     if (!dir_exists(dir)) {
@@ -303,12 +336,14 @@ int main(int argc, char* argv[]) {
         if (*outputName == '\0') outputName = "app";
     }
 
-    /* Construit <dir>/exe/<target>/ et le cree si besoin. */
+    /* Construit le chemin <dir>/exe/<target>/ SANS le creer : le dossier de
+     * sortie n'est materialise que lorsque le build va reellement produire
+     * l'exe (build_project, juste avant le link). Sinon un build qui echoue en
+     * amont (portail de compile, etc.) laisserait un `exe/<target>/` vide,
+     * trompeur pour l'utilisateur. Ici on ne calcule que la chaine,
+     * passee a build_project via outPath. */
     char outDir[1024];
     snprintf(outDir, sizeof(outDir), "%s%sexe%s%s", dir, PATH_SEP, PATH_SEP, target);
-    if (mkdirs(outDir) != 0) {
-        return 65;
-    }
 
     /* Suffix .exe selon le target (pas le host) : windows-* -> .exe,
      * linux-* / macos-* -> rien. */
@@ -327,7 +362,7 @@ int main(int argc, char* argv[]) {
      *   2. Dev / dist non-mega : cherche en relatif a argv[0] ou cwd. */
     char* installRoot = NULL;
     char extracted[1024];
-    if (owl_payload_setup(extracted, sizeof(extracted)) == 0) {
+    if (owl_payload_setup(target, extracted, sizeof(extracted)) == 0) {
         installRoot = strdup(extracted);
     } else {
         installRoot = find_install_root(argv[0]);

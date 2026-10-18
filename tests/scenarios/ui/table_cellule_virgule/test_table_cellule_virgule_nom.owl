@@ -1,0 +1,30 @@
+// Accès à une cellule de Table par la syntaxe virgule, colonne désignée par
+// son NOM : `TABLE[ligne, COL_X]..Propriété`. Extension permissive au-delà
+// du numéro de colonne, cohérente avec la forme existante `TABLE.COL_X[ligne]`
+// qui résout déjà un nom de colonne.
+//
+// Aujourd'hui, `COL_Valeur` dans la position colonne de `TABLE[ligne, COL_X]`
+// est résolu comme une variable d'expression ordinaire, pas comme un nom de
+// colonne : la compilation échoue avant même l'exécution ("variable inconnue
+// ou inaccessible"). Une erreur de compilation ne peut pas être interceptée
+// par une exception à l'exécution : ce fichier est donc isolé des autres
+// scénarios du dossier pour que son échec de compilation (attendu aujourd'hui)
+// n'affecte que lui.
+
+TestModeHeadless(Faux)
+
+CST_ORANGE est un entier = RVB(210, 105, 0)
+
+PROCEDURE PUBLIQUE scenario_virgule_nom_ecriture_couleur_fond()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	nLigne est un entier = 1
+
+	TABLE_Lot[nLigne, COL_Valeur]..CouleurFond = CST_ORANGE
+
+	// Mesure de l'effet réel via la forme double-crochet (déjà fonctionnelle).
+	dbgVérifieEgalité(TABLE_Lot[nLigne][2]..CouleurFond, CST_ORANGE,
+	"virgule+nom : la cellule visée par le nom de colonne porte la couleur posée")
+
+	Ferme(FEN_CelluleVirgule)
+FIN

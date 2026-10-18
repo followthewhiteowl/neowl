@@ -158,6 +158,16 @@ static bool dir_has_file(const char* dir, const char* marker) {
     return ok;
 }
 
+/* Vrai si le dossier `dir` contient, A SON TOP-LEVEL (pas en recursif), le
+ * marqueur de projet de graphie `spelling` ("projet.owl" FR ou "project.owl"
+ * EN). Wrap public de dir_has_file : owl-build verifie la frontiere du dossier
+ * donne AVANT de lancer le scan recursif, au lieu de recursiver depuis
+ * n'importe quel dossier ( : un dossier sans marqueur a sa frontiere
+ * n'active pas le scan recursif). */
+bool project_dir_has_marker(const char* dir, const char* spelling) {
+    return dir_has_file(dir, spelling);
+}
+
 /* Extrait le dossier parent de `filepath` dans `dirOut` (separateurs `/`).
  * Si `filepath` n'a pas de separateur, renvoie ".". */
 static void parent_dir_of(const char* filepath, char* dirOut, size_t dirSize) {

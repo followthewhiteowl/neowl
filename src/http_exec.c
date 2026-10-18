@@ -1279,6 +1279,24 @@ static bool service_type_is_array(const char* typeName) {
     return strstr(t, "tableau") != NULL || strstr(t, "array") != NULL;
 }
 
+/* Un parametre de type structure attend un corps JSON. Le Content-Type entrant
+ * arbitre : absent / vide = statu quo (on tente le parse). Sinon, seul le media
+ * type `application/json` (ses parametres `; charset=...` ignores) ou un sous-type
+ * a suffixe `+json` (ex `application/vnd.api+json`) compte comme JSON ; tout autre
+ * type explicite est refuse en 415 sans tenter le parse. */
+static bool service_ct_est_json(const char* ct) {
+    if (ct == NULL) return true;
+    while (*ct == ' ' || *ct == '\t') ct++;
+    if (*ct == '\0') return true;
+    /* Media type = jusqu'au ';' ou a un espace ; bornes de fin rognees. */
+    const char* end = ct;
+    while (*end != '\0' && *end != ';' && *end != ' ' && *end != '\t') end++;
+    size_t n = (size_t)(end - ct);
+    if (n == 16 && strncasecmp(ct, "application/json", 16) == 0) return true;
+    if (n > 5 && strncasecmp(end - 5, "+json", 5) == 0) return true;
+    return false;
+}
+
 /* Extrait la valeur d'un parametre de query dans une cible `/x?k=v&k2=v2`.
  * Aucun percent-decodage (les valeurs simples suffisent au contrat courant).
  * Retourne true si trouve, remplit out (borne). */
@@ -2276,6 +2294,25 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
                 vm_push(service_coerce_scalar("", p->typeName));
             }
         } else { /* OWL_SVC_SRC_BODY */
+            const char* tn = p->typeName ? p->typeName : "?";
+            /* Negociation Content-Type : un corps structure attend du JSON. Un
+             * type explicite non-JSON -> 415 SANS parse, avec un message clair
+             * (plus de rejet muet). Content-Type absent/application/json ->
+             * statu quo (parse ci-dessous). */
+            if (!service_ct_est_json(j->contentType)) {
+                vm.stackTop = svcSavedTop;
+                vm_event_sender_pop();       /* unroot rep */
+                owl_multipart_free(&mpForm);
+                mp_temps_cleanup(&mpTemps);
+                char msg[320];
+                int mlen = snprintf(msg, sizeof(msg),
+                    "Unsupported Content-Type. This endpoint expects a JSON "
+                    "request body (type %s).", tn);
+                if (mlen < 0) mlen = 0;
+                if ((size_t)mlen >= sizeof(msg)) mlen = (int)sizeof(msg) - 1;
+                return owl_http_rep_cree_tampon(415, "text/plain", msg,
+                                                (size_t)mlen);
+            }
             Value bodyVal;
             int rc = owl_json_bind_body(p->typeName, j->corps, j->corps_len,
                                         &bodyVal);
@@ -2286,8 +2323,16 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
                 vm_event_sender_pop();       /* unroot rep */
                 owl_multipart_free(&mpForm);
                 mp_temps_cleanup(&mpTemps);
-                int statutErr = (rc == 1) ? 400 : 500;
-                return owl_http_rep_cree_tampon(statutErr, "text/plain", NULL, 0);
+                if (rc == 1) {
+                    char msg[320];
+                    int mlen = snprintf(msg, sizeof(msg),
+                        "Request body is not valid JSON (type %s expected).", tn);
+                    if (mlen < 0) mlen = 0;
+                    if ((size_t)mlen >= sizeof(msg)) mlen = (int)sizeof(msg) - 1;
+                    return owl_http_rep_cree_tampon(400, "text/plain", msg,
+                                                    (size_t)mlen);
+                }
+                return owl_http_rep_cree_tampon(500, "text/plain", NULL, 0);
             }
             vm_push(bodyVal);
         }

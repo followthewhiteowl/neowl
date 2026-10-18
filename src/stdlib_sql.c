@@ -992,6 +992,46 @@ static Value ferme_mysql(ObjInstance* cnx) {
     return BOOL_VAL(true);
 }
 
+/* Transforme {nom} en '?' positionnel pour une requete preparee MySQL.
+ * Chaque occurrence de {nom} devient un '?' : les '?' sont positionnels, donc
+ * une repetition du meme nom produit plusieurs '?' lies a la meme valeur. Le
+ * SQL retrecit toujours ({nom} -> ?), d'ou un buffer de len+1. */
+static char* transform_placeholders_mysql(const char* sql) {
+    if (!sql) return NULL;
+    size_t len = strlen(sql);
+    char* out = (char*)malloc(len + 1);
+    if (!out) return NULL;
+    size_t j = 0;
+    for (size_t i = 0; i < len; ) {
+        if (sql[i] == '{') {
+            size_t end = i + 1;
+            while (end < len && sql[end] != '}') end++;
+            if (end < len) { out[j++] = '?'; i = end + 1; continue; }
+        }
+        out[j++] = sql[i++];
+    }
+    out[j] = '\0';
+    return out;
+}
+
+/* Convertit une Value OWL en valeur liee MySQL (non-ownante sur les bytes).
+ * Retourne false si le type n'est pas bindable. */
+static bool mysql_value_to_bind(Value v, OwlMysqlBindValue* out) {
+    memset(out, 0, sizeof(*out));
+    if (IS_NIL(v))     { out->kind = OWL_MYSQL_BIND_NULL; return true; }
+    if (IS_BOOL(v))    { out->kind = OWL_MYSQL_BIND_BOOL; out->b_val = AS_BOOL(v); return true; }
+    if (IS_INTEGER(v)) { out->kind = OWL_MYSQL_BIND_INT;  out->i_val = AS_INTEGER(v); return true; }
+    if (IS_REAL(v))    { out->kind = OWL_MYSQL_BIND_REAL; out->r_val = AS_REAL(v); return true; }
+    if (IS_STRING(v)) {
+        ObjString* s = AS_STRING(v);
+        out->kind    = OWL_MYSQL_BIND_STRING;
+        out->s_bytes = (const uint8_t*)s->chars;
+        out->s_len   = (size_t)s->length;
+        return true;
+    }
+    return false;
+}
+
 static Value envoie_mysql(ObjInstance* cnx, ObjInstance* req) {
     OwlMysqlConn* my = cnx_get_handle_mysql(cnx);
     if (my == NULL) {
@@ -1016,24 +1056,89 @@ static Value envoie_mysql(ObjInstance* cnx, ObjInstance* req) {
     }
     const char* sql = AS_CSTRING(codeVal);
 
-    /* Parametres bind : non supportes en V2.2 (prepared statements à venir). */
+    /* Parametres -> requete preparee server-side (COM_STMT_PREPARE/EXECUTE).
+     * Les valeurs partent liees, jamais concatenees dans le SQL. */
+    bool has_params = false;
+    ObjAssocArray* params_assoc = NULL;
     Value paramsVal;
     ObjString* k_params = obj_copy_string("Parametres", 10);
     if (table_get(&req->fields, k_params, &paramsVal) &&
         IS_OBJ(paramsVal) && OBJ_TYPE(paramsVal) == OBJ_ASSOC_ARRAY) {
-        ObjAssocArray* params = AS_ASSOC_ARRAY(paramsVal);
-        if (params->count > 0) {
-            owl_emit_native_error(E_NATIVE_ARG_INVALID, "SQLEnvoie (MySQL)",
-                                  "native", "SQLEnvoie (MySQL)",
-                                  "arg", "Parametres",
-                                  NULL);
-            return build_error_reponse();
-        }
+        params_assoc = AS_ASSOC_ARRAY(paramsVal);
+        if (params_assoc->count > 0) has_params = true;
     }
 
     OwlMysqlResult r;
     owl_mysql_result_init(&r);
-    bool ok = owl_mysql_simple_query(my, sql, &r);
+    bool ok;
+    if (has_params) {
+        char* sql2 = transform_placeholders_mysql(sql);
+        if (!sql2) {
+            owl_emit_native_error(E_NATIVE_OUT_OF_MEMORY, "SQLEnvoie (MySQL)",
+                                  "native", "SQLEnvoie (MySQL)",
+                                  NULL);
+            return build_error_reponse();
+        }
+        int n_q = 0;
+        for (const char* p = sql2; *p; p++) if (*p == '?') n_q++;
+
+        OwlMysqlBindValue* binds =
+            (OwlMysqlBindValue*)calloc((size_t)(n_q ? n_q : 1),
+                                       sizeof(OwlMysqlBindValue));
+        if (!binds) {
+            free(sql2);
+            owl_emit_native_error(E_NATIVE_OUT_OF_MEMORY, "SQLEnvoie (MySQL)",
+                                  "native", "SQLEnvoie (MySQL)",
+                                  NULL);
+            return build_error_reponse();
+        }
+
+        /* Re-itere le SQL original : chaque {nom} -> valeur liee dans l'ordre.
+         * Un nom absent de Parametres est lie a NULL (meme tolerance que
+         * Postgres). Un type non bindable arrete avec un message explicite. */
+        bool conv_ok = true;
+        char bind_err_msg[256];
+        bind_err_msg[0] = '\0';
+        int qi = 0;
+        for (size_t i = 0; sql[i] && conv_ok; ) {
+            if (sql[i] == '{') {
+                size_t end = i + 1;
+                while (sql[end] && sql[end] != '}') end++;
+                if (sql[end] == '}') {
+                    size_t nlen = end - (i + 1);
+                    ObjString* key = obj_copy_string(sql + i + 1, (int)nlen);
+                    int exists = 0;
+                    Value v = obj_assoc_get(params_assoc, key, &exists);
+                    if (!exists) {
+                        binds[qi].kind = OWL_MYSQL_BIND_NULL;
+                        qi++;
+                    } else if (!mysql_value_to_bind(v, &binds[qi])) {
+                        snprintf(bind_err_msg, sizeof(bind_err_msg),
+                                 "SQLEnvoie (MySQL) bind {%.*s}: type non supporte",
+                                 (int)nlen, sql + i + 1);
+                        conv_ok = false;
+                        break;
+                    } else {
+                        qi++;
+                    }
+                    i = end + 1;
+                    continue;
+                }
+            }
+            i++;
+        }
+
+        if (conv_ok) {
+            ok = owl_mysql_prepared_query(my, sql2, n_q, binds, &r);
+        } else {
+            ok = false;
+            snprintf(r.error_message, sizeof(r.error_message), "%s", bind_err_msg);
+        }
+        free(binds);
+        free(sql2);
+    } else {
+        ok = owl_mysql_simple_query(my, sql, &r);
+    }
     if (!ok) {
         char detail_buf[512];
         snprintf(detail_buf, sizeof(detail_buf), "%s",

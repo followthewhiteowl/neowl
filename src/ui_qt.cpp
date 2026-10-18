@@ -4322,16 +4322,12 @@ static void owl_table_apply_stored_col_colors(QTableView* view,
  * owl_ui_table_set_column_editable). Defini plus bas. */
 static bool owl_table_column_is_editable(const QWidget* w, int col);
 
-extern "C" void owl_ui_table_append_row(OwlControl* table,
-                                        const char* const* cells_utf8,
-                                        int n_cells) {
-    if (!table) return;
-    QTableView* view = reinterpret_cast<QTableView*>(table);
-    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
-    if (!model) return;
+/* Remplit une ligne DEJA inseree (row0, 0-based) dans le modele a partir des
+ * cellules UTF-8. Factorise entre append (fin) et insert (indice). */
+static void owl_table_populate_row(QTableView* view, QStandardItemModel* model,
+                                   int row0, const char* const* cells_utf8,
+                                   int n_cells) {
     int colCount = model->columnCount();
-    int row = model->rowCount();
-    model->insertRow(row);
     for (int c = 0; c < colCount; c++) {
         const char* txt = (c < n_cells && cells_utf8) ? cells_utf8[c] : nullptr;
         QStandardItem* item = new QStandardItem(QString::fromUtf8(txt ? txt : ""));
@@ -4358,8 +4354,37 @@ extern "C" void owl_ui_table_append_row(OwlControl* table,
          * touche : son toggle reste garde par owl_table_checkbox_toggle_allowed. */
         if (!owl_table_column_is_editable(view, c))
             item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-        model->setItem(row, c, item);
+        model->setItem(row0, c, item);
     }
+}
+
+extern "C" void owl_ui_table_append_row(OwlControl* table,
+                                        const char* const* cells_utf8,
+                                        int n_cells) {
+    if (!table) return;
+    QTableView* view = reinterpret_cast<QTableView*>(table);
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return;
+    int row = model->rowCount();
+    model->insertRow(row);
+    owl_table_populate_row(view, model, row, cells_utf8, n_cells);
+}
+
+/* Insere une ligne a l'indice row_1based (1-based), decalant les lignes >=
+ * cet indice vers le bas. Clamp : <1 => debut (0), >rowCount => fin. */
+extern "C" void owl_ui_table_insert_row(OwlControl* table, int row_1based,
+                                        const char* const* cells_utf8,
+                                        int n_cells) {
+    if (!table) return;
+    QTableView* view = reinterpret_cast<QTableView*>(table);
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return;
+    int rc = model->rowCount();
+    int idx = row_1based - 1;
+    if (idx < 0) idx = 0;
+    if (idx > rc) idx = rc;
+    model->insertRow(idx);
+    owl_table_populate_row(view, model, idx, cells_utf8, n_cells);
 }
 
 extern "C" void owl_ui_table_remove_row(OwlControl* table, int row_1based) {

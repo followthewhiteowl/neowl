@@ -6,8 +6,12 @@
  * aussi au build. Zero dep externe.
  *
  * Usage : pack_zip <source_dir> <output.zip>
- * Compresse en niveau 0 (no compression) car le payload sera embarque
- * dans owl-build.exe — extract speed > taille.
+ * Compresse en DEFLATE (niveau 6) : le payload est embarque dans
+ * owl-build.exe, et un payload compresse divise la taille de distribution
+ * de l'exe (download + scan initial de l'exe par l'antivirus). L'extraction
+ * decompresse en transparence via miniz ; le cout CPU de la decompression
+ * DEFLATE est negligeable devant l'ecriture disque et le scan antivirus de
+ * l'arbre extrait.
  *
  * Build :
  *   gcc -O2 scripts/pack_zip.c vendor/miniz/miniz.c \
@@ -65,11 +69,12 @@ static void walk_dir(const char* abs_dir, const char* rel_prefix) {
         if (S_ISDIR(st.st_mode)) {
             walk_dir(abs_path, rel_path);
         } else if (S_ISREG(st.st_mode)) {
-            /* Niveau 0 = no compression, beaucoup plus rapide a extract.
-             * Le payload sera dans un megafile compresse au niveau OS si
-             * besoin via packaging release ulterieur. */
+            /* DEFLATE niveau 6 : compresse le payload embarque dans
+             * owl-build.exe pour reduire la taille de distribution. miniz
+             * decompresse en transparence a l'extraction (cout CPU
+             * negligeable vs ecriture disque / scan antivirus). */
             if (!mz_zip_writer_add_file(&g_zip, rel_path, abs_path,
-                                        NULL, 0, MZ_NO_COMPRESSION)) {
+                                        NULL, 0, MZ_DEFAULT_LEVEL)) {
                 fprintf(stderr, "pack_zip: failed to add '%s'\n", rel_path);
                 g_errors++;
             } else {

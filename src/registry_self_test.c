@@ -5679,6 +5679,7 @@ static bool dpl_doc_vocab_known(const char* name) {
         /* mots-cles structurels DSL absents du catalogue keyword runtime */
         "PROPRIETES", "PROPRIÉTÉS", "PROPERTIES", "RESTREINT",
         "COLONNES", "COLUMNS", "ServiceREST", "OpérationHTTP", "OperationHTTP",
+        "HTTPOperation", /* miroir EN canon d'OpérationHTTP (40_services_rest.en) */
         /* types SQL cites dans les fiches connecteurs (13/14_sql) */
         "VARBINARY", "NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "TEXT", "NTEXT",
         "INT", "BIGINT", "SMALLINT", "TINYINT", "BIT", "DECIMAL", "NUMERIC",
@@ -5687,6 +5688,7 @@ static bool dpl_doc_vocab_known(const char* name) {
         /* evenements cites en forme courte dans les fiches lifecycle/test */
         "Clic", "DoubleClic", "Modification", "Ouverture", "Fermeture",
         "Initialisation", "Survol", "Molette", "Saisie", "Selection", "Sélection",
+        "Click", /* miroir EN de 'Clic' (11_charte_de_test.en : callback courte forme) */
         /* proprietes de type nommees en backtick sans prefixe `..` */
         "Source", "RépondreÀ", "RepondreA",
         NULL
@@ -5705,10 +5707,13 @@ static bool dpl_allowlisted(const char* name) {
     static const char* ALLOW[] = {
         /* identifiants d'exemple de tutoriels (getters/setters, placeholders) */
         "CalculerTVA",      /* 12_prefixes : nom de procedure d'exemple */
+        "ComputeVAT",       /* 12_prefixes (variante EN) : pendant de CalculerTVA */
         "Solde", "DefinirSolde", "LargeurChange", /* 06_poo : getter/setter d'exemple */
+        "Balance", "SetBalance", "WidthChange", /* 06_poo (variante EN) : pendants de Solde/DefinirSolde/LargeurChange */
         "Foo",              /* 15_lifecycle_champs : placeholder d'appel */
         "f",                /* 10_conventions / 17_init : fonction placeholder */
         "maProc",           /* 17_init : procedure utilisateur d'exemple */
+        "myProc",           /* 17_init (variante EN) : pendant de maProc */
         /* concept retire du langage */
         "Main",             /*  : plus de Main() auto-appele */
         /* technos / marques externes citees en prose */
@@ -6086,6 +6091,43 @@ static void check_rule65_ui_native_impl_wired(Reporter* r) {
     }
 }
 
+/* ============================================================
+ * Regle 66 : la forme EN du NOM de type resout (invariant 3) — 
+ *
+ * Garde du chemin de resolution : pour tout type dont nameEN est present ET
+ * distinct (casse+accent) de canonical/canonicalAscii, owl_registry_type_find
+ * (nameEN) doit rendre CE MEME type (identite pointeur). Sans ce chemin, un
+ * type dont la forme EN ne vit que dans nameEN (ni alias, ni double natif/type)
+ * compile en FR mais echoue en EN avec "Type inconnu" — viol de l'invariant 3
+ * (bilingue FR<->EN) sur le NOM du type composé, pas seulement ses champs.
+ *
+ * Ce n'est PAS un mandat de completude : on n'exige pas que tout type AIT un
+ * nameEN (la presence est couverte ailleurs). On ne fait qu'asserter que, quand
+ * un nameEN distinct existe, il est effectivement resoluble. */
+static void check_rule66_type_name_en_resolves(Reporter* r) {
+    int nt = owl_registry_types_count();
+    for (int i = 0; i < nt; i++) {
+        const OwlTypeDef* t = owl_registry_type_at(i);
+        if (!t || !t->canonical || str_empty(t->nameEN)) continue;
+        /* nameEN non distinct de canonical/canonicalAscii : resolution deja
+         * assuree par le match FR (accent/casse-insensible), rien a verifier. */
+        if (owl_name_matches(t->canonical, t->nameEN)) continue;
+        if (t->canonicalAscii && owl_name_matches(t->canonicalAscii, t->nameEN)) continue;
+        const OwlTypeDef* got = owl_registry_type_find(t->nameEN);
+        if (got != t) {
+            char detail[400];
+            snprintf(detail, sizeof(detail),
+                "nameEN '%s' ne resout pas vers son type (invariant 3 bilingue) : "
+                "owl_registry_type_find('%s') rend %s. La forme EN du nom de type "
+                "doit resoudre au meme titre que la forme FR — verifier le match "
+                "nameEN dans owl_registry_type_find.",
+                t->nameEN, t->nameEN,
+                got ? got->canonical : "NULL");
+            rep_violation(r, "type_name_en_unresolvable", t->canonical, detail);
+        }
+    }
+}
+
 int registry_self_test_run(FILE* out) {
     Reporter r;
     rep_init(&r, out);
@@ -6160,6 +6202,7 @@ int registry_self_test_run(FILE* out) {
     check_rule63_doc_phantom_natives(&r);          /*  volet B : lint anti-natives-fantomes doc embarquee */
     check_rule64_pdf_native_impl_wired(&r);         /*  : natives Etats/PDF toutes cablees en build GUI */
     check_rule65_ui_native_impl_wired(&r);          /*  : natives UI toutes cablees en build GUI */
+    check_rule66_type_name_en_resolves(&r);          /*  : forme EN du nom de type resout (invariant 3) */
 
     fputs("\n  ],\n", out);
     fprintf(out, "  \"violation_count\": %d,\n", r.count);

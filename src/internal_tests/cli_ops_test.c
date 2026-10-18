@@ -25,6 +25,11 @@
  * entre deux compilations independantes dans un meme process — cf. testing.c. */
 extern void compiler_reset_poo_state(void);
 
+/* Flag de suppression totale des warnings compilateur (compiler.c). Les
+ * binaires packages par owl-build l'activent ; verifie ici qu'il tait tout
+ * warning, et qu'une fois eteint le temoin reapparait. */
+extern void owl_set_warnings_suppressed(bool suppressed);
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -573,6 +578,26 @@ static void test_check_lone_file_still_reports_unused(void) {
     CHECK_RC(rc, 0, "owl --check <fichier seul dans son dossier> -> exit 0");
     CHECK_HAS("Variable 'tabSeulInutilise' est déclarée mais jamais utilisée.",
               "fichier sans voisin : l'avertissement d'inutilisation subsiste");
+}
+
+/* Garantie dure du flag de suppression (exe produit par owl-build) : avec le
+ * flag actif, AUCUN warning n'atteint la console, meme sur une variable
+ * reellement inutilisee ; le flag eteint, le temoin reapparait. Verrou contre
+ * une re-fuite des warnings cote binaire client (support #422). */
+static void test_warnings_suppressed_flag_tait_tout(void) {
+    char* argv[] = { "owl", "tests/internal_fixtures/check_seul/seul.owl" };
+
+    owl_set_warnings_suppressed(true);
+    int rc = capture_call(check_shim, 2, argv);
+    owl_set_warnings_suppressed(false);  /* restaure AVANT les asserts (pas de fuite inter-tests) */
+    CHECK_RC(rc, 0, "owl --check avec warnings supprimes -> exit 0");
+    CHECK(strstr(g_buf, "jamais utilisée") == NULL,
+          "flag suppressed : aucun avertissement d'inutilisation sur la console");
+
+    rc = capture_call(check_shim, 2, argv);
+    CHECK_RC(rc, 0, "owl --check sans suppression -> exit 0");
+    CHECK_HAS("Variable 'tabSeulInutilise' est déclarée mais jamais utilisée.",
+              "temoin : flag eteint, l'avertissement reapparait");
 }
 
 /* ================================================================
@@ -2123,6 +2148,7 @@ static const CasCliOps g_cas[] = {
     CAS(test_check_global_used_by_test_neighbor_not_flagged),
     CAS(test_check_element_global_used_by_test_neighbor_not_flagged),
     CAS(test_check_lone_file_still_reports_unused),
+    CAS(test_warnings_suppressed_flag_tait_tout),
     CAS(test_check_projet_service_no_false_duplicate),
     CAS(test_check_projet_service_real_duplicate_detected),
     CAS(test_check_callback_injecte_par_test_resolu),

@@ -1,0 +1,43 @@
+// Régression : l'invariant bilingue FR<->EN (règle 2) couvre aussi le NOM d'un
+// type composé, pas seulement ses champs (cf. test_field_bilingue_http.owl pour
+// les champs de httpRequête/httpRéponse). Chaque type ci-dessous a une forme EN
+// enregistrée distincte de sa forme FR ; déclarer une variable avec la forme EN
+// doit compiler et produire une instance utilisable au même titre que la forme FR.
+//
+// Rouge attendu tant que la résolution de type ne reconnaît pas la forme EN :
+// chaque déclaration ci-dessous échoue à la compilation avec "Type inconnu".
+//
+// xlsCellule/xlsLigne/xlsColonne partagent la même forme EN distincte
+// (xlsCell/xlsRow/xlsColumn) mais ne sont pas couverts ici : leur déclaration
+// autonome échoue déjà à l'exécution en forme FR (bug préexistant, sans rapport
+// avec cet invariant, signalé séparément).
+
+v1 est un emailSMTPSession
+v1..AdresseServeur = "smtp.example.com"
+v1..Port           = 587
+dbgVérifieEgalité(v1..AdresseServeur, "smtp.example.com", "emailSMTPSession : champ accessible après déclaration en forme EN")
+dbgVérifieEgalité(v1..Port, 587, "emailSMTPSession : second champ cohérent")
+
+v2 est un emailAttach
+v2..Nom = "piece.pdf"
+dbgVérifieEgalité(v2..Nom, "piece.pdf", "emailAttach : champ accessible après déclaration en forme EN")
+
+v3 est un emailHeader
+v3..Nom    = "X-Test"
+v3..Valeur = "123"
+dbgVérifieEgalité(v3..Nom, "X-Test", "emailHeader : premier champ")
+dbgVérifieEgalité(v3..Valeur, "123", "emailHeader : second champ")
+
+v4 est un natsConnection
+v4..Adresse = "nats://localhost"
+dbgVérifieEgalité(v4..Adresse, "nats://localhost", "natsConnection : champ accessible après déclaration en forme EN")
+
+v5 est un NumberDisplayFormat
+v5..SéparateurDécimal = ","
+dbgVérifieEgalité(v5..SéparateurDécimal, ",", "NumberDisplayFormat : champ accessible après déclaration en forme EN")
+
+v6 est un CurrencyFormat
+v6..Symbole = "€"
+dbgVérifieEgalité(v6..Symbole, "€", "CurrencyFormat : champ accessible après déclaration en forme EN")
+
+dbgBilanTest()

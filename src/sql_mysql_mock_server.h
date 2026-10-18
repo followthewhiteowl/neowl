@@ -47,4 +47,11 @@ const char* mysql_mock_server_last_db   (const MysqlMockServer* m);
 const char* mysql_mock_server_last_query(const MysqlMockServer* m);
 bool        mysql_mock_server_auth_token_matched(const MysqlMockServer* m);
 
+/* Requetes preparees : SQL vu en COM_STMT_PREPARE + 1re valeur liee recue
+ * en COM_STMT_EXECUTE (decodee en texte). Preuve testable que le binding est
+ * server-side : la valeur arrive separee du template SQL (placeholders '?'),
+ * jamais concatenee. "" si aucun PREPARE/EXECUTE recu. */
+const char* mysql_mock_server_last_prepare_sql (const MysqlMockServer* m);
+const char* mysql_mock_server_last_bind_param0 (const MysqlMockServer* m);
+
 #endif

@@ -62,15 +62,16 @@ add_compile_options(
     -mcpu=x86_64_v2
 )
 
-# Suppression PDB : zig clang sur Windows-GNU produit des .pdb (MSVC-style
-# debug info) meme en Release. Ca ajoute 100-250 MB par binaire sur disque
-# sans benefice (gdb lit le DWARF inline, pas le PDB). On les supprime
-# via flag linker. `-Wl,--no-pdb` ou equivalent direct.
-if(WIN32)
-    # lld-link en Release : -g0 reduit fortement les PDB mais en laisse
-    # encore quelques MB. On les supprime post-build dans CMakeLists.txt
-    # via add_custom_command sur chaque executable cible.
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-        add_compile_options(-g0)
-    endif()
+# -g0 en Release : retire le DWARF des libs owl (Windows ET Linux). Inutile au
+# link des projets utilisateur, et ca pese 20+ Mo par grosse archive cross-Linux
+# sinon (DWARF conserve dans les .a). On ne touche pas aux builds Debug/
+# RelWithDebInfo qui doivent garder leurs symboles.
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_compile_options(-g0)
 endif()
+
+# Specifique Windows : zig clang sur Windows-GNU produit aussi des .pdb (MSVC-style
+# debug info) meme en Release. Ca ajoute 100-250 MB par binaire sans benefice
+# (gdb lit le DWARF inline, pas le PDB). -g0 ci-dessus en reduit l'essentiel ;
+# le reliquat est supprime post-build dans CMakeLists.txt (add_custom_command
+# sur chaque executable cible), un pas qui reste WIN32-only.

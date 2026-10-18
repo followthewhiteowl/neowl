@@ -1,0 +1,84 @@
+// Accès à une cellule de Table par la syntaxe virgule, colonne désignée par
+// son numéro : `TABLE[ligne, colonne]..Propriété`. Équivalent attendu de la
+// forme à double crochet `TABLE[ligne][colonne]..Propriété`, qui fonctionne
+// déjà et sert ici de mesure de référence pour confirmer l'effet réel
+// (couleur posée ou non) plutôt que de se fier à la seule absence d'erreur.
+//
+// L'échec actuel est une exception rattrapable : on l'attrape avec
+// QUAND EXCEPTION pour documenter le comportement par une assertion
+// explicite plutôt que de laisser le scénario avorter brutalement.
+
+TestModeHeadless(Faux)
+
+CST_ROUGE est un entier = RVB(200, 30, 30)
+CST_BLANC est un entier = RVB(255, 255, 255)
+
+PROCEDURE PUBLIQUE scenario_virgule_numero_ecriture_couleur_fond()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	nLigne est un entier = 1
+	bLeveeException est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		TABLE_Lot[nLigne, 2]..CouleurFond = CST_ROUGE
+	FAIRE
+		bLeveeException = Vrai
+	FIN
+
+	dbgVérifieEgalité(bLeveeException, Faux,
+	"virgule+numéro : l'écriture de CouleurFond ne lève pas d'exception")
+
+	// Mesure de l'effet réel via la forme double-crochet (déjà fonctionnelle) :
+	// la cellule désignée doit porter la couleur, pas seulement ne pas planter.
+	dbgVérifieEgalité(TABLE_Lot[nLigne][2]..CouleurFond, CST_ROUGE,
+	"virgule+numéro : la cellule visée porte bien la couleur de fond posée")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+PROCEDURE PUBLIQUE scenario_virgule_numero_ecriture_couleur_texte()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	nLigne est un entier = 2
+	bLeveeException est un booléen = Faux
+
+	QUAND EXCEPTION DANS
+		TABLE_Lot[nLigne, 1]..Couleur = CST_BLANC
+	FAIRE
+		bLeveeException = Vrai
+	FIN
+
+	dbgVérifieEgalité(bLeveeException, Faux,
+	"virgule+numéro : l'écriture de Couleur (texte) ne lève pas d'exception")
+
+	dbgVérifieEgalité(TABLE_Lot[nLigne][1]..Couleur, CST_BLANC,
+	"virgule+numéro : la cellule visée porte bien la couleur de texte posée")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+PROCEDURE PUBLIQUE scenario_virgule_numero_lecture_couleur_fond()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	nLigne est un entier = 1
+
+	// Pose la couleur par la forme double-crochet, déjà fonctionnelle.
+	TABLE_Lot[nLigne][2]..CouleurFond = CST_ROUGE
+
+	bLeveeException est un booléen = Faux
+	nCouleurLue est un entier = 0
+
+	QUAND EXCEPTION DANS
+		nCouleurLue = TABLE_Lot[nLigne, 2]..CouleurFond
+	FAIRE
+		bLeveeException = Vrai
+	FIN
+
+	dbgVérifieEgalité(bLeveeException, Faux,
+	"virgule+numéro : la lecture de CouleurFond ne lève pas d'exception")
+
+	dbgVérifieEgalité(nCouleurLue, CST_ROUGE,
+	"virgule+numéro : la lecture relit la couleur posée par la forme double-crochet")
+
+	Ferme(FEN_CelluleVirgule)
+FIN

@@ -16,10 +16,10 @@
 /* #define DEBUG_STRESS_GC */
 /* #define DEBUG_LOG_GC */
 
-#define OWL_VERSION "1.4.0"
-#define OWL_NEXT_VERSION "1.5.0"
+#define OWL_VERSION "1.5.0"
+#define OWL_NEXT_VERSION "1.6.0"
 #define OWL_VERSION_MAJOR 1
-#define OWL_VERSION_MINOR 4
+#define OWL_VERSION_MINOR 5
 
 /* Maximum number of local variables in a scope */
 #define UINT8_COUNT (UINT8_MAX + 1)

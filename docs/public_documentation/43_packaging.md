@@ -21,9 +21,18 @@ compilateur, environnement d'exécution ou dépendance à installer au
 préalable.
 
 Au **premier lancement**, `owl-build` extrait sa charge interne dans un
-dossier temporaire ; cette étape prend quelques secondes (de l'ordre de
-cinq à dix). Les **lancements suivants** réutilisent cette extraction et
+dossier temporaire ; selon la machine et l'antivirus, cette étape va de
+quelques secondes à plusieurs minutes, et sa progression s'affiche dans
+la console. Les **lancements suivants** réutilisent cette extraction et
 démarrent immédiatement.
+
+Cette extraction peut être **payée à l'avance** avec l'option
+`--prepare` : `owl-build --prepare` prépare le cache pour la plateforme
+hôte, puis s'arrête sans packager de projet. Un premier build réel
+démarre alors immédiatement. L'option est utile pour un déploiement qui
+prépare la machine en amont. Elle respecte `--target` pour préchauffer
+une autre cible, et ne fait rien (sans erreur) sur un binaire qui
+n'embarque aucune charge.
 
 ## 3. Prérequis côté projet
 
@@ -45,9 +54,10 @@ owl-build [DOSSIER_PROJET] [-o NOM] [--target TRIPLE]
 
 | Argument / option | Rôle |
 |-------------------|------|
-| `DOSSIER_PROJET`  | Dossier du projet à packager. Par défaut, le dossier courant. |
+| `DOSSIER_PROJET`  | Dossier du projet à packager. Requis ; indiquer `.` pour le dossier courant. |
 | `-o NOM`          | Nom de l'exécutable produit. Par défaut, dérivé du projet. |
 | `--target TRIPLE` | Plateforme visée. Par défaut, la plateforme hôte. |
+| `--prepare`       | Prépare le cache d'extraction pour la cible, puis s'arrête sans packager de projet. Le build suivant pour cette cible démarre immédiatement. |
 
 ### Choix de la cible
 
@@ -110,11 +120,15 @@ MonApplication est un Projet
 FIN
 ```
 
-Depuis le dossier qui contient ce fichier, le packaging se lance ainsi :
+Depuis le dossier qui contient ce fichier, le packaging se lance en
+désignant explicitement le dossier courant par `.` :
 
 ```bash
-owl-build
+owl-build .
 ```
+
+Lancé sans dossier, `owl-build` affiche son aide et s'arrête sans rien
+packager : le dossier à traiter est toujours indiqué, `.` compris.
 
 Ou en nommant explicitement le dossier et l'exécutable produit :
 
@@ -125,7 +139,56 @@ owl-build mon_projet -o carnet
 Le binaire autonome apparaît alors sous `mon_projet/exe/<target>/`,
 prêt à être distribué et exécuté sans rien installer d'autre.
 
-## 8. Limitations actuelles (alpha)
+## 8. Packager un serveur (ServiceREST)
+
+Lorsqu'un projet déclare un bloc `est un ServiceREST`, `owl-build` le
+reconnaît et produit un **exécutable serveur** : au lancement, le binaire
+met en place le service, ouvre un port et répond aux requêtes jusqu'à son
+arrêt. Il ne s'agit pas d'un programme qui s'exécute une fois puis se
+termine, mais d'un processus qui reste en écoute.
+
+Aucune option supplémentaire n'est requise au packaging : la présence d'un
+`ServiceREST` dans la frontière du projet suffit à produire ce type de
+binaire. Un projet sans service continue d'être packagé comme un programme
+ordinaire.
+
+La déclaration du bloc `ServiceREST`, de ses opérations `OpérationHTTP` et du
+handler `surRequête` est décrite dans `40_services_rest.md`.
+
+### Lancer le serveur packagé
+
+L'exécutable produit se configure **au lancement**, par ligne de commande :
+
+```
+<exe> [--port N] [--bind ADR]
+```
+
+| Option      | Rôle |
+|-------------|------|
+| `--port N`  | Port d'écoute. Par défaut `8080`. |
+| `--bind ADR`| Adresse d'écoute. Par défaut `127.0.0.1`. |
+| `-h`, `--help` | Affiche l'aide et s'arrête. |
+
+Par défaut, le serveur écoute uniquement sur `127.0.0.1` : il n'est
+joignable que depuis la machine locale. Pour l'ouvrir au réseau, indiquer
+explicitement `--bind 0.0.0.0`.
+
+```bash
+# Écoute locale sur le port 9000
+monserveur --port 9000
+
+# Ouverture au réseau sur le port par défaut
+monserveur --bind 0.0.0.0
+```
+
+Un port invalide (non numérique ou hors de l'intervalle `1`–`65535`)
+provoque un message d'erreur et un arrêt immédiat. Le serveur s'arrête par
+`Ctrl-C`.
+
+Comme un même binaire se déploie tel quel sur plusieurs machines, l'adresse
+et le port se choisissent à l'exécution et non au packaging.
+
+## 9. Limitations actuelles (alpha)
 
 Deux limites à connaître avant de distribuer un binaire produit par
 `owl-build` :
@@ -135,6 +198,7 @@ Deux limites à connaître avant de distribuer un binaire produit par
   avertissement « éditeur inconnu » au premier lancement. La signature
   est prévue.
 - **Code source récupérable.** Le code `.owl` du projet est embarqué
-  dans le binaire sous une forme récupérable. Éviter, pour l'instant,
-  de packager du code dont la confidentialité est critique. La
-  protection du code source est prévue.
+  dans le binaire sous forme **compressée** : il n'apparaît pas en clair
+  dans l'exécutable, mais reste récupérable par une analyse déterminée.
+  Éviter, pour l'instant, de packager du code dont la confidentialité est
+  critique. Un renforcement de la protection est à l'étude.

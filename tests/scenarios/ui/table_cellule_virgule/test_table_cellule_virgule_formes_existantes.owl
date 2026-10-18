@@ -1,0 +1,45 @@
+// Non-régression : les trois écritures cellule déjà fonctionnelles pour un
+// Champ Table ne doivent pas être affectées par l'ajout de la forme virgule
+// `TABLE[ligne, colonne]`.
+//
+//   TABLE[ligne][colonne]..Propriété   une cellule, la ligne d'abord
+//   TABLE.COL_X[ligne]..Propriété      la même cellule, la colonne d'abord
+//   TABLE[ligne]..Propriété            la ligne entière
+
+TestModeHeadless(Faux)
+
+CST_ROUGE est un entier = RVB(200, 30, 30)
+CST_VERT est un entier = RVB(0, 110, 60)
+
+PROCEDURE PUBLIQUE scenario_forme_double_crochet_inchangee()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	TABLE_Lot[1][2]..CouleurFond = CST_ROUGE
+
+	dbgVérifieEgalité(TABLE_Lot[1][2]..CouleurFond, CST_ROUGE,
+	"double-crochet : la cellule porte la couleur posée")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_colonne_dabord_inchangee()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	TABLE_Lot.COL_Valeur[2]..CouleurFond = CST_ROUGE
+
+	dbgVérifieEgalité(TABLE_Lot[2][2]..CouleurFond, CST_ROUGE,
+	"colonne d'abord : la même cellule relue par le double-crochet porte la couleur")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_ligne_entiere_inchangee()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	TABLE_Lot[1]..CouleurFond = CST_VERT
+
+	dbgVérifieEgalité(TABLE_Lot[1]..CouleurFond, CST_VERT,
+	"ligne entière : la couleur posée se relit sur la ligne entière")
+
+	Ferme(FEN_CelluleVirgule)
+FIN

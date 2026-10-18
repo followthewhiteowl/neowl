@@ -261,7 +261,7 @@ pour les langues arabe, hébreu, persan, ourdou ;
 courante" — utile sur les propriétés `..SensÉcriture` des champs UI.
 
 ```owl
-sens est un sensÉcriture = LangueSensÉcriture(langueArabe)
+sens est un entier = LangueSensÉcriture(langueArabe)
 SI sens = sensDroiteGauche ALORS
     Trace("Langue de droite à gauche")
 FIN
@@ -320,7 +320,7 @@ PROCEDURE ValiderEmail(sEmail est une chaîne)
         langueAnglais:  "Invalid email address.",
         langueAllemand: "Ungültige E-Mail-Adresse."
     }
-    SI PAS Correspond(sEmail, "[a-z]+@[a-z]+\\.[a-z]+") ALORS
+    SI PAS RegexVérifie(sEmail, "[a-z]+@[a-z]+\\.[a-z]+") ALORS
         Erreur(msgErreur)                     // affiché dans la langue courante
     FIN
 FIN

@@ -24,6 +24,7 @@
 
 #include "common.h"
 #include "net_le_buffer.h"
+#include "sql_mysql_types.h"   /* OwlMysqlBindValue pour COM_STMT_EXECUTE */
 
 /* ================================================================
  * Constantes protocole
@@ -167,6 +168,37 @@ void mysql_write_com_quit(OwlLeBuffer* buf, uint8_t seq);
 
 /* COM_PING : 0x0E, vide. */
 void mysql_write_com_ping(OwlLeBuffer* buf, uint8_t seq);
+
+/* ================================================================
+ * Requetes preparees — COM_STMT_PREPARE / COM_STMT_EXECUTE
+ * ================================================================ */
+
+/* COM_STMT_PREPARE : 0x16 + le template SQL (placeholders '?'), le reste
+ * du paquet. Le serveur repond par un COM_STMT_PREPARE_OK (+ defs de
+ * params/colonnes) ou un Error packet. */
+void mysql_write_com_stmt_prepare(OwlLeBuffer* buf, uint8_t seq, const char* sql);
+
+/* COM_STMT_EXECUTE : 0x17 + statement_id + flags + iteration_count, puis
+ * (si n_params > 0) null-bitmap + new_params_bound_flag + types + valeurs
+ * liees. Les valeurs partent server-side, jamais concatenees dans le SQL. */
+void mysql_write_com_stmt_execute(OwlLeBuffer* buf, uint8_t seq,
+                                  uint32_t statement_id,
+                                  int n_params,
+                                  const OwlMysqlBindValue* params);
+
+/* Reponse COM_STMT_PREPARE_OK :
+ *   u8 status (0x00) | u32 statement_id | u16 num_columns | u16 num_params
+ *   u8 reserved (0x00) | u16 warning_count
+ * Le caller doit avoir verifie que payload[0] != 0xFF (Error) avant. */
+typedef struct {
+    uint32_t statement_id;
+    uint16_t num_columns;
+    uint16_t num_params;
+    uint16_t warnings;
+} MysqlStmtPrepareOk;
+
+bool mysql_parse_stmt_prepare_ok(const uint8_t* payload, size_t payload_len,
+                                 MysqlStmtPrepareOk* out);
 
 /* ================================================================
  * OK / Error / EOF packet parsing

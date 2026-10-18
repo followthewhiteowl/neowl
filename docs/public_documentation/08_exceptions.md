@@ -76,10 +76,10 @@ Un bloc `ENFIN` placé avant le `FIN` s'exécute **toujours**, quelle
 que soit l'issue du bloc protégé :
 
 ```owl
-f est un fichier
+f est un entier
 QUAND EXCEPTION DANS
     f = fOuvre("data.txt", foLecture)
-    contenu est une chaîne = fLisLigne(f)
+    contenu est une chaîne = fLitLigne(f)
 FAIRE
     Trace("Lecture impossible : " + ExceptionInfo(errMessage))
 ENFIN

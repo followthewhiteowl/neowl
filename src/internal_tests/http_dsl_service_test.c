@@ -1801,6 +1801,27 @@ static OwlHttpRep* sert_deterministe(OwlHttpExecuteur* x, const char* methode,
     return rep;
 }
 
+/* Variante avec un unique en-tete Content-Type (negociation du corps
+ * structure, ). nom/valeur sont recopies au depot (copie_chaine),
+ * donc des litteraux suffisent. contentType == NULL -> aucun en-tete. */
+static OwlHttpRep* sert_deterministe_ct(OwlHttpExecuteur* x, const char* methode,
+                                        const char* chemin, const char* corps,
+                                        const char* contentType) {
+    OwlHttpRequete r;
+    fabrique_requete(&r, methode, chemin, corps);
+    if (contentType != NULL) {
+        r.entetes[0].nom    = (char*)"Content-Type";
+        r.entetes[0].valeur = (char*)contentType;
+        r.nb_entetes = 1;
+    }
+    OwlHttpJeton* j = NULL;
+    if (owl_http_executeur_depose(x, &r, &j) != OWL_HTTP_EXEC_OK) return NULL;
+    if (owl_http_executeur_traite_une(x, 0) != 1) return NULL;
+    OwlHttpRep* rep = NULL;
+    if (owl_http_executeur_attend(x, j, &rep) != OWL_HTTP_EXEC_OK) return NULL;
+    return rep;
+}
+
 /* ================================================================
  * FAMILLE 0 — cablage deterministe (compile -> registre -> invocation)
  * ================================================================ */
@@ -2018,6 +2039,80 @@ static void famille_2_binding_params(void) {
         CHECK(rep != NULL, "post_malforme_reponse_rendue");
         if (rep) {
             CHECK(owl_http_rep_statut(rep) == 400, "post_malforme_statut_400");
+            owl_http_rep_libere(rep);
+        }
+    }
+
+    /* --- Groupe C2 : negociation Content-Type du corps structure ---
+     * Un parametre de type structure attend un corps JSON. Le Content-Type
+     * entrant arbitre : absent / application/json -> on tente le parse ; type
+     * non-JSON explicite -> 415 SANS parse ; JSON mais corps malforme -> 400.
+     * Les deux rejets portent desormais un corps de message non vide (plus de
+     * 400/415 muet) qui cite le type attendu. */
+    {
+        /* CT non-JSON explicite -> 415, AUCUN parse (le corps est pourtant du
+         * JSON valide : c'est le Content-Type qui tranche, pas le contenu). */
+        OwlHttpRep* rep = sert_deterministe_ct(x, "POST", "/clients",
+                                               "{\"nom\":\"Alice\"}", "text/plain");
+        CHECK(rep != NULL, "ct_texte_reponse_rendue");
+        if (rep) {
+            Sac s; vide_reponse(rep, &s);
+            CHECK(owl_http_rep_statut(rep) == 415, "ct_texte_statut_415");
+            CHECK(s.len > 0, "ct_texte_corps_non_vide");
+            CHECK(strstr(s.d, "stClientBinding") != NULL,
+                  "ct_texte_corps_cite_le_type_attendu");
+            owl_http_rep_libere(rep);
+        }
+    }
+    {
+        /* CT formulaire -> 415 aussi (non-JSON explicite). */
+        OwlHttpRep* rep = sert_deterministe_ct(x, "POST", "/clients",
+                                               "nom=Alice",
+                                               "application/x-www-form-urlencoded");
+        CHECK(rep != NULL, "ct_form_reponse_rendue");
+        if (rep) {
+            CHECK(owl_http_rep_statut(rep) == 415, "ct_form_statut_415");
+            CHECK(owl_http_rep_longueur(rep) > 0, "ct_form_corps_non_vide");
+            owl_http_rep_libere(rep);
+        }
+    }
+    {
+        /* CT application/json AVEC parametre (; charset=utf-8) -> toujours JSON :
+         * corps valide -> 201 (les parametres du media type sont ignores). */
+        OwlHttpRep* rep = sert_deterministe_ct(x, "POST", "/clients",
+                                               "{\"nom\":\"Carol\"}",
+                                               "application/json; charset=utf-8");
+        CHECK(rep != NULL, "ct_json_charset_reponse_rendue");
+        if (rep) {
+            Sac s; vide_reponse(rep, &s);
+            CHECK(owl_http_rep_statut(rep) == 201, "ct_json_charset_statut_201");
+            CHECK(strcmp(s.d, "Carol") == 0, "ct_json_charset_corps_desserialise");
+            owl_http_rep_libere(rep);
+        }
+    }
+    {
+        /* CT application/json + corps malforme -> 400 avec message non vide
+         * citant le type attendu (plus de 400 muet). */
+        OwlHttpRep* rep = sert_deterministe_ct(x, "POST", "/clients",
+                                               "hello", "application/json");
+        CHECK(rep != NULL, "ct_json_malforme_reponse_rendue");
+        if (rep) {
+            Sac s; vide_reponse(rep, &s);
+            CHECK(owl_http_rep_statut(rep) == 400, "ct_json_malforme_statut_400");
+            CHECK(s.len > 0, "ct_json_malforme_corps_non_vide");
+            CHECK(strstr(s.d, "stClientBinding") != NULL,
+                  "ct_json_malforme_corps_cite_le_type_attendu");
+            owl_http_rep_libere(rep);
+        }
+    }
+    {
+        /* CT ABSENT + corps malforme -> 400 avec message non vide (le 400 muet
+         * historique disparait meme sans Content-Type). */
+        OwlHttpRep* rep = sert_deterministe(x, "POST", "/clients", "hello");
+        CHECK(rep != NULL, "ct_absent_malforme_reponse_rendue");
+        if (rep) {
+            CHECK(owl_http_rep_statut(rep) == 400, "ct_absent_malforme_statut_400");
+            CHECK(owl_http_rep_longueur(rep) > 0, "ct_absent_malforme_corps_non_vide");
             owl_http_rep_libere(rep);
         }
     }

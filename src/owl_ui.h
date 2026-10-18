@@ -560,6 +560,11 @@ void owl_ui_table_add_column(OwlControl* table,
 void owl_ui_table_append_row(OwlControl* table,
                              const char* const* cells_utf8,
                              int n_cells);
+/* insert_row : insere a l'indice 1-based row_1based, decalant les lignes >=
+ *   cet indice. Clamp <1 => debut, >rowCount => fin. */
+void owl_ui_table_insert_row(OwlControl* table, int row_1based,
+                             const char* const* cells_utf8,
+                             int n_cells);
 void owl_ui_table_remove_row(OwlControl* table, int row_1based);
 void owl_ui_table_clear(OwlControl* table);
 int  owl_ui_table_row_count(OwlControl* table);

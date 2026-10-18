@@ -132,7 +132,7 @@ totaux est une FinDeDocument
         Hauteur = 30
     FIN
     nMontantTotal = CalculeTotal()
-    LBL_Total..Libellé = "Total : " + nMontantTotal
+    LIB_Total..Libellé = "Total : " + nMontantTotal
 FIN
 ```
 
@@ -142,7 +142,7 @@ FIN
 > (boucle `iImprimeBloc`, rendu automatique du Corps) affiche donc N valeurs
 > distinctes si l'expression en dépend. Une propriété **littérale** (`Libellé =
 > "Fixe"`) reste identique à chaque rendu. L'affectation impérative par **code
-> dans le body** (`LBL_Total..Libellé = …`, comme ci-dessus) demeure disponible
+> dans le body** (`LIB_Total..Libellé = …`, comme ci-dessus) demeure disponible
 > et **prime** sur l'expression `PROPRIETES` : quand les deux coexistent sur le
 > même contrôle, la valeur affectée par code l'emporte.
 

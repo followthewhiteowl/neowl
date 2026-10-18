@@ -166,8 +166,9 @@ Avant l'appel de `FinInitialisation`, les sous-champs existent en
 mémoire mais leurs propriétés ne sont que celles déclarées dans
 `PROPRIETES`. Toute configuration dynamique va ici.
 
-> `Initialisation` est accepté comme alias historique de
-> `FinInitialisation`, sans warning. Préférer la forme nominale.
+> Le nom `Initialisation` n'est pas une procédure de cycle de vie : le
+> compilateur le rejette et invite à placer le code d'initialisation dans
+> `FinInitialisation` ou directement dans le corps de l'élément.
 
 ### Sous `owl test` : mode headless
 
@@ -777,6 +778,10 @@ nAge  est un entier  = TABLE_Repertoire[2].COL_Age     // 41
 nCount est un entier = TableOccurrence(TABLE_Repertoire) // 2
 ```
 
+`TableInsèreLigne` insère à une position précise (indice 1-based) au lieu
+d'ajouter en fin : `TableInsèreLigne(TABLE_Repertoire, 1, "Alan", 24)` place la
+ligne en tête et décale les suivantes.
+
 Le point simple désigne le nom de la colonne (`TABLE_X.COL_A`) ; les
 propriétés d'affichage s'écrivent avec le double point (voir plus bas).
 La fiche `owl explain Colonne` détaille les propriétés d'une colonne.
@@ -801,10 +806,11 @@ Elles acceptent tout ce qui vaut une couleur : constante nommée, `RVB(r, v, b)`
 ou entier compact (cf. chapitre *Couleurs*). Elles se relisent : une cellule
 qu'aucune écriture n'a visée rend `Null`.
 
-### Les trois écritures
+### Les quatre écritures
 
 ```owl
 TABLE_Synthese[nLigne][nColonne]..Couleur = RVB(255, 255, 255)  // une cellule
+TABLE_Synthese[nLigne, nColonne]..Couleur = RVB(255, 255, 255)  // une cellule (forme compacte)
 TABLE_Synthese.COL_Stock[nLigne]..Couleur = RVB(255, 255, 255)  // une cellule
 TABLE_Synthese[nLigne]..Couleur           = RVB(255, 255, 255)  // la ligne entière
 ```
@@ -812,14 +818,18 @@ TABLE_Synthese[nLigne]..Couleur           = RVB(255, 255, 255)  // la ligne enti
 - **Cellule, la ligne d'abord** — `TABLE_X[ligne][colonne]` : deux indices
   numériques, la colonne étant désignée par son rang (1 pour la première
   colonne déclarée).
+- **Cellule, forme compacte** — `TABLE_X[ligne, colonne]` : les deux
+  coordonnées dans les mêmes crochets, séparées par une virgule. La colonne se
+  désigne par son rang **ou** par son nom (`TABLE_X[ligne, COL_A]`). Équivalente
+  à la forme à deux crochets.
 - **Cellule, la colonne d'abord** — `TABLE_X.COL_A[ligne]` : la colonne est
   désignée par son nom, ce qui évite de compter les rangs et survit à une
-  réorganisation des colonnes. Les deux formes visent la même cellule :
-  ce qui est écrit par l'une se relit par l'autre.
+  réorganisation des colonnes. Ces formes visent la même cellule :
+  ce qui est écrit par l'une se relit par les autres.
 - **Ligne entière** — `TABLE_X[ligne]` : un seul indice. Toutes les colonnes
   de la ligne sont teintées.
 
-Dans les trois formes, la propriété s'écrit avec le **double point** :
+Dans les quatre formes, la propriété s'écrit avec le **double point** :
 `[1][2]..Couleur`. Le point simple y désigne un nom de colonne
 (`TABLE_X.COL_A[1]`), jamais une propriété.
 

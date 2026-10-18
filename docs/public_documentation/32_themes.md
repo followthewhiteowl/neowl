@@ -152,7 +152,8 @@ Un projet désigne son thème actif par la propriété `Thème` (forme anglaise
 ```owl
 MonAppThémée est un Projet
 	PROPRIETES
-		Titre = "Démo thème"
+		Description = "Démo thème"
+		Langues = [langueFrançais]
 		Thème = ThèmeDémo
 	FIN
 FIN

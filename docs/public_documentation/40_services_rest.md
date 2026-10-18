@@ -279,6 +279,13 @@ Le type `stClient` se déclare **dans** le bloc `ServiceREST`, aux côtés des
 opérations : un fichier-service ne contient que le bloc du service, et les
 types qu'il utilise vivent à l'intérieur.
 
+Un paramètre structuré attend un corps **JSON**. Le `Content-Type` de la
+requête arbitre : absent ou `application/json` (ses paramètres comme
+`; charset=utf-8` sont ignorés), le corps est désérialisé ; un corps JSON mal
+formé est rejeté en **`400`** ; un `Content-Type` explicite autre que JSON est
+rejeté en **`415`** sans tentative de lecture. Les deux rejets renvoient un
+message indiquant le type attendu, et `surRequête` n'est pas appelé.
+
 ## 5. Recevoir un fichier téléversé
 
 Un formulaire d'envoi de fichier arrive sous forme `multipart/form-data` :
@@ -1150,6 +1157,11 @@ owl serve MonAPI.owl --port 9000 --bind 0.0.0.0
 
 Le serveur tourne jusqu'à interruption au clavier (`Ctrl-C`), qui l'arrête
 proprement.
+
+Au-delà de `owl serve`, un service se **package aussi en exécutable serveur
+autonome** : un binaire unique qui met le service en écoute sans interpréteur
+à déployer. Voir [Packager une application](43_packaging.md), section
+« Packager un serveur (ServiceREST) ».
 
 ## 11. Décrire le service en OpenAPI
 

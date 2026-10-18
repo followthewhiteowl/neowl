@@ -54,7 +54,7 @@ static int g_fail = 0;
  * verification des quatre chemins. Le mode d'emploi est dans le message
  * d'echec, pas dans ce commentaire — c'est le lecteur du rouge qui en a
  * besoin, pas le lecteur du fichier. */
-#define EXPECTED_CONST_IDX_OPCODES 25
+#define EXPECTED_CONST_IDX_OPCODES 27
 
 /* Construit une source qui declare GEN_GLOBALS globales entieres puis en
  * relit trois : la premiere, une du milieu, la derniere. Les relectures sont

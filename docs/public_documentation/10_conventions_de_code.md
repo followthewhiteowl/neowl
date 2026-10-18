@@ -54,7 +54,7 @@ elle qui apparaît à chaque usage après formatage.
 | Fonction native (`ChaineDecoupe`, `HTTPRequête`, `MockCrée`, …) | PascalCase, accents inclus |
 | Constante de registry (`httpGet`, `colTypeTexte`, `errMessage`, …) | préfixe minuscule + suffixe descriptif |
 | Mot-clé de structure (`Structure`, `Classe`, `Enumération`, `Combinaison`) | Initiale majuscule |
-| Modificateur (`PUBLIC`, `PRIVE`, `PROTEGE`, `RESTREINT`) | MAJUSCULES |
+| Modificateur (`PUBLIC`, `PRIVE`, `PROTEGE`) | MAJUSCULES |
 
 ---
 

@@ -334,7 +334,7 @@ deux formes ne cohabitent pas dans un même dossier.
 ```owl
 MyApplication est un Project
 	PROPRIETES
-		Languages   = languageFrench
+		Languages   = [languageFrench]
 		Description = "Inventory management"
 	FIN
 FIN

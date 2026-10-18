@@ -40,8 +40,15 @@ extern const OwlEmbeddedDoc EMBEDDED_PUBLIC_DOCS[];
 extern const OwlEmbeddedDoc EMBEDDED_SCENARIOS[];
 extern const OwlEmbeddedDoc EMBEDDED_TEMPLATES[];
 
+/* Variantes linguistiques EN des fiches publiques (fichiers NN_slug.en.md).
+ * Le `name` exposé est le stem FR apparié (sans le suffixe `.en`), pour un
+ * appariement par simple strcmp avec EMBEDDED_PUBLIC_DOCS. Hors de cette
+ * table : une variante EN n'est JAMAIS une fiche autonome. */
+extern const OwlEmbeddedDoc EMBEDDED_PUBLIC_DOCS_EN[];
+
 /* Comptages exacts (hors sentinel). */
 extern const int EMBEDDED_PUBLIC_DOCS_COUNT;
+extern const int EMBEDDED_PUBLIC_DOCS_EN_COUNT;
 extern const int EMBEDDED_SCENARIOS_COUNT;
 extern const int EMBEDDED_TEMPLATES_COUNT;
 

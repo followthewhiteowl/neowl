@@ -153,6 +153,12 @@ bool file_exists(const char* path);
  * (`projet`) ou EN (`project`), casse-insensible, avec ou sans `.owl`. */
 bool is_projet_marker_name(const char* name);
 
+/* Vrai si le dossier `dir` contient, a son TOP-LEVEL (pas en recursif), le
+ * marqueur de projet de graphie `spelling` ("projet.owl" FR ou "project.owl"
+ * EN). Permet a owl-build de verifier la frontiere du dossier donne avant de
+ * lancer le scan recursif. */
+bool project_dir_has_marker(const char* dir, const char* spelling);
+
 /* Vrai si le dossier contenant `filepath` heberge les DEUX graphies du
  * marqueur de projet (projet.owl + project.owl) : coexistence ambigue de la
  * frontiere. Utilise par le controle compile-time (--check / LSP), en miroir

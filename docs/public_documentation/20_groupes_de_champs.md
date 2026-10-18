@@ -143,7 +143,7 @@ FIN
 | `Visible`  | Affiche / masque |
 | `Grisé`    | Active / désactive (avec rendu grisé) |
 | `EnSaisie` | Autorise / interdit la saisie utilisateur (Saisies) |
-| `Texte`    | Initialise / efface le contenu (Saisies) |
+| `Valeur`   | Initialise / efface le contenu (Saisies) |
 
 Toute propriété déclarée sur un type de champ peut être diffusée.
 Les membres qui ne l'exposent pas sont silencieusement ignorés

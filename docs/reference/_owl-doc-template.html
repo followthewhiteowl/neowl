@@ -65,6 +65,7 @@
   /* mini-renderer markdown (chapitres de prose) */
   .fiche.guide h3{font-size:16px;color:var(--fg);margin:22px 0 8px}
   .fiche.guide h4{font-size:14px;color:var(--accent2);margin:18px 0 6px}
+  .guide-untranslated{border-left:3px solid var(--accent);background:var(--panel2);color:var(--dim);padding:8px 14px;margin:12px 0;border-radius:0 6px 6px 0;max-width:70ch;font-style:italic}
   .md-p{color:var(--fg);line-height:1.6;margin:10px 0;max-width:70ch}
   .md-ul,.md-ol{color:var(--fg);line-height:1.55;margin:10px 0 10px 22px;max-width:70ch}
   .md-ul li,.md-ol li{margin:3px 0}
@@ -309,6 +310,9 @@ function methodLabel(e){
   const recvDisp = lang==="en" ? typeDisp(e.recv) : (byTypeAscii[norm(e.recv)] || e.recv);
   return "<"+recvDisp+">."+(lang==="en"?e.men:e.mfr)+"()"; }
 function dispName(d){ if(d.kind==="method") return methodLabel(d); return lang==="en"&&d.en?d.en:d.name; }
+/* clé de tri des membres (props/events) d'une fiche widget : miroir de dispName
+   pour que l'ordre suive le nom AFFICHÉ (EN en mode EN), pas le .n FR canon. */
+function memberSortName(x){ return lang==="en"&&x.en?x.en:x.n; }
 /* chapitres épinglés en tête de la liste Documentation, dans cet ordre ;
    le reste des entrées garde l'ordre alphabétique. */
 const FEATURED_DOCS=["00_apercu_du_langage","23_aide_memoire","22_pieges_courants"];
@@ -346,6 +350,10 @@ function searchCmp(a,b,q){
   return r!==0 ? r : dispName(a).replace(/[<>]/g,"").localeCompare(dispName(b).replace(/[<>]/g,""));
 }
 function dispDesc(d){ return lang==="en"?(d.descEN||d.descFR):d.descFR; }
+/* libellé de catégorie language-aware : miroir de dispName/dispDesc. La clé
+   interne de filtrage/groupement reste la forme FR (d.cat) ; seul l'AFFICHAGE
+   est localisé. Repli FR si pas de forme EN connue. */
+function catLabel(cat,catEN){ return lang==="en"&&catEN?catEN:cat; }
 
 /* Traduction EN des types : primitifs (table statique ci-dessous) + composés
    (nom EN canon issu de la data, alimenté juste après). */
@@ -392,7 +400,8 @@ const I18N={
        ref_h_code:"Code", ref_h_msg:"Message", ref_h_name:"Nom", ref_h_value:"Valeur",
        ref_h_desc:"Description", ref_h_cat:"Catégorie", ref_h_form:"Forme",
        ref_h_meaning:"Sémantique", ref_h_syntax:"Syntaxe", ref_h_type:"Type", ref_readonly:"lecture seule",
-       notfound:"Élément non trouvé", notfound_hint:"Ce mot n'est pas un symbole documenté (une variable, par exemple). Essaie la recherche à gauche." },
+       notfound:"Élément non trouvé", notfound_hint:"Ce mot n'est pas un symbole documenté (une variable, par exemple). Essaie la recherche à gauche.",
+       guide_untranslated:"Pas encore disponible en anglais." },
   en:{ search:"Search…  (accents ignored)", empty:"Select a symbol on the left.",
        symbols:"symbols", signature:"Signature", signatures:"Signatures", props:"Properties",
        values:"Values", usedby:"Used by", ub_functions:"functions", ub_family:"family",
@@ -418,7 +427,8 @@ const I18N={
        ref_h_code:"Code", ref_h_msg:"Message", ref_h_name:"Name", ref_h_value:"Value",
        ref_h_desc:"Description", ref_h_cat:"Category", ref_h_form:"Form",
        ref_h_meaning:"Meaning", ref_h_syntax:"Syntax", ref_h_type:"Type", ref_readonly:"read-only",
-       notfound:"Item not found", notfound_hint:"This word isn't a documented symbol (a variable, for instance). Try the search on the left." }
+       notfound:"Item not found", notfound_hint:"This word isn't a documented symbol (a variable, for instance). Try the search on the left.",
+       guide_untranslated:"Not yet available in English." }
 };
 function t(k){ return (I18N[lang]||I18N.fr)[k] || k; }
 function kindLabel(kind){ return t("k_"+kind); }
@@ -747,7 +757,8 @@ function buildKindFilters(){
 }
 function buildFilters(){
   const cats=[...new Set(allItems().map(d=>d.cat))].sort(), f=document.getElementById("filters"); f.innerHTML="";
-  cats.forEach(c=>{ const el=document.createElement("span"); el.className="chip"+(activeCats.has(c)?" on":""); el.textContent=c;
+  const pairs=new Map(); allItems().forEach(d=>{ if(d.cat&&!pairs.has(d.cat)) pairs.set(d.cat,d.catEN); });
+  cats.forEach(c=>{ const el=document.createElement("span"); el.className="chip"+(activeCats.has(c)?" on":""); el.textContent=catLabel(c,pairs.get(c));
     el.onclick=()=>{ activeCats.has(c)?activeCats.delete(c):activeCats.add(c); buildFilters(); renderList(); document.getElementById("list").scrollTop=0; }; f.appendChild(el); });
 }
 function match(d){
@@ -776,9 +787,9 @@ function renderList(){
   const q=query?norm(query):null;
   const cmp=q ? (a,b)=>searchCmp(a,b,q) : (a,b)=>sortKey(a).localeCompare(sortKey(b));
   if(grouped){
-    const groups={}; items.forEach(d=>{(groups[d.cat]=groups[d.cat]||[]).push(d);});
+    const groups={}, groupEN={}; items.forEach(d=>{(groups[d.cat]=groups[d.cat]||[]).push(d); if(!(d.cat in groupEN)) groupEN[d.cat]=d.catEN;});
     Object.keys(groups).sort().forEach(cat=>{
-      const g=document.createElement("div"); g.className="grp"; g.textContent=cat; list.appendChild(g);
+      const g=document.createElement("div"); g.className="grp"; g.textContent=catLabel(cat,groupEN[cat]); list.appendChild(g);
       groups[cat].sort(cmp).forEach(mkItem);
     });
   } else {
@@ -823,7 +834,7 @@ function select(d, fromHash, replace){
   const alt = lang==="en" ? (d.en ? d.name : null) : (d.en && d.en!==d.name ? d.en : null);
   if(alt) h+=`<span class="en">${esc(alt)}</span>`;
   if(d.ascii&&d.ascii!==d.name&&d.ascii!==dispName(d)) h+=`<span class="ascii">${esc(d.ascii)}</span>`;
-  h+=`</div><div class="meta"><span class="tag">${kindLabel(d.kind)}</span><span class="tag tagcat" data-cat="${esc(d.cat)}" title="${esc(t("filtercat"))}">${esc(d.cat)}</span>`;
+  h+=`</div><div class="meta"><span class="tag">${kindLabel(d.kind)}</span><span class="tag tagcat" data-cat="${esc(d.cat)}" title="${esc(t("filtercat"))}">${esc(catLabel(d.cat,d.catEN))}</span>`;
   if(d.kind==="enum") h+=`<span class="tag">${d.combinable?t("combinable"):t("exclusive")}</span>`;
   h+=`</div><p class="desc">${esc(dispDesc(d)||"")}</p>`;
   /* feat/1866 : renvoi de collision — cette fiche existante partage son nom
@@ -833,7 +844,7 @@ function select(d, fromHash, replace){
     h+=`<p class="memberxref">→ <a class="xref" data-go="${esc(d.name)}" data-kind="property">${esc(mx)}</a></p>`; }
   if(d.kind==="widget"){
     if(d.defprop) h+=`<h2 class="sec">${t("defprop")}</h2>`+chips([d.defprop],"property");
-    const ps=(propsByWidget[d.ascii]||[]).slice().sort((a,b)=>a.n.localeCompare(b.n));
+    const ps=(propsByWidget[d.ascii]||[]).slice().sort((a,b)=>memberSortName(a).localeCompare(memberSortName(b)));
     if(ps.length){
       h+=`<h2 class="sec">${t("props")} (${ps.length})</h2><table class="fields">`;
       ps.forEach(p=>{ let typ = p.enm?xref(p.enm,"enum") : p.obj?xref(p.obj,"type") : esc(p.t);
@@ -841,7 +852,7 @@ function select(d, fromHash, replace){
         h+=`<tr><td class="fn">${xref(p.n,"property")}</td><td class="ft">${typ}</td><td>${esc(pd)}</td></tr>`; });
       h+=`</table>`;
     }
-    const evs=(eventsByWidget[d.ascii]||[]).slice().sort((a,b)=>a.n.localeCompare(b.n));
+    const evs=(eventsByWidget[d.ascii]||[]).slice().sort((a,b)=>memberSortName(a).localeCompare(memberSortName(b)));
     if(evs.length){
       h+=`<h2 class="sec">${t("events_sec")} (${evs.length})</h2><table class="fields">`;
       evs.forEach(ev=>{ const pd=(lang==="en"?(ev.descEN||ev.descFR):ev.descFR)||"";
@@ -1208,8 +1219,15 @@ function renderMarkdown(md){
 }
 
 function renderGuidePage(g){
-  let h=`<div class="fiche guide"><div class="ftitle"><h1>${esc(g.title||g.name)}</h1></div>`;
-  h+=renderMarkdown(g.md||"");
+  /* la variante EN n'est choisie QUE si elle existe (titleEN+mdEN appariés
+     au stem FR côté dump). Sinon on sert le FR, mais en mode EN on coiffe la
+     page d'un bandeau honnête plutôt que de déguiser du FR en EN. */
+  const useEN=lang==="en"&&g.titleEN&&g.mdEN;
+  const title=useEN?g.titleEN:(g.title||g.name);
+  const md=useEN?g.mdEN:(g.md||"");
+  let h=`<div class="fiche guide"><div class="ftitle"><h1>${esc(title)}</h1></div>`;
+  if(lang==="en"&&!useEN){ h+=`<div class="guide-untranslated">${esc(t("guide_untranslated"))}</div>`; }
+  h+=renderMarkdown(md);
   h+=`</div>`; return h;
 }
 

@@ -25,6 +25,10 @@
 #   - crossref_dslprop_scan.c : extension cross-ref aux fiches propriete DSL (Projet.ActiveAvertissementConventionDeNommage -> 12_prefixes_de_nommage, viewer DSLPROPS)
 #   - projet_naming_backlink_scan.c : back-link guide->fiche (12_prefixes_de_nommage -> owl explain Projet)
 #   - projet_example_scan.c : exemple commente Projet (FenetreDemarrage + ActiveAvertissementConventionDeNommage) dans 24_projet.md
+#   - widget_member_sort_lang_scan.c : tri language-aware des proprietes/evenements de la fiche d'un controle (ordre EN coherent)
+#   - category_filter_lang_scan.c : libelles de categorie language-aware (catEN du dump + rendu filtres/tag/groupes, volet #265)
+#   - guide_lang_scan.c     : guides bilingues (GUIDES titleEN/mdEN par stem + anti-doublon .en + bandeau de repli EN, volet #300)
+#   - cli_learn_lang_scan.c : cablage EN du CLI documentaire (owl learn/primer servent EMBEDDED_PUBLIC_DOCS_EN sous --lang en, FR inchange, compte de fiches stable )
 #
 # Usage:
 #   ./run.sh                 # utilise ./build/owl.exe (racine repo)
@@ -43,7 +47,7 @@ if [ ! -f "$OWL" ]; then
 fi
 
 rc=0
-for scan in leak_scan internal_native_scan keyword_en_scan projet_prop_scan projet_prop_descen_scan enum_dup_scan enum_accent_dup_scan date_returntype_scan explain_json_lang_scan type_field_nav_scan collision_crossref_scan widget_prop_regression_scan doc_fiches_baseline_stable_scan list_scroll_reset_scan widget_style_descen_scan table_seealso_scan crossref_pin_scan crossref_heuristic_regression_scan crossref_viewer_parity_scan search_doc_first_scan crossref_pin_st3_sql_scan crossref_dslprop_scan projet_naming_backlink_scan projet_example_scan; do
+for scan in leak_scan internal_native_scan keyword_en_scan projet_prop_scan projet_prop_descen_scan enum_dup_scan enum_accent_dup_scan date_returntype_scan explain_json_lang_scan type_field_nav_scan collision_crossref_scan widget_prop_regression_scan doc_fiches_baseline_stable_scan list_scroll_reset_scan widget_style_descen_scan table_seealso_scan crossref_pin_scan crossref_heuristic_regression_scan crossref_viewer_parity_scan search_doc_first_scan crossref_pin_st3_sql_scan crossref_dslprop_scan projet_naming_backlink_scan projet_example_scan widget_member_sort_lang_scan category_filter_lang_scan guide_lang_scan cli_learn_lang_scan; do
     BIN="$ROOT/$scan.exe"
     gcc -O0 -Wall -o "$BIN" "$ROOT/$scan.c" || {
         echo "cli_doc_lang: echec compilation $scan.c"

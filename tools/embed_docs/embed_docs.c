@@ -247,9 +247,13 @@ static void emit_blob(FILE* out, const char* slug,
     fprintf(out, "static const long BLOB_%s_LEN = %ld;\n\n", slug, len);
 }
 
+/* strip_en : si vrai, le `name` exposé est le stem débarrassé de son
+ * suffixe `.en` (variante linguistique appariée au stem FR). Le stem()
+ * ne retire que l'extension `.md`, laissant `12_x.en` ; on coupe ici le
+ * `.en` pour que la table EN s'apparie au stem FR par simple strcmp. */
 static int emit_section(FILE* out, const char* repo_root,
                         const char* section_name,
-                        const Entry* entries, int count) {
+                        const Entry* entries, int count, int strip_en) {
     /* Émet d'abord les blobs, puis la table de pointeurs. */
     for (int i = 0; i < count; i++) {
         long len = 0;
@@ -270,6 +274,8 @@ static int emit_section(FILE* out, const char* repo_root,
     for (int i = 0; i < count; i++) {
         char file_stem[256];
         stem(entries[i].path, file_stem, sizeof(file_stem));
+        if (strip_en && has_suffix(file_stem, ".en"))
+            file_stem[strlen(file_stem) - 3] = '\0';
         fprintf(out, "    { \"%s\", \"%s\", BLOB_%s, BLOB_%s_LEN },\n",
                 file_stem, entries[i].path,
                 entries[i].slug, entries[i].slug);
@@ -292,12 +298,26 @@ int main(int argc, char** argv) {
     const char* repo_root = argv[1];
     const char* out_path  = argv[2];
 
-    /* Collecte public_documentation (profondeur 1) */
-    static Entry public_docs[MAX_ENTRIES];
-    int n_pubdocs = 0;
+    /* Collecte public_documentation (profondeur 1). Les variantes
+     * linguistiques `NN_slug.en.md` sont ramassées ici puis partitionnées :
+     * elles n'alimentent PAS la table FR (sinon elles apparaîtraient comme
+     * fiches autonomes dans `owl learn`, le count, les related-docs...), mais
+     * une table EN parallèle appariée au stem FR côté main.c. */
+    static Entry public_docs_all[MAX_ENTRIES];
+    int n_all = 0;
     collect_dir(repo_root, "docs/public_documentation", 0, ".md",
-                public_docs, &n_pubdocs, MAX_ENTRIES);
-    qsort(public_docs, (size_t)n_pubdocs, sizeof(Entry), compare_entries);
+                public_docs_all, &n_all, MAX_ENTRIES);
+    qsort(public_docs_all, (size_t)n_all, sizeof(Entry), compare_entries);
+
+    static Entry public_docs[MAX_ENTRIES];
+    static Entry public_docs_en[MAX_ENTRIES];
+    int n_pubdocs = 0, n_pubdocs_en = 0;
+    for (int i = 0; i < n_all; i++) {
+        if (has_suffix(public_docs_all[i].path, ".en.md"))
+            public_docs_en[n_pubdocs_en++] = public_docs_all[i];
+        else
+            public_docs[n_pubdocs++] = public_docs_all[i];
+    }
 
     /* Collecte scénarios (récursif) */
     static Entry scenarios[MAX_ENTRIES];
@@ -323,6 +343,17 @@ int main(int argc, char** argv) {
                  "D_%s", raw);
         /* sanitize : remplace tout char non identifiant C */
         for (char* p = public_docs[i].slug; *p; p++) {
+            if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
+                  (*p >= '0' && *p <= '9') || *p == '_'))
+                *p = '_';
+        }
+    }
+    for (int i = 0; i < n_pubdocs_en; i++) {
+        char raw[128];
+        stem(public_docs_en[i].path, raw, sizeof(raw));
+        snprintf(public_docs_en[i].slug, sizeof(public_docs_en[i].slug),
+                 "DEN_%s", raw);
+        for (char* p = public_docs_en[i].slug; *p; p++) {
             if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
                   (*p >= '0' && *p <= '9') || *p == '_'))
                 *p = '_';
@@ -368,22 +399,27 @@ int main(int argc, char** argv) {
         "#include \"embedded_docs.h\"\n\n");
 
     if (!emit_section(out, repo_root, "PUBLIC_DOCS",
-                      public_docs, n_pubdocs)) {
+                      public_docs, n_pubdocs, 0)) {
         fclose(out);
         return 1;
     }
-    if (!emit_section(out, repo_root, "SCENARIOS", scenarios, n_scen)) {
+    if (!emit_section(out, repo_root, "PUBLIC_DOCS_EN",
+                      public_docs_en, n_pubdocs_en, 1)) {
         fclose(out);
         return 1;
     }
-    if (!emit_section(out, repo_root, "TEMPLATES", templates, n_tpl)) {
+    if (!emit_section(out, repo_root, "SCENARIOS", scenarios, n_scen, 0)) {
+        fclose(out);
+        return 1;
+    }
+    if (!emit_section(out, repo_root, "TEMPLATES", templates, n_tpl, 0)) {
         fclose(out);
         return 1;
     }
 
     fclose(out);
-    fprintf(stderr, "embed_docs: %d public_doc(s) + %d scénario(s) + "
-                    "%d template(s) -> %s\n",
-            n_pubdocs, n_scen, n_tpl, out_path);
+    fprintf(stderr, "embed_docs: %d public_doc(s) (+%d variante(s) EN) + "
+                    "%d scénario(s) + %d template(s) -> %s\n",
+            n_pubdocs, n_pubdocs_en, n_scen, n_tpl, out_path);
     return 0;
 }

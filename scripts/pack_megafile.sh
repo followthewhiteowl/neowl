@@ -42,7 +42,7 @@ mkdir -p "$STAGE"
 cp -r "$DIST"/. "$STAGE/"
 rm -f "$STAGE/owl-build$EXE_EXT"
 
-echo "==> Creation du zip payload (uncompressed, plus rapide a extract)"
+echo "==> Creation du zip payload (compresse DEFLATE, taille de distribution reduite)"
 PAYLOAD="$ROOT/_local/build/release-stage/_payload.zip"
 mkdir -p "$(dirname "$PAYLOAD")"
 rm -f "$PAYLOAD"

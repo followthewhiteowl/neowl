@@ -1,0 +1,130 @@
+// Insertion d'une ligne dans un Champ Table à un indice donné (1-based),
+// avec décalage des lignes suivantes.
+//
+//   TableInsèreLigne(TABLE, indice, col1, col2, ...)
+//
+// L'indice suit le canon :
+//   0            insère au début ;
+//   > nb lignes  insère à la fin ;
+//   -1 / absent  avant la ligne en cours (aucune sélection : à la fin) ;
+//   1..nb        insère à cet indice, en décalant les lignes suivantes.
+//
+// Sans valeurs, la ligne insérée est vide. La fonction ne renvoie rien.
+//
+// Note technique : TestModeHeadless(Faux) monte le Champ Table réel (hors
+// écran) pour que TableOccurrence et la lecture de cellule rendent l'état
+// effectif du modèle.
+
+TestModeHeadless(Faux)
+
+// Vide puis re-remplit la Table avec trois lignes connues A/B/C.
+PROCEDURE PRIVÉE amorce()
+	TableSupprimeTout(TABLE_Articles)
+	TableAjouteLigne(TABLE_Articles, "A", "Alpha")
+	TableAjouteLigne(TABLE_Articles, "B", "Bravo")
+	TableAjouteLigne(TABLE_Articles, "C", "Charlie")
+FIN
+
+PROCEDURE PUBLIQUE scenario_insere_au_debut()
+	OuvreSoeur(FEN_Inventaire)
+	amorce()
+
+	TableInsèreLigne(TABLE_Articles, 0, "Z", "Zero")
+
+	dbgVérifieEgalité(TableOccurrence(TABLE_Articles), 4,
+	"insertion au début : la table compte quatre lignes")
+	dbgVérifieEgalité(TABLE_Articles[1].COL_Code, "Z",
+	"indice 0 : la ligne insérée devient la première")
+	dbgVérifieEgalité(TABLE_Articles[2].COL_Code, "A",
+	"l'ancienne première ligne est décalée en deuxième")
+	dbgVérifieEgalité(TABLE_Articles[1].COL_Libelle, "Zero",
+	"la deuxième colonne de la ligne insérée est posée")
+
+	Ferme(FEN_Inventaire)
+FIN
+
+PROCEDURE PUBLIQUE scenario_insere_a_la_fin_indice_grand()
+	OuvreSoeur(FEN_Inventaire)
+	amorce()
+
+	TableInsèreLigne(TABLE_Articles, 99, "X", "Xray")
+
+	dbgVérifieEgalité(TableOccurrence(TABLE_Articles), 4,
+	"indice supérieur au nombre de lignes : insertion à la fin")
+	dbgVérifieEgalité(TABLE_Articles[4].COL_Code, "X",
+	"la ligne insérée est la dernière")
+	dbgVérifieEgalité(TABLE_Articles[3].COL_Code, "C",
+	"l'ancienne dernière ligne reste en troisième position")
+
+	Ferme(FEN_Inventaire)
+FIN
+
+PROCEDURE PUBLIQUE scenario_insere_au_milieu_avec_decalage()
+	OuvreSoeur(FEN_Inventaire)
+	amorce()
+
+	TableInsèreLigne(TABLE_Articles, 2, "M", "Milieu")
+
+	dbgVérifieEgalité(TableOccurrence(TABLE_Articles), 4,
+	"insertion au milieu : quatre lignes au total")
+	dbgVérifieEgalité(TABLE_Articles[1].COL_Code, "A",
+	"la première ligne est inchangée")
+	dbgVérifieEgalité(TABLE_Articles[2].COL_Code, "M",
+	"la ligne insérée prend l'indice demandé")
+	dbgVérifieEgalité(TABLE_Articles[3].COL_Code, "B",
+	"l'ancienne deuxième ligne est décalée en troisième")
+	dbgVérifieEgalité(TABLE_Articles[4].COL_Code, "C",
+	"l'ancienne troisième ligne est décalée en quatrième")
+
+	Ferme(FEN_Inventaire)
+FIN
+
+PROCEDURE PUBLIQUE scenario_indice_moins_un_sans_selection()
+	OuvreSoeur(FEN_Inventaire)
+	amorce()
+
+	// Aucune ligne n'est sélectionnée : -1 retombe sur "à la fin".
+	TableInsèreLigne(TABLE_Articles,-1, "W", "Whisky")
+
+	dbgVérifieEgalité(TableOccurrence(TABLE_Articles), 4,
+	"indice -1 sans sélection : insertion à la fin")
+	dbgVérifieEgalité(TABLE_Articles[4].COL_Code, "W",
+	"la ligne insérée est la dernière")
+
+	Ferme(FEN_Inventaire)
+FIN
+
+PROCEDURE PUBLIQUE scenario_indice_absent_sans_selection()
+	OuvreSoeur(FEN_Inventaire)
+	amorce()
+
+	// Aucun indice, aucune sélection : ligne vide ajoutée à la fin.
+	TableInsèreLigne(TABLE_Articles)
+
+	dbgVérifieEgalité(TableOccurrence(TABLE_Articles), 4,
+	"indice absent sans sélection : insertion à la fin")
+	dbgVérifieEgalité(TABLE_Articles[4].COL_Code, "",
+	"sans valeurs, la ligne insérée est vide")
+	dbgVérifieEgalité(TABLE_Articles[3].COL_Code, "C",
+	"les lignes existantes sont intactes")
+
+	Ferme(FEN_Inventaire)
+FIN
+
+PROCEDURE PUBLIQUE scenario_ligne_vide_a_indice()
+	OuvreSoeur(FEN_Inventaire)
+	amorce()
+
+	TableInsèreLigne(TABLE_Articles, 1)
+
+	dbgVérifieEgalité(TableOccurrence(TABLE_Articles), 4,
+	"ligne vide insérée en tête : quatre lignes")
+	dbgVérifieEgalité(TABLE_Articles[1].COL_Code, "",
+	"la ligne en tête est vide (code)")
+	dbgVérifieEgalité(TABLE_Articles[1].COL_Libelle, "",
+	"la ligne en tête est vide (libellé)")
+	dbgVérifieEgalité(TABLE_Articles[2].COL_Code, "A",
+	"l'ancienne première ligne est décalée sous la ligne vide")
+
+	Ferme(FEN_Inventaire)
+FIN

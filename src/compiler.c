@@ -4658,6 +4658,17 @@ void compile_set_warning_capture(CompileDiagnostic* buffer, int capacity, int* c
     if (count) *count = 0;
 }
 
+/* Suppression totale des warnings du compilateur -- garantie dure, independante
+ * de la capacite du buffer de capture. Les binaires packages (owl-build)
+ * recompilent leur source au demarrage ; cette source est deja validee au
+ * packaging, donc le recompile ne doit rien cracher sur la console du client.
+ * N'affecte PAS les erreurs (elles doivent toujours stopper + s'afficher). */
+static bool g_owl_warnings_suppressed = false;
+
+void owl_set_warnings_suppressed(bool suppressed) {
+    g_owl_warnings_suppressed = suppressed;
+}
+
 /*  : basename du fichier en cours de compilation, grave dans chaque
  * diagnostic capture. Les consommateurs qui affichent en differe n'ont plus de
  * contexte de compilation et ne peuvent pas le reconstituer. */
@@ -4770,6 +4781,9 @@ void compile_emit_diagnostic_at(const Token* token, const char* message,
         }
         parser.hadError = true;
     } else {
+        /* Binaire package : warnings totalement silencieux, avant toute
+         * capture ou emission (cf. owl_set_warnings_suppressed). */
+        if (g_owl_warnings_suppressed) return;
         /* Mimique warning_at : route vers warnBuffer ou stderr, pas de
          * hadError ni panicMode. */
         if (warnBuffer != NULL && warnCount != NULL && *warnCount < warnCapacity) {
@@ -9137,6 +9151,64 @@ static char g_last_field_type[64] = "";
  * Reset au début d'une nouvelle chaîne (named_variable). */
 static bool g_chain_broken = false;
 static int  g_last_field_type_len = 0;
+
+/*  — suivi de la cible d'affectation (LVALUE) JSON profonde.
+ *
+ * Une affectation `j.a.b = x` / `j.a[1].b = x` compile ses segments
+ * intermediaires (`.a`, `[1]`) en OP_STRUCT_GET / OP_ARRAY_GET de lecture ;
+ * sur un conteneur JSON absent ils rendaient NIL et le set de la feuille
+ * echouait. On enregistre l'offset bytecode de chaque GET intermediaire (avec
+ * le type de conteneur que le segment SUIVANT impose : objet pour `.membre`,
+ * tableau pour `[i]`) ; quand un segment terminal consomme `=` (ou `<=`, ou un
+ * compose), on PROMEUT in-place ces GET en variantes get-or-create. La
+ * promotion ne porte QUE sur les segments de la chaine courante (bornee par
+ * `base`), jamais sur les sous-expressions d'indice/argument/RHS qui ouvrent
+ * leur propre parse_precedence (donc leur propre `base`). Une chaine qui ne
+ * finit pas sur une affectation n'est jamais promue : la lecture reste
+ * inchangee (aucune materialisation). */
+typedef struct {
+    int     offset;      /* position de l'octet opcode dans le chunk courant */
+    bool    isStruct;    /* true = OP_STRUCT_GET, false = OP_ARRAY_GET */
+    uint8_t createKind;  /* 1 = objet (membre suivant), 2 = tableau (index suivant) */
+} LvChainSeg;
+#define LV_CHAIN_MAX 128
+static LvChainSeg g_lv_chain[LV_CHAIN_MAX];
+static int g_lv_chain_count = 0;   /* nb total de segments empiles (toutes profondeurs) */
+static int g_lv_chain_base  = 0;   /* 1er segment appartenant au parse_precedence courant */
+
+/* Enregistre le GET intermediaire qui vient d'etre emis a `offset`. `nextTok`
+ * est le token qui suit le segment (determine le type du conteneur a creer).
+ * Hors acces membre/index derriere, rien n'est enregistre (segment terminal). */
+static void lv_chain_record(int offset, bool isStruct, TokenType nextTok) {
+    uint8_t kind;
+    if (nextTok == TOKEN_DOT || nextTok == TOKEN_DOUBLE_DOT) kind = 1;       /* objet */
+    else if (nextTok == TOKEN_LEFT_BRACKET)                  kind = 2;       /* tableau */
+    else return;                                                            /* terminal */
+    if (g_lv_chain_count >= LV_CHAIN_MAX) return;  /* chaine pathologique : pas d'auto-viv */
+    g_lv_chain[g_lv_chain_count].offset     = offset;
+    g_lv_chain[g_lv_chain_count].isStruct   = isStruct;
+    g_lv_chain[g_lv_chain_count].createKind = kind;
+    g_lv_chain_count++;
+}
+
+/* Promeut les GET intermediaires de la chaine courante (indices
+ * [g_lv_chain_base .. g_lv_chain_count)) en variantes get-or-create. Appele par
+ * le segment terminal au moment ou il consomme l'operateur d'affectation. */
+static void lv_chain_promote_pending(void) {
+    Chunk* c = current_chunk();
+    for (int i = g_lv_chain_base; i < g_lv_chain_count; i++) {
+        int off = g_lv_chain[i].offset;
+        if (off < 0 || off >= c->count) continue;
+        uint8_t op = c->code[off];
+        if (g_lv_chain[i].isStruct && op == OP_STRUCT_GET) {
+            c->code[off] = (g_lv_chain[i].createKind == 2)
+                ? OP_STRUCT_GET_OR_CREATE_ARR : OP_STRUCT_GET_OR_CREATE_OBJ;
+        } else if (!g_lv_chain[i].isStruct && op == OP_ARRAY_GET) {
+            c->code[off] = (g_lv_chain[i].createKind == 2)
+                ? OP_ARRAY_GET_OR_CREATE_ARR : OP_ARRAY_GET_OR_CREATE_OBJ;
+        }
+    }
+}
 /*  lot 1 — suivi de la chaine `TABLE_X[ligne]..COL_Y..Prop`.
  * `TABLE_X[ligne].COL_Y` est valide et rend la VALEUR de la cellule
  *. Ce qui n'existe pas, c'est la mise en forme par cellule :
@@ -9267,6 +9339,7 @@ static void ui_option_prop_list(bool interrupteur, char* out, size_t cap) {
  * (defini bien plus bas, avec le reste de la table parallele des widgets). */
 static int  prescan_widget_child_count(const char* widget);
 static bool prescan_widget_has_child(const char* widget, const char* child);
+static int  prescan_widget_child_index(const char* widget, const char* child);
 static void prescan_widget_child_list(const char* widget, char* out, size_t cap);
 /*  — Tables proprietaires d'une colonne homonyme (defini avec le reste
  * de la table parallele des widgets, plus bas). */
@@ -12497,6 +12570,9 @@ static void dot(bool canAssign) {
             owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR);
             return;
         }
+        /*  — cible d'affectation : promeut les GET intermediaires de
+         * cette chaine en get-or-create (auto-vivification JSON profonde). */
+        lv_chain_promote_pending();
         /*  — contrat de signature callback : `recv..prop = MaProc`.
          * Vérif arité + types EXACTS quand prop est un field registry
          * "procédure" et MaProc une PROCEDURE top-level connue. */
@@ -12828,6 +12904,7 @@ static void dot(bool canAssign) {
         emit_const_op(OP_STRUCT_SET, name);
     } else if (canAssign && match_token(TOKEN_LESS_EQUAL)) {
         /* Deep copy assignment: obj.field <= expr */
+        lv_chain_promote_pending();   /*  */
         condition_expression();
         emit_byte(OP_DEEP_COPY);
         emit_const_op(OP_STRUCT_SET, name);
@@ -12848,6 +12925,7 @@ static void dot(bool canAssign) {
             owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR);
             return;
         }
+        lv_chain_promote_pending();   /*  */
         emit_byte(OP_DUP);                      /* [obj, obj] */
         emit_const_op(OP_STRUCT_GET, name);         /* [obj, oldVal] */
         Chunk* divChunk = NULL;
@@ -13122,7 +13200,12 @@ static void dot(bool canAssign) {
                 g_last_field_type[copy] = '\0';
                 g_last_field_type_len = copy;
             }
+            /*  — segment membre intermediaire d'une chaine : enregistre
+             * ce GET pour une promotion get-or-create eventuelle (si un terminal
+             * `=` suit plus loin). Le token courant indique le conteneur a creer. */
+            int lvOff = current_chunk()->count;
             emit_const_op(OP_STRUCT_GET, name);
+            lv_chain_record(lvOff, /*isStruct=*/true, parser.current.type);
         }
     }
 }
@@ -14492,6 +14575,10 @@ static void subscript(bool canAssign) {
              * le NEWLINE apres `=` a ete skippe (crossedNewline). On refuse, ancre
              * sur le `=`, plutot que d'avaler la ligne suivante comme operande. */
             if (crossedNewline) { owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR); return; }
+            /*  — cible indexee : promeut les GET intermediaires de la
+             * chaine (auto-vivification JSON profonde `j.a[i] = x`). No-op quand
+             * la chaine n'a pas d'intermediaire (receveur nu widget/tableau). */
+            lv_chain_promote_pending();
             if (interOptNu) {
                 /* Ecriture nue = pose de coche : [ref, idx] -> OP_ARRAY_GET ->
                  * [option] ; puis la valeur ; puis STRUCT_SET "Valeur" (qui
@@ -14524,7 +14611,12 @@ static void subscript(bool canAssign) {
             bool wantCellDesc = false;
             if (tblCellColLen > 0)
                 wantCellDesc = lookahead_is_table_fmt_prop();
+            int lvIdxOff = current_chunk()->count;
             emit_byte(wantCellDesc ? OP_TABLE_CELL_DESC : OP_ARRAY_GET);
+            /*  — segment indexe intermediaire : enregistre ce GET pour
+             * une promotion get-or-create eventuelle (chaine terminee par `=`). */
+            if (!wantCellDesc)
+                lv_chain_record(lvIdxOff, /*isStruct=*/false, parser.current.type);
             /*  lot 1 — armement APRES l'index : l'expression
              * d'indice passe par named_variable, qui reset le suivi. */
             if (tblRecvNameLen > 0) {
@@ -14577,6 +14669,69 @@ static void subscript(bool canAssign) {
         return;
     }
 
+    /*  — forme virgule sur un Champ Table : `TABLE[ligne, colonne]`
+     * designe une cellule, exactement comme `TABLE[ligne][colonne]`.
+     * On route vers la meme machinerie d'acces cellule (deux OP_ARRAY_GET
+     * imbriques, puis le `..Prop` servi par dot()) plutot que vers l'indexation
+     * 2D generique ci-dessous (Image / tableau 2D nested), qui ne connait pas la
+     * Table et echouait sur « type non supporte pour 2 indices ». Borne au
+     * receveur Table NU (profondeur 1, aucune colonne deja nommee) : les formes
+     * qualifiees retombent sur le chemin generique, inchangees. */
+    if (tblRecvNameLen > 0 && tblRecvDepth == 1 && tblCellColLen == 0) {
+        /* 1er indice (ligne) deja compile : descend a la rep de ligne. */
+        emit_byte(OP_ARRAY_GET);
+
+        /* Colonne par NOM : un identifiant qui matche une colonne declaree de
+         * CETTE Table est resolu en NUMERO 1-based (coherence avec la forme
+         * `TABLE.COL_nom[ligne]`), au lieu d'etre traite comme une variable
+         * d'expression — qui echouait en « variable inconnue ». Sinon : numero
+         * de colonne, expression ordinaire. */
+        bool colByName = false;
+        if (check(TOKEN_IDENTIFIER) && parser.current.length < 128) {
+            char colBuf[128];
+            memcpy(colBuf, parser.current.start,
+                   (size_t)parser.current.length);
+            colBuf[parser.current.length] = '\0';
+            int colIdx = prescan_widget_child_index(tblRecvName, colBuf);
+            if (colIdx > 0) {
+                advance_token();   /* consomme le nom de colonne */
+                emit_constant(INTEGER_VAL(colIdx));
+                colByName = true;
+            }
+        }
+        if (!colByName) expression();   /* numero de colonne */
+
+        /* Une cellule a deux coordonnees : une 3e virgule n'a rien a designer. */
+        if (check(TOKEN_COMMA)) {
+            char colHint[128];
+            table_first_column_hint(tblRecvName, colHint, sizeof(colHint));
+            owl_emit_error_at(&parser.current, E_SEM_TABLE_INDEX_TOO_DEEP,
+                              "table", tblRecvName,
+                              "colonne", colHint,
+                              NULL);
+        }
+        consume_index_close();
+
+        if (canAssign && match_token(TOKEN_EQUAL)) {
+            /*  — RHS absent en fin de ligne (cf. cas 1 index). */
+            if (crossedNewline) { owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR); return; }
+            lv_chain_promote_pending();   /*  */
+            expression();
+            emit_byte(OP_ARRAY_SET);
+        } else {
+            int lvIdxOff = current_chunk()->count;
+            emit_byte(OP_ARRAY_GET);      /* rep de ligne[colonne] -> cellule */
+            lv_chain_record(lvIdxOff, /*isStruct=*/false, parser.current.type);
+            /* Arme la chaine pour le `..Prop` suivant, comme la forme
+             * double-crochet apres son 2e crochet (profondeur 2). */
+            g_table_cell_table_len = tblRecvNameLen;
+            memcpy(g_table_cell_table, tblRecvName,
+                   (size_t)tblRecvNameLen + 1);
+            g_table_cell_depth = 2;
+        }
+        return;
+    }
+
     /* Au moins 2 indices. On veut distinguer :
      *   - exactement 2 (`recv[x, y]`) → OP_ARRAY_GET_2D / OP_ARRAY_SET_2D
      *     (dispatch runtime Image vs tableau 2D nested, doc
@@ -14615,6 +14770,7 @@ static void subscript(bool canAssign) {
         if (canAssign && match_token(TOKEN_EQUAL)) {
             /*  — RHS absent en fin de ligne (cf. cas 1 index). */
             if (crossedNewline) { owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR); return; }
+            lv_chain_promote_pending();   /*  */
             expression();
             emit_byte(OP_ARRAY_SET);
         } else {
@@ -14628,6 +14784,7 @@ static void subscript(bool canAssign) {
     if (canAssign && match_token(TOKEN_EQUAL)) {
         /*  — RHS absent en fin de ligne (cf. cas 1 index). */
         if (crossedNewline) { owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR); return; }
+        lv_chain_promote_pending();   /*  */
         expression();
         emit_byte(OP_ARRAY_SET_2D);
     } else {
@@ -17160,6 +17317,14 @@ static bool peek_is_pas_dans(void) {
 }
 
 static void parse_precedence(Precedence precedence) {
+    /*  — chaque parse_precedence possede sa propre chaine LVALUE : les
+     * segments empiles ici ne sont promouvables que par un terminal de CE
+     * niveau. Les sous-expressions (indice, argument, RHS) ouvrent leur propre
+     * parse_precedence, donc leur propre base, et leurs GET sont oublies au
+     * retour (count ramene a base) — jamais vivifies par erreur. */
+    int lvSavedBase  = g_lv_chain_base;
+    int lvSavedCount = g_lv_chain_count;
+    g_lv_chain_base  = g_lv_chain_count;
     /*  : TOKEN_TYPE libres (date, heure, dateheure, duree, json, uuid)
      * peuvent servir de noms de variable / parametre / champ. Ici en position
      * d'expression (lecture), on les "demote" en IDENTIFIER avant le dispatch
@@ -17179,9 +17344,11 @@ static void parse_precedence(Precedence precedence) {
          * attendue", pour pointer l'usage correct (bascule de portee top-level). */
         if (parser.previous.type == TOKEN_GLOBAL || parser.previous.type == TOKEN_LOCAL) {
             owl_emit_error_at(&parser.previous, E_SYNTAX_GLOBAL_LOCAL_MISPLACED);
+            g_lv_chain_base = lvSavedBase; g_lv_chain_count = lvSavedCount;
             return;
         }
         owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EXPR);
+        g_lv_chain_base = lvSavedBase; g_lv_chain_count = lvSavedCount;
         return;
     }
 
@@ -17220,6 +17387,9 @@ static void parse_precedence(Precedence precedence) {
         if (infixRule == NULL) break;
         infixRule(canAssign);
     }
+    /*  — on jette les segments de CE niveau (promus ou non) et on
+     * restaure le niveau englobant. */
+    g_lv_chain_base = lvSavedBase; g_lv_chain_count = lvSavedCount;
 }
 
 static void expression(void) {
@@ -28504,6 +28674,12 @@ static void control_parse_property_init(OwlControlDecl* control) {
         } else if (def->nameFR && strcmp(def->nameFR, "BorneMin") == 0) {
             control->bound_min_line = propTok.line;
             control->bound_min_col  = propTok.column;
+        } else if (def->nameFR && strcmp(def->nameFR, "FormatAffichage") == 0) {
+            /*  — mémoriser la position pour le warning cross-prop
+             * différé (le TypeSaisie peut suivre dans le bloc). La valeur est
+             * relue à l'émission via control->properties. */
+            control->faff_line = propTok.line;
+            control->faff_col  = propTok.column;
         }
     }
 
@@ -28787,6 +28963,60 @@ static void input_emit_bound_not_numeric_warning_if(const OwlControlDecl* contro
         t.column = control->bound_min_col;
         owl_emit_warning_at(&t, W_SEM_BOUND_MIN_NOT_NUMERIC, NULL);
     }
+}
+
+/*  — warning cross-prop : FormatAffichage posé à formatTexteRiche sur
+ * un Champ Saisie dont le TypeSaisie effectif n'est PAS multiligne est ignoré
+ * en silence au runtime (le format enrichi n'est appliqué qu'aux saisies
+ * multilignes, cf. stdlib_ui.c Lot E). Appelée après le parse COMPLET du body :
+ * l'ordre FormatAffichage/TypeSaisie dans le bloc est indifférent.
+ *
+ * Scope OWL_CONTROL_INPUT uniquement (FormatAffichage est légitime sur un
+ * Libellé). N'agit que si FormatAffichage est posé à une valeur non-défaut
+ * (formatTexteRiche) : le défaut formatTexte ne déclenche rien. Un TypeSaisie
+ * dynamique (non const-foldé) désarme le diagnostic (pas de faux positif quand
+ * le type n'est pas connu au compile-time). */
+static void input_emit_format_affichage_warning_if(const OwlControlDecl* control) {
+    if (!control || control->kind != OWL_CONTROL_INPUT) return;
+    if (control->faff_col == 0) return;
+
+    int64_t formatAff = OWL_FAFF_TEXTE;
+    bool    formatKnown = true;
+    int64_t inputType = OWL_TYPESAISIE_TEXTE;
+    bool    typeKnown = true;
+    for (int i = 0; i < control->property_count; i++) {
+        const char* pn = control->properties[i].name;
+        if (!pn) continue;
+        if (strcasecmp(pn, "FormatAffichage") == 0
+            || strcasecmp(pn, "DisplayFormat") == 0) {
+            const OwlPropertyInit* p = &control->properties[i];
+            if (p->is_constant && IS_INTEGER(p->const_value)) {
+                formatAff = AS_INTEGER(p->const_value);
+            } else {
+                formatKnown = false;
+            }
+        } else if (strcasecmp(pn, "TypeSaisie") == 0
+                   || strcasecmp(pn, "InputType") == 0) {
+            const OwlPropertyInit* p = &control->properties[i];
+            if (p->is_constant && IS_INTEGER(p->const_value)) {
+                inputType = AS_INTEGER(p->const_value);
+            } else {
+                typeKnown = false;
+            }
+        }
+    }
+    if (!formatKnown || !typeKnown) return;
+    if (formatAff != OWL_FAFF_TEXTE_RICHE) return;        /* défaut : rien */
+    if (inputType == OWL_TYPESAISIE_MULTILIGNE) return;   /* format légitime */
+
+    Token t;
+    memset(&t, 0, sizeof(t));
+    t.type   = TOKEN_IDENTIFIER;
+    t.start  = "FormatAffichage";
+    t.length = 15;
+    t.line   = control->faff_line;
+    t.column = control->faff_col;
+    owl_emit_warning_at(&t, W_SEM_FORMATAFFICHAGE_NOT_MULTILIGNE, NULL);
 }
 
 /* Champ Table V1 — parse une init de propriete au niveau d'une colonne.
@@ -31926,6 +32156,8 @@ static void window_parse_subfield(OwlWindowDecl* decl, OwlControlKind kind,
     /*  — body complet parse : verifier les bornes numeriques posees sur
      * un Champ Saisie non bornable (cross-prop, ordre indifferent). */
     input_emit_bound_not_numeric_warning_if(control);
+    /*  — FormatAffichage enrichi sur un Champ Saisie non multiligne. */
+    input_emit_format_affichage_warning_if(control);
 
     /* Append au decl. NB : l'append doit rester EN FIN (et pas avant le parse
      * du body) — sinon le realloc du tableau lors de l'append d'un sibling
@@ -36852,6 +37084,15 @@ static bool detect_hyphen_in_element_name(char* out, int outsz, Token* outNameTo
 }
 
 static void declaration(void) {
+    /*  — chaque instruction (top-level ET corps de fonction, qui
+     * passent tous par declaration()) repart d'une chaine LVALUE vierge. Les
+     * segments intermediaires enregistres pour l'auto-vivification JSON ne
+     * doivent jamais survivre a l'instruction qui les a produits : la boucle
+     * infix manuelle des affectations a tete d'identifiant (plus bas) construit
+     * sa cible hors de l'isolation de parse_precedence. Reset en tete =
+     * aucune fuite entre instructions / fonctions. */
+    g_lv_chain_base  = 0;
+    g_lv_chain_count = 0;
     /* Verrou anti-keyword en position de declaration : `a est un entier`,
      * `POUR est un entier`, etc. Sans ca le routing par statement() partirait
      * dans le path POUR/SI/expression_statement et produirait un message
@@ -37577,6 +37818,23 @@ static bool prescan_widget_has_child(const char* widget, const char* child) {
         }
     }
     return false;
+}
+
+/*  — rang 1-based d'un enfant nomme dans ce widget, en ordre de
+ * declaration. Pour une Table c'est l'index de colonne attendu par le runtime
+ * (`uici->decl->columns[idx-1]`) : les enfants sont enregistres dans l'ordre du
+ * scan, le meme ordre qui construit `decl->columns`. 0 si inconnu. */
+static int prescan_widget_child_index(const char* widget, const char* child) {
+    int owner = prescan_widget_index(widget);
+    if (owner < 0) return 0;
+    int rank = 0;
+    for (int i = 0; i < g_prescan_child_count; i++) {
+        if (g_prescan_children[i].owner != owner) continue;
+        rank++;
+        if (prescan_ident_equal(g_prescan_children[i].name, child))
+            return rank;
+    }
+    return 0;
 }
 
 /* Liste « COL_A, COL_B » pour le message d'erreur : une impasse devient une

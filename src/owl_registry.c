@@ -380,6 +380,11 @@ const OwlTypeDef* owl_registry_type_find(const char* name) {
         const OwlTypeDef* t = (const OwlTypeDef*)g_types.items[i];
         if (t->canonical      && owl_name_matches(t->canonical,      q)) return t;
         if (t->canonicalAscii && owl_name_matches(t->canonicalAscii, q)) return t;
+        /* Invariant 3 (bilingue FR<->EN) : la forme EN du NOM de type doit
+         * resoudre au meme titre que la forme FR. Sans ca, un type dont la
+         * forme EN ne vit que dans nameEN (ni dans aliases, ni via un double
+         * natif/type) compile en FR mais echoue en EN ("Type inconnu"). */
+        if (t->nameEN         && owl_name_matches(t->nameEN,         q)) return t;
         if (t->aliases) {
             for (const char* const* a = t->aliases; *a; a++) {
                 if (owl_name_matches(*a, q)) return t;

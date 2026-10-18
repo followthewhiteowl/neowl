@@ -1162,6 +1162,7 @@ set(OWL_CORE_SRCS
     src/stdlib_file.c
     src/project.c
     src/project_run.c
+    src/startup_window.c
     src/prescan.c
     src/testing.c
     src/formatter.c

@@ -94,8 +94,8 @@ t est un tableau de réels = [1.0, 2.0, 3.0]
 v est un Vecteur = TableauVersVecteur(t)
 Trace(v..Taille)          // 3
 
-retour est un tableau de réels = VecteurVersTableau(v)
-Trace(retour[1])          // 1
+sortie est un tableau de réels = VecteurVersTableau(v)
+Trace(sortie[1])          // 1
 ```
 
 La coercion `[...]` → `Vecteur` n'opère qu'**à la déclaration** d'une

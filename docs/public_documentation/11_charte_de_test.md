@@ -97,7 +97,7 @@ Les deux formes sont équivalentes. Mélanger FR et EN dans le même
 fichier est toléré mais déconseillé.
 
 ```owl
-// Tests de ChaineMajuscule : conversion en majuscules.
+// Tests de la méthode .Majuscule : conversion en majuscules.
 
 s est une chaîne
 

@@ -1,0 +1,110 @@
+// @sujet : auto-vivification des chemins JSON profonds en écriture
+// @résumé : affecter une valeur à un chemin JSON dont les segments
+// intermédiaires n'existent pas encore crée ces segments à la volée. Un
+// segment `.membre` absent matérialise un objet ; un segment `[i]` absent
+// matérialise un tableau (indexation 1-based, croissance d'un élément à la
+// fois). La feuille reçoit la valeur affectée. S'applique récursivement sur
+// toute la profondeur du chemin.
+//
+// Note de granularité (test_writer) : ce scénario couvre un concept
+// syntaxique transversal (descente LVALUE JSON chaînée), pas une native
+// isolée — exception documentée à la convention "1 native = 1 fichier".
+
+
+// Un seul segment manquant (`a`) devient un objet JSON contenant la feuille.
+PROCEDURE PUBLIQUE scenario_objet_imbrique_deux_niveaux()
+	j est un JSON
+	j.a.b = "x"
+	dbgVérifieEgalité(j.a.b, "x", "la feuille affectée est lisible après auto-création")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), `{"a":{"b":"x"}}`, "objet intermédiaire auto-créé, structure exacte")
+FIN
+
+
+// La récursion s'applique sur toute la profondeur, pas seulement un niveau.
+PROCEDURE PUBLIQUE scenario_objet_imbrique_trois_niveaux()
+	j est un JSON
+	j.a.b.c = "x"
+	dbgVérifieEgalité(j.a.b.c, "x", "feuille à 3 niveaux de profondeur lisible")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), `{"a":{"b":{"c":"x"}}}`, "trois niveaux d'objets auto-créés")
+FIN
+
+
+// Un segment `[i]` absent matérialise un tableau, indexé à partir de 1.
+PROCEDURE PUBLIQUE scenario_tableau_auto_cree_index_un()
+	j est un JSON
+	j.a[1].b = "x"
+	dbgVérifieEgalité(j.a[1].b, "x", "feuille dans le tableau auto-créé lisible")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), `{"a":[{"b":"x"}]}`, "tableau 1-based auto-créé avec son premier élément")
+FIN
+
+
+// Combinaison objet > tableau > objet > tableau sur un seul chemin d'écriture.
+PROCEDURE PUBLIQUE scenario_mixte_objet_tableau_objet_tableau()
+	j est un JSON
+	j.a[1].b[1] = "x"
+	dbgVérifieEgalité(j.a[1].b[1], "x", "feuille au bout du chemin mixte lisible")
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), `{"a":[{"b":["x"]}]}`, "imbrication mixte auto-créée, structure exacte")
+FIN
+
+
+// Écrire un index qui dépasse la taille courante de plus d'un élément
+// (ici : tableau absent donc 0 élément, écriture à l'indice 3) échoue.
+// La croissance d'un tableau auto-créé suit la même règle qu'un tableau
+// ordinaire : un élément à la fois, jamais de saut qui laisserait des trous.
+// L'échec est une exception rattrapable (cohérent avec l'indexation hors
+// limites d'un tableau ordinaire) : on l'attrape avec QUAND EXCEPTION pour
+// documenter le comportement sans faire avorter le scénario.
+PROCEDURE PUBLIQUE scenario_index_hors_sequence_echoue()
+	j est un JSON
+	bAttrapee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		j.a[3] = "x"
+	FAIRE
+		bAttrapee = Vrai
+	FIN
+	dbgVérifieVrai(bAttrapee, "sauter des indices lors de la création reste une erreur, comme pour un tableau ordinaire")
+	// L'oracle le dit explicitement : le tableau "a" EXISTE déjà (0 élément)
+	// au moment où l'erreur d'indice se déclenche. Vérifier que l'échec
+	// survient bien APRÈS la matérialisation du tableau — sinon le test
+	// passerait aussi « par coïncidence » sur l'ancien comportement où
+	// l'accès membre `a` lui-même échouait avant toute auto-création.
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), `{"a":[]}`, "le tableau intermédiaire est matérialisé même quand l'indice demandé échoue ensuite")
+FIN
+
+
+// Écraser un conteneur existant qui est un scalaire (pas un objet/tableau)
+// par un accès membre sur un segment plus profond échoue : l'auto-vivification
+// ne transforme jamais un scalaire déjà affecté en conteneur.
+PROCEDURE PUBLIQUE scenario_ecrasement_scalaire_par_objet_echoue()
+	j est un JSON
+	j.a = "scalaire"
+	bAttrapee est un booléen = Faux
+	QUAND EXCEPTION DANS
+		j.a.b = "x"
+	FAIRE
+		bAttrapee = Vrai
+	FIN
+	dbgVérifieVrai(bAttrapee, "un scalaire existant ne devient pas un conteneur par simple accès membre")
+	dbgVérifieEgalité(j.a, "scalaire", "le scalaire reste intact après l'échec, aucune mutation partielle")
+FIN
+
+
+// NON-RÉGRESSION — un niveau simple (déjà fonctionnel avant ce ticket) reste
+// inchangé : affectation directe sur un membre absent, sans imbrication.
+PROCEDURE PUBLIQUE scenario_non_regression_niveau_simple()
+	j est un JSON
+	j.surname = "Robinson"
+	dbgVérifieEgalité(j.surname, "Robinson", "l'affectation simple niveau 1 continue de fonctionner")
+FIN
+
+
+// NON-RÉGRESSION — réaffecter un membre imbriqué déjà existant (construit
+// par étapes) continue de fonctionner sans passer par l'auto-création.
+PROCEDURE PUBLIQUE scenario_non_regression_reaffectation_existant()
+	sous est un JSON
+	sous.x = 1
+	j est un JSON
+	j.membre = sous
+	j.membre.x = 2
+	dbgVérifieEgalité(j.membre.x, 2, "réaffectation d'un membre imbriqué déjà existant inchangée")
+FIN

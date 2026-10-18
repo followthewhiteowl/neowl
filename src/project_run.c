@@ -14,6 +14,9 @@
 #include "compiler.h"
 #include "memory.h"
 #include "owl_errors.h"  /* owl_error_render_lang_is_en : chrome owl-build bilingue */
+#include "miniz.h"       /* deflate du source embarque dans le bundle genere (spike ) */
+/* owl_service_registry_count : detection ServiceREST au build */
+#include "service_decl.h"
 
 /* boot i18n depuis les metadonnees de projet.owl (defini dans stdlib_i18n.c).
  * Declare ici pour eviter de tirer owl_stdlib.h complet.  : pose la
@@ -46,6 +49,76 @@ static void owl_boot_project_i18n(void) {
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <dirent.h>
+
+#ifdef _WIN32
+#  include <direct.h>
+#  define OWL_BUILD_MKDIR_ONE(p) _mkdir(p)
+#  define OWL_BUILD_RMDIR_ONE(p) _rmdir(p)
+#else
+#  include <sys/types.h>
+#  include <unistd.h>
+#  define OWL_BUILD_MKDIR_ONE(p) mkdir((p), 0755)
+#  define OWL_BUILD_RMDIR_ONE(p) rmdir((p))
+#endif
+
+/* mkdir -p : cree `path` et tous ses parents manquants. Utilise par
+ * build_project pour materialiser le dossier de sortie JUSTE avant d'ecrire
+ * l'exe, pas plus tot : ainsi un build qui echoue en amont (portail
+ * de compile, compile du bundle) ne laisse aucun `exe/<target>/` vide derriere
+ * lui. `is_directory` vient de project.h. */
+static int build_ensure_dirs(const char* path) {
+    if (is_directory(path)) return 0;
+    char buf[1024];
+    size_t len = strlen(path);
+    if (len >= sizeof(buf)) return -1;
+    memcpy(buf, path, len + 1);
+    for (size_t i = 0; i < len; i++) {
+        if (buf[i] == '\\') buf[i] = '/';
+    }
+    for (size_t i = 1; i < len; i++) {
+        if (buf[i] == '/') {
+            buf[i] = '\0';
+            /* Saute les segments racine non creables : "" (slash de tete POSIX)
+             * et "C:" (lettre de lecteur Windows, mkdir echoue). */
+            int is_root = (buf[0] == '\0') ||
+                          (buf[1] == ':' && buf[2] == '\0' &&
+                           ((buf[0] >= 'A' && buf[0] <= 'Z') ||
+                            (buf[0] >= 'a' && buf[0] <= 'z')));
+            if (!is_root && !is_directory(buf)) {
+                if (OWL_BUILD_MKDIR_ONE(buf) != 0 && !is_directory(buf)) return -1;
+            }
+            buf[i] = '/';
+        }
+    }
+    if (OWL_BUILD_MKDIR_ONE(buf) != 0 && !is_directory(buf)) return -1;
+    return 0;
+}
+
+/* Retire le dossier de sortie qu'on venait de materialiser pour le linker
+ * quand le link echoue. `rmdir` simple REFUSE un dossier non vide :
+ * si le link n'a rien produit, `exe/<target>/` (puis `exe/`) est vide et
+ * disparait ; s'il contient l'exe d'un build anterieur reussi, le rmdir echoue
+ * silencieusement et ne detruit RIEN. On ignore volontairement le code de
+ * retour. JAMAIS de suppression recursive/forcee ici : toute la surete tient
+ * au refus des dossiers non vides. */
+static void build_rmdir_output_if_empty(const char* outputName) {
+    char buf[1024];
+    snprintf(buf, sizeof(buf), "%s", outputName);
+    char* lastSep = NULL;
+    for (char* p = buf; *p; p++) {
+        if (*p == '/' || *p == '\\') lastSep = p;
+    }
+    if (lastSep == NULL) return;
+    *lastSep = '\0';              /* buf -> .../exe/<target> */
+    (void)OWL_BUILD_RMDIR_ONE(buf);
+    char* parentSep = NULL;
+    for (char* p = buf; *p; p++) {
+        if (*p == '/' || *p == '\\') parentSep = p;
+    }
+    if (parentSep == NULL) return;
+    *parentSep = '\0';            /* buf -> .../exe */
+    (void)OWL_BUILD_RMDIR_ONE(buf);
+}
 
 /* ================================================================
  * TEARDOWN PROJET
@@ -621,8 +694,57 @@ InterpretResult project_run_sources_no_teardown(
 
 
 
+/* Message "pas de projet ici" : owl-build package un projet, il faut un
+ * projet.owl dans le dossier. Factorise entre le garde de frontiere (0
+ * marqueur top-level) et le garde d'entree (projet.owl absent du perimetre
+ * decouvert). Bilingue, forme minimale actionnable. */
+static void owl_build_print_no_project(const char* dir) {
+    fprintf(stderr, owl_error_render_lang_is_en()
+        ? "owl build: no projet.owl in '%s'.\n"
+          "  owl-build packages a project: a projet.owl file is required in the\n"
+          "  directory. Minimal form:\n"
+          "    MyApp is a Project\n"
+          "      PROPERTIES\n"
+          "        Languages = [languageEnglish]\n"
+          "      END\n"
+          "    END\n"
+        : "owl build: aucun projet.owl dans '%s'.\n"
+          "  owl-build package un projet : il faut un fichier projet.owl dans le\n"
+          "  dossier. Forme minimale :\n"
+          "    MonApp est un Projet\n"
+          "      PROPRIETES\n"
+          "        Langues = [langueFrancais]\n"
+          "      FIN\n"
+          "    FIN\n", dir);
+}
+
 int build_project(const char* dir, const char* outputName,
                   const char* owlInstallRoot, const char* target) {
+    /* 0. Garde de frontiere. Avant tout scan, verifier qu'il y a un
+     * marqueur de projet AU TOP-LEVEL du dossier donne (pas en recursif). Sans
+     * ca, un dossier qui n'est pas lui-meme une frontiere lancerait
+     * le scan recursif et ramasserait a plat des marqueurs de projets etrangers
+     * enfouis dans des sous-dossiers sans rapport -> faux diagnostic "deux
+     * graphies ambigues". */
+    bool hasFr = project_dir_has_marker(dir, "projet.owl");
+    bool hasEn = project_dir_has_marker(dir, "project.owl");
+    if (hasFr && hasEn) {
+        /* Ambiguite LEGITIME : les deux graphies au MEME top-level. Meme sens
+         * que le garde-fou de project_discover, mais correctement scope a la
+         * frontiere du dossier donne (pas a un sous-arbre entier). */
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl build: two ambiguous project markers (keep a single spelling):\n"
+            : "owl build: deux marqueurs de projet ambigus (garder une seule "
+              "graphie) :\n");
+        fprintf(stderr, "  %s/projet.owl\n", dir);
+        fprintf(stderr, "  %s/project.owl\n", dir);
+        return 65;
+    }
+    if (!hasFr && !hasEn) {
+        owl_build_print_no_project(dir);
+        return 65;
+    }
+
     /* 1. Discover project files */
     Project project;
     project_init(&project);
@@ -643,23 +765,7 @@ int build_project(const char* dir, const char* outputName,
         }
     }
     if (buildEntry < 0) {
-        fprintf(stderr, owl_error_render_lang_is_en()
-            ? "owl build: no projet.owl in '%s'.\n"
-              "  owl-build packages a project: a projet.owl file is required in the\n"
-              "  directory. Minimal form:\n"
-              "    MyApp is a Project\n"
-              "      PROPERTIES\n"
-              "        Languages = [languageEnglish]\n"
-              "      END\n"
-              "    END\n"
-            : "owl build: aucun projet.owl dans '%s'.\n"
-              "  owl-build package un projet : il faut un fichier projet.owl dans le\n"
-              "  dossier. Forme minimale :\n"
-              "    MonApp est un Projet\n"
-              "      PROPRIETES\n"
-              "        Langues = [langueFrancais]\n"
-              "      FIN\n"
-              "    FIN\n", dir);
+        owl_build_print_no_project(dir);
         project_free(&project);
         return 65;
     }
@@ -675,13 +781,24 @@ int build_project(const char* dir, const char* outputName,
      * avec l'exe GUI produit. Erreurs -> diagnostics compilateur sur stderr (deja
      * emis par le compile) + exit 65, aucun bundle genere, aucun exe, aucune ligne
      * `-> path` (build_main n'imprime `-> path` que si build_project rend 0). */
+    /*  — un projet qui declare un ServiceREST doit etre package en
+     * SERVEUR (main de montage serve : bind + boucle accept), pas en programme
+     * run-once (qui sortirait aussitot le top-level fini). La detection reutilise
+     * le registre compile-time de services peuple par le portail de compile
+     * ci-dessous (le meme que lit `owl serve`). Capte AVANT compiler_reset_poo_state. */
+    bool declaresService = false;
     {
         /* project_discover laisse entryIndex=-1 ; le programme = le top-level de
          * projet.owl (meme choix que le bundle genere, _entryIndex). */
         project.entryIndex = buildEntry;
         vm_init();  /* peuple le registre console (natives UI+PDF incluses) */
         InterpretResult chk = project_run_ex(&project, false, /*compileOnly=*/true);
+        /* Le portail compile toute la frontiere en phase 1 : les blocs
+         * `<Nom> est un ServiceREST` ont peuple owl_service_registry. Non vide =>
+         * projet serveur. Registre encore vivant (reset plus bas). */
+        declaresService = (owl_service_registry_count() > 0);
         vm_free();
+        compiler_reset_poo_state();  /* libere le registre compile-time du portail */
         /* Portail limite aux erreurs de COMPILATION (scope du ticket : "projet
          * qui ne compile pas"). Les diagnostics sont deja emis sur stderr par le
          * compilateur. Une erreur runtime de phase 1 (init de declaration) n'est
@@ -720,8 +837,18 @@ int build_project(const char* dir, const char* outputName,
     fprintf(out, "#include \"project.h\"\n");
     fprintf(out, "#include \"object.h\"\n");
     fprintf(out, "#include \"table.h\"\n");
+    /* owl_set_warnings_suppressed : le main genere silence totalement les
+     * warnings du recompile de demarrage (source deja validee au packaging). */
+    fprintf(out, "#include \"compiler.h\"\n");
     fprintf(out, "#include <stdlib.h>\n");
-    fprintf(out, "#include <string.h>\n\n");
+    fprintf(out, "#include <string.h>\n");
+    /*  — projet serveur : le main de montage appelle l'API serve
+     * (prepare/demarre/attend/libere). Le header est copié dans include/owl/
+     * par owl_distrib (self-contained : stdbool/stddef/stdio). */
+    if (declaresService) {
+        fprintf(out, "#include \"owl_serve.h\"\n");
+    }
+    fprintf(out, "\n");
 
     /* File names (kept clear so error messages stay useful) */
     fprintf(out, "static const char* _names[] = {\n");
@@ -739,70 +866,301 @@ int build_project(const char* dir, const char* outputName,
     }
     fprintf(out, "static const int _entryIndex = %d;\n\n", bundleEntryFiltered);
 
-    /* Source files emitted as plain C string literals. Static obfuscation
-     * was attempted (XOR pack, see git history) but the patterns in owl.exe
-     * tripped Windows Defender heuristics. Until OWL has a code-signing
-     * certificate, the toolchain stays heuristic-clean. */
-    fprintf(out, "static const char* _sources[] = {\n");
-    for (int i = 0; i < project.fileCount; i++) {
-        if (project.files[i].isTest) continue;
-        fprintf(out, "    \"");
-        for (const char* p = project.files[i].source; *p; p++) {
-            switch (*p) {
-                case '"':  fputs("\\\"", out); break;
-                case '\\': fputs("\\\\", out); break;
-                case '\n': fputs("\\n", out);  break;
-                case '\r': fputs("\\r", out);  break;
-                case '\t': fputs("\\t", out);  break;
-                default:
-                    if ((unsigned char)*p < 0x20)
-                        fprintf(out, "\\x%02x", (unsigned char)*p);
-                    else
-                        fputc(*p, out);
+    /* Source files emitted as raw-deflate blobs (no zlib header), NOT plain C
+     * strings. Purpose : keep the .owl text out of `strings` output. The
+     * compression alone defeats the trivial `strings` scrape while staying
+     * heuristic-clean — the generated main just reuses tinfl (already linked in
+     * every produced exe for the compression natives) to inflate each blob back
+     * to source at startup. There is NO decryption step to reuse.
+     *
+     * DELIBERATELY plain deflate : NO XOR, NO cipher, NO key. A static XOR pack
+     * was tried once (see git history) and tripped Windows Defender heuristics
+     * because a decrypt-at-runtime pattern reads as a malware signature. Without
+     * a code-signing certificate nothing covers that false positive, so do NOT
+     * re-introduce XOR or any cipher here : it buys obscurity we cannot afford.
+     * Deflate is a mundane operation that already powers legitimate features. */
+    {
+        /* Accumule les arrays _blob_lens / _orig_lens en texte pendant qu'on
+         * emet les blobs, puis on les ecrit apres. */
+        char* lensBuf = NULL; size_t lensCap = 0, lensLen = 0;
+        char* origsBuf = NULL; size_t origsCap = 0, origsLen = 0;
+        int fileIdx = 0;
+        for (int i = 0; i < project.fileCount; i++) {
+            if (project.files[i].isTest) continue;
+            const char* src = project.files[i].source;
+            size_t srcLen = strlen(src);
+            mz_uint flags = tdefl_create_comp_flags_from_zip_params(9, -15, 0);
+            size_t compLen = 0;
+            void* comp = tdefl_compress_mem_to_heap(src, srcLen, &compLen, flags);
+            if (comp == NULL) {
+                fprintf(stderr, owl_error_render_lang_is_en()
+                        ? "owl build: deflate failed for '%s'\n"
+                        : "owl build: echec deflate pour '%s'\n",
+                        project.files[i].name);
+                free(lensBuf); free(origsBuf);
+                fclose(out);
+                project_free(&project);
+                return 65;
             }
-        }
-        fprintf(out, "\",\n");
-    }
-    fprintf(out, "    NULL\n};\n\n");
+            fprintf(out, "static const unsigned char _blob_%d[] = {", fileIdx);
+            const unsigned char* cp = (const unsigned char*)comp;
+            for (size_t b = 0; b < compLen; b++) {
+                if (b % 20 == 0) fprintf(out, "\n    ");
+                fprintf(out, "%u,", (unsigned)cp[b]);
+            }
+            fprintf(out, "\n};\n");
+            free(comp);
 
+            /* append len entries (grow buffers as needed) */
+            char tmp[64];
+            int n1 = snprintf(tmp, sizeof(tmp), "%s%zu", fileIdx ? ", " : "", compLen);
+            if (lensLen + (size_t)n1 + 1 > lensCap) {
+                lensCap = (lensCap ? lensCap * 2 : 256) + (size_t)n1;
+                lensBuf = realloc(lensBuf, lensCap);
+            }
+            memcpy(lensBuf + lensLen, tmp, (size_t)n1 + 1); lensLen += (size_t)n1;
+
+            int n2 = snprintf(tmp, sizeof(tmp), "%s%zu", fileIdx ? ", " : "", srcLen);
+            if (origsLen + (size_t)n2 + 1 > origsCap) {
+                origsCap = (origsCap ? origsCap * 2 : 256) + (size_t)n2;
+                origsBuf = realloc(origsBuf, origsCap);
+            }
+            memcpy(origsBuf + origsLen, tmp, (size_t)n2 + 1); origsLen += (size_t)n2;
+
+            fileIdx++;
+        }
+        fprintf(out, "\nstatic const unsigned char* const _blobs[] = {\n    ");
+        for (int k = 0; k < fileIdx; k++) fprintf(out, "_blob_%d, ", k);
+        fprintf(out, "NULL\n};\n");
+        fprintf(out, "static const unsigned int _blob_lens[] = { %s };\n",
+                lensBuf ? lensBuf : "");
+        fprintf(out, "static const unsigned int _orig_lens[] = { %s };\n\n",
+                origsBuf ? origsBuf : "");
+        free(lensBuf);
+        free(origsBuf);
+    }
+
+    /* tinfl est fourni par miniz, deja linke dans tout exe produit (natives de
+     * compression). On forward-declare le seul symbole requis plutot que
+     * d'inclure miniz.h, absent de include/owl (ou compile le bundle). */
     fprintf(out,
-        "int main(void) {\n"
-        "    vm_init();\n"
-        "    Project project;\n"
-        "    project_init(&project);\n"
-        "    project.rootDir = strdup(\".\");\n"
-        "    int count = 0;\n"
-        "    while (_names[count]) count++;\n"
-        "    project.files = (ProjectFile*)malloc(sizeof(ProjectFile) * count);\n"
-        "    project.fileCapacity = count;\n"
-        "    project.fileCount = count;\n"
-        "    for (int i = 0; i < count; i++) {\n"
-        "        project.files[i].name = strdup(_names[i]);\n"
-        "        project.files[i].path = strdup(_names[i]);\n"
-        "        project.files[i].source = strdup(_sources[i]);\n"
-        "        project.files[i].isTest = 0;\n"
-        "    }\n"
-        "    project.entryIndex = _entryIndex;\n"
-        "    project.isProjectMode = true;\n"
-        "    InterpretResult result = project_run(&project);\n"
-        "    project_free(&project);\n"
-        "    vm_free();\n"
-        "    if (result == INTERPRET_COMPILE_ERROR) return 65;\n"
-        "    if (result == INTERPRET_RUNTIME_ERROR) return 70;\n"
-        "    return 0;\n"
-        "}\n");
+        "extern void *tinfl_decompress_mem_to_heap(const void *pSrc_buf,\n"
+        "    size_t src_buf_len, size_t *pOut_len, int flags);\n\n");
+
+    /* Chrome console de l'exe produit :
+     *  - owl_force_utf8_console (platform.c, lie dans tout exe produit) : la
+     *    console affiche correctement les accents des messages de demarrage.
+     *  - owl_set_warnings_suppressed : les avertissements du compilateur emis
+     *    pendant le recompile de demarrage (la source est deja compile-checkee
+     *    au packaging) sont totalement silencieux (garantie dure, independante
+     *    de toute capacite de buffer), pas de pollution de la console du
+     *    client. Les ERREURS, elles, continuent de sortir sur stderr et
+     *    stoppent le demarrage. */
+    fprintf(out,
+        "void owl_force_utf8_console(void);\n\n");
+
+    /*  — ouverture de la fenetre de demarrage (projet GUI). Vit dans
+     * owl_core (Qt-free, resout Ouvre via vm.globals a l'execution) ; forward-
+     * declaree ici comme owl_force_utf8_console plutot que via #include pour ne
+     * pas dependre de la distribution du header. Non emise en mode serveur (le
+     * montage serve bloque deja, pas de fenetre de demarrage). */
+    if (!declaresService) {
+        fprintf(out,
+            "int owl_run_startup_window(const char* fenName);\n\n");
+    }
+
+    if (declaresService) {
+        /*  — main de montage SERVEUR. Le projet declare un ServiceREST :
+         * au lieu d'un project_run() one-shot (qui finirait le top-level et
+         * sortirait sans servir), on nourrit les sources embarquees (inflatees) au
+         * montage serve — exactement comme `owl serve` : owl_serve_prepare_projet
+         * (compile + bind SYNCHRONE) -> owl_serve_demarre (executeur owning-VM sur
+         * SON thread + pool de transport) -> owl_serve_attend (bloque jusqu'a
+         * Ctrl-C). Le main NE fait AUCUN vm_init : la VM est possedee par le thread
+         * executeur du montage (, VM mono-thread). Config a l'EXECUTION
+         * de l'exe produit : `<exe> [--port N] [--bind ADR]`, build
+         * une fois / deploie partout. Defauts surs 127.0.0.1:8080 (localhost) ;
+         * --bind 0.0.0.0 ouvre explicitement au reseau. */
+        fprintf(out,
+            "extern void owl_tcp_server_installe_arret(void);\n\n"
+            "static void _serve_usage(const char* exe, FILE* o) {\n"
+            "    fprintf(o, \"Usage: %%s [--port N] [--bind ADR]\\n\", exe);\n"
+            "    fprintf(o, \"\\n\");\n"
+            "    fprintf(o, \"Starts the REST service. All options are optional.\\n\");\n"
+            "    fprintf(o, \"\\n\");\n"
+            "    fprintf(o, \"  --port N      Port to listen on (default: 8080).\\n\");\n"
+            "    fprintf(o, \"  --bind ADR    Address to bind (default: 127.0.0.1).\\n\");\n"
+            "    fprintf(o, \"                Use --bind 0.0.0.0 to accept connections from the network.\\n\");\n"
+            "    fprintf(o, \"  -h, --help    Show this help and exit.\\n\");\n"
+            "    fprintf(o, \"\\n\");\n"
+            "    fprintf(o, \"Press Ctrl-C to stop the server.\\n\");\n"
+            "}\n"
+            "static int _serve_parse_port(const char* s, int* out) {\n"
+            "    if (s == NULL || *s == '\\0') return 0;\n"
+            "    char* end = NULL;\n"
+            "    long v = strtol(s, &end, 10);\n"
+            "    if (end == s || *end != '\\0') return 0;\n"
+            "    if (v < 1 || v > 65535) return 0;\n"
+            "    *out = (int)v;\n"
+            "    return 1;\n"
+            "}\n\n"
+            "int main(int argc, char* argv[]) {\n"
+            "    owl_force_utf8_console();\n"
+            "    const char* bind_adr = \"127.0.0.1\";\n"
+            "    int port = 8080;\n"
+            "    for (int ai = 1; ai < argc; ai++) {\n"
+            "        const char* a = argv[ai];\n"
+            "        if (strcmp(a, \"-h\") == 0 || strcmp(a, \"--help\") == 0) {\n"
+            "            _serve_usage(argv[0], stdout);\n"
+            "            return 0;\n"
+            "        } else if (strcmp(a, \"--port\") == 0) {\n"
+            "            if (ai + 1 >= argc) {\n"
+            "                fprintf(stderr, \"%%s: --port requires a value\\n\", argv[0]);\n"
+            "                _serve_usage(argv[0], stderr);\n"
+            "                return 2;\n"
+            "            }\n"
+            "            if (!_serve_parse_port(argv[++ai], &port)) {\n"
+            "                fprintf(stderr, \"%%s: invalid port '%%s' (expected 1..65535)\\n\", argv[0], argv[ai]);\n"
+            "                return 2;\n"
+            "            }\n"
+            "        } else if (strncmp(a, \"--port=\", 7) == 0) {\n"
+            "            if (!_serve_parse_port(a + 7, &port)) {\n"
+            "                fprintf(stderr, \"%%s: invalid port '%%s' (expected 1..65535)\\n\", argv[0], a + 7);\n"
+            "                return 2;\n"
+            "            }\n"
+            "        } else if (strcmp(a, \"--bind\") == 0) {\n"
+            "            if (ai + 1 >= argc) {\n"
+            "                fprintf(stderr, \"%%s: --bind requires a value\\n\", argv[0]);\n"
+            "                _serve_usage(argv[0], stderr);\n"
+            "                return 2;\n"
+            "            }\n"
+            "            bind_adr = argv[++ai];\n"
+            "        } else if (strncmp(a, \"--bind=\", 7) == 0) {\n"
+            "            bind_adr = a + 7;\n"
+            "        } else {\n"
+            "            fprintf(stderr, \"%%s: unknown argument '%%s'\\n\", argv[0], a);\n"
+            "            _serve_usage(argv[0], stderr);\n"
+            "            return 2;\n"
+            "        }\n"
+            "    }\n"
+            "    int count = 0;\n"
+            "    while (_names[count]) count++;\n"
+            "    const char** sources = (const char**)malloc(sizeof(char*) * (size_t)count);\n"
+            "    if (sources == NULL) {\n"
+            "        fprintf(stderr, \"owl: out of memory\\n\");\n"
+            "        return 70;\n"
+            "    }\n"
+            "    for (int i = 0; i < count; i++) {\n"
+            "        size_t outLen = 0;\n"
+            "        void* plain = tinfl_decompress_mem_to_heap(_blobs[i],\n"
+            "            (size_t)_blob_lens[i], &outLen, 0 /* raw deflate */);\n"
+            "        if (plain == NULL || outLen != (size_t)_orig_lens[i]) {\n"
+            "            fprintf(stderr, \"owl: corrupted bundle (inflate failed)\\n\");\n"
+            "            free(plain);\n"
+            "            return 70;\n"
+            "        }\n"
+            "        char* s = (char*)malloc(outLen + 1);\n"
+            "        memcpy(s, plain, outLen);\n"
+            "        s[outLen] = '\\0';\n"
+            "        free(plain);\n"
+            "        sources[i] = s;\n"
+            "    }\n"
+            "    OwlServeProjet projet;\n"
+            "    projet.noms = _names;\n"
+            "    projet.chemins = _names;\n"
+            "    projet.sources = sources;\n"
+            "    projet.nb = count;\n"
+            "    projet.entree = _entryIndex;\n"
+            "    projet.mode_projet = 1;\n"
+            "    OwlServeOptions opts;\n"
+            "    opts.bind_adr = bind_adr;\n"
+            "    opts.port = port;\n"
+            "    char err[256];\n"
+            "    err[0] = '\\0';\n"
+            "    owl_set_warnings_suppressed(1);\n"
+            "    OwlServeMontage* m = owl_serve_prepare_projet(&projet, &opts, err, sizeof(err));\n"
+            "    if (m == NULL) {\n"
+            "        fprintf(stderr, \"%%s\\n\", err[0] ? err : \"owl: server mount failed\");\n"
+            "        return 1;\n"
+            "    }\n"
+            "    owl_tcp_server_installe_arret();\n"
+            "    if (!owl_serve_demarre(m, 0, stdout)) {\n"
+            "        fprintf(stderr, \"owl: server start failed\\n\");\n"
+            "        owl_serve_libere(m);\n"
+            "        return 1;\n"
+            "    }\n"
+            "    owl_serve_attend(m);\n"
+            "    owl_serve_libere(m);\n"
+            "    return 0;\n"
+            "}\n");
+    } else {
+        fprintf(out,
+            "int main(void) {\n"
+            "    owl_force_utf8_console();\n"
+            "    vm_init();\n"
+            "    Project project;\n"
+            "    project_init(&project);\n"
+            "    project.rootDir = strdup(\".\");\n"
+            "    int count = 0;\n"
+            "    while (_names[count]) count++;\n"
+            "    project.files = (ProjectFile*)malloc(sizeof(ProjectFile) * count);\n"
+            "    project.fileCapacity = count;\n"
+            "    project.fileCount = count;\n"
+            "    for (int i = 0; i < count; i++) {\n"
+            "        project.files[i].name = strdup(_names[i]);\n"
+            "        project.files[i].path = strdup(_names[i]);\n"
+            "        size_t outLen = 0;\n"
+            "        void* plain = tinfl_decompress_mem_to_heap(_blobs[i],\n"
+            "            (size_t)_blob_lens[i], &outLen, 0 /* raw deflate */);\n"
+            "        if (plain == NULL || outLen != (size_t)_orig_lens[i]) {\n"
+            "            fprintf(stderr, \"owl: corrupted bundle (inflate failed)\\n\");\n"
+            "            free(plain);\n"
+            "            return 70;\n"
+            "        }\n"
+            "        char* s = (char*)malloc(outLen + 1);\n"
+            "        memcpy(s, plain, outLen);\n"
+            "        s[outLen] = '\\0';\n"
+            "        free(plain);\n"
+            "        project.files[i].source = s;\n"
+            "        project.files[i].isTest = 0;\n"
+            "    }\n"
+            "    project.entryIndex = _entryIndex;\n"
+            "    project.isProjectMode = true;\n"
+            "    owl_set_warnings_suppressed(1);\n"
+            "    InterpretResult result = project_run(&project);\n"
+            /*  — symetrie avec run_project_scoped (main.c) : apres le
+             * body projet, ouvre la FenetreDemarrage (metadonnee typee peuplee
+             * par le compile de projet.owl) et entre dans l'event loop. La
+             * designation est un const char* du chunk -> copie AVANT project_free
+             * et avant toute alloc (owl_run_startup_window alloue). L'ouverture
+             * utilise la VM -> AVANT vm_free. Projet sans FenetreDemarrage :
+             * _startupWin vide -> run-once puis sortie, pas d'event loop fantome. */
+            "    char _startupWin[128];\n"
+            "    _startupWin[0] = '\\0';\n"
+            "    if (result == INTERPRET_OK) {\n"
+            "        const char* sw = compiler_projet_designated_startup_window();\n"
+            "        if (sw != NULL && sw[0] != '\\0') {\n"
+            "            strncpy(_startupWin, sw, sizeof(_startupWin) - 1);\n"
+            "            _startupWin[sizeof(_startupWin) - 1] = '\\0';\n"
+            "        }\n"
+            "    }\n"
+            "    project_free(&project);\n"
+            "    int rc = 0;\n"
+            "    if (result == INTERPRET_COMPILE_ERROR) rc = 65;\n"
+            "    else if (result == INTERPRET_RUNTIME_ERROR) rc = 70;\n"
+            "    else if (_startupWin[0] != '\\0') rc = owl_run_startup_window(_startupWin);\n"
+            "    vm_free();\n"
+            "    return rc;\n"
+            "}\n");
+    }
 
     fclose(out);
 
-#ifdef OWL_SECURE_BUILD
+    /* Le source embarque est toujours compresse (deflate, cf. generation du
+     * bundle ci-dessus) — message unique et honnete. */
     printf(owl_error_render_lang_is_en()
-        ? "owl build: %d file(s) bundled (XOR-obfuscated)\n"
-        : "owl build: %d fichier(s) empaquete(s) (obfusques XOR)\n", buildCount);
-#else
-    printf(owl_error_render_lang_is_en()
-        ? "owl build: %d file(s) bundled\n"
-        : "owl build: %d fichier(s) empaquete(s)\n", buildCount);
-#endif
+        ? "owl build: %d file(s) bundled (compressed source)\n"
+        : "owl build: %d fichier(s) empaquete(s) (source compressee)\n", buildCount);
 
     /* 3. Build link command — full GUI (Qt6 statique + plugins).
      * Lit lib/owl_link_gui.cfg genere au build OWL par
@@ -1192,15 +1550,51 @@ int build_project(const char* dir, const char* outputName,
     fprintf(rsp, "-o \"%s\"\n", outputName);
     fclose(rsp);
 
+    /*  — materialise le dossier de sortie MAINTENANT, juste avant que le
+     * linker n'y ecrive l'exe. On a passe le portail de compile et la compile du
+     * bundle : le dossier n'est cree que pour un build qui va reellement
+     * produire un binaire. Un echec en amont n'aura laisse aucun `exe/<target>/`
+     * vide. Le link ecrit directement dans `outputName` (-o), donc son dossier
+     * parent doit exister a cet instant. */
+    {
+        char outDirBuf[1024];
+        snprintf(outDirBuf, sizeof(outDirBuf), "%s", outputName);
+        char* lastSep = NULL;
+        for (char* p = outDirBuf; *p; p++) {
+            if (*p == '/' || *p == '\\') lastSep = p;
+        }
+        if (lastSep != NULL) {
+            *lastSep = '\0';
+            if (build_ensure_dirs(outDirBuf) != 0) {
+                fprintf(stderr, owl_error_render_lang_is_en()
+                    ? "owl build: cannot create output directory '%s'\n"
+                    : "owl build: creation du dossier de sortie impossible : '%s'\n",
+                    outDirBuf);
+                remove(rspPath);
+                free(owlRoot); free(incDir); free(libDir); free(cfgPath);
+                free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default);
+                project_free(&project);
+                return 65;
+            }
+        }
+    }
+
     /* 4. Lance c++ (link). Qt6 = C++, donc on lie via c++ pour avoir
-     * libstdc++ statique. zig c++ -target <X> ou c++ via PATH. */
+     * libstdc++ statique. zig c++ -target <X> ou c++ via PATH.
+     * -Wno-nullability-completeness : les en-tetes libc++ embarques par zig
+     * (clang) crachent des centaines de warnings "pointer is missing a
+     * nullability type specifier" quand les headers C++ (string, thread...)
+     * sont tires. Benins, headers systeme, ils noient la console utilisateur.
+     * On muselle ce seul diagnostic (pas -w global : les vrais warnings du
+     * code restent visibles). Branche zig uniquement (le c++ systeme du
+     * fallback n'est pas concerne). */
     char gccCmd[2048];
     if (useZig) {
 #ifdef _WIN32
-        snprintf(gccCmd, sizeof(gccCmd), "\"\"%s\" c++ -target %s @%s\"",
+        snprintf(gccCmd, sizeof(gccCmd), "\"\"%s\" c++ -Wno-nullability-completeness -target %s @%s\"",
                  zigBin, zigTarget, rspPath);
 #else
-        snprintf(gccCmd, sizeof(gccCmd), "\"%s\" c++ -target %s @%s",
+        snprintf(gccCmd, sizeof(gccCmd), "\"%s\" c++ -Wno-nullability-completeness -target %s @%s",
                  zigBin, zigTarget, rspPath);
 #endif
     } else {
@@ -1225,6 +1619,10 @@ int build_project(const char* dir, const char* outputName,
         fprintf(stderr, owl_error_render_lang_is_en()
             ? "owl build: c++ failed (exit code %d)\n"
             : "owl build: echec de c++ (code de sortie %d)\n", rc);
+        /* Le link n'a produit aucun exe : retire le dossier de sortie vide
+         * qu'on avait materialise pour le linker, sans jamais toucher un
+         * dossier non vide (build anterieur). */
+        build_rmdir_output_if_empty(outputName);
         return 65;
     }
 

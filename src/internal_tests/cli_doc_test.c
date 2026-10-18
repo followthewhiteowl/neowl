@@ -303,6 +303,26 @@ static void test_primer(void) {
     CHECK_HAS("PROCEDURE",  "primer contient des exemples PROCEDURE");
 }
 
+/*  — primer délègue à `learn apercu` et doit reporter TOUS les flags
+ * reçus, pas seulement le premier. Avant le fix, la boucle de forwarding
+ * s'arrêtait après 1 flag : `primer --plain --json` jetait `--json` et rendait
+ * du markdown. On vérifie que `primer --plain --json` produit bien le JSON de
+ * la fiche (début `{`, champ "name"), comme `learn apercu --plain --json`. */
+static void test_primer_forwards_all_flags(void) {
+    int rc = capture_call(cli_doc_primer, 3, ARGS("primer", "--plain", "--json"));
+    CHECK_RC(rc, 0, "primer --plain --json rc=0");
+    CHECK(g_buf[0] == '{', "primer --plain --json : sortie JSON (commence par {)");
+    CHECK_HAS("\"name\"", "primer --plain --json : JSON contient le champ name");
+    CHECK_HAS("00_apercu_du_langage",
+              "primer --plain --json : JSON pointe la fiche aperçu");
+
+    /* Non-régression : sans flag JSON, primer reste du markdown FR. */
+    rc = capture_call(cli_doc_primer, 1, ARGS("primer"));
+    CHECK_RC(rc, 0, "primer (sans flag) rc=0");
+    CHECK(g_buf[0] != '{', "primer sans flag : markdown, pas de JSON");
+    CHECK_HAS("Aperçu", "primer sans flag : header markdown FR");
+}
+
 static void test_learn_list(void) {
     int rc = capture_call(cli_doc_learn, 1, ARGS("learn"));
     CHECK_RC(rc, 0, "learn (list) rc=0");
@@ -4863,6 +4883,7 @@ int cli_doc_self_test_run(void) {
     test_help_completeness();
     test_help_serve();
     test_primer();
+    test_primer_forwards_all_flags();
     test_learn_list();
     test_learn_list_alias_pour_toutes_les_fiches();
     test_learn_nouveaux_alias_resolvent();

@@ -89,6 +89,7 @@ bool chunk_opcode_shape(uint8_t op, OpcodeShape* out) {
         case OP_ARRAY_MARK_GROUP:
         case OP_ARRAY_GET: case OP_ARRAY_SET: case OP_TABLE_CELL_DESC:
         case OP_ARRAY_GET_2D: case OP_ARRAY_SET_2D:
+        case OP_ARRAY_GET_OR_CREATE_OBJ: case OP_ARRAY_GET_OR_CREATE_ARR:
         case OP_ARRAY_LENGTH:
         case OP_ITER_KEY:
         case OP_END_TRY: case OP_THROW: case OP_RERAISE: case OP_EXC_RESTORE:
@@ -144,6 +145,7 @@ bool chunk_opcode_shape(uint8_t op, OpcodeShape* out) {
         case OP_ARRAY_FILL_STRUCT:
         case OP_STRUCT_FIELD_ORDER:
         case OP_STRUCT_GET: case OP_STRUCT_SET:
+        case OP_STRUCT_GET_OR_CREATE_OBJ: case OP_STRUCT_GET_OR_CREATE_ARR:
         case OP_SET_FIELD_THIS:
             SHAPE(1, 0);
 

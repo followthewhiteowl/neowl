@@ -262,6 +262,11 @@ void compile_set_error_capture(CompileDiagnostic* buffer, int capacity, int* cou
  * Pass NULL to restore normal stderr output. */
 void compile_set_warning_capture(CompileDiagnostic* buffer, int capacity, int* count);
 
+/* Suppression totale des warnings du compilateur (garantie dure, independante
+ * du buffer de capture). Les erreurs restent emises. Utilise par les binaires
+ * packages (owl-build) dont la source est deja validee au packaging. */
+void owl_set_warnings_suppressed(bool suppressed);
+
 /* REPL auto-print: when enabled, a bare expression statement emits OP_PRINT
  * (which pops and displays the value) instead of the usual OP_POP. Used by
  * `owl --repl` for interactive / notebook-kernel sessions where evaluating

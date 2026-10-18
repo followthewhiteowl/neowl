@@ -20,6 +20,7 @@
 #include "owl_methods.h"
 #include "registry_self_test.h"
 #include "owl_keyword_catalog.h"
+#include "owl_categories.h"
 #include "debug_stdio.h"
 #include "ui_catalog.h"
 #include "ui_presentation.h"
@@ -34,6 +35,7 @@
 #include "service_decl.h"
 #include "http_service_runtime.h"
 #include "http_openapi.h"
+#include "startup_window.h"
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -45,14 +47,6 @@
 #  include <fcntl.h>          /* _O_BINARY (bascule de mode sur fd 1) */
 #  define owl_getcwd(buf, sz)  _getcwd((buf), (sz))
 #  define owl_chdir(path)      _chdir((path))
-/* main.c n'inclut volontairement PAS <windows.h> (clash TokenType winnt.h vs
- * scanner.h, cf. platform.c). Ces deux entrées kernel32 (auto-linkées) sont
- * déclarées à la main pour le peek non-bloquant de stdin. */
-unsigned long __stdcall GetFileType(void* hFile);
-int __stdcall PeekNamedPipe(void* hNamedPipe, void* lpBuffer,
-                            unsigned long nBufferSize, unsigned long* lpBytesRead,
-                            unsigned long* lpTotalBytesAvail,
-                            unsigned long* lpBytesLeftThisMessage);
 #else
 #  include <unistd.h>
 #  include <sys/select.h>
@@ -139,10 +133,6 @@ static char* extract_filename(const char* path) {
     return safe_strdup(lastSep + 1);
 }
 
-/*  — auto-Ouvre une fenetre par nom (defini plus bas, epilogue GO-mode).
- * Reutilise par le lancement projet pour ouvrir la FenetreDemarrage. */
-static int go_local_auto_open(const char* fenName);
-
 /*  — lance un projet/script scope.
  *  - entryFile != NULL : entree = ce fichier (nomme explicitement).
  *  - entryFile == NULL : entree = projet.owl (lancement projet) ; erreur si
@@ -211,7 +201,7 @@ static int run_project_scoped(const char* dir, const char* entryFile,
      * ici, c'est l'auto-open GO-mode qui ouvre la fenetre CIBLE (plus de
      * double-ouverture). La designation est un const char* pointant une
      * constante du chunk : on la copie AVANT project_free et avant toute alloc
-     * (go_local_auto_open alloue), sinon un GC pourrait liberer l'ObjString. */
+     * (owl_run_startup_window alloue), sinon un GC pourrait liberer l'ObjString. */
     char startupWin[128] = "";
     bool projectLaunch = projectMode
         && (entryFile == NULL || is_projet_marker_name(entryFile));
@@ -227,7 +217,7 @@ static int run_project_scoped(const char* dir, const char* entryFile,
 
     if (result == INTERPRET_COMPILE_ERROR) return 65;
     if (result == INTERPRET_RUNTIME_ERROR) return 70;
-    if (startupWin[0] != '\0') return go_local_auto_open(startupWin);
+    if (startupWin[0] != '\0') return owl_run_startup_window(startupWin);
     return 0;
 }
 
@@ -767,332 +757,6 @@ static const char* entry_kind_label(PrescanEntryKind kind) {
     }
 }
 
-/* Un type de parametre est-il « simple » (litteral textuel bien defini) ?
- * NULL (parametre non annote) => avance par prudence. Les types date/heure/
- * duree ne sont pas inclus (refus conservateur, cf. ticket). */
-static bool go_local_param_type_is_simple(const char* typeName) {
-    if (typeName == NULL) return false;
-    char canon[128];
-    scanner_canonicalize_identifier(typeName, (int)strlen(typeName),
-                                    canon, sizeof(canon));
-    static const char* const simple[] = {
-        "chaine", "string",
-        "entier", "integer",
-        "reel", "real",
-        "booleen", "boolean",
-        "monetaire", "currency",
-        NULL
-    };
-    for (const char* const* s = simple; *s; s++) {
-        if (strcmp(canon, *s) == 0) return true;
-    }
-    return false;
-}
-
-/* Parse une valeur simple depuis le texte saisi selon le type declare. */
-static Value go_local_parse_simple(const char* typeName, const char* text) {
-    char canon[128];
-    scanner_canonicalize_identifier(typeName, (int)strlen(typeName),
-                                    canon, sizeof(canon));
-    if (strcmp(canon, "entier") == 0 || strcmp(canon, "integer") == 0) {
-        return INTEGER_VAL((int64_t)strtoll(text, NULL, 10));
-    }
-    if (strcmp(canon, "reel") == 0 || strcmp(canon, "real") == 0) {
-        return REAL_VAL(strtod(text, NULL));
-    }
-    if (strcmp(canon, "monetaire") == 0 || strcmp(canon, "currency") == 0) {
-        return CURRENCY_VAL((int64_t)(strtod(text, NULL) * 1000000.0));
-    }
-    if (strcmp(canon, "booleen") == 0 || strcmp(canon, "boolean") == 0) {
-        bool b = strcasecmp(text, "vrai") == 0 || strcasecmp(text, "true") == 0 ||
-                 strcasecmp(text, "oui")  == 0 || strcasecmp(text, "yes")  == 0 ||
-                 strcasecmp(text, "1")    == 0;
-        return BOOL_VAL(b);
-    }
-    /* chaine / string / fallback */
-    return OBJ_VAL(obj_copy_string(text, (int)strlen(text)));
-}
-
-static bool go_local_stdin_is_tty(void) {
-#ifdef _WIN32
-    return _isatty(_fileno(stdin)) != 0;
-#else
-    return isatty(STDIN_FILENO) != 0;
-#endif
-}
-
-/* stdin a-t-il des donnees immediatement lisibles SANS bloquer ? Filet
- * anti-hang du piege  : en contexte non-TTY sans donnees en attente,
- * on ne doit jamais rester bloque sur un fgets. */
-static bool go_local_stdin_data_ready(void) {
-#ifdef _WIN32
-    intptr_t h = _get_osfhandle(_fileno(stdin));
-    if (h < 0) return false;
-    void* handle = (void*)h;
-    unsigned long ft = GetFileType(handle);
-    if (ft == 0x0003 /* FILE_TYPE_PIPE */) {
-        unsigned long avail = 0;
-        if (PeekNamedPipe(handle, NULL, 0, NULL, &avail, NULL)) return avail > 0;
-        return false;  /* pipe ferme/erreur -> pas de donnees */
-    }
-    if (ft == 0x0001 /* FILE_TYPE_DISK */) {
-        int c = fgetc(stdin);
-        if (c == EOF) return false;
-        ungetc(c, stdin);
-        return true;
-    }
-    return false;  /* console idle / inconnu -> pas de donnees */
-#else
-    fd_set rfds;
-    struct timeval tv = {0, 0};
-    FD_ZERO(&rfds);
-    FD_SET(STDIN_FILENO, &rfds);
-    return select(STDIN_FILENO + 1, &rfds, NULL, NULL, &tv) > 0;
-#endif
-}
-
-#define GO_LOCAL_MAX_PARAMS 64
-#define GO_LOCAL_PARAM_LINE 256
-
-/*  — canal `--arg <nom>=<valeur>` du lancement GO LOCAL. Capture des
- * arguments CLI additionnels (ceux qui suivent le nom de fichier) faite dans
- * main() ; consommee par go_local_plan_params. NULL/0 hors lancement direct
- * d'un fichier-fenetre avec arguments. */
-static int    g_go_local_argc = 0;
-static char** g_go_local_argv = NULL;
-
-/* Plan de lancement produit par l'inspection des params (phase SANS alloc
- * OWL). Le parse->Value (qui peut allouer) est differe a go_local_auto_open,
- * apres avoir roote fn + nom, pour eviter tout Obj fraiche non rootee entre
- * deux allocations (discipline GC roots, ). */
-typedef struct {
-    int  refuseCode;   /* != 0 : refus/erreur deja imprime, sortir avec ce code */
-    int  count;        /* nb de valeurs positionnelles a passer a Ouvre */
-    char raw[GO_LOCAL_MAX_PARAMS][GO_LOCAL_PARAM_LINE];
-    bool useDefault[GO_LOCAL_MAX_PARAMS];
-} GoLocalParamPlan;
-
-/* Inspecte les params de `decl` et remplit `plan` (aucune alloc OWL ici).
- * Imprime le message de refus/erreur le cas echeant (aucun Qt monte). */
-static void go_local_plan_params(const OwlWindowDecl* decl, const char* fenName,
-                                 GoLocalParamPlan* plan) {
-    plan->refuseCode = 0;
-    plan->count = 0;
-    if (decl == NULL || decl->param_count <= 0) return;
-
-    /* 1. Type avance (ou trop de params) ? refus immediat. */
-    bool advanced = decl->param_count > GO_LOCAL_MAX_PARAMS;
-    for (int i = 0; !advanced && i < decl->param_count; i++) {
-        if (!go_local_param_type_is_simple(decl->params[i].type_name)) advanced = true;
-    }
-    if (advanced) {
-        fprintf(stderr, "%s\n",
-                go_local_render(E_RT_WINDOW_LAUNCH_ADVANCED_PARAM,
-                                "window", fenName, NULL));
-        plan->refuseCode = 65;
-        return;
-    }
-
-    /* 2. Canal `--arg <nom>=<valeur>` (repetable), evalue APRES le refus type
-     * avance ci-dessus (ordre  : `--arg` ne contourne jamais le refus).
-     * Prioritaire sur stdin : des qu'au moins un `--arg` est fourni, on bind
-     * depuis ces valeurs (+ defauts) sans jamais lire stdin (hang-safe). */
-    bool argCovered[GO_LOCAL_MAX_PARAMS];
-    char argValue[GO_LOCAL_MAX_PARAMS][GO_LOCAL_PARAM_LINE];
-    for (int i = 0; i < decl->param_count; i++) argCovered[i] = false;
-    bool anyArg = false;
-    for (int a = 0; a + 1 < g_go_local_argc; a++) {
-        if (strcmp(g_go_local_argv[a], "--arg") != 0) continue;
-        anyArg = true;
-        const char* pair = g_go_local_argv[a + 1];
-        const char* eq = strchr(pair, '=');
-        if (eq == NULL) {
-            fprintf(stderr, "%s\n",
-                    go_local_render(E_RT_WINDOW_LAUNCH_ARG_MALFORMED,
-                                    "window", fenName, "arg", pair, NULL));
-            plan->refuseCode = 65;
-            return;
-        }
-        char argCanon[128];
-        scanner_canonicalize_identifier(pair, (int)(eq - pair),
-                                        argCanon, sizeof(argCanon));
-        int match = -1;
-        for (int i = 0; i < decl->param_count; i++) {
-            char pCanon[128];
-            scanner_canonicalize_identifier(decl->params[i].name,
-                                            (int)strlen(decl->params[i].name),
-                                            pCanon, sizeof(pCanon));
-            if (strcmp(argCanon, pCanon) == 0) { match = i; break; }
-        }
-        if (match < 0) {
-            /* Nom fautif rendu tel que saisi (segment avant '='). */
-            char badName[128];
-            int nlen = (int)(eq - pair);
-            if (nlen >= (int)sizeof(badName)) nlen = (int)sizeof(badName) - 1;
-            memcpy(badName, pair, (size_t)nlen);
-            badName[nlen] = '\0';
-            char declared[512];
-            int dpos = 0;
-            for (int i = 0; i < decl->param_count; i++) {
-                int n = snprintf(declared + dpos, sizeof(declared) - (size_t)dpos,
-                                 "%s%s", dpos == 0 ? "" : ", ", decl->params[i].name);
-                if (n < 0 || dpos + n >= (int)sizeof(declared)) break;
-                dpos += n;
-            }
-            fprintf(stderr, "%s\n",
-                    go_local_render(E_RT_WINDOW_LAUNCH_ARG_UNKNOWN_PARAM,
-                                    "window", fenName, "name", badName,
-                                    "params", declared, NULL));
-            plan->refuseCode = 65;
-            return;
-        }
-        snprintf(argValue[match], sizeof(argValue[match]), "%s", eq + 1);
-        argCovered[match] = true;
-    }
-
-    if (anyArg) {
-        /* Requis restant apres binding --arg -> erreur ne nommant QUE les
-         * params encore manquants. */
-        char missing[512];
-        int mo = 0;
-        for (int i = 0; i < decl->param_count; i++) {
-            if (argCovered[i] || decl->params[i].has_default) continue;
-            int n = snprintf(missing + mo, sizeof(missing) - (size_t)mo, "%s%s",
-                             mo == 0 ? "" : ", ", decl->params[i].name);
-            if (n > 0 && mo + n < (int)sizeof(missing)) mo += n;
-        }
-        if (mo > 0) {
-            fprintf(stderr, "%s\n",
-                    go_local_render(E_RT_WINDOW_LAUNCH_REQUIRED_PARAM_MISSING,
-                                    "window", fenName, "params", missing, NULL));
-            plan->refuseCode = 65;
-            return;
-        }
-        for (int i = 0; i < decl->param_count; i++) {
-            plan->raw[i][0] = '\0';
-            plan->useDefault[i] = false;
-            if (argCovered[i]) {
-                snprintf(plan->raw[i], GO_LOCAL_PARAM_LINE, "%s", argValue[i]);
-            } else {
-                plan->useDefault[i] = true;  /* garanti has_default (check ci-dessus) */
-            }
-        }
-        plan->count = decl->param_count;
-        return;
-    }
-
-    /* 3. Aucun `--arg` : source de valeurs stdin — TTY (invite) ou pipe (consomme). */
-    bool interactive = go_local_stdin_is_tty();
-    bool dataReady   = !interactive && go_local_stdin_data_ready();
-
-    int requiredCount = 0;
-    for (int i = 0; i < decl->param_count; i++) {
-        if (!decl->params[i].has_default) requiredCount++;
-    }
-
-    if (!interactive && !dataReady) {
-        /* Aucune saisie possible sans bloquer. Requis manquant -> erreur. */
-        if (requiredCount == 0) return;  /* tous defaultes : ouverture OK */
-        char list[512];
-        int o = 0;
-        for (int i = 0; i < decl->param_count; i++) {
-            if (decl->params[i].has_default) continue;
-            int n = snprintf(list + o, sizeof(list) - (size_t)o, "%s%s",
-                             o == 0 ? "" : ", ", decl->params[i].name);
-            if (n < 0 || o + n >= (int)sizeof(list)) break;
-            o += n;
-        }
-        fprintf(stderr, "%s\n",
-                go_local_render(E_RT_WINDOW_LAUNCH_REQUIRED_PARAM_MISSING,
-                                "window", fenName, "params", list, NULL));
-        plan->refuseCode = 65;
-        return;
-    }
-
-    /* Phase lecture (aucune alloc OWL) : une ligne par param, positionnel. */
-    char missing[512];
-    int  mo = 0;
-    for (int i = 0; i < decl->param_count; i++) {
-        if (interactive) {
-            const char* tn = decl->params[i].type_name;
-            fprintf(stderr, "Paramètre '%s'%s%s%s : ", decl->params[i].name,
-                    tn ? " (" : "", tn ? tn : "", tn ? ")" : "");
-        }
-        plan->raw[i][0] = '\0';
-        plan->useDefault[i] = false;
-        if (fgets(plan->raw[i], GO_LOCAL_PARAM_LINE, stdin) != NULL) {
-            size_t len = strlen(plan->raw[i]);
-            while (len > 0 && (plan->raw[i][len - 1] == '\n' ||
-                               plan->raw[i][len - 1] == '\r')) {
-                plan->raw[i][--len] = '\0';
-            }
-        }
-        if (plan->raw[i][0] == '\0') {
-            if (decl->params[i].has_default) {
-                plan->useDefault[i] = true;
-            } else {
-                int n = snprintf(missing + mo, sizeof(missing) - (size_t)mo, "%s%s",
-                                 mo == 0 ? "" : ", ", decl->params[i].name);
-                if (n > 0 && mo + n < (int)sizeof(missing)) mo += n;
-            }
-        }
-    }
-    if (mo > 0) {
-        fprintf(stderr, "%s\n",
-                go_local_render(E_RT_WINDOW_LAUNCH_REQUIRED_PARAM_MISSING,
-                                "window", fenName, "params", missing, NULL));
-        plan->refuseCode = 65;
-        return;
-    }
-    plan->count = decl->param_count;
-}
-
-/* Apres un run de fichier-fenetre pur, simule `Ouvre(FEN_X[, v1, ...])` :
- * lookup global de Ouvre + push FEN name + valeurs + vm_call_reentrant.
- * Retourne 0 si OK, 65 si refus/erreur de parametrage, 70 si runtime error
- * (alignement avec INTERPRET_RUNTIME_ERROR cote run_owl_file). */
-static int go_local_auto_open(const char* fenName) {
-    /*  — inspection des params AVANT toute ouverture (donc avant tout
-     * montage Qt). Le plan ne fait aucune alloc OWL ; le parse->Value (qui
-     * peut allouer une ObjString) est differe plus bas, apres avoir roote
-     * fn + nom, avec push immediat par valeur. */
-    const OwlWindowDecl* decl = vm_window_lookup(fenName);
-    GoLocalParamPlan plan;
-    go_local_plan_params(decl, fenName, &plan);
-    if (plan.refuseCode != 0) return plan.refuseCode;
-
-    /* Lookup global Ouvre. Casse exacte — la native est enregistree
-     * sous "Ouvre" et "Open" (alias EN), le canon get gere les deux
-     * mais on prend la forme FR canonique. */
-    ObjString* fnNameStr = obj_copy_string("Ouvre", 5);
-    vm_push(OBJ_VAL(fnNameStr));  /* GC root pendant lookup */
-    Value fn;
-    bool ok = table_get(&vm.globals, fnNameStr, &fn);
-    vm_pop();
-    if (!ok) {
-        /* Pas de Ouvre globalement — probablement un build minimal.
-         * On rend le code de run normal (succes du run du script). */
-        return 0;
-    }
-
-    /* Push callee + arg (nom du FEN comme chaine), puis les valeurs de params.
-     * fn et le nom sont rootes AVANT tout parse pouvant allouer ; chaque
-     * valeur est parsee puis poussee immediatement (aucune alloc entre la
-     * creation d'une ObjString et son root). */
-    ObjString* arg = obj_copy_string(fenName, (int)strlen(fenName));
-    vm_push(fn);
-    vm_push(OBJ_VAL(arg));
-    for (int i = 0; i < plan.count; i++) {
-        Value v = plan.useDefault[i]
-                    ? decl->params[i].default_value
-                    : go_local_parse_simple(decl->params[i].type_name, plan.raw[i]);
-        vm_push(v);
-    }
-    InterpretResult r = vm_call_reentrant(fn, 1 + plan.count);
-    if (r == INTERPRET_RUNTIME_ERROR) return 70;
-    return 0;
-}
-
 /* Detection GO-mode pre-run (token-based, 0 effet de bord) : remplit
  * fenName/autoOpen/looksLikeFenetre depuis la source. */
 static void go_local_prerun(const char* src, char* fenName, int fenCap,
@@ -1110,7 +774,7 @@ static void go_local_prerun(const char* src, char* fenName, int fenCap,
 static int go_local_postrun(int code, bool autoOpen, const char* fenName,
                             bool looksLikeFenetre) {
     if (code == 0 && autoOpen) {
-        return go_local_auto_open(fenName);
+        return owl_run_startup_window(fenName);
     }
     if (code == 0 && !autoOpen && looksLikeFenetre) {
         /* Filet anti-silence (doctrine OWL, ) : la tete ressemble
@@ -2928,6 +2592,16 @@ static void doc_emit_desc(const char* fr, const char* en) {
     printf(",\"descEN\":"); json_escape(stdout, en ? en : (fr ? fr : ""));
 }
 
+/* Émet ,"catEN":<forme EN> en miroir du ,"cat":<fr> déjà écrit. Résout la
+ * forme anglaise via la table bilingue (owl_categories.def) ; repli sur le FR
+ * si la catégorie n'a pas de forme EN connue (jamais vide). Le viewer choisit
+ * cat ou catEN selon la langue courante (helper catLabel). */
+static void doc_emit_cat_en(const char* fr) {
+    const OwlCategoryPair* pair = owl_category_resolve(fr);
+    const char* en = (pair && pair->en && *pair->en) ? pair->en : fr;
+    printf(",\"catEN\":"); json_escape(stdout, en ? en : "");
+}
+
 /* Clé de comparaison membre : accent-strip + minuscule, comme la résolution
  * runtime (casse + accent insensibles). Base commune au cross-ref des
  * collisions (fiche existante ⇄ nom de membre). */
@@ -3336,6 +3010,7 @@ static void dump_doc_html(const char* tplPath) {
         printf(",\"ascii\":"); json_escape(stdout, d->canonicalAscii ? d->canonicalAscii : d->canonical);
         printf(",\"en\":"); json_escape(stdout, d->nameEN ? d->nameEN : "");
         printf(",\"cat\":"); json_escape(stdout, d->category ? d->category : "Divers");
+        doc_emit_cat_en(d->category ? d->category : "Divers");
         doc_emit_desc(d->descFR, d->descEN);
         if (d->signatures && d->signatures->returnType) {
             printf(",\"signatures\":[");
@@ -3423,6 +3098,7 @@ static void dump_doc_html(const char* tplPath) {
         printf(",\"ascii\":"); json_escape(stdout, t->canonicalAscii ? t->canonicalAscii : t->canonical);
         if (t->nameEN) { printf(",\"en\":"); json_escape(stdout, t->nameEN); }
         printf(",\"cat\":"); json_escape(stdout, t->category ? t->category : "Divers");
+        doc_emit_cat_en(t->category ? t->category : "Divers");
         doc_emit_desc(t->descFR, t->descEN);
         if (t->fields) {
             printf(",\"fields\":[");
@@ -3462,6 +3138,7 @@ static void dump_doc_html(const char* tplPath) {
             printf(",\"ascii\":"); json_escape(stdout, pa ? pa : pn);
             if (pen) { printf(",\"en\":"); json_escape(stdout, pen); }
             printf(",\"cat\":\"Primitifs\"");
+            doc_emit_cat_en("Primitifs");
             doc_emit_desc(pfr, pden);
             doc_emit_member_xref(pn);
             printf("}");
@@ -3479,6 +3156,7 @@ static void dump_doc_html(const char* tplPath) {
         printf(",\"ascii\":"); json_escape(stdout, e->nameAscii ? e->nameAscii : e->name);
         if (e->nameEN) { printf(",\"en\":"); json_escape(stdout, e->nameEN); }
         printf(",\"cat\":"); json_escape(stdout, e->category ? e->category : "Divers");
+        doc_emit_cat_en(e->category ? e->category : "Divers");
         doc_emit_desc(e->descFR, e->descEN);
         printf(",\"combinable\":%s,\"values\":[", e->combinable ? "true" : "false");
         if (e->values) {
@@ -3505,6 +3183,7 @@ static void dump_doc_html(const char* tplPath) {
         printf("{\"kind\":\"const\",\"name\":"); json_escape(stdout, c->name);
         if (c->nameEN) { printf(",\"en\":"); json_escape(stdout, c->nameEN); }
         printf(",\"cat\":"); json_escape(stdout, c->category ? c->category : "Divers");
+        doc_emit_cat_en(c->category ? c->category : "Divers");
         doc_emit_desc(c->descFR, c->descEN);
         const OwlEnum* owner = owl_registry_enum_owner_of_const(c->name);
         if (owner) { printf(",\"enum\":"); json_escape(stdout, owner->name); }
@@ -3617,6 +3296,7 @@ static void dump_doc_html(const char* tplPath) {
         }
 
         printf(",\"cat\":"); json_escape(stdout, k->category ? k->category : "Mot-clé");
+        doc_emit_cat_en(k->category ? k->category : "Mot-clé");
         doc_emit_desc(s->descFR, s->descEN);
         if (s->syntax && *s->syntax)   { printf(",\"syntax\":");  json_escape(stdout, s->syntax); }
         if (s->example && *s->example) { printf(",\"example\":"); json_escape(stdout, s->example); }
@@ -3631,6 +3311,7 @@ static void dump_doc_html(const char* tplPath) {
         printf(",\"ascii\":"); json_escape(stdout, k->nameAscii ? k->nameAscii : k->nameFR);
         if (k->nameEN) { printf(",\"en\":"); json_escape(stdout, k->nameEN); }
         printf(",\"cat\":\"Interface\",\"widgetkind\":\"%s\"", k->is_widget ? "widget" : "bloc");
+        doc_emit_cat_en("Interface");
         if (k->defaultProperty) { printf(",\"defprop\":"); json_escape(stdout, k->defaultProperty); }
         doc_emit_desc(k->descFR, k->descEN);
         doc_emit_member_xref(k->nameFR);
@@ -3656,6 +3337,7 @@ static void dump_doc_html(const char* tplPath) {
             printf(",\"ascii\":"); json_escape(stdout, refs[i].refkey);
             printf(",\"en\":");    json_escape(stdout, refs[i].en);
             printf(",\"cat\":");   json_escape(stdout, "Référence");
+            doc_emit_cat_en("Référence");
             printf(",\"refkey\":");json_escape(stdout, refs[i].refkey);
             printf("}");
         }
@@ -3674,6 +3356,7 @@ static void dump_doc_html(const char* tplPath) {
         doc_emit_guide_title(stdout, g->name, g->data, g->len);
         printf(",\"ascii\":"); json_escape(stdout, g->name);
         printf(",\"cat\":");   json_escape(stdout, "Guide");
+        doc_emit_cat_en("Guide");
         printf(",\"doc\":");   json_escape(stdout, g->name);
         printf("}");
     }
@@ -3703,6 +3386,7 @@ static void dump_doc_html(const char* tplPath) {
         printf(",\"ascii\":");  json_escape(stdout, "novelties");
         printf(",\"en\":");     json_escape(stdout, "What's new");
         printf(",\"cat\":");    json_escape(stdout, "Référence");
+        doc_emit_cat_en("Référence");
         printf(",\"refkey\":"); json_escape(stdout, "novelties");
         printf("}");
     }
@@ -3744,6 +3428,16 @@ static void dump_doc_html(const char* tplPath) {
             printf(":{\"name\":"); json_escape(stdout, g->name);
             printf(",\"title\":"); doc_emit_guide_title(stdout, g->name, g->data, g->len);
             printf(",\"md\":");    doc_json_escape_n(stdout, g->data, g->len);
+            /* variante EN appariee par stem (table parallele) : alimente
+             * titleEN/mdEN sur le stem FR, sans fiche autonome. Le viewer
+             * choisit selon la langue (sinon bandeau de repli honnete). */
+            for (const OwlEmbeddedDoc* e = EMBEDDED_PUBLIC_DOCS_EN; e->name; e++) {
+                if (strcmp(e->name, g->name) == 0) {
+                    printf(",\"titleEN\":"); doc_emit_guide_title(stdout, e->name, e->data, e->len);
+                    printf(",\"mdEN\":");    doc_json_escape_n(stdout, e->data, e->len);
+                    break;
+                }
+            }
             printf("}");
         }
     }
@@ -3885,6 +3579,7 @@ static void dump_doc_html(const char* tplPath) {
             printf("{\"name\":"); json_escape(stdout, e->name);
             printf(",\"code\":"); json_escape(stdout, num ? num : "");
             printf(",\"cat\":"); json_escape(stdout, e->category ? e->category : "");
+            doc_emit_cat_en(e->category ? e->category : "");
             doc_emit_desc(e->templateFR, e->templateEN);
             printf("}");
         }
@@ -3903,6 +3598,7 @@ static void dump_doc_html(const char* tplPath) {
             printf("{\"name\":"); json_escape(stdout, L->name);
             printf(",\"value\":%d", L->value);
             printf(",\"cat\":"); json_escape(stdout, L->category ? L->category : "");
+            doc_emit_cat_en(L->category ? L->category : "");
             doc_emit_desc(L->descFR, L->descEN);
             printf("}");
         }
@@ -3921,6 +3617,7 @@ static void dump_doc_html(const char* tplPath) {
             if (!fo) printf(",\n"); fo = false;
             printf("{\"form\":"); json_escape(stdout, o->display_form);
             printf(",\"cat\":"); json_escape(stdout, o->category ? o->category : "");
+            doc_emit_cat_en(o->category ? o->category : "");
             printf(",\"senses\":[");
             bool fs = true;
             for (int s = 0; s < o->senses_count; s++) {
@@ -8832,8 +8529,7 @@ int main(int argc, char* argv[]) {
          * aligne sur la frontiere du fichier.  : les memes
          * arguments alimentent le canal `--arg` du lancement GO LOCAL. */
         stdlib_console_set_script_args(argc - 2, argv + 2);
-        g_go_local_argc = argc - 2;
-        g_go_local_argv = argv + 2;
+        owl_startup_set_cli_args(argc - 2, argv + 2);
         exitCode = run_owl_file(argv[1]);
     } else if (argc == 3 && strcmp(argv[1], "--check") == 0) {
         if (is_directory(argv[2])) {

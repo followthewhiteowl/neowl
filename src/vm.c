@@ -3951,6 +3951,14 @@ static InterpretResult run(void) {
     uint8_t instruction;
     (void)instruction; /* mode goto : utilise dans DISPATCH, pas dans le switch */
 
+    /*  — auto-vivification JSON en ecriture : les variantes
+     * OP_*_GET_OR_CREATE_* positionnent ce drapeau (0=lecture pure, 1=creer un
+     * objet si absent, 2=creer un tableau) puis retombent dans le corps partage
+     * d'OP_STRUCT_GET / OP_ARRAY_GET. Declare au scope fonction : les gotos
+     * d'entree ne doivent pas sauter par-dessus une initialisation. */
+    int opAutoVivKind = 0;
+    (void)opAutoVivKind;
+
 #ifdef OWL_COMPUTED_GOTO
     /*  — table dispatch GCC/clang. Indexee par OpCode (uint8_t).
      * &&label : extension GNU "Labels as Values". Slots inutilises pointent
@@ -3975,6 +3983,8 @@ static InterpretResult run(void) {
         [OP_ARRAY_FILL_DEFAULT] = &&L_OP_ARRAY_FILL_DEFAULT,
         [OP_ARRAY_FILL_STRUCT] = &&L_OP_ARRAY_FILL_STRUCT,
         [OP_ARRAY_GET] = &&L_OP_ARRAY_GET,
+        [OP_ARRAY_GET_OR_CREATE_OBJ] = &&L_OP_ARRAY_GET_OR_CREATE_OBJ,
+        [OP_ARRAY_GET_OR_CREATE_ARR] = &&L_OP_ARRAY_GET_OR_CREATE_ARR,
         [OP_TABLE_CELL_DESC] = &&L_OP_TABLE_CELL_DESC,
         [OP_ARRAY_GET_2D] = &&L_OP_ARRAY_GET_2D,
         [OP_ARRAY_GROWTH] = &&L_OP_ARRAY_GROWTH,
@@ -4072,6 +4082,8 @@ static InterpretResult run(void) {
         [OP_STRING_SLICE_TO_END] = &&L_OP_STRING_SLICE_TO_END,
         [OP_STRUCT_FIELD_ORDER] = &&L_OP_STRUCT_FIELD_ORDER,
         [OP_STRUCT_GET] = &&L_OP_STRUCT_GET,
+        [OP_STRUCT_GET_OR_CREATE_OBJ] = &&L_OP_STRUCT_GET_OR_CREATE_OBJ,
+        [OP_STRUCT_GET_OR_CREATE_ARR] = &&L_OP_STRUCT_GET_OR_CREATE_ARR,
         [OP_STRUCT_SET] = &&L_OP_STRUCT_SET,
         [OP_SUBTRACT] = &&L_OP_SUBTRACT,
         [OP_SWAP] = &&L_OP_SWAP,
@@ -5958,7 +5970,10 @@ static InterpretResult run(void) {
              * courant dans les deux modes de dispatch (goto calcule et
              * switch), c'est lui qui tranche. */
             VM_CASE(OP_TABLE_CELL_DESC):   /* FALLTHROUGH */
-            VM_CASE(OP_ARRAY_GET): {
+            VM_CASE(OP_ARRAY_GET_OR_CREATE_OBJ): opAutoVivKind = 1; goto L_array_get_entry;
+            VM_CASE(OP_ARRAY_GET_OR_CREATE_ARR): opAutoVivKind = 2; goto L_array_get_entry;
+            VM_CASE(OP_ARRAY_GET): opAutoVivKind = 0;
+            L_array_get_entry: {
                 /* Stack: [array_or_combi] [index_or_flag].
                  * Peek to keep operands rooted during any intermediate alloc
                  * (obj_copy_string below can trigger GC). Pop only at each
@@ -6316,6 +6331,28 @@ static InterpretResult run(void) {
                         int64_t idx = IS_INTEGER(indexVal) ? AS_INTEGER(indexVal) : (int64_t)AS_REAL(indexVal);
                         if (idx >= 1 && idx <= json->as.arrayVal.count) {
                             out = obj_json_to_value(json->as.arrayVal.items[idx - 1]);
+                        } else if (opAutoVivKind != 0) {
+                            /*  — descente LVALUE : l'element demande n'existe
+                             * pas. Croissance d'un seul element a la fois (regle
+                             * tableau WL) : idx == count+1 cree le conteneur du type
+                             * requis par le segment suivant ; tout saut leve une
+                             * exception rattrapable (le tableau reste tel quel). */
+                            if (idx == json->as.arrayVal.count + 1) {
+                                ObjJson* child = obj_new_json(
+                                    opAutoVivKind == 2 ? JSON_T_ARRAY : JSON_T_OBJECT);
+                                vm_push(OBJ_VAL(child)); /* root avant push (realloc pur, mais canon) */
+                                obj_json_array_push(json, child);
+                                vm_pop();
+                                IDX_RESULT(OBJ_VAL(child));
+                                DISPATCH();
+                            }
+                            char idxBuf[32], maxBuf[16];
+                            snprintf(idxBuf, sizeof idxBuf, "%lld", (long long)idx);
+                            snprintf(maxBuf, sizeof maxBuf, "%d", json->as.arrayVal.count);
+                            owl_emit_runtime_error(E_RT_ARRAY_INDEX_OOB,
+                                                   "index", idxBuf,
+                                                   "max", maxBuf, NULL);
+                            IDX_ERROR_RET();
                         }
                     } else if (json->jtype == JSON_T_OBJECT && IS_STRING(indexVal)) {
                         ObjJson* child = obj_json_object_get(json, AS_STRING(indexVal));
@@ -6701,6 +6738,14 @@ static InterpretResult run(void) {
                     OWL_RT_RECOVER_DISPATCH(); \
                     return INTERPRET_RUNTIME_ERROR; \
                 } while(0)
+                #define SET_TRY_CATCH() do { \
+                    if (exceptionCount > 0 && currentException != NULL) { \
+                        if (handle_runtime_exception()) { \
+                            frame = &vm.frames[vm.frameCount - 1]; \
+                            goto op_array_set_done; \
+                        } \
+                    } \
+                } while(0)
 
                 /*  — ecriture col-first `TBL.COL_Nom[ligne] = v` : arrVal
                  * est le proxy-colonne (, pose par OP_STRUCT_GET). Miroir
@@ -6852,6 +6897,21 @@ static InterpretResult run(void) {
                     ObjJson* j = AS_JSON(arrVal);
                     if (j->jtype == JSON_T_ARRAY && (IS_INTEGER(indexVal) || IS_REAL(indexVal))) {
                         int64_t idx = IS_INTEGER(indexVal) ? AS_INTEGER(indexVal) : (int64_t)AS_REAL(indexVal);
+                        /*  — croissance d'un seul element a la fois (regle
+                         * tableau WL) : idx dans [1..count] ecrase, idx == count+1
+                         * ajoute, tout saut leve une exception rattrapable sans
+                         * muter le tableau (`j.a[3] = x` sur un tableau vide laisse
+                         * `a` materialise a `[]`). */
+                        if (idx < 1 || idx > j->as.arrayVal.count + 1) {
+                            char idxBuf[32], maxBuf[16];
+                            snprintf(idxBuf, sizeof idxBuf, "%lld", (long long)idx);
+                            snprintf(maxBuf, sizeof maxBuf, "%d", j->as.arrayVal.count);
+                            owl_emit_runtime_error(E_RT_ARRAY_INDEX_OOB,
+                                                   "index", idxBuf,
+                                                   "max", maxBuf, NULL);
+                            SET_TRY_CATCH();
+                            SET_ERROR_RET();
+                        }
                         ObjJson* n = NULL;
                         if (IS_INTEGER(val))      n = obj_new_json_int(AS_INTEGER(val));
                         else if (IS_REAL(val))    n = obj_new_json_real(AS_REAL(val));
@@ -6861,7 +6921,7 @@ static InterpretResult run(void) {
                         else if (IS_STRING(val))  n = obj_new_json_string(AS_STRING(val));
                         else                      n = obj_new_json(JSON_T_NULL);
                         vm_push(OBJ_VAL(n));  /* root n before the grow */
-                        if (idx >= 1 && idx <= j->as.arrayVal.count) {
+                        if (idx <= j->as.arrayVal.count) {
                             j->as.arrayVal.items[idx - 1] = n;
                         } else {
                             obj_json_array_push(j, n);
@@ -6886,15 +6946,6 @@ static InterpretResult run(void) {
                         DISPATCH();
                     }
                 }
-
-                #define SET_TRY_CATCH() do { \
-                    if (exceptionCount > 0 && currentException != NULL) { \
-                        if (handle_runtime_exception()) { \
-                            frame = &vm.frames[vm.frameCount - 1]; \
-                            goto op_array_set_done; \
-                        } \
-                    } \
-                } while(0)
 
                 /*  — ecriture indexee d'un Vecteur : base 1, taille
                  * figee (pas d'agrandissement). Hors borne = erreur recuperable,
@@ -7331,7 +7382,10 @@ static InterpretResult run(void) {
 
             /* --- Struct operations --- */
 
-            VM_CASE(OP_STRUCT_GET): {
+            VM_CASE(OP_STRUCT_GET_OR_CREATE_OBJ): opAutoVivKind = 1; goto L_struct_get_entry;
+            VM_CASE(OP_STRUCT_GET_OR_CREATE_ARR): opAutoVivKind = 2; goto L_struct_get_entry;
+            VM_CASE(OP_STRUCT_GET): opAutoVivKind = 0;
+            L_struct_get_entry: {
                 uint16_t nameIdx = READ_CONST_IDX();
                 ObjString* fieldName = AS_STRING(
                     frame->function->chunk->constants.values[nameIdx]);
@@ -8784,6 +8838,19 @@ static InterpretResult run(void) {
                         ObjJson* child = obj_json_object_get(json, fieldName);
                         if (child) {
                             vm_push(obj_json_to_value(child));
+                        } else if (opAutoVivKind != 0) {
+                            /*  — descente LVALUE : membre absent d'un objet
+                             * JSON. On materialise le conteneur du type requis par
+                             * le segment suivant (_OBJ -> objet, _ARR -> tableau) et
+                             * on le relie a son parent (reference partagee : la
+                             * mutation du segment plus profond remonte). La lecture
+                             * pure (opAutoVivKind == 0) reste NIL, sans creation. */
+                            ObjJson* child2 = obj_new_json(
+                                opAutoVivKind == 2 ? JSON_T_ARRAY : JSON_T_OBJECT);
+                            vm_push(OBJ_VAL(child2)); /* root avant object_set */
+                            obj_json_object_set(json, fieldName, child2);
+                            vm_pop();
+                            vm_push(OBJ_VAL(child2));
                         } else {
                             vm_push(NIL_VAL);
                         }

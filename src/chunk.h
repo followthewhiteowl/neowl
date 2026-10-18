@@ -309,6 +309,22 @@ typedef enum {
      * accepte un nom de classe OU d'interface a droite de `est`. */
     OP_CLASS_DECLARE_INTERFACE,
 
+    /* --- Auto-vivification de chemins JSON profonds en ECRITURE ---
+     * Variantes "get-or-create" d'OP_STRUCT_GET / OP_ARRAY_GET, emises UNIQUEMENT
+     * pour les segments INTERMEDIAIRES d'une cible d'affectation (LVALUE) chainee
+     * (`j.a.b = x`, `j.a[1].b = x`). Meme forme/largeur que l'opcode de lecture
+     * dont elles derivent (promotion in-place d'un octet par le compilateur) :
+     *   - _OBJ : le segment suivant est un acces membre -> materialise un objet
+     *     JSON si le conteneur est absent ;
+     *   - _ARR : le segment suivant est un acces indexe -> materialise un tableau
+     *     JSON si le conteneur est absent.
+     * Hors conteneur JSON absent, comportement STRICTEMENT identique a l'opcode
+     * de lecture d'origine (la lecture ne materialise jamais rien). */
+    OP_STRUCT_GET_OR_CREATE_OBJ,   /* comme OP_STRUCT_GET (SHAPE 1,0) */
+    OP_STRUCT_GET_OR_CREATE_ARR,
+    OP_ARRAY_GET_OR_CREATE_OBJ,    /* comme OP_ARRAY_GET (SHAPE 0,0) */
+    OP_ARRAY_GET_OR_CREATE_ARR,
+
     /* Sentinelle. N'ajoutez PAS d'opcode aprés OP_COUNT.
      * Sert au _Static_assert de coherence dispatch ↔ enum et au
      * range-init `[0 ... OP_COUNT-1] = &&L_BAD_OP` de la table de

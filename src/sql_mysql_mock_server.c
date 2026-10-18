@@ -2,9 +2,12 @@
 #include "sql_mysql_mock_server.h"
 
 #include "sql_mysql_wire.h"
+#include "sql_mysql_types.h"
 #include "auth_mysql_native.h"
 #include "auth_mysql_caching.h"
 #include "net_le_buffer.h"
+
+#include <ctype.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +48,8 @@ struct MysqlMockServer {
     char           last_user [128];
     char           last_db   [128];
     char           last_query[1024];
+    char           last_prepare_sql [1024];
+    char           last_bind_param0 [1024];
     bool           auth_token_matched;
 };
 
@@ -246,6 +251,168 @@ static void mock_send_resultset_42(mock_socket_t s) {
       send_buffer_free(s, &b); }
 }
 
+/* Ecrit une ColumnDefinition41 minimale (seq donne) : name + type.
+ * Reutilise pour les defs de params/colonnes (prepare) et de resultset. */
+static void mock_send_column_def(mock_socket_t s, uint8_t seq,
+                                 const char* name, uint8_t type) {
+    OwlLeBuffer b; owl_le_buffer_init(&b, 64);
+    size_t off = mysql_pkt_begin(&b, seq);
+    owl_le_buffer_write_lenenc_str(&b, "def", 3);
+    owl_le_buffer_write_lenenc_str(&b, "", 0);
+    owl_le_buffer_write_lenenc_str(&b, "", 0);
+    owl_le_buffer_write_lenenc_str(&b, "", 0);
+    owl_le_buffer_write_lenenc_str(&b, name, strlen(name));
+    owl_le_buffer_write_lenenc_str(&b, name, strlen(name));
+    owl_le_buffer_write_lenenc_int(&b, 0x0c);
+    owl_le_buffer_write_u16(&b, 0x2D);     /* charset utf8mb4 */
+    owl_le_buffer_write_u32(&b, 255);      /* column_length */
+    owl_le_buffer_write_u8 (&b, type);
+    owl_le_buffer_write_u16(&b, 0);        /* flags */
+    owl_le_buffer_write_u8 (&b, 0);        /* decimals */
+    owl_le_buffer_write_u16(&b, 0);        /* filler */
+    mysql_pkt_end(&b, off);
+    send_buffer_free(s, &b);
+}
+
+static void mock_send_eof(mock_socket_t s, uint8_t seq) {
+    OwlLeBuffer b; owl_le_buffer_init(&b, 16);
+    size_t off = mysql_pkt_begin(&b, seq);
+    owl_le_buffer_write_u8 (&b, MYSQL_PKT_EOF_OR_AUTH_SWITCH);
+    owl_le_buffer_write_u16(&b, 0);        /* warnings */
+    owl_le_buffer_write_u16(&b, 0x0002);   /* status */
+    mysql_pkt_end(&b, off);
+    send_buffer_free(s, &b);
+}
+
+/* COM_STMT_PREPARE_OK : annonce un statement avec num_params placeholders et
+ * aucune colonne decrite (le resultset d'EXECUTE est auto-descriptif). Si
+ * num_params > 0, envoie autant de defs de params + un EOF. */
+static void mock_send_stmt_prepare_ok(mock_socket_t s, int num_params) {
+    { OwlLeBuffer b; owl_le_buffer_init(&b, 32);
+      size_t off = mysql_pkt_begin(&b, 1);
+      owl_le_buffer_write_u8 (&b, 0x00);                  /* status */
+      owl_le_buffer_write_u32(&b, 1);                     /* statement_id */
+      owl_le_buffer_write_u16(&b, 0);                     /* num_columns */
+      owl_le_buffer_write_u16(&b, (uint16_t)num_params);  /* num_params */
+      owl_le_buffer_write_u8 (&b, 0x00);                  /* reserved */
+      owl_le_buffer_write_u16(&b, 0);                     /* warnings */
+      mysql_pkt_end(&b, off);
+      send_buffer_free(s, &b); }
+
+    if (num_params > 0) {
+        uint8_t seq = 2;
+        for (int i = 0; i < num_params; i++) {
+            mock_send_column_def(s, seq++, "?", MYSQL_TYPE_VAR_STRING);
+        }
+        mock_send_eof(s, seq);
+    }
+}
+
+/* Reponse EXECUTE d'un INSERT/UPDATE/DELETE : paquet OK, 1 ligne affectee. */
+static void mock_send_execute_ok(mock_socket_t s) {
+    OwlLeBuffer out; owl_le_buffer_init(&out, 16);
+    size_t off = mysql_pkt_begin(&out, 1);
+    owl_le_buffer_write_u8         (&out, MYSQL_PKT_OK);
+    owl_le_buffer_write_lenenc_int (&out, 1);       /* affected_rows */
+    owl_le_buffer_write_lenenc_int (&out, 0);       /* last_insert_id */
+    owl_le_buffer_write_u16        (&out, 0x0002);  /* status */
+    owl_le_buffer_write_u16        (&out, 0);       /* warnings */
+    mysql_pkt_end(&out, off);
+    send_buffer_free(s, &out);
+}
+
+/* Reponse EXECUTE d'un SELECT : binary resultset canon, 1 colonne string
+ * "dummytxt" = "abc", 1 ligne. Exerce le decodage binary resultset client. */
+static void mock_send_execute_resultset(mock_socket_t s) {
+    /* seq 1 : column count = 1 */
+    { OwlLeBuffer b; owl_le_buffer_init(&b, 16);
+      size_t off = mysql_pkt_begin(&b, 1);
+      owl_le_buffer_write_lenenc_int(&b, 1);
+      mysql_pkt_end(&b, off);
+      send_buffer_free(s, &b); }
+
+    /* seq 2 : ColumnDefinition41 "dummytxt" VAR_STRING */
+    mock_send_column_def(s, 2, "dummytxt", MYSQL_TYPE_VAR_STRING);
+
+    /* seq 3 : EOF intermediaire */
+    mock_send_eof(s, 3);
+
+    /* seq 4 : binary row : header 0x00 + null-bitmap (1 octet, offset 2 bits)
+     * + valeur "abc" (lenenc str). */
+    { OwlLeBuffer b; owl_le_buffer_init(&b, 16);
+      size_t off = mysql_pkt_begin(&b, 4);
+      owl_le_buffer_write_u8 (&b, 0x00);               /* packet header */
+      owl_le_buffer_write_u8 (&b, 0x00);               /* null-bitmap (1 col) */
+      owl_le_buffer_write_lenenc_str(&b, "abc", 3);
+      mysql_pkt_end(&b, off);
+      send_buffer_free(s, &b); }
+
+    /* seq 5 : EOF terminal */
+    mock_send_eof(s, 5);
+}
+
+/* Compte les '?' dans le template prepare (= nb de parametres lies). */
+static int mock_count_qmarks(const char* sql) {
+    int n = 0;
+    for (const char* p = sql; p && *p; p++) if (*p == '?') n++;
+    return n;
+}
+
+/* Le SQL prepare est-il un SELECT (1er mot-cle, insensible a la casse) ? */
+static bool mock_prepare_is_select(const char* sql) {
+    const char* p = sql;
+    while (*p && isspace((unsigned char)*p)) p++;
+    return (tolower((unsigned char)p[0]) == 's' &&
+            tolower((unsigned char)p[1]) == 'e' &&
+            tolower((unsigned char)p[2]) == 'l');
+}
+
+/* Parse le COM_STMT_EXECUTE et capture la 1re valeur liee (decodee en texte).
+ * Ne modifie pas le SQL : la valeur arrive bien separee, server-side. */
+static void mock_capture_execute(MysqlMockServer* m,
+                                 const uint8_t* payload, uint32_t plen) {
+    m->last_bind_param0[0] = '\0';
+    int n_params = mock_count_qmarks(m->last_prepare_sql);
+    if (n_params <= 0) return;
+
+    OwlLeBuffer in;
+    owl_le_buffer_attach_read(&in, payload, plen);
+    uint8_t cmd; if (!owl_le_buffer_read_u8(&in, &cmd)) return;   /* 0x17 */
+    uint32_t sid; if (!owl_le_buffer_read_u32(&in, &sid)) return;
+    uint8_t flags; if (!owl_le_buffer_read_u8(&in, &flags)) return;
+    uint32_t iter; if (!owl_le_buffer_read_u32(&in, &iter)) return;
+
+    int nb_bytes = (n_params + 7) / 8;
+    const uint8_t* nullmap = in.data + in.pos;
+    if (!owl_le_buffer_read_skip(&in, nb_bytes)) return;
+
+    uint8_t new_bound;
+    if (!owl_le_buffer_read_u8(&in, &new_bound)) return;
+    if (new_bound != 1) return;
+
+    uint16_t* types = (uint16_t*)malloc(sizeof(uint16_t) * (size_t)n_params);
+    if (!types) return;
+    for (int i = 0; i < n_params; i++) {
+        if (!owl_le_buffer_read_u16(&in, &types[i])) { free(types); return; }
+    }
+
+    /* La 1re valeur (param0) est la premiere ecrite, si non-NULL. */
+    bool p0_null = (nullmap[0] & 0x01u) != 0;
+    if (!p0_null) {
+        OwlLeBuffer tb; owl_le_buffer_init(&tb, 64);
+        size_t off = 0, len = 0;
+        if (owl_mysql_binary_read_to_text(&in, (uint8_t)(types[0] & 0xFF),
+                                          0, &tb, &off, &len)) {
+            size_t cp = len;
+            if (cp >= sizeof(m->last_bind_param0)) cp = sizeof(m->last_bind_param0) - 1;
+            if (cp > 0) memcpy(m->last_bind_param0, tb.data + off, cp);
+            m->last_bind_param0[cp] = '\0';
+        }
+        owl_le_buffer_free(&tb);
+    }
+    free(types);
+}
+
 /* ================================================================
  * Validation auth token cote mock
  * ================================================================ */
@@ -370,6 +537,33 @@ static void mock_serve_client(MysqlMockServer* m, mock_socket_t cli) {
             m->last_query[qlen] = '\0';
             free(payload);
             mock_send_resultset_42(cli);
+            continue;
+        }
+        if (cmd == MYSQL_COM_STMT_PREPARE) {
+            /* Capture le template SQL (placeholders '?'). */
+            size_t slen = plen - 1;
+            if (slen >= sizeof(m->last_prepare_sql)) slen = sizeof(m->last_prepare_sql) - 1;
+            memcpy(m->last_prepare_sql, payload + 1, slen);
+            m->last_prepare_sql[slen] = '\0';
+            free(payload);
+            mock_send_stmt_prepare_ok(cli, mock_count_qmarks(m->last_prepare_sql));
+            continue;
+        }
+        if (cmd == MYSQL_COM_STMT_EXECUTE) {
+            /* Capture la 1re valeur liee (preuve server-side) puis repond
+             * selon la nature du statement prepare. */
+            mock_capture_execute(m, payload, plen);
+            bool is_select = mock_prepare_is_select(m->last_prepare_sql);
+            free(payload);
+            if (is_select) mock_send_execute_resultset(cli);
+            else           mock_send_execute_ok(cli);
+            continue;
+        }
+        if (cmd == MYSQL_COM_STMT_CLOSE || cmd == MYSQL_COM_STMT_RESET) {
+            /* STMT_CLOSE ne renvoie rien ; STMT_RESET renvoie un OK. */
+            uint8_t c0 = cmd;
+            free(payload);
+            if (c0 == MYSQL_COM_STMT_RESET) mock_send_ok(cli, 1);
             continue;
         }
         /* Cmd non supportee : Error generique. */
@@ -500,3 +694,5 @@ const char* mysql_mock_server_last_query(const MysqlMockServer* m) { return m->l
 bool        mysql_mock_server_auth_token_matched(const MysqlMockServer* m) {
     return m->auth_token_matched;
 }
+const char* mysql_mock_server_last_prepare_sql (const MysqlMockServer* m) { return m->last_prepare_sql;  }
+const char* mysql_mock_server_last_bind_param0 (const MysqlMockServer* m) { return m->last_bind_param0;  }

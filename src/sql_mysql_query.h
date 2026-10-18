@@ -22,6 +22,7 @@
 
 #include "common.h"
 #include "sql_mysql_conn.h"
+#include "sql_mysql_types.h"   /* OwlMysqlBindValue */
 
 typedef struct {
     char*    name;       /* malloc, libere par result_free */
@@ -69,5 +70,13 @@ void owl_mysql_result_free(OwlMysqlResult* r);
 /* Lance une simple query (COM_QUERY) et collecte la reponse jusqu'a
  * EOF/OK_eof terminal. Retourne true si la query a reussi. */
 bool owl_mysql_simple_query(OwlMysqlConn* c, const char* sql, OwlMysqlResult* out);
+
+/* Requete preparee server-side : COM_STMT_PREPARE (template avec '?') puis
+ * COM_STMT_EXECUTE (valeurs liees separees). Un INSERT/UPDATE/DELETE renvoie
+ * un paquet OK (affected_rows) ; un SELECT renvoie un binary resultset,
+ * decode ici. Les valeurs ne sont jamais concatenees dans le SQL. */
+bool owl_mysql_prepared_query(OwlMysqlConn* c, const char* sql,
+                              int n_params, const OwlMysqlBindValue* params,
+                              OwlMysqlResult* out);
 
 #endif

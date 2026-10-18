@@ -1,0 +1,30 @@
+//  : garde-fou miroir de . L'auto-vivification des chemins
+// JSON profonds concerne exclusivement l'ÉCRITURE (LVALUE). Lire un membre
+// ou un indice absent sur un conteneur JSON EXISTANT reste Null, sans
+// jamais créer les segments manquants — ni avant, ni après l'implémentation
+// du ticket .
+//
+// Note de construction : les documents JSON sont construits via
+// `ChaîneVersJSON` (parse direct), pas via auto-vivification en écriture,
+// pour que ce garde-fou reste vérifiable indépendamment de l'avancement de
+// l'implémentation du ticket.
+
+PROCEDURE PUBLIQUE test_json_lecture_membre_absent_sur_objet_existant_reste_null()
+	j est un JSON = ChaîneVersJSON(`{"a":{"b":"x"}}`)
+	x est un JSON = j.a.autreChamp
+	dbgVérifieEgalité(x, Null, "lire un membre absent sur un objet existant reste Null")
+FIN
+
+
+PROCEDURE PUBLIQUE test_json_lecture_index_hors_limites_sur_tableau_existant_reste_null()
+	j est un JSON = ChaîneVersJSON(`{"a":[1,2,3]}`)
+	x est un JSON = j.a[10]
+	dbgVérifieEgalité(x, Null, "lire un index hors limites sur un tableau existant reste Null, pas d'exception")
+FIN
+
+
+PROCEDURE PUBLIQUE test_json_lecture_ne_materialise_rien_dans_le_document()
+	j est un JSON = ChaîneVersJSON(`{"a":{"b":"x"}}`)
+	Trace(j.a.autreChamp)
+	dbgVérifieEgalité(JSONVersChaîne(j, psdMinifie), `{"a":{"b":"x"}}`, "une lecture de membre absent ne modifie jamais le document source")
+FIN

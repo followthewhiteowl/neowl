@@ -61,9 +61,13 @@
  * comportement : 5 labels distincts pointent vers la meme sequence.
  * Si l'implementer ajoute OP_COUNT mais oublie un opcode dans la table
  * dispatch, la suite de tests runtime reveillera le L_BAD_OP. */
-_Static_assert(OP_COUNT == 113,
+_Static_assert(OP_COUNT == 117,
                "OP_COUNT doit correspondre au nombre reel d'opcodes "
-               "uniques (113 au 2026-08-07 : +OP_ARRAY_FILL_STRUCT fix/1398, "
+               "uniques (117 au 2026-10-16 : +4 variantes get-or-create JSON "
+               "fix/2271 : OP_STRUCT_GET_OR_CREATE_OBJ/ARR + "
+               "OP_ARRAY_GET_OR_CREATE_OBJ/ARR, auto-vivification des chemins "
+               "JSON profonds en ecriture ; "
+               "113 au 2026-08-07 : +OP_ARRAY_FILL_STRUCT fix/1398, "
                "pre-instanciation des cells d'un `tableau de N <Structure>` ; "
                "112 au 2026-08-06 : -OP_CONSTANT_LONG fix/1504, "
                "l'index de constante etant desormais 16 bits sur OP_CONSTANT "

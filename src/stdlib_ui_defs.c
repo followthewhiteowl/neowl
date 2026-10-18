@@ -519,6 +519,13 @@ static const OwlParam p_table_add[]  = {
     {"valeurs", "tout", "Une valeur par colonne (variadic)"},
     {0}
 };
+static const OwlParam p_table_insert[] = {
+    {"table", "Champ Table", "Le Champ Table cible (référence ou nom)"},
+    {"indice", "entier", "Optionnel : indice 1-based d'insertion (0 = debut, "
+                         "-1 = avant la ligne en cours, > nb lignes = fin)"},
+    {"valeurs", "tout", "Optionnel : une valeur par colonne (variadic)"},
+    {0}
+};
 static const OwlParam p_table_rm[]   = {
     {"table", "Champ Table", "Le Champ Table cible (référence ou nom)"},
     {"ligne",   "entier",  "Numero de ligne 1-based"},
@@ -658,7 +665,11 @@ static const OwlParam p_table_xy[] = {
     {"Y",       "entier",  "Coord Y pixel (relatif au champ)"},
     {0}
 };
-static const OwlSignature sig_table_add[]    = {{-1, p_table_add,    "", ""}, {0}};
+static const OwlSignature sig_table_add[]    = {
+    {-1, p_table_add, "entier", "Indice 1-based de la ligne ajoutee, -1 sur erreur"},
+    {0}
+};
+static const OwlSignature sig_table_insert[] = {{-1, p_table_insert, "", ""}, {0}};
 static const OwlSignature sig_table_rm[]     = {{2,  p_table_rm,     "", ""}, {0}};
 static const OwlSignature sig_table_simple[] = {{1,  p_table_simple, "", ""}, {0}};
 static const OwlSignature sig_table_occ[]    = {
@@ -2215,6 +2226,18 @@ static OwlNativeDef DEFS[] = {
       .descFR="Ajoute une ligne en fin de table avec une valeur par colonne.",
       .descEN="Append a row to the table with one value per column.",
       .signatures=sig_table_add },
+    { .canonical="TableIns\xc3\xa8reLigne", .canonicalAscii="TableInsereLigne",
+      .nameEN="TableInsertLine",
+      .category="UI",
+      .descFR="Insere une ligne a l'indice indique (1-based), decalant les "
+              "lignes suivantes. Indice absent ou -1 : avant la ligne en cours "
+              "(aucune : a la fin). 0 : au debut. Superieur au nombre de "
+              "lignes : a la fin. Valeurs optionnelles, une par colonne.",
+      .descEN="Insert a row at the given 1-based index, shifting the following "
+              "rows. Index omitted or -1: before the current row (none: at the "
+              "end). 0: at the start. Greater than the row count: at the end. "
+              "Optional values, one per column.",
+      .signatures=sig_table_insert },
     { .canonical="TableSupprime", .nameEN="TableDelete",
       .category="UI",
       .descFR="Supprime la ligne specifiee (1-based).",
