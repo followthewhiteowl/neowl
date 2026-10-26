@@ -1,0 +1,75 @@
+//  — dessiner directement sur un Champ Image (parité canon),
+// au lieu d'exiger une variable Image intermédiaire. Approche « backing
+// Image » : dDébutDessin(IMG_Widget) doit poser le buffer dessinable du
+// Champ Image comme image courante ; les primitives d* (sans argument
+// image explicite) écrivent dans ce buffer ; dPixelCouleur(x, y) (image
+// courante) relit le résultat sans dépendre du rendu Qt visible.
+//
+// Aujourd'hui (avant impl) : dDébutDessin(IMG_Cible) échoue (type mismatch,
+// le Champ Image n'est pas une instance Image) → aucune image courante
+// posée → les lectures de pixel qui suivent retombent sur la valeur
+// neutre (aucun canevas), ce qui fait rougir les comparaisons aux couleurs
+// attendues pour la BONNE raison (cf. commentaires en ligne).
+//
+// Ce qui n'est PAS testable ici : le rafraîchissement VISIBLE du contrôle
+// Qt à l'écran (rendu natif, validation humaine hors portée des agents).
+
+Ouvre(FEN_DessinChampImage)
+
+// ===== 1. dDébutDessin(Champ Image) doit retourner Vrai =====
+// ROUGE attendu : retourne Faux aujourd'hui (type mismatch sur un widget).
+res est un booléen = dDébutDessin(IMG_Cible)
+dbgVérifieEgalité(res, Vrai, "dDébutDessin sur un Champ Image initialise une session de dessin valide")
+
+// ===== 2. Dessin correct relu en headless (gate dPixelCouleur sur image courante) =====
+// Deux rectangles de couleurs distinctes à des positions distinctes : si le
+// dessin n'est pas câblé sur le backing du Champ Image, aucune des deux
+// zones ne porte la couleur attendue (retombe sur la valeur neutre).
+couleurRouge est un entier = RVB(255, 0, 0)
+couleurBleu est un entier = RVB(0, 0, 255)
+
+dRectangle(10, 10, 50, 50, couleurRouge)
+dRectangle(60, 60, 90, 90, couleurBleu)
+
+pixelRouge est un entier = dPixelCouleur(25, 25)
+dbgVérifieEgalité(pixelRouge, couleurRouge, "pixel dans le rectangle rouge : couleur rouge relue sur le Champ Image")
+
+pixelBleu est un entier = dPixelCouleur(75, 75)
+dbgVérifieEgalité(pixelBleu, couleurBleu, "pixel dans le rectangle bleu : couleur bleue relue sur le Champ Image")
+
+// Discriminant : les deux zones dessinées diffèrent réellement (pas un
+// remplissage global accidentel qui donnerait la même couleur partout).
+dbgVérifieDifférence(pixelRouge, pixelBleu, "les deux rectangles portent des couleurs distinctes (dessin localisé, pas un remplissage global)")
+
+// Pixel hors des deux rectangles : ne doit porter NI le rouge NI le bleu
+// dessinés (preuve que le dessin reste localisé aux formes tracées).
+pixelHorsZone est un entier = dPixelCouleur(5, 5)
+dbgVérifieDifférence(pixelHorsZone, couleurRouge, "pixel hors zone : pas la couleur du rectangle rouge")
+dbgVérifieDifférence(pixelHorsZone, couleurBleu, "pixel hors zone : pas la couleur du rectangle bleu")
+
+// ===== 3. dFinDessin sur le Champ Image ne casse rien =====
+// Déjà vrai aujourd'hui : dFinDessin ignore son argument et clôt
+// simplement la session courante, quel que soit le type passé.
+dFinDessin(IMG_Cible)
+
+// ===== 4. Chaîne rejetée : seule une variable Image ou un Champ Image réel sont des cibles valides =====
+// Déjà vrai aujourd'hui (non-régression) : une chaîne n'est ni l'un ni
+// l'autre, rejet par type mismatch inchangé par cette feature.
+resChaine est un booléen = dDébutDessin("IMG_Cible")
+dbgVérifieEgalité(resChaine, Faux, "dDébutDessin(chaîne) reste rejeté : pas une cible de dessin valide")
+
+// ===== 5. Non-régression : dDébutDessin sur une variable Image classique =====
+// Chemin déjà fonctionnel aujourd'hui, doit continuer de fonctionner.
+imgVar est un Image = dCréeImage(60, 60, Blanc)
+couleurVert est un entier = RVB(0, 200, 0)
+resImg est un booléen = dDébutDessin(imgVar)
+dbgVérifieEgalité(resImg, Vrai, "dDébutDessin(variable Image) : chemin existant toujours fonctionnel")
+
+dPoint(30, 30, couleurVert)
+pixelImgVar est un entier = dPixelCouleur(30, 30)
+dbgVérifieEgalité(pixelImgVar, couleurVert, "variable Image classique : dessin toujours correctement relu")
+
+dFinDessin(imgVar)
+
+Ferme(FEN_DessinChampImage)
+dbgBilanTest()

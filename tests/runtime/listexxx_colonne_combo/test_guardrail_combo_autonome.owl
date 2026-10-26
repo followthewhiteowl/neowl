@@ -1,0 +1,30 @@
+//  — garde-fou de non-régression : ListeAjoute sur un Champ Combo
+// AUTONOME (hors Table) doit continuer à fonctionner exactement comme
+// avant ce ticket (fondation ). Ce ticket élargit la cible
+// acceptée par la famille ListeXxx aux colonnes/cellules de Table ; il ne
+// doit RIEN changer pour le combo autonome.
+//
+// VERT attendu (avant ET après l'implémentation de ce ticket).
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ListeColonneCombo)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+ListeAjoute(CMB_Autonome, "Un")
+ListeAjoute(CMB_Autonome, "Deux")
+dbgVérifieFaux(ErreurDétectée, "ListeAjoute sur le combo autonome ne pose pas d'erreur")
+
+dbgVérifieEgalité(ListeOccurrence(CMB_Autonome), 2,
+"ListeOccurrence sur le combo autonome reflète les 2 items ajoutés")
+
+dbgVérifieEgalité(CMB_Autonome..Contenu, "Un" + LF + "Deux",
+"..Contenu sur le combo autonome reflète les items ajoutés par ListeAjoute")
+
+ListeSupprime(CMB_Autonome, 1)
+dbgVérifieFaux(ErreurDétectée, "ListeSupprime sur le combo autonome ne pose pas d'erreur")
+
+dbgVérifieEgalité(CMB_Autonome..Contenu, "Deux",
+"..Contenu sur le combo autonome reflète la suppression")
+
+Ferme(FEN_ListeColonneCombo)
+dbgBilanTest()

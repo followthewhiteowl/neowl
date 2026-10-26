@@ -1,0 +1,19 @@
+//  — VERT, garde-fou : un VRAI dépassement de ligne (indice 99 sur
+// une Table de 2 lignes) doit continuer à lever l'erreur de borne, même
+// après le fix du bug FinInitialisation. Ce test interdit à l'implémentation
+// de « corriger » en supprimant ou en adoucissant la validation.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_OverrideCelluleHorsPlageGardeFou)
+
+TABLE_Synthese.COL_Nom[99]..Couleur = RVB(200, 0, 0)
+
+dbgVérifieVrai(ErreurDétectée,
+"dépassement réel de ligne (99 sur 2 lignes) : erreur de borne signalée")
+
+dbgVérifieVrai(Contient(ErreurInfo(), "hors plage") > 0,
+"dépassement réel de ligne : le message mentionne « hors plage »")
+
+Ferme(FEN_OverrideCelluleHorsPlageGardeFou)
+dbgBilanTest()

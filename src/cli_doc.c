@@ -4329,6 +4329,215 @@ static void json_write_proc_body_stripped(const char* body_start,
     putchar('"');
 }
 
+/* ------------------------------------------------------------------
+ *  — rendu EN du corps d'un exemple.
+ *
+ * Le corpus de scénarios est rédigé en OWL canon FR. En `--lang en` on
+ * translittère le PROGRAMME (symboles → EN canon via owl_translate) sans
+ * narrer en français : on retire d'abord les DEUX formes de prose FR
+ * non-traduisibles gratuitement —
+ *   (1) les commentaires `//` ;
+ *   (2) les libellés de message des assertions = le DERNIER argument
+ *       chaîne top-level d'un appel `dbg*` (optionnel dans la signature,
+ *       donc on le DROP). Les autres chaînes (données du programme :
+ *       `"pomme"` en 2e arg, `"/"`, `"\"`) sont conservées.
+ * — puis on passe le résidu par owl_translate(EN). Chaînes RAW OWL :
+ * backslash littéral, seul `""` doublé échappe un guillemet.
+ * ------------------------------------------------------------------ */
+
+typedef struct { char* data; size_t len, cap; } DocBuf;
+
+static void docbuf_putc(DocBuf* b, char c) {
+    if (b->len + 1 > b->cap) {
+        b->cap = b->cap ? b->cap * 2 : 256;
+        b->data = (char*)realloc(b->data, b->cap);
+    }
+    b->data[b->len++] = c;
+}
+
+static void docbuf_put(DocBuf* b, const char* s, long n) {
+    for (long i = 0; i < n; i++) docbuf_putc(b, s[i]);
+}
+
+/* Position du `//` de début de commentaire hors chaîne, ou len si aucun. */
+static long owl_line_comment_cut(const char* p, long len) {
+    long i = 0;
+    int in_str = 0;
+    while (i < len) {
+        char c = p[i];
+        if (in_str) {
+            if (c == '"') {
+                if (i + 1 < len && p[i + 1] == '"') { i += 2; continue; }
+                in_str = 0;
+            }
+            i++;
+            continue;
+        }
+        if (c == '"') { in_str = 1; i++; continue; }
+        if (c == '/' && i + 1 < len && p[i + 1] == '/') return i;
+        i++;
+    }
+    return len;
+}
+
+/* Append le buffer [p,len) à b, en retirant le libellé de message de CHAQUE
+ * appel `dbg*(...)` rencontré : le dernier argument top-level s'il est un
+ * littéral chaîne pur ET qu'il y a au moins un autre argument. L'appel peut
+ * s'étaler sur plusieurs lignes — la détection de la parenthèse fermante et
+ * de la dernière virgule top-level parcourt la fenêtre complète de l'appel,
+ * pas une seule ligne. Chaînes `""` échappé respectées, comme en mono-ligne. */
+static void docbuf_append_labels_stripped(DocBuf* b, const char* p, long len) {
+    long i = 0;        /* curseur de scan */
+    long emitted = 0;  /* tout avant cet index est déjà recopié dans b */
+    int in_str = 0;
+    while (i < len) {
+        char c = p[i];
+        if (in_str) {
+            if (c == '"') {
+                if (i + 1 < len && p[i + 1] == '"') { i += 2; continue; }
+                in_str = 0;
+            }
+            i++;
+            continue;
+        }
+        if (c == '"') { in_str = 1; i++; continue; }
+        int is_id = (c == '_' || isalpha((unsigned char)c) ||
+                     (unsigned char)c >= 0x80);
+        int prev_id = (i > 0 && (p[i - 1] == '_' ||
+                       isalnum((unsigned char)p[i - 1]) ||
+                       (unsigned char)p[i - 1] >= 0x80));
+        if (!is_id || prev_id) { i++; continue; }
+
+        long j = i;
+        while (j < len && (p[j] == '_' || isalnum((unsigned char)p[j]) ||
+                           (unsigned char)p[j] >= 0x80)) j++;
+        int is_dbg = (j - i >= 3 &&
+                      tolower((unsigned char)p[i])     == 'd' &&
+                      tolower((unsigned char)p[i + 1]) == 'b' &&
+                      tolower((unsigned char)p[i + 2]) == 'g');
+        if (!is_dbg) { i = j; continue; }
+
+        long k = j;
+        while (k < len && (p[k] == ' ' || p[k] == '\t')) k++;
+        if (k >= len || p[k] != '(') { i = j; continue; }
+
+        /* Fenêtre d'appel : dernière virgule top-level + parenthèse fermante,
+         * sur plusieurs lignes au besoin (profondeur équilibrée). */
+        long close = -1, last_comma = -1;
+        {
+            long m = k + 1;
+            int depth = 1, s = 0;
+            while (m < len && depth > 0) {
+                char d = p[m];
+                if (s) {
+                    if (d == '"') {
+                        if (m + 1 < len && p[m + 1] == '"') { m += 2; continue; }
+                        s = 0;
+                    }
+                    m++;
+                    continue;
+                }
+                if (d == '"') { s = 1; m++; continue; }
+                if (d == '(') depth++;
+                else if (d == ')') { depth--; if (depth == 0) { close = m; break; } }
+                else if (d == ',' && depth == 1) last_comma = m;
+                m++;
+            }
+        }
+        /* Appel non fermé (buffer tronqué) : abandonne, reprend après l'id. */
+        if (close < 0) { i = j; continue; }
+        /* Pas de 2e argument → pas de libellé à retirer. */
+        if (last_comma < 0) { i = close + 1; continue; }
+
+        /* Dernier argument = (last_comma, close), trimé (espaces ET sauts de
+         * ligne, l'arg pouvant être sur une ligne distincte). Chaîne pure ? */
+        long a = last_comma + 1, z = close;
+        while (a < z && (p[a] == ' ' || p[a] == '\t' ||
+                         p[a] == '\n' || p[a] == '\r')) a++;
+        while (z > a && (p[z - 1] == ' ' || p[z - 1] == '\t' ||
+                         p[z - 1] == '\n' || p[z - 1] == '\r')) z--;
+        int pure_string = 0;
+        if (z - a >= 2 && p[a] == '"') {
+            long t = a + 1;
+            int si = 1;
+            while (t < z && si) {
+                if (p[t] == '"') {
+                    if (t + 1 < z && p[t + 1] == '"') { t += 2; continue; }
+                    si = 0;
+                    t++;
+                    continue;
+                }
+                t++;
+            }
+            pure_string = (!si && t == z);
+        }
+        if (!pure_string) { i = close + 1; continue; }
+
+        /* Drop [last_comma, close) : recopie jusqu'à la virgule (exclue), puis
+         * reprend au ')' — nettoie la virgule traînante et le libellé, qu'ils
+         * soient sur la même ligne ou plus bas. */
+        docbuf_put(b, p + emitted, last_comma - emitted);
+        emitted = close;
+        i = close;
+    }
+    docbuf_put(b, p + emitted, len - emitted);
+}
+
+/* Produit le corps EN d'un exemple : wrapper PROCEDURE/FIN retiré, corps
+ * dé-indenté, commentaires `//` et libellés d'assertion dbg* retirés, puis
+ * translittéré en EN canon via owl_translate. Retourne un buffer alloué
+ * (caller free), ou NULL si la traduction échoue. */
+static char* scenario_body_en(const char* body_start, long body_len) {
+    const char* p;
+    long n;
+    cli_doc_scenario_strip_wrapper(body_start, body_len, &p, &n);
+    const char* end = p + n;
+
+    /* Étape 1 : corps nettoyé ligne par ligne (dé-indentation, retrait des
+     * commentaires `//`, préservation des blancs structurels). On NE retire
+     * PAS encore les libellés ici — un appel `dbg*` peut s'étaler sur
+     * plusieurs lignes, le strip doit voir la fenêtre complète. */
+    DocBuf clean = {0};
+    int first = 1;
+    while (p < end) {
+        const char* next;
+        long len = read_line(p, end, &next);
+        const char* dp;
+        long dlen;
+        proc_line_deindent(p, len, &dp, &dlen);
+
+        /* Blanc d'origine (hors indentation) ? */
+        long t = 0;
+        while (t < dlen && (dp[t] == ' ' || dp[t] == '\t')) t++;
+        int orig_blank = (t == dlen);
+
+        /* Coupe le commentaire `//`, rtrim. */
+        long clen = owl_line_comment_cut(dp, dlen);
+        while (clen > 0 && (dp[clen - 1] == ' ' || dp[clen - 1] == '\t')) clen--;
+
+        /* Ligne devenue vide par retrait du commentaire → on la supprime
+         * (pas de trou). Blanc structurel d'origine → on le préserve. */
+        if (clen == 0 && !orig_blank) { p = next; continue; }
+
+        if (!first) docbuf_putc(&clean, '\n');
+        first = 0;
+        docbuf_put(&clean, dp, clen);
+        p = next;
+    }
+
+    /* Étape 2 : retrait des libellés d'assertion sur le buffer complet
+     * (conscient des appels `dbg*` multi-lignes). */
+    DocBuf fr = {0};
+    docbuf_append_labels_stripped(&fr, clean.data ? clean.data : "",
+                                  (long)clean.len);
+    free(clean.data);
+    docbuf_putc(&fr, '\0');
+
+    char* en = owl_translate(fr.data ? fr.data : "", OWL_TRANSLATE_EN);
+    free(fr.data);
+    return en;
+}
+
 static void render_scenario_public(const ParsedScenario* sc) {
     /* Affiche les procédures publiques (non-PRIVEE, non-fixture). */
     int shown = 0;
@@ -4344,6 +4553,34 @@ static void render_scenario_public(const ParsedScenario* sc) {
             printf("\n");
         }
         print_proc_body(proc);
+        shown++;
+    }
+}
+
+/*  — variante EN : corps translittéré, narration FR retirée
+ * (commentaires `//` + libellés d'assertion). Pas de résumé ni de bloc
+ * doc (prose FR non traduisible gratuitement). */
+static void render_scenario_public_en(const ParsedScenario* sc) {
+    int shown = 0;
+    for (int i = 0; i < sc->procedure_count; i++) {
+        const ParsedProcedure* proc = &sc->procedures[i];
+        if (proc->is_private || proc->is_fixture) continue;
+        if (shown > 0) printf("\n");
+        printf("  %s► %s%s\n", C_PROC, proc->name, C_RESET);
+        char* en = scenario_body_en(proc->body_start, proc->body_len);
+        if (en) {
+            const char* p = en;
+            int brace_depth = 0;
+            while (*p) {
+                const char* ls = p;
+                while (*p && *p != '\n') p++;
+                printf("    ");
+                render_code_line_owl(ls, (long)(p - ls), &brace_depth);
+                putchar('\n');
+                if (*p == '\n') p++;
+            }
+            free(en);
+        }
         shown++;
     }
 }
@@ -4472,11 +4709,12 @@ static void print_scenarios_for_symbol(const char* name, const char* name_ascii,
                    dl(lang, "Exemples", "Examples"), C_RESET);
         }
         n_files++;
-        /*  — le corpus de scénarios est rédigé en OWL canon FR
-         * (résumé + commentaires + code, articles `un`/`une` inclus). En
-         * `--lang en` on ne dumpe pas ces corps (aucune traduction dispo) :
-         * on annonce leur présence et on renvoie vers la langue source. */
-        if (!en) {
+        /*  — en `--lang en` on translittère le corps en EN canon
+         * (owl_translate) et on retire la narration FR (résumé + bloc doc +
+         * commentaires + libellés d'assertion). En FR : rendu intégral. */
+        if (en) {
+            render_scenario_public_en(&g_scenarios[i]);
+        } else {
             if (g_scenarios[i].resume[0]) {
                 printf("  %s%s%s\n", C_DIM, g_scenarios[i].resume, C_RESET);
             }
@@ -4492,8 +4730,7 @@ static void print_scenarios_for_symbol(const char* name, const char* name_ascii,
                dl(lang, "Aucun scénario public n'illustre ce symbole.",
                         "No public scenario illustrates this symbol."), C_RESET);
     } else if (en) {
-        printf("\n%s%d public scenario(s) in %d file(s) "
-               "(source corpus in French: run with --lang fr).%s\n",
+        printf("\n%s%d public scenario(s) in %d file(s).%s\n",
                C_DIM, n_procs, n_files, C_RESET);
     } else {
         printf("\n%s%d scénario(s) public(s) dans %d fichier(s).%s\n",
@@ -5011,6 +5248,13 @@ void cli_doc_emit_examples_json(const char* name, const char* name_ascii) {
                 json_write_cstr(sc->resume[0] ? sc->resume : "");
             printf(",\"code\":");
             json_write_string((const unsigned char*)proc->body_start, proc->body_len);
+            /*  — champ additif : corps translittéré EN canon
+             * (narration FR retirée), consommé par le viewer. */
+            printf(",\"codeEN\":");
+            char* enbody = scenario_body_en(proc->body_start, proc->body_len);
+            json_write_string((const unsigned char*)(enbody ? enbody : ""),
+                              enbody ? (long)strlen(enbody) : 0);
+            free(enbody);
             printf("}");
         }
     }
@@ -8149,6 +8393,11 @@ int cli_doc_examples(int argc, char** argv) {
     if (opts.json) {
         printf("{\n  \"symbol\": ");
         json_write_cstr(name);
+        /*  — sous `--lang en`, le corps (`body`) de chaque scénario
+         * est translittéré en EN canon (owl_translate) avec la narration FR
+         * retirée (commentaires `//` + libellés d'assertion dbg*). En FR : le
+         * corps complet est dumpé tel quel (résumé/commentaires inclus). */
+        int en = (opts.lang == DOC_LANG_EN);
         printf(",\n  \"scenarios\": [");
         int first = 1;
         for (int i = 0; i < g_scenarios_count; i++) {
@@ -8162,7 +8411,14 @@ int cli_doc_examples(int argc, char** argv) {
                 printf(",\n      \"file\": "); json_write_cstr(g_scenarios[i].source->path);
                 printf(",\n      \"sujet\": "); json_write_cstr(g_scenarios[i].sujet);
                 printf(",\n      \"body\": ");
-                json_write_proc_body_stripped(pr->body_start, pr->body_len);
+                if (en) {
+                    char* enbody = scenario_body_en(pr->body_start, pr->body_len);
+                    json_write_string((const unsigned char*)(enbody ? enbody : ""),
+                                      enbody ? (long)strlen(enbody) : 0);
+                    free(enbody);
+                } else {
+                    json_write_proc_body_stripped(pr->body_start, pr->body_len);
+                }
                 printf("\n    }");
             }
         }

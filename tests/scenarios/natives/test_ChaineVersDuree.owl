@@ -1,8 +1,8 @@
 // @sujet : ChaîneVersDurée
-// @résumé : Parse une chaîne en durée selon un format obligatoire. Le format peut être une constante (`duréeMillième` pour `JJHHMMSSCCC` à 11 chiffres, `duréeCentième` pour `JJHHMMSSCC` à 10 chiffres) ou une chaîne template avec tokens `J`, `HH`, `MM`, `SS`, `CCC`. Retourne une durée nulle si la chaîne ne matche pas le format.
+// @résumé : Parse une chaîne en durée selon un format obligatoire. Le format peut être une constante (`duréeMillième` pour `JJHHMISSCCC` à 11 chiffres, `duréeCentième` pour `JJHHMISSCC` à 10 chiffres) ou une chaîne template avec tokens `J`, `HH`, `MI`, `SS`, `CCC`. Retourne une durée nulle si la chaîne ne matche pas le format.
 
 
-// Cas canonique : constante `duréeMillième` (`JJHHMMSSCCC` à 11 chiffres)
+// Cas canonique : constante `duréeMillième` (`JJHHMISSCCC` à 11 chiffres)
 // avec 1 heure 30 minutes. Le retour est une durée comparable à une durée
 // littérale équivalente exprimée en millisecondes.
 PROCEDURE PUBLIQUE scenario_format_digits_une_heure_trente()
@@ -57,4 +57,30 @@ PROCEDURE PRIVÉE scenario_chaine_invalide_duree_nulle()
 	dur est une durée = ChaîneVersDurée("xyzpas une duree", duréeMillième)
 	zero est une durée = 0
 	dbgVérifieVrai(dur = zero, "chaîne non parseable retourne durée nulle")
+FIN
+
+
+// Jeton minute du template : MI parse les minutes (convention commune
+// au moteur date et aux masques de champ Durée).
+PROCEDURE PUBLIQUE scenario_parse_jeton_minute_MI()
+	dur est une durée = ChaîneVersDurée("01:30:00", "HH:MI:SS")
+	attendu est une durée = 90 * 60 * 1000 // 1h30
+	dbgVérifieVrai(dur = attendu, "MI parse les minutes (1h30)")
+FIN
+
+
+// Alias minuscule mm : même convention que MI.
+PROCEDURE PUBLIQUE scenario_parse_jeton_minute_mm_alias()
+	dur est une durée = ChaîneVersDurée("01:30:00", "HH:mm:SS")
+	attendu est une durée = 90 * 60 * 1000 // 1h30
+	dbgVérifieVrai(dur = attendu, "mm (alias de MI) parse les minutes (1h30)")
+FIN
+
+
+// Round-trip parse puis format avec le même template MI : vérifie que
+// les deux sens (lecture et écriture) partagent la même convention minute.
+PROCEDURE PUBLIQUE scenario_parse_puis_format_roundtrip_MI()
+	dur est une durée = ChaîneVersDurée("01:30:00", "HH:MI:SS")
+	sChaîne est une chaîne = DuréeVersChaîne(dur, "HH:MI:SS")
+	dbgVérifieEgalité(sChaîne, "01:30:00", "round-trip parse+format MI restitue la même chaîne")
 FIN

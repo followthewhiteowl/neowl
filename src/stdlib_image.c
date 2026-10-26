@@ -543,6 +543,30 @@ static void image_sync_inst_to_handle(ObjInstance* inst, OwlImage* img) {
  * ces champs entre dDébutDessin et la fonction de dessin. */
 static ObjInstance* g_current_instance = NULL;
 
+/*  — dispatcher Champ Image (franchissement core↔UI). Default no-op :
+ * la CLI sans UI ne résout aucun widget. stdlib_ui enregistre le pendant réel
+ * (résolution Value→widget + backing + refresh écran). */
+static OwlImage* default_field_backing(Value v) { (void)v; return NULL; }
+static void      default_field_refresh(Value v) { (void)v; }
+static OwlImageFieldBackingFn g_field_backing_impl = default_field_backing;
+static OwlImageFieldRefreshFn g_field_refresh_impl = default_field_refresh;
+
+void owl_image_register_field_dispatcher(OwlImageFieldBackingFn backing,
+                                         OwlImageFieldRefreshFn refresh) {
+    g_field_backing_impl = backing ? backing : default_field_backing;
+    g_field_refresh_impl = refresh ? refresh : default_field_refresh;
+}
+OwlImage* owl_image_field_backing(Value v) { return g_field_backing_impl(v); }
+void      owl_image_field_refresh(Value v) { g_field_refresh_impl(v); }
+
+/* Session de dessin ciblant un Champ Image : mémorise la Value du contrôle
+ * pour pousser le rendu écran à dFinDessin. `g_has_current_field` faux = la
+ * session courante porte sur une variable Image classique (ou pas de session).
+ * La Value reste atteignable via vm.globals pendant la session (pas de root
+ * GC dédié nécessaire). */
+static Value g_current_field;
+static bool  g_has_current_field = false;
+
 /* Résout l'image cible : explicite (1er arg ObjInstance Image valide)
  * ou courante (state-machine). Renvoie NULL si rien d'utilisable.
  *
@@ -561,6 +585,17 @@ static OwlImage* resolve_target_image(int argCount, Value* args, int* outArgShif
             OwlImage* img = image_get_handle(inst);
             image_sync_inst_to_handle(inst, img);
             return img;
+        }
+    }
+    /*  — 1er arg Champ Image (pattern dCercle(IMG_Widget, …)). Miroir
+     * de dDébutDessin : le dispatcher UI rend le backing dessinable du widget,
+     * le MÊME buffer que celui posé par dDébutDessin(ce_widget) (cache sur le
+     * contrôle). On consomme args[0] ; les coordonnées démarrent à args[1]. */
+    if (argCount > 0 && !IS_INSTANCE(args[0])) {
+        OwlImage* backing = owl_image_field_backing(args[0]);
+        if (backing && owl_image_valid(backing)) {
+            if (outArgShift) *outArgShift = 1;
+            return backing;
         }
     }
     /* Fallback state-machine : on resync depuis l'inst courante stockée
@@ -584,11 +619,31 @@ static Value fn_dDebutDessin(int argCount, Value* args) {
         return BOOL_VAL(false);
     }
     if (!IS_INSTANCE(args[0]) || !stdlib_image_is_instance(args[0])) {
+        /*  — pas une variable Image : tenter un Champ Image (dessin
+         * direct sur le contrôle, parité canon). Le dispatcher UI rend le
+         * backing dessinable du widget, ou NULL si args[0] n'est pas un Champ
+         * Image (chaîne, autre widget) → on retombe sur le type mismatch. */
+        OwlImage* backing = owl_image_field_backing(args[0]);
+        if (backing && owl_image_valid(backing)) {
+            int64_t opts = OWL_DESSIN_EFFACER;
+            if (argCount >= 2 && IS_INTEGER(args[1])) opts = AS_INTEGER(args[1]);
+            if (opts != OWL_DESSIN_SANS_EFFACER) {
+                owl_image_clear(backing, owl_image_fill_color(backing));
+            }
+            owl_image_set_current(backing);
+            g_current_instance = NULL;  /* pas d'inst Image à resync */
+            g_current_field = args[0];
+            g_has_current_field = true;
+            owl_image_field_refresh(args[0]);  /* planifie le rendu écran (GUI) */
+            owl_clear_error();
+            return BOOL_VAL(true);
+        }
         owl_emit_native_error(E_NATIVE_ARG_TYPE_MISMATCH, "dDebutDessin",
                               "native", "dDebutDessin", "arg", "1",
                               "expected", "Image", "actual", "autre", NULL);
         return BOOL_VAL(false);
     }
+    g_has_current_field = false;  /* session sur variable Image classique */
     ObjInstance* inst = AS_INSTANCE(args[0]);
     OwlImage* img = image_get_handle(inst);
     image_sync_inst_to_handle(inst, img);  /* propage CouleurRemplissage/EchelleDessin */
@@ -625,6 +680,11 @@ static Value fn_dDebutDessin(int argCount, Value* args) {
 static Value fn_dFinDessin(int argCount, Value* args) {
     (void)argCount; (void)args;
     /* On ignore l'argument explicite : la state-machine est globale. */
+    if (g_has_current_field) {
+        /*  — rendu écran final du Champ Image dessiné. */
+        owl_image_field_refresh(g_current_field);
+        g_has_current_field = false;
+    }
     owl_image_set_current(NULL);
     g_current_instance = NULL;
     owl_clear_error();

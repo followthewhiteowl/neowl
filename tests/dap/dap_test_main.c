@@ -901,6 +901,63 @@ static void test_trace_output_forwarded(const char* fixtures) {
     dap_kill(&p);
 }
 
+/* T10 : une erreur d'execution du debuggee (ex. division par zero) est
+ * emise par le runtime owl sur STDERR (pas stdout). owl-dap doit piper ce
+ * flux et le forwarder en OutputEvent DAP category=stderr dans la Debug
+ * Console. Regression guard  : avant le fix, owl-dap faisait heriter
+ * le stderr du child au lieu de le piper -> le message d'erreur n'arrivait
+ * jamais a VSCode (debogueur "muet"). On lance le fixture sans breakpoint
+ * (run jusqu'a l'erreur) et on scanne les messages jusqu'a trouver un event
+ * output category=stderr contenant l'ancre "Division par z". On ne s'arrete
+ * PAS sur terminated : le message stderr et le terminated remontent de deux
+ * pipes distincts et leur ordre d'arrivee n'est pas garanti. */
+static void test_stderr_runtime_error_forwarded(const char* fixtures) {
+    DapProc p = {0};
+    if (!dap_spawn(&p)) { report("stderr_runtime_error_forwarded", false, "spawn owl-dap echoue"); return; }
+
+    char mainRel[1024];
+    snprintf(mainRel, sizeof(mainRel), "%s/stderr_error/main.owl", fixtures);
+    char* mainAbs = abspath_dup(mainRel);
+    char mainEsc[1024]; json_escape_path(mainAbs, mainEsc, sizeof(mainEsc));
+
+    int seq = 1;
+    bool seqOk = dap_handshake_launch(&p, mainEsc, &seq);
+    seqOk = seqOk && dap_write_request(&p, seq++, "configurationDone", "{}");
+
+    bool gotStderr = false;
+    if (seqOk) {
+        /* Lecture brute des messages (pas dap_wait_for, qui abandonne sur
+         * terminated) jusqu'a l'ancre ou EOF/deadline. */
+        long long deadline = now_ms() + 8000;
+        for (;;) {
+            int rem = (int)(deadline - now_ms());
+            if (rem <= 0) break;
+            JsonValue* msg = dap_read_message(&p, rem);
+            if (!msg) break;  /* EOF/timeout : plus rien a lire */
+            const char* type  = json_get_string(msg, "type");
+            const char* event = json_get_string(msg, "event");
+            if (type && event && strcmp(type, "event") == 0
+                && strcmp(event, "output") == 0) {
+                JsonValue* body = json_get(msg, "body");
+                const char* category = body ? json_get_string(body, "category") : NULL;
+                const char* output   = body ? json_get_string(body, "output")   : NULL;
+                if (category && strcmp(category, "stderr") == 0
+                    && output && strstr(output, "Division par z")) {
+                    gotStderr = true;
+                    json_free(msg);
+                    break;
+                }
+            }
+            json_free(msg);
+        }
+    }
+    report("stderr_runtime_error_forwarded", seqOk && gotStderr,
+           !seqOk ? "sequence DAP echouee"
+                  : "erreur runtime non remontee en OutputEvent stderr — stderr child non-pipe ?");
+    free(mainAbs);
+    dap_kill(&p);
+}
+
 int main(void) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -917,6 +974,7 @@ int main(void) {
     test_inherited_method_frame(fixtures);
     test_window_event_handler(fixtures);
     test_trace_output_forwarded(fixtures);
+    test_stderr_runtime_error_forwarded(fixtures);
 
     printf("----------------------------------------------\n");
     printf("BILAN: %d cas, %d OK, %d FAIL\n", g_pass + g_fail, g_pass, g_fail);

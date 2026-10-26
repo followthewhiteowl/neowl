@@ -1,0 +1,24 @@
+//  — combo autonome en headless PUR : poser ..Contenu = "A\nB"
+// doit alimenter la même liste que lit ListeOccurrence.
+//
+// Mesuré (headless pur, instance fraîche) : après ..Contenu = "A"+LF+"B",
+// ListeOccurrence vaut 0 (le setter écrit dans la clé "Contenu" headless,
+// jamais dans le store items que lit ListeOccurrence). Le getter ..Contenu,
+// lui, relit bien sa propre clé et renvoie la valeur posée (vert, sens déjà
+// correct — symétrique du garde-fou GUI de ).
+//
+// ROUGE attendu sur ListeOccurrence. Le getter ..Contenu reste vert.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_ComboHeadless)
+
+COMBO_Headless..Contenu = "A" + LF + "B"
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Headless), 2,
+"set ..Contenu (headless pur, 2 lignes) : ListeOccurrence reflète les 2 items")
+
+dbgVérifieEgalité(COMBO_Headless..Contenu, "A" + LF + "B",
+"set ..Contenu (headless pur, 2 lignes) : le getter renvoie la valeur posée")
+
+Ferme(FEN_ComboHeadless)
+dbgBilanTest()

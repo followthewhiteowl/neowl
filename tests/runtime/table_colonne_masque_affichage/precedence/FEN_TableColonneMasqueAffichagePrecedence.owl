@@ -1,0 +1,84 @@
+// Fenêtre voisine — ressource pour
+// test_table_colonne_masque_affichage_precedence.owl (, propriété
+// MasqueAffichage/DisplayMask sur la Colonne de Table, override par colonne
+// du masque d'affichage défaut/projet).
+//
+// Trois paires de colonnes (Date, Heure, Durée), chacune avec un témoin SANS
+// MasqueAffichage (piloté par le défaut projet) et un pendant AVEC
+// MasqueAffichage posé (override attendu).
+
+FEN_TableColonneMasqueAffichagePrecedence est une Fenêtre
+	PROPRIETES
+		Titre = "Colonne — masque d'affichage, override vs défaut projet"
+	FIN
+
+	TAB_ColMasque est un Champ Table
+		PROPRIETES
+		FIN
+
+		COL_DateDefaut est une Colonne
+			PROPRIETES
+				Libellé = "Date (défaut)"
+				Type    = colTypeDate
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_DateMasque est une Colonne
+			PROPRIETES
+				Libellé         = "Date (masque)"
+				Type            = colTypeDate
+				Largeur         = 140
+				MasqueAffichage = "AAAA-MM-JJ"
+			FIN
+		FIN
+
+		COL_HeureDefaut est une Colonne
+			PROPRIETES
+				Libellé = "Heure (défaut)"
+				Type    = colTypeHeure
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_HeureMasque est une Colonne
+			PROPRIETES
+				Libellé         = "Heure (masque)"
+				Type            = colTypeHeure
+				Largeur         = 140
+				MasqueAffichage = "HH.MI"
+			FIN
+		FIN
+
+		COL_DureeDefaut est une Colonne
+			PROPRIETES
+				Libellé = "Durée (défaut)"
+				Type    = colTypeDurée
+				Largeur = 140
+			FIN
+		FIN
+
+		COL_DureeMasque est une Colonne
+			PROPRIETES
+				Libellé         = "Durée (masque)"
+				Type            = colTypeDurée
+				Largeur         = 140
+				MasqueAffichage = "HHhMImSSs"
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		// Ligne 1 : valeurs brutes PARSEABLES, chacune écrite dans une forme
+		// DIFFÉRENTE du masque d'affichage résolu par la colonne "masque"
+		// (digue anti-tautologie, cf.  lot 4) :
+		//   Date  : "31/12/2026" (slash FR) -> masque colonne "AAAA-MM-JJ" attend "2026-12-31"
+		//   Heure : "0905" (compact)        -> masque colonne "HH.MI" attend "09.05"
+		//   Durée : "+001300000" (littéral) -> masque colonne "HHhMImSSs" attend "01h30m00s"
+		TableAjouteLigne(TAB_ColMasque, "2026-12-31", "31/12/2026", "0905", "0905", "+001300000", "+001300000")
+
+		// Ligne 2 : valeurs brutes NON parseables -> repli plat (inchangées),
+		// même sur les colonnes porteuses d'un MasqueAffichage.
+		TableAjouteLigne(TAB_ColMasque, "pas-une-date", "pas-une-date", "pas-une-heure", "pas-une-heure", "pas-une-duree", "pas-une-duree")
+	FIN
+FIN

@@ -2694,7 +2694,15 @@ void object_write_display(OwlDisplaySink* sink, Value value) {
                     break;
                 }
             }
-            owl_display_printf(sink, "<%s instance>", inst->structName->chars);
+            /* structName peut etre NULL pour une instance anonyme : rep-proxy
+             * de ligne de Table nue (, champs indexes par nom de
+             * colonne, pas de nom de structure). Le chemin display ne doit
+             * pas deref — libelle neutre, meme famille que le cas nomme. */
+            if (inst->structName != NULL) {
+                owl_display_printf(sink, "<%s instance>", inst->structName->chars);
+            } else {
+                owl_display_printf(sink, "<instance>");
+            }
             break;
         }
         case OBJ_CLASS: {

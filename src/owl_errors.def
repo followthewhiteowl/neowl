@@ -1895,6 +1895,13 @@ OWL_ERROR(E_SEM_UNKNOWN_TYPE, "semantic",
           "STRUCTURE/CLASSE/ENUMERATION ou vérifie la casse.",
           "Unknown type '{name}'. Declare a STRUCTURE/CLASSE/ENUMERATION "
           "or check the case.")
+/*  — type accesseur non declarable seul (xlsCellule/xlsLigne/
+ * xlsColonne). Le hint est la metadonnee registre notDeclarableHint. */
+OWL_ERROR(E_SEM_TYPE_NOT_DECLARABLE_STANDALONE, "semantic",
+          "Le type '{name}' ne se déclare pas seul : il s'obtient via "
+          "'{hint}' sur un xlsDocument.",
+          "Type '{name}' cannot be declared on its own: obtain it through "
+          "'{hint}' on an xlsDocument.")
 OWL_ERROR(E_SEM_INTERFACE_METHOD_MISSING, "semantic",
           "La classe '{class}' implémente l'interface '{interface}' "
           "mais ne fournit pas la méthode '{method}' signée dans "
@@ -3709,10 +3716,10 @@ OWL_ERROR(E_SEM_TABLE_CELL_UNKNOWN_COLUMN, "semantic",
  * ce qui envoyait chercher une colonne la ou il fallait corriger la propriete. */
 OWL_ERROR(E_SEM_TABLE_CELL_UNKNOWN_PROP, "semantic",
           "'{nom}' n'est pas une propriété de mise en forme de Table : seules "
-          "'Couleur' et 'CouleurFond' existent (par exemple "
+          "'Couleur', 'CouleurFond' et 'Contenu' existent (par exemple "
           "'{table}[1][1]..Couleur = RVB(200, 0, 0)').",
-          "'{nom}' is not a Table formatting property: only 'Color' and "
-          "'BackgroundColor' exist (for example "
+          "'{nom}' is not a Table formatting property: only 'Color', "
+          "'BackgroundColor' and 'Content' exist (for example "
           "'{table}[1][1]..Color = RGB(200, 0, 0)').")
 /*  — miroir ZoneRépétée du refus cellule Table : `ZR_X[i].<nom>` doit
  * nommer un enfant declare de CETTE ZoneRépétée. Sans ca le descripteur de
@@ -3735,19 +3742,21 @@ OWL_ERROR(E_SEM_TABLE_COLUMN_BARE_AMBIGUOUS, "semantic",
           "l'ambiguïté.",
           "Ambiguous column '{nom}': Tables {tables} each declare a column "
           "'{nom}'. Rename one of the columns to resolve the ambiguity.")
-/*  — une colonne receveur n'accepte a chaud que
- * `Couleur`/`CouleurFond`. Les autres props declaratives (Libelle, Type,
+/*  — une colonne receveur n'accepte a chaud que les props de
+ * OWL_COLUMN_RECEIVER_PROPS (compiler.c) : `Couleur`/`CouleurFond`/`MasqueSaisie`
+ * /`MasqueAffichage`/`Contenu`. Les autres props declaratives (Libelle, Type,
  * Largeur, Visible, Etat) se reglent au bloc PROPRIETES : les affecter a chaud
  * recreerait le no-op silencieux que ce chantier ferme. */
 OWL_ERROR(E_SEM_TABLE_COLUMN_PROP_NOT_WRITABLE, "semantic",
           "La propriété '{prop}' de la colonne '{nom}' (Table '{table}') ne "
-          "peut pas être modifiée à l'exécution : seules 'Couleur' et "
-          "'CouleurFond' s'affectent sur une colonne. '{prop}' se règle dans "
-          "le bloc PROPRIETES de la colonne, à la déclaration.",
+          "peut pas être modifiée à l'exécution : seules 'Couleur', "
+          "'CouleurFond', 'MasqueSaisie', 'MasqueAffichage' et 'Contenu' "
+          "s'affectent sur une colonne. '{prop}' se règle dans le bloc "
+          "PROPRIETES de la colonne, à la déclaration.",
           "Property '{prop}' of column '{nom}' (Table '{table}') cannot be "
-          "assigned at runtime: only 'Color' and 'BackgroundColor' can be set "
-          "on a column. '{prop}' is set in the column's PROPRIETES block, at "
-          "declaration time.")
+          "assigned at runtime: only 'Color', 'BackgroundColor', 'InputMask', "
+          "'DisplayMask' and 'Content' can be set on a column. '{prop}' is set "
+          "in the column's PROPRIETES block, at declaration time.")
 OWL_ERROR(W_SEM_THEME_STYLE_UNDECLARED, "warning",
           "Style '{nom}' introuvable : aucun style de ce nom n'est déclaré "
           "dans le projet. Vérifier l'orthographe du nom.",

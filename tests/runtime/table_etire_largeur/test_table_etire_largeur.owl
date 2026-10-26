@@ -1,0 +1,37 @@
+//  — ROUGE attendu : une Table `Étire = Vrai` reste bloquée à
+// ~256px (sizeHint par défaut) et ignore la largeur de sa fenêtre. Mesuré
+// en QT offscreen (`TestModeHeadless(Faux)`, `TABLE..Largeur`) :
+//   fenêtre 520 -> TAB_Etire520..Largeur  = 256
+//   fenêtre 800 -> TAB_Etire800..Largeur  = 256 (INCHANGÉ)
+//   fenêtre 300 -> TAB_EtireEtroite..Largeur = 256
+// Les colonnes (180+150+120 = 450) débordent de 256 -> rognées + scroll
+// horizontal parasite dès 520px, alors que 450 < 520 devrait tenir.
+//
+// Digue anti-fix-à-largeur-fixe : la largeur à 800 doit être STRICTEMENT
+// supérieure à celle mesurée à 520 (interdit un fix qui poserait une
+// largeur fixe quelconque, p. ex. 500, qui satisferait ">= 450" sans
+// suivre réellement la fenêtre).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableEtire520)
+nLargeur520 est un entier = TAB_Etire520..Largeur
+dbgVérifieVrai(nLargeur520 >= 450,
+"fenêtre 520 : la Table Étire=Vrai doit tenir les 3 colonnes (450px), pas rester bloquée à 256")
+Ferme(FEN_TableEtire520)
+
+OuvreSoeur(FEN_TableEtire800)
+nLargeur800 est un entier = TAB_Etire800..Largeur
+dbgVérifieVrai(nLargeur800 > nLargeur520,
+"fenêtre 800 : la largeur de la Table doit suivre la fenêtre, pas rester identique à celle mesurée à 520 (interdit un fix à largeur fixe)")
+Ferme(FEN_TableEtire800)
+
+// Garde-fou (DOIT rester vert avant ET après le fix) : fenêtre 300px,
+// colonnes totalisant 450px (> fenêtre) -> le scroll horizontal est
+// légitime, la Table ne doit jamais dépasser la largeur de sa fenêtre.
+OuvreSoeur(FEN_TableEtireEtroite)
+dbgVérifieVrai(TAB_EtireEtroite..Largeur <= 300,
+"fenêtre étroite (300, colonnes 450 > fenêtre) : la Table ne dépasse pas la largeur de sa fenêtre, le scroll reste légitime")
+Ferme(FEN_TableEtireEtroite)
+
+dbgBilanTest()

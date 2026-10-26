@@ -1,0 +1,42 @@
+//  — écriture runtime de `COL..MasqueAffichage` sur une colonne de
+// Table : vérifie que poser la propriété APRÈS l'ouverture de la fenêtre
+// reformate la cellule déjà affichée, EN DIRECT (pas seulement à la
+// déclaration — cf. précédence voisine qui couvre déjà ce cas-là). Canal
+// distinct de MasqueSaisie (masque de frappe), qu'on ne touche pas ici.
+//
+// Vert attendu dès le dépôt : le canal d'écriture (vm_table_coldispmask_set,
+// miroir de MasqueSaisie côté colmask) et son application widget
+// (owl_ui_table_coldispmask_applied -> col_dispmask_<col0>, lu par
+// owl_ui_format_cell_typed) sont déjà en place.
+//
+// Digue anti-tautologie : la cellule porte une valeur ISO ("2026-12-31")
+// qui rend DIFFÉREMMENT selon le masque actif — "31/12/2026" au défaut
+// projet (FormatDate="JJ/MM/AAAA"), "2026-12-31" une fois le masque colonne
+// posé. Le texte rendu doit basculer de l'un à l'autre, pas rester fixe.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneMasqueAffichageWriteRuntime)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. Avant écriture : rendu au défaut projet =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColWriteRuntime, 1, 1), "31/12/2026",
+"avant écriture : colonne sans MasqueAffichage -> rendu au défaut projet (JJ/MM/AAAA)")
+
+// ===== 2. Écriture runtime : reformate la cellule déjà affichée =====
+
+COL_Date..MasqueAffichage = "AAAA-MM-JJ"
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColWriteRuntime, 1, 1), "2026-12-31",
+"après écriture de COL..MasqueAffichage : la même cellule bascule immédiatement sur le nouveau masque")
+
+// ===== 3. Remise à vide : retour au défaut projet =====
+
+COL_Date..MasqueAffichage = ""
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColWriteRuntime, 1, 1), "31/12/2026",
+"masque remis à vide au runtime : la cellule retombe sur le défaut projet")
+
+Ferme(FEN_TableColonneMasqueAffichageWriteRuntime)
+dbgBilanTest()

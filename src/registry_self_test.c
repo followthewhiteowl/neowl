@@ -6128,6 +6128,68 @@ static void check_rule66_type_name_en_resolves(Reporter* r) {
     }
 }
 
+/* ============================================================
+ * Regle 67 : coherence compile<->runtime des types a fields.
+ *
+ * Un type compose (fields != NULL) sans defaut declare (hasDefault=false),
+ * sans factory (defaultFactoryNative=NULL) et sans template runtime dans
+ * vm.types fuite vers __StructClone avec un nom absent de vm.types -> crash
+ * runtime "Variable inconnue 'X'" sur un code qui a pourtant compile. Pour
+ * fermer cette classe de bug (cas historique xlsCellule/xlsLigne/xlsColonne),
+ * un tel type DOIT porter notDeclarableHint : le compilateur rejette alors la
+ * declaration standalone avec un message oriente solution au lieu de laisser
+ * le crash runtime. Violation sinon : soit enregistrer un template vm.types
+ * (type reellement constructible), soit poser notDeclarableHint (accesseur).
+ * ============================================================ */
+static bool rule67_type_has_vm_template(const OwlTypeDef* td) {
+    Table* t = &vm.types;
+    if (!t || !t->entries) return false;
+    for (int i = 0; i < t->capacity; i++) {
+        Entry* e = &t->entries[i];
+        if (!e->key) continue;
+        if (!IS_OBJ(e->value)) continue;
+        Obj* obj = AS_OBJ(e->value);
+        if (obj->type != OBJ_INSTANCE) continue;
+        ObjInstance* inst = (ObjInstance*)obj;
+        if (!inst->structName || !inst->structName->chars) continue;
+        const char* sn = inst->structName->chars;
+        size_t snLen = (size_t)inst->structName->length;
+        if (td->canonical && strlen(td->canonical) == snLen
+            && strncmp(td->canonical, sn, snLen) == 0) return true;
+        if (td->canonicalAscii && strlen(td->canonicalAscii) == snLen
+            && strncmp(td->canonicalAscii, sn, snLen) == 0) return true;
+    }
+    return false;
+}
+
+static void check_rule67_fields_type_constructible_or_marked(Reporter* r) {
+    int nt = owl_registry_types_count();
+    for (int i = 0; i < nt; i++) {
+        const OwlTypeDef* td = owl_registry_type_at(i);
+        if (!td || !td->fields) continue;
+        if (td->primitiveLiteral) continue;      /* durée : type primitif (mot-cle
+                                                  * scanner), ses fields decrivent
+                                                  * le littoral, pas une construction
+                                                  * __StructClone. */
+        if (td->hasDefault) continue;            /* defaut declare */
+        if (td->defaultFactoryNative) continue;  /* factory arite 0 */
+        if (td->notDeclarableHint) continue;     /* rejet compile propre */
+        if (rule67_type_has_vm_template(td)) continue; /* template runtime */
+        char detail[460];
+        snprintf(detail, sizeof(detail),
+            "Type compose '%s' a des fields mais aucun chemin de construction "
+            "(hasDefault=false, defaultFactoryNative=NULL, pas de template "
+            "vm.types) : `x est un %s` emet __StructClone sur un nom absent de "
+            "vm.types -> crash runtime 'Variable inconnue'. Soit enregistrer un "
+            "template vm.types (type constructible), soit poser notDeclarableHint "
+            "pour un rejet compile propre.",
+            td->canonical ? td->canonical : "?",
+            td->canonical ? td->canonical : "?");
+        rep_violation(r, "fields_type_not_constructible",
+                      td->canonical ? td->canonical : "?", detail);
+    }
+}
+
 int registry_self_test_run(FILE* out) {
     Reporter r;
     rep_init(&r, out);
@@ -6203,6 +6265,7 @@ int registry_self_test_run(FILE* out) {
     check_rule64_pdf_native_impl_wired(&r);         /*  : natives Etats/PDF toutes cablees en build GUI */
     check_rule65_ui_native_impl_wired(&r);          /*  : natives UI toutes cablees en build GUI */
     check_rule66_type_name_en_resolves(&r);          /*  : forme EN du nom de type resout (invariant 3) */
+    check_rule67_fields_type_constructible_or_marked(&r); /*  : type a fields constructible (vm.types/factory) ou marque non declarable */
 
     fputs("\n  ],\n", out);
     fprintf(out, "  \"violation_count\": %d,\n", r.count);

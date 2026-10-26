@@ -615,6 +615,12 @@ const char* owl_ui_table_cell_editor_mask(OwlControl* table, int row_1based,
  * l'etat est Acceptable (0 sinon), 1 si la cellule n'a aucun validateur. */
 void owl_ui_table_set_column_format(OwlControl* table, int col_1based,
                                     const char* fmt, const char* qtmask);
+/*  — masque d'affichage override par colonne (MasqueAffichage/DisplayMask)
+ * declare dans le bloc PROPRIETES de la colonne. Stocke en dynamic property du view
+ * (col_dispmask_<col0>) ; lu au rendu par owl_ui_format_cell_typed pour primer sur le
+ * format defaut/projet (Date/Heure/Duree). NULL/vide = pas d'override. */
+void owl_ui_table_set_column_display_mask(OwlControl* table, int col_1based,
+                                          const char* mask);
 int owl_ui_table_cell_editor_valide_saisie(OwlControl* table, int row_1based,
                                            int col_1based, const char* text);
 
@@ -625,9 +631,37 @@ int owl_ui_table_cell_editor_valide_saisie(OwlControl* table, int row_1based,
  * le texte RENDU d'une cellule (DisplayRole formate par le delegate), HORS
  * edition ; chaine vide si cellule introuvable. */
 void owl_ui_format_cell_typed(int col_type, const char* raw,
+                              const char* display_mask,
                               char* out, size_t outsz);
 const char* owl_ui_table_cell_texte_affiche(OwlControl* table, int row_1based,
                                             int col_1based);
+
+/*  — colonne combo (colTypeCombo) : rendu runtime en deroulant
+ * PERMANENT (un QComboBox par cellule, toujours affiche, pose via setIndexWidget).
+ *
+ * set_column_combo_content : liste PAR DEFAUT de la colonne (lignes separees par
+ *   LF), stockee en dynamic property du view (col_combo_content_<col0>). Lue a la
+ *   creation d'une cellule combo quand la cellule n'a pas d'override.
+ * set_cell_combo_content : liste OVERRIDE d'UNE cellule (TABLE[l][c]..Contenu) ;
+ *   (re)peuple le QComboBox de cette cellule en preservant la valeur selectionnee.
+ *   Chaine vide/NULL => retombe sur la liste colonne. No-op hors colonne combo.
+ * owl_ui_table_user_combo_changed : pont Qt->runtime (sens inverse, defini dans
+ *   stdlib_ui.c) appele quand l'utilisateur change la selection d'un combo de
+ *   cellule ; ecrit la valeur dans le store ligne-first (source de verite de
+ *   TABLE[l].COL). row0/col0 = index 0-based.
+ * cell_combo_options / cell_combo_selection : sondes test-only (lisent le
+ *   QComboBox REEL d'une cellule) ; options jointes par LF, selection = texte
+ *   courant. Chaine vide si la cellule ne porte pas de combo. */
+void owl_ui_table_set_column_combo_content(OwlControl* table, int col_1based,
+                                           const char* content_lf);
+void owl_ui_table_set_cell_combo_content(OwlControl* table, int row_1based,
+                                         int col_1based, const char* content_lf);
+void owl_ui_table_user_combo_changed(OwlControl* tableWidget, int row0,
+                                     int col0, const char* text);
+const char* owl_ui_table_cell_combo_options(OwlControl* table, int row_1based,
+                                            int col_1based);
+const char* owl_ui_table_cell_combo_selection(OwlControl* table, int row_1based,
+                                              int col_1based);
 
 /* Selection (canon : TableSelectPlus / TableSelectMoins / TableSelect /
  * TableSelectOccurrence). select_row = ajoute a la selection (multi),
@@ -1162,6 +1196,18 @@ OwlControl* owl_ui_image_field_create(OwlWindow* parent,
 /* Prop Zoom : pourcentage 1..1000, 100 = taille native, 200 = double,
  * 50 = moitie. Re-applique au prochain setPixmap. */
 void owl_ui_image_field_set_zoom(OwlControl* w, int percent);
+
+/*  — dessin direct sur un Champ Image : planifie (différé, event
+ * loop) un push du buffer `backing` au contrôle. Le différé (QTimer 0ms,
+ * coalescé) garantit que l'état FINAL du backing est poussé une fois le
+ * gestionnaire OWL revenu à la boucle Qt — y compris sans dFinDessin explicite
+ * (dDébutDessin suffit à armer le refresh). No-op si `w` n'est pas un Champ
+ * Image. Le pointeur `backing` doit rester valide jusqu'au tir (il vit dans le
+ * store du contrôle, racine GC tant que la fenêtre est ouverte). */
+struct OwlImage;
+void owl_ui_image_field_schedule_refresh(OwlControl* w,
+                                         const struct OwlImage* backing,
+                                         int cadrage);
 
 /* V2 events Champ Image — chaque on_X register un callback typé. */
 void owl_ui_image_field_on_clic              (OwlControl* w, OwlEventCb0 cb,  void* d);

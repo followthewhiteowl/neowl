@@ -431,6 +431,30 @@ const uint8_t* stdlib_image_get_rgba(Value v, int* out_w, int* out_h);
 struct OwlImage;
 struct OwlImage* stdlib_image_get_handle(Value v);
 
+/*  — pont « Champ Image = cible de dessin directe ».
+ *
+ * Les natives d* (dDébutDessin + primitives) ciblent canoniquement une
+ * variable Image (buffer raster). Pour la parité avec le dessin direct sur un
+ * Champ Image du formulaire, le core (stdlib_image.c) délègue la résolution
+ * du widget vers un buffer dessinable à un dispatcher enregistré côté UI
+ * (stdlib_ui.c) — le core ne référence aucun type widget/Qt.
+ *
+ *   backing(fieldValue) : rend (ou crée à la demande) le buffer OwlImage* de
+ *     backing du Champ Image porté par `fieldValue`, dimensionné au contrôle.
+ *     NULL si `fieldValue` n'est pas un Champ Image (ou pas d'UI linkée).
+ *   refresh(fieldValue) : pousse l'état courant du backing au contrôle à
+ *     l'écran (owl_ui_label_set_image_rgba + repaint différé). No-op en
+ *     headless (widget non monté) et sans UI.
+ *
+ * Default : les deux pointeurs sont des no-op (CLI sans UI). stdlib_ui
+ * enregistre les implémentations réelles à son init. */
+typedef struct OwlImage* (*OwlImageFieldBackingFn)(Value fieldValue);
+typedef void             (*OwlImageFieldRefreshFn)(Value fieldValue);
+void owl_image_register_field_dispatcher(OwlImageFieldBackingFn backing,
+                                         OwlImageFieldRefreshFn refresh);
+struct OwlImage* owl_image_field_backing(Value fieldValue);
+void             owl_image_field_refresh(Value fieldValue);
+
 /*  — Cree une Value Image OWL portant un OwlImage* alloue avec
  * une copie du buffer rgba (RGBA8 top-down). Utilise par
  * fn_IconeVersImage pour conserver les pixels rasterises au lieu de

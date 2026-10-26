@@ -1,0 +1,48 @@
+// Contrat 5 (feat colonne combo) : écriture runtime de `TABLE.COL..Contenu`
+// au niveau COLONNE — symétrique de `COL..Couleur =` déjà couvert ailleurs.
+// Poser une nouvelle liste sur la colonne change le défaut effectif des
+// cellules qui n'ont pas leur propre liste, EN DIRECT (pas seulement à la
+// déclaration). Une cellule qui porte déjà sa propre surcharge (contrat 4)
+// n'est pas affectée par cette écriture colonne : la surcharge cellule
+// l'emporte toujours sur le défaut colonne.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_write_colonne_runtime_change_defaut_cellule_non_surchargee()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[1]..Contenu, `France
+Belgique
+Suisse`,
+	"avant écriture colonne : la cellule non surchargée rend la liste déclarée à la conception")
+
+	TABLE_Lot.COL_Pays..Contenu = `Suisse
+Autriche`
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[1]..Contenu, `Suisse
+Autriche`,
+	"après écriture de TABLE.COL..Contenu : la même cellule reflète immédiatement le nouveau défaut colonne")
+
+	Ferme(FEN_TableColonneCombo)
+FIN
+
+PROCEDURE PUBLIQUE scenario_write_colonne_runtime_preserve_surcharge_cellule()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	// La ligne 2 reçoit sa propre liste avant toute écriture colonne.
+	TABLE_Lot.COL_Pays[2]..Contenu = `Allemagne
+Autriche`
+
+	TABLE_Lot.COL_Pays..Contenu = `Italie
+Espagne`
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[1]..Contenu, `Italie
+Espagne`,
+	"ligne 1 (jamais surchargée) : reflète le nouveau défaut colonne")
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[2]..Contenu, `Allemagne
+Autriche`,
+	"ligne 2 (surchargée avant l'écriture colonne) : garde sa propre liste, non affectée par le nouveau défaut")
+
+	Ferme(FEN_TableColonneCombo)
+FIN

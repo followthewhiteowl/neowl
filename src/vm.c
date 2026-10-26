@@ -1038,14 +1038,86 @@ static bool vm_table_fmt_slot(ObjInstance* inst, const char* field,
     return true;
 }
 
+/*  — liste DECLAREE de la colonne combo <col> (accents strippes) :
+ * parcourt les props de declaration de la Table. "" si aucune. */
+static const char* vm_table_col_declared_content(ObjUiControlInstance* uici,
+                                                 const char* col) {
+    const OwlControlDecl* d = uici->decl;
+    for (int ci = 0; ci < d->column_count; ci++) {
+        const char* cn = d->columns[ci].name;
+        if (cn == NULL) continue;
+        char cstr[256];
+        int clen = scanner_strip_accents(cn, (int)strlen(cn), cstr, sizeof(cstr));
+        if (clen <= 0 || clen >= (int)sizeof(cstr)) continue;
+        cstr[clen] = '\0';
+        if (strcasecmp(cstr, col) != 0) continue;
+        for (int pi = 0; pi < d->columns[ci].property_count; pi++) {
+            const OwlPropertyInit* p = &d->columns[ci].properties[pi];
+            if (!p->is_constant) continue;
+            if ((strcasecmp(p->name, "Contenu") == 0
+                 || strcasecmp(p->name, "Content") == 0)
+                && IS_STRING(p->const_value))
+                return AS_CSTRING(p->const_value);
+        }
+        return "";
+    }
+    return "";
+}
+
+/*  — liste EFFECTIVE de la colonne combo <col> : override runtime
+ * pose au niveau colonne (`COL..Contenu =`, store $fmt.<col>.Contenu du holder)
+ * si present, sinon la liste declaree dans le bloc `colonne`. Sert de fallback
+ * de relecture d'une cellule jamais surchargee (divergence Contenu vs Couleur).
+ * `uici` est resolu depuis la back-ref $tblsrc du receveur (rep de ligne ou
+ * holder colonne). */
+static void vm_table_col_effective_content(ObjUiControlInstance* uici,
+                                           const char* col, Value* out) {
+    char fmtKey[192];
+    vm_table_fmt_key(fmtKey, sizeof(fmtKey), col, "Contenu");
+    Value holderV;
+    if (obj_ui_control_instance_headless_get(uici, OWL_TABLE_COLFMT_HOLDER_KEY,
+                                             &holderV)
+        && IS_INSTANCE(holderV)) {
+        ObjInstance* holder = AS_INSTANCE(holderV);
+        ObjString* hk = table_find_key_case_insensitive(&holder->fields, fmtKey);
+        Value stored;
+        if (hk != NULL && table_get(&holder->fields, hk, &stored)
+            && IS_STRING(stored)) {
+            *out = stored;
+            return;
+        }
+    }
+    const char* decl = vm_table_col_declared_content(uici, col);
+    *out = OBJ_VAL(obj_copy_string(decl, (int)strlen(decl)));
+}
+
 static bool vm_table_fmt_get(ObjInstance* inst, const char* field, Value* out) {
     ObjInstance* rep = NULL;
     char key[192];
-    if (!vm_table_fmt_slot(inst, field, &rep, key, sizeof(key), NULL, NULL))
+    const char* col = NULL;
+    const char* propCanon = NULL;
+    if (!vm_table_fmt_slot(inst, field, &rep, key, sizeof(key), &col, &propCanon))
         return false;
     *out = NIL_VAL;
     ObjString* k = table_find_key_case_insensitive(&rep->fields, key);
-    if (k != NULL) table_get(&rep->fields, k, out);
+    if (k != NULL) {
+        table_get(&rep->fields, k, out);
+        return true;
+    }
+    /*  — divergence Contenu : une cellule (ou une colonne) jamais
+     * surchargee ne rend PAS Null comme les couleurs, mais la liste effective
+     * de la colonne. Le receveur (rep de ligne OU holder colonne) porte la
+     * back-ref $tblsrc vers l'uici de la Table. */
+    if (propCanon != NULL && strcasecmp(propCanon, "Contenu") == 0
+        && col != NULL && col[0] != '\0') {
+        Value srcV;
+        ObjString* sk = table_find_key_case_insensitive(&rep->fields,
+                                                        OWL_TABLE_REP_SRC_KEY);
+        if (sk != NULL && table_get(&rep->fields, sk, &srcV)
+            && IS_UI_CONTROL_INSTANCE(srcV)) {
+            vm_table_col_effective_content(AS_UI_CONTROL_INSTANCE(srcV), col, out);
+        }
+    }
     return true;
 }
 
@@ -1073,6 +1145,21 @@ static bool vm_table_fmt_set(ObjInstance* inst, const char* field, Value v) {
      * relecture ne passe jamais par Qt, l'affichage n'est qu'un miroir. */
     owl_ui_table_fmt_applied(rep, col, propCanon, v);
     return true;
+}
+
+/*  — pont pour la famille ListeXxx ciblant une COLONNE combo. Le
+ * receveur `TABLE.COL` desucre en proxy-colonne (COLPROXY_*) ; on lit/ecrit sa
+ * liste par defaut via EXACTEMENT le meme chemin que la propriete `..Contenu`
+ * (holder $colfmt, cle $fmt.<col>.Contenu + rebuild des cellules), garantissant
+ * la coherence bidirectionnelle testee. Le gating "colonne combo uniquement"
+ * est fait cote appelant (stdlib_ui.c) avant d'appeler ces primitives. */
+bool owl_vm_table_colproxy_content_get(Value proxy, Value* out) {
+    if (!IS_INSTANCE(proxy)) return false;
+    return vm_table_fmt_get(AS_INSTANCE(proxy), "Contenu", out);
+}
+bool owl_vm_table_colproxy_content_set(Value proxy, Value strVal) {
+    if (!IS_INSTANCE(proxy)) return false;
+    return vm_table_fmt_set(AS_INSTANCE(proxy), "Contenu", strVal);
 }
 
 /* ============================================================
@@ -1202,6 +1289,96 @@ static bool vm_table_colmask_set(ObjInstance* inst, const char* field, Value v) 
         int col1 = vm_table_col_index_1based(uici, col);
         if (col1 > 0)
             owl_ui_table_colmask_applied(uici->widget, col1, s->chars);
+    }
+    vm_pop();
+    return true;
+}
+
+/* ============================================================
+ *   — receveur colonne MasqueAffichage/DisplayMask.
+ *
+ *  CANAL DISTINCT de MasqueSaisie (frappe). MasqueAffichage formate la valeur
+ *  AFFICHEE des cellules typees Date/Heure/Duree ; il prime sur le format
+ *  defaut/projet au rendu (owl_ui_format_cell_typed lit col_dispmask_<col0>).
+ *  Miroir EXACT du canal MasqueSaisie ci-dessus, cle de store $coldispmask.<col>
+ *  et property widget col_dispmask_<col0> — surtout PAS $colmask/col_mask_, qui
+ *  resteraient le masque de frappe. ============================================ */
+
+static void vm_table_coldispmask_key(char* out, size_t cap, const char* col) {
+    snprintf(out, cap, "$coldispmask.%s", col);
+}
+
+/* Field == MasqueAffichage/DisplayMask ? (identifiant deja accent-strippe au
+ * scan, ces deux formes sont sans accent : simple casse-insensible). */
+static bool vm_field_is_display_mask(const char* field) {
+    return strcasecmp(field, "MasqueAffichage") == 0
+        || strcasecmp(field, "DisplayMask") == 0;
+}
+
+/* Masque d'affichage DECLARE de la colonne <col> (accents strippes) : parcourt
+ * les props de declaration de la Table. "" si aucune. */
+static const char* vm_table_col_declared_dispmask(ObjUiControlInstance* uici,
+                                                  const char* col) {
+    const OwlControlDecl* d = uici->decl;
+    for (int ci = 0; ci < d->column_count; ci++) {
+        const char* cn = d->columns[ci].name;
+        if (cn == NULL) continue;
+        char cstr[256];
+        int clen = scanner_strip_accents(cn, (int)strlen(cn), cstr, sizeof(cstr));
+        if (clen <= 0 || clen >= (int)sizeof(cstr)) continue;
+        cstr[clen] = '\0';
+        if (strcasecmp(cstr, col) != 0) continue;
+        for (int pi = 0; pi < d->columns[ci].property_count; pi++) {
+            const OwlPropertyInit* p = &d->columns[ci].properties[pi];
+            if (!p->is_constant) continue;
+            if ((strcasecmp(p->name, "MasqueAffichage") == 0
+                 || strcasecmp(p->name, "DisplayMask") == 0)
+                && IS_STRING(p->const_value))
+                return AS_CSTRING(p->const_value);
+        }
+        return "";
+    }
+    return "";
+}
+
+static bool vm_table_coldispmask_get(ObjInstance* inst, const char* field,
+                                     Value* out) {
+    if (!vm_field_is_display_mask(field)) return false;
+    ObjUiControlInstance* uici = NULL;
+    const char* col = NULL;
+    if (!vm_colproxy_resolve(inst, &uici, &col)) return false;
+    char key[288];
+    vm_table_coldispmask_key(key, sizeof(key), col);
+    Value stored;
+    if (obj_ui_control_instance_headless_get(uici, key, &stored)
+        && IS_STRING(stored)) {
+        *out = stored;
+        return true;
+    }
+    /* Jamais ecrit : echo du masque d'affichage declare, "" a defaut. */
+    const char* decl = vm_table_col_declared_dispmask(uici, col);
+    *out = OBJ_VAL(obj_copy_string(decl, (int)strlen(decl)));
+    return true;
+}
+
+static bool vm_table_coldispmask_set(ObjInstance* inst, const char* field,
+                                     Value v) {
+    if (!vm_field_is_display_mask(field)) return false;
+    ObjUiControlInstance* uici = NULL;
+    const char* col = NULL;
+    if (!vm_colproxy_resolve(inst, &uici, &col)) return false;
+    ObjString* s = value_to_string(v);
+    if (s == NULL) return true;
+    vm_push(OBJ_VAL(s));   /* root : les set/headless allouent (grow -> GC) */
+    char key[288];
+    vm_table_coldispmask_key(key, sizeof(key), col);
+    obj_ui_control_instance_headless_set(uici, key, OBJ_VAL(s));
+    /* Miroir GUI : pousse au widget (le rendu lira col_dispmask_<col0> pour
+     * reformater les cellules live). No-op headless (widget NULL). */
+    if (uici->widget != NULL) {
+        int col1 = vm_table_col_index_1based(uici, col);
+        if (col1 > 0)
+            owl_ui_table_coldispmask_applied(uici->widget, col1, s->chars);
     }
     vm_pop();
     return true;
@@ -6164,10 +6341,23 @@ static InterpretResult run(void) {
                                 int idx = IS_INTEGER(indexVal)
                                     ? (int)AS_INTEGER(indexVal)
                                     : (int)AS_REAL(indexVal);
-                                int count = (uici->widget != NULL)
+                                /*  — la borne de ligne se valide contre
+                                 * le store ligne-first, deja peuple
+                                 * par TableAjouteLigne. Pendant FinInitialisation
+                                 * le widget Qt existe mais n'est synchronise
+                                 * qu'apres le retour du handler (0 ligne) : s'y
+                                 * fier levait une erreur « hors plage » parasite
+                                 * sur un override pourtant valide. On prend le
+                                 * max -> le store couvre le desync, le widget
+                                 * reste un plancher s'il devance. */
+                                int storeCount =
+                                    owl_ui_headless_widget_items_count_uici(uici);
+                                int widgetCount = (uici->widget != NULL)
                                     ? owl_ui_widget_items_count(
                                         (int)uici->decl->kind, uici->widget)
-                                    : owl_ui_headless_widget_items_count_uici(uici);
+                                    : 0;
+                                int count = widgetCount > storeCount
+                                    ? widgetCount : storeCount;
                                 if (idx < 1 || idx > count) {
                                     char idxBuf[32], maxBuf[16];
                                     snprintf(idxBuf, sizeof idxBuf, "%d", idx);
@@ -6275,6 +6465,12 @@ static InterpretResult run(void) {
                                                   "Table",
                                                   "index", idxBuf,
                                                   "max", maxBuf, NULL);
+                            if (instruction != OP_TABLE_CELL_DESC) {
+                                /*  — lecture nue hors colonne : valeur
+                                 * vide, pas de descripteur orphelin. */
+                                IDX_RESULT(NIL_VAL);
+                                DISPATCH();
+                            }
                             ObjInstance* vide = obj_new_instance(NULL);
                             vm_push(OBJ_VAL(vide));
                             ObjInstance* orphan =
@@ -6292,10 +6488,23 @@ static InterpretResult run(void) {
                                                         (int)sizeof(colKey));
                         if (klen > 0 && klen < (int)sizeof(colKey)) {
                             colKey[klen] = '\0';
-                            /* arrVal est un operande peeke : deja root. */
-                            ObjInstance* cell =
-                                vm_table_cell_descriptor(arrVal, colKey);
-                            IDX_RESULT(OBJ_VAL(cell));
+                            if (instruction == OP_TABLE_CELL_DESC) {
+                                /* arrVal est un operande peeke : deja root. */
+                                ObjInstance* cell =
+                                    vm_table_cell_descriptor(arrVal, colKey);
+                                IDX_RESULT(OBJ_VAL(cell));
+                                DISPATCH();
+                            }
+                            /*  — forme NUE (aucun `..Prop` derriere) : la
+                             * VALEUR scalaire de la cellule, symetrie stricte avec
+                             * TABLE[l].COL_nom. Le descripteur ne sert
+                             * qu'a la mise en forme (OP_TABLE_CELL_DESC). */
+                            Value cellVal = NIL_VAL;
+                            ObjString* ck = table_find_key_case_insensitive(
+                                &rep->fields, colKey);
+                            if (ck != NULL)
+                                table_get(&rep->fields, ck, &cellVal);
+                            IDX_RESULT(cellVal);
                             DISPATCH();
                         }
                     }
@@ -6778,11 +6987,20 @@ static InterpretResult run(void) {
                                 int idx = IS_INTEGER(indexVal)
                                     ? (int)AS_INTEGER(indexVal)
                                     : (int)AS_REAL(indexVal);
-                                int count = (uici->widget != NULL)
+                                /*  — meme borne que la lecture : source
+                                 * de verite = store ligne-first, pas
+                                 * le compteur widget en retard pendant
+                                 * FinInitialisation. max -> store si desync,
+                                 * widget en plancher. */
+                                int storeCount =
+                                    owl_ui_headless_widget_items_count_uici(
+                                        uici);
+                                int widgetCount = (uici->widget != NULL)
                                     ? owl_ui_widget_items_count(
                                         (int)uici->decl->kind, uici->widget)
-                                    : owl_ui_headless_widget_items_count_uici(
-                                        uici);
+                                    : 0;
+                                int count = widgetCount > storeCount
+                                    ? widgetCount : storeCount;
                                 if (idx < 1 || idx > count) {
                                     char idxBuf[32], maxBuf[16];
                                     snprintf(idxBuf, sizeof idxBuf, "%d", idx);
@@ -7748,6 +7966,28 @@ static InterpretResult run(void) {
                             }
                         }
                     }
+                    /*  +  — Liste/Combo : ..Contenu / ..Content
+                     * reflete la liste VIVANTE d'items (meme source que
+                     * ListeOccurrence), pas un store de propriete separe que seul
+                     * le setter ..Contenu alimentait. En GUI : labels du widget
+                     * joints par LF. En headless pur (widget == NULL) : items du
+                     * store headless joints par LF ( — meme liste que
+                     * ListeXxx). Intercept AVANT headless_get, miroir de la branche
+                     * Occurrence/Vide. */
+                    {
+                        int ukind_ct = uici->decl ? (int)uici->decl->kind : 0;
+                        if ((ukind_ct == OWL_CONTROL_LISTE
+                             || ukind_ct == OWL_CONTROL_COMBO)
+                            && (strcasecmp(fieldName->chars, "Contenu") == 0
+                                || strcasecmp(fieldName->chars, "Content") == 0)) {
+                            const char* lf = uici->widget != NULL
+                                ? owl_ui_widget_content_lf(ukind_ct, uici->widget)
+                                : owl_ui_headless_content_lf_uici(uici);
+                            if (!lf) lf = "";
+                            vm_push(OBJ_VAL(obj_copy_string(lf, (int)strlen(lf))));
+                            DISPATCH();
+                        }
+                    }
                     Value v;
                     if (obj_ui_control_instance_headless_get(uici,
                                                               fieldName->chars,
@@ -7888,6 +8128,21 @@ static InterpretResult run(void) {
                                            : INTEGER_VAL(count));
                             DISPATCH();
                         }
+                    }
+                    /*  +  — miroir de la branche REF :
+                     * ..Contenu/..Content d'un Liste/Combo reflete la liste
+                     * vivante d'items (GUI : labels du widget ; headless pur :
+                     * store items), joints par LF, pas un store separe. */
+                    if ((uic->kind == OWL_CONTROL_LISTE
+                         || uic->kind == OWL_CONTROL_COMBO)
+                        && (strcasecmp(fieldName->chars, "Contenu") == 0
+                            || strcasecmp(fieldName->chars, "Content") == 0)) {
+                        const char* lf = uic->widget != NULL
+                            ? owl_ui_widget_content_lf(uic->kind, uic->widget)
+                            : owl_ui_headless_content_lf_uic(uic);
+                        if (!lf) lf = "";
+                        vm_push(OBJ_VAL(obj_copy_string(lf, (int)strlen(lf))));
+                        DISPATCH();
                     }
                     if (uic->widget != NULL) {
                         vm_push(owl_ui_control_get_prop(uic, fieldName->chars));
@@ -9234,6 +9489,17 @@ static InterpretResult run(void) {
                         DISPATCH();
                     }
                 }
+                /*  — receveur colonne `COL_X..MasqueAffichage` (prop
+                 * COLONNE, canal distinct de MasqueSaisie). Store OWL-side +
+                 * fallback declare. */
+                {
+                    Value dmaskV;
+                    if (vm_table_coldispmask_get(instance, fieldName->chars,
+                                                 &dmaskV)) {
+                        vm_push(dmaskV);
+                        DISPATCH();
+                    }
+                }
                 /*  — propriete calculee : si le type du recepteur
                  * declare un OwlField avec computeGetter pour ce nom, on
                  * delegue au getter (etat live) au lieu de lire le storage
@@ -9717,6 +9983,32 @@ static InterpretResult run(void) {
                             DISPATCH();
                         }
                     }
+                    /*  — `..Contenu =` headless pur d'un Liste/Combo :
+                     * pose la liste dans le store items (split LF), PAS dans une
+                     * cle "Contenu" separee. Unifie setter + getter + ListeXxx
+                     * sur UNE liste (le getter headless relit ce meme store, cf.
+                     * OP_STRUCT_GET ). En GUI (widget != NULL) : chemin
+                     * generique inchange (headless_set + apply Qt set_content,
+                     * ). Intercept AVANT le set generique. */
+                    {
+                        int ukind_ct = uici->decl ? (int)uici->decl->kind : 0;
+                        if ((ukind_ct == OWL_CONTROL_LISTE
+                             || ukind_ct == OWL_CONTROL_COMBO)
+                            && uici->widget == NULL
+                            && (strcasecmp(fieldName->chars, "Contenu") == 0
+                                || strcasecmp(fieldName->chars, "Content") == 0)) {
+                            ObjString* cs = value_to_string(val);
+                            vm_push(cs ? OBJ_VAL(cs) : NIL_VAL);  /* root : fill alloue */
+                            owl_ui_headless_set_content_uici(uici, cs ? cs->chars : "");
+                            vm_pop();
+                            obj_ui_control_instance_mark_override(uici,
+                                                                  fieldName->chars);
+                            if (IS_OBJ(val)) vm_pop();
+                            vm_pop(); /* instVal */
+                            vm_push(val);
+                            DISPATCH();
+                        }
+                    }
                     /*  — sémantique COPIE : `X..Style = <instance>`
                      * donne au widget SA PROPRE copie profonde du style. Sans
                      * ça, deux widgets recevant la même instance (theme.X /
@@ -9837,6 +10129,23 @@ static InterpretResult run(void) {
                     if (uic->widget != NULL) {
                         owl_ui_control_set_prop(uic, fieldName->chars, val);
                     } else {
+                        /*  — miroir de la branche REF : `..Contenu =`
+                         * headless pur d'un Liste/Combo pose la liste dans le
+                         * store items (split LF), source unique relue par le
+                         * getter et ListeXxx. */
+                        if ((uic->kind == OWL_CONTROL_LISTE
+                             || uic->kind == OWL_CONTROL_COMBO)
+                            && (strcasecmp(fieldName->chars, "Contenu") == 0
+                                || strcasecmp(fieldName->chars, "Content") == 0)) {
+                            vm_push(val);  /* root pendant value_to_string + fill */
+                            ObjString* cs = value_to_string(val);
+                            vm_push(cs ? OBJ_VAL(cs) : NIL_VAL);
+                            owl_ui_headless_set_content_uic(uic, cs ? cs->chars : "");
+                            vm_pop();
+                            vm_pop();
+                            vm_push(val);
+                            DISPATCH();
+                        }
                         /*  — raccourci d'apparence plat Saisie : ecrit
                          * dans la ZoneSaisie de l'instance Style (verite unique).
                          * Gate INPUT. */
@@ -10416,6 +10725,9 @@ static InterpretResult run(void) {
                     if (!fmtDone)
                         fmtDone = vm_table_colmask_set(instance,
                                                        fieldName->chars, val);
+                    if (!fmtDone)
+                        fmtDone = vm_table_coldispmask_set(instance,
+                                                           fieldName->chars, val);
                     if (fmtValIsObj) vm_pop();
                     vm_pop();
                     if (fmtDone) {

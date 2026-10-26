@@ -1,0 +1,38 @@
+//  — rendu runtime d'une colonne combo (déroulant permanent par
+// cellule) : liste déclarée sur la colonne + comportement STRICT quand la
+// valeur de cellule n'appartient pas à la liste.
+//
+// Point clé verrouillé ici : une valeur hors-liste N'EST JAMAIS injectée
+// dans les options du déroulant. Les options restent la liste déclarée, la
+// sélection rend vide, et la valeur de cellule reste intacte dans le store
+// ligne-first (lue par l'accès valeur normal, canal indépendant du rendu
+// combo).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ComboRenduListe)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+// ===== Ligne 1 : valeur "Actif", DANS la liste déclarée =====
+
+dbgVérifieEgalité(__DebugTableCelluleComboOptions(TABLE_Rendu, 1, 1), `Actif
+Inactif`,
+"ligne dans la liste : les options du déroulant sont la liste déclarée sur la colonne")
+
+dbgVérifieEgalité(__DebugTableCelluleComboSelection(TABLE_Rendu, 1, 1), "Actif",
+"ligne dans la liste : la sélection du déroulant correspond à la valeur de cellule")
+
+// ===== Ligne 2 : valeur "Supprimé", HORS de la liste déclarée =====
+
+dbgVérifieEgalité(__DebugTableCelluleComboOptions(TABLE_Rendu, 2, 1), `Actif
+Inactif`,
+"ligne hors liste : les options restent la liste déclarée SEULE, sans injection de la valeur hors-liste")
+
+dbgVérifieEgalité(__DebugTableCelluleComboSelection(TABLE_Rendu, 2, 1), "",
+"ligne hors liste : aucune option n'est sélectionnée dans le déroulant")
+
+dbgVérifieEgalité(TABLE_Rendu[2].COL_Statut, "Supprimé",
+"ligne hors liste : la valeur de cellule reste intacte dans le store, le rendu combo ne l'altère pas")
+
+Ferme(FEN_ComboRenduListe)
+dbgBilanTest()

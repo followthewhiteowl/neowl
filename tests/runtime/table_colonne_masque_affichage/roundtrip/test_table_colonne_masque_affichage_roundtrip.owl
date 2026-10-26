@@ -1,0 +1,31 @@
+//  — lecture de la propriété MasqueAffichage d'une Colonne via
+// l'accesseur `COL..MasqueAffichage`.
+//
+// Nature : ROUGE avant impl, y compris à la COMPILATION (isolé dans son
+// propre dossier pour ne pas bloquer les autres assertions du ticket,
+// cf. test_table_colonne_masque_affichage_precedence.owl voisin). Vérifié
+// empiriquement : `COL..MasqueAffichage` (lecture OU écriture) échoue au
+// compile aujourd'hui avec « La propriété 'MasqueAffichage' de la colonne
+// ... ne peut pas être modifiée à l'exécution [...] 'MasqueAffichage' se
+// règle dans le bloc PROPRIETES de la colonne, à la déclaration » — message
+// GÉNÉRIQUE émis pour toute propriété encore absente du catalogue Colonne
+// (reproductible à l'identique avec un nom de propriété bidon), donc rouge
+// pour la bonne raison : symbole pas encore enregistré, pas une faute de
+// syntaxe `.`/`..`.
+//
+// Après impl (MasqueAffichage ajouté à PROPS_COLUMN, miroir de MasqueSaisie
+// qui est lui aussi déclaration-only, sans set/get runtime hors Couleur/
+// CouleurFond) : la LECTURE via l'accesseur doit fonctionner et renvoyer la
+// chaîne posée dans le bloc PROPRIETES. L'ÉCRITURE runtime reste refusée par
+// construction (même règle que MasqueSaisie) — ce fichier ne teste QUE la
+// lecture.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneMasqueAffichageRoundtrip)
+
+s est une chaîne = COL_Date..MasqueAffichage
+dbgVérifieEgalité(s, "AAAA-MM-JJ", "COL..MasqueAffichage (lecture) renvoie la chaîne posée au bloc PROPRIETES de la colonne")
+
+Ferme(FEN_TableColonneMasqueAffichageRoundtrip)
+dbgBilanTest()

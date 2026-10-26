@@ -1,0 +1,49 @@
+//  — combo autonome en headless PUR : après avoir peuplé la liste
+// via ListeAjoute puis synchronisé manuellement ..Contenu à la même valeur,
+// les mutations ListeModifie / ListeSupprime / ListeSupprimeTout doivent se
+// refléter dans le getter ..Contenu, pas seulement dans ListeOccurrence.
+//
+// Mesuré (headless pur) : après ListeAjoute "A","B","C" + set initial
+// ..Contenu = "A\nB\nC" (les deux stores coïncident au départ), ListeModifie
+// (2,"BB") puis ListeSupprime(2) puis ListeSupprimeTout font évoluer
+// ListeOccurrence correctement (3 -> 3 -> 2 -> 0, le store items headless
+// suit), mais ..Contenu reste figé sur "A\nB\nC" du début à la fin — le
+// getter headless ne relit jamais le store items muté par ListeXxx.
+//
+// ROUGE attendu sur les 3 assertions ..Contenu. Les assertions
+// ListeOccurrence restent vertes (store items déjà correct aujourd'hui).
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_ComboHeadless)
+
+ListeAjoute(COMBO_Headless, "A")
+ListeAjoute(COMBO_Headless, "B")
+ListeAjoute(COMBO_Headless, "C")
+COMBO_Headless..Contenu = "A" + LF + "B" + LF + "C"
+
+ListeModifie(COMBO_Headless, 2, "BB")
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Headless), 3,
+"ListeModifie(2, BB) : ListeOccurrence reste à 3 (modification, pas suppression)")
+
+dbgVérifieEgalité(COMBO_Headless..Contenu, "A" + LF + "BB" + LF + "C",
+"ListeModifie(2, BB) : ..Contenu reflète l'item modifié")
+
+ListeSupprime(COMBO_Headless, 2)
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Headless), 2,
+"ListeSupprime(2) : ListeOccurrence passe à 2")
+
+dbgVérifieEgalité(COMBO_Headless..Contenu, "A" + LF + "C",
+"ListeSupprime(2) : ..Contenu ne contient plus que les 2 items restants")
+
+ListeSupprimeTout(COMBO_Headless)
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Headless), 0,
+"ListeSupprimeTout : ListeOccurrence tombe à 0")
+
+dbgVérifieEgalité(COMBO_Headless..Contenu, "",
+"ListeSupprimeTout : ..Contenu est vide")
+
+Ferme(FEN_ComboHeadless)
+dbgBilanTest()

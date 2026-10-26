@@ -1,0 +1,41 @@
+// Fenêtre voisine — ressource partagée de
+// tests\runtime\table_colonne_combo_rendu\test_table_colonne_combo_rendu_fininit.
+//
+//  — l'override par cellule (`..Contenu`) est posé ICI, DANS
+// FinInitialisation, par opposition au voisin
+// ...listes_par_cellule où il est posé après OuvreSoeur. Révèle le bug du
+// bound-check qui regarde le compteur de lignes du WIDGET (encore à 0 à ce
+// stade) au lieu du store ligne-first déjà peuplé par TableAjouteLigne.
+
+FEN_ComboRenduFinInit est une Fenêtre
+	PROPRIETES
+		Titre   = "Rendu combo override en FinInitialisation"
+		Largeur = 300
+		Hauteur = 200
+	FIN
+
+	TABLE_Rendu est un Champ Table
+		PROPRIETES
+			Étire = Vrai
+		FIN
+
+		COL_Ville est une Colonne
+			PROPRIETES
+				Libellé = "Ville"
+				Type    = colTypeCombo
+				Contenu = `Paris
+Lyon
+Marseille`
+				Largeur = 160
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Rendu, "Paris")
+		TableAjouteLigne(TABLE_Rendu, "Bruxelles")
+		TABLE_Rendu.COL_Ville[2]..Contenu = `Bruxelles
+Anvers
+Gand`
+	FIN
+FIN

@@ -1,0 +1,46 @@
+//  — cohérence bidirectionnelle entre ..Contenu (déclaration /
+// override, ) et la famille ListeXxx, étendue aux colonnes combo
+// (fondation , qui l'a déjà posée pour le combo autonome).
+//
+// Sens 1 : ..Contenu (setter) -> ListeOccurrence / ListeCherche (lecture).
+// Sens 2 : ListeSupprime (mutation) -> ..Contenu (getter) reflète la
+// suppression.
+//
+// ROUGE attendu sur le sens 2 : aujourd'hui ListeSupprime rejette la
+// colonne comme receveur (cf. test_famille_contenu_colonne.owl), donc
+// ..Contenu reste inchangé après coup.
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ListeColonneCombo)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+// ===== Colonne : sens 1 (..Contenu -> ListeOccurrence / ListeCherche) =====
+
+TABLE_Villes.COL_Ville..Contenu = `Un
+Deux
+Trois`
+
+dbgVérifieEgalité(ListeOccurrence(TABLE_Villes.COL_Ville), 3,
+"sens 1 colonne : ListeOccurrence reflète le ..Contenu posé")
+
+dbgVérifieEgalité(ListeCherche(TABLE_Villes.COL_Ville, "Deux"), 2,
+"sens 1 colonne : ListeCherche retrouve un item posé via ..Contenu")
+
+// ===== Colonne : sens 2 (ListeSupprime -> ..Contenu) =====
+
+ListeSupprime(TABLE_Villes.COL_Ville, 2)
+dbgVérifieFaux(ErreurDétectée, "ListeSupprime sur la colonne (déjà peuplée via ..Contenu) ne pose pas d'erreur")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "Un" + LF + "Trois",
+"sens 2 colonne : ..Contenu reflète la suppression faite par ListeSupprime")
+
+// Renforcement anti-coïncidence : ListeOccurrence/ListeCherche doivent
+// réellement refléter l'état post-suppression, pas un reliquat.
+dbgVérifieEgalité(ListeOccurrence(TABLE_Villes.COL_Ville), 2,
+"sens 2 colonne : ListeOccurrence retombe à 2 après la suppression")
+
+dbgVérifieEgalité(ListeCherche(TABLE_Villes.COL_Ville, "Trois"), 2,
+"sens 2 colonne : ListeCherche retrouve l'item restant au bon indice après décalage")
+
+Ferme(FEN_ListeColonneCombo)
+dbgBilanTest()

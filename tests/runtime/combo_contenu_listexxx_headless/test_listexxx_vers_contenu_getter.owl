@@ -1,0 +1,27 @@
+//  — combo autonome en headless PUR (sans widgets Qt, pendant
+// headless de ) : ListeAjoute doit alimenter la même liste que
+// lit le getter ..Contenu.
+//
+// Mesuré (headless pur, TestModeHeadless(Vrai), pas de OuvreSoeur) :
+// après ListeAjoute(CMB,"A") puis ListeAjoute(CMB,"B"), ListeOccurrence
+// vaut 2 (le store items headless est bien alimenté), mais ..Contenu
+// reste vide — le getter headless lit une clé "Contenu" séparée que
+// seul le setter ..Contenu = alimente, jamais touchée par ListeAjoute.
+//
+// ROUGE attendu sur l'assertion ..Contenu. ListeOccurrence est déjà
+// correct aujourd'hui (vert, non affecté par le fix à venir).
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_ComboHeadless)
+
+ListeAjoute(COMBO_Headless, "A")
+ListeAjoute(COMBO_Headless, "B")
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Headless), 2,
+"ListeAjoute x2 (headless pur) : ListeOccurrence reflète les 2 items ajoutés")
+
+dbgVérifieEgalité(COMBO_Headless..Contenu, "A" + LF + "B",
+"ListeAjoute x2 (headless pur) : ..Contenu (getter) reflète les items ajoutés par ListeAjoute")
+
+Ferme(FEN_ComboHeadless)
+dbgBilanTest()

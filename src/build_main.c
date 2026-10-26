@@ -219,6 +219,12 @@ int main(int argc, char* argv[]) {
     const char* outputName = NULL;
     const char* target = HOST_TARGET;  /* triple : windows-x86_64, linux-x86_64 */
     int prepareOnly = 0;  /* --prepare : prechauffe l'extraction du payload puis sort */
+    /* Pose des qu'un flag qui n'a de sens QUE pour un build reel est consomme
+     * (-o / --target). Sert a distinguer, en fin de parsing, l'invocation nue
+     * (intention = voir les options -> usage exit 0) d'un build auquel il
+     * manque juste le dossier positionnel (intention = builder, dossier
+     * oublie -> erreur actionnable exit != 0, ). */
+    int sawBuildIntent = 0;
 
     /* Pre-scan des flags de langue avant toute emission : `--help` et les
      * messages fail-fast doivent suivre --lang/--en/--fr quel que soit leur
@@ -239,8 +245,10 @@ int main(int argc, char* argv[]) {
             return 0;
         } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             outputName = argv[++i];
+            sawBuildIntent = 1;
         } else if (strcmp(argv[i], "--target") == 0 && i + 1 < argc) {
             target = argv[++i];
+            sawBuildIntent = 1;
         } else if (strcmp(argv[i], "--prepare") == 0) {
             prepareOnly = 1;
         } else if (argv[i][0] == '-') {
@@ -288,11 +296,41 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    /* Aucun dossier positionnel fourni -> l'usage, puis on sort. Rien n'est
-     * extrait (on n'atteint pas owl_payload_setup) ni builde. */
+    /* Aucun dossier positionnel fourni. Deux intentions a distinguer :
+     *  - Invocation nue ou flags seuls (langue, --help/-v deja traites plus haut) :
+     *    l'utilisateur veut voir les options -> usage + exit 0. INCHANGE.
+     *  - Flags de build consommes (-o / --target) mais dossier oublie : dumper
+     *    l'usage en silence avec exit 0 laisse croire que la commande a ete
+     *    ignoree. On emet une erreur actionnable sur stderr + exit != 0, en
+     *    renvoyant vers `owl-build .` (dossier courant) + les flags deja fournis. */
     if (dir == NULL) {
-        print_usage();
-        return 0;
+        if (!sawBuildIntent) {
+            print_usage();
+            return 0;
+        }
+        /* Reconstruit un exemple reprenant les flags effectivement donnes :
+         * `owl-build . [-o NAME] [--target TRIPLE]`. --target n'est repris que
+         * s'il differe du defaut hote, pour ne pas noyer le conseil. */
+        char hint[1024];
+        int n = snprintf(hint, sizeof(hint), "owl-build .");
+        if (outputName != NULL && n > 0 && (size_t)n < sizeof(hint)) {
+            n += snprintf(hint + n, sizeof(hint) - (size_t)n, " -o %s", outputName);
+        }
+        if (strcmp(target, HOST_TARGET) != 0 && n > 0 && (size_t)n < sizeof(hint)) {
+            snprintf(hint + n, sizeof(hint) - (size_t)n, " --target %s", target);
+        }
+        if (owl_error_render_lang_is_en()) {
+            fprintf(stderr,
+                "owl-build: no project directory given.\n"
+                "  -> %s   (current directory)\n"
+                "  see --help for options.\n", hint);
+        } else {
+            fprintf(stderr,
+                "owl-build: aucun dossier de projet indiqué.\n"
+                "  -> %s   (dossier courant)\n"
+                "  voir --help pour les options.\n", hint);
+        }
+        return 2;
     }
 
     if (!dir_exists(dir)) {

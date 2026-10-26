@@ -899,7 +899,14 @@ static const OwlPresEntry PRES[] = {
     /* --- Général (identite : titre + type de cellule) -------------------- */
     { "Colonne", "Libelle",     "Libellé",             "Caption",              OWL_PRES_GROUP_IDENTITE, OWL_PRES_IMPORTANCE_COURANT, OWL_PRES_EDITOR_MULTILANGUE, 10, OWL_PRES_VIS_DESIGNER, NULL },
     { "Colonne", "Type",        "Type de cellule",     "Cell type",            OWL_PRES_GROUP_IDENTITE, OWL_PRES_IMPORTANCE_COURANT, OWL_PRES_EDITOR_ENUM,        20, OWL_PRES_VIS_DESIGNER, NULL },
+    /*  — liste d'options d'une colonne combo (Type = colTypeCombo) :
+     * lignes separees par LF, meme editeur texte multiligne que la liste du
+     * Combo/Liste autonome. Couplee au Type, donc en IDENTITE juste apres lui.
+     * Le rendu in-cell au designer releve d'une tranche ulterieure ; ici on ne
+     * declare que l'intention de presentation. */
+    { "Colonne", "Contenu",     "Liste d'options",     "Option list",          OWL_PRES_GROUP_IDENTITE, OWL_PRES_IMPORTANCE_COURANT, OWL_PRES_EDITOR_TEXT,        25, OWL_PRES_VIS_DESIGNER, NULL, NULL, NULL, NULL, "Type", "colTypeCombo" },
     { "Colonne", "MasqueSaisie", "Masque de saisie",   "Input mask",           OWL_PRES_GROUP_IDENTITE, OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_TEXT,        30, OWL_PRES_VIS_DESIGNER, NULL },
+    { "Colonne", "MasqueAffichage", "Masque d'affichage", "Display mask",      OWL_PRES_GROUP_IDENTITE, OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_TEXT,        35, OWL_PRES_VIS_DESIGNER, NULL },
 
     /* --- UI (etat) ------------------------------------------------------- */
     { "Colonne", "Visible",     "Visible",             "Visible",              OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_COURANT, OWL_PRES_EDITOR_BOOL,  10, OWL_PRES_VIS_DESIGNER, NULL },
@@ -973,8 +980,7 @@ static const OwlPresEntry PRES[] = {
     { "ZoneRepetee", "CouleurFond", NULL, NULL, OWL_PRES_GROUP_APPARENCE, OWL_PRES_IMPORTANCE_COURANT, OWL_PRES_EDITOR_COLOR,     0, OWL_PRES_VIS_CACHE, NULL },
     { "ZoneRepetee", "Cadre",     NULL, NULL, OWL_PRES_GROUP_APPARENCE, OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_COMPOSITE, 0, OWL_PRES_VIS_CACHE, NULL },
 
-    /* --- Cachees : selection + occurrence runtime (hors designer) -------- */
-    { "ZoneRepetee", "LigneSelectionnee", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    /* --- Cachee : occurrence runtime (hors designer) --------------------- */
     { "ZoneRepetee", "Occurrence", NULL, NULL, OWL_PRES_GROUP_IDENTITE, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
 
     /* --- Cachees : avance ------------------------------------------------ */

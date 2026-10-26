@@ -2309,7 +2309,8 @@ static const OwlTypeDef XLS_TYPES[] = {
                         "are kept in memory.",
       .fields         = FIELDS_xlsCellule,
       .coercible      = false, .hasDefault = false, .defaultValue = NIL_VAL,
-      .nameEN         = "xlsCell", .genre = OWL_GENRE_F },
+      .nameEN         = "xlsCell", .genre = OWL_GENRE_F,
+      .notDeclarableHint = "doc..Cellule[ligne, colonne]" },
 
     { .canonical      = "xlsLigne",
       .canonicalAscii = "xlsLigne",
@@ -2320,7 +2321,8 @@ static const OwlTypeDef XLS_TYPES[] = {
                         "`doc..Row[row]`. Exposes the row height.",
       .fields         = FIELDS_xlsLigne,
       .coercible      = false, .hasDefault = false, .defaultValue = NIL_VAL,
-      .nameEN         = "xlsRow", .genre = OWL_GENRE_F },
+      .nameEN         = "xlsRow", .genre = OWL_GENRE_F,
+      .notDeclarableHint = "doc..Ligne[ligne]" },
 
     { .canonical      = "xlsColonne",
       .canonicalAscii = "xlsColonne",
@@ -2331,7 +2333,8 @@ static const OwlTypeDef XLS_TYPES[] = {
                         "`doc..Column[column]`. Exposes the column width.",
       .fields         = FIELDS_xlsColonne,
       .coercible      = false, .hasDefault = false, .defaultValue = NIL_VAL,
-      .nameEN         = "xlsColumn", .genre = OWL_GENRE_F },
+      .nameEN         = "xlsColumn", .genre = OWL_GENRE_F,
+      .notDeclarableHint = "doc..Colonne[colonne]" },
 };
 
 /* -- Signatures -- */

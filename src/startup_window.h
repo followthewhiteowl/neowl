@@ -26,4 +26,11 @@ void owl_startup_set_cli_args(int argc, char** argv);
  * refus/erreur de parametrage, 70 si runtime error. */
 int owl_run_startup_window(const char* fenName);
 
+/* Rattache la console du processus parent a un exe GUI (sous-systeme windows)
+ * lance depuis un terminal, pour que Trace/printf y restent visibles. Rouvre
+ * stdout/stderr/stdin sur CONOUT$/CONIN$ sauf si deja rediriges par
+ * l'utilisateur. No-op si pas de console parente (double-clic) ; no-op complet
+ * hors Windows. A appeler au tout debut du main() genere, build GUI uniquement. */
+void owl_attach_parent_console_if_any(void);
+
 #endif /* OWL_STARTUP_WINDOW_H */

@@ -1,0 +1,41 @@
+// Contrat 4 (feat colonne combo) : divergence clé par rapport à
+// `..Couleur` / `..CouleurFond`. Une cellule combo jamais écrite rend la
+// liste déclarée sur la COLONNE (`COL..Contenu`), pas `Null` — contrairement
+// à `..Couleur` qui rend `Null` sur une cellule non visée. Une cellule
+// écrite rend sa propre liste.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_fallback_cellule_non_ecrite_rend_liste_colonne()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	// Ligne 2 reçoit une liste propre ; ligne 1 n'est jamais touchée.
+	TABLE_Lot.COL_Pays[2]..Contenu = `Allemagne
+Autriche`
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[1]..Contenu, `France
+Belgique
+Suisse`,
+	"cellule jamais écrite : la lecture rend la liste déclarée sur la colonne, pas Null")
+
+	dbgVérifieDifférence(TABLE_Lot.COL_Pays[1]..Contenu, Null,
+	"cellule jamais écrite : contrairement à ..Couleur, ..Contenu ne rend jamais Null")
+
+	Ferme(FEN_TableColonneCombo)
+FIN
+
+PROCEDURE PUBLIQUE scenario_fallback_cellule_ecrite_rend_sa_propre_liste()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	TABLE_Lot.COL_Pays[2]..Contenu = `Allemagne
+Autriche`
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[2]..Contenu, `Allemagne
+Autriche`,
+	"cellule écrite : la lecture rend sa propre liste")
+
+	dbgVérifieDifférence(TABLE_Lot.COL_Pays[2]..Contenu, TABLE_Lot.COL_Pays[1]..Contenu,
+	"la liste propre à la cellule écrite diffère de la liste par défaut héritée de la colonne")
+
+	Ferme(FEN_TableColonneCombo)
+FIN

@@ -787,6 +787,15 @@ int build_project(const char* dir, const char* outputName,
      * le registre compile-time de services peuple par le portail de compile
      * ci-dessous (le meme que lit `owl serve`). Capte AVANT compiler_reset_poo_state. */
     bool declaresService = false;
+    /*  — projet fenetre : le bloc `est un Projet` designe une
+     * FenetreDemarrage. Meme signal que l'ouverture de fenetre. Non
+     * vide => appli GUI -> exe lie en sous-systeme windows (pas de console au
+     * double-clic). Capture dans le portail de compile, AVANT vm_free (la
+     * designation est un const char* du chunk, invalide apres liberation du
+     * tas). Un projet serveur (ServiceREST) reste console meme s'il designe une
+     * FenetreDemarrage : son main de montage garde sa sortie (logs + erreurs de
+     * demarrage sur stdout/stderr) -> exclusion `&& !declaresService`. */
+    bool projetIsGui = false;
     {
         /* project_discover laisse entryIndex=-1 ; le programme = le top-level de
          * projet.owl (meme choix que le bundle genere, _entryIndex). */
@@ -797,6 +806,8 @@ int build_project(const char* dir, const char* outputName,
          * `<Nom> est un ServiceREST` ont peuple owl_service_registry. Non vide =>
          * projet serveur. Registre encore vivant (reset plus bas). */
         declaresService = (owl_service_registry_count() > 0);
+        const char* startupWin = compiler_projet_designated_startup_window();
+        projetIsGui = (startupWin != NULL && startupWin[0] != '\0') && !declaresService;
         vm_free();
         compiler_reset_poo_state();  /* libere le registre compile-time du portail */
         /* Portail limite aux erreurs de COMPILATION (scope du ticket : "projet
@@ -969,6 +980,18 @@ int build_project(const char* dir, const char* outputName,
             "int owl_run_startup_window(const char* fenName);\n\n");
     }
 
+    /*  — projet fenetre lie en sous-systeme windows : rattache la
+     * console parente si l'exe est lance depuis un terminal, pour que Trace
+     * (printf) reste visible. Lancement par double-clic : no-op (pas de console
+     * parente), Trace tombe dans le vide (comportement GUI voulu). Vit dans
+     * owl_core (Win32-garde, no-op ailleurs) ; forward-declaree comme ses
+     * voisines. Emise uniquement en build GUI : un exe console a deja sa
+     * console. */
+    if (projetIsGui) {
+        fprintf(out,
+            "void owl_attach_parent_console_if_any(void);\n\n");
+    }
+
     if (declaresService) {
         /*  — main de montage SERVEUR. Le projet declare un ServiceREST :
          * au lieu d'un project_run() one-shot (qui finirait le top-level et
@@ -1095,7 +1118,15 @@ int build_project(const char* dir, const char* outputName,
             "}\n");
     } else {
         fprintf(out,
-            "int main(void) {\n"
+            "int main(void) {\n");
+        /*  — build GUI (sous-systeme windows) : rattache la console
+         * parente au tout debut, avant tout output, pour router Trace vers le
+         * terminal lanceur le cas echeant. Non emise en build console. */
+        if (projetIsGui) {
+            fprintf(out,
+            "    owl_attach_parent_console_if_any();\n");
+        }
+        fprintf(out,
             "    owl_force_utf8_console();\n"
             "    vm_init();\n"
             "    Project project;\n"
@@ -1469,6 +1500,16 @@ int build_project(const char* dir, const char* outputName,
      * Si zig (lld), traduit -Wl,-subsystem,X -> -Wl,--subsystem,X (lld
      * syntax vs GNU ld). */
     if (link_flags) {
+        /*  — projet fenetre : bascule le sous-systeme console (herite de
+         * owl.exe, l'outil CLI) en windows pour que le double-clic n'ouvre pas de
+         * console residuelle. "console" et "windows" font 7 caracteres : remplace
+         * en place. La traduction lld plus bas (-Wl,-subsystem,X ->
+         * -Wl,--subsystem,X) s'applique ensuite sans changement. Projet non
+         * fenetre (CLI / ServiceREST) : rien ne change, reste console. */
+        if (projetIsGui) {
+            char* p = strstr(link_flags, "-Wl,-subsystem,console");
+            if (p != NULL) memcpy(p + strlen("-Wl,-subsystem,"), "windows", 7);
+        }
         if (useZig) {
             char* p = link_flags;
             while ((p = strstr(p, "-Wl,-subsystem,")) != NULL) {

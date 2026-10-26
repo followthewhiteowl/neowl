@@ -113,6 +113,18 @@ static bool contient_octet(const char* buf, size_t len, unsigned char octet) {
     return false;
 }
 
+/* Nombre d'occurrences (non chevauchantes au sens strict mais ici les motifs
+ * de trame sont assez longs pour que ca n'arrive pas) d'un motif d'octets dans
+ * le tampon. Binary-safe. Sert a compter 2x PUBREC vs 1x PUBCOMP. */
+static int compte_motif(const char* buf, size_t len, const char* motif, size_t mlen) {
+    if (mlen == 0 || len < mlen) return 0;
+    int n = 0;
+    for (size_t i = 0; i + mlen <= len; i++) {
+        if (memcmp(buf + i, motif, mlen) == 0) n++;
+    }
+    return n;
+}
+
 /* ================================================================
  * Handshake CONNECT/CONNACK + DISCONNECT contre un broker mock.
  * ================================================================ */
@@ -858,6 +870,141 @@ static void famille_attend(void) {
 }
 
 /* ================================================================
+ * Réception QoS 2 exactly-once — dédup d'un PUBLISH DUP.
+ *
+ * Verrouille en test permanent déterministe la dédup côté réception :
+ * sur une connexion abonnée, le broker livre un PUBLISH QoS 2 (pid 5)
+ * PUIS le retransmet avec DUP=1 (notre PUBREC supposé perdu — cas réseau
+ * MQTT standard), PUIS relance par un PUBREL. Le contrat  :
+ *   - le handler abonné est appelé EXACTEMENT 1 fois (le DUP ne re-livre
+ *     pas : exactly-once applicatif) ;
+ *   - côté fil, le client émet 2× PUBREC (un par PUBLISH reçu, DUP compris)
+ *     puis 1× PUBCOMP (clôture du handshake sur réception du PUBREL).
+ *
+ * Tout est piloté par des trames broker pré-empilées (modèle bundle
+ * one-shot) : un seul tick du réacteur frame les 2 PUBLISH + le PUBREL et
+ * déclenche les réponses du client -> parfaitement déterministe.
+ *
+ * Le comportement EXISTE DÉJÀ (mqtt_traite_publish + fenêtre qos2_rx_pids) :
+ * cette famille passe VERT immédiatement. Un rouge = dédup cassée.
+ *
+ * PUBLISH QoS 2 : byte0 = 0x30 | (2<<1) = 0x34 ; +DUP(0x08) = 0x3C.
+ * remLen = 2 (préfixe sujet) + 10 (sujet) + 2 (packet-id) + 5 (charge) = 19 = 0x13.
+ * ================================================================ */
+
+#define QOS2_SUJET  "sujet/test"    /* 10 octets (= SUB_SUJET) */
+#define QOS2_CHARGE "hello"         /* 5 octets */
+
+/* CONNACK + SUBACK(pid1, accordé QoS2) + PUBLISH QoS2(pid5) +
+ * PUBLISH QoS2 DUP(pid5) + PUBREL(pid5). */
+static const char QOS2_BUNDLE[] = {
+    0x20, 0x02, 0x00, 0x00,                          /* CONNACK accepte */
+    (char)0x90, 0x03, 0x00, 0x01, 0x02,              /* SUBACK pid=1 accorde=QoS2 */
+    0x34, 0x13, 0x00, 0x0A,                           /* PUBLISH QoS2 pid=5 */
+    's','u','j','e','t','/','t','e','s','t',          /* sujet */
+    0x00, 0x05,                                       /* packet-id = 5 */
+    'h','e','l','l','o',                              /* charge */
+    0x3C, 0x13, 0x00, 0x0A,                           /* PUBLISH QoS2 DUP=1 pid=5 */
+    's','u','j','e','t','/','t','e','s','t',          /* sujet (identique) */
+    0x00, 0x05,                                       /* packet-id = 5 (même) */
+    'h','e','l','l','o',                              /* charge (identique) */
+    0x62, 0x02, 0x00, 0x05                            /* PUBREL pid=5 */
+};
+
+static void cas_qos2_reception_dedup(void) {
+    static const char* CLIENT_ID = "owl-qos2-rx";
+
+    vm_init();
+
+    OwlMockPeerConfig mc;
+    owl_mock_peer_config_defaut(&mc);
+    mc.role                  = OWL_MOCK_ROLE_ECOUTE;
+    mc.port                  = 0;
+    mc.octets                = QOS2_BUNDLE;
+    mc.octets_len            = sizeof(QOS2_BUNDLE);
+    mc.decoupe               = OWL_MOCK_DECOUPE_BLOC;
+    mc.octets_min_lecture    = 12;
+    mc.lire_apres_ecriture   = 1;
+    mc.timeout_lecture_ms    = 2000;
+    mc.fermer_apres_ecriture = 1;
+
+    OwlMockPeer* broker = owl_mock_peer_demarre(&mc);
+    CHECK(broker != NULL, "qos2_broker_demarre");
+    if (broker == NULL) { vm_free(); return; }
+    int port = owl_mock_peer_port(broker);
+
+    char src[1000];
+    snprintf(src, sizeof(src),
+        "gQAppels est un entier = 0\n"
+        "gQSujet est une chaine = \"\"\n"
+        "gQCharge est une chaine = \"\"\n"
+        "PROCEDURE gQRecoit(sess est un mqttSession, sujet est une chaine, msg est un Buffer)\n"
+        "    gQAppels = gQAppels + 1\n"
+        "    gQSujet = sujet\n"
+        "    gQCharge = msg\n"
+        "FIN\n"
+        "gSess est un mqttSession\n"
+        "gSess..Adresse = \"127.0.0.1\"\n"
+        "gSess..Port = %d\n"
+        "gSess..IDClient = \"%s\"\n"
+        "gConn est un booleen = MQTTConnecte(gSess)\n"
+        "gAb est un booleen = Faux\n"
+        "SI gConn ALORS\n"
+        "    gAb = MQTTAbonne(gSess, \"%s\", mqttQualiteExactementUneFois, gQRecoit)\n"
+        "FIN\n",
+        port, CLIENT_ID, QOS2_SUJET);
+
+    InterpretResult ir = vm_interpret(src);
+    CHECK(ir == INTERPRET_OK, "qos2_harnais_execute");
+    CHECK(lit_globale_bool("gConn"), "qos2_connecte");
+    CHECK(lit_globale_bool("gAb"), "qos2_abonne");
+
+    Value session;
+    CHECK(lit_globale("gSess", &session) && IS_INSTANCE(session), "qos2_session_lue");
+
+    OwlReacteur* r = owl_mqtt_reacteur_session(session);
+    CHECK(r != NULL, "qos2_reacteur_session");
+
+    /* Un tick frame tout le bundle (2 PUBLISH pid 5 + PUBREL) et déclenche les
+     * réponses du client. La dédup ne doit livrer qu'au PREMIER PUBLISH. */
+    if (r) owl_reacteur_tick(r, 2000);
+
+    /* Coeur  : le PUBLISH DUP ne re-livre pas -> handler appelé 1 fois. */
+    int64_t appels = -1;
+    CHECK(lit_globale_entier("gQAppels", &appels) && appels == 1,
+          "qos2_handler_appele_une_seule_fois");
+    {
+        const char* sujet  = lit_globale_chaine("gQSujet");
+        const char* charge = lit_globale_chaine("gQCharge");
+        CHECK(sujet != NULL && strcmp(sujet, QOS2_SUJET) == 0,
+              "qos2_handler_recoit_le_sujet");
+        CHECK(charge != NULL && strcmp(charge, QOS2_CHARGE) == 0,
+              "qos2_handler_recoit_la_charge");
+    }
+
+    owl_mqtt_ferme(session);
+    owl_mock_peer_joint(broker);
+
+    /* Côté fil : 2× PUBREC (0x50 pid5, un par PUBLISH reçu DUP compris) et
+     * 1× PUBCOMP (0x70 pid5, émis sur réception du PUBREL). */
+    size_t rlen = 0;
+    const char* recu = owl_mock_peer_recu(broker, &rlen);
+    static const char PUBREC[]  = { 0x50, 0x02, 0x00, 0x05 };
+    static const char PUBCOMP[] = { 0x70, 0x02, 0x00, 0x05 };
+    CHECK(compte_motif(recu, rlen, PUBREC, sizeof(PUBREC)) == 2,
+          "qos2_deux_pubrec_emis");
+    CHECK(compte_motif(recu, rlen, PUBCOMP, sizeof(PUBCOMP)) == 1,
+          "qos2_un_pubcomp_emis");
+
+    owl_mock_peer_libere(broker);
+    vm_free();
+}
+
+static void famille_qos2_reception(void) {
+    cas_qos2_reception_dedup();
+}
+
+/* ================================================================
  * Matching de filtre de sujet MQTT 3.1.1 §4.7 — fonction
  * PURE (aucun reseau). Garde rapide du routage de livraison : sans elle,
  * un filtre wildcard (`owl/#`) ne matche jamais un sujet concret
@@ -911,6 +1058,10 @@ int mqtt_connexion_self_test_run(void) {
 
     famille_attend();
     printf("   pompe MQTTAttend (livraison + connexion/raccrochage) : %d/%d\n",
+           g_pass, g_pass + g_fail);
+
+    famille_qos2_reception();
+    printf("   réception QoS 2 exactly-once (dédup PUBLISH DUP) : %d/%d\n",
            g_pass, g_pass + g_fail);
 
     famille_topic_match();

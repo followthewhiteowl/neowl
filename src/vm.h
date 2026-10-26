@@ -432,4 +432,11 @@ int owl_matrix_arith_error_code(MatArithStatus st);
  * (subject to GC) — don't cache raw pointers across VM operations. */
 ObjString* value_to_string(Value value);
 
+/*  — lit/ecrit la liste par defaut (`..Contenu`, chaine LF) d'une
+ * COLONNE combo a partir de son proxy-colonne (`TABLE.COL`). Memes stockage et
+ * effets de bord que la propriete `..Contenu` colonne. Retourne false si
+ * `proxy` n'est pas une instance proxy-colonne exploitable. */
+bool owl_vm_table_colproxy_content_get(Value proxy, Value* out);
+bool owl_vm_table_colproxy_content_set(Value proxy, Value strVal);
+
 #endif

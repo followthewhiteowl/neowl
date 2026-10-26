@@ -3354,6 +3354,15 @@ static void dump_doc_html(const char* tplPath) {
         firstObj = false;
         printf("{\"kind\":\"reference\",\"name\":");
         doc_emit_guide_title(stdout, g->name, g->data, g->len);
+        /* titre EN cherchable : seulement si le guide a une variante EN
+         * appariee par stem (meme source que GUIDES[stem].titleEN). Un guide
+         * FR-only ne recoit aucune cle "en" (fallback recherche sur le nom FR). */
+        for (const OwlEmbeddedDoc* e = EMBEDDED_PUBLIC_DOCS_EN; e->name; e++) {
+            if (strcmp(e->name, g->name) == 0) {
+                printf(",\"en\":"); doc_emit_guide_title(stdout, e->name, e->data, e->len);
+                break;
+            }
+        }
         printf(",\"ascii\":"); json_escape(stdout, g->name);
         printf(",\"cat\":");   json_escape(stdout, "Guide");
         doc_emit_cat_en("Guide");
@@ -5909,9 +5918,9 @@ static int owl_new_generate_champ(const char* sub, const char* name,
             name, est, chp,
             prop, larg, haut, fin,
             L("est une", "is a"), L("colonne", "Column"),
-            prop, L("Titre", "Title"), L("Nom", "Name"), larg, fin, fin,
+            prop, L("Libellé", "Caption"), L("Nom", "Name"), larg, fin, fin,
             L("est une", "is a"), L("colonne", "Column"),
-            prop, L("Titre", "Title"), L("Valeur", "Value"), larg, fin, fin,
+            prop, L("Libellé", "Caption"), L("Valeur", "Value"), larg, fin, fin,
             L("surChangementSelection", "onSelectionChange"), fin, fin);
         return 0;
     }

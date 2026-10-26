@@ -835,8 +835,15 @@ static Token scan_string(Scanner* s) {
             break;  /* true closing quote */
         }
         if (peek(s) == '\n') {
-            s->line++;
-            s->column = 0;
+            /* "..." est mono-ligne strict : un saut de ligne avant le "
+             * fermant = chaine non terminee, pointee sur le " ouvrant (la
+             * vraie cause). On NE consomme PAS le \n pour que le scanner
+             * resynchronise sur le debut de la ligne suivante (pas de
+             * cascade). Le multi-ligne passe par [ … ] / backticks. */
+            Token tok = error_token_registry(s, E_LEX_UNTERMINATED_STRING, NULL);
+            tok.line = openLine;
+            tok.column = openColumn;
+            return tok;
         }
         advance(s);
     }

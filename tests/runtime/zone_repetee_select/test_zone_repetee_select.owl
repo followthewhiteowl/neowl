@@ -1,0 +1,83 @@
+//  — famille canon de sélection du Champ ZoneRépétée :
+// ZoneRépétéeSelect (getter) / ZoneRépétéeSelectPlus (sélectionne) /
+// ZoneRépétéeSelectMoins (désélectionne) / ZoneRépétéeSelectOccurrence
+// (compte). Backend actuel = mono-sélection (m_currentRow) : SelectOccurrence
+// vaut 0 ou 1, pas plus.
+//
+// Rig GUI réel obligatoire (TestModeHeadless(Faux) + OuvreSoeur) : ces
+// natives pilotent le widget Qt réel (comme TableSelect/TableSelectPlus,
+// qui sont no-op en headless, uici->widget == NULL).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ZoneRepeteeSelect)
+
+// --- Aucune sélection au départ ------------------------------------------
+nRien est un entier = ZoneRépétéeSelect(ZR_Lignes)
+dbgVérifieEgalité(nRien, 0, "aucune répétition sélectionnée au départ : 0")
+
+nOccRien est un entier = ZoneRépétéeSelectOccurrence(ZR_Lignes)
+dbgVérifieEgalité(nOccRien, 0, "SelectOccurrence : 0 répétition sélectionnée au départ")
+
+// --- Sélection ------------------------------------------------------------
+ZoneRépétéeSelectPlus(ZR_Lignes, 2)
+
+nApresSelect est un entier = ZoneRépétéeSelect(ZR_Lignes)
+dbgVérifieEgalité(nApresSelect, 2, "ZoneRépétéeSelect rend l'indice de la répétition sélectionnée")
+
+nOccApresSelect est un entier = ZoneRépétéeSelectOccurrence(ZR_Lignes)
+dbgVérifieEgalité(nOccApresSelect, 1, "SelectOccurrence : 1 répétition sélectionnée (mono)")
+
+// --- Le paramètre <Rang> du getter : rang 1 rend la répétition
+// sélectionnée, un rang au-delà du nombre de répétitions sélectionnées
+// rend 0 (aucune répétition supplémentaire à ce rang, mono-sélection). ---
+nRang1 est un entier = ZoneRépétéeSelect(ZR_Lignes, 1)
+dbgVérifieEgalité(nRang1, 2, "ZoneRépétéeSelect(champ, 1) : rang 1 rend la seule répétition sélectionnée")
+
+nRang2 est un entier = ZoneRépétéeSelect(ZR_Lignes, 2)
+dbgVérifieEgalité(nRang2, 0, "ZoneRépétéeSelect(champ, 2) : pas de 2e répétition sélectionnée (mono) : 0")
+
+// --- Changer la sélection (mono : remplace, ne cumule pas) ---------------
+ZoneRépétéeSelectPlus(ZR_Lignes, 1)
+
+nApresChangement est un entier = ZoneRépétéeSelect(ZR_Lignes)
+dbgVérifieEgalité(nApresChangement, 1, "ZoneRépétéeSelectPlus sur un nouvel indice remplace la sélection (mono)")
+
+nOccApresChangement est un entier = ZoneRépétéeSelectOccurrence(ZR_Lignes)
+dbgVérifieEgalité(nOccApresChangement, 1, "SelectOccurrence reste à 1 après remplacement de la sélection (mono)")
+
+// --- SelectMoins sur un indice qui n'est PAS la sélection courante :
+// pas d'effet. -------------------------------------------------------------
+ZoneRépétéeSelectMoins(ZR_Lignes, 3)
+
+nApresMoinsAutreIndice est un entier = ZoneRépétéeSelect(ZR_Lignes)
+dbgVérifieEgalité(nApresMoinsAutreIndice, 1, "SelectMoins sur un indice non sélectionné ne change rien")
+
+// --- Désélection -----------------------------------------------------------
+ZoneRépétéeSelectMoins(ZR_Lignes, 1)
+
+nApresDeselect est un entier = ZoneRépétéeSelect(ZR_Lignes)
+dbgVérifieEgalité(nApresDeselect, 0, "ZoneRépétéeSelectMoins désélectionne : retour à 0")
+
+nOccApresDeselect est un entier = ZoneRépétéeSelectOccurrence(ZR_Lignes)
+dbgVérifieEgalité(nOccApresDeselect, 0, "SelectOccurrence retombe à 0 après désélection")
+
+// --- Bilinguisme FR/EN : LooperSelected / LooperSelectPlus /
+// LooperSelectMinus / LooperSelectCount. ----------------------------------
+LooperSelectPlus(ZR_Lignes, 3)
+
+nEN est un entier = LooperSelected(ZR_Lignes)
+nFR est un entier = ZoneRépétéeSelect(ZR_Lignes)
+dbgVérifieEgalité(nEN, nFR, "LooperSelected et ZoneRépétéeSelect résolvent identiquement")
+
+nOccEN est un entier = LooperSelectCount(ZR_Lignes)
+nOccFR est un entier = ZoneRépétéeSelectOccurrence(ZR_Lignes)
+dbgVérifieEgalité(nOccEN, nOccFR, "LooperSelectCount et ZoneRépétéeSelectOccurrence résolvent identiquement")
+
+LooperSelectMinus(ZR_Lignes, 3)
+
+nEN2 est un entier = LooperSelected(ZR_Lignes)
+dbgVérifieEgalité(nEN2, 0, "LooperSelectMinus désélectionne, comme ZoneRépétéeSelectMoins")
+
+Ferme(FEN_ZoneRepeteeSelect)
+dbgBilanTest()

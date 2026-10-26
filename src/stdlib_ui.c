@@ -1807,6 +1807,8 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
                     bool colVisible = true;  /* defaut Vrai comme un controle */
                     bool colEditable = true; /* Etat = Actif par defaut */
                     const char* colMask = NULL;  /*  — masque declare */
+                    const char* colDispMask = NULL; /*  — masque d'affichage */
+                    const char* colComboContent = NULL; /*  — liste combo */
                     for (int pi = 0; pi < col->property_count; pi++) {
                         const OwlPropertyInit* p = &col->properties[pi];
                         if (!p->is_constant) continue;
@@ -1821,9 +1823,24 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
                              * du delegate colonne le posera sur l'editeur de cellule. */
                             if (IS_STRING(p->const_value))
                                 colMask = AS_CSTRING(p->const_value);
+                        } else if (strcasecmp(p->name, "MasqueAffichage") == 0
+                                || strcasecmp(p->name, "DisplayMask") == 0) {
+                            /*  — masque d'affichage declare sur la colonne :
+                             * cable jusqu'au widget (col_dispmask_<col0>), lu au rendu
+                             * par owl_ui_format_cell_typed pour primer sur le format
+                             * defaut/projet des cellules Date/Heure/Duree. */
+                            if (IS_STRING(p->const_value))
+                                colDispMask = AS_CSTRING(p->const_value);
                         } else if (strcasecmp(p->name, "Type") == 0) {
                             if (IS_INTEGER(p->const_value))
                                 colType = (int)AS_INTEGER(p->const_value);
+                        } else if (strcasecmp(p->name, "Contenu") == 0
+                                || strcasecmp(p->name, "Content") == 0) {
+                            /*  — liste par defaut d'une colonne combo
+                             * (colTypeCombo) : cablee jusqu'au widget pour peupler
+                             * le deroulant permanent de chaque cellule. */
+                            if (IS_STRING(p->const_value))
+                                colComboContent = AS_CSTRING(p->const_value);
                         } else if (strcasecmp(p->name, "Largeur") == 0
                                 || strcasecmp(p->name, "Width") == 0) {
                             if (IS_INTEGER(p->const_value))
@@ -1848,6 +1865,18 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
                      * vide (string presente) ; absente le donne aussi. */
                     if (!title) title = "";
                     owl_ui_table_add_column(widget, title, colType, colWidth);
+                    /*  — masque d'affichage override colonne : pose la
+                     * dynamic property lue au rendu (col_dispmask_<col0>). Avant la
+                     * resolution du delegate ci-dessous (set_column_format) qui
+                     * installe le delegate colonne. */
+                    if (colDispMask && colDispMask[0])
+                        owl_ui_table_set_column_display_mask(widget, ci + 1,
+                                                             colDispMask);
+                    /*  — colonne combo : pousse la liste par defaut au
+                     * widget (lue a la creation des cellules combo). */
+                    if (colType == OWL_COL_TYPE_COMBO)
+                        owl_ui_table_set_column_combo_content(
+                            widget, ci + 1, colComboContent ? colComboContent : "");
                     /* Visible=Faux : masque la colonne (col_1based = ci+1) sans
                      * la retirer du modele — column_count reste inchange, les
                      * donnees ne se decalent pas. */
@@ -3295,9 +3324,16 @@ static void fmn_format_currency(__int128 cents, const FmnConfig* f,
  * __DebugTableCelluleTexteAffiche. col_type = OWL_COL_TYPE_* ; le name NULL force
  * la resolution defaut/projet uniquement (aucun champ Saisie associe). */
 void owl_ui_format_cell_typed(int col_type, const char* raw,
+                              const char* display_mask,
                               char* out, size_t outsz) {
     if (out == NULL || outsz == 0) return;
     if (raw == NULL) raw = "";
+    /*  — override MasqueAffichage par colonne : s'il est pose (non
+     * vide), il PRIME sur le format defaut/projet pour les cellules typees
+     * Date/Heure/Duree. NULL/vide -> comportement defaut/projet inchange.
+     * Num/Monetaire : non pilotes par un masque de jetons (miroir du champ
+     * Saisie, qui ne resout MasqueAffichage que sur Date/Heure/Duree). */
+    bool hasOverride = (display_mask != NULL && display_mask[0] != '\0');
     if (col_type == OWL_COL_TYPE_NUMERIQUE) {
         FnbConfig cfg;
         if (input_num_format_by_name(NULL, &cfg) && fnb_active(&cfg)) {
@@ -3324,7 +3360,8 @@ void owl_ui_format_cell_typed(int col_type, const char* raw,
          * travaille en (y,m,d) purs C -> aucune alloc OWL, pas de rooting
          *. Non parseable -> repli plat (raw inchange). */
         const char* proj = compiler_projet_format_date();
-        const char* mask = (proj != NULL && proj[0] != '\0') ? proj : "JJ/MM/AAAA";
+        const char* mask = hasOverride ? display_mask
+                         : ((proj != NULL && proj[0] != '\0') ? proj : "JJ/MM/AAAA");
         int y = 0, m = 0, d = 0, err = 0;
         int rlen = (int)strlen(raw), mlen = (int)strlen(mask);
         bool ok = owl_date_parse_with_mask(raw, rlen, mask, mlen, &y, &m, &d);
@@ -3339,7 +3376,8 @@ void owl_ui_format_cell_typed(int col_type, const char* raw,
          * HHMMSS[CC] / HH:MM[:SS...]) comme input_typed_get. (hh,mi,sec,cs) purs
          * C -> pas de rooting. Non parseable -> repli plat. */
         const char* proj = compiler_projet_format_heure();
-        const char* mask = (proj != NULL && proj[0] != '\0') ? proj : "HH:MI";
+        const char* mask = hasOverride ? display_mask
+                         : ((proj != NULL && proj[0] != '\0') ? proj : "HH:MI");
         int hh = 0, mi = 0, sec = 0, cs = 0;
         int rlen = (int)strlen(raw), mlen = (int)strlen(mask);
         bool ok = owl_time_parse_with_mask(raw, rlen, mask, mlen, &hh, &mi, &sec, &cs);
@@ -3355,7 +3393,8 @@ void owl_ui_format_cell_typed(int col_type, const char* raw,
          * set-path Saisie). totalMs pur C -> pas de rooting. Non parseable ->
          * repli plat. */
         const char* proj = compiler_projet_format_duree();
-        const char* mask = (proj != NULL && proj[0] != '\0') ? proj : "HH:MI:SS";
+        const char* mask = hasOverride ? display_mask
+                         : ((proj != NULL && proj[0] != '\0') ? proj : "HH:MI:SS");
         int64_t ms = 0;
         int derr = 0, rlen = (int)strlen(raw), mlen = (int)strlen(mask);
         bool ok = owl_duree_parse_with_mask(raw, rlen, mask, mlen, &ms);
@@ -3930,16 +3969,13 @@ static Value real_ui_get_prop(ObjUiControl* c, const char* prop) {
         if (strcasecmp(prop, "Zoom") == 0)
             return INTEGER_VAL(owl_ui_list_get_zoom(w));
     }
-    /* Champ ZoneRepetee — Occurrence / LigneSelectionnee / Sens / Multiselection. */
+    /* Champ ZoneRepetee — Occurrence / Sens / Multiselection. La selection se
+     * pilote via la famille canon ZoneRepeteeSelect/SelectPlus/SelectMoins. */
     if (kind == OWL_CONTROL_ZONE_REPETEE) {
         if (strcasecmp(prop, "Occurrence") == 0)
             return INTEGER_VAL(owl_ui_zr_count(w));
         if (strcasecmp(prop, "Vide") == 0 || strcasecmp(prop, "Empty") == 0)
             return BOOL_VAL(owl_ui_zr_count(w) == 0);
-        if (strcasecmp(prop, "LigneS\xc3\xa9lectionn\xc3\xa9""e") == 0 ||
-            strcasecmp(prop, "LigneSelectionnee") == 0 ||
-            strcasecmp(prop, "SelectedRow") == 0)
-            return INTEGER_VAL(owl_ui_zr_get_selected(w));
         if (strcasecmp(prop, "Sens") == 0 || strcasecmp(prop, "Direction") == 0)
             return INTEGER_VAL(OWL_ZRSENS_VERTICAL);
         if (strcasecmp(prop, "Multis\xc3\xa9lection") == 0 ||
@@ -6296,14 +6332,9 @@ static bool real_ui_set_prop(ObjUiControl* c, const char* prop, Value v) {
         return true;
     }
 
-    /* ZR — props directes (LigneSelectionnee/Sens/Multiselection). */
+    /* ZR — props directes (Sens/Multiselection). La selection se pilote via la
+     * famille canon ZoneRepeteeSelect/SelectPlus/SelectMoins. */
     if (kind == OWL_CONTROL_ZONE_REPETEE) {
-        if (strcasecmp(prop, "LigneS\xc3\xa9lectionn\xc3\xa9""e") == 0 ||
-            strcasecmp(prop, "LigneSelectionnee") == 0 ||
-            strcasecmp(prop, "SelectedRow") == 0) {
-            if (IS_INTEGER(v)) owl_ui_zr_set_selected(w, (int)AS_INTEGER(v));
-            return true;
-        }
         if (strcasecmp(prop, "Sens") == 0 || strcasecmp(prop, "Direction") == 0) {
             /* zrVertical est l'unique valeur : affectation acceptee (declaratif
              * ou runtime), sans effet sur le layout deja vertical. */
@@ -12480,6 +12511,25 @@ int owl_ui_table_col_is_filtered(OwlControl* tableWidget, int col0) {
     return table_filters_index_of(filters, col) >= 0 ? 1 : 0;
 }
 
+/*  — pont Qt -> runtime : l'utilisateur a change la selection d'un combo
+ * de cellule. Ecrit la valeur choisie dans le store ligne-first (source de verite
+ * de TABLE[l].COL), miroir du reste de la Table. row0/col0 = index 0-based. La cle
+ * de cellule est le nom de colonne accents strippes (invariant 2), identique a
+ * celle posee par table_build_headless_rep. No-op hors fenetre / colonne / ligne
+ * inconnue. */
+void owl_ui_table_user_combo_changed(OwlControl* tableWidget, int row0,
+                                     int col0, const char* text) {
+    ObjUiControlInstance* uici = current_window_uici_by_widget((void*)tableWidget);
+    if (!uici) return;
+    char col[256];
+    if (!table_column_name_at(uici, col0, col, sizeof col)) return;
+    ObjArray* items = widget_items_store_peek_uici(uici);
+    if (!items || row0 < 0 || row0 >= items->elements.count) return;
+    Value rv = items->elements.values[row0];
+    if (!IS_INSTANCE(rv)) return;
+    inst_field_set_str(AS_INSTANCE(rv), col, text ? text : "");
+}
+
 /*  — seuil de cardinalite au-dela duquel une colonne n'a pas de
  * checklist (calcul des distinctes borne, popup non proposee). Le test envoie
  * 150 valeurs distinctes ; tout seuil <= 149 verrouille le comportement. */
@@ -13263,6 +13313,56 @@ static void table_fmt_applied_impl(ObjInstance* rep, const char* col,
     OwlControl* widget = (OwlControl*)uici->widget;
     if (!widget) return;
 
+    /*  — override de liste d'une colonne combo (`..Contenu`). Repeuple le
+     * deroulant permanent : par CELLULE (rep de ligne) ou par COLONNE (holder
+     * $colfmt). La valeur selectionnee de chaque cellule est preservee par
+     * owl_ui_table_set_cell_combo_content. */
+    if (strcasecmp(propCanon, "Contenu") == 0
+     || strcasecmp(propCanon, "Content") == 0) {
+        if (col[0] == '\0') return;
+        int colIdx = table_col_index_stripped(uici, col);
+        if (colIdx <= 0) return;
+        const char* lst = IS_STRING(v) ? AS_CSTRING(v) : "";
+        Value holderV;
+        bool isHolder =
+            obj_ui_control_instance_headless_get(uici,
+                                                 OWL_TABLE_COLFMT_HOLDER_KEY,
+                                                 &holderV)
+            && IS_INSTANCE(holderV) && AS_INSTANCE(holderV) == rep;
+        ObjArray* items = widget_items_store_peek_uici(uici);
+        if (isHolder) {
+            /* Niveau colonne : nouvelle liste par defaut + rebuild des cellules.
+             * Precedence (contrat ) : une cellule qui porte son PROPRE
+             * override ($fmt.<col>.Contenu sur sa rep) garde SA liste ; seules les
+             * cellules jamais surchargees suivent le nouveau defaut colonne. */
+            owl_ui_table_set_column_combo_content(widget, colIdx, lst);
+            char ovKey[320];
+            snprintf(ovKey, sizeof(ovKey), "%s.%s.Contenu",
+                     OWL_TABLE_FMT_KEY_PREFIX, col);
+            int rc = items ? items->elements.count : 0;
+            for (int r = 1; r <= rc; r++) {
+                Value rowV = items->elements.values[r - 1];
+                Value ov;
+                const char* cellList = NULL; /* NULL => fallback property colonne */
+                if (IS_INSTANCE(rowV)
+                 && instance_get_value(AS_INSTANCE(rowV), ovKey, &ov)
+                 && IS_STRING(ov))
+                    cellList = AS_CSTRING(ov);
+                owl_ui_table_set_cell_combo_content(widget, r, colIdx, cellList);
+            }
+            return;
+        }
+        int row = 0;
+        if (items)
+            for (int i = 0; i < items->elements.count; i++) {
+                Value it = items->elements.values[i];
+                if (IS_INSTANCE(it) && AS_INSTANCE(it) == rep) { row = i + 1; break; }
+            }
+        if (row == 0) return;
+        owl_ui_table_set_cell_combo_content(widget, row, colIdx, lst);
+        return;
+    }
+
     int bgr = -1, alpha = 255;
     owl_value_to_color(v, &bgr, &alpha);
     if (bgr < 0) return;
@@ -13304,6 +13404,10 @@ static void table_fmt_applied_impl(ObjInstance* rep, const char* col,
 static void table_colmask_applied_impl(void* widget, int col_1based,
                                        const char* wl_mask) {
     owl_ui_table_set_column_mask((OwlControl*)widget, col_1based, wl_mask);
+}
+static void table_coldispmask_applied_impl(void* widget, int col_1based,
+                                           const char* wl_mask) {
+    owl_ui_table_set_column_display_mask((OwlControl*)widget, col_1based, wl_mask);
 }
 static bool resolve_widget_items_target(Value v, const char* fnName,
                                         OwlControlKind k1, int k2,
@@ -13373,8 +13477,134 @@ static bool resolve_widget_items_target(Value v, const char* fnName,
      * n'a jamais ete materialise → caller traite comme count=0. */
     return true;
 }
+/*  — la colonne ciblee par un proxy-colonne est-elle de type
+ * colTypeCombo ? Parcourt les props de declaration (meme logique que la
+ * creation du widget, stdlib_ui.c ~1834). <col> est deja accent-strippe. */
+static bool table_column_is_combo(ObjUiControlInstance* uici, const char* col) {
+    if (!uici || !uici->decl || !col) return false;
+    const OwlControlDecl* d = uici->decl;
+    for (int ci = 0; ci < d->column_count; ci++) {
+        const char* cn = d->columns[ci].name;
+        if (!cn) continue;
+        char cstr[256];
+        int clen = scanner_strip_accents(cn, (int)strlen(cn), cstr, sizeof cstr);
+        if (clen <= 0 || clen >= (int)sizeof cstr) continue;
+        cstr[clen] = '\0';
+        if (strcasecmp(cstr, col) != 0) continue;
+        for (int pi = 0; pi < d->columns[ci].property_count; pi++) {
+            const OwlPropertyInit* p = &d->columns[ci].properties[pi];
+            if (!p->is_constant) continue;
+            if (strcasecmp(p->name, "Type") == 0 && IS_INTEGER(p->const_value))
+                return (int)AS_INTEGER(p->const_value) == OWL_COL_TYPE_COMBO;
+        }
+        return false;  /* colonne trouvee mais sans Type combo */
+    }
+    return false;
+}
+
+/*  — contexte d'une cible colonne combo resolue : permet aux natives
+ * mutantes de reserialiser la liste de travail vers le store `..Contenu`. */
+typedef struct {
+    bool                  isColumn;
+    Value                 proxy;   /* le proxy-colonne (TABLE.COL), rooté : arg natif */
+    ObjUiControlInstance* uici;
+    char                  col[256];
+} ComboColInfo;
+
+/*  — materialise une liste de travail (ObjArray d'ObjStrings) a partir
+ * de la liste par defaut EFFECTIVE de la colonne (`..Contenu`, chaine LF). Le
+ * tableau est range dans le store headless de la Table ($colwork.<col>), donc
+ * racine GC pour toute la duree de la native sans push/pop manuel aux multiples
+ * points de sortie. Toujours reconstruit depuis la chaine autoritative : aucune
+ * divergence possible avec un set `..Contenu =` intercale. */
+static ObjArray* combo_column_load_work(ObjUiControlInstance* uici,
+                                        const char* col, Value proxy) {
+    Value content = NIL_VAL;
+    owl_vm_table_colproxy_content_get(proxy, &content);
+    if (!IS_STRING(content)) content = OBJ_VAL(obj_copy_string("", 0));
+    vm_push(content);  /* root pendant le split (obj_copy_string par ligne -> GC) */
+    ObjArray* arr = obj_new_array();
+    vm_push(OBJ_VAL(arr));  /* root pendant le set + le split */
+    char key[288];
+    snprintf(key, sizeof key, "$colwork.%s", col);
+    obj_ui_control_instance_headless_set(uici, key, OBJ_VAL(arr));  /* racine store */
+    const char* s   = AS_CSTRING(content);
+    int         len = AS_STRING(content)->length;
+    if (len > 0) {
+        int start = 0;
+        for (int i = 0; i <= len; i++) {
+            if (i == len || s[i] == '\n') {
+                ObjString* line = obj_copy_string(s + start, i - start);
+                obj_array_push(arr, OBJ_VAL(line));  /* re-root canon */
+                start = i + 1;
+            }
+        }
+    }
+    vm_pop();  /* arr (desormais joignable via le store) */
+    vm_pop();  /* content */
+    return arr;
+}
+
+/*  — reserialise la liste de travail (jointe par LF) vers le store
+ * `..Contenu` de la colonne via le meme chemin que la propriete : holder +
+ * rebuild des cellules combo (owl_ui_table_fmt_applied). */
+static void combo_column_commit_work(Value proxy, ObjArray* arr) {
+    size_t total = 0;
+    for (int i = 0; i < arr->elements.count; i++) {
+        Value v = arr->elements.values[i];
+        if (i > 0) total += 1;  /* separateur LF */
+        if (IS_STRING(v)) total += (size_t)AS_STRING(v)->length;
+    }
+    char* buf = (char*)malloc(total + 1);
+    if (!buf) return;
+    size_t pos = 0;
+    for (int i = 0; i < arr->elements.count; i++) {
+        if (i > 0) buf[pos++] = '\n';
+        Value v = arr->elements.values[i];
+        if (IS_STRING(v)) {
+            int l = AS_STRING(v)->length;
+            memcpy(buf + pos, AS_CSTRING(v), (size_t)l);
+            pos += (size_t)l;
+        }
+    }
+    buf[pos] = '\0';
+    ObjString* joined = obj_copy_string(buf, (int)pos);
+    free(buf);
+    vm_push(OBJ_VAL(joined));  /* root pendant le set (holder grow / rebuild -> GC) */
+    owl_vm_table_colproxy_content_set(proxy, OBJ_VAL(joined));
+    vm_pop();
+}
+
 static bool resolve_list_target(Value v, const char* fnName, bool create,
-                                OwlControl** widget_out, ObjArray** items_out) {
+                                OwlControl** widget_out, ObjArray** items_out,
+                                ComboColInfo* cc) {
+    if (cc) cc->isColumn = false;
+    *widget_out = NULL;
+    *items_out  = NULL;
+    /*  — receveur colonne (proxy-colonne pose par OP_STRUCT_GET sur
+     * TABLE.COL). N'ouvre la famille ListeXxx qu'aux colonnes colTypeCombo ;
+     * toute autre colonne est rejetee proprement (meme erreur que les champs
+     * non Liste/Combo). */
+    ObjUiControlInstance* colUici = NULL;
+    char col[256];
+    if (table_colproxy_resolve(v, &colUici, col, sizeof col)) {
+        if (!table_column_is_combo(colUici, col)) {
+            owl_emit_native_error(E_NATIVE_ARG_TYPE_MISMATCH, fnName,
+                                  "arg", "1",
+                                  "expected", "Champ Liste ou Combo",
+                                  "actual", "colonne non combo",
+                                  NULL);
+            return false;
+        }
+        *items_out = combo_column_load_work(colUici, col, v);
+        if (cc) {
+            cc->isColumn = true;
+            cc->proxy    = v;
+            cc->uici     = colUici;
+            snprintf(cc->col, sizeof cc->col, "%s", col);
+        }
+        return (*items_out != NULL);
+    }
     return resolve_widget_items_target(v, fnName,
                                        OWL_CONTROL_LISTE, (int)OWL_CONTROL_COMBO,
                                        "Champ Liste ou Combo",
@@ -13399,7 +13629,8 @@ static Value fn_liste_ajoute(int argCount, Value* args) {
      * Sans <element> : ajoute une ligne vide. */
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
-    if (!resolve_list_target(args[0], "ListeAjoute", true, &widget, &items))
+    ComboColInfo cc;
+    if (!resolve_list_target(args[0], "ListeAjoute", true, &widget, &items, &cc))
         return NIL_VAL;
 
     ObjString *keepTxt = NULL, *keepStored = NULL, *keepImg = NULL;
@@ -13415,6 +13646,7 @@ static Value fn_liste_ajoute(int argCount, Value* args) {
         vm_push(sv);  /* value_array_write peut grow → GC */
         value_array_write(&items->elements, sv);
         vm_pop();
+        if (cc.isColumn) combo_column_commit_work(cc.proxy, items);
     }
     (void)keepTxt; (void)keepStored; (void)keepImg;
     return NIL_VAL;
@@ -13426,7 +13658,8 @@ static Value fn_liste_insere(int argCount, Value* args) {
     }
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
-    if (!resolve_list_target(args[0], "ListeInsere", true, &widget, &items))
+    ComboColInfo cc;
+    if (!resolve_list_target(args[0], "ListeInsere", true, &widget, &items, &cc))
         return NIL_VAL;
     if (!IS_INTEGER(args[1])) {
         fprintf(stderr, "[ListeInsere] indice doit etre un entier.\n");
@@ -13455,6 +13688,7 @@ static Value fn_liste_insere(int argCount, Value* args) {
                     (size_t)(items->elements.count - 1 - idx) * sizeof(Value));
             items->elements.values[idx] = sv;
         }
+        if (cc.isColumn) combo_column_commit_work(cc.proxy, items);
     }
     (void)keepTxt; (void)keepStored; (void)keepImg;
     return NIL_VAL;
@@ -13466,9 +13700,10 @@ static Value fn_liste_supprime(int argCount, Value* args) {
     }
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
+    ComboColInfo cc;
     /* create=false : Supprime sur liste vide est legitime no-op, pas besoin
      * de materialiser le store pour rien. */
-    if (!resolve_list_target(args[0], "ListeSupprime", false, &widget, &items))
+    if (!resolve_list_target(args[0], "ListeSupprime", false, &widget, &items, &cc))
         return NIL_VAL;
     if (!IS_INTEGER(args[1])) {
         fprintf(stderr, "[ListeSupprime] indice doit etre un entier.\n");
@@ -13487,6 +13722,7 @@ static Value fn_liste_supprime(int argCount, Value* args) {
                     (size_t)(items->elements.count - 1 - idx) * sizeof(Value));
         }
         items->elements.count--;
+        if (cc.isColumn) combo_column_commit_work(cc.proxy, items);
     }
     return NIL_VAL;
 }
@@ -13497,12 +13733,14 @@ static Value fn_liste_supprime_tout(int argCount, Value* args) {
     }
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
-    if (!resolve_list_target(args[0], "ListeSupprimeTout", false, &widget, &items))
+    ComboColInfo cc;
+    if (!resolve_list_target(args[0], "ListeSupprimeTout", false, &widget, &items, &cc))
         return NIL_VAL;
     if (widget != NULL) {
         owl_ui_listcombo_clear(widget);
     } else if (items != NULL) {
         items->elements.count = 0;  /* GC : valeurs orphelines, sweep les ramassera */
+        if (cc.isColumn) combo_column_commit_work(cc.proxy, items);
     }
     return NIL_VAL;
 }
@@ -13513,7 +13751,8 @@ static Value fn_liste_modifie(int argCount, Value* args) {
     }
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
-    if (!resolve_list_target(args[0], "ListeModifie", false, &widget, &items))
+    ComboColInfo cc;
+    if (!resolve_list_target(args[0], "ListeModifie", false, &widget, &items, &cc))
         return NIL_VAL;
     if (!IS_INTEGER(args[1])) {
         fprintf(stderr, "[ListeModifie] indice doit etre un entier.\n");
@@ -13534,6 +13773,7 @@ static Value fn_liste_modifie(int argCount, Value* args) {
         }
         Value sv = OBJ_VAL(obj_copy_string(txt ? txt : "", txt ? (int)strlen(txt) : 0));
         items->elements.values[idx] = sv;
+        if (cc.isColumn) combo_column_commit_work(cc.proxy, items);
     }
     (void)keepTxt; (void)keepStored; (void)keepImg;
     return NIL_VAL;
@@ -13551,7 +13791,7 @@ static Value fn_liste_cherche(int argCount, Value* args) {
     }
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
-    if (!resolve_list_target(args[0], "ListeCherche", false, &widget, &items))
+    if (!resolve_list_target(args[0], "ListeCherche", false, &widget, &items, NULL))
         return INTEGER_VAL(-1);
     ObjString* keep = NULL;
     const char* needle = list_value_to_text(args[1], &keep);
@@ -13578,7 +13818,7 @@ static Value fn_liste_occurrence(int argCount, Value* args) {
     if (argCount < 1) return INTEGER_VAL(0);
     OwlControl* widget = NULL;
     ObjArray* items   = NULL;
-    if (!resolve_list_target(args[0], "ListeOccurrence", false, &widget, &items))
+    if (!resolve_list_target(args[0], "ListeOccurrence", false, &widget, &items, NULL))
         return INTEGER_VAL(0);
     if (widget != NULL) return INTEGER_VAL(owl_ui_listcombo_count(widget));
     if (items  != NULL) return INTEGER_VAL(items->elements.count);
@@ -13589,8 +13829,11 @@ static Value fn_liste_trie(int argCount, Value* args) {
         fprintf(stderr, "[ListeTrie] (liste [, ordre]) attendu.\n");
         return NIL_VAL;
     }
-    OwlControl* lst = list_arg_or_error(args[0], "ListeTrie");
-    if (!lst) return NIL_VAL;
+    OwlControl* widget = NULL;
+    ObjArray* items   = NULL;
+    ComboColInfo cc;
+    if (!resolve_list_target(args[0], "ListeTrie", false, &widget, &items, &cc))
+        return NIL_VAL;
     /* ordre : si 2eme arg est entier <=0 -> descendant, sinon ascendant.
      * Defaut = ascendant. Canon accepte aussi "+nom" / "-nom" (en V2 si
      * besoin pour Liste multicolonne ; en V1 mono-colonne, juste un sens). */
@@ -13602,7 +13845,28 @@ static Value fn_liste_trie(int argCount, Value* args) {
             if (s && (s[0] == '-')) ascending = 0;
         }
     }
-    owl_ui_listcombo_sort(lst, ascending);
+    if (widget != NULL) {
+        owl_ui_listcombo_sort(widget, ascending);
+    } else if (items != NULL) {
+        /* Tri par insertion sur les ObjStrings du store (listes combo courtes,
+         * aucune allocation -> pas de souci GC). Comparaison lexicographique,
+         * sens choisi par <ascending>. */
+        for (int i = 1; i < items->elements.count; i++) {
+            Value key = items->elements.values[i];
+            const char* ks = IS_STRING(key) ? AS_CSTRING(key) : "";
+            int j = i - 1;
+            while (j >= 0) {
+                Value cur = items->elements.values[j];
+                const char* cs = IS_STRING(cur) ? AS_CSTRING(cur) : "";
+                int c = strcmp(cs, ks);
+                if (ascending ? (c <= 0) : (c >= 0)) break;
+                items->elements.values[j + 1] = items->elements.values[j];
+                j--;
+            }
+            items->elements.values[j + 1] = key;
+        }
+        if (cc.isColumn) combo_column_commit_work(cc.proxy, items);
+    }
     return NIL_VAL;
 }
 static int resolve_liste_idx(OwlControl* lst, int idx) {
@@ -14618,6 +14882,62 @@ static Value fn_zr_affiche(int argCount, Value* args) {
     (void)zr_arg_or_error(args[0], "ZoneRepeteeAffiche");
     return NIL_VAL;
 }
+
+/* ZoneRepeteeSelect(zr [, rang]) — getter de la selection (mono).
+ * Sans rang (ou rang 1) : indice 1-based de la repetition selectionnee
+ * (0 si aucune). rang >= 2 : 0 (une seule repetition selectionnee en mono). */
+static Value fn_zr_select(int argCount, Value* args) {
+    if (argCount < 1) return INTEGER_VAL(0);
+    OwlControl* zr = zr_arg_or_error(args[0], "ZoneRepeteeSelect");
+    if (!zr) return INTEGER_VAL(0);
+    int rang = 1;
+    if (argCount >= 2 && IS_INTEGER(args[1])) rang = (int)AS_INTEGER(args[1]);
+    int cur = owl_ui_zr_get_selected(zr);
+    return INTEGER_VAL(rang == 1 ? cur : 0);
+}
+
+/* ZoneRepeteeSelectPlus(zr, indice) — selectionne la repetition (mono : remplace). */
+static Value fn_zr_select_plus(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ZoneRepeteeSelectPlus] (zr, indice) attendu.\n");
+        return NIL_VAL;
+    }
+    OwlControl* zr = zr_arg_or_error(args[0], "ZoneRepeteeSelectPlus");
+    if (!zr) return NIL_VAL;
+    if (!IS_INTEGER(args[1])) {
+        fprintf(stderr, "[ZoneRepeteeSelectPlus] indice doit etre un entier (1-based).\n");
+        return NIL_VAL;
+    }
+    owl_ui_zr_set_selected(zr, (int)AS_INTEGER(args[1]));
+    return NIL_VAL;
+}
+
+/* ZoneRepeteeSelectMoins(zr, indice) — deselectionne la repetition si c'est la
+ * selection courante ; sans effet sinon (mono). */
+static Value fn_zr_select_moins(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ZoneRepeteeSelectMoins] (zr, indice) attendu.\n");
+        return NIL_VAL;
+    }
+    OwlControl* zr = zr_arg_or_error(args[0], "ZoneRepeteeSelectMoins");
+    if (!zr) return NIL_VAL;
+    if (!IS_INTEGER(args[1])) {
+        fprintf(stderr, "[ZoneRepeteeSelectMoins] indice doit etre un entier (1-based).\n");
+        return NIL_VAL;
+    }
+    if (owl_ui_zr_get_selected(zr) == (int)AS_INTEGER(args[1]))
+        owl_ui_zr_set_selected(zr, 0);
+    return NIL_VAL;
+}
+
+/* ZoneRepeteeSelectOccurrence(zr) — nombre de repetitions selectionnees
+ * (0 ou 1 en mono-selection). */
+static Value fn_zr_select_occurrence(int argCount, Value* args) {
+    if (argCount < 1) return INTEGER_VAL(0);
+    OwlControl* zr = zr_arg_or_error(args[0], "ZoneRepeteeSelectOccurrence");
+    if (!zr) return INTEGER_VAL(0);
+    return INTEGER_VAL(owl_ui_zr_get_selected(zr) > 0 ? 1 : 0);
+}
 extern ObjInstance* image_make_instance(OwlImage* img);  /* defini dans stdlib_image.c */
 
 /* Cherche "Largeur"/"Width" ou "Hauteur"/"Height" dans les properties
@@ -15100,6 +15420,34 @@ static Value fn_debug_table_cellule_texte_affiche(int argCount, Value* args) {
     if (!t) t = "";
     return OBJ_VAL(obj_copy_string(t, (int)strlen(t)));
 }
+/*  — __DebugTableCelluleComboOptions(champ, ligne, colonne) : options du
+ * deroulant permanent d'une cellule combo (jointes par LF), "" si pas de combo. */
+static Value fn_debug_table_cellule_combo_options(int argCount, Value* args) {
+    if (argCount < 3 || !IS_INTEGER(args[1]) || !IS_INTEGER(args[2]))
+        return OBJ_VAL(obj_copy_string("", 0));
+    ObjUiControlInstance* uici = copie_resolve_control(args[0]);
+    if (!uici || !uici->widget) return OBJ_VAL(obj_copy_string("", 0));
+    int row = (int)AS_INTEGER(args[1]);
+    int col = (int)AS_INTEGER(args[2]);
+    const char* o = owl_ui_table_cell_combo_options((OwlControl*)uici->widget,
+                                                    row, col);
+    if (!o) o = "";
+    return OBJ_VAL(obj_copy_string(o, (int)strlen(o)));
+}
+/*  — __DebugTableCelluleComboSelection(champ, ligne, colonne) : texte
+ * selectionne du deroulant d'une cellule combo, "" si pas de combo/selection. */
+static Value fn_debug_table_cellule_combo_selection(int argCount, Value* args) {
+    if (argCount < 3 || !IS_INTEGER(args[1]) || !IS_INTEGER(args[2]))
+        return OBJ_VAL(obj_copy_string("", 0));
+    ObjUiControlInstance* uici = copie_resolve_control(args[0]);
+    if (!uici || !uici->widget) return OBJ_VAL(obj_copy_string("", 0));
+    int row = (int)AS_INTEGER(args[1]);
+    int col = (int)AS_INTEGER(args[2]);
+    const char* s = owl_ui_table_cell_combo_selection((OwlControl*)uici->widget,
+                                                      row, col);
+    if (!s) s = "";
+    return OBJ_VAL(obj_copy_string(s, (int)strlen(s)));
+}
 extern void owl_ui_table_visible_column_values(OwlControl* table, int col0,
                                                char* out, int cap);
 
@@ -15418,6 +15766,46 @@ static int widget_items_count_qt(int kind, void* widget) {
     }
 }
 
+/*  — contenu LF d'un Champ Liste/Combo monte : labels des items
+ * VIVANTS du widget (ceux que ListeXxx mute et que ListeOccurrence compte),
+ * joints par LF. Source unique du getter ..Contenu, qui lisait un store de
+ * propriete separe que seul le setter ..Contenu alimentait. Buffer statique
+ * reutilise (mono-thread) ; owl_ui_listcombo_get_item recycle son propre
+ * tampon a chaque appel, d'ou la copie immediate de chaque label. */
+static char*  g_content_lf_buf = NULL;
+static size_t g_content_lf_cap = 0;
+static const char* widget_content_lf_qt(int kind, void* widget) {
+    if (kind != OWL_CONTROL_LISTE && kind != OWL_CONTROL_COMBO) return "";
+    OwlControl* w = (OwlControl*)widget;
+    int n = owl_ui_listcombo_count(w);
+    if (g_content_lf_cap == 0) {
+        g_content_lf_cap = 256;
+        g_content_lf_buf = (char*)malloc(g_content_lf_cap);
+        if (!g_content_lf_buf) { g_content_lf_cap = 0; return ""; }
+    }
+    g_content_lf_buf[0] = '\0';
+    size_t len = 0;
+    for (int i = 1; i <= n; i++) {
+        const char* item = owl_ui_listcombo_get_item(w, i);
+        if (!item) item = "";
+        size_t il = strlen(item);
+        size_t need = len + (i > 1 ? 1u : 0u) + il + 1u;
+        if (need > g_content_lf_cap) {
+            size_t nc = g_content_lf_cap * 2;
+            while (nc < need) nc *= 2;
+            char* nb = (char*)realloc(g_content_lf_buf, nc);
+            if (!nb) return g_content_lf_buf;  /* best effort : contenu partiel */
+            g_content_lf_buf = nb;
+            g_content_lf_cap = nc;
+        }
+        if (i > 1) g_content_lf_buf[len++] = '\n';
+        memcpy(g_content_lf_buf + len, item, il);
+        len += il;
+        g_content_lf_buf[len] = '\0';
+    }
+    return g_content_lf_buf;
+}
+
 static int headless_widget_items_count_uic_impl(ObjUiControl* uic) {
     ObjArray* arr = widget_items_store_peek_uic(uic);
     return arr ? arr->elements.count : 0;
@@ -15426,6 +15814,77 @@ static int headless_widget_items_count_uic_impl(ObjUiControl* uic) {
 static int headless_widget_items_count_uici_impl(ObjUiControlInstance* uici) {
     ObjArray* arr = widget_items_store_peek_uici(uici);
     return arr ? arr->elements.count : 0;
+}
+
+/*  — contenu LF du store items headless : items (ObjStrings) joints par
+ * LF, meme source que ListeOccurrence headless. Buffer statique dedie (distinct
+ * du buffer GUI g_content_lf_buf : headless et GUI n'empietent jamais). */
+static char*  g_hl_content_lf_buf = NULL;
+static size_t g_hl_content_lf_cap = 0;
+static const char* headless_content_lf_from_items(ObjArray* items) {
+    if (g_hl_content_lf_cap == 0) {
+        g_hl_content_lf_cap = 256;
+        g_hl_content_lf_buf = (char*)malloc(g_hl_content_lf_cap);
+        if (!g_hl_content_lf_buf) { g_hl_content_lf_cap = 0; return ""; }
+    }
+    g_hl_content_lf_buf[0] = '\0';
+    size_t len = 0;
+    int n = items ? items->elements.count : 0;
+    for (int i = 0; i < n; i++) {
+        Value v = items->elements.values[i];
+        const char* item = IS_STRING(v) ? AS_CSTRING(v) : "";
+        size_t il = strlen(item);
+        size_t need = len + (i > 0 ? 1u : 0u) + il + 1u;
+        if (need > g_hl_content_lf_cap) {
+            size_t nc = g_hl_content_lf_cap * 2;
+            while (nc < need) nc *= 2;
+            char* nb = (char*)realloc(g_hl_content_lf_buf, nc);
+            if (!nb) return g_hl_content_lf_buf;  /* best effort : contenu partiel */
+            g_hl_content_lf_buf = nb;
+            g_hl_content_lf_cap = nc;
+        }
+        if (i > 0) g_hl_content_lf_buf[len++] = '\n';
+        memcpy(g_hl_content_lf_buf + len, item, il);
+        len += il;
+        g_hl_content_lf_buf[len] = '\0';
+    }
+    return g_hl_content_lf_buf;
+}
+static const char* headless_content_lf_uic_impl(ObjUiControl* uic) {
+    return headless_content_lf_from_items(widget_items_store_peek_uic(uic));
+}
+static const char* headless_content_lf_uici_impl(ObjUiControlInstance* uici) {
+    return headless_content_lf_from_items(widget_items_store_peek_uici(uici));
+}
+
+/*  — remplace le store items headless par les lignes de `content`
+ * (split LF, CRLF tolere). Clear + re-seed : `..Contenu =` et ListeXxx portent
+ * la MEME liste en headless pur. Les obj_copy_string par ligne peuvent grow →
+ * GC, d'ou le root de chaque Value avant value_array_write. */
+static void headless_items_fill_from_content(ObjArray* items, const char* content) {
+    if (!items) return;
+    items->elements.count = 0;  /* clear : valeurs orphelines ramassees au sweep */
+    if (!content || !*content) return;
+    const char* p = content;
+    while (*p) {
+        const char* nl = strchr(p, '\n');
+        size_t len = nl ? (size_t)(nl - p) : strlen(p);
+        if (len > 0 && p[len - 1] == '\r') len--;  /* CRLF tolere */
+        Value sv = OBJ_VAL(obj_copy_string(p, (int)len));
+        vm_push(sv);
+        value_array_write(&items->elements, sv);
+        vm_pop();
+        if (!nl) break;
+        p = nl + 1;
+    }
+}
+static void headless_set_content_uic_impl(ObjUiControl* uic, const char* content) {
+    headless_items_fill_from_content(widget_items_store_get_or_create_uic(uic), content);
+}
+static void headless_set_content_uici_impl(ObjUiControlInstance* uici,
+                                           const char* content) {
+    headless_items_fill_from_content(widget_items_store_get_or_create_uici(uici),
+                                     content);
 }
 
 /* ============================================================
@@ -15562,6 +16021,8 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("__DebugTableCelluleMasque", fn_debug_table_cellule_masque);
     stdlib_ui_defs_set_impl("__DebugTableCelluleValideSaisie", fn_debug_table_cellule_valide_saisie);
     stdlib_ui_defs_set_impl("__DebugTableCelluleTexteAffiche", fn_debug_table_cellule_texte_affiche);
+    stdlib_ui_defs_set_impl("__DebugTableCelluleComboOptions", fn_debug_table_cellule_combo_options);
+    stdlib_ui_defs_set_impl("__DebugTableCelluleComboSelection", fn_debug_table_cellule_combo_selection);
     stdlib_ui_defs_set_impl("__DebugTableFiltreIN", fn_debug_table_filtre_in);
     stdlib_ui_defs_set_impl("__DebugTableColonneVisible", fn_debug_table_colonne_visible);
     stdlib_ui_defs_set_impl("__DebugTableValeursDistinctes", fn_debug_table_valeurs_distinctes);
@@ -15636,9 +16097,87 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("ZoneRepeteeSupprimeTout", fn_zr_supprime_tout);
     stdlib_ui_defs_set_impl("ZoneRepeteeOccurrence", fn_zr_occurrence);
     stdlib_ui_defs_set_impl("ZoneRepeteeAffiche", fn_zr_affiche);
+    stdlib_ui_defs_set_impl("ZoneRepeteeSelect", fn_zr_select);
+    stdlib_ui_defs_set_impl("ZoneRepeteeSelectPlus", fn_zr_select_plus);
+    stdlib_ui_defs_set_impl("ZoneRepeteeSelectMoins", fn_zr_select_moins);
+    stdlib_ui_defs_set_impl("ZoneRepeteeSelectOccurrence", fn_zr_select_occurrence);
     stdlib_ui_defs_set_impl("dCopieImageFenetre", fn_dCopieImageFenetre);
     stdlib_ui_defs_set_impl("dCopieImageChamp", fn_dCopieImageChamp);
     stdlib_ui_defs_set_impl("dCopieImageEcran", fn_dCopieImageEcran);
+}
+
+/* ====================================================================
+ *   — pont « Champ Image = cible de dessin directe ».
+ *
+ *  Dispatcher enregistré au core (stdlib_image.c) : résout une Value (ref /
+ *  instance de contrôle) vers un buffer OwlImage* dessinable attaché au Champ
+ *  Image, et pousse ce buffer au contrôle à l'écran. Le backing vit comme une
+ *  instance Image dans le store headless de l'uici (clé réservée, GC-tracé),
+ *  partagé par les modes headless (gate dPixelCouleur) et GUI (rendu live).
+ * ==================================================================== */
+
+#define OWL_IMAGE_FIELD_BACKING_KEY "$dessinBacking"
+
+/* Résout une Value vers l'uici d'un Champ Image, ou NULL si ce n'est pas un
+ * Champ Image. N'émet PAS d'erreur : le core retombe sur son message type
+ * mismatch quand le retour (backing) est NULL. */
+static ObjUiControlInstance* image_field_uici(Value v) {
+    ObjUiControlInstance* uici = NULL;
+    if (IS_UI_CONTROL_REF(v)) {
+        uici = resolve_ui_ref(AS_UI_CONTROL_REF(v));
+    } else if (IS_UI_CONTROL_INSTANCE(v)) {
+        uici = AS_UI_CONTROL_INSTANCE(v);
+    }
+    if (!uici || !uici->decl) return NULL;
+    if ((OwlControlKind)uici->decl->kind != OWL_CONTROL_IMAGE) return NULL;
+    return uici;
+}
+
+static OwlImage* image_field_backing_impl(Value v) {
+    ObjUiControlInstance* uici = image_field_uici(v);
+    if (!uici) return NULL;
+
+    /* Backing déjà créé (dessins antérieurs conservés) ? */
+    Value existing;
+    if (obj_ui_control_instance_headless_get(uici, OWL_IMAGE_FIELD_BACKING_KEY,
+                                             &existing)
+        && stdlib_image_is_instance(existing)) {
+        OwlImage* img = stdlib_image_get_handle(existing);
+        if (img && owl_image_valid(img)) return img;
+    }
+
+    /* Création à la demande, dimensionné au contrôle (Largeur×Hauteur). */
+    int w = prop_int(uici->decl->properties, uici->decl->property_count,
+                     "Largeur", "Width", 100);
+    int h = prop_int(uici->decl->properties, uici->decl->property_count,
+                     "Hauteur", "Height", 100);
+    if (w <= 0) w = 100;
+    if (h <= 0) h = 100;
+
+    OwlImage* img = owl_image_new(w, h, 0xFFFFFFFFu /* blanc opaque */);
+    if (!img) return NULL;
+    ObjInstance* inst = image_make_instance(img);  /* adopte img */
+    /*  : root l'instance fraîche pendant le set (table grow → GC). */
+    vm_push(OBJ_VAL(inst));
+    obj_ui_control_instance_headless_set(uici, OWL_IMAGE_FIELD_BACKING_KEY,
+                                         OBJ_VAL(inst));
+    vm_pop();
+    return stdlib_image_get_handle(OBJ_VAL(inst));
+}
+
+static void image_field_refresh_impl(Value v) {
+    ObjUiControlInstance* uici = image_field_uici(v);
+    if (!uici || !uici->widget) return;  /* headless / non monté : no-op */
+    Value backingVal;
+    if (!obj_ui_control_instance_headless_get(uici, OWL_IMAGE_FIELD_BACKING_KEY,
+                                              &backingVal)
+        || !stdlib_image_is_instance(backingVal)) return;
+    OwlImage* img = stdlib_image_get_handle(backingVal);
+    if (!img || !owl_image_valid(img)) return;
+    /* Backing dimensionné au contrôle → cadrage centré (rendu 1:1, coords de
+     * dessin alignées aux pixels écran). */
+    owl_ui_image_field_schedule_refresh((OwlControl*)uici->widget, img,
+                                        OWL_CADIMG_CENTRE);
 }
 
 void stdlib_ui_init(void) {
@@ -15687,14 +16226,20 @@ void stdlib_ui_init(void) {
     owl_ui_register_table_fmt_applied(table_fmt_applied_impl);
     /*  : masque de saisie d'une colonne poussé au widget (createEditor). */
     owl_ui_register_table_colmask_applied(table_colmask_applied_impl);
+    owl_ui_register_table_coldispmask_applied(table_coldispmask_applied_impl);
     /*  : materialisation lazy d'une cellule ZR en ObjUiControl
      * (store de props par cellule) pour ZR[i].champ..Prop headless. */
     owl_ui_register_zr_rep_cell_subcontrol(zr_rep_cell_subcontrol_impl);
     /*  /  : count items widgets-a-items (widget Qt + headless
      * store). Couvre Liste/Combo/Selecteur/Interrupteur/ZoneRepetee. */
     owl_ui_register_widget_items_count(widget_items_count_qt);
+    owl_ui_register_widget_content_lf(widget_content_lf_qt);
     owl_ui_register_headless_widget_items_count_uic(headless_widget_items_count_uic_impl);
     owl_ui_register_headless_widget_items_count_uici(headless_widget_items_count_uici_impl);
+    owl_ui_register_headless_content_lf_uic(headless_content_lf_uic_impl);
+    owl_ui_register_headless_content_lf_uici(headless_content_lf_uici_impl);
+    owl_ui_register_headless_set_content_uic(headless_set_content_uic_impl);
+    owl_ui_register_headless_set_content_uici(headless_set_content_uici_impl);
 
     /*  : enregistre g_return_value (Value) au registre unique des
      * racines persistantes. */
@@ -15704,6 +16249,11 @@ void stdlib_ui_init(void) {
      * stdlib_icones (vit dans owl_core, sans Qt link). IconeVersImage et
      * polymorphisme BTN..Image = ICN consomment le hook. */
     owl_icone_register_rasterizer(owl_icone_rasterize_rgba);
+
+    /*  : dessin direct sur un Champ Image — résolution widget→backing
+     * + push écran délégués par les natives d* (core sans référence widget). */
+    owl_image_register_field_dispatcher(image_field_backing_impl,
+                                        image_field_refresh_impl);
 }
 
 /* ====================================================================

@@ -4,9 +4,12 @@
  * ETAT : client complet (connexion, publication, abonnement). MQTTConnecte
  * ouvre le transport (TCP clair, ou TLS via optionSSL), emet un CONNECT bien
  * forme, lit le CONNACK et renvoie Vrai si le broker accepte. MQTTPublie gere
- * QoS 0/1 + retain ; MQTTAbonne/Désabonne emettent SUBSCRIBE/UNSUBSCRIBE et un
+ * QoS 0/1/2 + retain ; MQTTAbonne/Désabonne emettent SUBSCRIBE/UNSUBSCRIBE et un
  * PUBLISH entrant invoque la procedure OWL abonnee (3 args dont Buffer) via le
- * socle E1. MQTTDéconnecte emet un DISCONNECT (0xE0 0x00) et ferme. La connexion
+ * socle E1. MQTTPublie gere aussi QoS 2 (handshake PUBREC/PUBREL/PUBCOMP, des
+ * deux cotes) et un callback d'accuse optionnel (session, numero de message)
+ * invoque apres diffusion en QoS 1/2. MQTTDéconnecte emet un DISCONNECT
+ * (0xE0 0x00) et ferme. La connexion
  * vivante est stockee dans l'instance mqttSession (champ interne _handle ->
  * OwlMqttConn*).
  *
@@ -90,6 +93,13 @@ extern uint64_t owl_tcp_server_horloge_ms(void);
  * soient reclames. Table bornee : le plus ancien est evince si pleine. */
 #define MQTT_ACK_MAX 16
 
+/* Nombre maximal de PUBLISH QoS 2 entrants retenus comme "en vol" cote
+ * reception (identifiant recu, PUBCOMP pas encore emis). Fenetre de dedup qui
+ * garantit l'exactly-once : un broker bien eleve n'a qu'une poignee de QoS 2
+ * non resolus a la fois (receive-max). Table bornee : le plus ancien est
+ * evince si pleine (degradation acceptee hors charge extreme). */
+#define MQTT_QOS2_RX_MAX 16
+
 /* Mapping sujet -> handle E1, stocke sur l'instance (via la connexion). Le
  * sujet est une copie C-heap (independante des Value OWL) : la livraison
  * retrouve le handle abonne au sujet d'un PUBLISH entrant. */
@@ -126,6 +136,14 @@ typedef struct {
      * SUBACK/UNSUBACK) sont enregistres ici au lieu d'etre avales. */
     MqttAck      acks[MQTT_ACK_MAX];
     int          nb_acks;
+
+    /* --- Dedup reception QoS 2 (exactly-once) --- */
+    /* Identifiants de paquet des PUBLISH QoS 2 entrants en cours de handshake :
+     * ajoute a la 1re reception (avant livraison), retire a l'emission du
+     * PUBCOMP (sur PUBREL). Un PUBLISH DUP (meme pid, PUBREC perdu et retransmis
+     * par le broker) re-emet PUBREC mais NE re-livre PAS a l'abonne. */
+    uint16_t     qos2_rx_pids[MQTT_QOS2_RX_MAX];
+    int          nb_qos2_rx;
 
     /* --- Pompe possedee par la session --- */
     OwlReacteur* reacteur;       /* reacteur PROPRE a la session, cree
@@ -327,6 +345,14 @@ static int mqtt_send_publish(OwlMqttConn* c, const char* topic,
     return qos > 0 ? (int)pid : 0;
 }
 
+/* Emet un PUBREL (2e temps du handshake QoS 2 côté émetteur, en réponse au
+ * PUBREC du broker). byte0 = 0x62 (flags reserves 0x02), remLen = 2, pid.
+ * Le broker clôt ensuite par un PUBCOMP. */
+static bool mqtt_send_pubrel(OwlMqttConn* c, uint16_t pid) {
+    uint8_t p[4] = { 0x62, 0x02, (uint8_t)(pid >> 8), (uint8_t)(pid & 0xFF) };
+    return mqtt_send(c, p, 4) == 4;
+}
+
 /* ============================================================
  * Abonnement — wire SUBSCRIBE / SUBACK / UNSUBSCRIBE (spec 3.1.1).
  *
@@ -502,6 +528,43 @@ static bool mqtt_ack_take(OwlMqttConn* c, uint8_t type, uint16_t pid) {
 }
 
 /* ============================================================
+ * Dedup reception QoS 2 (exactly-once).
+ * ============================================================ */
+
+/* Vrai si le packet-id d'un PUBLISH QoS 2 entrant est deja en vol (handshake
+ * en cours) -> il s'agit d'un DUP, ne pas re-livrer. */
+static bool mqtt_qos2_rx_vu(OwlMqttConn* c, uint16_t pid) {
+    for (int i = 0; i < c->nb_qos2_rx; i++) {
+        if (c->qos2_rx_pids[i] == pid) return true;
+    }
+    return false;
+}
+
+/* Marque un packet-id QoS 2 entrant comme en vol (1re reception). Ordre FIFO :
+ * si la fenetre est pleine, evince le plus ancien. */
+static void mqtt_qos2_rx_ajoute(OwlMqttConn* c, uint16_t pid) {
+    if (c->nb_qos2_rx >= MQTT_QOS2_RX_MAX) {
+        memmove(&c->qos2_rx_pids[0], &c->qos2_rx_pids[1],
+                (MQTT_QOS2_RX_MAX - 1) * sizeof(uint16_t));
+        c->nb_qos2_rx = MQTT_QOS2_RX_MAX - 1;
+    }
+    c->qos2_rx_pids[c->nb_qos2_rx++] = pid;
+}
+
+/* Retire un packet-id QoS 2 entrant de la fenetre (handshake clos par PUBCOMP).
+ * Sans effet si absent. */
+static void mqtt_qos2_rx_retire(OwlMqttConn* c, uint16_t pid) {
+    for (int i = 0; i < c->nb_qos2_rx; i++) {
+        if (c->qos2_rx_pids[i] == pid) {
+            memmove(&c->qos2_rx_pids[i], &c->qos2_rx_pids[i + 1],
+                    (size_t)(c->nb_qos2_rx - i - 1) * sizeof(uint16_t));
+            c->nb_qos2_rx--;
+            return;
+        }
+    }
+}
+
+/* ============================================================
  * Livraison C -> OWL : (session, sujet chaine, message Buffer).
  *
  * MQTT fait sa PROPRE livraison (3 args, message binaire = Buffer), et
@@ -534,6 +597,25 @@ static void mqtt_livre(OwlMqttConn* c, const char* sujet, size_t sujet_len,
     vm.stackTop = repere;                          /* rejette tout residu de retour */
 }
 
+/* Livraison C -> OWL de l'accusé de publication : (session, numéro de message).
+ * Même frontiere de reentrance bornee que mqtt_livre. Le callback est l'arg
+ * <procédure> de MQTTPublie (déjà rooté sur la pile native tant que l'appel
+ * dure) ; on ne le ré-enregistre pas dans E1 car la publication est synchrone :
+ * l'invocation a lieu avant le retour de la native. */
+static void mqtt_livre_accuse(OwlMqttConn* c, Value callback, int num) {
+    if (!IS_FUNCTION(callback) && !IS_NATIVE(callback)) return;
+    if (c->session == NULL) return;
+
+    Value* repere = vm.stackTop;                   /* frontiere de depilage propre */
+    vm_push(callback);                             /* callee au-dessus du repere */
+    vm_push(OBJ_VAL(c->session));                  /* arg 1 : session */
+    vm_push(INTEGER_VAL(num));                     /* arg 2 : numéro de message */
+
+    (void)vm_call_reentrant(callback, 2);
+
+    vm.stackTop = repere;                          /* rejette tout residu de retour */
+}
+
 /* Traite une trame PUBLISH entrante (pointe le paquet complet en memoire :
  * `pkt`, en-tete fixe de `header` octets, `remlen` octets restants). */
 static void mqtt_traite_publish(OwlMqttConn* c, const uint8_t* pkt,
@@ -556,11 +638,28 @@ static void mqtt_traite_publish(OwlMqttConn* c, const uint8_t* pkt,
     }
     size_t charge_len = (size_t)(end - p);
 
-    mqtt_livre(c, sujet, tlen, p, charge_len);
-
-    if (qos == 1) {                                /* accuse le PUBLISH entrant */
-        uint8_t puback[4] = { 0x40, 0x02, (uint8_t)(pid >> 8), (uint8_t)(pid & 0xFF) };
-        mqtt_send(c, puback, 4);
+    if (qos == 2) {
+        /* Exactly-once côté réception : on ne livre à l'abonné qu'au PREMIER
+         * PUBLISH pour ce packet-id. Le pid est marqué AVANT la livraison et
+         * reste en vol jusqu'au PUBCOMP (émis sur PUBREL, cf. mqtt_rx_parse).
+         * Si le broker retransmet un PUBLISH DUP (parce que notre PUBREC s'est
+         * perdu — cas réseau MQTT standard), on ré-émet PUBREC mais on NE
+         * rappelle PAS mqtt_livre : pas de doublon applicatif, contrat tenu. */
+        if (!mqtt_qos2_rx_vu(c, pid)) {
+            mqtt_qos2_rx_ajoute(c, pid);
+            mqtt_livre(c, sujet, tlen, p, charge_len);
+        }
+        uint8_t pubrec[4] = { 0x50, 0x02, (uint8_t)(pid >> 8), (uint8_t)(pid & 0xFF) };
+        mqtt_send(c, pubrec, 4);                   /* 1er temps ; le broker répond
+                                                    * PUBREL -> PUBCOMP. */
+    } else {
+        /* QoS 0 (fire-and-forget) et QoS 1 (at-least-once, doublon possible et
+         * assumé par le contrat) : livraison inconditionnelle. */
+        mqtt_livre(c, sujet, tlen, p, charge_len);
+        if (qos == 1) {                            /* accuse le PUBLISH entrant */
+            uint8_t puback[4] = { 0x40, 0x02, (uint8_t)(pid >> 8), (uint8_t)(pid & 0xFF) };
+            mqtt_send(c, puback, 4);
+        }
     }
 }
 
@@ -607,13 +706,27 @@ static void mqtt_rx_parse(OwlMqttConn* c) {
         uint8_t type  = byte0 & 0xF0;
         if (type == 0x30) {                        /* PUBLISH : livre inline */
             mqtt_traite_publish(c, c->rx + off, hdr, remlen, byte0);
-        } else if (type == 0x40 || type == 0x90 || type == 0xB0) {
-            /* PUBACK / SUBACK / UNSUBACK : le packet-id est les 2 premiers
-             * octets de l'en-tete variable. Enregistre pour la pompe. */
+        } else if (type == 0x40 || type == 0x50 || type == 0x70 ||
+                   type == 0x90 || type == 0xB0) {
+            /* PUBACK / PUBREC / PUBCOMP / SUBACK / UNSUBACK : le packet-id est
+             * les 2 premiers octets de l'en-tete variable. Enregistre pour la
+             * pompe (handshakes QoS 1/2 côté émetteur + abonnements). */
             if (remlen >= 2) {
                 uint16_t pid = (uint16_t)((c->rx[off + hdr] << 8) |
                                           c->rx[off + hdr + 1]);
                 mqtt_ack_push(c, type, pid);
+            }
+        } else if (type == 0x60) {
+            /* PUBREL entrant (2e temps du handshake QoS 2 côté récepteur) :
+             * le broker relance après notre PUBREC. On clôt par un PUBCOMP et
+             * on libère le pid de la fenêtre de dedup (handshake terminé). */
+            if (remlen >= 2) {
+                uint16_t pid = (uint16_t)((c->rx[off + hdr] << 8) |
+                                          c->rx[off + hdr + 1]);
+                mqtt_qos2_rx_retire(c, pid);
+                uint8_t pubcomp[4] = { 0x70, 0x02, (uint8_t)(pid >> 8),
+                                       (uint8_t)(pid & 0xFF) };
+                mqtt_send(c, pubcomp, 4);
             }
         }
         /* PINGRESP (0xD0) et autres types non attendus : avales. */
@@ -950,13 +1063,14 @@ static Value fn_mqtt_deconnecte(int argCount, Value* args) {
 }
 
 /* MQTTPublie(<session>, <sujet>, <données> [, <à conserver> [, <qualité>
- * [, <procédure>]]]) -> entier. Retour canon : numéro du message (QoS 1),
+ * [, <procédure>]]]) -> entier. Retour canon : numéro du message (QoS 1/2),
  * 0 si réussite (QoS 0), -1 en cas d'erreur.
  *
- * QoS 1 est synchrone (modèle pompe) : la fonction rend la main une fois le
- * PUBACK reçu. Le paramètre <procédure> (callback de diffusion) est de ce fait
- * redondant avec la valeur de retour en publication synchrone ; son invocation
- * native->OWL (E1) est différée. */
+ * QoS 1 et QoS 2 sont synchrones (modèle pompe) : la fonction rend la main une
+ * fois la diffusion confirmée — PUBACK en QoS 1, handshake complet PUBREC/
+ * PUBREL/PUBCOMP en QoS 2. Le paramètre <procédure> (callback de diffusion) est
+ * alors invoqué (session, numéro de message) ; il n'est appelé qu'en QoS 1 et
+ * QoS 2 (silence en QoS 0, sans accusé). */
 static Value fn_mqtt_publie(int argCount, Value* args) {
     ObjInstance* inst = resolve_mqtt_session(args[0], "MQTTPublie");
     if (inst == NULL) return INTEGER_VAL(-1);
@@ -997,14 +1111,7 @@ static Value fn_mqtt_publie(int argCount, Value* args) {
 
     int qos = (argCount >= 5 && IS_INTEGER(args[4])) ? (int)AS_INTEGER(args[4]) : 0;
     if (qos < 0) qos = 0;
-    if (qos > 1) {
-        /* Qualité « exactement une fois » (QoS 2) : mécanique dédiée
-         * (PUBREC/PUBREL/PUBCOMP) pas encore implémentée. */
-        owl_emit_native_error(E_NATIVE_MQTT_PUBLISH_FAILURE, "MQTTPublie",
-                              "native", "MQTTPublie",
-                              "detail", "qualité de service « exactement une fois » non prise en charge", NULL);
-        return INTEGER_VAL(-1);
-    }
+    if (qos > 2) qos = 2;
 
     int num = mqtt_send_publish(c, topic, payload, payload_len, qos, retain);
     if (num < 0) {
@@ -1014,7 +1121,7 @@ static Value fn_mqtt_publie(int argCount, Value* args) {
         return INTEGER_VAL(-1);
     }
 
-    /* QoS 1 : le PUBACK est route par le framing (pas de lecture synchrone,
+    /* QoS > 0 : l'accusé est route par le framing (pas de lecture synchrone,
      * incompatible avec une connexion abonnee dont les PUBLISH entrants
      * s'entrelacent). On assure le reacteur puis on pompe jusqu'a l'accuse. */
     if (qos == 1) {
@@ -1025,6 +1132,29 @@ static Value fn_mqtt_publie(int argCount, Value* args) {
                                   "detail", "PUBACK absent ou incohérent", NULL);
             return INTEGER_VAL(-1);
         }
+    } else if (qos == 2) {
+        /* Handshake en deux temps : PUBREC du broker, puis on émet PUBREL et on
+         * attend le PUBCOMP qui clôt l'échange (diffusion unique garantie). */
+        if (!mqtt_reacteur_assure(c) ||
+            !mqtt_pump_until_ack(c, 0x50, (uint16_t)num, MQTT_ACK_TIMEOUT_MS)) {
+            owl_emit_native_error(E_NATIVE_MQTT_PUBLISH_FAILURE, "MQTTPublie",
+                                  "native", "MQTTPublie",
+                                  "detail", "PUBREC absent ou incohérent", NULL);
+            return INTEGER_VAL(-1);
+        }
+        if (!mqtt_send_pubrel(c, (uint16_t)num) ||
+            !mqtt_pump_until_ack(c, 0x70, (uint16_t)num, MQTT_ACK_TIMEOUT_MS)) {
+            owl_emit_native_error(E_NATIVE_MQTT_PUBLISH_FAILURE, "MQTTPublie",
+                                  "native", "MQTTPublie",
+                                  "detail", "PUBCOMP absent ou incohérent", NULL);
+            return INTEGER_VAL(-1);
+        }
+    }
+
+    /* Callback d'accusé (6e arg) : invoqué une fois la diffusion confirmée, en
+     * QoS 1 et QoS 2 uniquement — silence en QoS 0 (envoi sans accusé). */
+    if (qos > 0 && argCount >= 6) {
+        mqtt_livre_accuse(c, args[5], num);
     }
 
     owl_clear_error();
@@ -1263,14 +1393,16 @@ static const OwlParam p_publie[] = {
     {"données",    "chaîne",      "données du message à publier"},
     {"àConserver", "booléen",     "vrai pour que le broker conserve le message (optionnel, faux par défaut)"},
     {"qualité",    "entier",      "qualité de service souhaitée (optionnel : mqttQualitéAuPlusUneFois par défaut)"},
+    {"procédure",  "procédure",   "procédure appelée une fois le message diffusé, en qualité « au moins une fois » et « exactement une fois » (optionnel ; reçoit la session et le numéro du message)"},
     {0}
 };
-/* Retour canon : entier. Numéro du message publié en QoS 1, 0 en QoS 0, -1 si erreur. */
-#define MQTT_PUBLIE_RET "numéro du message publié (QoS 1), 0 si réussite (QoS 0), -1 en cas d'erreur"
+/* Retour canon : entier. Numéro du message publié en QoS 1/2, 0 en QoS 0, -1 si erreur. */
+#define MQTT_PUBLIE_RET "numéro du message publié (QoS 1/2), 0 si réussite (QoS 0), -1 en cas d'erreur"
 static const OwlSignature sig_publie[] = {
     {3, p_publie, "entier", MQTT_PUBLIE_RET},
     {4, p_publie, "entier", MQTT_PUBLIE_RET},
     {5, p_publie, "entier", MQTT_PUBLIE_RET},
+    {6, p_publie, "entier", MQTT_PUBLIE_RET},
     {0}
 };
 
@@ -1385,8 +1517,8 @@ static const OwlConstDef CONSTS_MQTT[] = {
       "Opens an encrypted (TLS) connection to the broker. Assign to a session's Option property before calling MQTTConnect.",
       "optionSSL" },
     /* Qualité de service passée à MQTTPublie. Valeurs alignées sur le niveau
-     * QoS du protocole (0/1). La qualité « exactement une fois » (QoS 2)
-     * arrivera avec sa mécanique dédiée (PUBREC/PUBREL/PUBCOMP). */
+     * QoS du protocole (0/1/2). La qualité « exactement une fois » (QoS 2) emploie
+     * la mécanique de reconnaissance en deux temps (PUBREC/PUBREL/PUBCOMP). */
     { "mqttQualitéAuPlusUneFois", "MQTT", INTEGER_VAL(0),
       "Qualité de service « au plus une fois » : le message est envoyé sans accusé de réception, il peut être perdu.",
       "\"At most once\" quality of service: the message is sent without acknowledgement and may be lost.",
@@ -1395,6 +1527,10 @@ static const OwlConstDef CONSTS_MQTT[] = {
       "Qualité de service « au moins une fois » : le message est retransmis jusqu'à l'accusé de réception du broker.",
       "\"At least once\" quality of service: the message is retransmitted until the broker acknowledges it.",
       "mqttQualityAtLeastOnce" },
+    { "mqttQualitéExactementUneFois", "MQTT", INTEGER_VAL(2),
+      "Qualité de service « exactement une fois » : une poignée de main en deux temps avec le broker garantit une diffusion unique, sans perte ni doublon.",
+      "\"Exactly once\" quality of service: a two-phase handshake with the broker guarantees a single delivery, with no loss and no duplicate.",
+      "mqttQualityExactlyOnce" },
 };
 
 /* ============================================================

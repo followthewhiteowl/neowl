@@ -24,3 +24,37 @@ PROCEDURE scenario_publication_sans_connexion_qualite_de_service()
 	nRetour est un entier = MQTTPublie(sess, "etat/porte", "verrouillee", Vrai, mqttQualitéAuMoinsUneFois)
 	dbgVérifieEgalité(nRetour,-1)
 FIN
+
+
+// Même constat avec la qualité de service « exactement une fois » : l'absence
+// de connexion échoue avant toute considération de qualité.
+PROCEDURE scenario_publication_sans_connexion_qualite_exactement_une_fois()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-05"
+
+	nRetour est un entier = MQTTPublie(sess, "etat/vanne", "fermee", Vrai, mqttQualitéExactementUneFois)
+	dbgVérifieEgalité(nRetour,-1)
+FIN
+
+
+// Procédure d'accusé passée en 6e argument de MQTTPublie. Jamais appelée
+// dans ces scénarios puisque la session n'est pas connectée au broker, mais
+// sa signature montre ce qu'elle reçoit à chaque accusé de publication : la
+// session concernée et le numéro du message publié.
+PROCEDURE accuse_publication(sessionAccusée est un mqttSession, numMessage est un entier)
+	Trace("message " + numMessage + " accusé (" + sessionAccusée..IDClient + ")")
+FIN
+
+
+// La procédure d'accusé (6e argument optionnel) ne change rien à l'échec
+// sans connexion : la native échoue avant même d'envisager d'appeler le
+// callback.
+PROCEDURE scenario_publication_sans_connexion_avec_procedure_accuse()
+	sess est un mqttSession
+	sess..Adresse  = "broker.exemple.local"
+	sess..IDClient = "capteur-salon-06"
+
+	nRetour est un entier = MQTTPublie(sess, "etat/vanne", "ouverte", Faux, mqttQualitéAuMoinsUneFois, accuse_publication)
+	dbgVérifieEgalité(nRetour,-1)
+FIN

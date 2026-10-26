@@ -1,0 +1,23 @@
+//  — combo autonome : ListeAjoute doit alimenter la même liste
+// que lit le getter ..Contenu. Mesuré (QT offscreen, widgets réels via
+// OuvreSoeur) : après ListeAjoute(CMB,"A") puis ListeAjoute(CMB,"B"),
+// ListeOccurrence(CMB) vaut 2, mais ..Contenu reste vide — le getter lit
+// un store séparé que seul le setter ..Contenu = alimente.
+//
+// ROUGE attendu : ..Contenu doit refléter les items vivants ajoutés par
+// ListeAjoute.
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ComboSync)
+
+ListeAjoute(COMBO_Sync, "A")
+ListeAjoute(COMBO_Sync, "B")
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Sync), 2,
+"ListeAjoute x2 : ListeOccurrence reflète les 2 items ajoutés")
+
+dbgVérifieEgalité(COMBO_Sync..Contenu, "A" + LF + "B",
+"ListeAjoute x2 : ..Contenu (getter) reflète les items ajoutés par ListeAjoute")
+
+Ferme(FEN_ComboSync)
+dbgBilanTest()

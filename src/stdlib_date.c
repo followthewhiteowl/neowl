@@ -3152,16 +3152,18 @@ int64_t owl_duree_parse_short_form(const char* s, int slen) {
 }
 
 /* Constants for ChaîneVersDurée format (doc 3027002) */
-#define OWL_DUREE_CENTIEME  1   /* format: +JHHMMSSCC  (10 chars) */
-#define OWL_DUREE_MILLIEME  2   /* format: +JHHMMSSCCC (11 chars) */
+#define OWL_DUREE_CENTIEME  1   /* format: +JHHMISSCC  (10 chars) ; MI=minutes */
+#define OWL_DUREE_MILLIEME  2   /* format: +JHHMISSCCC (11 chars) ; MI=minutes */
 
 /* Parse a duration string with canon format template tokens:
- *   J   = jours (variable width)
- *   HH  = heures (2 digits)
- *   MM  = minutes (2 digits)
- *   SS  = secondes (2 digits)
- *   CCC = millisecondes (3 digits)
- *   CC  = centièmes (2 digits)
+ *   J     = jours (variable width)
+ *   HH    = heures (2 digits)
+ *   MI/mm = minutes (2 digits) — MM n'est PAS les minutes (= mois ailleurs
+ *           dans OWL, inapplicable à une durée ; convention  étendue
+ *           aux natives durée). Un "MM" en template devient littéral.
+ *   SS    = secondes (2 digits)
+ *   CCC   = millisecondes (3 digits)
+ *   CC    = centièmes (2 digits)
  * Example: "3 jours, 13 heures" with format "J jours, HH heures"
  *
  * Returns total milliseconds, or INT64_MIN on parse failure. */
@@ -3203,8 +3205,10 @@ static int64_t parse_duree_with_format(const char* s, int slen,
             si += 2; fi += 2;
             continue;
         }
-        /* MM (minutes) */
-        if (fi + 1 < flen && strncmp(fmt + fi, "MM", 2) == 0) {
+        /* MI / mm (minutes) — MM ne vaut PLUS les minutes (= mois ailleurs,
+         * convention  étendue aux natives durée). */
+        if (fi + 1 < flen && (strncmp(fmt + fi, "MI", 2) == 0 ||
+                              strncmp(fmt + fi, "mm", 2) == 0)) {
             if (remaining < 2) return DUREE_PARSE_FAIL;
             if (s[si] < '0' || s[si] > '9' || s[si+1] < '0' || s[si+1] > '9')
                 return DUREE_PARSE_FAIL;
@@ -3230,7 +3234,8 @@ static int64_t parse_duree_with_format(const char* s, int slen,
                 if (k + 2 < flen && strncmp(fmt + k, "CCC", 3) == 0) { needed += 3; k += 2; }
                 else if (k + 1 < flen && strncmp(fmt + k, "CC", 2) == 0) { needed += 2; k += 1; }
                 else if (k + 1 < flen && strncmp(fmt + k, "HH", 2) == 0) { needed += 2; k += 1; }
-                else if (k + 1 < flen && strncmp(fmt + k, "MM", 2) == 0) { needed += 2; k += 1; }
+                else if (k + 1 < flen && (strncmp(fmt + k, "MI", 2) == 0 ||
+                                          strncmp(fmt + k, "mm", 2) == 0)) { needed += 2; k += 1; }
                 else if (k + 1 < flen && strncmp(fmt + k, "SS", 2) == 0) { needed += 2; k += 1; }
                 else if (fmt[k] == 'J') { needed += 1; /* J counts as min 1 */ }
                 else { needed += 1; /* literal */ }
@@ -3418,8 +3423,9 @@ int owl_duree_format_with_mask(char* out, int outsz,
 /* ChaineVersDuree(s, format) / StringToDuration — canon
  * Signature 2-arg canon stricte (cf. ). La forme 1-arg
  * non-canon a été retirée (rejet compile-time).
- * Forme A (constante mask): duréeCentième ("+JHHMMSSCC") ou duréeMillième ("+JHHMMSSCCC")
- * Forme B (template chaîne): tokens J/HH/MM/SS/CCC dans une chaîne libre.
+ * Forme A (constante mask): duréeCentième ("+JHHMISSCC") ou duréeMillième ("+JHHMISSCCC")
+ * Forme B (template chaîne): tokens J/HH/MI (ou mm)/SS/CCC dans une chaîne libre.
+ *                            MM n'est PAS les minutes (= mois ailleurs) → littéral.
  *
  * Signe: préfixe '+' ou '-' accepté dans la chaîne d'entrée.
  */
@@ -3445,8 +3451,8 @@ static Value fn_chaine_vers_duree(int argCount, Value* args) {
             int mask = (int)AS_INTEGER(args[1]);
             const char* fmt = NULL;
             int flen = 0;
-            if (mask == OWL_DUREE_CENTIEME)  { fmt = "+JHHMMSSCC";  flen = 10; }
-            else if (mask == OWL_DUREE_MILLIEME) { fmt = "+JHHMMSSCCC"; flen = 11; }
+            if (mask == OWL_DUREE_CENTIEME)  { fmt = "+JHHMISSCC";  flen = 10; }
+            else if (mask == OWL_DUREE_MILLIEME) { fmt = "+JHHMISSCCC"; flen = 11; }
             if (fmt != NULL) {
                 /* Signe obligatoire ( / Q5-bis) : fmt commence par
                  * '+' literal, le '+' input matche. Pour '-' on retry sans
@@ -3462,7 +3468,7 @@ static Value fn_chaine_vers_duree(int argCount, Value* args) {
                     owl_emit_native_error(E_NATIVE_PARSE_ERROR, "ChaineVersDuree",
                                           "native", "ChaineVersDuree",
                                           "value", "chaine invalide",
-                                          "expected", "[+/-]JHHMMSSCC ou [+/-]JHHMMSSCCC",
+                                          "expected", "[+/-]JHHMISSCC ou [+/-]JHHMISSCCC",
                                           NULL);
                     return OBJ_VAL(obj_new_duration(0));
                 }
@@ -3660,11 +3666,12 @@ static Value fn_dateheure_vers_reel(int argCount, Value* args) {
 /* DuréeVersChaîne(dur [, format]) / DurationToString — doc 3027007.
  * format peut être:
  *   absent         → HH:MM:SS (ou "J j HH:MM:SS" si days>0), style lisible OWL
- *   duréeCentième  → "JHHMMSSCC"  (ou "-JHHMMSSCC" si négatif), 9-10 chars
- *   duréeMillième  → "JHHMMSSCCC" (ou "-JHHMMSSCCC" si négatif), 10-11 chars
- *   chaîne custom  → substitutions J, HH, MM, SS, CCC, + (signe)
- *                    (tokens matchés longest-first; J seul = 1 chiffre,
- *                    plusieurs J consécutifs = zero-padding sur N chiffres) */
+ *   duréeCentième  → "JHHMISSCC"  (ou "-JHHMISSCC" si négatif), 9-10 chars
+ *   duréeMillième  → "JHHMISSCCC" (ou "-JHHMISSCCC" si négatif), 10-11 chars
+ *   chaîne custom  → substitutions J, HH, MI (ou mm = minutes), SS, CCC,
+ *                    + (signe). MM n'est PAS les minutes (= mois ailleurs
+ *                    dans OWL) → rendu littéral. (tokens matchés longest-first;
+ *                    J seul = 1 chiffre, plusieurs J consécutifs = zero-pad) */
 static Value fn_duree_vers_chaine(int argCount, Value* args) {
     if (!IS_DURATION(args[0])) return NIL_VAL;
     ObjDuration* dur = AS_DURATION(args[0]);
@@ -3700,6 +3707,15 @@ static Value fn_duree_vers_chaine(int argCount, Value* args) {
         char out[256];
         int i = 0;
         while (i < fmt->length && olen < 240) {
+            /* Jeton minute MI / mm — MM n'est PAS les minutes (= mois ailleurs,
+             * convention  étendue aux natives durée ; "MM" tombe en
+             * littéral via le bloc run-length ci-dessous). */
+            if (i + 1 < fmt->length &&
+                ((fmt->chars[i] == 'M' && fmt->chars[i+1] == 'I') ||
+                 (fmt->chars[i] == 'm' && fmt->chars[i+1] == 'm'))) {
+                olen += snprintf(out+olen, 256-olen, "%02d", mm); i += 2;
+                continue;
+            }
             char c = fmt->chars[i];
             /* Count consecutive identical tokens for zero-pad width */
             int run = 1;
@@ -3709,8 +3725,6 @@ static Value fn_duree_vers_chaine(int argCount, Value* args) {
                 i += run;
             } else if (c == 'H' && run >= 2) {
                 olen += snprintf(out+olen, 256-olen, "%02d", hh); i += 2;
-            } else if (c == 'M' && run >= 2) {
-                olen += snprintf(out+olen, 256-olen, "%02d", mm); i += 2;
             } else if (c == 'S' && run >= 2) {
                 olen += snprintf(out+olen, 256-olen, "%02d", ss); i += 2;
             } else if (c == 'C' && run >= 3) {
@@ -4462,11 +4476,11 @@ void stdlib_date_init(void) {
         #define C_DUREE(nm, val, dfr, den, en) {nm, "Dates", INTEGER_VAL(val), dfr, den, en}
         static const OwlConstDef DUREE_CONSTS[] = {
             C_DUREE("dur\xc3\xa9" "eCenti\xc3\xa8" "me", OWL_DUREE_CENTIEME,
-                    "Format \"+JHHMMSSCC\" pour ChaîneVersDurée (précision centième).",
-                    "Format \"+JHHMMSSCC\" for ChaineVersDuree (hundredth precision).", "durationCenti"),
+                    "Format \"+JHHMISSCC\" pour ChaîneVersDurée (précision centième).",
+                    "Format \"+JHHMISSCC\" for ChaineVersDuree (hundredth precision).", "durationCenti"),
             C_DUREE("dur\xc3\xa9" "eMilli\xc3\xa8" "me", OWL_DUREE_MILLIEME,
-                    "Format \"+JHHMMSSCCC\" (avec millisecondes).",
-                    "Format \"+JHHMMSSCCC\" (with milliseconds).", "durationMilli"),
+                    "Format \"+JHHMISSCCC\" (avec millisecondes).",
+                    "Format \"+JHHMISSCCC\" (with milliseconds).", "durationMilli"),
         };
         #undef C_DUREE
         /* register_consts auto-enregistre + auto-alias ASCII

@@ -350,6 +350,20 @@ static int count_items(JsonValue* r) {
     return items->as.arrayVal.count;
 }
 
+/*  — nombre d'items portant exactement `label`. Sert a prouver
+ * l'absence de doublon de nom hors-portee (une locale valide + une locale
+ * homonyme d'une autre procedure proposee a tort : 2 avant fix, 1 apres). */
+static int count_label(JsonValue* r, const char* label) {
+    JsonValue* items = unwrap_items(r);
+    if (!items || items->type != JSON_ARRAY) return 0;
+    int n = 0;
+    for (int i = 0; i < items->as.arrayVal.count; i++) {
+        const char* lbl = json_get_string(items->as.arrayVal.items[i], "label");
+        if (lbl && strcmp(lbl, label) == 0) n++;
+    }
+    return n;
+}
+
 /*  — dump des labels obtenus, pour qu'un echec de cardinal dise
  * QUELS items sont en trop plutot que juste combien. */
 static void dump_labels(JsonValue* r) {
@@ -969,6 +983,60 @@ static void test_completion_comma_trigger_indirection(void) {
     ASSERT_NOT_HAS(i2, "Trace",       "1297 : ',' hors scope -> pas de natives");
     ASSERT_NOT_HAS(i2, "indVariable", "1297 : ',' hors scope -> pas d'indXxx");
     json_free(i2); json_free(p2);
+}
+
+/*  — support #415 : la completion ne doit proposer une variable LOCALE
+ * que si la procedure qui la declare contient le curseur. Deux procedures sœurs
+ * declarant chacune ses locales (dont un nom DOUBLE) : au curseur dans procA,
+ * seules les locales de procA sortent ; celles de procB (homonyme compris) sont
+ * masquees, sans doublon de nom. Globales / procedures restent proposees. */
+static void test_completion_local_scope_filter(void) {
+    printf("\n[TEST] fix/2239 : completion filtre les variables locales hors portee\n");
+    /* L.0 PROCEDURE procA(), L.1-2 ses locales, L.3 curseur (statement `va`),
+     * L.4 FIN. L.5 PROCEDURE procB(), L.6-7 ses locales (dont `partage` homonyme
+     * de la L.2), L.8 FIN. L.9 globale top-level. */
+    const char* src =
+        "PROCEDURE procA()\n"      /* 0 */
+        "\tvarLettreA est un entier = 1\n"   /* 1 */
+        "\tpartage est un entier = 2\n"      /* 2 */
+        "\t\n"                     /* 3 : curseur ici (prefixe vide) */
+        "FIN\n"                    /* 4 */
+        "PROCEDURE procB()\n"      /* 5 */
+        "\tvarLettreB est un entier = 3\n"   /* 6 */
+        "\tpartage est un entier = 4\n"      /* 7 */
+        "FIN\n"                    /* 8 */
+        "gTotal est un entier = 0\n";        /* 9 */
+    setup_doc(URI, src);
+    /* Curseur ligne 3, apres le seul tab : prefixe vide -> liste complete (pas
+     * de filtre prefixe ), toutes categories emises. */
+    JsonValue* params = make_completion_params(URI, 3, 1);
+    JsonValue* items = handle_completion(params);
+
+    /* Locales de procA (dans la portee du curseur) : proposees. */
+    ASSERT_HAS(items, "varLettreA", "2239 : locale de procA proposee");
+    ASSERT_HAS(items, "partage",    "2239 : locale 'partage' de procA proposee");
+
+    /* Locale de procB (hors portee) : masquee. */
+    ASSERT_NOT_HAS(items, "varLettreB", "2239 : locale de procB masquee (hors portee)");
+
+    /* Pas de doublon hors-portee : 'partage' existe dans procA ET procB, mais
+     * seule celle de procA est en portee -> exactement 1 occurrence. */
+    int nPartage = count_label(items, "partage");
+    if (nPartage == 1) {
+        g_pass++;
+        printf("  [OK]   2239 : 'partage' propose exactement 1 fois (pas de doublon hors-portee)\n");
+    } else {
+        g_fail++;
+        printf("  [FAIL] 2239 : 'partage' propose %d fois (attendu 1 — doublon hors-portee)\n", nPartage);
+    }
+
+    /* Non-regression : procedures (portee fichier) et globale top-level restent
+     * proposees — le filtre ne touche QUE les variables locales. */
+    ASSERT_HAS(items, "procB",  "2239 : procedure procB toujours proposee (non-regression)");
+    ASSERT_HAS(items, "gTotal", "2239 : globale top-level toujours proposee (non-regression)");
+
+    json_free(items);
+    json_free(params);
 }
 
 /*  — support #208 : en mode EN, les litteraux booleens de la completion
@@ -2299,7 +2367,7 @@ static void test_completion_dotdot_widget_counts_unchanged(void) {
 
     JsonValue* p3 = make_completion_params(URI, 11, 22);
     JsonValue* i3 = handle_completion(p3);
-    ASSERT_COUNT(i3, 2, "1515 non-reg : TABLE_X[1][1].. = 2 props cellule");
+    ASSERT_COUNT(i3, 3, "1515 non-reg : TABLE_X[1][1].. = 3 props cellule (Couleur, CouleurFond ; feat/1595 : +Contenu)");
     json_free(i3); json_free(p3);
 }
 
@@ -2580,6 +2648,50 @@ static void test_champ_modifier_types_completion(void) {
     ASSERT_HAS(items, "Saisie", "fix/1288 Control collé (EN)");
     json_free(items);
     json_free(params);
+}
+
+/*  (support #431) — forme EN SANS article : `SAI_X is Control <cursor>`
+ * (et collé `is Control|`). Le fix #167 ne couvrait que la forme AVEC article
+ * (`is a Control`) ; sans l'article, aucune branche typeDecl ne matchait le
+ * modificateur -> completion generique au lieu des types de controle. On exige
+ * la parite : apres `is Control` (sans article), proposer Bouton/Saisie/… et
+ * PAS les primitifs. */
+static void test_champ_modifier_no_article_en(void) {
+    printf("\n[TEST] fix/2281 : `is Control ` / `is Control|` (sans article, EN) propose les types de controle\n");
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+
+    /* --- Cas espace : `\tSAI_X is Control ` curseur apres l'espace final (col 18). --- */
+    const char* srcSpace =
+        "FEN_X est une Fenetre\n"
+        "\tSAI_X is Control \n"
+        "FIN\n";
+    setup_doc(URI, srcSpace);
+    JsonValue* params = make_completion_params(URI, 1, 18);
+    JsonValue* items = handle_completion(params);
+    /* Locale EN -> labels EN canon des types de contrôle (Button/Input). */
+    ASSERT_HAS    (items, "Button",  "fix/2281 is Control (espace) -> Button");
+    ASSERT_HAS    (items, "Input",   "fix/2281 is Control (espace) -> Input");
+    ASSERT_NOT_HAS(items, "entier",  "fix/2281 is Control (espace) pas de primitif");
+    ASSERT_NOT_HAS(items, "integer", "fix/2281 is Control (espace) pas de primitif EN");
+    json_free(items);
+    json_free(params);
+
+    /* --- Cas collé : `\tSAI_X is Control` curseur apres le 'l' (col 17). --- */
+    const char* srcGlued =
+        "FEN_X est une Fenetre\n"
+        "\tSAI_X is Control\n"
+        "FIN\n";
+    setup_doc(URI, srcGlued);
+    params = make_completion_params(URI, 1, 17);
+    items = handle_completion(params);
+    ASSERT_HAS    (items, "Button",  "fix/2281 is Control (collé) -> Button");
+    ASSERT_HAS    (items, "Input",   "fix/2281 is Control (collé) -> Input");
+    ASSERT_NOT_HAS(items, "entier",  "fix/2281 is Control (collé) pas de primitif");
+    ASSERT_NOT_HAS(items, "integer", "fix/2281 is Control (collé) pas de primitif EN");
+    json_free(items);
+    json_free(params);
+
+    lspServer.language[0] = '\0';
 }
 
 /*  item 3 — `IDENT est un <cursor>` (FR) / `is a <cursor>` (EN) doit
@@ -3861,6 +3973,83 @@ static void test_prop_name_completion_before_equals_unaffected_2162(void) {
     json_free(params);
 }
 
+/*  (support #313) — FormatAffichage (Texte/RTF) sur un Champ Saisie
+ * n'a d'effet qu'en saisie multi-ligne. Le designer masque deja l'option hors
+ * typSaisieMultiligne ; l'editeur de code (completion de VALEUR) doit miroiter
+ * cette condition : la valeur RTF (formatTexteRiche / forme EN formatRichText)
+ * ne doit etre proposee QUE si la prop soeur TypeSaisie vaut typSaisieMultiligne.
+ * formatTexte (texte simple) reste propose partout. Condition sibling-aware
+ * mirroir exact de ui_presentation.c (visible_if TypeSaisie=typSaisieMultiligne). */
+static void test_formataffichage_richtext_hidden_non_multiligne_2282(void) {
+    printf("\n[TEST] fix/2282 : FormatAffichage = ... masque formatTexteRiche hors saisie multi-ligne\n");
+
+    /* (1) Champ mot de passe : RTF ABSENT, texte simple present. */
+    const char* srcPass =
+        "FEN_X est une Fenetre\n"
+        "\tSAI_X est une Saisie\n"
+        "\t\tPROPRIETES\n"
+        "\t\t\tTypeSaisie = typSaisieMotDePasse\n"
+        "\t\t\tFormatAffichage = \n"
+        "\t\tFIN\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, srcPass);
+    /* Ligne 4, 3 tabs + "FormatAffichage = " (18 chars) = 21. */
+    JsonValue* pPass = make_completion_params(URI, 4, 21);
+    JsonValue* iPass = handle_completion(pPass);
+    ASSERT_NOT_HAS(iPass, "formatTexteRiche", "2282 password : RTF (formatTexteRiche) masque");
+    ASSERT_HAS    (iPass, "formatTexte",      "2282 password : texte simple (formatTexte) propose");
+    json_free(iPass);
+    json_free(pPass);
+
+    /* (2) Champ multi-ligne : RTF PRESENT, texte simple present. */
+    const char* srcMulti =
+        "FEN_X est une Fenetre\n"
+        "\tSAI_X est une Saisie\n"
+        "\t\tPROPRIETES\n"
+        "\t\t\tTypeSaisie = typSaisieMultiligne\n"
+        "\t\t\tFormatAffichage = \n"
+        "\t\tFIN\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, srcMulti);
+    JsonValue* pMulti = make_completion_params(URI, 4, 21);
+    JsonValue* iMulti = handle_completion(pMulti);
+    ASSERT_HAS(iMulti, "formatTexteRiche", "2282 multi-ligne : RTF (formatTexteRiche) propose");
+    ASSERT_HAS(iMulti, "formatTexte",      "2282 multi-ligne : texte simple (formatTexte) propose");
+    json_free(iMulti);
+    json_free(pMulti);
+
+    /* (3) Defaut implicite (pas de TypeSaisie = typSaisieTexte) : RTF ABSENT. */
+    const char* srcDefaut =
+        "FEN_X est une Fenetre\n"
+        "\tSAI_X est une Saisie\n"
+        "\t\tPROPRIETES\n"
+        "\t\t\tFormatAffichage = \n"
+        "\t\tFIN\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, srcDefaut);
+    /* Ligne 3, 3 tabs + "FormatAffichage = " = 21. */
+    JsonValue* pDef = make_completion_params(URI, 3, 21);
+    JsonValue* iDef = handle_completion(pDef);
+    ASSERT_NOT_HAS(iDef, "formatTexteRiche", "2282 defaut (texte) : RTF masque sans TypeSaisie explicite");
+    ASSERT_HAS    (iDef, "formatTexte",      "2282 defaut (texte) : texte simple propose");
+    json_free(iDef);
+    json_free(pDef);
+
+    /* (4) Mode EN : le label RTF (formatRichText) masque sur mot de passe. */
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+    setup_doc(URI, srcPass);
+    JsonValue* pEN = make_completion_params(URI, 4, 21);
+    JsonValue* iEN = handle_completion(pEN);
+    ASSERT_NOT_HAS(iEN, "formatRichText", "2282 EN password : RTF (formatRichText) masque");
+    ASSERT_HAS    (iEN, "formatText",     "2282 EN password : texte simple (formatText) propose");
+    json_free(iEN);
+    json_free(pEN);
+    lspServer.language[0] = '\0';
+}
+
 /*  (support #378) — ColSpan/RowSpan n'ont de sens que si le parent
  * (fenetre ou conteneur) est en Disposition = dispGrille. Sans Disposition
  * explicite (defaut dispVerticale), la completion des NOMS de props dans
@@ -5102,6 +5291,61 @@ static const char* hover_value(JsonValue* result) {
     } \
 } while (0)
 
+/*  — Hover sur un nom de procedure/fonction du projet : le detail
+ * doit porter la signature (liste de parametres) et, pour une FONCTION, le
+ * type de retour — pas seulement "Procedure"/"Fonction".
+ * RED-FIRST : avant impl, detail = "Procedure"/"Fonction" (sans params) ->
+ * ces assertions rougissent. Apres impl -> vertes. */
+static void test_hover_proc_signature(void) {
+    printf("\n[TEST] feat/2277 : hover procedure/fonction -> signature params\n");
+    const char* src =
+        "PROCEDURE Calcul(x est un entier, y est une cha\xc3\xaene)\n" /* 0 */
+        "\tRENVOYER 0\n"                                                /* 1 */
+        "FIN\n"                                                         /* 2 */
+        "FONCTION Somme(a est un entier, b est un entier) : entier\n"   /* 3 */
+        "\tRENVOYER a + b\n"                                            /* 4 */
+        "FIN\n"                                                         /* 5 */
+        "PROCEDURE Ping()\n"                                            /* 6 */
+        "FIN\n"                                                         /* 7 */
+        "Calcul(1, \"a\")\n";                                          /* 8 */
+    setup_doc(URI, src);
+
+    /* 1) Procedure avec parametres : signature complete dans le hover. */
+    JsonValue* p1 = make_hover_params(URI, 0, 12); /* sur 'Calcul' decl */
+    JsonValue* r1 = handle_hover(p1);
+    const char* v1 = hover_value(r1);
+    ASSERT_HOVER_CONTAINS(v1,
+        "Procedure(x est un entier, y est une cha\xc3\xaene)",
+        "hover proc params");
+
+    /* Meme signature depuis un site d'appel (ligne 8). */
+    JsonValue* p1b = make_hover_params(URI, 8, 2); /* sur 'Calcul(...)' appel */
+    JsonValue* r1b = handle_hover(p1b);
+    const char* v1b = hover_value(r1b);
+    ASSERT_HOVER_CONTAINS(v1b,
+        "Procedure(x est un entier, y est une cha\xc3\xaene)",
+        "hover proc params sur appel");
+
+    /* 2) Fonction avec parametres + type de retour. */
+    JsonValue* p2 = make_hover_params(URI, 3, 11); /* sur 'Somme' */
+    JsonValue* r2 = handle_hover(p2);
+    const char* v2 = hover_value(r2);
+    ASSERT_HOVER_CONTAINS(v2,
+        "Fonction(a est un entier, b est un entier) : entier",
+        "hover fonction params + retour");
+
+    /* 3) Procedure sans parametre : parentheses vides. */
+    JsonValue* p3 = make_hover_params(URI, 6, 12); /* sur 'Ping' */
+    JsonValue* r3 = handle_hover(p3);
+    const char* v3 = hover_value(r3);
+    ASSERT_HOVER_CONTAINS(v3, "Procedure()", "hover proc sans param");
+
+    json_free(r1);  json_free(p1);
+    json_free(r1b); json_free(p1b);
+    json_free(r2);  json_free(p2);
+    json_free(r3);  json_free(p3);
+}
+
 /* Hover EN sur une native (Arrondi/Round) : desc EN + alias EN, pas la
  * desc FR. */
 static void test_hover_native_en(void) {
@@ -5925,6 +6169,38 @@ static void test_completion_keyword_label_fr_default(void) {
     ASSERT_NOT_HAS(items, "PROPERTIES",  "kw FR no EN (PROPERTIES)");
     ASSERT_HAS    (items, "SI",          "kw FR label (SI)");
     ASSERT_NOT_HAS(items, "IF",          "kw FR no EN (IF)");
+    json_free(items);
+    json_free(params);
+}
+
+/*  (support #431) — `PROPRIETE` (singulier) n'est PAS un mot-cle canon :
+ * le scanner ne connait que `PROPRIETES`/`PROPERTIES` (TOKEN_PROPRIETES). Le
+ * singulier trainait dans la liste kw[] de la completion (artefact), sans forme
+ * EN -> en locale EN il tombait en fallback FR et polluait la liste (propose
+ * avant PROPERTIES en tapant `prop`). On exige son retrait de la completion,
+ * dans les deux locales ; le pluriel canon reste (PROPERTIES en EN, PROPRIETES
+ * en FR). */
+static void test_completion_propriete_singular_removed(void) {
+    printf("\n[TEST] fix/2281 : PROPRIETE singulier (artefact) retire de la completion\n");
+    const char* src = "x = \n";
+
+    /* --- EN : PROPERTIES canon present, PROPRIETE singulier absent. --- */
+    setup_doc(URI, src);
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+    JsonValue* params = make_completion_params(URI, 0, 4);
+    JsonValue* items = handle_completion(params);
+    ASSERT_HAS    (items, "PROPERTIES", "fix/2281 EN PROPERTIES canon present");
+    ASSERT_NOT_HAS(items, "PROPRIETE",  "fix/2281 EN PROPRIETE singulier (artefact) absent");
+    json_free(items);
+    json_free(params);
+    lspServer.language[0] = '\0';
+
+    /* --- FR : PROPRIETES canon present, PROPRIETE singulier absent. --- */
+    setup_doc(URI, src);
+    params = make_completion_params(URI, 0, 4);
+    items = handle_completion(params);
+    ASSERT_HAS    (items, "PROPRIETES", "fix/2281 FR PROPRIETES canon present");
+    ASSERT_NOT_HAS(items, "PROPRIETE",  "fix/2281 FR PROPRIETE singulier (artefact) absent");
     json_free(items);
     json_free(params);
 }
@@ -17992,6 +18268,7 @@ int main(int argc, char** argv) {
     test_body_bouton_completion();
     test_completion_indirection_scope();
     test_completion_comma_trigger_indirection();
+    test_completion_local_scope_filter();
     test_completion_bool_literals_lang();
     test_completion_bool_literals_partial_prefix();
     test_completion_bool_literals_partial_prefix_procedure_context();
@@ -18038,6 +18315,7 @@ int main(int argc, char** argv) {
     test_body_saisie_completion();
     test_body_libelle_completion();
     test_champ_modifier_types_completion();
+    test_champ_modifier_no_article_en();
     test_menu_kind_types_completion();
     test_colonne_type_completion_in_table();
     test_volet_type_completion_in_onglet();
@@ -18074,6 +18352,7 @@ int main(int argc, char** argv) {
     test_bottommargin_caption_columnspan_no_garbage_en();
     test_typesaisie_enum_bare_prop_completion_non_regression();
     test_prop_name_completion_before_equals_unaffected_2162();
+    test_formataffichage_richtext_hidden_non_multiligne_2282();
     test_columnspan_rowspan_hidden_default_layout_2163();
     test_columnspan_rowspan_hidden_disp_libre_2163();
     test_columnspan_rowspan_offered_disp_grille_2163();
@@ -18516,6 +18795,9 @@ int main(int argc, char** argv) {
     /*  — controles prefixes Champ indexes cross-fichier (GUARD vert). */
     test_cross_file_champ_prefixed_controls();
 
+    /*  — hover procedure/fonction -> signature (RED avant impl). */
+    test_hover_proc_signature();
+
     /*  — hover EN quand language=en (RED attendu avant impl). */
     test_hover_native_en();
     test_hover_native_fr_default();
@@ -18567,6 +18849,7 @@ int main(int argc, char** argv) {
     /*  — completion EN mots-cles labels + snippets (RED avant impl). */
     test_completion_keyword_label_en();
     test_completion_keyword_label_fr_default();
+    test_completion_propriete_singular_removed();
     test_completion_keyword_snippet_en();
     test_completion_keyword_snippet_fr_default();
 

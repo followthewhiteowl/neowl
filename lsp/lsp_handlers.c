@@ -1818,6 +1818,91 @@ static void scan_user_symbols_force(void) {
     scope_build();
 }
 
+/*  — copie `src` (len octets) dans `dst` en reduisant toute
+ * sequence de blancs (espace, tab, CR, LF) a un espace unique et en
+ * elaguant les bords. Preserve les octets non-ASCII (UTF-8 des types
+ * accentues : `chaine`/`chaîne`). */
+static void proc_sig_normalize_ws(const char* src, size_t len,
+                                  char* dst, size_t dstSize) {
+    size_t o = 0;
+    bool pendingSpace = false, started = false;
+    for (size_t i = 0; i < len && o + 1 < dstSize; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (started) pendingSpace = true;
+            continue;
+        }
+        if (pendingSpace && o + 1 < dstSize) { dst[o++] = ' '; pendingSpace = false; }
+        if (o + 1 < dstSize) { dst[o++] = (char)c; started = true; }
+    }
+    dst[o] = '\0';
+}
+
+/*  — construit la signature (liste de parametres + type de retour)
+ * d'une PROCEDURE/FONCTION pour le `detail` de hover/completion. Lit en
+ * AVANCE via un clone du scanner (`peek` passe par valeur) positionne juste
+ * apres le nom : le scanner principal n'est PAS avance, donc la suite du
+ * scan (notamment la capture des parametres comme declarations locales)
+ * reste strictement inchangee. Format :
+ *   "Procedure(x est un entier, y est une chaine)"
+ *   "Fonction(a est un entier) : entier"
+ * Borne a `outSize` ; ellipse ASCII si depassement (cas rare). */
+static void build_proc_signature(Scanner peek, bool isFunction,
+                                 char* out, size_t outSize) {
+    const char* kindWord = isFunction ? "Fonction" : "Procedure";
+    char params[256]; params[0] = '\0';
+    char ret[128];    ret[0] = '\0';
+
+    Token t = scanner_scan_token(&peek);
+    if (t.type == TOKEN_LEFT_PAREN) {
+        const char* paramStart = t.start + t.length; /* premier octet apres '(' */
+        const char* paramEnd = NULL;
+        int depth = 1;
+        for (;;) {
+            Token p = scanner_scan_token(&peek);
+            if (p.type == TOKEN_EOF) { paramEnd = p.start; break; }
+            if (p.type == TOKEN_LEFT_PAREN) depth++;
+            else if (p.type == TOKEN_RIGHT_PAREN) {
+                if (--depth == 0) { paramEnd = p.start; break; }
+            }
+        }
+        if (paramEnd && paramEnd >= paramStart) {
+            proc_sig_normalize_ws(paramStart, (size_t)(paramEnd - paramStart),
+                                  params, sizeof(params));
+        }
+        /* Type de retour `: Type` (meme ligne, apres la parenthese fermante). */
+        if (isFunction) {
+            Token c = scanner_scan_token(&peek);
+            if (c.type == TOKEN_COLON) {
+                const char* rStart = NULL;
+                const char* rEnd = NULL;
+                for (;;) {
+                    Token r = scanner_scan_token(&peek);
+                    if (r.type == TOKEN_NEWLINE || r.type == TOKEN_EOF) break;
+                    if (!rStart) rStart = r.start;
+                    rEnd = r.start + r.length;
+                }
+                if (rStart && rEnd && rEnd > rStart) {
+                    proc_sig_normalize_ws(rStart, (size_t)(rEnd - rStart),
+                                          ret, sizeof(ret));
+                }
+            }
+        }
+    }
+
+    int written = (ret[0] != '\0')
+        ? snprintf(out, outSize, "%s(%s) : %s", kindWord, params, ret)
+        : snprintf(out, outSize, "%s(%s)", kindWord, params);
+    if (written < 0 || (size_t)written >= outSize) {
+        if (outSize >= 4) {
+            out[outSize - 4] = '.';
+            out[outSize - 3] = '.';
+            out[outSize - 2] = '.';
+            out[outSize - 1] = '\0';
+        }
+    }
+}
+
 /*  — Body du scan d'une source (open doc ou fichier disque).
  * docIndex >= 0 : doc ouvert dans lspServer.documents[docIndex].
  * docIndex == -1 : fichier disque (pas d'entree dans userSymbols pour la
@@ -2080,8 +2165,13 @@ static void scan_one_source_for_user_symbols(const char* source, int docIndex,
                     sym->line = next.line - 1;
                     sym->character = next.column > 0 ? next.column - 1 : 0;
                     sym->kind = 3; /* Function */
-                    snprintf(sym->detail, sizeof(sym->detail),
-                             tok.type == TOKEN_FONCTION ? "Fonction" : "Procedure");
+                    /*  — signature (params + type de retour) dans le
+                     * detail : le hover montre `Procedure Nom(...)` plutot que
+                     * le seul genre. Lecture en avance sur un clone du scanner,
+                     * `sc` n'est pas avance (params toujours scannes ensuite
+                     * comme declarations locales — zero regression). */
+                    build_proc_signature(sc, tok.type == TOKEN_FONCTION,
+                                         sym->detail, sizeof(sym->detail));
                     sym->docIndex = docIndex;
                 }
                 else if (next.type == TOKEN_IDENTIFIER && docIndex < 0
@@ -3681,6 +3771,12 @@ typedef struct {
                           * declare-t-il Disposition = dispGrille ? Sert a
                           * filtrer ColSpan/RowSpan de la completion (sans
                           * effet hors grille). */
+    bool saisieIsMultiligne; /*  — le widget Saisie englobant declare-t-il
+                          * TypeSaisie = typSaisieMultiligne ? Sert a masquer la
+                          * valeur RTF (formatTexteRiche) de FormatAffichage hors
+                          * saisie multi-ligne, miroir du filtre designer
+                          * (ui_presentation.c visible_if). Defaut Faux (le defaut
+                          * typSaisieTexte n'est pas multi-ligne). */
 } DslCtx;
 
 /*  — resout le sous-type d'un field `instance` dans un type composé
@@ -3754,6 +3850,11 @@ static DslCtx detect_dsl_context_ex(const char* source, int cursor_offset) {
     bool sawDispName = false;   /* token precedent = Disposition/Layout */
     bool awaitDispVal = false;  /* on a vu `Disposition =`, le prochain token
                                  * est la valeur du layout. */
+    /*  — multi-ligne par bloc widget : true si le bloc Saisie a declare
+     * TypeSaisie = typSaisieMultiligne. Parallele a `stack`, reset a chaque push. */
+    bool multiligne[64]; for (int mi = 0; mi < 64; mi++) multiligne[mi] = false;
+    bool sawTypeSaisieName = false; /* token precedent = TypeSaisie/InputType */
+    bool awaitTypeSaisieVal = false;
     Token prev = (Token){0};
 
     while (1) {
@@ -3786,6 +3887,28 @@ static DslCtx detect_dsl_context_ex(const char* source, int cursor_offset) {
         sawDispName = (t.type == TOKEN_IDENTIFIER
                        && ((t.length == 11 && strncasecmp(t.start, "Disposition", 11) == 0)
                         || (t.length == 6  && strncasecmp(t.start, "Layout", 6) == 0)));
+
+        /*  — detection `TypeSaisie/InputType = typSaisieMultiligne`. La
+         * valeur est assignee au bloc widget qui possede la prop (le premier
+         * slot non-structurel sous le sommet, comme Disposition ci-dessus). */
+        if (awaitTypeSaisieVal) {
+            awaitTypeSaisieVal = false;
+            bool isMulti = (t.length == 19 && strncasecmp(t.start, "typSaisieMultiligne", 19) == 0)
+                        || (t.length == 18 && strncasecmp(t.start, "typeInputMultiline", 18) == 0);
+            if (isMulti) {
+                for (int i = top - 1; i >= 0; i--) {
+                    char k = stack[i];
+                    if (k == 'p' || k == 'P' || k == 'X') continue;
+                    multiligne[i] = true;
+                    break;
+                }
+            }
+        } else if (sawTypeSaisieName && t.type == TOKEN_EQUAL) {
+            awaitTypeSaisieVal = true;
+        }
+        sawTypeSaisieName = (t.type == TOKEN_IDENTIFIER
+                       && ((t.length == 10 && strncasecmp(t.start, "TypeSaisie", 10) == 0)
+                        || (t.length == 9  && strncasecmp(t.start, "InputType", 9) == 0)));
 
         /* Prefixe de declaration de champ (modificateur + filler) : traverse
          * en preservant prev = EST. Cf. lsp_champ_prefix_kind. */
@@ -3895,6 +4018,8 @@ static DslCtx detect_dsl_context_ex(const char* source, int cursor_offset) {
          * (evite qu'une valeur GRILLE d'un bloc frere ferme fuite via l'index
          * reutilise). */
         for (int s = topBefore; s < top; s++) grille[s] = false;
+        /*  — idem : un slot neuf demarre non-multi-ligne. */
+        for (int s = topBefore; s < top; s++) multiligne[s] = false;
 
         /*  — article EN transparent : `IDENT is a <Type>` garde
          * prev=EST pour que <Type> declenche wasEst au tour suivant. */
@@ -3919,6 +4044,7 @@ static DslCtx detect_dsl_context_ex(const char* source, int cursor_offset) {
             char k = stack[i];
             if (dsl_kind_char_has_props(k)) {
                 out.widget = k;
+                out.saisieIsMultiligne = multiligne[i]; /*  */
                 /*  — layout du parent direct du widget englobant : le
                  * bloc widget/conteneur immediatement en dessous (les chars
                  * structurels p/P/X sont traverses). Sert au filtre
@@ -3965,6 +4091,7 @@ static DslCtx detect_dsl_context_ex(const char* source, int cursor_offset) {
     /* Sinon : top = widget DSL ou autre. Skip P/X. */
     while (top > 0 && (stack[top-1] == 'X' || stack[top-1] == 'P')) top--;
     out.widget = top > 0 ? stack[top-1] : 0;
+    out.saisieIsMultiligne = (top > 0) ? multiligne[top-1] : false; /*  */
     /* Promote Libellé to LibelleEtat outside PROPRIETES too (pour completion
      * apres un point sur LIB_X qui vit dans un Etat). */
     if (out.widget == 'L') {
@@ -6106,6 +6233,18 @@ JsonValue* handle_completion(JsonValue* params) {
                     } else if (WART(0) && WKW(1)) {
                         typeDeclContext = true;
                         typeDeclHasArticle = true;
+                    } else if (WMOD(0) && WKW(1)) {
+                        /*  (support #431) — forme EN SANS article, collée :
+                         * `is Control|` / `is Field|` (words = [modif, copule], pas
+                         * d'article). Doit primer sur le cas type-partiel `WKW(1)`
+                         * suivant (qui proposerait les primitifs). controlModifierGlued
+                         * -> textEdit d'insertion (évite le masquage client sur le
+                         * mot "Control"). Cf. parité avec la forme avec article
+                         * (WMOD(0) && WART(1) && WKW(2), ). */
+                        typeDeclContext = true;
+                        controlModifierContext = true;
+                        controlModifierGlued = true;
+                        typeDeclHasArticle = false;
                     } else if (WKW(1)) {
                         typeDeclContext = true;
                         typeDeclHasArticle = false;
@@ -6150,6 +6289,14 @@ JsonValue* handle_completion(JsonValue* params) {
                         typeDeclContext = true;
                         controlModifierContext = true;
                         typeDeclHasArticle = true;
+                    } else if (WMOD(0) && WKW(1)) {
+                        /*  (support #431) — forme EN SANS article :
+                         * `is Control <cursor>` / `is Field <cursor>` (words =
+                         * [modificateur, copule], pas d'article). Parité avec la
+                         * forme avec article ci-dessus → types de contrôle. */
+                        typeDeclContext = true;
+                        controlModifierContext = true;
+                        typeDeclHasArticle = false;
                     }
                 }
                 #undef WMOD
@@ -7793,7 +7940,37 @@ JsonValue* handle_completion(JsonValue* params) {
         }
         const OwlEnumInfo* rei = owl_enum_info_find(simpleAssignVarType);
         if (rei && rei->values) {
+            /*  (support #313) — FormatAffichage sur un Champ Saisie :
+             * la valeur RTF (formatTexteRiche / EN formatRichText) n'a d'effet
+             * qu'en saisie multi-ligne. Hors typSaisieMultiligne (mot de passe,
+             * texte simple, defaut), on la masque — miroir exact du filtre
+             * designer (ui_presentation.c visible_if TypeSaisie=typSaisieMultiligne).
+             * Le nom de prop FormatAffichage coincide avec l'enum formatAffichage
+             * (casse-insensible), d'ou la resolution via simpleAssignContext. Le
+             * filtre est strict au genre Saisie : un Libelle au format RTF reste
+             * valide en permanence. */
+            bool hideRTF = false;
+            if (strcmp(rei->name, "formatAffichage") == 0 && td && pos) {
+                /* Re-derive doc + offset octet depuis params (le `src`/offset
+                 * du walk-back n'est plus en scope ici), comme le bloc
+                 * PROCEDURE plus bas ( pour l'offset UTF-16->octet). */
+                const char* uri = json_get_string(td, "uri");
+                int line = (int)json_get_int(pos, "line", 0);
+                int character = (int)json_get_int(pos, "character", 0);
+                int idx = find_doc(uri);
+                if (idx >= 0) {
+                    const char* src = lspServer.documents[idx].content;
+                    const char* lp = src;
+                    int cl = 0;
+                    while (*lp && cl < line) { if (*lp == '\n') cl++; lp++; }
+                    character = lsp_utf16_to_byte_in_line(lp, character);
+                    int co = (int)(lp - src) + character;
+                    DslCtx d = detect_dsl_context_ex(src, co);
+                    if (d.widget == 'S' && !d.saisieIsMultiligne) hideRTF = true;
+                }
+            }
             for (const char* const* v = rei->values; *v; v++) {
+                if (hideRTF && strcmp(*v, "formatTexteRiche") == 0) continue;
                 emit_enum_value_item(items, *v, rei->name, 13, '0', NULL,
                                      "Valeur de", "Value of", wantEN);
             }
@@ -8022,7 +8199,7 @@ JsonValue* handle_completion(JsonValue* params) {
         "BOUCLE", "FAIRE", "SELON", "CAS", "AUTRE", "SORTIR",
         "CONTINUER", "RENVOYER", "RETOUR", "AVEC", "QUAND", "EXCEPTION",
         "PROCEDURE", "FONCTION", "CLASSE", "STRUCTURE", "ENUMERATION",
-        "COMBINAISON", "INTERFACE", "HERITE", "IMPLEMENTE", "PROPRIETE",
+        "COMBINAISON", "INTERFACE", "HERITE", "IMPLEMENTE",
         "PUBLIC", "PRIVE", "PROTEGE", "GLOBAL", "LOCAL", "CONSTANTE",
         "PROPRIETES",  /* DSL v2 : bloc statique des props widget */
         /* Mots-cles contextuels emetteur/fenetre courante : label FR canon
@@ -8258,9 +8435,31 @@ JsonValue* handle_completion(JsonValue* params) {
         lhsScalarDeclAssign = (lcDA == VT_BOOL || lcDA == VT_NUM || lcDA == VT_STR);
     }
 
+    /*  (support #415) — portee des variables LOCALES. Une locale
+     * (kind 6, non globale) n'est proposee que si SA declaration est celle
+     * visible a la position du curseur, via le moteur de portee lexical
+     * (, ). Les locales d'AUTRES procedures (meme fichier ou
+     * autre doc ouvert), homonymes compris, sont masquees — ce qui ecarte
+     * aussi les doublons de nom hors-portee. Globales (isGlobal), procedures,
+     * types, structs, enums ont une portee fichier/projet : non filtres. */
+    const char* scopeUri = td ? json_get_string(td, "uri") : NULL;
+    int scopeLine = pos ? (int)json_get_int(pos, "line", 0) : 0;
+    int scopeChar = pos ? (int)json_get_int(pos, "character", 0) : 0;
+
     /* User-defined symbols — filterText includes accent-stripped form so
      * "ResultatCompare" matches "RésultatCompare" typed without accents. */
     for (int i = 0; i < userSymbolCount; i++) {
+        /*  — filtre de portee des locales (cf. note ci-dessus). */
+        if (scopeUri && userSymbols[i].kind == 6 && !userSymbols[i].isGlobal) {
+            ScopeResolveResult sr;
+            if (!scope_resolve_at(scopeUri, scopeLine, scopeChar,
+                                  userSymbols[i].name, &sr)
+                || !sr.found
+                || sr.docIndex != userSymbols[i].docIndex
+                || sr.line != userSymbols[i].line
+                || sr.character != userSymbols[i].character)
+                continue;  /* locale hors de la portee du curseur */
+        }
         /*  — position valeur d'un decl-assign : filtrer les variables
          * (kind 6) dont le type declare est prouve incompatible avec le LHS.
          * Les autres symboles (types, enums) restent intacts. */

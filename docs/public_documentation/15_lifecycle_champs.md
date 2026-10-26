@@ -901,8 +901,11 @@ SAI_Telephone..MasqueSaisie = "+99 999 99 99 99"  // + et espaces littéraux
 ```
 
 Le masque contraint la **saisie**. Pour piloter uniquement le *format
-affiché* d'un champ Date sans imposer une frappe position par position,
-utiliser plutôt `MasqueAffichage` (`DisplayMask`).
+affiché* d'un champ Date, Heure ou Durée sans imposer une frappe position
+par position, utiliser plutôt `MasqueAffichage` (`DisplayMask`) — un gabarit
+de jetons par type (Date `"JJ/MM/AAAA"`, Heure `"HH:MI"`, Durée `"HH:MI:SS"`).
+Pour un champ Numérique ou Monétaire, c'est `FormatNombre` / `FormatMonétaire`
+qui pilotent l'affichage, pas `MasqueAffichage`.
 
 ---
 

@@ -29,6 +29,10 @@
 #   - category_filter_lang_scan.c : libelles de categorie language-aware (catEN du dump + rendu filtres/tag/groupes, volet #265)
 #   - guide_lang_scan.c     : guides bilingues (GUIDES titleEN/mdEN par stem + anti-doublon .en + bandeau de repli EN, volet #300)
 #   - cli_learn_lang_scan.c : cablage EN du CLI documentaire (owl learn/primer servent EMBEDDED_PUBLIC_DOCS_EN sous --lang en, FR inchange, compte de fiches stable )
+#   - guide_nav_en_scan.c   : entree de navigation d'un guide cherchable par son titre EN (champ "en" absent aujourd'hui, support #389 regression post-1.5.0)
+#   - category_filter_lang_scan.c etendu : paires catEN manquantes pour categories de constantes/enums (Affichage, Clavier, Apprentissage automatique, Primitifs, Reference, FormatNombre/Numerique/Monetaire, Temporel, Constantes diverses)
+#   - examples_en_translate_scan.c : code des exemples traduit en EN canon via owl_translate (symboles EN presents/FR absents, commentaires ET libelles d'assertion FR retires, litteraux-valeur conserves), TEXTE+JSON sur 2 natives, non-regression FR stricte. SUPERSEDE examples_json_lang_scan.c (, retire) :  servait scenarios:[]+note sous --lang en,  sert desormais le code traduit -- contrat inverse, l'ancien scanner etait devenu faux.
+#   - displaymask_saisie_desc_scan.c : la desc de ..MasqueAffichage du champ Saisie couvre les trois types temporels (Date/Heure/Duree) avec un exemple par type et oriente vers FormatNombre/FormatMonetaire pour le numerique/monetaire (plus de "que des dates", support #380)
 #
 # Usage:
 #   ./run.sh                 # utilise ./build/owl.exe (racine repo)
@@ -47,7 +51,7 @@ if [ ! -f "$OWL" ]; then
 fi
 
 rc=0
-for scan in leak_scan internal_native_scan keyword_en_scan projet_prop_scan projet_prop_descen_scan enum_dup_scan enum_accent_dup_scan date_returntype_scan explain_json_lang_scan type_field_nav_scan collision_crossref_scan widget_prop_regression_scan doc_fiches_baseline_stable_scan list_scroll_reset_scan widget_style_descen_scan table_seealso_scan crossref_pin_scan crossref_heuristic_regression_scan crossref_viewer_parity_scan search_doc_first_scan crossref_pin_st3_sql_scan crossref_dslprop_scan projet_naming_backlink_scan projet_example_scan widget_member_sort_lang_scan category_filter_lang_scan guide_lang_scan cli_learn_lang_scan; do
+for scan in leak_scan internal_native_scan keyword_en_scan projet_prop_scan projet_prop_descen_scan enum_dup_scan enum_accent_dup_scan date_returntype_scan explain_json_lang_scan type_field_nav_scan collision_crossref_scan widget_prop_regression_scan doc_fiches_baseline_stable_scan list_scroll_reset_scan widget_style_descen_scan table_seealso_scan crossref_pin_scan crossref_heuristic_regression_scan crossref_viewer_parity_scan search_doc_first_scan crossref_pin_st3_sql_scan crossref_dslprop_scan projet_naming_backlink_scan projet_example_scan widget_member_sort_lang_scan category_filter_lang_scan guide_lang_scan cli_learn_lang_scan guide_nav_en_scan examples_en_translate_scan displaymask_saisie_desc_scan; do
     BIN="$ROOT/$scan.exe"
     gcc -O0 -Wall -o "$BIN" "$ROOT/$scan.c" || {
         echo "cli_doc_lang: echec compilation $scan.c"

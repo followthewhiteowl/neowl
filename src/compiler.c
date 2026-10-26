@@ -2551,6 +2551,30 @@ static void canonicalize_builtin_type_token(Token* tok) {
 static void validate_pending_type_refs(void) {
     for (int i = 0; i < pendingTypeRefCount; i++) {
         const PendingTypeRef* r = &pendingTypeRefs[i];
+
+        /*  — type accesseur non declarable seul (xlsCellule...). Le
+         * nom est deja canonicalise au record (xlsCell -> xlsCellule), d'ou le
+         * message FR canon meme pour une source EN. Routage identique a
+         * enum-as-type (synthetic token col 0) pour que la variable reste
+         * declaree -> warning "jamais utilisee" preserve. */
+        const OwlTypeDef* ntd = owl_registry_type_find(r->name);
+        if (ntd != NULL && ntd->notDeclarableHint != NULL) {
+            parser.panicMode = false;
+            Token synthetic;
+            synthetic.start = r->name;
+            synthetic.length = r->length;
+            synthetic.line = r->line;
+            synthetic.column = 0;
+            synthetic.type = TOKEN_IDENTIFIER;
+            char nameBuf[128];
+            snprintf(nameBuf, sizeof(nameBuf), "%.127s", r->name);
+            owl_emit_error_at(&synthetic, E_SEM_TYPE_NOT_DECLARABLE_STANDALONE,
+                              "name", nameBuf,
+                              "hint", ntd->notDeclarableHint,
+                              NULL);
+            continue;
+        }
+
         if (is_any_known_type(r->name, r->length)) continue;
         /*  — position de type qualifiée `COL.Type` : le nom manglé
          * `COL$Type` est valide dès que (COL, Type) est un membre-type connu. */
@@ -9711,6 +9735,97 @@ static const char* resolve_var_style_type_xfile(const char* name, int length) {
            ? g_xfile_style_type_cache[slot].type : NULL;
 }
 
+/*  — type STRUCTURE d'un global declare chez un VOISIN, avec repli
+ * cross-fichier. resolve_var_struct_type ne voit que le fichier courant
+ * (g_typed_globals, remis a zero par compile). Le prescan projet enregistre
+ * deja le NOM de la struct voisine (kind UNKNOWN) et HYDRATE ses champs
+ * (hydrate_companion_struct_fields) ; ne manquait que la resolution du type du
+ * RECEVEUR pour que le check de membre inexistant (`g.membreBidon`) s'active
+ * cross-fichier comme intra-fichier. Repli textuel borne aux structures :
+ * project_ident_declared_type rend le 1er token apres EST ("stX" pour
+ * `g est un stX`), accepte seulement s'il designe une structure user. Le nom
+ * resolu est copie dans buf (fourni par l'appelant) ; retour NULL sinon. */
+static const char* resolve_var_struct_type_xfile(const char* name, int length,
+                                                  char* buf, int bufSize) {
+    const char* st = resolve_var_struct_type(name, length);
+    if (st != NULL) return st;
+    if (projectSymbols == NULL || name == NULL || length <= 0 || bufSize <= 1)
+        return NULL;
+    char found[64];
+    if (!project_ident_declared_type(name, length, found, sizeof(found)))
+        return NULL;
+    int fl = (int)strlen(found);
+    if (!type_name_is_structure(found, fl)) return NULL;
+    int n = fl < bufSize - 1 ? fl : bufSize - 1;
+    memcpy(buf, found, (size_t)n);
+    buf[n] = '\0';
+    return buf;
+}
+
+/*  — type d'element STRUCTURE d'un global `tableau de <Struct>` declare
+ * chez un voisin, avec repli cross-fichier. resolve_var_array_element_struct ne
+ * voit que le fichier courant. project_ident_declared_type ne rend que le 1er
+ * token du type ("tableau"), d'ou ce scan textuel dedie des sources projet, qui
+ * capture le nom APRES `de` quand le global est un `tableau [...] de <IDENT>`,
+ * et ne l'accepte que s'il designe une structure user. Un etat par declaration
+ * (remis a zero a chaque NEWLINE : un global tient sur une ligne). */
+static const char* resolve_var_array_element_struct_xfile(const char* name, int length,
+                                                          char* buf, int bufSize) {
+    const char* es = resolve_var_array_element_struct(name, length);
+    if (es != NULL) return es;
+    if (projectSymbols == NULL || name == NULL || length <= 0 || bufSize <= 1)
+        return NULL;
+    char wantCanon[128];
+    int wantLen = scanner_strip_accents(name, length, wantCanon, sizeof(wantCanon));
+    if (wantLen <= 0) return NULL;
+    for (int k = 0; k < projectSymbols->sourceCount; k++) {
+        const char* src = projectSymbols->sources[k].source;
+        if (src == NULL) continue;
+        Scanner s;
+        scanner_init(&s, src);
+        /* 0 = rien ; 1 = `name EST TABLEAU` vu (on attend `DE`) ; 2 = `DE` vu
+         * (on attend l'IDENT d'element). */
+        int stage = 0;
+        Token prev2 = (Token){0};
+        Token prev1 = (Token){0};
+        for (;;) {
+            Token tok = scanner_scan_token(&s);
+            if (tok.type == TOKEN_EOF) break;
+            if (tok.type == TOKEN_NEWLINE) {
+                stage = 0; prev2 = prev1 = (Token){0}; continue;
+            }
+            if (tok.type == TOKEN_ERROR) continue;
+            if (stage == 0) {
+                if (tok.type == TOKEN_TABLEAU && prev1.type == TOKEN_EST
+                    && prev2.type == TOKEN_IDENTIFIER) {
+                    char haveCanon[128];
+                    int haveLen = scanner_strip_accents(prev2.start, prev2.length,
+                                                        haveCanon, sizeof(haveCanon));
+                    if (haveLen == wantLen
+                        && strncasecmp(haveCanon, wantCanon, (size_t)wantLen) == 0)
+                        stage = 1;
+                }
+            } else if (stage == 1) {
+                if (tok.type == TOKEN_DE) stage = 2;
+            } else {
+                if (tok.type == TOKEN_IDENTIFIER) {
+                    int el = (int)tok.length;
+                    if (!type_name_is_structure(tok.start, el)) return NULL;
+                    int n = el < bufSize - 1 ? el : bufSize - 1;
+                    memcpy(buf, tok.start, (size_t)n);
+                    buf[n] = '\0';
+                    return buf;
+                }
+                /* token non-IDENT apres `de` (`tableau de chaine` -> mot-cle) :
+                 * pas un element struct. */
+                stage = 0;
+            }
+            prev2 = prev1; prev1 = tok;
+        }
+    }
+    return NULL;
+}
+
 /* Resolve a variable name to its declared TOKEN type (e.g. TOKEN_TABLEAU,
  * TOKEN_CHAINE, TOKEN_DATE...). Returns TOKEN_EOF when the variable was
  * declared without an explicit type, or is unknown.
@@ -11262,9 +11377,11 @@ typedef struct {
 } OwlColumnReceiverProp;
 
 static const OwlColumnReceiverProp OWL_COLUMN_RECEIVER_PROPS[] = {
-    { "Couleur",      "Color" },
-    { "CouleurFond",  "BackgroundColor" },
-    { "MasqueSaisie", "InputMask" },   /*  — 1er cas non-formatage */
+    { "Couleur",         "Color" },
+    { "CouleurFond",     "BackgroundColor" },
+    { "MasqueSaisie",    "InputMask" },     /*  — 1er cas non-formatage */
+    { "MasqueAffichage", "DisplayMask" },   /*  — override format affiche */
+    { "Contenu",         "Content" },        /*  — liste colonne combo */
 };
 
 /* propProbe = nom de propriete deja accent-strippe. true si la prop est un
@@ -11617,6 +11734,16 @@ static void dot(bool canAssign) {
     } else if (receiverTok.length > 0) {
         recvType = resolve_var_style_type_xfile(receiverTok.start,
                                                 receiverTok.length);
+        if (recvType == NULL) {
+            /*  — repli cross-fichier pour un global de type STRUCTURE
+             * voisin : sans le type du receveur, le check de membre inexistant
+             * (`gStruct.membreBidon`) etait saute cross-fichier. Aligne sur
+             * intra-fichier (resolve_var_struct_type). */
+            recvType = resolve_var_struct_type_xfile(receiverTok.start,
+                                                     receiverTok.length,
+                                                     recvTypeBuf,
+                                                     (int)sizeof(recvTypeBuf));
+        }
     }
 
     /* Reset the chain tracker; we'll repopulate it below if we can resolve
@@ -12105,7 +12232,20 @@ static void dot(bool canAssign) {
                                       "field", fieldBuf,
                                       NULL);
                 }
-            } else if (idx >= 0 && knownUserTypes[idx].kind == 1) {
+            } else if (idx >= 0
+                       && (knownUserTypes[idx].kind == OWL_USER_TYPE_STRUCTURE
+                           || (knownUserTypes[idx].kind == OWL_USER_TYPE_UNKNOWN
+                               && knownUserTypes[idx].fieldCount > 0
+                               && type_name_is_structure(recvType, rtl)))) {
+                /*  — cross-fichier, une struct compagnon reste kind
+                 * UNKNOWN (le body est parse dans son fichier d'origine), mais
+                 * ses champs sont hydrates (hydrate_companion_struct_fields) et
+                 * type_name_is_structure la reconnait via SYM_STRUCT. On ouvre
+                 * donc le check de membre inexistant a ce cas, a l'identique du
+                 * kind==STRUCTURE intra-fichier. Garde fieldCount > 0 : si les
+                 * champs ne sont PAS hydrates dans ce contexte de compile, on ne
+                 * sait pas reprouver un champ valide sans sur-rejeter — on laisse
+                 * alors passer (le garde `..` reste actif par ailleurs). */
                 const UserTypeField* fld = user_type_find_field(recvType, rtl, fieldTok.start, fieldTok.length);
                 if (fld && fld->typeLen > 0 && is_known_user_type(fld->typeName, fld->typeLen)) {
                     int copy = fld->typeLen < 63 ? fld->typeLen : 63;
@@ -14528,11 +14668,16 @@ static void subscript(bool canAssign) {
      * suivant refuse `t[i]..prop` du registre masque, comme sur toute autre
      * position (variable, parametre, champ, retour). */
     char arrElemStructBuf[64];
+    char arrElemStructXfileBuf[64];
     int  arrElemStructLen = 0;
     if (g_last_field_name_len == 0 && g_last_field_type_len == 0 &&
         g_last_var_token.length > 0) {
-        const char* es = resolve_var_array_element_struct(g_last_var_token.start,
-                                                          g_last_var_token.length);
+        /*  — repli cross-fichier : un `tableau de <Struct>` declare chez
+         * un voisin rend sinon un element de type inconnu, et le dot() suivant
+         * ne pouvait pas refuser `t[i].membreBidon`. */
+        const char* es = resolve_var_array_element_struct_xfile(
+            g_last_var_token.start, g_last_var_token.length,
+            arrElemStructXfileBuf, (int)sizeof(arrElemStructXfileBuf));
         if (es != NULL) {
             int n = (int)strlen(es);
             if (n > 63) n = 63;
@@ -14608,8 +14753,15 @@ static void subscript(bool canAssign) {
              * L'execution ne peut pas trancher : quand elle voit le `..`, la
              * valeur est deja lue. La discrimination est donc ici, sur le
              * lookahead de ce qui suit le `]`. */
+            /*  — cellule entierement designee par crochets
+             * (profondeur 2 : double-crochet `TABLE[l][c]` ou colonne-first
+             * `TABLE.COL[l]`). Un `..Prop` de mise en forme derriere -> on sert
+             * le DESCRIPTEUR (OP_TABLE_CELL_DESC) ; rien derriere (forme nue) ->
+             * OP_ARRAY_GET rend la VALEUR scalaire, symetrie avec
+             * `TABLE[l].COL_nom`. La discrimination est ici, au lookahead : a
+             * l'execution la valeur est deja lue quand le `..` apparait. */
             bool wantCellDesc = false;
-            if (tblCellColLen > 0)
+            if (tblRecvDepth == 2)
                 wantCellDesc = lookahead_is_table_fmt_prop();
             int lvIdxOff = current_chunk()->count;
             emit_byte(wantCellDesc ? OP_TABLE_CELL_DESC : OP_ARRAY_GET);
@@ -14720,8 +14872,13 @@ static void subscript(bool canAssign) {
             emit_byte(OP_ARRAY_SET);
         } else {
             int lvIdxOff = current_chunk()->count;
-            emit_byte(OP_ARRAY_GET);      /* rep de ligne[colonne] -> cellule */
-            lv_chain_record(lvIdxOff, /*isStruct=*/false, parser.current.type);
+            /*  — meme discrimination nue-vs-`..Prop` que la forme
+             * double-crochet : `..Prop` derriere -> descripteur, forme nue ->
+             * valeur scalaire de la cellule. */
+            bool wantCellDesc = lookahead_is_table_fmt_prop();
+            emit_byte(wantCellDesc ? OP_TABLE_CELL_DESC : OP_ARRAY_GET);
+            if (!wantCellDesc)
+                lv_chain_record(lvIdxOff, /*isStruct=*/false, parser.current.type);
             /* Arme la chaine pour le `..Prop` suivant, comme la forme
              * double-crochet apres son 2e crochet (profondeur 2). */
             g_table_cell_table_len = tblRecvNameLen;
@@ -27279,6 +27436,24 @@ static bool window_try_parse_const_atom(Value* out_value) {
         advance_token();
         return true;
     }
+    /* Backtick (`...`) sans interpolation [%%] = constante : meme nature qu'un
+     * TOKEN_STRING, mais brut (aucun doublage de guillemet). Une colonne combo
+     * declare sa liste par defaut multiligne via cette forme. Un
+     * backtick QUI interpole n'est pas const-foldable : on laisse false, le
+     * caller DSL emet alors son avertissement « expression dynamique ». */
+    if (check(TOKEN_BACKTICK_STRING)) {
+        Token t = parser.current;
+        const char* inner = t.start + 1;              /* saute le ` ouvrant */
+        int innerLen = t.length >= 2 ? t.length - 2 : 0;
+        bool hasInterp = false;
+        for (int i = 0; i + 1 < innerLen; i++) {
+            if (inner[i] == '[' && inner[i + 1] == '%') { hasInterp = true; break; }
+        }
+        if (hasInterp) return false;
+        *out_value = OBJ_VAL(string_literal_value(inner, innerLen, false));
+        advance_token();
+        return true;
+    }
     /* Booleens. */
     if (check(TOKEN_VRAI))  { *out_value = BOOL_VAL(true);  advance_token(); return true; }
     if (check(TOKEN_FAUX))  { *out_value = BOOL_VAL(false); advance_token(); return true; }
@@ -29021,8 +29196,8 @@ static void input_emit_format_affichage_warning_if(const OwlControlDecl* control
 
 /* Champ Table V1 — parse une init de propriete au niveau d'une colonne.
  * Memes regles que control_parse_property_init mais append dans la
- * colonne. Pas de lookup catalog en V1 (les 3 props Libelle/Type/Largeur
- * sont lues directement par le runtime). */
+ * colonne. Validation catalogue (owl_dsl_prop_find "Colonne") sur les deux
+ * chemins : cascade `..` et `=` litteral. */
 static void column_parse_property_init(OwlColumnDecl* col) {
     if (!check(TOKEN_IDENTIFIER)
         && !check(TOKEN_LIBELLE)
@@ -29081,6 +29256,25 @@ static void column_parse_property_init(OwlColumnDecl* col) {
     char* propName = (char*)malloc((size_t)propAsciiLen + 1);
     memcpy(propName, propAscii, propAsciiLen);
     propName[propAsciiLen] = '\0';
+
+    /*  — valider la prop contre le catalogue Colonne, miroir du chemin
+     * contrôle (`owl_control_catalog_find` + E_SEM_DSL_PROP_UNKNOWN_FOR_KIND) et
+     * du chemin cascade colonne ci-dessus (`owl_dsl_prop_find`). Sans ça toute
+     * prop inconnue avec valeur littérale passait en silence. */
+    if (owl_dsl_prop_find("Colonne", propName) == NULL) {
+        owl_emit_error_at(&propTok, E_SEM_DSL_PROP_UNKNOWN_FOR_KIND,
+                          "prop", propName,
+                          "kind", "Colonne",
+                          NULL);
+        free(propName);
+        window_skip_to_next_stmt();
+        /*  : resync propre sur la prop suivante — rearmer le reporting
+         * pour ne pas avaler la prochaine prop inconnue du meme bloc. On ne
+         * rearme QUE si une autre prop suit (a la frontiere FIN/EOF on preserve
+         * l'etat panic). */
+        if (!check(TOKEN_FIN) && !check(TOKEN_EOF)) parser.panicMode = false;
+        return;
+    }
 
     Value v;
     int line = propTok.line;

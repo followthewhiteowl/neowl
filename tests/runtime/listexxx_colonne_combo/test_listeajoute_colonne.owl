@@ -1,0 +1,33 @@
+//  — famille ListeXxx sur une COLONNE combo : ListeAjoute doit
+// alimenter la liste par défaut de la colonne, exactement comme pour un
+// Champ Combo autonome. Mesuré (QT offscreen) : aujourd'hui
+// ListeAjoute(TABLE.COL_Combo, ...) est rejeté avec
+// « argument '1' attendu Champ Liste ou Combo, reçu valeur incompatible » —
+// la famille ListeXxx ne cible pas encore les colonnes.
+//
+// ROUGE attendu : la colonne doit accepter ListeAjoute et accumuler les
+// items, visible via ListeOccurrence + ..Contenu colonne +
+// __DebugTableCelluleComboOptions sur une cellule non surchargée (qui
+// hérite du défaut colonne).
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ListeColonneCombo)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+ListeAjoute(TABLE_Villes.COL_Ville, "Paris")
+dbgVérifieFaux(ErreurDétectée, "ListeAjoute sur la colonne combo ne pose pas d'erreur")
+
+ListeAjoute(TABLE_Villes.COL_Ville, "Lyon")
+dbgVérifieFaux(ErreurDétectée, "2e ListeAjoute sur la colonne combo ne pose pas d'erreur")
+
+dbgVérifieEgalité(ListeOccurrence(TABLE_Villes.COL_Ville), 2,
+"ListeOccurrence sur la colonne reflète les 2 items ajoutés")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "Paris" + LF + "Lyon",
+"..Contenu colonne reflète les items ajoutés par ListeAjoute")
+
+dbgVérifieEgalité(__DebugTableCelluleComboOptions(TABLE_Villes, 1, 1), "Paris" + LF + "Lyon",
+"cellule ligne 1 (pas d'override) : les options sont celles de la colonne")
+
+Ferme(FEN_ListeColonneCombo)
+dbgBilanTest()

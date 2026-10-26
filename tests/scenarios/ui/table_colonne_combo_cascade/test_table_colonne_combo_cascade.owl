@@ -1,0 +1,56 @@
+// Combos en cascade dans un Champ Table : la colonne Ville propose une liste
+// différente selon le pays choisi sur la même ligne. La liste se pose
+// cellule par cellule, dans une boucle qui parcourt les lignes — forme
+// colonne d'abord `TABLE_X.COL_Y[ligne]..Contenu` (cf. 15_lifecycle_champs,
+// "Les quatre écritures").
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_cascade_pays_villes()
+	OuvreSoeur(FEN_ComboCascade)
+
+	nLigne est un entier
+	POUR nLigne = 1 À TableOccurrence(TABLE_Commandes)
+		sPays est une chaîne = TABLE_Commandes[nLigne].COL_Pays
+		SI sPays = "France" ALORS
+			TABLE_Commandes.COL_Ville[nLigne]..Contenu = `Paris
+Lyon
+Marseille`
+		SINON SI sPays = "Belgique" ALORS
+			TABLE_Commandes.COL_Ville[nLigne]..Contenu = `Bruxelles
+Anvers
+Gand`
+		SINON SI sPays = "Suisse" ALORS
+			TABLE_Commandes.COL_Ville[nLigne]..Contenu = `Genève
+Zurich
+Berne`
+		FIN
+	FIN
+
+	dbgVérifieEgalité(TABLE_Commandes.COL_Ville[1]..Contenu, `Paris
+Lyon
+Marseille`,
+	"cascade : la ligne France reçoit la liste de villes françaises")
+
+	dbgVérifieEgalité(TABLE_Commandes.COL_Ville[2]..Contenu, `Bruxelles
+Anvers
+Gand`,
+	"cascade : la ligne Belgique reçoit sa propre liste, différente de la ligne France")
+
+	dbgVérifieEgalité(TABLE_Commandes[1].COL_Pays, "France",
+	"cascade : la valeur sélectionnée du pays reste lisible par l'accès valeur normal, inchangée par la colonne combo")
+
+	Ferme(FEN_ComboCascade)
+FIN
+
+PROCEDURE PUBLIQUE scenario_liste_defaut_uniforme_sans_override()
+	OuvreSoeur(FEN_ComboCascade)
+
+	dbgVérifieEgalité(TABLE_Commandes.COL_Ville[1]..Contenu, "Choisissez un pays",
+	"sans surcharge cellule, la ligne 1 affiche la liste par défaut déclarée sur la colonne")
+
+	dbgVérifieEgalité(TABLE_Commandes.COL_Ville[2]..Contenu, "Choisissez un pays",
+	"sans surcharge cellule, la ligne 2 affiche la même liste par défaut — pas de régression sur le cas sans surcharge")
+
+	Ferme(FEN_ComboCascade)
+FIN

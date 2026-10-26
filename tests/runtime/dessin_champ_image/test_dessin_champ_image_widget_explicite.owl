@@ -1,0 +1,53 @@
+//  — complément : pattern widget-explicite, où le Champ Image
+// est passé en 1er argument de la primitive (dRectangle(IMG_X, ...),
+// dCercle(IMG_X, ...)) plutôt que de dessiner sur l'image courante sans
+// argument. C'est le pattern réellement utilisé en pratique.
+//
+// Aujourd'hui (avant impl) : dDébutDessin(IMG_Cible) pose bien IMG_Cible
+// comme image courante, mais les primitives ne résolvent PAS le Champ
+// Image passé en 1er argument (seule une variable Image classique y est
+// reconnue) — l'argument décale la lecture des coordonnées x1,y1,x2,y2,
+// la primitive échoue silencieusement (erreur native posée, rien n'est
+// dessiné) et les lectures de pixel qui suivent retombent sur le fond
+// blanc du Champ Image au lieu de la couleur attendue. ROUGE attendu
+// pour les assertions 1 et 2 ci-dessous.
+
+Ouvre(FEN_DessinChampImage)
+
+couleurRougeWE est un entier = RVB(255, 0, 0)
+couleurVertWE est un entier = RVB(0, 180, 0)
+
+resWE est un booléen = dDébutDessin(IMG_Cible)
+dbgVérifieEgalité(resWE, Vrai, "dDébutDessin(Champ Image) initialise une session de dessin valide (non-régression)")
+
+// ===== 1. dRectangle(Champ Image, ...) — widget explicite en 1er argument =====
+// ROUGE attendu : got blanc (0xFFFFFF) au lieu du rouge dessiné.
+dRectangle(IMG_Cible, 5, 5, 35, 35, couleurRougeWE)
+
+pixelDansRectangleWE est un entier = dPixelCouleur(20, 20)
+dbgVérifieEgalité(pixelDansRectangleWE, couleurRougeWE, "dRectangle(IMG_Cible, ...) widget explicite en 1er argument : couleur rouge relue sans dFinDessin intermédiaire")
+
+// ===== 2. dCercle(Champ Image, ...) — même pattern, 2e primitive =====
+// ROUGE attendu, même cause : le widget en 1er argument n'est pas résolu.
+dCercle(IMG_Cible, 50, 50, 90, 90, couleurVertWE)
+
+pixelDansCercleWE est un entier = dPixelCouleur(70, 70)
+dbgVérifieEgalité(pixelDansCercleWE, couleurVertWE, "dCercle(IMG_Cible, ...) widget explicite en 1er argument : couleur verte relue sans dFinDessin intermédiaire")
+
+// Discriminant : les deux formes portent des couleurs distinctes (pas un
+// remplissage global accidentel qui donnerait la même couleur partout).
+dbgVérifieDifférence(pixelDansRectangleWE, pixelDansCercleWE, "rectangle et cercle widget-explicite portent des couleurs distinctes")
+
+// Pixel hors des deux formes : ne doit porter NI le rouge NI le vert
+// dessinés via le pattern widget-explicite (preuve que le dessin — une
+// fois le bug corrigé — reste localisé aux formes tracées).
+pixelHorsZoneWE est un entier = dPixelCouleur(95, 5)
+dbgVérifieDifférence(pixelHorsZoneWE, couleurRougeWE, "pixel hors zone : pas la couleur du rectangle widget-explicite")
+dbgVérifieDifférence(pixelHorsZoneWE, couleurVertWE, "pixel hors zone : pas la couleur du cercle widget-explicite")
+
+// Pas de dFinDessin ici : le pattern du dev ne l'appelle pas entre le
+// dessin et la relecture — le backing doit être lu directement, sans
+// clôture explicite de la session.
+
+Ferme(FEN_DessinChampImage)
+dbgBilanTest()

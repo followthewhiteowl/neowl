@@ -1135,6 +1135,25 @@ void owl_ui_register_table_colmask_applied(OwlUiTableColmaskAppliedFn fn) {
     g_ui_table_colmask_applied_impl = fn ? fn : default_table_colmask_applied;
 }
 
+/*  — masque d'affichage de colonne poussé au widget. Default no-op
+ * (CLI sans GUI, headless : le store OWL-side porte la valeur). */
+static void default_table_coldispmask_applied(void* widget, int col_1based,
+                                              const char* wl_mask) {
+    (void)widget; (void)col_1based; (void)wl_mask;
+}
+static OwlUiTableColdispmaskAppliedFn g_ui_table_coldispmask_applied_impl =
+    default_table_coldispmask_applied;
+
+void owl_ui_table_coldispmask_applied(void* widget, int col_1based,
+                                      const char* wl_mask) {
+    g_ui_table_coldispmask_applied_impl(widget, col_1based, wl_mask);
+}
+
+void owl_ui_register_table_coldispmask_applied(OwlUiTableColdispmaskAppliedFn fn) {
+    g_ui_table_coldispmask_applied_impl =
+        fn ? fn : default_table_coldispmask_applied;
+}
+
 /*  lot C — apply scalaire au QMainWindow. Default no-op (CLI). */
 static void default_apply_window_scalar(struct ObjWindowInstance* wi,
                                         const char* prop, Value v) {
@@ -1239,6 +1258,16 @@ void owl_ui_register_widget_items_count(OwlUiWidgetItemsCountFn fn) {
     g_widget_items_count_impl = fn ? fn : default_widget_items_count;
 }
 
+static const char* default_widget_content_lf(int k, void* w) { (void)k; (void)w; return ""; }
+static OwlUiWidgetContentLfFn g_widget_content_lf_impl = default_widget_content_lf;
+const char* owl_ui_widget_content_lf(int kind, void* widget_or_null) {
+    if (!widget_or_null) return "";
+    return g_widget_content_lf_impl(kind, widget_or_null);
+}
+void owl_ui_register_widget_content_lf(OwlUiWidgetContentLfFn fn) {
+    g_widget_content_lf_impl = fn ? fn : default_widget_content_lf;
+}
+
 static int default_headless_widget_items_count_uic(ObjUiControl* c) { (void)c; return 0; }
 static OwlUiHeadlessWidgetItemsCountUicFn g_headless_widget_items_count_uic_impl =
     default_headless_widget_items_count_uic;
@@ -1259,5 +1288,53 @@ int owl_ui_headless_widget_items_count_uici(struct ObjUiControlInstance* uici) {
 }
 void owl_ui_register_headless_widget_items_count_uici(OwlUiHeadlessWidgetItemsCountUiciFn fn) {
     g_headless_widget_items_count_uici_impl = fn ? fn : default_headless_widget_items_count_uici;
+}
+
+static const char* default_headless_content_lf_uic(ObjUiControl* c) { (void)c; return ""; }
+static OwlUiHeadlessContentLfUicFn g_headless_content_lf_uic_impl =
+    default_headless_content_lf_uic;
+const char* owl_ui_headless_content_lf_uic(ObjUiControl* uic) {
+    return g_headless_content_lf_uic_impl(uic);
+}
+void owl_ui_register_headless_content_lf_uic(OwlUiHeadlessContentLfUicFn fn) {
+    g_headless_content_lf_uic_impl = fn ? fn : default_headless_content_lf_uic;
+}
+
+static const char* default_headless_content_lf_uici(struct ObjUiControlInstance* c) {
+    (void)c; return "";
+}
+static OwlUiHeadlessContentLfUiciFn g_headless_content_lf_uici_impl =
+    default_headless_content_lf_uici;
+const char* owl_ui_headless_content_lf_uici(struct ObjUiControlInstance* uici) {
+    return g_headless_content_lf_uici_impl(uici);
+}
+void owl_ui_register_headless_content_lf_uici(OwlUiHeadlessContentLfUiciFn fn) {
+    g_headless_content_lf_uici_impl = fn ? fn : default_headless_content_lf_uici;
+}
+
+static void default_headless_set_content_uic(ObjUiControl* c, const char* s) {
+    (void)c; (void)s;
+}
+static OwlUiHeadlessSetContentUicFn g_headless_set_content_uic_impl =
+    default_headless_set_content_uic;
+void owl_ui_headless_set_content_uic(ObjUiControl* uic, const char* content) {
+    g_headless_set_content_uic_impl(uic, content);
+}
+void owl_ui_register_headless_set_content_uic(OwlUiHeadlessSetContentUicFn fn) {
+    g_headless_set_content_uic_impl = fn ? fn : default_headless_set_content_uic;
+}
+
+static void default_headless_set_content_uici(struct ObjUiControlInstance* c,
+                                              const char* s) {
+    (void)c; (void)s;
+}
+static OwlUiHeadlessSetContentUiciFn g_headless_set_content_uici_impl =
+    default_headless_set_content_uici;
+void owl_ui_headless_set_content_uici(struct ObjUiControlInstance* uici,
+                                      const char* content) {
+    g_headless_set_content_uici_impl(uici, content);
+}
+void owl_ui_register_headless_set_content_uici(OwlUiHeadlessSetContentUiciFn fn) {
+    g_headless_set_content_uici_impl = fn ? fn : default_headless_set_content_uici;
 }
 

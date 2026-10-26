@@ -139,4 +139,14 @@ run_case "version" 0 "owl-build " "owl-build [" -v
 # --- Cas 5 : variante EN de l'usage nu (flags seuls --en) -------------------
 run_case "usage_en" 0 "OWL packager" "Packager OWL" --en
 
+# --- Cas 6 : flags de BUILD (-o / --target) SANS dossier positionnel ->
+#             intention = builder, dossier oublie. On distingue ce cas de
+#             l'invocation nue : erreur actionnable sur stderr + exit != 0
+#             (2 = mauvais usage), PAS le dump d'usage muet exit 0.
+#             must_not "owl-build [" prouve que le synopsis d'usage n'est PAS
+#             crache ; le message d'erreur renvoie vers `owl-build .`. --------
+run_case "flags_sans_dossier" 2 "aucun dossier de projet indiqué" "owl-build [" -o TestBuild2
+run_case "flags_sans_dossier_en" 2 "no project directory given" "owl-build [" --en -o TestBuild2
+run_case "target_sans_dossier" 2 "aucun dossier de projet indiqué" "owl-build [" --target linux-x86_64
+
 exit $FAIL

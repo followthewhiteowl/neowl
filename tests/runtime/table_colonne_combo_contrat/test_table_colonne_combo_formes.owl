@@ -1,0 +1,52 @@
+// Contrat 3 (feat colonne combo) : les trois formes d'adressage de cellule
+// déjà documentées pour `..Couleur` / `..CouleurFond` doivent aussi
+// s'appliquer à `..Contenu` sur une colonne combo, avec cohérence croisée —
+// ce qui est écrit par l'une des formes se relit par les autres.
+//
+//   TABLE[ligne][colonne]..Contenu   ligne d'abord
+//   TABLE[ligne, colonne]..Contenu   forme compacte
+//   TABLE.COL[ligne]..Contenu        colonne d'abord
+//
+// Chaque scénario est isolé dans sa propre procédure pour que les trois
+// formes soient vérifiées indépendamment les unes des autres.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_virgule_puis_colonne_dabord()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	TABLE_Lot[1, 2]..Contenu = `Paris
+Lyon`
+
+	dbgVérifieEgalité(TABLE_Lot.COL_Pays[1]..Contenu, `Paris
+Lyon`,
+	"forme compacte virgule : la liste posée se relit par la forme colonne d'abord")
+
+	Ferme(FEN_TableColonneCombo)
+FIN
+
+PROCEDURE PUBLIQUE scenario_colonne_dabord_puis_double_crochet()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	TABLE_Lot.COL_Pays[1]..Contenu = `Bruxelles
+Anvers`
+
+	dbgVérifieEgalité(TABLE_Lot[1][2]..Contenu, `Bruxelles
+Anvers`,
+	"forme colonne d'abord : la liste posée se relit par la forme double-crochet")
+
+	Ferme(FEN_TableColonneCombo)
+FIN
+
+PROCEDURE PUBLIQUE scenario_double_crochet_puis_virgule_nom()
+	OuvreSoeur(FEN_TableColonneCombo)
+
+	TABLE_Lot[1][2]..Contenu = `Genève
+Zurich`
+
+	dbgVérifieEgalité(TABLE_Lot[1, COL_Pays]..Contenu, `Genève
+Zurich`,
+	"forme double-crochet : la liste posée se relit par la forme virgule désignant la colonne par son nom")
+
+	Ferme(FEN_TableColonneCombo)
+FIN

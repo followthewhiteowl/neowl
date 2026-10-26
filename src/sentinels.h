@@ -260,6 +260,7 @@
 #define OWL_COL_TYPE_DUREE           (OWL_COL_TYPE_BASE + 5)
 #define OWL_COL_TYPE_MONETAIRE       (OWL_COL_TYPE_BASE + 6)
 #define OWL_COL_TYPE_MOTDEPASSE      (OWL_COL_TYPE_BASE + 7)
+#define OWL_COL_TYPE_COMBO           (OWL_COL_TYPE_BASE + 8)
 
 /* to* — TableOccurrence info type (doc 3074021). */
 #define OWL_TO_BASE                  OWL_SENTINEL_OFFSET(26)

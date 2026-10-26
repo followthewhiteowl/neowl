@@ -1,0 +1,112 @@
+// @sujet : ZoneRépétéeSelect, ZoneRépétéeSelectPlus, ZoneRépétéeSelectMoins, ZoneRépétéeSelectOccurrence, LooperSelected, LooperSelectPlus, LooperSelectMinus, LooperSelectCount
+// @résumé : famille de pilotage de la sélection d'une répétition dans un champ Zone répétée : lire l'indice sélectionné, sélectionner, désélectionner, compter les répétitions sélectionnées.
+//
+// Sur un champ Zone répétée peuplé par programmation, ZoneRépétéeSelect
+// renvoie l'indice 1-based de la répétition sélectionnée (0 si aucune).
+// ZoneRépétéeSelectPlus sélectionne une répétition, ZoneRépétéeSelectMoins
+// la désélectionne, et ZoneRépétéeSelectOccurrence renvoie le nombre de
+// répétitions sélectionnées. LooperSelected / LooperSelectPlus /
+// LooperSelectMinus / LooperSelectCount sont les formes anglaises,
+// strictement équivalentes.
+//
+// La déclaration complète (FEN_ZoneRépétéeSelect.owl) : une Zone répétée
+// par programmation peuplée de 3 répétitions dans FinInitialisation.
+
+TestModeHeadless(Faux)
+
+
+PROCEDURE PUBLIQUE scenario_zoneRepeteeSelect_aucune_selection_rend_zero()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	nSelection est un entier = ZoneRépétéeSelect(ZR_Tâches)
+	dbgVérifieEgalité(nSelection, 0, "aucune répétition sélectionnée au départ : 0")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_zoneRepeteeSelect_selectPlus_puis_select_rend_indice()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	ZoneRépétéeSelectPlus(ZR_Tâches, 2)
+	nSelection est un entier = ZoneRépétéeSelect(ZR_Tâches)
+	dbgVérifieEgalité(nSelection, 2, "ZoneRépétéeSelectPlus sélectionne la répétition, ZoneRépétéeSelect en rend l'indice")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_zoneRepeteeSelect_selectMoins_desactive_la_selection()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	ZoneRépétéeSelectPlus(ZR_Tâches, 1)
+	ZoneRépétéeSelectMoins(ZR_Tâches, 1)
+	nSelection est un entier = ZoneRépétéeSelect(ZR_Tâches)
+	dbgVérifieEgalité(nSelection, 0, "ZoneRépétéeSelectMoins désélectionne la répétition : retour à 0")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PUBLIQUE scenario_zoneRepeteeSelect_selectOccurrence_compte_la_selection()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	nAvant est un entier = ZoneRépétéeSelectOccurrence(ZR_Tâches)
+	dbgVérifieEgalité(nAvant, 0, "SelectOccurrence : 0 répétition sélectionnée au départ")
+
+	ZoneRépétéeSelectPlus(ZR_Tâches, 3)
+	nApres est un entier = ZoneRépétéeSelectOccurrence(ZR_Tâches)
+	dbgVérifieEgalité(nApres, 1, "SelectOccurrence : 1 répétition sélectionnée après ZoneRépétéeSelectPlus")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_zoneRepeteeSelect_bilingue_looperSelected()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	LooperSelectPlus(ZR_Tâches, 2)
+	nFR est un entier = ZoneRépétéeSelect(ZR_Tâches)
+	nEN est un entier = LooperSelected(ZR_Tâches)
+	dbgVérifieEgalité(nFR, nEN, "ZoneRépétéeSelect et LooperSelected résolvent identiquement")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_zoneRepeteeSelect_bilingue_looperSelectCount()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	ZoneRépétéeSelectPlus(ZR_Tâches, 1)
+	nFR est un entier = ZoneRépétéeSelectOccurrence(ZR_Tâches)
+	nEN est un entier = LooperSelectCount(ZR_Tâches)
+	dbgVérifieEgalité(nFR, nEN, "ZoneRépétéeSelectOccurrence et LooperSelectCount résolvent identiquement")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_zoneRepeteeSelect_looperSelectMinus_desactive()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	LooperSelectPlus(ZR_Tâches, 1)
+	LooperSelectMinus(ZR_Tâches, 1)
+	nSelection est un entier = LooperSelected(ZR_Tâches)
+	dbgVérifieEgalité(nSelection, 0, "LooperSelectMinus désélectionne, comme ZoneRépétéeSelectMoins")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN
+
+
+PROCEDURE PRIVÉE scenario_edge_zoneRepeteeSelect_rang_au_dela_de_la_selection_rend_zero()
+	OuvreSoeur(FEN_ZoneRépétéeSelect)
+
+	ZoneRépétéeSelectPlus(ZR_Tâches, 1)
+	nRangUn est un entier = ZoneRépétéeSelect(ZR_Tâches, 1)
+	dbgVérifieEgalité(nRangUn, 1, "rang 1 rend la répétition sélectionnée")
+
+	nRangDeux est un entier = ZoneRépétéeSelect(ZR_Tâches, 2)
+	dbgVérifieEgalité(nRangDeux, 0, "aucune répétition supplémentaire sélectionnée au rang 2 : 0")
+
+	Ferme(FEN_ZoneRépétéeSelect)
+FIN

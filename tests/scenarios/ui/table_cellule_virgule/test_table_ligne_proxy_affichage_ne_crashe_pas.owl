@@ -1,0 +1,24 @@
+// Afficher une LIGNE entière de Champ Table (`TABLE[ligne]` nue, sans
+// `[colonne]` ni `.COL_nom` derrière) passe par un descripteur interne de
+// ligne. Le rendre lisible via le chemin d'affichage (`Trace`, message
+// d'échec d'assertion) doit produire un libellé neutre et laisser le
+// programme continuer — jamais interrompre le processus.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_affichage_ligne_proxy_ne_crashe_pas()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	// Avant correction : l'affichage de la ligne entière interrompt le
+	// processus. Après : libellé neutre affiché, l'exécution continue
+	// jusqu'aux assertions ci-dessous.
+	Trace(TABLE_Lot[1])
+
+	// La coercion chaîne de la ligne reste cohérente (descripteur interne
+	// non nommé rendu de façon neutre), inchangée par le correctif
+	// d'affichage.
+	dbgVérifieEgalité(TABLE_Lot[1] + "", "<object>",
+	"la coercion chaîne d'une ligne entière rend un libellé neutre")
+
+	Ferme(FEN_CelluleVirgule)
+FIN

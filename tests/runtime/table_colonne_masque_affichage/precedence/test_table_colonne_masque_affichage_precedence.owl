@@ -1,0 +1,70 @@
+//  — propriété MasqueAffichage (EN DisplayMask) sur la Colonne de
+// Table : override par colonne du masque d'affichage résolu, qui doit PRIMER
+// sur le masque défaut/projet (FormatDate/FormatHeure/FormatDurée) au rendu
+// des cellules typées (owl_ui_format_cell_typed, cf. ticket).
+//
+// Déclaration de MasqueAffichage : UNIQUEMENT dans le bloc PROPRIETES de la
+// Colonne, à la déclaration (comme MasqueSaisie) — pas de set/get runtime via
+// `COL..MasqueAffichage` (vérifié empiriquement : la colonne refuse toute
+// modification à l'exécution sauf Couleur/CouleurFond, message générique du
+// compilateur). Le round-trip get/set "verbatim" n'est donc pas un chemin
+// applicable ici ; il est vérifié par son EFFET sur l'affichage rendu
+// (cf. critère 4 du ticket, clause de repli explicite), via la sonde
+// __DebugTableCelluleTexteAffiche.
+//
+// ROUGE attendu aujourd'hui sur les colonnes "masque" (DateMasque/
+// HeureMasque/DureeMasque, ligne 1) : `MasqueAffichage` compile aujourd'hui
+// SANS ERREUR dans le bloc PROPRIETES de la Colonne (trou de validation
+// distinct, cf. , hors-scope ici) mais est silencieusement IGNORÉ au
+// rendu — owl_ui_format_cell_typed ne résout le masque que depuis le défaut/
+// projet (cf. cadrage ticket). Les colonnes "masque" affichent donc encore le
+// résultat du défaut projet au lieu de l'override posé.
+//
+// Digue anti-tautologie : chaque valeur brute de la ligne 1 est écrite dans
+// une forme DIFFÉRENTE du masque de la colonne "masque" correspondante (slash
+// FR vs ISO pour Date, compact vs point pour Heure, littéral signé vs
+// séparateurs lettres pour Durée) — l'override, une fois câblé, produit un
+// résultat visiblement DISTINCT du défaut projet, pas un texte qui
+// coïnciderait par hasard.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableColonneMasqueAffichagePrecedence)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+// ===== 1. Non-régression — colonnes SANS MasqueAffichage : défaut projet =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 1, 1), "31/12/2026",
+"colonne Date sans MasqueAffichage : '2026-12-31' (ISO) reformatée selon FormatDate projet (JJ/MM/AAAA)")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 1, 3), "09:05",
+"colonne Heure sans MasqueAffichage : '0905' (compact) reformatée selon FormatHeure projet (HH:MI)")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 1, 5), "01:30:00",
+"colonne Durée sans MasqueAffichage : '+001300000' reformatée selon FormatDurée projet (HH:MI:SS)")
+
+// ===== 2. Override colonne — PRIME sur le défaut projet =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 1, 2), "2026-12-31",
+"colonne Date avec MasqueAffichage='AAAA-MM-JJ' : '31/12/2026' (slash FR) reformatée au masque COLONNE, pas au défaut projet")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 1, 4), "09.05",
+"colonne Heure avec MasqueAffichage='HH.MI' : '0905' reformatée au masque COLONNE ('09.05'), pas au défaut projet ('09:05')")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 1, 6), "01h30m00s",
+"colonne Durée avec MasqueAffichage='HHhMImSSs' : '+001300000' reformatée au masque COLONNE, pas au défaut projet")
+
+// ===== 3. Repli plat — chaînes NON parseables, même sur colonne "masque" =====
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 2, 2), "pas-une-date",
+"colonne Date avec MasqueAffichage : chaîne brute non parseable -> repli plat inchangé")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 2, 4), "pas-une-heure",
+"colonne Heure avec MasqueAffichage : chaîne brute non parseable -> repli plat inchangé")
+
+dbgVérifieEgalité(__DebugTableCelluleTexteAffiche(TAB_ColMasque, 2, 6), "pas-une-duree",
+"colonne Durée avec MasqueAffichage : chaîne brute non parseable -> repli plat inchangé")
+
+Ferme(FEN_TableColonneMasqueAffichagePrecedence)
+
+dbgBilanTest()

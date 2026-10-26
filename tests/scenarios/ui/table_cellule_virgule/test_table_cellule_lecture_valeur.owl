@@ -1,0 +1,95 @@
+// Lecture de la valeur NUE d'une cellule de Champ Table (sans `..Propriété`
+// derrière) : les quatre formes qui désignent une cellule doivent rendre la
+// valeur scalaire, par cohérence avec la forme colonne-par-nom qui le fait
+// déjà.
+//
+//   TABLE[ligne].COL_nom      référence déjà la valeur (non-régression)
+//   TABLE[ligne][colonne]     double crochet, rend un descripteur interne
+//   TABLE[ligne, colonne]     virgule + numéro, rend un descripteur interne
+//   TABLE[ligne, COL_nom]     virgule + nom, rend un descripteur interne
+//
+// Les trois dernières formes restent utilisables suivies de `..Propriété`
+// pour la mise en forme (cf. les scénarios voisins du dossier) : ce fichier
+// couvre uniquement leur lecture sans `..Propriété`.
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_point_colonne_lecture_valeur()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	dbgVérifieEgalité(TABLE_Lot[1].COL_Libellé, "Un",
+	"point+colonne : ligne 1 colonne texte rend la valeur")
+
+	dbgVérifieEgalité(TABLE_Lot[1].COL_Valeur, 10,
+	"point+colonne : ligne 1 colonne numérique rend la valeur")
+
+	dbgVérifieEgalité(TABLE_Lot[2].COL_Libellé, "Deux",
+	"point+colonne : ligne 2 colonne texte rend la valeur")
+
+	dbgVérifieEgalité(TABLE_Lot[2].COL_Valeur, 20,
+	"point+colonne : ligne 2 colonne numérique rend la valeur")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+// Les trois scénarios suivants comparent par égalité (`=`) plutôt que par
+// `dbgVérifieEgalité` : aujourd'hui la forme nue rend un descripteur interne
+// (cf. en-tête du fichier), et la branche d'échec de `dbgVérifieEgalité`
+// tente d'afficher ce descripteur pour le message, ce qui fait planter le
+// processus (défaut distinct, hors périmètre de ce ticket — signalé à part).
+// `dbgVérifieVrai` sur une comparaison n'affiche jamais les opérandes : le
+// résultat attendu aujourd'hui (échec propre, pas de plantage) est préservé.
+
+PROCEDURE PUBLIQUE scenario_double_crochet_lecture_valeur()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	dbgVérifieVrai(TABLE_Lot[1][1] = "Un",
+	"double crochet : ligne 1 colonne texte rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[1][2] = 10,
+	"double crochet : ligne 1 colonne numérique rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[2][1] = "Deux",
+	"double crochet : ligne 2 colonne texte rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[2][2] = 20,
+	"double crochet : ligne 2 colonne numérique rend la valeur")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+PROCEDURE PUBLIQUE scenario_virgule_numero_lecture_valeur()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	dbgVérifieVrai(TABLE_Lot[1, 1] = "Un",
+	"virgule+numéro : ligne 1 colonne texte rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[1, 2] = 10,
+	"virgule+numéro : ligne 1 colonne numérique rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[2, 1] = "Deux",
+	"virgule+numéro : ligne 2 colonne texte rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[2, 2] = 20,
+	"virgule+numéro : ligne 2 colonne numérique rend la valeur")
+
+	Ferme(FEN_CelluleVirgule)
+FIN
+
+PROCEDURE PUBLIQUE scenario_virgule_nom_lecture_valeur()
+	OuvreSoeur(FEN_CelluleVirgule)
+
+	dbgVérifieVrai(TABLE_Lot[1, COL_Libellé] = "Un",
+	"virgule+nom : ligne 1 colonne texte rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[1, COL_Valeur] = 10,
+	"virgule+nom : ligne 1 colonne numérique rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[2, COL_Libellé] = "Deux",
+	"virgule+nom : ligne 2 colonne texte rend la valeur")
+
+	dbgVérifieVrai(TABLE_Lot[2, COL_Valeur] = 20,
+	"virgule+nom : ligne 2 colonne numérique rend la valeur")
+
+	Ferme(FEN_CelluleVirgule)
+FIN

@@ -1,0 +1,28 @@
+//  — combo autonome en headless PUR : round-trip set ..Contenu
+// puis ListeAjoute.
+//
+// Mesuré (headless pur, instance fraîche) : après ..Contenu = "X\nY" (la
+// clé "Contenu" headless est posée, le store items reste vide) puis
+// ListeAjoute(CMB,"Z") (qui alimente seulement le store items), on obtient
+// ListeOccurrence == 1 (le store items ne contient que "Z", pas "X" ni "Y")
+// et ..Contenu == "X\nY" (le getter headless relit uniquement sa clé,
+// inchangée par ListeAjoute).
+//
+// ROUGE attendu sur les deux assertions (occurrence ET contenu) — c'est
+// la divergence la plus nette du headless pur : aucun des deux sens ne
+// voit l'écriture de l'autre.
+
+TestModeHeadless(Vrai)
+Ouvre(FEN_ComboHeadless)
+
+COMBO_Headless..Contenu = "X" + LF + "Y"
+ListeAjoute(COMBO_Headless, "Z")
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Headless), 3,
+"round-trip (headless pur) : ListeAjoute après un set ..Contenu porte l'occurrence à 3")
+
+dbgVérifieEgalité(COMBO_Headless..Contenu, "X" + LF + "Y" + LF + "Z",
+"round-trip (headless pur) : ..Contenu inclut l'item ajouté après le set initial")
+
+Ferme(FEN_ComboHeadless)
+dbgBilanTest()

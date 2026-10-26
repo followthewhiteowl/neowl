@@ -559,8 +559,8 @@ static const OwlControlPropDef PROPS_INPUT[] = {
       "Masque de saisie a positions fixes : `9` = un chiffre, `A` = une lettre, `C` = une lettre ou un chiffre ; tout autre caractere est un litteral affiche tel quel (ex. \"99/99/9999\", \"+99 999 99 99 99\").",
       "Fixed-position input mask: `9` = a digit, `A` = a letter, `C` = a letter or a digit; any other character is a literal shown as-is (e.g. \"99/99/9999\", \"+99 999 99 99 99\").", NULL DFT_NULL },
     { "MasqueAffichage", NULL, "DisplayMask",   OWL_PROP_TYPE_STRING,   NULL,
-      "Masque d'affichage d'un champ Date : gabarit de jetons (JJ, MM, AAAA...) pilotant le format affiche et relu (ex. \"AAAA-MM-JJ\", \"JJ/MM/AAAA\"). Vide = format par defaut JJ/MM/AAAA.",
-      "Display mask of a Date field: token template (JJ, MM, AAAA...) driving the shown and re-read format (e.g. \"AAAA-MM-JJ\", \"JJ/MM/AAAA\"). Empty = default JJ/MM/AAAA format.", NULL DFT_NULL },
+      "Masque d'affichage d'un champ Date, Heure ou Dur\xc3\xa9""e : gabarit de jetons pilotant le format affich\xc3\xa9 et relu. Date (JJ, MM, AAAA ; ex. \"JJ/MM/AAAA\", \"AAAA-MM-JJ\"), Heure (HH, MI, SS ; ex. \"HH:MI\", \"HH:MI:SS\"), Dur\xc3\xa9""e (JJ, HH, MI, SS ; ex. \"HH:MI:SS\"). Vide = format par d\xc3\xa9""faut du type. Pour un champ Num\xc3\xa9rique ou Mon\xc3\xa9taire, utiliser FormatNombre / FormatMon\xc3\xa9taire.",
+      "Display mask of a Date, Time or Duration field: token template driving the shown and re-read format. Date (JJ, MM, AAAA; e.g. \"JJ/MM/AAAA\", \"AAAA-MM-JJ\"), Time (HH, MI, SS; e.g. \"HH:MI\", \"HH:MI:SS\"), Duration (JJ, HH, MI, SS; e.g. \"HH:MI:SS\"). Empty = type default format. For a Numeric or Currency field, use NumberFormat / CurrencyFormat.", NULL DFT_NULL },
     { "FormatNombre",   NULL, "NumberFormat",   OWL_PROP_TYPE_OBJECT,   NULL,
       "Format d'affichage d'un champ Numerique : descripteur compose (SeparateurDecimal, SeparateurMilliers, ChiffresApresVirgule), litteral inline `{ ... }`. Non pose = herite du FormatNombre du projet, sinon affichage plat.",
       "Numeric field display format: composite descriptor (DecimalSeparator, ThousandsSeparator, DecimalPlaces), inline literal `{ ... }`. Unset = inherits the project NumberFormat, otherwise plain display.",
@@ -1513,13 +1513,6 @@ static const OwlControlPropDef PROPS_ZR_FIELD[] = {
       "Vrai = plusieurs lignes selectionnables (Ctrl/Shift+clic). "
       "Faux (defaut) = selection unique.",
       "True = multi-row selection (Ctrl/Shift+click). False (default) = single.", NULL DFT_BOOL(0) },
-    /* UNSET assume : ligne selectionnee LIVE (read/write runtime). */
-    { "LigneS\xc3\xa9lectionn\xc3\xa9""e", "LigneSelectionnee", "SelectedRow",
-                                                OWL_PROP_TYPE_INT,      NULL,
-      "Indice 1-based de la repetition courante (0 si aucune). "
-      "Lecture/ecriture : ecrire repositionne et notifie surSelectionLigne.",
-      "1-based index of the current repetition (0 if none). "
-      "Read/write: writing repositions and triggers onRowSelection." RUNTIME_ONLY },
     { "Occurrence",     NULL, "Count",          OWL_PROP_TYPE_INT,      NULL,
       "Nombre de repetitions (lecture seule).",
       "Number of repetitions (read-only).", NULL DFT_INT(0) RUNTIME_ONLY },
@@ -1560,8 +1553,8 @@ static const OwlControlPropDef PROPS_COLUMN[] = {
       "Column header text. Accepts a plain string (auto-coerced) or an inline multilingual literal {langueXxx: \"...\"}.", NULL DFT_NULL },
     { "Type",           NULL, "Type",              OWL_PROP_TYPE_ENUM,
                                                    "colTypes",
-      "Type d'affichage des cellules (colTypeTexte/colTypeNumerique/colTypeMonetaire/colTypeDate/colTypeHeure/colTypeDuree/colTypeBooleen/colTypeMotDePasse).",
-      "Cell display type (colTypeText/colTypeNumeric/colTypeCurrency/colTypeDate/colTypeTime/colTypeDuration/colTypeBoolean/colTypePassword).", NULL DFT_ENUM("colTypeTexte") },
+      "Type d'affichage des cellules (colTypeTexte/colTypeNumerique/colTypeMonetaire/colTypeDate/colTypeHeure/colTypeDuree/colTypeBooleen/colTypeMotDePasse/colTypeCombo).",
+      "Cell display type (colTypeText/colTypeNumeric/colTypeCurrency/colTypeDate/colTypeTime/colTypeDuration/colTypeBoolean/colTypePassword/colTypeCombo).", NULL DFT_ENUM("colTypeTexte") },
     /* Largeur colonne : build lit colWidth=-1 (auto-sizing Qt). AUTO. */
     { "Largeur",        NULL, "Width",             OWL_PROP_TYPE_INT,      NULL,
       "Largeur en pixels.", "Width in pixels.", NULL DFT_AUTO },
@@ -1575,6 +1568,20 @@ static const OwlControlPropDef PROPS_COLUMN[] = {
     { "MasqueSaisie",   NULL, "InputMask",         OWL_PROP_TYPE_STRING,   NULL,
       "Masque de saisie appliqué à l'édition des cellules de la colonne (texte).",
       "Input mask applied when editing the column's cells (text).", NULL DFT_NULL },
+    /* Miroir du MasqueAffichage du champ Saisie (PROPS_SAISIE) : gabarit de
+     * jetons pilotant le format AFFICHE des cellules typees Date/Heure/Duree de
+     * la colonne. Pose en declaration (comme MasqueSaisie), il prime sur le
+     * format defaut/projet au rendu. */
+    { "MasqueAffichage", NULL, "DisplayMask",      OWL_PROP_TYPE_STRING,   NULL,
+      "Masque d'affichage des cellules Date/Heure/Durée de la colonne : gabarit de jetons (JJ, MM, AAAA, HH, MI, SS...) pilotant le format affiché. Prime sur le format par défaut. Vide = format par défaut.",
+      "Display mask for the column's Date/Time/Duration cells: token template (JJ, MM, AAAA, HH, MI, SS...) driving the shown format. Takes precedence over the default format. Empty = default format.", NULL DFT_NULL },
+    /*  — liste par défaut d'une colonne combo (colTypeCombo) : options
+     * séparées par LF, même sémantique que le Contenu du Combo autonome. Déclarée
+     * dans le bloc `colonne`, surchargeable par cellule (`TABLE[l][c]..Contenu`) ;
+     * une cellule jamais surchargée relit cette liste colonne (pas Null). */
+    { "Contenu",        NULL, "Content",        OWL_PROP_TYPE_STRING,   NULL,
+      "Liste par défaut des options d'une colonne combo (colTypeCombo) : lignes séparées par LF. Surchargeable cellule par cellule via `TABLE[ligne][colonne]..Contenu`.",
+      "Default option list of a combo column (colTypeCombo): rows separated by LF. Overridable cell by cell via `TABLE[row][column]..Content`.", NULL DFT_NULL },
     /*  — Style typé de la Colonne (styleColonne) : surcharge locale du
      * styleTable, colonne par colonne. Cascade `COL..Style..X..Y` validee
      * compile-time contre les champs de styleColonne (mecanisme OBJECT). */
@@ -1616,6 +1623,14 @@ static const OwlControlPropDef PROPS_TABLE_CELL[] = {
     { "CouleurFond", NULL, "BackgroundColor", OWL_PROP_TYPE_COLOR, NULL,
       "Couleur de fond de la cellule ou de la ligne (RGB entier).",
       "Background color of the cell or row (RGB integer).",
+      NULL DFT_NULL RUNTIME_ONLY },
+    /*  — surcharge par cellule de la liste d'une colonne combo. Lignes
+     * séparées par LF. Divergence clé avec Couleur/CouleurFond : une cellule
+     * jamais écrite relit la liste déclarée sur la COLONNE (COL..Contenu), pas
+     * Null (cf. vm_table_fmt_get). */
+    { "Contenu", NULL, "Content", OWL_PROP_TYPE_STRING, NULL,
+      "Liste d'options propre à la cellule d'une colonne combo (lignes séparées par LF). Cellule jamais écrite : relit la liste déclarée sur la colonne.",
+      "Cell-specific option list of a combo column (rows separated by LF). Cell never written: reads the list declared on the column.",
       NULL DFT_NULL RUNTIME_ONLY },
 };
 
@@ -2368,7 +2383,8 @@ const OwlEnum E_BordsCadre = {
  * taper a la main des utilisateurs. */
 static const char* const E_ColTypes_values[] = {
     "colTypeTexte", "colTypeNumerique", "colTypeMon\xc3\xa9taire", "colTypeDate",
-    "colTypeHeure", "colTypeDur\xc3\xa9""e", "colTypeBooleen", "colTypeMotDePasse", NULL
+    "colTypeHeure", "colTypeDur\xc3\xa9""e", "colTypeBooleen", "colTypeMotDePasse",
+    "colTypeCombo", NULL
 };
 static const OwlEnum E_ColTypes = {
     .name="colTypes", .nameAscii="colTypes", .nameEN="colTypes", .category="UI",
@@ -2971,6 +2987,7 @@ static const OwlConstDef UI_CONSTS[] = {
     C_UI_EN("colTypeDur\xc3\xa9""e", OWL_COL_TYPE_DUREE, "Colonne duree.",            "Duration column.","colTypeDuration"),
     C_UI_EN("colTypeBooleen",    OWL_COL_TYPE_BOOLEEN,   "Colonne booleen (case).",   "Boolean (checkbox) column.", "colTypeBoolean"),
     C_UI_EN("colTypeMotDePasse", OWL_COL_TYPE_MOTDEPASSE, "Colonne mot de passe : affichage masque, saisie a echo masque.", "Password column: masked display, masked-echo entry.", "colTypePassword"),
+    C_UI_EN("colTypeCombo",      OWL_COL_TYPE_COMBO,     "Colonne a liste deroulante : la propriete Contenu porte la liste des options, surchargeable cellule par cellule.", "Dropdown-list column: the Content property holds the option list, overridable cell by cell.", "colTypeCombo"),
 
     /* orientationsTable — orientation d'un Champ Table. */
     C_UI_EN("Vertical",          OWL_ORIENT_TABLE_VERTICAL, "Lignes empilees verticalement (defaut).", "Rows stacked vertically (default).", "Vertical"),

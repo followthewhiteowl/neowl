@@ -1,0 +1,25 @@
+//  — ROUGE attendu : un override par cellule (`..Contenu`) posé
+// DANS FinInitialisation lève une erreur parasite « Table : ligne N hors
+// plage (1..0) ». Le bound-check regarde le compteur de lignes du WIDGET
+// (pas encore synchronisé à ce stade de l'initialisation) au lieu du store
+// ligne-first, qui a déjà les 2 lignes posées par TableAjouteLigne.
+// L'écriture réussit malgré tout (vérifié via le hook
+// __DebugTableCelluleComboOptions) — seule l'erreur est parasite.
+//
+// Cas-4 rapatrié de  (différé pour ouvrir ce fix dédié, bug
+// général hors combo, cf. ticket).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ComboRenduFinInit)
+
+dbgVérifieFaux(ErreurDétectée,
+"override ..Contenu posé en FinInitialisation : pas d'erreur parasite de borne")
+
+dbgVérifieEgalité(__DebugTableCelluleComboOptions(TABLE_Rendu, 2, 1), `Bruxelles
+Anvers
+Gand`,
+"override posé en FinInitialisation : l'écriture réussit malgré l'erreur parasite")
+
+Ferme(FEN_ComboRenduFinInit)
+dbgBilanTest()

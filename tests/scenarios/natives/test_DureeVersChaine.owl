@@ -1,10 +1,10 @@
 // @sujet : DuréeVersChaîne
-// @résumé : Formate une durée en chaîne selon un format obligatoire. Le format peut être une constante (duréeMillième pour JHHMMSSCCC à 10-11 chiffres, duréeCentième pour JHHMMSSCC à 9-10 chiffres) ou une chaîne template avec tokens. Retourne une représentation textuelle de la durée sous la forme demandée.
+// @résumé : Formate une durée en chaîne selon un format obligatoire. Le format peut être une constante (duréeMillième pour JHHMISSCCC à 10-11 chiffres, duréeCentième pour JHHMISSCC à 9-10 chiffres) ou une chaîne template avec tokens. Retourne une représentation textuelle de la durée sous la forme demandée.
 
 
-// Cas canonique : constante duréeMillième (JHHMMSSCCC à 10-11 chiffres)
+// Cas canonique : constante duréeMillième (JHHMISSCCC à 10-11 chiffres)
 // avec 1 heure 30 minutes. La durée est exprimée en millisecondes,
-// le retour est une chaîne formatée selon le template JHHMMSSCC.
+// le retour est une chaîne formatée selon le template JHHMISSCC.
 PROCEDURE PUBLIQUE scenario_format_millieme_une_heure_trente()
 	dur est une durée = 90 * 60 * 1000 // 1h30 en millisecondes
 	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
@@ -65,4 +65,39 @@ PROCEDURE PRIVÉE scenario_edge_millisecondes_non_nulles()
 	dur est une durée = 1234 // 1.234 secondes en millisecondes
 	sChaîne est une chaîne = DuréeVersChaîne(dur, duréeMillième)
 	dbgVérifieEgalité(sChaîne, "0000001234", "1.234 secondes formatées correctement (0j 0h 0min 1s 234ms)")
+FIN
+
+
+// Jeton minute du template : MI formate les minutes (convention commune
+// au moteur date et aux masques de champ Durée).
+PROCEDURE PUBLIQUE scenario_format_jeton_minute_MI()
+	dur est une durée = 90 * 60 * 1000 // 1h30
+	sChaîne est une chaîne = DuréeVersChaîne(dur, "HH:MI:SS")
+	dbgVérifieEgalité(sChaîne, "01:30:00", "MI formate les minutes (1h30)")
+FIN
+
+
+// Alias minuscule mm : même convention que MI.
+PROCEDURE PUBLIQUE scenario_format_jeton_minute_mm_alias()
+	dur est une durée = 90 * 60 * 1000 // 1h30
+	sChaîne est une chaîne = DuréeVersChaîne(dur, "HH:mm:SS")
+	dbgVérifieEgalité(sChaîne, "01:30:00", "mm (alias de MI) formate les minutes (1h30)")
+FIN
+
+
+// Cas limite : MM ne doit plus produire la valeur des minutes dans le
+// template durée (réservé au sens mois, comme ailleurs dans OWL).
+PROCEDURE PRIVÉE scenario_edge_jeton_MM_n_est_plus_minutes()
+	dur est une durée = 90 * 60 * 1000 // 1h30
+	sChaîne est une chaîne = DuréeVersChaîne(dur, "HH:MM:SS")
+	dbgVérifieVrai(sChaîne <> "01:30:00", "MM ne vaut plus les minutes dans le template durée")
+FIN
+
+
+// Cas limite : les jetons jours/heures/secondes restent inchangés quand
+// le template n'utilise pas de jeton minute.
+PROCEDURE PRIVÉE scenario_edge_jetons_inchanges_sans_minute()
+	dur est une durée = (24 + 2) * 3600 * 1000 + 30 * 1000 // 1 jour 2h 30s
+	sChaîne est une chaîne = DuréeVersChaîne(dur, "J HH:SS")
+	dbgVérifieEgalité(sChaîne, "1 02:30", "jours/heures/secondes inchangés sans jeton minute")
 FIN

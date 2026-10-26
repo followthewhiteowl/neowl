@@ -1,0 +1,45 @@
+//  — rendu runtime d'une colonne combo : listes DIFFÉRENTES par
+// cellule au sein de la MÊME colonne. C'est la limitation « une seule liste
+// par colonne » qu'on lève avec le déroulant permanent — le test verrouille
+// que la levée tient : deux cellules de la même colonne peuvent afficher
+// deux listes distinctes.
+//
+// L'override est posé ICI, après OuvreSoeur (par opposition au test voisin
+// qui le pose depuis FinInitialisation).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ComboRenduParCellule)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+// Override SEULEMENT la cellule ligne 2, avec une liste différente de celle
+// déclarée sur la colonne.
+TABLE_Rendu.COL_Ville[2]..Contenu = `Bruxelles
+Anvers
+Gand`
+
+// ===== Ligne 1 : pas d'override -> rend la liste de la COLONNE =====
+
+dbgVérifieEgalité(__DebugTableCelluleComboOptions(TABLE_Rendu, 1, 1), `Paris
+Lyon
+Marseille`,
+"ligne sans override : les options sont la liste déclarée sur la colonne")
+
+// ===== Ligne 2 : override -> rend SA PROPRE liste =====
+
+dbgVérifieEgalité(__DebugTableCelluleComboOptions(TABLE_Rendu, 2, 1), `Bruxelles
+Anvers
+Gand`,
+"ligne avec override : les options sont la liste propre à la cellule")
+
+dbgVérifieEgalité(__DebugTableCelluleComboSelection(TABLE_Rendu, 2, 1), "Bruxelles",
+"ligne avec override : la sélection correspond à la valeur de cellule, trouvée dans sa propre liste")
+
+// ===== Les deux listes DIFFÈRENT bien entre les deux cellules =====
+
+dbgVérifieDifférence(__DebugTableCelluleComboOptions(TABLE_Rendu, 1, 1),
+__DebugTableCelluleComboOptions(TABLE_Rendu, 2, 1),
+"deux cellules de la même colonne affichent deux listes distinctes")
+
+Ferme(FEN_ComboRenduParCellule)
+dbgBilanTest()

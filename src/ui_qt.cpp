@@ -2772,7 +2772,17 @@ extern "C" void owl_ui_layout_add_child(OwlWindow* parent_window_or_null,
     bool containerFillTransverse = false;
     bool containerFillMain = false;
     bool isImageField = owl_widget_is_image_field(qchild);
-    if ((owl_widget_is_container(qchild) || isImageField)
+    /*  — un Champ Table (QTableView) sous Étire doit remplir sa cellule
+     * comme un champ image : sinon il reste colle a son sizeHint (256x192 =
+     * defaut QAbstractScrollArea) ancre a gauche, et ignore la largeur de la
+     * fenetre. On le route dans le meme traitement conditionne a Étire — pas
+     * de remplissage transverse hors Étire (taille naturelle/declaree). */
+    bool isTable = qobject_cast<QTableView*>(qchild) != nullptr;
+    /* Champs a remplissage transverse conditionne a Étire (image + table) :
+     * hors Étire ils respectent leur taille naturelle, un Conteneur remplit
+     * par defaut (parite designer). */
+    bool fillOnlyUnderStretch = isImageField || isTable;
+    if ((owl_widget_is_container(qchild) || isImageField || isTable)
         && qobject_cast<QBoxLayout*>(lay)) {
         bool vertical   = qobject_cast<QVBoxLayout*>(lay) != nullptr;
         bool horizontal = qobject_cast<QHBoxLayout*>(lay) != nullptr;
@@ -2780,9 +2790,9 @@ extern "C" void owl_ui_layout_add_child(OwlWindow* parent_window_or_null,
         int declTransverse = vertical ? decl_w : (horizontal ? decl_h : 0);
         /*  — un champ image ne remplit le transverse que sous Étire
          * (sinon il respecte sa taille declaree / son sizeHint) ; un conteneur
-         * le remplit par defaut (parite designer). */
+         * le remplit par defaut (parite designer).  : idem Table. */
         containerFillTransverse = (declTransverse <= 0)
-                                   && (!isImageField || stretch > 0);
+                                   && (!fillOnlyUnderStretch || stretch > 0);
         /* Étire=Vrai = remplir aussi l'axe principal. */
         containerFillMain = (stretch > 0);
         QSizePolicy sp = qchild->sizePolicy();
@@ -2807,9 +2817,9 @@ extern "C" void owl_ui_layout_add_child(OwlWindow* parent_window_or_null,
      * ne force pas Expanding dans ce cas, et le bornage min=max=decl
      * fige la taille. Les Conteneurs et champs image ont leur propre traitement
      * (containerFillMain ci-dessus) : semantique Hauteur=taille-de-depart, non
-     * reprise ici. */
+     * reprise ici.  : idem Table. */
     if (stretch > 0 && qobject_cast<QBoxLayout*>(lay)
-        && !owl_widget_is_container(qchild) && !isImageField) {
+        && !owl_widget_is_container(qchild) && !isImageField && !isTable) {
         bool vertical   = qobject_cast<QVBoxLayout*>(lay) != nullptr;
         bool horizontal = qobject_cast<QHBoxLayout*>(lay) != nullptr;
         int declMain = vertical ? decl_h : (horizontal ? decl_w : 0);
@@ -4321,6 +4331,13 @@ static void owl_table_apply_stored_col_colors(QTableView* view,
 /*  — predicat d'editabilite de colonne (property posee par
  * owl_ui_table_set_column_editable). Defini plus bas. */
 static bool owl_table_column_is_editable(const QWidget* w, int col);
+/*  — pose (ou rafraichit) le QComboBox permanent d'une cellule combo
+ * (colTypeCombo). r0/c0 0-based. options_lf = liste effective (lignes LF),
+ * selected = valeur courante de la cellule. Defini plus bas. */
+static void owl_table_install_cell_combo(QTableView* view,
+                                         QStandardItemModel* model, int r0,
+                                         int c0, const QString& options_lf,
+                                         const QString& selected);
 
 /* Remplit une ligne DEJA inseree (row0, 0-based) dans le modele a partir des
  * cellules UTF-8. Factorise entre append (fin) et insert (indice). */
@@ -4355,6 +4372,18 @@ static void owl_table_populate_row(QTableView* view, QStandardItemModel* model,
         if (!owl_table_column_is_editable(view, c))
             item->setFlags(item->flags() & ~Qt::ItemIsEditable);
         model->setItem(row0, c, item);
+        /*  — colonne combo : deroulant PERMANENT par cellule. La liste
+         * effective retombe sur la liste PAR DEFAUT de la colonne (property
+         * col_combo_content_<col0>) ; un override par cellule arrive plus tard via
+         * owl_ui_table_set_cell_combo_content. La valeur selectionnee = texte de
+         * la cellule (l'item porte toujours la valeur, le combo se superpose). */
+        if (colType == OWL_COL_TYPE_COMBO) {
+            QVariant cv =
+                view->property(QString("col_combo_content_%1").arg(c).toUtf8());
+            QString options = cv.isValid() ? cv.toString() : QString();
+            owl_table_install_cell_combo(view, model, row0, c, options,
+                                         item->text());
+        }
     }
 }
 
@@ -4466,6 +4495,16 @@ extern "C" void owl_ui_table_set_row(OwlControl* table, int row_1based,
             item->setText("");
         } else {
             item->setText(QString::fromUtf8(txt));
+            /*  — colonne combo : la modification de ligne met a jour la
+             * valeur ; on resynchronise la selection du deroulant permanent (la
+             * liste effective retombe sur la liste par defaut de la colonne). */
+            if (colType == OWL_COL_TYPE_COMBO) {
+                QVariant cv = view->property(
+                    QString("col_combo_content_%1").arg(c).toUtf8());
+                owl_table_install_cell_combo(
+                    view, model, idx, c, cv.isValid() ? cv.toString() : QString(),
+                    item->text());
+            }
         }
     }
 }
@@ -5312,8 +5351,14 @@ static void owl_table_apply_typed_display(const QObject* view,
         ct != OWL_COL_TYPE_DATE && ct != OWL_COL_TYPE_HEURE &&
         ct != OWL_COL_TYPE_DUREE && ct != OWL_COL_TYPE_MOTDEPASSE) return;
     QByteArray raw = opt->text.toUtf8();
+    /*  — masque d'affichage override de la colonne (col_dispmask_<col0>) :
+     * prime sur le format defaut/projet dans owl_ui_format_cell_typed. */
+    QVariant dm = view->property(QString("col_dispmask_%1").arg(col0).toUtf8());
+    QByteArray dmask = dm.isValid() ? dm.toString().toUtf8() : QByteArray();
     char out[160];
-    owl_ui_format_cell_typed(ct, raw.constData(), out, sizeof(out));
+    owl_ui_format_cell_typed(ct, raw.constData(),
+                             dmask.isEmpty() ? nullptr : dmask.constData(),
+                             out, sizeof(out));
     opt->text = QString::fromUtf8(out);
 }
 
@@ -5611,6 +5656,25 @@ extern "C" void owl_ui_table_set_column_format(OwlControl* table,
     }
 }
 
+/*  — masque d'affichage override de la colonne (MasqueAffichage/
+ * DisplayMask) : stocke la chaine de jetons en dynamic property du view
+ * (col_dispmask_<col0>), lue au rendu par owl_table_apply_typed_display et la
+ * sonde owl_ui_table_cell_texte_affiche pour primer sur le format defaut/projet.
+ * Miroir de stockage de owl_ui_table_set_column_format (col_typeformat_). */
+extern "C" void owl_ui_table_set_column_display_mask(OwlControl* table,
+                                                     int col_1based,
+                                                     const char* mask) {
+    if (!table || col_1based <= 0) return;
+    QTableView* view = qobject_cast<QTableView*>(reinterpret_cast<QWidget*>(table));
+    if (!view) return;
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return;
+    int col0 = col_1based - 1;
+    if (col0 >= model->columnCount()) return;
+    view->setProperty(QString("col_dispmask_%1").arg(col0).toUtf8(),
+                      QString::fromUtf8(mask ? mask : ""));
+}
+
 /*  (test-only) — interroge le validateur EFFECTIF de l'éditeur
  * transitoire d'une cellule (row/col 1-based) sur `text` : ouvre l'éditeur via le
  * delegate de la colonne (même mécanisme que owl_ui_table_cell_editor_mask), lit
@@ -5669,9 +5733,170 @@ extern "C" const char* owl_ui_table_cell_texte_affiche(OwlControl* table,
     int ct = 0;
     QVariant tv = view->property(QString("col_type_%1").arg(c).toUtf8());
     if (tv.isValid()) ct = tv.toInt();
+    /*  — meme override colonne que le rendu (apply_typed_display) :
+     * sonde == cellule peinte. */
+    QVariant dm = view->property(QString("col_dispmask_%1").arg(c).toUtf8());
+    QByteArray dmask = dm.isValid() ? dm.toString().toUtf8() : QByteArray();
     char out[160];
-    owl_ui_format_cell_typed(ct, raw.constData(), out, sizeof(out));
+    owl_ui_format_cell_typed(ct, raw.constData(),
+                             dmask.isEmpty() ? nullptr : dmask.constData(),
+                             out, sizeof(out));
     g_ctrl_text_buf = QByteArray(out);
+    return g_ctrl_text_buf.constData();
+}
+
+/* ====================================================================
+ *  — colonne combo (colTypeCombo) : rendu runtime en deroulant
+ * PERMANENT. Chaque cellule porte un QComboBox pose via setIndexWidget
+ * (modele "formulaire", pas d'edition in-place clic-pour-ouvrir). La
+ * valeur selectionnee est synchronisee avec la valeur de cellule
+ * (item DisplayRole) ET renvoyee au store ligne-first via le pont
+ * owl_ui_table_user_combo_changed. Le QComboBox est enfant du viewport :
+ * sa duree de vie suit la table (detruit avec le view, remplace proprement
+ * quand setIndexWidget repose un widget sur le meme index).
+ * ==================================================================== */
+
+/* Decoupe une liste "lignes separees par LF" en entrees de combo. Tolere les
+ * fins de ligne CRLF (strip du \r) ; une unique entree vide finale (issue d'un
+ * LF terminal) est ignoree. Les lignes vides internes sont conservees. */
+static QStringList owl_table_combo_split(const QString& content_lf) {
+    QStringList out;
+    if (content_lf.isEmpty()) return out;
+    const QStringList raw = content_lf.split(QChar('\n'));
+    for (int i = 0; i < raw.size(); ++i) {
+        QString line = raw.at(i);
+        if (line.endsWith(QChar('\r'))) line.chop(1);
+        if (i == raw.size() - 1 && line.isEmpty()) break; /* LF terminal */
+        out << line;
+    }
+    return out;
+}
+
+static void owl_table_install_cell_combo(QTableView* view,
+                                         QStandardItemModel* model, int r0,
+                                         int c0, const QString& options_lf,
+                                         const QString& selected) {
+    if (!view || !model) return;
+    if (r0 < 0 || c0 < 0 || r0 >= model->rowCount() || c0 >= model->columnCount())
+        return;
+    QModelIndex idx = model->index(r0, c0);
+    QComboBox* combo = qobject_cast<QComboBox*>(view->indexWidget(idx));
+    const bool fresh = (combo == nullptr);
+    if (fresh) combo = new QComboBox(view->viewport());
+
+    /* Peuplement + selection initiale : signaux coupes pour ne pas declencher
+     * le writeback sur une valeur qu'on vient de lire du store. */
+    combo->blockSignals(true);
+    combo->clear();
+    combo->addItems(owl_table_combo_split(options_lf));
+    int found = combo->findText(selected);
+    if (found >= 0) {
+        combo->setCurrentIndex(found);
+    } else {
+        /* Combo STRICT : le deroulant contient EXACTEMENT la liste effective
+         * declaree. Une valeur de cellule absente de la liste n'est PAS ajoutee
+         * comme option — aucune selection (combo blanc). La donnee du store reste
+         * inchangee tant que l'utilisateur ne choisit rien. */
+        combo->setCurrentIndex(-1);
+    }
+    combo->blockSignals(false);
+
+    if (fresh) {
+        QObject::connect(combo, &QComboBox::currentTextChanged, combo,
+            [view, model, r0, c0](const QString& text) {
+                /* Miroir DisplayRole du modele (lecture/affichage/tri coherents). */
+                QStandardItem* it = model->item(r0, c0);
+                if (it) it->setText(text);
+                /* Sens Qt -> store : TABLE[l].COL devient la valeur choisie. */
+                owl_ui_table_user_combo_changed(
+                    reinterpret_cast<OwlControl*>(view), r0, c0,
+                    text.toUtf8().constData());
+            });
+        view->setIndexWidget(idx, combo);
+    }
+}
+
+/*  — liste PAR DEFAUT d'une colonne combo (lignes LF), stockee en
+ * dynamic property du view. Lue a la creation des cellules combo sans override. */
+extern "C" void owl_ui_table_set_column_combo_content(OwlControl* table,
+                                                      int col_1based,
+                                                      const char* content_lf) {
+    if (!table || col_1based <= 0) return;
+    QTableView* view = qobject_cast<QTableView*>(reinterpret_cast<QWidget*>(table));
+    if (!view) return;
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return;
+    int col0 = col_1based - 1;
+    if (col0 >= model->columnCount()) return;
+    view->setProperty(QString("col_combo_content_%1").arg(col0).toUtf8(),
+                      QString::fromUtf8(content_lf ? content_lf : ""));
+}
+
+/*  — override par CELLULE (TABLE[l][c]..Contenu) : repeuple le combo de
+ * la cellule avec sa propre liste en preservant la valeur courante. content_lf
+ * vide/NULL => retombe sur la liste colonne. No-op hors colonne combo. */
+extern "C" void owl_ui_table_set_cell_combo_content(OwlControl* table,
+                                                    int row_1based,
+                                                    int col_1based,
+                                                    const char* content_lf) {
+    if (!table || row_1based <= 0 || col_1based <= 0) return;
+    QTableView* view = qobject_cast<QTableView*>(reinterpret_cast<QWidget*>(table));
+    if (!view) return;
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return;
+    int r0 = row_1based - 1, c0 = col_1based - 1;
+    if (r0 >= model->rowCount() || c0 >= model->columnCount()) return;
+    QVariant tv = view->property(QString("col_type_%1").arg(c0).toUtf8());
+    if (!tv.isValid() || tv.toInt() != OWL_COL_TYPE_COMBO) return;
+    QString options = (content_lf && content_lf[0])
+                          ? QString::fromUtf8(content_lf)
+                          : view->property(
+                                QString("col_combo_content_%1").arg(c0).toUtf8())
+                                .toString();
+    QStandardItem* it = model->item(r0, c0);
+    QString selected = it ? it->text() : QString();
+    owl_table_install_cell_combo(view, model, r0, c0, options, selected);
+}
+
+/*  (test-only) — options du QComboBox REEL d'une cellule, jointes par LF
+ * (vide si la cellule ne porte pas de combo). */
+extern "C" const char* owl_ui_table_cell_combo_options(OwlControl* table,
+                                                       int row_1based,
+                                                       int col_1based) {
+    g_ctrl_text_buf.clear();
+    if (!table || row_1based <= 0 || col_1based <= 0) return "";
+    QTableView* view = qobject_cast<QTableView*>(reinterpret_cast<QWidget*>(table));
+    if (!view) return "";
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return "";
+    int r0 = row_1based - 1, c0 = col_1based - 1;
+    if (r0 >= model->rowCount() || c0 >= model->columnCount()) return "";
+    QComboBox* combo =
+        qobject_cast<QComboBox*>(view->indexWidget(model->index(r0, c0)));
+    if (!combo) return "";
+    QStringList items;
+    for (int i = 0; i < combo->count(); ++i) items << combo->itemText(i);
+    g_ctrl_text_buf = items.join(QChar('\n')).toUtf8();
+    return g_ctrl_text_buf.constData();
+}
+
+/*  (test-only) — texte selectionne du QComboBox REEL d'une cellule
+ * (vide si pas de combo ou aucune selection). */
+extern "C" const char* owl_ui_table_cell_combo_selection(OwlControl* table,
+                                                         int row_1based,
+                                                         int col_1based) {
+    g_ctrl_text_buf.clear();
+    if (!table || row_1based <= 0 || col_1based <= 0) return "";
+    QTableView* view = qobject_cast<QTableView*>(reinterpret_cast<QWidget*>(table));
+    if (!view) return "";
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(view->model());
+    if (!model) return "";
+    int r0 = row_1based - 1, c0 = col_1based - 1;
+    if (r0 >= model->rowCount() || c0 >= model->columnCount()) return "";
+    QComboBox* combo =
+        qobject_cast<QComboBox*>(view->indexWidget(model->index(r0, c0)));
+    if (!combo) return "";
+    g_ctrl_text_buf = combo->currentText().toUtf8();
     return g_ctrl_text_buf.constData();
 }
 
@@ -8347,6 +8572,34 @@ public:
         owl_image_free(img);  /* transitoire non-wrappe : a nous de liberer */
     }
 
+    /*  — dessin direct sur un Champ Image. Le backing (OwlImage* du
+     * store OWL du contrôle) est poussé à l'écran de façon DIFFÉRÉE : un
+     * QTimer 0ms (coalescé par m_drawRefreshScheduled) snapshote le backing
+     * une fois le gestionnaire OWL revenu à la boucle Qt. Ainsi tout
+     * dDébutDessin+primitives (même sans dFinDessin) affiche l'état final sans
+     * hook par-primitive. singleShot(context=this) s'auto-annule si le label
+     * est détruit avant le tir → pas de pointeur pendouillant. */
+    const OwlImage* m_drawBacking = nullptr;
+    int  m_drawCadrage = 0;
+    bool m_drawRefreshScheduled = false;
+
+public:
+    void scheduleDrawRefresh(const OwlImage* backing, int cadrage) {
+        m_drawBacking = backing;
+        m_drawCadrage = cadrage;
+        if (m_drawRefreshScheduled) return;
+        m_drawRefreshScheduled = true;
+        QTimer::singleShot(0, this, [this]() {
+            m_drawRefreshScheduled = false;
+            if (!m_drawBacking) return;
+            const uint8_t* rgba = owl_image_pixels(m_drawBacking);
+            int w = owl_image_width(m_drawBacking);
+            int h = owl_image_height(m_drawBacking);
+            if (rgba && w > 0 && h > 0)
+                owl_ui_label_set_image_rgba(asCtrl(), rgba, w, h, m_drawCadrage);
+        });
+    }
+
 protected:
     OwlControl* asCtrl() { return reinterpret_cast<OwlControl*>(this); }
 
@@ -8465,6 +8718,16 @@ extern "C" void owl_ui_image_field_set_zoom(OwlControl* w, int percent) {
 /* Helper interne : récupère l'OwlImageLabel ou NULL. */
 static OwlImageLabel* as_image_label(OwlControl* w) {
     return dynamic_cast<OwlImageLabel*>(reinterpret_cast<QWidget*>(w));
+}
+
+/*  — planifie le push différé du backing au Champ Image. No-op si
+ * `w` n'est pas un OwlImageLabel. */
+extern "C" void owl_ui_image_field_schedule_refresh(OwlControl* w,
+                                                    const OwlImage* backing,
+                                                    int cadrage) {
+    OwlImageLabel* l = as_image_label(w);
+    if (!l) return;
+    l->scheduleDrawRefresh(backing, cadrage);
 }
 
 /*  — pose la config code-barres sur le widget pour que la regen au

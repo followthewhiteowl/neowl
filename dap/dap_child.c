@@ -33,8 +33,10 @@ typedef pid_t process_handle_t;
 static struct {
     pipe_handle_t   inWrite;     /* parent: write end of child's stdin */
     pipe_handle_t   outRead;     /* parent: read end of child's stdout */
+    pipe_handle_t   errRead;     /* parent: read end of child's stderr */
     process_handle_t proc;
-    thread_handle_t  reader;
+    thread_handle_t  reader;     /* stdout reader thread */
+    thread_handle_t  readerErr;  /* stderr reader thread */
     DapChildLineHandler handler;
     volatile bool    running;
     /* Slot reponse synchrone (D.2.5). Une seule commande synchrone a la
@@ -95,15 +97,13 @@ static int pipe_read_byte(pipe_handle_t h, char* out) {
 }
 
 /* ================================================================
- * Thread reader : lit stdout child ligne par ligne, dispatche
+ * Threads reader : un par canal (stdout = protocole, stderr = brut).
+ * Le canal est passe en argument du thread (cast via intptr_t).
  * ================================================================ */
 
-#ifdef _WIN32
-static DWORD WINAPI reader_thread(LPVOID arg) {
-#else
-static void* reader_thread(void* arg) {
-#endif
-    (void)arg;
+/* stdout : lit ligne par ligne, intercepte les reponses synchrones
+ * (pendingId), forward le reste au handler, emet _child_eof sur EOF. */
+static void reader_loop_stdout(void) {
     char line[8192];
     int n = 0;
 
@@ -115,7 +115,7 @@ static void* reader_thread(void* arg) {
              * vient de mourir). On signale ca au handler avec une
              * ligne speciale {"event":"_child_eof"} pour que dap_server
              * puisse emettre TerminatedEvent et fermer la session. */
-            if (g_child.handler) g_child.handler("{\"event\":\"_child_eof\"}");
+            if (g_child.handler) g_child.handler("{\"event\":\"_child_eof\"}", DAP_CHILD_STDOUT);
             break;
         }
         if (c == '\r') continue;
@@ -139,7 +139,7 @@ static void* reader_thread(void* arg) {
                         json_free(parsed);
                     }
                 }
-                if (g_child.handler) g_child.handler(line);
+                if (g_child.handler) g_child.handler(line, DAP_CHILD_STDOUT);
             }
             n = 0;
             continue;
@@ -148,14 +148,46 @@ static void* reader_thread(void* arg) {
         /* sinon overflow silencieux : on tronque */
     }
 
+    /* Le canal stdout est l'autorite sur la mort du child : c'est lui qui
+     * arrete la boucle. Le thread stderr draine jusqu'a son propre EOF. */
     g_child.running = false;
+}
+
+/* stderr : texte runtime brut (erreurs d'execution owl). Chaque ligne
+ * non-vide est forwardee telle quelle. Pas de protocole, pas de _child_eof
+ * (c'est stdout qui porte le signal de fin). */
+static void reader_loop_stderr(void) {
+    char line[8192];
+    int n = 0;
+
+    for (;;) {
+        char c;
+        int r = pipe_read_byte(g_child.errRead, &c);
+        if (r <= 0) break;  /* EOF : child mort, plus rien a forwarder */
+        if (c == '\r') continue;
+        if (c == '\n') {
+            line[n] = '\0';
+            if (n > 0 && g_child.handler) g_child.handler(line, DAP_CHILD_STDERR);
+            n = 0;
+            continue;
+        }
+        if (n < (int)sizeof(line) - 1) line[n++] = c;
+    }
+}
 
 #ifdef _WIN32
+static DWORD WINAPI reader_thread(LPVOID arg) {
+    if ((int)(intptr_t)arg == DAP_CHILD_STDERR) reader_loop_stderr();
+    else reader_loop_stdout();
     return 0;
-#else
-    return NULL;
-#endif
 }
+#else
+static void* reader_thread(void* arg) {
+    if ((int)(intptr_t)arg == DAP_CHILD_STDERR) reader_loop_stderr();
+    else reader_loop_stdout();
+    return NULL;
+}
+#endif
 
 /* ================================================================
  * Spawn cross-platform
@@ -220,6 +252,7 @@ bool dap_child_spawn(const char* scriptPath, DapChildLineHandler handler) {
 
     HANDLE hStdinR = NULL, hStdinW = NULL;
     HANDLE hStdoutR = NULL, hStdoutW = NULL;
+    HANDLE hStderrR = NULL, hStderrW = NULL;
 
     if (!CreatePipe(&hStdinR, &hStdinW, &sa, 0)) {
         dap_log("CreatePipe stdin failed: %lu", GetLastError());
@@ -230,10 +263,18 @@ bool dap_child_spawn(const char* scriptPath, DapChildLineHandler handler) {
         CloseHandle(hStdinR); CloseHandle(hStdinW);
         return false;
     }
+    if (!CreatePipe(&hStderrR, &hStderrW, &sa, 0)) {
+        dap_log("CreatePipe stderr failed: %lu", GetLastError());
+        CloseHandle(hStdinR);  CloseHandle(hStdinW);
+        CloseHandle(hStdoutR); CloseHandle(hStdoutW);
+        return false;
+    }
 
-    /* Le parent garde les ends "non herites" : write-stdin et read-stdout. */
+    /* Le parent garde les ends "non herites" : write-stdin, read-stdout,
+     * read-stderr. */
     SetHandleInformation(hStdinW,  HANDLE_FLAG_INHERIT, 0);
     SetHandleInformation(hStdoutR, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(hStderrR, HANDLE_FLAG_INHERIT, 0);
 
     /* Build command line : "owl.exe --debug-stdio script.owl" */
     char cmdline[4096];
@@ -245,66 +286,98 @@ bool dap_child_spawn(const char* scriptPath, DapChildLineHandler handler) {
     si.dwFlags = STARTF_USESTDHANDLES;
     si.hStdInput  = hStdinR;
     si.hStdOutput = hStdoutW;
-    si.hStdError  = GetStdHandle(STD_ERROR_HANDLE);  /* herite stderr du parent */
+    si.hStdError  = hStderrW;  /* pipe stderr -> capte les erreurs runtime */
 
     PROCESS_INFORMATION pi = {0};
     if (!CreateProcessA(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
         dap_log("CreateProcess(%s) failed: %lu", cmdline, GetLastError());
         CloseHandle(hStdinR);  CloseHandle(hStdinW);
         CloseHandle(hStdoutR); CloseHandle(hStdoutW);
+        CloseHandle(hStderrR); CloseHandle(hStderrW);
         return false;
     }
 
     /* Close les ends qui appartiennent au child : on ne les utilise pas. */
     CloseHandle(hStdinR);
     CloseHandle(hStdoutW);
+    CloseHandle(hStderrW);
     CloseHandle(pi.hThread);
 
     g_child.inWrite  = hStdinW;
     g_child.outRead  = hStdoutR;
+    g_child.errRead  = hStderrR;
     g_child.proc     = pi.hProcess;
     g_child.running  = true;
-    g_child.reader   = CreateThread(NULL, 0, reader_thread, NULL, 0, NULL);
+    g_child.reader   = CreateThread(NULL, 0, reader_thread, (LPVOID)(intptr_t)DAP_CHILD_STDOUT, 0, NULL);
     if (g_child.reader == NULL) {
         dap_log("CreateThread reader failed");
         TerminateProcess(g_child.proc, 1);
         CloseHandle(g_child.proc);
         CloseHandle(g_child.inWrite);
         CloseHandle(g_child.outRead);
+        CloseHandle(g_child.errRead);
         g_child.running = false;
         return false;
     }
+    g_child.readerErr = CreateThread(NULL, 0, reader_thread, (LPVOID)(intptr_t)DAP_CHILD_STDERR, 0, NULL);
+    if (g_child.readerErr == NULL) {
+        dap_log("CreateThread reader stderr failed");
+        TerminateProcess(g_child.proc, 1);
+        g_child.running = false;
+        WaitForSingleObject(g_child.reader, 1000);
+        CloseHandle(g_child.reader);
+        CloseHandle(g_child.proc);
+        CloseHandle(g_child.inWrite);
+        CloseHandle(g_child.outRead);
+        CloseHandle(g_child.errRead);
+        return false;
+    }
 #else
-    int pIn[2], pOut[2];
+    int pIn[2], pOut[2], pErr[2];
     if (pipe(pIn) < 0) { dap_log("pipe stdin failed"); return false; }
     if (pipe(pOut) < 0) { close(pIn[0]); close(pIn[1]); dap_log("pipe stdout failed"); return false; }
+    if (pipe(pErr) < 0) {
+        close(pIn[0]); close(pIn[1]); close(pOut[0]); close(pOut[1]);
+        dap_log("pipe stderr failed"); return false;
+    }
 
     pid_t pid = fork();
     if (pid < 0) {
-        close(pIn[0]); close(pIn[1]); close(pOut[0]); close(pOut[1]);
+        close(pIn[0]); close(pIn[1]); close(pOut[0]); close(pOut[1]); close(pErr[0]); close(pErr[1]);
         dap_log("fork failed"); return false;
     }
     if (pid == 0) {
-        /* Child : redirige stdin/stdout, exec owl --debug-stdio script. */
+        /* Child : redirige stdin/stdout/stderr, exec owl --debug-stdio script. */
         dup2(pIn[0],  0);
         dup2(pOut[1], 1);
-        close(pIn[0]); close(pIn[1]); close(pOut[0]); close(pOut[1]);
+        dup2(pErr[1], 2);
+        close(pIn[0]); close(pIn[1]); close(pOut[0]); close(pOut[1]); close(pErr[0]); close(pErr[1]);
         execlp(owlExe, owlExe, "--debug-stdio", scriptPath, (char*)NULL);
         _exit(127);  /* execlp a echoue */
     }
     /* Parent : close les ends qui appartiennent au child. */
     close(pIn[0]);
     close(pOut[1]);
+    close(pErr[1]);
 
     g_child.inWrite = pIn[1];
     g_child.outRead = pOut[0];
+    g_child.errRead = pErr[0];
     g_child.proc    = pid;
     g_child.running = true;
-    if (pthread_create(&g_child.reader, NULL, reader_thread, NULL) != 0) {
+    if (pthread_create(&g_child.reader, NULL, reader_thread, (void*)(intptr_t)DAP_CHILD_STDOUT) != 0) {
         dap_log("pthread_create reader failed");
         kill(pid, SIGTERM);
-        close(g_child.inWrite); close(g_child.outRead);
+        close(g_child.inWrite); close(g_child.outRead); close(g_child.errRead);
         g_child.running = false;
+        return false;
+    }
+    if (pthread_create(&g_child.readerErr, NULL, reader_thread, (void*)(intptr_t)DAP_CHILD_STDERR) != 0) {
+        dap_log("pthread_create reader stderr failed");
+        kill(pid, SIGTERM);
+        g_child.running = false;
+        pthread_join(g_child.reader, NULL);
+        close(g_child.inWrite); close(g_child.outRead); close(g_child.errRead);
         return false;
     }
 #endif
@@ -425,9 +498,12 @@ void dap_child_kill(void) {
     }
     CloseHandle(g_child.proc);
     if (g_child.outRead != PIPE_INVALID) CloseHandle(g_child.outRead);
+    if (g_child.errRead != PIPE_INVALID) CloseHandle(g_child.errRead);
     g_child.running = false;
     WaitForSingleObject(g_child.reader, 1000);
     CloseHandle(g_child.reader);
+    WaitForSingleObject(g_child.readerErr, 1000);
+    CloseHandle(g_child.readerErr);
 #else
     int status = 0;
     int loops = 5;
@@ -439,11 +515,14 @@ void dap_child_kill(void) {
     waitpid(g_child.proc, &status, 0);
 reaped:
     if (g_child.outRead != PIPE_INVALID) close(g_child.outRead);
+    if (g_child.errRead != PIPE_INVALID) close(g_child.errRead);
     g_child.running = false;
     pthread_join(g_child.reader, NULL);
+    pthread_join(g_child.readerErr, NULL);
 #endif
 
     g_child.outRead = PIPE_INVALID;
+    g_child.errRead = PIPE_INVALID;
     g_child.inWrite = PIPE_INVALID;
     dap_log("child terminated");
 }

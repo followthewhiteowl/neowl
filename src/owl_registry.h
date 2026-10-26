@@ -306,6 +306,16 @@ typedef struct OwlTypeDef {
      * factory doit etre un native arite 0 enregistre (typiquement INTERNAL,
      * prefixe __). Ajoute en fin de struct -> retro-compatible C99. */
     const char*         defaultFactoryNative;
+    /*  — type ACCESSEUR non declarable seul. NULL (defaut C99) = type
+     * declarable normalement. Non-NULL = le compilateur REJETTE toute
+     * declaration standalone `var est un T` avec un message oriente solution,
+     * la valeur portant le hint d'obtention specifique au type (ex.
+     * "doc..Cellule[ligne, colonne]"). Reservee aux sous-objets obtenus
+     * uniquement par indexation sur un objet porteur (xlsCellule/xlsLigne/
+     * xlsColonne) : ils ont des fields mais aucun template runtime dans
+     * vm.types ni factory -> `__StructClone` crashait ("Variable inconnue").
+     * Le rejet au compile remplace ce crash runtime. */
+    const char*         notDeclarableHint;
 } OwlTypeDef;
 
 /* -- Runtime constants (httpGet, RC, ValPI, psdMiseEnForme…) ------- */

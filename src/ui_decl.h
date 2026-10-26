@@ -760,6 +760,14 @@ typedef int (*OwlUiWidgetItemsCountFn)(int kind, void* widget);
 int   owl_ui_widget_items_count(int kind, void* widget_or_null);
 void  owl_ui_register_widget_items_count(OwlUiWidgetItemsCountFn fn);
 
+/*  — contenu LF d'un widget a items (Liste/Combo) : labels des items
+ * VIVANTS du widget joints par LF. Source unique du getter ..Contenu, alignee
+ * sur owl_ui_widget_items_count (ListeOccurrence). Chaine stable jusqu'au
+ * prochain appel. Impl Qt enregistree par la couche GUI ; no-op CLI (""). */
+typedef const char* (*OwlUiWidgetContentLfFn)(int kind, void* widget);
+const char* owl_ui_widget_content_lf(int kind, void* widget_or_null);
+void        owl_ui_register_widget_content_lf(OwlUiWidgetContentLfFn fn);
+
 typedef int (*OwlUiHeadlessWidgetItemsCountUicFn)(ObjUiControl* uic);
 int   owl_ui_headless_widget_items_count_uic(ObjUiControl* uic);
 void  owl_ui_register_headless_widget_items_count_uic(OwlUiHeadlessWidgetItemsCountUicFn fn);
@@ -767,6 +775,33 @@ void  owl_ui_register_headless_widget_items_count_uic(OwlUiHeadlessWidgetItemsCo
 typedef int (*OwlUiHeadlessWidgetItemsCountUiciFn)(struct ObjUiControlInstance* uici);
 int   owl_ui_headless_widget_items_count_uici(struct ObjUiControlInstance* uici);
 void  owl_ui_register_headless_widget_items_count_uici(OwlUiHeadlessWidgetItemsCountUiciFn fn);
+
+/*  — contenu LF du store items headless (Liste/Combo sans widget Qt) :
+ * les items du store joints par LF, miroir headless de owl_ui_widget_content_lf.
+ * Source unique du getter ..Contenu en headless pur, alignee sur
+ * owl_ui_headless_widget_items_count_* (ListeOccurrence). Chaine stable jusqu'au
+ * prochain appel. Impl enregistree par stdlib_ui_init ; no-op CLI/LSP (""). */
+typedef const char* (*OwlUiHeadlessContentLfUicFn)(ObjUiControl* uic);
+const char* owl_ui_headless_content_lf_uic(ObjUiControl* uic);
+void        owl_ui_register_headless_content_lf_uic(OwlUiHeadlessContentLfUicFn fn);
+
+typedef const char* (*OwlUiHeadlessContentLfUiciFn)(struct ObjUiControlInstance* uici);
+const char* owl_ui_headless_content_lf_uici(struct ObjUiControlInstance* uici);
+void        owl_ui_register_headless_content_lf_uici(OwlUiHeadlessContentLfUiciFn fn);
+
+/*  — pose du contenu multi-ligne (split LF) DANS le store items headless :
+ * REMPLACE la liste (clear + re-seed ligne a ligne), de sorte que `..Contenu =`
+ * et la famille ListeXxx operent sur UNE SEULE liste en headless pur. Miroir
+ * headless du seed GUI owl_ui_listcombo_set_content. No-op CLI/LSP. */
+typedef void (*OwlUiHeadlessSetContentUicFn)(ObjUiControl* uic, const char* content);
+void owl_ui_headless_set_content_uic(ObjUiControl* uic, const char* content);
+void owl_ui_register_headless_set_content_uic(OwlUiHeadlessSetContentUicFn fn);
+
+typedef void (*OwlUiHeadlessSetContentUiciFn)(struct ObjUiControlInstance* uici,
+                                              const char* content);
+void owl_ui_headless_set_content_uici(struct ObjUiControlInstance* uici,
+                                      const char* content);
+void owl_ui_register_headless_set_content_uici(OwlUiHeadlessSetContentUiciFn fn);
 
 /*  — Cle reservee du headless_store pour le tableau d'items
  * widgets-a-items. Stocke un ObjArray de Value. Pas de collision avec une
@@ -856,6 +891,16 @@ typedef void (*OwlUiTableColmaskAppliedFn)(void* widget, int col_1based,
 void owl_ui_table_colmask_applied(void* widget, int col_1based,
                                   const char* wl_mask);
 void owl_ui_register_table_colmask_applied(OwlUiTableColmaskAppliedFn fn);
+
+/*  — masque d'AFFICHAGE d'une colonne poussé au widget (canal distinct
+ * du masque de frappe ci-dessus). Même indirection : owl_core reste libre de
+ * tout symbole GUI, la CLI sans Qt linke le default no-op. `widget` = le
+ * QTableView monté, `col_1based` l'index colonne, `wl_mask` le gabarit affiché. */
+typedef void (*OwlUiTableColdispmaskAppliedFn)(void* widget, int col_1based,
+                                               const char* wl_mask);
+void owl_ui_table_coldispmask_applied(void* widget, int col_1based,
+                                      const char* wl_mask);
+void owl_ui_register_table_coldispmask_applied(OwlUiTableColdispmaskAppliedFn fn);
 
 #ifdef __cplusplus
 }

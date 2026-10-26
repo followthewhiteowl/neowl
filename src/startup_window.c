@@ -24,13 +24,16 @@
 #ifdef _WIN32
 #  include <io.h>
 /* Pas de <windows.h> (clash TokenType winnt.h vs scanner.h, cf. platform.c).
- * Ces deux entrees kernel32 (auto-linkees) sont declarees a la main pour le
- * peek non-bloquant de stdin. */
+ * Ces entrees kernel32 (auto-linkees) sont declarees a la main : peek
+ * non-bloquant de stdin et rattachement de la console parente d'un
+ * exe GUI lance depuis un terminal. */
 unsigned long __stdcall GetFileType(void* hFile);
 int __stdcall PeekNamedPipe(void* hNamedPipe, void* lpBuffer,
                             unsigned long nBufferSize, unsigned long* lpBytesRead,
                             unsigned long* lpTotalBytesAvail,
                             unsigned long* lpBytesLeftThisMessage);
+int __stdcall AttachConsole(unsigned long dwProcessId);
+void* __stdcall GetStdHandle(unsigned long nStdHandle);
 #else
 #  include <unistd.h>
 #  include <sys/select.h>
@@ -370,4 +373,31 @@ int owl_run_startup_window(const char* fenName) {
     InterpretResult r = vm_call_reentrant(fn, 1 + plan.count);
     if (r == INTERPRET_RUNTIME_ERROR) return 70;
     return 0;
+}
+
+#ifdef _WIN32
+/* Un handle std pointe-t-il deja vers un fichier/pipe ? C'est le cas d'une
+ * redirection utilisateur explicite (`app.exe > sortie.txt`) : elle prime, on
+ * ne rouvre pas le flux sur la console. Console heritee / handle absent =>
+ * non redirige, on peut (re)brancher sur CONOUT$/CONIN$. */
+static bool sw_std_is_redirected(unsigned long nStdHandle) {
+    void* h = GetStdHandle(nStdHandle);
+    if (h == NULL || h == (void*)(intptr_t)-1) return false;
+    unsigned long ft = GetFileType(h);
+    return ft == 0x0001 /* FILE_TYPE_DISK */ || ft == 0x0003 /* FILE_TYPE_PIPE */;
+}
+#endif
+
+void owl_attach_parent_console_if_any(void) {
+#ifdef _WIN32
+    /* Exe GUI (sous-systeme windows) : pas de console propre. Lance depuis un
+     * terminal -> rattache la console du parent pour que Trace/printf y soient
+     * visibles. Double-clic Explorer -> pas de console parente, AttachConsole
+     * echoue, no-op (Trace tombe dans le vide, comportement GUI standard).
+     * ATTACH_PARENT_PROCESS == (DWORD)-1 ; std handles == (DWORD)-10/-11/-12. */
+    if (!AttachConsole((unsigned long)-1)) return;
+    if (!sw_std_is_redirected((unsigned long)-11)) (void)freopen("CONOUT$", "w", stdout);
+    if (!sw_std_is_redirected((unsigned long)-12)) (void)freopen("CONOUT$", "w", stderr);
+    if (!sw_std_is_redirected((unsigned long)-10)) (void)freopen("CONIN$",  "r", stdin);
+#endif
 }

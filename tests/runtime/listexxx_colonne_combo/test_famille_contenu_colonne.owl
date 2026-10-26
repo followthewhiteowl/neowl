@@ -1,0 +1,61 @@
+//  — famille contenu ListeXxx (ListeOccurrence, ListeInsère,
+// ListeModifie, ListeCherche, ListeSupprime, ListeTrie, ListeSupprimeTout)
+// ciblant une COLONNE combo doivent toutes opérer sur la liste par défaut
+// de la colonne, comme sur un Champ Combo autonome.
+//
+// ROUGE attendu : chaque native rejette aujourd'hui TABLE.COL_Combo comme
+// receveur (même rejet que ListeAjoute, mesuré dans
+// test_listeajoute_colonne.owl).
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ListeColonneCombo)
+dbgVérifieFaux(ErreurDétectée, "fenêtre ouverte sans erreur")
+
+ListeAjoute(TABLE_Villes.COL_Ville, "A")
+ListeAjoute(TABLE_Villes.COL_Ville, "B")
+ListeAjoute(TABLE_Villes.COL_Ville, "C")
+
+dbgVérifieEgalité(ListeOccurrence(TABLE_Villes.COL_Ville), 3,
+"ListeOccurrence colonne après 3 ListeAjoute")
+
+ListeInsère(TABLE_Villes.COL_Ville, 2, "X")
+dbgVérifieFaux(ErreurDétectée, "ListeInsère sur la colonne combo ne pose pas d'erreur")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "A" + LF + "X" + LF + "B" + LF + "C",
+"ListeInsère(2, X) : ..Contenu colonne insère au bon indice")
+
+ListeModifie(TABLE_Villes.COL_Ville, 3, "Y")
+dbgVérifieFaux(ErreurDétectée, "ListeModifie sur la colonne combo ne pose pas d'erreur")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "A" + LF + "X" + LF + "Y" + LF + "C",
+"ListeModifie(3, Y) : ..Contenu colonne reflète le remplacement")
+
+dbgVérifieEgalité(ListeCherche(TABLE_Villes.COL_Ville, "Y"), 3,
+"ListeCherche colonne retrouve l'indice de l'item modifié")
+
+dbgVérifieEgalité(ListeCherche(TABLE_Villes.COL_Ville, "Introuvable"),-1,
+"ListeCherche colonne renvoie -1 pour un item absent")
+
+ListeSupprime(TABLE_Villes.COL_Ville, 1)
+dbgVérifieFaux(ErreurDétectée, "ListeSupprime sur la colonne combo ne pose pas d'erreur")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "X" + LF + "Y" + LF + "C",
+"ListeSupprime(1) : ..Contenu colonne n'a plus le 1er item")
+
+ListeTrie(TABLE_Villes.COL_Ville)
+dbgVérifieFaux(ErreurDétectée, "ListeTrie sur la colonne combo ne pose pas d'erreur")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "C" + LF + "X" + LF + "Y",
+"ListeTrie ascendant : ..Contenu colonne est triée alphabétiquement")
+
+ListeSupprimeTout(TABLE_Villes.COL_Ville)
+dbgVérifieFaux(ErreurDétectée, "ListeSupprimeTout sur la colonne combo ne pose pas d'erreur")
+
+dbgVérifieEgalité(ListeOccurrence(TABLE_Villes.COL_Ville), 0,
+"ListeSupprimeTout : ListeOccurrence colonne tombe à 0")
+
+dbgVérifieEgalité(TABLE_Villes.COL_Ville..Contenu, "",
+"ListeSupprimeTout : ..Contenu colonne est vide")
+
+Ferme(FEN_ListeColonneCombo)
+dbgBilanTest()

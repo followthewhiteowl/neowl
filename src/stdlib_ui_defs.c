@@ -383,6 +383,29 @@ static const OwlSignature sig_debug_table_cellule_texte_affiche[] = {
      "Texte tel que rendu par la cellule hors édition (format appliqué), vide si introuvable"},
     {0}
 };
+/*  — sondes test-only du déroulant permanent d'une cellule combo. */
+static const OwlParam p_debug_table_cellule_combo_options[] = {
+    {"champ",   "tout",   "Champ Table dont on lit les options du déroulant d'une cellule."},
+    {"ligne",   "entier", "Numéro de ligne 1-based."},
+    {"colonne", "entier", "Numéro de colonne 1-based."},
+    {0}
+};
+static const OwlSignature sig_debug_table_cellule_combo_options[] = {
+    {3, p_debug_table_cellule_combo_options, "chaîne",
+     "Options du déroulant de cette cellule, jointes par saut de ligne, vide si aucun déroulant"},
+    {0}
+};
+static const OwlParam p_debug_table_cellule_combo_selection[] = {
+    {"champ",   "tout",   "Champ Table dont on lit la sélection du déroulant d'une cellule."},
+    {"ligne",   "entier", "Numéro de ligne 1-based."},
+    {"colonne", "entier", "Numéro de colonne 1-based."},
+    {0}
+};
+static const OwlSignature sig_debug_table_cellule_combo_selection[] = {
+    {3, p_debug_table_cellule_combo_selection, "chaîne",
+     "Texte sélectionné du déroulant de cette cellule, vide si aucun déroulant ou aucune sélection"},
+    {0}
+};
 /*  — sondes test-only du filtre checklist « valeurs distinctes ». */
 static const OwlParam p_debug_table_filtre_in[] = {
     {"colonne",   "tout",   "Colonne de Table (forme TABLE.COL) où poser le filtre IN."},
@@ -1358,10 +1381,27 @@ static const OwlParam p_zr_rm[] = {
     {"indice", "entier", "Indice 1-based de la repetition a supprimer"},
     {0}
 };
+static const OwlParam p_zr_select[] = {
+    {"zr",   "tout",   "Le Champ ZoneRepetee cible"},
+    {"rang", "entier", "Optionnel : rang 1-based dans les repetitions selectionnees"},
+    {0}
+};
+static const OwlParam p_zr_sel_idx[] = {
+    {"zr",     "tout",   "Le Champ ZoneRepetee cible"},
+    {"indice", "entier", "Indice 1-based de la repetition"},
+    {0}
+};
 static const OwlSignature sig_zr_simple[] = {{1, p_zr_simple, "entier", "Indice ou 0"}, {0}};
 static const OwlSignature sig_zr_void[]   = {{1, p_zr_simple, "", ""}, {0}};
 static const OwlSignature sig_zr_insere[] = {{2, p_zr_insere, "entier", "Indice 1-based ajoute"}, {0}};
 static const OwlSignature sig_zr_rm[]     = {{2, p_zr_rm,     "booleen", "Vrai si succes"}, {0}};
+static const OwlSignature sig_zr_select[] = {
+    {1, p_zr_select, "entier", "Indice 1-based de la repetition selectionnee (0 si aucune)"},
+    {2, p_zr_select, "entier", "Indice de la rang-eme repetition selectionnee (0 si aucune)"},
+    {0}
+};
+static const OwlSignature sig_zr_sel_idx[]  = {{2, p_zr_sel_idx, "", ""}, {0}};
+static const OwlSignature sig_zr_sel_occ[]  = {{1, p_zr_simple, "entier", "Nombre de repetitions selectionnees"}, {0}};
 
 static const OwlMethodBinding MB_Zr_AjouteLigne[] = {
     {"ChampZoneRepetee", "AjouteLigne", 1}, {"ChampZoneRepetee", "AddLine", 1},
@@ -2117,6 +2157,16 @@ static OwlNativeDef DEFS[] = {
       .descFR="Texte effectivement affiché par une cellule de Table hors édition (API interne de test).",
       .descEN="Text actually displayed by a table cell outside editing (internal test API).",
       .signatures=sig_debug_table_cellule_texte_affiche },
+    { .canonical="__DebugTableCelluleComboOptions", .canonicalAscii="__DebugTableCelluleComboOptions",
+      .nameEN="__DebugTableCellComboOptions", .category="Test", .flags=OWL_NAT_INTERNAL,
+      .descFR="Options du déroulant permanent d'une cellule de Table combo, jointes par saut de ligne (API interne de test).",
+      .descEN="Options of a combo table cell's permanent drop-down, joined by newline (internal test API).",
+      .signatures=sig_debug_table_cellule_combo_options },
+    { .canonical="__DebugTableCelluleComboSelection", .canonicalAscii="__DebugTableCelluleComboSelection",
+      .nameEN="__DebugTableCellComboSelection", .category="Test", .flags=OWL_NAT_INTERNAL,
+      .descFR="Texte sélectionné du déroulant permanent d'une cellule de Table combo (API interne de test).",
+      .descEN="Selected text of a combo table cell's permanent drop-down (internal test API).",
+      .signatures=sig_debug_table_cellule_combo_selection },
     { .canonical="__DebugTableFiltreIN", .canonicalAscii="__DebugTableFiltreIN",
       .nameEN="__DebugTableFilterIN", .category="Test", .flags=OWL_NAT_INTERNAL,
       .descFR="Pose un filtre multi-valeurs sur une colonne de Table via le chemin de filtrage réel (API interne de test).",
@@ -2598,6 +2648,36 @@ static OwlNativeDef DEFS[] = {
       .descEN="Forces a display refresh. Usually no-op (the display engine batches repaints).",
       .signatures=sig_zr_void,
       .methodBindings=MB_Zr_Affiche },
+    { .canonical="ZoneR\xc3\xa9p\xc3\xa9t\xc3\xa9" "eSelect",
+      .canonicalAscii="ZoneRepeteeSelect",
+      .nameEN="LooperSelected",
+      .category="UI",
+      .descFR="Indice 1-based de la repetition selectionnee (0 si aucune). "
+              "Avec un rang : indice de la rang-eme repetition selectionnee.",
+      .descEN="1-based index of the selected repetition (0 if none). "
+              "With a rang argument: index of the rang-th selected repetition.",
+      .signatures=sig_zr_select },
+    { .canonical="ZoneR\xc3\xa9p\xc3\xa9t\xc3\xa9" "eSelectPlus",
+      .canonicalAscii="ZoneRepeteeSelectPlus",
+      .nameEN="LooperSelectPlus",
+      .category="UI",
+      .descFR="Selectionne la repetition d'indice 1-based.",
+      .descEN="Select the repetition at the given 1-based index.",
+      .signatures=sig_zr_sel_idx },
+    { .canonical="ZoneR\xc3\xa9p\xc3\xa9t\xc3\xa9" "eSelectMoins",
+      .canonicalAscii="ZoneRepeteeSelectMoins",
+      .nameEN="LooperSelectMinus",
+      .category="UI",
+      .descFR="Deselectionne la repetition d'indice 1-based.",
+      .descEN="Deselect the repetition at the given 1-based index.",
+      .signatures=sig_zr_sel_idx },
+    { .canonical="ZoneR\xc3\xa9p\xc3\xa9t\xc3\xa9" "eSelectOccurrence",
+      .canonicalAscii="ZoneRepeteeSelectOccurrence",
+      .nameEN="LooperSelectCount",
+      .category="UI",
+      .descFR="Nombre de repetitions selectionnees.",
+      .descEN="Number of selected repetitions.",
+      .signatures=sig_zr_sel_occ },
     /*  Lot 2 — capture image fenetre / champ / ecran. */
     { .canonical="dCopieImageFen\xc3\xaatre",
       .canonicalAscii="dCopieImageFenetre",

@@ -11,6 +11,9 @@
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#include <windows.h>
+#else
+#include <pthread.h>
 #endif
 
 /* ================================================================
@@ -63,10 +66,32 @@ static char* read_message(int* outLen) {
     return body;
 }
 
+/* Serialise send_message : les deux threads reader (stdout + stderr) du child
+ * forwardent des OutputEvents en parallele, et le thread principal DAP envoie
+ * ses responses. Sans verrou, deux frames Content-Length peuvent s'entrelacer
+ * au niveau octet et corrompre le flux vu par VSCode. */
+#ifdef _WIN32
+static CRITICAL_SECTION g_send_mutex;
+static bool g_send_mutex_init = false;
+static void send_mutex_ensure(void) {
+    if (!g_send_mutex_init) { InitializeCriticalSection(&g_send_mutex); g_send_mutex_init = true; }
+}
+#define send_mutex_lock()   EnterCriticalSection(&g_send_mutex)
+#define send_mutex_unlock() LeaveCriticalSection(&g_send_mutex)
+#else
+static pthread_mutex_t g_send_mutex = PTHREAD_MUTEX_INITIALIZER;
+static void send_mutex_ensure(void) {}
+#define send_mutex_lock()   pthread_mutex_lock(&g_send_mutex)
+#define send_mutex_unlock() pthread_mutex_unlock(&g_send_mutex)
+#endif
+
 static void send_message(const char* json, int len) {
+    send_mutex_ensure();
+    send_mutex_lock();
     fprintf(stdout, "Content-Length: %d\r\n\r\n", len);
     fwrite(json, 1, len, stdout);
     fflush(stdout);
+    send_mutex_unlock();
 }
 
 /* ================================================================
@@ -131,16 +156,28 @@ void dap_send_event(const char* eventName, JsonValue* body) {
 /* Wrap une ligne child (texte brut) en OutputEvent DAP category=stdout, pour
  * que VSCode l'affiche dans la Debug Console. Sert aux sorties user code (Trace,
  * messages d'erreur OWL) qui ne sont pas du protocole. */
-static void dap_forward_stdout_line(const char* line) {
+static void dap_forward_output_line(const char* line, const char* category) {
     JsonValue* body = json_new_object();
-    json_object_set(body, "category", json_new_string("stdout"));
+    json_object_set(body, "category", json_new_string(category));
     char buf[8200];
     snprintf(buf, sizeof(buf), "%s\n", line);
     json_object_set(body, "output", json_new_string(buf));
     dap_send_event("output", body);
 }
 
-static void on_child_line(const char* line) {
+static void dap_forward_stdout_line(const char* line) {
+    dap_forward_output_line(line, "stdout");
+}
+
+static void on_child_line(const char* line, int channel) {
+    /* stderr du child = sortie runtime brute (erreurs d'execution owl). Jamais
+     * du protocole : forward direct en OutputEvent category=stderr pour que la
+     * Debug Console l'affiche (sinon debogueur muet sur erreur runtime). */
+    if (channel == DAP_CHILD_STDERR) {
+        dap_forward_output_line(line, "stderr");
+        return;
+    }
+
     /* Parse rapide pour detecter un event. Une ligne non-JSON (ex : Trace
      * user code en texte brut sur stdout) n'est pas du protocole : on la
      * forward telle quelle en OutputEvent pour la Debug Console. */

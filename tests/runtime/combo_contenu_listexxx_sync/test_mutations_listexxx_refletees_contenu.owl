@@ -1,0 +1,38 @@
+//  — combo autonome : après un set initial de ..Contenu, les
+// mutations via la famille ListeXxx (ListeSupprime, ListeSupprimeTout)
+// doivent se refléter dans le getter ..Contenu, pas seulement dans
+// ListeOccurrence.
+//
+// Mesuré (QT offscreen, widgets réels) : après ..Contenu = "Un/Deux/Trois"
+// puis ListeSupprime(CMB, 2), ListeOccurrence vaut 2 (correct) mais
+// ..Contenu reste "Un\nDeux\nTrois" (inchangé, 3 lignes) — désynchronisé.
+// Idem pour ListeSupprimeTout : occurrence tombe à 0 mais ..Contenu garde
+// l'ancien contenu.
+//
+// ROUGE attendu sur les deux assertions ..Contenu.
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ComboSync)
+
+COMBO_Sync..Contenu = `Un
+Deux
+Trois`
+
+ListeSupprime(COMBO_Sync, 2)
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Sync), 2,
+"ListeSupprime(2) : ListeOccurrence passe à 2")
+
+dbgVérifieEgalité(COMBO_Sync..Contenu, "Un" + LF + "Trois",
+"ListeSupprime(2) : ..Contenu ne contient plus que les 2 items restants")
+
+ListeSupprimeTout(COMBO_Sync)
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Sync), 0,
+"ListeSupprimeTout : ListeOccurrence tombe à 0")
+
+dbgVérifieEgalité(COMBO_Sync..Contenu, "",
+"ListeSupprimeTout : ..Contenu est vide")
+
+Ferme(FEN_ComboSync)
+dbgBilanTest()

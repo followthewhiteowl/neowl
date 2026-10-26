@@ -1,0 +1,35 @@
+// Fenêtre voisine — ressource partagée de
+// tests\runtime\table_override_cellule_fininit\test_table_override_cellule_fininit_couleur.
+//
+//  — override de cellule par `..Couleur` posé DANS
+// FinInitialisation. Cas GÉNÉRAL (pas combo) du bug : le bound-check
+// regarde le compteur de lignes du WIDGET (0 à ce stade) au lieu du store
+// ligne-first, qui a déjà les lignes posées par TableAjouteLigne.
+
+FEN_OverrideCelluleFinInitCouleur est une Fenêtre
+	PROPRIETES
+		Titre   = "Override couleur en FinInitialisation"
+		Largeur = 300
+		Hauteur = 200
+	FIN
+
+	TABLE_Synthese est un Champ Table
+		PROPRIETES
+			Étire = Vrai
+		FIN
+
+		COL_Nom est une Colonne
+			PROPRIETES
+				Libellé = "Nom"
+				Type    = colTypeTexte
+				Largeur = 160
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Synthese, "Alice")
+		TableAjouteLigne(TABLE_Synthese, "Bob")
+		TABLE_Synthese.COL_Nom[2]..Couleur = RVB(200, 0, 0)
+	FIN
+FIN

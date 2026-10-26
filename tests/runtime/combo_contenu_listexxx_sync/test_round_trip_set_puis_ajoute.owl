@@ -1,0 +1,22 @@
+//  — combo autonome : round-trip set ..Contenu puis ListeAjoute.
+// Mesuré (QT offscreen, widgets réels) : après ..Contenu = "X\nY" puis
+// ListeAjoute(CMB,"Z"), ListeOccurrence vaut 3 (correct) mais ..Contenu
+// reste "X\nY" — le 3e item ajouté par ListeAjoute n'apparaît pas dans
+// le getter.
+//
+// ROUGE attendu sur l'assertion ..Contenu.
+
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_ComboSync)
+
+COMBO_Sync..Contenu = "X" + LF + "Y"
+ListeAjoute(COMBO_Sync, "Z")
+
+dbgVérifieEgalité(ListeOccurrence(COMBO_Sync), 3,
+"round-trip : ListeAjoute après un set ..Contenu porte l'occurrence à 3")
+
+dbgVérifieEgalité(COMBO_Sync..Contenu, "X" + LF + "Y" + LF + "Z",
+"round-trip : ..Contenu inclut l'item ajouté après le set initial")
+
+Ferme(FEN_ComboSync)
+dbgBilanTest()

@@ -1521,7 +1521,7 @@ static void test_new_menucorps_fr_compiles_clean(void) {
             "\t\tFIN\n\n"
             "\t\tCOL_Nom est une Colonne\n"
             "\t\t\tPROPRIETES\n"
-            "\t\t\t\tTitre = \"Nom\"\n"
+            "\t\t\t\tLibell\xc3\xa9 = \"Nom\"\n"
             "\t\t\tFIN\n"
             "\t\tFIN\n"
             "\tFIN\n\n"
