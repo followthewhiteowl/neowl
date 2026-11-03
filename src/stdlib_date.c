@@ -873,6 +873,19 @@ static int format_date_time_tokens(char* out, int outsz,
                                    bool hasTime, int hh, int mi, int sec, int ms) {
     int dow = day_of_week(y, m, d); /* 0=Lun..6=Dim */
     int mo = (m >= 1 && m <= 12) ? m : 0;
+    /* Jeton AP (horloge 12 h) : si présent dans un format horaire, HH passe en
+     * 1-12 et AP devient le marqueur AM (0-11 h) / PM (12-23 h). Jeton non
+     * traduit : littéraux anglais identiques FR/EN. Pré-scan car AP peut
+     * précéder HH dans le masque. */
+    bool use12h = false;
+    if (hasTime) {
+        for (int k = 0; k + 1 < flen; k++) {
+            if (fmt[k] == 'A' && fmt[k + 1] == 'P') { use12h = true; break; }
+        }
+    }
+    int h12 = hh % 12;
+    if (h12 == 0) h12 = 12;
+    const char* ampm = (hh < 12) ? "AM" : "PM";
     int olen = 0, i = 0;
     int cap = outsz - 16;
     while (i < flen && olen < cap) {
@@ -898,7 +911,9 @@ static int format_date_time_tokens(char* out, int outsz,
         } else if (rem >= 2 && strncmp(fmt+i, "DD", 2) == 0) {
             olen += snprintf(out+olen, outsz-olen, "%02d", d); i += 2;
         } else if (hasTime && rem >= 2 && strncmp(fmt+i, "HH", 2) == 0) {
-            olen += snprintf(out+olen, outsz-olen, "%02d", hh); i += 2;
+            olen += snprintf(out+olen, outsz-olen, "%02d", use12h ? h12 : hh); i += 2;
+        } else if (hasTime && use12h && rem >= 2 && strncmp(fmt+i, "AP", 2) == 0) {
+            olen += snprintf(out+olen, outsz-olen, "%s", ampm); i += 2;
         } else if (hasTime && rem >= 2 && strncmp(fmt+i, "mm", 2) == 0) {
             olen += snprintf(out+olen, outsz-olen, "%02d", mi); i += 2;
         } else if (hasTime && rem >= 2 && strncmp(fmt+i, "MI", 2) == 0) {
@@ -1186,10 +1201,22 @@ static Value fn_heure_vers_chaine(int argCount, Value* args) {
     const char* fmt = (argCount >= 2 && IS_STRING(args[1]))
                       ? AS_CSTRING(args[1]) : "HH:MM:SS:CC";
 
+    /* Jeton AP (horloge 12 h) : HH passe en 1-12, AP devient AM (0-11 h) /
+     * PM (12-23 h). Littéraux anglais, jeton non traduit. */
+    bool use12h = false;
+    for (const char* q = fmt; q[0] && q[1]; q++) {
+        if (q[0]=='A' && q[1]=='P') { use12h = true; break; }
+    }
+    int h12 = hour % 12;
+    if (h12 == 0) h12 = 12;
+    const char* ampm = (hour < 12) ? "AM" : "PM";
+
     char out[128]; int oi = 0;
     for (const char* p = fmt; *p && oi < 120; p++) {
         if (p[0]=='H' && p[1]=='H') {
-            oi += snprintf(out+oi, sizeof(out)-oi, "%02d", hour); p++;
+            oi += snprintf(out+oi, sizeof(out)-oi, "%02d", use12h ? h12 : hour); p++;
+        } else if (use12h && p[0]=='A' && p[1]=='P') {
+            oi += snprintf(out+oi, sizeof(out)-oi, "%s", ampm); p++;
         } else if (p[0]=='M' && p[1]=='M') {
             oi += snprintf(out+oi, sizeof(out)-oi, "%02d", minute); p++;
         } else if (p[0]=='S' && p[1]=='S') {

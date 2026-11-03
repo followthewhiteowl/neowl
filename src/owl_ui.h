@@ -143,6 +143,10 @@ int        owl_ui_window_get_visible(OwlWindow* w);
 void       owl_ui_window_set_disabled(OwlWindow* w, int disabled);
 int        owl_ui_window_get_disabled(OwlWindow* w);
 
+/*  — activation / z-order (FenEtat / WinStatus). */
+void       owl_ui_window_activate(OwlWindow* w);
+void       owl_ui_window_set_stay_on_top(OwlWindow* w, int enable);
+
 /* Couleur de fond fenetre (RVB entier, canon BGR). -1 = fond systeme. */
 void       owl_ui_window_set_bg_color(OwlWindow* w, int rgb);
 /*  — variante portant le canal alpha (0-255). alpha>=255 = opaque
@@ -624,6 +628,15 @@ void owl_ui_table_set_column_display_mask(OwlControl* table, int col_1based,
 int owl_ui_table_cell_editor_valide_saisie(OwlControl* table, int row_1based,
                                            int col_1based, const char* text);
 
+/*  — cable les events d'une colonne (col_1based) au pipeline d'edition
+ * Qt, resolus par colonne : modifCb = surAChaqueModification (frappe dans
+ * l'editeur de cellule), exitCb = surSortie (fin d'edition / sortie de la
+ * colonne). cb NULL = event non declare. Les callbacks sont le dispatch
+ * generique OWL (index de binding en userdata). */
+void owl_ui_table_column_bind_events(OwlControl* table, int col_1based,
+                                     OwlCallback modifCb, void* modifData,
+                                     OwlCallback exitCb, void* exitData);
+
 /*  — formatage AFFICHAGE (hors edition) d'une cellule de colonne typee
  * Numerique/Monetaire : resout le format PROJET et formate la chaine brute (repli
  * plat si aucun format resolu). Defini cote core (stdlib_ui.c), appele par le
@@ -986,6 +999,12 @@ void        owl_ui_volet_set_visible(OwlControl* page, int visible);
 void owl_ui_install_key_filter(OwlControl* c,
                                OwlEventCb1i on_down, void* down_data,
                                OwlEventCb1i on_up,   void* up_data);
+/*  — variante FUSION : ne remplace que la direction fournie (non-NULL),
+ * preserve l'autre. Utilisee par l'install paresseux d'interception clavier pour
+ * ne pas ecraser un handler statique deja cable sur la direction opposee. */
+void owl_ui_merge_key_filter(OwlControl* c,
+                             OwlEventCb1i on_down, void* down_data,
+                             OwlEventCb1i on_up,   void* up_data);
 void owl_ui_install_window_key_filter(OwlWindow* w,
                                       OwlEventCb1i on_down, void* down_data,
                                       OwlEventCb1i on_up,   void* up_data);
@@ -1996,6 +2015,34 @@ void owl_ui_control_set_display_active(OwlControl* w, int active);
 /* Altitude — z-order intra-fenetre. Mappe sur raise()/stackUnder() en Qt :
  * altitudes superieures sont au-dessus. Stockage dynamic-property pour read-back. */
 void owl_ui_control_set_altitude(OwlControl* w, int z);
+
+/* Plan — appartenance d'un champ a un plan (mecanisme d'etape
+ * facon assistant). Stockee en dynamic-property owl_plan. L'ABSENCE de la
+ * propriete = "sans plan" (toujours visible), distincte du plan 0. set_plan
+ * pose l'appartenance ET recalcule la visibilite du champ vis-a-vis du plan
+ * actif de sa fenetre. get_plan renvoie 1 si le champ a un plan (*out_plan
+ * renseigne), 0 s'il est sans plan (*out_plan inchange). */
+void owl_ui_control_set_plan(OwlControl* w, int plan);
+int  owl_ui_control_get_plan(OwlControl* w, int* out_plan);
+
+/*  — visibilite EFFECTIVE par plan en tenant compte de la chaine
+ * d'ancetres. Un champ peut etre masque non par son propre plan mais par celui
+ * d'un conteneur parent (ex : Table sans plan dans un Conteneur affecte a un
+ * plan). Parcourt w et ses ancetres jusqu'a la fenetre : si l'un d'eux porte un
+ * plan != activePlan, le champ est masque. Renvoie -1 si AUCUN ancetre (ni w)
+ * ne porte de plan (champ "libre", visibilite non gouvernee par le plan : le
+ * store ne doit pas etre touche), 0 si gouverne et masque, 1 si gouverne et
+ * visible. Deterministe : n'interroge pas isVisible() (independant du mapping
+ * fenetre). */
+int  owl_ui_control_plan_effective_visible(OwlControl* w, int active_plan);
+
+/* Plan actif de la fenetre — bascule l'etape affichee. Stocke le
+ * plan actif en dynamic-property owl_plan_actif sur la fenetre puis recalcule
+ * la visibilite de tous les champs porteurs d'un plan : visible SSI
+ * plan(champ) == plan actif. Les champs sans plan ne sont pas touches (ils
+ * restent toujours visibles). Retargue le focus si le champ focus devient
+ * cache. */
+void owl_ui_window_set_active_plan(OwlWindow* win, int plan);
 
 /* CurseurSouris — forme du curseur de survol. cur_id est l'index 0..13 declare
  * cote ui_catalog.c (E_Curseurs). Mappe sur Qt::CursorShape. -1 = reset (curFleche). */

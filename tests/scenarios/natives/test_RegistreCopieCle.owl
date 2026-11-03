@@ -1,0 +1,59 @@
+// @sujet : RegistreCopieClé
+// @résumé : Copie une clé de la base de registre avec toutes ses sous-clés
+// et ses valeurs vers un autre emplacement.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle")
+FIN
+
+PROCEDURE PUBLIQUE scenario_copie_une_cle_avec_sa_valeur()
+	source      est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\Source"
+	destination est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\Destination"
+	RegistreCréeClé(source)
+	RegistreEcrit(source, "Langage", "Francais")
+
+	bCopie est un booléen = RegistreCopieClé(source, destination)
+	dbgVérifieVrai(bCopie, "la copie réussit")
+	dbgVérifieVrai(RegistreExiste(destination), "la clé destination existe après copie")
+
+	sLu est une chaîne = RegistreLit(destination, "Langage")
+	dbgVérifieEgalité(sLu, "Francais", "la valeur copiée est identique à la valeur source")
+FIN
+
+// La copie est récursive : les sous-clés et leurs valeurs sont copiées,
+// pas seulement la feuille de départ.
+PROCEDURE PUBLIQUE scenario_copie_recursive_des_sous_cles()
+	source      est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\SourceRec"
+	destination est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\DestinationRec"
+	RegistreCréeClé(source + "\SousCle")
+	RegistreEcrit(source + "\SousCle", "Marqueur", "Present")
+
+	RegistreCopieClé(source, destination)
+	dbgVérifieVrai(RegistreExiste(destination + "\SousCle"), "la sous-clé est copiée récursivement")
+	dbgVérifieEgalité(RegistreLit(destination + "\SousCle", "Marqueur"), "Present", "la valeur de la sous-clé copiée est identique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	source      est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\SourceMode"
+	destination est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\DestinationMode"
+	RegistreCréeClé(source)
+
+	bCopie est un booléen = RegistreCopieClé(registreModeAuto, source, destination)
+	dbgVérifieVrai(bCopie, "la copie réussit avec le mode d'accès explicite")
+	dbgVérifieVrai(RegistreExiste(destination), "la clé destination existe")
+FIN
+
+// Cas limite : copier une clé source inexistante échoue proprement, sans
+// crash, avec un message d'erreur exploitable.
+PROCEDURE PRIVÉE scenario_echec_doux_si_source_inexistante()
+	sourceAbsente est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\Fantome"
+	destination   est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CopieCle\DestinationFantome"
+
+	ErreurRAZ()
+	bCopie est un booléen = RegistreCopieClé(sourceAbsente, destination)
+	sMsg   est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieFaux(bCopie, "la copie échoue quand la source n'existe pas")
+	dbgVérifieVrai(sMsg <> "", "le message d'erreur est renseigné")
+FIN
+
+dbgBilanTest()

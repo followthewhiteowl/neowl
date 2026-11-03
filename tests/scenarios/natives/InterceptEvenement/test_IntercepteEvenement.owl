@@ -1,0 +1,192 @@
+// @sujet : IntercepteÉvénement, IntercepteÉvénementFin, InterceptEvent,
+// InterceptEventEnd
+// @résumé : Attache par code un traitement à un événement nommé d'un
+// champ (clic, modification, relâchement de touche...), dynamiquement.
+// Distinct de DéclencheÉvénement (qui exécute un handler déjà câblé) :
+// IntercepteÉvénement attache un nouveau traitement, exécuté avant le
+// bloc statique existant. Si ce traitement renvoie Faux, le bloc
+// statique ne s'exécute pas.
+//
+// La fenêtre voisine FEN_Interc.owl porte les champs et leurs blocs
+// statiques ; les scénarios déclenchent l'événement par code via
+// DéclencheÉvénement (chemin headless, sans interaction simulée).
+
+seq            est une chaîne = ""
+compteurClic   est un entier  = 0
+toucheObservee est un entier  = 0
+seqReattache   est une chaîne = ""
+
+PROCEDURE callback_trace(msg est une chaîne)
+	seq += msg
+FIN
+
+PROCEDURE procIntercepteClic()
+	compteurClic += 1
+	callback_trace("intercept:clic;")
+FIN
+
+PROCEDURE procIntercepteModifGarde() : booléen
+	callback_trace("intercept:modif-garde;")
+	RENVOYER Vrai
+FIN
+
+PROCEDURE procIntercepteModifSupprime() : booléen
+	callback_trace("intercept:modif-supprime;")
+	RENVOYER Faux
+FIN
+
+PROCEDURE procIntercepteToucheRelachee(t est un entier)
+	toucheObservee = t
+	callback_trace("intercept:touche;")
+FIN
+
+PROCEDURE procIntercepteClicA()
+	seqReattache += "A;"
+FIN
+
+PROCEDURE procIntercepteClicB()
+	seqReattache += "B;"
+FIN
+
+
+// Isolation : globals d'observation partagés entre scénarios, reset
+// avant chaque scénario.
+PROCEDURE avantChaqueTest()
+	seq            = ""
+	compteurClic   = 0
+	toucheObservee = 0
+	seqReattache   = ""
+FIN
+
+
+// Critère 1 : attache + exécution à l'occurrence de l'événement.
+PROCEDURE scenario_attache_execute_proc_interceptee()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+	dbgVérifieEgalité(compteurClic, 0, "Aucune exécution avant interception")
+
+	IntercepteÉvénement(procIntercepteClic, BTN_Clic, evtClic)
+	DéclencheÉvénement(BTN_Clic, evtClic)
+	dbgVérifieEgalité(compteurClic, 1, "La procédure interceptée s'est exécutée")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 2 : ordre interception → bloc statique (la proc renvoie Vrai,
+// le bloc statique s'exécute donc normalement ensuite).
+PROCEDURE scenario_ordre_interception_avant_bloc_statique()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénement(procIntercepteModifGarde, SAI_Modif, evtAChaqueModification)
+	DéclencheÉvénement(SAI_Modif, evtAChaqueModification)
+	dbgVérifieEgalité(seq, "intercept:modif-garde;statique:modif;", "L'interception s'exécute avant le bloc statique, qui s'exécute ensuite")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 2bis : la proc interceptée renvoie Faux → le bloc statique
+// ne s'exécute pas.
+PROCEDURE scenario_suppression_bloc_statique_si_faux()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénement(procIntercepteModifSupprime, SAI_Modif, evtAChaqueModification)
+	DéclencheÉvénement(SAI_Modif, evtAChaqueModification)
+	dbgVérifieEgalité(seq, "intercept:modif-supprime;", "Le bloc statique est supprimé quand la procédure interceptée renvoie Faux")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 3 : interception sur un événement sans bloc statique déclaré
+// (SAI_Modif ne déclare pas surToucheRelâchée) — la proc s'exécute quand
+// même, le hook est installé à la demande.
+PROCEDURE scenario_interception_sans_bloc_statique()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénement(procIntercepteToucheRelachee, SAI_Modif, evtToucheRelâchée)
+	DéclencheÉvénement(SAI_Modif, evtToucheRelâchée, 13)
+	dbgVérifieEgalité(toucheObservee, 13, "L'interception reçoit le paramètre même sans bloc statique existant")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 4 : détache un couple (Champ, évènement) précis.
+PROCEDURE scenario_detache_un_evenement()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénement(procIntercepteClic, BTN_Clic, evtClic)
+	IntercepteÉvénementFin(BTN_Clic, evtClic)
+	DéclencheÉvénement(BTN_Clic, evtClic)
+	dbgVérifieEgalité(compteurClic, 0, "Plus aucune exécution après détachement ciblé")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 4bis : détache tous les événements interceptés d'un champ
+// quand l'évènement est omis.
+PROCEDURE scenario_detache_tous_evenements_du_champ()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénement(procIntercepteClic, BTN_Clic, evtClic)
+	IntercepteÉvénementFin(BTN_Clic)
+	DéclencheÉvénement(BTN_Clic, evtClic)
+	dbgVérifieEgalité(compteurClic, 0, "Plus aucune exécution après détachement global du champ")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 5 : ré-attacher sur le même couple remplace l'interception
+// précédente (pas de cumul).
+PROCEDURE scenario_reattache_remplace_interception()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénement(procIntercepteClicA, BTN_Clic, evtClic)
+	IntercepteÉvénement(procIntercepteClicB, BTN_Clic, evtClic)
+	DéclencheÉvénement(BTN_Clic, evtClic)
+	dbgVérifieEgalité(seqReattache, "B;", "Seule la dernière procédure attachée sur le couple s'exécute")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Critère 6 : formes bilingues EN équivalentes.
+PROCEDURE scenario_bilingue_interceptevent()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	InterceptEvent(procIntercepteClic, BTN_Clic, evtClick)
+	TriggerEvent(BTN_Clic, evtClick)
+	dbgVérifieEgalité(compteurClic, 1, "La forme EN InterceptEvent attache et exécute comme la forme FR")
+
+	InterceptEventEnd(BTN_Clic, evtClick)
+	TriggerEvent(BTN_Clic, evtClick)
+	dbgVérifieEgalité(compteurClic, 1, "La forme EN InterceptEventEnd détache comme la forme FR")
+
+	Ferme(FEN_Interc)
+FIN
+
+
+// Edge case (initiative test_writer) : détacher un couple sans
+// interception préalablement attachée est un no-op silencieux, pas une
+// erreur.
+PROCEDURE PRIVÉE scenario_detache_sans_interception_attachee()
+	TestModeHeadless(Vrai)
+	Ouvre(FEN_Interc)
+
+	IntercepteÉvénementFin(BTN_Clic, evtClic)
+	DéclencheÉvénement(BTN_Clic, evtClic)
+	dbgVérifieEgalité(seq, "statique:clic;", "Détacher sans interception attachée ne casse rien, le bloc statique tourne normalement")
+
+	Ferme(FEN_Interc)
+FIN

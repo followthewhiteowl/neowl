@@ -261,6 +261,7 @@ void stdlib_uuid_init(void);  /* Type UUID + native DonneUUID + méthode .VersCh
 void stdlib_i18n_init(void);  /* Type langue + enum langueXxx + coerce chaîne→langue ( lot A) */
 void stdlib_parametre_init(void);  /* Valeurs persistantes : ParamètreInitialise / ParamètreEnregistre / ParamètreCharge / ParamètreSupprime */
 void stdlib_ini_init(void);        /* Fichiers .ini section-conscients : INILit / INIEcrit */
+void stdlib_registry_init(void);   /* Base de registre Windows : RegistreLit / RegistreEcrit / ... */
 
 /*  : les `_mark_roots()` ad-hoc  sont remplaces par un
  * registre unique dans gc.c (cf. owl_register_persistent_obj_root). Chaque

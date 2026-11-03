@@ -1,0 +1,64 @@
+// FenEtat / WinStatus (doc canon 3038030) — identifie ou modifie l'etat
+// d'une fenetre. Sert aussi de test d'existence (Inexistant = fermee ou
+// jamais ouverte, ce n'est PAS une erreur).
+//
+// Assertions deterministes uniquement (cf. brief coordinator) :
+//   - Inexistant = test d'existence (avant ouverture / apres fermeture)
+//   - Grise  -> propriete ..Grise  passe a Vrai
+//   - Invisible -> propriete ..Visible passe a Faux
+// L'etat Actif depend de l'activation OS reelle (fenetre qui a la saisie) :
+// non teste ici par assertion directe pour eviter un test flaky (cf. note
+// de rapport). Seule la non-egalite avec Inexistant est verifiee apres
+// ouverture (fait deterministe : une fenetre ouverte n'est plus Inexistant).
+
+TestModeHeadless(Faux)
+
+PROCEDURE PUBLIQUE scenario_existence()
+	// Avant toute ouverture : la fenetre est consideree fermee/inexistante.
+	nEtatAvant est un entier = FenEtat(FEN_FenEtat)
+	dbgVérifieEgalité(nEtatAvant, Inexistant, "Fenetre jamais ouverte : FenEtat = Inexistant")
+
+	OuvreSoeur(FEN_FenEtat)
+	nEtatOuvert est un entier = FenEtat(FEN_FenEtat)
+	dbgVérifieVrai(nEtatOuvert <> Inexistant, "Fenetre ouverte : FenEtat different de Inexistant")
+
+	// FenEtat(fen, Inexistant) ferme la fenetre (equivalent documente de Ferme).
+	FenEtat(FEN_FenEtat, Inexistant)
+	nEtatFerme est un entier = FenEtat(FEN_FenEtat)
+	dbgVérifieEgalité(nEtatFerme, Inexistant, "FenEtat(fen, Inexistant) ferme la fenetre : redevient Inexistant")
+FIN
+
+PROCEDURE PUBLIQUE scenario_grise()
+	OuvreSoeur(FEN_FenEtat)
+
+	nRetour est un entier = FenEtat(FEN_FenEtat, Grisé)
+	dbgVérifieEgalité(nRetour, Grisé, "FenEtat(fen, Grise) renvoie l'etat apres modification : Grise")
+	dbgVérifieVrai(FEN_FenEtat..Grisé, "Fenetre grisee : propriete Grise a Vrai")
+
+	FenEtat(FEN_FenEtat, Inexistant)
+FIN
+
+PROCEDURE PUBLIQUE scenario_invisible()
+	OuvreSoeur(FEN_FenEtat)
+
+	nRetour est un entier = FenEtat(FEN_FenEtat, Invisible)
+	dbgVérifieEgalité(nRetour, Invisible, "FenEtat(fen, Invisible) renvoie l'etat apres modification : Invisible")
+	dbgVérifieVrai(FEN_FenEtat..Visible = Faux, "Fenetre invisible : propriete Visible a Faux")
+
+	FenEtat(FEN_FenEtat, Inexistant)
+FIN
+
+PROCEDURE PRIVÉE scenario_affichage_seulement()
+	// Edge case proactif : AffichageSeulement (fenetre inactive, pas en
+	// saisie) doit etre un etat distinct de Grise (le grisage desactive les
+	// champs, AffichageSeulement se contente de retirer la saisie).
+	OuvreSoeur(FEN_FenEtat)
+
+	nRetour est un entier = FenEtat(FEN_FenEtat, AffichageSeulement)
+	dbgVérifieEgalité(nRetour, AffichageSeulement, "FenEtat(fen, AffichageSeulement) renvoie AffichageSeulement")
+	dbgVérifieVrai(FEN_FenEtat..Grisé = Faux, "AffichageSeulement ne grise pas la fenetre (etat distinct de Grise)")
+
+	FenEtat(FEN_FenEtat, Inexistant)
+FIN
+
+dbgBilanTest()

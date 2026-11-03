@@ -1,0 +1,43 @@
+// @sujet : RegistreSupprimeValeur
+// @résumé : Supprime une valeur dans une clé de la base de registre. Une
+// valeur absente n'entraîne pas de crash — la fonction renvoie Faux avec un
+// message d'erreur exploitable.
+
+PROCEDURE avantChaqueTest()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeValeur"
+	RegistreCréeClé(chemin)
+	RegistreEcrit(chemin, "Langage", "Francais")
+FIN
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeValeur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_supprime_une_valeur_existante()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeValeur"
+	bSup   est un booléen = RegistreSupprimeValeur(chemin, "Langage")
+	dbgVérifieVrai(bSup, "la suppression réussit")
+	dbgVérifieFaux(RegistreExiste(chemin, "Langage"), "la valeur n'existe plus après suppression")
+FIN
+
+// Mode d'accès explicite : le comportement reste identique au mode par
+// défaut, passé ici explicitement en argument.
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeValeur"
+	bSup   est un booléen = RegistreSupprimeValeur(registreModeAuto, chemin, "Langage")
+	dbgVérifieVrai(bSup, "la suppression réussit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : supprimer une valeur qui n'existe pas échoue proprement,
+// sans crash, avec un message d'erreur exploitable.
+PROCEDURE PRIVÉE scenario_echec_doux_si_valeur_inexistante()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeValeur"
+
+	ErreurRAZ()
+	bSup est un booléen = RegistreSupprimeValeur(chemin, "Inconnue")
+	sMsg est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieFaux(bSup, "supprimer une valeur absente échoue")
+	dbgVérifieVrai(sMsg <> "", "le message d'erreur est renseigné")
+FIN
+
+dbgBilanTest()

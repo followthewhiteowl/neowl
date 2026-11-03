@@ -1,0 +1,21 @@
+// @sujet : visibilité initiale des champs quand le plan actif est posé par
+// FinInitialisation (et non déclaré dans les PROPRIETES statiques).
+// @résumé : une fenêtre peut ne déclarer aucun plan actif à la construction
+// et le fixer dynamiquement au démarrage. La visibilité des champs juste
+// après ouverture doit refléter ce plan effectif, pas un plan par défaut.
+//
+// Ressource DSL : FEN_PlanInit.owl (voisin). Widgets natifs réels requis
+// (TestModeHeadless(Faux)) pour mesurer la visibilité effective.
+
+PROCEDURE PUBLIQUE scenario_plan_pose_par_fininitialisation_rend_son_champ_visible()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_PlanInit)
+
+	dbgVérifieVrai(LireVisiblePlan1Init(), "champ du plan 1 visible dès l'ouverture (plan posé par FinInitialisation)")
+	dbgVérifieVrai(LireVisibleSansPlanInit(), "champ sans plan toujours visible")
+	dbgVérifieFaux(LireVisiblePlan2Init(), "champ d'un autre plan reste caché")
+
+	Ferme(FEN_PlanInit)
+FIN
+
+dbgBilanTest()

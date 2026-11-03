@@ -249,6 +249,11 @@ reg lint-enum none 0 lint-enum.log \
     "Invisible pour --self-test-registry (qui itere le registre, pas le source) — corriger avant commit." \
     'bash scripts/lint_enum_registration.sh'
 
+reg lint-narrow-io none 0 lint-narrow-io.log \
+    "LINT NARROW I/O violee : appel fichier narrow (ANSI) dans la couche fichier." \
+    "Un chemin UTF-8 passe a fopen/opendir/GetFileAttributesA narrow est relu via la code page ANSI : dossier accentue introuvable sur Windows (bug silencieux, invisible sur chemin ASCII). Utilise les wrappers wide owl_*/xls_*, ou annote /* narrow-ok */ si pass-through POSIX legitime (cf. fix/2336)." \
+    'bash scripts/lint_narrow_io.sh'
+
 reg doc-type-fields bin 0 doc-type-fields.log \
     "DOC <-> TEMPLATE : la table de champs publiee ne decrit plus le type reel." \
     "Un champ documente mais absent du template est une promesse que le compilateur refuse (\`cnx..TimeoutCnx = 30\` -> « Membre inexistant ») ; un champ present mais non documente est indecouvrable. Les deux dorment des mois : le self-test registry itere le registre, pas la doc, et la suite n'ecrit jamais un champ qu'elle ignore. La source de verite est le template C, pas la doc — corriger la doc, sauf si c'est bien le champ qui manque. Portee DERIVEE (fix/1592) : toute table \`| Field FR | Field EN |\` de docs/public_documentation/ sous sa section \`### \`<type>\`\` est couverte d'office — aucune liste a tenir. Un message « aucune ligne de table trouvee » ou « table sans section englobante » dit que la sonde est devenue muette, pas qu'elle passe." \
@@ -298,6 +303,11 @@ reg cli-pdf-console-parity bin 0 cli-pdf-console-parity.log \
     "PARITE PDF CONSOLE/GUI violee : owl-cli --check (registre console, sans Qt) et owl.exe --check rendent des verdicts differents sur les natives PDF." \
     "owl-build compile le C dans un process CONSOLE (owl_runtime_console, sans OWL_HAS_GUI) : son registre doit annoncer les signatures des 42 natives Etats/PDF pour que le portail de compile recale/accepte un projet PDF EXACTEMENT comme l'exe GUI qu'il produit (parite du verdict). Les donnees de registre vivent dans src/stdlib_pdf_defs.c (Qt-free), enregistrees inconditionnellement par owl_stdlib.c ; les impls Qt (stdlib_pdf.c) sont injectees en GUI seulement via stdlib_pdf_impls_wire(). Le harnais compare owl.exe --check vs owl-cli.exe --check sur 4 fixtures (valid_fr, valid_en, arity, enum) : un rouge pointe le split stdlib_pdf_defs.c, le guard-relax impl=NULL d'owl_registry_register_module, ou l'ordre d'init owl_stdlib.c (fix/2224), pas le compilateur. SKIP gracieux si owl-cli.exe absent (build sans OWL_DEV_TOOLS)." \
     'if [ -x "$PWD/$BUILDDIR/owl-cli.exe" ]; then OWL_BIN="$PWD/$BUILDDIR/owl.exe" OWL_CLI_BIN="$PWD/$BUILDDIR/owl-cli.exe" bash tests/cli/pdf_console_parity/run.sh; else echo "owl-cli.exe absent -> SKIP (build OWL_DEV_TOOLS=ON pour exercer la parite)"; fi'
+
+reg cli-print-to-printer bin 0 cli-print-to-printer.log \
+    "DESTINATION IMPRIMANTE violee : iDestination(iImprimante) ne peint pas sur le QPrinter (retombee en stub)." \
+    "feat/0902 Lot 0 : iDestination(iImprimante) doit ouvrir un doc d'impression peignant sur le QPrinter courant (owl_pdf_open_printer, src/pdf_qt.cpp, 3e mode de OwlPdfDoc a cote de QPdfWriter/QImage) et iFinImprime declencher le spool (painter->end). En CI headless (pas d'imprimante physique) le hook OWL_PRINTER_OUTPUT_FILE derive le QPrinter vers un PDF fichier, ce qui exerce le chemin de rendu reel ; le harnais verifie que iDestination(iImprimante)+iImprime+iFinImprime produisent un flux non vide a signature %PDF. Un rouge ici pointe owl_pdf_open_printer (pdf_qt.cpp) ou la branche iImprimante de fn_i_destination (src/stdlib_pdf.c), pas le compilateur." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/print_to_printer/run.sh'
 
 reg cli-ui-console-parity bin 0 cli-ui-console-parity.log \
     "PARITE UI CONSOLE/GUI violee : owl-cli --check (registre console, sans Qt) et owl.exe --check rendent des verdicts differents sur les natives UI." \

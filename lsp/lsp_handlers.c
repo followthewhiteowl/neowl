@@ -1568,6 +1568,132 @@ typedef struct { char table[128]; char name[128]; } UserDslColumn;
 static UserDslColumn  userColumns[1024];
 static int            userColumnCount = 0;
 
+/*  Lot B — proprietes personnalisees declarees au niveau projet (cle
+ * PropriétésPersonnaliséesTousChamps / CustomPropertiesAllFields du bloc
+ * `est un Projet`). Pool global : disponibles sur tous les kinds de champ + la
+ * Fenetre (`champ..maProp`). Le LSP n'embarque pas le registre owl.exe
+ * (ui_catalog.c non linke) : il apprend ces props en re-scannant projet.owl au
+ * meme titre que les noms de Fenetre/Etat/controles (userWindows/userControls).
+ * La RESOLUTION et le check de type restent cote owl.exe (Lot A, source de
+ * verite, surfacee a l'editeur via `owl --check`) ; ici on n'alimente que la
+ * completion + la coloration. Reset a chaque scan_user_symbols_force. Le match
+ * de nom est casse + accent-insensible (invariants 1 & 2), aligne sur owl.exe.
+ * Le type porte un hint de completion ; les noms custom sont mono (pas
+ * d'invariant bilingue, cf. ticket). */
+typedef enum {
+    LSP_CUSTOM_PROP_STRING = 0,
+    LSP_CUSTOM_PROP_INT,
+    LSP_CUSTOM_PROP_BOOL,
+    LSP_CUSTOM_PROP_REAL
+} LspCustomPropType;
+typedef struct { char name[128]; LspCustomPropType type; } UserCustomProp;
+static UserCustomProp userCustomProps[256];
+static int            userCustomPropCount = 0;
+
+static const char* lsp_custom_prop_type_label(LspCustomPropType t, bool wantEN) {
+    switch (t) {
+        case LSP_CUSTOM_PROP_STRING: return wantEN ? "string"  : "cha\xc3\xaene";
+        case LSP_CUSTOM_PROP_INT:    return wantEN ? "int"     : "entier";
+        case LSP_CUSTOM_PROP_BOOL:   return wantEN ? "boolean" : "bool\xc3\xa9" "en";
+        case LSP_CUSTOM_PROP_REAL:   return wantEN ? "real"    : "r\xc3\xa9" "el";
+    }
+    return "?";
+}
+
+/* Cherche une prop custom par nom (casse + accent-insensible). */
+static const UserCustomProp* user_custom_prop_find(const char* name) {
+    if (!name || !name[0]) return NULL;
+    char an[128];
+    scanner_strip_accents(name, (int)strlen(name), an, sizeof(an));
+    for (int i = 0; i < userCustomPropCount; i++) {
+        char bn[128];
+        scanner_strip_accents(userCustomProps[i].name,
+                              (int)strlen(userCustomProps[i].name),
+                              bn, sizeof(bn));
+        if (strcasecmp(an, bn) == 0) return &userCustomProps[i];
+    }
+    return NULL;
+}
+
+static void user_custom_prop_add(const char* name, int len, LspCustomPropType t) {
+    if (userCustomPropCount >= 256) return;
+    int n = len < 127 ? len : 127;
+    char buf[128];
+    memcpy(buf, name, (size_t)n);
+    buf[n] = '\0';
+    if (user_custom_prop_find(buf)) return;  /* dedup : le premier gagne */
+    memcpy(userCustomProps[userCustomPropCount].name, buf, (size_t)n + 1);
+    userCustomProps[userCustomPropCount].type = t;
+    userCustomPropCount++;
+}
+
+/* Extrait les props custom declarees dans un source : cle
+ * PropriétésPersonnaliséesTousChamps / CustomPropertiesAllFields = [ <nom> est
+ * un <type>, ... ]. Meme idiome de walk de tokens que le compilateur
+ * (compiler_custom_props_scan_sources, src/compiler.c) — contrat partage, le
+ * LSP n'ayant pas acces au registre owl.exe. Scan borne (sortie sur EOF),
+ * sans recursion ni compteur de profondeur : le nom de cle est assez specifique
+ * pour matcher sans garde (meme choix que le compilateur). N'applique PAS la
+ * collision avec une prop canon : un nom en collision est rejete a la
+ * declaration par owl --check (E_SEM_CUSTOM_PROP_COLLISION) et surface a
+ * l'editeur par cette voie ; cote tooling on se contente d'alimenter. */
+static void scan_source_for_custom_props(const char* source) {
+    if (!source) return;
+    Scanner s;
+    scanner_init(&s, source);
+    for (;;) {
+        Token tok = scanner_scan_token(&s);
+        if (tok.type == TOKEN_EOF) break;
+        if (tok.type != TOKEN_IDENTIFIER) continue;
+        char probe[64];
+        int n = scanner_strip_accents(tok.start, tok.length, probe, sizeof(probe));
+        bool isKey = (n == 34
+                && strncasecmp(probe, "ProprietesPersonnaliseesTousChamps", 34) == 0)
+            || (n == 25
+                && strncasecmp(probe, "CustomPropertiesAllFields", 25) == 0);
+        if (!isKey) continue;
+        Token eq = scanner_scan_token(&s);
+        while (eq.type == TOKEN_NEWLINE || eq.type == TOKEN_ERROR)
+            eq = scanner_scan_token(&s);
+        if (eq.type != TOKEN_EQUAL) continue;
+        Token br = scanner_scan_token(&s);
+        while (br.type == TOKEN_NEWLINE || br.type == TOKEN_ERROR)
+            br = scanner_scan_token(&s);
+        if (br.type != TOKEN_LEFT_BRACKET) continue;
+        /* Entrees : <nom> est un <type> [, ...] jusqu'au ']'. */
+        for (;;) {
+            Token nameTok = scanner_scan_token(&s);
+            while (nameTok.type == TOKEN_NEWLINE || nameTok.type == TOKEN_ERROR
+                   || nameTok.type == TOKEN_COMMA)
+                nameTok = scanner_scan_token(&s);
+            if (nameTok.type == TOKEN_RIGHT_BRACKET || nameTok.type == TOKEN_EOF)
+                break;
+            if (nameTok.type != TOKEN_IDENTIFIER) continue;
+            Token estTok = scanner_scan_token(&s);
+            while (estTok.type == TOKEN_NEWLINE || estTok.type == TOKEN_ERROR)
+                estTok = scanner_scan_token(&s);
+            if (estTok.type != TOKEN_EST) {
+                if (estTok.type == TOKEN_RIGHT_BRACKET || estTok.type == TOKEN_EOF)
+                    break;
+                continue;
+            }
+            Token typeTok = scanner_scan_token(&s);
+            while (typeTok.type == TOKEN_NEWLINE || typeTok.type == TOKEN_ERROR)
+                typeTok = scanner_scan_token(&s);
+            LspCustomPropType cptype;
+            bool typed = true;
+            if (typeTok.type == TOKEN_CHAINE)       cptype = LSP_CUSTOM_PROP_STRING;
+            else if (typeTok.type == TOKEN_ENTIER)  cptype = LSP_CUSTOM_PROP_INT;
+            else if (typeTok.type == TOKEN_BOOLEEN) cptype = LSP_CUSTOM_PROP_BOOL;
+            else if (typeTok.type == TOKEN_REEL)    cptype = LSP_CUSTOM_PROP_REAL;
+            else typed = false;
+            if (typed) user_custom_prop_add(nameTok.start, nameTok.length, cptype);
+            if (typeTok.type == TOKEN_RIGHT_BRACKET || typeTok.type == TOKEN_EOF)
+                break;
+        }
+    }
+}
+
 static void scan_project_dsl_names(void);
 
 /*  — forme colonne-first `TABLE_X.COL_A[1]..`. Le walk des crochets
@@ -1753,6 +1879,7 @@ static void scan_user_symbols_force(void) {
     userControlCount = 0;
     userGroupCount = 0;
     userColumnCount = 0;
+    userCustomPropCount = 0;  /*  Lot B */
 
     for (int d = 0; d < lspServer.documentCount; d++) {
         /*  — skip les buffers ouverts non-.owl (ex .owlNOT) : leurs
@@ -1914,6 +2041,10 @@ static void build_proc_signature(Scanner peek, bool isFunction,
  * go-to-definition cross-fichier), NULL pour un doc ouvert. */
 static void scan_one_source_for_user_symbols(const char* source, int docIndex,
                                              const char* filePath) {
+    /*  Lot B — props custom declarees au projet (projet.owl, ouvert ou
+     * ferme sur disque). Scan isole (pas d'interaction avec la state-machine de
+     * scope ci-dessous). Dedup inter-sources dans user_custom_prop_add. */
+    scan_source_for_custom_props(source);
     {
         Scanner sc;
         scanner_init(&sc, source);
@@ -7444,6 +7575,25 @@ JsonValue* handle_completion(JsonValue* params) {
                     json_object_set(item, "detail", json_new_string(detailBuf));
                     json_array_push(items, item);
                 }
+                /*  Lot B — props custom universelles (pool projet,
+                 * tous champs + Fenetre). Emises apres les props du kind, pour
+                 * tout receveur DSL_ (champ nomme ou Fenetre). Nom mono (pas de
+                 * bascule EN sur le label), hint de type bilingue. */
+                for (int ci = 0; ci < userCustomPropCount; ci++) {
+                    const UserCustomProp* cp = &userCustomProps[ci];
+                    any = true;
+                    JsonValue* item = json_new_object();
+                    json_object_set(item, "label", json_new_string(cp->name));
+                    json_object_set(item, "kind", json_new_int(10)); /* Property */
+                    json_object_set(item, "sortText", json_new_string("!"));
+                    char detailBuf[160];
+                    snprintf(detailBuf, sizeof(detailBuf), "%s — %s",
+                             lsp_custom_prop_type_label(cp->type, wantEN),
+                             wantEN ? "custom property"
+                                    : "propri\xc3\xa9t\xc3\xa9 personnalis\xc3\xa9" "e");
+                    json_object_set(item, "detail", json_new_string(detailBuf));
+                    json_array_push(items, item);
+                }
                 if (any) return items;
             }
         }
@@ -8486,6 +8636,42 @@ JsonValue* handle_completion(JsonValue* params) {
             json_object_set(item, "insertText", json_new_string(insertBuf));
             json_object_set(item, "insertTextFormat", json_new_int(2));
         }
+        json_array_push(items, item);
+    }
+
+    /*  (support #435) — globales top-level d'un compagnon FERME
+     * (diskGlobals[], ex. une globale nue d'un bloc CollectionDeProcedures).
+     * La boucle userSymbols ci-dessus ne voit que les docs ouverts ; sans cette
+     * passe la globale est coloree + navigable cross-fichier (, )
+     * mais absente de la completion de nom quand le compagnon n'est pas ouvert.
+     * Dedup au nom : une globale deja presente via un doc ouvert prime. */
+    for (int i = 0; i < diskGlobalCount; i++) {
+        bool alreadyOpen = false;
+        for (int j = 0; j < userSymbolCount; j++) {
+            if (userSymbols[j].kind == 6
+                && strcasecmp(userSymbols[j].name, diskGlobals[i].name) == 0) {
+                alreadyOpen = true;
+                break;
+            }
+        }
+        if (alreadyOpen) continue;
+        /* Meme filtre de type que les globales ouvertes en position valeur
+         * d'un decl-assign. */
+        if (inDeclAssignValue
+            && !value_type_assignable_to(diskGlobals[i].type, declAssignType))
+            continue;
+        JsonValue* item = json_new_object();
+        json_object_set(item, "label", json_new_string(diskGlobals[i].name));
+        char stripped[256];
+        scanner_strip_accents(diskGlobals[i].name, (int)strlen(diskGlobals[i].name),
+                              stripped, sizeof(stripped));
+        if (strcmp(stripped, diskGlobals[i].name) != 0) {
+            char ft[512];
+            snprintf(ft, sizeof(ft), "%s %s", diskGlobals[i].name, stripped);
+            json_object_set(item, "filterText", json_new_string(ft));
+        }
+        json_object_set(item, "kind", json_new_int(6));
+        json_object_set(item, "detail", json_new_string(diskGlobals[i].type));
         json_array_push(items, item);
     }
 
@@ -9922,6 +10108,32 @@ JsonValue* handle_completion(JsonValue* params) {
                     json_object_set(item, "insertTextFormat", json_new_int(2)); /* snippet */
                     json_array_push(items, item);
                 }
+                /*  (correction C) — props custom universelles (pool
+                 * projet, tous champs + Fenetre) proposees AUSSI comme noms de
+                 * prop DANS le bloc PROPRIETES d'un champ (init declarative
+                 * `maProp = valeur`), pas seulement apres `champ..`. Nom mono,
+                 * hint de type bilingue, dedup si deja ecrite dans le bloc. */
+                for (int ci = 0; !boolLiteralOnly && ci < userCustomPropCount; ci++) {
+                    const UserCustomProp* cp = &userCustomProps[ci];
+                    if (prop_already_used(src, cursor_offset, blockStart, cp->name))
+                        continue;
+                    JsonValue* item = json_new_object();
+                    json_object_set(item, "label", json_new_string(cp->name));
+                    json_object_set(item, "kind", json_new_int(10)); /* Property */
+                    json_object_set(item, "sortText", json_new_string("!"));
+                    json_object_set(item, "filterText", json_new_string(cp->name));
+                    char cdetail[160];
+                    snprintf(cdetail, sizeof(cdetail), "%s — %s",
+                             lsp_custom_prop_type_label(cp->type, wantEN),
+                             wantEN ? "custom property"
+                                    : "propri\xc3\xa9t\xc3\xa9 personnalis\xc3\xa9" "e");
+                    json_object_set(item, "detail", json_new_string(cdetail));
+                    char cinsert[160];
+                    snprintf(cinsert, sizeof(cinsert), "%s = $0", cp->name);
+                    json_object_set(item, "insertText", json_new_string(cinsert));
+                    json_object_set(item, "insertTextFormat", json_new_int(2)); /* snippet */
+                    json_array_push(items, item);
+                }
                 /* DSL v2 : a l'interieur d'un bloc PROPRIETES, l'autocomplete
                  * doit etre STRICTEMENT borne aux props du widget. Le
                  * filtrage final (avant return items) supprime tout ce
@@ -10648,11 +10860,23 @@ JsonValue* handle_hover(JsonValue* params) {
                 const char* pdesc =
                     (wantEN && prop->descEN && *prop->descEN) ? prop->descEN
                     : (prop->descFR ? prop->descFR : "");
-                char md[1024];
-                snprintf(md, sizeof(md),
+                char md[1280];
+                int off = snprintf(md, sizeof(md),
                     "```owl\n%s = <%s>\n```\n\n%s\n\n---\n*[%s %s]*",
                     title, prop->type ? prop->type : "?", pdesc,
                     wantEN ? "Property of" : "Propriete de", prop->kind);
+                /*  — parite `owl explain` : section « Voir aussi »
+                 * renvoyant vers les fiches ou vivent les exemples. */
+                if (prop->fiches && prop->fiches[0] && off > 0
+                    && off < (int)sizeof(md)) {
+                    off += snprintf(md + off, sizeof(md) - off, "\n\n**%s** : ",
+                                    wantEN ? "See also" : "Voir aussi");
+                    for (int fi = 0; prop->fiches[fi] && off > 0
+                                     && off < (int)sizeof(md); fi++) {
+                        off += snprintf(md + off, sizeof(md) - off, "%s`%s`",
+                                        fi ? ", " : "", prop->fiches[fi]);
+                    }
+                }
                 JsonValue* hover = json_new_object();
                 JsonValue* contents = json_new_object();
                 json_object_set(contents, "kind", json_new_string("markdown"));
@@ -12015,6 +12239,24 @@ JsonValue* handle_semantic_tokens(JsonValue* params) {
         bool isMemberAccess = (prevType == TOKEN_DOT
                             || prevType == TOKEN_DOUBLE_DOT
                             || prevType == TOKEN_COLON);
+
+        /*  Lot B — prop custom declaree au projet, en acces
+         * `champ..maProp`. Projet-specifique, donc ABSENTE de la grammar
+         * TextMate (qui ne colore en property que les noms canon du registre) :
+         * sans ce token, `..maProp` retombe en identifiant generique (vert
+         * clair). On la classe property (2, vert fonce) comme une prop canon.
+         * Gate strict sur `..` (TOKEN_DOUBLE_DOT) : `champ..maProp`, jamais le
+         * point simple `champ.membre` (invariant 6). */
+        if (prevType == TOKEN_DOUBLE_DOT
+            && user_custom_prop_find(tokName) != NULL) {
+            tokens[tokenCount].line = tok.line - 1;
+            tokens[tokenCount].startChar = utf16Col;
+            tokens[tokenCount].length = tok_utf16_length(tok);
+            tokens[tokenCount].tokenType = 2;  /* property (vert fonce) */
+            tokens[tokenCount].tokenModifiers = 0;
+            tokenCount++;
+            continue;
+        }
 
         /*  — nom d'etat dans `Etats[<etat>]` (survol/focus/appuyé/
          * grisé/lectureSeule, FR ou EN) : token enumMember (0, jaune italique

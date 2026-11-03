@@ -1,0 +1,35 @@
+// @sujet : RegistreExiste
+// @résumé : Teste l'existence d'une clé ou d'une valeur dans la base de
+// registre, sans jamais lever d'erreur bloquante.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Existe")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cle_existe_apres_creation()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Existe"
+	RegistreCréeClé(chemin)
+	dbgVérifieVrai(RegistreExiste(chemin), "la clé créée est détectée comme existante")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cle_absente_renvoie_faux()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Existe"
+	dbgVérifieFaux(RegistreExiste(chemin), "une clé jamais créée n'existe pas")
+FIN
+
+PROCEDURE PUBLIQUE scenario_valeur_existe_apres_ecriture()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Existe"
+	RegistreCréeClé(chemin)
+	RegistreEcrit(chemin, "Langage", "Francais")
+	dbgVérifieVrai(RegistreExiste(chemin, "Langage"), "la valeur écrite est détectée comme existante")
+FIN
+
+// Cas limite : une clé présente mais sans la valeur demandée renvoie Faux,
+// distinct de l'absence de la clé elle-même.
+PROCEDURE PRIVÉE scenario_valeur_absente_renvoie_faux()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Existe"
+	RegistreCréeClé(chemin)
+	dbgVérifieFaux(RegistreExiste(chemin, "Inconnue"), "une valeur jamais écrite n'existe pas")
+FIN
+
+dbgBilanTest()

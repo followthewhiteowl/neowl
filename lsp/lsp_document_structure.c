@@ -1261,6 +1261,115 @@ static JsonValue* build_member_symbol(const ClassMember* cm,
     return sym;
 }
 
+/* ================================================================
+ * Regroupement par categories synthetiques (en-tetes repliables).
+ *
+ * Le top-level plat d'un module/script ET le corps d'un bloc
+ * CollectionDeProcedures exposent leurs declarations regroupees sous
+ * des noeuds-categories (DocumentSymbol conteneurs, kind Namespace) :
+ *   1. Constantes   2. Structures   3. Enumerations
+ *   4. Classes      5. Declarations globales   6. Procedures
+ * Ordre fixe, categories vides masquees, libelles bilingues (le libelle
+ * "Declarations globales" reutilise declarations_globales_label). Les
+ * membres homogenes d'une classe/enum/structure ne sont PAS regroupes.
+ * ================================================================ */
+
+typedef enum {
+    CAT_CONST = 0, CAT_STRUCT, CAT_ENUM, CAT_CLASS, CAT_GLOBAL, CAT_PROC,
+    CAT_COUNT
+} CatIdx;
+
+/* Categorie d'un symbole d'apres son kind. -1 = non categorisable. */
+static int category_for_kind(int kind) {
+    switch (kind) {
+        case KIND_CONSTANT: return CAT_CONST;
+        case KIND_STRUCT:   return CAT_STRUCT;
+        case KIND_ENUM:     return CAT_ENUM;
+        case KIND_CLASS:    return CAT_CLASS;
+        case KIND_VARIABLE:               /* top-level plat */
+        case KIND_FIELD:    return CAT_GLOBAL;  /* membre de collection */
+        case KIND_FUNCTION:               /* callable libre */
+        case KIND_METHOD:   return CAT_PROC;    /* membre de collection */
+        default:            return -1;
+    }
+}
+
+/* Libelle localise d'une categorie. CAT_GLOBAL delegue au libelle partage. */
+static const char* category_label(int cat, bool en, const char* src, int srcLen) {
+    switch (cat) {
+        case CAT_CONST:  return en ? "Constants"    : "Constantes";
+        case CAT_STRUCT: return en ? "Structures"   : "Structures";
+        case CAT_ENUM:   return en ? "Enumerations" : "\xc3\x89num\xc3\xa9rations";
+        case CAT_CLASS:  return en ? "Classes"      : "Classes";
+        case CAT_GLOBAL: return declarations_globales_label(src, srcLen);
+        case CAT_PROC:   return en ? "Procedures"   : "Proc\xc3\xa9" "dures";
+        default:         return "";
+    }
+}
+
+/* Accumulateur d'une categorie : symboles deja construits (ordre source)
+ * + plage de lignes englobante. */
+typedef struct {
+    JsonValue** syms;
+    int count, cap;
+    int first, last;
+} CatBucket;
+
+static void cat_buckets_init(CatBucket b[CAT_COUNT]) {
+    for (int c = 0; c < CAT_COUNT; c++) {
+        b[c].syms = NULL; b[c].count = 0; b[c].cap = 0;
+        b[c].first = -1; b[c].last = -1;
+    }
+}
+
+static void cat_push(CatBucket* b, JsonValue* sym, int startLine, int endLine) {
+    if (b->count >= b->cap) {
+        b->cap = b->cap ? b->cap * 2 : 8;
+        b->syms = realloc(b->syms, (size_t)b->cap * sizeof(JsonValue*));
+    }
+    b->syms[b->count++] = sym;
+    if (b->first < 0 || startLine < b->first) b->first = startLine;
+    if (endLine > b->last) b->last = endLine;
+}
+
+/* Emet les categories non vides (ordre fixe) comme enfants de 'parent'. */
+static void cat_buckets_emit(JsonValue* parent, CatBucket b[CAT_COUNT],
+                             bool en, const char* src, int srcLen) {
+    for (int c = 0; c < CAT_COUNT; c++) {
+        if (b[c].count == 0) continue;
+        JsonValue* cat = make_symbol(category_label(c, en, src, srcLen),
+                                     KIND_NAMESPACE, b[c].first, b[c].last,
+                                     line_len_at(src, srcLen, b[c].last), 0);
+        JsonValue* ch = sym_children_arr(cat);
+        for (int i = 0; i < b[c].count; i++)
+            json_array_push(ch, b[c].syms[i]);
+        json_array_push(parent, cat);
+        free(b[c].syms);
+    }
+}
+
+/* Construit le DocumentSymbol d'un bloc CollectionDeProcedures : ses membres
+ * sont regroupes par categorie (meme taxonomie que le top-level plat). */
+static JsonValue* build_collection_symbol(const ModItem* m, bool en,
+                                          const char* src, int srcLen) {
+    JsonValue* sym = make_symbol(m->name, m->kind, m->startLine, m->endLine,
+                                 line_len_at(src, srcLen, m->endLine), 0);
+    sym_set_detail(sym, m->detail);
+    JsonValue* children = sym_children_arr(sym);
+
+    CatBucket buckets[CAT_COUNT];
+    cat_buckets_init(buckets);
+    for (int mm = 0; mm < m->memberCount; mm++) {
+        const ClassMember* cm = &m->members[mm];
+        JsonValue* memSym = build_member_symbol(cm, src, srcLen);
+        int cat = category_for_kind(cm->kind);
+        if (cat < 0) { json_array_push(children, memSym); continue; }
+        cat_push(&buckets[cat], memSym, cm->startLine, cm->endLine);
+    }
+    cat_buckets_emit(children, buckets, en, src, srcLen);
+    return sym;
+}
+
 /* Resout le document courant a partir des params {textDocument:{uri}}. */
 static const char* doc_content(JsonValue* params, int* outLen) {
     JsonValue* td = params ? json_get(params, "textDocument") : NULL;
@@ -1358,97 +1467,40 @@ JsonValue* handle_document_symbol(JsonValue* params) {
         ModStructure* ms = malloc(sizeof(ModStructure));
         if (!ms) return result;
         parse_module(src, len, ms);
-        const char* dgLabel = declarations_globales_label(src, len);
+        bool en = module_is_english(src, len);
 
-        /* Modele "Declarations globales en tete" (identique a la fenetre) : les
-         * declarations de variables globales top-level sont regroupees sous UN
-         * noeud "Declarations globales" (Namespace) pose EN PREMIER, dont elles
-         * sont les enfants. Declarations SEULES : le code imperatif n'est pas
-         * capture. Range = 1re -> derniere declaration. Emis des qu'il y a >=1
-         * declaration de variable globale. */
-        {
-            int declFirst = -1, declLast = -1;
-            for (int it = 0; it < ms->itemCount; it++) {
-                ModItem* m = &ms->items[it];
-                if (m->isContainer || m->kind != KIND_VARIABLE) continue;
-                if (declFirst < 0 || m->startLine < declFirst) declFirst = m->startLine;
-                if (m->endLine > declLast) declLast = m->endLine;
-            }
-            if (declFirst >= 0) {
-                JsonValue* dgSym = make_symbol(
-                    dgLabel, KIND_NAMESPACE, declFirst, declLast,
-                    line_len_at(src, len, declLast), 0);
-                JsonValue* dgCh = sym_children_arr(dgSym);
-                for (int it = 0; it < ms->itemCount; it++) {
-                    ModItem* m = &ms->items[it];
-                    if (m->isContainer || m->kind != KIND_VARIABLE) continue;
-                    JsonValue* vSym = make_symbol(m->name, m->kind,
-                                                  m->startLine, m->endLine,
-                                                  line_len_at(src, len, m->endLine), 0);
-                    sym_set_detail(vSym, m->detail);
-                    json_array_push(dgCh, vSym);
-                }
-                json_array_push(result, dgSym);
-            }
-        }
-
-        /* Freres, dans l'ordre source : tout SAUF les variables top-level (deja
-         * regroupees sous "Declarations globales"). Callables, enums, structures,
-         * classes, blocs CONSTANTE, collections. */
+        /* Regroupement par categories synthetiques (en-tetes repliables).
+         * Chaque item top-level est construit puis range dans sa categorie ;
+         * les categories non vides sont emises en ordre fixe. Les blocs
+         * CollectionDeProcedures regroupent eux-memes leurs membres par
+         * categorie. Classe/enum/structure gardent leurs membres a plat. */
+        CatBucket buckets[CAT_COUNT];
+        cat_buckets_init(buckets);
         for (int it = 0; it < ms->itemCount; it++) {
             ModItem* m = &ms->items[it];
-            if (!m->isContainer && m->kind == KIND_VARIABLE) continue;
-            JsonValue* itSym = make_symbol(m->name, m->kind,
-                                           m->startLine, m->endLine,
+            /* Un bloc CollectionDeProcedures reste a la RACINE (pas sous
+             * "Classes"), avec ses membres regroupes par categorie dedans —
+             * coherence avec l'Explorateur. Les autres items top-level
+             * (vraies classes user, procedures, variables...) suivent les
+             * buckets de categories. */
+            if (m->isContainer && m->isCollection) {
+                json_array_push(result, build_collection_symbol(m, en, src, len));
+                continue;
+            }
+            JsonValue* itSym = make_symbol(m->name, m->kind, m->startLine, m->endLine,
                                            line_len_at(src, len, m->endLine), 0);
             sym_set_detail(itSym, m->detail);
             if (m->isContainer) {
                 JsonValue* itChildren = sym_children_arr(itSym);
-                if (m->isCollection) {
-                    /* Meme modele que le top-level : "Declarations globales" en
-                     * tete regroupe les declarations de variables globales
-                     * (Field) du bloc, SEULES ; les autres membres (procedures,
-                     * valeurs nommees) restent freres, apres. Range = 1re ->
-                     * derniere declaration. */
-                    int cFirst = -1, cLast = -1;
-                    for (int mm = 0; mm < m->memberCount; mm++) {
-                        ClassMember* cm = &m->members[mm];
-                        if (cm->kind != KIND_FIELD) continue;
-                        if (cFirst < 0 || cm->startLine < cFirst) cFirst = cm->startLine;
-                        if (cm->endLine > cLast) cLast = cm->endLine;
-                    }
-                    if (cFirst >= 0) {
-                        JsonValue* dgSym = make_symbol(
-                            dgLabel, KIND_NAMESPACE, cFirst, cLast,
-                            line_len_at(src, len, cLast), 0);
-                        JsonValue* dgCh = sym_children_arr(dgSym);
-                        for (int mm = 0; mm < m->memberCount; mm++) {
-                            ClassMember* cm = &m->members[mm];
-                            if (cm->kind != KIND_FIELD) continue;
-                            JsonValue* memSym = make_symbol(cm->name, cm->kind,
-                                                            cm->startLine, cm->endLine,
-                                                            line_len_at(src, len, cm->endLine), 0);
-                            sym_set_detail(memSym, cm->detail);
-                            json_array_push(dgCh, memSym);
-                        }
-                        json_array_push(itChildren, dgSym);
-                    }
-                    for (int mm = 0; mm < m->memberCount; mm++) {
-                        ClassMember* cm = &m->members[mm];
-                        if (cm->kind == KIND_FIELD) continue;
-                        json_array_push(itChildren, build_member_symbol(cm, src, len));
-                    }
-                } else {
-                    /* Classe/enum/structure/CONSTANTE : membres (avec enfants
-                     * recursifs pour un conteneur imbrique). */
-                    for (int mm = 0; mm < m->memberCount; mm++) {
-                        json_array_push(itChildren,
-                                        build_member_symbol(&m->members[mm], src, len));
-                    }
-                }
+                for (int mm = 0; mm < m->memberCount; mm++)
+                    json_array_push(itChildren,
+                                    build_member_symbol(&m->members[mm], src, len));
             }
-            json_array_push(result, itSym);
+            int cat = category_for_kind(m->kind);
+            if (cat < 0) { json_array_push(result, itSym); continue; }
+            cat_push(&buckets[cat], itSym, m->startLine, m->endLine);
         }
+        cat_buckets_emit(result, buckets, en, src, len);
         mod_structure_free(ms);
         return result;
     }

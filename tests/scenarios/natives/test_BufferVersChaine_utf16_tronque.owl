@@ -1,0 +1,37 @@
+// @sujet : BufferVersChaîne
+// @résumé : Verrou de comportement sur le décodage UTF-16LE/BE lorsque le buffer contient une séquence d'unités de code incomplète en fin de flux. Un octet de poids faible/fort orphelin (longueur impaire), ou un substitut haut sans substitut bas qui le complète, décode vers un caractère de remplacement, au lieu d'être silencieusement ignoré.
+
+
+// Cas A : buffer UTF-16LE de longueur impaire — 1 unité complète + 1 octet orphelin.
+// Séquence [65, 0, 233] : "A" (2 octets complets) puis l'octet 233 seul en fin de buffer.
+PROCEDURE PUBLIQUE scenario_bvc_utf16le_tronque_octet_orphelin()
+	buf est un buffer = "XXX"
+	BufferÉcritOctet(buf, 1, 65)
+	BufferÉcritOctet(buf, 2, 0)
+	BufferÉcritOctet(buf, 3, 233)
+	s est une chaîne = BufferVersChaîne(buf, encUTF16LE)
+	dbgVérifieEgalité(s, "A?", "octet orphelin en fin de buffer UTF-16LE → caractère de remplacement")
+FIN
+
+
+// Cas B : buffer UTF-16BE de longueur impaire — 1 unité complète + 1 octet orphelin.
+// Séquence [0, 65, 233] : "A" (2 octets complets) puis l'octet 233 seul en fin de buffer.
+PROCEDURE PUBLIQUE scenario_bvc_utf16be_tronque_octet_orphelin()
+	buf est un buffer = "XXX"
+	BufferÉcritOctet(buf, 1, 0)
+	BufferÉcritOctet(buf, 2, 65)
+	BufferÉcritOctet(buf, 3, 233)
+	s est une chaîne = BufferVersChaîne(buf, encUTF16BE)
+	dbgVérifieEgalité(s, "A?", "octet orphelin en fin de buffer UTF-16BE → caractère de remplacement")
+FIN
+
+
+// Edge case : substitut haut esseulé en fin de buffer (pas de substitut bas qui suit), UTF-16LE.
+// Séquence [0x00, 0xD8] = substitut haut U+D800 seul, rien après → tronqué.
+PROCEDURE PRIVÉE scenario_bvc_edge_utf16le_substitut_haut_esseule()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 0)
+	BufferÉcritOctet(buf, 2, 216)
+	s est une chaîne = BufferVersChaîne(buf, encUTF16LE)
+	dbgVérifieEgalité(s, "?", "substitut haut esseulé en fin de buffer UTF-16LE → caractère de remplacement")
+FIN

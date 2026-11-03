@@ -49,7 +49,7 @@ accès en cascade — est décrit dans `24_projet.md`.
 ## 4. Ligne de commande
 
 ```
-owl-build [DOSSIER_PROJET] [-o NOM] [--target TRIPLE]
+owl-build [DOSSIER_PROJET] [-o NOM] [--target TRIPLE] [--sign CERT.pfx [--sign-pass MDP]]
 ```
 
 | Argument / option | Rôle |
@@ -57,6 +57,8 @@ owl-build [DOSSIER_PROJET] [-o NOM] [--target TRIPLE]
 | `DOSSIER_PROJET`  | Dossier du projet à packager. Requis ; indiquer `.` pour le dossier courant. |
 | `-o NOM`          | Nom de l'exécutable produit. Par défaut, dérivé du projet. |
 | `--target TRIPLE` | Plateforme visée. Par défaut, la plateforme hôte. |
+| `--sign CERT.pfx` | Signe le binaire produit avec un certificat de signature de code (PKCS#12). Cible Windows : signature Authenticode incrustée. Autres cibles : signature détachée `.p7s` + checksum `.sha256` à côté du binaire. |
+| `--sign-pass MDP` | Mot de passe protégeant le certificat `.pfx`. Optionnel si le certificat n'en a pas. |
 | `--prepare`       | Prépare le cache d'extraction pour la cible, puis s'arrête sans packager de projet. Le build suivant pour cette cible démarre immédiatement. |
 
 ### Choix de la cible
@@ -79,7 +81,73 @@ Les cibles réellement disponibles restent celles embarquées dans le binaire
 `owl-build` utilisé ; une distribution donnée peut en proposer davantage ou
 se limiter à sa plateforme.
 
-## 5. Emplacement du résultat
+### Signer le binaire
+
+L'option `--sign` signe le binaire produit avec un certificat **PKCS#12**
+(`.pfx`/`.p12`) apporté par l'éditeur : il contient la clé privée et la chaîne
+de certificats, et la signature porte **l'identité de l'éditeur** inscrite dans
+le certificat. La même option s'applique à **toutes les cibles** ; le mécanisme
+s'adapte à la plateforme visée.
+
+```
+owl-build mon_projet --sign mon_certificat.pfx --sign-pass motdepasse
+```
+
+Dispositions communes à toutes les cibles :
+
+- Format attendu : certificat de **signature de code** (OV), algorithme
+  **RSA**, empreinte **SHA-256**. Un certificat EV, qui réside sur un
+  support matériel, n'est pas pris en charge par cette option fichier.
+- Le certificat et le mot de passe sont validés **avant** le build : un mot
+  de passe erroné échoue immédiatement, sans attendre la fin du packaging.
+- Le mot de passe passé en ligne de commande peut apparaître dans la liste
+  des processus du système. Pour un usage sensible, en tenir compte.
+
+**Cible Windows — signature incrustée.** Une **signature de code Authenticode**
+est apposée dans l'exécutable (format PE). Un binaire signé évite
+l'avertissement « éditeur inconnu » de Windows SmartScreen et porte une
+identité d'éditeur vérifiable.
+
+**Cibles non-Windows (Linux, macOS) — signature détachée.** Les formats
+exécutables de ces plateformes n'ont pas de signature incrustée vérifiée à
+l'exécution. `--sign` produit à la place une **provenance vérifiable hors
+ligne** : deux fichiers écrits à côté du binaire.
+
+| Fichier | Contenu |
+|---------|---------|
+| `<binaire>.p7s`    | Signature **PKCS#7 détachée** (DER) sur les octets du binaire. Vérifiable avec `openssl cms -verify`. |
+| `<binaire>.sha256` | Empreinte **SHA-256** au format `SHA256SUMS` (`<hex>␠␠<nom>`). Vérifiable avec `sha256sum -c`. |
+
+Cette signature détachée ne retire aucun avertissement du système — Linux et
+macOS n'en affichent pas pour un binaire téléchargé de cette façon. Elle sert
+à **attester la provenance** : qui reçoit le binaire peut vérifier, avec la clé
+publique de l'éditeur, qu'il n'a pas été altéré.
+
+### Vérifier une signature
+
+**Cible Windows** (signature Authenticode incrustée) : clic droit sur
+l'exécutable → *Propriétés* → onglet *Signatures numériques*, ou en ligne de
+commande PowerShell :
+
+```
+Get-AuthenticodeSignature mon_app.exe
+```
+
+Un résultat `Valid` indique une signature valide reconnue par le système. Un
+certificat non reconnu (auto-signé, ou autorité absente du magasin) donne
+`UnknownError` : la signature est bien formée, seule la confiance accordée au
+certificat fait défaut.
+
+**Cibles non-Windows** (signature détachée), avec le certificat public de
+l'éditeur (`editeur.pem`), à côté du binaire et de ses deux fichiers :
+
+```
+openssl cms -verify -binary -content mon_app -in mon_app.p7s -inform DER -CAfile editeur.pem
+sha256sum -c mon_app.sha256
+```
+
+`CMS Verification successful` + `mon_app: OK` confirment que le binaire provient
+bien de l'éditeur attendu et n'a pas été modifié.
 
 Le binaire est écrit sous le dossier du projet, dans une arborescence
 `exe` :
@@ -190,13 +258,17 @@ et le port se choisissent à l'exécution et non au packaging.
 
 ## 9. Limitations actuelles (alpha)
 
-Deux limites à connaître avant de distribuer un binaire produit par
+Limites à connaître avant de distribuer un binaire produit par
 `owl-build` :
 
-- **Binaire non signé.** Les exécutables produits ne portent pas de
-  signature d'éditeur ; Windows SmartScreen peut afficher un
-  avertissement « éditeur inconnu » au premier lancement. La signature
-  est prévue.
+- **Signature facultative.** Par défaut, les binaires ne portent pas de
+  signature d'éditeur et Windows SmartScreen peut afficher un avertissement
+  « éditeur inconnu » au premier lancement. L'option `--sign` (section 4)
+  appose une signature Authenticode sur les cibles Windows (et lève cet
+  avertissement), ou une signature détachée `.p7s` + checksum `.sha256` sur
+  les cibles non-Windows (provenance vérifiable hors ligne). L'horodatage de
+  la signature (qui prolonge sa validité au-delà de l'expiration du
+  certificat) est prévu.
 - **Code source récupérable.** Le code `.owl` du projet est embarqué
   dans le binaire sous forme **compressée** : il n'apparaît pas en clair
   dans l'exécutable, mais reste récupérable par une analyse déterminée.

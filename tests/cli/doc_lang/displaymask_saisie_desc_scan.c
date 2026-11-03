@@ -15,6 +15,10 @@
  *   - orientent vers FormatNombre / FormatMonetaire (resp. NumberFormat /
  *     CurrencyFormat en EN) pour les champs numerique / monetaire.
  *
+ *  — la desc doit aussi documenter le jeton "CC" (centiemes de seconde),
+ * deja gere par le moteur de formatage (SSCC, cf. src/stdlib_date.c) mais absent
+ * de l'aide : on exige "CC" + une mention "centi"/"hundredth" dans les deux langues.
+ *
  * Mutation : remettre la desc date-only -> "Heure"/"Time", "HH:MI" et
  * "FormatNombre"/"NumberFormat" disparaissent -> ce test rougit. La desc de la
  * COLONNE (deja Date/Heure/Duree via , mais sans orientation
@@ -85,11 +89,11 @@ static int extract_str(const char* start, const char* end,
  * "FormatMon" couvre FormatMonetaire). */
 static const char* const EXPECT_FR[] = {
     "Date", "Heure", "Dur", "HH:MI", "JJ/MM/AAAA",
-    "FormatNombre", "FormatMon", NULL
+    "CC", "centi", "FormatNombre", "FormatMon", NULL
 };
 static const char* const EXPECT_EN[] = {
     "Date", "Time", "Duration", "HH:MI", "JJ/MM/AAAA",
-    "NumberFormat", "CurrencyFormat", NULL
+    "CC", "hundredth", "NumberFormat", "CurrencyFormat", NULL
 };
 
 int main(int argc, char** argv) {

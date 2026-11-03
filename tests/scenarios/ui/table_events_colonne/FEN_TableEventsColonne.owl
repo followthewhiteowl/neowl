@@ -1,0 +1,50 @@
+// Fenêtre voisine — ressource partagée de
+// tests\scenarios\ui\table_events_colonne\test_table_events_colonne.owl.
+//
+// Une Colonne de Champ Table saisissable porte ses propres événements
+// (surInitialisation, surAChaqueModification, surSortie). Les handlers
+// relaient vers le script voisin via callback nu-nommé (le bloc Colonne ne
+// peut pas accéder directement aux variables du script).
+
+FEN_TableEventsColonne est une Fenêtre
+	PROPRIETES
+		Titre       = "Édition de cellule"
+		Disposition = dispLibre
+		Largeur     = 240
+		Hauteur     = 160
+	FIN
+
+	TABLE_Saisie est un Champ Table
+		PROPRIETES
+			X           = 10
+			Y           = 10
+			Largeur     = 200
+			Hauteur     = 90
+			EtatInitial = EnSaisie
+		FIN
+
+		COL_Libelle est une Colonne
+			PROPRIETES
+				Libellé = "Libellé"
+				Type    = colTypeTexte
+				Largeur = 180
+			FIN
+
+			PROCEDURE surInitialisation()
+				callback_colonne_initialisee()
+			FIN
+
+			PROCEDURE surAChaqueModification()
+				callback_colonne_modifiee()
+			FIN
+
+			PROCEDURE surSortie()
+				callback_colonne_sortie()
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE FinInitialisation()
+		TableAjouteLigne(TABLE_Saisie, "")
+	FIN
+FIN

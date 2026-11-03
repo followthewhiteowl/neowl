@@ -919,6 +919,7 @@ static void mark_control_decl(const OwlControlDecl* c) {
     mark_event_blocks(c->user_procs, c->user_proc_count);
     for (int j = 0; j < c->column_count; j++) {
         mark_property_inits(c->columns[j].properties, c->columns[j].property_count);
+        mark_event_blocks(c->columns[j].events, c->columns[j].event_count);
     }
     if (c->top_level != NULL) {
         gc_mark_object((Obj*)c->top_level);

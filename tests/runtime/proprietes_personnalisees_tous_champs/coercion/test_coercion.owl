@@ -1,0 +1,32 @@
+//  (correction B) — les propriétés custom se COERCENT à
+// l'affectation, elles ne rejettent pas le type comme un strict
+// type-mismatch. Le type déclaré sert à coercer/stocker, pas à bloquer.
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_PropsCoercion)
+
+// entier <- chaîne numérique : parse le préfixe (cohérent coercion standard)
+SAI_Client..codeInterne = "42"
+dbgVérifieEgalité(SAI_Client..codeInterne, 42, "entier coercé depuis une chaîne numérique")
+
+// entier <- chaîne non numérique : retombe à 0, silencieux
+SAI_Client..codeInterne = "abc"
+dbgVérifieEgalité(SAI_Client..codeInterne, 0, "entier coercé depuis une chaîne non numérique retombe à 0")
+
+// booléen <- entier non-nul : Vrai
+SAI_Client..estArchivé = 3
+dbgVérifieVrai(SAI_Client..estArchivé, "booléen coercé depuis un entier non-nul (3) donne Vrai")
+
+// booléen <- entier 0 : Faux
+SAI_Client..estArchivé = 0
+dbgVérifieFaux(SAI_Client..estArchivé, "booléen coercé depuis l'entier 0 donne Faux")
+
+// booléen <- entier 1 : Vrai
+SAI_Client..estArchivé = 1
+dbgVérifieVrai(SAI_Client..estArchivé, "booléen coercé depuis l'entier 1 donne Vrai")
+
+// chaîne <- entier : représentation décimale (coercion OWL standard)
+SAI_Client..refClient = 4087
+dbgVérifieEgalité(SAI_Client..refClient, "4087", "chaîne coercée depuis un entier donne sa représentation décimale")
+
+Ferme(FEN_PropsCoercion)
+dbgBilanTest()

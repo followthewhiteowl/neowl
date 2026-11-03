@@ -140,6 +140,19 @@ static bool path_ends_with_ci(const char* path, const char* ext) {
     return true;
 }
 
+/* Détecte si une Value est une sentinelle d'option imgOptions (imgDéfaut /
+ * imgConvertir) par opposition à une dimension littérale user. Les valeurs
+ * d'enum non combinables vivent dans la bande sentinelle OWL_IMG_BASE +
+ * [0..0xFF] (grands entiers négatifs, cf sentinels.h) ; une dimension tapée
+ * par l'utilisateur est un petit positif → jamais dans cette bande.
+ * Détection par bande (pas par valeurs exactes) → forward-compatible si une
+ * 3e option imgOptions est ajoutée. */
+static bool owl_is_img_option(Value v) {
+    if (!IS_INTEGER(v)) return false;
+    int64_t n = AS_INTEGER(v);
+    return n >= OWL_IMG_BASE && n < OWL_IMG_BASE + 0x100;
+}
+
 /* ================================================================
  * dChargeImage(<Image> [, <Options> [, <Largeur> [, <Hauteur>]]])
  *
@@ -150,6 +163,13 @@ static bool path_ends_with_ci(const char* path, const char* ext) {
  *   - chemin string accepté (canon : "rep/exec" ou absolu)
  *   - <Options> : imgDéfaut (default) / imgConvertir (no-op en raster)
  *   - <Largeur>/<Hauteur> : ignorés en raster (effet sur SVG/PDF en I.6)
+ *
+ *  — désambiguïsation options vs dimensions : <Options> est un enum
+ * optionnel AVANT des dimensions optionnelles. Les options sont encodées en
+ * sentinelles (bande négative), les dimensions sont de petits positifs. Si
+ * args[1] n'est pas une sentinelle imgOptions, l'utilisateur a omis <Options>
+ * et passé directement largeur[, hauteur] → on décale (convention OWL « enum
+ * ou entier désambiguïsé par sentinelle »).
  *
  * Si le chargement échoue, l'Image retournée est invalide (Valide=Faux)
  * et ErreurDétectée est posée.
@@ -167,10 +187,18 @@ static Value fn_dChargeImage(int argCount, Value* args) {
     }
     const char* path = AS_STRING(args[0])->chars;
 
-    /* Lecture des dimensions optionnelles (utilisées pour SVG). */
+    /* Lecture des dimensions optionnelles (utilisées pour SVG), après
+     * désambiguïsation du 1er argument optionnel (options vs largeur). */
     int target_w = 0, target_h = 0;
-    if (argCount > 2 && IS_INTEGER(args[2])) target_w = (int)AS_INTEGER(args[2]);
-    if (argCount > 3 && IS_INTEGER(args[3])) target_h = (int)AS_INTEGER(args[3]);
+    if (argCount > 1 && IS_INTEGER(args[1]) && !owl_is_img_option(args[1])) {
+        /* <Options> omis : args[1]=largeur, args[2]=hauteur. */
+        target_w = (int)AS_INTEGER(args[1]);
+        if (argCount > 2 && IS_INTEGER(args[2])) target_h = (int)AS_INTEGER(args[2]);
+    } else {
+        /* Forme canon : <Options> en args[1], dims en args[2]/args[3]. */
+        if (argCount > 2 && IS_INTEGER(args[2])) target_w = (int)AS_INTEGER(args[2]);
+        if (argCount > 3 && IS_INTEGER(args[3])) target_h = (int)AS_INTEGER(args[3]);
+    }
 
     OwlImage* img = NULL;
     if (path_ends_with_ci(path, ".svg")) {
@@ -2427,7 +2455,7 @@ void stdlib_image_init(void) {
 
     static const OwlParam p_charge[] = {
         {"image",   "chaîne", "chemin du fichier image (relatif au cwd ou absolu)"},
-        {"options", "entier", "options (imgDéfaut | imgConvertir)", .allowedBase=&E_imgOptions},
+        {"options", "entier", "options (imgDéfaut | imgConvertir)", .allowedBase=&E_imgOptions, .allowsRawInt=true},
         {"largeur", "entier", "largeur cible (image vectorielle uniquement)"},
         {"hauteur", "entier", "hauteur cible (image vectorielle uniquement)"},
         {0}

@@ -35,6 +35,10 @@ int owl_widget_event_dedup_count(void);
 /* Event widget unique a l'index stable donne, ou NULL si hors bornes. */
 const OwlEventDef* owl_widget_event_dedup_at(int index);
 
+/* Index stable inverse d'un nom d'event (canon FR ou alias EN ; l'un ou l'autre
+ * peut etre NULL). Retourne -1 si aucun event dedup ne correspond. */
+int owl_widget_event_dedup_index(const char* nameFR, const char* nameEN);
+
 #ifdef __cplusplus
 }
 #endif

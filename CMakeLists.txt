@@ -1178,6 +1178,7 @@ set(OWL_CORE_SRCS
     src/stdlib_i18n.c
     src/stdlib_parametre.c
     src/stdlib_ini.c
+    src/stdlib_registry.c
     src/sha3.c
     src/ripemd.c
     src/blake2.c
@@ -1397,6 +1398,10 @@ set(OWL_CORE_SRCS
     src/internal_tests/http_politique_test.c
     src/auth_scram.c
     src/internal_tests/auth_scram_test.c
+    src/code_sign.c
+    src/internal_tests/code_sign_test.c
+    src/internal_tests/code_sign_pe_test.c
+    src/internal_tests/code_sign_ts_test.c
     # Client FTP en clair,  : serveur mock STATEFUL multi-tours
     # (banniere/USER/PASS/FEAT/PASV/MLSD/RETR/STOR) + e2e du coeur protocole
     # VM-free (owl_ftp_*). Le net_mock_peer mono-payload ne peut pas mener le
@@ -1945,7 +1950,8 @@ endif()
 if(WIN32)
     target_compile_definitions(owl_core PUBLIC WIN32_LEAN_AND_MEAN NOCRYPT)
     # dbghelp : StackWalk64 + Sym* pour le crash handler (platform.c, ).
-    target_link_libraries(owl_core PUBLIC ws2_32 bcrypt dbghelp)
+    # advapi32 : API base de registre (RegCreateKeyEx/RegSetValueEx/..., ).
+    target_link_libraries(owl_core PUBLIC ws2_32 bcrypt dbghelp advapi32)
 else()
     # pthread requis par debug_stdio.c (Lot D.2.3) qui spawn un thread
     # de lecture stdin pendant que la VM tourne sur le main thread.

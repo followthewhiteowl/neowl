@@ -7008,6 +7008,213 @@ static int fmt_line_code_len(const char* s, int len) {
     return len;
 }
 
+/*  — Alignement en colonnes des declarations de variables.
+ *
+ * Une declaration = `<nom> est un|une <type> [= <valeur>]` (bilingue :
+ * `is a|an`). find_decl_parts borne les segments d'une ligne de declaration,
+ * sur le buffer deja normalise par le pass principal (espaces simples) :
+ *   - [nameStart, nameEnd) : l'identifiant declare.
+ *   - [typeStart, typeEnd) : la phrase `est un <type>` (copule + type), trimmee
+ *     de ses blancs de queue ; c'est le segment sur lequel le `=` se cale.
+ *   - eqPos : offset du `=` d'initialisation, ou -1 si la declaration n'a pas
+ *     d'init (elle s'arrete alors apres son type).
+ * Retourne false si la ligne n'est pas une declaration alignable (pas de copule
+ * `est`/`is` apres l'identifiant, ou pas de type ensuite). */
+static bool find_decl_parts(const char* line, int lineLen,
+                            int* nameStart, int* nameEnd,
+                            int* typeStart, int* typeEnd, int* eqPos) {
+    int i = 0;
+    while (i < lineLen && (line[i] == ' ' || line[i] == '\t')) i++;
+    if (i >= lineLen || !is_word_char(line[i])) return false;
+    int ns = i;
+    while (i < lineLen && is_word_char(line[i])) i++;
+    int ne = i;
+    /* separateur obligatoire entre le nom et la copule */
+    if (i >= lineLen || (line[i] != ' ' && line[i] != '\t')) return false;
+    while (i < lineLen && (line[i] == ' ' || line[i] == '\t')) i++;
+    /* copule de declaration : est | is (singulier ; un seul nom par ligne) */
+    int kwStart = i;
+    while (i < lineLen && is_word_char(line[i])) i++;
+    if (!fmt_is_copule(line + kwStart, i - kwStart)) return false;
+    /* il faut au moins un mot de type (ou son article) apres la copule */
+    int j = i;
+    while (j < lineLen && (line[j] == ' ' || line[j] == '\t')) j++;
+    if (j >= lineLen || !is_word_char(line[j])) return false;
+
+    /* recherche du '=' d'init dans la region de code (commentaire `//` de fin
+     * exclu, chaines respectees). Premier '=' simple rencontre. */
+    int codeLen = fmt_line_code_len(line, lineLen);
+    int eq = -1;
+    int k = kwStart;
+    while (k < codeLen) {
+        char c = line[k];
+        if (c == '"') {
+            const char* q = line + k;
+            fmt_skip_string_literal(&q, line + codeLen, false);
+            k = (int)(q - line);
+            continue;
+        }
+        if (c == '`') {
+            k++;
+            while (k < codeLen && line[k] != '`') k++;
+            if (k < codeLen) k++;
+            continue;
+        }
+        if (c == '<') {
+            /* attribut de declaration `<agrandissement=N>`, `<Sérialise=Faux>`
+             * : zone verbatim, le `=` interne n'est PAS le `=` d'init.
+             * Un vrai `=` d'init vient toujours apres le `>`. */
+            k++;
+            while (k < codeLen && line[k] != '>') k++;
+            if (k < codeLen) k++;
+            continue;
+        }
+        if (c == '=') {
+            /* ni '==', ni '=]', ni '=>' (cf. find_prop_equals / ) */
+            if (k + 1 < codeLen &&
+                (line[k+1] == '=' || line[k+1] == ']' || line[k+1] == '>')) {
+                k += 2;
+                continue;
+            }
+            eq = k;
+            break;
+        }
+        k++;
+    }
+
+    int tEnd = (eq >= 0) ? eq : codeLen;
+    while (tEnd > kwStart && (line[tEnd-1] == ' ' || line[tEnd-1] == '\t')) tEnd--;
+
+    *nameStart = ns; *nameEnd = ne;
+    *typeStart = kwStart; *typeEnd = tEnd;
+    *eqPos = eq;
+    return true;
+}
+
+/*  — Aligne en colonnes toute suite consecutive de declarations au
+ * meme indent (sibling d'align_proprietes_blocks / ). Trois colonnes :
+ * le nom, la phrase `est un <type>`, puis le `=`. Chaque colonne est padee sur
+ * la largeur-max du run (comptee en codepoints, accents corrects) + 1 espace,
+ * exactement comme l'alignement des affectations. La colonne `=` n'est posee
+ * que sur les lignes qui ont un init ; une declaration sans init s'arrete apres
+ * son type, sans aucun espace de queue. Un run est casse par une ligne vide, un
+ * commentaire, un changement d'indent ou toute ligne non-declaration.
+ *
+ * Declarations et affectations ne fusionnent jamais : find_decl_parts exige une
+ * copule la ou find_prop_equals voit un `=` immediat, donc les deux mecanismes
+ * portent sur des lignes disjointes et se cassent mutuellement le run.
+ *
+ * Commentaires bloc slash-etoile opaques (cf. ) : une ligne qui commence
+ * dans un commentaire OU qui en ouvre un est emise verbatim, ne participe a
+ * aucun run. Idempotent : recalcule from scratch, formater deux fois donne un
+ * resultat byte-identique. */
+static char* align_declaration_blocks(char* source) {
+    Buffer out;
+    buf_init(&out);
+
+    bool inBlock = false;
+    const char* p = source;
+    while (*p) {
+        const char* lineStart = p;
+        while (*p && *p != '\n') p++;
+        int lineLen = (int)(p - lineStart);
+
+        bool startedInBlock = inBlock;
+        bool endsInBlock = line_ends_in_block_comment(lineStart, lineLen, inBlock);
+        if (startedInBlock || endsInBlock) {
+            inBlock = endsInBlock;
+            buf_write(&out, lineStart, lineLen);
+            if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            continue;
+        }
+
+        int ns, ne, ts, te, eq;
+        if (!find_decl_parts(lineStart, lineLen, &ns, &ne, &ts, &te, &eq)) {
+            buf_write(&out, lineStart, lineLen);
+            if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            continue;
+        }
+
+        /* Debut d'un run. L'indent du run = les 'ns' premiers bytes. */
+        const char* runIndent = lineStart;
+        int runIndentLen = ns;
+
+        /* Passe 1 : largeurs max (nom + segment type), en codepoints. */
+        int maxNameW = 0, maxTypeW = 0;
+        const char* scan = lineStart;
+        const char* runEnd = lineStart;
+        while (*scan) {
+            const char* lstart = scan;
+            const char* lscan = scan;
+            while (*lscan && *lscan != '\n') lscan++;
+            int llen = (int)(lscan - lstart);
+
+            if (line_ends_in_block_comment(lstart, llen, false)) break;
+
+            int s2, e2, t2s, t2e, eq2;
+            if (!find_decl_parts(lstart, llen, &s2, &e2, &t2s, &t2e, &eq2)) break;
+            if (s2 != runIndentLen
+                || strncmp(lstart, runIndent, (size_t)runIndentLen) != 0)
+                break;
+
+            int nw = utf8_codepoint_count(lstart + s2, e2 - s2);
+            int tw = utf8_codepoint_count(lstart + t2s, t2e - t2s);
+            if (nw > maxNameW) maxNameW = nw;
+            if (tw > maxTypeW) maxTypeW = tw;
+
+            scan = lscan;
+            if (*scan == '\n') scan++;
+            runEnd = scan;
+        }
+
+        /* Passe 2 : re-emit chaque ligne du run avec padding uniforme. */
+        const char* q = lineStart;
+        while (q < runEnd) {
+            const char* lstart = q;
+            while (q < runEnd && *q != '\n') q++;
+            int llen = (int)(q - lstart);
+
+            int s2, e2, t2s, t2e, eq2;
+            find_decl_parts(lstart, llen, &s2, &e2, &t2s, &t2e, &eq2);
+
+            buf_write(&out, lstart, s2);              /* indent */
+            buf_write(&out, lstart + s2, e2 - s2);    /* nom */
+            int nw = utf8_codepoint_count(lstart + s2, e2 - s2);
+            int pad1 = maxNameW - nw + 1;
+            for (int i = 0; i < pad1; i++) buf_putc(&out, ' ');
+            buf_write(&out, lstart + t2s, t2e - t2s); /* phrase `est un <type>` */
+
+            if (eq2 >= 0) {
+                int tw = utf8_codepoint_count(lstart + t2s, t2e - t2s);
+                int pad2 = maxTypeW - tw + 1;
+                for (int i = 0; i < pad2; i++) buf_putc(&out, ' ');
+                buf_putc(&out, '=');
+                int after = eq2 + 1;
+                if (after < llen && lstart[after] != ' ') buf_putc(&out, ' ');
+                buf_write(&out, lstart + after, llen - after);
+            } else {
+                /* Pas d'init : zero espace de queue. On ne preserve qu'un
+                 * eventuel contenu residuel (commentaire de fin), separe par un
+                 * espace. */
+                int tail = t2e;
+                while (tail < llen && (lstart[tail] == ' ' || lstart[tail] == '\t'))
+                    tail++;
+                if (tail < llen) {
+                    buf_putc(&out, ' ');
+                    buf_write(&out, lstart + tail, llen - tail);
+                }
+            }
+
+            if (q < runEnd && *q == '\n') { buf_putc(&out, '\n'); q++; }
+        }
+
+        p = runEnd;
+    }
+
+    free(source);
+    return buf_finish(&out);
+}
+
 /* La ligne (code hors commentaire de fin) se termine-t-elle par un marqueur de
  * continuation ? `...` exactement (pas `....`), ou un `_` isole precede d'un
  * blanc. Semantique alignee sur scanner.c (check_triple_dot_continuation /
@@ -7810,9 +8017,13 @@ char* owl_format_ctx(const char* source,
     char* result = buf_finish(&out);
     /* Post-pass : aligne les '=' dans les blocs PROPRIETES. */
     char* aligned = align_proprietes_blocks(result);
+    /* Post-pass : aligne en colonnes les runs de declarations de variables
+     * (nom / `est un <type>` / `=`). Sibling d'align_proprietes_blocks
+     *. Lignes disjointes des affectations (copule exigee). */
+    char* declAligned = align_declaration_blocks(aligned);
     /* Post-pass : aligne les lignes de continuation (`...` / `_`) sous le RHS
      * de leur tete. Apres la normalisation des `=`. */
-    char* continued = align_continuation_lines(aligned);
+    char* continued = align_continuation_lines(declAligned);
     g_fmt_st = prevSt;  /* restore l'etat de session precedent */
     return continued;
 }

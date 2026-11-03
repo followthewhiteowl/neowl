@@ -161,7 +161,9 @@ void owl_control_decl_free(OwlControlDecl* c) {
     for (int i = 0; i < c->column_count; i++) {
         OwlColumnDecl* col = &c->columns[i];
         for (int j = 0; j < col->property_count; j++) owl_property_init_free(&col->properties[j]);
+        for (int j = 0; j < col->event_count; j++) owl_event_block_free(&col->events[j]);
         free(col->properties);
+        free(col->events);
         free(col->name);
     }
     free(c->properties);
@@ -239,6 +241,9 @@ OwlColumnDecl* owl_control_decl_add_column(OwlControlDecl* c, const char* name, 
     col->properties = NULL;
     col->property_count = 0;
     col->property_capacity = 0;
+    col->events = NULL;
+    col->event_count = 0;
+    col->event_capacity = 0;
     col->line = line;
     return col;
 }
@@ -253,6 +258,15 @@ void owl_column_decl_add_property(OwlColumnDecl* col, const char* name,
     p->eval        = eval;
     p->is_constant = is_constant;
     p->line        = line;
+}
+
+void owl_column_decl_add_event(OwlColumnDecl* col, const char* name,
+                                ObjFunction* impl, int line) {
+    RESIZE_ARRAY(OwlEventBlock, col->events, col->event_count, col->event_capacity);
+    OwlEventBlock* e = &col->events[col->event_count++];
+    e->name = dup_cstr(name);
+    e->impl = impl;
+    e->line = line;
 }
 
 /* ============================================================
@@ -283,7 +297,9 @@ void owl_window_decl_free(OwlWindowDecl* w) {
         for (int j = 0; j < c->column_count; j++) {
             OwlColumnDecl* col = &c->columns[j];
             for (int k = 0; k < col->property_count; k++) owl_property_init_free(&col->properties[k]);
+            for (int k = 0; k < col->event_count; k++) owl_event_block_free(&col->events[k]);
             free(col->properties);
+            free(col->events);
             free(col->name);
         }
         free(c->properties);
@@ -1115,6 +1131,26 @@ void owl_ui_table_fmt_applied(ObjInstance* rep, const char* col,
 
 void owl_ui_register_table_fmt_applied(OwlUiTableFmtAppliedFn fn) {
     g_ui_table_fmt_applied_impl = fn ? fn : default_table_fmt_applied;
+}
+
+/*  — lecture du texte affiche d'une cellule. Default : echec (pas de
+ * widget en CLI/headless), l'appelant rend "". L'implementation GUI resout la
+ * cellule et lit le DisplayRole formate. */
+static bool default_table_cell_display(ObjInstance* rep, const char* col,
+                                       Value* out) {
+    (void)rep; (void)col;
+    if (out != NULL) *out = NIL_VAL;
+    return false;
+}
+static OwlUiTableCellDisplayFn g_ui_table_cell_display_impl =
+    default_table_cell_display;
+
+bool owl_ui_table_cell_display(ObjInstance* rep, const char* col, Value* out) {
+    return g_ui_table_cell_display_impl(rep, col, out);
+}
+
+void owl_ui_register_table_cell_display(OwlUiTableCellDisplayFn fn) {
+    g_ui_table_cell_display_impl = fn ? fn : default_table_cell_display;
 }
 
 /*  — masque de colonne poussé au widget. Default no-op (CLI sans GUI,

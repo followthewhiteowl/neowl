@@ -1544,6 +1544,43 @@ Value ui_input_coerce_string_prop(int kind, const char* prop, Value v) {
     return OBJ_VAL(value_to_string(v));
 }
 
+/*  — coercion scalaire d'une propriete personnalisee declaree au
+ * projet (PropriétésPersonnaliséesTousChamps), appliquee AU STOCKAGE : set
+ * imperatif (`champ..maProp = v`) et init declarative (bloc PROPRIETES du champ)
+ * passent tous deux par les headless_set ci-dessous. Le type declare sert a
+ * COERCER la valeur, pas a la rejeter (le compilateur ne bloque plus) : la
+ * relecture rend donc toujours la valeur au type declare. Reutilise les
+ * coercions OWL standard (value_to_integer/bool/real + value_to_string) :
+ * entier<-"42"=42, entier<-"abc"=0 (echec silencieux -> 0), booleen<-3=Vrai,
+ * chaine<-4087="4087". No-op si `prop` n'est pas une prop custom : les props
+ * canon (dont le nom ne peut heurter une prop custom, collision rejetee a la
+ * declaration) restent intactes. La fraiche ObjString d'une coercion chaine est
+ * rootee par le push IS_OBJ(v) qui suit immediatement cote appelant. */
+static Value custom_prop_coerce_value(const char* prop, Value v) {
+    OwlCustomPropType cptype;
+    if (!owl_custom_props_find(prop, &cptype)) return v;
+    switch (cptype) {
+        case OWL_CUSTOM_PROP_INT: {
+            int64_t iv = 0;
+            value_to_integer(v, &iv);   /* echec -> iv reste 0 */
+            return INTEGER_VAL(iv);
+        }
+        case OWL_CUSTOM_PROP_BOOL: {
+            bool bv = false;
+            value_to_bool(v, &bv);
+            return BOOL_VAL(bv);
+        }
+        case OWL_CUSTOM_PROP_REAL: {
+            double dv = 0.0;
+            value_to_real(v, &dv);
+            return REAL_VAL(dv);
+        }
+        case OWL_CUSTOM_PROP_STRING:
+            return OBJ_VAL(value_to_string(v));
+    }
+    return v;
+}
+
 bool obj_ui_control_headless_get(ObjUiControl* c, const char* prop, Value* out) {
     if (!c || !c->headless_store || !prop) return false;
     char buf[128];
@@ -1564,6 +1601,7 @@ void obj_ui_control_headless_set(ObjUiControl* c, const char* prop, Value v) {
         table_init(c->headless_store);
     }
     v = ui_input_coerce_string_prop(c->kind, prop, v); /*  */
+    v = custom_prop_coerce_value(prop, v);             /*  */
     /*   : la coercion peut allouer une ObjString fraiche
      * (value_to_string). La rooter AVANT obj_copy_string(key) qui peut
      * grow → GC, sinon v est collecte/poisonne avant le store. */
@@ -1606,6 +1644,7 @@ void obj_ui_control_instance_headless_set(ObjUiControlInstance* c,
         table_init(c->headless_store);
     }
     v = ui_input_coerce_string_prop((int)c->decl->kind, prop, v); /*  */
+    v = custom_prop_coerce_value(prop, v);                        /*  */
     /*   : la coercion peut allouer une ObjString fraiche
      * (value_to_string). La rooter AVANT obj_copy_string(key) qui peut
      * grow → GC, sinon v est collecte/poisonne avant le store. */
@@ -1707,6 +1746,7 @@ void obj_window_instance_headless_set(ObjWindowInstance* w,
         w->headless_store = (Table*)malloc(sizeof(Table));
         table_init(w->headless_store);
     }
+    v = custom_prop_coerce_value(prop, v);             /*  */
     char buf[128];
     int len = headless_key_normalize_window(prop, buf, sizeof(buf));
     /*   : push key + v pendant table_set. Cf

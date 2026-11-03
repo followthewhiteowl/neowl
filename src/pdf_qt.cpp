@@ -34,6 +34,8 @@ extern "C" {
 #include <QPrinter>
 #include <QPrinterInfo>
 #include <QPrintDialog>
+#include <QProgressDialog>
+#include <QApplication>
 #include <QFontDialog>
 #include <QFontDatabase>
 #include <QFile>
@@ -50,21 +52,28 @@ extern "C" int owl_ui_init(void);
 
 /* --- Etat interne d'un OwlPdfDoc ---
  *
- * Deux modes :
- *  - PDF (writer != nullptr, memImage == nullptr) : painter attache au
- *    QPdfWriter, sortie sur fichier disque.
- *  - Image memoire ( : writer == nullptr, memImage != nullptr) :
- *    painter attache a une QImage RGBA reallouee a chaque page. A chaque
- *    iSautePage / owl_pdf_close, l'image est convertie en OwlImage* et
- *    passee au callback memOnPage.
+ * Trois modes exclusifs (un seul des trois pointeurs device est non-nul) :
+ *  - PDF (writer != nullptr) : painter attache au QPdfWriter, sortie fichier.
+ *  - Image memoire ( : memImage != nullptr) : painter attache a une
+ *    QImage RGBA reallouee a chaque page. A chaque iSautePage / owl_pdf_close,
+ *    l'image est convertie en OwlImage* et passee au callback memOnPage.
+ *  - Imprimante ( : printer != nullptr) : painter attache au QPrinter
+ *    courant ; owl_pdf_close declenche le spool. Le QPrinter est partage avec
+ *    g_currentPrinter (persistant) donc owl_pdf_close ne le detruit pas.
  *
- * Le champ device est toujours valide (writer en mode PDF, memImage en mode
- * memoire). Tout le code de rendu lit device + dpi via les accesseurs. */
+ * Le champ device est toujours valide. Tout le code de rendu (primitives
+ * texte/geometrie/image) lit device + painter + dpi de maniere generique,
+ * sans connaitre le mode : les trois backends sont des QPaintDevice. */
 struct OwlPdfDoc {
     QPdfWriter* writer;        /* != nullptr ssi mode PDF disque */
     QImage*     memImage;      /* != nullptr ssi mode image memoire */
-    QPaintDevice* device;      /* writer ou memImage (jamais nullptr) */
+    QPrinter*   printer;       /* != nullptr ssi mode imprimante */
+    QPaintDevice* device;      /* writer, memImage ou printer (jamais nullptr) */
     QPainter*   painter;
+    /* Mode imprimante : le QPainter est cree mais pas encore demarre (begin
+     * differe). Un QPrinter refuse tout changement de mise en page une fois
+     * actif ; on begin au 1er dessin, apres que l'Etat a pose son Format. */
+    bool        printerPending;
     int         dpi;           /* resolution logique (300 par defaut) */
     /* Callback image-memoire. NULL si mode PDF. */
     OwlPdfPageCallback memOnPage;
@@ -80,11 +89,18 @@ struct OwlPdfDoc {
     QHash<int, QFont> fonts;
     int         currentFontId;
     QFont       currentFont;
+    /* Couleur du texte courante (BGR pack canon, -1 = noir par defaut). Posee
+     * par champ au rendu Etat, appliquee par les primitives texte. */
+    int         textColorBgr;
     /* Page courante (1-based). */
     int         pageNum;
 };
 
 static OwlPdfDoc* g_current = nullptr;
+
+/* Demarrage differe du painter imprimante (begin au 1er dessin) — defini plus
+ * bas, pres de owl_pdf_open_printer, mais appele par les primitives de dessin. */
+static void printer_ensure_begun(OwlPdfDoc* doc);
 
 /* Conversion mm -> point logique du QPainter (1 point = 1/dpi inch).
  * Lit le dpi stocke dans le doc (300 par defaut, ou valeur posee a
@@ -215,6 +231,7 @@ static void init_common_doc_state(OwlPdfDoc* doc) {
     doc->marginTop = doc->marginBottom = doc->marginLeft = doc->marginRight = 0;
     doc->cursorX = 0;
     doc->cursorY = 0;
+    doc->textColorBgr = -1;
     doc->currentFontId = -1;
     /* Defaut : Liberation Sans 10pt. Police embarquee donc identique partout. */
     doc->currentFont = QFont(QStringLiteral("Liberation Sans"));
@@ -230,6 +247,8 @@ extern "C" OwlPdfDoc* owl_pdf_open(const char* output_path_utf8) {
     register_embedded_fonts();
     OwlPdfDoc* doc = new OwlPdfDoc;
     doc->memImage = nullptr;
+    doc->printer = nullptr;
+    doc->printerPending = false;
     doc->memOnPage = nullptr;
     doc->memUserdata = nullptr;
     doc->dpi = 300;
@@ -321,6 +340,8 @@ extern "C" OwlPdfDoc* owl_pdf_open_image_memory(int dpi,
     OwlPdfDoc* doc = new OwlPdfDoc;
     doc->writer = nullptr;
     doc->memImage = nullptr;
+    doc->printer = nullptr;
+    doc->printerPending = false;
     doc->memOnPage = on_page;
     doc->memUserdata = userdata;
     doc->dpi = dpi;
@@ -343,10 +364,14 @@ extern "C" int owl_pdf_close(OwlPdfDoc* doc) {
     if (doc->memImage) {
         mem_flush_page(doc);
     } else if (doc->painter) {
+        /* PDF comme imprimante : painter->end() finalise. En mode imprimante,
+         * c'est ce end() qui declenche le spool du job vers le peripherique. */
         doc->painter->end();
         delete doc->painter;
     }
     if (doc->writer) delete doc->writer;
+    /* doc->printer == g_currentPrinter (persistant) : jamais detruit ici, pour
+     * que l'imprimante selectionnee et ses options survivent entre jobs. */
     if (g_current == doc) g_current = nullptr;
     delete doc;
     return 1;
@@ -375,6 +400,15 @@ extern "C" void owl_pdf_set_page_size_mm(OwlPdfDoc* doc, double w, double h) {
     if (doc->writer) {
         QPageSize ps(QSizeF(w, h), QPageSize::Millimeter);
         doc->writer->setPageSize(ps);
+        return;
+    }
+    if (doc->printer) {
+        /* Tant que le painter n'a pas demarre (printerPending), on pose le
+         * format sur le QPrinter. Une fois actif, QPrinter refuse tout
+         * changement de mise en page : on garde alors seulement les dimensions
+         * memorisees (pageWidthMm/HeightMm) pour le calcul des coordonnees. */
+        if (doc->printerPending)
+            doc->printer->setPageSize(QPageSize(QSizeF(w, h), QPageSize::Millimeter));
         return;
     }
     /* Mode image memoire : recree la QImage aux nouvelles dim. La page en
@@ -411,6 +445,10 @@ extern "C" void owl_pdf_new_page(OwlPdfDoc* doc) {
     if (!doc) return;
     if (doc->writer) {
         doc->writer->newPage();
+    } else if (doc->printer) {
+        /* Le painter doit etre actif avant newPage (begin differe). */
+        printer_ensure_begun(doc);
+        doc->printer->newPage();
     } else if (doc->memImage) {
         /* Mode image memoire : flush la page courante + ouvre une page
          * vierge aux memes dim. Le callback recoit l'OwlImage finalisee. */
@@ -420,6 +458,9 @@ extern "C" void owl_pdf_new_page(OwlPdfDoc* doc) {
     doc->pageNum++;
     doc->cursorX = 0;
     doc->cursorY = 0;
+    /*  : met a jour le #P de la fenetre de progression (no-op si pas
+     * de fenetre / pas d'impression physique). */
+    if (doc->printer) owl_printer_progress_page(doc->pageNum);
 }
 
 extern "C" int owl_pdf_page_number(OwlPdfDoc* doc) {
@@ -457,6 +498,7 @@ static double line_height_mm(OwlPdfDoc* doc) {
 
 extern "C" void owl_pdf_print_word(OwlPdfDoc* doc, const char* text_utf8) {
     if (!doc || !doc->painter) return;
+    printer_ensure_begun(doc);
     QString s = QString::fromUtf8(text_utf8 ? text_utf8 : "");
     QFontMetricsF fm(doc->currentFont, doc->device);
     double ascent_mm = fm.ascent() * 25.4 / (double)doc->dpi;
@@ -471,12 +513,20 @@ extern "C" void owl_pdf_print_word(OwlPdfDoc* doc, const char* text_utf8) {
     doc->cursorX += fm.horizontalAdvance(s) * 25.4 / (double)doc->dpi;
 }
 
+/* Couleur du texte pour les prochaines primitives (BGR pack canon, -1 = noir).
+ * Posee par champ au rendu Etat ; non heritee (chaque champ la repose). */
+extern "C" void owl_pdf_set_text_color(OwlPdfDoc* doc, int bgr) {
+    if (!doc) return;
+    doc->textColorBgr = bgr;
+}
+
 /* alignement = bitmask combinable : 0x01=iGauche, 0x02=iDroite, 0x04=iCentreH,
  * 0x10=iHaut, 0x20=iBas, 0x40=iCentreV. Defaut canon = iHaut + iGauche. */
 extern "C" void owl_pdf_print_zone(OwlPdfDoc* doc, const char* text_utf8,
                                     double x1, double y1, double x2, double y2,
                                     int alignement) {
     if (!doc || !doc->painter) return;
+    printer_ensure_begun(doc);
     QString s = QString::fromUtf8(text_utf8 ? text_utf8 : "");
     Qt::Alignment a;
     /* Horizontal */
@@ -491,14 +541,14 @@ extern "C" void owl_pdf_print_zone(OwlPdfDoc* doc, const char* text_utf8,
              mm_to_units(doc, y1 + doc->marginTop),
              mm_to_units(doc, x2 - x1),
              mm_to_units(doc, y2 - y1));
-    /* Force une pen visible pour le texte. Sinon, si la pen courante est
-     * NoPen (cas typique apres un iCadre/owl_pdf_rect avec thickness=0),
-     * drawText ne dessine rien — le texte devient invisible. Sauvegarde
-     * la pen courante pour la restaurer apres. */
+    /* Couleur du texte : textColorBgr pose par le champ (propriete Couleur),
+     * noir par defaut. Une pen visible est de toute facon necessaire — si la
+     * pen courante est NoPen (apres un owl_pdf_rect thickness=0), drawText ne
+     * dessinerait rien. */
     QPen savedPen = doc->painter->pen();
-    if (savedPen.style() == Qt::NoPen) {
-        doc->painter->setPen(QPen(Qt::black));
-    }
+    QColor textColor = (doc->textColorBgr >= 0) ? color_from_bgr(doc->textColorBgr)
+                                                 : QColor(Qt::black);
+    doc->painter->setPen(QPen(textColor));
     doc->painter->drawText(r, (int)a | (int)Qt::TextWordWrap, s);
     doc->painter->setPen(savedPen);
 }
@@ -583,6 +633,7 @@ static Qt::BrushStyle brush_style_from_int(int brush_style) {
 extern "C" void owl_pdf_line(OwlPdfDoc* doc, double x1, double y1, double x2, double y2,
                               double thickness_mm, int color_bgr, int trait_style, int cap_style) {
     if (!doc || !doc->painter) return;
+    printer_ensure_begun(doc);
     QPen pen(color_from_bgr(color_bgr));
     pen.setWidthF(mm_to_units(doc, thickness_mm > 0 ? thickness_mm : 0.353));
     pen.setStyle(pen_style_from_int(trait_style));
@@ -619,6 +670,7 @@ extern "C" void owl_pdf_rect(OwlPdfDoc* doc, double x1, double y1, double x2, do
                               double thickness_mm, int border_bgr, int fill_bgr,
                               int trait_style, int brush_style, int border_mask) {
     if (!doc || !doc->painter) return;
+    printer_ensure_begun(doc);
     setup_pen_brush(doc, thickness_mm, border_bgr, fill_bgr, trait_style, brush_style);
     QRectF r(mm_to_units(doc, x1 + doc->marginLeft),
              mm_to_units(doc, y1 + doc->marginTop),
@@ -650,6 +702,7 @@ extern "C" void owl_pdf_rounded_rect(OwlPdfDoc* doc, double x1, double y1, doubl
                                       double thickness_mm, int border_bgr, int fill_bgr,
                                       int trait_style, int brush_style) {
     if (!doc || !doc->painter) return;
+    printer_ensure_begun(doc);
     setup_pen_brush(doc, thickness_mm, border_bgr, fill_bgr, trait_style, brush_style);
     QRectF r(mm_to_units(doc, x1 + doc->marginLeft),
              mm_to_units(doc, y1 + doc->marginTop),
@@ -664,6 +717,7 @@ extern "C" void owl_pdf_ellipse(OwlPdfDoc* doc, double x1, double y1, double x2,
                                  double thickness_mm, int border_bgr, int fill_bgr,
                                  int trait_style, int brush_style) {
     if (!doc || !doc->painter) return;
+    printer_ensure_begun(doc);
     QPen pen = thickness_mm > 0 ? QPen(color_from_bgr(border_bgr)) : QPen(Qt::NoPen);
     if (thickness_mm > 0) {
         pen.setWidthF(mm_to_units(doc, thickness_mm));
@@ -734,6 +788,7 @@ extern "C" void owl_pdf_image(OwlPdfDoc* doc, const char* image_path_utf8,
                                double x1, double y1, double x2, double y2,
                                int mode, double zoom_pct) {
     if (!doc || !doc->painter || !image_path_utf8) return;
+    printer_ensure_begun(doc);
     QImage rawImg(QString::fromUtf8(image_path_utf8));
     if (rawImg.isNull()) {
         fprintf(stderr, "[owl_pdf_image] impossible de charger '%s'\n", image_path_utf8);
@@ -768,6 +823,7 @@ extern "C" void owl_pdf_image_part(OwlPdfDoc* doc, const char* image_path_utf8,
                                     double sx1, double sy1, double sx2, double sy2,
                                     int mode) {
     if (!doc || !doc->painter || !image_path_utf8) return;
+    printer_ensure_begun(doc);
     QImage rawImg(QString::fromUtf8(image_path_utf8));
     if (rawImg.isNull()) {
         fprintf(stderr, "[owl_pdf_image_part] impossible de charger '%s'\n", image_path_utf8);
@@ -819,6 +875,10 @@ extern "C" void owl_pdf_font_use(OwlPdfDoc* doc, int font_id) {
     if (it == doc->fonts.end()) return;
     doc->currentFont = it.value();
     doc->currentFontId = font_id;
+    /* Mode imprimante pas encore demarre : ne pas forcer le begin ici (ca
+     * figerait la mise en page avant que l'Etat pose son Format). La police
+     * courante sera appliquee par printer_ensure_begun() au 1er dessin. */
+    if (doc->printerPending) return;
     doc->painter->setFont(doc->currentFont);
 }
 
@@ -829,6 +889,33 @@ extern "C" void owl_pdf_font_use(OwlPdfDoc* doc, int font_id) {
 /* Imprimante "courante" du process. NULL tant que iConfigure n'a pas
  * sélectionné une imprimante. */
 static QPrinter* g_currentPrinter = nullptr;
+/* Index du job physique courant (mode test OWL_PRINTER_OUTPUT_FILE) : suffixe
+ * les sorties fichier des segments 2+ d'un enchainement. Process-global, remis
+ * a zero a chaque run owl.exe (statique). */
+static int g_printerJobIndex = 0;
+
+/*  — garantit g_currentPrinter, en le creant au besoin. Mode test
+ * (OWL_PRINTER_OUTPUT_FILE pose) : QPrinter derive vers un PDF fichier, ce qui
+ * accepte tout reglage sans dependre d'un driver. Sinon : imprimante par
+ * defaut de l'OS. Retourne NULL seulement hors test quand aucune imprimante
+ * n'existe sur le poste. Partage par l'ouverture d'impression et le pilotage
+ * (iParametre). */
+static QPrinter* ensure_current_printer(void) {
+    if (g_currentPrinter) return g_currentPrinter;
+    owl_ui_init();
+    const char* outFile = getenv("OWL_PRINTER_OUTPUT_FILE");
+    if ((!outFile || !*outFile) &&
+        QPrinterInfo::defaultPrinter().isNull() &&
+        QPrinterInfo::availablePrinters().isEmpty()) {
+        return nullptr;
+    }
+    g_currentPrinter = new QPrinter();
+    if (outFile && *outFile) {
+        g_currentPrinter->setOutputFormat(QPrinter::PdfFormat);
+        g_currentPrinter->setOutputFileName(QString::fromUtf8(outFile));
+    }
+    return g_currentPrinter;
+}
 
 extern "C" int owl_printer_configure_dialog(void) {
     /* QPrintDialog nécessite une QApplication (event loop pas obligatoire). */
@@ -912,6 +999,218 @@ extern "C" const char* owl_printer_info(int use_current, int info_type) {
     }
     g_printerInfoBuf = out.toUtf8();
     return g_printerInfoBuf.constData();
+}
+
+/*  Lot 0 — ouvre un doc d'impression peignant sur le QPrinter
+ * courant. Contrat detaille dans owl_pdf.h. Place ici (et non avec les autres
+ * owl_pdf_open_*) pour voir g_currentPrinter sans forward-declaration. */
+extern "C" OwlPdfDoc* owl_pdf_open_printer(void) {
+    owl_ui_init();
+    register_embedded_fonts();
+
+    QPrinter* printer = ensure_current_printer();
+    if (!printer) {
+        fprintf(stderr, "[owl_pdf] aucune imprimante disponible.\n");
+        return nullptr;
+    }
+
+    /* Hook de test OWL_PRINTER_OUTPUT_FILE : derive le QPrinter vers un PDF
+     * fichier (PdfFormat) pour exercer le rendu sans peripherique. Pose a
+     * chaque ouverture car un run anterieur a pu laisser un autre format.
+     * Enchainement segmente : chaque job physique = un painter->end distinct
+     * qui ecraserait le meme fichier. On suffixe donc les jobs 2+ (_1, _2, ...)
+     * pour que le harnais compte les coupures ; le 1er job garde le nom nu
+     * (compat des tests mono-job). Hors mode test (NativeFormat) : sans effet. */
+    const char* outFile = getenv("OWL_PRINTER_OUTPUT_FILE");
+    if (outFile && *outFile) {
+        QString path = QString::fromUtf8(outFile);
+        if (g_printerJobIndex > 0) {
+            int dot = path.lastIndexOf(QLatin1Char('.'));
+            int sep = qMax(path.lastIndexOf(QLatin1Char('/')),
+                           path.lastIndexOf(QLatin1Char('\\')));
+            QString suffix = QStringLiteral("_") + QString::number(g_printerJobIndex);
+            if (dot > sep) path.insert(dot, suffix);
+            else           path.append(suffix);
+        }
+        g_printerJobIndex++;
+        printer->setOutputFormat(QPrinter::PdfFormat);
+        printer->setOutputFileName(path);
+    } else {
+        printer->setOutputFormat(QPrinter::NativeFormat);
+    }
+
+    printer->setResolution(300);
+    printer->setPageSize(QPageSize(QPageSize::A4));
+    printer->setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter);
+
+    OwlPdfDoc* doc = new OwlPdfDoc;
+    doc->writer = nullptr;
+    doc->memImage = nullptr;
+    doc->printer = printer;
+    doc->memOnPage = nullptr;
+    doc->memUserdata = nullptr;
+    /* La resolution effective peut etre contrainte par le driver : on la relit
+     * pour garder la conversion mm->unites coherente avec le painter. */
+    doc->dpi = printer->resolution();
+    if (doc->dpi <= 0) doc->dpi = 300;
+    doc->device = printer;
+    init_common_doc_state(doc);
+    /* begin() differe (cf. printerPending) : un QPrinter refuse tout changement
+     * de mise en page une fois actif. On laisse l'Etat poser son Format via
+     * owl_pdf_set_page_size_mm, puis printer_ensure_begun() demarre le painter
+     * au 1er dessin avec la bonne mise en page. */
+    doc->painter = new QPainter();
+    doc->printerPending = true;
+    QSizeF pageMm = printer->pageLayout().fullRect(QPageLayout::Millimeter).size();
+    doc->pageWidthMm  = pageMm.width();
+    doc->pageHeightMm = pageMm.height();
+    g_current = doc;
+    return doc;
+}
+
+/* Demarre le painter imprimante au 1er dessin (begin differe). No-op hors mode
+ * imprimante ou si deja demarre. */
+static void printer_ensure_begun(OwlPdfDoc* doc) {
+    if (!doc || !doc->printer || !doc->printerPending) return;
+    doc->printerPending = false;
+    if (!doc->painter->begin(doc->printer)) {
+        fprintf(stderr, "[owl_pdf] echec de demarrage du painter sur l'imprimante.\n");
+        return;
+    }
+    apply_deterministic_render_hints(doc->painter, &doc->currentFont);
+    doc->painter->setFont(doc->currentFont);
+}
+
+/*  Lot 1 — pilotage recto-verso / couleur de l'imprimante courante.
+ * Codes neutres (OwlPrn*, cf owl_pdf.h) : le mapping vers les constantes OWL
+ * vit dans stdlib_pdf.c, celui vers QPrinter ici. Agissent sur g_currentPrinter
+ * (cree au besoin) ; les reglages persistent entre jobs. */
+/* Intention de pilotage posee par iParametre, independante du backend Qt. On
+ * la stocke cote OWL car la relecture QPrinter::duplex()/colorMode() n'est pas
+ * deterministe : un QPrinter en sortie fichier (ou une imprimante sans duplex)
+ * clampe silencieusement le mode recto-verso a None. Le pilier de determinisme
+ * d'OWL impose "ce qu'on pose est ce qu'on relit" : le getter renvoie donc
+ * l'intention, qu'on pousse aussi sur le QPrinter pour qu'une vraie imprimante
+ * capable l'honore au moment du spool. */
+static int g_prnDuplex = OWL_PRN_DUPLEX_NONE;
+static int g_prnColor  = OWL_PRN_COLOR;
+
+extern "C" int owl_printer_set_duplex(int mode) {
+    QPrinter::DuplexMode qt;
+    switch (mode) {
+        case OWL_PRN_DUPLEX_NONE:  qt = QPrinter::DuplexNone;      break;
+        case OWL_PRN_DUPLEX_LONG:  qt = QPrinter::DuplexLongSide;  break;
+        case OWL_PRN_DUPLEX_SHORT: qt = QPrinter::DuplexShortSide; break;
+        default: return 0;
+    }
+    g_prnDuplex = mode;
+    QPrinter* p = ensure_current_printer();
+    if (p) p->setDuplex(qt);
+    return 1;
+}
+
+extern "C" int owl_printer_get_duplex(void) {
+    return g_prnDuplex;
+}
+
+extern "C" int owl_printer_set_color(int mode) {
+    QPrinter::ColorMode qt;
+    switch (mode) {
+        case OWL_PRN_COLOR: qt = QPrinter::Color;     break;
+        case OWL_PRN_GRAY:  qt = QPrinter::GrayScale; break;
+        default: return 0;
+    }
+    g_prnColor = mode;
+    QPrinter* p = ensure_current_printer();
+    if (p) p->setColorMode(qt);
+    return 1;
+}
+
+extern "C" int owl_printer_get_color(void) {
+    return g_prnColor;
+}
+
+/* Bac / source papier. Meme logique d'intention que duplex/couleur : la
+ * relecture Qt n'est pas fiable (ignoree sous Linux, confond Upper/OnlyOne).
+ * On trace l'intention OWL et on la pousse sur le QPrinter pour les plateformes
+ * qui l'honorent (Windows). */
+static int g_prnPaperSource = OWL_PRN_SRC_AUTO;
+
+extern "C" int owl_printer_set_paper_source(int src) {
+    QPrinter::PaperSource qt;
+    switch (src) {
+        case OWL_PRN_SRC_AUTO:            qt = QPrinter::Auto;           break;
+        case OWL_PRN_SRC_LOWER:           qt = QPrinter::Lower;          break;
+        case OWL_PRN_SRC_CASSETTE:        qt = QPrinter::Cassette;       break;
+        case OWL_PRN_SRC_ENVELOPE:        qt = QPrinter::Envelope;       break;
+        case OWL_PRN_SRC_ENVELOPE_MANUAL: qt = QPrinter::EnvelopeManual; break;
+        case OWL_PRN_SRC_LARGE_CAPACITY:  qt = QPrinter::LargeCapacity;  break;
+        case OWL_PRN_SRC_LARGE_FORMAT:    qt = QPrinter::LargeFormat;    break;
+        case OWL_PRN_SRC_UPPER:           qt = QPrinter::Upper;          break;
+        case OWL_PRN_SRC_MANUAL:          qt = QPrinter::Manual;         break;
+        case OWL_PRN_SRC_MIDDLE:          qt = QPrinter::Middle;         break;
+        case OWL_PRN_SRC_SMALL_FORMAT:    qt = QPrinter::SmallFormat;    break;
+        case OWL_PRN_SRC_TRACTOR:         qt = QPrinter::Tractor;        break;
+        case OWL_PRN_SRC_ONLY_ONE:        qt = QPrinter::OnlyOne;        break;
+        default: return 0;
+    }
+    g_prnPaperSource = src;
+    QPrinter* p = ensure_current_printer();
+    if (p) p->setPaperSource(qt);
+    return 1;
+}
+
+extern "C" int owl_printer_get_paper_source(void) {
+    return g_prnPaperSource;
+}
+
+/*  — fenetre de progression d'impression (iFenetreAbandon). V1 :
+ * simple indicateur, sans bouton d'annulation. Affichee seulement pour une
+ * sortie imprimante physique (NativeFormat) : jamais en sortie fichier
+ * (PdfFormat / mode test), donc aucune fenetre en CI. */
+static QProgressDialog* g_printProgress = nullptr;
+static QString          g_printProgressTemplate;  /* texte avec #P */
+
+extern "C" void owl_printer_progress_begin(const char* title_utf8, const char* text_utf8) {
+    if (!g_currentPrinter ||
+        g_currentPrinter->outputFormat() != QPrinter::NativeFormat) return;
+    owl_ui_init();
+    g_printProgressTemplate = QString::fromUtf8(text_utf8 ? text_utf8 : "");
+    QString firstText = g_printProgressTemplate;
+    firstText.replace(QStringLiteral("#P"), QStringLiteral("1"));
+    if (g_printProgress) { delete g_printProgress; g_printProgress = nullptr; }
+    /* Pas de bouton d'annulation (V1) : constructeur avec cancelButtonText vide
+     * + setCancelButton(nullptr) pour n'afficher aucun bouton. */
+    g_printProgress = new QProgressDialog(firstText, QString(), 0, 0, nullptr);
+    g_printProgress->setWindowTitle(QString::fromUtf8(title_utf8 ? title_utf8 : ""));
+    g_printProgress->setCancelButton(nullptr);
+    g_printProgress->setWindowModality(Qt::ApplicationModal);
+    g_printProgress->setMinimumDuration(0);   /* afficher immediatement */
+    g_printProgress->setRange(0, 0);          /* progression indeterminee */
+    g_printProgress->setAutoClose(false);
+    g_printProgress->setAutoReset(false);
+    g_printProgress->show();
+    QApplication::processEvents();
+}
+
+extern "C" void owl_printer_progress_page(int page_num) {
+    if (!g_printProgress) return;
+    QString t = g_printProgressTemplate;
+    t.replace(QStringLiteral("#P"), QString::number(page_num));
+    g_printProgress->setLabelText(t);
+    QApplication::processEvents();
+}
+
+extern "C" void owl_printer_progress_end(void) {
+    if (!g_printProgress) return;
+    g_printProgress->close();
+    delete g_printProgress;
+    g_printProgress = nullptr;
+    QApplication::processEvents();
+}
+
+extern "C" int owl_printer_progress_active(void) {
+    return g_printProgress ? 1 : 0;
 }
 
 /* --- iMagentaTransparent : flag global declare plus haut. --- */

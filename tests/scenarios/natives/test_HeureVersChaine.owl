@@ -4,7 +4,7 @@
 
 // Cas canonique : conversion d'un objet Heure en chaîne par défaut (format avec séparateurs).
 PROCEDURE scenario_heure_vers_chaine_format_defaut()
-	h est une heure = ChaîneVersHeure("143000")
+	h      est une heure  = ChaîneVersHeure("143000")
 	sHeure est une chaîne = HeureVersChaîne(h)
 	dbgVérifieEgalité(sHeure, "14:30:00:00", "format défaut avec séparateurs HH:MM:SS:CC")
 FIN
@@ -35,8 +35,33 @@ FIN
 // accompagnée d'un marqueur détectable.
 PROCEDURE PRIVÉE scenario_type_invalide_signale_erreur()
 	ErreurRAZ()
-	n est un entier = 42
+	n      est un entier  = 42
 	sHeure est une chaîne = HeureVersChaîne(n)
 	dbgVérifieVrai(ErreurDétectée, "HeureVersChaîne type non supporté doit poser ErreurDétectée")
 	dbgVérifieEgalité(sHeure, "", "type non supporté retourne chaîne vide")
+FIN
+
+
+// Jeton AP : affiche l'heure sur 12 heures suivie du marqueur AM ou PM.
+// Matin (avant midi) → AM, après-midi → PM, les deux à distance des bornes.
+PROCEDURE scenario_jeton_ap_matin_et_apres_midi()
+	hMatin est une heure = ChaîneVersHeure("093000")
+	dbgVérifieEgalité(HeureVersChaîne(hMatin, "HH:MM AP"), "09:30 AM", "9h30 du matin affiché 09:30 AM")
+
+	hApresMidi est une heure = ChaîneVersHeure("131500")
+	dbgVérifieEgalité(HeureVersChaîne(hApresMidi, "HH:MM AP"), "01:15 PM", "13h15 affiché 01:15 PM (heure ramenée sur 12h)")
+FIN
+
+
+// Jeton AP, bornes de l'horloge 12 heures : minuit et midi sont tous deux
+// affichés "12", seul le marqueur AM/PM distingue les deux. 23h bascule PM.
+PROCEDURE scenario_jeton_ap_bornes_minuit_midi()
+	hMinuit est une heure = ChaîneVersHeure("000000")
+	dbgVérifieEgalité(HeureVersChaîne(hMinuit, "HH:MM AP"), "12:00 AM", "minuit (0h) affiché 12:00 AM")
+
+	hMidi est une heure = ChaîneVersHeure("120000")
+	dbgVérifieEgalité(HeureVersChaîne(hMidi, "HH:MM AP"), "12:00 PM", "midi (12h) affiché 12:00 PM")
+
+	hSoir est une heure = ChaîneVersHeure("230000")
+	dbgVérifieEgalité(HeureVersChaîne(hSoir, "HH:MM AP"), "11:00 PM", "23h affiché 11:00 PM")
 FIN

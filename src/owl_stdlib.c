@@ -92,6 +92,7 @@ void stdlib_init(void) {
     stdlib_i18n_init();         /*  lot A : type langue + enum langueXxx */
     stdlib_parametre_init();    /*  : valeurs persistantes (ParamètreInitialise & co) */
     stdlib_ini_init();          /*  : fichiers .ini section-conscients (INILit / INIEcrit) */
+    stdlib_registry_init();     /*  : base de registre Windows (RegistreLit / RegistreEcrit / ...) */
     stdlib_runtime_init();      /* OwlInfoLibrairies — manifest des libs embarquees */
     stdlib_ui_catalog_init();   /* Phase D : enums + constantes UI (TBValider, ...) */
 #ifdef OWL_HAS_GUI

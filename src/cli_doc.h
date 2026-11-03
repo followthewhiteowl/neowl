@@ -186,6 +186,9 @@ void cli_doc_emit_public_docs_json(const char* canon, const char* canon_ascii);
  *   ,"public_documentation":[<stem>, …]  (rien émis si aucun lien) */
 void cli_doc_emit_dsl_prop_public_docs_json(const char* propNameFR,
                                             const char* propNameEN);
+/*  — stems de fiches liees a une propriete DSL (parite « Voir aussi »
+ * avec `owl explain ..<prop>`). Remplit out (cap max), retourne le nombre. */
+int cli_doc_dsl_prop_fiches(const char* propNameFR, const char** out, int max);
 
 /*  — table de cross-references declaratives fiche->guide.
  * Iteration pour le self-test registry (rule 62) et le test negatif. */

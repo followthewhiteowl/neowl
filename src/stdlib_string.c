@@ -1421,6 +1421,315 @@ static unsigned int codec_oem_to_cp(unsigned char b, const unsigned int* high) {
     return (b < 0x80) ? b : high[b - 0x80];
 }
 
+/* ----------------------------------------------------------------
+ * Codepages DBCS asiatiques (Shift-JIS, EUC-JP, EUC-KR, Big5,
+ * GB18030). Tables de transcodage generees depuis les index WHATWG
+ * (voir en-tete du .inc). Les helpers ci-dessous portent les
+ * algorithmes encode/decode WHATWG : ASCII en passthrough, sequences
+ * lead/trail 2 octets, plus les sequences 2 et 4 octets de GB18030.
+ * Politique d'erreur alignee sur les codepages mono-octet : caractere
+ * non representable a l'encode -> 63 ('?') ; sequence invalide ou
+ * tronquee au decode -> 63 ('?').
+ * ---------------------------------------------------------------- */
+#include "generated/codepage_tables.inc"
+
+/* bsearch "premier pointer pour codepoint" dans une table ENC 16 bits.
+ * -1 si absent (cp > 0xFFFF renvoie directement -1). */
+static int cp_enc16_lookup(const OwlCpEnc* enc, int n, unsigned int cp) {
+    if (cp > 0xFFFF) return -1;
+    int lo = 0, hi = n - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (enc[mid].cp == (unsigned short)cp) return enc[mid].ptr;
+        if (enc[mid].cp < cp) lo = mid + 1; else hi = mid - 1;
+    }
+    return -1;
+}
+
+/* bsearch dans une table ENC 32 bits (Big5 : codepoints hors BMP). */
+static int cp_enc32_lookup(const OwlCpEnc32* enc, int n, unsigned int cp) {
+    int lo = 0, hi = n - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (enc[mid].cp == cp) return enc[mid].ptr;
+        if (enc[mid].cp < cp) lo = mid + 1; else hi = mid - 1;
+    }
+    return -1;
+}
+
+/* GB18030 : pointer de plage 4 octets pour un codepoint (encode). -1 si
+ * hors couverture. */
+static int gb18030_ranges_ptr(unsigned int cp) {
+    if (cp == 0xE7C7) return 7457;
+    int best = -1;
+    for (int k = 0; k < OWL_CP_GB18030_RANGES_LEN; k++) {
+        if (OWL_CP_GB18030_RANGES[k].cp <= cp) best = k; else break;
+    }
+    if (best < 0) return -1;
+    return (int)(OWL_CP_GB18030_RANGES[best].ptr + (cp - OWL_CP_GB18030_RANGES[best].cp));
+}
+
+/* GB18030 : codepoint pour un pointer de plage 4 octets (decode). -1 si
+ * hors couverture valide. */
+static int gb18030_ranges_cp(int ptr) {
+    if (ptr == 7457) return 0xE7C7;
+    if ((ptr > 39419 && ptr < 189000) || ptr > 1237575) return -1;
+    int best = -1;
+    for (int k = 0; k < OWL_CP_GB18030_RANGES_LEN; k++) {
+        if ((int)OWL_CP_GB18030_RANGES[k].ptr <= ptr) best = k; else break;
+    }
+    if (best < 0) return -1;
+    return (int)(OWL_CP_GB18030_RANGES[best].cp +
+                 (unsigned int)ptr - OWL_CP_GB18030_RANGES[best].ptr);
+}
+
+/* --- Encode : codepoint -> octets DBCS. Ecrit dans out (max 4 octets),
+ * renvoie le nombre d'octets. Non representable -> 1 octet '?'. --- */
+
+static int codec_cp_to_shiftjis(unsigned int cp, unsigned char* out) {
+    if (cp <= 0x80) { out[0] = (unsigned char)cp; return 1; }
+    if (cp == 0xA5)   { out[0] = 0x5C; return 1; }
+    if (cp == 0x203E) { out[0] = 0x7E; return 1; }
+    if (cp >= 0xFF61 && cp <= 0xFF9F) { out[0] = (unsigned char)(cp - 0xFF61 + 0xA1); return 1; }
+    if (cp == 0x2212) cp = 0xFF0D;
+    int ptr = cp_enc16_lookup(OWL_CP_JIS0208_SJIS_ENC, OWL_CP_JIS0208_SJIS_ENC_LEN, cp);
+    if (ptr < 0) { out[0] = '?'; return 1; }
+    int lead = ptr / 188;
+    int lead_off = lead < 0x1F ? 0x81 : 0xC1;
+    int trail = ptr % 188;
+    int off = trail < 0x3F ? 0x40 : 0x41;
+    out[0] = (unsigned char)(lead + lead_off);
+    out[1] = (unsigned char)(trail + off);
+    return 2;
+}
+
+static int codec_cp_to_eucjp(unsigned int cp, unsigned char* out) {
+    if (cp <= 0x80) { out[0] = (unsigned char)cp; return 1; }
+    if (cp == 0xA5)   { out[0] = 0x5C; return 1; }
+    if (cp == 0x203E) { out[0] = 0x7E; return 1; }
+    if (cp >= 0xFF61 && cp <= 0xFF9F) {
+        out[0] = 0x8E; out[1] = (unsigned char)(cp - 0xFF61 + 0xA1); return 2;
+    }
+    if (cp == 0x2212) cp = 0xFF0D;
+    int ptr = cp_enc16_lookup(OWL_CP_JIS0208_EUCJP_ENC, OWL_CP_JIS0208_EUCJP_ENC_LEN, cp);
+    if (ptr < 0) { out[0] = '?'; return 1; }
+    out[0] = (unsigned char)(ptr / 94 + 0xA1);
+    out[1] = (unsigned char)(ptr % 94 + 0xA1);
+    return 2;
+}
+
+static int codec_cp_to_euckr(unsigned int cp, unsigned char* out) {
+    if (cp <= 0x7F) { out[0] = (unsigned char)cp; return 1; }
+    int ptr = cp_enc16_lookup(OWL_CP_EUCKR_ENC, OWL_CP_EUCKR_ENC_LEN, cp);
+    if (ptr < 0) { out[0] = '?'; return 1; }
+    out[0] = (unsigned char)(ptr / 190 + 0x81);
+    out[1] = (unsigned char)(ptr % 190 + 0x41);
+    return 2;
+}
+
+static int codec_cp_to_big5(unsigned int cp, unsigned char* out) {
+    if (cp <= 0x7F) { out[0] = (unsigned char)cp; return 1; }
+    int ptr = cp_enc32_lookup(OWL_CP_BIG5_ENC, OWL_CP_BIG5_ENC_LEN, cp);
+    if (ptr < 0) { out[0] = '?'; return 1; }
+    int lead = ptr / 157 + 0x81;
+    int trail = ptr % 157;
+    int off = trail < 0x3F ? 0x40 : 0x62;
+    out[0] = (unsigned char)lead;
+    out[1] = (unsigned char)(trail + off);
+    return 2;
+}
+
+static int codec_cp_to_gb18030(unsigned int cp, unsigned char* out) {
+    if (cp <= 0x7F) { out[0] = (unsigned char)cp; return 1; }
+    if (cp == 0xE5E5) { out[0] = '?'; return 1; }  /* non representable */
+    int ptr = cp_enc16_lookup(OWL_CP_GB18030_ENC, OWL_CP_GB18030_ENC_LEN, cp);
+    if (ptr >= 0) {
+        int trail = ptr % 190;
+        int off = trail < 0x3F ? 0x40 : 0x41;
+        out[0] = (unsigned char)(ptr / 190 + 0x81);
+        out[1] = (unsigned char)(trail + off);
+        return 2;
+    }
+    int p4 = gb18030_ranges_ptr(cp);
+    if (p4 < 0) { out[0] = '?'; return 1; }
+    out[0] = (unsigned char)(p4 / (10 * 126 * 10) + 0x81);
+    out[1] = (unsigned char)((p4 / (10 * 126)) % 10 + 0x30);
+    out[2] = (unsigned char)((p4 / 10) % 126 + 0x81);
+    out[3] = (unsigned char)(p4 % 10 + 0x30);
+    return 4;
+}
+
+/* --- Decode : flux d'octets DBCS -> UTF-8 dans out. Renvoie le nombre
+ * d'octets UTF-8 ecrits. Sequence invalide/tronquee -> '?'. Un octet de
+ * suite ASCII apres un lead invalide est reinjecte (traite en ASCII). --- */
+
+static int codec_decode_shiftjis(const unsigned char* b, int len, unsigned char* out) {
+    int j = 0, lead = 0, i = 0;
+    while (i < len) {
+        unsigned char byte = b[i++];
+        if (lead != 0) {
+            int l = lead; lead = 0;
+            int off = byte < 0x7F ? 0x40 : 0x41;
+            int lead_off = l < 0xA0 ? 0x81 : 0xC1;
+            int ptr = -1;
+            if ((byte >= 0x40 && byte <= 0x7E) || (byte >= 0x80 && byte <= 0xFC))
+                ptr = (l - lead_off) * 188 + byte - off;
+            unsigned int cp = 0;
+            if (ptr >= 8836 && ptr <= 10715) cp = 0xE000 + (unsigned int)(ptr - 8836);
+            else if (ptr >= 0 && ptr < OWL_CP_JIS0208_DEC_LEN) cp = OWL_CP_JIS0208_DEC[ptr];
+            if (cp != 0) { j += codec_cp_to_utf8(cp, out + j); continue; }
+            if (byte < 0x80) i--;
+            out[j++] = '?';
+            continue;
+        }
+        if (byte <= 0x80) { out[j++] = byte; continue; }
+        if (byte >= 0xA1 && byte <= 0xDF) {
+            j += codec_cp_to_utf8(0xFF61 - 0xA1 + byte, out + j); continue;
+        }
+        if ((byte >= 0x81 && byte <= 0x9F) || (byte >= 0xE0 && byte <= 0xFC)) {
+            lead = byte; continue;
+        }
+        out[j++] = '?';
+    }
+    if (lead != 0) out[j++] = '?';
+    return j;
+}
+
+static int codec_decode_eucjp(const unsigned char* b, int len, unsigned char* out) {
+    int j = 0, lead = 0, jis0212 = 0, i = 0;
+    while (i < len) {
+        unsigned char byte = b[i++];
+        if (lead == 0x8E && byte >= 0xA1 && byte <= 0xDF) {
+            lead = 0;
+            j += codec_cp_to_utf8(0xFF61 - 0xA1 + byte, out + j);
+            continue;
+        }
+        if (lead == 0x8F && byte >= 0xA1 && byte <= 0xFE) {
+            jis0212 = 1; lead = byte; continue;
+        }
+        if (lead != 0) {
+            int l = lead; lead = 0;
+            unsigned int cp = 0;
+            if (l >= 0xA1 && l <= 0xFE && byte >= 0xA1 && byte <= 0xFE) {
+                int ptr = (l - 0xA1) * 94 + byte - 0xA1;
+                if (jis0212) {
+                    if (ptr >= 0 && ptr < OWL_CP_JIS0212_DEC_LEN) cp = OWL_CP_JIS0212_DEC[ptr];
+                } else {
+                    if (ptr >= 0 && ptr < OWL_CP_JIS0208_DEC_LEN) cp = OWL_CP_JIS0208_DEC[ptr];
+                }
+            }
+            jis0212 = 0;
+            if (cp != 0) { j += codec_cp_to_utf8(cp, out + j); continue; }
+            if (byte < 0x80) i--;
+            out[j++] = '?';
+            continue;
+        }
+        if (byte <= 0x7F) { out[j++] = byte; continue; }
+        if (byte == 0x8E || byte == 0x8F || (byte >= 0xA1 && byte <= 0xFE)) {
+            lead = byte; continue;
+        }
+        out[j++] = '?';
+    }
+    if (lead != 0) out[j++] = '?';
+    return j;
+}
+
+static int codec_decode_euckr(const unsigned char* b, int len, unsigned char* out) {
+    int j = 0, lead = 0, i = 0;
+    while (i < len) {
+        unsigned char byte = b[i++];
+        if (lead != 0) {
+            int l = lead; lead = 0;
+            unsigned int cp = 0;
+            if (byte >= 0x41 && byte <= 0xFE) {
+                int ptr = (l - 0x81) * 190 + byte - 0x41;
+                if (ptr >= 0 && ptr < OWL_CP_EUCKR_DEC_LEN) cp = OWL_CP_EUCKR_DEC[ptr];
+            }
+            if (cp != 0) { j += codec_cp_to_utf8(cp, out + j); continue; }
+            if (byte < 0x80) i--;
+            out[j++] = '?';
+            continue;
+        }
+        if (byte <= 0x7F) { out[j++] = byte; continue; }
+        if (byte >= 0x81 && byte <= 0xFE) { lead = byte; continue; }
+        out[j++] = '?';
+    }
+    if (lead != 0) out[j++] = '?';
+    return j;
+}
+
+static int codec_decode_big5(const unsigned char* b, int len, unsigned char* out) {
+    int j = 0, lead = 0, i = 0;
+    while (i < len) {
+        unsigned char byte = b[i++];
+        if (lead != 0) {
+            int l = lead; lead = 0;
+            int off = byte < 0x7F ? 0x40 : 0x62;
+            int ptr = -1;
+            if ((byte >= 0x40 && byte <= 0x7E) || (byte >= 0xA1 && byte <= 0xFE))
+                ptr = (l - 0x81) * 157 + byte - off;
+            /* sequences combinantes absentes de l'index (valent 0 dans _DEC) */
+            if (ptr == 1133) { j += codec_cp_to_utf8(0x00CA, out + j); j += codec_cp_to_utf8(0x0304, out + j); continue; }
+            if (ptr == 1135) { j += codec_cp_to_utf8(0x00CA, out + j); j += codec_cp_to_utf8(0x030C, out + j); continue; }
+            if (ptr == 1164) { j += codec_cp_to_utf8(0x00EA, out + j); j += codec_cp_to_utf8(0x0304, out + j); continue; }
+            if (ptr == 1166) { j += codec_cp_to_utf8(0x00EA, out + j); j += codec_cp_to_utf8(0x030C, out + j); continue; }
+            unsigned int cp = 0;
+            if (ptr >= 0 && ptr < OWL_CP_BIG5_DEC_LEN) cp = OWL_CP_BIG5_DEC[ptr];
+            if (cp != 0) { j += codec_cp_to_utf8(cp, out + j); continue; }
+            if (byte < 0x80) i--;
+            out[j++] = '?';
+            continue;
+        }
+        if (byte <= 0x7F) { out[j++] = byte; continue; }
+        if (byte >= 0x81 && byte <= 0xFE) { lead = byte; continue; }
+        out[j++] = '?';
+    }
+    if (lead != 0) out[j++] = '?';
+    return j;
+}
+
+static int codec_decode_gb18030(const unsigned char* b, int len, unsigned char* out) {
+    int j = 0, first = 0, second = 0, third = 0, i = 0;
+    while (i < len) {
+        unsigned char byte = b[i++];
+        if (third != 0) {
+            if (byte < 0x30 || byte > 0x39) {
+                first = second = third = 0; i--; out[j++] = '?'; continue;
+            }
+            int ptr = (first - 0x81) * (10 * 126 * 10) + (second - 0x30) * (10 * 126)
+                      + (third - 0x81) * 10 + (byte - 0x30);
+            first = second = third = 0;
+            int cp = gb18030_ranges_cp(ptr);
+            if (cp < 0) { out[j++] = '?'; continue; }
+            j += codec_cp_to_utf8((unsigned int)cp, out + j);
+            continue;
+        }
+        if (second != 0) {
+            if (byte >= 0x81 && byte <= 0xFE) { third = byte; continue; }
+            first = second = 0; i--; out[j++] = '?'; continue;
+        }
+        if (first != 0) {
+            if (byte >= 0x30 && byte <= 0x39) { second = byte; continue; }
+            int l = first; first = 0;
+            int off = byte < 0x7F ? 0x40 : 0x41;
+            int ptr = -1;
+            if ((byte >= 0x40 && byte <= 0x7E) || (byte >= 0x80 && byte <= 0xFE))
+                ptr = (l - 0x81) * 190 + byte - off;
+            unsigned int cp = 0;
+            if (ptr >= 0 && ptr < OWL_CP_GB18030_DEC_LEN) cp = OWL_CP_GB18030_DEC[ptr];
+            if (cp != 0) { j += codec_cp_to_utf8(cp, out + j); continue; }
+            if (byte < 0x80) i--;
+            out[j++] = '?';
+            continue;
+        }
+        if (byte <= 0x7F) { out[j++] = byte; continue; }
+        if (byte >= 0x81 && byte <= 0xFE) { first = byte; continue; }
+        out[j++] = '?';
+    }
+    if (first != 0 || second != 0 || third != 0) out[j++] = '?';
+    return j;
+}
+
 /* Encode la chaine UTF-8 `s` (len octets) vers `enc` dans un buffer C
  * fraichement alloue (a free par l'appelant). *outLen recoit la taille. */
 unsigned char* owl_codec_encode(const char* s, int len, int enc, int* outLen) {
@@ -1430,8 +1739,12 @@ unsigned char* owl_codec_encode(const char* s, int len, int enc, int* outLen) {
         *outLen = len;
         return out;
     }
-    /* UTF-16 : jusqu'a 4 octets par codepoint ; codepages 8 bits : 1 octet. */
-    int cap = (enc == (int)OWL_ENC_UTF16LE || enc == (int)OWL_ENC_UTF16BE)
+    /* UTF-16 / DBCS : jusqu'a 4 octets par codepoint (GB18030 peut quadrupler
+     * un codepoint BMP sur 2 octets UTF-8) ; codepages 8 bits : 1 octet. */
+    int is_dbcs = (enc == (int)OWL_ENC_SHIFTJIS || enc == (int)OWL_ENC_GB18030 ||
+                   enc == (int)OWL_ENC_BIG5 || enc == (int)OWL_ENC_EUCKR ||
+                   enc == (int)OWL_ENC_EUCJP);
+    int cap = (enc == (int)OWL_ENC_UTF16LE || enc == (int)OWL_ENC_UTF16BE || is_dbcs)
                   ? len * 4 + 4 : len + 1;
     unsigned char* out = malloc(cap);
     int j = 0, i = 0;
@@ -1449,6 +1762,21 @@ unsigned char* owl_codec_encode(const char* s, int len, int enc, int* outLen) {
                 break;
             case (int)OWL_ENC_CP437:
                 out[j++] = codec_cp_to_oem(cp, CP437_HIGH);
+                break;
+            case (int)OWL_ENC_SHIFTJIS:
+                j += codec_cp_to_shiftjis(cp, out + j);
+                break;
+            case (int)OWL_ENC_EUCJP:
+                j += codec_cp_to_eucjp(cp, out + j);
+                break;
+            case (int)OWL_ENC_EUCKR:
+                j += codec_cp_to_euckr(cp, out + j);
+                break;
+            case (int)OWL_ENC_BIG5:
+                j += codec_cp_to_big5(cp, out + j);
+                break;
+            case (int)OWL_ENC_GB18030:
+                j += codec_cp_to_gb18030(cp, out + j);
                 break;
             case (int)OWL_ENC_UTF16LE:
             case (int)OWL_ENC_UTF16BE: {
@@ -1501,18 +1829,39 @@ unsigned char* owl_codec_decode(const unsigned char* bytes, int len, int enc, in
                 ? (bytes[i] | (bytes[i + 1] << 8))
                 : ((bytes[i] << 8) | bytes[i + 1]);
             i += 2;
-            unsigned int cp = u;
-            if (u >= 0xD800 && u <= 0xDBFF && i + 1 < len) {
-                unsigned int lo = (enc == (int)OWL_ENC_UTF16LE)
-                    ? (bytes[i] | (bytes[i + 1] << 8))
-                    : ((bytes[i] << 8) | bytes[i + 1]);
-                if (lo >= 0xDC00 && lo <= 0xDFFF) {
-                    cp = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00);
-                    i += 2;
+            unsigned int cp;
+            if (u >= 0xD800 && u <= 0xDBFF) {
+                /* substitut haut : exige un substitut bas qui suit. Sinon
+                 * (fin de flux ou unite suivante invalide) -> '?', l'unite
+                 * suivante non consommee est retraitee au tour d'apres. */
+                cp = '?';
+                if (i + 1 < len) {
+                    unsigned int lo = (enc == (int)OWL_ENC_UTF16LE)
+                        ? (bytes[i] | (bytes[i + 1] << 8))
+                        : ((bytes[i] << 8) | bytes[i + 1]);
+                    if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                        cp = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00);
+                        i += 2;
+                    }
                 }
+            } else if (u >= 0xDC00 && u <= 0xDFFF) {
+                cp = '?';  /* substitut bas esseule */
+            } else {
+                cp = u;
             }
             j += codec_cp_to_utf8(cp, out + j);
         }
+        if (i < len) out[j++] = '?';  /* octet orphelin (longueur impaire) */
+    } else if (enc == (int)OWL_ENC_SHIFTJIS) {
+        j = codec_decode_shiftjis(bytes, len, out);
+    } else if (enc == (int)OWL_ENC_EUCJP) {
+        j = codec_decode_eucjp(bytes, len, out);
+    } else if (enc == (int)OWL_ENC_EUCKR) {
+        j = codec_decode_euckr(bytes, len, out);
+    } else if (enc == (int)OWL_ENC_BIG5) {
+        j = codec_decode_big5(bytes, len, out);
+    } else if (enc == (int)OWL_ENC_GB18030) {
+        j = codec_decode_gb18030(bytes, len, out);
     } else {
         for (int i = 0; i < len; i++) {
             unsigned int cp;
@@ -5772,12 +6121,13 @@ static const OwlEnum E_tailleUnite = {
  * mutuellement exclusives (un seul encodage à la fois), zone sentinelle. */
 static const char* const E_owlEncodage_values[] = {
     "encUTF8", "encUTF16LE", "encUTF16BE", "encLatin1", "encWindows1252",
-    "encCP850", "encCP437", NULL
+    "encCP850", "encCP437",
+    "encShiftJIS", "encGB18030", "encBig5", "encEUCKR", "encEUCJP", NULL
 };
 const OwlEnum E_owlEncodage = {
     .name="owlEncodage", .nameAscii="owlEncodage", .nameEN="owlEncoding", .category="Chaines",
-    .descFR="Encodage des octets pour ChaîneVersBuffer / BufferVersChaîne (UTF-8 par défaut, UTF-16 LE/BE, Latin-1, Windows-1252, codepages DOS CP850/CP437).",
-    .descEN="Byte encoding for StringToBuffer / BufferToString (UTF-8 by default, UTF-16 LE/BE, Latin-1, Windows-1252, DOS codepages CP850/CP437).",
+    .descFR="Encodage des octets pour ChaîneVersBuffer / BufferVersChaîne (UTF-8 par défaut, UTF-16 LE/BE, Latin-1, Windows-1252, codepages DOS CP850/CP437, codepages asiatiques Shift-JIS/GB18030/Big5/EUC-KR/EUC-JP).",
+    .descEN="Byte encoding for StringToBuffer / BufferToString (UTF-8 by default, UTF-16 LE/BE, Latin-1, Windows-1252, DOS codepages CP850/CP437, Asian codepages Shift-JIS/GB18030/Big5/EUC-KR/EUC-JP).",
     .values=E_owlEncodage_values, .combinable=false
 };
 
@@ -6065,6 +6415,21 @@ void stdlib_string_init(void) {
             {"encCP437",       "Chaines", INTEGER_VAL(OWL_ENC_CP437),
              "encodage CP437 (codepage DOS/OEM US, console historique et art ASCII)",
              "CP437 encoding (DOS/OEM US codepage, legacy console and ASCII art)", "encCP437"},
+            {"encShiftJIS",    "Chaines", INTEGER_VAL(OWL_ENC_SHIFTJIS),
+             "encodage Shift-JIS (japonais, multi-octets : ASCII sur 1 octet, kanji/kana sur 2 octets)",
+             "Shift-JIS encoding (Japanese, multibyte: ASCII on 1 byte, kanji/kana on 2 bytes)", "encShiftJIS"},
+            {"encGB18030",     "Chaines", INTEGER_VAL(OWL_ENC_GB18030),
+             "encodage GB18030 (chinois simplifié, couvre tout Unicode : 1, 2 ou 4 octets, sans perte)",
+             "GB18030 encoding (Simplified Chinese, covers all of Unicode: 1, 2 or 4 bytes, lossless)", "encGB18030"},
+            {"encBig5",        "Chaines", INTEGER_VAL(OWL_ENC_BIG5),
+             "encodage Big5 (chinois traditionnel, multi-octets : ASCII sur 1 octet, sinogrammes sur 2 octets)",
+             "Big5 encoding (Traditional Chinese, multibyte: ASCII on 1 byte, ideographs on 2 bytes)", "encBig5"},
+            {"encEUCKR",       "Chaines", INTEGER_VAL(OWL_ENC_EUCKR),
+             "encodage EUC-KR (coréen, multi-octets : ASCII sur 1 octet, hangul/hanja sur 2 octets)",
+             "EUC-KR encoding (Korean, multibyte: ASCII on 1 byte, hangul/hanja on 2 bytes)", "encEUCKR"},
+            {"encEUCJP",       "Chaines", INTEGER_VAL(OWL_ENC_EUCJP),
+             "encodage EUC-JP (japonais, multi-octets : ASCII sur 1 octet, kanji/kana sur 2 ou 3 octets)",
+             "EUC-JP encoding (Japanese, multibyte: ASCII on 1 byte, kanji/kana on 2 or 3 bytes)", "encEUCJP"},
         };
         owl_registry_register_consts(ENC_CONSTS,
             (int)(sizeof(ENC_CONSTS)/sizeof(ENC_CONSTS[0])));

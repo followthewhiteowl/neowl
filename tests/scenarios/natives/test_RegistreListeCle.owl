@@ -1,0 +1,53 @@
+// @sujet : RegistreListeClé
+// @résumé : Liste en une seule chaîne les sous-clés directes d'une clé de la
+// base de registre, une par ligne (LF).
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeCle")
+FIN
+
+PROCEDURE PUBLIQUE scenario_liste_les_sous_cles_directes()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeCle"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\Alpha1512")
+	RegistreCréeClé(racine + "\Beta1512")
+	RegistreCréeClé(racine + "\Gamma1512")
+
+	resultat est une chaîne            = RegistreListeClé(racine)
+	lignes   est un tableau de chaînes = ChaîneDécoupe(resultat, LF)
+	dbgVérifieEgalité(lignes..Occurrence, 3, "les 3 sous-clés créées sont listées, aucune de plus")
+	dbgVérifieVrai(Contient(resultat, "Alpha1512"), "Alpha1512 est présente dans la liste")
+	dbgVérifieVrai(Contient(resultat, "Beta1512"), "Beta1512 est présente dans la liste")
+	dbgVérifieVrai(Contient(resultat, "Gamma1512"), "Gamma1512 est présente dans la liste")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cle_sans_sous_cle_renvoie_chaine_vide()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeCle"
+	RegistreCréeClé(racine)
+
+	resultat est une chaîne = RegistreListeClé(racine)
+	dbgVérifieEgalité(resultat, "", "une clé sans sous-clé renvoie une chaîne vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeCle"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\Delta1512")
+
+	resultat est une chaîne = RegistreListeClé(registreModeAuto, racine)
+	dbgVérifieVrai(Contient(resultat, "Delta1512"), "la liste aboutit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : une clé inexistante ne provoque pas de crash, elle renvoie une
+// chaîne vide accompagnée d'une erreur douce consultable via ErreurInfo.
+PROCEDURE PRIVÉE scenario_cle_inexistante_renvoie_vide_avec_erreur_douce()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeCle\Fantome1512"
+
+	ErreurRAZ()
+	resultat est une chaîne = RegistreListeClé(chemin)
+	bErr     est un booléen = ErreurDétectée
+	dbgVérifieEgalité(resultat, "", "une clé inexistante renvoie une chaîne vide")
+	dbgVérifieVrai(bErr, "une erreur douce est posée pour une clé inexistante")
+FIN
+
+dbgBilanTest()

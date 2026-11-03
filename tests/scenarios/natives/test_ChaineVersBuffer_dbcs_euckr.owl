@@ -1,0 +1,51 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Extension codepage EUC-KR (encEUCKR), encodage multi-octets coréen. ASCII (0x00-0x7F) passe tel quel sur 1 octet, les syllabes hangul représentables occupent 2 octets (lead/trail). Un caractère hors répertoire est remplacé par l'octet 63 ('?').
+
+// Vecteurs cross-vérifiés : table WHATWG index-euc-kr.txt recalculée via la formule
+// d'encodage EUC-KR officielle, confrontée au codec "euc_kr" indépendant de la
+// bibliothèque standard Python : U+AC00 -> B0 A1, U+D55C -> C7 D1.
+
+
+// Cas A : ASCII passthrough.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_euckr_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encEUCKR)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en EUC-KR = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en EUC-KR")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en EUC-KR")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en EUC-KR")
+FIN
+
+
+// Cas B : 가 (U+AC00, première syllabe hangul de la table Unicode) -> 2 octets 0xB0 0xA1 (176, 161).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_euckr_hangul_ga()
+	buf est un buffer = ChaîneVersBuffer("가", encEUCKR)
+	dbgVérifieEgalité(Taille(buf), 2, "가 en EUC-KR = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 176, "가 en EUC-KR, octet de tête = 176 (0xB0)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 161, "가 en EUC-KR, octet de fin = 161 (0xA1)")
+FIN
+
+
+// Cas C : 한 (U+D55C, "Han" comme dans "Hangul") -> 2 octets 0xC7 0xD1 (199, 209).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_euckr_hangul_han()
+	buf est un buffer = ChaîneVersBuffer("한", encEUCKR)
+	dbgVérifieEgalité(Taille(buf), 2, "한 en EUC-KR = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 199, "한 en EUC-KR, octet de tête = 199 (0xC7)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 209, "한 en EUC-KR, octet de fin = 209 (0xD1)")
+FIN
+
+
+// Edge case : caractère hors plan de base (U+20000, hors répertoire EUC-KR)
+// -> remplacement par l'octet 63 ('?').
+PROCEDURE PRIVÉE scenario_cvb_dbcs_euckr_edge_non_representable()
+	c   est une chaîne = Caract(131072)
+	buf est un buffer  = ChaîneVersBuffer(c, encEUCKR)
+	dbgVérifieEgalité(Taille(buf), 1, "caractère hors répertoire -> 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "caractère hors répertoire en EUC-KR -> octet 63 ('?')")
+FIN
+
+
+// Edge case : chaîne vide -> buffer vide.
+PROCEDURE PRIVÉE scenario_cvb_dbcs_euckr_edge_chaine_vide()
+	buf est un buffer = ChaîneVersBuffer("", encEUCKR)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide -> buffer vide en EUC-KR")
+FIN

@@ -409,6 +409,48 @@ const OwlEventDef* owl_operation_event_catalog_at(int index) {
 }
 
 /* ================================================================
+ * Catalogue des events d'une Colonne de Champ Table.
+ * Storage identique aux precedents, standalone.
+ * ================================================================ */
+static KindEntry g_column;
+
+void owl_column_event_catalog_register(const OwlEventDef* defs, int count) {
+    if (defs == NULL || count <= 0) return;
+    if (g_column.chunkCount >= OWL_EVENT_MAX_CHUNKS) return;
+    g_column.defs[g_column.chunkCount]   = defs;
+    g_column.counts[g_column.chunkCount] = count;
+    g_column.chunkCount++;
+    g_column.totalCount += count;
+}
+
+const OwlEventDef* owl_column_event_catalog_find(const char* eventName) {
+    if (eventName == NULL) return NULL;
+    for (int c = 0; c < g_column.chunkCount; c++) {
+        for (int i = 0; i < g_column.counts[c]; i++) {
+            const OwlEventDef* d = &g_column.defs[c][i];
+            if (name_eq_loose(d->canonical, eventName)) return d;
+            if (d->nameEN && name_eq_loose(d->nameEN, eventName)) return d;
+        }
+    }
+    return NULL;
+}
+
+int owl_column_event_catalog_count(void) {
+    return g_column.totalCount;
+}
+
+const OwlEventDef* owl_column_event_catalog_at(int index) {
+    if (index < 0) return NULL;
+    int offset = 0;
+    for (int c = 0; c < g_column.chunkCount; c++) {
+        if (index < offset + g_column.counts[c])
+            return &g_column.defs[c][index - offset];
+        offset += g_column.counts[c];
+    }
+    return NULL;
+}
+
+/* ================================================================
  * Lookup transverse tous catalogues confondus.
  * Defini ici (et pas cote appelant) pour rester la source unique :
  * un nouveau catalogue parallele n'a qu'un endroit a mettre a jour.
@@ -433,6 +475,7 @@ const OwlEventDef* owl_event_catalog_find_any(const char* eventName) {
     if ((d = owl_collection_event_catalog_find(eventName)) != NULL) return d;
     if ((d = owl_service_event_catalog_find(eventName)) != NULL) return d;
     if ((d = owl_operation_event_catalog_find(eventName)) != NULL) return d;
+    if ((d = owl_column_event_catalog_find(eventName)) != NULL) return d;
     return NULL;
 }
 
@@ -448,4 +491,5 @@ static void reset_parallel_catalogs(void) {
     kind_entry_clear(&g_collection);
     kind_entry_clear(&g_service);
     kind_entry_clear(&g_operation);
+    kind_entry_clear(&g_column);
 }

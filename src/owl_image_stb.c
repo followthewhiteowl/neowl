@@ -10,7 +10,19 @@
 #include "owl_image.h"
 
 /* stb_image / stb_image_write : header-only, public domain, vendorisés
- * dans vendor/stb/. On force l'implémentation inline ici. */
+ * dans vendor/stb/. On force l'implémentation inline ici.
+ *
+ * OWL stocke les chemins en UTF-8. Sur Windows, stb ouvre sinon les
+ * fichiers en narrow via la code page ANSI : un chemin accentué devient
+ * mojibake et le fichier atterrit sous un mauvais nom (ou est introuvable
+ * au chargement). Ces macros routent les fopen internes de stb vers
+ * MultiByteToWideChar(CP_UTF8) + _wfopen — même traitement que les natives
+ * fichier. Elles DOIVENT précéder les includes stb (seule unité à définir
+ * les IMPLEMENTATION, donc pas de risque d'ODR). */
+#ifdef _WIN32
+#define STBI_WINDOWS_UTF8
+#define STBIW_WINDOWS_UTF8
+#endif
 #define STB_IMAGE_IMPLEMENTATION
 /* NB: STBI_NO_STDIO est defini = stbi_load disabled. Pour avoir
  * stbi_load(path, ...) on NE definit PAS la macro. */
@@ -50,6 +62,35 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+/* Ouverture binaire d'un chemin UTF-8, Windows-safe. stb (raster) gère déjà
+ * ses chemins via STB*_WINDOWS_UTF8 ci-dessus, mais nanosvg (SVG) et le
+ * chargement de police passent par un fopen explicite qu'il faut router nous-
+ * mêmes. Sur Windows : MultiByteToWideChar(CP_UTF8) + _wfopen pour toucher le
+ * vrai nom disque. Ailleurs : les chemins narrow sont déjà UTF-8, pass-through. */
+#ifdef _WIN32
+#include <wchar.h>
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
+__declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int cp, unsigned long flags,
+                                                        const char* in, int inLen,
+                                                        wchar_t* out, int outLen);
+static FILE* owl_image_fopen_rb(const char* path) {
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (n <= 0) return NULL;
+    wchar_t* wp = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+    if (!wp) return NULL;
+    if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wp, n) <= 0) { free(wp); return NULL; }
+    FILE* f = _wfopen(wp, L"rb");
+    free(wp);
+    return f;
+}
+#else
+static FILE* owl_image_fopen_rb(const char* path) {
+    return fopen(path, "rb");
+}
+#endif
 
 struct OwlImage {
     int            width;
@@ -310,8 +351,23 @@ OwlImage* owl_image_load_from_file(const char* path) {
 OwlImage* owl_image_load_from_svg_file(const char* path,
                                        int target_w, int target_h) {
     if (!path) return NULL;
-    /* Parse à 96 DPI standard. */
-    NSVGimage* svg = nsvgParseFromFile(path, "px", 96.0f);
+    /* Parse à 96 DPI standard. On lit le fichier nous-mêmes (fopen wide sur
+     * Windows) au lieu de nsvgParseFromFile qui ouvrirait en narrow : nsvgParse
+     * consomme un buffer mutable NUL-terminé. */
+    FILE* fp = owl_image_fopen_rb(path);
+    if (!fp) return NULL;
+    if (fseek(fp, 0, SEEK_END) != 0) { fclose(fp); return NULL; }
+    long sz = ftell(fp);
+    if (sz < 0) { fclose(fp); return NULL; }
+    if (fseek(fp, 0, SEEK_SET) != 0) { fclose(fp); return NULL; }
+    char* svg_src = (char*)malloc((size_t)sz + 1);
+    if (!svg_src) { fclose(fp); return NULL; }
+    size_t rd = fread(svg_src, 1, (size_t)sz, fp);
+    fclose(fp);
+    if (rd != (size_t)sz) { free(svg_src); return NULL; }
+    svg_src[sz] = '\0';
+    NSVGimage* svg = nsvgParse(svg_src, "px", 96.0f);
+    free(svg_src);
     if (!svg) return NULL;
     if (svg->width <= 0 || svg->height <= 0) {
         nsvgDelete(svg);
@@ -950,7 +1006,7 @@ bool owl_image_set_font_memory(OwlImage* img, const uint8_t* data, int size,
 bool owl_image_set_font_file(OwlImage* img, const char* path,
                              int point_size, int attrs) {
     if (!img || !path) return false;
-    FILE* f = fopen(path, "rb");
+    FILE* f = owl_image_fopen_rb(path);
     if (!f) return false;
     if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return false; }
     long sz = ftell(f);

@@ -58,6 +58,53 @@ extern ObjInstance* image_make_instance(OwlImage* img);
  * image_make_instance et fait obj_array_push. */
 static ObjArray* g_doc_img_target = NULL;
 
+/* Destination du doc actuellement ouvert, pour le getter iDestination() sans
+ * argument. Reflete la derniere ouverture reussie ; remis a iImprimante (valeur
+ * canon par defaut) a la fermeture. */
+static int g_doc_dest = OWL_IDEST_IMPRIMANTE;
+
+/*  — config de la fenetre de progression (iFenetreAbandon). Affichee
+ * par defaut (comme le canon) ; persiste jusqu'au prochain appel. Titre/texte
+ * vides => defaut localise a l'impression. */
+static int  g_abort_show = 1;
+static char g_abort_title[256] = "";
+static char g_abort_text[512]  = "";
+
+/*  — destination CONFIGUREE (persistante), réutilisée par chaque
+ * iImprimeEtat qui s'auto-finalise. iDestination la pose ; elle survit à la
+ * finalisation (contrairement à g_doc_path/g_doc_img_target qui décrivent le
+ * doc OUVERT). Défaut = imprimante (canon : iImprimeEtat seul imprime). */
+static int      g_cfg_dest = OWL_IDEST_IMPRIMANTE;
+static char     g_cfg_path[1024] = "";
+static ObjArray* g_cfg_img = NULL;
+
+/*  — enchaînement d'états. File lazy : chaque entrée est une array OWL
+ * [nomEtat, param1, …]. Racinée via vm.globals ("$enchainement") pour survivre
+ * au GC entre deux appels natifs ; le '$' n'est pas un octet d'identifiant
+ * (cf. scanner is_ident_char) donc ce nom ne peut entrer en collision avec un
+ * global utilisateur. Accédée directement (le mark-and-sweep ne déplace pas).
+ * g_in_enchainement : pendant iEnchaînementImprime, iImprimeEtat rend dans le
+ * doc commun sans le finaliser (un seul document pour toute la séquence). */
+static ObjArray* g_ench_queue = NULL;
+static int       g_in_enchainement = 0;
+/* Posé par iEnchaînementImprime avant chaque état > 1 : demande à iImprimeEtat
+ * d'ouvrir une page neuve APRÈS avoir posé la mise en page de l'état (ordre
+ * obligatoire — un QPdfWriter fige la taille d'une page au newPage, et chaque
+ * état de la chaîne garde donc SA propre mise en page). */
+static int       g_ench_break_before = 0;
+
+/*  — config PHYSIQUE (duplex/couleur/bac) capturée PAR état au moment
+ * du iEnchaînementAjoute. Tableau C parallèle à g_ench_queue (scalaires, aucune
+ * racine GC nécessaire). iEnchaînementImprime segmente alors la séquence : des
+ * états consécutifs à config identique = un seul job de spool ; un changement
+ * ouvre un nouveau job (Qt fige duplex/couleur/bac au niveau job — impossible
+ * de les changer en cours). La coupure n'est pas ressentie côté application
+ * (fenêtre de progression + numérotation de page continues). Cf. . */
+typedef struct { int duplex; int color; int paperSource; } OwlEnchJobCfg;
+static OwlEnchJobCfg* g_ench_cfg = NULL;
+static int            g_ench_cfg_count = 0;
+static int            g_ench_cfg_cap = 0;
+
 static void i_dest_img_on_page(OwlImage* page, void* userdata) {
     ObjArray* target = (ObjArray*)userdata;
     if (!target) { /* pas de cible : drop pour eviter le leak. */
@@ -280,88 +327,203 @@ static Value fn_i_configure(int argCount, Value* args) {
     return BOOL_VAL(owl_printer_set_by_name(name, /*persistent=*/0) != 0);
 }
 
-/* iDestination([type [, cible]]) — canon + extension OWL.
- *
- * Sans args : retourne la destination courante (entier).
- * Avec args : pose la destination ET ouvre le document selon le type :
- *   - iPDFGenerique / iPDF : cible = chaine (chemin fichier de sortie).
- *   - iImageMemoire (extension ) : cible = tableau de Image qui
- *     sera peuple page par page lors de iImprimeEtat / iFinImprime.
- * Autres types : stub (no-op + warning). */
-static Value fn_i_destination(int argCount, Value* args) {
-    /* Getter (sans args) : retourne le type courant. */
-    if (argCount == 0) {
-        if (g_doc_img_target) return INTEGER_VAL(OWL_IDEST_IMAGE_MEMOIRE);
-        return INTEGER_VAL(g_doc ? OWL_IDEST_PDF_GENERIQUE : OWL_IDEST_IMPRIMANTE);
-    }
-    if (!IS_INTEGER(args[0])) {
-        fprintf(stderr, "[iDestination] type doit etre une constante (iPDFGenerique, iImageMemoire, ...).\n");
-        return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
-    }
-    int type = (int)AS_INTEGER(args[0]);
-
-    if (type == OWL_IDEST_PDF_GENERIQUE || type == OWL_IDEST_PDF) {
-        const char* path = (argCount >= 2 && IS_STRING(args[1])) ? AS_CSTRING(args[1]) : NULL;
-        if (!path || !*path) {
-            fprintf(stderr, "[iDestination] PDF : chemin de sortie attendu.\n");
-            return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
-        }
-        if (g_doc) {
-            /* Doc deja ouvert -> ferme avant d'en ouvrir un nouveau. */
-            owl_pdf_close(g_doc);
-        }
-        g_doc_img_target = NULL;
-        g_doc = owl_pdf_open(path);
-        if (!g_doc) {
-            fprintf(stderr, "[iDestination] echec ouverture '%s'\n", path);
-            return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
-        }
-        /* Capture le path pour iFinImprime (hook qpdf post-traitement). */
-        strncpy(g_doc_path, path, sizeof(g_doc_path) - 1);
-        g_doc_path[sizeof(g_doc_path) - 1] = '\0';
-        /* Applique les options posees par un eventuel iParametrePDF prealable. */
-        pdf_params_apply(g_doc);
-        return INTEGER_VAL(OWL_IDEST_PDF_GENERIQUE);
-    }
-
-    if (type == OWL_IDEST_IMAGE_MEMOIRE) {
-        /* Extension OWL  : 2e arg = tableau de Image (sera peuple). */
-        if (argCount < 2 || !IS_ARRAY(args[1])) {
-            fprintf(stderr, "[iDestination] iImageMemoire : tableau de Image attendu en 2e argument.\n");
-            return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
-        }
-        if (g_doc) {
-            owl_pdf_close(g_doc);
-            g_doc = NULL;
-        }
-        g_doc_path[0] = '\0';
-        g_doc_img_target = AS_ARRAY(args[1]);
-        g_doc = owl_pdf_open_image_memory(300, i_dest_img_on_page,
-                                           (void*)g_doc_img_target);
-        if (!g_doc) {
-            fprintf(stderr, "[iDestination] iImageMemoire : echec ouverture backend.\n");
-            g_doc_img_target = NULL;
-            return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
-        }
-        return INTEGER_VAL(OWL_IDEST_IMAGE_MEMOIRE);
-    }
-
-    /* Autres destinations : non implementees en V1. */
-    fprintf(stderr,
-        "[iDestination] type %d non supporte (seul iPDFGenerique/iImageMemoire implem).\n", type);
-    return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
+/*  — resout le titre et le texte de la fenetre de progression :
+ * valeurs fournies par l'app telles quelles, sinon defaut localise selon la
+ * langue runtime courante. */
+static void abort_resolve_strings(const char** outTitle, const char** outText) {
+    const char* lang = owl_i18n_langue_courante();
+    int en = (lang && (lang[0] == 'e' || lang[0] == 'E')
+                   && (lang[1] == 'n' || lang[1] == 'N'));
+    *outTitle = g_abort_title[0] ? g_abort_title : (en ? "Printing" : "Impression");
+    *outText  = g_abort_text[0]  ? g_abort_text
+                                 : (en ? "Printing page #P" : "Impression de la page #P");
 }
 
-/* iFinImprime() — finalise + ecrit le fichier + libere les ressources.
- * Ferme le doc PDF courant. Hook qpdf post-traitement si iParametrePDF
- * a pose des options qui necessitent du post-traitement (chiffrement,
- * signets, PDF/A-3b). */
-static Value fn_i_fin_imprime(int argCount, Value* args) {
-    (void)argCount; (void)args;
-    if (!g_doc) return NIL_VAL;
+/* iFenetreAbandon(affichage [, titre [, texte]]) — configure la fenetre de
+ * progression affichee pendant l'impression physique. #P dans le texte =
+ * numero de page. A appeler avant l'impression. */
+static Value fn_i_fenetre_abandon(int argCount, Value* args) {
+    if (argCount >= 1 && IS_BOOL(args[0])) {
+        g_abort_show = AS_BOOL(args[0]) ? 1 : 0;
+    }
+    if (argCount >= 2) {
+        if (IS_STRING(args[1])) {
+            strncpy(g_abort_title, AS_CSTRING(args[1]), sizeof(g_abort_title) - 1);
+            g_abort_title[sizeof(g_abort_title) - 1] = '\0';
+        } else {
+            g_abort_title[0] = '\0';   /* non-chaine => defaut localise */
+        }
+    }
+    if (argCount >= 3) {
+        if (IS_STRING(args[2])) {
+            strncpy(g_abort_text, AS_CSTRING(args[2]), sizeof(g_abort_text) - 1);
+            g_abort_text[sizeof(g_abort_text) - 1] = '\0';
+        } else {
+            g_abort_text[0] = '\0';
+        }
+    }
+    return NIL_VAL;
+}
+
+/* iParametre(iAlimentationPapier) : map constante OWL <-> code neutre backend
+ * (OwlPrnPaperSource).  Lot 2. */
+static const struct { int owl; int code; } k_papersrc_map[] = {
+    { OWL_IALIMP_AUTO,             OWL_PRN_SRC_AUTO },
+    { OWL_IALIMP_BAS,              OWL_PRN_SRC_LOWER },
+    { OWL_IALIMP_CASSETTE,         OWL_PRN_SRC_CASSETTE },
+    { OWL_IALIMP_ENVELOPPE,        OWL_PRN_SRC_ENVELOPE },
+    { OWL_IALIMP_ENVELOPPE_MANUEL, OWL_PRN_SRC_ENVELOPE_MANUAL },
+    { OWL_IALIMP_GRANDE_CAPACITE,  OWL_PRN_SRC_LARGE_CAPACITY },
+    { OWL_IALIMP_GRAND_FORMAT,     OWL_PRN_SRC_LARGE_FORMAT },
+    { OWL_IALIMP_HAUT,             OWL_PRN_SRC_UPPER },
+    { OWL_IALIMP_MANUEL,           OWL_PRN_SRC_MANUAL },
+    { OWL_IALIMP_MILIEU,           OWL_PRN_SRC_MIDDLE },
+    { OWL_IALIMP_PETIT_FORMAT,     OWL_PRN_SRC_SMALL_FORMAT },
+    { OWL_IALIMP_TRACTEUR,         OWL_PRN_SRC_TRACTOR },
+    { OWL_IALIMP_UNE_SEULE,        OWL_PRN_SRC_ONLY_ONE },
+};
+static int papersrc_owl_to_code(int owl) {
+    for (size_t i = 0; i < sizeof(k_papersrc_map)/sizeof(k_papersrc_map[0]); i++)
+        if (k_papersrc_map[i].owl == owl) return k_papersrc_map[i].code;
+    return -1;
+}
+static int papersrc_code_to_owl(int code) {
+    for (size_t i = 0; i < sizeof(k_papersrc_map)/sizeof(k_papersrc_map[0]); i++)
+        if (k_papersrc_map[i].code == code) return k_papersrc_map[i].owl;
+    return OWL_IALIMP_AUTO;
+}
+
+/* iParametre(selecteur [, valeur]) — getter (1 arg) / setter (2 args).
+ *  : recto-verso (iRectoVerso), couleur (iCouleur) et bac/source
+ * papier (iAlimentationPapier) pilotes. Mappe les constantes OWL vers les
+ * codes neutres owl_printer_* (QPrinter). */
+static Value fn_i_parametre(int argCount, Value* args) {
+    if (!IS_INTEGER(args[0])) {
+        fprintf(stderr, "[iParametre] parametre doit etre une constante (iRectoVerso, iCouleur).\n");
+        return (argCount >= 2) ? BOOL_VAL(false) : INTEGER_VAL(0);
+    }
+    int sel = (int)AS_INTEGER(args[0]);
+
+    if (argCount == 1) {
+        /* Getter : valeur courante du parametre. */
+        if (sel == OWL_IPARAM_RECTOVERSO) {
+            switch (owl_printer_get_duplex()) {
+                case OWL_PRN_DUPLEX_LONG:  return INTEGER_VAL(OWL_IDUPLEX_VERTICAL);
+                case OWL_PRN_DUPLEX_SHORT: return INTEGER_VAL(OWL_IDUPLEX_HORIZONTAL);
+                default:                   return INTEGER_VAL(OWL_IDUPLEX_SIMPLE);
+            }
+        }
+        if (sel == OWL_IPARAM_COULEUR) {
+            return INTEGER_VAL(owl_printer_get_color() == OWL_PRN_GRAY
+                               ? OWL_ICOULIMPR_MONO : OWL_ICOULIMPR_COULEUR);
+        }
+        if (sel == OWL_IPARAM_ALIMPAPIER) {
+            return INTEGER_VAL(papersrc_code_to_owl(owl_printer_get_paper_source()));
+        }
+        fprintf(stderr, "[iParametre] parametre %d non pilote (iRectoVerso, iCouleur, iAlimentationPapier).\n", sel);
+        return INTEGER_VAL(0);
+    }
+
+    /* Setter (2 args). */
+    if (!IS_INTEGER(args[1])) {
+        fprintf(stderr, "[iParametre] valeur doit etre une constante.\n");
+        return BOOL_VAL(false);
+    }
+    int val = (int)AS_INTEGER(args[1]);
+
+    if (sel == OWL_IPARAM_RECTOVERSO) {
+        int mode;
+        switch (val) {
+            case OWL_IDUPLEX_SIMPLE:     mode = OWL_PRN_DUPLEX_NONE;  break;
+            case OWL_IDUPLEX_VERTICAL:   mode = OWL_PRN_DUPLEX_LONG;  break;
+            case OWL_IDUPLEX_HORIZONTAL: mode = OWL_PRN_DUPLEX_SHORT; break;
+            default:
+                fprintf(stderr, "[iParametre] valeur recto-verso invalide.\n");
+                return BOOL_VAL(false);
+        }
+        return BOOL_VAL(owl_printer_set_duplex(mode) != 0);
+    }
+    if (sel == OWL_IPARAM_COULEUR) {
+        int mode;
+        switch (val) {
+            case OWL_ICOULIMPR_COULEUR: mode = OWL_PRN_COLOR; break;
+            case OWL_ICOULIMPR_MONO:    mode = OWL_PRN_GRAY;  break;
+            default:
+                fprintf(stderr, "[iParametre] valeur couleur invalide.\n");
+                return BOOL_VAL(false);
+        }
+        return BOOL_VAL(owl_printer_set_color(mode) != 0);
+    }
+    if (sel == OWL_IPARAM_ALIMPAPIER) {
+        int code = papersrc_owl_to_code(val);
+        if (code < 0) {
+            fprintf(stderr, "[iParametre] valeur bac/source papier invalide.\n");
+            return BOOL_VAL(false);
+        }
+        return BOOL_VAL(owl_printer_set_paper_source(code) != 0);
+    }
+    fprintf(stderr, "[iParametre] parametre %d non pilote (iRectoVerso, iCouleur, iAlimentationPapier).\n", sel);
+    return BOOL_VAL(false);
+}
+
+/*  — ouvre un doc à la destination CONFIGUREE (g_cfg_*). Applique les
+ * options PDF et démarre la fenêtre de progression (imprimante). Pose g_doc +
+ * l'état du doc ouvert. Retourne g_doc (NULL si échec). */
+static OwlPdfDoc* open_dest(void) {
+    switch (g_cfg_dest) {
+        case OWL_IDEST_PDF_GENERIQUE:
+        case OWL_IDEST_PDF:
+            g_doc_img_target = NULL;
+            g_doc = owl_pdf_open(g_cfg_path);
+            if (g_doc) {
+                strncpy(g_doc_path, g_cfg_path, sizeof(g_doc_path) - 1);
+                g_doc_path[sizeof(g_doc_path) - 1] = '\0';
+                pdf_params_apply(g_doc);
+            }
+            g_doc_dest = OWL_IDEST_PDF_GENERIQUE;
+            break;
+        case OWL_IDEST_IMAGE_MEMOIRE:
+            g_doc_path[0] = '\0';
+            g_doc_img_target = g_cfg_img;
+            g_doc = owl_pdf_open_image_memory(300, i_dest_img_on_page, (void*)g_cfg_img);
+            if (!g_doc) g_doc_img_target = NULL;
+            g_doc_dest = OWL_IDEST_IMAGE_MEMOIRE;
+            break;
+        case OWL_IDEST_IMPRIMANTE:
+        default:
+            g_doc_img_target = NULL;
+            g_doc_path[0] = '\0';   /* flux imprimante : pas de post-traitement qpdf */
+            g_doc = owl_pdf_open_printer();
+            g_doc_dest = OWL_IDEST_IMPRIMANTE;
+            /* En enchaînement, la fenêtre de progression est pilotée une seule
+             * fois par iEnchaînementImprime (continue sur toute la séquence) :
+             * open_dest ne la démarre donc pas par segment. */
+            if (g_doc && g_abort_show && !g_in_enchainement) {
+                const char *t, *x;
+                abort_resolve_strings(&t, &x);
+                owl_printer_progress_begin(t, x);
+            }
+            break;
+    }
+    return g_doc;
+}
+
+/*  — garantit un doc ouvert pour un état : réutilise le doc courant
+ * (ouvert par iDestination) ou en ouvre un à la destination configurée. */
+static OwlPdfDoc* ensure_etat_doc(void) {
+    if (g_doc) return g_doc;
+    return open_dest();
+}
+
+/*  — finalise le document courant : écrit/spoole, post-traitement qpdf,
+ * ferme la fenêtre de progression, remet l'état du doc ouvert à zéro. No-op si
+ * aucun doc ouvert (iFinImprime toléré après un iImprimeEtat déjà finalisé).
+ * Partagé par iImprimeEtat (auto-finalisation) et iFinImprime (flux manuel). */
+static void finalize_print(void) {
+    if (!g_doc) return;
     owl_pdf_close(g_doc);
+    owl_printer_progress_end();
     g_doc = NULL;
-    /* Hook qpdf : si on a un path et des options qpdf-only, post-traite. */
     if (g_doc_path[0] && g_pdf_params.hasParams) {
         bool needsQpdf = (g_pdf_params.passwordOpen[0] != 0) ||
                          (g_pdf_params.passwordOwner[0] != 0) ||
@@ -377,23 +539,91 @@ static Value fn_i_fin_imprime(int argCount, Value* args) {
             opt.pdfA3b          = g_pdf_params.pdfA3b;
             int rc = owl_pdf_postprocess(g_doc_path, g_doc_path, &opt);
             if (rc != 0) {
-                fprintf(stderr, "[iFinImprime] qpdf post-traitement code=%d.\n", rc);
+                fprintf(stderr, "[impression] qpdf post-traitement code=%d.\n", rc);
             }
         }
     }
     g_doc_path[0] = '\0';
-    /* Reset la cible image-memoire. owl_pdf_close a deja flushe
-     * la derniere page via le callback C, donc le tableau utilisateur
-     * contient deja toutes les Image (1 par page). */
+    g_doc_dest = OWL_IDEST_IMPRIMANTE;
     g_doc_img_target = NULL;
-    /* Hermeticite : iParametrePDF configure LE document en cours de
-     * generation. Une fois iFinImprime consomme (post-traitement qpdf inclus),
-     * les options sont a usage unique — sans ce reset, protection/mot de
-     * passe/signet/PDF-A3b survivent au process et le prochain iFinImprime
-     * (meme sans iParametrePDF) re-chiffrerait un document qui ne le demande
-     * pas (flux de contenu illisibles). Une nouvelle session doit re-declarer
-     * ses parametres. */
     pdf_params_reset();
+}
+
+/* iDestination([type [, cible]]) — canon + extension OWL.  : mémorise
+ * la destination (g_cfg_*) pour les iImprimeEtat suivants ET ouvre le document
+ * (flux manuel + 1er iImprimeEtat).
+ *
+ * Sans args : retourne la destination courante (entier). */
+static Value fn_i_destination(int argCount, Value* args) {
+    /* Getter (sans args) : retourne la destination courante (doc ouvert) ou
+     * configurée ( : persiste entre les iImprimeEtat autonomes). */
+    if (argCount == 0) {
+        return INTEGER_VAL(g_doc ? g_doc_dest : g_cfg_dest);
+    }
+    if (!IS_INTEGER(args[0])) {
+        fprintf(stderr, "[iDestination] type doit etre une constante (iPDFGenerique, iImageMemoire, ...).\n");
+        return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
+    }
+    int type = (int)AS_INTEGER(args[0]);
+
+    /* Valide la cible et mémorise la destination configurée (g_cfg_*), qui
+     * survit aux finalisations pour que chaque iImprimeEtat la réutilise. */
+    if (type == OWL_IDEST_PDF_GENERIQUE || type == OWL_IDEST_PDF) {
+        const char* path = (argCount >= 2 && IS_STRING(args[1])) ? AS_CSTRING(args[1]) : NULL;
+        if (!path || !*path) {
+            fprintf(stderr, "[iDestination] PDF : chemin de sortie attendu.\n");
+            return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
+        }
+        g_cfg_dest = OWL_IDEST_PDF_GENERIQUE;
+        strncpy(g_cfg_path, path, sizeof(g_cfg_path) - 1);
+        g_cfg_path[sizeof(g_cfg_path) - 1] = '\0';
+        g_cfg_img = NULL;
+    } else if (type == OWL_IDEST_IMAGE_MEMOIRE) {
+        /* Extension OWL  : 2e arg = tableau de Image (sera peuple). */
+        if (argCount < 2 || !IS_ARRAY(args[1])) {
+            fprintf(stderr, "[iDestination] iImageMemoire : tableau de Image attendu en 2e argument.\n");
+            return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
+        }
+        g_cfg_dest = OWL_IDEST_IMAGE_MEMOIRE;
+        g_cfg_img = AS_ARRAY(args[1]);
+        g_cfg_path[0] = '\0';
+    } else if (type == OWL_IDEST_IMPRIMANTE) {
+        g_cfg_dest = OWL_IDEST_IMPRIMANTE;
+        g_cfg_img = NULL;
+        g_cfg_path[0] = '\0';
+    } else {
+        fprintf(stderr,
+            "[iDestination] type %d non supporte (iPDFGenerique/iImageMemoire/iImprimante implem).\n", type);
+        return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
+    }
+
+    /* Ferme (sans reset qpdf/params : ceux-ci valent pour le PROCHAIN doc) un
+     * doc resté ouvert, puis ouvre à la nouvelle destination — flux manuel et
+     * 1er iImprimeEtat. */
+    if (g_doc) {
+        owl_pdf_close(g_doc);
+        owl_printer_progress_end();
+        g_doc = NULL;
+        g_doc_img_target = NULL;
+        g_doc_path[0] = '\0';
+    }
+    if (!open_dest()) {
+        fprintf(stderr, "[iDestination] echec ouverture de la destination.\n");
+        return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
+    }
+    return INTEGER_VAL(g_cfg_dest);
+}
+
+/* iFinImprime() — finalise + ecrit le fichier + libere les ressources.
+ * Ferme le doc PDF courant. Hook qpdf post-traitement si iParametrePDF
+ * a pose des options qui necessitent du post-traitement (chiffrement,
+ * signets, PDF/A-3b). */
+static Value fn_i_fin_imprime(int argCount, Value* args) {
+    (void)argCount; (void)args;
+    /*  : flux manuel (iImprime/iLigne…). No-op toléré après un
+     * iImprimeEtat déjà auto-finalisé. Toute la finalisation (close + qpdf +
+     * fermeture fenêtre progression + reset params) vit dans finalize_print. */
+    finalize_print();
     return NIL_VAL;
 }
 
@@ -915,6 +1145,15 @@ static void render_etat_label(OwlPdfDoc* d, const OwlControlDecl* ctrl) {
         }
     }
 
+    if (!fontApplied) {
+        /* Aucune police declaree : reset a la police par defaut de l'Etat
+         * (Liberation Sans 11pt, sans style). Sans ce reset, le champ heriterait
+         * de la police du champ precedent -> fuite de taille/style entre champs
+         * et entre Etats (symptome : texte geant tronque sur le champ suivant). */
+        owl_pdf_font_create(d, ETAT_LABEL_FONT_ID, 11, 0, "");
+        owl_pdf_font_use(d, ETAT_LABEL_FONT_ID);
+    }
+
     /* Alignement combinable iGauche/Droite/CentreH + iHaut/Bas/CentreV.
      * V2 PoC : on lit un "Alignement" entier (bitmask). Sinon defaut 0. */
     int align = 0;
@@ -940,6 +1179,9 @@ static void render_etat_label(OwlPdfDoc* d, const OwlControlDecl* ctrl) {
         owl_pdf_rect(d, x, y, x2, y2, 0, -1, couleur_fond_champ, 0, 0, 0);
     }
 
+    /* Couleur du texte (propriete Couleur). -1 = defaut (noir). Posee par champ,
+     * jamais heritee (symetrie avec CouleurFond). */
+    owl_pdf_set_text_color(d, prop_color_live(uici, ctrl, "Couleur", -1));
     owl_pdf_print_zone(d, text, x, y, x2, y2, align);
 
     render_etat_cadre(d, ctrl, x, y, x2, y2);
@@ -1439,8 +1681,14 @@ static void apply_etat_properties(OwlPdfDoc* d, const OwlEtatDecl* etat) {
  * juste des slots dans la sequence. Si le dev veut repeter le Corps, il
  * appelle iImprimeBloc("nomCorps") manuellement depuis Lecture. */
 static Value fn_i_imprime_etat(int argCount, Value* args) {
-    OwlPdfDoc* d = require_doc("iImprimeEtat");
-    if (!d) return BOOL_VAL(false);
+    /*  : iImprimeEtat est autonome. Il ouvre un doc à la destination
+     * configurée (défaut imprimante) si aucun n'est ouvert, et le finalise
+     * lui-même en fin de rendu (pas besoin de iFinImprime). */
+    OwlPdfDoc* d = ensure_etat_doc();
+    if (!d) {
+        fprintf(stderr, "[iImprimeEtat] aucune destination d'impression disponible.\n");
+        return BOOL_VAL(false);
+    }
     if (argCount < 1) {
         owl_emit_native_error(E_NATIVE_ARG_MISSING, "iImprimeEtat",
                               "native", "iImprimeEtat",
@@ -1494,6 +1742,13 @@ static Value fn_i_imprime_etat(int argCount, Value* args) {
 
     /* Applique format/orientation/marges sur le doc PDF. */
     apply_etat_properties(d, etat);
+
+    /*  : état suivant d'un enchaînement -> page neuve APRÈS avoir posé
+     * la mise en page (le newPage fige la taille de la page qu'il ouvre). */
+    if (g_ench_break_before) {
+        owl_pdf_new_page(d);
+        g_ench_break_before = 0;
+    }
 
     /* Pose l'Etat courant pour iImprimeBloc(). Restoré a la fin (idiome
      * scope-guard manuel — la VM est mono-thread donc OK). */
@@ -1710,7 +1965,181 @@ static Value fn_i_imprime_etat(int argCount, Value* args) {
     vm_pop();
 
     g_current_etat = prev_current;
+    /*  : auto-finalisation (écrit/spoole, ferme le doc). Sautée pendant
+     * un enchaînement : tous les états partagent un seul doc, que
+     * iEnchaînementImprime finalise à la fin. */
+    if (!g_in_enchainement) finalize_print();
     return BOOL_VAL(true);
+}
+
+/*  — vide la file d'enchaînement : dé-racine l'array OWL (le GC la
+ * collecte) et libère le tableau C de config parallèle. */
+static void ench_queue_clear(void) {
+    g_ench_queue = NULL;
+    obj_globals_set("$enchainement", NIL_VAL);
+    free(g_ench_cfg);
+    g_ench_cfg = NULL;
+    g_ench_cfg_count = 0;
+    g_ench_cfg_cap = 0;
+}
+
+/*  — égalité stricte de deux snapshots de config physique. */
+static int ench_cfg_equal(const OwlEnchJobCfg* a, const OwlEnchJobCfg* b) {
+    return a->duplex == b->duplex && a->color == b->color &&
+           a->paperSource == b->paperSource;
+}
+
+/* iEnchainementAjoute(<Etat> [, <params…>]) — . Mémorise un état et
+ * ses paramètres métier dans la file lazy (exécution différée au
+ * iEnchainementImprime). L'état n'est PAS exécuté ici : seuls son nom, ses
+ * params et un snapshot de la config physique courante sont
+ * stockés. */
+static Value fn_i_enchainement_ajoute(int argCount, Value* args) {
+    if (argCount < 1 || !IS_STRING(args[0])) {
+        fprintf(stderr, "[iEnchainementAjoute] nom d'etat (chaine) attendu en 1er argument.\n");
+        return BOOL_VAL(false);
+    }
+    /* File racinée dans vm.globals pour survivre au GC (le mark-and-sweep ne
+     * déplace pas l'objet, g_ench_queue reste donc valide). */
+    if (!g_ench_queue) {
+        g_ench_queue = obj_new_array();
+        obj_globals_set("$enchainement", OBJ_VAL(g_ench_queue));
+    }
+    /* Entrée = [nomEtat, param1, …]. Array fraîche rootée AVANT les push
+     * (obj_array_push peut grow -> GC ; cf. gc-root-obj-fresh). */
+    ObjArray* entry = obj_new_array();
+    vm_push(OBJ_VAL(entry));
+    for (int i = 0; i < argCount; i++) {
+        obj_array_push(entry, args[i]);
+    }
+    obj_array_push(g_ench_queue, OBJ_VAL(entry));
+    vm_pop();   /* entry désormais rootée par g_ench_queue */
+
+    /*  — snapshot de la config physique courante pour CET état (tableau
+     * C parallèle, en lockstep avec la file). */
+    if (g_ench_cfg_count >= g_ench_cfg_cap) {
+        int ncap = g_ench_cfg_cap ? g_ench_cfg_cap * 2 : 8;
+        OwlEnchJobCfg* grown = (OwlEnchJobCfg*)realloc(g_ench_cfg, (size_t)ncap * sizeof(OwlEnchJobCfg));
+        if (!grown) return BOOL_VAL(false);
+        g_ench_cfg = grown;
+        g_ench_cfg_cap = ncap;
+    }
+    g_ench_cfg[g_ench_cfg_count].duplex      = owl_printer_get_duplex();
+    g_ench_cfg[g_ench_cfg_count].color       = owl_printer_get_color();
+    g_ench_cfg[g_ench_cfg_count].paperSource = owl_printer_get_paper_source();
+    g_ench_cfg_count++;
+    return BOOL_VAL(true);
+}
+
+/* iEnchainementImprime() —  + .
+ *
+ * Destination non physique (PDF, image mémoire) : toute la file rend dans UN
+ * seul document (la config physique duplex/couleur/bac est sans objet), finalisé
+ * une fois.
+ *
+ * Imprimante : segmentation automatique. Des états consécutifs à
+ * config physique identique forment un segment = un seul job de spool ; un
+ * changement de config ouvre un nouveau job (Qt fige duplex/couleur/bac au
+ * niveau job). Côté application rien ne trahit la coupure : une seule fenêtre de
+ * progression et une numérotation de page continue couvrent toute la séquence.
+ * Le spouleur OS reçoit N jobs seulement quand un réglage change réellement. */
+static Value fn_i_enchainement_imprime(int argCount, Value* args) {
+    (void)argCount; (void)args;
+    if (!g_ench_queue || g_ench_queue->elements.count == 0) {
+        fprintf(stderr, "[iEnchainementImprime] file d'enchainement vide (aucun iEnchainementAjoute).\n");
+        return BOOL_VAL(false);
+    }
+    int n = g_ench_queue->elements.count;
+
+    /* --- Destinations non physiques : un seul document pour toute la file. --- */
+    if (g_cfg_dest != OWL_IDEST_IMPRIMANTE) {
+        OwlPdfDoc* d = ensure_etat_doc();
+        if (!d) {
+            fprintf(stderr, "[iEnchainementImprime] aucune destination d'impression disponible.\n");
+            return BOOL_VAL(false);
+        }
+        g_in_enchainement = 1;
+        for (int i = 0; i < n; i++) {
+            Value ev = g_ench_queue->elements.values[i];
+            if (!IS_ARRAY(ev)) continue;
+            ObjArray* entry = AS_ARRAY(ev);
+            g_ench_break_before = (i > 0) ? 1 : 0;
+            fn_i_imprime_etat(entry->elements.count, entry->elements.values);
+        }
+        g_in_enchainement = 0;
+        finalize_print();
+        ench_queue_clear();
+        return BOOL_VAL(true);
+    }
+
+    /* --- Imprimante : segmentation automatique sur changement de config. --- */
+    g_in_enchainement = 1;
+    int pageBase = 0;        /* dernier numéro de page du segment précédent */
+    int progressStarted = 0;
+    int ok = 1;
+    int i = 0;
+    while (i < n) {
+        /* Borne du segment : états consécutifs à config physique identique. */
+        int segEnd = i + 1;
+        while (segEnd < n && segEnd < g_ench_cfg_count &&
+               ench_cfg_equal(&g_ench_cfg[segEnd], &g_ench_cfg[i])) {
+            segEnd++;
+        }
+        /* 1er segment : réutilise le doc pré-ouvert par iDestination (garde le
+         * nom de fichier nu en mode test) ; sinon ouvre un job neuf sur
+         * l'imprimante persistante. */
+        OwlPdfDoc* d = (i == 0 && g_doc) ? g_doc : open_dest();
+        if (!d) {
+            fprintf(stderr, "[iEnchainementImprime] echec ouverture d'un job d'impression.\n");
+            ok = 0;
+            break;
+        }
+        /* Applique la config physique du segment (imprimante inactive ici : un
+         * job vient d'être ouvert / fermé, QPrinter accepte le changement). */
+        if (g_ench_cfg && i < g_ench_cfg_count) {
+            owl_printer_set_duplex(g_ench_cfg[i].duplex);
+            owl_printer_set_color(g_ench_cfg[i].color);
+            owl_printer_set_paper_source(g_ench_cfg[i].paperSource);
+        }
+        /* Fenêtre de progression : démarrée une seule fois, après la 1ère
+         * ouverture (g_currentPrinter existe). Réutilise celle qu'iDestination a
+         * pu poser. Continue ensuite sur tous les segments. */
+        if (!progressStarted) {
+            if (g_abort_show && !owl_printer_progress_active()) {
+                const char *t, *x;
+                abort_resolve_strings(&t, &x);
+                owl_printer_progress_begin(t, x);
+            }
+            progressStarted = 1;
+        }
+        /* Numérotation de page continue à travers les segments (canon). */
+        if (pageBase > 0) {
+            owl_pdf_set_page_number(d, pageBase + 1);
+            owl_printer_progress_page(pageBase + 1);
+        }
+        /* Rend les états du segment (saut de page entre eux, dans le même job). */
+        for (int k = i; k < segEnd; k++) {
+            Value ev = g_ench_queue->elements.values[k];
+            if (!IS_ARRAY(ev)) continue;
+            ObjArray* entry = AS_ARRAY(ev);
+            g_ench_break_before = (k > i) ? 1 : 0;
+            fn_i_imprime_etat(entry->elements.count, entry->elements.values);
+        }
+        pageBase = owl_pdf_page_number(d);
+        /* Spoule le job (painter->end). La fenêtre de progression reste ouverte. */
+        owl_pdf_close(d);
+        g_doc = NULL;
+        i = segEnd;
+    }
+    g_in_enchainement = 0;
+    owl_printer_progress_end();
+    /* Remet l'état du doc courant à zéro (une fois pour la séquence). */
+    g_doc_path[0] = '\0';
+    g_doc_dest = OWL_IDEST_IMPRIMANTE;
+    g_doc_img_target = NULL;
+    pdf_params_reset();
+    ench_queue_clear();
+    return ok ? BOOL_VAL(true) : BOOL_VAL(false);
 }
 
 /* iImprimeBloc(<NomBloc>) — canon.
@@ -2506,11 +2935,15 @@ static Value fn_i_imprime_image(int argCount, Value* args) {
 void stdlib_pdf_impls_wire(void) {
     /* Lifecycle */
     stdlib_pdf_defs_set_impl("iConfigure",           fn_i_configure);
+    stdlib_pdf_defs_set_impl("iFenetreAbandon",      fn_i_fenetre_abandon);
     stdlib_pdf_defs_set_impl("iDestination",         fn_i_destination);
     stdlib_pdf_defs_set_impl("iFinImprime",          fn_i_fin_imprime);
     stdlib_pdf_defs_set_impl("iParametrePDF",        fn_i_parametre_pdf);
+    stdlib_pdf_defs_set_impl("iParametre",           fn_i_parametre);
     stdlib_pdf_defs_set_impl("iImprimeEtat",         fn_i_imprime_etat);
     stdlib_pdf_defs_set_impl("iImprimeBloc",         fn_i_imprime_bloc);
+    stdlib_pdf_defs_set_impl("iEnchainementAjoute",  fn_i_enchainement_ajoute);
+    stdlib_pdf_defs_set_impl("iEnchainementImprime", fn_i_enchainement_imprime);
     /* Mise en page */
     stdlib_pdf_defs_set_impl("iMarge",               fn_i_marge);
     stdlib_pdf_defs_set_impl("iSautePage",           fn_i_saute_page);

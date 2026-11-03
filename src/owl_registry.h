@@ -99,6 +99,15 @@ typedef struct {
      * deluge de faux positifs. Retro-compatible C99 (champ en fin de struct,
      * defaut false pour tous les initializers positionnels existants). */
     bool           requireEnumValueCoverage;
+    /* Si true, un littéral entier est une valeur légale pour ce param, en plus
+     * de l'enum allowedBase ; désambiguïsé au runtime par la non-sentinel-ness
+     * (une valeur d'enum vit dans la bande sentinelle INT32_MIN+n*0x100, un
+     * entier user ordinaire non). Lève le warning W_SEM_ENUM_LITERAL_NUMERIC
+     * UNIQUEMENT pour le littéral entier (un identifiant non-sentinelle invalide
+     * reste rejeté par validate_enum_rhs). Cas d'usage : param « enum optionnel
+     * AVANT int(s) optionnel(s) » (dChargeImage options vs largeur/hauteur).
+     * Retro-compatible C99 (champ en fin de struct, defaut false). */
+    bool           allowsRawInt;
 } OwlParam;
 
 typedef struct {

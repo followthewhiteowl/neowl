@@ -1,0 +1,59 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Extension codepage GB18030 (encGB18030), encodage multi-octets chinois simplifié. ASCII (0x00-0x7F) passe tel quel sur 1 octet, les sinogrammes courants occupent 2 octets (plage compatible GBK), et tout le reste du plan Unicode (y compris les plans supplémentaires) occupe 4 octets. Contrairement aux autres codepages asiatiques du lot, GB18030 représente la totalité de l'espace Unicode : il n'existe pas de caractère qui tombe en remplacement '?'.
+
+// Vecteurs cross-vérifiés : table WHATWG index-gb18030.txt / index-gb18030-ranges.txt
+// recalculées via la formule d'encodage GB18030 officielle, confrontées au codec
+// "gb18030" indépendant de la bibliothèque standard Python : U+4E2D -> D6 D0 (2 octets),
+// U+0080 -> 81 30 81 30 (4 octets, première séquence 4 octets du standard),
+// U+10FFFF -> E3 32 9A 35 (4 octets, dernier codepoint Unicode valide).
+
+
+// Cas A : ASCII passthrough.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_gb18030_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encGB18030)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en GB18030 = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en GB18030")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en GB18030")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en GB18030")
+FIN
+
+
+// Cas B : 中 (U+4E2D, "milieu/centre") -> 2 octets 0xD6 0xD0 (214, 208). Plage GBK 2 octets.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_gb18030_sinogramme_2octets()
+	buf est un buffer = ChaîneVersBuffer("中", encGB18030)
+	dbgVérifieEgalité(Taille(buf), 2, "中 en GB18030 = 2 octets (plage GBK)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 214, "中 en GB18030, octet de tête = 214 (0xD6)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 208, "中 en GB18030, octet de fin = 208 (0xD0)")
+FIN
+
+
+// Cas C : U+0080 (premier codepoint hors ASCII/GBK) -> 4 octets 0x81 0x30 0x81 0x30.
+// C'est la toute première séquence 4 octets du standard GB18030.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_gb18030_sequence_4octets()
+	c   est une chaîne = Caract(128)
+	buf est un buffer  = ChaîneVersBuffer(c, encGB18030)
+	dbgVérifieEgalité(Taille(buf), 4, "U+0080 en GB18030 = 4 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 129, "U+0080 en GB18030, octet 1 = 129 (0x81)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 48, "U+0080 en GB18030, octet 2 = 48 (0x30)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 129, "U+0080 en GB18030, octet 3 = 129 (0x81)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 4), 48, "U+0080 en GB18030, octet 4 = 48 (0x30)")
+FIN
+
+
+// Cas D : U+10000 (plan supplémentaire, première valeur) -> 4 octets 0x90 0x30 0x81 0x30.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_gb18030_sequence_4octets_plan_supplementaire()
+	c   est une chaîne = Caract(65536)
+	buf est un buffer  = ChaîneVersBuffer(c, encGB18030)
+	dbgVérifieEgalité(Taille(buf), 4, "U+10000 en GB18030 = 4 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 144, "U+10000 en GB18030, octet 1 = 144 (0x90)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 48, "U+10000 en GB18030, octet 2 = 48 (0x30)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 129, "U+10000 en GB18030, octet 3 = 129 (0x81)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 4), 48, "U+10000 en GB18030, octet 4 = 48 (0x30)")
+FIN
+
+
+// Edge case : chaîne vide -> buffer vide.
+PROCEDURE PRIVÉE scenario_cvb_dbcs_gb18030_edge_chaine_vide()
+	buf est un buffer = ChaîneVersBuffer("", encGB18030)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide -> buffer vide en GB18030")
+FIN

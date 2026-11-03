@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════════════════════════════
 
 PROCEDURE PUBLIQUE scenario_sauvegarde_nominal()
-	img est une Image
+	img    est une Image
 	chemin est une chaîne
 	succès est un booléen
 
@@ -23,9 +23,9 @@ PROCEDURE PUBLIQUE scenario_sauvegarde_nominal()
 FIN
 
 PROCEDURE PUBLIQUE scenario_round_trip_dimensions_preservees()
-	imgSource est une Image
-	imgChargée est une Image
-	chemin est une chaîne
+	imgSource        est une Image
+	imgChargée       est une Image
+	chemin           est une chaîne
 	couleurDominante est un entier
 
 	// Créer une image avec une couleur spécifique
@@ -44,11 +44,11 @@ PROCEDURE PUBLIQUE scenario_round_trip_dimensions_preservees()
 FIN
 
 PROCEDURE PUBLIQUE scenario_transparence_optionnelle()
-	img est une Image
-	imgReloaded est une Image
-	chemin est une chaîne
+	img                 est une Image
+	imgReloaded         est une Image
+	chemin              est une chaîne
 	couleurTransparente est un entier
-	succès est un booléen
+	succès              est un booléen
 
 	couleurTransparente = RVB(255, 0, 255) // Magenta
 
@@ -66,10 +66,10 @@ PROCEDURE PUBLIQUE scenario_transparence_optionnelle()
 FIN
 
 PROCEDURE PUBLIQUE scenario_canal_alpha_preserve()
-	img est une Image
+	img         est une Image
 	imgReloaded est une Image
-	chemin est une chaîne
-	succès est un booléen
+	chemin      est une chaîne
+	succès      est un booléen
 
 	// Créer une image avec canal alpha (défaut de dCréeImage)
 	img    = dCréeImage(30, 30, RVB(100, 150, 200))
@@ -85,8 +85,8 @@ PROCEDURE PUBLIQUE scenario_canal_alpha_preserve()
 FIN
 
 PROCEDURE PUBLIQUE scenario_dimensions_variees()
-	imgPetite est une Image
-	imgGrande est une Image
+	imgPetite    est une Image
+	imgGrande    est une Image
 	cheminPetite est une chaîne
 	cheminGrande est une chaîne
 	succèsPetite est un booléen
@@ -113,7 +113,7 @@ FIN
 // ════════════════════════════════════════════════════════════════════════════════════
 
 PROCEDURE PRIVÉE scenario_edge_dimension_minimale()
-	img est une Image
+	img    est une Image
 	chemin est une chaîne
 	succès est un booléen
 
@@ -128,9 +128,9 @@ PROCEDURE PRIVÉE scenario_edge_dimension_minimale()
 FIN
 
 PROCEDURE PRIVÉE scenario_edge_ecrasement_fichier_existant()
-	img1 est une Image
-	img2 est une Image
-	chemin est une chaîne
+	img1    est une Image
+	img2    est une Image
+	chemin  est une chaîne
 	succès1 est un booléen
 	succès2 est un booléen
 
@@ -150,7 +150,7 @@ PROCEDURE PRIVÉE scenario_edge_ecrasement_fichier_existant()
 FIN
 
 PROCEDURE PRIVÉE scenario_edge_chemin_relatif()
-	img est une Image
+	img    est une Image
 	chemin est une chaîne
 	succès est un booléen
 
@@ -168,7 +168,7 @@ PROCEDURE PRIVÉE scenario_edge_chemin_relatif()
 FIN
 
 PROCEDURE PRIVÉE scenario_edge_sans_extension()
-	img est une Image
+	img    est une Image
 	chemin est une chaîne
 	succès est un booléen
 
@@ -182,9 +182,29 @@ PROCEDURE PRIVÉE scenario_edge_sans_extension()
 	dbgVérifieEgalité(succès, Vrai, "sauvegarde sans extension reussie")
 FIN
 
+PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
+	couleurMagenta est un entier  = RVB(255, 0, 255)
+	cheminUTF8     est une chaîne = fRepTemp() + fSep() + "test_éàü_ñ_png.png"
+	img            est une Image
+	res            est un booléen
+
+	// Sauver vers un chemin contenant des accents / caractères non-ASCII
+	img = dCréeImage(8, 8, couleurMagenta)
+	res = dSauveImagePNG(img, cheminUTF8)
+	dbgVérifieEgalité(res, Vrai, "sauvegarde PNG avec chemin UTF-8 accents")
+
+	// Valider le vrai nom sur disque (via l'API fichier), pas un round-trip
+	// narrow qui masquerait un nom mojibake.
+	dbgVérifieVrai(fFichierExiste(cheminUTF8), "fichier PNG créé sous le vrai nom UTF-8")
+	dbgVérifieVrai(fTailleFichier(cheminUTF8) > 0, "fichier PNG UTF-8 non vide sur disque")
+
+	// Nettoyer
+	fSupprime(cheminUTF8)
+FIN
+
 PROCEDURE PRIVÉE scenario_edge_couleur_noire_transparente()
-	img est une Image
-	chemin est une chaîne
+	img         est une Image
+	chemin      est une chaîne
 	couleurNoir est un entier
 
 	couleurNoir = RVB(0, 0, 0)

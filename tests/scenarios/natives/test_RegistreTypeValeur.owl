@@ -1,0 +1,47 @@
+// @sujet : RegistreTypeValeur
+// @résumé : Renvoie le type d'une valeur présente dans la base de
+// registre, sous la forme d'une constante symbolique (chaîne, entier,
+// binaire…).
+
+PROCEDURE avantChaqueTest()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\TypeValeur"
+	RegistreCréeClé(chemin)
+	RegistreEcrit(chemin, "Langage", "Francais")
+	RegistreEcrit(chemin, "Compteur", 7)
+FIN
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\TypeValeur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_type_d_une_valeur_chaine()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\TypeValeur"
+	sType  est une chaîne = RegistreTypeValeur(chemin, "Langage")
+	dbgVérifieEgalité(sType, registreTypeChaîne, "une valeur écrite comme chaîne est typée chaîne")
+FIN
+
+PROCEDURE PUBLIQUE scenario_type_d_une_valeur_entiere()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\TypeValeur"
+	sType  est une chaîne = RegistreTypeValeur(chemin, "Compteur")
+	dbgVérifieEgalité(sType, registreTypeEntier, "une valeur écrite comme entier est typée entier")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\TypeValeur"
+	sType  est une chaîne = RegistreTypeValeur(registreModeAuto, chemin, "Langage")
+	dbgVérifieEgalité(sType, registreTypeChaîne, "le typage réussit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : interroger le type d'une valeur absente échoue proprement,
+// sans crash, avec un message d'erreur exploitable.
+PROCEDURE PRIVÉE scenario_echec_doux_si_valeur_inexistante()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\TypeValeur"
+
+	ErreurRAZ()
+	sType est une chaîne = RegistreTypeValeur(chemin, "Inconnue")
+	sMsg  est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieEgalité(sType, "", "le type d'une valeur absente est une chaîne vide")
+	dbgVérifieVrai(sMsg <> "", "le message d'erreur est renseigné")
+FIN
+
+dbgBilanTest()

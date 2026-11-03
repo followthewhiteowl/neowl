@@ -733,6 +733,93 @@ sans passer par un événement, extraire une procédure nommée et l'appeler dir
 
 ---
 
+## 7ter-bis. Intercepter un événement par code : `IntercepteÉvénement`
+
+`IntercepteÉvénement` (anglais `InterceptEvent`) attache par code un traitement à
+un événement **nommé** d'un champ — `evtClic`, `evtToucheRelâchée`, focus, etc. —
+sans passer par la déclaration statique. À distinguer de `DéclencheÉvénement`, qui
+exécute un handler **déjà câblé** : `IntercepteÉvénement`, lui, **ajoute** un
+traitement, exécuté **avant** le bloc statique du champ.
+
+```owl
+IntercepteÉvénement(procChaqueFrappe, SAI_Montant, evtAChaqueModification)
+```
+
+- **Procédure** : la procédure interceptée. Elle doit être déclarée dans le **même
+  fichier** que l'appel (la résolution de portée OWL ne va pas chercher une
+  procédure d'un autre fichier).
+- **Champ** : le champ cible.
+- **événement** : une constante `evtXxx` (même jeu que `DéclencheÉvénement`).
+
+### Ordre d'exécution et suppression du bloc statique
+
+Le traitement intercepté s'exécute **avant** le bloc statique du champ. Par défaut,
+le bloc statique s'exécute **ensuite**. Mais si le traitement intercepté **renvoie
+`Faux`**, le bloc statique est **supprimé** — il ne s'exécute pas. Une procédure
+sans `RENVOYER`, ou qui renvoie autre chose que `Faux`, laisse le bloc statique
+s'exécuter normalement.
+
+### Détacher : `IntercepteÉvénementFin`
+
+```owl
+IntercepteÉvénementFin(SAI_Montant, evtAChaqueModification)   // ce couple précis
+IntercepteÉvénementFin(SAI_Montant)                            // tous les événements du champ
+```
+
+Avec l'événement fourni, seul ce couple `(champ, événement)` est détaché ;
+l'événement omis, **tous** les événements interceptés du champ le sont. Détacher un
+couple sans interception attachée est **sans effet** (pas d'erreur). Il n'y a qu'**une
+interception par couple** `(champ, événement)` : ré-attacher sur le même couple
+**remplace** la précédente, sans cumul.
+
+### Exemple
+
+```owl
+// FEN_Montant.owl — la procédure interceptée vit dans le même fichier que l'appel.
+
+FEN_Montant est une Fenêtre
+    PROPRIETES
+        Titre       = "Montant"
+        Disposition = dispLibre
+    FIN
+
+    SAI_Montant est un Champ Saisie
+        PROPRIETES
+            X = 10
+            Y = 10
+        FIN
+        PROCEDURE surAChaqueModification()          // bloc statique
+            LIB_Apercu..Libellé = SAI_Montant..Valeur
+        FIN
+    FIN
+
+    LIB_Apercu est un Champ Libellé
+        PROPRIETES
+            X = 10
+            Y = 50
+        FIN
+    FIN
+
+    PROCEDURE contrôleFrappe() : booléen
+        SI Taille(SAI_Montant..Valeur) > 5 ALORS
+            RENVOYER Faux        // trop long : le bloc statique est supprimé
+        FIN
+        RENVOYER Vrai            // sinon le bloc statique met à jour l'aperçu
+    FIN
+
+    PROCEDURE FinInitialisation()
+        IntercepteÉvénement(contrôleFrappe, SAI_Montant, evtAChaqueModification)
+    FIN
+FIN
+```
+
+> **Portée en interface graphique.** L'attache dynamique couvre les événements de
+> clic, de focus et de clavier. Les événements à signal spécifique (modification,
+> sélection, changement d'onglet) sont interceptables dès lors que le champ déclare
+> un **bloc statique** pour l'événement visé.
+
+---
+
 ## 7quater. Le champ Table : déclaration et mise en forme
 
 ### Déclarer une Table et ses colonnes
@@ -906,6 +993,21 @@ par position, utiliser plutôt `MasqueAffichage` (`DisplayMask`) — un gabarit
 de jetons par type (Date `"JJ/MM/AAAA"`, Heure `"HH:MI"`, Durée `"HH:MI:SS"`).
 Pour un champ Numérique ou Monétaire, c'est `FormatNombre` / `FormatMonétaire`
 qui pilotent l'affichage, pas `MasqueAffichage`.
+
+`FormatNombre` est un descripteur composé, posé via un littéral inline
+`{ ... }` : `SéparateurMilliers`, `SéparateurDécimal` et
+`ChiffresAprèsVirgule` pilotent l'affichage d'un champ Numérique.
+
+```owl
+SAI_Montant est un Champ Saisie
+    PROPRIETES
+        TypeSaisie   = typSaisieNum
+        FormatNombre = {SéparateurMilliers = " ", SéparateurDécimal = ",", ChiffresAprèsVirgule = 2}
+    FIN
+```
+
+Non posé, le champ hérite du `FormatNombre` du projet ; chaque propriété est
+aussi modifiable à la volée (`SAI_Montant..FormatNombre..ChiffresAprèsVirgule = 0`).
 
 ---
 

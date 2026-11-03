@@ -1,0 +1,53 @@
+// @sujet : BufferVersChaîne
+// @résumé : Extension codepage Big5 (encBig5), décodage symétrique de ChaîneVersBuffer. Une séquence 2 octets tronquée (octet de tête en fin de buffer, sans octet de fin) est décodée en caractère de remplacement '?'.
+
+// Vecteurs cross-vérifiés : table WHATWG index-big5.txt recalculée via la formule
+// d'encodage Big5 officielle, confrontée au codec "big5" indépendant de la
+// bibliothèque standard Python : U+4E2D <-> A4 A4, U+60A8 <-> B1 7A.
+
+
+// Cas A : octets 0xA4 0xA4 (164, 164) décodés -> 中 (U+4E2D).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_big5_decode_sinogramme_zhong()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 164)
+	BufferÉcritOctet(buf, 2, 164)
+	s est une chaîne = BufferVersChaîne(buf, encBig5)
+	dbgVérifieEgalité(s, "中", "octets 164,164 décodés en Big5 -> 中")
+FIN
+
+
+// Cas B : octets 0xB1 0x7A (177, 122) décodés -> 您 (U+60A8).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_big5_decode_sinogramme_nin()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 177)
+	BufferÉcritOctet(buf, 2, 122)
+	s est une chaîne = BufferVersChaîne(buf, encBig5)
+	dbgVérifieEgalité(s, "您", "octets 177,122 décodés en Big5 -> 您")
+FIN
+
+
+// Cas C : round-trip sur une séquence mélangeant ASCII et sinogrammes.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_big5_roundtrip()
+	s0  est une chaîne = "A 中您B"
+	buf est un buffer  = ChaîneVersBuffer(s0, encBig5)
+	s1  est une chaîne = BufferVersChaîne(buf, encBig5)
+	dbgVérifieEgalité(s1, s0, "round-trip Big5 restitue 'A 中您B' sans perte")
+FIN
+
+
+// Edge case : séquence tronquée, octet de tête (0xA4) seul en fin de buffer
+// -> décodé en caractère de remplacement '?'.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_big5_edge_sequence_tronquee()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 164)
+	s est une chaîne = BufferVersChaîne(buf, encBig5)
+	dbgVérifieEgalité(s, "?", "octet de tête seul (séquence tronquée) -> caractère de remplacement '?'")
+FIN
+
+
+// Edge case : buffer vide -> chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_big5_edge_buffer_vide()
+	buf est un buffer  = ""
+	s   est une chaîne = BufferVersChaîne(buf, encBig5)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en Big5 -> chaîne vide")
+FIN

@@ -1,0 +1,26 @@
+// @sujet : propriété Plan appliquée à un Champ Onglet (widget composite
+// barre de languettes + volets, distinct du Conteneur)
+// @résumé : un Champ Onglet affecté directement à un plan de fenêtre doit se
+// cacher et se réafficher avec la bascule du plan actif, au même titre que
+// n'importe quel autre champ composite.
+//
+// Ressource DSL : FEN_PlanOnglet.owl (voisin). Widgets natifs réels requis
+// (TestModeHeadless(Faux)) pour mesurer la visibilité effective recalculée
+// par le moteur à chaque bascule.
+
+PROCEDURE PUBLIQUE scenario_plan_champ_onglet_affecte_suit_la_bascule_du_plan_actif()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_PlanOnglet)
+
+	DefinitFenPlanOnglet(1)
+	dbgVérifieVrai(LireVisibleOngletPlan1(), "au plan actif 1, l'onglet affecté au plan 1 est visible")
+	dbgVérifieVrai(LireVisibleSansPlanOnglet(), "le champ sans plan reste visible au plan actif 1")
+
+	DefinitFenPlanOnglet(2)
+	dbgVérifieFaux(LireVisibleOngletPlan1(), "au plan actif 2, l'onglet affecté au plan 1 est caché")
+	dbgVérifieVrai(LireVisibleSansPlanOnglet(), "le champ sans plan reste visible au plan actif 2")
+
+	Ferme(FEN_PlanOnglet)
+FIN
+
+dbgBilanTest()

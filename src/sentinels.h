@@ -410,6 +410,40 @@
 #define OWL_IINFOIMPR_DRIVER         (OWL_IINFOIMPR_BASE + 1)  /* iNomDriver */
 #define OWL_IINFOIMPR_PORT           (OWL_IINFOIMPR_BASE + 2)  /* iNomPort */
 
+/* iParametre — selecteurs de parametre d'impression pilotes (recto-verso,
+ * couleur). Passes en 1er argument de iParametre, en getter comme en setter. */
+#define OWL_IPARAM_BASE              OWL_SENTINEL_OFFSET(103)
+#define OWL_IPARAM_RECTOVERSO        (OWL_IPARAM_BASE + 0)  /* iRectoVerso / iDuplex */
+#define OWL_IPARAM_COULEUR           (OWL_IPARAM_BASE + 1)  /* iCouleur / iColor */
+#define OWL_IPARAM_ALIMPAPIER        (OWL_IPARAM_BASE + 2)  /* iAlimentationPapier / iPaperSource */
+
+/* iParametre(iRectoVerso, <val>) — mode recto-verso. */
+#define OWL_IDUPLEX_BASE             OWL_SENTINEL_OFFSET(104)
+#define OWL_IDUPLEX_SIMPLE           (OWL_IDUPLEX_BASE + 0)  /* une seule face */
+#define OWL_IDUPLEX_HORIZONTAL       (OWL_IDUPLEX_BASE + 1)  /* reliure petit cote */
+#define OWL_IDUPLEX_VERTICAL         (OWL_IDUPLEX_BASE + 2)  /* reliure grand cote */
+
+/* iParametre(iCouleur, <val>) — mode couleur / monochrome. */
+#define OWL_ICOULIMPR_BASE           OWL_SENTINEL_OFFSET(105)
+#define OWL_ICOULIMPR_COULEUR        (OWL_ICOULIMPR_BASE + 0)  /* impression couleur */
+#define OWL_ICOULIMPR_MONO           (OWL_ICOULIMPR_BASE + 1)  /* niveau de gris */
+
+/* iParametre(iAlimentationPapier, <val>) — bac / source papier. */
+#define OWL_IALIMP_BASE              OWL_SENTINEL_OFFSET(106)
+#define OWL_IALIMP_AUTO              (OWL_IALIMP_BASE + 0)   /* automatique */
+#define OWL_IALIMP_BAS               (OWL_IALIMP_BASE + 1)   /* bac du bas */
+#define OWL_IALIMP_CASSETTE          (OWL_IALIMP_BASE + 2)   /* cassette */
+#define OWL_IALIMP_ENVELOPPE         (OWL_IALIMP_BASE + 3)   /* enveloppe */
+#define OWL_IALIMP_ENVELOPPE_MANUEL  (OWL_IALIMP_BASE + 4)   /* enveloppe manuelle */
+#define OWL_IALIMP_GRANDE_CAPACITE   (OWL_IALIMP_BASE + 5)   /* grande capacite */
+#define OWL_IALIMP_GRAND_FORMAT      (OWL_IALIMP_BASE + 6)   /* grand format */
+#define OWL_IALIMP_HAUT              (OWL_IALIMP_BASE + 7)   /* bac du haut */
+#define OWL_IALIMP_MANUEL            (OWL_IALIMP_BASE + 8)   /* manuelle */
+#define OWL_IALIMP_MILIEU            (OWL_IALIMP_BASE + 9)   /* bac du milieu */
+#define OWL_IALIMP_PETIT_FORMAT      (OWL_IALIMP_BASE + 10)  /* petit format */
+#define OWL_IALIMP_TRACTEUR          (OWL_IALIMP_BASE + 11)  /* tracteur */
+#define OWL_IALIMP_UNE_SEULE         (OWL_IALIMP_BASE + 12)  /* une seule feuille */
+
 /* DSL Etat V2 — formats de page (propriete Etat..Format). */
 #define OWL_ETAT_FORMAT_BASE         OWL_SENTINEL_OFFSET(40)
 #define OWL_ETAT_FORMAT_A3           (OWL_ETAT_FORMAT_BASE + 0)
@@ -659,6 +693,19 @@
  * possible (TableSelectPlus). No-op sur les autres kinds. */
 #define OWL_ETAT_AFFICHAGE_SANS_SELECTION (OWL_ETAT_ACTIF_BASE + 4)
 
+/* etatFenetre — etats specifiques au controle de fenetre
+ * (FenEtat / WinStatus). Les etats Actif/AffichageSeulement/Grise/Invisible
+ * sont partages avec l'enum `etat` (memes sentinels OWL_ETAT_*) ; ce bloc ne
+ * declare QUE les valeurs propres a la fenetre. Sentinel-zone : empeche un
+ * `FenEtat(fen, 2)` tape au pif de tomber sur un etat. */
+#define OWL_FENETAT_BASE             OWL_SENTINEL_OFFSET(107)
+#define OWL_FENETAT_INEXISTANT       (OWL_FENETAT_BASE + 0)  /* fermee/inexistante */
+#define OWL_FENETAT_HORSECRAN        (OWL_FENETAT_BASE + 1)  /* active, hors zone visible */
+#define OWL_FENETAT_ACTIF_DEVANT     (OWL_FENETAT_BASE + 2)  /* active + premier plan (set) */
+#define OWL_FENETAT_DESSUS           (OWL_FENETAT_BASE + 3)  /* premier plan appli (set) */
+#define OWL_FENETAT_DESSUS_TOUT      (OWL_FENETAT_BASE + 4)  /* premier plan systeme (set) */
+#define OWL_FENETAT_NORMAL           (OWL_FENETAT_BASE + 5)  /* sortie du mode DessusTout (set) */
+
 /* CurseurSouris (cur*) — mappe sur Qt::CursorShape (ui_qt.cpp). */
 #define OWL_CUR_BASE                 OWL_SENTINEL_OFFSET(59)
 #define OWL_CUR_FLECHE               (OWL_CUR_BASE + 0)
@@ -831,6 +878,13 @@
 #define OWL_ENC_WINDOWS1252          (OWL_ENC_BASE + 4)
 #define OWL_ENC_CP850                (OWL_ENC_BASE + 5)  /* OEM DOS Europe Ouest */
 #define OWL_ENC_CP437                (OWL_ENC_BASE + 6)  /* OEM DOS US */
+/* Codepages DBCS asiatiques multi-octets (tables generees WHATWG,
+ * src/generated/codepage_tables.inc). */
+#define OWL_ENC_SHIFTJIS             (OWL_ENC_BASE + 7)   /* Shift-JIS japonais */
+#define OWL_ENC_GB18030              (OWL_ENC_BASE + 8)   /* GB18030 chinois simplifie */
+#define OWL_ENC_BIG5                 (OWL_ENC_BASE + 9)   /* Big5 chinois traditionnel */
+#define OWL_ENC_EUCKR                (OWL_ENC_BASE + 10)  /* EUC-KR coreen */
+#define OWL_ENC_EUCJP                (OWL_ENC_BASE + 11)  /* EUC-JP japonais */
 
 /* posBtnImage* — position de l'icone par rapport au texte d'un Champ Bouton
  * (feuille de style Style..Image..Position, enum E_PositionImageBouton).

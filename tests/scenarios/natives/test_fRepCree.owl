@@ -1,0 +1,52 @@
+// @sujet : fRepCree
+// @résumé : Fabrique un dossier en une fois, en créant au passage chaque niveau parent absent du chemin. Le retour vaut Vrai dès que le dossier est en place — qu'on vienne de le fabriquer ou qu'il préexiste — et Faux seulement si l'opération n'aboutit pas.
+
+
+// Création d'un dossier neuf : le retour confirme le succès et fRepExiste
+// permet de vérifier que le dossier a bien été matérialisé sur le disque.
+PROCEDURE scenario_creation_simple()
+	sDossier est une chaîne = "_tmp_test_fRepCree_simple"
+
+	cree est un booléen = fRepCree(sDossier)
+	dbgVérifieEgalité(cree, Vrai, "La création d'un dossier neuf renvoie Vrai")
+	dbgVérifieVrai(fRepExiste(sDossier), "Le dossier créé est bien présent sur le disque")
+
+	fRepSupprime(sDossier, frRécursif)
+	dbgVérifieVrai(fRepExiste(sDossier) = Faux, "Le dossier temporaire a bien été supprimé après le test")
+FIN
+
+
+// Création d'une arborescence à plusieurs niveaux en un seul appel : chaque
+// dossier intermédiaire manquant doit être créé automatiquement, pas
+// seulement le dernier niveau de la chaîne.
+PROCEDURE scenario_creation_avec_parents_intermediaires()
+	sRacine  est une chaîne = "_tmp_test_fRepCree_arbo"
+	sFeuille est une chaîne = sRacine + "/niveau_b/niveau_c"
+
+	cree est un booléen = fRepCree(sFeuille)
+	dbgVérifieEgalité(cree, Vrai, "La création d'une arborescence à 3 niveaux renvoie Vrai")
+	dbgVérifieVrai(fRepExiste(sRacine), "Le premier niveau parent a été créé")
+	dbgVérifieVrai(fRepExiste(sRacine + "/niveau_b"), "Le deuxième niveau parent a été créé")
+	dbgVérifieVrai(fRepExiste(sFeuille), "Le dossier feuille demandé a été créé")
+
+	fRepSupprime(sRacine, frRécursif)
+	dbgVérifieVrai(fRepExiste(sRacine) = Faux, "L'arborescence temporaire a bien été supprimée après le test")
+FIN
+
+
+// Cas limite : appeler fRepCree sur un dossier déjà existant n'est pas une
+// erreur. Le comportement est idempotent, le retour reste Vrai au lieu de
+// basculer à Faux comme pourrait le laisser croire un réflexe "déjà pris".
+PROCEDURE scenario_dossier_deja_existant_reste_un_succes()
+	sDossier est une chaîne = "_tmp_test_fRepCree_idempotent"
+
+	premiereCreation est un booléen = fRepCree(sDossier)
+	dbgVérifieEgalité(premiereCreation, Vrai, "La première création réussit")
+
+	secondeCreation est un booléen = fRepCree(sDossier)
+	dbgVérifieEgalité(secondeCreation, Vrai, "Recréer un dossier déjà existant renvoie Vrai, pas Faux")
+	dbgVérifieVrai(fRepExiste(sDossier), "Le dossier reste présent après le second appel")
+
+	fRepSupprime(sDossier, frRécursif)
+	dbgVérifieVrai(fRepExiste(sDossier) = Faux, "Le dossier temporaire a bien été supprimé après le test")
+FIN

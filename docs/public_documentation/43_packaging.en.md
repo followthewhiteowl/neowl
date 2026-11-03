@@ -47,7 +47,7 @@ access — is described in `24_projet.md`.
 ## 4. Command line
 
 ```
-owl-build [PROJECT_FOLDER] [-o NAME] [--target TRIPLE]
+owl-build [PROJECT_FOLDER] [-o NAME] [--target TRIPLE] [--sign CERT.pfx [--sign-pass PWD]]
 ```
 
 | Argument / option | Role |
@@ -55,6 +55,8 @@ owl-build [PROJECT_FOLDER] [-o NAME] [--target TRIPLE]
 | `PROJECT_FOLDER`  | Folder of the project to package. Required; use `.` for the current folder. |
 | `-o NAME`         | Name of the produced executable. By default, derived from the project. |
 | `--target TRIPLE` | Target platform. By default, the host platform. |
+| `--sign CERT.pfx` | Signs the produced binary with a code-signing certificate (PKCS#12). Windows target: embedded Authenticode signature. Other targets: detached `.p7s` signature + `.sha256` checksum next to the binary. |
+| `--sign-pass PWD` | Password protecting the `.pfx` certificate. Optional if the certificate has none. |
 | `--prepare`       | Warms up the extraction cache for the target, then stops without packaging a project. The next build for that target starts immediately. |
 
 ### Choosing the target
@@ -77,7 +79,73 @@ The actually available targets remain those embedded in the `owl-build`
 binary used; a given distribution may offer more or limit itself to its
 platform.
 
-## 5. Location of the result
+### Signing the binary
+
+The `--sign` option signs the produced binary with a **PKCS#12** certificate
+(`.pfx`/`.p12`) provided by the publisher: it holds the private key and the
+certificate chain, and the signature carries **the publisher's identity**
+recorded in the certificate. The same option applies to **every target**; the
+mechanism adapts to the platform.
+
+```
+owl-build my_project --sign my_certificate.pfx --sign-pass password
+```
+
+Common to all targets:
+
+- Expected format: a **code-signing** certificate (OV), **RSA** algorithm,
+  **SHA-256** digest. An EV certificate, which lives on a hardware token,
+  is not supported by this file-based option.
+- The certificate and password are validated **before** the build: a wrong
+  password fails immediately, without waiting for packaging to complete.
+- A password passed on the command line may appear in the system's process
+  list. Keep this in mind for sensitive use.
+
+**Windows target — embedded signature.** An **Authenticode code signature** is
+applied inside the executable (PE format). A signed binary avoids the Windows
+SmartScreen "unknown publisher" warning and carries a verifiable publisher
+identity.
+
+**Non-Windows targets (Linux, macOS) — detached signature.** The executable
+formats of these platforms have no embedded signature verified at run time.
+Instead, `--sign` produces **offline-verifiable provenance**: two files written
+next to the binary.
+
+| File | Content |
+|------|---------|
+| `<binary>.p7s`    | **Detached PKCS#7** signature (DER) over the bytes of the binary. Verifiable with `openssl cms -verify`. |
+| `<binary>.sha256` | **SHA-256** digest in `SHA256SUMS` format (`<hex>␠␠<name>`). Verifiable with `sha256sum -c`. |
+
+This detached signature removes no system warning — Linux and macOS show none
+for a binary downloaded this way. It serves to **attest provenance**: whoever
+receives the binary can verify, with the publisher's public key, that it has
+not been tampered with.
+
+### Verifying a signature
+
+**Windows target** (embedded Authenticode signature): right-click the
+executable → *Properties* → *Digital Signatures* tab, or on the PowerShell
+command line:
+
+```
+Get-AuthenticodeSignature my_app.exe
+```
+
+A `Valid` result means a valid signature recognized by the system. An
+unrecognized certificate (self-signed, or issuing authority absent from the
+store) yields `UnknownError`: the signature is well-formed, only the trust
+granted to the certificate is missing.
+
+**Non-Windows targets** (detached signature), with the publisher's public
+certificate (`publisher.pem`), alongside the binary and its two files:
+
+```
+openssl cms -verify -binary -content my_app -in my_app.p7s -inform DER -CAfile publisher.pem
+sha256sum -c my_app.sha256
+```
+
+`CMS Verification successful` + `my_app: OK` confirm that the binary indeed
+comes from the expected publisher and has not been altered.
 
 The binary is written under the project folder, in an `exe` tree:
 
@@ -185,11 +253,16 @@ port are chosen at runtime and not at packaging.
 
 ## 9. Current limitations (alpha)
 
-Two limits to know before distributing a binary produced by `owl-build`:
+Limits to know before distributing a binary produced by `owl-build`:
 
-- **Unsigned binary.** The produced executables carry no publisher
-  signature; Windows SmartScreen may show an "unknown publisher" warning
-  on first launch. Signing is planned.
+- **Optional signature.** By default, binaries carry no publisher
+  signature and Windows SmartScreen may show an "unknown publisher"
+  warning on first launch. The `--sign` option (section 4) applies an
+  Authenticode signature on Windows targets (clearing that warning), or a
+  detached `.p7s` signature + `.sha256` checksum on non-Windows targets
+  (offline-verifiable provenance). Signature timestamping (which extends
+  validity beyond the
+  certificate's expiry) is planned.
 - **Recoverable source code.** The project's `.owl` code is embedded in
   the binary in **compressed** form: it does not appear in clear text in
   the executable, but remains recoverable through a determined analysis.

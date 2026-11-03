@@ -93,12 +93,13 @@ extern uint64_t owl_tcp_server_horloge_ms(void);
  * soient reclames. Table bornee : le plus ancien est evince si pleine. */
 #define MQTT_ACK_MAX 16
 
-/* Nombre maximal de PUBLISH QoS 2 entrants retenus comme "en vol" cote
- * reception (identifiant recu, PUBCOMP pas encore emis). Fenetre de dedup qui
- * garantit l'exactly-once : un broker bien eleve n'a qu'une poignee de QoS 2
- * non resolus a la fois (receive-max). Table bornee : le plus ancien est
- * evince si pleine (degradation acceptee hors charge extreme). */
-#define MQTT_QOS2_RX_MAX 16
+/* Taille du bitmap de dedup QoS 2 RX : 1 bit par packet-id (0..65535),
+ * soit 65536 / 8 = 8192 octets. Le pid est un uint16_t : l'espace est clos,
+ * donc la table couvre TOUS les pids possibles -> zero eviction, exactly-once
+ * garanti quel que soit le nombre de QoS 2 en vol (un sender ne peut avoir
+ * plus de 65535 pids distincts non resolus). Alloue paresseusement au 1er
+ * QoS 2 RX (cf. mqtt_qos2_rx_ajoute) : les sessions QoS 0/1 ne paient rien. */
+#define MQTT_QOS2_RX_BITMAP_OCTETS 8192
 
 /* Mapping sujet -> handle E1, stocke sur l'instance (via la connexion). Le
  * sujet est une copie C-heap (independante des Value OWL) : la livraison
@@ -138,12 +139,13 @@ typedef struct {
     int          nb_acks;
 
     /* --- Dedup reception QoS 2 (exactly-once) --- */
-    /* Identifiants de paquet des PUBLISH QoS 2 entrants en cours de handshake :
-     * ajoute a la 1re reception (avant livraison), retire a l'emission du
+    /* Bitmap des packet-id des PUBLISH QoS 2 entrants en cours de handshake :
+     * bit pose a la 1re reception (avant livraison), efface a l'emission du
      * PUBCOMP (sur PUBREL). Un PUBLISH DUP (meme pid, PUBREC perdu et retransmis
-     * par le broker) re-emet PUBREC mais NE re-livre PAS a l'abonne. */
-    uint16_t     qos2_rx_pids[MQTT_QOS2_RX_MAX];
-    int          nb_qos2_rx;
+     * par le broker) re-emet PUBREC mais NE re-livre PAS a l'abonne. Alloue
+     * paresseusement (8192 octets = tout l'espace pid) au 1er QoS 2 RX, libere
+     * dans mqtt_conn_free ; NULL tant qu'aucun QoS 2 recu. */
+    uint8_t*     qos2_rx_seen;
 
     /* --- Pompe possedee par la session --- */
     OwlReacteur* reacteur;       /* reacteur PROPRE a la session, cree
@@ -200,6 +202,7 @@ static void mqtt_conn_free(OwlMqttConn* c) {
     /* Reacteur possede par la session : ne ferme aucun fd (contrat reacteur),
      * la socket est refermee juste apres. */
     if (c->reacteur != NULL) owl_reacteur_detruit(c->reacteur);
+    free(c->qos2_rx_seen);
     free(c->rx);
     if (c->tls_active) owl_tls_close(&c->transport);
     else               owl_tcp_close(&c->transport.tcp);
@@ -532,36 +535,29 @@ static bool mqtt_ack_take(OwlMqttConn* c, uint8_t type, uint16_t pid) {
  * ============================================================ */
 
 /* Vrai si le packet-id d'un PUBLISH QoS 2 entrant est deja en vol (handshake
- * en cours) -> il s'agit d'un DUP, ne pas re-livrer. */
+ * en cours) -> il s'agit d'un DUP, ne pas re-livrer. Bitmap non alloue = aucun
+ * QoS 2 recu, donc jamais vu. */
 static bool mqtt_qos2_rx_vu(OwlMqttConn* c, uint16_t pid) {
-    for (int i = 0; i < c->nb_qos2_rx; i++) {
-        if (c->qos2_rx_pids[i] == pid) return true;
-    }
-    return false;
+    return c->qos2_rx_seen != NULL &&
+           (c->qos2_rx_seen[pid >> 3] & (1u << (pid & 7))) != 0;
 }
 
-/* Marque un packet-id QoS 2 entrant comme en vol (1re reception). Ordre FIFO :
- * si la fenetre est pleine, evince le plus ancien. */
+/* Marque un packet-id QoS 2 entrant comme en vol (1re reception). Alloue le
+ * bitmap au 1er appel. Si l'allocation echoue, degrade proprement : on ne
+ * marque rien (le DUP sera re-livre, at-least-once) mais on ne crashe pas. */
 static void mqtt_qos2_rx_ajoute(OwlMqttConn* c, uint16_t pid) {
-    if (c->nb_qos2_rx >= MQTT_QOS2_RX_MAX) {
-        memmove(&c->qos2_rx_pids[0], &c->qos2_rx_pids[1],
-                (MQTT_QOS2_RX_MAX - 1) * sizeof(uint16_t));
-        c->nb_qos2_rx = MQTT_QOS2_RX_MAX - 1;
+    if (c->qos2_rx_seen == NULL) {
+        c->qos2_rx_seen = (uint8_t*)calloc(MQTT_QOS2_RX_BITMAP_OCTETS, 1);
+        if (c->qos2_rx_seen == NULL) return;
     }
-    c->qos2_rx_pids[c->nb_qos2_rx++] = pid;
+    c->qos2_rx_seen[pid >> 3] |= (uint8_t)(1u << (pid & 7));
 }
 
-/* Retire un packet-id QoS 2 entrant de la fenetre (handshake clos par PUBCOMP).
- * Sans effet si absent. */
+/* Retire un packet-id QoS 2 entrant du bitmap (handshake clos par PUBCOMP).
+ * Sans effet si bitmap non alloue ou bit deja a zero. */
 static void mqtt_qos2_rx_retire(OwlMqttConn* c, uint16_t pid) {
-    for (int i = 0; i < c->nb_qos2_rx; i++) {
-        if (c->qos2_rx_pids[i] == pid) {
-            memmove(&c->qos2_rx_pids[i], &c->qos2_rx_pids[i + 1],
-                    (size_t)(c->nb_qos2_rx - i - 1) * sizeof(uint16_t));
-            c->nb_qos2_rx--;
-            return;
-        }
-    }
+    if (c->qos2_rx_seen == NULL) return;
+    c->qos2_rx_seen[pid >> 3] &= (uint8_t)~(1u << (pid & 7));
 }
 
 /* ============================================================

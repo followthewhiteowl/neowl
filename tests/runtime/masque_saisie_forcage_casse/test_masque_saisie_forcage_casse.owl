@@ -1,0 +1,66 @@
+//  — forçage de casse du masque de saisie (maskMajus / maskMinus /
+// maskPMajus). Rouge attendu : constantes non enregistrées.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_MasqueSaisieCasse)
+
+SAI_Majus..Valeur = "abc123"
+dbgVérifieEgalité(SAI_Majus..ValeurAffichée, "ABC123",
+"maskMajus : tout en majuscules")
+dbgVérifieEgalité(SAI_Majus..Valeur, "abc123",
+"maskMajus : ..Valeur garde la casse d'origine")
+
+SAI_Minus..Valeur = "ABC123"
+dbgVérifieEgalité(SAI_Minus..ValeurAffichée, "abc123",
+"maskMinus : tout en minuscules")
+dbgVérifieEgalité(SAI_Minus..Valeur, "ABC123",
+"maskMinus : ..Valeur garde la casse d'origine")
+
+SAI_PMajus..Valeur = "abc def"
+dbgVérifieEgalité(SAI_PMajus..ValeurAffichée, "Abc def",
+"maskPMajus : seule la première lettre passe en majuscule")
+dbgVérifieEgalité(SAI_PMajus..Valeur, "abc def",
+"maskPMajus : ..Valeur garde la casse d'origine")
+
+SAI_PMajus..Valeur = "1abc"
+dbgVérifieEgalité(SAI_PMajus..ValeurAffichée, "1abc",
+"maskPMajus : premier caractère non-lettre, rien à forcer")
+
+SAI_Majus..Valeur = "café àé"
+dbgVérifieEgalité(SAI_Majus..ValeurAffichée, "CAFÉ ÀÉ",
+"maskMajus : accents convertis en majuscules")
+dbgVérifieEgalité(SAI_Majus..Valeur, "café àé",
+"maskMajus : ..Valeur garde la casse d'origine (accents)")
+
+SAI_Minus..Valeur = "CAFÉ ÀÉ"
+dbgVérifieEgalité(SAI_Minus..ValeurAffichée, "café àé",
+"maskMinus : accents convertis en minuscules")
+
+SAI_PMajus..Valeur = "éric durand"
+dbgVérifieEgalité(SAI_PMajus..ValeurAffichée, "Éric durand",
+"maskPMajus : première lettre accentuée seule passe en majuscule")
+
+// maskMotsMajus (extension OWL) : 1ère lettre de CHAQUE mot en majuscule,
+// le reste inchangé, séparateur = espace. ..Valeur jamais mutée.
+SAI_MotsMajus..Valeur = "éric durand"
+dbgVérifieEgalité(SAI_MotsMajus..ValeurAffichée, "Éric Durand",
+"maskMotsMajus : première lettre de chaque mot en majuscule (accents)")
+dbgVérifieEgalité(SAI_MotsMajus..Valeur, "éric durand",
+"maskMotsMajus : ..Valeur garde la casse d'origine")
+
+SAI_MotsMajus..Valeur = "çà et là"
+dbgVérifieEgalité(SAI_MotsMajus..ValeurAffichée, "Çà Et Là",
+"maskMotsMajus : chaque mot capitalisé, reste inchangé")
+
+SAI_MotsMajus..Valeur = "éRIC"
+dbgVérifieEgalité(SAI_MotsMajus..ValeurAffichée, "ÉRIC",
+"maskMotsMajus : 1ère déjà majuscule, reste inchangé (pas d'abaissement)")
+
+SAI_MotsMajus..Valeur = "abc def"
+dbgVérifieEgalité(SAI_MotsMajus..ValeurAffichée, "Abc Def",
+"maskMotsMajus : cas ASCII multi-mots")
+
+Ferme(FEN_MasqueSaisieCasse)
+
+dbgBilanTest()

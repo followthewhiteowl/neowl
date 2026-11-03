@@ -1,0 +1,35 @@
+//  Lot A — déclaration + usage des propriétés custom tous-champs.
+// projet.owl déclare `codeInterne est un entier` et `refClient est une
+// chaîne` via PropriétésPersonnaliséesTousChamps. Le round-trip
+// écriture/lecture doit fonctionner, par instance, sur n'importe quel kind
+// de champ + sur la Fenêtre elle-même (mécanique de stockage identique à
+// ..Note / ).
+//
+// État attendu aujourd'hui (feature Lot A pas encore implémentée) : le
+// compilateur ne connaît ni la clé catalogue projet, ni la propriété
+// custom sur les champs -> CRASH compile-error ("Champ
+// 'PropriétésPersonnaliséesTousChamps' inconnu sur type Projet" côté
+// projet.owl, puis "Propriété 'codeInterne' inconnue" côté champ). C'est
+// le rouge attendu pour ce ticket.
+TestModeHeadless(Faux)
+OuvreSoeur(FEN_PropsPerso)
+
+SAI_Client..codeInterne = 42
+SAI_Client..refClient   = "C-4087"
+dbgVérifieEgalité(SAI_Client..codeInterne, 42, "round-trip entier sur une Saisie")
+dbgVérifieEgalité(SAI_Client..refClient, "C-4087", "round-trip chaîne sur une Saisie")
+
+BTN_Valider..codeInterne = 7
+dbgVérifieEgalité(BTN_Valider..codeInterne, 7, "round-trip entier sur un Bouton")
+
+TABLE_Clients..refClient = "TBL-01"
+dbgVérifieEgalité(TABLE_Clients..refClient, "TBL-01", "round-trip chaîne sur une Table")
+
+FEN_PropsPerso..codeInterne = 99
+dbgVérifieEgalité(FEN_PropsPerso..codeInterne, 99, "round-trip entier sur la Fenêtre")
+
+// Stockage par instance : écrire sur un champ n'affecte pas les autres.
+dbgVérifieEgalité(SAI_Client..codeInterne, 42, "la Saisie garde sa propre valeur après écriture sur le Bouton")
+
+Ferme(FEN_PropsPerso)
+dbgBilanTest()

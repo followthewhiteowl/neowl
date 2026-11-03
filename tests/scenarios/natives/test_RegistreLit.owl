@@ -1,0 +1,49 @@
+// @sujet : RegistreLit
+// @résumé : Lit la valeur d'un registre dans une clé de la base de
+// registre. Renvoie la valeur lue, ou une chaîne vide si rien n'a pu être
+// lu — sans jamais interrompre le programme.
+
+PROCEDURE avantChaqueTest()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Lit"
+	RegistreCréeClé(chemin)
+	RegistreEcrit(chemin, "Langage", "Francais")
+	RegistreEcrit(chemin, "Compteur", 7)
+FIN
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Lit")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lit_une_valeur_chaine_existante()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Lit"
+	sLu    est une chaîne = RegistreLit(chemin, "Langage")
+	dbgVérifieEgalité(sLu, "Francais", "la valeur chaîne écrite est relue identique")
+FIN
+
+PROCEDURE PUBLIQUE scenario_lit_une_valeur_entier()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Lit"
+	nLu    est un entier  = RegistreLit(chemin, "Compteur")
+	dbgVérifieEgalité(nLu, 7, "la valeur entière écrite est relue identique")
+FIN
+
+// Mode d'accès explicite : le comportement reste identique au mode par
+// défaut, passé ici explicitement en argument.
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Lit"
+	sLu    est une chaîne = RegistreLit(registreModeAuto, chemin, "Langage")
+	dbgVérifieEgalité(sLu, "Francais", "la lecture réussit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : lire une valeur absente ne crashe pas, renvoie une chaîne
+// vide, et laisse un message d'erreur exploitable.
+PROCEDURE PRIVÉE scenario_echec_doux_si_valeur_inexistante()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Lit"
+
+	ErreurRAZ()
+	sLu  est une chaîne = RegistreLit(chemin, "Inconnue")
+	sMsg est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieEgalité(sLu, "", "la lecture d'une valeur absente renvoie une chaîne vide")
+	dbgVérifieVrai(sMsg <> "", "le message d'erreur est renseigné")
+FIN
+
+dbgBilanTest()

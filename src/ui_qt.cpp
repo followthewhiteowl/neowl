@@ -103,8 +103,10 @@ Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
 #include <QDialogButtonBox>
 #include <QScrollArea>
 #include <QTableView>
+#include <QAbstractItemView>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
+#include <QAbstractItemDelegate>
 #include <QHeaderView>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -1229,6 +1231,35 @@ extern "C" void owl_ui_window_set_disabled(OwlWindow* w, int disabled) {
 extern "C" int owl_ui_window_get_disabled(OwlWindow* w) {
     if (!w) return 0;
     return reinterpret_cast<QMainWindow*>(w)->isEnabled() ? 0 : 1;
+}
+
+/*  — active une fenetre deja montee (FenEtat Actif/ActifDevant). Ne
+ * (re)fait pas de show() : raise + activateWindow suffisent a lui redonner la
+ * saisie. Une fenetre masquee est rendue visible au prealable (passer d'un etat
+ * Invisible a Actif doit la ramener a l'ecran). */
+extern "C" void owl_ui_window_activate(OwlWindow* w) {
+    if (!w) return;
+    QMainWindow* mw = reinterpret_cast<QMainWindow*>(w);
+    if (!mw->isVisible()) mw->setVisible(true);
+    mw->raise();
+    mw->activateWindow();
+}
+
+/*  — bascule le flag "toujours au-dessus" (FenEtat Dessus/DessusTout/
+ * Normal). Qt ne distingue pas "au-dessus de l'appli" et "au-dessus de tout" :
+ * WindowStaysOnTopHint couvre les deux cas (divergence assumee du canon). Le
+ * reset du flag preserve la visibilite (setWindowFlag re-parente le toplevel,
+ * ce qui le masque ; on le re-montre si besoin). */
+extern "C" void owl_ui_window_set_stay_on_top(OwlWindow* w, int enable) {
+    if (!w) return;
+    QMainWindow* mw = reinterpret_cast<QMainWindow*>(w);
+    bool wasVisible = mw->isVisible();
+    mw->setWindowFlag(Qt::WindowStaysOnTopHint, enable != 0);
+    if (wasVisible) {
+        mw->setVisible(true);
+        mw->raise();
+        mw->activateWindow();
+    }
 }
 
 /*  — couleur de fond QSS avec canal alpha. Émet `rgb(r,g,b)`
@@ -4251,10 +4282,43 @@ extern "C" void owl_ui_table_open_search(OwlControl* table, int col0,
  * que la destruction du widget nettoie automatiquement le modele. Les
  * accesseurs futurs (TableAjouteLigne, etc.) recupereront le modele
  * via tableView->model() puis qobject_cast<QStandardItemModel*>. */
+/*  — point de synchro UNIVERSEL edition-cellule -> store. Qt appelle
+ * commitData() a CHAQUE validation d'un editeur de cellule par l'utilisateur,
+ * quel que soit le delegate de la colonne (defaut Qt, style table-wide,
+ * styleColonne, masque, format, events). On laisse d'abord la base ecrire le
+ * modele Qt (via delegate::setModelData), puis on propage la valeur validee au
+ * store OWL (source de verite de TABLE[l].COL lue par programme). Sans ce pont,
+ * une colonne texte/numerique nue perdait silencieusement les saisies a la
+ * relecture. commitData n'est appele que sur une edition UTILISATEUR : les
+ * ecritures programmatiques store->modele passent par setItem directement,
+ * jamais par ici -> pas de boucle de retroaction. Les colonnes combo (QComboBox
+ * permanent via setIndexWidget) n'empruntent pas le circuit d'edition in-place
+ * -> non touchees, pas de double synchro. */
+class OwlTableView : public QTableView {
+public:
+    explicit OwlTableView(QWidget* parent) : QTableView(parent) {}
+protected:
+    void commitData(QWidget* editor) override {
+        QTableView::commitData(editor);
+        if (!editor) return;
+        QStandardItemModel* model =
+            qobject_cast<QStandardItemModel*>(this->model());
+        if (!model) return;
+        /* L'editeur est geometre a la cellule editee : son centre (coord
+         * viewport) resout l'index commite sans map privee editeur->index. */
+        QModelIndex idx = indexAt(editor->geometry().center());
+        if (!idx.isValid()) return;
+        QString txt = model->data(idx, Qt::EditRole).toString();
+        owl_ui_table_user_combo_changed(reinterpret_cast<OwlControl*>(this),
+                                        idx.row(), idx.column(),
+                                        txt.toUtf8().constData());
+    }
+};
+
 extern "C" OwlControl* owl_ui_table_create(OwlWindow* parent,
                                            int x, int y, int w, int h) {
     if (!parent) return nullptr;
-    QTableView* view = new QTableView(central_of(parent));
+    QTableView* view = new OwlTableView(central_of(parent));
     QStandardItemModel* model = new QStandardItemModel(view);
     view->setModel(model);
     view->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -5964,6 +6028,87 @@ extern "C" void owl_ui_table_on_row_exit(OwlControl* table, OwlCallback cb, void
         }));
 }
 
+/* ============================================================
+ *  — events d'edition de CELLULE, resolus par COLONNE.
+ *
+ * Une Colonne de Champ Table porte ses propres events (surAChaqueModification
+ * = frappe de l'utilisateur dans l'editeur de cellule, surSortie = fin
+ * d'edition / sortie de la colonne). Le cablage est strictement par colonne :
+ *
+ *  - surAChaqueModification : un watcher pose sur le viewport capte la creation
+ *    de l'editeur de cellule (QChildEvent ChildAdded) et branche textEdited de
+ *    l'editeur -> callback de la colonne EN COURS d'edition (currentIndex). On
+ *    passe par textEdited (et pas textChanged) pour ne compter que les
+ *    modifications UTILISATEUR, jamais le setEditorData initial.
+ *  - surSortie : le delegate de la colonne emet closeEditor a la fermeture de
+ *    l'editeur (TAB, Entree, perte de focus). Chaque colonne a son delegate
+ *    propre (per-column), donc le signal est deja scope a la bonne colonne.
+ * ============================================================ */
+struct OwlColumnEvtCb { OwlCallback cb; void* userdata; };
+
+/* Delegate dedie d'une colonne a events. Herite de OwlColumnMaskDelegate pour
+ * conserver le comportement masque/format/affichage typee de la colonne (les
+ * dynamic properties col_mask_/col_typeformat_ du view sont lues par le
+ * createEditor herite). Ajoute le branchement textEdited de l'editeur de
+ * cellule -> surAChaqueModification. Le signal closeEditor (herite de
+ * QAbstractItemDelegate) sert surSortie, connecte a l'exterieur. Un delegate par
+ * colonne : les deux signaux sont deja scopes a la bonne colonne. */
+class OwlColumnEventsDelegate : public OwlColumnMaskDelegate {
+public:
+    OwlColumnEvtCb modif{nullptr, nullptr};
+    explicit OwlColumnEventsDelegate(QObject* parent)
+        : OwlColumnMaskDelegate(parent) {}
+    QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem& option,
+                          const QModelIndex& index) const override {
+        QWidget* editor =
+            OwlColumnMaskDelegate::createEditor(parent, option, index);
+        if (modif.cb) {
+            if (QLineEdit* le = qobject_cast<QLineEdit*>(editor)) {
+                OwlColumnEvtCb b = modif;
+                /* textEdited (pas textChanged) : ne compte que les
+                 * modifications UTILISATEUR, jamais le setEditorData initial. */
+                QObject::connect(le, &QLineEdit::textEdited, le,
+                    [b](const QString&) { b.cb(nullptr, b.userdata); });
+            }
+        }
+        return editor;
+    }
+
+    /* La synchro cellule editee -> store est desormais faite une seule fois au
+     * niveau du view (OwlTableView::commitData, ), point universel qui
+     * couvre toutes les colonnes editables. Pas de setModelData override ici :
+     * il ferait un double writeback (meme valeur, benin mais inutile). */
+};
+
+/* Cable les events d'une colonne (col_1based) au pipeline d'edition Qt. Les
+ * callbacks (cb + userdata) sont le dispatch generique OWL (dispatch_event +
+ * index de binding). Un callback NULL = event non declare sur cette colonne. */
+extern "C" void owl_ui_table_column_bind_events(OwlControl* table, int col_1based,
+                                                OwlCallback modifCb, void* modifData,
+                                                OwlCallback exitCb, void* exitData) {
+    if (!table || col_1based <= 0) return;
+    QTableView* view = qobject_cast<QTableView*>(reinterpret_cast<QWidget*>(table));
+    if (!view) return;
+    if (!modifCb && !exitCb) return;
+    int col0 = col_1based - 1;
+
+    /* Un seul delegate par colonne porte les deux events. Il remplace un
+     * eventuel OwlColumnMaskDelegate pose par set_column_mask/format (comportement
+     * masque conserve par heritage ; les dynamic properties du view restent la
+     * source). L'ancien delegate reste enfant du view (libere avec lui). */
+    OwlColumnEventsDelegate* d = new OwlColumnEventsDelegate(view);
+    if (modifCb) d->modif = OwlColumnEvtCb{modifCb, modifData};
+    view->setItemDelegateForColumn(col0, d);
+
+    if (exitCb) {
+        OwlColumnEvtCb b{exitCb, exitData};
+        QObject::connect(d, &QAbstractItemDelegate::closeEditor, view,
+            [b](QWidget*, QAbstractItemDelegate::EndEditHint) {
+                b.cb(nullptr, b.userdata);
+            });
+    }
+}
+
 /* RFC 4180-ish CSV escape : si contient , " \n ou \r, on quote + double
  * les " internes. Sinon raw. */
 static QString csv_escape(const QString& s) {
@@ -7347,6 +7492,24 @@ extern "C" void owl_ui_install_key_filter(OwlControl* c,
     }
 }
 
+/*  — install clavier FUSION : ne touche que la direction fournie
+ * (non-NULL), preserve l'autre. L'install paresseux d'interception (ex. keyup
+ * seul) ne doit pas effacer un handler statique keydown deja cable sur le meme
+ * widget. */
+extern "C" void owl_ui_merge_key_filter(OwlControl* c,
+                                        OwlEventCb1i on_down, void* down_data,
+                                        OwlEventCb1i on_up,   void* up_data) {
+    if (!c) return;
+    QWidget* w = reinterpret_cast<QWidget*>(c);
+    auto& kc = dispatcher()->key_map[w];
+    if (on_down) { kc.on_down = on_down; kc.down_data = down_data; }
+    if (on_up)   { kc.on_up   = on_up;   kc.up_data   = up_data;   }
+    w->installEventFilter(dispatcher());
+    if ((kc.on_down || kc.on_up) && w->focusPolicy() == Qt::NoFocus) {
+        w->setFocusPolicy(Qt::StrongFocus);
+    }
+}
+
 /* Installe le filtre clavier sur la fenetre (handler fenetre + cible du
  * bubble-up). */
 extern "C" void owl_ui_install_window_key_filter(OwlWindow* win,
@@ -7424,6 +7587,12 @@ extern "C" void owl_ui_post_key(OwlWindow* win, int owl_code) {
                                        Qt::NoModifier, text);
     QCoreApplication::postEvent(target, press);
     QCoreApplication::postEvent(target, release);
+    /*  — livre immediatement les frappes a la cible. owl_ui_pump_events
+     * pompe avec ExcludeUserInputEvents : sans ce flush, un QKeyEvent poste
+     * reste indefiniment differe dans la file (jamais delivre avant lecture de
+     * l'etat), et la frappe n'atteint pas l'editeur de cellule / le champ focuse.
+     * sendPostedEvents ne respecte pas l'exclusion -> delivraison effective. */
+    QCoreApplication::sendPostedEvents(target, 0);
 }
 
 extern "C" OwlControl* owl_ui_password_create(OwlWindow* parent,
@@ -7658,13 +7827,42 @@ extern "C" void owl_ui_post_mouse_click(OwlControl* c, int button, int x, int y,
                                         int dbl) {
     if (!c) return;
     QWidget* w = reinterpret_cast<QWidget*>(c);
-    QPointF pos = (x < 0 || y < 0)
-                  ? QPointF(w->width() / 2.0, w->height() / 2.0)
-                  : QPointF(x, y);
-    QPointF global = w->mapToGlobal(pos.toPoint());
+    /*  — un Champ Table (QAbstractItemView) traite ses clics sur son
+     * viewport() : indexAt()/edit() attendent des coordonnees RELATIVES au
+     * viewport. Poster l'event sur le cadre de la vue ne declenche donc pas
+     * l'ouverture de l'editeur de cellule (la frappe tape dans le vide). On
+     * livre l'event au viewport, en visant une cellule reelle quand aucune
+     * coordonnee explicite n'est donnee. Le focus clavier reste pose sur la vue
+     * (focusTarget) : QAbstractItemView le transfere a l'editeur a l'ouverture. */
+    QWidget* deliver = w;         /* cible de l'event souris */
+    QWidget* focusTarget = w;     /* cible du focus clavier */
+    QPointF pos;
+    if (QAbstractItemView* view = qobject_cast<QAbstractItemView*>(w)) {
+        QWidget* vp = view->viewport();
+        deliver = vp;
+        focusTarget = view;
+        if (x < 0 || y < 0) {
+            QPoint vpCenter(vp->width() / 2, vp->height() / 2);
+            QModelIndex idx = view->indexAt(vpCenter);
+            if (!idx.isValid() && view->model()
+                && view->model()->rowCount() > 0
+                && view->model()->columnCount() > 0) {
+                idx = view->model()->index(0, 0);
+            }
+            QRect r = idx.isValid() ? view->visualRect(idx) : QRect();
+            pos = r.isValid() ? QPointF(r.center()) : QPointF(vpCenter);
+        } else {
+            pos = QPointF(x, y);
+        }
+    } else {
+        pos = (x < 0 || y < 0)
+              ? QPointF(w->width() / 2.0, w->height() / 2.0)
+              : QPointF(x, y);
+    }
+    QPointF global = deliver->mapToGlobal(pos.toPoint());
     Qt::MouseButton btn = (button == 1) ? Qt::RightButton : Qt::LeftButton;
     auto post = [&](QEvent::Type type, Qt::MouseButtons held) {
-        QCoreApplication::postEvent(w, new QMouseEvent(type, pos, global,
+        QCoreApplication::postEvent(deliver, new QMouseEvent(type, pos, global,
                                                        btn, held,
                                                        Qt::NoModifier));
     };
@@ -7683,13 +7881,13 @@ extern "C" void owl_ui_post_mouse_click(OwlControl* c, int button, int x, int y,
      * focus, comme owl_ui_post_text_input le fait deja pour les frappes. Le
      * focusChanged resultant synchronise focused_index cote OWL. Respecte
      * focusPolicy : un widget NoFocus ne capte pas le focus. */
-    if (w->focusPolicy() != Qt::NoFocus) {
-        QWidget* tl = w->window();
+    if (focusTarget->focusPolicy() != Qt::NoFocus) {
+        QWidget* tl = focusTarget->window();
         if (tl && !tl->isActiveWindow()) {
             tl->activateWindow();
             QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
         }
-        w->setFocus(Qt::MouseFocusReason);
+        focusTarget->setFocus(Qt::MouseFocusReason);
     }
 }
 
@@ -10665,6 +10863,79 @@ extern "C" void owl_ui_control_set_altitude(OwlControl* w, int z) {
         return za < zb;
     });
     for (QWidget* sib : sorted) sib->raise();
+}
+
+/* Plan : mecanisme d'etape facon assistant. Chaque champ peut
+ * appartenir a un plan (dynamic-property owl_plan) ; la fenetre porte un plan
+ * actif (dynamic-property owl_plan_actif sur le QMainWindow). Contrat de
+ * visibilite : un champ SANS plan (propriete owl_plan absente) est toujours
+ * visible ; un champ AVEC plan n'est visible que lorsque le plan actif de sa
+ * fenetre coincide. "Sans plan" (absence) != "plan 0" (present, valeur 0).
+ * Reutilise setVisible par enfant (comme set_etat) ; aucun QStackedLayout. */
+static void owl_plan_apply_child_visibility(QWidget* child) {
+    QVariant pv = child->property("owl_plan");
+    if (!pv.isValid()) return;  /* sans plan : toujours visible, on ne touche pas */
+    int active = 0;
+    QWidget* top = child->window();
+    if (top) {
+        QVariant av = top->property("owl_plan_actif");
+        if (av.isValid()) active = av.toInt();
+    }
+    child->setVisible(pv.toInt() == active);
+}
+
+extern "C" void owl_ui_control_set_plan(OwlControl* w, int plan) {
+    if (!w) return;
+    QWidget* widget = reinterpret_cast<QWidget*>(w);
+    widget->setProperty("owl_plan", plan);
+    owl_plan_apply_child_visibility(widget);
+}
+
+extern "C" int owl_ui_control_get_plan(OwlControl* w, int* out_plan) {
+    if (!w) return 0;
+    QVariant v = reinterpret_cast<QWidget*>(w)->property("owl_plan");
+    if (!v.isValid()) return 0;  /* sans plan */
+    if (out_plan) *out_plan = v.toInt();
+    return 1;
+}
+
+extern "C" int owl_ui_control_plan_effective_visible(OwlControl* w, int active_plan) {
+    if (!w) return -1;
+    bool governed = false;
+    bool visible = true;
+    for (QWidget* cur = reinterpret_cast<QWidget*>(w);
+         cur != nullptr; cur = cur->parentWidget()) {
+        QVariant pv = cur->property("owl_plan");
+        if (!pv.isValid()) continue;  /* maillon sans plan : neutre */
+        governed = true;
+        if (pv.toInt() != active_plan) { visible = false; break; }
+    }
+    if (!governed) return -1;  /* champ libre : le plan ne gouverne pas sa visibilite */
+    return visible ? 1 : 0;
+}
+
+extern "C" void owl_ui_window_set_active_plan(OwlWindow* win, int plan) {
+    if (!win) return;
+    QWidget* top = reinterpret_cast<QWidget*>(win);
+    top->setProperty("owl_plan_actif", plan);
+    /* Recalcule la visibilite de tous les champs porteurs d'un plan. Les
+     * descendants sans owl_plan (dont la fenetre, le central, les wrappers)
+     * sont ignores : leur visibilite ne depend pas du plan. */
+    const QList<QWidget*> kids = top->findChildren<QWidget*>();
+    QWidget* firstVisibleFocus = nullptr;
+    for (QWidget* k : kids) {
+        QVariant pv = k->property("owl_plan");
+        if (!pv.isValid()) continue;
+        bool vis = (pv.toInt() == plan);
+        k->setVisible(vis);
+        if (vis && !firstVisibleFocus && k->focusPolicy() != Qt::NoFocus)
+            firstVisibleFocus = k;
+    }
+    /* Retarget focus : si le champ focus vient de passer cache, donne le focus
+     * au premier champ visible focusable du plan desormais actif. */
+    QWidget* fw = top->focusWidget();
+    if (fw && !fw->isVisible() && firstVisibleFocus)
+        firstVisibleFocus->setFocus();
 }
 
 /* CurseurSouris : 14 formes canon → Qt::CursorShape. Index stable defini

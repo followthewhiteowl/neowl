@@ -167,6 +167,35 @@ bool owl_ui_prop_is_universal_readonly(const char* prop_name);
  * qu'au runtime : zero faux positif, rejet uniquement si aucune correspondance. */
 bool owl_ui_prop_exists_on_any_control_kind(const char* prop_name);
 
+/*  — registre des proprietes personnalisees declarees au niveau projet
+ * (cle PropriétésPersonnaliséesTousChamps / CustomPropertiesAllFields du bloc
+ * `est un Projet`). Pool global : disponibles sur tous les kinds de champ + la
+ * Fenetre.
+ *
+ * Cycle de vie : rempli par le compilateur au parse de projet.owl (collision +
+ * type captures au moment de la declaration), reset a chaque frontiere de
+ * compilation (compiler_reset_poo_state). Persiste jusqu'a l'execution : la VM
+ * le consulte pour accepter `champ..maProp` (set/get) hors catalogue per-kind.
+ * Les noms custom sont mono (exemptes de l'invariant bilingue) ; le match est
+ * casse + accent-insensible (invariants 1 & 2). */
+typedef enum {
+    OWL_CUSTOM_PROP_STRING = 0,
+    OWL_CUSTOM_PROP_INT,
+    OWL_CUSTOM_PROP_BOOL,
+    OWL_CUSTOM_PROP_REAL
+} OwlCustomPropType;
+
+void owl_custom_props_reset(void);
+/* Enregistre une prop custom. Retourne false si le nom est deja present (le
+ * doublon est ignore, le premier gagne). */
+bool owl_custom_props_add(const char* name, OwlCustomPropType type);
+/* Cherche une prop custom par nom (casse + accent-insensible). outType peut
+ * etre NULL. Retourne true si trouvee. */
+bool owl_custom_props_find(const char* name, OwlCustomPropType* outType);
+int owl_custom_props_count(void);
+const char* owl_custom_props_name_at(int i);
+OwlCustomPropType owl_custom_props_type_at(int i);
+
 /* Initialise les enums et constantes du DSL fenetre dans le registry.
  * Appele une fois par stdlib_init_all() au demarrage VM. Enregistre :
  *   - Enum TypeBouton (btnNormal/btnValider/btnInterruption/btnAbandon/btnAide)

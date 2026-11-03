@@ -8,6 +8,7 @@
 #include "owl_ui.h"
 #include "owl_registry.h"
 #include "owl_stdlib.h"
+#include "scanner.h"                 /* scanner_strip_accents (match accent-insensible) */
 #include "vm.h"
 #include "value.h"
 #include "sentinels.h"
@@ -174,6 +175,19 @@ static const OwlControlPropDef PROPS_WINDOW[] = {
     { "ValeurRenvoy\xc3\xa9" "e", "ValeurRenvoyee", "ReturnValue",
                                                 OWL_PROP_TYPE_VARIANT, NULL,
       "Valeur retournee par Ouvre().", "Value returned by Ouvre()." },
+    /*  — Plan sur la FENETRE = plan ACTIF (etape affichee), double
+     * role resolu par le kind du receveur (sur un champ, Plan = appartenance).
+     * Etat runtime (RUNTIME_ONLY) : defaut 0, ecrit par `FEN..Plan = k` pour
+     * basculer d'etape, lu pour connaitre l'etape courante. Bascule ->
+     * recalcul de la visibilite de tous les champs + retarget focus. */
+    { "Plan",           NULL, "Plane",          OWL_PROP_TYPE_INT, NULL,
+      "Plan actif de la fenetre (etape affichee, mecanisme facon assistant). "
+      "Affecter cette propriete bascule l'etape : seuls les champs sans plan "
+      "et les champs affectes au plan actif restent visibles. Defaut 0.",
+      "Active plan of the window (displayed step, wizard-style mechanism). "
+      "Assigning this property switches step: only fields with no plan and "
+      "fields assigned to the active plan stay visible. Default 0.",
+      NULL DFT_INT(0) RUNTIME_ONLY },
     NOTE_PROP,
     LAYOUT_CONTAINER_PROPS,
 };
@@ -229,6 +243,23 @@ static const OwlControlPropDef PROPS_WINDOW[] = {
       "liste actuelle, ecriture recompose l'appartenance.", \
       "Array of Groups containing this field. Read returns the current " \
       "list, write recomposes membership.", NULL DFT_NULL }
+
+/*  — prop Plan cote CHAMP : plan d'appartenance (mecanisme d'etape
+ * facon assistant). Un champ affecte a un plan n'est visible que lorsque le
+ * plan actif de la fenetre coincide ; un champ JAMAIS affecte (sans plan)
+ * reste toujours visible. La distinction "sans plan" != "plan 0" est portee
+ * par l'etat runtime (dynamic-property owl_plan absente vs presente a 0), pas
+ * par cette valeur de catalogue. Lecture d'un champ sans plan : 0 (convention
+ * Lot 1). Type entier, defaut 0. Volontairement absente de Table/Colonne/
+ * Cellule/Volet/Menu : le plan est reserve a la fenetre et a ses champs. */
+#define PLAN_PROP \
+    { "Plan",           NULL, "Plane",         OWL_PROP_TYPE_INT, NULL, \
+      "Plan d'appartenance du champ (mecanisme d'etape facon assistant). " \
+      "Un champ affecte a un plan n'est visible que lorsque le plan actif de " \
+      "la fenetre coincide ; un champ sans plan reste toujours visible.", \
+      "Plan the field belongs to (wizard-style step mechanism). A field " \
+      "assigned to a plan is visible only when the window's active plan " \
+      "matches; a field with no plan stays always visible.", NULL DFT_INT(0) }
 
 /*  — ToucheRaccourci sur les champs interactifs focusables (Saisie,
  * Combo, Liste, Selecteur, Interrupteur, Table, ZoneRepetee). Contrairement au
@@ -413,6 +444,7 @@ static const OwlControlPropDef PROPS_LABEL[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -492,6 +524,7 @@ static const OwlControlPropDef PROPS_BUTTON[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -556,14 +589,22 @@ static const OwlControlPropDef PROPS_INPUT[] = {
       "Vrai si l'utilisateur a touche le champ depuis init/setText.",
       "True if user has touched the field since init/setText." RUNTIME_ONLY },
     { "MasqueSaisie",   NULL, "InputMask",      OWL_PROP_TYPE_STRING,   NULL,
-      "Masque de saisie a positions fixes : `9` = un chiffre, `A` = une lettre, `C` = une lettre ou un chiffre ; tout autre caractere est un litteral affiche tel quel (ex. \"99/99/9999\", \"+99 999 99 99 99\").",
-      "Fixed-position input mask: `9` = a digit, `A` = a letter, `C` = a letter or a digit; any other character is a literal shown as-is (e.g. \"99/99/9999\", \"+99 999 99 99 99\").", NULL DFT_NULL },
+      "Masque de saisie a positions fixes : `9` = un chiffre, `A` = une lettre, `C` = une lettre ou un chiffre ; tout autre caractere est un litteral affiche tel quel (ex. \"99/99/9999\", \"+99 999 99 99 99\"). Accepte aussi une constante de forcage de casse (maskMajus, maskMinus, maskPMajus, maskMotsMajus) dont le rendu est lu via ..ValeurAffichee.",
+      "Fixed-position input mask: `9` = a digit, `A` = a letter, `C` = a letter or a digit; any other character is a literal shown as-is (e.g. \"99/99/9999\", \"+99 999 99 99 99\"). Also accepts a case-forcing constant (maskMajus, maskMinus, maskPMajus, maskWordsUpper) whose rendering is read via ..DisplayedValue.", NULL DFT_NULL },
+    { "ValeurAffich\xc3\xa9""e", "ValeurAffichee", "DisplayedValue",
+                                                OWL_PROP_TYPE_STRING,   NULL,
+      "Rendu affiche du champ : ..Valeur vue a travers le MasqueSaisie effectif "
+      "(ex. forcage de casse). ..Valeur garde toujours la forme stockee brute. "
+      "Lecture seule.",
+      "Displayed rendering of the field: ..Value seen through the effective "
+      "InputMask (e.g. case forcing). ..Value always keeps the raw stored form. "
+      "Read-only.", NULL DFT_NULL READONLY_RUNTIME },
     { "MasqueAffichage", NULL, "DisplayMask",   OWL_PROP_TYPE_STRING,   NULL,
-      "Masque d'affichage d'un champ Date, Heure ou Dur\xc3\xa9""e : gabarit de jetons pilotant le format affich\xc3\xa9 et relu. Date (JJ, MM, AAAA ; ex. \"JJ/MM/AAAA\", \"AAAA-MM-JJ\"), Heure (HH, MI, SS ; ex. \"HH:MI\", \"HH:MI:SS\"), Dur\xc3\xa9""e (JJ, HH, MI, SS ; ex. \"HH:MI:SS\"). Vide = format par d\xc3\xa9""faut du type. Pour un champ Num\xc3\xa9rique ou Mon\xc3\xa9taire, utiliser FormatNombre / FormatMon\xc3\xa9taire.",
-      "Display mask of a Date, Time or Duration field: token template driving the shown and re-read format. Date (JJ, MM, AAAA; e.g. \"JJ/MM/AAAA\", \"AAAA-MM-JJ\"), Time (HH, MI, SS; e.g. \"HH:MI\", \"HH:MI:SS\"), Duration (JJ, HH, MI, SS; e.g. \"HH:MI:SS\"). Empty = type default format. For a Numeric or Currency field, use NumberFormat / CurrencyFormat.", NULL DFT_NULL },
+      "Masque d'affichage d'un champ Date, Heure ou Dur\xc3\xa9""e : gabarit de jetons pilotant le format affich\xc3\xa9 et relu. Date (JJ, MM, AAAA ; ex. \"JJ/MM/AAAA\", \"AAAA-MM-JJ\"), Heure (HH, MI, SS, CC o\xc3\xb9 CC = centi\xc3\xa8mes de seconde, AP = horloge 12 heures avec marqueur AM/PM ; ex. \"HH:MI\", \"HH:MI AP\", \"HH:MI:SS:CC\"), Dur\xc3\xa9""e (JJ, HH, MI, SS, CC ; ex. \"HH:MI:SS\", \"HH:MI:SS:CC\"). Vide = format par d\xc3\xa9""faut du type. Pour un champ Num\xc3\xa9rique ou Mon\xc3\xa9taire, utiliser FormatNombre / FormatMon\xc3\xa9taire.",
+      "Display mask of a Date, Time or Duration field: token template driving the shown and re-read format. Date (JJ, MM, AAAA; e.g. \"JJ/MM/AAAA\", \"AAAA-MM-JJ\"), Time (HH, MI, SS, CC where CC = hundredths of a second, AP = 12-hour clock with an AM/PM marker; e.g. \"HH:MI\", \"HH:MI AP\", \"HH:MI:SS:CC\"), Duration (JJ, HH, MI, SS, CC; e.g. \"HH:MI:SS\", \"HH:MI:SS:CC\"). Empty = type default format. For a Numeric or Currency field, use NumberFormat / CurrencyFormat.", NULL DFT_NULL },
     { "FormatNombre",   NULL, "NumberFormat",   OWL_PROP_TYPE_OBJECT,   NULL,
-      "Format d'affichage d'un champ Numerique : descripteur compose (SeparateurDecimal, SeparateurMilliers, ChiffresApresVirgule), litteral inline `{ ... }`. Non pose = herite du FormatNombre du projet, sinon affichage plat.",
-      "Numeric field display format: composite descriptor (DecimalSeparator, ThousandsSeparator, DecimalPlaces), inline literal `{ ... }`. Unset = inherits the project NumberFormat, otherwise plain display.",
+      "Format d'affichage d'un champ Numerique : descripteur compose (SeparateurDecimal, SeparateurMilliers, ChiffresApresVirgule), litteral inline `{ ... }`. Exemple : `FormatNombre = { SeparateurMilliers = \" \", ChiffresApresVirgule = 2 }` (milliers separes par une espace, deux decimales). Non pose = herite du FormatNombre du projet, sinon affichage plat.",
+      "Numeric field display format: composite descriptor (DecimalSeparator, ThousandsSeparator, DecimalPlaces), inline literal `{ ... }`. Example: `NumberFormat = { ThousandsSeparator = \" \", DecimalPlaces = 2 }` (thousands separated by a space, two decimals). Unset = inherits the project NumberFormat, otherwise plain display.",
       "FormatNombre" DFT_NULL },
     { "FormatMon\xc3\xa9taire", "FormatMonetaire", "CurrencyFormat", OWL_PROP_TYPE_OBJECT, NULL,
       "Format d'affichage d'un champ Monetaire : descripteur compose (Symbole, PositionSymbole, SeparateurDecimal, SeparateurMilliers, ChiffresApresVirgule, FormatNegatif), litteral inline `{ ... }`. Non pose = herite du FormatMonetaire du projet, sinon affichage plat.",
@@ -619,6 +660,7 @@ static const OwlControlPropDef PROPS_INPUT[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -759,6 +801,7 @@ static const OwlControlPropDef PROPS_CONTAINER[] = {
     LAYOUT_CONTAINER_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -813,6 +856,7 @@ static const OwlControlPropDef PROPS_ONGLET[] = {
       "styleOnglet" DFT_NULL },
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -904,6 +948,7 @@ static const OwlControlPropDef PROPS_IMAGE_FIELD[] = {
       "Hover cursor shape.", NULL DFT_NULL },
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -999,6 +1044,7 @@ static const OwlControlPropDef PROPS_CODEBARRE_FIELD[] = {
       "Hover cursor shape.", NULL DFT_NULL },
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1115,6 +1161,7 @@ static const OwlControlPropDef PROPS_LIST_FIELD[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1226,6 +1273,7 @@ static const OwlControlPropDef PROPS_COMBO_FIELD[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1308,6 +1356,7 @@ static const OwlControlPropDef PROPS_SELECTEUR_FIELD[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1391,6 +1440,7 @@ static const OwlControlPropDef PROPS_INTERRUPTEUR_FIELD[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1468,6 +1518,7 @@ static const OwlControlPropDef PROPS_JAUGE_FIELD[] = {
     FONT_PROPS,
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1541,6 +1592,7 @@ static const OwlControlPropDef PROPS_ZR_FIELD[] = {
       "styleZoneR\xc3\xa9p\xc3\xa9t\xc3\xa9""e" DFT_NULL },
     LAYOUT_CHILD_PROPS,
     GROUPE_PROP,
+    PLAN_PROP,
     NOTE_PROP,
 };
 
@@ -1607,6 +1659,8 @@ static const OwlControlPropDef PROPS_COLUMN[] = {
       "Background color of the whole column (RGB integer).", NULL DFT_NULL RUNTIME_ONLY },
 };
 
+static bool prop_name_match(const OwlControlPropDef* def, const char* user_name);
+
 /*  — mise en forme d'une cellule ou d'une ligne de Table.
  *
  * Genre synthetique : aucun bloc DSL ne l'ouvre. Ces deux proprietes ne vivent
@@ -1632,6 +1686,17 @@ static const OwlControlPropDef PROPS_TABLE_CELL[] = {
       "Liste d'options propre à la cellule d'une colonne combo (lignes séparées par LF). Cellule jamais écrite : relit la liste déclarée sur la colonne.",
       "Cell-specific option list of a combo column (rows separated by LF). Cell never written: reads the list declared on the column.",
       NULL DFT_NULL RUNTIME_ONLY },
+    /*  — vue de rendu d'une cellule entièrement désignée
+     * (`TABLE[ligne][colonne]..ValeurAffichée`) : texte formaté affiché selon le
+     * masque de la colonne (Date/Heure/numérique…). LECTURE SEULE — la valeur
+     * brute se lit via `TABLE[ligne].Colonne`. READONLY_RUNTIME arme le refus
+     * d'écriture à la compilation ; aucun casier `$fmt` n'est stocké (le texte
+     * est recalculé au GET depuis le DisplayRole). */
+    { "ValeurAffich\xc3\xa9""e", "ValeurAffichee", "DisplayedValue",
+      OWL_PROP_TYPE_STRING, NULL,
+      "Texte formaté affiché de la cellule (rendu du masque de la colonne). Lecture seule : la valeur brute se lit via le nom de colonne.",
+      "Formatted displayed text of the cell (column mask rendering). Read-only: the raw value is read through the column name.",
+      NULL DFT_NULL RUNTIME_ONLY READONLY_RUNTIME },
 };
 
 const OwlControlPropDef* owl_table_cell_catalog_find(const char* prop_name) {
@@ -1640,8 +1705,10 @@ const OwlControlPropDef* owl_table_cell_catalog_find(const char* prop_name) {
          i < (int)(sizeof(PROPS_TABLE_CELL) / sizeof(PROPS_TABLE_CELL[0]));
          i++) {
         const OwlControlPropDef* p = &PROPS_TABLE_CELL[i];
-        if (strcasecmp(p->nameFR, prop_name) == 0) return p;
-        if (p->nameEN != NULL && strcasecmp(p->nameEN, prop_name) == 0) return p;
+        /* prop_name_match couvre aussi nameAscii : l'identifiant parvient ici
+         * accent-strippé (`ValeurAffichee`), il ne matcherait pas le nameFR
+         * accentué sans cette forme. */
+        if (prop_name_match(p, prop_name)) return p;
     }
     return NULL;
 }
@@ -2098,6 +2165,75 @@ bool owl_ui_prop_exists_on_any_control_kind(const char* prop_name) {
     return false;
 }
 
+/*  — registre des proprietes personnalisees declarees au projet. */
+#define OWL_CUSTOM_PROPS_MAX 128
+typedef struct {
+    char              name[64];   /* graphie declaree (pour listing / messages) */
+    char              key[64];    /* forme normalisee (accent-strippee, minuscule) */
+    OwlCustomPropType type;
+} OwlCustomPropEntry;
+static OwlCustomPropEntry g_custom_props[OWL_CUSTOM_PROPS_MAX];
+static int               g_custom_props_count = 0;
+
+/* Normalise un nom en clef de comparaison : accents strippes puis minuscule
+ * ASCII. Honore les invariants 1 (casse) & 2 (accents). */
+static int custom_prop_normalize(const char* name, char* buf, int bufSize) {
+    int n = scanner_strip_accents(name, (int)strlen(name), buf, bufSize);
+    if (n <= 0) {
+        n = (int)strlen(name);
+        if (n > bufSize - 1) n = bufSize - 1;
+        memcpy(buf, name, (size_t)n);
+        buf[n] = '\0';
+    }
+    for (int i = 0; i < n; i++)
+        if (buf[i] >= 'A' && buf[i] <= 'Z') buf[i] = (char)(buf[i] - 'A' + 'a');
+    return n;
+}
+
+void owl_custom_props_reset(void) {
+    g_custom_props_count = 0;
+}
+
+bool owl_custom_props_add(const char* name, OwlCustomPropType type) {
+    if (name == NULL || name[0] == '\0') return false;
+    if (g_custom_props_count >= OWL_CUSTOM_PROPS_MAX) return false;
+    if (owl_custom_props_find(name, NULL)) return false;  /* doublon : 1er gagne */
+    OwlCustomPropEntry* e = &g_custom_props[g_custom_props_count];
+    int nn = (int)strlen(name);
+    if (nn > (int)sizeof(e->name) - 1) nn = (int)sizeof(e->name) - 1;
+    memcpy(e->name, name, (size_t)nn);
+    e->name[nn] = '\0';
+    custom_prop_normalize(name, e->key, (int)sizeof(e->key));
+    e->type = type;
+    g_custom_props_count++;
+    return true;
+}
+
+bool owl_custom_props_find(const char* name, OwlCustomPropType* outType) {
+    if (name == NULL || g_custom_props_count == 0) return false;
+    char key[64];
+    custom_prop_normalize(name, key, (int)sizeof(key));
+    for (int i = 0; i < g_custom_props_count; i++) {
+        if (strcmp(g_custom_props[i].key, key) == 0) {
+            if (outType != NULL) *outType = g_custom_props[i].type;
+            return true;
+        }
+    }
+    return false;
+}
+
+int owl_custom_props_count(void) { return g_custom_props_count; }
+
+const char* owl_custom_props_name_at(int i) {
+    if (i < 0 || i >= g_custom_props_count) return NULL;
+    return g_custom_props[i].name;
+}
+
+OwlCustomPropType owl_custom_props_type_at(int i) {
+    if (i < 0 || i >= g_custom_props_count) return OWL_CUSTOM_PROP_STRING;
+    return g_custom_props[i].type;
+}
+
 const char* owl_prop_type_name(OwlPropType t) {
     switch (t) {
         case OWL_PROP_TYPE_INT:       return "entier";
@@ -2241,6 +2377,25 @@ static const OwlEnum E_Etat = {
     .descFR="Etat unifié d'un champ (Actif / AffichageSeulement / Grisé / Invisible). Inactif est un synonyme d'AffichageSeulement. AffichageSansSélection est spécifique au Champ Table : affiché, aucune sélection utilisateur (la sélection par programmation reste possible).",
     .descEN="Unified field state (Active / DisplayOnly / Grayed / Invisible). Inactive is a synonym for DisplayOnly. DisplayWithoutSelection is specific to the Table field: displayed, no user selection (programmatic selection stays possible).",
     .values=E_Etat_values, .combinable=false
+};
+
+/* etatFenetre — etats d'une fenetre pour FenEtat / WinStatus.
+ * Reutilise les constantes partagees Actif/AffichageSeulement/Grisé/Invisible
+ * (memes sentinels que l'enum `etat`, un seul const par nom dans le registry)
+ * et ajoute les etats propres a la fenetre. La lecture (get) ne rend qu'un
+ * sous-ensemble (Actif/AffichageSeulement/Grisé/HorsEcran/Inexistant/Invisible) ;
+ * les etats de positionnement (ActifDevant/Dessus/DessusTout/Normal) sont des
+ * modificateurs du set. */
+static const char* const E_EtatFenetre_values[] = {
+    "Actif", "AffichageSeulement", "Gris\xc3\xa9", "Invisible",
+    "Inexistant", "HorsEcran", "ActifDevant",
+    "Dessus", "DessusTout", "Normal", NULL
+};
+const OwlEnum E_EtatFenetre = {
+    .name="etatFenetre", .nameAscii="etatFenetre", .nameEN="windowState", .category="UI",
+    .descFR="Etat d'une fenêtre pour FenEtat : Actif, AffichageSeulement, Grisé, Invisible, Inexistant (fermée), HorsEcran, et les modificateurs de positionnement ActifDevant / Dessus / DessusTout / Normal.",
+    .descEN="Window state for WinStatus: Active, DisplayOnly, Grayed, Invisible, NotFound (closed), OutsideScreen, plus the positioning modifiers TopActive / Above / AboveAll / Normal.",
+    .values=E_EtatFenetre_values, .combinable=false
 };
 
 /* Disposition (Lot F) — sentinel-zone : protege contre 'Disposition = 1'. */
@@ -2763,6 +2918,12 @@ const OwlEnum E_IInfoImpr = {
     .values=E_IInfoImpr_values, .combinable=false
 };
 
+/*  Lot 1 — les constantes de pilotage (iRectoVerso/iCouleur + leurs
+ * valeurs) sont des constantes plates, PAS un OwlEnum : iParametre(selecteur,
+ * valeur) a un 2e argument polymorphe (le type de valeur depend du selecteur),
+ * donc aucun enum unique ne peut etre cable sur le parametre. Meme schema que
+ * iParametrePDF et ses options. Elles vivent dans UI_CONSTS ci-dessous. */
+
 /* DSL Etat V2 — Format de page (propriete Etat..Format). */
 static const char* const E_EtatFormat_values[] = {
     "formatA3", "formatA4", "formatA5", "formatLetter", "formatLegal", NULL
@@ -2914,6 +3075,21 @@ static const OwlConstDef UI_CONSTS[] = {
             "Champ Table affiche, aucune selection utilisateur ; la selection par programmation reste possible.",
             "Table field displayed, no user selection; programmatic selection stays possible.",
             "DisplayWithoutSelection"),
+    /* etatFenetre — etats propres a la fenetre (FenEtat).
+     * Actif/AffichageSeulement/Grise/Invisible reutilisent les sentinels de
+     * l'enum etat ci-dessus (un seul const par nom). */
+    C_UI_EN("Inexistant",  OWL_FENETAT_INEXISTANT,   "Fenetre fermee ou inexistante. En set, ferme la fenetre.",
+            "Window closed or not existing. As a set value, closes the window.", "NotFound"),
+    C_UI_EN("HorsEcran",   OWL_FENETAT_HORSECRAN,    "Fenetre active mais positionnee hors de la zone visible.",
+            "Window active but positioned off the visible area.", "OutsideScreen"),
+    C_UI_EN("ActifDevant", OWL_FENETAT_ACTIF_DEVANT, "Fenetre active et mise au premier plan (set).",
+            "Window active and brought to the front (set).", "TopActive"),
+    C_UI_EN("Dessus",      OWL_FENETAT_DESSUS,       "Fenetre au premier plan des fenetres de l'application (set).",
+            "Window above the other application windows (set).", "Above"),
+    C_UI_EN("DessusTout",  OWL_FENETAT_DESSUS_TOUT,  "Fenetre au premier plan de toutes les fenetres, meme hors application (set).",
+            "Window above all windows, even from other applications (set).", "AboveAll"),
+    C_UI_EN("Normal",      OWL_FENETAT_NORMAL,       "Annule le mode DessusTout : la fenetre repasse en mode normal (set).",
+            "Cancels the AboveAll mode: the window returns to normal (set).", "Normal"),
     /* Cadre legacy enum (cadreAucun/cadreSimple/cadre3DEnfonce/cadre3DSorti)
      * supprime — utiliser le type compose Cadre (canon). */
     /* CurseurSouris (canon). 14 formes. Indices contigus 0..13
@@ -3235,6 +3411,33 @@ static const OwlConstDef UI_CONSTS[] = {
     C_UI_EN("iNomDriver",                       OWL_IINFOIMPR_DRIVER,      "Nom du driver d'imprimante.",              "Printer driver name.", "iDriverName"),
     C_UI_EN("iNomPort",                         OWL_IINFOIMPR_PORT,        "Nom du port d'impression.",                "Print port name.", "iDeviceName"),
 
+    /* iParametre — selecteurs de parametre (recto-verso, couleur). */
+    C_UI_EN("iRectoVerso",      OWL_IPARAM_RECTOVERSO, "Parametre recto-verso de l'impression.", "Double-sided print setting.", "iDuplex"),
+    C_UI_EN("iCouleur",         OWL_IPARAM_COULEUR,    "Parametre couleur / monochrome de l'impression.", "Color / monochrome print setting.", "iColor"),
+    /* iParametre(iRectoVerso, <valeur>) — modes recto-verso. */
+    C_UI_EN("iRectoVerso_Simple",     OWL_IDUPLEX_SIMPLE,     "Impression sur une seule face.",          "Single-sided printing.", "iDuplex_Simple"),
+    C_UI_EN("iRectoVerso_Horizontal", OWL_IDUPLEX_HORIZONTAL, "Recto-verso, reliure sur le petit cote.", "Double-sided, short-edge binding.", "iDuplex_Horizontal"),
+    C_UI_EN("iRectoVerso_Vertical",   OWL_IDUPLEX_VERTICAL,   "Recto-verso, reliure sur le grand cote.", "Double-sided, long-edge binding.", "iDuplex_Vertical"),
+    /* iParametre(iCouleur, <valeur>) — modes couleur. */
+    C_UI_EN("iCouleur_Couleur", OWL_ICOULIMPR_COULEUR, "Impression en couleur.",                   "Color printing.", "iColor_Color"),
+    C_UI_EN("iCouleur_Mono",    OWL_ICOULIMPR_MONO,    "Impression en niveau de gris.",            "Grayscale printing.", "iColor_Mono"),
+    /* iParametre(iAlimentationPapier, <valeur>) — bac / source papier. L'effet
+     * reel depend du pilote (ignore sous Linux). */
+    C_UI_EN("iAlimentationPapier", OWL_IPARAM_ALIMPAPIER, "Parametre bac / source papier de l'impression.", "Paper source / bin print setting.", "iPaperSource"),
+    C_UI_EN("iAlimentationPapier_Auto",           OWL_IALIMP_AUTO,            "Alimentation automatique.",          "Automatic feed.", "iPaperSource_Auto"),
+    C_UI_EN("iAlimentationPapier_Bas",            OWL_IALIMP_BAS,             "Bac du bas.",                        "Lower bin.", "iPaperSource_Lower"),
+    C_UI_EN("iAlimentationPapier_Cassette",       OWL_IALIMP_CASSETTE,        "Bac cassette.",                      "Cassette bin.", "iPaperSource_Cassette"),
+    C_UI_EN("iAlimentationPapier_Enveloppe",      OWL_IALIMP_ENVELOPPE,       "Bac enveloppe.",                     "Envelope feed.", "iPaperSource_Envelope"),
+    C_UI_EN("iAlimentationPapier_EnveloppeManuel",OWL_IALIMP_ENVELOPPE_MANUEL,"Bac enveloppe manuel.",              "Manual envelope feed.", "iPaperSource_EnvelopeManual"),
+    C_UI_EN("iAlimentationPapier_GrandeCapacit\xc3\xa9", OWL_IALIMP_GRANDE_CAPACITE, "Bac grande capacite.",         "Large-capacity bin.", "iPaperSource_LargeCapacity"),
+    C_UI_EN("iAlimentationPapier_GrandFormat",    OWL_IALIMP_GRAND_FORMAT,    "Bac grand format.",                  "Large-format feed.", "iPaperSource_LargeFormat"),
+    C_UI_EN("iAlimentationPapier_Haut",           OWL_IALIMP_HAUT,            "Bac du haut.",                       "Upper bin.", "iPaperSource_Upper"),
+    C_UI_EN("iAlimentationPapier_Manuel",         OWL_IALIMP_MANUEL,          "Alimentation manuelle.",             "Manual feed.", "iPaperSource_Manual"),
+    C_UI_EN("iAlimentationPapier_Milieu",         OWL_IALIMP_MILIEU,          "Bac du milieu.",                     "Middle bin.", "iPaperSource_Middle"),
+    C_UI_EN("iAlimentationPapier_PetitFormat",    OWL_IALIMP_PETIT_FORMAT,    "Bac petit format.",                  "Small-format feed.", "iPaperSource_SmallFormat"),
+    C_UI_EN("iAlimentationPapier_Tracteur",       OWL_IALIMP_TRACTEUR,        "Alimentation par tracteur.",         "Tractor feed.", "iPaperSource_Tractor"),
+    C_UI_EN("iAlimentationPapier_UneSeule",       OWL_IALIMP_UNE_SEULE,       "Une seule feuille.",                 "Single sheet.", "iPaperSource_OnlyOne"),
+
     /* DSL Etat V2 — formats de page (propriete Etat..Format). */
     C_UI_EN("formatA3",       OWL_ETAT_FORMAT_A3,     "Format A3 (297x420 mm).",       "A3 format (297x420 mm).", "formatA3"),
     C_UI_EN("formatA4",       OWL_ETAT_FORMAT_A4,     "Format A4 (210x297 mm, defaut).", "A4 format (210x297 mm, default).", "formatA4"),
@@ -3496,6 +3699,7 @@ void stdlib_ui_catalog_init(void) {
     static const OwlEnum* ENUMS[] = {
         &E_TypeBouton, &E_PositionImageBouton, &E_TypeLibelle, &E_TypeSaisie,
         &E_CadrageH, &E_CadrageV, &E_toastDuree, &E_Cadrage, &E_Etat,
+        &E_EtatFenetre,
         &E_Curseurs, &E_Ellipse, &E_sensEcriture,
         &E_TraitCadre, &E_BordsCadre, &E_TypeDegrade, &E_FormatAffichage,
         &E_Disposition, &E_Alignement, &E_Position, &E_LargeurVolets,

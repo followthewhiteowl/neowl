@@ -1,0 +1,51 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Extension codepage EUC-JP (encEUCJP), encodage multi-octets japonais basé sur le même répertoire que Shift-JIS mais avec une logique lead/trail différente (octets hauts 0xA1-0xFE). ASCII (0x00-0x7F) passe tel quel sur 1 octet. Un caractère hors répertoire est remplacé par l'octet 63 ('?').
+
+// Vecteurs cross-vérifiés : table WHATWG index-jis0208.txt recalculée via la formule
+// d'encodage EUC-JP officielle, confrontée au codec "euc_jp" indépendant de la
+// bibliothèque standard Python : U+3042 -> A4 A2, U+6F22 -> B4 C1.
+
+
+// Cas A : ASCII passthrough.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_eucjp_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encEUCJP)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en EUC-JP = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en EUC-JP")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en EUC-JP")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en EUC-JP")
+FIN
+
+
+// Cas B : hiragana あ (U+3042) -> 2 octets 0xA4 0xA2 (164, 162).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_eucjp_hiragana_a()
+	buf est un buffer = ChaîneVersBuffer("あ", encEUCJP)
+	dbgVérifieEgalité(Taille(buf), 2, "あ en EUC-JP = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 164, "あ en EUC-JP, octet de tête = 164 (0xA4)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 162, "あ en EUC-JP, octet de fin = 162 (0xA2)")
+FIN
+
+
+// Cas C : kanji 漢 (U+6F22) -> 2 octets 0xB4 0xC1 (180, 193).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_eucjp_kanji_kan()
+	buf est un buffer = ChaîneVersBuffer("漢", encEUCJP)
+	dbgVérifieEgalité(Taille(buf), 2, "漢 en EUC-JP = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 180, "漢 en EUC-JP, octet de tête = 180 (0xB4)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 193, "漢 en EUC-JP, octet de fin = 193 (0xC1)")
+FIN
+
+
+// Edge case : caractère hors plan de base (U+20000, hors répertoire EUC-JP)
+// -> remplacement par l'octet 63 ('?').
+PROCEDURE PRIVÉE scenario_cvb_dbcs_eucjp_edge_non_representable()
+	c   est une chaîne = Caract(131072)
+	buf est un buffer  = ChaîneVersBuffer(c, encEUCJP)
+	dbgVérifieEgalité(Taille(buf), 1, "caractère hors répertoire -> 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "caractère hors répertoire en EUC-JP -> octet 63 ('?')")
+FIN
+
+
+// Edge case : chaîne vide -> buffer vide.
+PROCEDURE PRIVÉE scenario_cvb_dbcs_eucjp_edge_chaine_vide()
+	buf est un buffer = ChaîneVersBuffer("", encEUCJP)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide -> buffer vide en EUC-JP")
+FIN

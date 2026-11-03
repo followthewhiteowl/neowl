@@ -676,6 +676,24 @@ static JsonValue* sym_children(JsonValue* sym) {
     return json_get(sym, "children");
 }
 
+/*  : enfant nomme 'name' de la categorie synthetique 'cat' dans
+ * l'outline groupe (module/script plat ou corps de CollectionDeProcedures). */
+static JsonValue* find_in_cat(JsonValue* arr, const char* cat, const char* name) {
+    JsonValue* c = find_sym(arr, cat);
+    if (!c) return NULL;
+    return find_sym(json_get(c, "children"), name);
+}
+
+/* Libelles des 6 categories synthetiques (FR canon / EN localise). */
+#define CAT_CONST_FR  "Constantes"
+#define CAT_STRUCT_FR "Structures"
+#define CAT_ENUM_FR   "\xc3\x89num\xc3\xa9rations"
+#define CAT_CLASS_FR  "Classes"
+#define CAT_GLOB_FR   "D\xc3\xa9" "clarations globales"
+#define CAT_PROC_FR   "Proc\xc3\xa9" "dures"
+#define CAT_PROC_EN   "Procedures"
+#define CAT_GLOB_EN   "Global declarations"
+
 /* Retourne le nombre d'enfants d'un DocumentSymbol. */
 static int sym_children_count(JsonValue* sym) {
     JsonValue* ch = sym_children(sym);
@@ -2357,7 +2375,7 @@ static void test_completion_dotdot_widget_counts_unchanged(void) {
 
     JsonValue* p1 = make_completion_params(URI, 9, 12);
     JsonValue* i1 = handle_completion(p1);
-    ASSERT_COUNT(i1, 54, "1515 non-reg : LIB_A.. = 54 props Libelle");
+    ASSERT_COUNT(i1, 55, "1515 non-reg : LIB_A.. = 55 props Libelle (feat/1139 ajoute Plan)");
     json_free(i1); json_free(p1);
 
     JsonValue* p2 = make_completion_params(URI, 10, 14);
@@ -2367,7 +2385,7 @@ static void test_completion_dotdot_widget_counts_unchanged(void) {
 
     JsonValue* p3 = make_completion_params(URI, 11, 22);
     JsonValue* i3 = handle_completion(p3);
-    ASSERT_COUNT(i3, 3, "1515 non-reg : TABLE_X[1][1].. = 3 props cellule (Couleur, CouleurFond ; feat/1595 : +Contenu)");
+    ASSERT_COUNT(i3, 4, "1515 non-reg : TABLE_X[1][1].. = 4 props cellule (Couleur, CouleurFond ; feat/1595 : +Contenu ; feat/2328 : +ValeurAffichée lecture seule)");
     json_free(i3); json_free(p3);
 }
 
@@ -7923,6 +7941,77 @@ static void test_hover_dsl_prop_fr_default(void) {
     json_free(params);
 }
 
+/* ================================================================
+ *   — parite hover/CLI « Voir aussi » (maillage RelatedInfo)
+ *
+ *  `owl explain ..Groupe` (CLI) affiche une section « Voir aussi » qui
+ *  renvoie vers les fiches ou vit l'exemple multi-groupes demande
+ *  (20_groupes_de_champs). Le hover LSP sur la meme propriete DSL
+ *  (Groupe/Group, catalogue OWL_DSL_PROP_CATALOG) ne porte aucun
+ *  maillage : seule la desc brute est servie.
+ *
+ *  RED-FIRST : avant impl, le hover resout bien la propriete (desc
+ *  presente) mais aucune section « Voir aussi » / « See also » n'est
+ *  emise -> rouge sur cette assertion precise, pas sur la resolution
+ *  elle-meme.
+ * ================================================================ */
+
+/* Hover FR sur ..Groupe (bloc widget Libelle) : la desc resout deja ;
+ * la section « Voir aussis » et le renvoi vers la fiche
+ * 20_groupes_de_champs manquent (RED attendu). */
+static void test_hover_dslprop_voir_aussi_fr(void) {
+    printf("\n[TEST] feat/2165 : hover FR prop DSL (Groupe) -> section Voir aussi\n");
+    const char* src =
+        "FEN_X est une Fenetre\n"
+        "\tLBL_T est un Libelle\n"
+        "\t\tGroupe = 1\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    lspServer.language[0] = '\0';
+
+    JsonValue* params = make_hover_params(URI, 2, 4);  /* sur 'Groupe' */
+    JsonValue* result = handle_hover(params);
+    const char* v = hover_value(result);
+    /* Sanity : la resolution existante n'a pas regresse. */
+    ASSERT_HOVER_CONTAINS(v, "Tableau des Groupes",
+        "hover prop DSL Groupe FR desc (non-regression)");
+    /* Le gap du ticket : maillage absent avant impl. */
+    ASSERT_HOVER_CONTAINS(v, "Voir aussi",
+        "hover prop DSL Groupe FR section Voir aussi");
+    ASSERT_HOVER_CONTAINS(v, "20_groupes_de_champs",
+        "hover prop DSL Groupe FR renvoi fiche multi-groupes");
+    json_free(result);
+    json_free(params);
+}
+
+/* Meme cas en EN (bloc widget Label, prop Group) : section « See also »
+ * attendue, meme renvoi de fiche (slug non traduit). RED attendu. */
+static void test_hover_dslprop_see_also_en(void) {
+    printf("\n[TEST] feat/2165 : hover EN prop DSL (Group) -> section See also\n");
+    const char* src =
+        "FEN_X is a Window\n"
+        "\tLBL_T is a Label\n"
+        "\t\tGroup = 1\n"
+        "\tEND\n"
+        "END\n";
+    setup_doc(URI, src);
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+
+    JsonValue* params = make_hover_params(URI, 2, 4);  /* sur 'Group' */
+    JsonValue* result = handle_hover(params);
+    const char* v = hover_value(result);
+    ASSERT_HOVER_CONTAINS(v, "Array of Groups",
+        "hover prop DSL Group EN desc (non-regression)");
+    ASSERT_HOVER_CONTAINS(v, "See also",
+        "hover prop DSL Group EN section See also");
+    ASSERT_HOVER_CONTAINS(v, "20_groupes_de_champs",
+        "hover prop DSL Group EN renvoi fiche multi-groupes");
+    json_free(result);
+    json_free(params);
+    lspServer.language[0] = '\0';
+}
+
 /* (a) Completion mots-cles en mode EN : la forme EN du mot-cle (IF pour
  *     SI) est proposee, la doc EN l'accompagne, la forme FR n'apparait pas. */
 static void test_completion_keyword_en(void) {
@@ -12153,6 +12242,115 @@ static void test_semantic_global_ref_closed_theme(void) {
     json_free(params);
 }
 
+/* ================================================================
+ *  Lot B — props custom declarees au projet (projet.owl), projet-aware
+ * cote LSP : completion sur `champ..` + coloration `..maProp` en property.
+ *
+ * Fixture custom_props_tous_champs/projet.owl (FERME sur disque) declare
+ *   PropriétésPersonnaliséesTousChamps = [codeInterne est un entier,
+ *                                         refClient est une chaîne]
+ * et fenetre.owl (OUVERT, contenu inline) utilise `SAI_Client..`.
+ * ================================================================ */
+
+/* (a) Completion : `SAI_Client..` propose les props custom projet (codeInterne,
+ * refClient) EN PLUS des props canon de Saisie. */
+static void test_completion_custom_props_tous_champs(void) {
+    printf("\n[TEST] feat/1182 Lot B : 'SAI_Client..' propose props custom projet (codeInterne/refClient)\n");
+    char workspaceRoot[512], fenetrePath[512];
+    char fenetreUri[600];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot),
+                         "custom_props_tous_champs");
+    resolve_fixture_path(fenetrePath, sizeof(fenetrePath),
+                         "custom_props_tous_champs/fenetre.owl");
+    fix1017_path_to_uri(fenetrePath, fenetreUri, sizeof(fenetreUri));
+
+    const char* fenetreSrc =
+        "FEN_Client est une Fenetre\n"
+        "\tSAI_Client est une Saisie\n"
+        "\t\tIndication = \"nom\"\n"
+        "\tFIN\n"
+        "\n"
+        "\tx = SAI_Client..\n"
+        "FIN\n";
+    setup_workspace_with_rootpath(workspaceRoot, fenetreUri, fenetreSrc);
+
+    /* Curseur juste apres `..` ligne 5 : tab(1) + "x = SAI_Client.." (16) = 17. */
+    JsonValue* params = make_completion_params(fenetreUri, 5, 17);
+    JsonValue* items = handle_completion(params);
+    ASSERT_HAS(items, "codeInterne", "1182 Lot B : prop custom codeInterne proposee");
+    ASSERT_HAS(items, "refClient",   "1182 Lot B : prop custom refClient proposee");
+    /* Non-regression : les props canon de Saisie restent proposees. */
+    ASSERT_HAS(items, "Valeur",      "1182 Lot B : prop canon Valeur toujours proposee");
+    json_free(items);
+    json_free(params);
+}
+
+/* (b) Coloration : `..codeInterne` (prop custom projet) -> token property (2),
+ * vert fonce, comme une prop canon. */
+static void test_semantic_custom_prop_tous_champs(void) {
+    printf("\n[TEST] feat/1182 Lot B : '..codeInterne' -> property(2) vert fonce\n");
+    char workspaceRoot[512], fenetrePath[512];
+    char fenetreUri[600];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot),
+                         "custom_props_tous_champs");
+    resolve_fixture_path(fenetrePath, sizeof(fenetrePath),
+                         "custom_props_tous_champs/fenetre.owl");
+    fix1017_path_to_uri(fenetrePath, fenetreUri, sizeof(fenetreUri));
+
+    const char* fenetreSrc =
+        "FEN_Client est une Fenetre\n"
+        "\tSAI_Client est une Saisie\n"
+        "\tFIN\n"
+        "\tSAI_Client..codeInterne = 42\n"
+        "FIN\n";
+    setup_workspace_with_rootpath(workspaceRoot, fenetreUri, fenetreSrc);
+
+    JsonValue* params = make_semantic_tokens_params(fenetreUri);
+    JsonValue* result = handle_semantic_tokens(params);
+    /* Ligne 3 : tab(1) + "SAI_Client" (10) + ".." (2) = 13 -> `codeInterne`. */
+    ASSERT_HAS_TOKEN(result, 3, 13, 2,
+        "1182 Lot B : ..codeInterne colore property(2)");
+    json_free(result);
+    json_free(params);
+}
+
+/* (d) Completion : A L'INTERIEUR du bloc PROPRIETES d'un champ (init
+ * declarative `maProp = valeur`), les props custom projet sont proposees EN
+ * PLUS des props canon du widget — pas seulement apres `champ..` (cf test
+ * (a)). Correction C, commit de9cb02a. Meme pattern que 
+ * (test_prop_name_completion_strict_in_proprietes) : cursor sur une ligne
+ * vide du bloc PROPRIETES. */
+static void test_completion_custom_props_in_proprietes_block(void) {
+    printf("\n[TEST] feat/1182 Lot B (correction C) : bloc PROPRIETES d'un champ propose props custom projet\n");
+    char workspaceRoot[512], fenetrePath[512];
+    char fenetreUri[600];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot),
+                         "custom_props_tous_champs");
+    resolve_fixture_path(fenetrePath, sizeof(fenetrePath),
+                         "custom_props_tous_champs/fenetre.owl");
+    fix1017_path_to_uri(fenetrePath, fenetreUri, sizeof(fenetreUri));
+
+    const char* fenetreSrc =
+        "FEN_Client est une Fenetre\n"
+        "\tSAI_Client est une Saisie\n"
+        "\t\tPROPRIETES\n"
+        "\t\t\t\n"
+        "\t\tFIN\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_workspace_with_rootpath(workspaceRoot, fenetreUri, fenetreSrc);
+
+    /* Ligne 3 : "\t\t\t" (3 tabs) -> col 3, cursor sur la ligne vide du bloc. */
+    JsonValue* params = make_completion_params(fenetreUri, 3, 3);
+    JsonValue* items = handle_completion(params);
+    ASSERT_HAS(items, "codeInterne", "1182 Lot B (C) : codeInterne proposee dans bloc PROPRIETES");
+    ASSERT_HAS(items, "refClient",   "1182 Lot B (C) : refClient proposee dans bloc PROPRIETES");
+    /* Non-regression : la prop canon du widget reste proposee. */
+    ASSERT_HAS(items, "Valeur",      "1182 Lot B (C) : prop canon Valeur toujours proposee dans bloc PROPRIETES");
+    json_free(items);
+    json_free(params);
+}
+
 /* (c) Generalite : F2 sur `configGlobale` (instance de CLASSE user, ref
  * dans views/consumer.owl OUVERT) -> declaration `configGlobale est un
  * cConfig` de core/config.owl FERME (ligne 6). */
@@ -12684,6 +12882,76 @@ static void test_collection_1178_crossfile_definition(void) {
     JsonValue* d4 = handle_definition(make_definition_params(projUri, 3, 36));
     ASSERT_DEF_LINE(d4, 4, "def actif -> utils.owl:4");
     json_free(d4);
+}
+
+/*  (support #435) — une globale declaree NUE dans un bloc
+ * CollectionDeProcedures (ex. `gVersion est une chaine`) doit apparaitre en
+ * completion CTRL-Espace quand on edite un fichier VOISIN du meme projet, que
+ * le compagnon collection soit OUVERT ou FERME. Parite avec la coloration
+ * et le go-to-definition qui marchent deja cross-fichier.
+ *
+ * Cas FERME : seul le voisin (projet.owl) est ouvert ; utils.owl reste sur
+ * disque. Les globales de collection partent dans diskGlobals[] (scan disque),
+ * que la boucle de completion de nom doit desormais consommer. */
+static void test_completion_collection_global_closed(void) {
+    printf("\n[TEST] fix/2313 : completion globale de collection (compagnon FERME)\n");
+    static char projUri[600];
+    char workspaceRoot[512];
+    char projPath[512];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "collection");
+    resolve_fixture_path(projPath, sizeof(projPath), "collection/projet.owl");
+    snprintf(projUri, sizeof(projUri), "file:///%s", projPath);
+    for (char* q = projUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    /* Buffer ouvert = voisin ; ligne 2 = statement en cours de frappe (prefixe
+     * vide apres le tab -> liste complete). utils.owl (gVersion/gMode) FERME. */
+    const char* projSrc =
+        "DemoCollection est un Projet\n"   /* 0 */
+        "\tx est un entier = Doubler(21)\n" /* 1 */
+        "\t\n"                              /* 2 : curseur ici */
+        "FIN\n";                            /* 3 */
+    setup_workspace_with_rootpath(workspaceRoot, projUri, projSrc);
+
+    JsonValue* params = make_completion_params(projUri, 2, 1);
+    JsonValue* items = handle_completion(params);
+
+    /* Les deux globales nues du bloc collection doivent etre proposees. */
+    ASSERT_HAS(items, "gVersion", "2313 : globale collection gVersion (compagnon ferme)");
+    ASSERT_HAS(items, "gMode",    "2313 : globale collection gMode (compagnon ferme)");
+
+    json_free(items);
+    json_free(params);
+}
+
+/* Cas OUVERT : le voisin ET le compagnon collection sont montes comme docs
+ * ouverts. Les globales de collection sont dans userSymbols[] (isGlobal) ;
+ * la boucle de completion ne doit pas les filtrer au doc courant. */
+static void test_completion_collection_global_open(void) {
+    printf("\n[TEST] fix/2313 : completion globale de collection (compagnon OUVERT)\n");
+    const char* projUri = "file:///c:/test/projet.owl";
+    const char* utilsUri = "file:///c:/test/utils.owl";
+    const char* projSrc =
+        "DemoCollection est un Projet\n"   /* 0 */
+        "\tx est un entier = Doubler(21)\n" /* 1 */
+        "\t\n"                              /* 2 : curseur ici */
+        "FIN\n";                            /* 3 */
+    const char* utilsSrc =
+        "COL_Utils est une CollectionDeProc\xc3\xa9""dures\n"
+        "\tgVersion est une cha\xc3\xaene = \"1.0\"\n"
+        "\tgMode est un entier = 1\n"
+        "\tPROCEDURE Doubler(n est un entier)\n"
+        "\t\tRENVOYER n * 2\n"
+        "\tFIN\n"
+        "FIN\n";
+    fix1013_setup_project_and_theme(projUri, projSrc, utilsUri, utilsSrc);
+
+    JsonValue* params = make_completion_params(projUri, 2, 1);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS(items, "gVersion", "2313 : globale collection gVersion (compagnon ouvert)");
+    ASSERT_HAS(items, "gMode",    "2313 : globale collection gMode (compagnon ouvert)");
+
+    json_free(items);
+    json_free(params);
 }
 
 /*  — une methode declaree APRES une methode contenant un `SINON SI`
@@ -16366,6 +16634,7 @@ static void test_doc_symbol_collection_init_none(void);
 static void test_doc_symbol_collection_nested_struct(void);
 static void test_doc_symbol_collection_large_no_drop(void);
 static void test_doc_symbol_module_large_no_drop(void);
+static void test_doc_symbol_collection_categories(void);
 
 /*  — une globale top-level de fenetre est proposee en RHS d'une
  * prop a valeur libre (chaine) du bloc PROPRIETES d'un widget de la meme
@@ -18645,6 +18914,12 @@ int main(int argc, char** argv) {
     /*  — globale cross-fichier (nav + coloration) compagnon FERME. */
     test_definition_global_ref_closed_theme();
     test_semantic_global_ref_closed_theme();
+
+    /*  Lot B — props custom projet (projet-aware LSP) : completion
+     * sur `champ..` + coloration `..maProp` en property. */
+    test_completion_custom_props_tous_champs();
+    test_semantic_custom_prop_tous_champs();
+    test_completion_custom_props_in_proprietes_block();
     test_definition_global_ref_closed_class_instance();
     test_semantic_global_ref_closed_class_instance();
     test_definition_window_ref_open();
@@ -18662,6 +18937,8 @@ int main(int argc, char** argv) {
     test_collection_1178_enum_member_italic_same_file();
     test_collection_1178_crossfile_tokens();
     test_collection_1178_crossfile_definition();
+    test_completion_collection_global_closed();
+    test_completion_collection_global_open();
     test_1219_crossfile_native_collision_tokens();
     test_1219_crossfile_native_collision_definition();
     test_collection_1178_no_regression_plain_enum_window();
@@ -18942,6 +19219,11 @@ int main(int argc, char** argv) {
      * completion/hover EN (RED avant impl). */
     test_hover_dsl_prop_en();
     test_hover_dsl_prop_fr_default();
+
+    /*  — parite hover/CLI « Voir aussi » (RED avant impl). */
+    test_hover_dslprop_voir_aussi_fr();
+    test_hover_dslprop_see_also_en();
+
     test_completion_keyword_en();
     test_completion_keyword_fr_default();
     test_hover_keyword_en();
@@ -19079,6 +19361,10 @@ int main(int argc, char** argv) {
      * apres 256). RED attendu avant passage en croissance dynamique. */
     test_doc_symbol_collection_large_no_drop();
     test_doc_symbol_module_large_no_drop();
+
+    /*  -- en-tetes de groupes repliables : membres de collection
+     * regroupes par categorie synthetique (meme taxonomie que le top-level). */
+    test_doc_symbol_collection_categories();
 
     /*  -- deadlock/troncature runner sur sortie --check volumineuse
      * (RED attendu avant fix : buffer fixe 8192o cote appelant). */
@@ -19621,8 +19907,9 @@ static void test_fix1281_code_apres_fermeture_meme_ligne(void) {
     ASSERT_SYM_EXISTS(dg_ch, "nGlobal", "1281/apres : nGlobal capture (code apres */)");
     JsonValue* v = find_sym(dg_ch, "nGlobal");
     if (v) ASSERT_SYM_LINE(v, 0, 0, "1281/apres : nGlobal range [0..0]");
-    /* Le callable reste present aussi. */
-    ASSERT_SYM_EXISTS(result, "Faire", "1281/apres : Faire present");
+    /* Le callable reste present aussi (sous categorie Procedures, EN). */
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_EN)), "Faire",
+        "1281/apres : Faire present sous Procedures");
 
     json_free(result);
     json_free(params);
@@ -20343,13 +20630,21 @@ static void test_doc_symbol_module_3procs(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 3, "0755/module-3procs : 3 symboles racine");
-    ASSERT_SYM_EXISTS(result, "scenario_foo",
-        "0755/module-3procs : scenario_foo present");
-    ASSERT_SYM_EXISTS(result, "scenario_bar",
-        "0755/module-3procs : scenario_bar present");
-    ASSERT_SYM_EXISTS(result, "scenario_baz",
-        "0755/module-3procs : scenario_baz present");
+    /* Outline groupe : 1 categorie racine "Procedures" portant les 3 procs. */
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-3procs : 1 categorie racine");
+    ASSERT_SYM_EXISTS(result, CAT_PROC_FR,
+        "0755/module-3procs : categorie Procedures presente");
+    {
+        JsonValue* proc_ch = sym_children(find_sym(result, CAT_PROC_FR));
+        ASSERT_SYM_CHILDREN_COUNT(find_sym(result, CAT_PROC_FR), 3,
+            "0755/module-3procs : 3 procedures sous Procedures");
+        ASSERT_SYM_EXISTS(proc_ch, "scenario_foo",
+            "0755/module-3procs : scenario_foo sous Procedures");
+        ASSERT_SYM_EXISTS(proc_ch, "scenario_bar",
+            "0755/module-3procs : scenario_bar sous Procedures");
+        ASSERT_SYM_EXISTS(proc_ch, "scenario_baz",
+            "0755/module-3procs : scenario_baz sous Procedures");
+    }
 
     json_free(result);
     json_free(params);
@@ -20371,9 +20666,9 @@ static void test_doc_symbol_module_proc_prive(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-proc-priv : 1 symbole");
-    ASSERT_SYM_EXISTS(result, "MaProc",
-        "0755/module-proc-priv : MaProc present");
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-proc-priv : 1 categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_FR)), "MaProc",
+        "0755/module-proc-priv : MaProc sous Procedures");
 
     json_free(result);
     json_free(params);
@@ -20395,9 +20690,9 @@ static void test_doc_symbol_module_fonction(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-fonction : 1 symbole");
-    ASSERT_SYM_EXISTS(result, "MaFonction",
-        "0755/module-fonction : MaFonction present");
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-fonction : 1 categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_FR)), "MaFonction",
+        "0755/module-fonction : MaFonction sous Procedures");
 
     json_free(result);
     json_free(params);
@@ -20438,12 +20733,12 @@ static void test_doc_symbol_module_classe(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-classe : 1 symbole racine");
-    ASSERT_SYM_EXISTS(result, "cCompteur",
-        "0755/module-classe : cCompteur present");
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-classe : 1 categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_CLASS_FR)), "cCompteur",
+        "0755/module-classe : cCompteur sous Classes");
 
     {
-        JsonValue* cls    = find_sym(result, "cCompteur");
+        JsonValue* cls    = find_in_cat(result, CAT_CLASS_FR, "cCompteur");
         JsonValue* cls_ch = sym_children(cls);
 
         ASSERT_SYM_EXISTS(cls_ch, "nValeur",
@@ -20480,9 +20775,10 @@ static void test_doc_symbol_module_classe_en(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-classe-en : 1 symbole racine");
-    ASSERT_SYM_EXISTS(result, "cWidget",
-        "0755/module-classe-en : cWidget reconnu (is a class)");
+    /* Fichier EN -> categorie "Classes" (meme libelle FR/EN). */
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "0755/module-classe-en : 1 categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_CLASS_FR)), "cWidget",
+        "0755/module-classe-en : cWidget reconnu (is a class) sous Classes");
 
     json_free(result);
     json_free(params);
@@ -20531,23 +20827,23 @@ static void test_doc_symbol_module_kinds(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    /* PROCEDURE top-level -> Function = 12 (callable libre, non lie a un objet). */
+    /* PROCEDURE top-level -> Function = 12 (sous categorie Procedures). */
     {
-        JsonValue* proc = find_sym(result, "TopProc");
+        JsonValue* proc = find_in_cat(result, CAT_PROC_FR, "TopProc");
         ASSERT_SYM_KIND(proc, LSP_KIND_FUNCTION,
             "0755/Q1 : TopProc kind=Function(12)");
     }
 
-    /* Classe top-level -> Class = 5. */
+    /* Classe top-level -> Class = 5 (sous categorie Classes). */
     {
-        JsonValue* cls = find_sym(result, "cMa");
+        JsonValue* cls = find_in_cat(result, CAT_CLASS_FR, "cMa");
         ASSERT_SYM_KIND(cls, LSP_KIND_CLASS,
             "0755/Q1 : cMa kind=Class(5)");
     }
 
-    /* Methode de classe -> Method = 6 (membre lie a l'objet). */
+    /* Methode de classe -> Method = 6 (membre lie a l'objet, non regroupe). */
     {
-        JsonValue* cls    = find_sym(result, "cMa");
+        JsonValue* cls    = find_in_cat(result, CAT_CLASS_FR, "cMa");
         JsonValue* cls_ch = sym_children(cls);
         JsonValue* meth   = find_sym(cls_ch, "MonAction");
         ASSERT_SYM_KIND(meth, LSP_KIND_METHOD,
@@ -20556,7 +20852,7 @@ static void test_doc_symbol_module_kinds(void) {
 
     /* Champ de classe -> Field = 8. */
     {
-        JsonValue* cls    = find_sym(result, "cMa");
+        JsonValue* cls    = find_in_cat(result, CAT_CLASS_FR, "cMa");
         JsonValue* cls_ch = sym_children(cls);
         JsonValue* field  = find_sym(cls_ch, "nX");
         ASSERT_SYM_KIND(field, LSP_KIND_FIELD,
@@ -21270,12 +21566,13 @@ static void test_doc_symbol_script_enum(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "1195/script-enum : 1 symbole racine");
-    ASSERT_SYM_EXISTS(result, "EStatut", "1195/script-enum : EStatut present");
-    ASSERT_SYM_KIND(find_sym(result, "EStatut"), LSP_KIND_ENUM,
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "1195/script-enum : 1 categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_ENUM_FR)), "EStatut",
+        "1195/script-enum : EStatut sous Enumerations");
+    ASSERT_SYM_KIND(find_in_cat(result, CAT_ENUM_FR, "EStatut"), LSP_KIND_ENUM,
         "1195/script-enum : EStatut kind=Enum(10)");
     {
-        JsonValue* en    = find_sym(result, "EStatut");
+        JsonValue* en    = find_in_cat(result, CAT_ENUM_FR, "EStatut");
         JsonValue* en_ch = sym_children(en);
         ASSERT_SYM_CHILDREN_COUNT(en, 2, "1195/script-enum : 2 membres");
         ASSERT_SYM_EXISTS(en_ch, "actif",   "1195/script-enum : actif membre");
@@ -21306,12 +21603,13 @@ static void test_doc_symbol_script_constants(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "1195/script-const : 1 symbole racine");
-    ASSERT_SYM_EXISTS(result, "CONSTANTE", "1195/script-const : bloc CONSTANTE present");
-    ASSERT_SYM_KIND(find_sym(result, "CONSTANTE"), LSP_KIND_CONSTANT,
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "1195/script-const : 1 categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_CONST_FR)), "CONSTANTE",
+        "1195/script-const : bloc CONSTANTE sous Constantes");
+    ASSERT_SYM_KIND(find_in_cat(result, CAT_CONST_FR, "CONSTANTE"), LSP_KIND_CONSTANT,
         "1195/script-const : CONSTANTE kind=Constant(14)");
     {
-        JsonValue* cst    = find_sym(result, "CONSTANTE");
+        JsonValue* cst    = find_in_cat(result, CAT_CONST_FR, "CONSTANTE");
         JsonValue* cst_ch = sym_children(cst);
         ASSERT_SYM_EXISTS(cst_ch, "SEUIL", "1195/script-const : SEUIL membre");
         ASSERT_SYM_EXISTS(cst_ch, "NOM",   "1195/script-const : NOM membre");
@@ -21346,10 +21644,10 @@ static void test_doc_symbol_script_mixed_no_regress(void) {
      * Le Trace top-level ne produit AUCUN symbole. */
     ASSERT_SYM_ARRAY_COUNT(result, 2, "1230/script-mixte : 2 symboles racine");
 
-    /* La procedure reste un frere racine Function. */
-    ASSERT_SYM_EXISTS(result, "scenario_foo",
-        "1230/script-mixte : scenario_foo present");
-    ASSERT_SYM_KIND(find_sym(result, "scenario_foo"), LSP_KIND_FUNCTION,
+    /* La procedure passe sous la categorie Procedures (Function). */
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_FR)), "scenario_foo",
+        "1230/script-mixte : scenario_foo sous Procedures");
+    ASSERT_SYM_KIND(find_in_cat(result, CAT_PROC_FR, "scenario_foo"), LSP_KIND_FUNCTION,
         "1230/script-mixte : scenario_foo kind=Function(12)");
 
     /* La variable globale passe sous Declarations globales ; range = la decl seule. */
@@ -21700,9 +21998,10 @@ static void test_doc_symbol_module_init_fr(void) {
     ASSERT_SYM_NOT_EXISTS(result, "gCompteur",
         "1230/init-fr : gCompteur PLUS un frere racine (sous Declarations globales)");
 
-    /* traiter : frere racine apres Declarations globales. */
-    ASSERT_SYM_EXISTS(result, "traiter", "1230/init-fr : traiter frere racine");
-    ASSERT_SYM_KIND(find_sym(result, "traiter"), LSP_KIND_FUNCTION,
+    /* traiter : categorie Procedures, apres Declarations globales (ordre fixe). */
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_FR)), "traiter",
+        "1230/init-fr : traiter sous Procedures");
+    ASSERT_SYM_KIND(find_in_cat(result, CAT_PROC_FR, "traiter"), LSP_KIND_FUNCTION,
         "1230/init-fr : traiter kind=Function(12)");
 
     json_free(result);
@@ -21731,9 +22030,9 @@ static void test_doc_symbol_module_init_none(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, 1, "1230/init-none : 1 seul symbole racine");
-    ASSERT_SYM_EXISTS(result, "scenario_foo",
-        "1230/init-none : scenario_foo present");
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "1230/init-none : 1 seule categorie racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_FR)), "scenario_foo",
+        "1230/init-none : scenario_foo sous Procedures");
     ASSERT_SYM_NOT_EXISTS(result, DECL_GLOB,
         "1230/init-none : pas de noeud Declarations globales (FR)");
     ASSERT_SYM_NOT_EXISTS(result, "Global declarations",
@@ -21785,7 +22084,8 @@ static void test_doc_symbol_module_init_en(void) {
         ASSERT_SYM_KIND(find_sym(dg_ch, "gReady"), LSP_KIND_VARIABLE,
             "1230/init-en : gReady kind=Variable(13)");
     }
-    ASSERT_SYM_EXISTS(result, "process", "1230/init-en : process frere racine");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(result, CAT_PROC_EN)), "process",
+        "1230/init-en : process sous Procedures (EN)");
 
     json_free(result);
     json_free(params);
@@ -21825,13 +22125,14 @@ static void test_doc_symbol_collection_init_fr(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_EXISTS(result, "COL_Utils", "1230/col-init : COL_Utils present");
+    ASSERT_SYM_EXISTS(result, "COL_Utils",
+        "1230/col-init : COL_Utils a la racine (pas sous Classes)");
     JsonValue* col    = find_sym(result, "COL_Utils");
     JsonValue* col_ch = sym_children(col);
 
-    /* 2 enfants directs : Declarations globales (1er) + traiter (frere). */
+    /* 2 categories internes : Declarations globales (1er) + Procedures. */
     ASSERT_SYM_CHILDREN_COUNT(col, 2,
-        "1230/col-init : COL_Utils a 2 enfants (Decl.globales + traiter)");
+        "1230/col-init : COL_Utils a 2 categories (Decl.globales + Procedures)");
     {
         JsonValue* first = (col_ch && col_ch->type == JSON_ARRAY && col_ch->as.arrayVal.count > 0)
                            ? col_ch->as.arrayVal.items[0] : NULL;
@@ -21876,10 +22177,10 @@ static void test_doc_symbol_collection_init_fr(void) {
     ASSERT_SYM_NOT_EXISTS(col_ch, "gMode",
         "1230/col-init : gMode PLUS un enfant direct de COL_Utils (sous Decl.globales)");
 
-    /* traiter : enfant direct de COL_Utils (frere apres Declarations globales). */
-    ASSERT_SYM_EXISTS(col_ch, "traiter",
-        "1230/col-init : traiter enfant direct de COL_Utils");
-    ASSERT_SYM_KIND(find_sym(col_ch, "traiter"), LSP_KIND_METHOD,
+    /* traiter : sous la categorie Procedures de COL_Utils (apres Decl.globales). */
+    ASSERT_SYM_EXISTS(sym_children(find_sym(col_ch, CAT_PROC_FR)), "traiter",
+        "1230/col-init : traiter sous Procedures de COL_Utils");
+    ASSERT_SYM_KIND(find_in_cat(col_ch, CAT_PROC_FR, "traiter"), LSP_KIND_METHOD,
         "1230/col-init : traiter kind=Method(6)");
 
     json_free(result);
@@ -21909,12 +22210,13 @@ static void test_doc_symbol_collection_init_none(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_EXISTS(result, "COL_Vide", "1230/col-none : COL_Vide present");
+    ASSERT_SYM_EXISTS(result, "COL_Vide",
+        "1230/col-none : COL_Vide a la racine (pas sous Classes)");
     JsonValue* col    = find_sym(result, "COL_Vide");
     JsonValue* col_ch = sym_children(col);
 
-    ASSERT_SYM_EXISTS(col_ch, "scenario_foo",
-        "1230/col-none : scenario_foo present");
+    ASSERT_SYM_EXISTS(sym_children(find_sym(col_ch, CAT_PROC_FR)), "scenario_foo",
+        "1230/col-none : scenario_foo sous Procedures");
     ASSERT_SYM_NOT_EXISTS(col_ch, DECL_GLOB,
         "1230/col-none : pas de noeud Declarations globales (FR)");
     ASSERT_SYM_NOT_EXISTS(col_ch, "Global declarations",
@@ -21960,14 +22262,15 @@ static void test_doc_symbol_collection_nested_struct(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_EXISTS(result, "COL_Modele", "1762/nested : COL_Modele present");
+    ASSERT_SYM_EXISTS(result, "COL_Modele",
+        "1762/nested : COL_Modele a la racine (pas sous Classes)");
     JsonValue* col    = find_sym(result, "COL_Modele");
     JsonValue* col_ch = sym_children(col);
 
-    /* stPoint : noeud conteneur Struct(23), enfant DIRECT de la collection. */
-    ASSERT_SYM_EXISTS(col_ch, "stPoint",
-        "1762/nested : stPoint enfant direct de la collection");
-    JsonValue* st = find_sym(col_ch, "stPoint");
+    /* stPoint : noeud conteneur Struct(23), sous la categorie Structures. */
+    ASSERT_SYM_EXISTS(sym_children(find_sym(col_ch, CAT_STRUCT_FR)), "stPoint",
+        "1762/nested : stPoint sous Structures de la collection");
+    JsonValue* st = find_in_cat(col_ch, CAT_STRUCT_FR, "stPoint");
     ASSERT_SYM_KIND(st, LSP_KIND_STRUCT,
         "1762/nested : stPoint kind=Struct(23)");
     ASSERT_SYM_DETAIL(st, "Structure",
@@ -21994,7 +22297,7 @@ static void test_doc_symbol_collection_nested_struct(void) {
     ASSERT_SYM_NOT_EXISTS(col_ch, "y",
         "1762/nested : y n'est PAS enfant direct de la collection");
 
-    /* "Declarations globales" existe et ne contient QUE gCompteur (pas x/y). */
+    /* "Declarations globales" existe (categorie) et ne contient QUE gCompteur. */
     ASSERT_SYM_EXISTS(col_ch, DECL_GLOB,
         "1762/nested : Declarations globales present");
     {
@@ -22010,10 +22313,10 @@ static void test_doc_symbol_collection_nested_struct(void) {
             "1762/nested : y PAS sous Declarations globales");
     }
 
-    /* traiter reste un frere Method(6). */
-    ASSERT_SYM_EXISTS(col_ch, "traiter",
-        "1762/nested : traiter frere de la collection");
-    ASSERT_SYM_KIND(find_sym(col_ch, "traiter"), LSP_KIND_METHOD,
+    /* traiter sous la categorie Procedures, Method(6). */
+    ASSERT_SYM_EXISTS(sym_children(find_sym(col_ch, CAT_PROC_FR)), "traiter",
+        "1762/nested : traiter sous Procedures de la collection");
+    ASSERT_SYM_KIND(find_in_cat(col_ch, CAT_PROC_FR, "traiter"), LSP_KIND_METHOD,
         "1762/nested : traiter kind=Method(6)");
 
     json_free(result);
@@ -22059,16 +22362,18 @@ static void test_doc_symbol_collection_large_no_drop(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_EXISTS(result, "COL_Big", "1741/col-large : COL_Big present");
-    JsonValue* col    = find_sym(result, "COL_Big");
-    JsonValue* col_ch = sym_children(col);
+    ASSERT_SYM_EXISTS(result, "COL_Big",
+        "1741/col-large : COL_Big a la racine (pas sous Classes)");
+    JsonValue* col     = find_sym(result, "COL_Big");
+    JsonValue* col_ch  = sym_children(col);
+    JsonValue* proc_ch = sym_children(find_sym(col_ch, CAT_PROC_FR));
 
-    /* CHAQUE procedure doit etre presente comme enfant direct de COL_Big. */
+    /* CHAQUE procedure doit etre presente sous la categorie Procedures. */
     int missing = 0;
     for (int i = 0; i < NPROC; i++) {
         char nm[32];
         snprintf(nm, sizeof(nm), "Proc_%03d", i);
-        if (!find_sym(col_ch, nm)) missing++;
+        if (!find_sym(proc_ch, nm)) missing++;
     }
     if (missing == 0) {
         g_pass++;
@@ -22079,7 +22384,7 @@ static void test_doc_symbol_collection_large_no_drop(void) {
                missing, NPROC);
     }
     /* Ancrage sur la derniere procedure (la plus exposee au drop). */
-    ASSERT_SYM_EXISTS(col_ch, "Proc_009",
+    ASSERT_SYM_EXISTS(proc_ch, "Proc_009",
         "1741/col-large : Proc_009 (derniere) presente");
 
     json_free(result);
@@ -22103,15 +22408,121 @@ static void test_doc_symbol_module_large_no_drop(void) {
     JsonValue* params = make_text_document_params(URI);
     JsonValue* result = handle_document_symbol(params);
 
-    ASSERT_SYM_ARRAY_COUNT(result, NPROC,
+    /* Outline groupe : 1 categorie racine Procedures portant les 300 procs. */
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "1741/module-large : 1 categorie racine");
+    JsonValue* proc_ch = sym_children(find_sym(result, CAT_PROC_FR));
+    ASSERT_SYM_CHILDREN_COUNT(find_sym(result, CAT_PROC_FR), NPROC,
         "1741/module-large : les 300 procedures sont exposees");
     /* Ancrage sur la 300e (index 299) : la plus exposee au drop de cap 256. */
-    ASSERT_SYM_EXISTS(result, "Proc_299",
+    ASSERT_SYM_EXISTS(proc_ch, "Proc_299",
         "1741/module-large : Proc_299 (300e) presente");
-    ASSERT_SYM_EXISTS(result, "Proc_256",
+    ASSERT_SYM_EXISTS(proc_ch, "Proc_256",
         "1741/module-large : Proc_256 (au-dela de l'ancienne borne 256) presente");
 
     json_free(result);
     json_free(params);
     free(src);
+}
+
+/* ================================================================
+ *  -- en-tetes de groupes repliables : les membres d'un bloc
+ *  CollectionDeProcedures sont regroupes sous les memes categories
+ *  synthetiques que le top-level plat, A L'INTERIEUR du noeud collection.
+ *  Fixture = tests/lsp/fixtures/collection/utils.owl (inline ici).
+ *
+ *  COL_Utils reste a la RACINE (pas sous "Classes"), coherence Explorateur.
+ *  Attendu sous COL_Utils, ordre fixe :
+ *    Enumerations           -> Statut (actif, inactif)
+ *    Declarations globales   -> gVersion, gMode
+ *    Procedures              -> Doubler
+ *  Categories vides (Constantes/Structures/Classes) MASQUEES.
+ * ================================================================ */
+static void test_doc_symbol_collection_categories(void) {
+    printf("\n[TEST] feat/2280 documentSymbol : membres de collection groupes par categorie\n");
+    const char* src =
+        "COL_Utils est une CollectionDeProc\xc3\xa9" "dures\n"   /* 0 */
+        "\tgVersion est une cha\xc3\xae" "ne = \"1.0\"\n"          /* 1 : FIELD */
+        "\tgMode est un entier = 1\n"                                /* 2 : FIELD */
+        "\tStatut est une \xc3\x89num\xc3\xa9" "ration\n"          /* 3 : ENUM */
+        "\t\tactif   = 10\n"                                         /* 4 */
+        "\t\tinactif = 20\n"                                         /* 5 */
+        "\tFIN\n"                                                    /* 6 */
+        "\tPROCEDURE Doubler(n est un entier)\n"                     /* 7 : METHOD */
+        "\t\tRENVOYER n * 2\n"                                       /* 8 */
+        "\tFIN\n"                                                    /* 9 */
+        "FIN\n";                                                     /* 10 */
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_document_symbol(params);
+
+    /* COL_Utils reste a la RACINE (pas sous "Classes"), seul noeud top-level. */
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "2280/cat : 1 noeud racine (la collection, pas Classes)");
+    ASSERT_SYM_EXISTS(result, "COL_Utils",
+        "2280/cat : COL_Utils a la racine");
+    JsonValue* col    = find_sym(result, "COL_Utils");
+    JsonValue* col_ch = sym_children(col);
+
+    /* 3 categories internes, ordre fixe : Enumerations, Decl.globales, Procedures.
+     * Constantes / Structures / Classes vides -> absentes. */
+    ASSERT_SYM_CHILDREN_COUNT(col, 3,
+        "2280/cat : COL_Utils a 3 categories (vides masquees)");
+    ASSERT_SYM_NOT_EXISTS(col_ch, CAT_CONST_FR,
+        "2280/cat : categorie Constantes absente (vide)");
+    ASSERT_SYM_NOT_EXISTS(col_ch, CAT_STRUCT_FR,
+        "2280/cat : categorie Structures absente (vide)");
+    ASSERT_SYM_NOT_EXISTS(col_ch, CAT_CLASS_FR,
+        "2280/cat : categorie Classes absente (vide, pas de classe interne)");
+    {
+        const char* order[3] = { CAT_ENUM_FR, CAT_GLOB_FR, CAT_PROC_FR };
+        for (int i = 0; i < 3; i++) {
+            JsonValue* it = (col_ch && col_ch->type == JSON_ARRAY && i < col_ch->as.arrayVal.count)
+                            ? col_ch->as.arrayVal.items[i] : NULL;
+            const char* nm = it ? json_get_string(it, "name") : NULL;
+            if (nm && strcmp(nm, order[i]) == 0) {
+                g_pass++;
+                printf("  [OK]   2280/cat : categorie #%d = attendue\n", i);
+            } else {
+                g_fail++;
+                printf("  [FAIL] 2280/cat : categorie #%d attendue '%s', obtenue '%s'\n",
+                       i, order[i], nm ? nm : "(null)");
+            }
+        }
+    }
+
+    /* Les categories synthetiques sont des Namespace(3). */
+    ASSERT_SYM_KIND(find_sym(col_ch, CAT_ENUM_FR), LSP_KIND_NAMESPACE,
+        "2280/cat : categorie Enumerations kind=Namespace(3)");
+    ASSERT_SYM_KIND(find_sym(col_ch, CAT_PROC_FR), LSP_KIND_NAMESPACE,
+        "2280/cat : categorie Procedures kind=Namespace(3)");
+
+    /* Statut : Enum(10) sous Enumerations, avec ses 2 membres EnumMember(22). */
+    {
+        JsonValue* st = find_in_cat(col_ch, CAT_ENUM_FR, "Statut");
+        ASSERT_SYM_KIND(st, LSP_KIND_ENUM, "2280/cat : Statut kind=Enum(10)");
+        ASSERT_SYM_CHILDREN_COUNT(st, 2, "2280/cat : Statut a 2 membres");
+        ASSERT_SYM_EXISTS(sym_children(st), "actif",   "2280/cat : actif membre");
+        ASSERT_SYM_EXISTS(sym_children(st), "inactif", "2280/cat : inactif membre");
+        ASSERT_SYM_KIND(find_sym(sym_children(st), "actif"), LSP_KIND_ENUMMEMBER,
+            "2280/cat : actif kind=EnumMember(22)");
+    }
+
+    /* gVersion / gMode : Field(8) sous Declarations globales. */
+    {
+        JsonValue* dg = find_sym(col_ch, CAT_GLOB_FR);
+        ASSERT_SYM_CHILDREN_COUNT(dg, 2,
+            "2280/cat : 2 declarations globales (gVersion, gMode)");
+        ASSERT_SYM_KIND(find_sym(sym_children(dg), "gVersion"), LSP_KIND_FIELD,
+            "2280/cat : gVersion kind=Field(8)");
+        ASSERT_SYM_KIND(find_sym(sym_children(dg), "gMode"), LSP_KIND_FIELD,
+            "2280/cat : gMode kind=Field(8)");
+    }
+
+    /* Doubler : Method(6) sous Procedures. */
+    {
+        JsonValue* d = find_in_cat(col_ch, CAT_PROC_FR, "Doubler");
+        ASSERT_SYM_KIND(d, LSP_KIND_METHOD, "2280/cat : Doubler kind=Method(6)");
+    }
+
+    json_free(result);
+    json_free(params);
 }

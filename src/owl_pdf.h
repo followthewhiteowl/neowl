@@ -60,6 +60,19 @@ OwlPdfDoc* owl_pdf_open_image_memory(int dpi,
                                       OwlPdfPageCallback on_page,
                                       void* userdata);
 
+/*  Lot 0 — Variante "imprimante" : le rendu est peint directement
+ * sur le QPrinter courant (celui selectionne par iConfigure, ou l'imprimante
+ * par defaut de l'OS si aucun n'a ete choisi). owl_pdf_close declenche le
+ * spool du job. L'imprimante selectionnee est persistante (survit au doc)
+ * pour que les options de pilotage (duplex, couleur) tiennent entre jobs.
+ * Retourne NULL si aucune imprimante n'est disponible.
+ *
+ * Affordance de test headless : si la variable d'environnement
+ * OWL_PRINTER_OUTPUT_FILE est posee, le QPrinter ecrit un PDF a ce chemin au
+ * lieu de spooler vers un peripherique, ce qui exerce le chemin de rendu sans
+ * imprimante physique. */
+OwlPdfDoc* owl_pdf_open_printer(void);
+
 /* Termine et ferme le document courant. Tout doit avoir ete ecrit avant.
  * Retourne 1 succes / 0 echec. */
 int  owl_pdf_close(OwlPdfDoc* doc);
@@ -105,6 +118,9 @@ double owl_pdf_remaining_height_mm(OwlPdfDoc* doc);
 
 /* Imprime sans saut de ligne (continue sur la meme baseline). */
 void owl_pdf_print_word(OwlPdfDoc* doc, const char* text_utf8);
+
+/* Couleur du texte des prochaines primitives (BGR pack canon ; -1 = noir). */
+void owl_pdf_set_text_color(OwlPdfDoc* doc, int bgr);
 
 /* Imprime dans un rectangle (X1,Y1)-(X2,Y2) en mm. alignement :
  *   0 = gauche (defaut), 1 = centre, 2 = droite. Wrap auto. */
@@ -243,6 +259,58 @@ const char* owl_printer_list_names(void);
  * use_current : 1 = imprimante courante (set via iConfigure), 0 = imprimante
  * par défaut OS. Retourne "" si aucune trouvée. Buffer interne. */
 const char* owl_printer_info(int use_current, int info_type);
+
+/*  Lot 1 — pilotage recto-verso / couleur de l'imprimante courante
+ * (iParametre). Codes neutres : le mapping vers les constantes OWL vit dans
+ * stdlib_pdf.c, le mapping vers QPrinter dans pdf_qt.cpp. Les setters stockent
+ * l'intention cote OWL (determinisme : la relecture QPrinter n'est pas fiable,
+ * cf. clamp duplex en sortie fichier) et la poussent sur le QPrinter si present ;
+ * retournent 1 si valeur reconnue, 0 sinon. Les getters renvoient l'intention
+ * courante (jamais d'echec). */
+typedef enum {
+    OWL_PRN_DUPLEX_NONE  = 0,   /* une seule face */
+    OWL_PRN_DUPLEX_LONG  = 1,   /* reliure grand cote (recto-verso vertical) */
+    OWL_PRN_DUPLEX_SHORT = 2    /* reliure petit cote (recto-verso horizontal) */
+} OwlPrnDuplex;
+typedef enum {
+    OWL_PRN_COLOR = 0,          /* impression couleur */
+    OWL_PRN_GRAY  = 1           /* niveau de gris / monochrome */
+} OwlPrnColor;
+
+/* Bac / source papier (iAlimentationPapier). Upper et OnlyOne restent distincts
+ * cote OWL (Haut vs UneSeule) bien que Qt les confonde : l'intention tracee les
+ * garde separes. L'effet reel est driver-dependant (ignore sous Linux). */
+typedef enum {
+    OWL_PRN_SRC_AUTO = 0,
+    OWL_PRN_SRC_LOWER,
+    OWL_PRN_SRC_CASSETTE,
+    OWL_PRN_SRC_ENVELOPE,
+    OWL_PRN_SRC_ENVELOPE_MANUAL,
+    OWL_PRN_SRC_LARGE_CAPACITY,
+    OWL_PRN_SRC_LARGE_FORMAT,
+    OWL_PRN_SRC_UPPER,
+    OWL_PRN_SRC_MANUAL,
+    OWL_PRN_SRC_MIDDLE,
+    OWL_PRN_SRC_SMALL_FORMAT,
+    OWL_PRN_SRC_TRACTOR,
+    OWL_PRN_SRC_ONLY_ONE
+} OwlPrnPaperSource;
+
+int owl_printer_set_duplex(int mode);        /* OwlPrnDuplex */
+int owl_printer_get_duplex(void);
+int owl_printer_set_color(int mode);         /* OwlPrnColor */
+int owl_printer_get_color(void);
+int owl_printer_set_paper_source(int src);   /* OwlPrnPaperSource */
+int owl_printer_get_paper_source(void);
+
+/*  — fenetre de progression d'impression (iFenetreAbandon). N'affiche
+ * rien si l'imprimante courante n'est pas en sortie physique (NativeFormat).
+ * begin : ouvre la fenetre (title/text deja resolus, #P a substituer) ; page :
+ * met a jour le numero de page courant ; end : ferme. */
+void owl_printer_progress_begin(const char* title_utf8, const char* text_utf8);
+void owl_printer_progress_page(int page_num);
+void owl_printer_progress_end(void);
+int  owl_printer_progress_active(void);   /* 1 si une fenetre est ouverte */
 
 #ifdef __cplusplus
 }

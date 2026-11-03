@@ -1,0 +1,75 @@
+// @sujet : RegistreEcrit
+// @résumé : Écrit une valeur dans une clé de la base de registre. La clé
+// cible doit déjà exister. Le type de la valeur écrite dépend du type de la
+// donnée passée : une chaîne devient une valeur chaîne, un entier devient
+// une valeur numérique sur 4 octets.
+
+PROCEDURE avantChaqueTest()
+	RegistreCréeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Ecrit")
+FIN
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Ecrit")
+FIN
+
+// Cas central : création de la clé, écriture, relecture puis nettoyage
+// complet. Le scénario ne dépend d'aucun état résiduel et ne laisse rien
+// derrière lui.
+PROCEDURE PUBLIQUE scenario_cycle_complet_creation_ecriture_lecture_suppression()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Ecrit\CycleComplet"
+
+	bCree est un booléen = RegistreCréeClé(chemin)
+	dbgVérifieVrai(bCree, "la clé est créée")
+	dbgVérifieVrai(RegistreExiste(chemin), "la clé existe après création")
+
+	bEcrit est un booléen = RegistreEcrit(chemin, "Langage", "Francais")
+	dbgVérifieVrai(bEcrit, "l'écriture réussit sur une clé existante")
+
+	sLu est une chaîne = RegistreLit(chemin, "Langage")
+	dbgVérifieEgalité(sLu, "Francais", "la valeur relue correspond à celle écrite")
+
+	bSupVal est un booléen = RegistreSupprimeValeur(chemin, "Langage")
+	dbgVérifieVrai(bSupVal, "la valeur est supprimée")
+
+	bSupCle est un booléen = RegistreSupprimeClé(chemin)
+	dbgVérifieVrai(bSupCle, "la clé est supprimée")
+	dbgVérifieFaux(RegistreExiste(chemin), "la clé n'existe plus après suppression")
+FIN
+
+// Un entier écrit sans type explicite est mappé en valeur numérique et
+// relu identique.
+PROCEDURE PUBLIQUE scenario_ecrit_un_entier_releu_identique()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Ecrit"
+
+	bEcrit est un booléen = RegistreEcrit(chemin, "Compteur", 42)
+	dbgVérifieVrai(bEcrit, "l'écriture d'un entier réussit")
+
+	nLu est un entier = RegistreLit(chemin, "Compteur")
+	dbgVérifieEgalité(nLu, 42, "l'entier écrit est relu identique")
+FIN
+
+// Mode d'accès explicite : le comportement reste identique au mode par
+// défaut, passé ici explicitement en argument.
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Ecrit"
+
+	bEcrit est un booléen = RegistreEcrit(registreModeAuto, chemin, "Mode", "Explicite")
+	dbgVérifieVrai(bEcrit, "l'écriture réussit avec le mode d'accès explicite")
+
+	sLu est une chaîne = RegistreLit(chemin, "Mode")
+	dbgVérifieEgalité(sLu, "Explicite", "la valeur écrite en mode explicite est relue identique")
+FIN
+
+// Cas limite : écrire dans une clé qui n'existe pas échoue proprement, sans
+// crash, avec un message d'erreur exploitable.
+PROCEDURE PRIVÉE scenario_echec_doux_si_cle_inexistante()
+	cheminAbsent est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Ecrit\Inexistante"
+
+	ErreurRAZ()
+	bEcrit est un booléen = RegistreEcrit(cheminAbsent, "Nom", "Valeur")
+	sMsg   est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieFaux(bEcrit, "l'écriture échoue sur une clé inexistante")
+	dbgVérifieVrai(sMsg <> "", "le message d'erreur est renseigné")
+FIN
+
+dbgBilanTest()

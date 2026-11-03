@@ -1,0 +1,49 @@
+//  — lecture de `..ValeurAffichée` sur une CELLULE de Table
+// (colonne formatée), en miroir de `..ValeurAffichée` sur un champ Saisie
+//.
+//
+// Canon mesuré (doc propriété ValeurAffichée, rubrique « Valeur
+// affichée dans une cellule d'un champ Table ») : la propriété retourne la
+// chaîne formatée affichée pour la colonne et la ligne spécifiées — lecture
+// seule (aucune syntaxe d'affectation documentée pour cette propriété).
+//
+// Substrat OWL existant : une cellule pleinement désignée se lit
+// `TABLE_X[ligne][colonne]` ou `TABLE_X.COL_Y[ligne]`, et porte des
+// propriétés via `..<nom>` — aujourd'hui limitées à 'Couleur'/'CouleurFond'/
+// 'Contenu' (catalogue PROPS_TABLE_CELL, src/ui_catalog.c).
+//
+// Nature : ROUGE avant impl, dès la COMPILATION (isolé dans son propre
+// dossier pour ne pas bloquer les autres assertions du ticket, même
+// précédent de forme que  table_colonne_masque_affichage/roundtrip).
+// Vérifié empiriquement : `TABLE_X[1][1]..ValeurAffichée` (lecture OU
+// écriture) échoue au compile aujourd'hui avec « 'ValeurAffichée' n'est pas
+// une propriété de mise en forme de Table : seules 'Couleur', 'CouleurFond'
+// et 'Contenu' existent [...] » — message GÉNÉRIQUE émis pour toute
+// propriété de cellule encore absente du catalogue (reproductible à
+// l'identique avec un nom de propriété bidon), donc rouge pour la bonne
+// raison : symbole pas encore enregistré, pas une faute de syntaxe `.`/`..`.
+//
+// La valeur affichée exacte attendue après impl est confirmée par la sonde
+// interne existante __DebugTableCelluleTexteAffiche, qui lit
+// DÉJÀ le DisplayRole formaté de cette même cellule (mesuré : "2026-09-12"
+// pour la ligne "12/09/2026" avec MasqueAffichage "AAAA-MM-JJ") — c'est la
+// source que le ticket désigne comme substrat naturel de ..ValeurAffichée.
+// Après impl, la LECTURE de ..ValeurAffichée doit renvoyer exactement cette
+// même chaîne, DIFFÉRENTE de la valeur brute `TABLE_X[l].COL_Y` qui reste
+// "12/09/2026" (non affectée, ).
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_TableCelluleValeurAfficheeLecture)
+dbgVérifieFaux(ErreurDétectée, "Fenêtre ouverte sans erreur")
+
+brut est une chaîne = TABLE_Dates[1].COL_Date
+dbgVérifieEgalité(brut, "12/09/2026",
+"TABLE_X[l].COL (forme valeur) reste la valeur BRUTE, non affectée par le format d'affichage (fix/2322)")
+
+affiche est une chaîne = TABLE_Dates[1][1]..ValeurAffichée
+dbgVérifieEgalité(affiche, "2026-09-12",
+"..ValeurAffichée rend le texte formaté par MasqueAffichage (identique à __DebugTableCelluleTexteAffiche)")
+
+Ferme(FEN_TableCelluleValeurAfficheeLecture)
+dbgBilanTest()

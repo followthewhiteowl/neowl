@@ -1,0 +1,49 @@
+// @sujet : RegistreCherche
+// @résumé : Recherche une chaîne de caractères dans la base de registre,
+// dans les noms de clés, les noms de valeurs et/ou les données, de façon
+// récursive par défaut.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Cherche")
+FIN
+
+PROCEDURE PUBLIQUE scenario_trouve_une_valeur_par_son_nom()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Cherche"
+	RegistreCréeClé(racine)
+	RegistreEcrit(racine, "MotUnique42", "Peu importe")
+
+	resultat est une chaîne = RegistreCherche(racine, "MotUnique42")
+	dbgVérifieVrai(resultat <> "", "la recherche trouve une correspondance")
+	dbgVérifieVrai(Contient(resultat, "MotUnique42"), "le résultat référence le nom de valeur trouvé")
+FIN
+
+PROCEDURE PUBLIQUE scenario_aucune_correspondance_renvoie_chaine_vide()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Cherche"
+	RegistreCréeClé(racine)
+
+	resultat est une chaîne = RegistreCherche(racine, "IntrouvableXYZ")
+	dbgVérifieEgalité(resultat, "", "aucune correspondance renvoie une chaîne vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreMode64()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Cherche"
+	RegistreCréeClé(racine)
+	RegistreEcrit(racine, "MotUniqueMode", "Peu importe")
+
+	resultat est une chaîne = RegistreCherche(registreMode64, racine, "MotUniqueMode")
+	dbgVérifieVrai(Contient(resultat, "MotUniqueMode"), "la recherche aboutit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : restreindre la recherche au nom des clés (registreChercheClé)
+// trouve une sous-clé portant le motif dans son nom, sans se faire piéger
+// par une valeur dont la donnée porte le même motif.
+PROCEDURE PRIVÉE scenario_options_recherche_restreinte_aux_cles()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Cherche"
+	RegistreCréeClé(racine + "\MotUniqueZZ")
+	RegistreEcrit(racine, "AutreValeur", "MotUniqueZZ")
+
+	resultat est une chaîne = RegistreCherche(racine, "MotUniqueZZ", registreChercheClé)
+	dbgVérifieVrai(Contient(resultat, "MotUniqueZZ"), "la recherche restreinte aux clés trouve la sous-clé portant le motif")
+FIN
+
+dbgBilanTest()

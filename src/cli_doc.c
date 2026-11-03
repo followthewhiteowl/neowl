@@ -5304,6 +5304,24 @@ void cli_doc_emit_dsl_prop_public_docs_json(const char* propNameFR,
     if (!first) printf("]");
 }
 
+/*  — maillage « Voir aussi » d'une propriete DSL pour le catalogue LSP.
+ * Remplit `out` (cap `max`) avec les stems de fiches liees, meme source que
+ * `owl explain ..<prop>` (heuristique find_related_public_docs sur le nom FR +
+ * liens declaratifs epingles). Les pointeurs renvoyes sont statiques (noms de
+ * fiches embarquees) : pas de free cote appelant. Retourne le nombre ecrit. */
+int cli_doc_dsl_prop_fiches(const char* propNameFR, const char** out, int max) {
+    if (!propNameFR || !out || max <= 0) return 0;
+    RelatedPublicDoc docs[RELATED_MAX_PUBLIC_DOCS];
+    int total = 0;
+    int n = find_related_public_docs(propNameFR, docs, RELATED_MAX_PUBLIC_DOCS,
+                                     &total);
+    pin_declarative_public_docs(propNameFR, docs, &n, &total,
+                                RELATED_MAX_PUBLIC_DOCS);
+    int w = 0;
+    for (int i = 0; i < n && w < max; i++) out[w++] = docs[i].name;
+    return w;
+}
+
 void cli_doc_emit_neighbors_json(const OwlNativeDef* d) {
     const char* nb[RELATED_MAX_NEIGHBORS];
     int total = 0;
@@ -8651,10 +8669,23 @@ static void search_add_hit(const char* name, const char* hint, const char* kind,
 static int search_hit_cmp(const void* pa, const void* pb) {
     const SearchHit* a = (const SearchHit*)pa;
     const SearchHit* b = (const SearchHit*)pb;
-    /*  (support #355) — documentation-first : les hits guide/fondation
-     * remontent AVANT tout autre hit (cle de tri primaire, inconditionnelle cote
-     * CLI puisque `owl search` n'a pas de notion de filtre). A l'interieur de
+    /*  — un match EXACT du nom d'un symbole (tier 4 : la requete egale
+     * un des champs de nom, casse/accent-insensible, FR comme EN) prime sur
+     * TOUT le reste, documentation-first inclus. L'utilisateur qui tape le nom
+     * exact d'un symbole le veut en tete, pas enterre sous des fondations qui
+     * ne font que mentionner le terme en passant (c'etait le cas `colonne` :
+     * le champ Colonne au rang 13, derriere 13 guides incidents). Restreint a
+     * tier==4 STRICT : un simple prefixe ou une sous-chaine ne doit PAS
+     * devancer les guides, sinon `owl search sql` enterrerait les fondations
+     * SQL sous la foule des natives prefixees `sql*` (tier 3). Clef la plus
+     * haute, inseree AU-DESSUS de documentation-first ; tout pair sans hit
+     * exact conserve exactement l'ordre d'origine.
+     *
+     *  (support #355) — documentation-first : a nom non-exact, les
+     * hits guide/fondation remontent AVANT tout autre hit. A l'interieur de
      * chaque groupe (doc / non-doc), l'ordre existant est preserve tel quel. */
+    int ae = (a->tier == 4), be = (b->tier == 4);
+    if (ae != be) return be - ae;
     if (a->is_doc != b->is_doc) return b->is_doc - a->is_doc;
     if (a->pass != b->pass) return b->pass - a->pass;   /* + de mots matchés */
     if (a->tier != b->tier) return b->tier - a->tier;   /* exact>prefixe>sous-chaine>desc */

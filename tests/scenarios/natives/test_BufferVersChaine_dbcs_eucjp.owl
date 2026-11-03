@@ -1,0 +1,53 @@
+// @sujet : BufferVersChaîne
+// @résumé : Extension codepage EUC-JP (encEUCJP), décodage symétrique de ChaîneVersBuffer. Une séquence 2 octets tronquée (octet de tête en fin de buffer, sans octet de fin) est décodée en caractère de remplacement '?'.
+
+// Vecteurs cross-vérifiés : table WHATWG index-jis0208.txt recalculée via la formule
+// d'encodage EUC-JP officielle, confrontée au codec "euc_jp" indépendant de la
+// bibliothèque standard Python : U+3042 <-> A4 A2, U+6F22 <-> B4 C1.
+
+
+// Cas A : octets 0xA4 0xA2 (164, 162) décodés -> あ (U+3042).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_eucjp_decode_hiragana_a()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 164)
+	BufferÉcritOctet(buf, 2, 162)
+	s est une chaîne = BufferVersChaîne(buf, encEUCJP)
+	dbgVérifieEgalité(s, "あ", "octets 164,162 décodés en EUC-JP -> あ")
+FIN
+
+
+// Cas B : octets 0xB4 0xC1 (180, 193) décodés -> 漢 (U+6F22).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_eucjp_decode_kanji_kan()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 180)
+	BufferÉcritOctet(buf, 2, 193)
+	s est une chaîne = BufferVersChaîne(buf, encEUCJP)
+	dbgVérifieEgalité(s, "漢", "octets 180,193 décodés en EUC-JP -> 漢")
+FIN
+
+
+// Cas C : round-trip sur une séquence mélangeant ASCII et caractères 2 octets.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_eucjp_roundtrip()
+	s0  est une chaîne = "A あ漢B"
+	buf est un buffer  = ChaîneVersBuffer(s0, encEUCJP)
+	s1  est une chaîne = BufferVersChaîne(buf, encEUCJP)
+	dbgVérifieEgalité(s1, s0, "round-trip EUC-JP restitue 'A あ漢B' sans perte")
+FIN
+
+
+// Edge case : séquence tronquée, octet de tête (0xA4) seul en fin de buffer
+// -> décodé en caractère de remplacement '?'.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_eucjp_edge_sequence_tronquee()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 164)
+	s est une chaîne = BufferVersChaîne(buf, encEUCJP)
+	dbgVérifieEgalité(s, "?", "octet de tête seul (séquence tronquée) -> caractère de remplacement '?'")
+FIN
+
+
+// Edge case : buffer vide -> chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_eucjp_edge_buffer_vide()
+	buf est un buffer  = ""
+	s   est une chaîne = BufferVersChaîne(buf, encEUCJP)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en EUC-JP -> chaîne vide")
+FIN

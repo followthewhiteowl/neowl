@@ -41,6 +41,7 @@ de refresh + hash commit amont + SHA256 par fichier.
 | Snapshot | Date refresh | Sources | Script refresh | Licences |
 |---|---|---|---|---|
 | `iconify-sets` | 2026-06-06 (commit amont `5d7fcf8`) | https://github.com/iconify/icon-sets (12 sets cherry-pickés cocktail T4, ~62 MB total snapshot — fluent multi-sizes deduplique au build T4 = `-24-` only ; icon-park ecarte par dev pour qualite visuelle insuffisante) | `scripts/refresh_iconify_sets.sh` | Apache-2.0 + MIT + CC0 + CC-BY-3.0 |
+| `whatwg-encoding` | 2026-10-31 | https://encoding.spec.whatwg.org/ (6 index : jis0208, jis0212, euc-kr, big5, gb18030 + gb18030-ranges — codepages DBCS asiatiques Shift-JIS/EUC-JP/EUC-KR/Big5/GB18030) | `scripts/refresh_codepage_tables.sh` | CC-BY-4.0 |
 
 **Bump snapshot** : relancer le script. Idempotent (skip si SHA256 inchangé).
 Fréquence recommandée pour iconify-sets : 6-12 mois.

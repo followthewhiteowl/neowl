@@ -196,10 +196,27 @@ int                 owl_operation_event_catalog_count(void);
 const OwlEventDef*  owl_operation_event_catalog_at(int index);
 
 /* ============================================================
+ * Catalogue des events d'une Colonne de Champ Table.
+ *
+ * Une colonne est le sous-bloc `COL_X est une Colonne` d'un Champ Table :
+ * ce n'est pas un widget posable de l'enum OwlControlKind, d'où le
+ * catalogue parallèle (memes types OwlEventDef, meme sémantique).
+ * Aujourd'hui : surInitialisation, surSortie (changement de colonne),
+ * surAChaqueModification (modification du contenu). Consomme par le
+ * compilateur pour valider les PROCEDURE declarees dans un bloc Colonne.
+ * Les alias EN sont portes par le champ nameEN et reconnus en lookup.
+ * ============================================================ */
+
+void                owl_column_event_catalog_register(const OwlEventDef* defs, int count);
+const OwlEventDef*  owl_column_event_catalog_find(const char* eventName);
+int                 owl_column_event_catalog_count(void);
+const OwlEventDef*  owl_column_event_catalog_at(int index);
+
+/* ============================================================
  * Lookup transverse : cherche un event dans TOUS les catalogues
  * (widgets indexes par kind + Etat + sous-controle d'Etat +
  * lifecycle Fenetre + OptionMenu + CollectionDeProcedures +
- * ServiceREST + OpérationHTTP).
+ * ServiceREST + OpérationHTTP + Colonne de Table).
  *
  * Meme semantique de match que les find() specialises : case +
  * accent insensible, forme FR canonique OU alias EN (`nameEN`).

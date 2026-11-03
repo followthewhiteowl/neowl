@@ -1,0 +1,83 @@
+// @sujet : BufferVersChaîne
+// @résumé : Extension codepage GB18030 (encGB18030), décodage symétrique de ChaîneVersBuffer. Une séquence tronquée (octet de tête en fin de buffer, ou séquence 4 octets interrompue) est décodée en caractère de remplacement '?'.
+
+// Vecteurs cross-vérifiés : table WHATWG index-gb18030.txt / index-gb18030-ranges.txt
+// recalculées via la formule d'encodage GB18030 officielle, confrontées au codec
+// "gb18030" indépendant de la bibliothèque standard Python : U+4E2D <-> D6 D0 (2 octets),
+// U+0080 <-> 81 30 81 30 (4 octets), U+10FFFF <-> E3 32 9A 35 (4 octets, borne max Unicode).
+
+
+// Cas A : octets 0xD6 0xD0 (214, 208) décodés -> 中 (U+4E2D).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_gb18030_decode_sinogramme_2octets()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 214)
+	BufferÉcritOctet(buf, 2, 208)
+	s est une chaîne = BufferVersChaîne(buf, encGB18030)
+	dbgVérifieEgalité(s, "中", "octets 214,208 décodés en GB18030 -> 中")
+FIN
+
+
+// Cas B : octets 0x81 0x30 0x81 0x30 (129,48,129,48) décodés -> U+0080.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_gb18030_decode_sequence_4octets()
+	buf est un buffer = "XXXX"
+	BufferÉcritOctet(buf, 1, 129)
+	BufferÉcritOctet(buf, 2, 48)
+	BufferÉcritOctet(buf, 3, 129)
+	BufferÉcritOctet(buf, 4, 48)
+	s est une chaîne = BufferVersChaîne(buf, encGB18030)
+	c est une chaîne = Caract(128)
+	dbgVérifieEgalité(s, c, "octets 129,48,129,48 décodés en GB18030 -> U+0080")
+FIN
+
+
+// Cas C : round-trip sur la borne maximale Unicode U+10FFFF (4 octets 0xE3 0x32 0x9A 0x35).
+// Preuve du caractère lossless de GB18030 : aucune perte même en bord d'espace de codage.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_gb18030_roundtrip_borne_max()
+	s0  est une chaîne = Caract(1114111)
+	buf est un buffer  = ChaîneVersBuffer(s0, encGB18030)
+	dbgVérifieEgalité(Taille(buf), 4, "U+10FFFF en GB18030 = 4 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 227, "U+10FFFF en GB18030, octet 1 = 227 (0xE3)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 50, "U+10FFFF en GB18030, octet 2 = 50 (0x32)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 154, "U+10FFFF en GB18030, octet 3 = 154 (0x9A)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 4), 53, "U+10FFFF en GB18030, octet 4 = 53 (0x35)")
+	s1 est une chaîne = BufferVersChaîne(buf, encGB18030)
+	dbgVérifieEgalité(s1, s0, "round-trip GB18030 restitue U+10FFFF sans perte")
+FIN
+
+
+// Cas D : round-trip sur une séquence mélangeant ASCII, sinogramme 2 octets et caractère 4 octets.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_gb18030_roundtrip_mixte()
+	s0  est une chaîne = "A中" + Caract(128) + "B"
+	buf est un buffer  = ChaîneVersBuffer(s0, encGB18030)
+	s1  est une chaîne = BufferVersChaîne(buf, encGB18030)
+	dbgVérifieEgalité(s1, s0, "round-trip GB18030 restitue ASCII + sinogramme + 4 octets sans perte")
+FIN
+
+
+// Edge case : séquence 2 octets tronquée, octet de tête (0xD6) seul en fin de buffer
+// -> décodé en caractère de remplacement '?'.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_gb18030_edge_sequence_2octets_tronquee()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 214)
+	s est une chaîne = BufferVersChaîne(buf, encGB18030)
+	dbgVérifieEgalité(s, "?", "octet de tête seul (séquence 2 octets tronquée) -> '?'")
+FIN
+
+
+// Edge case : séquence 4 octets tronquée après 2 octets (0x81 0x30 présents, 0x81 0x30 manquants)
+// -> décodée en caractère de remplacement '?'.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_gb18030_edge_sequence_4octets_tronquee()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 129)
+	BufferÉcritOctet(buf, 2, 48)
+	s est une chaîne = BufferVersChaîne(buf, encGB18030)
+	dbgVérifieEgalité(s, "?", "séquence 4 octets tronquée après 2 octets -> '?'")
+FIN
+
+
+// Edge case : buffer vide -> chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_gb18030_edge_buffer_vide()
+	buf est un buffer  = ""
+	s   est une chaîne = BufferVersChaîne(buf, encGB18030)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en GB18030 -> chaîne vide")
+FIN

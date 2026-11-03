@@ -1,0 +1,53 @@
+// @sujet : BufferVersChaîne
+// @résumé : Extension codepage Shift-JIS (encShiftJIS), décodage symétrique de ChaîneVersBuffer. Une séquence 2 octets tronquée (octet de tête en fin de buffer, sans octet de fin) est décodée en caractère de remplacement '?'.
+
+// Vecteurs cross-vérifiés : table WHATWG index-jis0208.txt recalculée via la formule
+// d'encodage Shift-JIS officielle, confrontée au codec "shift_jis" indépendant de la
+// bibliothèque standard Python : U+3042 <-> 82 A0, U+6F22 <-> 8A BF.
+
+
+// Cas A : octets 0x82 0xA0 (130, 160) décodés -> あ (U+3042).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_shiftjis_decode_hiragana_a()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 130)
+	BufferÉcritOctet(buf, 2, 160)
+	s est une chaîne = BufferVersChaîne(buf, encShiftJIS)
+	dbgVérifieEgalité(s, "あ", "octets 130,160 décodés en Shift-JIS -> あ")
+FIN
+
+
+// Cas B : octets 0x8A 0xBF (138, 191) décodés -> 漢 (U+6F22).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_shiftjis_decode_kanji_kan()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 138)
+	BufferÉcritOctet(buf, 2, 191)
+	s est une chaîne = BufferVersChaîne(buf, encShiftJIS)
+	dbgVérifieEgalité(s, "漢", "octets 138,191 décodés en Shift-JIS -> 漢")
+FIN
+
+
+// Cas C : round-trip sur une séquence mélangeant ASCII et caractères 2 octets.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_shiftjis_roundtrip()
+	s0  est une chaîne = "A あ漢B"
+	buf est un buffer  = ChaîneVersBuffer(s0, encShiftJIS)
+	s1  est une chaîne = BufferVersChaîne(buf, encShiftJIS)
+	dbgVérifieEgalité(s1, s0, "round-trip Shift-JIS restitue 'A あ漢B' sans perte")
+FIN
+
+
+// Edge case : séquence tronquée, octet de tête (0x82) seul en fin de buffer
+// -> décodé en caractère de remplacement '?' (pas de trail disponible).
+PROCEDURE PRIVÉE scenario_bvc_dbcs_shiftjis_edge_sequence_tronquee()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 130)
+	s est une chaîne = BufferVersChaîne(buf, encShiftJIS)
+	dbgVérifieEgalité(s, "?", "octet de tête seul (séquence tronquée) -> caractère de remplacement '?'")
+FIN
+
+
+// Edge case : buffer vide -> chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_shiftjis_edge_buffer_vide()
+	buf est un buffer  = ""
+	s   est une chaîne = BufferVersChaîne(buf, encShiftJIS)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en Shift-JIS -> chaîne vide")
+FIN

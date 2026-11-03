@@ -212,6 +212,11 @@ typedef struct {
                               * struct : les inits sans ce champ le laissent
                               * NULL. Permet au LSP de résoudre les champs d'un
                               * `Style = { <cursor> }` (prop→type réflexif). */
+    const char* const* fiches; /*  — maillage « Voir aussi » : tableau
+                              * NULL-terminé de stems de fiches liées (ex.
+                              * "20_groupes_de_champs"), parité avec
+                              * `owl explain ..<prop>`. NULL si aucun lien.
+                              * Consommé par le hover LSP. */
 } OwlDSLPropInfo;
 
 extern const OwlDSLPropInfo OWL_DSL_PROP_CATALOG[];

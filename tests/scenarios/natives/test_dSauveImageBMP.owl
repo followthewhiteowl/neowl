@@ -6,11 +6,11 @@
 // ════════════════════════════════════════════════════════════════════════════════════
 
 PROCEDURE PUBLIQUE scenario_nominal_sauve_charge_bmp()
-	couleurRouge est un entier = RVB(255, 0, 0)
-	cheminBMP est une chaîne = "test_nominal_bmp.bmp"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurRouge est un entier  = RVB(255, 0, 0)
+	cheminBMP    est une chaîne = fRepTemp() + fSep() + "test_nominal_bmp.bmp"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer une image en mémoire (20x15 pixels, fond rouge)
 	img = dCréeImage(20, 15, couleurRouge)
@@ -31,11 +31,11 @@ PROCEDURE PUBLIQUE scenario_nominal_sauve_charge_bmp()
 FIN
 
 PROCEDURE PUBLIQUE scenario_canal_alpha_preserve()
-	couleurRouge est un entier = RVB(255, 0, 0)
-	cheminBMP est une chaîne = "test_alpha_bmp.bmp"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurRouge est un entier  = RVB(255, 0, 0)
+	cheminBMP    est une chaîne = fRepTemp() + fSep() + "test_alpha_bmp.bmp"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer une image avec canal alpha (via dCréeImage qui crée RGBA par défaut)
 	img = dCréeImage(10, 10, couleurRouge)
@@ -54,9 +54,9 @@ PROCEDURE PUBLIQUE scenario_canal_alpha_preserve()
 FIN
 
 PROCEDURE PUBLIQUE scenario_image_invalide_renvoie_faux()
-	imgInvalide est une Image
-	cheminBMP est une chaîne = "test_invalide.bmp"
-	res est un booléen
+	imgInvalide    est une Image
+	cheminBMP      est une chaîne = fRepTemp() + fSep() + "test_invalide.bmp"
+	res            est un booléen
 	erreurPresente est un booléen
 
 	// Tenter de sauvegarder une image invalide (non initialisée)
@@ -74,9 +74,9 @@ PROCEDURE PUBLIQUE scenario_image_invalide_renvoie_faux()
 FIN
 
 PROCEDURE PUBLIQUE scenario_chemin_vide_renvoie_faux()
-	couleurBleu est un entier = RVB(0, 0, 255)
-	img est une Image
-	res est un booléen
+	couleurBleu    est un entier  = RVB(0, 0, 255)
+	img            est une Image
+	res            est un booléen
 	erreurPresente est un booléen
 
 	// Créer une image valide
@@ -98,11 +98,11 @@ FIN
 // ════════════════════════════════════════════════════════════════════════════════════
 
 PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
-	couleurBlanc est un entier = RVB(255, 255, 255)
-	cheminBMP est une chaîne = "test_edge_1x1.bmp"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurBlanc est un entier  = RVB(255, 255, 255)
+	cheminBMP    est une chaîne = fRepTemp() + fSep() + "test_edge_1x1.bmp"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer une image minimale 1x1 pixel
 	img = dCréeImage(1, 1, couleurBlanc)
@@ -119,16 +119,21 @@ PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
 FIN
 
 PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
-	couleurJaune est un entier = RVB(255, 255, 0)
-	cheminUTF8 est une chaîne = "test_éàü_ñ.bmp"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurJaune est un entier  = RVB(255, 255, 0)
+	cheminUTF8   est une chaîne = fRepTemp() + fSep() + "test_éàü_ñ.bmp"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer et sauvegarder avec chemin contenant accents et caractères UTF-8
 	img = dCréeImage(8, 6, couleurJaune)
 	res = dSauveImageBMP(img, cheminUTF8)
 	dbgVérifieEgalité(res, Vrai, "sauvegarde avec chemin UTF-8 accents")
+
+	// Valider le vrai nom sur disque (via l'API fichier, pas un round-trip
+	// narrow qui relirait le même chemin mojibake sans détecter le bug).
+	dbgVérifieVrai(fFichierExiste(cheminUTF8), "fichier BMP créé sous le vrai nom UTF-8")
+	dbgVérifieVrai(fTailleFichier(cheminUTF8) > 0, "fichier BMP UTF-8 non vide sur disque")
 
 	// Recharger depuis le chemin UTF-8
 	imgChargee = dChargeImage(cheminUTF8)
@@ -140,11 +145,11 @@ PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
 FIN
 
 PROCEDURE PRIVÉE scenario_edge_image_grande_512x512()
-	couleurGris est un entier = RVB(128, 128, 128)
-	cheminBMP est une chaîne = "test_edge_512.bmp"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurGris est un entier  = RVB(128, 128, 128)
+	cheminBMP   est une chaîne = fRepTemp() + fSep() + "test_edge_512.bmp"
+	img         est une Image
+	imgChargee  est une Image
+	res         est un booléen
 
 	// Créer une image plus grande (512x512 pixels)
 	img = dCréeImage(512, 512, couleurGris)

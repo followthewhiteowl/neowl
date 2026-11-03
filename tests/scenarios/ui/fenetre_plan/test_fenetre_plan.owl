@@ -1,0 +1,96 @@
+// @sujet : propriété Plan (plan actif de fenêtre / plan d'appartenance de champ)
+// @résumé : un plan est un mécanisme d'étape façon assistant : la fenêtre
+// garde un plan actif (défaut 0), et chaque champ peut être affecté à un
+// plan. Un champ jamais affecté à un plan reste visible quel que soit le
+// plan actif ; un champ affecté à un plan (y compris le plan 0) n'est
+// visible que lorsque le plan actif correspond exactement.
+//
+// Ressource DSL : FEN_Plan.owl (voisin). Widgets natifs réels requis
+// (TestModeHeadless(Faux)) pour mesurer la visibilité effective recalculée
+// par le moteur à chaque bascule — pas une lecture de store headless.
+
+PROCEDURE PUBLIQUE scenario_plan_defaut_fenetre_zero_et_champ_sans_plan_visible()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_Plan)
+
+	dbgVérifieEgalité(LireFenPlan(), 0, "plan actif de la fenêtre par défaut = 0")
+	dbgVérifieVrai(LireVisibleSansPlan(), "champ sans plan visible par défaut")
+
+	Ferme(FEN_Plan)
+FIN
+
+PROCEDURE PUBLIQUE scenario_plan_champ_affecte_cache_hors_de_son_plan()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_Plan)
+
+	dbgVérifieFaux(LireVisiblePlan1(), "champ du plan 1 caché tant que le plan actif est 0")
+
+	DefinitFenPlan(1)
+	dbgVérifieVrai(LireVisiblePlan1(), "champ du plan 1 visible après bascule vers le plan 1")
+
+	Ferme(FEN_Plan)
+FIN
+
+// Le cœur de la subtilité canon : un champ affecté au plan 0 n'est PAS
+// "sans plan" — il obéit à la même règle que les autres plans exclusifs.
+PROCEDURE PUBLIQUE scenario_plan_zero_distinct_de_sans_plan()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_Plan)
+
+	dbgVérifieVrai(LireVisiblePlan0(), "champ affecté au plan 0 visible quand le plan actif est 0")
+	dbgVérifieVrai(LireVisibleSansPlan(), "champ sans plan visible aussi à plan actif 0")
+
+	DefinitFenPlan(1)
+	dbgVérifieFaux(LireVisiblePlan0(), "champ affecté au plan 0 caché à plan actif 1 (plan 0 n'est pas +sans plan+)")
+	dbgVérifieVrai(LireVisibleSansPlan(), "champ sans plan toujours visible, même à plan actif 1")
+
+	Ferme(FEN_Plan)
+FIN
+
+PROCEDURE PUBLIQUE scenario_plan_champ_sans_plan_toujours_visible_quel_que_soit_le_plan_actif()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_Plan)
+
+	dbgVérifieVrai(LireVisibleSansPlan(), "visible à plan actif 0")
+
+	DefinitFenPlan(1)
+	dbgVérifieVrai(LireVisibleSansPlan(), "visible à plan actif 1")
+
+	DefinitFenPlan(5)
+	dbgVérifieVrai(LireVisibleSansPlan(), "visible à plan actif 5, au-delà des plans déclarés dans la fenêtre")
+
+	Ferme(FEN_Plan)
+FIN
+
+PROCEDURE PUBLIQUE scenario_plan_bascule_aller_retour_recalcule_la_visibilite()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_Plan)
+
+	DefinitFenPlan(2)
+	dbgVérifieVrai(LireVisiblePlan2(), "champ du plan 2 visible après bascule vers le plan 2")
+	dbgVérifieFaux(LireVisiblePlan1(), "champ du plan 1 caché pendant que le plan actif est 2")
+	dbgVérifieFaux(LireVisiblePlan0(), "champ du plan 0 caché pendant que le plan actif est 2")
+
+	DefinitFenPlan(0)
+	dbgVérifieFaux(LireVisiblePlan2(), "champ du plan 2 recaché au retour sur le plan 0")
+	dbgVérifieVrai(LireVisiblePlan0(), "champ du plan 0 de nouveau visible au retour sur le plan 0")
+
+	Ferme(FEN_Plan)
+FIN
+
+PROCEDURE PUBLIQUE scenario_plan_getters_fenetre_et_champ()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_Plan)
+
+	dbgVérifieEgalité(LireFenPlan(), 0, "getter fenêtre : plan actif initial")
+	DefinitFenPlan(1)
+	dbgVérifieEgalité(LireFenPlan(), 1, "getter fenêtre : plan actif après bascule")
+
+	dbgVérifieEgalité(LirePlanChampSansPlan(), 0, "getter champ sans plan : renvoie 0 par convention")
+	dbgVérifieEgalité(LirePlanChampPlan0(), 0, "getter champ : renvoie le plan déclaré (0)")
+	dbgVérifieEgalité(LirePlanChampPlan1(), 1, "getter champ : renvoie le plan déclaré (1)")
+
+	Ferme(FEN_Plan)
+FIN
+
+dbgBilanTest()

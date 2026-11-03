@@ -1,0 +1,60 @@
+// @sujet : RegistreRenomme
+// @résumé : Renomme une clé et/ou une valeur de la base de registre. Le
+// renommage d'une clé s'effectue par copie récursive puis suppression de
+// l'ancienne clé.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme")
+FIN
+
+PROCEDURE PUBLIQUE scenario_renomme_une_cle()
+	ancienne est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\Ancienne"
+	nouvelle est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\Nouvelle"
+	RegistreCréeClé(ancienne)
+	RegistreEcrit(ancienne, "Langage", "Francais")
+
+	bRenomme est un booléen = RegistreRenomme(ancienne, nouvelle)
+	dbgVérifieVrai(bRenomme, "le renommage de la clé réussit")
+	dbgVérifieFaux(RegistreExiste(ancienne), "l'ancienne clé n'existe plus")
+	dbgVérifieVrai(RegistreExiste(nouvelle), "la nouvelle clé existe")
+	dbgVérifieEgalité(RegistreLit(nouvelle, "Langage"), "Francais", "la valeur est conservée après le renommage")
+FIN
+
+// Le renommage d'une valeur ne touche pas la clé qui la porte.
+PROCEDURE PUBLIQUE scenario_renomme_une_valeur_sans_toucher_la_cle()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\Valeurs"
+	RegistreCréeClé(chemin)
+	RegistreEcrit(chemin, "Ancien", "DonneeTest")
+
+	bRenomme est un booléen = RegistreRenomme(chemin, "Ancien", "Nouveau")
+	dbgVérifieVrai(bRenomme, "le renommage de la valeur réussit")
+	dbgVérifieVrai(RegistreExiste(chemin), "la clé n'a pas été déplacée")
+	dbgVérifieFaux(RegistreExiste(chemin, "Ancien"), "l'ancien nom de la valeur n'existe plus")
+	dbgVérifieEgalité(RegistreLit(chemin, "Nouveau"), "DonneeTest", "la valeur est accessible sous son nouveau nom")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	ancienne est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\AncienneMode"
+	nouvelle est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\NouvelleMode"
+	RegistreCréeClé(ancienne)
+
+	bRenomme est un booléen = RegistreRenomme(registreModeAuto, ancienne, nouvelle)
+	dbgVérifieVrai(bRenomme, "le renommage réussit avec le mode d'accès explicite")
+	dbgVérifieVrai(RegistreExiste(nouvelle), "la nouvelle clé existe")
+FIN
+
+// Cas limite : renommer une clé vers un nom déjà pris échoue proprement.
+PROCEDURE PRIVÉE scenario_echec_doux_si_destination_deja_existante()
+	ancienne  est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\Depart"
+	existante est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\Renomme\DejaLa"
+	RegistreCréeClé(ancienne)
+	RegistreCréeClé(existante)
+
+	ErreurRAZ()
+	bRenomme est un booléen = RegistreRenomme(ancienne, existante)
+	sMsg     est une chaîne = ErreurInfo(errMessage)
+	dbgVérifieFaux(bRenomme, "le renommage échoue quand la destination existe déjà")
+	dbgVérifieVrai(sMsg <> "", "le message d'erreur est renseigné")
+FIN
+
+dbgBilanTest()

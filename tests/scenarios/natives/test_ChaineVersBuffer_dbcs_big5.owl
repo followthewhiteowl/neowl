@@ -1,0 +1,51 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Extension codepage Big5 (encBig5), encodage multi-octets chinois traditionnel. ASCII (0x00-0x7F) passe tel quel sur 1 octet, les sinogrammes représentables occupent 2 octets (lead/trail). Un caractère hors répertoire est remplacé par l'octet 63 ('?').
+
+// Vecteurs cross-vérifiés : table WHATWG index-big5.txt recalculée via la formule
+// d'encodage Big5 officielle, confrontée au codec "big5" indépendant de la
+// bibliothèque standard Python : U+4E2D -> A4 A4, U+60A8 -> B1 7A.
+
+
+// Cas A : ASCII passthrough.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_big5_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encBig5)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en Big5 = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en Big5")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en Big5")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en Big5")
+FIN
+
+
+// Cas B : 中 (U+4E2D, "milieu/centre") -> 2 octets 0xA4 0xA4 (164, 164).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_big5_sinogramme_zhong()
+	buf est un buffer = ChaîneVersBuffer("中", encBig5)
+	dbgVérifieEgalité(Taille(buf), 2, "中 en Big5 = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 164, "中 en Big5, octet de tête = 164 (0xA4)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 164, "中 en Big5, octet de fin = 164 (0xA4)")
+FIN
+
+
+// Cas C : 您 (U+60A8, "vous" poli) -> 2 octets 0xB1 0x7A (177, 122).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_big5_sinogramme_nin()
+	buf est un buffer = ChaîneVersBuffer("您", encBig5)
+	dbgVérifieEgalité(Taille(buf), 2, "您 en Big5 = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 177, "您 en Big5, octet de tête = 177 (0xB1)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 122, "您 en Big5, octet de fin = 122 (0x7A)")
+FIN
+
+
+// Edge case : caractère hors plan de base (U+20000, hors répertoire Big5)
+// -> remplacement par l'octet 63 ('?').
+PROCEDURE PRIVÉE scenario_cvb_dbcs_big5_edge_non_representable()
+	c   est une chaîne = Caract(131072)
+	buf est un buffer  = ChaîneVersBuffer(c, encBig5)
+	dbgVérifieEgalité(Taille(buf), 1, "caractère hors répertoire -> 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "caractère hors répertoire en Big5 -> octet 63 ('?')")
+FIN
+
+
+// Edge case : chaîne vide -> buffer vide.
+PROCEDURE PRIVÉE scenario_cvb_dbcs_big5_edge_chaine_vide()
+	buf est un buffer = ChaîneVersBuffer("", encBig5)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide -> buffer vide en Big5")
+FIN

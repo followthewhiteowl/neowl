@@ -2,7 +2,7 @@
 /* stdlib_pdf_defs.c - Donnees de registre des natives Etats / PDF (i*).
  *
  * Partie Qt-FREE du module PDF (cf. stdlib_pdf_defs.h). Contient l'array DEFS
- * (42 natives) + ses tables OwlParam/OwlSignature, SANS aucune implementation
+ * des natives i* + ses tables OwlParam/OwlSignature, SANS aucune implementation
  * C : chaque entree a .impl=NULL a la declaration.
  *
  * - Cote GUI (owl.exe, owl_runtime_gui) : stdlib_pdf_impls_wire() (stdlib_pdf.c)
@@ -328,6 +328,54 @@ static const OwlSignature sig_nation[] = {
     {0}
 };
 
+/* iParametre : getter (1 arg) / setter (2 args).  Lot 1 : recto-verso
+ * (iRectoVerso) et couleur (iCouleur) pilotes. Parametre loose (entier) car le
+ * jeu de selecteurs supportes est un sous-ensemble. */
+static const OwlParam p_param_get[] = {
+    {"parametre","entier","Parametre a lire : iRectoVerso, iCouleur, iAlimentationPapier"},
+    {0}
+};
+static const OwlParam p_param_set[] = {
+    {"parametre","entier","Parametre a modifier : iRectoVerso, iCouleur, iAlimentationPapier"},
+    {"valeur","entier","Valeur (ex. iRectoVerso_Simple, iCouleur_Mono, iAlimentationPapier_Haut)"},
+    {0}
+};
+static const OwlSignature sig_parametre[] = {
+    { 1, p_param_get, "entier",  "Valeur courante du parametre lu" },
+    { 2, p_param_set, "booleen", "Vrai si applique, Faux sinon" },
+    {0}
+};
+
+/* iFenetreAbandon : affichage [, titre [, texte]]. . */
+static const OwlParam p_abandon[] = {
+    {"affichage","booleen","Vrai pour afficher la fenetre, Faux pour la masquer"},
+    {"titre","chaine","Titre de la fenetre (optionnel)"},
+    {"texte","chaine","Message affiche, #P = numero de page (optionnel)"},
+    {0}
+};
+static const OwlSignature sig_abandon[] = {
+    { 1, p_abandon, "", "" },
+    { 2, p_abandon, "", "" },
+    { 3, p_abandon, "", "" },
+    {0}
+};
+
+/* iEnchainementAjoute : nom d'Etat + ses parametres metier (comme iImprimeEtat),
+ * memorises pour execution differee. Variadic (1..N args). */
+static const OwlParam p_ench_ajoute[] = {
+    {"etat","chaine","Nom de l'État a ajouter a la sequence"},
+    {0}
+};
+static const OwlSignature sig_ench_ajoute[] = {
+    {-1, p_ench_ajoute, "booleen", "Vrai si l'État a ete ajoute a la sequence"},
+    {0}
+};
+/* iEnchainementImprime : 0 arg, execute toute la sequence en un document. */
+static const OwlSignature sig_ench_imprime[] = {
+    { 0, p_simple, "booleen", "Vrai si la sequence a ete imprimee" },
+    {0}
+};
+
 /* DEFS non-const : les .impl sont poses par stdlib_pdf_defs_set_impl() (GUI)
  * avant stdlib_pdf_defs_register(). Console laisse .impl=NULL. */
 static OwlNativeDef DEFS[] = {
@@ -337,6 +385,12 @@ static OwlNativeDef DEFS[] = {
       .descFR="Configure l'imprimante pour une impression.",
       .descEN="Configures the printer for a print job.",
       .signatures=sig_iconfigure },
+    { .canonical="iFen\xc3\xaatreAbandon", .canonicalAscii="iFenetreAbandon",
+      .nameEN="iWindowCancel",
+      .category="Etats",
+      .descFR="Paramètre la fenêtre affichée pendant une impression physique : affichage (Vrai/Faux), titre et message. À appeler avant l'impression. Dans le message, #P est remplacé par le numéro de la page en cours. Sans titre/message, un libellé par défaut est affiché selon la langue en cours.",
+      .descEN="Configures the window shown during physical printing: display (True/False), title and message. Call before printing. In the message, #P is replaced by the current page number. Without a title/message, a default label is shown based on the current language.",
+      .signatures=sig_abandon },
     { .canonical="iDestination",  .nameEN="iDestination",
       .category="Etats",
       .descFR="Lit ou fixe la cible de sortie d'impression (écran, PDF, imprimante).",
@@ -353,6 +407,12 @@ static OwlNativeDef DEFS[] = {
       .descFR="Fixe les options du PDF généré : niveau de gris, PDF/A, signets, mots de passe et options de protection. À appeler AVANT iDestination. iPDFNiveauGris et iPDFA1b sont effectifs. Les autres options (signets, chiffrement, PDF/A-3b, attachments) sont actuellement acceptées syntaxiquement mais avec un warning runtime sur stderr.",
       .descEN="Sets PDF generation options: grayscale, PDF/A, bookmarks, passwords and protection options. Must be called BEFORE iDestination. iPDFNiveauGris and iPDFA1b are effective. Other options (bookmarks, encryption, PDF/A-3b, attachments) are currently accepted syntactically but with a runtime warning on stderr.",
       .signatures=sig_parametre_pdf },
+    { .canonical="iParam\xc3\xa8tre", .canonicalAscii="iParametre",
+      .nameEN="iParameter",
+      .category="Etats",
+      .descFR="Lit ou modifie un paramètre de l'impression en cours. Recto-verso (iRectoVerso), couleur/monochrome (iCouleur) et bac/source papier (iAlimentationPapier) sont pilotés : iParamètre(iRectoVerso, iRectoVerso_Simple) fixe le mode, iParamètre(iRectoVerso) le relit. Le réglage vaut jusqu'à son prochain changement. Le bac papier est honoré selon le pilote d'impression.",
+      .descEN="Reads or changes a current print setting. Double-sided (iDuplex), color/monochrome (iColor) and paper source/bin (iPaperSource) are driven: iParameter(iDuplex, iDuplex_Simple) sets the mode, iParameter(iDuplex) reads it back. The setting holds until next changed. Paper source is honored depending on the print driver.",
+      .signatures=sig_parametre },
     { .canonical="iImprimeEtat",  .nameEN="iPrintReport",
       .category="Etats",
       .descFR="Lance l'impression d'un État déclaré via 'ETAT_X est un État(<params>) ... FIN'. Les paramètres de l'État suivent le nom. Applique les PROPRIETES (Format/Orientation/Marges) sur le document PDF courant puis exécute le code d'initialisation de l'État (son top-level) + EnTêteDocument + HautDePage + Lecture + Filtre + Corps + BasDePage + FinDeDocument + Fermeture. Nécessite iDestination préalable ; le PDF est finalisé par iFinImprime.",
@@ -363,6 +423,18 @@ static OwlNativeDef DEFS[] = {
       .descFR="Imprime manuellement un bloc nommé de l'État en cours d'impression. Utilisé typiquement depuis PROCEDURE Lecture pour répéter le Corps sur N enregistrements, ou pour déclencher un bloc Itération libre. Ne peut être appelé que pendant l'exécution d'un État (code d'initialisation, Lecture, Filtre, sous-bloc, Fermeture).",
       .descEN="Manually prints a named block of the Report currently printing. Typically used from PROCEDURE Read to repeat the Body over N records, or to trigger a free Iteration block. Can only be called during Report execution (initialization code, Read, Filter, sub-block, Closing).",
       .signatures=sig_imprime_bloc },
+    { .canonical="iEncha\xc3\xaenementAjoute", .canonicalAscii="iEnchainementAjoute",
+      .nameEN="iSequencingAdd",
+      .category="Etats",
+      .descFR="Mémorise un État et ses paramètres dans la séquence d'impression courante, sans l'imprimer tout de suite. Appelé une fois par État à enchaîner (chacun avec ses propres paramètres), puis iEnchaînementImprime exécute toute la séquence en un seul document. Chaque État conserve sa propre mise en page (Format/Orientation/Marges).",
+      .descEN="Stores a Report and its parameters in the current print sequence, without printing it right away. Called once per Report to chain (each with its own parameters), then iSequencingPrint runs the whole sequence into a single document. Each Report keeps its own page layout (Format/Orientation/Margins).",
+      .signatures=sig_ench_ajoute },
+    { .canonical="iEncha\xc3\xaenementImprime", .canonicalAscii="iEnchainementImprime",
+      .nameEN="iSequencingPrint",
+      .category="Etats",
+      .descFR="Imprime en un seul document tous les États accumulés par iEnchaînementAjoute, dans l'ordre d'ajout, puis vide la séquence. Nécessite une destination (iDestination) préalable ; le document est finalisé automatiquement.",
+      .descEN="Prints into a single document every Report accumulated by iSequencingAdd, in insertion order, then clears the sequence. Requires a prior destination (iDestination); the document is finalized automatically.",
+      .signatures=sig_ench_imprime },
 
     /* Mise en page */
     { .canonical="iMarge", .nameEN="iMargin",

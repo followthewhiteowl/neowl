@@ -126,6 +126,13 @@ typedef struct {
     OwlPropertyInit*  properties;       /* Libelle, Type, Largeur, ... */
     int               property_count;
     int               property_capacity;
+    /*  — events de colonne (surInitialisation / surSortie /
+     * surAChaqueModification) declares en blocs PROCEDURE dans le corps de la
+     * colonne. Stockes comme handlers compiles, cables au pipeline d'edition
+     * Qt par colonne (build_control). Vide si la colonne n'a pas d'event. */
+    OwlEventBlock*    events;
+    int               event_count;
+    int               event_capacity;
     int               line;
 } OwlColumnDecl;
 
@@ -473,6 +480,9 @@ const OwlColumnDecl* owl_control_decl_find_column(const OwlControlDecl* c, const
 void            owl_column_decl_add_property(OwlColumnDecl* col, const char* name,
                                               Value const_value, ObjFunction* eval,
                                               bool is_constant, int line);
+/*  — attache un handler d'event (surXxx) compile a une colonne. */
+void            owl_column_decl_add_event(OwlColumnDecl* col, const char* name,
+                                           ObjFunction* impl, int line);
 /*  — arbre de menu classique. */
 OwlMenuDecl*    owl_window_decl_add_menu(OwlWindowDecl* w, const char* name, int line);
 void            owl_window_decl_set_main_menu(OwlWindowDecl* w, const char* name, int line);
@@ -881,6 +891,19 @@ typedef void (*OwlUiTableFmtAppliedFn)(ObjInstance* rep, const char* col,
 void owl_ui_table_fmt_applied(ObjInstance* rep, const char* col,
                               const char* propCanon, Value v);
 void owl_ui_register_table_fmt_applied(OwlUiTableFmtAppliedFn fn);
+
+/*  — lecture seule `TABLE[ligne][colonne]..ValeurAffichée` : rend dans
+ * `*out` une chaine OWL fraiche portant le texte formate affiche (DisplayRole)
+ * de la cellule designee par `rep` (rep de ligne, back-ref $tblsrc) + `col`
+ * (nom canon de colonne accent-strippe). Resolution symetrique du hook
+ * fmt_applied : rang de ligne par identite de pointeur dans le store d'items,
+ * indice de colonne par nom. false si la cellule ne peut etre resolue (headless
+ * sans widget, rep orpheline, colonne inconnue) : l'appelant rend alors "".
+ * Default no-op (CLI/headless sans GUI) via l'implementation enregistree. */
+typedef bool (*OwlUiTableCellDisplayFn)(ObjInstance* rep, const char* col,
+                                        Value* out);
+bool owl_ui_table_cell_display(ObjInstance* rep, const char* col, Value* out);
+void owl_ui_register_table_cell_display(OwlUiTableCellDisplayFn fn);
 
 /*  — masque de saisie d'une colonne poussé au widget (miroir GUI du store
  * OWL-side). Hook enregistré comme owl_ui_table_fmt_applied : owl_core reste libre

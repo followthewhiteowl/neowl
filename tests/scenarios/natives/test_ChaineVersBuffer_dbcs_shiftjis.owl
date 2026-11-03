@@ -1,0 +1,52 @@
+// @sujet : ChaîneVersBuffer
+// @résumé : Extension codepage Shift-JIS (encShiftJIS), encodage multi-octets historique japonais. ASCII (0x00-0x7F) passe tel quel sur 1 octet, les autres caractères représentables occupent 2 octets (lead/trail). Un caractère hors répertoire est remplacé par l'octet 63 ('?'), comme pour les codepages mono-octet déjà en place.
+
+// Vecteurs cross-vérifiés : table WHATWG index-jis0208.txt (encoding.spec.whatwg.org)
+// recalculée via la formule d'encodage Shift-JIS officielle, puis confrontée à une
+// implémentation indépendante (codec "shift_jis" de la bibliothèque standard Python) :
+// U+3042 -> 82 A0, U+6F22 -> 8A BF. Les deux sources concordent.
+
+
+// Cas A : ASCII passthrough.
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_shiftjis_ascii_passthrough()
+	buf est un buffer = ChaîneVersBuffer("ABC", encShiftJIS)
+	dbgVérifieEgalité(Taille(buf), 3, "ABC en Shift-JIS = 3 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 65, "A = 65 en Shift-JIS")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 66, "B = 66 en Shift-JIS")
+	dbgVérifieEgalité(BufferLitOctet(buf, 3), 67, "C = 67 en Shift-JIS")
+FIN
+
+
+// Cas B : hiragana あ (U+3042) -> 2 octets 0x82 0xA0 (130, 160).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_shiftjis_hiragana_a()
+	buf est un buffer = ChaîneVersBuffer("あ", encShiftJIS)
+	dbgVérifieEgalité(Taille(buf), 2, "あ en Shift-JIS = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 130, "あ en Shift-JIS, octet de tête = 130 (0x82)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 160, "あ en Shift-JIS, octet de fin = 160 (0xA0)")
+FIN
+
+
+// Cas C : kanji 漢 (U+6F22) -> 2 octets 0x8A 0xBF (138, 191).
+PROCEDURE PUBLIQUE scenario_cvb_dbcs_shiftjis_kanji_kan()
+	buf est un buffer = ChaîneVersBuffer("漢", encShiftJIS)
+	dbgVérifieEgalité(Taille(buf), 2, "漢 en Shift-JIS = 2 octets")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 138, "漢 en Shift-JIS, octet de tête = 138 (0x8A)")
+	dbgVérifieEgalité(BufferLitOctet(buf, 2), 191, "漢 en Shift-JIS, octet de fin = 191 (0xBF)")
+FIN
+
+
+// Edge case : caractère hors plan de base (U+20000, hors répertoire Shift-JIS)
+// -> remplacement par l'octet 63 ('?'), politique identique aux codepages mono-octet.
+PROCEDURE PRIVÉE scenario_cvb_dbcs_shiftjis_edge_non_representable()
+	c   est une chaîne = Caract(131072)
+	buf est un buffer  = ChaîneVersBuffer(c, encShiftJIS)
+	dbgVérifieEgalité(Taille(buf), 1, "caractère hors répertoire -> 1 octet de remplacement")
+	dbgVérifieEgalité(BufferLitOctet(buf, 1), 63, "caractère hors répertoire en Shift-JIS -> octet 63 ('?')")
+FIN
+
+
+// Edge case : chaîne vide -> buffer vide.
+PROCEDURE PRIVÉE scenario_cvb_dbcs_shiftjis_edge_chaine_vide()
+	buf est un buffer = ChaîneVersBuffer("", encShiftJIS)
+	dbgVérifieEgalité(Taille(buf), 0, "chaîne vide -> buffer vide en Shift-JIS")
+FIN

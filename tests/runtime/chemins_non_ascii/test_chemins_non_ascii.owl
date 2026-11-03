@@ -1,0 +1,71 @@
+//  — chemins non-ASCII Windows cassés en I/O fichier.
+//
+// Partie A (digue principale) : lit deux fixtures PRÉ-EXISTANTES, déposées
+// dans ce dossier (créées hors du chemin d'écriture d'OWL, donc avec un nom
+// de fichier correctement encodé sur le disque, quoi qu'il arrive). C'est le
+// scénario exact du bug rapporté : un dossier accentué existe réellement,
+// et les natives fichier d'OWL échouent à le retrouver. Rouge attendu sur
+// Windows pour le bloc accentué ; vert pour le témoin ASCII.
+//
+// Partie B (non-régression écriture) : round-trip complet (créer, écrire,
+// relire, lister, supprimer) rejoué via les natives OWL elles-mêmes sur un
+// nouveau dossier temporaire accentué. Note : ce bloc reste vert aussi bien
+// avant qu'après correctif sur Windows pour les accents représentables en
+// CP-1252 (le même mésencodage s'applique symétriquement à l'écriture et à
+// la lecture internes à OWL, donc le round-trip se referme sur lui-même par
+// coïncidence). Il reste utile comme garde-fou anti-régression une fois le
+// correctif posé (si l'écriture et la lecture divergent de nouveau), mais ce
+// n'est PAS lui qui isole le bug — c'est la partie A.
+
+sIci est une chaîne = "tests/runtime/chemins_non_ascii"
+
+// --- Partie A1 : fixture accentuée, lue par les natives OWL ---
+sFixtureAccent est une chaîne = sIci + "/fixture_lecture/Modèles accentués"
+dbgVérifieVrai(fRepExiste(sFixtureAccent), "fixture accentuée : fRepExiste retrouve le dossier réellement présent")
+dbgVérifieVrai(fFichierExiste(sFixtureAccent + "/notes.txt"), "fixture accentuée : fFichierExiste retrouve le fichier réellement présent")
+sLuAccent est une chaîne = fChargeTexte(sFixtureAccent + "/notes.txt")
+dbgVérifieEgalité(sLuAccent, "contenu café", "fixture accentuée : fChargeTexte relit le contenu exact")
+sListingAccent est une chaîne = fListeFichier(sFixtureAccent + "/*.txt")
+dbgVérifieVrai(Contient(sListingAccent, "notes.txt") > 0, "fixture accentuée : fListeFichier retrouve le fichier dans le listing")
+
+// --- Partie A2 : témoin ASCII, même structure, doit rester vert ---
+sFixtureAscii est une chaîne = sIci + "/fixture_lecture/Temoin ascii"
+dbgVérifieVrai(fRepExiste(sFixtureAscii), "témoin ASCII : fRepExiste retrouve le dossier réellement présent")
+dbgVérifieVrai(fFichierExiste(sFixtureAscii + "/notes.txt"), "témoin ASCII : fFichierExiste retrouve le fichier réellement présent")
+sLuAscii est une chaîne = fChargeTexte(sFixtureAscii + "/notes.txt")
+dbgVérifieEgalité(sLuAscii, "contenu café", "témoin ASCII : fChargeTexte relit le contenu exact")
+sListingAscii est une chaîne = fListeFichier(sFixtureAscii + "/*.txt")
+dbgVérifieVrai(Contient(sListingAscii, "notes.txt") > 0, "témoin ASCII : fListeFichier retrouve le fichier dans le listing")
+
+// --- Partie B : round-trip écriture via les natives OWL elles-mêmes ---
+PROCEDURE RoundTripEcriture(sDossier est une chaîne, sEtiquette est une chaîne)
+	// Nettoyage défensif en tête, tolérant si rien n'existe (run précédent en échec).
+	fRepSupprime(sDossier, frRécursif)
+
+	bCree est un booléen = fRepCree(sDossier)
+	dbgVérifieEgalité(bCree, Vrai, sEtiquette + " : fRepCree renvoie Vrai")
+
+	sFichier est une chaîne = sDossier + "/notes.txt"
+	bEcrit   est un booléen = fSauveTexte(sFichier, "contenu café")
+	dbgVérifieEgalité(bEcrit, Vrai, sEtiquette + " : fSauveTexte renvoie Vrai")
+
+	sLu est une chaîne = fChargeTexte(sFichier)
+	dbgVérifieEgalité(sLu, "contenu café", sEtiquette + " : fChargeTexte relit le contenu exact")
+
+	fSupprime(sFichier)
+	dbgVérifieVrai(fFichierExiste(sFichier) = Faux, sEtiquette + " : le fichier n'existe plus après fSupprime")
+
+	fRepSupprime(sDossier, frRécursif)
+	dbgVérifieVrai(fRepExiste(sDossier) = Faux, sEtiquette + " : le dossier n'existe plus après fRepSupprime")
+FIN
+
+nSuffixe est un entier  = Hasard(100000, 999999)
+sBase    est une chaîne = fRepTemp()
+
+sDossierAscii est une chaîne = sBase + "/owl_test_2336_ascii_" + nSuffixe
+RoundTripEcriture(sDossierAscii, "round-trip ASCII")
+
+sDossierAccent est une chaîne = sBase + "/Modèles accentués " + nSuffixe
+RoundTripEcriture(sDossierAccent, "round-trip accentué")
+
+dbgBilanTest()

@@ -198,6 +198,10 @@ static const OwlPresEntry PRES[] = {
 
     /* --- Cachees : runtime-only ------------------------------------------ */
     { "Saisie", "Valeur",           NULL, NULL, OWL_PRES_GROUP_IDENTITE,    OWL_PRES_IMPORTANCE_COURANT, OWL_PRES_EDITOR_TEXT,  0, OWL_PRES_VIS_CACHE, NULL },
+    /*  — ValeurAffichée : vue de rendu masqué (lecture seule), dérivée
+     * de Valeur + MasqueSaisie. Pas d'éditeur designer (calculée) -> cachée,
+     * comme la ValeurAffichée des Champs Liste/Combo/Sélecteur. */
+    { "Saisie", "ValeurAffichee",   NULL, NULL, OWL_PRES_GROUP_IDENTITE,    OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_TEXT,  0, OWL_PRES_VIS_CACHE, NULL },
     { "Saisie", "Curseur",          NULL, NULL, OWL_PRES_GROUP_COMPORTEMENT,OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_INT,   0, OWL_PRES_VIS_CACHE, NULL },
     { "Saisie", "FinCurseur",       NULL, NULL, OWL_PRES_GROUP_COMPORTEMENT,OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_INT,   0, OWL_PRES_VIS_CACHE, NULL },
     { "Saisie", "TexteSelectionne", NULL, NULL, OWL_PRES_GROUP_IDENTITE,    OWL_PRES_IMPORTANCE_AVANCE,  OWL_PRES_EDITOR_TEXT,  0, OWL_PRES_VIS_CACHE, NULL },
@@ -1213,6 +1217,26 @@ static const OwlPresEntry PRES[] = {
     { "CodeBarres",   "Note", NULL, NULL, OWL_PRES_GROUP_COMPORTEMENT, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_TEXT, 0, OWL_PRES_VIS_CACHE, NULL },
     { "Fenetre",      "Note", NULL, NULL, OWL_PRES_GROUP_COMPORTEMENT, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_TEXT, 0, OWL_PRES_VIS_CACHE, NULL },
     { "Onglet",       "Note", NULL, NULL, OWL_PRES_GROUP_COMPORTEMENT, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_TEXT, 0, OWL_PRES_VIS_CACHE, NULL },
+
+    /* ================================================================== */
+    /*  — Plan : appartenance (champ) / plan actif (fenetre).     */
+    /* Cachee de l'inspecteur Lot 1 (le designer de plans arrive au Lot 2).*/
+    /* Volontairement absente de Table (receveur interdit).                */
+    /* ================================================================== */
+    { "Saisie",       "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Libelle",      "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Bouton",       "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Image",        "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Interrupteur", "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Selecteur",    "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Liste",        "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Combo",        "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "ZoneRepetee",  "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Jauge",        "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Conteneur",    "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "CodeBarres",   "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Fenetre",      "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
+    { "Onglet",       "Plan", NULL, NULL, OWL_PRES_GROUP_UI, OWL_PRES_IMPORTANCE_AVANCE, OWL_PRES_EDITOR_INT, 0, OWL_PRES_VIS_CACHE, NULL },
 
     /* ================================================================== */
     /* Noeuds de menu enfants — inspecteur editable calque sur les widgets.*/

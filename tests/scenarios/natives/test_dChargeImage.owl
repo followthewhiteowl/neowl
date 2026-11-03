@@ -6,11 +6,11 @@
 // ════════════════════════════════════════════════════════════════════════════════════
 
 PROCEDURE PUBLIQUE scenario_charge_png_nominal()
-	couleurRouge est un entier = RVB(255, 0, 0)
-	cheminPNG est une chaîne = "test_charge_tmp.png"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurRouge est un entier  = RVB(255, 0, 0)
+	cheminPNG    est une chaîne = fRepTemp() + fSep() + "test_charge_tmp.png"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer une image en mémoire (10x5 pixels, fond rouge)
 	img = dCréeImage(10, 5, couleurRouge)
@@ -32,11 +32,11 @@ PROCEDURE PUBLIQUE scenario_charge_png_nominal()
 FIN
 
 PROCEDURE PUBLIQUE scenario_charge_jpeg()
-	couleurVert est un entier = RVB(0, 255, 0)
-	cheminJPEG est une chaîne = "test_charge_jpeg_tmp.jpg"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurVert est un entier  = RVB(0, 255, 0)
+	cheminJPEG  est une chaîne = fRepTemp() + fSep() + "test_charge_jpeg_tmp.jpg"
+	img         est une Image
+	imgChargee  est une Image
+	res         est un booléen
 
 	// Créer et sauver une image JPEG
 	img = dCréeImage(20, 15, couleurVert)
@@ -54,11 +54,11 @@ PROCEDURE PUBLIQUE scenario_charge_jpeg()
 FIN
 
 PROCEDURE PUBLIQUE scenario_charge_bmp()
-	couleurBleu est un entier = RVB(0, 0, 255)
-	cheminBMP est une chaîne = "test_charge_bmp_tmp.bmp"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurBleu est un entier  = RVB(0, 0, 255)
+	cheminBMP   est une chaîne = fRepTemp() + fSep() + "test_charge_bmp_tmp.bmp"
+	img         est une Image
+	imgChargee  est une Image
+	res         est un booléen
 
 	// Créer et sauver une image BMP
 	img = dCréeImage(16, 12, couleurBleu)
@@ -76,11 +76,11 @@ PROCEDURE PUBLIQUE scenario_charge_bmp()
 FIN
 
 PROCEDURE PUBLIQUE scenario_sucre_syntaxique_chemin()
-	couleurJaune est un entier = RVB(255, 255, 0)
-	cheminPNG est une chaîne = "test_sucre_tmp.png"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurJaune est un entier  = RVB(255, 255, 0)
+	cheminPNG    est une chaîne = fRepTemp() + fSep() + "test_sucre_tmp.png"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer et sauver une image
 	img = dCréeImage(8, 8, couleurJaune)
@@ -98,7 +98,7 @@ PROCEDURE PUBLIQUE scenario_sucre_syntaxique_chemin()
 FIN
 
 PROCEDURE PUBLIQUE scenario_fichier_absent()
-	imgInvalide est une Image
+	imgInvalide    est une Image
 	erreurPresente est un booléen
 
 	// Tenter de charger un fichier qui n'existe pas
@@ -113,11 +113,11 @@ PROCEDURE PUBLIQUE scenario_fichier_absent()
 FIN
 
 PROCEDURE PUBLIQUE scenario_charge_avec_imgdefaut()
-	couleurCyan est un entier = RVB(0, 255, 255)
-	cheminPNG est une chaîne = "test_options_tmp.png"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurCyan est un entier  = RVB(0, 255, 255)
+	cheminPNG   est une chaîne = fRepTemp() + fSep() + "test_options_tmp.png"
+	img         est une Image
+	imgChargee  est une Image
+	res         est un booléen
 
 	// Créer et sauver une image
 	img = dCréeImage(12, 10, couleurCyan)
@@ -133,21 +133,106 @@ PROCEDURE PUBLIQUE scenario_charge_avec_imgdefaut()
 	fSupprime(cheminPNG)
 FIN
 
+PROCEDURE PUBLIQUE scenario_charge_avec_largeur_et_hauteur()
+	contenuSVG est une chaîne = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#ff00ff"/></svg>`
+	cheminSVG  est une chaîne = fRepTemp() + fSep() + "test_dims_tmp.svg"
+	ecrit      est un booléen
+	imgChargee est une Image
+
+	// SVG source 40x30, écrit sur disque
+	ecrit = fSauveTexte(cheminSVG, contenuSVG)
+	dbgVérifieEgalité(ecrit, Vrai, "ecriture SVG source reussie")
+
+	// Charger en demandant explicitement largeur ET hauteur
+	imgChargee = dChargeImage(cheminSVG, 300, 200)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image chargee valide avec largeur et hauteur")
+	dbgVérifieEgalité(imgChargee..Largeur, 300, "largeur demandee respectee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 200, "hauteur demandee respectee")
+
+	// Nettoyer
+	fSupprime(cheminSVG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_charge_avec_largeur_seule()
+	contenuSVG est une chaîne = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#00ffff"/></svg>`
+	cheminSVG  est une chaîne = fRepTemp() + fSep() + "test_largeur_seule_tmp.svg"
+	ecrit      est un booléen
+	imgChargee est une Image
+
+	// SVG source 40x30, écrit sur disque
+	ecrit = fSauveTexte(cheminSVG, contenuSVG)
+	dbgVérifieEgalité(ecrit, Vrai, "ecriture SVG source reussie")
+
+	// Charger en demandant uniquement la largeur (hauteur omise)
+	imgChargee = dChargeImage(cheminSVG, 300)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image chargee valide avec largeur seule")
+	dbgVérifieEgalité(imgChargee..Largeur, 300, "largeur demandee respectee")
+	dbgVérifieEgalité(imgChargee..Hauteur, 30, "hauteur intrinseque conservee quand hauteur omise")
+
+	// Nettoyer
+	fSupprime(cheminSVG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_charge_avec_options_et_dimensions()
+	contenuSVG est une chaîne = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#ffff00"/></svg>`
+	cheminSVG  est une chaîne = fRepTemp() + fSep() + "test_options_dims_tmp.svg"
+	ecrit      est un booléen
+	imgChargee est une Image
+
+	// SVG source 40x30, écrit sur disque
+	ecrit = fSauveTexte(cheminSVG, contenuSVG)
+	dbgVérifieEgalité(ecrit, Vrai, "ecriture SVG source reussie")
+
+	// Forme canon explicite : options PUIS dimensions
+	imgChargee = dChargeImage(cheminSVG, imgConvertir, 300, 200)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image chargee valide avec options et dimensions")
+	dbgVérifieEgalité(imgChargee..Largeur, 300, "largeur demandee respectee avec options explicites")
+	dbgVérifieEgalité(imgChargee..Hauteur, 200, "hauteur demandee respectee avec options explicites")
+
+	// Nettoyer
+	fSupprime(cheminSVG)
+FIN
+
+PROCEDURE PUBLIQUE scenario_charge_avec_option_sans_dimensions()
+	contenuSVG est une chaîne = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#808080"/></svg>`
+	cheminSVG  est une chaîne = fRepTemp() + fSep() + "test_option_seule_tmp.svg"
+	ecrit      est un booléen
+	imgChargee est une Image
+
+	// SVG source 40x30, écrit sur disque
+	ecrit = fSauveTexte(cheminSVG, contenuSVG)
+	dbgVérifieEgalité(ecrit, Vrai, "ecriture SVG source reussie")
+
+	// Options seules, sans dimensions : pas de redimensionnement
+	imgChargee = dChargeImage(cheminSVG, imgConvertir)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image chargee valide avec option seule")
+	dbgVérifieEgalité(imgChargee..Largeur, 40, "largeur intrinseque conservee sans dimensions demandees")
+	dbgVérifieEgalité(imgChargee..Hauteur, 30, "hauteur intrinseque conservee sans dimensions demandees")
+
+	// Nettoyer
+	fSupprime(cheminSVG)
+FIN
+
 // ════════════════════════════════════════════════════════════════════════════════════
 // SECTION PRIVÉE — edge cases techniques (invisible dans `owl examples`)
 // ════════════════════════════════════════════════════════════════════════════════════
 
 PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
-	couleurMagenta est un entier = RVB(255, 0, 255)
-	cheminUTF8 est une chaîne = "test_éàü_tmp.png"
-	img est une Image
-	imgChargee est une Image
-	res est un booléen
+	couleurMagenta est un entier  = RVB(255, 0, 255)
+	cheminUTF8     est une chaîne = fRepTemp() + fSep() + "test_éàü_tmp.png"
+	img            est une Image
+	imgChargee     est une Image
+	res            est un booléen
 
 	// Créer et sauver une image avec chemin contenant accents
 	img = dCréeImage(5, 5, couleurMagenta)
 	res = dSauveImagePNG(img, cheminUTF8)
 	dbgVérifieEgalité(res, Vrai, "sauvegarde avec chemin UTF-8 accents")
+
+	// Valider le vrai nom sur disque (via l'API fichier, pas un round-trip
+	// narrow qui relirait le même chemin mojibake sans détecter le bug).
+	dbgVérifieVrai(fFichierExiste(cheminUTF8), "fichier PNG créé sous le vrai nom UTF-8")
+	dbgVérifieVrai(fTailleFichier(cheminUTF8) > 0, "fichier PNG UTF-8 non vide sur disque")
 
 	// Charger depuis chemin avec accents
 	imgChargee = dChargeImage(cheminUTF8)
@@ -158,12 +243,34 @@ PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
 	fSupprime(cheminUTF8)
 FIN
 
-PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
-	couleurBlanc est un entier = RVB(255, 255, 255)
-	cheminPNG est une chaîne = "test_1x1_tmp.png"
-	img est une Image
+PROCEDURE PRIVÉE scenario_edge_svg_chemin_utf8_accents()
+	cheminSVG  est une chaîne = fRepTemp() + fSep() + "test_éàü_vect.svg"
+	contenuSVG est une chaîne = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="9"><rect width="12" height="9" fill="#00ff00"/></svg>`
+	ecrit      est un booléen
 	imgChargee est une Image
-	res est un booléen
+
+	// Écrire un petit SVG sous un nom de fichier accentué
+	ecrit = fSauveTexte(cheminSVG, contenuSVG)
+	dbgVérifieEgalité(ecrit, Vrai, "écriture SVG sous chemin UTF-8 réussie")
+	dbgVérifieVrai(fFichierExiste(cheminSVG), "fichier SVG présent sous le vrai nom UTF-8")
+
+	// Charger le SVG depuis le chemin accentué (doit ouvrir le vrai fichier).
+	// Taille intrinsèque du SVG utilisée (pas de redimensionnement demandé).
+	imgChargee = dChargeImage(cheminSVG)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "SVG chargé depuis chemin UTF-8 valide")
+	dbgVérifieEgalité(imgChargee..Largeur, 12, "largeur SVG UTF-8 préservée")
+	dbgVérifieEgalité(imgChargee..Hauteur, 9, "hauteur SVG UTF-8 préservée")
+
+	// Nettoyer
+	fSupprime(cheminSVG)
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
+	couleurBlanc est un entier  = RVB(255, 255, 255)
+	cheminPNG    est une chaîne = fRepTemp() + fSep() + "test_1x1_tmp.png"
+	img          est une Image
+	imgChargee   est une Image
+	res          est un booléen
 
 	// Créer une image minimale 1x1 pixel
 	img = dCréeImage(1, 1, couleurBlanc)
@@ -180,8 +287,28 @@ PROCEDURE PRIVÉE scenario_edge_image_1x1_pixel()
 	fSupprime(cheminPNG)
 FIN
 
+PROCEDURE PRIVÉE scenario_edge_imgdefaut_explicite_avec_dimensions()
+	contenuSVG est une chaîne = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#ff8000"/></svg>`
+	cheminSVG  est une chaîne = fRepTemp() + fSep() + "test_imgdefaut_dims_tmp.svg"
+	ecrit      est un booléen
+	imgChargee est une Image
+
+	// SVG source 40x30, écrit sur disque
+	ecrit = fSauveTexte(cheminSVG, contenuSVG)
+	dbgVérifieEgalité(ecrit, Vrai, "ecriture SVG source reussie")
+
+	// imgDéfaut explicite + dimensions : équivalent à l'omission des options
+	imgChargee = dChargeImage(cheminSVG, imgDéfaut, 300, 200)
+	dbgVérifieEgalité(imgChargee..Valide, Vrai, "image chargee valide avec imgDefaut explicite")
+	dbgVérifieEgalité(imgChargee..Largeur, 300, "largeur demandee respectee avec imgDefaut explicite")
+	dbgVérifieEgalité(imgChargee..Hauteur, 200, "hauteur demandee respectee avec imgDefaut explicite")
+
+	// Nettoyer
+	fSupprime(cheminSVG)
+FIN
+
 PROCEDURE PRIVÉE scenario_edge_chemin_vide()
-	imgInvalide est une Image
+	imgInvalide    est une Image
 	erreurPresente est un booléen
 
 	// Tenter de charger avec chemin vide

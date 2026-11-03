@@ -1889,6 +1889,10 @@ static int g_declared_method_sigs_count = 0;
  * g_user_procs (l. ~1165), pour eviter le forward-ref sur static int. */
 static void user_procs_reset(void);
 
+/*  — gate de scan lazy des props custom (definition unique ici, lue +
+ * ecrite par compiler_custom_props_scan_sources plus bas). */
+static bool g_custom_props_scan_done = false;
+
 void compiler_reset_poo_state(void) {
     g_class_super_count           = 0;
     g_class_field_vis_count       = 0;
@@ -1914,6 +1918,12 @@ void compiler_reset_poo_state(void) {
      * PAS libere par owl_service_registry_reset apres compilation — il survit
      * jusqu'a l'execution, ou l'executeur HTTP le consulte. */
     owl_service_runtime_reset();
+    /*  — registre des proprietes personnalisees declarees au projet.
+     * Reset a la frontiere de compilation (entre fixtures/tests/requetes
+     * --check), comme les tables ci-dessus. Repeuple au parse de projet.owl ;
+     * persiste jusqu'a l'execution (la VM le consulte pour `champ..maProp`). */
+    owl_custom_props_reset();
+    g_custom_props_scan_done      = false;
     g_dsl_alias_count             = 0;
     g_dsl_alias_stack_top         = 0;
     /*  lot 4 — mini-stack des decls control en cours de parse
@@ -6043,6 +6053,7 @@ static void record_suppress_unused(Token varName) {
 
 static void expression(void);
 static void condition_expression(void);
+static bool is_known_global_name(const char* name, int length);
 static bool window_try_parse_const_literal(Value* out_value);
 static bool dsl_prop_value_is_bare_words(const OwlControlPropDef* def);
 static bool dsl_prop_value_missing_reported(Token* propTok);
@@ -10545,8 +10556,12 @@ static void argument_with_enum_check(const OwlParam* cp) {
      * `1` = `iGauche` dans le bitmask iAlign). Pousse à nommer.
      *  : réservé aux params allowedBase (validation stricte). Les
      * params allowedOptions-seul sont soft (défaut 0, littéraux admis) : on
-     * n'étend PAS ce warning à eux. */
-    if (allowedBase && (first.type == TOKEN_INTEGER || first.type == TOKEN_REAL)) {
+     * n'étend PAS ce warning à eux.
+     *  : un param allowsRawInt accepte un littéral ENTIER comme valeur
+     * légale (désambiguïsé au runtime par la non-sentinel-ness) → pas de
+     * warning sur un entier. Un réel reste suspect (dimension = entier). */
+    bool rawIntOk = cp && cp->allowsRawInt && first.type == TOKEN_INTEGER;
+    if (allowedBase && !rawIntOk && (first.type == TOKEN_INTEGER || first.type == TOKEN_REAL)) {
         char first_name[64] = "?";
         if (allowedBase->values && allowedBase->values[0]) {
             /*  : values[0] ne porte que la forme FR canon.
@@ -10872,6 +10887,121 @@ static void compile_declenche_evenement(const Token* callee) {
     emit_bytes(OP_CALL, argCount);
 }
 
+/*  — valide + compile IntercepteÉvénement / InterceptEvent.
+ *
+ * Signature : (procédure, champ, evtX). Le '(' est déjà consommé. On parse les
+ * args à la main pour valider CHAQUE argument AVANT de compiler sa sous-
+ * expression : l'erreur dédiée prime alors sur l'erreur générique « symbole
+ * inconnu » que named_variable émettrait ensuite (panicMode garde la première
+ * — divergence voulue vs DéclencheÉvénement, qui laisse le message générique).
+ * 3 validations, calquées sur compile_declenche_evenement :
+ *   1. procédure (arg0) : identifiant nu résolvant vers un symbole connu.
+ *   2. champ cible (arg1) : objet nu ou chaîne littérale résoluble en widget.
+ *   3. événement (arg2) : constante evt* possédée par le kind du champ.
+ * Une indirection dynamique (chaîne variable / expression) reporte les checks
+ * 1-2 au runtime. Émet OP_CALL comme un appel normal. */
+static void compile_intercepte_evenement(const Token* callee) {
+    bool                       targetKnown = false;
+    OwlControlKind             targetKind  = OWL_CONTROL_LABEL;
+    const OwlControlKindInfo*  targetInfo  = NULL;
+    char targetName[128]; targetName[0] = '\0';
+
+    const OwlEventDef* ev = NULL;
+    char evtName[96]; evtName[0] = '\0';
+
+    uint8_t argCount = 0;
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            Token lead = parser.current;
+            bool bareIdent = (lead.type == TOKEN_IDENTIFIER);
+
+            if (argCount == 0) {
+                /* ---- Procédure ---- */
+                if (bareIdent && !is_known_global_name(lead.start, lead.length)) {
+                    char nameZ[96];
+                    int nz = lead.length < 95 ? lead.length : 95;
+                    memcpy(nameZ, lead.start, (size_t)nz);
+                    nameZ[nz] = '\0';
+                    owl_emit_error_at(&lead, E_SEM_INTERCEPT_PROC_UNKNOWN,
+                                      "name", nameZ, NULL);
+                }
+                condition_expression();
+            } else if (argCount == 1) {
+                /* ---- Champ cible ---- */
+                if (bareIdent) {
+                    int n = lead.length < 127 ? lead.length : 127;
+                    memcpy(targetName, lead.start, (size_t)n);
+                    targetName[n] = '\0';
+                    targetInfo = compiler_prescan_widget_find(targetName);
+                    if (targetInfo &&
+                        owl_control_kind_of_info(targetInfo, &targetKind)) {
+                        targetKnown = true;
+                    } else {
+                        owl_emit_error_at(&lead, E_SEM_INTERCEPT_TARGET_UNKNOWN,
+                                          "name", targetName, NULL);
+                    }
+                } else if (lead.type == TOKEN_STRING) {
+                    int inner = lead.length >= 2 ? lead.length - 2 : 0;
+                    if (inner > 127) inner = 127;
+                    memcpy(targetName, lead.start + 1, (size_t)inner);
+                    targetName[inner] = '\0';
+                    targetInfo = compiler_prescan_widget_find(targetName);
+                    if (targetInfo &&
+                        owl_control_kind_of_info(targetInfo, &targetKind)) {
+                        targetKnown = true;
+                    } else {
+                        owl_emit_error_at(&lead, E_SEM_INTERCEPT_TARGET_STRING_UNKNOWN,
+                                          "name", targetName, NULL);
+                    }
+                }
+                /* else : indirection dynamique -> checks cible/appartenance
+                 * reportés au runtime. */
+                condition_expression();
+            } else if (argCount == 2) {
+                /* ---- Événement ---- */
+                if (bareIdent) {
+                    int n = lead.length < 95 ? lead.length : 95;
+                    memcpy(evtName, lead.start, (size_t)n);
+                    evtName[n] = '\0';
+                    const OwlConstDef* c = owl_registry_const_find_bilingual(evtName);
+                    if (c && IS_INTEGER(c->value)) {
+                        int idx = (int)(AS_INTEGER(c->value) - (int64_t)OWL_EVT_BASE);
+                        ev = owl_widget_event_dedup_at(idx);
+                    }
+                }
+                if (ev == NULL) {
+                    owl_emit_error_at(&lead, E_SEM_INTERCEPT_EVT_NOT_A_CONST,
+                                      "name", evtName[0] ? evtName : "?", NULL);
+                } else if (targetKnown &&
+                           owl_event_catalog_find(targetKind, ev->canonical) == NULL) {
+                    owl_emit_error_at(&lead, E_SEM_INTERCEPT_EVT_NOT_OWNED,
+                                      "evt", evtName,
+                                      "target", targetName,
+                                      "kind", targetInfo ? targetInfo->nameFR : "?",
+                                      NULL);
+                }
+                condition_expression();
+            } else {
+                condition_expression();
+            }
+
+            if (argCount == 255) {
+                owl_emit_error_at(&parser.previous, E_SYNTAX_CALL_TOO_MANY_ARGS);
+            }
+            argCount++;
+        } while (match_token(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_PAREN, E_SYNTAX_EXP_RPAREN_ARGS);
+
+    /* ---- Événement manquant (moins de 3 args) ---- */
+    if (argCount < 3) {
+        owl_emit_error_at(callee, E_SEM_INTERCEPT_EVT_NOT_A_CONST,
+                          "name", evtName[0] ? evtName : "?", NULL);
+    }
+
+    emit_bytes(OP_CALL, argCount);
+}
+
 static void call(bool canAssign) {
     (void)canAssign;
 
@@ -10948,6 +11078,15 @@ static void call(bool canAssign) {
     if (def && def->canonicalAscii &&
         strcmp(def->canonicalAscii, "DeclencheEvenement") == 0) {
         compile_declenche_evenement(&callee);
+        return;
+    }
+
+    /*  — IntercepteÉvénement / InterceptEvent : chemin dédié qui
+     * valide la procédure, la cible et l'appartenance de l'événement au kind
+     * du champ (pendant « attache » de DéclencheÉvénement). */
+    if (def && def->canonicalAscii &&
+        strcmp(def->canonicalAscii, "IntercepteEvenement") == 0) {
+        compile_intercepte_evenement(&callee);
         return;
     }
 
@@ -11397,6 +11536,10 @@ static bool column_receiver_prop_is_writable(const char* propProbe) {
     return false;
 }
 
+/*  — population lazy du registre props custom depuis les sources du
+ * prescan (definie plus bas, pres des autres scanners cross-fichier). */
+static void compiler_custom_props_scan_sources(void);
+
 /* Dot access for struct fields and method calls: expr.fieldName or expr.method(args) */
 static void dot(bool canAssign) {
     /* Capture which dot variant triggered this infix call BEFORE we
@@ -11564,7 +11707,9 @@ static void dot(bool canAssign) {
          * le field designe une propriete, pas une cellule. On n'arme donc PAS
          * l'etat « cellule atteinte » — sinon un dot de plus produirait un
          * message parlant d'une « cellule 'Couleur' », charabia pour qui lit. */
-        if (owl_table_cell_catalog_find(cellFieldBuf) == NULL) {
+        const OwlControlPropDef* cellDef =
+            owl_table_cell_catalog_find(cellFieldBuf);
+        if (cellDef == NULL) {
             g_table_cell_table_len = tblChainTableLen;
             memcpy(g_table_cell_table, tblChainTable,
                    (size_t)tblChainTableLen + 1);
@@ -11584,6 +11729,14 @@ static void dot(bool canAssign) {
                                         isDoubleDot ? TBL_CELL_CTX_CELL_PROPERTY
                                                     : TBL_CELL_CTX_COLUMN_NAME);
             }
+        } else if (cellDef->readonly_runtime && isDoubleDot && canAssign
+                   && check(TOKEN_EQUAL)) {
+            /*  — prop cellule lecture seule (ValeurAffichée) : l'ecriture
+             * est refusee a la compilation. La lecture reste autorisee (elle ne
+             * passe pas par ici). */
+            owl_emit_error_at(&fieldTok, E_SEM_TABLE_CELL_PROP_READONLY,
+                              "nom", cellDef->nameFR,
+                              NULL);
         } else if (!isDoubleDot && !check(TOKEN_LEFT_PAREN)) {
             /*  — mise en forme d'une cellule ecrite au point simple.
              * Le field EST une propriete du catalogue cellule : seule la
@@ -11995,11 +12148,21 @@ static void dot(bool canAssign) {
             if (!dotMember && pdef == NULL && prev_field_name_len == 0
                 && tblChainTableLen == 0
                 && !owl_ui_prop_is_universal(propBuf)) {
-                owl_emit_error_at(&fieldTok, E_SEM_DSL_PROP_UNKNOWN_FOR_KIND,
-                                  "prop", propBuf,
-                                  "kind", info->nameFR,
-                                  NULL);
-                propDiag = true;
+                /*  — propriete custom declaree au projet
+                 * (PropriétésPersonnaliséesTousChamps) : acceptee sur tout kind
+                 * + Fenetre, hors catalogue per-kind. On ne refuse PAS son nom et
+                 * on ne bloque PAS le type a l'affectation : OWL coerce la valeur
+                 * vers le type declare au stockage (cf. custom_prop_coerce_value,
+                 * object.c). propDiag reste false : `.prop` (point simple) reste
+                 * refuse plus bas comme toute propriete (usage de `..` impose). */
+                compiler_custom_props_scan_sources();  /* lazy populate (--check) */
+                if (!owl_custom_props_find(propBuf, NULL)) {
+                    owl_emit_error_at(&fieldTok, E_SEM_DSL_PROP_UNKNOWN_FOR_KIND,
+                                      "prop", propBuf,
+                                      "kind", info->nameFR,
+                                      NULL);
+                    propDiag = true;
+                }
             }
             /*  — ..Nom/..Name : prop universelle LECTURE SEULE. La
              * lecture compile (universelle), l'ECRITURE est rejetee ici : le
@@ -18529,6 +18692,157 @@ static bool compiler_projet_active_avertissement_nommage(void) {
     return false;
 }
 
+/*  — remplit le registre des props custom (owl_custom_props_*) depuis
+ * les SOURCES du prescan. Necessaire parce que `owl --check FEN.owl` (ou un
+ * buffer LSP) PRESCANNE projet.owl mais ne le COMPILE pas : la voie de
+ * population live (projet_emit_custom_props_value) ne tourne alors jamais et le
+ * registre resterait vide, d'ou un faux « propriete inconnue » sur un
+ * champ..maProp pourtant declare. Meme idiome de scan cross-fichier que
+ * compiler_projet_active_avertissement_nommage. Scan SILENCIEUX (collision /
+ * type-mismatch a la DECLARATION sont emis par la voie live quand projet.owl est
+ * reellement compile) : ici on ne fait qu'alimenter la resolution. Idempotent
+ * via owl_custom_props_add (dedup). Gate par g_custom_props_scan_done pour un
+ * cout O(sources) unique par unite de compilation. */
+
+/*  — un nom de propriete custom heurte-t-il un nom deja connu du
+ * langage (propriete integree d'un champ / de la Fenetre) ? La collision avec
+ * un mot reserve est captee en amont (un mot-cle n'est pas un IDENTIFIER en
+ * position de nom). */
+static bool custom_prop_name_collides(const char* name) {
+    return owl_ui_prop_exists_on_any_control_kind(name)
+        || owl_window_catalog_find(name) != NULL;
+}
+
+static void compiler_custom_props_scan_sources(void) {
+    if (g_custom_props_scan_done) return;
+    g_custom_props_scan_done = true;
+    if (projectSymbols == NULL) return;
+    for (int k = 0; k < projectSymbols->sourceCount; k++) {
+        const char* src = projectSymbols->sources[k].source;
+        if (src == NULL) continue;
+        Scanner s;
+        scanner_init(&s, src);
+        bool inProjet = false;
+        int  depth = 0;
+        Token prev1 = (Token){0};
+        for (;;) {
+            Token tok = scanner_scan_token(&s);
+            if (tok.type == TOKEN_EOF) break;
+            if (tok.type == TOKEN_NEWLINE || tok.type == TOKEN_ERROR) continue;
+            if (prev1.type == TOKEN_EST
+                && (tok.type == TOKEN_A
+                    || (tok.type == TOKEN_IDENTIFIER && tok.length == 2
+                        && strncasecmp(tok.start, "an", 2) == 0))) {
+                continue;  /* article un/une/a/an : filler */
+            }
+            if (!inProjet) {
+                if (prev1.type == TOKEN_EST && tok.type == TOKEN_IDENTIFIER
+                    && ((tok.length == 6
+                            && strncasecmp(tok.start, "Projet", 6) == 0)
+                     || (tok.length == 7
+                            && strncasecmp(tok.start, "Project", 7) == 0))) {
+                    inProjet = true;
+                    depth = 0;
+                }
+                prev1 = tok;
+                continue;
+            }
+            if (tok.type == TOKEN_FIN) {
+                if (depth == 0) inProjet = false;
+                else depth--;
+                prev1 = tok;
+                continue;
+            }
+            if (tok.type == TOKEN_AVEC) {
+                depth++;
+                prev1 = tok;
+                continue;
+            }
+            if (prescan_token_in_depth_table(tok.type)) {
+                if (local_scan_depth_delta(tok, &s) > 0) depth++;
+                prev1 = tok;
+                continue;
+            }
+            /* Cle PropriétésPersonnaliséesTousChamps / CustomPropertiesAllFields
+             * (dans le bloc PROPRIETES du Projet) suivie de `= [...]`. Pas de
+             * garde de profondeur : PROPRIETES ouvre un niveau (cf. le double FIN
+             * du bloc Projet), le nom de cle est assez specifique pour matcher
+             * sans ambiguite. */
+            if (tok.type == TOKEN_IDENTIFIER) {
+                char probe[64];
+                int n = scanner_strip_accents(tok.start, tok.length,
+                                              probe, sizeof(probe));
+                bool isKey = (n == 34
+                        && strncasecmp(probe,
+                               "ProprietesPersonnaliseesTousChamps", 34) == 0)
+                    || (n == 25
+                        && strncasecmp(probe,
+                               "CustomPropertiesAllFields", 25) == 0);
+                if (isKey) {
+                    Token eq = scanner_scan_token(&s);
+                    while (eq.type == TOKEN_NEWLINE || eq.type == TOKEN_ERROR)
+                        eq = scanner_scan_token(&s);
+                    if (eq.type != TOKEN_EQUAL) { prev1 = tok; continue; }
+                    Token br = scanner_scan_token(&s);
+                    while (br.type == TOKEN_NEWLINE || br.type == TOKEN_ERROR)
+                        br = scanner_scan_token(&s);
+                    if (br.type != TOKEN_LEFT_BRACKET) { prev1 = tok; continue; }
+                    /* Entrees : <nom> est un <type> [, ...] jusqu'au ']'. */
+                    for (;;) {
+                        Token nameTok = scanner_scan_token(&s);
+                        while (nameTok.type == TOKEN_NEWLINE
+                               || nameTok.type == TOKEN_ERROR
+                               || nameTok.type == TOKEN_COMMA)
+                            nameTok = scanner_scan_token(&s);
+                        if (nameTok.type == TOKEN_RIGHT_BRACKET
+                            || nameTok.type == TOKEN_EOF) break;
+                        if (nameTok.type != TOKEN_IDENTIFIER) {
+                            /* graphie malformee : avance jusqu'au separateur. */
+                            if (nameTok.type == TOKEN_RIGHT_BRACKET) break;
+                            continue;
+                        }
+                        Token estTok = scanner_scan_token(&s);
+                        while (estTok.type == TOKEN_NEWLINE
+                               || estTok.type == TOKEN_ERROR)
+                            estTok = scanner_scan_token(&s);
+                        if (estTok.type != TOKEN_EST) {
+                            if (estTok.type == TOKEN_RIGHT_BRACKET
+                                || estTok.type == TOKEN_EOF) break;
+                            continue;
+                        }
+                        Token typeTok = scanner_scan_token(&s);
+                        while (typeTok.type == TOKEN_NEWLINE
+                               || typeTok.type == TOKEN_ERROR)
+                            typeTok = scanner_scan_token(&s);
+                        OwlCustomPropType cptype;
+                        bool typed = true;
+                        if (typeTok.type == TOKEN_CHAINE)       cptype = OWL_CUSTOM_PROP_STRING;
+                        else if (typeTok.type == TOKEN_ENTIER)  cptype = OWL_CUSTOM_PROP_INT;
+                        else if (typeTok.type == TOKEN_BOOLEEN) cptype = OWL_CUSTOM_PROP_BOOL;
+                        else if (typeTok.type == TOKEN_REEL)    cptype = OWL_CUSTOM_PROP_REAL;
+                        else typed = false;
+                        if (typed) {
+                            char nameBuf[64];
+                            int nl = nameTok.length < (int)sizeof(nameBuf) - 1
+                                     ? nameTok.length : (int)sizeof(nameBuf) - 1;
+                            memcpy(nameBuf, nameTok.start, (size_t)nl);
+                            nameBuf[nl] = '\0';
+                            /* Ne pas enregistrer un nom en collision : il n'est
+                             * pas une prop custom valide (rejet a la declaration
+                             * par la voie live). */
+                            if (!custom_prop_name_collides(nameBuf))
+                                owl_custom_props_add(nameBuf, cptype);
+                        }
+                        if (typeTok.type == TOKEN_RIGHT_BRACKET
+                            || typeTok.type == TOKEN_EOF) break;
+                    }
+                }
+            }
+            prev1 = tok;
+        }
+    }
+}
+
 /*  — un nom de type strippe designe-t-il le type Fenetre ? (bilingue
  * Fenetre / Window, accent-insensible). */
 static bool type_name_is_window(const char* type) {
@@ -19342,6 +19656,108 @@ static void projet_emit_fenetre_demarrage_value(Token fieldTok) {
                       "expected", "Fen\xc3\xaatre",
                       NULL);
     condition_expression();  /* consomme la RHS + equilibre la pile */
+}
+
+/*  — parse la RHS du champ PropriétésPersonnaliséesTousChamps /
+ * CustomPropertiesAllFields du bloc Projet : une liste typee
+ * `[nom est un type, ...]` (types v1 : chaîne/entier/booléen/réel). Pour chaque
+ * entree : rejet compile-time si le nom heurte une propriete integree ou un mot
+ * reserve ; sinon enregistrement dans le registre global des props custom
+ * (owl_custom_props_*), consomme par la resolution compile-time de
+ * `champ..maProp` et par la VM. Emet un tableau des noms declares (OP_ARRAY_PACK)
+ * pour le STRUCT_SET du caller : MonApp..PropriétésPersonnaliséesTousChamps est
+ * introspectable. Laisse exactement une valeur sur la pile. */
+static void projet_emit_custom_props_value(Token fieldTok) {
+    (void)fieldTok;
+    int count = 0;
+    if (!check(TOKEN_LEFT_BRACKET)) {
+        /* Break-net : la seule forme acceptee est une liste typee. */
+        const char* got = "valeur";
+        if (check(TOKEN_STRING))                            got = "cha\xc3\xaene";
+        else if (check(TOKEN_INTEGER) || check(TOKEN_REAL)) got = "num\xc3\xa9rique";
+        owl_emit_error_at(&parser.current, E_SEM_DSL_OBJECT_PROP_SCALAR,
+                          "type", "liste de propri\xc3\xa9t\xc3\xa9s typ\xc3\xa9" "es",
+                          "got", got, NULL);
+        while (!check(TOKEN_NEWLINE) && !check(TOKEN_FIN) && !check(TOKEN_EOF))
+            advance_token();
+        emit_bytes(OP_ARRAY_PACK, 0);
+        return;
+    }
+    advance_token();  /* consume '[' */
+    while (!check(TOKEN_RIGHT_BRACKET) && !check(TOKEN_EOF)) {
+        while (check(TOKEN_COMMA) || check(TOKEN_NEWLINE)) advance_token();
+        if (check(TOKEN_RIGHT_BRACKET) || check(TOKEN_EOF)) break;
+
+        /* <nom> : un IDENTIFIER. Un mot reserve (keyword-token) en position de
+         * nom est une collision avec un mot du langage. */
+        if (!check(TOKEN_IDENTIFIER)) {
+            char nameBuf[64];
+            snprintf(nameBuf, sizeof(nameBuf), "%.*s",
+                     parser.current.length, parser.current.start);
+            owl_emit_error_at(&parser.current, E_SEM_CUSTOM_PROP_COLLISION,
+                              "prop", nameBuf, NULL);
+            while (!check(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACKET)
+                   && !check(TOKEN_NEWLINE) && !check(TOKEN_EOF))
+                advance_token();
+            continue;
+        }
+        Token nameTok = parser.current;
+        advance_token();  /* consume nom */
+
+        /* `est un/une <type>` : l'article (un/une) est un filler escamote par
+         * advance_token. */
+        if (!check(TOKEN_EST)) {
+            owl_emit_error_at(&parser.current, E_SYNTAX_EXPECTED_TYPE_NAME, NULL);
+            while (!check(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACKET)
+                   && !check(TOKEN_NEWLINE) && !check(TOKEN_EOF))
+                advance_token();
+            continue;
+        }
+        advance_token();  /* consume est */
+
+        OwlCustomPropType cptype = OWL_CUSTOM_PROP_STRING;
+        bool typed = true;
+        if (check(TOKEN_CHAINE))        cptype = OWL_CUSTOM_PROP_STRING;
+        else if (check(TOKEN_ENTIER))   cptype = OWL_CUSTOM_PROP_INT;
+        else if (check(TOKEN_BOOLEEN))  cptype = OWL_CUSTOM_PROP_BOOL;
+        else if (check(TOKEN_REEL))     cptype = OWL_CUSTOM_PROP_REAL;
+        else                            typed  = false;
+        if (!typed) {
+            /*  (correction E) — un type complexe (json/classe/
+             * structure) est refuse : v1 scalaires seuls. Message explicite,
+             * ancre sur le nom de la prop plutot que le generique « Nom de type
+             * attendu ». */
+            char notScalarBuf[64];
+            snprintf(notScalarBuf, sizeof(notScalarBuf), "%.*s",
+                     nameTok.length, nameTok.start);
+            owl_emit_error_at(&parser.current, E_SEM_CUSTOM_PROP_TYPE_NOT_SCALAR,
+                              "prop", notScalarBuf, NULL);
+            while (!check(TOKEN_COMMA) && !check(TOKEN_RIGHT_BRACKET)
+                   && !check(TOKEN_NEWLINE) && !check(TOKEN_EOF))
+                advance_token();
+            continue;
+        }
+        advance_token();  /* consume le type */
+
+        char nameBuf[64];
+        snprintf(nameBuf, sizeof(nameBuf), "%.*s", nameTok.length, nameTok.start);
+        if (custom_prop_name_collides(nameBuf)) {
+            owl_emit_error_at(&nameTok, E_SEM_CUSTOM_PROP_COLLISION,
+                              "prop", nameBuf, NULL);
+        } else {
+            owl_custom_props_add(nameBuf, cptype);
+            /* Nom declare dans le tableau introspectable (meme idiome que
+             * projet_emit_theme_value : obj_copy_string ancre en constante). */
+            ObjString* ns = obj_copy_string(nameTok.start, nameTok.length);
+            emit_constant(OBJ_VAL(ns));
+            count++;
+        }
+
+        if (check(TOKEN_COMMA)) { advance_token(); continue; }
+        break;
+    }
+    consume(TOKEN_RIGHT_BRACKET, E_SYNTAX_EXP_RBRACKET_ARRAY_ELEMS);
+    emit_bytes(OP_ARRAY_PACK, (uint8_t)count);
 }
 
 /*  — controle de coherence des separateurs d'un FormatNombre.
@@ -23343,6 +23759,21 @@ static void var_declaration_after_est(Token varName) {
                     || (themeFieldLen == 14
                         && strncasecmp(themeFieldProbe, "CurrencyFormat", 14) == 0);
 
+                /*  — champ PropriétésPersonnaliséesTousChamps /
+                 * CustomPropertiesAllFields : liste typee `[nom est un type,...]`
+                 * (voie dediee ; l'idiome `est un` n'est pas une constante).
+                 * Nom long (> 32) : strip dans un buffer propre, themeFieldProbe
+                 * est trop court. Bilingue, accent-insensible. */
+                char cpProbe[64];
+                int cpLen = scanner_strip_accents(varTok.start, varTok.length,
+                                                  cpProbe, sizeof(cpProbe));
+                bool isCustomProps = (cpLen == 34
+                        && strncasecmp(cpProbe,
+                               "ProprietesPersonnaliseesTousChamps", 34) == 0)
+                    || (cpLen == 25
+                        && strncasecmp(cpProbe,
+                               "CustomPropertiesAllFields", 25) == 0);
+
                 if (isLangues) {
                     languesSeen = true;
                     projet_emit_langues_value(varTok);
@@ -23354,6 +23785,8 @@ static void var_declaration_after_est(Token varName) {
                     projet_emit_format_nombre_value(varTok);
                 } else if (isFormatMonetaire) {
                     projet_emit_format_monetaire_value(varTok);
+                } else if (isCustomProps) {
+                    projet_emit_custom_props_value(varTok);
                 } else {
                     /* Introspectabilite du manifeste : la valeur
                      * d'une metadonnee projet doit etre une expression
@@ -26417,18 +26850,35 @@ static void class_declaration(Token className) {
             Token implKw = parser.current;
             advance_token(); /* consume IMPLEMENTE */
             if (check(TOKEN_IDENTIFIER)) {
-                Token ifaceTok = parser.current;
-                advance_token(); /* consume interface name */
-                class_interface_register(className.start, className.length,
-                                         ifaceTok.start, ifaceTok.length,
-                                         implKw.line);
-                /*  : inscrire le nom d'interface dans la table
-                 * runtime de la classe (sommet de pile). Permet a
-                 * `obj est iInterface` de resoudre Vrai au runtime. Le
-                 * check de conformite des signatures reste compile-time
-                 * via interface_cross_check_global() — non touche ici. */
-                ConstIdx ifaceConst = identifier_constant(&ifaceTok);
-                emit_const_op(OP_CLASS_DECLARE_INTERFACE, ifaceConst);
+                /*  : une clause `implemente` peut lister plusieurs
+                 * interfaces separees par des virgules (`implemente iA, iB`).
+                 * Chaque nom suit le meme chemin register+emit — enregistrer
+                 * N interfaces ici est equivalent a N clauses repetees, donc
+                 * le contrat est verifie par interface « gratuitement »
+                 * (interface_cross_check_global est deja multi-interface). */
+                for (;;) {
+                    Token ifaceTok = parser.current;
+                    advance_token(); /* consume interface name */
+                    class_interface_register(className.start, className.length,
+                                             ifaceTok.start, ifaceTok.length,
+                                             implKw.line);
+                    /*  : inscrire le nom d'interface dans la table
+                     * runtime de la classe (sommet de pile). Permet a
+                     * `obj est iInterface` de resoudre Vrai au runtime. Le
+                     * check de conformite des signatures reste compile-time
+                     * via interface_cross_check_global() — non touche ici. */
+                    ConstIdx ifaceConst = identifier_constant(&ifaceTok);
+                    emit_const_op(OP_CLASS_DECLARE_INTERFACE, ifaceConst);
+                    if (!check(TOKEN_COMMA)) break;
+                    advance_token(); /* consume ',' */
+                    if (!check(TOKEN_IDENTIFIER)) {
+                        /* Virgule sans nom d'interface derriere (`implemente iA,`) :
+                         * on signale et on sort, le body reprend la main. */
+                        owl_emit_error_at(&parser.current,
+                                          E_SYNTAX_EXPECTED_MEMBER_DECL_IN_CLASS);
+                        break;
+                    }
+                }
             }
             continue;
         }
@@ -28185,6 +28635,35 @@ static bool window_validate_enum_ref(const OwlControlPropDef* def) {
 
 static bool prop_is_context_menu_attach(Token t);  /*  (defini plus bas) */
 
+/*  (correction C) — parse la RHS d'une init declarative d'une prop
+ * custom dans un bloc PROPRIETES (`maProp = <valeur>`, `=` deja consomme).
+ * Mirror du chemin catalogue : litteral const d'abord, sinon expression
+ * dynamique compilee en ObjFunction 0-arg. Aucun check de type ici : la valeur
+ * est coercee vers le type declare au SEED de l'instance (custom_prop_coerce_
+ * value, object.c), exactement comme l'affectation imperative `champ..maProp =`.
+ * Partage par control_ et window_parse_property_init. */
+static void custom_prop_parse_decl_value(const char* propName, bool* outConst,
+                                         Value* outVal, ObjFunction** outEval) {
+    Scanner saved        = parser.scanner;
+    Token   savedCur     = parser.current;
+    Token   savedPrev    = parser.previous;
+    bool    savedCrossed = crossedNewline;
+    Value v;
+    if (window_try_parse_const_literal(&v)
+        && (crossedNewline || check(TOKEN_FIN) || check(TOKEN_EOF))) {
+        *outConst = true;  *outVal = v;       *outEval = NULL;
+        return;
+    }
+    parser.scanner  = saved;
+    parser.current  = savedCur;
+    parser.previous = savedPrev;
+    crossedNewline  = savedCrossed;
+    char fnNameBuf[160];
+    snprintf(fnNameBuf, sizeof(fnNameBuf), "__custom_prop_%s", propName);
+    *outEval  = compile_expression_as_fn(fnNameBuf);
+    *outConst = false; *outVal = NIL_VAL;
+}
+
 /* Parse une init de propriete : 'Nom = literal' au niveau Fenetre.
  * Le current token est sur l'identifiant de la propriete. */
 static void window_parse_property_init(OwlWindowDecl* decl) {
@@ -28279,6 +28758,21 @@ static void window_parse_property_init(OwlWindowDecl* decl) {
     /* Phase D : lookup dans le catalogue. */
     const OwlControlPropDef* def = owl_window_catalog_find(propName);
     if (!def) {
+        /*  (correction C) — prop custom declaree au projet,
+         * initialisable dans le bloc PROPRIETES de la Fenetre. Symetrique du
+         * chemin control_parse_property_init : parse + add_property, seed coerce
+         * (obj_window_instance_headless_set). */
+        compiler_custom_props_scan_sources();  /* lazy populate (--check) */
+        if (decl && owl_custom_props_find(propName, NULL)) {
+            bool        cpConst;
+            Value       cpVal;
+            ObjFunction* cpEval;
+            custom_prop_parse_decl_value(propName, &cpConst, &cpVal, &cpEval);
+            owl_window_decl_add_property(decl, propName, cpVal, cpEval,
+                                         cpConst, propTok.line);
+            free(propName);
+            return;
+        }
         owl_emit_error_at(&propTok, E_SEM_DSL_PROP_UNKNOWN_FOR_WINDOW,
                           "prop", propName,
                           NULL);
@@ -28820,6 +29314,24 @@ static void control_parse_property_init(OwlControlDecl* control) {
     if (control) {
         def = owl_control_catalog_find(control->kind, propName);
         if (!def) {
+            /*  (correction C) — prop custom declaree au projet
+             * (PropriétésPersonnaliséesTousChamps) : hors catalogue per-kind mais
+             * reconnue, initialisable dans le bloc PROPRIETES du champ. Parse la
+             * valeur + add_property ; le seed d'instance la pose dans le store via
+             * obj_ui_control_instance_headless_set qui coerce vers le type
+             * declare. Exclusions (menus / colonnes / sous-blocs Etat) assurees
+             * par construction : ces blocs ont leurs propres parseurs. */
+            compiler_custom_props_scan_sources();  /* lazy populate (--check) */
+            if (owl_custom_props_find(propName, NULL)) {
+                bool        cpConst;
+                Value       cpVal;
+                ObjFunction* cpEval;
+                custom_prop_parse_decl_value(propName, &cpConst, &cpVal, &cpEval);
+                owl_control_decl_add_property(control, propName, cpVal, cpEval,
+                                              cpConst, propTok.line);
+                free(propName);
+                return;
+            }
             const char* kindName = owl_control_kind_name(control->kind);
             owl_emit_error_at(&propTok, E_SEM_DSL_PROP_UNKNOWN_FOR_KIND,
                               "prop", propName,
@@ -29317,6 +29829,92 @@ static void field_check_canonical_prefix(Token nameTok,
                         NULL);
 }
 
+/*  — parse un bloc `PROCEDURE surXxx()` declare dans le corps d'une
+ * Colonne de Champ Table. Mecanique calquee sur les events d'OptionMenu
+ * (menu_parse) : valide le nom contre le catalogue d'events colonne, compile le
+ * body pour le consommer INTEGRALEMENT jusqu'au FIN (garantit que --check
+ * termine toujours, meme nom inconnu), rejette proprement un event hors
+ * catalogue. Le cablage runtime du dispatch Qt (edition de cellule) est un lot
+ * ulterieur : le handler compile n'est pas encore stocke sur la colonne. */
+static void column_parse_event_block(OwlColumnDecl* col, Token colNameTok) {
+    advance_token(); /* consume PROCEDURE / FONCTION */
+    if (!check(TOKEN_IDENTIFIER)) {
+        owl_emit_error_current(E_SYNTAX_EXPECTED_BLOCK_NAME_AFTER_PROC);
+        dsl_skip_block_body();
+        parser.panicMode = false;
+        return;
+    }
+    Token procTok = parser.current;
+    char procName[128];
+    int pl = procTok.length < 127 ? procTok.length : 127;
+    if (pl < 0) pl = 0;
+    memcpy(procName, procTok.start, (size_t)pl);
+    procName[pl] = '\0';
+    advance_token();
+    if (!match_token(TOKEN_LEFT_PAREN)) {
+        owl_emit_error_at(&procTok, E_SYNTAX_EXPECTED_LPAREN_AFTER_BLOCK_NAME);
+        dsl_skip_block_body();
+        parser.panicMode = false;
+        return;
+    }
+    /* Params canon de ces events = aucun (0-arg). On avale ce qui est declare
+     * entre '(' et ')' MAIS on compte les params pour rejeter proprement un
+     * handler mal signe (symetrie event fenetre lifecycle 0-arg). N virgules
+     * => N+1 params declares. */
+    int declaredParamCount = 0;
+    bool sawParamToken = false;
+    while (!check(TOKEN_RIGHT_PAREN) && !check(TOKEN_EOF)) {
+        if (check(TOKEN_COMMA)) declaredParamCount++;
+        else                    sawParamToken = true;
+        advance_token();
+    }
+    if (sawParamToken) declaredParamCount++;
+    consume(TOKEN_RIGHT_PAREN, E_SYNTAX_EXP_RPAREN_BLOCK_PARAMS);
+    /* Annotation de type retour `: <Type>` toleree (symetrie events champ). */
+    if (is_return_type_colon() || (check(TOKEN_COLON) && !crossedNewline)) {
+        advance_token(); /* consume ':' */
+        skip_type_spec();
+    }
+
+    const OwlEventDef* evt = owl_column_event_catalog_find(procName);
+    if (evt == NULL) {
+        char colNameBuf[128];
+        int cl = colNameTok.length < 127 ? colNameTok.length : 127;
+        if (cl < 0) cl = 0;
+        memcpy(colNameBuf, colNameTok.start, (size_t)cl);
+        colNameBuf[cl] = '\0';
+        owl_emit_error_at(&procTok, E_SEM_COLUMN_PROC_UNKNOWN,
+                          "name", procName,
+                          "column", colNameBuf,
+                          NULL);
+        parser.panicMode = false;
+    } else if (declaredParamCount > 0) {
+        /* Event colonne connu : signature canon 0-arg. Tout param declare
+         * est une arite fausse. Reutilise le diagnostic d'arite partage. */
+        char declaredBuf[16];
+        snprintf(declaredBuf, sizeof(declaredBuf), "%d", declaredParamCount);
+        owl_emit_error_at(&procTok, E_SEM_DSL_EVENT_TOO_MANY_PARAMS,
+                          "event", procName,
+                          "declared", declaredBuf,
+                          "max", "0",
+                          "signature", "aucun",
+                          NULL);
+        parser.panicMode = false;
+    }
+    /* Compile le body (MaFenetre + MonChamp dispos) pour le consommer jusqu'au
+     * FIN, reconnu ou non. Un event connu du catalogue est stocke sous son nom
+     * canon FR sur la colonne : le cablage runtime (build_control) le retrouve
+     * par canon quel que soit le nom source (FR/EN) et le branche au pipeline
+     * d'edition Qt de la colonne. Un event inconnu (deja errorise) est compile
+     * pour consommer le body mais pas stocke. */
+    ObjFunction* fn = compile_event_block_body_with_params(
+        evt ? evt->canonical : procName, true, 0, NULL);
+    if (col && evt && fn) {
+        owl_column_decl_add_event(col, evt->canonical, fn, procTok.line);
+    }
+    parser.panicMode = false;
+}
+
 static void parse_one_column(OwlControlDecl* control, Token nameTok, int kindLine) {
     advance_token(); /* consume COLONNE */
 
@@ -29347,11 +29945,22 @@ static void parse_one_column(OwlControlDecl* control, Token nameTok, int kindLin
     /*  — prefixe de nommage canonique (opt-in projet) : COL_. */
     field_check_canonical_prefix(nameTok, owl_control_kind_info_by_name("Colonne"));
 
-    /* Body de la colonne : un seul bloc PROPRIETES en V1. */
+    /* Body de la colonne : un bloc PROPRIETES + d'eventuels blocs PROCEDURE
+     * surXxx() (events de colonne, ). */
     bool sawProps = false;
     while (!check(TOKEN_FIN) && !check(TOKEN_EOF)) {
         while (check(TOKEN_NEWLINE)) advance_token();
         if (check(TOKEN_FIN) || check(TOKEN_EOF)) break;
+        /* Garde anti-boucle : la position avant traitement. Un sous-parseur de
+         * recovery (window_skip_to_next_stmt) peut, sur un token qu'il traite
+         * comme ouvreur de bloc (PROCEDURE, Bouton...), NE PAS avancer ; sans ce
+         * garde le corps de colonne boucle a l'infini (--check ne rend jamais
+         * la main). cf. . */
+        const char* colIterStart = parser.current.start;
+        if (check(TOKEN_PROCEDURE) || check(TOKEN_FONCTION)) {
+            column_parse_event_block(col, nameTok);
+            continue;
+        }
         if (check(TOKEN_PROPRIETES)) {
             advance_token();
             if (sawProps) owl_emit_error_current(E_SYNTAX_DUPLICATE_PROPRIETES_COLUMN);
@@ -29383,6 +29992,13 @@ static void parse_one_column(OwlControlDecl* control, Token nameTok, int kindLin
         } else {
             owl_emit_error_current(E_SYNTAX_COLUMN_BODY_PROPRIETES_ONLY);
             window_skip_to_next_stmt();
+        }
+        /* Backstop du garde anti-boucle : si aucun chemin ci-dessus n'a fait
+         * progresser le curseur (recovery bloquee sur un ouvreur de bloc),
+         * force un avancement pour garantir la terminaison. */
+        if (parser.current.start == colIterStart
+            && !check(TOKEN_FIN) && !check(TOKEN_EOF)) {
+            advance_token();
         }
     }
     consume(TOKEN_FIN, E_SYNTAX_EXP_FIN_COLONNE);

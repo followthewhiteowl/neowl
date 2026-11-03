@@ -397,6 +397,35 @@ static const OwlEventDef ONGLET_SPECIFIC_EVENTS[] = {
       .paramCount = 0, .params = NULL },
 };
 
+/* Events d'une Colonne de Champ Table. Hooks declares directement
+ * dans le corps d'un `COL_X est une Colonne`, geres par defaut. Le code d'init
+ * de la colonne vit dans son bloc PROPRIETES (pas d'event nomme). Consomme par
+ * le compilateur pour valider les PROCEDURE declarees dans un bloc Colonne. Le
+ * declenchement runtime (edition de cellule cote Qt) vient dans un lot ulterieur
+ * ; ici on enregistre les signatures pour que le compilateur accepte la
+ * PROCEDURE dans le body de la Colonne. */
+static const OwlEventDef COLUMN_EVENTS[] = {
+    { .canonical = "surInitialisation", .nameEN = "onInitialization",
+      .descFR = "Declenche a l'ouverture de la fenetre, une fois la colonne "
+                "prete. Place pour preparer l'etat initial de la colonne.",
+      .descEN = "Fires when the window opens, once the column is ready. Spot "
+                "to prepare the column's initial state.",
+      .paramCount = 0, .params = NULL },
+    { .canonical = "surSortie", .nameEN = "onExit",
+      .descFR = "Declenche a la sortie de la colonne (changement de colonne au "
+                "clavier ou a la souris). Point canon pour valider et corriger "
+                "la saisie de la cellule.",
+      .descEN = "Fires when leaving the column (column change via keyboard or "
+                "mouse). Canonical spot to validate and fix the cell input.",
+      .paramCount = 0, .params = NULL },
+    { .canonical = "surAChaqueModification", .nameEN = "onEachChange",
+      .descFR = "Declenche a chaque modification du contenu de la colonne par "
+                "l'utilisateur (frappe clavier, coller, suppression).",
+      .descEN = "Fires on every change to the column content by the user "
+                "(keystroke, paste, delete).",
+      .paramCount = 0, .params = NULL },
+};
+
 /* ============================================================
  * Init — appele depuis stdlib_ui_catalog_init()
  *
@@ -722,6 +751,20 @@ const OwlEventDef* owl_widget_event_dedup_at(int index) {
     return g_dedup[index];
 }
 
+/*  — index dedup inverse : d'un nom d'event (canon FR ou alias EN) vers
+ * l'index stable (clef evt* = OWL_EVT_BASE + index). Utilise au cablage GUI pour
+ * attacher l'evt_index au binding — le dispatch consulte alors la table
+ * d'interception avec la meme clef que le chemin trigger. nameFR/nameEN peuvent
+ * etre NULL (les deux testes). Retourne -1 si introuvable. */
+int owl_widget_event_dedup_index(const char* nameFR, const char* nameEN) {
+    for (int i = 0; i < g_dedup_count; i++) {
+        const OwlEventDef* d = g_dedup[i];
+        if (nameFR && d->canonical && strcmp(d->canonical, nameFR) == 0) return i;
+        if (nameEN && d->nameEN && strcmp(d->nameEN, nameEN) == 0) return i;
+    }
+    return -1;
+}
+
 void event_catalog_widgets_init(void) {
     /* --- Fenêtre : lifecycle events (catalogue parallele, hors
      *     OwlControlKind — pas de payload type, consommation directe
@@ -765,6 +808,11 @@ void event_catalog_widgets_init(void) {
     /* --- OpérationHTTP : surRequête. --- */
     owl_operation_event_catalog_register(
         OPERATION_EVENTS, sizeof(OPERATION_EVENTS) / sizeof(OPERATION_EVENTS[0]));
+
+    /* --- Colonne de Champ Table : surInitialisation / surSortie /
+     *     surAChaqueModification. --- */
+    owl_column_event_catalog_register(
+        COLUMN_EVENTS, sizeof(COLUMN_EVENTS) / sizeof(COLUMN_EVENTS[0]));
 
     /* --- Champ Bouton : events souris de base + clavier. --- */
     REG_FAM(OWL_CONTROL_BUTTON, FAM_MOUSE_BASIC_EVENTS);

@@ -1,0 +1,72 @@
+// @sujet : RegistreCléSuivante
+// @résumé : Identifie le chemin complet de la sous-clé suivant une sous-clé
+// donnée. Forme avec RegistrePremièreSousClé le couple d'itération canonique
+// pour parcourir toutes les sous-clés d'une clé.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CleSuivante")
+FIN
+
+// Le couple Première/Suivante parcourt l'ensemble des sous-clés jusqu'à ce
+// que la chaîne vide signale la fin — l'ordre d'énumération n'étant pas
+// garanti, on vérifie la présence de chaque sous-clé, pas sa position.
+PROCEDURE PUBLIQUE scenario_parcourt_toutes_les_sous_cles_jusqua_la_fin()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CleSuivante"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\Alpha1512")
+	RegistreCréeClé(racine + "\Beta1512")
+	RegistreCréeClé(racine + "\Gamma1512")
+
+	visites   est une chaîne = ""
+	nbVisites est un entier  = 0
+	chemin    est une chaîne = RegistrePremièreSousClé(racine)
+	// Compteur borné : protège contre un bug de terminaison côté impl sans
+	// jamais dépendre d'une boucle potentiellement infinie.
+	TANTQUE chemin <> "" ET nbVisites < 10
+		visites += chemin + ";"
+		nbVisites += 1
+		chemin = RegistreCléSuivante(chemin)
+	FIN
+
+	dbgVérifieEgalité(nbVisites, 3, "les 3 sous-clés sont parcourues, ni plus ni moins")
+	dbgVérifieVrai(Contient(visites, "Alpha1512"), "Alpha1512 a été visitée")
+	dbgVérifieVrai(Contient(visites, "Beta1512"), "Beta1512 a été visitée")
+	dbgVérifieVrai(Contient(visites, "Gamma1512"), "Gamma1512 a été visitée")
+	dbgVérifieEgalité(chemin, "", "la boucle se termine par une chaîne vide, pas par un blocage")
+FIN
+
+// Cas limite : une sous-clé seule (donc sans suivante) renvoie la chaîne vide
+// dès le premier appel, sans boucle nécessaire pour l'observer.
+PROCEDURE PUBLIQUE scenario_sur_unique_sous_cle_renvoie_chaine_vide()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CleSuivante"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\Unique1512")
+
+	premier est une chaîne = RegistrePremièreSousClé(racine)
+	suivant est une chaîne = RegistreCléSuivante(premier)
+	dbgVérifieEgalité(suivant, "", "une seule sous-clé n'a pas de suivante")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CleSuivante"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\Unique1512")
+
+	premier est une chaîne = RegistrePremièreSousClé(racine)
+	suivant est une chaîne = RegistreCléSuivante(registreModeAuto, premier)
+	dbgVérifieEgalité(suivant, "", "le mode d'accès explicite n'a pas d'effet sur le résultat")
+FIN
+
+// Cas limite : une clé inexistante ne provoque pas de crash, elle renvoie une
+// chaîne vide accompagnée d'une erreur douce consultable via ErreurInfo.
+PROCEDURE PRIVÉE scenario_cle_inexistante_renvoie_vide_avec_erreur_douce()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CleSuivante\Fantome1512"
+
+	ErreurRAZ()
+	resultat est une chaîne = RegistreCléSuivante(chemin)
+	bErr     est un booléen = ErreurDétectée
+	dbgVérifieEgalité(resultat, "", "une clé inexistante renvoie une chaîne vide")
+	dbgVérifieVrai(bErr, "une erreur douce est posée pour une clé inexistante")
+FIN
+
+dbgBilanTest()

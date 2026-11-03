@@ -1099,6 +1099,18 @@ static bool vm_table_fmt_get(ObjInstance* inst, const char* field, Value* out) {
     if (!vm_table_fmt_slot(inst, field, &rep, key, sizeof(key), &col, &propCanon))
         return false;
     *out = NIL_VAL;
+    /*  — ValeurAffichée : vue de rendu (texte formate du DisplayRole),
+     * lecture seule. Ne lit PAS un casier $fmt (jamais ecrit) mais recalcule le
+     * texte affiche de la cellule via le pont Qt. Forme cellule requise (rep de
+     * ligne + colonne precise) ; niveau ligne/colonne sans cellule unique -> ""
+     * (aucune cellule a rendre). */
+    if (propCanon != NULL && strcasecmp(propCanon, "ValeurAffich\xc3\xa9""e") == 0) {
+        if (col != NULL && col[0] != '\0'
+            && owl_ui_table_cell_display(rep, col, out))
+            return true;
+        *out = OBJ_VAL(obj_copy_string("", 0));
+        return true;
+    }
     ObjString* k = table_find_key_case_insensitive(&rep->fields, key);
     if (k != NULL) {
         table_get(&rep->fields, k, out);
@@ -8039,12 +8051,17 @@ static InterpretResult run(void) {
                             }
                         } else if (pdef == NULL
                                    && !owl_ui_prop_is_universal(
-                                          fieldName->chars)) {
+                                          fieldName->chars)
+                                   && !owl_custom_props_find(
+                                          fieldName->chars, NULL)) {
                             /*  — prop hors catalogue lue via reference
                              * qualifiee (non verifiable a la compile) : soft
                              * error au lieu du default fantome silencieux.
                              * Les props catalogues non encore ecrites gardent
-                             * leur default typé (pdef != NULL ci-dessus). */
+                             * leur default typé (pdef != NULL ci-dessus).
+                             *  — une prop custom declaree lue avant
+                             * ecriture n'est pas une erreur : elle tombe dans le
+                             * else ci-dessous et rend son default type. */
                             owl_emit_native_error(
                                 E_RT_UI_PROP_UNKNOWN_FOR_KIND,
                                 uici->decl ? uici->decl->name : "?",
@@ -9729,7 +9746,10 @@ static InterpretResult run(void) {
                         bool isMainMenu =
                             (strcasecmp(fieldName->chars, "MenuPrincipal") == 0
                              || strcasecmp(fieldName->chars, "MainMenu") == 0);
-                        if (wi->widget != NULL || isMainMenu) {
+                        /*  — prop custom = pur casier, pas de reflet
+                         * widget : saute l'apply Qt (sinon « non supportee »). */
+                        if ((wi->widget != NULL || isMainMenu)
+                            && !owl_custom_props_find(fieldName->chars, NULL)) {
                             owl_ui_apply_window_scalar(wi, fieldName->chars,
                                                        storeVal);
                         }
@@ -9969,7 +9989,11 @@ static InterpretResult run(void) {
                         if (owl_control_catalog_find(
                                 (OwlControlKind)ukind_set, fieldName->chars)
                                 == NULL
-                            && !owl_ui_prop_is_universal(fieldName->chars)) {
+                            && !owl_ui_prop_is_universal(fieldName->chars)
+                            /*  — prop custom declaree au projet :
+                             * acceptee, stockee par le chemin headless generique
+                             * ci-dessous (round-trip par instance). */
+                            && !owl_custom_props_find(fieldName->chars, NULL)) {
                             owl_emit_native_error(
                                 E_RT_UI_PROP_UNKNOWN_FOR_KIND,
                                 uici->decl ? uici->decl->name : "?",
@@ -10068,8 +10092,12 @@ static InterpretResult run(void) {
                                                           fieldName->chars);
                     /*  lot 2 — si l'instance porte un widget Qt monte,
                      * rejoue le scalaire sur le QWidget (imperatif reflete en
-                     * GUI comme il l'est en headless). No-op en CLI/headless. */
-                    if (uici->widget != NULL) {
+                     * GUI comme il l'est en headless). No-op en CLI/headless.
+                     *  — une prop custom est un pur casier de donnees
+                     * (aucun reflet widget) : on saute l'apply Qt, qui sinon
+                     * rouspete « ecriture non supportee ». */
+                    if (uici->widget != NULL
+                        && !owl_custom_props_find(fieldName->chars, NULL)) {
                         owl_ui_apply_instance_scalar(uici, fieldName->chars,
                                                      storeVal);
                     }

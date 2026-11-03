@@ -1,0 +1,74 @@
+// @sujet : événements de Colonne (surInitialisation / surAChaqueModification
+// / surSortie).
+// @résumé : une Colonne saisissable de Champ Table déclenche surInitialisation
+// une fois à l'ouverture de la fenêtre, surAChaqueModification à chaque
+// frappe en cellule, et surSortie quand la cellule perd le focus (ex : TAB).
+// Les handlers relaient vers ce script voisin via callback nu-nommé, le bloc
+// Colonne ne pouvant pas accéder directement aux variables du script.
+//
+// Widgets réels requis (TestModeHeadless(Faux)) : double-clic, frappe et TAB
+// sont de vrais événements postés au widget, pas une lecture de store.
+
+nModifColonne  est un entier = 0
+nSortieColonne est un entier = 0
+nInitColonne   est un entier = 0
+
+PROCEDURE callback_colonne_modifiee()
+	nModifColonne += 1
+FIN
+
+PROCEDURE callback_colonne_sortie()
+	nSortieColonne += 1
+FIN
+
+PROCEDURE callback_colonne_initialisee()
+	nInitColonne += 1
+FIN
+
+PROCEDURE avantChaqueTest()
+	nInitColonne   = 0
+	nModifColonne  = 0
+	nSortieColonne = 0
+FIN
+
+PROCEDURE PUBLIQUE scenario_evenements_colonne_frappe_et_sortie_cellule()
+	TestModeHeadless(Faux)
+
+	OuvreSoeur(FEN_TableEventsColonne)
+
+	// Ouvre l'éditeur de la cellule par un vrai double-clic (widget réel,
+	// pas une lecture de store).
+	TestSimuleSouris(TABLE_Saisie, DoubleClicGauche)
+
+	// Frappe réelle postée au widget qui a le focus : l'éditeur de cellule
+	// ouvert par le double-clic.
+	EnvoieTouche(Asc("Z"))
+
+	// Sort de la cellule (TAB) : commit de l'édition + changement de focus
+	// réel, point canon de surSortie (doc colonne).
+	EnvoieTouche(tkTab)
+
+	dbgVérifieEgalité(nModifColonne, 1,
+	"surAChaqueModification de colonne tiré par une frappe réelle en cellule")
+
+	dbgVérifieEgalité(nSortieColonne, 1,
+	"surSortie de colonne tiré par une sortie réelle de cellule (TAB)")
+
+	dbgVérifieEgalité(TABLE_Saisie[1].COL_Libelle, "Z",
+	"la cellule reflète la frappe réelle, indépendamment du dispatch d'event")
+
+	Ferme(FEN_TableEventsColonne)
+FIN
+
+PROCEDURE PUBLIQUE scenario_initialisation_colonne_a_l_ouverture()
+	TestModeHeadless(Faux)
+
+	OuvreSoeur(FEN_TableEventsColonne)
+
+	dbgVérifieEgalité(nInitColonne, 1,
+	"surInitialisation de colonne tiré une fois à l'ouverture de la fenêtre")
+
+	Ferme(FEN_TableEventsColonne)
+FIN
+
+dbgBilanTest()

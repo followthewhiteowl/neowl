@@ -1,0 +1,53 @@
+// @sujet : RegistreCréeClé
+// @résumé : Crée une clé dans la base de registre, en créant au passage
+// toute la chaîne de sous-clés manquantes. Une clé déjà existante n'est pas
+// modifiée : la fonction renvoie Faux sans poser d'erreur.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CreeCle")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cree_une_cle_absente()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CreeCle"
+	dbgVérifieFaux(RegistreExiste(chemin), "la clé n'existe pas avant création")
+
+	bCree est un booléen = RegistreCréeClé(chemin)
+	dbgVérifieVrai(bCree, "la création réussit")
+	dbgVérifieVrai(RegistreExiste(chemin), "la clé existe après création")
+FIN
+
+// La création est récursive : les sous-clés intermédiaires absentes sont
+// créées automatiquement, pas seulement la feuille demandée.
+PROCEDURE PUBLIQUE scenario_creation_recursive_des_sous_cles_manquantes()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CreeCle"
+	chemin est une chaîne = racine + "\Sous\Profond"
+	dbgVérifieFaux(RegistreExiste(chemin), "la sous-clé profonde n'existe pas avant création")
+
+	bCree est un booléen = RegistreCréeClé(chemin)
+	dbgVérifieVrai(bCree, "la création réussit")
+	dbgVérifieVrai(RegistreExiste(chemin), "la sous-clé profonde existe après création")
+	dbgVérifieVrai(RegistreExiste(racine + "\Sous"), "la sous-clé intermédiaire a été créée au passage")
+FIN
+
+// Mode d'accès explicite : le fonctionnement reste identique quand on passe
+// la constante par défaut au lieu de compter sur l'omission du paramètre.
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CreeCle"
+	bCree  est un booléen = RegistreCréeClé(registreModeAuto, chemin)
+	dbgVérifieVrai(bCree, "la création réussit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : recréer une clé déjà présente n'est pas un échec au sens
+// erreur — la fonction renvoie Faux mais ne pose aucune erreur.
+PROCEDURE PRIVÉE scenario_cle_deja_existante_renvoie_faux_sans_erreur()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\CreeCle"
+	RegistreCréeClé(chemin)
+
+	ErreurRAZ()
+	bRecree est un booléen = RegistreCréeClé(chemin)
+	bErr    est un booléen = ErreurDétectée
+	dbgVérifieFaux(bRecree, "recréer une clé existante renvoie Faux")
+	dbgVérifieFaux(bErr, "aucune erreur n'est posée pour une clé déjà existante")
+FIN
+
+dbgBilanTest()

@@ -252,8 +252,10 @@ OWL_ERROR(E_SYNTAX_DUPLICATE_PROPRIETES_COLUMN, "syntax",
           "Bloc PROPRIETES déjà déclaré pour cette colonne.",
           "PROPERTIES block already declared for this column.")
 OWL_ERROR(E_SYNTAX_COLUMN_BODY_PROPRIETES_ONLY, "syntax",
-          "Dans le corps de colonne : seul PROPRIETES est attendu.",
-          "In column body: only PROPERTIES is expected.")
+          "Dans le corps de colonne : seuls PROPRIETES et les blocs "
+          "PROCEDURE surXxx() sont attendus.",
+          "In column body: only PROPERTIES and PROCEDURE onXxx() blocks "
+          "are expected.")
 OWL_ERROR(E_SYNTAX_EXPECTED_VAR_NAME_AFTER_LIBERER, "syntax",
           "Nom de variable attendu après 'Liberer'.",
           "Expected variable name after 'Free'.")
@@ -2121,6 +2123,17 @@ OWL_ERROR(E_SEM_DSL_PROP_IDENTITY_READONLY, "semantic",
 OWL_ERROR(E_SEM_DSL_OBJECT_PROP_FIELD_UNKNOWN, "semantic",
           "Champ '{field}' inconnu sur type {type}. Champs disponibles : {fields_list}.",
           "Field '{field}' unknown on type {type}. Available fields: {fields_list}.")
+OWL_ERROR(E_SEM_CUSTOM_PROP_COLLISION, "semantic",
+          "Propriété personnalisée '{prop}' : ce nom est déjà une propriété "
+          "intégrée des champs. Choisir un nom différent dans "
+          "PropriétésPersonnaliséesTousChamps.",
+          "Custom property '{prop}': this name is already a built-in control "
+          "property. Choose a different name in CustomPropertiesAllFields.")
+OWL_ERROR(E_SEM_CUSTOM_PROP_TYPE_NOT_SCALAR, "semantic",
+          "Propriété personnalisée '{prop}' : types scalaires uniquement "
+          "(chaîne/entier/booléen/réel).",
+          "Custom property '{prop}': scalar types only "
+          "(string/integer/boolean/real).")
 OWL_ERROR(E_SEM_PROJET_METADATA_NOT_CONSTANT, "semantic",
           "Métadonnée projet '{name}' : la valeur doit être une "
           "constante (littéral, constante nommée ou expression "
@@ -2253,6 +2266,11 @@ OWL_ERROR(E_SEM_DSL_COLUMN_NAME_DUPLICATE, "semantic",
           "Colonne '{name}' : nom déjà utilisé dans le Champ Table "
           "'{table}'.",
           "Column '{name}': name already used in Table field '{table}'.")
+OWL_ERROR(E_SEM_COLUMN_PROC_UNKNOWN, "semantic",
+          "PROCEDURE '{name}' inconnue dans la colonne '{column}'. Events "
+          "acceptés : surInitialisation, surSortie, surAChaqueModification.",
+          "Unknown PROCEDURE '{name}' in column '{column}'. Accepted events: "
+          "onInitialization, onExit, onEachChange.")
 OWL_ERROR(E_SEM_DSL_COLONNE_OUTSIDE_TABLE, "semantic",
           "Une 'colonne' n'est valide qu'à l'intérieur d'un Champ Table.",
           "A 'column' is only valid inside a Control Table.")
@@ -2331,6 +2349,35 @@ OWL_ERROR(E_SEM_EVT_PARAM_TYPE, "semantic",
           "'{expected}', trouvé '{got}'.",
           "Event '{evt}' parameter {position}: expected type '{expected}', "
           "got '{got}'.")
+/*  — IntercepteÉvénement / InterceptEvent : validation compile-time
+ * (procédure existante, cible, appartenance de l'événement au kind du champ).
+ * Messages dédiés émis AVANT la sous-expression de l'argument pour primer sur
+ * l'erreur générique « symbole inconnu » (panicMode garde la première). */
+OWL_ERROR(E_SEM_INTERCEPT_PROC_UNKNOWN, "semantic",
+          "'{name}' : procédure inconnue. IntercepteÉvénement attend une "
+          "procédure déclarée à intercaler sur l'événement.",
+          "'{name}': unknown procedure. InterceptEvent expects a declared "
+          "procedure to hook onto the event.")
+OWL_ERROR(E_SEM_INTERCEPT_TARGET_UNKNOWN, "semantic",
+          "'{name}' : champ cible inconnu. IntercepteÉvénement attend un champ "
+          "déclaré (objet) ou son nom en chaîne littérale résoluble.",
+          "'{name}': unknown target control. InterceptEvent expects a declared "
+          "control (object) or its name as a resolvable string literal.")
+OWL_ERROR(E_SEM_INTERCEPT_TARGET_STRING_UNKNOWN, "semantic",
+          "\"{name}\" : aucun champ de ce nom. La cible en chaîne littérale "
+          "doit désigner un champ déclaré.",
+          "\"{name}\": no control with this name. A string-literal target must "
+          "designate a declared control.")
+OWL_ERROR(E_SEM_INTERCEPT_EVT_NOT_A_CONST, "semantic",
+          "'{name}' : attendu une constante d'événement evt* en 3e argument "
+          "d'IntercepteÉvénement (ex : evtClic, evtAChaqueModification).",
+          "'{name}': expected an evt* event constant as the 3rd argument of "
+          "InterceptEvent (e.g. evtClick, evtEachChange).")
+OWL_ERROR(E_SEM_INTERCEPT_EVT_NOT_OWNED, "semantic",
+          "L'événement '{evt}' n'est pas disponible sur le champ '{target}' "
+          "(type {kind}). Choisir un événement propre à ce type de champ.",
+          "Event '{evt}' is not available on control '{target}' (kind {kind}). "
+          "Pick an event supported by this control kind.")
 OWL_ERROR(E_SEM_DSL_PROC_DUPLICATE_IN_CONTROL, "semantic",
           "Bloc PROCEDURE '{name}' déjà déclaré pour ce champ.",
           "PROCEDURE block '{name}' already declared for this control.")
@@ -3721,6 +3768,19 @@ OWL_ERROR(E_SEM_TABLE_CELL_UNKNOWN_PROP, "semantic",
           "'{nom}' is not a Table formatting property: only 'Color', "
           "'BackgroundColor' and 'Content' exist (for example "
           "'{table}[1][1]..Color = RGB(200, 0, 0)').")
+/*  — `TABLE[l][c]..ValeurAffichée = ...` : la valeur affichée est une
+ * vue de rendu (texte formaté par le masque de la colonne), pas un casier
+ * assignable. L'écriture est refusée à la compilation ; la valeur brute de la
+ * cellule reste modifiable par le nom de colonne. */
+OWL_ERROR(E_SEM_TABLE_CELL_PROP_READONLY, "semantic",
+          "Propriété '{nom}' en lecture seule sur une cellule de Table : elle "
+          "expose le texte formaté affiché (rendu du masque de la colonne) et "
+          "ne peut pas être affectée. La valeur brute de la cellule se lit et "
+          "s'écrit via 'NomTable[ligne].NomColonne'.",
+          "Property '{nom}' is read-only on a Table cell: it exposes the "
+          "formatted displayed text (column mask rendering) and cannot be "
+          "assigned. The cell's raw value is read and written through "
+          "'TableName[row].ColumnName'.")
 /*  — miroir ZoneRépétée du refus cellule Table : `ZR_X[i].<nom>` doit
  * nommer un enfant declare de CETTE ZoneRépétée. Sans ca le descripteur de
  * ligne se comportait en sac de proprietes (nom invente ou enfant d'une autre

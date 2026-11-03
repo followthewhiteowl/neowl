@@ -1,0 +1,101 @@
+// Fenêtre voisine — ressource pour test_fenetre_plan_imbric.owl.
+//
+// Couvre deux cas d'imbrication que FEN_Plan.owl ne couvre pas :
+// 1. Un champ affecté à un plan, imbriqué DANS un Conteneur qui n'est lui-même
+//    pas affecté à un plan : la bascule du plan actif de la fenêtre doit se
+//    répercuter sur ce champ imbriqué.
+// 2. Un Conteneur affecté à un plan, qui contient une Table (champ qui ne
+//    porte pas lui-même de propriété Plan) : quand le conteneur est caché par
+//    la bascule de plan, la Table qu'il héberge doit l'être aussi.
+
+FEN_PlanImbric est une Fenêtre
+	PROPRIETES
+		Titre       = "Plan imbriqué"
+		Disposition = dispLibre
+		Largeur     = 400
+		Hauteur     = 400
+	FIN
+
+	// Cas 1 : conteneur sans plan, contenant un champ affecté à un plan et un
+	// champ sans plan.
+	CNT_Imbric est un Champ Conteneur
+		PROPRIETES
+			X           = 10
+			Y           = 10
+			Largeur     = 300
+			Hauteur     = 100
+			Disposition = dispLibre
+		FIN
+
+		LIB_ImbricPlan1 est un Champ Libellé
+			PROPRIETES
+				X       = 5
+				Y       = 5
+				Largeur = 150
+				Hauteur = 20
+				Libellé = "Imbriqué plan 1"
+				Plan    = 1
+			FIN
+		FIN
+
+		LIB_ImbricSansPlan est un Champ Libellé
+			PROPRIETES
+				X       = 5
+				Y       = 35
+				Largeur = 150
+				Hauteur = 20
+				Libellé = "Imbriqué sans plan"
+			FIN
+		FIN
+	FIN
+
+	// Cas 2 : conteneur affecté à un plan, hébergeant une Table (receveur
+	// sans propriété Plan propre — sa visibilité dépend de celle du parent).
+	CNT_PorteTable est un Champ Conteneur
+		PROPRIETES
+			X           = 10
+			Y           = 130
+			Largeur     = 300
+			Hauteur     = 200
+			Disposition = dispLibre
+			Plan        = 1
+		FIN
+
+		TABLE_DansConteneurPlan est un Champ Table
+			PROPRIETES
+				X       = 5
+				Y       = 5
+				Largeur = 280
+				Hauteur = 150
+			FIN
+
+			COL_ImbricA est une Colonne
+				PROPRIETES
+					Libellé = "A"
+					Type    = colTypeTexte
+					Largeur = 100
+				FIN
+			FIN
+		FIN
+	FIN
+
+	PROCEDURE DefinitFenPlanImbric(k est un entier)
+		FEN_PlanImbric..Plan = k
+	FIN
+
+	PROCEDURE LireVisibleImbricPlan1()
+		RENVOYER LIB_ImbricPlan1..Visible
+	FIN
+
+	PROCEDURE LireVisibleImbricSansPlan()
+		RENVOYER LIB_ImbricSansPlan..Visible
+	FIN
+
+	PROCEDURE LireVisibleConteneurPorteTable()
+		RENVOYER CNT_PorteTable..Visible
+	FIN
+
+	PROCEDURE LireVisibleTableDansConteneurPlan()
+		RENVOYER TABLE_DansConteneurPlan..Visible
+	FIN
+FIN

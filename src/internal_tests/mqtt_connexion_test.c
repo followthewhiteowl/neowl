@@ -1000,8 +1000,124 @@ static void cas_qos2_reception_dedup(void) {
     vm_free();
 }
 
+/* ================================================================
+ * Réception QoS 2 — débordement de fenêtre de dédup.
+ *
+ * Durcissement : la table de dédup RX doit couvrir TOUT l'espace
+ * packet-id, pas une fenêtre bornée. On injecte 17 PUBLISH QoS 2 à
+ * pids DISTINCTS (1..17), SANS PUBREL (donc 17 handshakes en vol
+ * simultané), puis un PUBLISH DUP du pid 1 (le plus ancien). Aucun
+ * PUBREL n'étant émis par le broker, aucun pid n'est libéré : les 17
+ * restent « en vol ».
+ *
+ * Contrat exactly-once : le pid 1 ne doit être livré qu'UNE fois. Le
+ * DUP n'ajoute aucune livraison -> handler appelé 17 fois (une par pid
+ * distinct), jamais 18.
+ *
+ * RED attendu sur une fenêtre fixe de 16 : l'ajout du pid 17 évince le
+ * pid 1 (FIFO plein) -> le DUP du pid 1 n'est plus « vu » -> re-livré ->
+ * 18 appels. VERT après le bitmap plein (zéro éviction).
+ * ================================================================ */
+
+/* Empile une trame PUBLISH QoS 2 (sujet "sujet/test", charge "hello")
+ * pour `pid`, avec ou sans drapeau DUP. Retourne le nombre d'octets
+ * écrits. */
+static size_t empile_publish_qos2(uint8_t* dst, uint16_t pid, bool dup) {
+    size_t n = 0;
+    dst[n++] = dup ? 0x3C : 0x34;          /* PUBLISH QoS2 (+DUP si retransmis) */
+    dst[n++] = 0x13;                        /* remLen = 19 */
+    dst[n++] = 0x00; dst[n++] = 0x0A;       /* longueur sujet = 10 */
+    memcpy(dst + n, "sujet/test", 10); n += 10;
+    dst[n++] = (uint8_t)(pid >> 8);
+    dst[n++] = (uint8_t)(pid & 0xFF);
+    memcpy(dst + n, "hello", 5); n += 5;
+    return n;
+}
+
+static void cas_qos2_reception_fenetre_debordement(void) {
+    static const char* CLIENT_ID = "owl-qos2-win";
+
+    vm_init();
+
+    /* CONNACK + SUBACK(pid1, QoS2) + 17 PUBLISH QoS2 (pids 1..17) +
+     * 1 PUBLISH DUP du pid 1. Aucun PUBREL : tous les pids restent en vol. */
+    uint8_t bundle[512];
+    size_t  b = 0;
+    static const uint8_t PREAMBULE[] = {
+        0x20, 0x02, 0x00, 0x00,                /* CONNACK accepte */
+        0x90, 0x03, 0x00, 0x01, 0x02,          /* SUBACK pid=1 accorde=QoS2 */
+    };
+    memcpy(bundle + b, PREAMBULE, sizeof(PREAMBULE)); b += sizeof(PREAMBULE);
+    for (uint16_t pid = 1; pid <= 17; pid++)
+        b += empile_publish_qos2(bundle + b, pid, false);
+    b += empile_publish_qos2(bundle + b, 1, true);   /* DUP du plus ancien pid */
+
+    OwlMockPeerConfig mc;
+    owl_mock_peer_config_defaut(&mc);
+    mc.role                  = OWL_MOCK_ROLE_ECOUTE;
+    mc.port                  = 0;
+    mc.octets                = (const char*)bundle;
+    mc.octets_len            = b;
+    mc.decoupe               = OWL_MOCK_DECOUPE_BLOC;
+    mc.octets_min_lecture    = 12;
+    mc.lire_apres_ecriture   = 1;
+    mc.timeout_lecture_ms    = 2000;
+    mc.fermer_apres_ecriture = 1;
+
+    OwlMockPeer* broker = owl_mock_peer_demarre(&mc);
+    CHECK(broker != NULL, "qos2win_broker_demarre");
+    if (broker == NULL) { vm_free(); return; }
+    int port = owl_mock_peer_port(broker);
+
+    char src[1000];
+    snprintf(src, sizeof(src),
+        "gQAppels est un entier = 0\n"
+        "PROCEDURE gQRecoit(sess est un mqttSession, sujet est une chaine, msg est un Buffer)\n"
+        "    gQAppels = gQAppels + 1\n"
+        "FIN\n"
+        "gSess est un mqttSession\n"
+        "gSess..Adresse = \"127.0.0.1\"\n"
+        "gSess..Port = %d\n"
+        "gSess..IDClient = \"%s\"\n"
+        "gConn est un booleen = MQTTConnecte(gSess)\n"
+        "gAb est un booleen = Faux\n"
+        "SI gConn ALORS\n"
+        "    gAb = MQTTAbonne(gSess, \"%s\", mqttQualiteExactementUneFois, gQRecoit)\n"
+        "FIN\n",
+        port, CLIENT_ID, QOS2_SUJET);
+
+    InterpretResult ir = vm_interpret(src);
+    CHECK(ir == INTERPRET_OK, "qos2win_harnais_execute");
+    CHECK(lit_globale_bool("gConn"), "qos2win_connecte");
+    CHECK(lit_globale_bool("gAb"), "qos2win_abonne");
+
+    Value session;
+    CHECK(lit_globale("gSess", &session) && IS_INSTANCE(session), "qos2win_session_lue");
+
+    OwlReacteur* r = owl_mqtt_reacteur_session(session);
+    CHECK(r != NULL, "qos2win_reacteur_session");
+
+    /* Le bundle (~390 octets) peut arriver en plusieurs recv : on ticke
+     * tant qu'il progresse, l'accumulateur rx frame paquet par paquet. */
+    for (int k = 0; k < 40; k++) {
+        if (r) owl_reacteur_tick(r, 100);
+    }
+
+    /* Coeur  : le DUP du pid 1 (évincé sur une fenêtre de 16) ne
+     * re-livre pas. 17 pids distincts -> 17 livraisons, jamais 18. */
+    int64_t appels = -1;
+    CHECK(lit_globale_entier("gQAppels", &appels) && appels == 17,
+          "qos2win_dup_hors_fenetre_non_relivre");
+
+    owl_mqtt_ferme(session);
+    owl_mock_peer_joint(broker);
+    owl_mock_peer_libere(broker);
+    vm_free();
+}
+
 static void famille_qos2_reception(void) {
     cas_qos2_reception_dedup();
+    cas_qos2_reception_fenetre_debordement();
 }
 
 /* ================================================================

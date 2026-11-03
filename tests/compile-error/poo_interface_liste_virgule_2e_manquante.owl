@@ -1,0 +1,29 @@
+// Compile-error : classe implemente deux interfaces listees par virgule,
+// mais il MANQUE une methode de la SECONDE interface de la liste.
+// Piege : un impl naif qui n'enregistre que la 1re interface laisserait
+// passer (toutes les methodes de iA sont fournies). Le contrat doit etre
+// verifie POUR CHAQUE interface listee → doit echouer sur Bar() de iB.
+// Note : viole 1c1f (interfaces + classe meme fichier) mais delibere pour
+// tester le check interface AVANT que 1c1f ne catche.
+
+iA est une Interface
+	PROCEDURE Foo()
+FIN
+
+iB est une Interface
+	PROCEDURE Bar()
+FIN
+
+cTest est une Classe
+	implemente iA, iB
+PUBLIC
+	PROCEDURE Foo()
+	FIN
+
+	// MANQUE : PROCEDURE Bar() — methode de la 2e interface de la liste.
+FIN
+
+PROCEDURE Main()
+	o est un cTest()
+	Trace(o)
+FIN

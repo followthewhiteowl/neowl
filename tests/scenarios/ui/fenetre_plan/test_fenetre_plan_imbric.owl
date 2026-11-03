@@ -1,0 +1,41 @@
+// @sujet : propriété Plan en imbrication (champ dans un conteneur, conteneur
+// portant un receveur sans propriété Plan propre)
+// @résumé : la visibilité pilotée par le plan actif de la fenêtre doit se
+// répercuter récursivement, y compris sur un champ niché dans un conteneur
+// qui lui-même n'appartient à aucun plan, et sur un champ qui n'a pas de
+// propriété Plan propre mais dont le parent direct en a une.
+//
+// Ressource DSL : FEN_PlanImbric.owl (voisin). Widgets natifs réels requis
+// (TestModeHeadless(Faux)) pour mesurer la visibilité effective.
+
+PROCEDURE PUBLIQUE scenario_plan_champ_imbrique_dans_conteneur_suit_le_plan_de_la_fenetre()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_PlanImbric)
+
+	DefinitFenPlanImbric(1)
+	dbgVérifieVrai(LireVisibleImbricPlan1(), "au plan actif 1, le champ imbriqué affecté au plan 1 est visible")
+	dbgVérifieVrai(LireVisibleImbricSansPlan(), "le champ imbriqué sans plan reste visible au plan actif 1")
+
+	DefinitFenPlanImbric(2)
+	dbgVérifieFaux(LireVisibleImbricPlan1(), "au plan actif 2, le champ imbriqué affecté au plan 1 est caché")
+	dbgVérifieVrai(LireVisibleImbricSansPlan(), "le champ imbriqué sans plan reste visible au plan actif 2")
+
+	Ferme(FEN_PlanImbric)
+FIN
+
+PROCEDURE PUBLIQUE scenario_plan_conteneur_affecte_masque_la_table_quil_heberge()
+	TestModeHeadless(Faux)
+	OuvreSoeur(FEN_PlanImbric)
+
+	DefinitFenPlanImbric(1)
+	dbgVérifieVrai(LireVisibleConteneurPorteTable(), "au plan actif 1, le conteneur affecté au plan 1 est visible")
+	dbgVérifieVrai(LireVisibleTableDansConteneurPlan(), "la table hébergée par ce conteneur est donc visible aussi")
+
+	DefinitFenPlanImbric(2)
+	dbgVérifieFaux(LireVisibleConteneurPorteTable(), "au plan actif 2, le conteneur affecté au plan 1 est caché")
+	dbgVérifieFaux(LireVisibleTableDansConteneurPlan(), "la table héritée du conteneur caché est elle aussi non visible")
+
+	Ferme(FEN_PlanImbric)
+FIN
+
+dbgBilanTest()

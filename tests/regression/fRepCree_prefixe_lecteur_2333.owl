@@ -1,0 +1,41 @@
+// Non-regression  : fRepCree sur chemin absolu profond (avec prefixe
+// de lecteur sur Windows) ne doit plus tenter de creer le lecteur lui-meme, et
+// la native renvoie un booleen exploitable (Vrai si cree OU deja existant).
+//
+// Le defaut d'origine (echec cross-partition depuis D: vers C:\...) n'est pas
+// reproductible de facon portable (pas de 2e lecteur en CI, cwd par-lecteur
+// Windows non simulable). On verrouille le deterministe : arbo absolue creee,
+// idempotence sur dossier existant, retour booleen utilisable dans un SI.
+
+Trace("=== fix_2333 fRepCree prefixe lecteur + retour booleen ===")
+
+tempDir_2333 est une chaîne = fRepTemp()
+dbgVérifieVrai(Taille(tempDir_2333) > 0, "fRepTemp non vide")
+
+// Chemin absolu profond : sur Windows tempDir porte un prefixe de lecteur (C:\...)
+// donc ce scenario exerce bien le chemin de code corrige.
+racine_2333 est une chaîne = tempDir_2333 + "/owl_fix2333_root"
+profond_2333 est une chaîne = racine_2333 + "/niv1/niv2/niv3"
+
+// --- Creation recursive absolue : retour Vrai, arbo reellement creee ---
+cree_2333 est un booléen = fRepCree(profond_2333)
+dbgVérifieEgalité(cree_2333, Vrai, "fRepCree chemin absolu profond renvoie Vrai")
+dbgVérifieVrai(fRepExiste(profond_2333), "l'arbo profonde existe apres creation")
+dbgVérifieVrai(fRepExiste(racine_2333), "le dossier racine intermediaire existe")
+
+// --- Canon : dossier deja existant -> Vrai (pas Faux) ---
+reCree_2333 est un booléen = fRepCree(profond_2333)
+dbgVérifieEgalité(reCree_2333, Vrai, "fRepCree sur dossier existant renvoie Vrai (canon)")
+
+// --- Le retour est un booleen exploitable dans un SI ---
+nMarqueur_2333 est un entier = 0
+SI fRepCree(racine_2333 + "/branche_si") ALORS
+    nMarqueur_2333 = 7
+FIN
+dbgVérifieEgalité(nMarqueur_2333, 7, "retour booleen exploitable dans un SI")
+
+// --- Cleanup ---
+dbgVérifieVrai(fRepSupprime(racine_2333, Vrai), "cleanup recursif")
+dbgVérifieFaux(fRepExiste(racine_2333), "arbo bien supprimee")
+
+dbgBilanTest()

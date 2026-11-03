@@ -49,6 +49,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <sys/stat.h>
 
 /* ====================================================================
@@ -104,6 +105,13 @@ typedef struct {
      * construit le proxy-colonne (TABLE.COL, ) et le pousse comme sender.
      * Vide = comportement historique (sender = widget nomme par sender_name). */
     char         sender_col[128];
+    /*  — index dedup de l'evenement (OWL_EVT_BASE + evt_index = la
+     * constante evtX), ou -1 si l'evenement n'a pas de constante evt* (events
+     * de fenetre lifecycle : Fermeture, Redimensionnement...). Renseigne au
+     * cablage pour que dispatch_event/dispatch_image_event_n consultent la
+     * table d'interception avec la MEME clef (champ, evt_index) que le chemin
+     * trigger (fn_declenche_evenement). -1 => pas d'interception possible. */
+    int          evt_index;
 } EventBinding;
 
 /*  — table de bindings DYNAMIQUE (grow, plus de drop silencieux).
@@ -121,6 +129,76 @@ static int           g_binding_count = 0;
 static int           g_binding_cap = 0;
 
 static void reset_bindings(void) { g_binding_count = 0; }
+
+/* ====================================================================
+ *   — Interception dynamique d'evenement nomme.
+ *
+ *  IntercepteEvenement(proc, champ, evtX) attache une procedure appelee
+ *  AVANT le bloc statique du champ quand l'evenement survient. Un retour
+ *  booleen Faux de la proc supprime le bloc statique. Une seule
+ *  interception par couple (champ, evt) : re-attacher remplace.
+ *
+ *  Stockage : un ObjAssocArray (cle composite "<champ>\x1f<index evt>",
+ *  valeur = callable) rootee par UNE racine persistante (g_intercepts,
+ *  enregistree dans stdlib_ui_init). Ses valeurs callables sont donc
+ *  marquees par le GC via le blacken standard de l'assoc — pas de slot
+ *  dynamique a enregistrer (discipline /0058). Remise a zero a
+ *  chaque Ouvre top-level (meme cycle de vie que g_bindings).
+ * ==================================================================== */
+static Value g_intercepts = NIL_VAL;
+
+static ObjAssocArray* intercepts_ensure(void) {
+    if (!IS_ASSOC_ARRAY(g_intercepts)) {
+        g_intercepts = OBJ_VAL(obj_new_assoc(ASSOC_KEY_STRING, 0,
+                                             ASSOC_VALUE_VARIANT));
+    }
+    return AS_ASSOC_ARRAY(g_intercepts);
+}
+
+static void intercepts_reset(void) {
+    if (IS_ASSOC_ARRAY(g_intercepts)) obj_assoc_clear(AS_ASSOC_ARRAY(g_intercepts));
+}
+
+/* Cle composite champ+evt. SEP = 0x1f (unit separator), hors des noms de
+ * champ et des chiffres de l'index evt*. Retourne la longueur ecrite. */
+static int intercept_key(char* buf, size_t cap, const char* ctrl, int evtIndex) {
+    return snprintf(buf, cap, "%s\x1f%d", ctrl, evtIndex);
+}
+
+/* Retrouve la proc interceptee pour (champ, evt). true + *out si presente. */
+static bool intercept_lookup(const char* ctrl, int evtIndex, Value* out) {
+    if (!IS_ASSOC_ARRAY(g_intercepts)) return false;
+    char key[160];
+    int kn = intercept_key(key, sizeof(key), ctrl, evtIndex);
+    if (kn <= 0) return false;
+    ObjString* k = obj_copy_string(key, kn);
+    int exists = 0;
+    Value v = obj_assoc_get(AS_ASSOC_ARRAY(g_intercepts), k, &exists);
+    if (!exists) return false;
+    if (out) *out = v;
+    return true;
+}
+
+/*  — defini plus bas (pres de fn_declenche_evenement) : execute la
+ * proc interceptee et renvoie true si elle a renvoye Faux (bloc statique a
+ * supprimer). Forward-declare pour le dispatch GUI (dispatch_event /
+ * dispatch_image_event_n), qui precede sa definition. */
+static bool run_interception(Value fnVal, Value sender,
+                             const Value* payload, int payloadCount);
+
+/*  — consultation partagee trigger/GUI : si une proc est attachee sur
+ * (sender_name, evt_index), elle tourne AVANT le bloc statique avec la meme
+ * semantique que le chemin trigger. Retourne false si le bloc statique doit
+ * etre SUPPRIME (la proc a renvoye Faux), true sinon (y compris aucune
+ * interception attachee, ou evt_index < 0). */
+static bool intercept_should_run_static(const char* sender_name, int evt_index,
+                                        Value sender, const Value* payload,
+                                        int payloadCount) {
+    if (evt_index < 0 || sender_name == NULL || sender_name[0] == '\0') return true;
+    Value interceptor = NIL_VAL;
+    if (!intercept_lookup(sender_name, evt_index, &interceptor)) return true;
+    return !run_interception(interceptor, sender, payload, payloadCount);
+}
 
 /*  — profondeur de handler OWL "en vol".
  *
@@ -177,6 +255,7 @@ static int register_binding(ObjFunction* fn, bool is_window) {
     g_bindings[g_binding_count].is_window_event = is_window;
     g_bindings[g_binding_count].sender_name[0] = '\0';
     g_bindings[g_binding_count].sender_col[0] = '\0';
+    g_bindings[g_binding_count].evt_index = -1;  /*  — defaut: pas d'evt* */
     return g_binding_count++;
 }
 
@@ -194,6 +273,16 @@ static int register_binding_named(ObjFunction* fn, bool is_window,
             memcpy(g_bindings[idx].sender_name, sender_name, n + 1);
         }
     }
+    return idx;
+}
+
+/*  — variante qui attache en plus l'index dedup de l'evenement, pour
+ * que le dispatch GUI consulte la table d'interception avec la clef
+ * (champ, evt_index). evt_index = -1 est accepte (pas d'evt*). */
+static int register_binding_named_evt(ObjFunction* fn, bool is_window,
+                                      const char* sender_name, int evt_index) {
+    int idx = register_binding_named(fn, is_window, sender_name);
+    if (idx >= 0) g_bindings[idx].evt_index = evt_index;
     return idx;
 }
 
@@ -441,6 +530,12 @@ static void dispatch_event(OwlControl* sender, void* userdata) {
                  ? moimeme_widget_value_for_name(b->sender_name)
                  : NIL_VAL;
     }
+    /*  — interception dynamique AVANT le bloc statique (meme clef et
+     * meme semantique que le chemin trigger). Retour Faux de la proc => le bloc
+     * statique est supprime. b->fn peut etre NULL (binding "interception seule"
+     * pose par l'install paresseux) : call_event_block est alors un no-op. */
+    if (!intercept_should_run_static(b->sender_name, b->evt_index, widget, NULL, 0))
+        return;
     call_event_block_with_sender(b->fn, b->is_window_event, widget);
 }
 
@@ -476,12 +571,19 @@ static void dispatch_image_event_n(OwlControl* sender, void* userdata,
     int idx = (int)(intptr_t)userdata;
     if (idx < 0 || idx >= g_binding_count) return;
     EventBinding* b = &g_bindings[idx];
-    if (!b->fn) return;
-    owl_handler_enter();
     /*  — push event_sender autour de l'appel (heritage chain MoiMême). */
     Value widget = (b->sender_name[0] != '\0')
                    ? moimeme_widget_value_for_name(b->sender_name)
                    : NIL_VAL;
+    /*  — interception dynamique AVANT le bloc statique, avec le payload
+     * de l'evenement (meme convention que le chemin trigger). Retour Faux => le
+     * bloc statique est supprime. b->fn NULL (binding "interception seule") : la
+     * proc tourne quand meme, puis on s'arrete (pas de bloc a executer). */
+    if (!intercept_should_run_static(b->sender_name, b->evt_index, widget,
+                                     payload, payloadCount))
+        return;
+    if (!b->fn) return;
+    owl_handler_enter();
     vm_event_sender_push(widget);
     int arity = b->fn->arity;
     /* Slots synthetiques implicites selon le contexte :
@@ -706,6 +808,104 @@ static const char* prop_str(const OwlPropertyInit* props, int n,
         if (IS_STRING(resolved)) return AS_CSTRING(resolved);
     }
     return dflt;
+}
+
+/*  — forçage de casse du masque de saisie. Les constantes
+ * maskMajus/maskMinus/maskPMajus posées sur MasqueSaisie ne mutilent PAS la
+ * valeur stockée (..Valeur reste la forme brute) : elles ne pilotent QUE le
+ * rendu ..ValeurAffichée (vue calculée, lecture seule). Le token rangé dans le
+ * store est la chaîne canonique de la constante ; on le reconnaît ici sous sa
+ * forme FR ou EN canon. */
+typedef enum {
+    OWL_CASE_MASK_NONE = 0,
+    OWL_CASE_MASK_UPPER,
+    OWL_CASE_MASK_LOWER,
+    OWL_CASE_MASK_FIRST_UPPER,
+    OWL_CASE_MASK_WORDS_UPPER
+} OwlCaseMaskMode;
+
+static OwlCaseMaskMode input_case_mask_mode(const char* mask) {
+    if (mask == NULL || mask[0] == '\0') return OWL_CASE_MASK_NONE;
+    if (strcasecmp(mask, "maskMajus") == 0 || strcasecmp(mask, "maskUpper") == 0)
+        return OWL_CASE_MASK_UPPER;
+    if (strcasecmp(mask, "maskMinus") == 0 || strcasecmp(mask, "maskLower") == 0)
+        return OWL_CASE_MASK_LOWER;
+    if (strcasecmp(mask, "maskPMajus") == 0 || strcasecmp(mask, "maskFUpper") == 0)
+        return OWL_CASE_MASK_FIRST_UPPER;
+    if (strcasecmp(mask, "maskMotsMajus") == 0 || strcasecmp(mask, "maskWordsUpper") == 0)
+        return OWL_CASE_MASK_WORDS_UPPER;
+    return OWL_CASE_MASK_NONE;
+}
+
+/* Conversion de casse UTF-8 (ASCII + Latin-1 Supplément), miroir du moteur de
+ * Majuscule/Minuscule : ASCII via toupper/tolower, octet 2 des séquences 0xC3
+ * via ±0x20 (en sautant ÷/×), autres octets inchangés. Écrit len octets. */
+static void input_case_convert(const char* src, int len, char* dst, bool toUpper) {
+    for (int i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if (c < 0x80) {
+            dst[i] = toUpper ? (char)toupper(c) : (char)tolower(c);
+            continue;
+        }
+        if (c == 0xC3 && i + 1 < len) {
+            unsigned char c2 = (unsigned char)src[i + 1];
+            if (toUpper && c2 >= 0xA0 && c2 <= 0xBE && c2 != 0xB7) {
+                dst[i] = (char)0xC3; dst[i + 1] = (char)(c2 - 0x20); i++; continue;
+            }
+            if (!toUpper && c2 >= 0x80 && c2 <= 0x9E && c2 != 0x97) {
+                dst[i] = (char)0xC3; dst[i + 1] = (char)(c2 + 0x20); i++; continue;
+            }
+        }
+        dst[i] = src[i];
+    }
+}
+
+/* Applique un mode de forçage de casse à `raw` et renvoie une NOUVELLE chaîne
+ * (le rendu ..ValeurAffichée). NONE -> copie fidèle. FIRST_UPPER ne touche QUE
+ * le premier point de code s'il est une lettre ; le reste est recopié tel quel
+ * (pas de title-case par mot). WORDS_UPPER (extension OWL, sans canon) : miroir
+ * de FIRST_UPPER appliqué à la 1ère lettre de chaque mot (séparateur = espace),
+ * le reste de chaque mot inchangé. */
+static ObjString* input_case_render(const char* raw, OwlCaseMaskMode mode) {
+    if (raw == NULL) raw = "";
+    int len = (int)strlen(raw);
+    if (mode == OWL_CASE_MASK_NONE || len == 0)
+        return obj_copy_string(raw, len);
+    char* buf = ALLOCATE(char, len + 1);
+    switch (mode) {
+        case OWL_CASE_MASK_UPPER: input_case_convert(raw, len, buf, true);  break;
+        case OWL_CASE_MASK_LOWER: input_case_convert(raw, len, buf, false); break;
+        case OWL_CASE_MASK_FIRST_UPPER: {
+            int cplen = ((unsigned char)raw[0] == 0xC3 && len >= 2) ? 2 : 1;
+            input_case_convert(raw, cplen, buf, true);
+            if (len > cplen) memcpy(buf + cplen, raw + cplen, (size_t)(len - cplen));
+            break;
+        }
+        case OWL_CASE_MASK_WORDS_UPPER: {
+            int i = 0;
+            bool at_word_start = true;
+            while (i < len) {
+                if (raw[i] == ' ') {
+                    buf[i] = ' ';
+                    at_word_start = true;
+                    i += 1;
+                    continue;
+                }
+                int cplen = ((unsigned char)raw[i] == 0xC3 && i + 1 < len) ? 2 : 1;
+                if (at_word_start) {
+                    input_case_convert(raw + i, cplen, buf + i, true);
+                    at_word_start = false;
+                } else {
+                    memcpy(buf + i, raw + i, (size_t)cplen);
+                }
+                i += cplen;
+            }
+            break;
+        }
+        default: memcpy(buf, raw, (size_t)len); break;
+    }
+    buf[len] = '\0';
+    return obj_take_string(buf, len);
 }
 
 /*  — taille de rasterisation d'une icone de controle.
@@ -1351,7 +1551,8 @@ static void bind_events_0(OwlControl* widget, const OwlControlDecl* ctrl,
         const OwlEventBlock* e = find_event(ctrl->events, ctrl->event_count,
                                              evs[i].sur, evs[i].en);
         if (!e) continue;
-        int idx = register_binding_named(e->impl, false, ctrl->name);
+        int ei = owl_widget_event_dedup_index(evs[i].sur, evs[i].en);
+        int idx = register_binding_named_evt(e->impl, false, ctrl->name, ei);
         if (idx >= 0) evs[i].hook(widget, dispatch_event, (void*)(intptr_t)idx);
     }
 }
@@ -1392,8 +1593,10 @@ static void bind_events_key(OwlControl* widget, const OwlControlDecl* ctrl) {
             "surToucheAppuy\xc3\xa9""e", "onKeyDown");
     const OwlEventBlock* kup = find_event(ctrl->events, ctrl->event_count,
             "surToucheRel\xc3\xa2""ch\xc3\xa9""e", "onKeyUp");
-    int idown = kdown ? register_binding_named(kdown->impl, false, ctrl->name) : -1;
-    int iup   = kup   ? register_binding_named(kup->impl,   false, ctrl->name) : -1;
+    int eidown = owl_widget_event_dedup_index("surToucheAppuy\xc3\xa9""e", "onKeyDown");
+    int eiup   = owl_widget_event_dedup_index("surToucheRel\xc3\xa2""ch\xc3\xa9""e", "onKeyUp");
+    int idown = kdown ? register_binding_named_evt(kdown->impl, false, ctrl->name, eidown) : -1;
+    int iup   = kup   ? register_binding_named_evt(kup->impl,   false, ctrl->name, eiup)   : -1;
     owl_ui_install_key_filter(widget,
         (idown >= 0) ? dispatch_image_event_1i : NULL, (void*)(intptr_t)idown,
         (iup   >= 0) ? dispatch_image_event_1i : NULL, (void*)(intptr_t)iup);
@@ -1412,8 +1615,9 @@ static void bind_image_field_events(OwlControl* widget, const OwlControlDecl* ct
             const OwlEventBlock* e = find_event(ctrl->events,    \
                 ctrl->event_count, evname, NULL);                \
             if (e) {                                             \
-                int bidx = register_binding_named(e->impl,       \
-                    false, ctrl->name);                          \
+                int bidx = register_binding_named_evt(e->impl,   \
+                    false, ctrl->name,                           \
+                    owl_widget_event_dedup_index(evname, NULL)); \
                 if (bidx >= 0) on_fn(widget,                    \
                     dispatch_image_event_0,                      \
                     (void*)(intptr_t)bidx);                      \
@@ -1424,8 +1628,9 @@ static void bind_image_field_events(OwlControl* widget, const OwlControlDecl* ct
             const OwlEventBlock* e = find_event(ctrl->events,    \
                 ctrl->event_count, evname, NULL);                \
             if (e) {                                             \
-                int bidx = register_binding_named(e->impl,       \
-                    false, ctrl->name);                          \
+                int bidx = register_binding_named_evt(e->impl,   \
+                    false, ctrl->name,                           \
+                    owl_widget_event_dedup_index(evname, NULL)); \
                 if (bidx >= 0) on_fn(widget,                    \
                     dispatch_image_event_2i,                     \
                     (void*)(intptr_t)bidx);                      \
@@ -1436,8 +1641,9 @@ static void bind_image_field_events(OwlControl* widget, const OwlControlDecl* ct
             const OwlEventBlock* e = find_event(ctrl->events,    \
                 ctrl->event_count, evname, NULL);                \
             if (e) {                                             \
-                int bidx = register_binding_named(e->impl,       \
-                    false, ctrl->name);                          \
+                int bidx = register_binding_named_evt(e->impl,   \
+                    false, ctrl->name,                           \
+                    owl_widget_event_dedup_index(evname, NULL)); \
                 if (bidx >= 0) on_fn(widget,                    \
                     dispatch_image_event_3i,                     \
                     (void*)(intptr_t)bidx);                      \
@@ -1572,7 +1778,8 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
             const OwlEventBlock* clic = find_event(ctrl->events, ctrl->event_count,
                                                     "surClic", "onClick");
             if (clic && widget) {
-                int idx = register_binding_named(clic->impl, false, ctrl->name);
+                int idx = register_binding_named_evt(clic->impl, false, ctrl->name,
+                    owl_widget_event_dedup_index("surClic", "onClick"));
                 if (idx >= 0) {
                     owl_ui_button_on_click(widget, dispatch_event,
                                            (void*)(intptr_t)idx);
@@ -1721,6 +1928,12 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
             /* MasqueSaisie (V1.5 : texte simple). */
             const char* masque = prop_str(ctrl->properties, ctrl->property_count,
                                            "MasqueSaisie", "InputMask", NULL);
+            /*  — un masque de forçage de casse (maskMajus/Minus/PMajus)
+             * ne pose AUCUN masque de frappe Qt : un masque à positions fixes
+             * mutilerait la valeur saisie. Le token reste dans le store et le
+             * rendu casse se calcule au GET ..ValeurAffichée. */
+            if (masque && input_case_mask_mode(masque) != OWL_CASE_MASK_NONE)
+                masque = NULL;
             if (masque) {
                 owl_ui_lineedit_set_mask(widget, masque);
             } else if (widget && typeSaisie == OWL_TYPESAISIE_DUREE) {
@@ -1940,6 +2153,35 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
                          * add_column reste le discriminateur du framework. */
                         owl_ui_table_set_column_format(widget, ci + 1, "", "");
                     }
+                }
+
+                /*  — events de COLONNE : surAChaqueModification (frappe
+                 * dans l'editeur de cellule) + surSortie (fin d'edition / sortie
+                 * de la colonne), cables par colonne au pipeline d'edition Qt.
+                 * MoiMeme = la colonne (proxy TABLE.COL), coherent avec le canon
+                 * (une colonne se comporte comme le controle de son type). */
+                for (int ci = 0; ci < ctrl->column_count; ci++) {
+                    const OwlColumnDecl* col = &ctrl->columns[ci];
+                    if (col->event_count == 0) continue;
+                    const OwlEventBlock* evModif = find_event(col->events,
+                        col->event_count, "surAChaqueModification", "onEachChange");
+                    const OwlEventBlock* evExit = find_event(col->events,
+                        col->event_count, "surSortie", "onExit");
+                    if (!evModif && !evExit) continue;
+                    char colStrip[128];
+                    int csl = scanner_strip_accents(col->name,
+                        (int)strlen(col->name), colStrip, sizeof colStrip);
+                    if (csl <= 0 || csl >= (int)sizeof colStrip) continue;
+                    colStrip[csl] = '\0';
+                    int modifIdx = evModif ? register_binding_named_col(
+                        evModif->impl, false, ctrl->name, colStrip) : -1;
+                    int exitIdx = evExit ? register_binding_named_col(
+                        evExit->impl, false, ctrl->name, colStrip) : -1;
+                    owl_ui_table_column_bind_events(widget, ci + 1,
+                        (modifIdx >= 0) ? dispatch_event : NULL,
+                        (void*)(intptr_t)modifIdx,
+                        (exitIdx >= 0) ? dispatch_event : NULL,
+                        (void*)(intptr_t)exitIdx);
                 }
 
                 /* Events lifecycle propres a la Table (signaux QTableView). */
@@ -2318,7 +2560,9 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
                 ctrl->event_count, "surS\xc3\xa9lectionLigne",
                 "onRowSelection");
             if (selev) {
-                int bidx = register_binding_named(selev->impl, false, ctrl->name);
+                int bidx = register_binding_named_evt(selev->impl, false, ctrl->name,
+                    owl_widget_event_dedup_index("surS\xc3\xa9lectionLigne",
+                                                 "onRowSelection"));
                 if (bidx >= 0) {
                     owl_ui_zr_on_row_select(widget, dispatch_image_event_2i,
                                              (void*)(intptr_t)bidx);
@@ -2650,6 +2894,15 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
         int altitude = prop_int(ctrl->properties, ctrl->property_count,
                                  "Altitude", "Altitude", -1);
         if (altitude >= 0) owl_ui_control_set_altitude(widget, altitude);
+
+        /*  — Plan d'appartenance. -1 (non declare) = SANS plan
+         * (toujours visible, on ne pose pas la dynamic-property). >= 0 : le
+         * champ appartient a ce plan et n'est visible que lorsque le plan
+         * actif de la fenetre coincide. La visibilite initiale est calculee
+         * ici par owl_ui_control_set_plan (plan actif par defaut 0). */
+        int plan = prop_int(ctrl->properties, ctrl->property_count,
+                             "Plan", "Plane", -1);
+        if (plan >= 0) owl_ui_control_set_plan(widget, plan);
 
         /* CurseurSouris — defaut -1 (non specifie) ; sentinels OWL_CUR_*. */
         int curseur = prop_int(ctrl->properties, ctrl->property_count,
@@ -4128,6 +4381,16 @@ static Value real_ui_get_prop(ObjUiControl* c, const char* prop) {
         return INTEGER_VAL(owl_ui_control_get_y(w));
     }
 
+    /*  — ..Plan sur un CHAMP = plan d'appartenance. Un champ sans
+     * plan renvoie 0 (convention Lot 1) ; un champ affecte renvoie son plan.
+     * L'etat interne distingue "sans plan" (toujours visible) de "plan 0"
+     * (visible SSI plan actif 0), mais la lecture aplatit les deux a 0. */
+    if (strcasecmp(prop, "Plan") == 0 || strcasecmp(prop, "Plane") == 0) {
+        int plan = 0;
+        owl_ui_control_get_plan(w, &plan);
+        return INTEGER_VAL(plan);
+    }
+
     /* --- Etats --- */
     if (strcasecmp(prop, "Visible") == 0)
         return BOOL_VAL(owl_ui_control_get_visible(w) != 0);
@@ -4370,6 +4633,24 @@ static Value real_ui_get_prop(ObjUiControl* c, const char* prop) {
             if (!s) s = "";
             return OBJ_VAL(obj_copy_string(s, (int)strlen(s)));
         }
+        /*  — ..ValeurAffichée : vue de rendu masqué du champ (lecture
+         * seule). Pour un masque de forçage de casse, c'est ..Valeur rendue
+         * casse-forcée ; sans masque de casse, c'est ..Valeur telle quelle.
+         * ..Valeur (forme stockée brute) n'est jamais transformée. */
+        if (strcasecmp(prop, "ValeurAffichee") == 0 ||
+            strcasecmp(prop, "DisplayedValue") == 0) {
+            const char* raw = owl_ui_lineedit_get_text(w);
+            if (!raw) raw = "";
+            OwlCaseMaskMode mode = OWL_CASE_MASK_NONE;
+            ObjUiControlInstance* uici = current_window_uici_by_name(c->name);
+            if (uici != NULL) {
+                Value mv;
+                if (obj_ui_control_instance_headless_get(uici, "MasqueSaisie", &mv)
+                    && IS_STRING(mv))
+                    mode = input_case_mask_mode(AS_CSTRING(mv));
+            }
+            return OBJ_VAL(input_case_render(raw, mode));
+        }
     }
 
     /* --- Specifiques Champ CodeBarres : les metadonnees du code-barres
@@ -4536,6 +4817,32 @@ static bool window_set_prop_qt(OwlWindow* w, const char* prop, Value v) {
     return false;
 }
 
+/*  — recompute de la visibilite par plan. Le Qt est l'autorite de
+ * l'affichage (owl_ui_window_set_active_plan : setVisible par enfant porteur
+ * d'un plan + retarget focus + plan actif en dynamic-property). Mais la
+ * lecture `CHAMP..Visible` via un ObjUiControlRef passe par le casier
+ * d'instance (store), pas par Qt live : on y reflete donc la visibilite
+ * calculee, exactement comme le fait le setter Visible (store + Qt
+ * synchrones).
+ *  — la visibilite effective tient compte de la CHAINE d'ancetres :
+ * un champ sans plan propre mais niche dans un conteneur affecte a un plan est
+ * masque avec lui. On delegue a owl_ui_control_plan_effective_visible, qui
+ * renvoie -1 pour un champ "libre" (aucun plan sur lui ni ses ancetres) :
+ * celui-la n'est pas touche (visibilite libre, pilotee par l'utilisateur). */
+static void window_apply_active_plan(ObjWindowInstance* wi, int plan) {
+    if (!wi) return;
+    if (wi->widget) owl_ui_window_set_active_plan((OwlWindow*)wi->widget, plan);
+    for (int i = 0; i < wi->control_count; i++) {
+        ObjUiControlInstance* uici = wi->controls[i];
+        if (!uici || !uici->widget) continue;
+        int eff = owl_ui_control_plan_effective_visible((OwlControl*)uici->widget,
+                                                        plan);
+        if (eff < 0) continue;  /* champ libre : visibilite non gouvernee */
+        obj_ui_control_instance_headless_set(uici, "Visible",
+                                             BOOL_VAL(eff != 0));
+    }
+}
+
 /*  lot C — hook owl_ui_apply_window_scalar.
  * Symetrique strict d'apply_instance_scalar_impl : delegue au helper Qt
  * en castant wi->widget en OwlWindow*. Pas de feedback si la prop est
@@ -4568,6 +4875,14 @@ static void apply_window_scalar_impl(ObjWindowInstance* wi,
         }
         build_window_main_menu((OwlWindow*)wi->widget, wi->decl,
                                IS_STRING(v) ? AS_CSTRING(v) : NULL);
+        return;
+    }
+    /*  — bascule du plan actif : recalcul visibilite (Qt + store) de
+     * tous les champs porteurs d'un plan + retarget focus. Le store d'instance
+     * fenetre (ecrit par vm.c avant ce hook) reste la source de la lecture
+     * `FEN..Plan`. */
+    if (strcasecmp(prop, "Plan") == 0 || strcasecmp(prop, "Plane") == 0) {
+        window_apply_active_plan(wi, IS_INTEGER(v) ? (int)AS_INTEGER(v) : 0);
         return;
     }
     if (!wi->widget) return;
@@ -6755,6 +7070,13 @@ static bool real_ui_set_prop(ObjUiControl* c, const char* prop, Value v) {
         owl_ui_control_set_enabled(w, b ? 0 : 1);
         return true;
     }
+    /*  — ..Plan sur un CHAMP = (re)affectation du plan d'appartenance.
+     * Pose la dynamic-property owl_plan puis recalcule la visibilite du champ
+     * vis-a-vis du plan actif de sa fenetre. */
+    if (strcasecmp(prop, "Plan") == 0 || strcasecmp(prop, "Plane") == 0) {
+        if (IS_INTEGER(v)) owl_ui_control_set_plan(w, (int)AS_INTEGER(v));
+        return true;
+    }
     if (strcasecmp(prop, "Largeur") == 0 || strcasecmp(prop, "Width") == 0) {
         if (IS_INTEGER(v)) owl_ui_control_set_width(w, (int)AS_INTEGER(v));
         return true;
@@ -7303,7 +7625,13 @@ static bool real_ui_set_prop(ObjUiControl* c, const char* prop, Value v) {
         if (strcasecmp(prop, "MasqueSaisie") == 0 ||
             strcasecmp(prop, "InputMask") == 0) {
             ObjString* s = value_to_string(v);
-            owl_ui_lineedit_set_mask(w, s ? s->chars : "");
+            const char* m = s ? s->chars : "";
+            /*  — masque de forçage de casse : pas de masque de frappe
+             * Qt (il mutilerait ..Valeur). Le store porte le token -> le rendu
+             * casse se fait au GET ..ValeurAffichée. On efface tout masque
+             * résiduel pour laisser la saisie libre. */
+            owl_ui_lineedit_set_mask(
+                w, input_case_mask_mode(m) != OWL_CASE_MASK_NONE ? "" : m);
             return true;
         }
     }
@@ -7421,10 +7749,16 @@ static ObjUiControlInstance* onglet_volet_at(ObjWindowInstance* win,
  * en declare un). Sender = la ref globale du champ pour que MoiMême resolve. */
 static void onglet_fire_change_event(ObjUiControlInstance* ong) {
     if (!ong || !ong->decl) return;
+    Value sender = moimeme_widget_value_for_name(ong->decl->name);
+    /*  — l'Onglet ne passe pas par g_bindings (chemin dedie currentChanged
+     * / OP_STRUCT_SET) : on consulte ici la table d'interception avec la meme clef
+     * (champ, evt_index) et la meme semantique que le chemin trigger. Retour Faux
+     * de la proc interceptee => le bloc statique est supprime. */
+    int ei = owl_widget_event_dedup_index("surChangementVolet", "onPaneChange");
+    if (!intercept_should_run_static(ong->decl->name, ei, sender, NULL, 0)) return;
     const OwlEventBlock* ev = find_event(ong->decl->events, ong->decl->event_count,
                                          "surChangementVolet", "onPaneChange");
     if (!ev || !ev->impl) return;
-    Value sender = moimeme_widget_value_for_name(ong->decl->name);
     call_event_block_with_sender(ev->impl, false, sender);
 }
 
@@ -7474,6 +7808,33 @@ static void control_logic_after_set_impl(ObjUiControlInstance* uici,
                                          Value old, Value neuf) {
     if (!uici || !uici->decl || !prop) return;
     OwlControlKind kind = (OwlControlKind)uici->decl->kind;
+
+    /*  — Saisie : ..ValeurAffichée est une vue de rendu masqué, dérivée
+     * de ..Valeur + ..MasqueSaisie. On la (re)calcule dans le store à chaque
+     * écriture de l'une ou l'autre, pour que la lecture headless la retrouve
+     * (en headless le widget est NULL -> pas de calcul Qt-first). ..Valeur, la
+     * forme stockée brute, n'est jamais transformée. */
+    if (kind == OWL_CONTROL_INPUT
+        && (strcasecmp(prop, "Valeur") == 0 || strcasecmp(prop, "Value") == 0 ||
+            strcasecmp(prop, "MasqueSaisie") == 0 ||
+            strcasecmp(prop, "InputMask") == 0)) {
+        const char* raw = "";
+        Value rawV;
+        if (obj_ui_control_instance_headless_get(uici, "Valeur", &rawV)
+            && IS_STRING(rawV))
+            raw = AS_CSTRING(rawV);
+        OwlCaseMaskMode mode = OWL_CASE_MASK_NONE;
+        Value mv;
+        if (obj_ui_control_instance_headless_get(uici, "MasqueSaisie", &mv)
+            && IS_STRING(mv))
+            mode = input_case_mask_mode(AS_CSTRING(mv));
+        ObjString* rendered = input_case_render(raw, mode);
+        vm_push(OBJ_VAL(rendered));
+        obj_ui_control_instance_headless_set(
+            uici, "ValeurAffich\xc3\xa9""e", OBJ_VAL(rendered));
+        vm_pop();
+        /* pas de return : laisse la logique commune éventuelle suivre. */
+    }
 
     /*  — Champ Jauge : props numeriques entieres. En OWL, `/` produit
      * toujours un reel (JAU..Valeur = num * 100 / total). Le store d'instance
@@ -8456,6 +8817,21 @@ static const char* window_effective_main_menu_name(ObjWindowInstance* wi,
     return decl ? decl->main_menu_name : NULL;
 }
 
+/*  — relais du Plan d'appartenance pour les widgets composites
+ * (Conteneur, Onglet, Volet) qui NE transitent PAS par build_control. Les
+ * champs simples recoivent leur plan dans build_control (cf ~L2660) ; les
+ * composites, construits par des branches dediees de la boucle de build,
+ * manquaient ce relais. Sans la dynamic-property owl_plan, un composite
+ * affecte a un plan echappe au recalcul de visibilite de
+ * owl_ui_window_set_active_plan et reste visible hors de son plan. -1 (non
+ * declare) = sans plan : on ne pose rien (toujours visible). */
+static void build_apply_declared_plan(OwlControl* widget,
+                                      const OwlControlDecl* c) {
+    if (!widget || !c) return;
+    int plan = prop_int(c->properties, c->property_count, "Plan", "Plane", -1);
+    if (plan >= 0) owl_ui_control_set_plan(widget, plan);
+}
+
 /* Construit la fenetre Qt complete depuis l'IR. */
 /*  — jalons du chemin menu (gates OWL_MENU_TRACE, impl platform.c). */
 void owl_menu_trace(const char* fmt, ...);
@@ -8729,6 +9105,7 @@ static OwlWindow* build_window(const OwlWindowDecl* decl) {
                                             OWL_CONTROL_CONTAINER);
                 }
             }
+            build_apply_declared_plan(widget, c);
         } else if (c->kind == OWL_CONTROL_ONGLET) {
             /*  — Champ Onglet = QTabWidget. Les Volets (enfants directs)
              * s'y ajoutent par addTab ; les vrais champs vont dans la page du
@@ -8799,6 +9176,7 @@ static OwlWindow* build_window(const OwlWindowDecl* decl) {
              * double-fire, l'event vient alors du hook OP_STRUCT_SET). */
             if (ouici && widget)
                 owl_ui_onglet_on_change(widget, dispatch_onglet_change, (void*)ouici);
+            build_apply_declared_plan(widget, c);
         } else if (c->kind == OWL_CONTROL_VOLET) {
             /*  — un Volet = page (QWidget avec son propre layout, modele
              * Conteneur) ajoutee au QTabWidget parent par addTab. container_parent
@@ -8839,6 +9217,7 @@ static OwlWindow* build_window(const OwlWindowDecl* decl) {
             }
             ObjUiControlInstance* vuici = current_window_uici_for_decl(c);
             if (vuici) vuici->widget = page;
+            build_apply_declared_plan(page, c);
         } else {
             widget = build_control(parent_slot, c, auto_y);
             if (!parent_has_layout) auto_y += h + 8;
@@ -8956,6 +9335,31 @@ static OwlWindow* build_window(const OwlWindowDecl* decl) {
             bool vis = prop_bool(c->properties, c->property_count,
                                   "Visible", "Visible", true);
             if (!vis) owl_ui_volet_set_visible(vuici->widget, 0);
+        }
+    }
+
+    /*  — surInitialisation de COLONNE : one-shot a l'ouverture, apres
+     * construction de tous les controles (Table + colonnes). Pendant NON, par
+     * ligne NON : exactement une fois par colonne portant le handler. Mire le
+     * pattern FinInitialisation fenetre (appel direct du bloc) + le proxy-colonne
+     * de surAChaqueModification/surSortie (MoiMeme = la colonne, ). */
+    for (int ci = 0; ci < decl->control_count; ci++) {
+        OwlControlDecl* c = &decl->controls[ci];
+        if ((OwlControlKind)c->kind != OWL_CONTROL_TABLE) continue;
+        for (int cj = 0; cj < c->column_count; cj++) {
+            const OwlColumnDecl* col = &c->columns[cj];
+            if (col->event_count == 0) continue;
+            const OwlEventBlock* evInit = find_event(col->events,
+                col->event_count, "surInitialisation", "onInitialization");
+            if (!evInit) continue;
+            char colStrip[128];
+            int csl = scanner_strip_accents(col->name, (int)strlen(col->name),
+                                            colStrip, sizeof colStrip);
+            if (csl <= 0 || csl >= (int)sizeof colStrip) continue;
+            colStrip[csl] = '\0';
+            Value tableRef = moimeme_widget_value_for_name(c->name);
+            Value colProxy = table_build_colproxy_value(tableRef, colStrip);
+            call_event_block_with_sender(evInit->impl, false, colProxy);
         }
     }
 
@@ -9091,6 +9495,28 @@ static OwlWindow* build_window(const OwlWindowDecl* decl) {
      * deborder en haut. On finalise apres show(), quand frameGeometry connait
      * le chrome. On ne touche pas aux fenetres positionnees explicitement. */
     if (visible && (x < 0 || y < 0)) owl_ui_window_clamp_titlebar_onscreen(w);
+    /*  — visibilite initiale par plan. Calculee ICI, apres le show :
+     * les champs sont parentes et la fenetre mappee, donc le setVisible(Faux)
+     * d'un champ hors plan est fiable (un hide pose avant parentage/show ne
+     * survit pas au reparentage). Plan actif = declare sur la fenetre, defaut
+     * 0. Masque les champs dont le plan != actif ; les champs sans plan
+     * restent visibles.
+     *  — plan actif EFFECTIF, pas seulement declare. Un plan pose au
+     * runtime (`FEN..Plan = k` dans FinInitialisation ou le top-level fenetre,
+     * tous deux executes plus haut dans build_window) vit dans le store
+     * d'instance ; il prime sur la propriete statique. Sans ca, ce chemin
+     * post-show reappliquait le plan declare (defaut 0) et ecrasait la
+     * visibilite correcte posee par FinInitialisation -> champs du plan actif
+     * masques. A defaut de valeur runtime, on retombe sur le declaratif. */
+    int planActif = prop_int(decl->properties, decl->property_count,
+                             "Plan", "Plane", 0);
+    Value planRuntime;
+    if (top_inst != NULL
+        && obj_window_instance_headless_get(top_inst, "Plan", &planRuntime)
+        && IS_INTEGER(planRuntime)) {
+        planActif = (int)AS_INTEGER(planRuntime);
+    }
+    window_apply_active_plan(top_inst, planActif);
     owl_menu_trace("build_window AFTER show / RETURN");
 
     return w;
@@ -9645,6 +10071,30 @@ static Value fn_test_simule_souris(int argCount, Value* args) {
  *     widget (forme objet / chaine litterale). Ici on reste defensif.
  *   - params : transmis au handler dans l'ordre de la signature de l'event.
  */
+
+/*  — execute la proc interceptee avec le payload de l'evenement
+ * (meme convention user_proc que DeclencheEvenement) et renvoie true si elle a
+ * renvoye explicitement Faux -> le bloc statique doit etre supprime. Les
+ * procs interceptees sont des ObjFunction nues (nom nu resolu en callable). */
+static bool run_interception(Value fnVal, Value sender,
+                             const Value* payload, int payloadCount) {
+    if (!IS_FUNCTION(fnVal)) return false;
+    ObjFunction* fn = AS_FUNCTION(fnVal);
+    int arity = fn->arity;
+    int dataSlots = arity < payloadCount ? arity : payloadCount;
+    vm_event_sender_push(sender);  /* MoiMeme chain */
+    vm_push(fnVal);
+    for (int i = 0; i < dataSlots; i++) vm_push(payload[i]);
+    InterpretResult r = vm_call_reentrant(fnVal, arity);
+    bool suppress = false;
+    if (r == INTERPRET_OK) {
+        Value ret = vm_pop();  /* retour de la proc interceptee */
+        if (IS_BOOL(ret) && AS_BOOL(ret) == false) suppress = true;
+    }
+    vm_event_sender_pop();
+    return suppress;
+}
+
 static Value fn_declenche_evenement(int argCount, Value* args) {
     if (argCount < 2) {
         fprintf(stderr, "[DeclencheEvenement] Attendu au moins 2 arguments "
@@ -9679,20 +10129,210 @@ static Value fn_declenche_evenement(int argCount, Value* args) {
     const OwlControlDecl* decl = find_control_decl(ctrlName);
     if (!decl) return NIL_VAL;  /* champ non declare (indirection) : no-op */
 
-    CallbackSource src = CB_SOURCE_NONE;
-    ObjFunction* fn = find_callback_fn(decl, ev->canonical, ev->nameEN, &src);
-    if (!fn) return NIL_VAL;    /* handler absent : no-op silencieux */
-
     Value sender = moimeme_widget_value_for_name(decl->name);
 
     int payloadCount = argCount - 2;
-    if (payloadCount <= 0) {
-        invoke_callback_with_sender(fn, src, sender);
+    if (payloadCount < 0) payloadCount = 0;
+    if (payloadCount > 8) payloadCount = 8;
+    Value payload[8];
+    for (int i = 0; i < payloadCount; i++) payload[i] = args[2 + i];
+
+    /*  — interception dynamique : si une proc est attachee sur
+     * (champ, evt), elle tourne AVANT le bloc statique. Retour Faux -> le
+     * bloc statique est supprime ; sinon il s'execute par defaut. Chemin
+     * partage avec le dispatch GUI via la cle (champ, index evt*). */
+    bool runStatic = true;
+    Value interceptor = NIL_VAL;
+    if (intercept_lookup(decl->name, idx, &interceptor)) {
+        if (run_interception(interceptor, sender, payload, payloadCount)) {
+            runStatic = false;
+        }
+    }
+
+    if (runStatic) {
+        CallbackSource src = CB_SOURCE_NONE;
+        ObjFunction* fn = find_callback_fn(decl, ev->canonical, ev->nameEN, &src);
+        if (fn) {   /* handler absent : no-op silencieux */
+            if (payloadCount <= 0) {
+                invoke_callback_with_sender(fn, src, sender);
+            } else {
+                invoke_callback_payload_with_sender(fn, src, payload, payloadCount, sender);
+            }
+        }
+    }
+    return NIL_VAL;
+}
+
+/*  — vrai si un binding "interception seule" (fn==NULL) est deja pose
+ * sur (champ, evt_index). Evite de re-installer un hook Qt a chaque re-attache
+ * sur le meme couple (le hook poserait un binding orphelin de plus). */
+static bool lazy_binding_exists(const char* ctrlName, int evtIndex) {
+    for (int i = 0; i < g_binding_count; i++) {
+        EventBinding* b = &g_bindings[i];
+        if (b->fn == NULL && b->evt_index == evtIndex &&
+            strcmp(b->sender_name, ctrlName) == 0)
+            return true;
+    }
+    return false;
+}
+
+/*  — install paresseux du hook Qt pour une interception attachee sur un
+ * evenement SANS bloc statique (donc sans binding/hook cable a l'Ouvre), quand la
+ * fenetre est OUVERTE en GUI. On pose un binding "interception seule" (fn==NULL)
+ * dont l'index route le dispatch vers la table d'interception (dispatch_event /
+ * dispatch_image_event_1i consultent la clef (champ, evt_index)).
+ *
+ * Couvre les familles a hook generique valables sur tout QWidget :
+ *   - clic / double-clic / entree / sortie : filtres fusionnables (chaque hook ne
+ *     touche que sa propre entree de map) ;
+ *   - touche appuyee / relachee : filtre clavier FUSION (preserve la direction
+ *     opposee si un handler statique y est deja cable).
+ * Les evenements a signal natif SPECIFIQUE d'un type de widget (surSelection,
+ * surAChaqueModification, surChangementVolet, molette, boutons souris...) ne sont
+ * PAS couverts par cet install paresseux : les cabler sans bloc statique demande
+ * un connect Qt dependant du widget -> laisse en follow-up. Headless : uici->widget
+ * est NULL, l'install est un no-op (le chemin trigger reste la voie de test). */
+static void intercept_lazy_install_gui(const OwlControlDecl* decl,
+                                       const OwlEventDef* ev, int evtIndex) {
+    ObjUiControlInstance* uici = current_window_uici_by_name(decl->name);
+    if (!uici || !uici->widget) return;        /* pas de fenetre GUI ouverte */
+    OwlControl* w = (OwlControl*)uici->widget;
+
+    /* Bloc statique present -> hook deja cable a l'Ouvre avec evt_index : le
+     * dispatch consulte deja l'interception (phase binding). Ne PAS re-installer
+     * (ecraserait la map par un binding fn==NULL => perte du bloc statique). */
+    CallbackSource src = CB_SOURCE_NONE;
+    if (find_callback_fn(decl, ev->canonical, ev->nameEN, &src) != NULL) return;
+    if (lazy_binding_exists(decl->name, evtIndex)) return;  /* deja pose */
+
+    const char* c = ev->canonical;
+    if (strcmp(c, "surClic") == 0) {
+        int b = register_binding_named_evt(NULL, false, decl->name, evtIndex);
+        if (b >= 0) owl_ui_control_on_clic(w, dispatch_event, (void*)(intptr_t)b);
+    } else if (strcmp(c, "surDoubleClic") == 0) {
+        int b = register_binding_named_evt(NULL, false, decl->name, evtIndex);
+        if (b >= 0) owl_ui_control_on_double_clic(w, dispatch_event, (void*)(intptr_t)b);
+    } else if (strcmp(c, "surEntr\xc3\xa9""e") == 0) {
+        int b = register_binding_named_evt(NULL, false, decl->name, evtIndex);
+        if (b >= 0) owl_ui_control_on_entry(w, dispatch_event, (void*)(intptr_t)b);
+    } else if (strcmp(c, "surSortie") == 0) {
+        int b = register_binding_named_evt(NULL, false, decl->name, evtIndex);
+        if (b >= 0) owl_ui_control_on_exit(w, dispatch_event, (void*)(intptr_t)b);
+    } else if (strcmp(c, "surToucheAppuy\xc3\xa9""e") == 0) {
+        int b = register_binding_named_evt(NULL, false, decl->name, evtIndex);
+        if (b >= 0) owl_ui_merge_key_filter(w, dispatch_image_event_1i,
+                                            (void*)(intptr_t)b, NULL, NULL);
+    } else if (strcmp(c, "surToucheRel\xc3\xa2""ch\xc3\xa9""e") == 0) {
+        int b = register_binding_named_evt(NULL, false, decl->name, evtIndex);
+        if (b >= 0) owl_ui_merge_key_filter(w, NULL, NULL,
+                                            dispatch_image_event_1i, (void*)(intptr_t)b);
+    }
+    /* autre famille : non couverte (follow-up) -> l'interception reste enregistree
+     * et fonctionnera via le chemin trigger / un bloc statique eventuel. */
+}
+
+/*  — IntercepteEvenement(procedure, champ, evtX). Attache une
+ * procedure interceptee sur le couple (champ, evt). Re-attacher remplace. Le
+ * compilateur a deja valide la procedure, la cible et l'appartenance de
+ * l'evenement au kind (compile_intercepte_evenement). Ici on reste defensif :
+ * un champ non declare (indirection) est un no-op silencieux. */
+static Value fn_intercepte_evenement(int argCount, Value* args) {
+    if (argCount < 3) {
+        fprintf(stderr, "[IntercepteEvenement] Attendu 3 arguments "
+                        "(procedure, champ, evt).\n");
+        return NIL_VAL;
+    }
+    Value callable = args[0];
+    if (!IS_FUNCTION(callable)) {
+        fprintf(stderr, "[IntercepteEvenement] Argument 1 doit etre une "
+                        "procedure.\n");
+        return NIL_VAL;
+    }
+    const char* ctrlName = resolve_ui_control_name_arg(args[1]);
+    if (ctrlName == NULL && IS_STRING(args[1])) ctrlName = AS_CSTRING(args[1]);
+    if (ctrlName == NULL || ctrlName[0] == '\0') {
+        fprintf(stderr, "[IntercepteEvenement] Argument 2 doit etre un champ "
+                        "ou un nom de champ.\n");
+        return NIL_VAL;
+    }
+    if (!IS_INTEGER(args[2])) {
+        fprintf(stderr, "[IntercepteEvenement] Argument 3 doit etre une "
+                        "constante evt*.\n");
+        return NIL_VAL;
+    }
+    int idx = (int)(AS_INTEGER(args[2]) - (int64_t)OWL_EVT_BASE);
+    const OwlEventDef* ev = owl_widget_event_dedup_at(idx);
+    if (ev == NULL) {
+        fprintf(stderr, "[IntercepteEvenement] Argument 3 : constante evt* "
+                        "inconnue.\n");
+        return NIL_VAL;
+    }
+    const OwlControlDecl* decl = find_control_decl(ctrlName);
+    if (!decl) return NIL_VAL;  /* champ non declare (indirection) : no-op */
+
+    ObjAssocArray* tab = intercepts_ensure();
+    char key[160];
+    int kn = intercept_key(key, sizeof(key), decl->name, idx);
+    if (kn <= 0) return NIL_VAL;
+    ObjString* k = obj_copy_string(key, kn);
+    vm_push(OBJ_VAL(k));        /* root : obj_assoc_set peut grow -> GC */
+    vm_push(callable);         /* root : ObjFunction fresh non-rootee ici */
+    obj_assoc_set(tab, k, callable);
+    vm_pop();
+    vm_pop();
+
+    /*  — si la fenetre est ouverte en GUI et que l'evenement n'a pas de
+     * bloc statique (donc aucun hook Qt cable), installe le hook paresseusement
+     * pour qu'un vrai clic/focus/touche route vers l'interception. No-op headless
+     * (uici->widget NULL) et quand un bloc statique existe deja. */
+    intercept_lazy_install_gui(decl, ev, idx);
+    return NIL_VAL;
+}
+
+/*  — IntercepteEvenementFin(champ [, evtX]). Detache l'interception :
+ * couple (champ, evt) precis, ou TOUS les evenements interceptes du champ si
+ * evt est omis. Detacher un couple non attache = no-op silencieux. */
+static Value fn_intercepte_evenement_fin(int argCount, Value* args) {
+    if (argCount < 1) {
+        fprintf(stderr, "[IntercepteEvenementFin] Attendu au moins 1 argument "
+                        "(champ).\n");
+        return NIL_VAL;
+    }
+    const char* ctrlName = resolve_ui_control_name_arg(args[0]);
+    if (ctrlName == NULL && IS_STRING(args[0])) ctrlName = AS_CSTRING(args[0]);
+    if (ctrlName == NULL || ctrlName[0] == '\0') {
+        fprintf(stderr, "[IntercepteEvenementFin] Argument 1 doit etre un champ "
+                        "ou un nom de champ.\n");
+        return NIL_VAL;
+    }
+    const OwlControlDecl* decl = find_control_decl(ctrlName);
+    if (!decl) return NIL_VAL;
+    if (!IS_ASSOC_ARRAY(g_intercepts)) return NIL_VAL;  /* rien attache : no-op */
+    ObjAssocArray* tab = AS_ASSOC_ARRAY(g_intercepts);
+
+    if (argCount >= 2 && IS_INTEGER(args[1])) {
+        /* Detache le couple (champ, evt) precis. */
+        int idx = (int)(AS_INTEGER(args[1]) - (int64_t)OWL_EVT_BASE);
+        char key[160];
+        int kn = intercept_key(key, sizeof(key), decl->name, idx);
+        if (kn <= 0) return NIL_VAL;
+        ObjString* k = obj_copy_string(key, kn);
+        vm_push(OBJ_VAL(k));
+        obj_assoc_remove(tab, k);   /* couple absent : no-op silencieux */
+        vm_pop();
     } else {
-        Value payload[8];
-        if (payloadCount > 8) payloadCount = 8;
-        for (int i = 0; i < payloadCount; i++) payload[i] = args[2 + i];
-        invoke_callback_payload_with_sender(fn, src, payload, payloadCount, sender);
+        /* evt omis : detache TOUS les evenements interceptes du champ.
+         * Cle = "<champ>\x1f...". On balaie a l'envers (remove decale). */
+        char pfx[160];
+        int pn = snprintf(pfx, sizeof(pfx), "%s\x1f", decl->name);
+        if (pn <= 0) return NIL_VAL;
+        for (int i = tab->count - 1; i >= 0; i--) {
+            ObjString* ks = tab->keys[i];
+            if (ks && ks->length >= pn &&
+                memcmp(ks->chars, pfx, (size_t)pn) == 0) {
+                obj_assoc_remove(tab, ks);
+            }
+        }
     }
     return NIL_VAL;
 }
@@ -10089,6 +10729,180 @@ static Value fn_donne_focus(int argCount, Value* args) {
      * focus qui n'a pas encore bouge — alors qu'en headless les deux events sont
      * deja tires. On pompe donc pour que DonneFocus rende la main focus pose,
      * events emis, dans les deux modes. */
+    if (inst->widget != NULL) owl_ui_pump_events(50);
+    return NIL_VAL;
+}
+
+/* copie_resolve_window / fn_ferme sont definis plus bas ; utilises par FenEtat /
+ * DonneFocusEtRetourUtilisateur (resolution d'une fenetre par ref ou nom,
+ * fermeture via l'etat Inexistant). */
+static ObjWindowInstance* copie_resolve_window(Value v);
+static Value fn_ferme(int argCount, Value* args);
+
+/*  — etat observable d'une fenetre OUVERTE, derive du store (source de
+ * verite des props ..Visible / ..Grisé, partagee GUI/headless). On ne reconstruit
+ * que les etats stables (Invisible / Grisé / Actif) ; AffichageSeulement et
+ * HorsEcran sont des nuances de set sans primitive de relecture dediee. */
+static int window_current_state(ObjWindowInstance* wi) {
+    Value v;
+    if (obj_window_instance_headless_get(wi, "Visible", &v)
+        && IS_BOOL(v) && !AS_BOOL(v)) return OWL_ETAT_INVISIBLE;
+    if (obj_window_instance_headless_get(wi, "Gris\xc3\xa9", &v)
+        && IS_BOOL(v) && AS_BOOL(v)) return OWL_ETAT_GRISE;
+    return OWL_ETAT_ACTIF;
+}
+
+/*  — FenEtat([<Fenêtre>] [, <État>]) / WinStatus.
+ *
+ * Get : FenEtat() (fenetre en cours) / FenEtat(FEN_X). Renvoie la constante
+ *   d'etat ; Inexistant si la fenetre est fermee ou jamais ouverte (test
+ *   d'existence, pas une erreur).
+ * Set : FenEtat(FEN_X, <État>) — modifie l'etat, renvoie l'etat demande. Une
+ *   chaine vide ("") vise la fenetre en cours.
+ *
+ * FenEtat(fen, Inexistant) ferme la fenetre (equivalent de Ferme).
+ * Les etats de positionnement (ActifDevant/Dessus/DessusTout/Normal/HorsEcran)
+ * sont appliques au mieux via Qt (activate/raise/StaysOnTop/position off-screen) ;
+ * non testables headless (depend de l'OS et du z-order). */
+static Value fn_fenetre_etat(int argCount, Value* args) {
+    bool explicit_target = (argCount >= 1)
+        && !(IS_STRING(args[0]) && AS_STRING(args[0])->length == 0);
+    ObjWindowInstance* wi = explicit_target ? copie_resolve_window(args[0])
+                                            : vm_window_stack_top();
+
+    /* --- Get --- */
+    if (argCount < 2) {
+        if (wi == NULL) return INTEGER_VAL(OWL_FENETAT_INEXISTANT);
+        return INTEGER_VAL(window_current_state(wi));
+    }
+
+    /* --- Set --- */
+    if (!IS_INTEGER(args[1])) {
+        owl_emit_native_error(E_NATIVE_ARG_INVALID, "FenEtat", NULL);
+        return NIL_VAL;
+    }
+    int etat = (int)AS_INTEGER(args[1]);
+
+    if (etat == OWL_FENETAT_INEXISTANT) {
+        /* Fermeture (canon : equivalent de Ferme). fn_ferme ferme la fenetre du
+         * sommet de pile ; dans l'usage courant la cible nommee EST ce sommet. */
+        if (wi != NULL) fn_ferme(1, args);
+        return INTEGER_VAL(OWL_FENETAT_INEXISTANT);
+    }
+
+    if (wi == NULL) {
+        const char* nm = NULL;
+        if (IS_WINDOW_REF(args[0])) {
+            ObjWindowRef* r = AS_WINDOW_REF(args[0]);
+            nm = (r->name) ? r->name->chars : NULL;
+        } else if (IS_STRING(args[0])) {
+            nm = AS_CSTRING(args[0]);
+        }
+        owl_emit_native_error(E_RT_UI_WINDOW_NOT_FOUND, "FenEtat",
+                              "name", nm ? nm : "", NULL);
+        return NIL_VAL;
+    }
+    OwlWindow* w = (OwlWindow*)wi->widget;
+
+    switch (etat) {
+        case OWL_ETAT_INVISIBLE:
+            obj_window_instance_headless_set(wi, "Visible", BOOL_VAL(false));
+            if (w) owl_ui_window_set_visible(w, 0);
+            break;
+        case OWL_ETAT_GRISE:
+            obj_window_instance_headless_set(wi, "Gris\xc3\xa9", BOOL_VAL(true));
+            if (w) owl_ui_window_set_disabled(w, 1);
+            break;
+        case OWL_ETAT_AFFICHAGE_SEUL:
+            /* Fenetre inactive mais NI grisee NI masquee (distinct de Grisé). */
+            obj_window_instance_headless_set(wi, "Gris\xc3\xa9", BOOL_VAL(false));
+            obj_window_instance_headless_set(wi, "Visible", BOOL_VAL(true));
+            if (w) { owl_ui_window_set_disabled(w, 0); owl_ui_window_set_visible(w, 1); }
+            break;
+        case OWL_ETAT_ACTIF:
+        case OWL_FENETAT_ACTIF_DEVANT:
+            obj_window_instance_headless_set(wi, "Gris\xc3\xa9", BOOL_VAL(false));
+            obj_window_instance_headless_set(wi, "Visible", BOOL_VAL(true));
+            if (w) {
+                owl_ui_window_set_disabled(w, 0);
+                owl_ui_window_set_visible(w, 1);
+                owl_ui_window_activate(w);
+            }
+            break;
+        case OWL_FENETAT_HORSECRAN:
+            /* Active mais hors zone visible. owl_ui_window_set_position traite
+             * une coordonnee negative comme un centrage : on deborde donc par
+             * de grandes coordonnees positives (divergence assumee vs canon qui
+             * documente des coordonnees negatives). Non teste. */
+            if (w) {
+                owl_ui_window_set_position(w, 30000, 30000);
+                owl_ui_window_activate(w);
+            }
+            break;
+        case OWL_FENETAT_DESSUS:
+        case OWL_FENETAT_DESSUS_TOUT:
+            if (w) owl_ui_window_set_stay_on_top(w, 1);
+            break;
+        case OWL_FENETAT_NORMAL:
+            if (w) owl_ui_window_set_stay_on_top(w, 0);
+            break;
+        default:
+            owl_emit_native_error(E_NATIVE_ARG_INVALID, "FenEtat", NULL);
+            return NIL_VAL;
+    }
+    return INTEGER_VAL(etat);
+}
+
+/*  — DonneFocusEtRetourUtilisateur([<Elément>]) /
+ * SetFocusAndReturnToUserInput. Variante large de DonneFocus : le focus peut
+ * viser un champ (ref/qualifie/chaine) OU une fenetre (activee + focus au
+ * dernier champ saisi, sinon au 1er champ focusable).
+ *
+ * Divergence canon ASSUMEE (decision dev) : le canon arrete definitivement le
+ * traitement en cours (comme RepriseSaisie). OWL n'a aucun mecanisme de halt —
+ * on s'aligne sur DonneFocus : le code apres l'appel continue. */
+static Value fn_donne_focus_et_retour(int argCount, Value* args) {
+    ObjWindowInstance* inst = vm_window_stack_top();
+    if (inst == NULL) return NIL_VAL;
+
+    /* Sans argument : focus au champ en cours (no-op si deja courant). */
+    if (argCount == 0) {
+        if (inst->focused_index >= 0) ui_move_focus_to(inst, inst->focused_index);
+        return NIL_VAL;
+    }
+
+    /* Cible fenetre : active + focus au dernier champ saisi (ou 1er focusable). */
+    ObjWindowInstance* win = IS_WINDOW_REF(args[0]) ? copie_resolve_window(args[0])
+                                                    : NULL;
+    if (win != NULL) {
+        int idx = win->focused_index;
+        if (idx < 0) {
+            for (int i = 0; i < win->control_count; i++) {
+                ObjUiControlInstance* uici = win->controls[i];
+                if (uici && ui_control_is_focusable(uici->decl)) { idx = i; break; }
+            }
+        }
+        if (win->widget) owl_ui_window_activate((OwlWindow*)win->widget);
+        if (idx >= 0) ui_move_focus_to(win, idx);
+        if (win->widget) owl_ui_pump_events(50);
+        return NIL_VAL;
+    }
+
+    /* Cible champ : meme resolution que DonneFocus. */
+    const char* ctrlName = resolve_ui_control_name_arg(args[0]);
+    if (!ctrlName && IS_STRING(args[0])) ctrlName = AS_CSTRING(args[0]);
+    if (!ctrlName) {
+        owl_emit_native_error(E_NATIVE_ARG_INVALID,
+                              "DonneFocusEtRetourUtilisateur", NULL);
+        return NIL_VAL;
+    }
+    int idx = ui_find_control_index(inst, ctrlName);
+    if (idx < 0) {
+        owl_emit_native_error(E_RT_UI_FOCUS_FIELD_UNKNOWN,
+                              "DonneFocusEtRetourUtilisateur", "name", ctrlName, NULL);
+        return NIL_VAL;
+    }
+    ui_move_focus_to(inst, idx);
     if (inst->widget != NULL) owl_ui_pump_events(50);
     return NIL_VAL;
 }
@@ -10912,6 +11726,13 @@ static Value open_window_instance(const char* name, bool modal, const char* fnNa
             invalidate_dynamic_props_cache(c->columns[j].properties,
                                            c->columns[j].property_count);
         }
+    }
+
+    /*  — meme cycle de vie que g_bindings : une fenetre ouverte au
+     * top-level repart sans interception heritee. Un Ouvre imbrique (boucle
+     * event deja active) preserve la table parente (comme reset_bindings). */
+    if (!owl_ui_event_loop_running()) {
+        intercepts_reset();
     }
 
     /* Mode test unitaire : on skip l'instanciation Qt + l'event loop bloquante.
@@ -13400,6 +14221,37 @@ static void table_fmt_applied_impl(ObjInstance* rep, const char* col,
     }
 
     owl_ui_table_set_cell_color(widget, row, colIdx, is_bg, bgr, alpha);
+}
+/*  — texte formate affiche d'une cellule (`..ValeurAffichée`, lecture
+ * seule). Resolution symetrique de table_fmt_applied_impl : uici via $tblsrc,
+ * rang de ligne par identite de pointeur dans le store d'items, indice de
+ * colonne par nom. Delegue le formatage a owl_ui_table_cell_texte_affiche (le
+ * meme substrat DisplayRole que la sonde __DebugTableCelluleTexteAffiche) : pas
+ * de re-implementation du masque. */
+static bool table_cell_display_impl(ObjInstance* rep, const char* col,
+                                    Value* out) {
+    if (out != NULL) *out = NIL_VAL;
+    if (!rep || !col || col[0] == '\0' || !out) return false;
+    Value srcV;
+    if (!instance_get_value(rep, OWL_TABLE_REP_SRC_KEY, &srcV)
+        || !IS_UI_CONTROL_INSTANCE(srcV)) return false;
+    ObjUiControlInstance* uici = AS_UI_CONTROL_INSTANCE(srcV);
+    OwlControl* widget = (OwlControl*)uici->widget;
+    if (!widget) return false;
+    int colIdx = table_col_index_stripped(uici, col);
+    if (colIdx <= 0) return false;
+    ObjArray* items = widget_items_store_peek_uici(uici);
+    int row = 0;
+    if (items)
+        for (int i = 0; i < items->elements.count; i++) {
+            Value it = items->elements.values[i];
+            if (IS_INSTANCE(it) && AS_INSTANCE(it) == rep) { row = i + 1; break; }
+        }
+    if (row == 0) return false;
+    const char* t = owl_ui_table_cell_texte_affiche(widget, row, colIdx);
+    if (!t) t = "";
+    *out = OBJ_VAL(obj_copy_string(t, (int)strlen(t)));
+    return true;
 }
 static void table_colmask_applied_impl(void* widget, int col_1based,
                                        const char* wl_mask) {
@@ -16001,11 +16853,15 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("TestModeHeadless", fn_test_mode_headless);
     stdlib_ui_defs_set_impl("TestSimuleSouris", fn_test_simule_souris);
     stdlib_ui_defs_set_impl("DeclencheEvenement", fn_declenche_evenement);
+    stdlib_ui_defs_set_impl("IntercepteEvenement", fn_intercepte_evenement);
+    stdlib_ui_defs_set_impl("IntercepteEvenementFin", fn_intercepte_evenement_fin);
     stdlib_ui_defs_set_impl("TestSimuleSaisie", fn_test_simule_saisie);
     stdlib_ui_defs_set_impl("TestSimuleMenu", fn_test_simule_menu);
     stdlib_ui_defs_set_impl("TestFenetreIconeLargeur", fn_test_fenetre_icone_largeur);
     stdlib_ui_defs_set_impl("ChampsDe", fn_champs_de);
     stdlib_ui_defs_set_impl("DonneFocus", fn_donne_focus);
+    stdlib_ui_defs_set_impl("FenEtat", fn_fenetre_etat);
+    stdlib_ui_defs_set_impl("DonneFocusEtRetourUtilisateur", fn_donne_focus_et_retour);
     stdlib_ui_defs_set_impl("__DebugFeuilleStyle", fn_debug_feuille_style);
     stdlib_ui_defs_set_impl("__DebugFeuilleStyleMenu", fn_debug_feuille_style_menu);
     stdlib_ui_defs_set_impl("__DebugFeuilleStyleMenuContextuel", fn_debug_feuille_style_menu_ctx);
@@ -16224,6 +17080,8 @@ void stdlib_ui_init(void) {
     owl_ui_register_zr_rep_coerce(zr_rep_coerce_cell_impl);
     /*  : mise en forme de cellule / ligne de Table poussee au widget. */
     owl_ui_register_table_fmt_applied(table_fmt_applied_impl);
+    /*  : lecture du texte affiche d'une cellule (`..ValeurAffichée`). */
+    owl_ui_register_table_cell_display(table_cell_display_impl);
     /*  : masque de saisie d'une colonne poussé au widget (createEditor). */
     owl_ui_register_table_colmask_applied(table_colmask_applied_impl);
     owl_ui_register_table_coldispmask_applied(table_coldispmask_applied_impl);
@@ -16244,6 +17102,9 @@ void stdlib_ui_init(void) {
     /*  : enregistre g_return_value (Value) au registre unique des
      * racines persistantes. */
     owl_register_persistent_value_root(&g_return_value);
+    /*  — table d'interception d'evenement : UNE racine persistante
+     * (l'assoc). Ses valeurs callables sont ainsi marquees par le GC. */
+    owl_register_persistent_value_root(&g_intercepts);
 
     /*  Lot 2e-2 — enregistre le rasterizer Qt6Svg cote
      * stdlib_icones (vit dans owl_core, sans Qt link). IconeVersImage et

@@ -46,7 +46,7 @@ PROCEDURE PUBLIQUE scenario_echec_fichier_inexistant()
 
 	img est une Image = dCréeImage(400, 300)
 
-	bOk est un booléen = dPolice(img, "chemin/inexistant/police.ttf", 12, iNormal, 0)
+	bOk  est un booléen = dPolice(img, "chemin/inexistant/police.ttf", 12, iNormal, 0)
 	bErr est un booléen = ErreurDétectée
 
 	dbgVérifieEgalité(bOk, Faux, "police inexistante renvoie Faux")
@@ -74,11 +74,32 @@ PROCEDURE PRIVÉE scenario_edge_taille_extreme()
 	dbgVérifieEgalité(bOk, Vrai, "taille 500pt très grande acceptée")
 FIN
 
+PROCEDURE PRIVÉE scenario_edge_chemin_utf8_accents()
+	// La police doit se charger depuis un chemin contenant des accents
+	// (ouverture du vrai nom disque, pas une relecture narrow mojibake).
+	img          est une Image  = dCréeImage(400, 300)
+	cheminPolice est une chaîne = fRepTemp() + fSep() + "police_éàü.ttf"
+	copie        est un booléen
+	bOk          est un booléen
+
+	// Copier la police de test vers un nom de fichier accentué
+	copie = fCopieFichier("assets/fonts/DejaVuSans-Regular.ttf", cheminPolice)
+	dbgVérifieEgalité(copie, Vrai, "copie police vers chemin UTF-8 réussie")
+	dbgVérifieVrai(fFichierExiste(cheminPolice), "police présente sous le vrai nom UTF-8")
+
+	// Charger depuis le chemin accentué
+	bOk = dPolice(img, cheminPolice, 12, iNormal, 0)
+	dbgVérifieEgalité(bOk, Vrai, "police chargée depuis chemin UTF-8")
+
+	// Nettoyer
+	fSupprime(cheminPolice)
+FIN
+
 PROCEDURE PRIVÉE scenario_edge_image_sans_debut_dessin()
 	// Sans dDébutDessin ni image explicite, dPolice échoue
 	// (pas de canvas cible identifiable)
 
-	bOk est un booléen = dPolice("assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
+	bOk  est un booléen = dPolice("assets/fonts/DejaVuSans-Regular.ttf", 12, iNormal, 0)
 	bErr est un booléen = ErreurDétectée
 
 	dbgVérifieEgalité(bOk, Faux, "sans canvas cible renvoie Faux")

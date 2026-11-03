@@ -46,6 +46,35 @@
 #include <libxml/tree.h>
 #include "xls.h"   /* libxls 1.6.3 — lecteur .xls binaire hérité (BIFF8/OLE2) */
 
+/* OWL stocke les chemins en UTF-8 ; sur Windows un fopen narrow les relit via
+ * la code page ANSI et un dossier accentué devient introuvable. On ouvre donc
+ * le fichier nous-mêmes en wide puis on alimente libxls par le contenu mémoire
+ * (xls_open_buffer), sa variante par chemin faisant un fopen narrow interne.
+ * POSIX : narrow déjà UTF-8, pass-through. */
+#ifdef _WIN32
+  #include <wchar.h>
+  #ifndef CP_UTF8
+    #define CP_UTF8 65001
+  #endif
+  __declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int cp, unsigned long flags, const char* in, int inLen, wchar_t* out, int outLen);
+  static FILE* xls_fopen(const char* path, const char* mode) {
+      int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+      if (n <= 0) return NULL;
+      wchar_t* wp = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+      if (wp == NULL) return NULL;
+      if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wp, n) <= 0) { free(wp); return NULL; }
+      wchar_t wm[8];
+      int i = 0;
+      for (; mode[i] != '\0' && i < 7; i++) wm[i] = (wchar_t)(unsigned char)mode[i];
+      wm[i] = L'\0';
+      FILE* f = _wfopen(wp, wm);
+      free(wp);
+      return f;
+  }
+#else
+  #define xls_fopen fopen
+#endif
+
 /* strdup portable (evite _strdup Windows / la variante POSIX non-standard). */
 static char* xls_strdup(const char* s) {
     size_t n = strlen(s) + 1;
@@ -1551,9 +1580,24 @@ static bool xls_read_file(ObjXlsDocument* d, const char* path) {
  * émet une erreur runtime propre. libxls libère cell->str à xls_close_WB : la
  * valeur est COPIÉE dans XlsCell (xls_sheet_set) avant fermeture. */
 static bool xls_read_ole2_file(ObjXlsDocument* d, const char* path) {
+    /* Lecture du fichier via la couche wide (chemins accentués Windows), puis
+     * libxls lit le contenu en mémoire. Le buffer doit rester vivant jusqu'à
+     * xls_close_WB : libxls y lit paresseusement (ole2->buffer, sans copie). */
+    FILE* f = xls_fopen(path, "rb");
+    if (!f) return false;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return false; }
+    long sz = ftell(f);
+    if (sz < 0) { fclose(f); return false; }
+    rewind(f);
+    unsigned char* data = (unsigned char*)malloc(sz > 0 ? (size_t)sz : 1);
+    if (data == NULL) { fclose(f); return false; }
+    size_t rd = fread(data, 1, (size_t)sz, f);
+    fclose(f);
+    if (rd != (size_t)sz) { free(data); return false; }
+
     xls_error_t err = LIBXLS_OK;
-    xlsWorkBook* wb = xls_open_file(path, "UTF-8", &err);
-    if (!wb) return false;
+    xlsWorkBook* wb = xls_open_buffer(data, (size_t)sz, "UTF-8", &err);
+    if (!wb) { free(data); return false; }
 
     for (DWORD si = 0; si < wb->sheets.count; si++) {
         const char* nm = wb->sheets.sheet[si].name;  /* déjà UTF-8 */
@@ -1612,6 +1656,7 @@ static bool xls_read_ole2_file(ObjXlsDocument* d, const char* path) {
         xls_close_WS(ws);
     }
     xls_close_WB(wb);   /* libère cell->str : valeurs déjà copiées ci-dessus */
+    free(data);         /* après close : libxls a fini de lire dans le buffer */
 
     if (d->sheetCount == 0) xls_doc_add_sheet(d, "Feuil1");
     d->current = 0;
@@ -1994,7 +2039,7 @@ static Value fn_xls_document_new(int argCount, Value* args) {
 typedef enum { XLS_FMT_ZIP, XLS_FMT_OLE2, XLS_FMT_ABSENT, XLS_FMT_UNKNOWN } XlsFormat;
 
 static XlsFormat xls_sniff_format(const char* path) {
-    FILE* f = fopen(path, "rb");
+    FILE* f = xls_fopen(path, "rb");
     if (!f) return XLS_FMT_ABSENT;
     unsigned char sig[8]; size_t n = fread(sig, 1, sizeof(sig), f);
     fclose(f);

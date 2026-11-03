@@ -1,0 +1,49 @@
+// @sujet : RegistrePremièreSousClé
+// @résumé : Identifie le chemin complet de la première sous-clé d'une clé de
+// la base de registre. Amorce du couple d'itération avec RegistreCléSuivante.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\PremiereSousCle")
+FIN
+
+// Avec une seule sous-clé présente, elle est nécessairement celle renvoyée —
+// pas d'hypothèse sur un ordre d'énumération quand il y en a plusieurs.
+PROCEDURE PUBLIQUE scenario_renvoie_le_chemin_complet_de_lunique_sous_cle()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\PremiereSousCle"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\SeuleFille1512")
+
+	chemin est une chaîne = RegistrePremièreSousClé(racine)
+	dbgVérifieEgalité(chemin, racine + "\SeuleFille1512", "l'unique sous-clé est forcément la première renvoyée")
+FIN
+
+PROCEDURE PUBLIQUE scenario_sans_sous_cle_renvoie_chaine_vide()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\PremiereSousCle"
+	RegistreCréeClé(racine)
+
+	chemin est une chaîne = RegistrePremièreSousClé(racine)
+	dbgVérifieEgalité(chemin, "", "une clé sans sous-clé renvoie une chaîne vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\PremiereSousCle"
+	RegistreCréeClé(racine)
+	RegistreCréeClé(racine + "\Fille1512")
+
+	chemin est une chaîne = RegistrePremièreSousClé(registreModeAuto, racine)
+	dbgVérifieEgalité(chemin, racine + "\Fille1512", "l'unique sous-clé est trouvée avec le mode d'accès explicite")
+FIN
+
+// Cas limite : une clé inexistante ne provoque pas de crash, elle renvoie une
+// chaîne vide accompagnée d'une erreur douce consultable via ErreurInfo.
+PROCEDURE PRIVÉE scenario_cle_inexistante_renvoie_vide_avec_erreur_douce()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\PremiereSousCle\Fantome1512"
+
+	ErreurRAZ()
+	resultat est une chaîne = RegistrePremièreSousClé(chemin)
+	bErr     est un booléen = ErreurDétectée
+	dbgVérifieEgalité(resultat, "", "une clé inexistante renvoie une chaîne vide")
+	dbgVérifieVrai(bErr, "une erreur douce est posée pour une clé inexistante")
+FIN
+
+dbgBilanTest()

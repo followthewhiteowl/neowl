@@ -1,0 +1,60 @@
+// DonneFocusEtRetourUtilisateur / SetFocusAndReturnToUserInput
+// (doc canon 1410088107) — variante fenetre de DonneFocus : arrete le
+// traitement en cours et donne le focus au champ, a la fenetre ou a la
+// page indiquee.
+//
+// Assertions deterministes : le transfert de focus est observe via
+// surEntrée (meme pattern que les tests DonneFocus existants), pas via
+// l'activation OS (flaky, cf. brief coordinator).
+//
+// Note : le canon documente aussi un arret definitif du code qui suit
+// l'appel (le traitement en cours est interrompu). OWL ne modele pas ce
+// point de controle (DonneFocus existant ne l'implemente pas non plus,
+// ) : seul le transfert de focus est verifie ici.
+
+TestModeHeadless(Faux)
+
+sDernierFocus est une chaîne = ""
+
+PROCEDURE cb_focusretour_entree(sNom est une chaîne)
+	sDernierFocus = sNom
+FIN
+
+PROCEDURE PUBLIQUE scenario_champ()
+	OuvreSoeur(FEN_DonneFocusRetour)
+
+	DonneFocusEtRetourUtilisateur(SAI_Second)
+	dbgVérifieEgalité(sDernierFocus, "Second", "DonneFocusEtRetourUtilisateur(champ) : le focus passe au champ cible")
+
+	Ferme(FEN_DonneFocusRetour)
+FIN
+
+PROCEDURE PUBLIQUE scenario_fenetre()
+	sDernierFocus = ""
+	OuvreSoeur(FEN_DonneFocusRetour)
+	OuvreSoeur(FEN_DonneFocusRetourAutre)
+
+	DonneFocusEtRetourUtilisateur(FEN_DonneFocusRetourAutre)
+	dbgVérifieEgalité(sDernierFocus, "Cible", "DonneFocusEtRetourUtilisateur(fenetre) : focus au premier champ de la fenetre activee")
+
+	Ferme(FEN_DonneFocusRetourAutre)
+	Ferme(FEN_DonneFocusRetour)
+FIN
+
+PROCEDURE PRIVÉE scenario_sans_argument()
+	// Edge case proactif : sans argument, le focus va au champ en cours
+	// (no-op si deja courant, meme convention que DonneFocus()).
+	sDernierFocus = ""
+	OuvreSoeur(FEN_DonneFocusRetour)
+
+	DonneFocusEtRetourUtilisateur(SAI_Second)
+	dbgVérifieEgalité(sDernierFocus, "Second", "focus initial pose sur Second")
+
+	sDernierFocus = ""
+	DonneFocusEtRetourUtilisateur()
+	dbgVérifieEgalité(sDernierFocus, "", "sans argument : champ deja courant, aucun evenement re-declenche")
+
+	Ferme(FEN_DonneFocusRetour)
+FIN
+
+dbgBilanTest()

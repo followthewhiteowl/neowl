@@ -14,40 +14,196 @@
 #include <dirent.h>
 #include <time.h>
 #include <errno.h>
+#include <ctype.h>
 
 #ifdef _WIN32
   #include <direct.h>
   #include <io.h>
   #include <share.h>      /* _fsopen, _SH_DENY* */
-  /* windows.h redéfinit TokenType, qui collide avec scanner.h OWL.
-   * On déclare juste les symboles nécessaires (GetFileAttributesA +
-   * la constante hidden + INVALID_FILE_ATTRIBUTES). */
+  #include <wchar.h>      /* _wfopen, _wstat64, _wremove, ... */
+  /* windows.h redéfinit TokenType, qui collide avec scanner.h OWL. On déclare
+   * donc à la main les seules fonctions kernel32 nécessaires (les variantes
+   * larges des API fichier restent fournies par la CRT via les en-têtes
+   * standard, sans tirer windows.h). */
   #ifndef FILE_ATTRIBUTE_HIDDEN
     #define FILE_ATTRIBUTE_HIDDEN 0x00000002
   #endif
   #ifndef INVALID_FILE_ATTRIBUTES
     #define INVALID_FILE_ATTRIBUTES ((unsigned long)-1)
   #endif
-  __declspec(dllimport) unsigned long __stdcall GetFileAttributesA(const char* lpFileName);
+  #ifndef CP_UTF8
+    #define CP_UTF8 65001
+  #endif
+  __declspec(dllimport) unsigned long __stdcall GetFileAttributesW(const wchar_t* lpFileName);
   __declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void* hModule, char* lpFilename, unsigned long nSize);
-  #define owl_mkdir_one(path)  _mkdir(path)
-  #define owl_rmdir(path)      _rmdir(path)
-  #define owl_getcwd(buf, sz)  _getcwd(buf, sz)
-  #define owl_chdir(path)      _chdir(path)
+  __declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int cp, unsigned long flags, const char* in, int inLen, wchar_t* out, int outLen);
+  __declspec(dllimport) int __stdcall WideCharToMultiByte(unsigned int cp, unsigned long flags, const wchar_t* in, int inLen, char* out, int outLen, const char* def, int* usedDef);
   #define PATH_SEP_CHAR        '\\'
   #define PATH_SEP_ALT         '/'
+
+  /* OWL stocke les chemins en UTF-8 ; les API fichier larges de Windows
+   * attendent de l'UTF-16. Sans conversion, un chemin accentué est relu via la
+   * code page ANSI et le fichier devient introuvable. Ces wrappers convertissent
+   * au dernier moment pour que le vrai nom disque soit touché. Linux/macOS :
+   * pass-through (narrow déjà UTF-8), zéro changement de comportement. */
+  static wchar_t* owl_utf8_to_wide(const char* s) {
+      int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+      if (n <= 0) return NULL;
+      wchar_t* w = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+      if (w == NULL) return NULL;
+      if (MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n) <= 0) { free(w); return NULL; }
+      return w;
+  }
+  static void owl_ascii_to_wmode(const char* mode, wchar_t* out, int cap) {
+      int i = 0;
+      for (; mode[i] != '\0' && i < cap - 1; i++) out[i] = (wchar_t)(unsigned char)mode[i];
+      out[i] = L'\0';
+  }
+  static FILE* owl_fopen(const char* path, const char* mode) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) return NULL;
+      wchar_t wm[16]; owl_ascii_to_wmode(mode, wm, 16);
+      FILE* f = _wfopen(wp, wm);
+      free(wp);
+      return f;
+  }
+  static FILE* owl_fsopen(const char* path, const char* mode, int shflag) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) return NULL;
+      wchar_t wm[16]; owl_ascii_to_wmode(mode, wm, 16);
+      FILE* f = _wfsopen(wp, wm, shflag);
+      free(wp);
+      return f;
+  }
+  static int owl_remove(const char* path) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) { errno = ENOENT; return -1; }
+      int r = _wremove(wp); int e = errno; free(wp); errno = e; return r;
+  }
+  static int owl_rename(const char* a, const char* b) {
+      wchar_t* wa = owl_utf8_to_wide(a);
+      wchar_t* wb = owl_utf8_to_wide(b);
+      int r = -1;
+      if (wa != NULL && wb != NULL) r = _wrename(wa, wb);
+      else errno = ENOENT;
+      int e = errno; free(wa); free(wb); errno = e; return r;
+  }
+  /* _wstat64 remplit un struct _stat64 ; on recopie les champs lus ailleurs
+   * dans le struct stat du caller (layout CRT différent, pas de cast brut). */
+  static int owl_stat(const char* path, struct stat* out) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) { errno = ENOENT; return -1; }
+      struct _stat64 ws;
+      int r = _wstat64(wp, &ws);
+      int e = errno; free(wp); errno = e;
+      if (r != 0) return r;
+      memset(out, 0, sizeof(*out));
+      out->st_mode  = ws.st_mode;
+      out->st_size  = (off_t)ws.st_size;
+      out->st_mtime = (time_t)ws.st_mtime;
+      out->st_atime = (time_t)ws.st_atime;
+      out->st_ctime = (time_t)ws.st_ctime;
+      out->st_nlink = (short)ws.st_nlink;
+      out->st_dev   = ws.st_dev;
+      return 0;
+  }
+  static unsigned long owl_file_attributes(const char* path) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) return INVALID_FILE_ATTRIBUTES;
+      unsigned long a = GetFileAttributesW(wp);
+      free(wp);
+      return a;
+  }
+  static int owl_mkdir_one(const char* path) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) { errno = ENOENT; return -1; }
+      int r = _wmkdir(wp); int e = errno; free(wp); errno = e; return r;
+  }
+  static int owl_rmdir(const char* path) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) { errno = ENOENT; return -1; }
+      int r = _wrmdir(wp); int e = errno; free(wp); errno = e; return r;
+  }
+  static int owl_chdir(const char* path) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) { errno = ENOENT; return -1; }
+      int r = _wchdir(wp); int e = errno; free(wp); errno = e; return r;
+  }
+  static char* owl_getcwd(char* buf, size_t sz) {
+      wchar_t wbuf[1024];
+      if (_wgetcwd(wbuf, (int)(sizeof(wbuf) / sizeof(wbuf[0]))) == NULL) return NULL;
+      int n = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, (int)sz, NULL, NULL);
+      if (n <= 0) return NULL;
+      return buf;
+  }
+  /* getenv() renvoie du narrow (code page ANSI) : une variable d'env contenant
+   * un chemin accentué (profil "Zoé" -> %TEMP%, %APPDATA%) arrive en mojibake.
+   * On lit la valeur en UTF-16 puis on la reconvertit en UTF-8, comme le reste
+   * de la couche fichier. Le buffer statique est recopié immédiatement par
+   * l'appelant (dispatch natif mono-thread, pas d'aliasing entre deux lectures). */
+  static const char* owl_getenv(const char* name) {
+      wchar_t wname[128];
+      int i = 0;
+      for (; name[i] != '\0' && i < 127; i++) wname[i] = (wchar_t)(unsigned char)name[i];
+      wname[i] = L'\0';
+      const wchar_t* wv = _wgetenv(wname);
+      if (wv == NULL) return NULL;
+      static char buf[1024];
+      int n = WideCharToMultiByte(CP_UTF8, 0, wv, -1, buf, (int)sizeof(buf), NULL, NULL);
+      if (n <= 0) return NULL;
+      return buf;
+  }
+  /* Listing : les variantes larges de dirent (_wopendir/_wreaddir) énumèrent
+   * en UTF-16 ; chaque nom est reconverti en UTF-8 avant d'être rendu à OWL. */
+  typedef struct { _WDIR* wd; char name[1024]; } OwlDir;
+  static OwlDir* owl_opendir(const char* path) {
+      wchar_t* wp = owl_utf8_to_wide(path);
+      if (wp == NULL) return NULL;
+      _WDIR* wd = _wopendir(wp);
+      free(wp);
+      if (wd == NULL) return NULL;
+      OwlDir* d = (OwlDir*)malloc(sizeof(OwlDir));
+      if (d == NULL) { _wclosedir(wd); return NULL; }
+      d->wd = wd;
+      return d;
+  }
+  static const char* owl_readdir(OwlDir* d) {
+      struct _wdirent* e = _wreaddir(d->wd);
+      if (e == NULL) return NULL;
+      if (WideCharToMultiByte(CP_UTF8, 0, e->d_name, -1, d->name,
+                              (int)sizeof(d->name), NULL, NULL) <= 0)
+          d->name[0] = '\0';
+      return d->name;
+  }
+  static void owl_closedir(OwlDir* d) {
+      if (d == NULL) return;
+      _wclosedir(d->wd);
+      free(d);
+  }
 #else
   #include <unistd.h>
   #include <sys/file.h>   /* flock */
   #if defined(__APPLE__)
     #include <mach-o/dyld.h>  /* _NSGetExecutablePath */
   #endif
-  #define owl_mkdir_one(path)  mkdir(path, 0755)
-  #define owl_rmdir(path)      rmdir(path)
-  #define owl_getcwd(buf, sz)  getcwd(buf, sz)
-  #define owl_chdir(path)      chdir(path)
+  #define owl_fopen            fopen
+  #define owl_remove           remove
+  #define owl_rename           rename
+  #define owl_stat             stat
+  #define owl_mkdir_one(path)  mkdir(path, 0755)   /* narrow-ok */
+  #define owl_rmdir(path)      rmdir(path)          /* narrow-ok */
+  #define owl_getcwd(buf, sz)  getcwd(buf, sz)    /* narrow-ok */
+  #define owl_chdir(path)      chdir(path)         /* narrow-ok */
+  #define owl_getenv           getenv
   #define PATH_SEP_CHAR        '/'
   #define PATH_SEP_ALT         '\\'
+  typedef DIR OwlDir;
+  static OwlDir* owl_opendir(const char* path) { return opendir(path); } /* narrow-ok */
+  static const char* owl_readdir(OwlDir* d) {
+      struct dirent* e = readdir(d);                                      /* narrow-ok */
+      return e != NULL ? e->d_name : NULL;
+  }
+  static void owl_closedir(OwlDir* d) { closedir(d); }                   /* narrow-ok */
 #endif
 
 /* Détecte si une entrée de répertoire est "cachée" au sens OWL :
@@ -57,7 +213,7 @@
 static bool entry_is_hidden(const char* baseName, const char* fullPath) {
     if (baseName != NULL && baseName[0] == '.') return true;
 #ifdef _WIN32
-    unsigned long attrs = GetFileAttributesA(fullPath);
+    unsigned long attrs = owl_file_attributes(fullPath);
     if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_HIDDEN)) {
         return true;
     }
@@ -170,7 +326,7 @@ static Value fn_fopen(int argCount, Value* args) {
     /* Pour foCreationSiInexistant, vérifier l'absence avant de tenter
      * la création (sinon erreur canon). */
     if (creation == FO_CREATION_SI_INEXISTANT) {
-        FILE* check = fopen(path, "rb");
+        FILE* check = owl_fopen(path, "rb");
         if (check != NULL) {
             fclose(check);
             file_error("fOuvre", path);
@@ -222,16 +378,16 @@ static Value fn_fopen(int argCount, Value* args) {
     FILE* f;
 #ifdef _WIN32
     if (blockRead && blockWrite) {
-        f = _fsopen(path, modeStr, _SH_DENYRW);
+        f = owl_fsopen(path, modeStr, _SH_DENYRW);
     } else if (blockRead) {
-        f = _fsopen(path, modeStr, _SH_DENYRD);
+        f = owl_fsopen(path, modeStr, _SH_DENYRD);
     } else if (blockWrite) {
-        f = _fsopen(path, modeStr, _SH_DENYWR);
+        f = owl_fsopen(path, modeStr, _SH_DENYWR);
     } else {
-        f = fopen(path, modeStr);
+        f = owl_fopen(path, modeStr);
     }
 #else
-    f = fopen(path, modeStr);
+    f = owl_fopen(path, modeStr);
 #endif
     if (f == NULL) { file_error("fOuvre", path); return INTEGER_VAL(-1); }
 
@@ -287,7 +443,7 @@ static Value fn_fclose(int argCount, Value* args) {
         /* foSuppressionAutomatique : retire le fichier après fermeture
          * (remove() = portable Windows + POSIX). Échec silencieux : la
          * sémantique canon est "best-effort delete on close". */
-        remove(pathToDelete);
+        owl_remove(pathToDelete);
     }
     owl_clear_error();
     return INTEGER_VAL(0);
@@ -464,7 +620,7 @@ static Value fn_ffichier_existe(int argCount, Value* args) {
     if (!IS_STRING(args[0])) return BOOL_VAL(false);
     const char* path = AS_CSTRING(args[0]);
     struct stat st;
-    if (stat(path, &st) != 0) return BOOL_VAL(false);
+    if (owl_stat(path, &st) != 0) return BOOL_VAL(false);
     return BOOL_VAL((st.st_mode & S_IFMT) == S_IFREG);
 }
 
@@ -473,7 +629,7 @@ static Value fn_fdelete(int argCount, Value* args) {
     (void)argCount;
     if (!IS_STRING(args[0])) return BOOL_VAL(false);
     const char* path = AS_CSTRING(args[0]);
-    if (remove(path) != 0) { file_error("fSupprime", path); return BOOL_VAL(false); }
+    if (owl_remove(path) != 0) { file_error("fSupprime", path); return BOOL_VAL(false); }
     owl_clear_error();
     return BOOL_VAL(true);
 }
@@ -494,7 +650,7 @@ static Value fn_floadtext(int argCount, Value* args) {
     int enc = file_arg_encoding(argCount, args, 1);
     const char* path = AS_CSTRING(args[0]);
 
-    FILE* f = fopen(path, "rb");
+    FILE* f = owl_fopen(path, "rb");
     if (f == NULL) { file_error("fChargeTexte", path); return OBJ_VAL(obj_copy_string("", 0)); }
 
     fseek(f, 0, SEEK_END);
@@ -540,7 +696,7 @@ static Value fn_fsavetext(int argCount, Value* args) {
     const char* path = AS_CSTRING(args[0]);
     ObjString* content = AS_STRING(args[1]);
 
-    FILE* f = fopen(path, "wb");
+    FILE* f = owl_fopen(path, "wb");
     if (f == NULL) { file_error("fSauveTexte", path); return BOOL_VAL(false); }
 
     bool ok;
@@ -571,7 +727,7 @@ static Value fn_dir_exists(int argCount, Value* args) {
     (void)argCount;
     if (!IS_STRING(args[0])) return BOOL_VAL(false);
     struct stat st;
-    if (stat(AS_CSTRING(args[0]), &st) != 0) return BOOL_VAL(false);
+    if (owl_stat(AS_CSTRING(args[0]), &st) != 0) return BOOL_VAL(false);
     return BOOL_VAL((st.st_mode & S_IFMT) == S_IFDIR);
 }
 
@@ -585,12 +741,19 @@ static Value fn_dir_create(int argCount, Value* args) {
     memcpy(path, src, (size_t)len);
     path[len] = 0;
 
-    for (int i = 0; i < len; i++) {
-        if (is_path_sep(path[i]) && i > 0) {
+    /* Skip a Windows drive prefix (e.g. "C:") so the intermediate loop never
+     * tries to mkdir the drive itself — it isn't a directory, and from another
+     * partition "C:" resolves to that drive's current working dir, yielding a
+     * spurious Permission denied. First component created for "C:\a\b" is "C:\a". */
+    int start = 0;
+    if (len >= 2 && isalpha((unsigned char)path[0]) && path[1] == ':') start = 2;
+
+    for (int i = start; i < len; i++) {
+        if (is_path_sep(path[i]) && i > start) {
             char saved = path[i];
             path[i] = 0;
             struct stat st;
-            if (stat(path, &st) != 0) {
+            if (owl_stat(path, &st) != 0) {
                 if (owl_mkdir_one(path) != 0 && errno != EEXIST) {
                     file_error("fRepCree (intermediaire)", path);
                     path[i] = saved;
@@ -603,7 +766,7 @@ static Value fn_dir_create(int argCount, Value* args) {
     }
     struct stat st;
     bool ok = true;
-    if (stat(path, &st) != 0) {
+    if (owl_stat(path, &st) != 0) {
         ok = (owl_mkdir_one(path) == 0);
         if (!ok) file_error("fRepCree", path);
     }
@@ -615,21 +778,21 @@ static Value fn_dir_create(int argCount, Value* args) {
 /* Recursively remove a directory and its contents. Used when fRepSupprime is
  * called with a truthy second argument. */
 static bool rmdir_recursive(const char* path) {
-    DIR* d = opendir(path);
+    OwlDir* d = owl_opendir(path);
     if (d == NULL) return false;
-    struct dirent* e;
-    while ((e = readdir(d)) != NULL) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+    const char* name;
+    while ((name = owl_readdir(d)) != NULL) {
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
         char child[1024];
-        snprintf(child, sizeof(child), "%s/%s", path, e->d_name);
+        snprintf(child, sizeof(child), "%s/%s", path, name);
         struct stat st;
-        if (stat(child, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR) {
+        if (owl_stat(child, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR) {
             rmdir_recursive(child);
         } else {
-            remove(child);
+            owl_remove(child);
         }
     }
-    closedir(d);
+    owl_closedir(d);
     return owl_rmdir(path) == 0;
 }
 
@@ -731,17 +894,17 @@ typedef bool (*DirEntryCb)(const char* dirPath, const char* baseName,
 static bool walk_directory_ex(const char* dirPath, bool recursive,
                               DirEntryCb cb, void* userdata,
                               bool* topFirst) {
-    DIR* d = opendir(dirPath);
+    OwlDir* d = owl_opendir(dirPath);
     if (d == NULL) return true;
-    struct dirent* e;
+    const char* name;
     char childPath[1024];
     bool dirFirst = true;  /* premier fichier rencontré dans ce dirPath */
-    while ((e = readdir(d)) != NULL) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+    while ((name = owl_readdir(d)) != NULL) {
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
         snprintf(childPath, sizeof(childPath), "%s%c%s",
-                 dirPath, PATH_SEP_CHAR, e->d_name);
+                 dirPath, PATH_SEP_CHAR, name);
         struct stat st;
-        if (stat(childPath, &st) != 0) continue;
+        if (owl_stat(childPath, &st) != 0) continue;
         bool isDir = (st.st_mode & S_IFMT) == S_IFDIR;
         int change;
         if (topFirst != NULL && *topFirst) {
@@ -751,18 +914,18 @@ static bool walk_directory_ex(const char* dirPath, bool recursive,
         } else {
             change = FL_FICHIER;
         }
-        if (!cb(dirPath, e->d_name, childPath, isDir, change, &st, userdata)) {
-            closedir(d);
+        if (!cb(dirPath, name, childPath, isDir, change, &st, userdata)) {
+            owl_closedir(d);
             return false;
         }
         if (recursive && isDir) {
             if (!walk_directory_ex(childPath, true, cb, userdata, topFirst)) {
-                closedir(d);
+                owl_closedir(d);
                 return false;
             }
         }
     }
-    closedir(d);
+    owl_closedir(d);
     return true;
 }
 
@@ -999,9 +1162,9 @@ static bool path_has_wildcard(const char* s) {
 
 /* Single file copy helper (reused by glob path). Returns true on success. */
 static bool file_copy_single_impl(const char* src, const char* dst) {
-    FILE* in = fopen(src, "rb");
+    FILE* in = owl_fopen(src, "rb");
     if (in == NULL) return false;
-    FILE* out = fopen(dst, "wb");
+    FILE* out = owl_fopen(dst, "wb");
     if (out == NULL) { fclose(in); return false; }
     char buf[8192];
     size_t n;
@@ -1019,29 +1182,29 @@ static bool file_copy_glob(const char* srcDir, const char* pattern,
                            const char* dstDir, bool recursive) {
     /* Ensure dstDir exists */
     struct stat dstStat;
-    if (stat(dstDir, &dstStat) != 0) {
+    if (owl_stat(dstDir, &dstStat) != 0) {
         if (owl_mkdir_one(dstDir) != 0 && errno != EEXIST) return false;
     }
-    DIR* d = opendir(srcDir);
+    OwlDir* d = owl_opendir(srcDir);
     if (d == NULL) return false;
-    struct dirent* e;
+    const char* name;
     char childSrc[1024], childDst[1024];
     bool ok = true;
-    while ((e = readdir(d)) != NULL) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
-        snprintf(childSrc, sizeof(childSrc), "%s/%s", srcDir, e->d_name);
-        snprintf(childDst, sizeof(childDst), "%s/%s", dstDir, e->d_name);
+    while ((name = owl_readdir(d)) != NULL) {
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        snprintf(childSrc, sizeof(childSrc), "%s/%s", srcDir, name);
+        snprintf(childDst, sizeof(childDst), "%s/%s", dstDir, name);
         struct stat st;
-        if (stat(childSrc, &st) != 0) continue;
+        if (owl_stat(childSrc, &st) != 0) continue;
         if ((st.st_mode & S_IFMT) == S_IFDIR) {
             if (recursive) {
                 if (!file_copy_glob(childSrc, pattern, childDst, true)) ok = false;
             }
-        } else if (glob_match(e->d_name, pattern)) {
+        } else if (glob_match(name, pattern)) {
             if (!file_copy_single_impl(childSrc, childDst)) ok = false;
         }
     }
-    closedir(d);
+    owl_closedir(d);
     return ok;
 }
 
@@ -1093,9 +1256,9 @@ static Value fn_file_copy(int argCount, Value* args) {
 
     /* Single-file fallback — garder les labels "(source)" / "(destination)"
      * pour rester compatible avec les tests de message d'erreur existants. */
-    FILE* in = fopen(srcRaw, "rb");
+    FILE* in = owl_fopen(srcRaw, "rb");
     if (in == NULL) { file_error("fCopieFichier (source)", srcRaw); return BOOL_VAL(false); }
-    FILE* out = fopen(dstRaw, "wb");
+    FILE* out = owl_fopen(dstRaw, "wb");
     if (out == NULL) { file_error("fCopieFichier (destination)", dstRaw); fclose(in); return BOOL_VAL(false); }
     char buf[8192];
     size_t n;
@@ -1115,7 +1278,7 @@ static Value fn_file_copy(int argCount, Value* args) {
 static Value fn_file_rename(int argCount, Value* args) {
     (void)argCount;
     if (!IS_STRING(args[0]) || !IS_STRING(args[1])) return BOOL_VAL(false);
-    if (rename(AS_CSTRING(args[0]), AS_CSTRING(args[1])) != 0) {
+    if (owl_rename(AS_CSTRING(args[0]), AS_CSTRING(args[1])) != 0) {
         file_error("fRenomme", AS_CSTRING(args[0]));
         return BOOL_VAL(false);
     }
@@ -1307,9 +1470,9 @@ static Value fn_dir_exe(int argCount, Value* args) {
 /* fRepTemp() -> system temp directory */
 static Value fn_dir_temp(int argCount, Value* args) {
     (void)argCount; (void)args;
-    const char* t = getenv("TEMP");
-    if (t == NULL) t = getenv("TMP");
-    if (t == NULL) t = getenv("TMPDIR");
+    const char* t = owl_getenv("TEMP");
+    if (t == NULL) t = owl_getenv("TMP");
+    if (t == NULL) t = owl_getenv("TMPDIR");
     if (t == NULL) t = "/tmp";
     return OBJ_VAL(obj_copy_string(t, (int)strlen(t)));
 }
@@ -1327,18 +1490,18 @@ extern void owl_program_name(char* out, int outSize);
 /* Racine des données applicatives propres à l'utilisateur courant. */
 static void data_root_user(char* out, int outSize) {
 #if defined(_WIN32)
-    const char* p = getenv("APPDATA");
+    const char* p = owl_getenv("APPDATA");
     snprintf(out, (size_t)outSize, "%s", (p != NULL && p[0] != '\0') ? p : "");
 #elif defined(__APPLE__)
-    const char* home = getenv("HOME");
+    const char* home = owl_getenv("HOME");
     snprintf(out, (size_t)outSize, "%s/Library/Application Support",
              (home != NULL) ? home : "");
 #else
-    const char* xdg = getenv("XDG_DATA_HOME");
+    const char* xdg = owl_getenv("XDG_DATA_HOME");
     if (xdg != NULL && xdg[0] != '\0') {
         snprintf(out, (size_t)outSize, "%s", xdg);
     } else {
-        const char* home = getenv("HOME");
+        const char* home = owl_getenv("HOME");
         snprintf(out, (size_t)outSize, "%s/.local/share", (home != NULL) ? home : "");
     }
 #endif
@@ -1347,7 +1510,7 @@ static void data_root_user(char* out, int outSize) {
 /* Racine des données applicatives partagées entre tous les utilisateurs. */
 static void data_root_common(char* out, int outSize) {
 #if defined(_WIN32)
-    const char* p = getenv("PROGRAMDATA");
+    const char* p = owl_getenv("PROGRAMDATA");
     snprintf(out, (size_t)outSize, "%s",
              (p != NULL && p[0] != '\0') ? p : "C:\\ProgramData");
 #elif defined(__APPLE__)
@@ -1477,7 +1640,7 @@ static Value fn_fcreate(int argCount, Value* args) {
                               NULL);
         return INTEGER_VAL(-1);
     }
-    FILE* f = fopen(path, "w+b");  /* create/truncate + read-write */
+    FILE* f = owl_fopen(path, "w+b");  /* create/truncate + read-write */
     if (f == NULL) { file_error("fCree", path); return INTEGER_VAL(-1); }
     openFiles[slot] = f;
     fileSlotUsed[slot] = true;
@@ -1520,7 +1683,7 @@ static Value fn_ftruncate(int argCount, Value* args) {
 static Value fn_fappend_text(int argCount, Value* args) {
     if (!IS_STRING(args[0]) || !IS_STRING(args[1])) return BOOL_VAL(false);
     int enc = file_arg_encoding(argCount, args, 2);
-    FILE* f = fopen(AS_CSTRING(args[0]), "ab");
+    FILE* f = owl_fopen(AS_CSTRING(args[0]), "ab");
     if (f == NULL) { file_error("fAjouteTexte", AS_CSTRING(args[0])); return BOOL_VAL(false); }
     ObjString* s = AS_STRING(args[1]);
     bool ok;
@@ -1558,7 +1721,7 @@ static Value fn_fappend_buffer(int argCount, Value* args) {
                               NULL);
         return BOOL_VAL(false);
     }
-    FILE* f = fopen(AS_CSTRING(args[0]), "ab");
+    FILE* f = owl_fopen(AS_CSTRING(args[0]), "ab");
     if (f == NULL) { file_error("fAjouteBuffer", AS_CSTRING(args[0])); return BOOL_VAL(false); }
     size_t n = fwrite(data, 1, (size_t)len, f);
     fclose(f);
@@ -1575,7 +1738,7 @@ static Value fn_fload_buffer(int argCount, Value* args) {
     long offset = 0, length = -1;
     if (argCount >= 2 && IS_INTEGER(args[1])) offset = (long)AS_INTEGER(args[1]);
     if (argCount >= 3 && IS_INTEGER(args[2])) length = (long)AS_INTEGER(args[2]);
-    FILE* f = fopen(AS_CSTRING(args[0]), "rb");
+    FILE* f = owl_fopen(AS_CSTRING(args[0]), "rb");
     if (f == NULL) { file_error("fChargeBuffer", AS_CSTRING(args[0])); return OBJ_VAL(obj_buffer_empty(0)); }
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
@@ -1611,7 +1774,7 @@ static Value fn_fsave_buffer(int argCount, Value* args) {
                               NULL);
         return BOOL_VAL(false);
     }
-    FILE* f = fopen(AS_CSTRING(args[0]), "wb");
+    FILE* f = owl_fopen(AS_CSTRING(args[0]), "wb");
     if (f == NULL) { file_error("fSauveBuffer", AS_CSTRING(args[0])); return BOOL_VAL(false); }
     size_t n = fwrite(data, 1, (size_t)len, f);
     fclose(f);
@@ -1687,7 +1850,7 @@ static Value fn_fsize_path(int argCount, Value* args) {
         return fn_ftaille_open(argCount, args);
     }
     struct stat st;
-    if (stat(AS_CSTRING(args[0]), &st) != 0) {
+    if (owl_stat(AS_CSTRING(args[0]), &st) != 0) {
         file_error("fTaille", AS_CSTRING(args[0]));
         return INTEGER_VAL(-1);
     }
@@ -1725,7 +1888,7 @@ static int fdate_which_arg(int argCount, Value* args) {
 static Value fn_fdate(int argCount, Value* args) {
     if (!IS_STRING(args[0])) return OBJ_VAL(obj_copy_string("", 0));
     struct stat st;
-    if (stat(AS_CSTRING(args[0]), &st) != 0) return OBJ_VAL(obj_copy_string("", 0));
+    if (owl_stat(AS_CSTRING(args[0]), &st) != 0) return OBJ_VAL(obj_copy_string("", 0));
     time_t ts = fdate_pick_time(&st, fdate_which_arg(argCount, args));
     struct tm* t = localtime(&ts);
     char buf[32];
@@ -1739,7 +1902,7 @@ static Value fn_fdate(int argCount, Value* args) {
 static Value fn_fheure(int argCount, Value* args) {
     if (!IS_STRING(args[0])) return OBJ_VAL(obj_copy_string("", 0));
     struct stat st;
-    if (stat(AS_CSTRING(args[0]), &st) != 0) return OBJ_VAL(obj_copy_string("", 0));
+    if (owl_stat(AS_CSTRING(args[0]), &st) != 0) return OBJ_VAL(obj_copy_string("", 0));
     time_t ts = fdate_pick_time(&st, fdate_which_arg(argCount, args));
     struct tm* t = localtime(&ts);
     char buf[32];
@@ -1751,7 +1914,7 @@ static Value fn_fheure(int argCount, Value* args) {
 static Value fn_fdateheure(int argCount, Value* args) {
     if (!IS_STRING(args[0])) return OBJ_VAL(obj_copy_string("", 0));
     struct stat st;
-    if (stat(AS_CSTRING(args[0]), &st) != 0) return OBJ_VAL(obj_copy_string("", 0));
+    if (owl_stat(AS_CSTRING(args[0]), &st) != 0) return OBJ_VAL(obj_copy_string("", 0));
     time_t ts = fdate_pick_time(&st, fdate_which_arg(argCount, args));
     struct tm* t = localtime(&ts);
     char buf[64];
@@ -1926,8 +2089,8 @@ static Value fn_ftempname(int argCount, Value* args) {
     if (argCount >= 1 && IS_STRING(args[0])) prefix = AS_CSTRING(args[0]);
     if (argCount >= 2 && IS_STRING(args[1])) dir = AS_CSTRING(args[1]);
     if (dir == NULL || *dir == '\0') {
-        dir = getenv("TEMP");
-        if (dir == NULL) dir = getenv("TMPDIR");
+        dir = owl_getenv("TEMP");
+        if (dir == NULL) dir = owl_getenv("TMPDIR");
         if (dir == NULL) dir = "/tmp";
     }
     char out[1024];
@@ -1957,9 +2120,9 @@ static Value fn_ftempname(int argCount, Value* args) {
 static Value fn_fcompare(int argCount, Value* args) {
     (void)argCount;
     if (!IS_STRING(args[0]) || !IS_STRING(args[1])) return INTEGER_VAL(-1);
-    FILE* a = fopen(AS_CSTRING(args[0]), "rb");
+    FILE* a = owl_fopen(AS_CSTRING(args[0]), "rb");
     if (a == NULL) { file_error("fCompare (source 1)", AS_CSTRING(args[0])); return INTEGER_VAL(-1); }
-    FILE* b = fopen(AS_CSTRING(args[1]), "rb");
+    FILE* b = owl_fopen(AS_CSTRING(args[1]), "rb");
     if (b == NULL) { file_error("fCompare (source 2)", AS_CSTRING(args[1])); fclose(a); return INTEGER_VAL(-2); }
     char buf1[4096], buf2[4096];
     int diff = 0;
@@ -1977,21 +2140,21 @@ static Value fn_fcompare(int argCount, Value* args) {
 
 /* fRepTaille(path) — total size of a directory tree in bytes. */
 static int64_t dir_size_recursive(const char* path) {
-    DIR* d = opendir(path);
+    OwlDir* d = owl_opendir(path);
     if (d == NULL) return 0;
     int64_t total = 0;
-    struct dirent* e;
+    const char* name;
     char child[1024];
-    while ((e = readdir(d)) != NULL) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
-        snprintf(child, sizeof(child), "%s/%s", path, e->d_name);
+    while ((name = owl_readdir(d)) != NULL) {
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        snprintf(child, sizeof(child), "%s/%s", path, name);
         struct stat st;
-        if (stat(child, &st) == 0) {
+        if (owl_stat(child, &st) == 0) {
             if ((st.st_mode & S_IFMT) == S_IFDIR) total += dir_size_recursive(child);
             else total += (int64_t)st.st_size;
         }
     }
-    closedir(d);
+    owl_closedir(d);
     return total;
 }
 
@@ -2003,9 +2166,9 @@ static Value fn_frepsize(int argCount, Value* args) {
 
 /* fRepCopie(src, dst) — recursive directory copy. Creates dst if needed. */
 static bool copy_file_single(const char* src, const char* dst) {
-    FILE* in = fopen(src, "rb");
+    FILE* in = owl_fopen(src, "rb");
     if (in == NULL) return false;
-    FILE* out = fopen(dst, "wb");
+    FILE* out = owl_fopen(dst, "wb");
     if (out == NULL) { fclose(in); return false; }
     char buf[8192];
     size_t n;
@@ -2018,20 +2181,20 @@ static bool copy_file_single(const char* src, const char* dst) {
 
 static bool copy_dir_recursive(const char* src, const char* dst) {
     struct stat st;
-    if (stat(dst, &st) != 0) {
+    if (owl_stat(dst, &st) != 0) {
         if (owl_mkdir_one(dst) != 0 && errno != EEXIST) return false;
     }
-    DIR* d = opendir(src);
+    OwlDir* d = owl_opendir(src);
     if (d == NULL) return false;
-    struct dirent* e;
+    const char* name;
     char childSrc[1024], childDst[1024];
     bool ok = true;
-    while ((e = readdir(d)) != NULL) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
-        snprintf(childSrc, sizeof(childSrc), "%s/%s", src, e->d_name);
-        snprintf(childDst, sizeof(childDst), "%s/%s", dst, e->d_name);
+    while ((name = owl_readdir(d)) != NULL) {
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
+        snprintf(childSrc, sizeof(childSrc), "%s/%s", src, name);
+        snprintf(childDst, sizeof(childDst), "%s/%s", dst, name);
         struct stat cst;
-        if (stat(childSrc, &cst) == 0) {
+        if (owl_stat(childSrc, &cst) == 0) {
             if ((cst.st_mode & S_IFMT) == S_IFDIR) {
                 if (!copy_dir_recursive(childSrc, childDst)) ok = false;
             } else {
@@ -2039,7 +2202,7 @@ static bool copy_dir_recursive(const char* src, const char* dst) {
             }
         }
     }
-    closedir(d);
+    owl_closedir(d);
     return ok;
 }
 
@@ -2112,6 +2275,7 @@ static const OwlSignature sig_copy_flags[] = { {2, p_pp,         "booléen", "su
                                                 {3, p_copy_flags, "booléen", "succès"}, {0} };
 static const OwlSignature sig_extract[]    = { {2, p_path_mode2, "chaîne", "composant extrait"}, {0} };
 static const OwlSignature sig_dir_bool[]   = { {1, p_path, "booléen", "Vrai/Faux"}, {0} };
+static const OwlSignature sig_dir_create[] = { {1, p_path, "booléen", "Vrai si créé ou déjà existant, sinon Faux"}, {0} };
 static const OwlSignature sig_dir_void[]   = { {1, p_path, "rien", "opération effectuée"}, {0} };
 static const OwlParam p_dir_rm[]           = { {"chemin", "chaîne", "dossier à supprimer"},
                                                 {"indicateur", "entier?", "frRécursif pour supprimer le contenu"}, {0} };
@@ -2250,7 +2414,7 @@ static const OwlNativeDef DEFS_FILE[] = {
         sig_dir_bool, fn_dir_exists),
     F_DEF("fRepCree", "fMakeDir", "Fichiers",
         "Crée un dossier (et parents si nécessaire).", "Create a directory (with parents).",
-        sig_dir_void, fn_dir_create),
+        sig_dir_create, fn_dir_create),
     F_DEF("fRepSupprime", "fRemoveDir", "Fichiers",
         "Supprime un dossier.", "Delete a directory.", sig_dir_rm, fn_dir_remove),
     { .canonical = "fListeR\xc3\xa9" "pertoire",

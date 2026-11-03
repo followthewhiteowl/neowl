@@ -294,6 +294,11 @@ static ObjInstance* build_Projet_template(void) {
      * langue source implicite fr-FR, cf. owl_i18n_set_project_source). */
     ObjArray* langues = obj_new_array();
     inst_field_set_value(tpl, "Langues", OBJ_VAL(langues));
+    /*  — PropriétésPersonnaliséesTousChamps : tableau des noms de props
+     * custom declarees (vide par defaut). Reecrit par le bloc PROPRIETES. */
+    ObjArray* customProps = obj_new_array();
+    inst_field_set_value(tpl, "ProprietesPersonnaliseesTousChamps",
+                         OBJ_VAL(customProps));
     vm_pop();
     return tpl;
 }
@@ -3432,6 +3437,25 @@ static const OwlField FIELDS_Projet[] = {
      "per user. The full list of prefixes is described in the naming-prefix "
      "charter.",
      .nameEN="EnableNamingConventionWarning"},
+    {"ProprietesPersonnaliseesTousChamps",
+     "Propri\xc3\xa9t\xc3\xa9sPersonnalis\xc3\xa9" "esTousChamps",
+     "liste de propri\xc3\xa9t\xc3\xa9s typ\xc3\xa9" "es", "[]",
+     "Propri\xc3\xa9t\xc3\xa9s suppl\xc3\xa9mentaires attach\xc3\xa9" "es \xc3\xa0 "
+     "tous les champs et \xc3\xa0 la fen\xc3\xaatre du projet. Liste typ\xc3\xa9" "e "
+     "`[nom est un type, ...]` o\xc3\xb9 chaque type vaut cha\xc3\xaene, entier, "
+     "bool\xc3\xa9" "en ou r\xc3\xa9" "el. Une fois d\xc3\xa9" "clar\xc3\xa9" "e, "
+     "chaque propri\xc3\xa9t\xc3\xa9 est lisible et modifiable par programme "
+     "(champ..maPropri\xc3\xa9t\xc3\xa9), stock\xc3\xa9" "e par instance, avec "
+     "contr\xc3\xb4le de type \xc3\xa0 l'affectation. Un nom qui heurte une "
+     "propri\xc3\xa9t\xc3\xa9 int\xc3\xa9gr\xc3\xa9" "e est rejet\xc3\xa9 \xc3\xa0 "
+     "la d\xc3\xa9" "claration.",
+     "Extra properties attached to every control and to the project window. "
+     "Typed list `[name is a type, ...]` where each type is string, integer, "
+     "boolean or real. Once declared, each property is readable and writable "
+     "from code (control..myProperty), stored per instance, with type checking "
+     "on assignment. A name that collides with a built-in property is rejected "
+     "at declaration.",
+     .nameEN="CustomPropertiesAllFields"},
     {0},
 };
 
@@ -4129,8 +4153,8 @@ static const OwlTypeDef TYPES[] = {
     { .canonical      = "FormatNombre",
       .canonicalAscii = "FormatNombre",
       .category       = "FormatNombre",
-      .descFR         = "Format d'affichage d'un nombre : séparateur décimal, séparateur de milliers, nombre de décimales. Porté par le projet (hérité par les champs) ou posé directement sur un champ.",
-      .descEN         = "Display format of a number: decimal separator, thousands separator, decimal count. Carried by the project (inherited by controls) or set directly on a control.",
+      .descFR         = "Format d'affichage d'un nombre : séparateur décimal, séparateur de milliers, nombre de décimales. Exemple : `FormatNombre = { SeparateurMilliers = \" \", ChiffresApresVirgule = 2 }` (milliers séparés par une espace, deux décimales). Porté par le projet (hérité par les champs) ou posé directement sur un champ.",
+      .descEN         = "Display format of a number: decimal separator, thousands separator, decimal count. Example: `NumberFormat = { ThousandsSeparator = \" \", DecimalPlaces = 2 }` (thousands separated by a space, two decimals). Carried by the project (inherited by controls) or set directly on a control.",
       .fields         = FIELDS_FormatNombre,
       /* nameEN distinct de "NumberFormat" : ce dernier est deja le canon EN de
        * FormatNumérique (type conversion). Deux types ne peuvent pas partager la

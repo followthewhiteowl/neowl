@@ -1,0 +1,65 @@
+// @sujet : RegistreListeValeur
+// @résumé : Renvoie en une seule chaîne le nom, et éventuellement le type,
+// des valeurs d'une clé de la base de registre, une par ligne (LF).
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeValeur")
+FIN
+
+PROCEDURE PUBLIQUE scenario_liste_simple_des_noms_de_valeur()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeValeur"
+	RegistreCréeClé(racine)
+	RegistreEcrit(racine, "ValTxt1512", "bonjour")
+	RegistreEcrit(racine, "ValNum1512", 42)
+
+	resultat est une chaîne            = RegistreListeValeur(racine)
+	lignes   est un tableau de chaînes = ChaîneDécoupe(resultat, LF)
+	dbgVérifieEgalité(lignes..Occurrence, 2, "les 2 valeurs créées sont listées, aucune de plus")
+	dbgVérifieVrai(Contient(resultat, "ValTxt1512"), "ValTxt1512 est présente dans la liste")
+	dbgVérifieVrai(Contient(resultat, "ValNum1512"), "ValNum1512 est présente dans la liste")
+FIN
+
+PROCEDURE PUBLIQUE scenario_cle_sans_valeur_renvoie_chaine_vide()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeValeur"
+	RegistreCréeClé(racine)
+
+	resultat est une chaîne = RegistreListeValeur(racine)
+	dbgVérifieEgalité(resultat, "", "une clé sans valeur renvoie une chaîne vide")
+FIN
+
+// Le résultat détaillé ajoute le type de chaque valeur (séparé du nom par une
+// tabulation) : il est donc nécessairement plus riche que le résultat simple.
+PROCEDURE PUBLIQUE scenario_resultat_detaille_inclut_le_type()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeValeur"
+	RegistreCréeClé(racine)
+	RegistreEcrit(racine, "ValTxt1512", "bonjour")
+
+	resSimple est une chaîne = RegistreListeValeur(racine)
+	resDetail est une chaîne = RegistreListeValeur(racine, Vrai)
+	dbgVérifieVrai(Contient(resDetail, "ValTxt1512"), "le résultat détaillé référence le nom de la valeur")
+	dbgVérifieVrai(Contient(resDetail, TAB), "le résultat détaillé sépare nom et type par une tabulation")
+	dbgVérifieVrai(Taille(resDetail) > Taille(resSimple), "le résultat détaillé est plus riche que le résultat simple")
+FIN
+
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	racine est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeValeur"
+	RegistreCréeClé(racine)
+	RegistreEcrit(racine, "ValMode1512", "peu importe")
+
+	resultat est une chaîne = RegistreListeValeur(registreModeAuto, racine)
+	dbgVérifieVrai(Contient(resultat, "ValMode1512"), "la liste aboutit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : une clé inexistante ne provoque pas de crash, elle renvoie une
+// chaîne vide accompagnée d'une erreur douce consultable via ErreurInfo.
+PROCEDURE PRIVÉE scenario_cle_inexistante_renvoie_vide_avec_erreur_douce()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\ListeValeur\Fantome1512"
+
+	ErreurRAZ()
+	resultat est une chaîne = RegistreListeValeur(chemin)
+	bErr     est un booléen = ErreurDétectée
+	dbgVérifieEgalité(resultat, "", "une clé inexistante renvoie une chaîne vide")
+	dbgVérifieVrai(bErr, "une erreur douce est posée pour une clé inexistante")
+FIN
+
+dbgBilanTest()

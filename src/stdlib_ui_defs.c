@@ -32,6 +32,7 @@
 #include "owl_registry.h"
 #include "owl_ui.h"           /* OWL_TK_MOUSE_LEFT/RIGHT (codes sentinelles souris) */
 #include "sentinels.h"        /* OWL_FSEL_OUVRE/CREE/EXISTE/MULTI */
+#include "vm.h"               /* vm_push/vm_pop (rooting des consts chaîne ) */
 
 #include <string.h>
 
@@ -45,6 +46,7 @@ static const OwlParam p_fin[]    = {{"argsOpt", "tout", "Messages puis booleen c
 extern const OwlEnum E_toastDuree;
 extern const OwlEnum E_CadrageH;
 extern const OwlEnum E_CadrageV;
+extern const OwlEnum E_EtatFenetre;  /*  — FenEtat */
 /*  — enum genere (valeurs remplies a l'init) : non-const. */
 extern OwlEnum E_EvtWidget;
 
@@ -179,6 +181,33 @@ static const OwlSignature sig_declenche_evenement[] = {
     {0}
 };
 
+/*  — IntercepteEvenement / InterceptEvent : attache une procedure a
+ * un evenement nomme (proc, champ, evtX). L'evenement est contraint a l'enum
+ * evt*. IntercepteEvenementFin detache (champ [, evtX]). */
+static const OwlParam p_intercepte_evenement[] = {
+    {"procedure", "tout", "Procedure a executer quand l'evenement survient (nom nu)."},
+    {"champ",     "tout", "Champ cible (objet SAI_x/BTN_x) ou nom du champ en chaine."},
+    {"evt",       "entier", "Evenement a intercepter (constante evt*).",
+     .allowedBase=&E_EvtWidget},
+    {0}
+};
+static const OwlSignature sig_intercepte_evenement[] = {
+    {3, p_intercepte_evenement, "rien", ""},
+    {0}
+};
+static const OwlParam p_intercepte_evenement_fin[] = {
+    {"champ", "tout",   "Champ dont on detache l'interception (objet ou nom en chaine)."},
+    {"evt",   "entier", "Evenement precis a detacher (constante evt*). Omis : tous "
+                        "les evenements interceptes du champ.",
+     .allowedBase=&E_EvtWidget},
+    {0}
+};
+static const OwlSignature sig_intercepte_evenement_fin[] = {
+    {1, p_intercepte_evenement_fin, "rien", ""},
+    {2, p_intercepte_evenement_fin, "rien", ""},
+    {0}
+};
+
 /*  : TestSimuleSaisie(champ, texte) — ecrit `texte` dans
  * `champ..Texte` puis declenche le callback Modification du champ. */
 static const OwlParam p_test_simule_saisie[] = {
@@ -232,6 +261,34 @@ static const OwlParam p_donne_focus[] = {
 static const OwlSignature sig_donne_focus[] = {
     {0, p_donne_focus, "rien", "Focus au champ en cours"},
     {1, p_donne_focus, "rien", "Focus au champ cible"},
+    {0}
+};
+/*  : FenEtat([<Fenetre>] [, <Etat>]) — identifie ou modifie l'etat
+ * d'une fenetre (sert aussi de test d'existence : Inexistant). */
+static const OwlParam p_fenetre_etat_get[] = {
+    {"fenetre", "tout", "Optionnel. Fenetre a interroger (reference FEN_X ou nom en chaine). Omise ou chaine vide : fenetre en cours."},
+    {0}
+};
+static const OwlParam p_fenetre_etat_set[] = {
+    {"fenetre", "tout",   "Fenetre a modifier (reference FEN_X ou nom en chaine ; chaine vide = fenetre en cours)."},
+    {"etat",    "entier", "Nouvel etat de la fenetre.", .allowedBase=&E_EtatFenetre},
+    {0}
+};
+static const OwlSignature sig_fenetre_etat[] = {
+    {0, p_fenetre_etat_get, "entier", "Etat de la fenetre en cours"},
+    {1, p_fenetre_etat_get, "entier", "Etat de la fenetre indiquee (Inexistant si fermee)"},
+    {2, p_fenetre_etat_set, "entier", "Etat apres modification"},
+    {0}
+};
+/*  : DonneFocusEtRetourUtilisateur([<Element>]) — variante large de
+ * DonneFocus (champ, fenetre ou colonne). */
+static const OwlParam p_donne_focus_retour[] = {
+    {"element", "tout", "Optionnel. Champ (reference SAI_X, forme qualifiee FEN_X.SAI_Y, nom en chaine) ou fenetre (reference FEN_X) a focaliser. Omis : focus au champ en cours."},
+    {0}
+};
+static const OwlSignature sig_donne_focus_retour[] = {
+    {0, p_donne_focus_retour, "rien", "Focus au champ en cours"},
+    {1, p_donne_focus_retour, "rien", "Focus a l'element cible"},
     {0}
 };
 /*  — __DebugFeuilleStyle(champ) : feuille QSS courante (test-only). */
@@ -2056,6 +2113,16 @@ static OwlNativeDef DEFS[] = {
       .descFR="Declenche par code le handler d'un evenement d'un champ, sans interaction utilisateur. La cible est le champ en objet (BTN_x) ou son nom en chaine (indirection). L'evenement est designe par une constante evt* (evtClic, evtAChaqueModification, evtToucheAppuyee...). Les parametres supplementaires sont transmis au handler selon la signature de l'evenement. Marche en headless comme en GUI. Si le handler cible n'est pas declare : no-op silencieux.",
       .descEN="Triggers a control event's handler by code, without user interaction. The target is the control as an object (BTN_x) or its name as a string (indirection). The event is given by an evt* constant (evtClick, evtEachChange, evtKeyDown...). Extra parameters are passed to the handler according to the event signature. Works in headless or GUI mode. If the target handler is missing: silent no-op.",
       .signatures=sig_declenche_evenement },
+    { .canonical="Intercepte\xc3\x89v\xc3\xa9nement", .canonicalAscii="IntercepteEvenement",
+      .nameEN="InterceptEvent", .category="UI",
+      .descFR="Attache par code un traitement a un evenement nomme d'un champ (clic, modification, relachement de touche...), dynamiquement. La cible est le champ en objet (BTN_x) ou son nom en chaine ; l'evenement est designe par une constante evt* (evtClic, evtAChaqueModification, evtToucheRelachee...). Quand l'evenement survient, la procedure interceptee s'execute AVANT le bloc statique existant du champ ; le bloc statique s'execute ensuite par defaut, sauf si la procedure interceptee renvoie Faux (retour-main optionnel : le bloc statique est alors supprime). Un evenement sans bloc statique execute simplement la procedure. Une seule interception par couple (champ, evenement) : re-attacher remplace la precedente. L'interception est remise a zero a l'ouverture de la fenetre ; IntercepteEvenementFin la detache. Distinct de DeclencheEvenement, qui execute un handler deja cable.",
+      .descEN="Attaches a handler to a named control event (click, change, key release...) by code, dynamically. The target is the control as an object (BTN_x) or its name as a string; the event is given by an evt* constant (evtClick, evtEachChange, evtKeyUp...). When the event occurs, the intercepting procedure runs BEFORE the control's existing static block; the static block then runs by default, unless the intercepting procedure returns False (optional takeover: the static block is then suppressed). An event with no static block simply runs the procedure. Only one interception per (control, event) pair: re-attaching replaces the previous one. Interception is reset when the window opens; InterceptEventEnd detaches it. Distinct from TriggerEvent, which runs an already-wired handler.",
+      .signatures=sig_intercepte_evenement },
+    { .canonical="Intercepte\xc3\x89v\xc3\xa9nementFin", .canonicalAscii="IntercepteEvenementFin",
+      .nameEN="InterceptEventEnd", .category="UI",
+      .descFR="Detache une interception posee par IntercepteEvenement. Avec un evenement precis (constante evt*) : detache le couple (champ, evenement). Sans evenement : detache tous les evenements interceptes du champ. Detacher un couple non attache est sans effet.",
+      .descEN="Detaches an interception set by InterceptEvent. With a specific event (evt* constant): detaches the (control, event) pair. Without an event: detaches all intercepted events of the control. Detaching a pair that is not attached has no effect.",
+      .signatures=sig_intercepte_evenement_fin },
     { .canonical="TestSimuleSaisie", .nameEN="TestSimulateInput",
       .category="Test",
       .descFR="Ecrit un texte dans la propriete ..Valeur d'un champ de saisie et declenche le callback Modification du champ. Marche en headless comme en GUI.",
@@ -2081,6 +2148,16 @@ static OwlNativeDef DEFS[] = {
       .descFR="Donne le focus clavier a un champ de saisie. Le champ peut etre une reference (SAI_X), une forme qualifiee (FEN_X.SAI_Y) ou un nom en chaine. Sans argument : le focus revient au champ en cours. Declenche surSortie sur le champ quitte puis surEntree sur le champ vise (aucun evenement si le champ est deja le champ en cours). A l'ouverture d'une fenetre, le premier champ saisissable recoit le focus automatiquement.",
       .descEN="Gives keyboard focus to an input control. The control may be a reference (SAI_X), a qualified form (FEN_X.SAI_Y) or a name string. With no argument: focus returns to the current control. Triggers onExit on the control being left then onEntry on the target (no event if it is already the current control). When a window opens, the first input control receives focus automatically.",
       .signatures=sig_donne_focus },
+    { .canonical="FenEtat",       .nameEN="WinStatus",
+      .category="UI",
+      .descFR="Identifie ou modifie l'etat d'une fenetre. Sans argument ou avec un seul argument fenetre : renvoie la constante d'etat courante (Actif, AffichageSeulement, Grisé, Invisible ou Inexistant si la fenetre est fermee ou jamais ouverte). La fonction sert ainsi de test d'existence sans lever d'erreur. Avec un second argument : applique le nouvel etat et renvoie l'etat obtenu. FenEtat(fenetre, Inexistant) ferme la fenetre. Les etats de positionnement (ActifDevant, Dessus, DessusTout, Normal) et HorsEcran dependent du systeme et du z-order.",
+      .descEN="Identifies or changes a window's state. With no argument or only the window argument: returns the current state constant (Active, DisplayOnly, Grayed, Invisible, or NotFound if the window is closed or was never opened). The function thus doubles as an existence test without raising an error. With a second argument: applies the new state and returns the resulting state. WinStatus(window, NotFound) closes the window. Positioning states (TopActive, Above, AboveAll, Normal) and OutsideScreen depend on the OS and z-order.",
+      .signatures=sig_fenetre_etat },
+    { .canonical="DonneFocusEtRetourUtilisateur", .nameEN="SetFocusAndReturnToUserInput",
+      .category="UI",
+      .descFR="Donne le focus a un champ ou a une fenetre et permet a l'utilisateur de reprendre la saisie. L'element peut etre une reference de champ (SAI_X), une forme qualifiee (FEN_X.SAI_Y), un nom en chaine, ou une fenetre (FEN_X) : dans ce dernier cas la fenetre est activee et le focus va au dernier champ saisi, ou au premier champ pouvant le prendre. Sans argument : le focus revient au champ en cours. Contrairement au comportement de reference, le code qui suit l'appel continue de s'executer.",
+      .descEN="Gives focus to a control or a window and lets the user resume input. The element may be a control reference (SAI_X), a qualified form (FEN_X.SAI_Y), a name string, or a window (FEN_X): in the latter case the window is activated and focus goes to the last edited control, or to the first control that can take it. With no argument: focus returns to the current control. Unlike the reference behavior, the code following the call keeps executing.",
+      .signatures=sig_donne_focus_retour },
     { .canonical="__DebugFeuilleStyle", .canonicalAscii="__DebugFeuilleStyle",
       .nameEN="__DebugStyleSheet", .category="Test", .flags=OWL_NAT_INTERNAL,
       .descFR="Feuille de style courante d'un champ (API interne de test).",
@@ -2762,4 +2839,59 @@ void stdlib_ui_defs_register(void) {
     }
     owl_registry_register_consts(RECHERCHE_TABLE_CONSTS,
                                  (int)(sizeof(RECHERCHE_TABLE_CONSTS)/sizeof(RECHERCHE_TABLE_CONSTS[0])));
+
+    /*  — constantes de masque de saisie de forçage de casse. Valeur de
+     * type chaîne (MasqueSaisie est une prop STRING) : le token stocké pilote le
+     * rendu ..ValeurAffichée casse-forcé, ..Valeur restant la forme brute. Noms
+     * EN canon sourcés de la doc en ligne (3021016 : maskUpper/maskLower/
+     * maskFUpper). Construites au runtime car OBJ_VAL(string) est interdit en
+     * initialiseur statique ; chaque chaîne est rootée pendant le remplissage. */
+    {
+        static OwlConstDef g_case_mask_consts[3];
+        static const char* const CM_NAME[3] = {"maskMajus", "maskMinus", "maskPMajus"};
+        static const char* const CM_EN[3]   = {"maskUpper", "maskLower", "maskFUpper"};
+        static const char* const CM_FR[3] = {
+            "Masque de saisie : rendu ..ValeurAffichée tout en majuscules (..Valeur conserve la casse d'origine).",
+            "Masque de saisie : rendu ..ValeurAffichée tout en minuscules (..Valeur conserve la casse d'origine).",
+            "Masque de saisie : rendu ..ValeurAffichée avec la première lettre en majuscule (..Valeur conserve la casse d'origine).",
+        };
+        static const char* const CM_ENDESC[3] = {
+            "Input mask: ..DisplayedValue rendered all uppercase (..Value keeps the original case).",
+            "Input mask: ..DisplayedValue rendered all lowercase (..Value keeps the original case).",
+            "Input mask: ..DisplayedValue rendered with the first letter uppercase (..Value keeps the original case).",
+        };
+        int pushed = 0;
+        for (int i = 0; i < 3; i++) {
+            ObjString* v = obj_copy_string(CM_NAME[i], (int)strlen(CM_NAME[i]));
+            vm_push(OBJ_VAL(v));
+            pushed++;
+            g_case_mask_consts[i].name     = CM_NAME[i];
+            g_case_mask_consts[i].category = "Saisie";
+            g_case_mask_consts[i].value    = OBJ_VAL(v);
+            g_case_mask_consts[i].descFR   = CM_FR[i];
+            g_case_mask_consts[i].descEN   = CM_ENDESC[i];
+            g_case_mask_consts[i].nameEN   = CM_EN[i];
+        }
+        owl_registry_register_consts(g_case_mask_consts, 3);
+        for (int i = 0; i < pushed; i++) vm_pop();
+    }
+
+    /*  — maskMotsMajus/maskWordsUpper : extension OWL (aucun équivalent
+     * canon). Title-case par mot = maskPMajus appliqué à la 1ère lettre de chaque
+     * mot (séparateur espace), reste inchangé. ..Valeur préservée comme les autres
+     * masques de casse. Même construction runtime rootée que le bloc ci-dessus. */
+    {
+        static OwlConstDef g_words_mask_const;
+        static const char* const WM_NAME = "maskMotsMajus";
+        ObjString* v = obj_copy_string(WM_NAME, (int)strlen(WM_NAME));
+        vm_push(OBJ_VAL(v));
+        g_words_mask_const.name     = WM_NAME;
+        g_words_mask_const.category = "Saisie";
+        g_words_mask_const.value    = OBJ_VAL(v);
+        g_words_mask_const.descFR   = "Masque de saisie : rendu ..ValeurAffichée avec la première lettre de chaque mot en majuscule (..Valeur conserve la casse d'origine).";
+        g_words_mask_const.descEN   = "Input mask: ..DisplayedValue rendered with the first letter of each word uppercase (..Value keeps the original case).";
+        g_words_mask_const.nameEN   = "maskWordsUpper";
+        owl_registry_register_consts(&g_words_mask_const, 1);
+        vm_pop();
+    }
 }

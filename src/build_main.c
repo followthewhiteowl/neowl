@@ -17,6 +17,8 @@
 #include "project.h"
 #include "payload_extract.h"
 #include "owl_errors.h"  /* owl_error_render_{set_lang_en,lang_is_en} : chrome bilingue */
+#include "code_sign.h"   /* owl_code_sign_* : signature du binaire produit */
+#include "mbedtls/sha256.h"  /* mbedtls_sha256 : checksum .sha256 des cibles non-Windows */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,6 +115,187 @@ static const char* basename_of(const char* path) {
     return (lastSep != NULL && lastSep[1] != '\0') ? lastSep + 1 : path;
 }
 
+/* Lit un fichier entier en memoire. *out alloue par malloc (a liberer par
+ * l'appelant). Renvoie 0 si OK, -1 si le fichier est illisible. */
+static int read_file_all(const char* path, uint8_t** out, size_t* out_len) {
+    *out = NULL; *out_len = 0;
+    FILE* f = fopen(path, "rb");
+    if (f == NULL) return -1;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long sz = ftell(f);
+    if (sz < 0) { fclose(f); return -1; }
+    if (fseek(f, 0, SEEK_SET) != 0) { fclose(f); return -1; }
+    uint8_t* buf = (uint8_t*)malloc((size_t)sz > 0 ? (size_t)sz : 1);
+    if (buf == NULL) { fclose(f); return -1; }
+    size_t rd = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    if (rd != (size_t)sz) { free(buf); return -1; }
+    *out = buf; *out_len = (size_t)sz;
+    return 0;
+}
+
+/* Reecrit integralement un fichier avec `buf`. Renvoie 0 si OK, -1 sinon. */
+static int write_file_all(const char* path, const uint8_t* buf, size_t len) {
+    FILE* f = fopen(path, "wb");
+    if (f == NULL) return -1;
+    size_t wr = fwrite(buf, 1, len, f);
+    if (fclose(f) != 0) return -1;
+    return (wr == len) ? 0 : -1;
+}
+
+/* Signe l'exe fraichement produit a `outPath` avec le PKCS#12 `signer` deja
+ * charge. Lit l'exe, produit sa copie signee Authenticode, la reecrit en
+ * place. Renvoie 0 si OK, un code d'exit non nul sinon (messages bilingues
+ * deja emis). Le mot de passe n'apparait nulle part : seul le signeur, deja
+ * valide, est manipule ici. */
+static int sign_output_exe(OwlSigner* signer, const char* outPath, const char* tsaUrl) {
+    uint8_t* exe = NULL; size_t exe_len = 0;
+    if (read_file_all(outPath, &exe, &exe_len) != 0) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: cannot read the produced binary to sign it: %s\n"
+            : "owl-build: binaire produit illisible pour la signature : %s\n", outPath);
+        return 70;
+    }
+    uint8_t* signed_exe = NULL; size_t signed_len = 0;
+    /* Avec --timestamp : le PKCS#7 Authenticode est horodate (POST a la TSA)
+     * avant d'etre injecte dans le PE. Un echec d'horodatage = echec dur
+     * (decision ticket : pas de degradation silencieuse, le user l'a demande). */
+    OwlCodeSignStatus st = (tsaUrl != NULL)
+        ? owl_code_sign_pe_timestamped(signer, exe, exe_len, tsaUrl, &signed_exe, &signed_len)
+        : owl_code_sign_pe(signer, exe, exe_len, &signed_exe, &signed_len);
+    free(exe);
+    if (st != OWL_CODE_SIGN_OK || signed_exe == NULL) {
+        free(signed_exe);
+        if (tsaUrl != NULL) {
+            fprintf(stderr, owl_error_render_lang_is_en()
+                ? "owl-build: signed+timestamped build failed: %s; re-run without --timestamp or check the URL/network.\n"
+                : "owl-build: signature horodatee echouee : %s ; relance sans --timestamp ou verifie l'URL/le reseau.\n",
+                owl_code_sign_last_tsa_error());
+            return 70;
+        }
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: Authenticode signing failed (the produced binary is not a signable PE).\n"
+            : "owl-build: echec de la signature Authenticode (le binaire produit n'est pas un PE signable).\n");
+        return 70;
+    }
+    int wrc = write_file_all(outPath, signed_exe, signed_len);
+    free(signed_exe);
+    if (wrc != 0) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: cannot write back the signed binary: %s\n"
+            : "owl-build: impossible de reecrire le binaire signe : %s\n", outPath);
+        return 70;
+    }
+    printf(owl_error_render_lang_is_en()
+        ? "owl-build: signed: %s\n"
+        : "owl-build: signe : %s\n", outPath);
+    return 0;
+}
+
+/* Produit la signature de provenance DETACHEE pour les cibles non-Windows
+ * (Linux/macOS) : deux fichiers ecrits a cote du binaire `outPath`.
+ *
+ *   <outPath>.p7s    : PKCS#7 SignedData detache (DER) sur les octets du
+ *                      binaire -- verifiable avec `openssl cms -verify`.
+ *   <outPath>.sha256 : empreinte SHA-256 au format SHA256SUMS
+ *                      ("<hex>␠␠<nom>\n") -- verifiable avec `sha256sum -c`.
+ *
+ * Linux/macOS n'ont pas de signature binaire incrustee verifiee a l'execution
+ * (contrairement a l'Authenticode PE) : cette provenance est hors-ligne, elle
+ * ne retire aucun avertissement OS. Renvoie 0 si OK, un code d'exit non nul
+ * sinon (messages bilingues deja emis). */
+static int sign_output_detached(OwlSigner* signer, const char* outPath, const char* tsaUrl) {
+    uint8_t* bin = NULL; size_t bin_len = 0;
+    if (read_file_all(outPath, &bin, &bin_len) != 0) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: cannot read the produced binary to sign it: %s\n"
+            : "owl-build: binaire produit illisible pour la signature : %s\n", outPath);
+        return 70;
+    }
+
+    /* 1. Signature detachee PKCS#7 -> <outPath>.p7s */
+    uint8_t* p7 = NULL; size_t p7_len = 0;
+    OwlCodeSignStatus st = owl_code_sign_pkcs7(signer, bin, bin_len, &p7, &p7_len);
+    if (st != OWL_CODE_SIGN_OK || p7 == NULL) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: detached signature failed.\n"
+            : "owl-build: echec de la signature detachee.\n");
+        free(bin); free(p7);
+        return 70;
+    }
+    /* Avec --timestamp : horodate le PKCS#7 detache (POST a la TSA) avant de
+     * l'ecrire. Echec dur, pas de degradation silencieuse (decision ticket). */
+    if (tsaUrl != NULL) {
+        uint8_t* p7_ts = NULL; size_t p7_ts_len = 0;
+        OwlCodeSignStatus tst = owl_code_sign_timestamp_pkcs7(tsaUrl, p7, p7_len, &p7_ts, &p7_ts_len);
+        free(p7);
+        if (tst != OWL_CODE_SIGN_OK || p7_ts == NULL) {
+            fprintf(stderr, owl_error_render_lang_is_en()
+                ? "owl-build: timestamping failed: %s; re-run without --timestamp or check the URL/network.\n"
+                : "owl-build: horodatage echoue : %s ; relance sans --timestamp ou verifie l'URL/le reseau.\n",
+                owl_code_sign_last_tsa_error());
+            free(p7_ts); free(bin);
+            return 70;
+        }
+        p7 = p7_ts;
+        p7_len = p7_ts_len;
+    }
+    char p7sPath[1024];
+    snprintf(p7sPath, sizeof(p7sPath), "%s.p7s", outPath);
+    int wrc = write_file_all(p7sPath, p7, p7_len);
+    free(p7);
+    if (wrc != 0) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: cannot write the detached signature: %s\n"
+            : "owl-build: impossible d'ecrire la signature detachee : %s\n", p7sPath);
+        free(bin);
+        return 70;
+    }
+
+    /* 2. Empreinte SHA-256 des octets du binaire -> <outPath>.sha256 */
+    unsigned char digest[32];
+    int hrc = mbedtls_sha256(bin, bin_len, digest, 0);
+    free(bin);
+    if (hrc != 0) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: SHA-256 computation failed.\n"
+            : "owl-build: echec du calcul SHA-256.\n");
+        return 70;
+    }
+    char hex[65];
+    static const char HEXCHARS[] = "0123456789abcdef";
+    for (int i = 0; i < 32; i++) {
+        hex[i * 2]     = HEXCHARS[(digest[i] >> 4) & 0xF];
+        hex[i * 2 + 1] = HEXCHARS[digest[i] & 0xF];
+    }
+    hex[64] = '\0';
+
+    char sumsPath[1024];
+    snprintf(sumsPath, sizeof(sumsPath), "%s.sha256", outPath);
+    FILE* sf = fopen(sumsPath, "wb");
+    /* Format SHA256SUMS : "<hex>␠␠<nom>\n" (deux espaces). Le nom est le
+     * basename du binaire (sans chemin) pour un `sha256sum -c` lance depuis
+     * le dossier du binaire. */
+    if (sf == NULL || fprintf(sf, "%s  %s\n", hex, basename_of(outPath)) < 0) {
+        if (sf != NULL) fclose(sf);
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: cannot write the checksum file: %s\n"
+            : "owl-build: impossible d'ecrire le fichier de checksum : %s\n", sumsPath);
+        return 70;
+    }
+    if (fclose(sf) != 0) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: cannot write the checksum file: %s\n"
+            : "owl-build: impossible d'ecrire le fichier de checksum : %s\n", sumsPath);
+        return 70;
+    }
+
+    printf(owl_error_render_lang_is_en()
+        ? "owl-build: detached signature: %s + %s\n"
+        : "owl-build: signature detachee : %s + %s\n", p7sPath, sumsPath);
+    return 0;
+}
+
 static void print_usage(void) {
     if (owl_error_render_lang_is_en()) {
         printf(
@@ -132,6 +315,19 @@ static void print_usage(void) {
             "  --prepare       Warm up the extraction cache for the target, then exit\n"
             "                  (no project required). The next build for that target\n"
             "                  starts immediately. Handy for a background install step.\n"
+            "  --sign CERT.pfx Sign the produced binary with a PKCS#12 certificate.\n"
+            "                  Windows: embedded Authenticode signature (clears the\n"
+            "                  SmartScreen warning). Other targets: detached signature\n"
+            "                  <out>.p7s (detached PKCS#7, verifiable with 'openssl cms\n"
+            "                  -verify') plus a <out>.sha256 checksum, written next to\n"
+            "                  the binary for verifiable provenance.\n"
+            "  --sign-pass PWD Password of the .pfx (default: empty). Passed on the\n"
+            "                  command line, so visible in the process list.\n"
+            "  --timestamp URL RFC 3161 timestamp of the signature (optional; requires\n"
+            "                  --sign). Needs network access to the TSA at signing time;\n"
+            "                  keeps the signature valid after the certificate expires.\n"
+            "                  http:// TSA URL (e.g. http://timestamp.digicert.com).\n"
+            "                  Without this flag: no network, offline build.\n"
             "  -h, --help      Show this help\n"
             "  -v, --version   Show the version\n"
             "  --lang fr|en    Output language (default: fr); --en / --fr shortcuts\n"
@@ -168,6 +364,20 @@ static void print_usage(void) {
         "                  sort (aucun projet requis). Le build suivant pour cette\n"
         "                  cible demarre immediatement. Utile pour une etape\n"
         "                  d'installation en arriere-plan.\n"
+        "  --sign CERT.pfx Signe le binaire produit avec un certificat PKCS#12.\n"
+        "                  Windows : signature Authenticode incrustee (retire\n"
+        "                  l'avertissement SmartScreen). Autres cibles : signature\n"
+        "                  detachee <out>.p7s (PKCS#7 detache, verifiable via\n"
+        "                  'openssl cms -verify') plus un checksum <out>.sha256,\n"
+        "                  ecrits a cote du binaire pour une provenance verifiable.\n"
+        "  --sign-pass MDP Mot de passe du .pfx (défaut : vide). Passé sur la ligne\n"
+        "                  de commande, donc visible dans la liste des processus.\n"
+        "  --timestamp URL Horodatage RFC 3161 de la signature (optionnel ; nécessite\n"
+        "                  --sign). Requiert un accès réseau à la TSA au moment de\n"
+        "                  signer ; garde la signature valide après expiration du\n"
+        "                  certificat. URL de TSA en http:// (ex :\n"
+        "                  http://timestamp.digicert.com). Sans ce flag : aucun\n"
+        "                  réseau, build hors ligne.\n"
         "  -h, --help      Affiche cette aide\n"
         "  -v, --version   Affiche la version\n"
         "  --lang fr|en    Langue de sortie (défaut : fr) ; raccourcis --en / --fr\n"
@@ -219,6 +429,9 @@ int main(int argc, char* argv[]) {
     const char* outputName = NULL;
     const char* target = HOST_TARGET;  /* triple : windows-x86_64, linux-x86_64 */
     int prepareOnly = 0;  /* --prepare : prechauffe l'extraction du payload puis sort */
+    const char* signPfx = NULL;   /* --sign <cert.pfx> : signe l'exe Windows produit */
+    const char* signPass = "";    /* --sign-pass <mdp> : mot de passe du .pfx (defaut vide) */
+    const char* tsUrl = NULL;     /* --timestamp <url> : horodatage RFC 3161 (defaut OFF, offline) */
     /* Pose des qu'un flag qui n'a de sens QUE pour un build reel est consomme
      * (-o / --target). Sert a distinguer, en fin de parsing, l'invocation nue
      * (intention = voir les options -> usage exit 0) d'un build auquel il
@@ -249,6 +462,15 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[i], "--target") == 0 && i + 1 < argc) {
             target = argv[++i];
             sawBuildIntent = 1;
+        } else if (strcmp(argv[i], "--sign") == 0 && i + 1 < argc) {
+            signPfx = argv[++i];
+            sawBuildIntent = 1;
+        } else if (strcmp(argv[i], "--sign-pass") == 0 && i + 1 < argc) {
+            signPass = argv[++i];
+            sawBuildIntent = 1;
+        } else if (strcmp(argv[i], "--timestamp") == 0 && i + 1 < argc) {
+            tsUrl = argv[++i];
+            sawBuildIntent = 1;
         } else if (strcmp(argv[i], "--prepare") == 0) {
             prepareOnly = 1;
         } else if (argv[i][0] == '-') {
@@ -259,6 +481,18 @@ int main(int argc, char* argv[]) {
         } else {
             dir = argv[i];
         }
+    }
+
+    /* --timestamp n'a de sens qu'avec --sign : horodater une signature qui
+     * n'existe pas est une incoherence. Fail-fast actionnable (exit != 0)
+     * plutot que d'ignorer le flag en silence. */
+    if (tsUrl != NULL && signPfx == NULL) {
+        fprintf(stderr, owl_error_render_lang_is_en()
+            ? "owl-build: --timestamp requires --sign (there is no signature to timestamp).\n"
+              "  add --sign CERT.pfx, or drop --timestamp.\n"
+            : "owl-build: --timestamp requiert --sign (aucune signature a horodater).\n"
+              "  ajouter --sign CERT.pfx, ou retirer --timestamp.\n");
+        return 2;
     }
 
     /* --prepare : prechauffe le cache d'extraction du payload pour `target`,
@@ -392,6 +626,33 @@ int main(int argc, char* argv[]) {
     char outPath[1024];
     snprintf(outPath, sizeof(outPath), "%s%s%s%s", outDir, PATH_SEP, outputName, targetExeSuffix);
 
+    /* Pre-validation de --sign AVANT toute extraction/build : un certificat
+     * absent ou un mot de passe faux doivent echouer immediatement (fail-fast),
+     * sans payer un build complet pour rejeter ensuite. Commune a TOUTES les
+     * cibles : le signeur charge ici est reutilise apres le build, soit pour
+     * une signature Authenticode incrustee (Windows), soit pour une signature
+     * detachee `.p7s` + checksum `.sha256` a cote (non-Windows). */
+    OwlSigner* signer = NULL;
+    if (signPfx != NULL) {
+        uint8_t* pfx = NULL; size_t pfx_len = 0;
+        if (read_file_all(signPfx, &pfx, &pfx_len) != 0) {
+            fprintf(stderr, owl_error_render_lang_is_en()
+                ? "owl-build: certificate not found: %s\n"
+                : "owl-build: certificat introuvable : %s\n", signPfx);
+            return 65;
+        }
+        OwlCodeSignStatus st = owl_code_sign_load_pkcs12(pfx, pfx_len, signPass, &signer);
+        free(pfx);
+        if (st != OWL_CODE_SIGN_OK || signer == NULL) {
+            /* EPKCS12 (mdp/pfx errone) et les autres echecs convergent vers un
+             * message actionnable, SANS jamais tracer le mot de passe. */
+            fprintf(stderr, owl_error_render_lang_is_en()
+                ? "owl-build: invalid certificate or password: %s\n"
+                : "owl-build: certificat ou mot de passe invalide : %s\n", signPfx);
+            return 65;
+        }
+    }
+
     /* Detection install root (lib/ + include/owl/).
      * Priorite :
      *   1. Single-file mode : si l'exe contient un payload (footer magic),
@@ -411,6 +672,7 @@ int main(int argc, char* argv[]) {
               "  next to owl-build" EXE_SUFFIX " or in the current directory).\n"
             : "owl-build: layout install introuvable (cherche include/owl/common.h\n"
               "  a cote de owl-build" EXE_SUFFIX " ou dans le dossier courant).\n");
+        owl_code_sign_free(signer);
         return 65;
     }
 
@@ -422,6 +684,17 @@ int main(int argc, char* argv[]) {
     free(installRoot);
     if (rc == 0) {
         printf("owl-build: %s -> %s\n", dir, outPath);
+        /* Signature optionnelle du binaire produit (signeur deja valide en
+         * pre-validation). Le mecanisme depend de la cible : Authenticode
+         * incrustee pour un PE Windows, signature detachee + checksum a cote
+         * pour les cibles non-Windows. Un echec ici fait echouer la commande :
+         * un binaire non signe alors que --sign a ete demande est un echec. */
+        if (signer != NULL) {
+            rc = (strstr(target, "windows") != NULL)
+               ? sign_output_exe(signer, outPath, tsUrl)
+               : sign_output_detached(signer, outPath, tsUrl);
+        }
     }
+    owl_code_sign_free(signer);
     return rc;
 }

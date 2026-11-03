@@ -141,7 +141,7 @@ echo "== J. owl fmt : contenu d'un slice s[[...]] canonise (natives), hors separ
 # index (taille(ch)) restait en minuscule. On applique le meme canon bare-word
 # (find_native_norm) que partout ailleurs.
 got="$(fmt_line J_nat 'ch est une chaîne = "abcdef"\nr est une chaîne = ch[[taille(ch) À 4]]\nTrace(r)\n' 2)"
-check "J/slice native canonisee" 'r est une chaîne = ch[[Taille(ch) À 4]]' "$got"
+check "J/slice native canonisee" 'r  est une chaîne = ch[[Taille(ch) À 4]]' "$got"
 # Non-regression matrice : litteral de nombres, aucun mot n'est une native ->
 # byte-identique apres fmt (preuve par cmp, pas juste egalite de ligne).
 mkdir -p "$WORK/J_mat"
@@ -153,7 +153,7 @@ cmp -s "$WORK/J_mat/orig.owl" "$WORK/J_mat/a.owl" \
     || ko "J/matrice byte-identique (cmp) — le fmt a modifie le litteral matrice"
 # Non-regression : un index VARIABLE (n) n'est pas une native -> inchange.
 got="$(fmt_line J_var 'ch est une chaîne = "abcdef"\nn est un entier = 2\nr est une chaîne = ch[[n À 4]]\nTrace(r)\n' 3)"
-check "J/slice index variable intact" 'r est une chaîne = ch[[n À 4]]' "$got"
+check "J/slice index variable intact" 'r  est une chaîne = ch[[n À 4]]' "$got"
 # Idempotence : deux passes de fmt sur le slice canonise donnent le meme octet.
 mkdir -p "$WORK/J_idem"
 printf '%b' 'ch est une chaîne = "abcdef"\nr est une chaîne = ch[[taille(ch) À 4]]\nTrace(r)\n' > "$WORK/J_idem/a.owl"

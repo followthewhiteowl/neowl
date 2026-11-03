@@ -780,7 +780,7 @@ function renderList(){
     it.innerHTML=`<span class="kindbadge k-${filterKind(d)}">${kindLabel(filterKind(d))}</span><span class="nm">${hlMark(dispName(d))}</span>`;
     /* une forme pointée ouvre la fiche de la native qui la documente (pas de
        fiche dédiée) ; les autres entrées s'ouvrent telles quelles. */
-    it.onclick=()=>{ const tgt = d.kind==="method" ? (byName[norm(d.native)]||d) : d; select(tgt); };
+    it.onclick=()=>openItem(d);
     list.appendChild(it); visibleItems.push(d); };
   /* requête active -> tri par pertinence (nom exact/préfixe/sous-chaîne, puis desc-only) ;
      browse (query vide) -> tri historique sortKey (chapitres épinglés + alpha). */
@@ -795,6 +795,28 @@ function renderList(){
   } else {
     items.slice().sort(cmp).forEach(mkItem);
   }
+}
+
+/* ouverture d'un item de liste : une forme pointée (méthode) ouvre la fiche de
+   la native qui la documente, les autres s'ouvrent telles quelles. Chemin
+   partagé par le clic ET la touche Entrée depuis la recherche. */
+function openItem(d){ const tgt = d.kind==="method" ? (byName[norm(d.native)]||d) : d; select(tgt); }
+/* surbrillance de l'item courant sans ouvrir sa fiche (navigation clavier
+   depuis la recherche : la fiche ne s'affiche qu'à Entrée). */
+function markSelection(){
+  const nodes=document.getElementById("list").querySelectorAll(".item");
+  const idx = selected ? visibleItems.indexOf(selected) : -1;
+  nodes.forEach((el,n)=>el.classList.toggle("sel", n===idx));
+  if(idx>=0 && nodes[idx]) nodes[idx].scrollIntoView({block:"nearest"});
+}
+/* à la frappe : présélectionne la 1ère ligne de résultats (état interne +
+   surbrillance) pour que ↑/↓/Entrée partent d'une ligne active. Ne touche pas
+   une sélection déjà valide dans les résultats courants. */
+function preselectFirst(){
+  if(!query || !visibleItems.length) return;
+  if(visibleItems.indexOf(selected)>=0) return;
+  selected=visibleItems[0];
+  markSelection();
 }
 
 /* ---------- fiche ---------- */
@@ -1247,7 +1269,7 @@ function syncSearchClear(){ document.getElementById("searchclear").hidden = !doc
    effet "liste vide"). Reset posé ici et non dans renderList() car celle-ci
    est aussi appelée par la nav clavier (select() ↑/↓) où il casserait le
    défilement vers l'élément sélectionné. */
-document.getElementById("search").addEventListener("input",e=>{ assocType=null; query=e.target.value; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; });
+document.getElementById("search").addEventListener("input",e=>{ assocType=null; query=e.target.value; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; preselectFirst(); });
 document.getElementById("searchclear").onclick=()=>{ const s=document.getElementById("search"); s.value=""; query=""; assocType=null; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; s.focus(); };
 document.querySelectorAll("#brand .lang button").forEach(b=> b.onclick=()=>setLang(b.dataset.lang));
 /* version de l'aide installée, injectée par le dump (robuste si un ancien
@@ -1286,12 +1308,21 @@ function applyHash(){
 }
 window.addEventListener("hashchange",applyHash);
 
-/* Navigation clavier : / focus recherche, ↑/↓ parcourt la liste, Échap efface. */
+/* Navigation clavier : / focus recherche, ↑/↓ parcourt la liste, Entrée ouvre
+   la ligne sélectionnée, Échap efface. */
 const searchEl=document.getElementById("search");
 document.addEventListener("keydown",e=>{
   const inInput=document.activeElement&&document.activeElement.tagName==="INPUT";
   if(e.key==="/"&&!inInput){ e.preventDefault(); searchEl.focus(); searchEl.select(); return; }
   if(e.key==="Escape"&&inInput){ if(searchEl.value){ searchEl.value=""; query=""; syncSearchClear(); renderList(); document.getElementById("list").scrollTop=0; } else searchEl.blur(); return; }
+  /* Entrée depuis la recherche -> ouvre la fiche de la ligne sélectionnée
+     (même chemin que le clic sur l'item). */
+  if(e.key==="Enter"&&document.activeElement===searchEl){
+    if(!selected) return;
+    e.preventDefault();
+    openItem(selected);
+    return;
+  }
   if(e.key==="ArrowDown"||e.key==="ArrowUp"){
     /* focus dans le panneau détail -> on cède les flèches au scroll natif du
        conteneur (pas de preventDefault, pas de navigation de liste). */

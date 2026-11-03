@@ -1,0 +1,34 @@
+// @sujet : synchronisation saisie de cellule -> store pour une Colonne éditable
+// ordinaire (sans événement / masque / format / style).
+// @résumé : une Colonne texte saisissable d'un Champ Table remonte la frappe
+// réelle de l'utilisateur au store : après édition en cellule puis validation
+// (TAB), relire TABLE[l].COL rend la valeur saisie, pas la valeur d'origine.
+//
+// Widgets réels requis (TestModeHeadless(Faux)) : double-clic, frappe et TAB
+// sont de vrais événements postés au widget, pas une lecture de store.
+
+PROCEDURE PUBLIQUE scenario_saisie_colonne_ordinaire_remonte_au_store()
+	TestModeHeadless(Faux)
+
+	OuvreSoeur(FEN_TableColonneSyncSaisie)
+
+	// Valeur d'origine de la cellule : vide (ligne ajoutée avec "").
+	dbgVérifieEgalité(TABLE_Saisie[1].COL_Plain, "",
+	"la cellule part de sa valeur d'origine avant toute saisie")
+
+	// Ouvre l'éditeur de la cellule par un vrai double-clic.
+	TestSimuleSouris(TABLE_Saisie, DoubleClicGauche)
+
+	// Frappe réelle postée à l'éditeur de cellule ouvert.
+	EnvoieTouche(Asc("Y"))
+
+	// Valide l'édition + change de focus (TAB) : commit réel de la cellule.
+	EnvoieTouche(tkTab)
+
+	dbgVérifieEgalité(TABLE_Saisie[1].COL_Plain, "Y",
+	"la saisie réelle en cellule remonte au store, lisible par TABLE[l].COL")
+
+	Ferme(FEN_TableColonneSyncSaisie)
+FIN
+
+dbgBilanTest()

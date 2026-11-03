@@ -733,6 +733,91 @@ going through an event, extract a named procedure and call it directly.
 
 ---
 
+## 7ter-bis. Intercepting an event by code: `InterceptEvent`
+
+`InterceptEvent` (French `IntercepteÉvénement`) attaches by code a handler to a
+**named** event of a control — `evtClick`, `evtKeyUp`, focus, etc. — without going
+through the static declaration. Unlike `TriggerEvent`, which runs an **already
+wired** handler, `InterceptEvent` **adds** a handler, run **before** the control's
+static block.
+
+```owl
+InterceptEvent(procEachKey, SAI_Amount, evtEachChange)
+```
+
+- **Procedure**: the intercepted procedure. It must be declared in the **same file**
+  as the call (OWL scope resolution does not reach a procedure in another file).
+- **Control**: the target control.
+- **event**: an `evtXxx` constant (same set as `TriggerEvent`).
+
+### Execution order and static-block suppression
+
+The intercepted handler runs **before** the control's static block. By default, the
+static block runs **next**. But if the intercepted handler **returns `False`**, the
+static block is **suppressed** — it does not run. A procedure with no `RETURN`, or
+one returning anything other than `False`, lets the static block run normally.
+
+### Detaching: `InterceptEventEnd`
+
+```owl
+InterceptEventEnd(SAI_Amount, evtEachChange)   // that specific pair
+InterceptEventEnd(SAI_Amount)                   // all events of the control
+```
+
+With the event supplied, only that `(control, event)` pair is detached; with the
+event omitted, **all** intercepted events of the control are. Detaching a pair with
+no interception attached is a **no-op** (not an error). There is only **one
+interception per** `(control, event)` pair: re-attaching on the same pair
+**replaces** the previous one, without stacking.
+
+### Example
+
+```owl
+// FEN_Amount.owl — the intercepted procedure lives in the same file as the call.
+
+FEN_Amount is a Window
+    PROPERTIES
+        Title  = "Amount"
+        Layout = dispFree
+    END
+
+    SAI_Amount is a Control Input
+        PROPERTIES
+            X = 10
+            Y = 10
+        END
+        PROCEDURE onEachChange()                    // static block
+            LIB_Preview..Label = SAI_Amount..Value
+        END
+    END
+
+    LIB_Preview is a Control Label
+        PROPERTIES
+            X = 10
+            Y = 50
+        END
+    END
+
+    PROCEDURE keyCheck() : boolean
+        IF Length(SAI_Amount..Value) > 5 THEN
+            RESULT False        // too long: the static block is suppressed
+        END
+        RESULT True             // otherwise the static block updates the preview
+    END
+
+    PROCEDURE EndInitialization()
+        InterceptEvent(keyCheck, SAI_Amount, evtEachChange)
+    END
+END
+```
+
+> **Reach in the graphical interface.** Dynamic attachment covers click, focus and
+> keyboard events. Events with a specific signal (change, selection, tab switch) are
+> interceptable as soon as the control declares a **static block** for the targeted
+> event.
+
+---
+
 ## 7quater. The Table control: declaration and formatting
 
 ### Declaring a Table and its columns
@@ -895,7 +980,24 @@ SAI_Phone..InputMask = "+99 999 99 99 99"  // + and spaces as literals
 
 The mask constrains the **input**. To drive only the *displayed
 format* of a Date control without imposing a position-by-position
-typing, use `DisplayMask` (`MasqueAffichage`) instead.
+typing, use `DisplayMask` (`MasqueAffichage`) instead. For a Numeric or
+Currency control, `NumberFormat` / `CurrencyFormat` drive the display,
+not `DisplayMask`.
+
+`NumberFormat` is a composite descriptor, set through an inline literal
+`{ ... }`: `ThousandsSeparator`, `DecimalSeparator` and `DecimalPlaces`
+drive the display of a Numeric control.
+
+```owl
+SAI_Amount est un Champ Saisie
+    PROPRIETES
+        TypeSaisie   = typSaisieNum
+        FormatNombre = {SéparateurMilliers = " ", SéparateurDécimal = ",", ChiffresAprèsVirgule = 2}
+    FIN
+```
+
+Unset, the control inherits the project `NumberFormat`; each property can
+also be changed on the fly (`SAI_Amount..FormatNombre..ChiffresAprèsVirgule = 0`).
 
 ---
 

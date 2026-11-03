@@ -1,0 +1,38 @@
+// @sujet : RegistreSupprimeClé
+// @résumé : Supprime une sous-clé de la base de registre, avec toutes ses
+// valeurs et ses descendants. Supprimer une clé déjà absente est considéré
+// comme un succès — c'est une opération idempotente.
+
+PROCEDURE apresChaqueTest()
+	RegistreSupprimeClé("HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeCle")
+FIN
+
+PROCEDURE PUBLIQUE scenario_supprime_une_cle_et_ses_valeurs()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeCle"
+	RegistreCréeClé(chemin)
+	RegistreEcrit(chemin, "Langage", "Francais")
+
+	bSup est un booléen = RegistreSupprimeClé(chemin)
+	dbgVérifieVrai(bSup, "la suppression réussit")
+	dbgVérifieFaux(RegistreExiste(chemin), "la clé n'existe plus après suppression")
+FIN
+
+// Mode d'accès explicite : le comportement reste identique au mode par
+// défaut, passé ici explicitement en argument.
+PROCEDURE PUBLIQUE scenario_mode_acces_explicite_registreModeAuto()
+	chemin est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeCle"
+	RegistreCréeClé(chemin)
+
+	bSup est un booléen = RegistreSupprimeClé(registreModeAuto, chemin)
+	dbgVérifieVrai(bSup, "la suppression réussit avec le mode d'accès explicite")
+FIN
+
+// Cas limite : supprimer une clé qui n'a jamais existé est un succès, pas
+// un échec — contrairement à l'intuition naïve.
+PROCEDURE PRIVÉE scenario_cle_inexistante_renvoie_vrai()
+	cheminAbsent est une chaîne = "HKEY_CURRENT_USER\SOFTWARE\OwlTestRegistre\SupprimeCle\JamaisCreee"
+	bSup         est un booléen = RegistreSupprimeClé(cheminAbsent)
+	dbgVérifieVrai(bSup, "supprimer une clé déjà absente est considéré comme un succès")
+FIN
+
+dbgBilanTest()

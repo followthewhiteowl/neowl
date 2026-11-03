@@ -3314,6 +3314,8 @@ static void dump_doc_html(const char* tplPath) {
         doc_emit_cat_en("Interface");
         if (k->defaultProperty) { printf(",\"defprop\":"); json_escape(stdout, k->defaultProperty); }
         doc_emit_desc(k->descFR, k->descEN);
+        cli_doc_emit_examples_json(k->nameFR, k->nameAscii ? k->nameAscii : k->nameFR);
+        cli_doc_emit_public_docs_json(k->nameFR, k->nameAscii ? k->nameAscii : k->nameFR);
         doc_emit_member_xref(k->nameFR);
         printf("}");
     }
@@ -3949,8 +3951,23 @@ void dump_lsp_catalog(void) {
      *      via owl_dsl_props_count()/owl_dsl_prop_at(). Le LSP autocomplete
      *      et le formatter consomment cette table. ------------------ */
     {
-        printf("\nconst OwlDSLPropInfo OWL_DSL_PROP_CATALOG[] = {\n");
         int n = owl_dsl_props_count();
+
+        /*  — maillage « Voir aussi » : pour chaque prop ayant des
+         * fiches liees, on pre-emet un tableau NULL-termine de stems (meme
+         * source que `owl explain ..<prop>`), reference depuis l'entree. */
+        for (int i = 0; i < n; i++) {
+            const OwlDSLPropEntry* e = owl_dsl_prop_at(i);
+            if (!e || !e->def || !e->def->nameFR) continue;
+            const char* fiches[8];
+            int nf = cli_doc_dsl_prop_fiches(e->def->nameFR, fiches, 8);
+            if (nf <= 0) continue;
+            printf("static const char* const DSLPROP_FICHES_%d[] = {", i);
+            for (int k = 0; k < nf; k++) { emit_c_string(fiches[k]); printf(", "); }
+            printf("0};\n");
+        }
+
+        printf("\nconst OwlDSLPropInfo OWL_DSL_PROP_CATALOG[] = {\n");
         int emittedP = 0;
         for (int i = 0; i < n; i++) {
             const OwlDSLPropEntry* e = owl_dsl_prop_at(i);
@@ -3973,6 +3990,14 @@ void dump_lsp_catalog(void) {
              * dans `Style = { <cursor> }`. */
             if (p->object_type) emit_c_string(p->object_type);
             else                printf("0");
+            printf(", ");
+            /*  — reference le tableau de fiches pre-emis si present. */
+            {
+                const char* fiches[8];
+                int nf = cli_doc_dsl_prop_fiches(p->nameFR, fiches, 8);
+                if (nf > 0) printf("DSLPROP_FICHES_%d", i);
+                else        printf("0");
+            }
             printf("},\n");
             emittedP++;
         }
@@ -8153,6 +8178,9 @@ int main(int argc, char* argv[]) {
             extern int net_tcp_self_test_run(void);
             extern int net_tcp_tls_self_test_run(void);
             extern int auth_scram_self_test_run(void);
+            extern int code_sign_self_test_run(void);
+            extern int code_sign_pe_self_test_run(void);
+            extern int code_sign_ts_self_test_run(void);
             /*  — encodeurs MIME (QP + RFC 2047). C pur, pas de VM. */
             extern int mime_codec_self_test_run(void);
             /*  — ce controle meurt par intermittence en cours de
@@ -8179,6 +8207,9 @@ int main(int argc, char* argv[]) {
             failures += net_tcp_self_test_run(); net_familles++;
             failures += net_tcp_tls_self_test_run(); net_familles++;
             failures += auth_scram_self_test_run(); net_familles++;
+            failures += code_sign_self_test_run(); net_familles++;
+            failures += code_sign_pe_self_test_run(); net_familles++;
+            failures += code_sign_ts_self_test_run(); net_familles++;
             /*  — parsing de reponse HTTP contre un pair mock qui
              * controle le decoupage de ses write(). Exception a la regle
              * ci-dessus : tout le parsing de stdlib_http.c est static, donc

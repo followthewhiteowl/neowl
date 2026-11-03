@@ -1,0 +1,53 @@
+// @sujet : BufferVersChaîne
+// @résumé : Extension codepage EUC-KR (encEUCKR), décodage symétrique de ChaîneVersBuffer. Une séquence 2 octets tronquée (octet de tête en fin de buffer, sans octet de fin) est décodée en caractère de remplacement '?'.
+
+// Vecteurs cross-vérifiés : table WHATWG index-euc-kr.txt recalculée via la formule
+// d'encodage EUC-KR officielle, confrontée au codec "euc_kr" indépendant de la
+// bibliothèque standard Python : U+AC00 <-> B0 A1, U+D55C <-> C7 D1.
+
+
+// Cas A : octets 0xB0 0xA1 (176, 161) décodés -> 가 (U+AC00).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_euckr_decode_hangul_ga()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 176)
+	BufferÉcritOctet(buf, 2, 161)
+	s est une chaîne = BufferVersChaîne(buf, encEUCKR)
+	dbgVérifieEgalité(s, "가", "octets 176,161 décodés en EUC-KR -> 가")
+FIN
+
+
+// Cas B : octets 0xC7 0xD1 (199, 209) décodés -> 한 (U+D55C).
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_euckr_decode_hangul_han()
+	buf est un buffer = "XX"
+	BufferÉcritOctet(buf, 1, 199)
+	BufferÉcritOctet(buf, 2, 209)
+	s est une chaîne = BufferVersChaîne(buf, encEUCKR)
+	dbgVérifieEgalité(s, "한", "octets 199,209 décodés en EUC-KR -> 한")
+FIN
+
+
+// Cas C : round-trip sur une séquence mélangeant ASCII et syllabes hangul.
+PROCEDURE PUBLIQUE scenario_bvc_dbcs_euckr_roundtrip()
+	s0  est une chaîne = "A 가한B"
+	buf est un buffer  = ChaîneVersBuffer(s0, encEUCKR)
+	s1  est une chaîne = BufferVersChaîne(buf, encEUCKR)
+	dbgVérifieEgalité(s1, s0, "round-trip EUC-KR restitue 'A 가한B' sans perte")
+FIN
+
+
+// Edge case : séquence tronquée, octet de tête (0xB0) seul en fin de buffer
+// -> décodé en caractère de remplacement '?'.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_euckr_edge_sequence_tronquee()
+	buf est un buffer = "X"
+	BufferÉcritOctet(buf, 1, 176)
+	s est une chaîne = BufferVersChaîne(buf, encEUCKR)
+	dbgVérifieEgalité(s, "?", "octet de tête seul (séquence tronquée) -> caractère de remplacement '?'")
+FIN
+
+
+// Edge case : buffer vide -> chaîne vide.
+PROCEDURE PRIVÉE scenario_bvc_dbcs_euckr_edge_buffer_vide()
+	buf est un buffer  = ""
+	s   est une chaîne = BufferVersChaîne(buf, encEUCKR)
+	dbgVérifieEgalité(s, "", "buffer vide décodé en EUC-KR -> chaîne vide")
+FIN
