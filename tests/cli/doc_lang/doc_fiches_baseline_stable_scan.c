@@ -2,11 +2,11 @@
  * baseline "Nouveautes", tools/doc_fiches_baseline.tsv) NE DOIT PAS gagner
  * les champs de types composites une fois la navigation F1 generalisee.
  * `collect_doc_fiches` (src/main.c) enumere natives/types/primitives/
- * enums/consts/widgets/references — jamais DSLPROPS ni un futur array de
- * champs de types : les proprietes de widgets deja navigables (
- * pour Projet, feature widgets historique) n'y apparaissent pas non plus
- * aujourd'hui, et ce test verrouille que ca continue de valoir pour les
- * champs de types composites.
+ * enums/consts/widgets/references, et DEPUIS  les proprietes de
+ * widgets (kind `property`, ex. ..Plan). Ce que ce test verrouille reste
+ * les CHAMPS DE TYPES COMPOSITES (un futur array de champs de types) :
+ * ils NE DOIVENT PAS gagner la baseline. Les proprietes widget, elles,
+ * y figurent desormais legitimement.
  *
  * Verification en deux temps :
  *  1. Aucune ligne `type<TAB><NomDeChamp>` ni `property<TAB><NomDeChamp>`

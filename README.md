@@ -186,6 +186,11 @@ aussitôt dans le designer.
 > `dispVerticale`, `dispHorizontale` et `dispGrille` délèguent au contraire
 > l'agencement à un conteneur (placement automatique, sans coordonnées).
 
+> **Plans.** Une fenêtre peut répartir ses champs en plans affichés un à un
+> (façon assistant, via la propriété `Plan`). Dans le designer, Page précédente/
+> Page suivante parcourent les plans un à un (Début/Fin : premier/dernier ;
+> Ctrl+Page : plans utilisés).
+
 **Designer d'état** — mettez en page vos documents imprimables (factures,
 rapports) par blocs :
 

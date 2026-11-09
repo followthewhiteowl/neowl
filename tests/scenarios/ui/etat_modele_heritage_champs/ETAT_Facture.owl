@@ -1,0 +1,33 @@
+// État pur utilisé par test_etat_modele_heritage_champs.owl.
+//
+// Hérite de MOD_Facture (voisin) : le Corps unique fusionne le champ
+// du modèle (LBL_Entete) et le champ propre de l'état (LBL_Total) dans
+// le même bloc. LBL_Entete reste lisible depuis le code de l'état,
+// preuve que la fusion est une vraie présence de champ, pas une copie
+// de texte.
+
+ETAT_Facture est un État
+	Hérite de MOD_Facture
+	PROPRIETES
+		Format      = formatA4
+		Orientation = orientPortrait
+	FIN
+
+	Corps est un Corps
+		PROPRIETES
+			Hauteur = 40
+		FIN
+
+		LBL_Total est un Champ Libellé
+			PROPRIETES
+				X       = 10
+				Y       = 20
+				Largeur = 100
+				Hauteur = 10
+				Libellé = "Etat : total"
+			FIN
+			callback_observe("etat:" + LBL_Total..Libellé)
+			callback_observe("etat-lit-modele:" + LBL_Entete..Libellé)
+		FIN
+	FIN
+FIN

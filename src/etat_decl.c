@@ -118,14 +118,33 @@ static void block_decl_free(OwlEtatBlockDecl* b) {
     }
     free(b->properties);
     for (int i = 0; i < b->control_count; i++) {
+        /*  — un controle emprunte au modele parent (owned=false) est
+         * libere par le decl du modele, pas ici (eviter le double-free). */
+        if (b->controls_owned && !b->controls_owned[i]) continue;
         owl_control_decl_free(b->controls[i]);
     }
     free(b->controls);
+    free(b->controls_owned);
 }
 
 void owl_etat_block_decl_add_control(OwlEtatBlockDecl* b, OwlControlDecl* c) {
     if (!b || !c) return;
     RESIZE_ARRAY(OwlControlDecl*, b->controls, b->control_count, b->control_capacity);
+    /* controls_owned parallele a controls : meme capacite, meme index. */
+    b->controls_owned = (bool*)realloc(b->controls_owned,
+                                       sizeof(bool) * (size_t)b->control_capacity);
+    b->controls_owned[b->control_count] = true;   /* controle propre a l'etat */
+    b->controls[b->control_count++] = c;
+}
+
+/*  — ajoute un controle EMPRUNTE (heritage de modele) : la propriete
+ * de liberation reste au decl du modele. */
+void owl_etat_block_decl_add_borrowed_control(OwlEtatBlockDecl* b, OwlControlDecl* c) {
+    if (!b || !c) return;
+    RESIZE_ARRAY(OwlControlDecl*, b->controls, b->control_count, b->control_capacity);
+    b->controls_owned = (bool*)realloc(b->controls_owned,
+                                       sizeof(bool) * (size_t)b->control_capacity);
+    b->controls_owned[b->control_count] = false;  /* emprunte au modele */
     b->controls[b->control_count++] = c;
 }
 
@@ -141,9 +160,19 @@ OwlEtatDecl* owl_etat_decl_new(const char* name, int line) {
     return e;
 }
 
+void owl_etat_decl_add_parent_name(OwlEtatDecl* e, const char* name) {
+    if (!e || !name) return;
+    RESIZE_ARRAY(char*, e->parent_names, e->parent_name_count, e->parent_name_capacity);
+    e->parent_names[e->parent_name_count++] = dup_cstr(name);
+}
+
 void owl_etat_decl_free(OwlEtatDecl* e) {
     if (!e) return;
     free(e->name);
+    /*  — liste des modeles parents (noms + tableau resolu). */
+    for (int i = 0; i < e->parent_name_count; i++) free(e->parent_names[i]);
+    free(e->parent_names);
+    free((void*)e->parents);
     for (int i = 0; i < e->property_count; i++) {
         owl_property_init_free(&e->properties[i]);
     }

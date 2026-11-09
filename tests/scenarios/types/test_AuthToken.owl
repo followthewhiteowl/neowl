@@ -1,0 +1,52 @@
+// @sujet : AuthToken
+// @résumé : Jeton d'authentification obtenu auprès d'un fournisseur OAuth2 : valeur du jeton d'accès, validité, date d'expiration, jeton de rafraîchissement et réponse brute du serveur.
+
+
+// Construit depuis la réponse JSON standard d'un fournisseur de jetons :
+// jeton d'accès et jeton de rafraîchissement sont peuplés, le jeton est
+// valide tant qu'il reste loin de son expiration.
+PROCEDURE scenario_construction_depuis_json_nominal()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID = "mon-client"
+
+	sJson est une chaîne                   = `{"access_token":"atk-123","expires_in":3600,"refresh_token":"rtk-987"}`
+	t     est un AuthToken(oParams, sJson)
+
+	dbgVérifieEgalité(t..Valeur, "atk-123")
+	dbgVérifieEgalité(t..Actualisation, "rtk-987")
+	dbgVérifieVrai(t..Valide, "jeton de longue durée = valide")
+FIN
+
+
+// Un jeton dont la durée de vie restante tombe sous la marge anti-dérive
+// d'horloge est déjà considéré invalide, même si un jeton d'accès est présent.
+PROCEDURE scenario_valide_faux_dans_marge_expiration()
+	oParams est un OAuth2Paramètres
+	sJson   est une chaîne                   = `{"access_token":"atk-expire-bientot","expires_in":1,"refresh_token":"rtk-1"}`
+	t       est un AuthToken(oParams, sJson)
+
+	dbgVérifieFaux(t..Valide, "jeton à 1 seconde de l'expiration = déjà invalide (marge anti-dérive)")
+FIN
+
+
+// La réponse brute du serveur est conservée intégralement, exploitable pour
+// du diagnostic applicatif.
+PROCEDURE scenario_reponse_serveur_conservee()
+	oParams est un OAuth2Paramètres
+	sJson   est une chaîne                   = `{"access_token":"atk-456","expires_in":3600}`
+	t       est un AuthToken(oParams, sJson)
+
+	sVue est une chaîne = BufferVersChaîne(t..RéponseServeur)
+	dbgVérifieEgalité(sVue, sJson, "RéponseServeur restitue la réponse serveur d'origine")
+FIN
+
+
+// Cas limite : un jeton construit sans jeton de rafraîchissement expose une
+// chaîne vide en lecture, pas une valeur devinée.
+PROCEDURE PRIVÉE scenario_edge_sans_jeton_de_rafraichissement()
+	oParams est un OAuth2Paramètres
+	sJson   est une chaîne                   = `{"access_token":"atk-789","expires_in":3600}`
+	t       est un AuthToken(oParams, sJson)
+
+	dbgVérifieEgalité(t..Actualisation, "", "pas de refresh_token dans la réponse -> Actualisation vide")
+FIN

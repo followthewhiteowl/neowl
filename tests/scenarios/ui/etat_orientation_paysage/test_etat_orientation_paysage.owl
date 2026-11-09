@@ -1,0 +1,41 @@
+// @sujet : Orientation d'un état plat imprimé vers un PDF
+// @resume : L'orientation déclarée sur un état (sans héritage) gouverne les dimensions de la page PDF produite : un état `Orientation = orientPaysage` sort une page large (paysage), un état `orientPortrait` reste haut (portrait).
+//
+// Ressources voisines : ETAT_PaysagePlat.owl (orientation paysage),
+// ETAT_PortraitPlat.owl (orientation portrait, cas de contrôle).
+
+TestModeHeadless(Vrai)
+
+// Un état déclaré en paysage produit une page large (dimensions paysage).
+PROCEDURE PUBLIQUE scenario_etat_paysage_sort_en_paysage()
+	sChemin est une chaîne = fRepTemp() + "\owl_test_etat_orientation_paysage.pdf"
+	iDestination(iPDFGénérique, sChemin)
+	iImprimeEtat(ETAT_PaysagePlat)
+	iFinImprime()
+
+	bufPdf est un buffer  = fChargeBuffer(sChemin)
+	sPdf   est une chaîne = bufPdf
+
+	dbgVérifieVrai(sPdf.Contient("842.000000 595.000000"),
+	"La page imprimée est en paysage (842 de large)")
+	dbgVérifieFaux(sPdf.Contient("595.000000 842.000000"),
+	"La page imprimée n'est pas en portrait")
+FIN
+
+// Cas de contrôle : un état déclaré en portrait reste portrait (page haute).
+PROCEDURE PUBLIQUE scenario_etat_portrait_reste_portrait()
+	sChemin est une chaîne = fRepTemp() + "\owl_test_etat_orientation_portrait.pdf"
+	iDestination(iPDFGénérique, sChemin)
+	iImprimeEtat(ETAT_PortraitPlat)
+	iFinImprime()
+
+	bufPdf est un buffer  = fChargeBuffer(sChemin)
+	sPdf   est une chaîne = bufPdf
+
+	dbgVérifieVrai(sPdf.Contient("595.000000 842.000000"),
+	"La page imprimée est en portrait (595 de large)")
+	dbgVérifieFaux(sPdf.Contient("842.000000 595.000000"),
+	"La page imprimée n'est pas en paysage")
+FIN
+
+dbgBilanTest()

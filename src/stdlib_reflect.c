@@ -624,6 +624,134 @@ static Value fn_variable_existe(int argCount, Value* args) {
     return BOOL_VAL(table_get(&vm.globals, AS_STRING(args[0]), &tmp));
 }
 
+/* ================================================================
+ * VariableRAZ(var) / VariableReset(var)
+ *
+ * Remet une variable a sa valeur initiale (type-zero), par reference
+ * (out-param index 0). Recursif sur les composites. Semantique :
+ *   - scalaire  : entier->0, reel->0.0, booleen->Faux, chaine->"",
+ *                 monetaire->0, numerique->0, Null->Null ;
+ *   - tableau (dims fixes) : chaque element remis au type-zero, taille
+ *     conservee (!= TableauSupprimeTout) ;
+ *   - tableau associatif / file / pile / liste / multilingue : vidage
+ *     complet (equivaut a SupprimeTout) ;
+ *   - structure : membres reinitialises recursivement a leur defaut
+ *     declare (template vm.types porte les `= valeur`) ;
+ *   - classe (instance) : champs mis au type-zero recursif puis overlay
+ *     des defauts declares (klass->defaults + supers). Aucun
+ *     constructeur/destructeur rejoue (modele GC OWL).
+ *
+ * Tout passe par une mutation en place des objets composites : l'identite
+ * de l'objet de l'appelant est preservee ; seul l'out-param scalaire est
+ * reecrit via le writeback OP_OUT_PARAM_TO_*.
+ * ================================================================ */
+
+static void variable_raz_reset_instance(ObjInstance* inst);
+
+/* Applique les defauts declares de `from` (Table nom->valeur) sur `inst`,
+ * en deep-clonant chaque valeur (symetrique a instance_copy_defaults cote
+ * VM). Root du clone frais avant le set (peut grow -> GC). */
+static void variable_raz_apply_defaults(Table* from, ObjInstance* inst) {
+    for (int i = 0; i < from->capacity; i++) {
+        Entry* e = &from->entries[i];
+        if (e->key == NULL) continue;
+        Value cloned = owl_value_deep_clone(e->value);
+        if (IS_OBJ(cloned)) vm_push(cloned);
+        inst_field_set_value(inst, e->key->chars, cloned);
+        if (IS_OBJ(cloned)) vm_pop();
+    }
+}
+
+static Value variable_raz_reset(Value v) {
+    if (IS_INTEGER(v))  return INTEGER_VAL(0);
+    if (IS_REAL(v))     return REAL_VAL(0.0);
+    if (IS_BOOL(v))     return BOOL_VAL(false);
+    if (IS_CURRENCY(v)) return CURRENCY_VAL(0);
+    if (IS_NIL(v))      return NIL_VAL;
+    if (!IS_OBJ(v))     return v;
+
+    switch (OBJ_TYPE(v)) {
+        case OBJ_STRING:  return OBJ_VAL(obj_copy_string("", 0));
+        case OBJ_NUMERIC: return numeric_from_i64(0);
+        case OBJ_ARRAY: {
+            /* dims fixes conservees : on remet chaque element au type-zero
+             * sans toucher au count. Chaque slot reste atteignable depuis
+             * l'array (racine de l'appelant) pendant la recursion. */
+            ObjArray* a = AS_ARRAY(v);
+            for (int i = 0; i < a->elements.count; i++) {
+                a->elements.values[i] = variable_raz_reset(a->elements.values[i]);
+            }
+            return v;
+        }
+        case OBJ_ASSOC_ARRAY:
+            obj_assoc_clear(AS_ASSOC_ARRAY(v));
+            return v;
+        case OBJ_COLLECTION:
+            AS_COLLECTION(v)->elements.count = 0;
+            return v;
+        case OBJ_MULTILINGUE:
+            obj_assoc_clear(AS_MULTILINGUE(v)->storage);
+            return v;
+        case OBJ_INSTANCE:
+            variable_raz_reset_instance(AS_INSTANCE(v));
+            return v;
+        default:
+            /* types opaques (buffer, date/heure deja porteurs de leur
+             * propre zero, UI...) : pas de remise canon definie ici,
+             * on laisse tel quel. */
+            return v;
+    }
+}
+
+static void variable_raz_reset_instance(ObjInstance* inst) {
+    if (inst->klass == NULL) {
+        /* Structure : le template vm.types porte les defauts declares
+         * (recursivement). Cloner le template et recopier ses champs
+         * (deja deep-clones par native_struct_clone) dans l'instance. */
+        Value fresh = owl_clone_global_template(inst->structName->chars);
+        if (IS_INSTANCE(fresh)) {
+            vm_push(fresh); /* root : le set peut grow -> GC */
+            ObjInstance* t = AS_INSTANCE(fresh);
+            for (int i = 0; i < t->fields.capacity; i++) {
+                Entry* e = &t->fields.entries[i];
+                if (e->key == NULL) continue;
+                inst_field_set_value(inst, e->key->chars, e->value);
+            }
+            vm_pop();
+            return;
+        }
+        /* Pas de template resolu : fallback type-zero champ par champ. */
+    }
+
+    /* Classe (ou struct sans template) : type-zero recursif de chaque champ
+     * courant, puis overlay des defauts declares. Pas de constructeur. */
+    for (int i = 0; i < inst->fields.capacity; i++) {
+        Entry* e = &inst->fields.entries[i];
+        if (e->key == NULL) continue;
+        e->value = variable_raz_reset(e->value);
+    }
+    if (inst->klass != NULL) {
+        /* Ordre base->derivee : defauts des ancetres d'abord, la classe en
+         * dernier (une redefinition derivee gagne). Replique l'application
+         * des defauts a l'instanciation (vm.c), sans l'appel constructeur. */
+        ObjClass* k = inst->klass;
+        while (k != NULL) {
+            if (k->superclass != NULL) {
+                variable_raz_apply_defaults(&k->superclass->defaults, inst);
+            }
+            k = k->superclass;
+        }
+        variable_raz_apply_defaults(&inst->klass->defaults, inst);
+    }
+}
+
+/* VariableRAZ(var) : out-param index 0, mute par reference, ne renvoie rien. */
+static Value fn_variable_raz(int argCount, Value* args) {
+    (void)argCount;
+    args[0] = variable_raz_reset(args[0]);
+    return NIL_VAL;
+}
+
 /* RécupèreDéfinition(v) -> Définition */
 static Value fn_recupere_definition(int argCount, Value* args) {
     (void)argCount;
@@ -833,8 +961,11 @@ static const OwlSignature sig_enum_check_name[] = {
     {0}
 };
 
+static const OwlParam p_raz[] = { {"variable", "tout", "out — variable à réinitialiser à sa valeur initiale"}, {0} };
+
 static const OwlSignature sig_int[]   = { {1, p_val, "entier",     "valeur de l'énumération owlTypes (owlEntier, owlChaîne, ...)"}, {0} };
 static const OwlSignature sig_bool[]  = { {1, p_val, "booléen",    "Vrai / Faux"},      {0} };
+static const OwlSignature sig_raz[]   = { {1, p_raz, "rien",       "la variable est mutée par référence (aucune valeur de retour)"}, {0} };
 static const OwlSignature sig_def[]   = { {1, p_val, "Définition", "description du type"}, {0} };
 static const OwlSignature sig_defn[]  = { {1, p_tn,  "Définition", "description du type nommé"}, {0} };
 
@@ -865,6 +996,18 @@ static const OwlNativeDef REFLECT_DEFS[] = {
         .descEN     = "True if a global variable/function with this name exists (OWL extension).",
         .signatures = sig_bool,
         .impl       = fn_variable_existe,
+    },
+    {
+        .canonical      = "VariableRAZ",
+        .nameEN         = "VariableReset",
+        .category       = "Introspection",
+        .descFR         = "Remet une variable à sa valeur initiale (type-zéro) : numériques à 0, chaînes à vide, booléens à Faux. Récursif sur les composites — les membres d'une structure ou d'une classe reprennent leur valeur par défaut déclarée, un tableau à dimensions fixes conserve sa taille avec tous ses éléments remis à zéro, un tableau associatif, une file, une pile ou une liste est entièrement vidé. La variable passée est mutée par référence.",
+        .descEN         = "Reset a variable to its initial value (zero-value): numerics to 0, strings to empty, booleans to False. Recursive over composites — the members of a structure or a class revert to their declared default value, a fixed-size array keeps its length with every element reset to zero, an associative array, a queue, a stack or a list is fully cleared. The passed variable is mutated by reference.",
+        .signatures     = sig_raz,
+        .impl           = fn_variable_raz,
+        .flags          = OWL_NAT_OUT_PARAMS,
+        .firstOutParamArg = 0,
+        .lastOutParamArg  = 0,   /* seul args[0] (variable) est out */
     },
     {
         .canonical  = "TypeEstNullable",

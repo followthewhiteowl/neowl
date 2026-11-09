@@ -745,6 +745,15 @@ traitement, exécuté **avant** le bloc statique du champ.
 IntercepteÉvénement(procChaqueFrappe, SAI_Montant, evtAChaqueModification)
 ```
 
+> **Portée : événements de champ uniquement.** `IntercepteÉvénement` ne cible que
+> des événements **de champ**, désignés par une constante `evtXxx`. Pour de la
+> logique **au niveau fenêtre** — fermeture, autorisation de fermeture,
+> redimensionnement, touches globales —, utiliser les **blocs d'événement de la
+> fenêtre** (`Fermeture`, `AutorisationFermeture`, `surChangementTaille`...), pas
+> cette fonction. Pour exécuter du code **à l'ouverture** d'une fenêtre, le placer
+> dans le **corps de premier niveau** de la fenêtre : c'est ce qui s'exécute à son
+> ouverture. Il n'y a pas de portée « projet entier » ici.
+
 - **Procédure** : la procédure interceptée. Elle doit être déclarée dans le **même
   fichier** que l'appel (la résolution de portée OWL ne va pas chercher une
   procédure d'un autre fichier).

@@ -1,0 +1,37 @@
+// @sujet : NetAdresseMAC
+// @résumé : Adresse physique (MAC) d'une carte réseau locale, au format aa:bb:cc:dd:ee:ff.
+
+PROCEDURE PUBLIQUE scenario_forme_mac_locale()
+	// Selon la machine, soit une carte physique existe (chaîne de 17 caractères
+	// au format aa:bb:cc:dd:ee:ff), soit aucune n'est disponible (chaîne vide).
+	// Jamais d'erreur bloquante, et jamais de valeur machine codée en dur ici :
+	// on asserte sur la FORME.
+	mac est une chaîne = NetAdresseMAC()
+	SI Taille(mac) = 0 ALORS
+		dbgVérifieEgalité(mac, "", "aucune carte disponible -> chaîne vide")
+	SINON
+		dbgVérifieEgalité(Taille(mac), 17, "une adresse MAC fait 17 caractères")
+		dbgVérifieVrai(RegexVérifie(mac, "^[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}$"), "six octets hexadécimaux minuscules séparés par des deux-points")
+	FIN
+FIN
+
+PROCEDURE PUBLIQUE scenario_stable()
+	// Deux appels successifs renvoient la même adresse pour la première carte.
+	mac1 est une chaîne = NetAdresseMAC()
+	mac2 est une chaîne = NetAdresseMAC()
+	dbgVérifieEgalité(mac1, mac2, "appels successifs stables sur la première carte")
+FIN
+
+PROCEDURE PUBLIQUE scenario_rang_hors_liste()
+	// Un rang bien au-delà du nombre de cartes disponibles renvoie une chaîne
+	// vide, jamais une erreur bloquante ni une adresse inventée.
+	mac est une chaîne = NetAdresseMAC(999)
+	dbgVérifieEgalité(mac, "", "rang de carte hors liste -> chaîne vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_rang_negatif_comme_premiere()
+	// Un rang négatif désigne la première carte : même résultat que le rang 0.
+	mac0   est une chaîne = NetAdresseMAC(0)
+	macNeg est une chaîne = NetAdresseMAC(-1)
+	dbgVérifieEgalité(macNeg, mac0, "rang négatif = première carte (rang 0)")
+FIN

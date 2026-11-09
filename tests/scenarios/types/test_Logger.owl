@@ -1,0 +1,99 @@
+// Logger — Démarrage, Niveau, Formateur : écrire un journal applicatif sans
+// réinventer la tuyauterie à chaque projet. `Logger` filtre par seuil,
+// décompose chaque entrée en métadonnées (horodatage, niveau, message) et
+// laisse le format final entièrement libre via une procédure.
+
+// Formateur minimal : ne restitue que le message brut, pour vérifier le
+// contenu exact écrit dans la destination sans dépendre du format par défaut.
+PROCEDURE formateurMessageSeul(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+// Formateur personnalisé : recompose une ligne à partir des métadonnées
+// décomposées du LogEnreg (horodatage, niveau, message).
+PROCEDURE formateurPersonnalise(rEnreg est un LogEnreg)
+	RENVOYER `(niveau=[%rEnreg..Niveau%]) [%rEnreg..Message%]`
+FIN
+
+// Le niveau courant d'un Logger filtre les méthodes appelées sous le seuil :
+// seuls les messages au niveau du seuil ou au-dessus atteignent la
+// destination.
+PROCEDURE PUBLIQUE scenario_niveau_filtre_les_messages_sous_le_seuil()
+	chemin est une chaîne = "_tmp_logger_seuil_type.txt"
+	fSupprime(chemin)
+
+	monLog est un Logger
+	monLog..Niveau      = nivAvert
+	monLog..Formateur   = formateurMessageSeul
+	monLog..Destination = chemin
+
+	monLog.Debug("debug ignoré")
+	monLog.Info("info ignorée")
+	monLog.Avert("avertissement gardé")
+	monLog.Erreur("erreur gardée")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(Contient(contenu, "ignoré"), 0, "aucun message sous le seuil nivAvert n'atteint la destination")
+	dbgVérifieVrai(Contient(contenu, "avertissement gardé") > 0, "le message au niveau du seuil atteint la destination")
+	dbgVérifieVrai(Contient(contenu, "erreur gardée") > 0, "le message au-dessus du seuil atteint la destination")
+
+	fSupprime(chemin)
+FIN
+
+// Avec un formateur minimal qui ne restitue que le message, le contenu de la
+// destination commence exactement par le texte passé à la méthode de log.
+PROCEDURE PUBLIQUE scenario_formateur_minimal_restitue_le_message_exact()
+	chemin est une chaîne = "_tmp_logger_message_exact.txt"
+	fSupprime(chemin)
+
+	monLog est un Logger
+	monLog..Niveau      = nivDebug
+	monLog..Formateur   = formateurMessageSeul
+	monLog..Destination = chemin
+
+	monLog.Info("Démarrage du traitement")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "Démarrage du traitement"), 23, "contenu de la destination = message exact fourni au formateur")
+
+	fSupprime(chemin)
+FIN
+
+// Changer de formateur change la forme de la sortie sans rien toucher à la
+// destination : .Formateur et ..Destination sont deux leviers séparés.
+PROCEDURE PUBLIQUE scenario_formateur_personnalise_change_la_forme_de_sortie()
+	chemin est une chaîne = "_tmp_logger_formateur_perso.txt"
+	fSupprime(chemin)
+
+	monLog est un Logger
+	monLog..Niveau      = nivDebug
+	monLog..Formateur   = formateurPersonnalise
+	monLog..Destination = chemin
+
+	monLog.Erreur("connexion perdue")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieVrai(Contient(contenu, "(niveau=") > 0, "le formateur personnalisé enveloppe le niveau entre parenthèses")
+	dbgVérifieVrai(Contient(contenu, "connexion perdue") > 0, "le message original reste présent dans la sortie recomposée")
+
+	fSupprime(chemin)
+FIN
+
+// Forme anglaise : déclaration "is a Logger" et propriétés ..Level /
+// ..Formatter / ..Destination se comportent à l'identique des formes FR.
+PROCEDURE PRIVÉE scenario_edge_formes_anglaises_declaration_et_proprietes()
+	chemin est une chaîne = "_tmp_logger_en.txt"
+	fSupprime(chemin)
+
+	myLog is a Logger
+	myLog..Level       = nivDebug
+	myLog..Formatter   = formateurMessageSeul
+	myLog..Destination = chemin
+
+	myLog.Info("started")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "started"), 7, "forme anglaise : contenu exact écrit via ..Destination")
+
+	fSupprime(chemin)
+FIN

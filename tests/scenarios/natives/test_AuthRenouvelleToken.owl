@@ -1,0 +1,81 @@
+// @sujet : AuthRenouvelleToken
+// @résumé : Renouvelle un jeton d'authentification OAuth2 via son jeton de rafraîchissement, auprès du fournisseur ayant émis le jeton d'origine.
+
+
+// Mock de la couche HTTP interne : le renouvellement envoie une requête via
+// HTTPEnvoie, interceptée ici pour rester déterministe.
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat = 200
+	rep..Contenu  = `{"access_token":"atk-refreshed","expires_in":3600,"refresh_token":"rtk-refreshed"}`
+	mockHttp      = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Desactive()
+FIN
+
+
+// Un jeton renouvelable (jeton de rafraîchissement présent) produit un
+// nouveau jeton d'accès valide, et la requête envoyée porte le bon grant
+// ainsi que le jeton de rafraîchissement d'origine.
+PROCEDURE scenario_refresh_nominal()
+	oParams est un OAuth2Paramètres
+	oParams..URLToken = "https://auth.exemple.test/token"
+
+	sJson   est une chaîne                   = `{"access_token":"atk-perime","expires_in":3600,"refresh_token":"rtk-ancien"}`
+	tAncien est un AuthToken(oParams, sJson)
+
+	tNeuf est un AuthToken = AuthRenouvelleToken(tAncien)
+
+	dbgVérifieEgalité(tNeuf..Valeur, "atk-refreshed")
+	dbgVérifieVrai(tNeuf..Valide)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps      est une chaîne     = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "grant_type=refresh_token") > 0, "le renouvellement envoie grant_type=refresh_token")
+	dbgVérifieVrai(Position(sCorps, "rtk-ancien") > 0, "le jeton de rafraîchissement d'origine est transmis")
+FIN
+
+
+// Un jeton sans jeton de rafraîchissement n'est pas renouvelable : le
+// résultat est marqué invalide, sans la moindre requête réseau.
+PROCEDURE PRIVÉE scenario_edge_sans_jeton_de_rafraichissement()
+	oParams      est un OAuth2Paramètres
+	sJson        est une chaîne                   = `{"access_token":"atk-seul","expires_in":3600}`
+	tSansRefresh est un AuthToken(oParams, sJson)
+
+	tResultat est un AuthToken = AuthRenouvelleToken(tSansRefresh)
+
+	dbgVérifieFaux(tResultat..Valide, "sans jeton de rafraîchissement -> non renouvelable")
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 0), "aucune requête réseau sans jeton de rafraîchissement")
+FIN
+
+
+// Le fournisseur rejette la demande de renouvellement (jeton de
+// rafraîchissement expiré ou révoqué) : l'appel ne plante pas, le jeton
+// résultant est marqué invalide et la réponse brute du serveur reste
+// disponible pour diagnostic.
+PROCEDURE PRIVÉE scenario_edge_refus_serveur()
+	mockHttp.Desactive()
+	repErreur est un httpRéponse
+	repErreur..CodeEtat = 400
+	repErreur..Contenu  = `{"error":"invalid_grant"}`
+	mockHttp            = MockCrée(HTTPEnvoie).Quand().Retourne(repErreur).Active()
+
+	oParams est un OAuth2Paramètres
+	oParams..URLToken = "https://auth.exemple.test/token"
+
+	sJson   est une chaîne                   = `{"access_token":"atk-perime","expires_in":3600,"refresh_token":"rtk-revoque"}`
+	tAncien est un AuthToken(oParams, sJson)
+
+	tResultat est un AuthToken = AuthRenouvelleToken(tAncien)
+
+	dbgVérifieFaux(tResultat..Valide, "refus serveur -> jeton invalide")
+	sServeur est une chaîne = BufferVersChaîne(tResultat..RéponseServeur)
+	dbgVérifieVrai(Position(sServeur, "invalid_grant") > 0, "RéponseServeur peuplée avec la réponse d'erreur")
+FIN

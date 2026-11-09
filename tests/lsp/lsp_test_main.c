@@ -2712,6 +2712,39 @@ static void test_champ_modifier_no_article_en(void) {
     lspServer.language[0] = '\0';
 }
 
+/*  (support #431) — forme EN SANS article AVEC un debut de type deja
+ * tape : `SAI_X is Control i|`.  couvrait `is Control ` (espace) et
+ * `is Control|` (colle) mais pas le cas ou l'utilisateur a commence a taper le
+ * type (`i` pour Input/Image). words = [partiel, modificateur, copule] : seule
+ * la branche AVEC article (`WMOD(1) && WART(2)`) existait -> le no-article
+ * tombait sur la completion generique (primitifs). On exige la parite :
+ * `is Control i|` propose les types de controle (filtres cote client par `i`),
+ * PAS les primitifs. */
+static void test_champ_modifier_no_article_partial_en(void) {
+    printf("\n[TEST] fix/2397 : `is Control i|` (sans article, prefixe tape) propose les types de controle\n");
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+
+    /* `\tSAI_X is Control i` curseur apres le 'i' partiel (col 19). */
+    const char* src =
+        "FEN_X est une Fenetre\n"
+        "\tSAI_X is Control i\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_completion_params(URI, 1, 19);
+    JsonValue* items = handle_completion(params);
+    /* Les types de controle commencant par `i` (filtres cote client). Le
+     * serveur emet tous les types de controle ; on verifie qu'il s'agit bien
+     * des types de controle et PAS des primitifs. */
+    ASSERT_HAS    (items, "Input",   "fix/2397 is Control i| -> Input");
+    ASSERT_HAS    (items, "Image",   "fix/2397 is Control i| -> Image");
+    ASSERT_NOT_HAS(items, "entier",  "fix/2397 is Control i| pas de primitif");
+    ASSERT_NOT_HAS(items, "integer", "fix/2397 is Control i| pas de primitif EN");
+    json_free(items);
+    json_free(params);
+
+    lspServer.language[0] = '\0';
+}
+
 /*  item 3 — `IDENT est un <cursor>` (FR) / `is a <cursor>` (EN) doit
  * aussi proposer les mots-cles de declaration menu (MenuPrincipal / SousMenu /
  * OptionMenu / MenuSeparateur / MenuContextuel), en plus des types primitifs /
@@ -3421,6 +3454,61 @@ static void test_init_completion_trigger_paren(void) {
     }
     if (result) json_free(result);
     json_free(params);
+}
+
+/*  — au 1er arg d'IntercepteEvenement/InterceptEvent (le parametre
+ * est une PROCEDURE), la completion ne propose QUE les procedures du fichier
+ * courant (miroir du filtrage fenetres-only d'Ouvre). Une procedure d'un autre
+ * fichier (collection/compagnon) ne resout pas a la compilation, donc elle ne
+ * doit PAS etre proposee. Le catalogue natif general est coupe (early-return
+ * focalise). */
+static void test_intercepte_evenement_procs_same_file(void) {
+    printf("\n[TEST] feat/2390 IntercepteEvenement( 1er arg : procedures same-file only\n");
+
+    const char* curUri  = "file:///c:/test/fen_main.owl";
+    const char* collUri = "file:///c:/test/col_outils.owl";
+
+    /* Doc 0 (courant) : declare ProcLocale + une fenetre, puis l'appel. */
+    const char* curSrc =
+        "PROCEDURE ProcLocale()\n"
+        "FIN\n"
+        "FEN_Test est une Fenetre\n"
+        "\tBTN_X est un Bouton\n"
+        "\tFIN\n"
+        "FIN\n"
+        "Intercepte\xc3\x89v\xc3\xa9nement(\n";
+    /* Doc 1 (compagnon collection) : declare ProcCollection (cross-fichier). */
+    const char* collSrc =
+        "PROCEDURE ProcCollection()\n"
+        "FIN\n";
+
+    for (int i = 0; i < lspServer.documentCount; i++) {
+        free(lspServer.documents[i].content);
+    }
+    lspServer.documentCount = 2;
+    snprintf(lspServer.documents[0].uri, sizeof(lspServer.documents[0].uri), "%s", curUri);
+    lspServer.documents[0].content = strdup(curSrc);
+    lspServer.documents[0].contentLen = (int)strlen(curSrc);
+    lspServer.documents[0].version = 1;
+    snprintf(lspServer.documents[1].uri, sizeof(lspServer.documents[1].uri), "%s", collUri);
+    lspServer.documents[1].content = strdup(collSrc);
+    lspServer.documents[1].contentLen = (int)strlen(collSrc);
+    lspServer.documents[1].version = 1;
+
+    /* Ligne 6 (0-based) = "IntercepteEvenement(" ; col 20 = juste apres '(' en
+     * UTF-16 (E et e accentues comptent 1 code unit chacun). */
+    JsonValue* params = make_completion_params(curUri, 6, 20);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS    (items, "ProcLocale",     "IntercepteEvenement( (proc same-file proposee)");
+    ASSERT_NOT_HAS(items, "ProcCollection", "IntercepteEvenement( (proc cross-fichier exclue)");
+    /* Early-return focalise : catalogue natif et mots-cles coupes. */
+    ASSERT_NOT_HAS(items, "Trace",          "IntercepteEvenement( (native absente)");
+    ASSERT_NOT_HAS(items, "SI",             "IntercepteEvenement( (mot-cle absent)");
+
+    json_free(items);
+    json_free(params);
+    setup_doc(URI, "x = \n");  /* etat propre pour le test suivant */
 }
 
 static void test_names_in_top_level(void) {
@@ -12574,6 +12662,112 @@ static void test_definition_etat_ref_closed(void) {
 }
 
 /* ================================================================
+ *   — un ModeleEtat est traite EXACTEMENT comme un Etat par le LSP
+ *  (coloration du nom, go-to-def, rename). Trou miroir de  (prescan).
+ * ================================================================ */
+
+/* (a) Coloration semantique : le nom d'un `MOD_X est un ModeleEtat` est un
+ * objet nomme du DSL -> token class (1, vert fonce), comme un Etat ; et dans
+ * `Herite de MOD_X` la CIBLE est aussi un nom de modele (class 1, vert fonce),
+ * PAS un type (4, violet, chemin heritage de CLASSE). Scenario mono-fichier :
+ * declaration + reference `Herite de`. */
+static void test_semantic_modele_etat_decl_and_herite(void) {
+    printf("\n[TEST] fix/2412 : ModeleEtat decl + `Herite de MOD_X` -> class(1), pas type(4)\n");
+    const char* src =
+        "MOD_EnteteCourrier est un ModeleEtat\n"  /* ligne 0 — decl, nom col 0 */
+        "FIN\n"                                     /* ligne 1 */
+        "ETAT_Rapport est un Etat\n"               /* ligne 2 */
+        "\tHerite de MOD_EnteteCourrier\n"         /* ligne 3 — ref, nom col 11 */
+        "FIN\n";                                    /* ligne 4 */
+    setup_doc(URI, src);
+    JsonValue* params = make_semantic_tokens_params(URI);
+    JsonValue* result = handle_semantic_tokens(params);
+
+    /* Declaration : MOD_EnteteCourrier (0,0) -> class(1), comme un nom d'Etat. */
+    ASSERT_HAS_TOKEN(result, 0, 0, 1,
+        "ModeleEtat decl -> class(1) (vert fonce, pas vert clair)");
+    /* Reference heritage : MOD_EnteteCourrier (3,11) -> class(1), nom de modele,
+     * PAS type(4)=violet. col 11 = tab(1) + "Herite de "(10). */
+    ASSERT_HAS_TOKEN(result, 3, 11, 1,
+        "`Herite de MOD_X` cible -> class(1) (nom de modele, pas type violet)");
+
+    json_free(result);
+    json_free(params);
+}
+
+/* (b) Go-to-def cross-file : `Herite de MOD_EnteteCourrier` dans un Etat
+ * consommateur (OUVERT) -> declaration `MOD_EnteteCourrier est un ModeleEtat`
+ * du compagnon FERME. Meme chemin windowDefs que  (Fenetre/Etat). */
+static void test_definition_modele_etat_ref_closed(void) {
+    printf("\n[TEST] fix/2412 : F2 'MOD_EnteteCourrier' (Herite de) -> compagnon ModeleEtat FERME (ligne 3)\n");
+    char workspaceRoot[512], consumerPath[512], modPath[512];
+    char consumerUri[600], modUri[600];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "workspace_fenetre_etat_compagnon");
+    resolve_fixture_path(consumerPath, sizeof(consumerPath),
+                         "workspace_fenetre_etat_compagnon/views/consumer.owl");
+    resolve_fixture_path(modPath, sizeof(modPath),
+                         "workspace_fenetre_etat_compagnon/MOD_EnteteCourrier.owl");
+    fix1017_path_to_uri(consumerPath, consumerUri, sizeof(consumerUri));
+    fix1017_path_to_uri(modPath, modUri, sizeof(modUri));
+
+    const char* consumerSrc =
+        "ETAT_Mensuel est un Etat\n"            /* ligne 0 */
+        "\tHerite de MOD_EnteteCourrier\n"      /* ligne 1 — ref, col 11 */
+        "FIN\n";                                 /* ligne 2 */
+    setup_workspace_with_rootpath(workspaceRoot, consumerUri, consumerSrc);
+
+    /* Ref `MOD_EnteteCourrier` : ligne 1, col 11 (tab + "Herite de "). */
+    JsonValue* params = make_definition_params(consumerUri, 1, 11);
+    JsonValue* result = handle_definition(params);
+
+    /* La decl `MOD_EnteteCourrier est un ModeleEtat` est ligne 3 du fixture
+     * (2 lignes de commentaire // en tete). */
+    ASSERT_DEF_LINE(result, 3,
+        "fix/2412 F2 ModeleEtat (Herite de) -> ligne 3 compagnon ferme");
+    if (result && result->type == JSON_OBJECT) {
+        const char* gotUri = json_get_string(result, "uri");
+        if (gotUri && strcmp(gotUri, modUri) == 0) {
+            g_pass++;
+            printf("  [OK]   fix/2412 Location.uri = MOD_EnteteCourrier.owl ferme\n");
+        } else {
+            g_fail++;
+            printf("  [FAIL] fix/2412 Location.uri = %s (attendu %s)\n",
+                   gotUri ? gotUri : "(null)", modUri);
+        }
+    } else {
+        g_fail++;
+        printf("  [FAIL] fix/2412 pas de Location (compagnon ModeleEtat ferme non indexe)\n");
+    }
+    json_free(result);
+    json_free(params);
+}
+
+/* (c) Rename (F2) : `MOD_X est un ModeleEtat` renommable comme une globale
+ * (decl + usages), a parite avec un `ETAT_X est un Etat`. Le moteur de portee
+ * (lsp_scope) est deja type-agnostique Etat/ModeleEtat (ni l'un ni l'autre
+ * n'est un mot-cle de decl de TYPE, les deux creent un binding VALUE top-level)
+ * : ce test verrouille cette parite contre une regression. Mono-fichier, decl
+ * + usage `Herite de`. */
+static void test_rename_modele_etat_name(void) {
+    printf("\n[TEST] fix/2412 : rename ModeleEtat MOD_X (decl + usage Herite de)\n");
+    const char* src =
+        "MOD_EnteteCourrier est un ModeleEtat\n" /* ligne 0 — decl, col 0 */
+        "FIN\n"                                    /* ligne 1 */
+        "ETAT_Rapport est un Etat\n"              /* ligne 2 */
+        "\tHerite de MOD_EnteteCourrier\n"        /* ligne 3 — usage, col 11 */
+        "FIN\n";                                   /* ligne 4 */
+    setup_doc(URI, src);
+    JsonValue* params = make_rename_params(URI, 0, 0, "MOD_Entete");
+    JsonValue* result = handle_rename(params);
+    ASSERT_RENAME_EDIT_COUNT(result, URI, 2,
+        "rename MOD_EnteteCourrier -> 2 edits (decl ligne 0 + usage ligne 3)");
+    ASSERT_RENAME_NEWTEXT_ALL(result, URI, "MOD_Entete",
+        "rename MOD_EnteteCourrier -> newText verbatim \"MOD_Entete\"");
+    json_free(result);
+    json_free(params);
+}
+
+/* ================================================================
  *   — catalogue lifecycle Fenetre (consolidation hardcode)
  * ================================================================ */
 
@@ -12949,6 +13143,205 @@ static void test_completion_collection_global_open(void) {
 
     ASSERT_HAS(items, "gVersion", "2313 : globale collection gVersion (compagnon ouvert)");
     ASSERT_HAS(items, "gMode",    "2313 : globale collection gMode (compagnon ouvert)");
+
+    json_free(items);
+    json_free(params);
+}
+
+/*  (support #435) — cas user exact : le curseur est dans le corps
+ * d'une PROCEDURE d'un fichier FENETRE voisin (w_Main.owl), pas dans
+ * projet.owl comme . La globale nue d'une collection compagnon
+ * (gpraConnections dans CPR_Analysis) doit etre proposee en completion de
+ * statement a cet endroit, compagnon collection FERME comme OUVERT.
+ *
+ * Cas FERME : seul w_Main.owl est ouvert ; CPR_Analysis.owl reste sur disque
+ * (globale -> diskGlobals[]). */
+static void test_completion_collection_global_window_closed(void) {
+    printf("\n[TEST] fix/2398 : completion globale de collection dans une fenetre (compagnon FERME)\n");
+    static char wMainUri[600];
+    char workspaceRoot[512];
+    char wMainPath[512];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "collection_window");
+    resolve_fixture_path(wMainPath, sizeof(wMainPath), "collection_window/w_Main.owl");
+    snprintf(wMainUri, sizeof(wMainUri), "file:///%s", wMainPath);
+    for (char* q = wMainUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    /* Buffer ouvert = la fenetre ; ligne 5 = statement en cours de frappe dans
+     * le corps de surClic (prefixe vide -> liste complete). CPR_Analysis FERME. */
+    const char* wMainSrc =
+        "w_Main est une Fen\xc3\xaatre\n"       /* 0 */
+        "\tPROPRIETES\n"                        /* 1 */
+        "\t\tTitre = \"Main\"\n"                /* 2 */
+        "\tFIN\n"                               /* 3 */
+        "\tPROCEDURE surClic()\n"               /* 4 */
+        "\t\t\n"                                /* 5 : curseur ici */
+        "\tFIN\n"                               /* 6 */
+        "FIN\n";                                /* 7 */
+    setup_workspace_with_rootpath(workspaceRoot, wMainUri, wMainSrc);
+
+    JsonValue* params = make_completion_params(wMainUri, 5, 2);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS(items, "gpraConnections",
+               "2398 : globale collection proposee dans fenetre (compagnon ferme)");
+
+    json_free(items);
+    json_free(params);
+}
+
+/* Cas OUVERT : la fenetre ET la collection sont montees comme docs ouverts.
+ * La globale est dans userSymbols[] (isGlobal) ; la boucle de completion ne
+ * doit pas la filtrer au doc courant. projet.owl reste la frontiere sur disque. */
+static void test_completion_collection_global_window_open(void) {
+    printf("\n[TEST] fix/2398 : completion globale de collection dans une fenetre (compagnon OUVERT)\n");
+    static char wMainUri[600];
+    static char cprUri[600];
+    char workspaceRoot[512];
+    char wMainPath[512];
+    char cprPath[512];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "collection_window");
+    resolve_fixture_path(wMainPath, sizeof(wMainPath), "collection_window/w_Main.owl");
+    resolve_fixture_path(cprPath, sizeof(cprPath), "collection_window/CPR_Analysis.owl");
+    snprintf(wMainUri, sizeof(wMainUri), "file:///%s", wMainPath);
+    snprintf(cprUri, sizeof(cprUri), "file:///%s", cprPath);
+    for (char* q = wMainUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    for (char* q = cprUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    const char* wMainSrc =
+        "w_Main est une Fen\xc3\xaatre\n"       /* 0 */
+        "\tPROPRIETES\n"                        /* 1 */
+        "\t\tTitre = \"Main\"\n"                /* 2 */
+        "\tFIN\n"                               /* 3 */
+        "\tPROCEDURE surClic()\n"               /* 4 */
+        "\t\t\n"                                /* 5 : curseur ici */
+        "\tFIN\n"                               /* 6 */
+        "FIN\n";                                /* 7 */
+    const char* cprSrc =
+        "CPR_Analysis est une CollectionDeProc\xc3\xa9""dures\n"
+        "\tgpraConnections est un entier = 0\n"
+        "\tPROCEDURE Analyse()\n"
+        "\t\tRENVOYER gpraConnections\n"
+        "\tFIN\n"
+        "FIN\n";
+    /* w_Main ouvert (doc[0], curseur) + CPR_Analysis ouvert (doc[1]) ; le walk
+     * disque de workspaceRoot fournit la frontiere projet.owl. */
+    setup_workspace_with_rootpath(workspaceRoot, wMainUri, wMainSrc);
+    lspServer.documentCount = 2;
+    snprintf(lspServer.documents[1].uri, sizeof(lspServer.documents[1].uri), "%s", cprUri);
+    lspServer.documents[1].content = strdup(cprSrc);
+    lspServer.documents[1].contentLen = (int)strlen(cprSrc);
+    lspServer.documents[1].version = 1;
+
+    JsonValue* params = make_completion_params(wMainUri, 5, 2);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS(items, "gpraConnections",
+               "2398 : globale collection proposee dans fenetre (compagnon ouvert)");
+
+    json_free(items);
+    json_free(params);
+}
+
+/*  (spin-off ) — completion de VALEUR d'une propriete
+ * (`recepteur..Champ = <curseur>`, propValueContext) dans le corps d'une
+ * fenetre. La globale nue d'une collection compagnon FERME (gpraConnections
+ * dans CPR_Analysis -> diskGlobals[]) doit y etre proposee comme dans la
+ * completion de statement general. Avant fix : propValueContext n'emettait
+ * que userSymbols[], pas diskGlobals[] -> globale de compagnon ferme absente. */
+static void test_completion_propvalue_global_collection_closed(void) {
+    printf("\n[TEST] fix/2423 : globale collection en valeur de propriete (compagnon FERME)\n");
+    static char wMainUri[600];
+    char workspaceRoot[512];
+    char wMainPath[512];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "collection_window");
+    resolve_fixture_path(wMainPath, sizeof(wMainPath), "collection_window/w_Main.owl");
+    snprintf(wMainUri, sizeof(wMainUri), "file:///%s", wMainPath);
+    for (char* q = wMainUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    /* Ligne 5 : `sai..Valeur = ` — position valeur d'une propriete. Le recepteur
+     * `sai` n'a pas besoin d'etre declare : propValueContext s'arme sur la forme
+     * `IDENT..IDENT = <curseur>`. Char 16 = fin de ligne (apres `= `).
+     * Colonnes : \t\t s a i . . V a l e u r _ = _  -> 16 unites UTF-16. */
+    const char* wMainSrc =
+        "w_Main est une Fen\xc3\xaatre\n"       /* 0 */
+        "\tPROPRIETES\n"                        /* 1 */
+        "\t\tTitre = \"Main\"\n"                /* 2 */
+        "\tFIN\n"                               /* 3 */
+        "\tPROCEDURE surClic()\n"               /* 4 */
+        "\t\tsai..Valeur = \n"                  /* 5 : curseur apres `= ` */
+        "\tFIN\n"                               /* 6 */
+        "FIN\n";                                /* 7 */
+    setup_workspace_with_rootpath(workspaceRoot, wMainUri, wMainSrc);
+
+    JsonValue* params = make_completion_params(wMainUri, 5, 16);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS(items, "gpraConnections",
+               "2423 : globale collection proposee en valeur de propriete (compagnon ferme)");
+    /* Dedup : exactement une occurrence (diskGlobals ne doit pas doubler). */
+    int nGlobal = count_label(items, "gpraConnections");
+    if (nGlobal == 1) {
+        g_pass++;
+        printf("  [OK]   2423 : gpraConnections proposee exactement 1x (pas de doublon)\n");
+    } else {
+        g_fail++;
+        printf("  [FAIL] 2423 : gpraConnections proposee %dx (attendu 1)\n", nGlobal);
+    }
+
+    json_free(items);
+    json_free(params);
+}
+
+/* Cas OUVERT (controle) : la collection est montee comme doc ouvert, la globale
+ * vit dans userSymbols[] isGlobal. Le loop userSymbols existant de propValueContext
+ * l'emet deja -> doit rester verte, sans doublon (diskGlobals ne l'indexe pas). */
+static void test_completion_propvalue_global_collection_open(void) {
+    printf("\n[TEST] fix/2423 : globale collection en valeur de propriete (compagnon OUVERT)\n");
+    static char wMainUri[600];
+    static char cprUri[600];
+    char workspaceRoot[512];
+    char wMainPath[512];
+    char cprPath[512];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "collection_window");
+    resolve_fixture_path(wMainPath, sizeof(wMainPath), "collection_window/w_Main.owl");
+    resolve_fixture_path(cprPath, sizeof(cprPath), "collection_window/CPR_Analysis.owl");
+    snprintf(wMainUri, sizeof(wMainUri), "file:///%s", wMainPath);
+    snprintf(cprUri, sizeof(cprUri), "file:///%s", cprPath);
+    for (char* q = wMainUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    for (char* q = cprUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    const char* wMainSrc =
+        "w_Main est une Fen\xc3\xaatre\n"       /* 0 */
+        "\tPROPRIETES\n"                        /* 1 */
+        "\t\tTitre = \"Main\"\n"                /* 2 */
+        "\tFIN\n"                               /* 3 */
+        "\tPROCEDURE surClic()\n"               /* 4 */
+        "\t\tsai..Valeur = \n"                  /* 5 : curseur apres `= ` */
+        "\tFIN\n"                               /* 6 */
+        "FIN\n";                                /* 7 */
+    const char* cprSrc =
+        "CPR_Analysis est une CollectionDeProc\xc3\xa9""dures\n"
+        "\tgpraConnections est un entier = 0\n"
+        "\tPROCEDURE Analyse()\n"
+        "\t\tRENVOYER gpraConnections\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_workspace_with_rootpath(workspaceRoot, wMainUri, wMainSrc);
+    lspServer.documentCount = 2;
+    snprintf(lspServer.documents[1].uri, sizeof(lspServer.documents[1].uri), "%s", cprUri);
+    lspServer.documents[1].content = strdup(cprSrc);
+    lspServer.documents[1].contentLen = (int)strlen(cprSrc);
+    lspServer.documents[1].version = 1;
+
+    JsonValue* params = make_completion_params(wMainUri, 5, 16);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS(items, "gpraConnections",
+               "2423 : globale collection proposee en valeur de propriete (compagnon ouvert)");
+    int nGlobal = count_label(items, "gpraConnections");
+    if (nGlobal == 1) {
+        g_pass++;
+        printf("  [OK]   2423 : gpraConnections proposee exactement 1x (compagnon ouvert, pas de doublon)\n");
+    } else {
+        g_fail++;
+        printf("  [FAIL] 2423 : gpraConnections proposee %dx (attendu 1, compagnon ouvert)\n", nGlobal);
+    }
 
     json_free(items);
     json_free(params);
@@ -16636,6 +17029,12 @@ static void test_doc_symbol_collection_large_no_drop(void);
 static void test_doc_symbol_module_large_no_drop(void);
 static void test_doc_symbol_collection_categories(void);
 
+/*  +  — ModeleEtat traite comme Etat (documentSymbol/folding) et
+ * ReportTemplate EN : appeles avant leur definition, forward decls manquantes. */
+static void test_doc_symbol_modele_etat(void);
+static void test_folding_modele_etat(void);
+static void test_doc_symbol_report_template_en(void);
+
 /*  — une globale top-level de fenetre est proposee en RHS d'une
  * prop a valeur libre (chaine) du bloc PROPRIETES d'un widget de la meme
  * fenetre. Le runtime la resout (, mangling FEN_X$var) ; la
@@ -18585,6 +18984,7 @@ int main(int argc, char** argv) {
     test_body_libelle_completion();
     test_champ_modifier_types_completion();
     test_champ_modifier_no_article_en();
+    test_champ_modifier_no_article_partial_en();
     test_menu_kind_types_completion();
     test_colonne_type_completion_in_table();
     test_volet_type_completion_in_onglet();
@@ -18603,6 +19003,7 @@ int main(int argc, char** argv) {
     test_dot_dot_duree_keeps_props();
     test_names_in_top_level();
     test_ouvre_filtre_etats();
+    test_intercepte_evenement_procs_same_file();
     test_paren_trigger_completion();
     test_init_completion_trigger_paren();
     test_constante_block_completion();
@@ -18926,6 +19327,11 @@ int main(int argc, char** argv) {
     test_definition_window_ref_closed();
     test_definition_etat_ref_closed();
 
+    /*  — ModeleEtat traite comme Etat (coloration + def + rename). */
+    test_semantic_modele_etat_decl_and_herite();
+    test_definition_modele_etat_ref_closed();
+    test_rename_modele_etat_name();
+
     /*  — catalogue lifecycle Fenetre (consolidation hardcode). */
     test_lifecycle_fenetre_autocomplete();
     test_lifecycle_apres_impression_not_proposed();
@@ -18939,6 +19345,10 @@ int main(int argc, char** argv) {
     test_collection_1178_crossfile_definition();
     test_completion_collection_global_closed();
     test_completion_collection_global_open();
+    test_completion_collection_global_window_closed();
+    test_completion_collection_global_window_open();
+    test_completion_propvalue_global_collection_closed();
+    test_completion_propvalue_global_collection_open();
     test_1219_crossfile_native_collision_tokens();
     test_1219_crossfile_native_collision_definition();
     test_collection_1178_no_regression_plain_enum_window();
@@ -19280,6 +19690,10 @@ int main(int argc, char** argv) {
     test_doc_symbol_etat_kind();
     test_folding_etat_vide();
     test_folding_etat_complet();
+    /*  -- ModeleEtat/ReportTemplate = racine d'outline comme un Etat. */
+    test_doc_symbol_modele_etat();
+    test_folding_modele_etat();
+    test_doc_symbol_report_template_en();
     test_doc_symbol_module_3procs();
     test_doc_symbol_module_proc_prive();
     test_doc_symbol_module_fonction();
@@ -20590,6 +21004,103 @@ static void test_folding_etat_complet(void) {
     ASSERT_HAS_FOLD(result, 1, 5, "0755/fold-etat-complet : LIB_Titre [1..5]");
     ASSERT_HAS_FOLD(result, 7, 9,
         "0755/fold-etat-complet : FinInitialisation [7..9]");
+
+    json_free(result);
+    json_free(params);
+}
+
+/* ----- (A') ModeleEtat -- documentSymbol + foldingRange ------------ */
+
+/*  — un ModeleEtat ouvert direct est une RACINE d'outline au meme
+ * titre qu'un Etat (meme DSL, meme kind). Avant le fix, is_type_window() ne
+ * reconnaissait pas "modeleetat" -> aucune racine L_WINDOW -> outline en mode
+ * module (pas de racine Class) -> segGetWindowRoot null cote plugin -> "aucune
+ * fenetre detectee" sur F2/CodeLens/folding/outline. Pendant document-structure
+ * de  (qui n'avait threade que semantic/def/rename/scope).
+ * Fixture :
+ *   line 0 : MOD_Entete est un ModeleEtat
+ *   line 1 :   HautDePage est un HautDePage
+ *   line 2 :     LIB_Titre est un Champ Libelle
+ *   line 3 :   FIN
+ *   line 4 : FIN
+ * Attendu : 1 racine MOD_Entete kind=Class ; enfant HautDePage (Field) ;
+ * foldingRange non vide (HautDePage [1..3]). */
+static void test_doc_symbol_modele_etat(void) {
+    printf("\n[TEST] fix/2420 documentSymbol : ModeleEtat -> racine Class + section\n");
+    const char* src =
+        "MOD_Entete est un ModeleEtat\n"
+        "\tHautDePage est un HautDePage\n"
+        "\t\tLIB_Titre est un Champ Libelle\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_document_symbol(params);
+
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "2420/modele-etat : 1 symbole racine");
+    ASSERT_SYM_EXISTS(result, "MOD_Entete",
+        "2420/modele-etat : racine = MOD_Entete");
+    {
+        JsonValue* mod = find_sym(result, "MOD_Entete");
+        ASSERT_SYM_KIND(mod, LSP_KIND_CLASS,
+            "2420/modele-etat : MOD_Entete kind=Class(5)");
+        JsonValue* mod_ch = sym_children(mod);
+        ASSERT_SYM_EXISTS(mod_ch, "HautDePage",
+            "2420/modele-etat : HautDePage enfant direct de MOD_Entete");
+        {
+            JsonValue* sec = find_sym(mod_ch, "HautDePage");
+            ASSERT_SYM_KIND(sec, LSP_KIND_FIELD,
+                "2420/modele-etat : HautDePage kind=Field(8)");
+            ASSERT_SYM_LINE(sec, 1, 3,
+                "2420/modele-etat : HautDePage range [1..3]");
+        }
+    }
+
+    json_free(result);
+    json_free(params);
+}
+
+/*  — meme source, foldingRange : parse_structure est partage, donc une
+ * racine ModeleEtat doit aussi produire des plages (non vide). */
+static void test_folding_modele_etat(void) {
+    printf("\n[TEST] fix/2420 foldingRange : ModeleEtat -> plages non vides\n");
+    const char* src =
+        "MOD_Entete est un ModeleEtat\n"
+        "\tHautDePage est un HautDePage\n"
+        "\t\tLIB_Titre est un Champ Libelle\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_folding_range(params);
+
+    ASSERT_FOLD_ARRAY_VALID(result, "2420/fold-modele-etat : array valide");
+    ASSERT_HAS_FOLD(result, 1, 3,
+        "2420/fold-modele-etat : HautDePage [1..3]");
+
+    json_free(result);
+    json_free(params);
+}
+
+/*  — verrou de la forme EN canon "ReportTemplate" comme racine
+ * d'outline (normalize_word -> "reporttemplate"). */
+static void test_doc_symbol_report_template_en(void) {
+    printf("\n[TEST] fix/2420 documentSymbol : ReportTemplate (EN) -> racine Class\n");
+    const char* src =
+        "MOD_En is a ReportTemplate\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_document_symbol(params);
+
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "2420/report-template-en : 1 symbole racine");
+    ASSERT_SYM_EXISTS(result, "MOD_En",
+        "2420/report-template-en : racine = MOD_En (is a ReportTemplate)");
+    {
+        JsonValue* mod = find_sym(result, "MOD_En");
+        ASSERT_SYM_KIND(mod, LSP_KIND_CLASS,
+            "2420/report-template-en : MOD_En kind=Class(5)");
+    }
 
     json_free(result);
     json_free(params);

@@ -1,0 +1,186 @@
+// @sujet : AuthIdentifie
+// @résumé : Authentification OAuth2 par assertion JWT signée (RFC 7523, flux jwt-bearer) : le framework construit, signe en RS256 et échange l'assertion contre un jeton.
+
+
+// Mock de la couche HTTP interne : AuthIdentifie(JWTParamètres) construit et
+// signe une assertion JWT puis envoie une requête de jeton via HTTPEnvoie,
+// interceptée ici pour rester déterministe (pas de serveur live, pas de
+// dépendance au temps d'horloge sur le résultat observé).
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+// Clé de test JETABLE (RSA 2048 bits, PKCS#8), générée uniquement pour cette
+// suite de scénarios. Ce n'est pas un secret réel, elle ne protège rien.
+sCléPriveeTest est une chaîne = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDaB9XbmDnvX0KH
+nTW7dr+rPmSOSELTeVrAIx/mUDhCXjLLrc8T6itwQ6QawHuTuaGo1lomzUL4ptqo
+LVzJElL38Fm53IXNrTePQC6e1czn1trbDgl/2d/Vmc7nzEpiToISs+JNlmNakW21
+9CjlunjGfw4gDLTYPurNjnt6YMk3yLUn8wjPu5P3tesTnNPeeFwAn5c/daFf96b5
+zGTtyzstpmy32oT3vrYk8OR7Dvp2hV0jaLsS8TqyP8Zlt6yKhnboKdAUobg731KE
+A89btO/AlcPZIsiFXt3rSUGWBmzqvSGjhlI76ulzBQmMI24tKG4znibls/XEdq4H
+Bt+7GaCnAgMBAAECggEAQLQckjudzdzuSIKuJID8JpywiM0HD+0usmB6IgZie8eq
+uWlOT/GpjHp2Y/4FbnSjdhCO1n8JxfL2Zvx3UbCfcLciWZcJGl2yZE++xiJa2d6Y
+OnPy+78zvxcTIRUuafg0f8pkeXQM7h7EeUAJNwvctcOU9Ivwy0/4rKIBIPNCI8xf
+Q1++FmpxDcbEUR+7uhLFq26IFpqcgkYetDho7IFEccguhojB2443LwIUpljBFmp7
+bZoH3fWBYjEjkAam0Xi/shC/Uh4eodjvz+GsrZ1NghWTPvhOTUEngV1zHi9oAFE4
+AeqkrxFF2EIKXYoOsKNz7F8VZvR7QtPwL/Y+Wu3j0QKBgQDubkgSOYH0+UlrPpZa
+kRPieH5bsCmwdigPAJVIPdVNKjy6EpWHfmwOl+8mZpO0sZlSS8ICw3epArLJdKZT
+4aTE2QeUFo2uhsgAMgH70vqRu3wkbzAvk6mUWbjVJOFgxZUL9MGwMtwpcsyYYdbL
+28EUTgYNuA0g9oUxUljRqDibfwKBgQDqGLpvuG2D4D6IwgEvNmCskuGLhVzhQFVx
+2Zw9GEj/8K/4FQr2zzwBSmngZwufE0+owNxWnhciabCVQejpq7egJbBLJPswrq/D
+MTnMsuobRGKKEe9ed+iIXFXHGQpTKUKrP3TR7MIvI53F305ociaEjysP5e4XRYys
+odoG81Mu2QKBgQCS38Zvy5MdiA7NDJHsGmCIardT3dHgjPiiPTa4eLaTwUgFS3tn
+Kt5/ouJD4n5smdab1mUd9LEaoLnn1X68P0yToinD9Jy0fPxo+mU0bkPCUB7qBsBF
+Ho4g/6AXVI+tYCkvY0eJNdtfgQM9f0+k5qsqyeF6w/z6aEGmH1btV9X/GwKBgCMn
+x4fTmI6/dGSxTeA7OFVyUXDUfFhPgwVv+qiqJvxYtvR4pIbgJFDFThUnJHWlPsdG
+/0/6udqvKJehqEq/QPpJ7qm6SgbLlRWpJNb633Fs2aeGff4f38nqo+8ccZJ/lcWF
+6BNGjPrrTFxU5r+EtQgfQAZJL3JLPY8HV2jHzewxAoGBAOi3a21f9gccvKf5TTPT
+yDgDbi9D9cOnBOq3/jnXH2wTPy1QVm1mHjDCW6dgSGDIJMdgyucWHBUG9LIlFIqu
+kMGZ9nvThsqq9kHeaLZI43O/awiHxkDFlIYsoUb+KAHvTm+vJ5GjpHrkhkBp+d+M
+M9wiSHQkck90lpBb+owRRWaM
+-----END PRIVATE KEY-----`
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat = 200
+	rep..Contenu  = `{"access_token":"atk-jwt-bearer","expires_in":3600}`
+	mockHttp      = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Désactive()
+FIN
+
+
+// Flux jwt-bearer nominal (RFC 7523) : AuthIdentifie construit et signe une
+// assertion JWT RS256 depuis les JWTParamètres, puis l'échange contre un
+// jeton par une requête POST portant client_assertion et
+// client_assertion_type (urn:ietf:params:oauth:client-assertion-type:jwt-bearer).
+PROCEDURE scenario_jwt_rs256_nominal()
+	jwtP est un JWTParamètres
+	jwtP..Émetteur     = "mon-client"
+	jwtP..Sujet        = "mon-client"
+	jwtP..Consommateur = "https://auth.exemple.test/token"
+	jwtP..URLToken     = "https://auth.exemple.test/token"
+	jwtP..CléPrivée    = sCléPriveeTest
+	jwtP..Cryptage     = jwtRS256
+
+	t est un AuthToken = AuthIdentifie(jwtP)
+
+	dbgVérifieVrai(t..Valide, "assertion jwt-bearer RS256 -> jeton valide")
+	dbgVérifieEgalité(t..Valeur, "atk-jwt-bearer")
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(reqCapturee..URL, "https://auth.exemple.test/token")
+	sCorps est une chaîne = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "client_assertion=") > 0, "corps POST porte client_assertion")
+	dbgVérifieVrai(Position(sCorps, "client_assertion_type=urn%3Aietf%3Aparams%3Aoauth%3Aclient-assertion-type%3Ajwt-bearer") > 0, "corps POST porte client_assertion_type RFC 7523 (percent-encodé)")
+FIN
+
+
+// L'assertion transmise est un JWT RS256 bien formé : 3 segments
+// base64url (header.payload.signature), header et payload décodables en
+// JSON, claims standard posés depuis les JWTParamètres.
+//
+// Limite assumée : ce scénario vérifie la STRUCTURE de l'assertion (format,
+// claims), pas la signature cryptographique elle-même. iat/exp changent à
+// chaque exécution (horodatage), la signature RS256 change donc aussi —
+// aucune valeur figée n'est donc assertable ici. La vérification de la
+// signature elle-même reste à la charge de la relecture de code
+// (implémentation mbedtls_pk déjà éprouvée pour d'autres usages).
+PROCEDURE scenario_assertion_jwt_bien_formee()
+	jwtP est un JWTParamètres
+	jwtP..Émetteur     = "mon-client"
+	jwtP..Sujet        = "mon-client"
+	jwtP..Consommateur = "https://auth.exemple.test/token"
+	jwtP..URLToken     = "https://auth.exemple.test/token"
+	jwtP..CléPrivée    = sCléPriveeTest
+	jwtP..Cryptage     = jwtRS256
+
+	AuthIdentifie(jwtP)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps      est une chaîne     = BufferVersChaîne(reqCapturee..Contenu)
+
+	// Extraction de la valeur de client_assertion dans le corps
+	// form-urlencoded (le préfixe exact évite toute collision avec
+	// client_assertion_type, qui partage le même préfixe).
+	morceaux   est un tableau de chaînes = ChaîneDécoupe(sCorps, "&")
+	sAssertion est une chaîne            = ""
+	POUR TOUT morceau DE morceaux
+		SI CommencePar(morceau, "client_assertion=") ALORS
+			sAssertion = Milieu(morceau, Taille("client_assertion=") + 1)
+		FIN
+	FIN
+	dbgVérifieVrai(Taille(sAssertion) > 0, "client_assertion extrait du corps POST")
+
+	segments est un tableau de chaînes = ChaîneDécoupe(sAssertion, ".")
+	dbgVérifieEgalité(segments..Occurrence, 3, "un JWT compte 3 segments séparés par des points")
+
+	sEnteteJSON  est une chaîne = Base64VersChaîne(segments[1], encodeBASE64URL)
+	sPayloadJSON est une chaîne = Base64VersChaîne(segments[2], encodeBASE64URL)
+
+	jEntete est un JSON = ChaîneVersJSON(sEnteteJSON)
+	dbgVérifieEgalité(jEntete.alg, "RS256", "entête JWT annonce l'algorithme RS256")
+	dbgVérifieEgalité(jEntete.typ, "JWT", "entête JWT porte le type JWT")
+
+	jPayload est un JSON = ChaîneVersJSON(sPayloadJSON)
+	dbgVérifieEgalité(jPayload.iss, "mon-client", "claim iss posé depuis Émetteur")
+	dbgVérifieEgalité(jPayload.sub, "mon-client", "claim sub posé depuis Sujet")
+	dbgVérifieEgalité(jPayload.aud, "https://auth.exemple.test/token", "claim aud posé depuis Consommateur")
+
+	nIat est un entier = jPayload.iat
+	nExp est un entier = jPayload.Exp
+	dbgVérifieVrai(nIat > 0, "claim iat présent et positif")
+	dbgVérifieVrai(nExp > nIat, "claim exp postérieur à iat")
+
+	dbgVérifieVrai(Taille(segments[3]) > 0, "segment de signature non vide")
+FIN
+
+
+// jwtHS256 n'est pas supporté en phase courante (ambiguïté canon clé-vs-secret
+// à lever avant inclusion) : l'appel échoue nettement, avant tout échange
+// réseau — pas de tentative silencieuse de signer en HS256 avec une clé PEM.
+PROCEDURE scenario_hs256_non_supporte()
+	jwtP est un JWTParamètres
+	jwtP..Émetteur     = "mon-client"
+	jwtP..Sujet        = "mon-client"
+	jwtP..Consommateur = "https://auth.exemple.test/token"
+	jwtP..URLToken     = "https://auth.exemple.test/token"
+	jwtP..CléPrivée    = sCléPriveeTest
+	jwtP..Cryptage     = jwtHS256
+
+	ErreurRAZ()
+	AuthIdentifie(jwtP)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "jwtHS256 demandé -> erreur nette")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_JWT_ALGORITHM_UNSUPPORTED", "code dédié algorithme JWT non supporté")
+	dbgVérifieVrai(MockVérifieAppelé(mockHttp, 0), "aucun appel HTTP avant l'erreur (échec avant réseau)")
+FIN
+
+
+// Un fournisseur qui rejette la demande (assertion refusée, horloge trop
+// décalée, etc.) ne fait pas planter l'appel : le jeton retourné est marqué
+// invalide et la réponse brute du serveur reste disponible pour diagnostic.
+PROCEDURE scenario_echec_serveur()
+	mockHttp.Désactive()
+	repErreur est un httpRéponse
+	repErreur..CodeEtat = 400
+	repErreur..Contenu  = `{"error":"invalid_client"}`
+	mockHttp            = MockCrée(HTTPEnvoie).Quand().Retourne(repErreur).Active()
+
+	jwtP est un JWTParamètres
+	jwtP..Émetteur     = "mon-client"
+	jwtP..Sujet        = "mon-client"
+	jwtP..Consommateur = "https://auth.exemple.test/token"
+	jwtP..URLToken     = "https://auth.exemple.test/token"
+	jwtP..CléPrivée    = sCléPriveeTest
+	jwtP..Cryptage     = jwtRS256
+
+	t est un AuthToken = AuthIdentifie(jwtP)
+
+	dbgVérifieFaux(t..Valide, "échec serveur -> jeton invalide")
+	sServeur est une chaîne = BufferVersChaîne(t..RéponseServeur)
+	dbgVérifieVrai(Position(sServeur, "invalid_client") > 0, "RéponseServeur peuplée avec la réponse d'erreur")
+FIN

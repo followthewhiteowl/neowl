@@ -5650,6 +5650,308 @@ static Value fn_numerique_coerce(int argCount, Value* args) {
  * (wrapper md4c CommonMark + GFM). Voir stdlib_markdown_init(). */
 
 /* ================================================================
+ * HTMLVersTexte / HTMLToText — conversion HTML -> texte brut.
+ * Doc canon 1000017039. Strip raisonnable (pas de moteur DOM) :
+ *   - retrait des balises HTML (insensible a la casse)
+ *   - decodage des entites nommees (&lt; &gt; &amp; &quot; &apos; &nbsp; ...)
+ *     et numeriques (&#NNN; decimal, &#xHH; hexa)
+ *   - RC et espaces source collapses en espace unique
+ *   - balises bloc -> sauts de ligne ; <td> -> tabulation
+ *   - contenu de <head>/<style>/<script>/commentaires/elements de
+ *     formulaire entierement ignore
+ * Entites inconnues : laissees verbatim (aucune perte de donnee).
+ * Le 2e param canon <Alphabet utilise> mappe le modele codepage/UTF-16 de
+ * l'environnement d'origine ; sans objet en OWL (UTF-8 natif, divergence assumee) -> non porte.
+ * ================================================================ */
+
+typedef struct { char* data; int len; int cap; } HtmlTextBuf;
+
+static void htb_ensure(HtmlTextBuf* b, int extra) {
+    if (b->len + extra <= b->cap) return;
+    int nc = b->cap < 64 ? 64 : b->cap;
+    while (nc < b->len + extra) nc *= 2;
+    b->data = (char*)realloc(b->data, (size_t)nc);
+    b->cap = nc;
+}
+
+static void htb_putc(HtmlTextBuf* b, char c) {
+    htb_ensure(b, 1);
+    b->data[b->len++] = c;
+}
+
+static void htb_put_cp(HtmlTextBuf* b, unsigned int cp) {
+    if (cp < 0x80) {
+        htb_putc(b, (char)cp);
+    } else if (cp < 0x800) {
+        htb_ensure(b, 2);
+        b->data[b->len++] = (char)(0xC0 | (cp >> 6));
+        b->data[b->len++] = (char)(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        htb_ensure(b, 3);
+        b->data[b->len++] = (char)(0xE0 | (cp >> 12));
+        b->data[b->len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        b->data[b->len++] = (char)(0x80 | (cp & 0x3F));
+    } else {
+        htb_ensure(b, 4);
+        b->data[b->len++] = (char)(0xF0 | (cp >> 18));
+        b->data[b->len++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+        b->data[b->len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        b->data[b->len++] = (char)(0x80 | (cp & 0x3F));
+    }
+}
+
+/* Compare le nom de balise s[0..alen) (casse-insensible) a un literal
+ * minuscule NUL-termine. */
+static int html_name_ci_eq(const char* s, int alen, const char* lower) {
+    for (int k = 0; k < alen; k++) {
+        char ca = s[k];
+        if (ca >= 'A' && ca <= 'Z') ca = (char)(ca + 32);
+        if (lower[k] == '\0' || ca != lower[k]) return 0;
+    }
+    return lower[alen] == '\0';
+}
+
+/* Entites nommees reconnues -> codepoint. nbsp mappe vers un espace normal
+ * (U+0020) : emis comme vrai caractere, donc non collapse (plusieurs &nbsp;
+ * consecutifs restent plusieurs espaces). -1 si inconnue. */
+static long html_named_entity(const char* name, int len) {
+    static const struct { const char* n; long cp; } T[] = {
+        {"lt", '<'}, {"gt", '>'}, {"amp", '&'}, {"quot", '"'},
+        {"apos", '\''}, {"nbsp", 0x20}, {"copy", 0xA9}, {"reg", 0xAE},
+        {"trade", 0x2122}, {"euro", 0x20AC}, {"hellip", 0x2026},
+        {"mdash", 0x2014}, {"ndash", 0x2013}, {"laquo", 0xAB},
+        {"raquo", 0xBB}, {"deg", 0xB0}, {"middot", 0xB7},
+    };
+    for (size_t k = 0; k < sizeof(T) / sizeof(T[0]); k++) {
+        int nl = (int)strlen(T[k].n);
+        if (nl == len && memcmp(name, T[k].n, (size_t)len) == 0) return T[k].cp;
+    }
+    return -1;
+}
+
+static int html_tag_is_skip_content(const char* name) {
+    return strcmp(name, "script") == 0 || strcmp(name, "style") == 0 ||
+           strcmp(name, "head") == 0 || strcmp(name, "title") == 0 ||
+           strcmp(name, "select") == 0 || strcmp(name, "textarea") == 0 ||
+           strcmp(name, "button") == 0 || strcmp(name, "noscript") == 0;
+}
+
+/* Etat de blancs differes : collapse / priorite saut>tab>espace. */
+typedef struct { int nl; int tab; int sp; int started; } HtmlWs;
+
+static void html_ws_flush(HtmlTextBuf* b, HtmlWs* w) {
+    if (!w->started) { w->nl = 0; w->tab = 0; w->sp = 0; return; }
+    if (w->nl > 0) {
+        if (w->nl > 50) w->nl = 50;  /* garde-fou anti-emballement */
+        for (int k = 0; k < w->nl; k++) htb_putc(b, '\n');
+    } else if (w->tab) {
+        htb_putc(b, '\t');
+    } else if (w->sp) {
+        htb_putc(b, ' ');
+    }
+    w->nl = 0; w->tab = 0; w->sp = 0;
+}
+
+static void html_emit_cp(HtmlTextBuf* b, HtmlWs* w, unsigned int cp) {
+    html_ws_flush(b, w);
+    htb_put_cp(b, cp);
+    w->started = 1;
+}
+
+/* Enregistre le blanc induit par une balise bloc (ouvrante ou fermante). */
+static void html_apply_block(HtmlWs* w, const char* name) {
+    int dbl = strcmp(name, "p") == 0 || strcmp(name, "table") == 0 ||
+              strcmp(name, "ul") == 0 || strcmp(name, "ol") == 0 ||
+              (name[0] == 'h' && name[1] >= '1' && name[1] <= '6' &&
+               name[2] == '\0');
+    int single = strcmp(name, "tr") == 0 || strcmp(name, "li") == 0 ||
+                 strcmp(name, "dd") == 0 || strcmp(name, "div") == 0 ||
+                 strcmp(name, "dl") == 0 || strcmp(name, "dt") == 0 ||
+                 /* Blocs semantiques HTML5 : hors du set canon (date), traites
+                  * comme un <div> (saut de ligne simple). */
+                 strcmp(name, "section") == 0 || strcmp(name, "article") == 0 ||
+                 strcmp(name, "nav") == 0 || strcmp(name, "header") == 0 ||
+                 strcmp(name, "footer") == 0 || strcmp(name, "main") == 0 ||
+                 strcmp(name, "aside") == 0 || strcmp(name, "figure") == 0 ||
+                 strcmp(name, "blockquote") == 0;
+    if (strcmp(name, "br") == 0) {
+        w->nl += 1;  /* br ne se merge jamais (additif) */
+        w->sp = 0;
+    } else if (dbl) {
+        if (w->nl < 2) w->nl = 2;
+        w->sp = 0;
+    } else if (single) {
+        if (w->nl < 1) w->nl = 1;
+        w->sp = 0;
+    } else if (strcmp(name, "td") == 0) {
+        if (w->nl == 0) w->tab = 1;  /* separateur de colonne */
+        w->sp = 0;
+    }
+    /* autres balises : inline, aucun blanc (contenu conserve) */
+}
+
+static Value fn_html_vers_texte(int argCount, Value* args) {
+    (void)argCount;
+    if (!IS_STRING(args[0]) && !IS_BUFFER(args[0]))
+        return OBJ_VAL(obj_copy_string("", 0));
+
+    const char* s;
+    int n;
+    if (IS_BUFFER(args[0])) {
+        ObjBuffer* bf = AS_BUFFER(args[0]);
+        s = (const char*)bf->bytes;
+        n = bf->length;
+    } else {
+        ObjString* str = AS_STRING(args[0]);
+        s = str->chars;
+        n = str->length;
+    }
+
+    HtmlTextBuf out = {NULL, 0, 0};
+    HtmlWs w = {0, 0, 0, 0};
+    int i = 0;
+
+    while (i < n) {
+        char c = s[i];
+
+        if (c == '<') {
+            /* Commentaire <!-- ... --> */
+            if (i + 3 < n && s[i + 1] == '!' && s[i + 2] == '-' && s[i + 3] == '-') {
+                i += 4;
+                while (i + 2 < n && !(s[i] == '-' && s[i + 1] == '-' && s[i + 2] == '>')) i++;
+                i = (i + 2 < n) ? i + 3 : n;
+                continue;
+            }
+            /* Declaration <!DOCTYPE ...> ou autre <! : jusqu'au > */
+            if (i + 1 < n && s[i + 1] == '!') {
+                i += 2;
+                while (i < n && s[i] != '>') i++;
+                if (i < n) i++;
+                continue;
+            }
+            int j = i + 1;
+            int closing = 0;
+            if (j < n && s[j] == '/') { closing = 1; j++; }
+            int ns = j;
+            while (j < n && ((s[j] >= 'a' && s[j] <= 'z') ||
+                             (s[j] >= 'A' && s[j] <= 'Z') ||
+                             (s[j] >= '0' && s[j] <= '9'))) j++;
+            int nameLen = j - ns;
+            if (nameLen == 0) {
+                /* '<' isole : texte litteral */
+                html_emit_cp(&out, &w, (unsigned char)'<');
+                i++;
+                continue;
+            }
+            char name[16];
+            int cpy = nameLen < 15 ? nameLen : 15;
+            for (int k = 0; k < cpy; k++) {
+                char ca = s[ns + k];
+                if (ca >= 'A' && ca <= 'Z') ca = (char)(ca + 32);
+                name[k] = ca;
+            }
+            name[cpy] = '\0';
+            /* Fin de la balise : jusqu'au > en ignorant les chaines d'attribut. */
+            int te = j;
+            while (te < n && s[te] != '>') {
+                if (s[te] == '"' || s[te] == '\'') {
+                    char q = s[te++];
+                    while (te < n && s[te] != q) te++;
+                }
+                te++;
+            }
+            int afterTag = (te < n) ? te + 1 : n;
+
+            if (!closing && html_tag_is_skip_content(name)) {
+                /* Saute tout jusqu'a la balise fermante correspondante. */
+                int p = afterTag;
+                while (p < n) {
+                    if (s[p] == '<' && p + 1 < n && s[p + 1] == '/') {
+                        int q = p + 2, qs = q;
+                        while (q < n && ((s[q] >= 'a' && s[q] <= 'z') ||
+                                         (s[q] >= 'A' && s[q] <= 'Z') ||
+                                         (s[q] >= '0' && s[q] <= '9'))) q++;
+                        if (q > qs && html_name_ci_eq(s + qs, q - qs, name)) {
+                            while (q < n && s[q] != '>') q++;
+                            p = (q < n) ? q + 1 : n;
+                            break;
+                        }
+                    }
+                    p++;
+                }
+                i = p;
+                continue;
+            }
+
+            html_apply_block(&w, name);
+            i = afterTag;
+            continue;
+        }
+
+        if (c == '&') {
+            int j = i + 1;
+            if (j < n && s[j] == '#') {
+                j++;
+                int hex = 0;
+                if (j < n && (s[j] == 'x' || s[j] == 'X')) { hex = 1; j++; }
+                unsigned long cp = 0;
+                int digits = 0;
+                while (j < n && digits < 8) {
+                    char d = s[j];
+                    int v;
+                    if (d >= '0' && d <= '9') v = d - '0';
+                    else if (hex && d >= 'a' && d <= 'f') v = d - 'a' + 10;
+                    else if (hex && d >= 'A' && d <= 'F') v = d - 'A' + 10;
+                    else break;
+                    cp = cp * (hex ? 16u : 10u) + (unsigned long)v;
+                    j++; digits++;
+                }
+                if (digits > 0 && j < n && s[j] == ';' && cp != 0 && cp <= 0x10FFFF) {
+                    html_emit_cp(&out, &w, (unsigned int)cp);
+                    i = j + 1;
+                    continue;
+                }
+            } else {
+                int es = j;
+                while (j < n && ((s[j] >= 'a' && s[j] <= 'z') ||
+                                 (s[j] >= 'A' && s[j] <= 'Z') ||
+                                 (s[j] >= '0' && s[j] <= '9'))) j++;
+                if (j > es && j < n && s[j] == ';') {
+                    long cp = html_named_entity(s + es, j - es);
+                    if (cp >= 0) {
+                        html_emit_cp(&out, &w, (unsigned int)cp);
+                        i = j + 1;
+                        continue;
+                    }
+                }
+            }
+            /* Entite inconnue / malformee : & litteral, le reste suit en texte. */
+            html_emit_cp(&out, &w, (unsigned char)'&');
+            i++;
+            continue;
+        }
+
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            if (w.nl == 0 && !w.tab) w.sp = 1;  /* collapse, espace = plus bas */
+            i++;
+            continue;
+        }
+
+        /* Octet de texte reel (UTF-8 passthrough). Flush inconditionnel :
+         * html_ws_flush purge le blanc en tete sans l'emettre tant que rien
+         * n'a encore ete produit (trim implicite du blanc de debut). */
+        html_ws_flush(&out, &w);
+        htb_putc(&out, c);
+        w.started = 1;
+        i++;
+    }
+
+    Value r = OBJ_VAL(obj_copy_string(out.data ? out.data : "", out.len));
+    free(out.data);
+    return r;
+}
+
+/* ================================================================
  * REGISTRATION
  * ================================================================ */
 
@@ -6809,6 +7111,12 @@ void stdlib_string_init(void) {
             {3, p_s_sep_cmp, "chaîne", "chaîne sans doublons (avec options de comparaison)"},
             {0}
         };
+        static const OwlParam p_html_txt[] = {
+            {"html", "chaîne", "contenu HTML (chaîne ou buffer d'octets)"}, {0}
+        };
+        static const OwlSignature sig_html_txt[] = {
+            {1, p_html_txt, "chaîne", "texte brut (balises retirées, entités décodées)"}, {0}
+        };
 
         static const OwlNativeDef DEFS[] = {
             { .canonical = "Taille", .nameEN = "Length", .category = "Chaines",
@@ -7153,6 +7461,11 @@ void stdlib_string_init(void) {
               .descFR = "Échappe les caractères HTML spéciaux (& < > \" ').",
               .descEN = "Escape HTML special characters (& < > \" ').",
               .signatures = sig_s2s, .impl = fn_texte_vers_html },
+
+            { .canonical = "HTMLVersTexte", .nameEN = "HTMLToText", .category = "Chaines",
+              .descFR = "Convertit du HTML en texte brut : balises retirées, entités décodées (nommées et numériques), retours chariot et espaces multiples normalisés, blocs convertis en sauts de ligne.",
+              .descEN = "Convert HTML to plain text: tags removed, entities decoded (named and numeric), carriage returns and repeated spaces normalized, block elements turned into line breaks.",
+              .signatures = sig_html_txt, .impl = fn_html_vers_texte },
 
             { .canonical      = "URLExtraitChemin", .nameEN = "URLExtractPath", .category = "Chaines",
               .descFR = "Extrait un composant d'une URL (scheme, host, port, path, query, fragment).",

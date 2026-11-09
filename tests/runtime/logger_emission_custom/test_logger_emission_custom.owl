@@ -1,0 +1,44 @@
+// Verrou technique : émission custom (candidat ..Émetteur, cf. ticket
+//  point 6 — nommage exact à confirmer en revue). Une propriété
+// portant une procédure permet de brancher n'importe quelle cible externe
+// (EFK/Grafana/AWS...) en réutilisant des natives OWL existantes, en plus
+// (ou à la place) de ..Destination intégrée. Le test verrouille le
+// MÉCANISME (la procédure reçoit bien le LogEnreg et peut appeler une
+// native OWL arbitraire), pas le nom final de la propriété.
+
+compteurEmissionCustom est un entier  = 0
+dernierMessageEmission est une chaîne = ""
+cheminSinkExterne      est une chaîne = "_tmp_logger_emission_custom_sink.txt"
+
+// L'émetteur custom réutilise une native OWL existante (fAjouteTexte) pour
+// pousser le message vers une cible externe simulée par un fichier — même
+// plomberie que pousser vers Loki/CloudWatch via HTTPEnvoie/AWSRequête.
+PROCEDURE emetteurVersSinkExterne(rEnreg est un LogEnreg)
+	compteurEmissionCustom = compteurEmissionCustom + 1
+	dernierMessageEmission = rEnreg..Message
+	fAjouteTexte(cheminSinkExterne, rEnreg..Message)
+FIN
+
+fSupprime(cheminSinkExterne)
+
+log1 est un Logger
+log1..Niveau   = nivDebug
+log1..Émetteur = emetteurVersSinkExterne
+log1.Erreur("bascule vers le collecteur externe")
+
+dbgVérifieEgalité(compteurEmissionCustom, 1, "..Émetteur est appelé exactement une fois par message émis")
+dbgVérifieEgalité(dernierMessageEmission, "bascule vers le collecteur externe", "la procédure d'émission custom reçoit le LogEnreg avec le message exact")
+
+contenuSink est une chaîne = fChargeTexte(cheminSinkExterne)
+dbgVérifieVrai(Contient(contenuSink, "bascule vers le collecteur externe") > 0, "la procédure d'émission custom a bien appelé une native OWL (fAjouteTexte) pour pousser vers la cible externe")
+
+// Le seuil ..Niveau filtre aussi l'émission custom : sous le seuil, la
+// procédure n'est pas appelée.
+compteurEmissionCustom = 0
+log1..Niveau           = nivErreur
+log1.Info("ignoré : sous le seuil")
+dbgVérifieEgalité(compteurEmissionCustom, 0, "..Émetteur n'est pas appelé pour un message sous le seuil ..Niveau")
+
+fSupprime(cheminSinkExterne)
+
+dbgBilanTest()

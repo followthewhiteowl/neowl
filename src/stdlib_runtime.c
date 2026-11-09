@@ -285,6 +285,28 @@ static Value fn_reseau_utilisateur(int argCount, Value* args) {
 #endif
 }
 
+/* DonneIdentifiant() -> entier unique et croissant au sein d'un run.
+ *
+ * Compteur monotone demarre a 1 au premier appel, incremente de 1 a chaque
+ * appel suivant. Ephemere : l'etat vit dans ce compteur statique, jamais
+ * persiste ; chaque nouveau run du programme repart de 1.
+ *
+ * Int 32 bits volontaire (fidele au canon) : au-dela de 2^31-1 le compteur
+ * deborde et revient dans le negatif (wrap signe). Documente cote desc.
+ *
+ * Pas d'atomique : la VM OWL reste strictement mono-thread (cf.
+ * owl_parallel.c, qui ne fait tourner que des kernels numeriques sur des
+ * double* bruts — aucun appel de native ne franchit la frontiere de thread).
+ * Un simple compteur statique suffit donc.
+ *
+ * Doc canon de reference : TraitementDonnees/Donnees/Autres/3013028.md. */
+static Value fn_donne_identifiant(int argCount, Value* args) {
+    (void)argCount; (void)args;
+    static int32_t counter = 0;
+    counter++;
+    return INTEGER_VAL((int64_t)counter);
+}
+
 /* OuvreURL(url) — ouvre l'URL dans le gestionnaire par defaut du systeme
  * (navigateur pour http/https, application associee pour mailto:, etc.).
  * Retourne Vrai si le lancement a reussi, Faux sinon.
@@ -350,6 +372,10 @@ static const OwlSignature sig_str_no_arg[] = {
     {0, p_simple, "cha\xc3\xaene", "cha\xc3\xaene r\xc3\xa9sultat"},
     {0}
 };
+static const OwlSignature sig_int_no_arg[] = {
+    {0, p_simple, "entier", "entier r\xc3\xa9sultat"},
+    {0}
+};
 
 static const OwlParam p_ouvre_url[] = {
     {"url", "cha\xc3\xaene", "URL ou cible \xc3\xa0 ouvrir (http, https, mailto, ...)"},
@@ -383,6 +409,10 @@ static const OwlNativeDef DEFS[] = {
       .descFR="Renvoie le nom de l'utilisateur du système en cours de session (login seul, sans domaine). Chaîne vide si l'identité ne peut être déterminée.",
       .descEN="Returns the name of the operating-system user of the current session (login only, no domain). Empty string if the identity cannot be determined.",
       .signatures=sig_str_no_arg, .impl=fn_reseau_utilisateur },
+    { .canonical="DonneIdentifiant", .nameEN="GetIdentifier", .category="Runtime",
+      .descFR="Renvoie un entier unique et croissant a chaque appel au sein d'un meme run : le premier appel renvoie 1, le deuxieme 2, et ainsi de suite (increment de 1). Pratique pour fabriquer des noms ou alias uniques pendant l'execution. L'etat n'est pas conserve d'un run a l'autre : chaque nouvelle execution repart de 1. L'identifiant est un entier 32 bits ; au-dela de sa valeur maximale, il repasse dans les valeurs negatives.",
+      .descEN="Returns a unique, increasing integer on each call within a single run: the first call returns 1, the second 2, and so on (step of 1). Handy to build unique names or aliases during execution. The state is not kept between runs: each new execution restarts from 1. The identifier is a 32-bit integer; beyond its maximum value, it wraps around into negative values.",
+      .signatures=sig_int_no_arg, .impl=fn_donne_identifiant },
     { .canonical="OuvreURL", .nameEN="OpenURL", .category="Syst\xc3\xa8me",
       .descFR="Ouvre une URL dans le gestionnaire par defaut du systeme : le navigateur pour http et https, l'application associee pour les autres schemas (mailto, tel, ...). Renvoie Vrai si le lancement a reussi, Faux sinon.",
       .descEN="Opens a URL in the operating-system default handler: the browser for http and https, the associated application for other schemes (mailto, tel, ...). Returns True if the launch succeeded, False otherwise.",

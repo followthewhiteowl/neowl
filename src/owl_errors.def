@@ -1490,6 +1490,12 @@ OWL_ERROR(E_NATIVE_EMAIL_SEND_FAILURE, "native",
 OWL_ERROR(E_NATIVE_EMAIL_NOT_OPEN, "native",
           "{native}: session non ouverte (appeler EmailOuvreSession d'abord).",
           "{native}: session not open (call EmailOuvreSession first).")
+OWL_ERROR(E_NATIVE_LDAP_CONNECT_FAILURE, "native",
+          "{native}: connexion à l'annuaire {cible} impossible ({detail}).",
+          "{native}: cannot connect to directory {cible} ({detail}).")
+OWL_ERROR(E_NATIVE_OCR_NOT_IN_BUILD, "native",
+          "{native} : le moteur OCR n'est pas inclus dans cette version.",
+          "{native}: the OCR engine is not included in this build.")
 OWL_ERROR(E_NATIVE_HTTP_INVALID_URL, "native",
           "{native}: URL invalide.",
           "{native}: invalid URL.")
@@ -1682,6 +1688,33 @@ OWL_ERROR(E_NATIVE_TIMER_ACTIF_READONLY, "native",
 OWL_ERROR(E_IO_FILE_NOT_FOUND, "io",
           "Fichier introuvable : '{path}'.",
           "File not found: '{path}'.")
+
+/* ================================================================
+ * OAUTH2 — échecs d'authentification dédiés
+ *
+ * Remplacent le code générique E_NATIVE_ARG_INVALID sur les branches
+ * d'échec sémantiques d'AuthIdentifie / AuthRenouvelleToken / HTTPEnvoie
+ * (rafraîchissement auto). Placés en fin d'espace E_* pour ne pas décaler
+ * les alias numériques des codes existants (cf. en-tête ALIAS NUMÉRIQUE).
+ * ================================================================ */
+OWL_ERROR(E_NATIVE_OAUTH_IMPLICIT_UNSUPPORTED, "native",
+          "{native}: le flux implicite n'est pas supporté. Utiliser le flux par code d'autorisation (code + PKCE).",
+          "{native}: the implicit flow is not supported. Use the authorization-code flow (code + PKCE).")
+OWL_ERROR(E_NATIVE_OAUTH_PARAMS_INCOMPLETE, "native",
+          "{native}: paramètres OAuth2 incomplets ({detail}).",
+          "{native}: incomplete OAuth2 parameters ({detail}).")
+OWL_ERROR(E_NATIVE_OAUTH_BROWSER_UNAVAILABLE, "native",
+          "{native}: impossible d'ouvrir le navigateur pour l'authentification.",
+          "{native}: cannot open the browser for authentication.")
+OWL_ERROR(E_NATIVE_OAUTH_TOKEN_NOT_REFRESHABLE, "native",
+          "{native}: jeton expiré et non renouvelable. Ré-authentifier.",
+          "{native}: access token expired and cannot be renewed. Re-authenticate.")
+OWL_ERROR(E_NATIVE_OAUTH_AUTH_CODE_FAILED, "native",
+          "{native}: flux par code d'autorisation interrompu ({detail}).",
+          "{native}: authorization-code flow interrupted ({detail}).")
+OWL_ERROR(E_NATIVE_JWT_ALGORITHM_UNSUPPORTED, "native",
+          "{native}: algorithme de signature JWT non supporté. Seul jwtRS256 est pris en charge.",
+          "{native}: unsupported JWT signing algorithm. Only jwtRS256 is supported.")
 
 /* ================================================================
  * WARNING — diagnostics compile-time non-bloquants ( jalon D)
@@ -2745,6 +2778,57 @@ OWL_ERROR(E_SEM_DSL_PROC_HELPER_NOT_TOPLEVEL, "semantic",
           "supérieur.",
           "Procedure '{name}' can only be declared at the Window level, "
           "before the controls. Move it up to the top level.")
+/*  — heritage d'etats par modele (ModeleEtat / ReportTemplate). */
+OWL_ERROR(E_SYNTAX_EXP_ETAT_MODELE_NAME, "syntax",
+          "Après 'Hérite de', un nom de modèle d'état est attendu (ex: "
+          "Hérite de MON_MODELE).",
+          "After 'Inherits', a report template name is expected (e.g., "
+          "Inherits MY_TEMPLATE).")
+OWL_ERROR(E_SEM_ETAT_HERITAGE_CIRCULAIRE, "semantic",
+          "Héritage de modèles circulaire détecté sur '{name}' : un "
+          "modèle ne peut pas hériter de lui-même, directement ou via "
+          "une chaîne de modèles.",
+          "Circular template inheritance detected on '{name}': a "
+          "template cannot inherit from itself, directly or through a "
+          "chain of templates.")
+OWL_ERROR(E_SEM_ETAT_HERITAGE_PARENT_INCONNU, "semantic",
+          "L'État '{name}' hérite du modèle '{parent}', introuvable. "
+          "Vérifier le nom et que le modèle est déclaré (est un "
+          "ModèleÉtat).",
+          "Report '{name}' inherits from template '{parent}', which was "
+          "not found. Check the name and that the template is declared "
+          "(is a ReportTemplate).")
+OWL_ERROR(E_SEM_ETAT_HERITAGE_PARENT_NON_MODELE, "semantic",
+          "L'État '{name}' ne peut hériter que d'un ModèleÉtat ; "
+          "'{parent}' n'en est pas un.",
+          "Report '{name}' can only inherit from a ReportTemplate; "
+          "'{parent}' is not one.")
+OWL_ERROR(E_SEM_ETAT_ITERATION_HERITEE_DUPLICATE, "semantic",
+          "Le bloc Itération '{name}' existe à la fois dans l'État et "
+          "dans son modèle. Les blocs Itération ne fusionnent pas : "
+          "leur donner des noms distincts.",
+          "Iteration block '{name}' exists both in the report and its "
+          "template. Iteration blocks do not merge: give them distinct "
+          "names.")
+OWL_ERROR(E_SEM_ETAT_GLOBALE_HERITEE_COLLISION, "semantic",
+          "La variable globale '{name}' est déclarée à la fois dans "
+          "l'État et dans son modèle. Renommer l'une des deux.",
+          "Global variable '{name}' is declared both in the report and "
+          "its template. Rename one of them.")
+OWL_ERROR(E_SEM_ETAT_CHAMP_INTER_MODELE_COLLISION, "semantic",
+          "Le champ '{name}' est déclaré dans deux modèles hérités "
+          "('{modeleA}' et '{modeleB}'). Un même nom de champ ne peut pas "
+          "provenir de deux modèles : renommer l'un des deux.",
+          "Field '{name}' is declared in two inherited templates "
+          "('{modeleA}' and '{modeleB}'). A field name cannot come from "
+          "two templates: rename one of them.")
+OWL_ERROR(E_SEM_ETAT_MODELE_NON_IMPRIMABLE, "semantic",
+          "Le modèle d'état '{name}' (ModèleÉtat) ne peut pas être imprimé "
+          "directement : un modèle sert uniquement de base d'héritage. "
+          "Imprimer un État qui en hérite.",
+          "Report template '{name}' (ReportTemplate) cannot be printed "
+          "directly: a template only serves as an inheritance base. Print "
+          "a report that inherits from it.")
 OWL_ERROR(E_SYNTAX_ETAT_PROPRIETES_EXPECTED_PROP_NAME, "syntax",
           "Dans PROPRIETES État : attendu nom de propriété (ex: Format "
           "= ...).",

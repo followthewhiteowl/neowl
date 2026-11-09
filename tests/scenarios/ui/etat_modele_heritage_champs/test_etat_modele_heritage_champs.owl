@@ -1,0 +1,26 @@
+// @sujet : Héritage d'état par modèle — fusion des champs
+// @resume : Un État qui porte `Hérite de <ModèleÉtat>` reçoit les champs du modèle à l'impression. Les blocs uniques de même type (ici Corps) fusionnent les champs du modèle et de l'état dans le même bloc ; un champ du modèle reste lisible depuis le code de l'état.
+//
+// Ressources voisines : MOD_Facture.owl (modèle), ETAT_Facture.owl
+// (état héritier).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : fusion Corps modèle + état, champ modèle lisible depuis l'état
+PROCEDURE PUBLIQUE scenario_etat_herite_champs_modele()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_heritage.pdf")
+	iImprimeEtat(ETAT_Facture)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve,
+	"modele:Modele : entete facture;etat:Etat : total;etat-lit-modele:Modele : entete facture;",
+	"Champ du modèle présent et lisible depuis l'état, champ propre de l'état aussi")
+FIN
+
+dbgBilanTest()

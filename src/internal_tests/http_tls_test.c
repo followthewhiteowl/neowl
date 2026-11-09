@@ -186,7 +186,7 @@ typedef struct {
 static bool ctls_ouvre(ClientTls* c, int port) {
     memset(c, 0, sizeof(*c));
     owl_tls_init(&c->s);
-    if (!owl_tls_connect(&c->s, "127.0.0.1", port, OWL_TLS_VERIFY_NONE, 5000, NULL)) {
+    if (!owl_tls_connect(&c->s, "127.0.0.1", port, OWL_TLS_VERIFY_NONE, 5000, NULL, NULL, NULL)) {
         fprintf(stderr, "  [tls] connect echoue : %s\n", owl_tls_last_error(&c->s));
         return false;
     }

@@ -1,0 +1,53 @@
+// @sujet : LoggerErreur
+// @résumé : Émet un message au niveau Erreur via le logger par défaut implicite, sans déclarer de variable Logger. Comportement identique à monLog.Erreur(...) sur une instance. Forme anglaise : LoggerError. Ne déclenche aucun dialogue modal (famille distincte de Erreur()).
+
+// Formateur minimal : ne restitue que le message brut, pour vérifier le
+// contenu exact écrit dans la destination.
+PROCEDURE fmtMsgErreur(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+// LoggerErreur écrit le message : le niveau Erreur est toujours au-dessus
+// ou au niveau de n'importe quel seuil configuré.
+PROCEDURE PUBLIQUE scenario_loggererreur_ecrit_toujours()
+	chemin est une chaîne = "_tmp_loggererreur_nominal.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivErreur, fmtMsgErreur, chemin)
+	LoggerErreur("connexion base de données perdue")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "connexion base de données perdue"), 32, "LoggerErreur écrit le message exact fourni")
+
+	fSupprime(chemin)
+FIN
+
+// LoggerErreur n'ouvre aucun dialogue modal : contrairement à Erreur(),
+// c'est une émission de log, pas une interruption utilisateur. L'appel se
+// termine normalement sans ErreurDétectée.
+PROCEDURE PUBLIQUE scenario_loggererreur_ne_leve_pas_erreur_detectee()
+	chemin est une chaîne = "_tmp_loggererreur_pas_dialogue.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivErreur, fmtMsgErreur, chemin)
+	LoggerErreur("panne réseau")
+	bErreur est un booléen = ErreurDétectée
+
+	dbgVérifieFaux(bErreur, "LoggerErreur ne déclenche pas ErreurDétectée : ce n'est pas une exception")
+
+	fSupprime(chemin)
+FIN
+
+// Forme anglaise LoggerError : même comportement que LoggerErreur.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_loggererror()
+	chemin est une chaîne = "_tmp_loggererror_en.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivErreur, fmtMsgErreur, chemin)
+	LoggerError("database connection lost")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "database connection lost"), 24, "LoggerError (forme anglaise) écrit le message exact fourni")
+
+	fSupprime(chemin)
+FIN

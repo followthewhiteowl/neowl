@@ -74,6 +74,11 @@ struct OwlPdfDoc {
      * differe). Un QPrinter refuse tout changement de mise en page une fois
      * actif ; on begin au 1er dessin, apres que l'Etat a pose son Format. */
     bool        printerPending;
+    /* Mode PDF disque : meme deferrance que l'imprimante. La MediaBox de la
+     * page 1 est figee au painter->begin ; on la differe jusqu'au 1er dessin
+     * pour que l'Etat ait pose Format/Orientation via owl_pdf_set_page_size_mm
+     * (sinon tout rapport paysage sort en page portrait). */
+    bool        writerPending;
     int         dpi;           /* resolution logique (300 par defaut) */
     /* Callback image-memoire. NULL si mode PDF. */
     OwlPdfPageCallback memOnPage;
@@ -98,9 +103,9 @@ struct OwlPdfDoc {
 
 static OwlPdfDoc* g_current = nullptr;
 
-/* Demarrage differe du painter imprimante (begin au 1er dessin) — defini plus
- * bas, pres de owl_pdf_open_printer, mais appele par les primitives de dessin. */
-static void printer_ensure_begun(OwlPdfDoc* doc);
+/* Demarrage differe du painter (begin au 1er dessin) pour les modes imprimante
+ * et PDF disque — defini plus bas, mais appele par les primitives de dessin. */
+static void ensure_painter_begun(OwlPdfDoc* doc);
 
 /* Conversion mm -> point logique du QPainter (1 point = 1/dpi inch).
  * Lit le dpi stocke dans le doc (300 par defaut, ou valeur posee a
@@ -249,6 +254,7 @@ extern "C" OwlPdfDoc* owl_pdf_open(const char* output_path_utf8) {
     doc->memImage = nullptr;
     doc->printer = nullptr;
     doc->printerPending = false;
+    doc->writerPending = false;
     doc->memOnPage = nullptr;
     doc->memUserdata = nullptr;
     doc->dpi = 300;
@@ -258,19 +264,17 @@ extern "C" OwlPdfDoc* owl_pdf_open(const char* output_path_utf8) {
     doc->writer->setPageSize(QPageSize(QPageSize::A4));
     doc->writer->setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter);
     doc->device = doc->writer;
-    doc->painter = new QPainter();
-    if (!doc->painter->begin(doc->writer)) {
-        delete doc->painter;
-        delete doc->writer;
-        delete doc;
-        return nullptr;
-    }
     init_common_doc_state(doc);
+    /* begin() differe (cf. writerPending) : la MediaBox de la page 1 est figee
+     * au begin. On laisse l'Etat poser son Format/Orientation via
+     * owl_pdf_set_page_size_mm, puis ensure_painter_begun() demarre le painter
+     * au 1er dessin avec la bonne mise en page. Sans ce differe, tout rapport
+     * paysage sortait en page portrait. */
+    doc->painter = new QPainter();
+    doc->writerPending = true;
     QSizeF pageMm = doc->writer->pageLayout().fullRect(QPageLayout::Millimeter).size();
     doc->pageWidthMm  = pageMm.width();
     doc->pageHeightMm = pageMm.height();
-    apply_deterministic_render_hints(doc->painter, &doc->currentFont);
-    doc->painter->setFont(doc->currentFont);
     g_current = doc;
     return doc;
 }
@@ -342,6 +346,7 @@ extern "C" OwlPdfDoc* owl_pdf_open_image_memory(int dpi,
     doc->memImage = nullptr;
     doc->printer = nullptr;
     doc->printerPending = false;
+    doc->writerPending = false;
     doc->memOnPage = on_page;
     doc->memUserdata = userdata;
     doc->dpi = dpi;
@@ -364,6 +369,10 @@ extern "C" int owl_pdf_close(OwlPdfDoc* doc) {
     if (doc->memImage) {
         mem_flush_page(doc);
     } else if (doc->painter) {
+        /* Writer jamais dessine (begin differe non declenche) : on begin pour
+         * produire une page vierge valide, parite avec l'ancien begin immediat.
+         * Le printer vide, lui, ne demarre aucun job (printerPending ignore). */
+        if (doc->writer && doc->writerPending) ensure_painter_begun(doc);
         /* PDF comme imprimante : painter->end() finalise. En mode imprimante,
          * c'est ce end() qui declenche le spool du job vers le peripherique. */
         doc->painter->end();
@@ -444,10 +453,14 @@ extern "C" void owl_pdf_set_pdf_a1b(OwlPdfDoc* doc, int active) {
 extern "C" void owl_pdf_new_page(OwlPdfDoc* doc) {
     if (!doc) return;
     if (doc->writer) {
+        /* Le painter doit etre actif avant newPage (begin differe). Cas d'un
+         * saut de page avant tout dessin : writerPending encore vrai, on
+         * demarre ici. Idempotent si deja begun (le flag garde). */
+        ensure_painter_begun(doc);
         doc->writer->newPage();
     } else if (doc->printer) {
         /* Le painter doit etre actif avant newPage (begin differe). */
-        printer_ensure_begun(doc);
+        ensure_painter_begun(doc);
         doc->printer->newPage();
     } else if (doc->memImage) {
         /* Mode image memoire : flush la page courante + ouvre une page
@@ -498,7 +511,7 @@ static double line_height_mm(OwlPdfDoc* doc) {
 
 extern "C" void owl_pdf_print_word(OwlPdfDoc* doc, const char* text_utf8) {
     if (!doc || !doc->painter) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     QString s = QString::fromUtf8(text_utf8 ? text_utf8 : "");
     QFontMetricsF fm(doc->currentFont, doc->device);
     double ascent_mm = fm.ascent() * 25.4 / (double)doc->dpi;
@@ -526,7 +539,7 @@ extern "C" void owl_pdf_print_zone(OwlPdfDoc* doc, const char* text_utf8,
                                     double x1, double y1, double x2, double y2,
                                     int alignement) {
     if (!doc || !doc->painter) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     QString s = QString::fromUtf8(text_utf8 ? text_utf8 : "");
     Qt::Alignment a;
     /* Horizontal */
@@ -633,7 +646,7 @@ static Qt::BrushStyle brush_style_from_int(int brush_style) {
 extern "C" void owl_pdf_line(OwlPdfDoc* doc, double x1, double y1, double x2, double y2,
                               double thickness_mm, int color_bgr, int trait_style, int cap_style) {
     if (!doc || !doc->painter) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     QPen pen(color_from_bgr(color_bgr));
     pen.setWidthF(mm_to_units(doc, thickness_mm > 0 ? thickness_mm : 0.353));
     pen.setStyle(pen_style_from_int(trait_style));
@@ -670,7 +683,7 @@ extern "C" void owl_pdf_rect(OwlPdfDoc* doc, double x1, double y1, double x2, do
                               double thickness_mm, int border_bgr, int fill_bgr,
                               int trait_style, int brush_style, int border_mask) {
     if (!doc || !doc->painter) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     setup_pen_brush(doc, thickness_mm, border_bgr, fill_bgr, trait_style, brush_style);
     QRectF r(mm_to_units(doc, x1 + doc->marginLeft),
              mm_to_units(doc, y1 + doc->marginTop),
@@ -702,7 +715,7 @@ extern "C" void owl_pdf_rounded_rect(OwlPdfDoc* doc, double x1, double y1, doubl
                                       double thickness_mm, int border_bgr, int fill_bgr,
                                       int trait_style, int brush_style) {
     if (!doc || !doc->painter) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     setup_pen_brush(doc, thickness_mm, border_bgr, fill_bgr, trait_style, brush_style);
     QRectF r(mm_to_units(doc, x1 + doc->marginLeft),
              mm_to_units(doc, y1 + doc->marginTop),
@@ -717,7 +730,7 @@ extern "C" void owl_pdf_ellipse(OwlPdfDoc* doc, double x1, double y1, double x2,
                                  double thickness_mm, int border_bgr, int fill_bgr,
                                  int trait_style, int brush_style) {
     if (!doc || !doc->painter) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     QPen pen = thickness_mm > 0 ? QPen(color_from_bgr(border_bgr)) : QPen(Qt::NoPen);
     if (thickness_mm > 0) {
         pen.setWidthF(mm_to_units(doc, thickness_mm));
@@ -788,7 +801,7 @@ extern "C" void owl_pdf_image(OwlPdfDoc* doc, const char* image_path_utf8,
                                double x1, double y1, double x2, double y2,
                                int mode, double zoom_pct) {
     if (!doc || !doc->painter || !image_path_utf8) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     QImage rawImg(QString::fromUtf8(image_path_utf8));
     if (rawImg.isNull()) {
         fprintf(stderr, "[owl_pdf_image] impossible de charger '%s'\n", image_path_utf8);
@@ -823,7 +836,7 @@ extern "C" void owl_pdf_image_part(OwlPdfDoc* doc, const char* image_path_utf8,
                                     double sx1, double sy1, double sx2, double sy2,
                                     int mode) {
     if (!doc || !doc->painter || !image_path_utf8) return;
-    printer_ensure_begun(doc);
+    ensure_painter_begun(doc);
     QImage rawImg(QString::fromUtf8(image_path_utf8));
     if (rawImg.isNull()) {
         fprintf(stderr, "[owl_pdf_image_part] impossible de charger '%s'\n", image_path_utf8);
@@ -875,10 +888,11 @@ extern "C" void owl_pdf_font_use(OwlPdfDoc* doc, int font_id) {
     if (it == doc->fonts.end()) return;
     doc->currentFont = it.value();
     doc->currentFontId = font_id;
-    /* Mode imprimante pas encore demarre : ne pas forcer le begin ici (ca
-     * figerait la mise en page avant que l'Etat pose son Format). La police
-     * courante sera appliquee par printer_ensure_begun() au 1er dessin. */
-    if (doc->printerPending) return;
+    /* Painter pas encore demarre (begin differe imprimante/writer) : ne pas
+     * forcer le begin ici (ca figerait la mise en page avant que l'Etat pose
+     * son Format). La police courante sera appliquee par ensure_painter_begun()
+     * au 1er dessin. setFont sur un painter inactif est un no-op bruyant. */
+    if (doc->printerPending || doc->writerPending) return;
     doc->painter->setFont(doc->currentFont);
 }
 
@@ -1047,6 +1061,7 @@ extern "C" OwlPdfDoc* owl_pdf_open_printer(void) {
     doc->writer = nullptr;
     doc->memImage = nullptr;
     doc->printer = printer;
+    doc->writerPending = false;
     doc->memOnPage = nullptr;
     doc->memUserdata = nullptr;
     /* La resolution effective peut etre contrainte par le driver : on la relit
@@ -1057,7 +1072,7 @@ extern "C" OwlPdfDoc* owl_pdf_open_printer(void) {
     init_common_doc_state(doc);
     /* begin() differe (cf. printerPending) : un QPrinter refuse tout changement
      * de mise en page une fois actif. On laisse l'Etat poser son Format via
-     * owl_pdf_set_page_size_mm, puis printer_ensure_begun() demarre le painter
+     * owl_pdf_set_page_size_mm, puis ensure_painter_begun() demarre le painter
      * au 1er dessin avec la bonne mise en page. */
     doc->painter = new QPainter();
     doc->printerPending = true;
@@ -1068,13 +1083,25 @@ extern "C" OwlPdfDoc* owl_pdf_open_printer(void) {
     return doc;
 }
 
-/* Demarre le painter imprimante au 1er dessin (begin differe). No-op hors mode
- * imprimante ou si deja demarre. */
-static void printer_ensure_begun(OwlPdfDoc* doc) {
-    if (!doc || !doc->printer || !doc->printerPending) return;
-    doc->printerPending = false;
-    if (!doc->painter->begin(doc->printer)) {
-        fprintf(stderr, "[owl_pdf] echec de demarrage du painter sur l'imprimante.\n");
+/* Demarre le painter au 1er dessin (begin differe) pour imprimante et PDF
+ * disque. No-op si deja demarre ou en mode image memoire (begin immediat). */
+static void ensure_painter_begun(OwlPdfDoc* doc) {
+    if (!doc) return;
+    QPaintDevice* dev = nullptr;
+    const char* devName = nullptr;
+    if (doc->printer && doc->printerPending) {
+        doc->printerPending = false;
+        dev = doc->printer;
+        devName = "l'imprimante";
+    } else if (doc->writer && doc->writerPending) {
+        doc->writerPending = false;
+        dev = doc->writer;
+        devName = "le writer PDF";
+    } else {
+        return;
+    }
+    if (!doc->painter->begin(dev)) {
+        fprintf(stderr, "[owl_pdf] echec de demarrage du painter sur %s.\n", devName);
         return;
     }
     apply_deterministic_render_hints(doc->painter, &doc->currentFont);

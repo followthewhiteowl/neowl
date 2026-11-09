@@ -133,6 +133,7 @@ void owl_tls_init(OwlTlsSocket* s) {
     s->ssl_active = false;
     s->verify_level = OWL_TLS_VERIFY_FULL;
     s->extra_ca_loaded = false;
+    s->client_cert_loaded = false;
     s->last_error[0] = '\0';
     s->cipher_chosen[0] = '\0';
     s->version_chosen[0] = '\0';
@@ -145,7 +146,9 @@ void owl_tls_init(OwlTlsSocket* s) {
  *                  confiance UNIQUE (le caller est explicite). */
 static bool tls_setup_and_handshake(OwlTlsSocket* s, const char* host,
                                      int verify_level,
-                                     const char* extra_ca_path) {
+                                     const char* extra_ca_path,
+                                     const char* client_cert_path,
+                                     const char* client_key_path) {
     if (!owl_tls_global_init()) {
         set_tls_error_fmt(s, "tls_setup: global init failed");
         return false;
@@ -177,6 +180,42 @@ static bool tls_setup_and_handshake(OwlTlsSocket* s, const char* host,
     }
     mbedtls_ssl_conf_ca_chain(&s->conf, chain_to_use, NULL);
     mbedtls_ssl_conf_rng(&s->conf, mbedtls_ctr_drbg_random, &g_drbg);
+
+    /* Cert client (mTLS) : parse cert + cle et les presente au handshake.
+     * Les deux chemins doivent etre fournis ensemble. Le serveur qui exige
+     * un cert client (authmode REQUIRED cote serveur) le validera contre sa
+     * propre chaine de confiance. */
+    bool want_cert = client_cert_path && client_cert_path[0] != '\0';
+    bool want_key  = client_key_path  && client_key_path[0]  != '\0';
+    if (want_cert != want_key) {
+        set_tls_error_fmt(s, "cert client: certificat et cle requis ensemble");
+        return false;
+    }
+    if (want_cert) {
+        mbedtls_x509_crt_init(&s->client_cert);
+        mbedtls_pk_init(&s->client_key);
+        int crt_rc = mbedtls_x509_crt_parse_file(&s->client_cert, client_cert_path);
+        if (crt_rc < 0) {
+            mbedtls_x509_crt_free(&s->client_cert);
+            mbedtls_pk_free(&s->client_key);
+            set_tls_error_mbed(s, crt_rc, "cert client: parse certificat echec");
+            return false;
+        }
+        int key_rc = mbedtls_pk_parse_keyfile(&s->client_key, client_key_path,
+                                              NULL, mbedtls_ctr_drbg_random, &g_drbg);
+        if (key_rc != 0) {
+            mbedtls_x509_crt_free(&s->client_cert);
+            mbedtls_pk_free(&s->client_key);
+            set_tls_error_mbed(s, key_rc, "cert client: parse cle privee echec");
+            return false;
+        }
+        s->client_cert_loaded = true;
+        int own_rc = mbedtls_ssl_conf_own_cert(&s->conf, &s->client_cert, &s->client_key);
+        if (own_rc != 0) {
+            set_tls_error_mbed(s, own_rc, "cert client: conf_own_cert echec");
+            return false;
+        }
+    }
 
     if (verify_level == OWL_TLS_VERIFY_NONE) {
         /* AcceptAll : mbedTLS 3.x TLS 1.3 retourne -0x6c00 (INTERNAL_ERROR)
@@ -227,13 +266,16 @@ static bool tls_setup_and_handshake(OwlTlsSocket* s, const char* host,
 
 bool owl_tls_connect(OwlTlsSocket* s, const char* host, int port,
                       int verify_level, int timeout_ms,
-                      const char* extra_ca_path) {
+                      const char* extra_ca_path,
+                      const char* client_cert_path,
+                      const char* client_key_path) {
     if (!owl_tcp_connect(&s->tcp, host, port, timeout_ms)) {
         snprintf(s->last_error, sizeof(s->last_error),
                  "tls_connect/tcp: %s", owl_tcp_last_error(&s->tcp));
         return false;
     }
-    if (!tls_setup_and_handshake(s, host, verify_level, extra_ca_path)) {
+    if (!tls_setup_and_handshake(s, host, verify_level, extra_ca_path,
+                                 client_cert_path, client_key_path)) {
         owl_tcp_close(&s->tcp);
         return false;
     }
@@ -246,7 +288,8 @@ bool owl_tls_start_tls(OwlTlsSocket* s, const char* host, int verify_level,
         set_tls_error_fmt(s, "start_tls: tcp non connecte");
         return false;
     }
-    return tls_setup_and_handshake(s, host, verify_level, extra_ca_path);
+    /* STARTTLS n'expose pas de cert client (pas de besoin a ce jour). */
+    return tls_setup_and_handshake(s, host, verify_level, extra_ca_path, NULL, NULL);
 }
 
 int owl_tls_send(OwlTlsSocket* s, const void* buf, size_t len) {
@@ -311,6 +354,11 @@ void owl_tls_close(OwlTlsSocket* s) {
         mbedtls_x509_crt_free(&s->extra_ca);
         s->extra_ca_loaded = false;
     }
+    if (s->client_cert_loaded) {
+        mbedtls_x509_crt_free(&s->client_cert);
+        mbedtls_pk_free(&s->client_key);
+        s->client_cert_loaded = false;
+    }
     mbedtls_ssl_init(&s->ssl);          /* re-init pour pouvoir reutiliser */
     mbedtls_ssl_config_init(&s->conf);
     owl_tcp_close(&s->tcp);
@@ -318,4 +366,9 @@ void owl_tls_close(OwlTlsSocket* s) {
 
 const char* owl_tls_last_error(const OwlTlsSocket* s) {
     return s->last_error;
+}
+
+const mbedtls_x509_crt* owl_tls_peer_cert(const OwlTlsSocket* s) {
+    if (!s->ssl_active) return NULL;
+    return mbedtls_ssl_get_peer_cert(&s->ssl);
 }

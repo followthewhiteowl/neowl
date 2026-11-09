@@ -1,0 +1,27 @@
+// @sujet : Héritage d'état par modèle-de-modèles multi-niveaux
+// @resume : Un ModèleÉtat peut lui-même hériter d'un autre ModèleÉtat. Un État qui hérite d'un tel modèle-de-modèle reçoit les champs des DEUX niveaux de modèles, fusionnés avec son propre champ.
+//
+// Ressources voisines : MOD_NiveauParent.owl (premier niveau),
+// MOD_NiveauEnfant.owl (modèle-de-modèle, hérite de MOD_NiveauParent),
+// ETAT_MultiNiveaux.owl (état héritier du modèle-de-modèle).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : champs des deux niveaux de modèles + le champ propre de l'état
+PROCEDURE PUBLIQUE scenario_etat_herite_modele_de_modele()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_multi_niveaux.pdf")
+	iImprimeEtat(ETAT_MultiNiveaux)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve,
+	"parent:niveau parent;enfant:niveau enfant;etat:niveau etat;",
+	"Champs des deux niveaux de modèles présents, fusionnés avec celui de l'état")
+FIN
+
+dbgBilanTest()

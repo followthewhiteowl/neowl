@@ -455,7 +455,7 @@ OwlFtpClient* owl_ftp_open(const char* host, int port,
     if (enc == OWL_FTP_ENC_FTPS) {
         /* Implicite : TLS des la connexion, aucun echange en clair. */
         if (!owl_tls_connect(&c->ctrl, host, port, verify_level,
-                             FTP_CONNECT_TIMEOUT_MS, NULL)) {
+                             FTP_CONNECT_TIMEOUT_MS, NULL, NULL, NULL)) {
             if (err) snprintf(err, errlen, "handshake TLS échoué : %s",
                               owl_tls_last_error(&c->ctrl));
             ftp_client_free(c);

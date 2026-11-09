@@ -1,0 +1,26 @@
+// @sujet : Héritage d'état par plusieurs modèles — le premier modèle gouverne les propriétés
+// @resume : Dans `Hérite de A, B`, le PREMIER modèle de la liste est le modèle principal : ses propriétés d'état (ici l'orientation de la page) sont celles effectivement imprimées, même quand le second modèle déclare une valeur différente.
+//
+// Ressources voisines : MOD_PrincipalA.owl (premier, paysage),
+// MOD_PrincipalB.owl (second, portrait), ETAT_MultiPrincipal.owl (état
+// héritier des deux, sans PROPRIETES propres).
+
+TestModeHeadless(Vrai)
+
+// Cas nominal : orientation du premier modèle (paysage) appliquée, pas celle du second (portrait)
+PROCEDURE PUBLIQUE scenario_modele_principal_gouverne_orientation()
+	sChemin est une chaîne = fRepTemp() + "\owl_test_etat_multi_principal.pdf"
+	iDestination(iPDFGénérique, sChemin)
+	iImprimeEtat(ETAT_MultiPrincipal)
+	iFinImprime()
+
+	bufPdf est un buffer  = fChargeBuffer(sChemin)
+	sPdf   est une chaîne = bufPdf
+
+	dbgVérifieVrai(sPdf.Contient("842.000000 595.000000"),
+	"La page imprimée est en paysage (dimensions du premier modèle, MOD_PrincipalA)")
+	dbgVérifieFaux(sPdf.Contient("595.000000 842.000000"),
+	"La page imprimée n'est pas en portrait (dimensions du second modèle, MOD_PrincipalB)")
+FIN
+
+dbgBilanTest()

@@ -233,6 +233,7 @@ typedef enum {
 
     /* --- Keywords: Etats (DSL Etat V2) --- */
     TOKEN_ETAT,              /* ETAT / REPORT (top-level report decl) */
+    TOKEN_MODELE_ETAT,       /* MODELEETAT / REPORTTEMPLATE (modele d'etat non-imprimable) */
 
     /* --- DSL fenetre v2 --- */
     TOKEN_PROPRIETES,        /* PROPRIETES / PROPERTIES (bloc statique) */

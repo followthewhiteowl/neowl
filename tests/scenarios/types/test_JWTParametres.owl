@@ -1,0 +1,81 @@
+// @sujet : JWTParamètres
+// @résumé : Paramètres de configuration pour une authentification par assertion JWT signée (RFC 7523) : émetteur, sujet, consommateur, clé privée, algorithme de signature et paramètres additionnels fusionnés à la requête d'obtention du jeton.
+
+
+// Un jeu de paramètres sans aucune affectation expose des valeurs par défaut
+// sûres : chaînes vides, algorithme de signature jwtRS256 (seul supporté à
+// ce stade), aucune entrée supplémentaire à fusionner.
+PROCEDURE scenario_creation_avec_defauts()
+	jwtP est un JWTParamètres
+	dbgVérifieEgalité(jwtP..Certificat, "")
+	dbgVérifieEgalité(jwtP..CléPrivée, "")
+	dbgVérifieEgalité(jwtP..Consommateur, "")
+	dbgVérifieEgalité(jwtP..Émetteur, "")
+	dbgVérifieEgalité(jwtP..IDCléPrivée, "")
+	dbgVérifieEgalité(jwtP..Scope, "")
+	dbgVérifieEgalité(jwtP..Sujet, "")
+	dbgVérifieEgalité(jwtP..URLToken, "")
+	dbgVérifieEgalité(jwtP..Cryptage, jwtRS256)
+FIN
+
+
+// Le databinding par `..` suit la convention des autres types composés :
+// affectation directe, relecture identique, pour chacun des champs texte.
+PROCEDURE scenario_databinding_complet()
+	jwtP est un JWTParamètres
+	jwtP..Certificat   = "certificat-test"
+	jwtP..CléPrivée    = "-----BEGIN PRIVATE KEY-----\nclé-de-test\n-----END PRIVATE KEY-----"
+	jwtP..Consommateur = "https://api.exemple.test"
+	jwtP..Émetteur     = "mon-client"
+	jwtP..IDCléPrivée  = "kid-001"
+	jwtP..Scope        = "lire ecrire"
+	jwtP..Sujet        = "mon-client"
+	jwtP..URLToken     = "https://auth.exemple.test/token"
+
+	dbgVérifieEgalité(jwtP..Certificat, "certificat-test")
+	dbgVérifieEgalité(jwtP..CléPrivée, "-----BEGIN PRIVATE KEY-----\nclé-de-test\n-----END PRIVATE KEY-----")
+	dbgVérifieEgalité(jwtP..Consommateur, "https://api.exemple.test")
+	dbgVérifieEgalité(jwtP..Émetteur, "mon-client")
+	dbgVérifieEgalité(jwtP..IDCléPrivée, "kid-001")
+	dbgVérifieEgalité(jwtP..Scope, "lire ecrire")
+	dbgVérifieEgalité(jwtP..Sujet, "mon-client")
+	dbgVérifieEgalité(jwtP..URLToken, "https://auth.exemple.test/token")
+FIN
+
+
+// L'algorithme de signature se pilote par constante nommée. Poser puis
+// relire `jwtRS256` retourne la même valeur.
+PROCEDURE scenario_cryptage_rs256()
+	jwtP est un JWTParamètres
+	jwtP..Cryptage = jwtRS256
+	dbgVérifieEgalité(jwtP..Cryptage, jwtRS256)
+FIN
+
+
+// Les paramètres supplémentaires forment un tableau associatif de chaînes :
+// vide par défaut, chaque entrée posée est relue à l'identique. Destinés à
+// la requête d'obtention du jeton (corps POST).
+PROCEDURE scenario_parametres_supplementaires_tableau_associatif()
+	jwtP est un JWTParamètres
+	dbgVérifieEgalité(jwtP..ParamètresSupplémentaires..Occurrence, 0)
+
+	jwtP..ParamètresSupplémentaires["audience"] = "https://api.exemple.test"
+	dbgVérifieEgalité(jwtP..ParamètresSupplémentaires..Occurrence, 1)
+	dbgVérifieEgalité(jwtP..ParamètresSupplémentaires["audience"], "https://api.exemple.test")
+FIN
+
+
+// Les paramètres supplémentaires d'URL forment eux aussi un tableau
+// associatif de chaînes, distinct du précédent : destinés à la requête
+// qui précède l'obtention du jeton (porteur de redirection), pas au corps
+// POST final. L'ordre bilingue est inversé par rapport aux autres champs
+// (le nom FR porte le suffixe URL, le nom EN le porte en préfixe), ce qui
+// ne change rien au databinding FR exercé ici.
+PROCEDURE scenario_parametres_supplementaires_url_tableau_associatif()
+	jwtP est un JWTParamètres
+	dbgVérifieEgalité(jwtP..ParamètresSupplémentairesURL..Occurrence, 0)
+
+	jwtP..ParamètresSupplémentairesURL["prompt"] = "consent"
+	dbgVérifieEgalité(jwtP..ParamètresSupplémentairesURL..Occurrence, 1)
+	dbgVérifieEgalité(jwtP..ParamètresSupplémentairesURL["prompt"], "consent")
+FIN

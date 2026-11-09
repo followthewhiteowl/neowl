@@ -1,0 +1,35 @@
+// @sujet : OCRExtraitTexte, OCRExtractText
+// @résumé : Lit le texte imprimé contenu dans une image et le renvoie sous
+// forme de chaîne, à partir d'un chemin de fichier image. La reconnaissance
+// n'est pas garantie caractère pour caractère (espacement, ponctuation
+// peuvent varier légèrement) : les vérifications portent sur la présence de
+// mots-clés attendus dans le résultat.
+
+// Fixtures committées : tests/scenarios/ocr/fixtures/ocr_en.png et ocr_fr.png
+// (images synthétiques de texte imprimé anglais / français). Chemins exprimés
+// relatifs à la racine du dépôt, comme les autres fixtures binaires de
+// tests/scenarios/ (cf. tests/scenarios/natives/test_EmailImporteMSG.owl).
+
+// Cas A : image en anglais, via la forme FR de la native.
+PROCEDURE PUBLIQUE scenario_ocr_extrait_texte_image_anglaise()
+	texte est une chaîne = OCRExtraitTexte("tests/scenarios/ocr/fixtures/ocr_en.png")
+
+	dbgVérifieVrai(Contient(texte, "quick brown fox"), "le texte reconnu contient 'quick brown fox'")
+	dbgVérifieVrai(Contient(texte, "lazy dog"), "le texte reconnu contient 'lazy dog'")
+FIN
+
+// Cas B : image en français, via la forme EN de la native (couvre le bilinguisme).
+PROCEDURE PUBLIQUE scenario_ocr_extract_text_image_francaise()
+	texte est une chaîne = OCRExtractText("tests/scenarios/ocr/fixtures/ocr_fr.png")
+
+	dbgVérifieVrai(Contient(texte, "renard brun"), "le texte reconnu contient 'renard brun'")
+	dbgVérifieVrai(Contient(texte, "chien paresseux"), "le texte reconnu contient 'chien paresseux'")
+FIN
+
+// Cas limite : chemin de fichier absent -> échec propre, pas de plantage.
+PROCEDURE PRIVÉE scenario_ocr_edge_fichier_absent()
+	ErreurRAZ()
+	texte est une chaîne = OCRExtraitTexte("tests/scenarios/ocr/fixtures/inexistant.png")
+	dbgVérifieVrai(ErreurDétectée, "chemin absent -> erreur détectée")
+	dbgVérifieEgalité(texte, "", "aucun résultat silencieux sur chemin absent")
+FIN

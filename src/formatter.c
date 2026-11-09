@@ -317,6 +317,8 @@ static const FmtKeyword fmt_keywords[] = {
      * via find_dsl_prop_norm AVANT ce pairing, comme pour Libelle/Bouton. */
     {"etat",           "\xc3\x89tat",    CAT_DECL, KW_FR, "Report"},   /* État */
     {"report",         "Report",         CAT_DECL, KW_EN, "\xc3\x89tat"},
+    {"modeleetat",     "Mod\xc3\xa8le\xc3\x89tat", CAT_DECL, KW_FR, "ReportTemplate"},   /* ModèleÉtat */
+    {"reporttemplate", "ReportTemplate", CAT_DECL, KW_EN, "Mod\xc3\xa8le\xc3\x89tat"},
     {"corps",          "Corps",          CAT_DECL, KW_FR, "Body"},
     {"body",           "Body",           CAT_DECL, KW_EN, "Corps"},
     {"entetedocument", "EnT\xc3\xaateDocument", CAT_DECL, KW_FR, "DocumentHeader"},   /* EnTêteDocument */
@@ -6663,12 +6665,16 @@ static bool line_starts_with_keyword(const char* line, const char* lineEnd, cons
 /* Trouve l'offset du '=' simple (non '==', '<=', '>=', '!=', '<>', '+=', ...)
  * dans la ligne. Retourne -1 si absent. nameStart/nameEnd remplis avec les
  * bornes du LHS (tout ce qui precede le '='), qui peut etre un identifiant
- * simple OU une cascade 'obj..prop[sub]..prop'. Un subscript '[...]' est
- * absorbe dans le LHS UNIQUEMENT s'il vit dans une cascade (au moins un '..',
- * ex. etat de style '..Etats[appuye]..') : la ligne reste alignable et rejoint
- * le run ( — sinon le '[' rompait le scan et scindait le run). Une
- * indexation nue 'tab[i] = ...' (aucun '..') n'est PAS alignable ( L33
- * -> retour -1). */
+ * simple, une cascade 'obj..prop[sub]..prop', OU une chaine de membres en
+ * point simple 'obj.champ.souschamp'. Les deux operateurs se
+ * melangent dans un meme LHS ('obj.champ..prop'). Un subscript '[...]' est
+ * absorbe dans le LHS UNIQUEMENT s'il vit dans une chaine de membres/proprietes
+ * (au moins un '.' ou '..', ex. etat de style '..Etats[appuye]..', ou colonne
+ * 'TABLE_X[1].COL_A') : la ligne reste alignable et rejoint le run ( —
+ * sinon le '[' rompait le scan et scindait le run). Une indexation nue
+ * 'tab[i] = ...' (aucun point) n'est PAS alignable ( L33 -> retour -1).
+ * Le formatter aligne le '=', il ne juge pas le choix '.'/'..' (invariant 6,
+ * valide a la compilation cote compilateur). */
 static int find_prop_equals(const char* line, int lineLen,
                               int* nameStart, int* nameEnd) {
     int i = 0;
@@ -6677,12 +6683,13 @@ static int find_prop_equals(const char* line, int lineLen,
     if (!is_word_char(line[i])) return -1;
     int ns = i;
     while (i < lineLen && is_word_char(line[i])) i++;
-    /* Cascade : segment mot, subscript '[...]' optionnel, puis '..' -> mot.
-     * Le subscript n'est absorbe que s'il vit DANS une cascade de proprietes
-     * (au moins un '..'). Une indexation nue 'tab[i] = ...' (aucun '..') n'est
-     * PAS un LHS alignable ( L33) -> retour -1. */
+    /* Chaine LHS : segment mot, subscript '[...]' optionnel, puis '..' (cascade
+     * de propriete) ou '.' (membre) -> mot. Le subscript n'est absorbe que s'il
+     * vit DANS une chaine de membres/proprietes (au moins un point). Une
+     * indexation nue 'tab[i] = ...' (aucun point) n'est PAS un LHS alignable
+     * ( L33) -> retour -1. */
     bool sawSubscript = false;
-    bool sawCascade = false;
+    bool sawDot = false;
     for (;;) {
         if (i < lineLen && line[i] == '[') {
             int depth = 1;
@@ -6700,13 +6707,25 @@ static int find_prop_equals(const char* line, int lineLen,
             if (j >= lineLen || !is_word_char(line[j])) return -1;
             i = j;
             while (i < lineLen && is_word_char(line[i])) i++;
-            sawCascade = true;
+            sawDot = true;
+            continue;
+        }
+        /* Point simple '.ident' (membre : champ de structure, colonne, methode).
+         * Teste APRES le '..' pour ne pas scinder une cascade en deux segments
+         * point-simple. Un '.' non suivi d'un mot (fin de LHS, decimale) rompt le
+         * scan sans invalider la ligne. */
+        if (i < lineLen && line[i] == '.') {
+            int j = i + 1;
+            if (j >= lineLen || !is_word_char(line[j])) break;
+            i = j;
+            while (i < lineLen && is_word_char(line[i])) i++;
+            sawDot = true;
             continue;
         }
         break;
     }
-    /* Indexation nue (subscript sans cascade) : non alignable ( L33). */
-    if (sawSubscript && !sawCascade) return -1;
+    /* Indexation nue (subscript sans aucun point) : non alignable ( L33). */
+    if (sawSubscript && !sawDot) return -1;
     int ne = i;
     /* skip ws */
     while (i < lineLen && (line[i] == ' ' || line[i] == '\t')) i++;
@@ -6851,8 +6870,9 @@ static bool line_ends_in_block_comment(const char* s, int len, bool inBlock) {
 /* Aligne les '=' de toute suite consecutive de lignes 'LHS = valeur' au meme
  * indent, partout (dedans comme dehors des blocs PROPRIETES). Un run est casse
  * par une ligne vide, un commentaire, un changement d'indent ou toute ligne
- * non-'LHS = valeur'. Le LHS = tout ce qui precede le '=' (identifiant simple
- * ou cascade 'obj..prop'). Padding sur la largeur LHS max du run (codepoints).
+ * non-'LHS = valeur'. Le LHS = tout ce qui precede le '=' (identifiant simple,
+ * cascade 'obj..prop', ou membres point-simple 'obj.champ'). Padding sur la
+ * largeur LHS max du run (codepoints).
  *
  * Commentaires bloc slash-etoile opaques : une ligne qui commence dans un
  * commentaire OU qui en ouvre un (non ferme avant la fin de ligne) est emise
@@ -6870,12 +6890,30 @@ static char* align_proprietes_blocks(char* source) {
 
     bool inProp = false;
     bool inBlock = false;  /*  — a l'interieur d'un commentaire bloc */
+    bool inMultiline = false;  /*  — literal multi-ligne [ ... ] opaque */
+    bool inBacktick = false;   /*  — chaine backtick multi-ligne opaque */
     const char* p = source;
     while (*p) {
         const char* lineStart = p;
         while (*p && *p != '\n') p++;
         const char* lineEnd = p;
         int lineLen = (int)(lineEnd - lineStart);
+
+        /*  — contenu d'un literal multi-ligne (backtick ou crochet) :
+         * donnee verbatim, jamais realignee. Une ligne interne finissant par un
+         * `=` isole (padding base64/PEM) ne doit recevoir aucun espace. */
+        if (inMultiline) {
+            buf_write(&out, lineStart, lineLen);
+            if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            if (owl_multiline_block_line_closes(lineStart)) inMultiline = false;
+            continue;
+        }
+        if (inBacktick) {
+            buf_write(&out, lineStart, lineLen);
+            if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            if (line_closes_backtick_string(lineStart)) inBacktick = false;
+            continue;
+        }
 
         /*  — commentaire bloc opaque : une ligne qui commence dans un
          * commentaire OU qui en ouvre un (non ferme sur la ligne) est emise
@@ -6907,10 +6945,18 @@ static char* align_proprietes_blocks(char* source) {
 
         int ns, ne, eq;
         eq = find_prop_equals(lineStart, lineLen, &ns, &ne);
-        if (eq < 0) {
+        /*  — une ligne qui OUVRE un literal multi-ligne (backtick ou
+         * crochet) n'est pas alignable : son `=` est du code, mais ses lignes
+         * suivantes sont de la donnee opaque. On l'emet verbatim et on bascule
+         * en mode opaque pour la suite. */
+        bool opensMultiline = line_ends_with_open_bracket(lineStart);
+        bool opensBacktick = line_opens_backtick_string(lineStart);
+        if (eq < 0 || opensMultiline || opensBacktick) {
             /* Ligne non alignable : emise verbatim, casse tout run. */
             buf_write(&out, lineStart, lineLen);
             if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            if (opensMultiline) inMultiline = true;
+            else if (opensBacktick) inBacktick = true;
             continue;
         }
 
@@ -6936,6 +6982,11 @@ static char* align_proprietes_blocks(char* source) {
             int s2, e2, eq2;
             eq2 = find_prop_equals(lstart, llen, &s2, &e2);
             if (eq2 < 0) break;
+            /*  — une ligne qui ouvre un literal multi-ligne stoppe le
+             * run : elle (et sa donnee opaque) est traitee par la boucle
+             * externe, pas realignee. */
+            if (line_ends_with_open_bracket(lstart) || line_opens_backtick_string(lstart))
+                break;
             if (s2 != runIndentLen
                 || strncmp(lstart, runIndent, (size_t)runIndentLen) != 0)
                 break;
@@ -7113,11 +7164,27 @@ static char* align_declaration_blocks(char* source) {
     buf_init(&out);
 
     bool inBlock = false;
+    bool inMultiline = false;  /*  — literal multi-ligne [ ... ] opaque */
+    bool inBacktick = false;   /*  — chaine backtick multi-ligne opaque */
     const char* p = source;
     while (*p) {
         const char* lineStart = p;
         while (*p && *p != '\n') p++;
         int lineLen = (int)(p - lineStart);
+
+        /*  — contenu d'un literal multi-ligne : donnee verbatim. */
+        if (inMultiline) {
+            buf_write(&out, lineStart, lineLen);
+            if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            if (owl_multiline_block_line_closes(lineStart)) inMultiline = false;
+            continue;
+        }
+        if (inBacktick) {
+            buf_write(&out, lineStart, lineLen);
+            if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            if (line_closes_backtick_string(lineStart)) inBacktick = false;
+            continue;
+        }
 
         bool startedInBlock = inBlock;
         bool endsInBlock = line_ends_in_block_comment(lineStart, lineLen, inBlock);
@@ -7129,9 +7196,14 @@ static char* align_declaration_blocks(char* source) {
         }
 
         int ns, ne, ts, te, eq;
-        if (!find_decl_parts(lineStart, lineLen, &ns, &ne, &ts, &te, &eq)) {
+        bool opensMultiline = line_ends_with_open_bracket(lineStart);
+        bool opensBacktick = line_opens_backtick_string(lineStart);
+        if (opensMultiline || opensBacktick
+            || !find_decl_parts(lineStart, lineLen, &ns, &ne, &ts, &te, &eq)) {
             buf_write(&out, lineStart, lineLen);
             if (*p == '\n') { buf_putc(&out, '\n'); p++; }
+            if (opensMultiline) inMultiline = true;
+            else if (opensBacktick) inBacktick = true;
             continue;
         }
 
@@ -7152,6 +7224,10 @@ static char* align_declaration_blocks(char* source) {
             if (line_ends_in_block_comment(lstart, llen, false)) break;
 
             int s2, e2, t2s, t2e, eq2;
+            /*  — une ligne qui ouvre un literal multi-ligne stoppe le
+             * run (donnee opaque traitee par la boucle externe). */
+            if (line_ends_with_open_bracket(lstart) || line_opens_backtick_string(lstart))
+                break;
             if (!find_decl_parts(lstart, llen, &s2, &e2, &t2s, &t2e, &eq2)) break;
             if (s2 != runIndentLen
                 || strncmp(lstart, runIndent, (size_t)runIndentLen) != 0)

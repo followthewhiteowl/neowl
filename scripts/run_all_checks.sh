@@ -284,6 +284,11 @@ reg cli-openapi-projet bin 0 cli-openapi-projet.log \
     "\`owl openapi api.owl\` doit resoudre la frontiere projet (meme moteur que \`owl serve\`) et compiler les fichiers voisins (compagnons defs+corps AVANT l'entree), pour qu'un ServiceREST reference un ETAT_X declare dans un voisin ; le document OpenAPI genere reste ENTRY-SPECIFIC (le service declare dans le fichier cible). Le harnais monte \`owl openapi api.owl\` sur {projet.owl, etat_facture.owl, api.owl} : avant le fix, la compilation echoue sur 'ETAT_Facture inconnue'. Un rouge ici pointe handle_openapi_command (src/main.c) ou owl_serve_compile_projet (src/owl_serve.c), pas le compilateur (fix/1990)." \
     'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/openapi_projet/run.sh'
 
+reg cli-openapi-double-exec bin 0 cli-openapi-double-exec.log \
+    "OWL OPENAPI DOUBLE-EXECUTION violee : owl openapi rejoue le top-level du projet (projet.owl) et salit le JSON stdout." \
+    "\`owl openapi <entree>\` dans un projet doit executer le top-level de la frontiere (compagnons + entree) EXACTEMENT une fois, et n'emettre QUE le document OpenAPI sur stdout. Avant le fix, une pre-passe \`compagnons_service_count\` (src/owl_serve.c) EXECUTAIT le top-level des compagnons juste pour compter leurs services (situer le suffixe de l'entree), puis la vraie compilation le rejouait -> double-execution ; le \`Trace\` du top-level partait de surcroit sur stdout, polluant le JSON. Le fix passe la pre-passe en compile-only (project_compile_sources_only, src/project_run.c : les ServiceREST sont enregistres a la compilation, pas besoin d'executer) et redirige la sortie user vers stderr pendant le run (src/main.c, handle_openapi_command). Le harnais monte {projet.owl (Trace marqueur), bonjour.owl (ServiceREST)} : le marqueur doit apparaitre 1 seule fois AU TOTAL, absent de stdout, present sur stderr, et stdout reste un document OpenAPI valide. Un rouge ici pointe compagnons_service_count (src/owl_serve.c), project_compile_sources_only (src/project_run.c) ou la redirection (src/main.c), pas le compilateur (fix/2379)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/openapi_double_exec/run.sh'
+
 reg cli-prescan-servicerest bin 0 cli-prescan-servicerest.log \
     "PARTICIPATION PRESCAN SERVICEREST violee : un fichier ServiceREST-only n'est pas reconnu comme compagnon en mode projet." \
     "\`prescan_after_est_is_dsl_block\` (src/prescan.c:477-491) doit reconnaitre \`ServiceREST\` au meme titre que Classe/Fenetre/Etat/Projet/Theme/CollectionDeProcedures : sinon \`project_companion_in_compile_scope\` (src/project_run.c) exclut de la compilation tout fichier qui ne declare RIEN d'autre qu'un ServiceREST sous un \`projet.owl\` (mode projet) -- une operation HTTP dupliquee dans ce service (erreur normalement fatale) reste alors muette sous \`owl .\`. Le harnais compare aussi deux non-regressions (ServiceREST-only valide, projet sans ServiceREST) qui doivent rester propres avant ET apres le fix. Un rouge sur le 1er cas pointe la whitelist de prescan.c, pas le compilateur (fix/1986)." \
@@ -318,6 +323,11 @@ reg real-to-str-locale none 0 real-to-str-locale.log \
     "LOCALE VIOLEE : owl_real_to_str fuit le separateur decimal de LC_NUMERIC." \
     "owl_real_to_str (src/value.c) doit toujours serialiser un reel avec un point decimal, quel que soit le LC_NUMERIC actif du processus — c'est la fonction canon utilisee par TOUTE serialisation reelle (JSON, OOXML, console...). Le harnais force une locale a separateur virgule (fr_FR/de_DE) DANS SON PROPRE PROCESSUS puis appelle la fonction extraite EN DIRECT depuis src/value.c (pas de copie). Si aucune locale virgule n'est disponible sur la machine, le check est un SKIP explicite (exit 0 logge), jamais un vert silencieux qui ne prouve rien (cf fix/1805)." \
     'bash tests/runtime_c/real_to_str_locale/run.sh'
+
+reg sentinel-offset-dup none 0 sentinel-offset-dup.log \
+    "DETECTION DE COLLISION D'OFFSET SENTINELLE cassee : owl_sentinel_scan_duplicates ne rapporte plus les doublons." \
+    "La regle no_duplicate_sentinel_offset (registry self-test, Regle 68) attrape deux bases '#define OWL_X_BASE OWL_SENTINEL_OFFSET(n)' au meme n, qui produisent des valeurs int32 identiques (OWL_SENTINEL_OFFSET est une fonction pure de n) — collision bit-a-bit entre familles de constantes, invisible pour --self-test-registry qui itere le registre et non la source (classe du bug feat_2359 : OWL_CONTINENT_BASE vs OWL_LOG_BASE a l'offset 108). Le harnais extrait owl_sentinel_scan_duplicates EN DIRECT depuis src/registry_self_test.c (pas de copie) et la nourrit de buffers synthetiques : collision cross-famille, anti-faux-positif (ligne de definition de la macro + commentaire), offsets distincts, redefinition de meme nom, doublons multiples. Un rouge ici pointe la fonction de detection, pas le registre (cf fix/2369)." \
+    'bash tests/runtime_c/sentinel_offset_dup/run.sh'
 
 reg translate-iteration bin 0 translate-iteration.log \
     "TRADUCTION DU MOT D'ITERATION violee : owl translate laisse du francais dans une sortie EN (ou l'inverse)." \
@@ -358,6 +368,11 @@ reg segfault-unwind bin 0 segfault-unwind-test.log \
     "SEGFAULT UNWIND NON-REGRESSION echec apres ce build :" \
     "fix/0236 regression — erreur runtime levee depuis native re-entrante segfault au teardown." \
     'bash scripts/run_segfault_unwind_test.sh "$OWL"'
+
+reg opinvoke-unwind bin 0 opinvoke-unwind-test.log \
+    "OP_INVOKE UNWIND NON-REGRESSION echec apres ce build :" \
+    "fix_2355 regression — erreur runtime levee depuis un formateur re-entrant via la forme methode (OP_INVOKE) segfault au teardown (jumeau OP_INVOKE de fix/0236)." \
+    'bash scripts/run_opinvoke_unwind_test.sh "$OWL"'
 
 reg stdout-survives-crash bin 0 stdout-survives-crash-test.log \
     "SORTIE PERDUE SUR ARRET BRUTAL echec apres ce build :" \

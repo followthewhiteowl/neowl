@@ -493,6 +493,15 @@ static bool prescan_after_est_is_dsl_block(Token after) {
         case TOKEN_CLASSE:
         case TOKEN_FENETRE:
         case TOKEN_ETAT:
+        /*  — un ModeleEtat est un conteneur DSL top-level au meme titre
+         * qu'un Etat : il CONFERE la participation au projet. Sans ce cas, en
+         * mode recursif (projet.owl present) le fichier modele etait classe
+         * "script plat prive" par prescan_source_is_dsl_block_file -> early-return
+         * dans prescan_file -> absent de symbols->elements -> la collecte de
+         * chaine d'heritage ne localisait pas le modele et la
+         * validation d'heritage restait aveugle (pas de squiggle en mode projet,
+         * alors que le mode script, non restreint, voyait deja le voisin). */
+        case TOKEN_MODELE_ETAT:
             return true;
         default: break;
     }
@@ -606,6 +615,12 @@ static PrescanEntryKind prescan_after_est_entry_kind(Token after) {
         case TOKEN_CLASSE:      return PRESCAN_ENTRY_CLASSE;
         case TOKEN_FENETRE:     return PRESCAN_ENTRY_FENETRE;
         case TOKEN_ETAT:        return PRESCAN_ENTRY_ETAT;
+        /*  — un ModeleEtat n'est pas lancable seul (source d'heritage,
+         * non imprimable), exactement comme un Etat. Le mapper sur ENTRY_ETAT
+         * fait refuser `owl MOD_X.owl` avec le message "entree non lancable"
+         * (main.c run_owl_file) au lieu de l'executer silencieusement comme un
+         * script plat. Seul consommateur de ce kind : le refus de lancement. */
+        case TOKEN_MODELE_ETAT: return PRESCAN_ENTRY_ETAT;
         case TOKEN_STRUCTURE:   return PRESCAN_ENTRY_STRUCTURE;
         case TOKEN_ENUMERATION: return PRESCAN_ENTRY_ENUM;
         case TOKEN_COMBINAISON: return PRESCAN_ENTRY_COMBINAISON;
@@ -1519,13 +1534,17 @@ bool prescan_file(SymbolTable* t, const char* source, int fileIndex) {
                         /* DSL Fenetre / Etat top-level. Le nom (FEN_X / ETAT_X)
                          * est une variable globale (le runtime expose le nom
                          * comme global string via vm_window/etat_register).
-                         * Cross-file, ces noms doivent etre referencables
-                         * meme si le fichier n'a pas encore ete compile.
+                         * Cross-file, ces noms doivent etre referencables meme
+                         * si le fichier n'a pas encore ete compile.
                          *  : Fenetre -> SYM_WINDOW (kind distinct pour
                          * la pre-population cross-fichier de g_prescan_widgets,
                          * qui ancre le type cible des litteraux multilingues
                          * `FEN_X..Titre = {...}`). Etat reste SYM_VARIABLE en
-                         * attendant un eventuel support kind dedie. */
+                         * attendant un eventuel support kind dedie.
+                         * depth++ : le body est SAUTE. Les noms internes d'une
+                         * Fenetre/Etat (champs, widgets) ne doivent PAS fuiter
+                         * en symboles top-level cross-fichier -- rien n'en
+                         * herite, ce serait de la pollution de namespace. */
                         SymbolKind k = (after.type == TOKEN_FENETRE)
                                         ? SYM_WINDOW : SYM_VARIABLE;
                         symtable_add(t, identTok.start, identTok.length,
@@ -1535,6 +1554,34 @@ bool prescan_file(SymbolTable* t, const char* source, int fileIndex) {
                                              fileIndex, identTok.line,
                                              identTok.column);  /*  */
                         depth++;
+                    } else if (after.type == TOKEN_MODELE_ETAT) {
+                        /* DSL ModeleEtat top-level. Le nom (MOD_X) est une
+                         * variable globale referencable cross-fichier, comme un
+                         * Etat -> SYM_VARIABLE + element.
+                         *  : l'element (symtable_add_element) est
+                         * NECESSAIRE a compiler_collect_active_etat_chain_files
+                         * pour localiser le fichier du modele et valider
+                         * l'heritage cross-fichier au check editeur.
+                         * DIVERGENCE VOLONTAIRE avec Fenetre/Etat ci-dessus :
+                         * PAS de depth++. Le body du modele reste scanne A PLAT
+                         * (depth 0) pour que ses champs (ex `LBL_Entete est un
+                         * Champ Libelle`) soient enregistres en SYM_VARIABLE
+                         * top-level et restent VISIBLES cross-fichier depuis le
+                         * code d'un Etat qui `Herite de MOD_X` -- c'est le
+                         * contrat "un champ du modele est lisible depuis l'etat
+                         * heritier". Pour une Fenetre/Etat la fuite des noms
+                         * internes est un bug (personne n'en herite) ; pour un
+                         * ModeleEtat c'est une feature (ses heritiers les
+                         * lisent). Un depth++ ici re-casse ce contrat.
+                         * Garde-fou permanent : scenario
+                         * tests/scenarios/ui/etat_modele_heritage_champs/. */
+                        symtable_add(t, identTok.start, identTok.length,
+                                     SYM_VARIABLE, fileIndex, false,
+                                     identTok.line, identTok.column);
+                        symtable_add_element(t, identTok.start, identTok.length,
+                                             fileIndex, identTok.line,
+                                             identTok.column);
+                        /* Pas de depth++ : body scanne a plat (voir ci-dessus). */
                     } else if (after.type == TOKEN_IDENTIFIER &&
                                (prescan_ident_is_collection_kw(after.start,
                                                                after.length) ||

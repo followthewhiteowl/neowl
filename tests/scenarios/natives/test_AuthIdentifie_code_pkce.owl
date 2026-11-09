@@ -1,0 +1,80 @@
+// @sujet : AuthIdentifie
+// @résumé : Authentifie un utilisateur via un navigateur (flux par code d'autorisation). Couvre les cas qui se résolvent avant toute attente de redirection : réponse directe par jeton non prise en charge et navigateur système indisponible.
+
+
+// Mock du navigateur système : en mode code d'autorisation, AuthIdentifie
+// ouvre l'URL d'autorisation via OuvreURL. Interceptée ici pour rester
+// déterministe (aucun navigateur réel ne s'ouvre pendant la suite).
+mockNavAuthCode est un MockNative = MockCrée(OuvreURL)
+
+
+PROCEDURE avantChaqueTest()
+	mockNavAuthCode = MockCrée(OuvreURL).Quand().Avec(MockTout).Retourne(Vrai).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockNavAuthCode.Desactive()
+FIN
+
+
+// Le flux par code d'autorisation est le flux pris en charge pour une
+// authentification au nom d'un utilisateur. La réponse directe par jeton
+// (flux implicite) n'est pas prise en charge : l'appel échoue nettement,
+// avant toute tentative d'ouverture de navigateur.
+PROCEDURE scenario_reponse_directe_par_jeton_non_prise_en_charge()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID         = "mon-client"
+	oParams..URLAuth          = "https://auth.exemple.test/authorize"
+	oParams..URLRedirection   = "http://localhost:18234/retour"
+	oParams..TypeAutorisation = taCodeAutorisation
+	oParams..TypeRéponse      = oauth2TypeRéponseToken
+
+	ErreurRAZ()
+	AuthIdentifie(oParams)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "réponse directe par jeton non prise en charge -> erreur nette")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_OAUTH_IMPLICIT_UNSUPPORTED", "code dédié flux implicite non supporté")
+	dbgVérifieVrai(MockVérifieAppelé(mockNavAuthCode, 0), "réponse non prise en charge -> aucune tentative de navigateur")
+FIN
+
+
+// Si le navigateur système ne peut pas être lancé (environnement sans
+// navigateur, contexte serveur), l'appel échoue nettement plutôt que
+// d'attendre indéfiniment une redirection qui n'arrivera jamais.
+PROCEDURE scenario_navigateur_indisponible()
+	mockNavAuthCode.Desactive()
+	mockNavAuthCode = MockCrée(OuvreURL).Quand().Avec(MockTout).Retourne(Faux).Active()
+
+	oParams est un OAuth2Paramètres
+	oParams..ClientID         = "mon-client"
+	oParams..URLAuth          = "https://auth.exemple.test/authorize"
+	oParams..URLRedirection   = "http://localhost:18235/retour"
+	oParams..TypeAutorisation = taCodeAutorisation
+	oParams..TypeRéponse      = oauth2TypeRéponseCode
+
+	ErreurRAZ()
+	AuthIdentifie(oParams)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "navigateur indisponible -> erreur nette")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_OAUTH_BROWSER_UNAVAILABLE", "code dédié navigateur indisponible")
+	dbgVérifieVrai(MockVérifieAppelé(mockNavAuthCode, 1), "le navigateur a bien été sollicité une fois avant l'échec")
+FIN
+
+
+// Cas limite : des paramètres de code d'autorisation incomplets (aucune URL
+// d'autorisation configurée) ne doivent jamais déclencher de tentative de
+// navigateur.
+PROCEDURE PRIVÉE scenario_edge_url_auth_manquante()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID         = "mon-client"
+	oParams..TypeAutorisation = taCodeAutorisation
+	// URLAuth volontairement laissée vide
+
+	ErreurRAZ()
+	AuthIdentifie(oParams)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "URL d'autorisation manquante -> erreur nette")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_OAUTH_PARAMS_INCOMPLETE", "code dédié paramètres incomplets")
+	dbgVérifieVrai(MockVérifieAppelé(mockNavAuthCode, 0), "aucune tentative de navigateur sans URL d'autorisation configurée")
+FIN

@@ -1,0 +1,26 @@
+// @sujet : Héritage d'état par modèle — ordre des events auto-cumulatifs
+// @resume : Les events d'état (ouverture = code top-level, Fermeture) sont auto-cumulatifs entre un ModèleÉtat et l'État qui en hérite. L'ouverture exécute le code du modèle puis celui de l'état. La Fermeture exécute l'ordre inverse : état puis modèle.
+//
+// Ressources voisines : MOD_Rapport.owl (modèle), ETAT_Rapport.owl
+// (état héritier).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : ouverture modèle->état, fermeture état->modèle (ordre inverse)
+PROCEDURE PUBLIQUE scenario_events_auto_cumulatifs_ordre()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_events.pdf")
+	iImprimeEtat(ETAT_Rapport)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve,
+	"ouverture-modele;ouverture-etat;fermeture-etat;fermeture-modele;",
+	"Ouverture = modèle puis état ; Fermeture = état puis modèle (ordre inverse)")
+FIN
+
+dbgBilanTest()

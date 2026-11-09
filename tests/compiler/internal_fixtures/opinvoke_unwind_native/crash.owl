@@ -1,0 +1,24 @@
+//  — non-regression segfault au teardown d'OP_INVOKE. Un formateur de
+// Logger leve une erreur runtime (div/0) pendant vm_call_reentrant, declenche
+// via la FORME METHODE `log.Erreur(...)` (OP_INVOKE), pas la forme statique
+// (OP_CALL, deja gardee par ). Pre-fix : OP_INVOKE ne testait que
+// throwPending, jamais le purge VM (frameCount=0 / stackTop=stack) -> le
+// post-call tournait sur une stack vide -> segfault (exit 139). Post-fix : la
+// garde frameSentinel (miroir de call_value/OP_CALL) propage l'erreur
+// proprement (exit 70). Les Trace sont les marqueurs de PRESENCE exiges par
+// scripts/run_opinvoke_unwind_test.sh (prouver que le scenario a tourne avant
+// de conclure a l'absence de crash).
+
+PROCEDURE fmtQuiLeve(enr est un LogEnreg)
+	Trace("opinvoke_unwind: formateur entre, message=" + enr..Message)
+	x est un entier = 0
+	y est un entier = 10 / x
+	RENVOYER "v=" + y
+FIN
+
+Trace("opinvoke_unwind: top-level atteint")
+log est un Logger
+log..Niveau = nivDebug
+log..Formateur = fmtQuiLeve
+log.Erreur("boom")
+Trace("opinvoke_unwind: NE DOIT PAS SORTIR")

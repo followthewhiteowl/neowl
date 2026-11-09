@@ -42,6 +42,7 @@ de refresh + hash commit amont + SHA256 par fichier.
 |---|---|---|---|---|
 | `iconify-sets` | 2026-06-06 (commit amont `5d7fcf8`) | https://github.com/iconify/icon-sets (12 sets cherry-pickés cocktail T4, ~62 MB total snapshot — fluent multi-sizes deduplique au build T4 = `-24-` only ; icon-park ecarte par dev pour qualite visuelle insuffisante) | `scripts/refresh_iconify_sets.sh` | Apache-2.0 + MIT + CC0 + CC-BY-3.0 |
 | `whatwg-encoding` | 2026-10-31 | https://encoding.spec.whatwg.org/ (6 index : jis0208, jis0212, euc-kr, big5, gb18030 + gb18030-ranges — codepages DBCS asiatiques Shift-JIS/EUC-JP/EUC-KR/Big5/GB18030) | `scripts/refresh_codepage_tables.sh` | CC-BY-4.0 |
+| `tessdata/fast` | 2026-11-05 | https://github.com/tesseract-ocr/tessdata_fast (modeles LSTM `eng` + `fra` pour le moteur OCR, bakes derriere le gate `OWL_HAS_OCR` ; variante `fast` = lean binaire, `best` via override user) | DL manuel (2 fichiers, cf note OCR) | Apache-2.0 |
 
 **Bump snapshot** : relancer le script. Idempotent (skip si SHA256 inchangé).
 Fréquence recommandée pour iconify-sets : 6-12 mois.
@@ -84,6 +85,8 @@ Idéalement à migrer en submodule git un jour si l'upstream a un repo propre.
 | `libxls` | 1.6.3 | 2026-08-26 | https://github.com/libxls/libxls (commit `881f6ec3`, master 2026-08-21) | BSD-2-Clause |
 | `libssh2` | 1.11.2_DEV (commit `cdbda3cd`) | 2026-08-26 | https://github.com/libssh2/libssh2 (master, PAS le tag 1.11.1 — vulnerable) | BSD-3-Clause |
 | `stb/stb_image.h` | v2.30 | — | https://github.com/nothings/stb | MIT/Public Domain |
+| `leptonica` | 1.85.0 | 2026-11-05 | https://github.com/DanBloomberg/leptonica/releases/tag/1.85.0 | BSD-2-style (Leptonica license) |
+| `tesseract` | 5.5.2 | 2026-11-05 | https://github.com/tesseract-ocr/tesseract/releases/tag/5.5.2 | Apache-2.0 |
 | `ca/cacert.pem` | Mozilla 2026-02-11 | 2026-02 | https://curl.se/docs/caextract.html | MPL-2.0 |
 | `winapi_stubs/*.a` | depuis MSYS2 ucrt64-x86_64 | 2026-05-08 | `mingw-w64-ucrt-x86_64-headers` | Public Domain (import libs) |
 
@@ -472,6 +475,105 @@ sont ancetres du nouveau commit/tag (JAMAIS <= 1.11.1), reecraser `include/` + `
 en re-excluant les 3 backends non-mbedtls + leurs 4 headers (garder `blowfish.c`),
 mettre a jour la ligne du tableau + ce PIN, relancer `libssh2_smoketest`, revisiter
 `objdump` exports.
+
+**Note leptonica + tesseract (moteur OCR)** : enabler OCR de la famille
+`OCRExtraitTexte` (cf `docs/ADR/ADR_0255-moteur-ocr-vendore-statique.md`).
+Leptonica 1.85.0 (I/O image, prétraitement) + Tesseract 5.5.2 (OCR
+legacy+LSTM) vendorés en **sources copiées** (tarballs release, build CMake,
+comme qpdf/libjpeg), buildés en `.a` **statiques** sous la toolchain zig
+clang+libc++ (même ABI qu'owl.exe) via `scripts/build_tesseract_zig_native.sh`
+→ sortie `_local/tesseract/<host>/install/` (gitignore). **Zéro patch source.**
+
+*Gate strict `OWL_HAS_OCR`.* Option CMake `OWL_ENABLE_OCR` (OFF par défaut),
+façon `OWL_HAS_GUI`. Un build sans OCR est **strictement inchangé** : ni le
+sous-build, ni `owl_tesseract`, ni le smoke test n'existent. OCR est opt-in
+par build (`cmake ... -DOWL_ENABLE_OCR=ON`). Aucune native ne consomme encore
+l'API (famille `OCRExtraitTexte` = chantier feature séparé) → gate ON,
+`--gc-sections` évacue tout, delta owl.exe ~0. Le vrai poids OCR est mesuré par
+`ocr_smoketest`.
+
+*Sous-ensemble vendoré.* Release curée aux inputs du build CMake :
+- **leptonica/** : `CMakeLists.txt` + `cmake/` (Configure.cmake + templates) +
+  `src/` (182 `.c` + headers + `endianness.h.in`) + `lept.pc.cmake` +
+  `leptonica-license.txt`. **Écartés** : `prog/` (utilitaires + images de test,
+  17 Mo, gardé `if(BUILD_PROG)` OFF), `autom4te.cache/`, `config/` (autotools,
+  non lu par CMake), `m4/`, scripts autotools, Doxyfile, images.
+- **tesseract/** : `CMakeLists.txt` + `cmake/` + `include/` + `src/` (moins
+  `src/training/`, gardé `if(BUILD_TRAINING_TOOLS)` OFF) + `tessdata/` (configs
+  de page-seg) + `VERSION` + `LICENSE` + `tesseract.pc.cmake`. **Écartés** :
+  `doc/`, `java/`, `nsis/`, `snap/`, `test/`, `unittest/`, `m4/`, autotools,
+  `docker-compose.yml`, `appveyor.yml`. Vérifié : les headers `trainingsample.h`
+  / `params_training_featdef.h` inclus par libtesseract vivent dans
+  `src/classify` / `src/ccstruct` (pas `src/training`) → élagage sûr.
+
+*Codecs image = AUCUN (stb).* Leptonica compilé **tous codecs OFF**
+(`-DENABLE_ZLIB/PNG/JPEG/TIFF/GIF/WEBP/OPENJPEG=OFF`, `STRICT_CONF=OFF`) :
+l'image est décodée côté OWL par `stb_image` (déjà vendoré) et poussée en
+octets bruts via `SetImage(gray,w,h,1,w)`. **Zéro nouvelle lib de codec.**
+Tesseract : `DISABLE_TIFF/ARCHIVE/CURL=ON GRAPHICS_DISABLED=ON OPENMP_BUILD=OFF
+USE_SYSTEM_ICU=OFF SW_BUILD=OFF ENABLE_LTO=OFF BUILD_SHARED_LIBS=OFF
+BUILD_TRAINING_TOOLS/TESTS=OFF` → **zéro dépendance externe tirée**. Angle mort
+assumé : TIFF multipage (fax G4) non couvert par stb, différé.
+
+*Frictions de build (réglages de script, pas des patches).* (1) `M_PI` absent
+sous libc++/zig windows-gnu → `-D_USE_MATH_DEFINES` dans les flags Tesseract.
+(2) `SW_BUILD` défaut ON (Leptonica ET Tesseract) → `find_package(SW)` échoue,
+forcé OFF. (3) `CMAKE_INSTALL_PREFIX` posé au **configure** de Leptonica (pas
+qu'à `--install`), sinon `LeptonicaConfig.cmake` pointe Program Files. (4)
+`version.h` généré dans l'arbre de build → install manuel le récupère. (5)
+Install Tesseract **manuel** (`.a` + headers) : les règles `install()` amont
+tirent la CLI `tesseract.exe` qu'on ne construit pas (lib seule) → `cmake
+--install` échouerait. (6) `DISABLED_LEGACY_ENGINE=ON` casse la compile 5.5.2
+(bug `#ifdef` amont) → on garde legacy+LSTM présents (comme WinDev), exec
+`--oem 1` (LSTM) au runtime.
+
+*Poids (mesuré).* `libleptonica.a` ≈ 5,76 Mo, `libtesseract.a` ≈ 9,68 Mo
+(archives). `ocr_smoketest.exe` (code + 2 modèles bakés + 2 fixtures) ≈ 10,92
+Mo (10 918 400 o), dont ~5,0 Mo de modèles `tessdata_fast` (eng 4,11 + fra
+1,13) → code OCR lié ≈ 5-6 Mo. Le baké `fast` (vs `best` : 24,99 Mo smoketest,
+~18,5 Mo de modèles) économise ~13,5 Mo sur le binaire tout-inclus. Gate OFF :
+owl.exe inchangé.
+
+*Hardening.* `-fvisibility=hidden -ffile-prefix-map -ffunction-sections
+-fdata-sections -DNDEBUG` dès la compilation des `.a`. **Exports PE propres par
+construction** : en statique (`BUILD_SHARED_LIBS=OFF`), `TESS_API`/Leptonica
+exports sont vides (`dllexport` gaté sur `TESS_EXPORTS` non défini) → aucun
+patch anti-dllexport (contrairement à llhttp). ISA : Tesseract dispatche AVX2/
+FMA/SSE au runtime via `SIMDDetect` (cpuid) → aucun bridage nécessaire
+(contrairement à ggml).
+
+*Modèles bakés.* `vendor/tessdata/fast/{eng,fra}.traineddata` embarqués en
+`.rodata` via `.incbin` (asm de haut niveau, `src/internal_tests/
+tesseract_embed.c`, chemins injectés en macros CMake → zéro chemin absolu dans
+le repo) et servis par un **FileReader in-memory** de Tesseract
+(`Init(data, size, lang, OEM_LSTM_ONLY, ..., reader)`) → zéro accès disque
+(pilier all-include). Le mode override répertoire user (`Init(dir, lang)`) lit
+les `.traineddata` sur disque (canon `OCRRépertoireModèle`). Les deux modes
+sont prouvés par `ocr_smoketest`. Mécanisme réutilisable tel quel par le
+chantier natif OCR.
+
+*Validation.* `ocr_smoketest` (gate ON) : OCR **exact** d'un texte imprimé FR
+et EN, en mode baké (eng+fra) ET override (eng), image décodée par stb. Hors
+batterie par défaut (le build par défaut est gate OFF → binaire absent).
+
+*Au bump.* Re-télécharger les tarballs release Leptonica + Tesseract, réécraser
+`vendor/leptonica/` + `vendor/tesseract/` en ré-élaguant `prog/`/autotools/docs
+(leptonica) et `src/training`/`test`/`unittest`/`java`/`nsis`/`doc`
+(tesseract), revérifier les en-têtes de licence, `rm -rf _local/tesseract &&
+bash scripts/build_tesseract_zig_native.sh`, rejouer `ocr_smoketest` gate ON.
+Modèles `tessdata_fast` : re-DL depuis https://github.com/tesseract-ocr/
+tessdata_fast (eng + fra), revérifier SHA256 (cf plus bas).
+
+**Note tessdata/fast** : modèles LSTM `tessdata_fast` `eng` + `fra` du dépôt
+`tesseract-ocr/tessdata_fast` (Apache-2.0), bakés par défaut derrière le gate
+`OWL_HAS_OCR` (cf note OCR ci-dessus). Variante `fast` choisie pour un binaire
+lean (imprimé propre reconnu exact) ; la variante `best` (plus lourde, meilleure
+sur scans dégradés) n'est plus shippée — l'user la dépose lui-même et pointe
+dessus via l'override `OCRRépertoireModèle`. SHA256 :
+- `eng.traineddata` (4 113 088 o) :
+  `7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2`
+- `fra.traineddata` (1 130 365 o) :
+  `ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca`
 
 ## Process de bump — checklist générale
 

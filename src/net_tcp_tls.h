@@ -22,6 +22,7 @@
 #include "net_tcp.h"
 #include <mbedtls/ssl.h>
 #include <mbedtls/x509_crt.h>
+#include <mbedtls/pk.h>
 
 /* Niveau de verification TLS — granularite alignee Postgres sslmode. */
 typedef enum {
@@ -38,6 +39,9 @@ typedef struct {
     int                   verify_level;    /* OwlTlsVerifyLevel */
     mbedtls_x509_crt      extra_ca;        /* CA custom (cnx..CertificatCA) */
     bool                  extra_ca_loaded;
+    mbedtls_x509_crt      client_cert;     /* cert client presente (mTLS) */
+    mbedtls_pk_context    client_key;      /* cle privee du cert client */
+    bool                  client_cert_loaded;
     char                  last_error[256]; /* errno+mbedtls combined */
     /* Negotiated parameters (read-only apres handshake). */
     char                  cipher_chosen[64];
@@ -72,10 +76,17 @@ void owl_tls_init(OwlTlsSocket* s);
  *   extra_ca_path : NULL ou "" -> utilise le bundle Mozilla embedded.
  *                   Sinon : chemin vers un PEM contenant une CA additionnelle
  *                   utilisee comme racine de confiance UNIQUE (pas mixe avec
- *                   Mozilla, le caller est explicite). */
+ *                   Mozilla, le caller est explicite).
+ *   client_cert_path / client_key_path : certificat client + cle privee a
+ *                   presenter au handshake (mTLS, SASL EXTERNAL cote LDAP).
+ *                   NULL ou "" -> aucun cert client (comportement par defaut).
+ *                   Les deux doivent etre fournis ensemble ; un cert seul ou
+ *                   une cle seule est un echec. */
 bool owl_tls_connect(OwlTlsSocket* s, const char* host, int port,
                       int verify_level, int timeout_ms,
-                      const char* extra_ca_path);
+                      const char* extra_ca_path,
+                      const char* client_cert_path,
+                      const char* client_key_path);
 
 /* STARTTLS pattern (PostgreSQL, IMAP, SMTP) : promeut une connexion
  * TCP existante (deja connectee en clair, premier message
@@ -97,5 +108,13 @@ bool owl_tls_recv_exact(OwlTlsSocket* s, void* buf, size_t len);
 void owl_tls_close(OwlTlsSocket* s);
 
 const char* owl_tls_last_error(const OwlTlsSocket* s);
+
+/* Certificat pair (serveur) de la session TLS active, ou NULL si absent
+ * (handshake non effectue, ou serveur qui n'a pas presente de cert). Le
+ * pointeur appartient a mbedTLS et reste valide tant que la session n'est
+ * pas fermee (owl_tls_close) ni re-handshakee. Utilise pour deriver le
+ * channel binding tls-server-end-point (RFC 5929) d'un bind SASL negocie.
+ * Zero-copie : le DER brut est accessible via peer->raw.{p,len}. */
+const mbedtls_x509_crt* owl_tls_peer_cert(const OwlTlsSocket* s);
 
 #endif

@@ -378,7 +378,7 @@ const I18N={
   fr:{ search:"Rechercher…  (accents ignorés)", empty:"Sélectionne un symbole à gauche.",
        symbols:"symboles", signature:"Signature", signatures:"Signatures", props:"Propriétés",
        values:"Valeurs", usedby:"Utilisé par", ub_functions:"fonctions", ub_family:"famille",
-       belongs:"Appartient à", examples:"Exemples",
+       belongs:"Appartient à", examples:"Exemples", declaration:"Déclaration",
        seealso:"Voir aussi", combinable:"combinable", exclusive:"exclusif",
        enumeration:"énumération", combinaison:"combinaison", typecompose:"type",
        k_native:"Fonction", k_type:"Type", k_enum:"Énumération", k_const:"Constante",
@@ -405,7 +405,7 @@ const I18N={
   en:{ search:"Search…  (accents ignored)", empty:"Select a symbol on the left.",
        symbols:"symbols", signature:"Signature", signatures:"Signatures", props:"Properties",
        values:"Values", usedby:"Used by", ub_functions:"functions", ub_family:"family",
-       belongs:"Belongs to", examples:"Examples",
+       belongs:"Belongs to", examples:"Examples", declaration:"Declaration",
        seealso:"See also", combinable:"combinable", exclusive:"exclusive",
        enumeration:"enumeration", combinaison:"combination", typecompose:"type",
        k_native:"Function", k_type:"Type", k_enum:"Enumeration", k_const:"Constant",
@@ -981,11 +981,21 @@ function select(d, fromHash, replace){
     const ub=d.enum?enumUsedBy(d.enum):[];
     if(ub.length){ h+=`<h2 class="sec">${t("usedby")}</h2>`+chipsKinded(ub); }
   }
+  /* "Déclaration" : snippet curé de déclaration du widget (émis par
+     dump_doc_html pour les champs composés comme Table). Pas de corps de
+     procédure -> pas de stripProc, contrairement aux exemples de scénarios. */
+  if(d.declExample){
+    const dx=d.declExample;
+    h+=`<h2 class="sec">${t("declaration")}</h2>`;
+    const dxt=lang==="en"&&dx.titleEN?dx.titleEN:dx.title;
+    if(dxt) h+=`<p class="extitle">${esc(dxt)}</p>`;
+    h+=`<div class="codewrap"><button class="copybtn">${t("copy")}</button><pre class="code">${hl(lang==="en"&&dx.codeEN?dx.codeEN:dx.code)}</pre></div>`;
+  }
   if(d.examples&&d.examples.length){
     h+=`<h2 class="sec">${t("examples")}</h2>`;
     d.examples.forEach(ex=>{
       h+=`<p class="extitle">${esc(ex.title)}</p>`;
-      if(ex.sub) h+=`<p class="exsub">${esc(ex.sub)}</p>`;
+      if(ex.sub && lang!=="en") h+=`<p class="exsub">${esc(ex.sub)}</p>`;
       h+=`<div class="codewrap"><button class="copybtn">${t("copy")}</button><pre class="code">${hl(stripProc(lang==="en"&&ex.codeEN?ex.codeEN:ex.code))}</pre></div>`;
     });
   }
@@ -994,11 +1004,17 @@ function select(d, fromHash, replace){
      (parite avec la section "Voir aussi" du CLI). */
   const hasGuides=d.public_documentation&&d.public_documentation.length;
   const hasNbr=d.neighbors&&d.neighbors.length;
-  if(hasGuides||hasNbr){
+  /* widgetSeeAlso : maillage curé widget->fiche (Table->Colonne/styleTable),
+     émis par dump_doc_html. Résolu par nom nu (xref fallback), le genre réel
+     (widget/type) est retrouvé par resolve(). */
+  const hasWSA=d.widgetSeeAlso&&d.widgetSeeAlso.length;
+  if(hasGuides||hasNbr||hasWSA){
     h+=`<h2 class="sec">${t("seealso")}</h2>`;
     if(hasGuides) h+=`<div class="neigh">`+d.public_documentation.map(stem=>
       `<span class="ev">`+chapterLink(stem)+`</span>`).join("")+`</div>`;
     if(hasNbr) h+=chips(d.neighbors,"native");
+    if(hasWSA) h+=`<div class="neigh">`+d.widgetSeeAlso.map(n=>
+      `<span class="ev" style="color:var(--accent2)">`+xref(n)+`</span>`).join("")+`</div>`;
   }
   h+=`</div>`;
   m.innerHTML=h; m.scrollTop=0;

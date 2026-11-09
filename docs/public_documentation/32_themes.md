@@ -59,7 +59,7 @@ Un style ne mentionne que les sous-éléments et propriétés qu'il change ; tou
 reste conserve sa valeur par défaut (cf. `29_couleurs.md` pour les couleurs).
 
 Pour un champ composé de plusieurs parties, comme le champ Table, une police et une
-couleur globales posées sur le champ (`TBL..Police..Taille`, `TBL..CouleurTexte`, …)
+couleur globales posées sur le champ (`TBL..Police..Taille`, `TBL..Police..Couleur`, …)
 s'appliquent comme base du rendu de toutes les parties (cellules et en-têtes). Le
 style détaillé surcharge ensuite cette base par sous-élément — `TitreColonne`
 (l'en-tête des colonnes), `LibelléLignes` (le texte des cellules),

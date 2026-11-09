@@ -1,0 +1,53 @@
+// @sujet : LoggerAvert
+// @résumé : Émet un message au niveau Avert (avertissement) via le logger par défaut implicite, sans déclarer de variable Logger. Comportement identique à monLog.Avert(...) sur une instance. Forme anglaise : LoggerWarn.
+
+// Formateur minimal : ne restitue que le message brut, pour vérifier le
+// contenu exact écrit dans la destination.
+PROCEDURE fmtMsgAvert(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+// LoggerAvert écrit le message quand le seuil du logger par défaut
+// implicite autorise le niveau Avert.
+PROCEDURE PUBLIQUE scenario_loggeravert_ecrit_sous_seuil_permissif()
+	chemin est une chaîne = "_tmp_loggeravert_nominal.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivAvert, fmtMsgAvert, chemin)
+	LoggerAvert("quota proche de la limite")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "quota proche de la limite"), 25, "LoggerAvert écrit le message exact fourni")
+
+	fSupprime(chemin)
+FIN
+
+// Au-dessus du niveau Avert, le seuil du logger par défaut implicite
+// bloque l'émission : aucune sortie n'atteint la destination.
+PROCEDURE PRIVÉE scenario_edge_loggeravert_sous_seuil_plus_strict()
+	chemin est une chaîne = "_tmp_loggeravert_filtre.txt"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "")
+
+	LoggerParamètre(nivErreur, fmtMsgAvert, chemin)
+	LoggerAvert("ne doit pas apparaître")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(Contient(contenu, "ne doit pas apparaître"), 0, "LoggerAvert sous le seuil nivErreur n'écrit rien")
+
+	fSupprime(chemin)
+FIN
+
+// Forme anglaise LoggerWarn : même comportement que LoggerAvert.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_loggerwarn()
+	chemin est une chaîne = "_tmp_loggerwarn_en.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivAvert, fmtMsgAvert, chemin)
+	LoggerWarn("disk space low")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "disk space low"), 14, "LoggerWarn (forme anglaise) écrit le message exact fourni")
+
+	fSupprime(chemin)
+FIN

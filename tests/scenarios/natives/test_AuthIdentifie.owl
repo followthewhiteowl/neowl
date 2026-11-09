@@ -1,0 +1,158 @@
+// @sujet : AuthIdentifie
+// @résumé : Obtient un jeton d'authentification OAuth2 auprès d'un fournisseur. Couvre le flux machine-à-machine (identifiants client, sans fenêtre de login), l'échec serveur, et les options de configuration de la requête d'obtention du jeton.
+
+
+// Mock de la couche HTTP interne : AuthIdentifie envoie une requête de jeton
+// via HTTPEnvoie, interceptée ici pour rester déterministe (pas de serveur
+// live). Chaque scénario relit la requête capturée pour vérifier ce qui a
+// été réellement émis.
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat = 200
+	rep..Contenu  = `{"access_token":"atk-live","expires_in":3600,"refresh_token":"rtk-live"}`
+	mockHttp      = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Desactive()
+FIN
+
+
+// Flux machine-à-machine nominal, méthode d'authentification client par
+// défaut ("post") : un jeton valide est obtenu et les identifiants client
+// partent dans le corps de la requête de jeton.
+PROCEDURE scenario_client_credentials_nominal()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID         = "mon-client"
+	oParams..ClientSecret     = "mon-secret"
+	oParams..URLToken         = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation = taApplicationCliente
+
+	t est un AuthToken = AuthIdentifie(oParams)
+
+	dbgVérifieEgalité(t..Valeur, "atk-live")
+	dbgVérifieVrai(t..Valide)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(reqCapturee..URL, "https://auth.exemple.test/token")
+	sCorps est une chaîne = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "client_id=mon-client") > 0, "méthode post (défaut) place client_id dans le corps")
+	dbgVérifieVrai(Position(sCorps, "client_secret=mon-secret") > 0, "méthode post (défaut) place client_secret dans le corps")
+FIN
+
+
+// Méthode "basic" explicite : les identifiants client partent dans un en-tête
+// Authorization de type Basic, pas dans le corps de la requête.
+PROCEDURE scenario_methode_auth_client_basic()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID          = "mon-client"
+	oParams..ClientSecret      = "mon-secret"
+	oParams..URLToken          = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation  = taApplicationCliente
+	oParams..MéthodeAuthClient = oauth2AuthBasic
+
+	AuthIdentifie(oParams)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieVrai(CommencePar(reqCapturee..Entête["Authorization"], "Basic "), "méthode basic explicite envoie l'en-tête Authorization")
+	sCorps est une chaîne = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieFaux(Position(sCorps, "client_secret=mon-secret") > 0, "méthode basic ne place pas le secret dans le corps")
+FIN
+
+
+// Méthode "post" explicite : les identifiants client partent dans le corps de
+// la requête, pas en en-tête.
+PROCEDURE scenario_methode_auth_client_post()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID          = "mon-client"
+	oParams..ClientSecret      = "mon-secret"
+	oParams..URLToken          = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation  = taApplicationCliente
+	oParams..MéthodeAuthClient = oauth2AuthPost
+
+	AuthIdentifie(oParams)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps      est une chaîne     = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "client_id=mon-client") > 0, "méthode post place client_id dans le corps")
+	dbgVérifieVrai(Position(sCorps, "client_secret=mon-secret") > 0, "méthode post place client_secret dans le corps")
+FIN
+
+
+// La portée (Scope) est optionnelle ; quand elle est posée, elle rejoint le
+// corps de la requête de jeton.
+PROCEDURE scenario_scope_optionnel_dans_corps()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID         = "mon-client"
+	oParams..ClientSecret     = "mon-secret"
+	oParams..URLToken         = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation = taApplicationCliente
+	oParams..Scope            = "lire ecrire"
+
+	AuthIdentifie(oParams)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps      est une chaîne     = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "scope=") > 0, "Scope optionnel fusionné dans le corps")
+FIN
+
+
+// Les paramètres supplémentaires (tableau associatif) sont fusionnés dans le
+// corps de la requête de jeton, comme n'importe quel autre champ.
+PROCEDURE scenario_parametres_supplementaires_fusionnes_au_corps()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID                              = "mon-client"
+	oParams..ClientSecret                          = "mon-secret"
+	oParams..URLToken                              = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation                      = taApplicationCliente
+	oParams..ParamètresSupplémentaires["audience"] = "https://api.exemple.test"
+
+	AuthIdentifie(oParams)
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	sCorps      est une chaîne     = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "audience") > 0, "ParamètresSupplémentaires fusionnés dans le corps de la requête de jeton")
+FIN
+
+
+// Un fournisseur qui rejette la demande (identifiants invalides, etc.) ne
+// fait pas planter l'appel : le jeton retourné est marqué invalide et la
+// réponse brute du serveur reste disponible pour diagnostic.
+PROCEDURE scenario_echec_serveur()
+	mockHttp.Desactive()
+	repErreur est un httpRéponse
+	repErreur..CodeEtat = 400
+	repErreur..Contenu  = `{"error":"invalid_client"}`
+	mockHttp            = MockCrée(HTTPEnvoie).Quand().Retourne(repErreur).Active()
+
+	oParams est un OAuth2Paramètres
+	oParams..ClientID         = "mon-client"
+	oParams..ClientSecret     = "mauvais-secret"
+	oParams..URLToken         = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation = taApplicationCliente
+
+	t est un AuthToken = AuthIdentifie(oParams)
+
+	dbgVérifieFaux(t..Valide, "échec serveur -> jeton invalide")
+	sServeur est une chaîne = BufferVersChaîne(t..RéponseServeur)
+	dbgVérifieVrai(Position(sServeur, "invalid_client") > 0, "RéponseServeur peuplée avec la réponse d'erreur")
+FIN
+
+
+// La branche par code d'autorisation (navigateur système) n'est pas
+// disponible en phase machine-à-machine : l'appel signale une erreur nette
+// plutôt que de tenter un flux interactif impossible en headless.
+PROCEDURE scenario_code_autorisation_non_disponible()
+	oParams est un OAuth2Paramètres
+	oParams..TypeAutorisation = taCodeAutorisation
+
+	ErreurRAZ()
+	AuthIdentifie(oParams)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "branche code d'autorisation non disponible en phase machine-à-machine -> erreur nette")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_OAUTH_PARAMS_INCOMPLETE", "paramètres de code d'autorisation incomplets -> code dédié")
+FIN

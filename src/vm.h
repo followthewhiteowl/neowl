@@ -173,6 +173,14 @@ bool vm_global_exists(const char* name);
  * must already be on the stack below `callee`. */
 InterpretResult vm_call_reentrant(Value callee, int argCount);
 
+/*  — hook pré-envoi HTTP (OAuth2). Pose un couple (native cible,
+ * fonction hook) consulté dans call_value AVANT le mock : si la native appelée
+ * est exactement `target`, `hook(argCount, args)` est invoqué. Le hook peut
+ * muter la requête (en-tête Authorization) et retourner <0 pour empêcher
+ * l'envoi. Posé par stdlib_oauth_init (target = impl de HTTPEnvoie). Gaté par
+ * comparaison de pointeur : aucun coût pour les autres natives. */
+void vm_set_http_presend_hook(NativeFn target, int (*hook)(int, Value*));
+
 /* DSL Fenetre v1 : enregistrement et lookup des declarations top-level.
  * register prend ownership du pointeur (libere par vm_free). En cas de
  * doublon de nom : retourne false sans liberer. */

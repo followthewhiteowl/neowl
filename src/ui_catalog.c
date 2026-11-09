@@ -183,10 +183,14 @@ static const OwlControlPropDef PROPS_WINDOW[] = {
     { "Plan",           NULL, "Plane",          OWL_PROP_TYPE_INT, NULL,
       "Plan actif de la fenetre (etape affichee, mecanisme facon assistant). "
       "Affecter cette propriete bascule l'etape : seuls les champs sans plan "
-      "et les champs affectes au plan actif restent visibles. Defaut 0.",
+      "et les champs affectes au plan actif restent visibles. Defaut 0. "
+      "Dans le designer, Page precedente/Page suivante parcourent les plans un "
+      "a un (Debut/Fin : premier/dernier plan ; Ctrl+Page : plans utilises).",
       "Active plan of the window (displayed step, wizard-style mechanism). "
       "Assigning this property switches step: only fields with no plan and "
-      "fields assigned to the active plan stay visible. Default 0.",
+      "fields assigned to the active plan stay visible. Default 0. "
+      "In the designer, Page Up/Page Down browse plans one by one "
+      "(Home/End: first/last plan; Ctrl+Page: used plans).",
       NULL DFT_INT(0) RUNTIME_ONLY },
     NOTE_PROP,
     LAYOUT_CONTAINER_PROPS,

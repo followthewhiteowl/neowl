@@ -186,6 +186,10 @@ in the designer.
 > `dispHorizontale` and `dispGrille` instead delegate the arrangement to a
 > container (automatic placement, no coordinates).
 
+> **Plans.** A window can split its fields into plans shown one at a time
+> (wizard-style, via the `Plane` property). In the designer, Page Up/Page Down
+> browse plans one by one (Home/End: first/last; Ctrl+Page: used plans).
+
 **Report designer** — lay out your printable documents (invoices, reports) in
 blocks:
 

@@ -1,0 +1,83 @@
+// @sujet : VariableRAZ
+// @résumé : Remet une variable à sa valeur initiale (type-zéro), en mutant la
+// variable de l'appelant par référence. Scalaire → zéro typé (0 / "" / Faux /
+// 0.0) ; structure → membres réinitialisés récursivement ; tableau à
+// dimensions fixes → éléments remis à zéro, dimensions conservées.
+
+CT_Point est une Structure
+	x est un entier
+	y est un entier
+FIN
+
+CT_Segment est une Structure
+	depart   est un CT_Point
+	longueur est un réel
+	libellé  est une chaîne
+FIN
+
+PROCEDURE PUBLIQUE scenario_scalaire_entier_remis_a_zero()
+	n est un entier = 42
+	VariableRAZ(n)
+	dbgVérifieEgalité(n, 0, "VariableRAZ remet un entier à 0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_scalaire_chaine_remise_a_vide()
+	s est une chaîne = "bonjour"
+	VariableRAZ(s)
+	dbgVérifieEgalité(s, "", "VariableRAZ remet une chaîne à vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_scalaire_booleen_et_reel_remis_a_zero()
+	b est un booléen = Vrai
+	VariableRAZ(b)
+	dbgVérifieEgalité(b, Faux, "VariableRAZ remet un booléen à Faux")
+
+	r est un réel = 3.14
+	VariableRAZ(r)
+	dbgVérifieEgalité(r, 0.0, "VariableRAZ remet un réel à 0.0")
+FIN
+
+PROCEDURE PUBLIQUE scenario_structure_recursive_remise_a_zero()
+	seg est un CT_Segment
+	seg.depart.x = 3
+	seg.depart.y = 4
+	seg.longueur = 12.5
+	seg.libellé = "diagonale"
+
+	VariableRAZ(seg)
+
+	dbgVérifieEgalité(seg.depart.x, 0, "membre imbriqué x remis à zéro")
+	dbgVérifieEgalité(seg.depart.y, 0, "membre imbriqué y remis à zéro")
+	dbgVérifieEgalité(seg.longueur, 0.0, "membre réel remis à zéro")
+	dbgVérifieEgalité(seg.libellé, "", "membre chaîne remis à vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_tableau_fixe_dimensions_conservees()
+	t est un tableau de 3 entiers
+	t[1] = 10
+	t[2] = 20
+	t[3] = 30
+
+	VariableRAZ(t)
+
+	dbgVérifieEgalité(t..Occurrence, 3, "VariableRAZ conserve les dimensions du tableau")
+	dbgVérifieEgalité(t[1], 0, "élément 1 remis à zéro")
+	dbgVérifieEgalité(t[2], 0, "élément 2 remis à zéro")
+	dbgVérifieEgalité(t[3], 0, "élément 3 remis à zéro")
+FIN
+
+PROCEDURE PUBLIQUE scenario_forme_anglaise_variablereset()
+	n est un entier = 99
+	VariableReset(n)
+	dbgVérifieEgalité(n, 0, "VariableReset (forme EN) remet un entier à 0")
+FIN
+
+// ============================================================
+// PROCEDURE PRIVEE — edge case technique
+// ============================================================
+
+PROCEDURE PRIVÉE scenario_edge_variableraz_deja_a_zero()
+	n est un entier = 0
+	VariableRAZ(n)
+	dbgVérifieEgalité(n, 0, "VariableRAZ sur une variable déjà à zéro reste à zéro")
+FIN

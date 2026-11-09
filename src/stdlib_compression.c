@@ -302,6 +302,18 @@ static int gzip_header_size(const unsigned char* in, int len) {
  * Compresse(data [, type [, niveau]])
  * ================================================================ */
 
+/* Désambiguïsation type vs niveau (, moule ).
+ * Les valeurs de l'enum compresseType vivent dans la bande sentinelle
+ * OWL_COMPRESSE_BASE + [0..0xFF] (grands entiers négatifs). Un niveau
+ * de compression tapé par l'utilisateur est un petit 0-9 → jamais dans
+ * cette bande. Détection par bande (pas par valeurs exactes) →
+ * forward-compatible si une 4e valeur compresse* est ajoutée. */
+static bool owl_is_compresse_type(Value v) {
+    if (!IS_INTEGER(v)) return false;
+    int64_t n = AS_INTEGER(v);
+    return n >= OWL_COMPRESSE_BASE && n < OWL_COMPRESSE_BASE + 0x100;
+}
+
 static Value fn_compresse(int argCount, Value* args) {
     if (argCount < 1) {
         owl_emit_native_error(E_NATIVE_ARG_MISSING, "Compresse",
@@ -323,7 +335,15 @@ static Value fn_compresse(int argCount, Value* args) {
         return NIL_VAL;
     }
 
-    int type = COMP_GZIP; /* default */
+    int type = COMP_GZIP;        /* default */
+    int level = ZIP_LEVEL_NORMAL; /* default 6 */
+
+    /* <type> est un enum optionnel (sentinelle) AVANT <niveau> entier
+     * optionnel. Si args[1] n'est pas une sentinelle compresseType,
+     * l'utilisateur a omis <type> et passé directement le niveau →
+     * on décale (convention OWL « enum ou entier désambiguïsé par
+     * sentinelle », ). Sinon forme canon : type en args[1],
+     * niveau en args[2]. */
     if (argCount >= 2) {
         if (!IS_INTEGER(args[1])) {
             owl_emit_native_error(E_NATIVE_COMPRESSION_INVALID_TYPE, "Compresse",
@@ -332,19 +352,23 @@ static Value fn_compresse(int argCount, Value* args) {
                                   NULL);
             return NIL_VAL;
         }
-        type = (int)AS_INTEGER(args[1]);
-    }
-
-    int level = ZIP_LEVEL_NORMAL;
-    if (argCount >= 3) {
-        if (!IS_INTEGER(args[2])) {
-            owl_emit_native_error(E_NATIVE_COMPRESSION_INVALID_LEVEL, "Compresse",
-                                  "native", "Compresse",
-                                  "value", "non-entier",
-                                  NULL);
-            return NIL_VAL;
+        if (owl_is_compresse_type(args[1])) {
+            /* Forme canon : args[1] = type, args[2] = niveau. */
+            type = (int)AS_INTEGER(args[1]);
+            if (argCount >= 3) {
+                if (!IS_INTEGER(args[2])) {
+                    owl_emit_native_error(E_NATIVE_COMPRESSION_INVALID_LEVEL, "Compresse",
+                                          "native", "Compresse",
+                                          "value", "non-entier",
+                                          NULL);
+                    return NIL_VAL;
+                }
+                level = (int)AS_INTEGER(args[2]);
+            }
+        } else {
+            /* <type> omis : args[1] = niveau, type reste gzip par défaut. */
+            level = (int)AS_INTEGER(args[1]);
         }
-        level = (int)AS_INTEGER(args[2]);
         if (level < 0) level = 0;
         if (level > 9) level = 9;
     }
@@ -489,12 +513,12 @@ static const OwlParam p_compresse1[] = {
 };
 static const OwlParam p_compresse2[] = {
     {"donn\xc3\xa9""es", "cha\xc3\xaene|buffer", "Données à compresser"},
-    {"type",             "entier",               "Algorithme (constante compresse*)", .allowedBase=&E_compresseType},
+    {"type",             "entier",               "Algorithme (constante compresse*)", .allowedBase=&E_compresseType, .allowsRawInt=true},
     {NULL, NULL, NULL}
 };
 static const OwlParam p_compresse3[] = {
     {"donn\xc3\xa9""es", "cha\xc3\xaene|buffer", "Données à compresser"},
-    {"type",             "entier",               "Algorithme (constante compresse*)", .allowedBase=&E_compresseType},
+    {"type",             "entier",               "Algorithme (constante compresse*)", .allowedBase=&E_compresseType, .allowsRawInt=true},
     {"niveau",           "entier",               "Niveau de compression 0-9 (défaut 6)"},
     {NULL, NULL, NULL}
 };

@@ -312,8 +312,11 @@
 /* iDestination — destination d'impression. OWL n'expose que la sortie PDF
  * (driver-independant) et l'imprimante systeme (valeur de retour/fallback) ;
  * les destinations HTML/RTF/XLS/email/visualisateur/fichier du panel canon ne
- * sont pas honorees au runtime (cf ). */
-#define OWL_IDEST_BASE               OWL_SENTINEL_OFFSET(31)
+ * sont pas honorees au runtime (cf ).
+ * Offset 112 (et non 31) : 31 est deja pris par OWL_ITER_BASE. Les deux
+ * bases etaient numeriquement identiques (OWL_SENTINEL_OFFSET est une
+ * fonction pure de n) — collision latente re-offsettee, cf . */
+#define OWL_IDEST_BASE               OWL_SENTINEL_OFFSET(112)
 #define OWL_IDEST_IMPRIMANTE         (OWL_IDEST_BASE + 0)
 #define OWL_IDEST_PDF_GENERIQUE      (OWL_IDEST_BASE + 1)
 #define OWL_IDEST_PDF                (OWL_IDEST_BASE + 2)

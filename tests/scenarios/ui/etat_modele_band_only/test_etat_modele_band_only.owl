@@ -1,0 +1,33 @@
+// @sujet : Modèle d'état réduit à une bande d'en-tête
+// @resume : Un modèle d'état peut ne contenir qu'un en-tête de page, sans Corps. Un État qui en hérite et fournit son propre Corps s'imprime normalement, en combinant l'en-tête du modèle et le corps de l'état.
+//
+// Ressources voisines : MOD_BandOnly.owl (modèle, en-tête seul, sans
+// Corps), ETAT_HeriteBandOnly.owl (état héritier, fournit le Corps).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : le modèle n'a qu'un en-tête, l'état hérite et ajoute le
+// Corps manquant. L'impression combine les deux bandes et produit au
+// moins une page rendue.
+PROCEDURE PUBLIQUE scenario_etat_herite_modele_sans_corps()
+	tabPages est un tableau de Image
+
+	iDestination(iImageMémoire, tabPages)
+	iImprimeEtat(ETAT_HeriteBandOnly)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "modele:haut;etat:corps;",
+	"L'en-tête du modèle et le corps de l'état s'exécutent tous les deux")
+	dbgVérifieVrai(Taille(tabPages) >= 1,
+	"L'impression produit au moins une page")
+	dbgVérifieVrai(tabPages[1]..Valide,
+	"La page rendue est une image valide")
+FIN
+
+dbgBilanTest()

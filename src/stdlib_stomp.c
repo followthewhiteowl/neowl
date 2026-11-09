@@ -695,7 +695,7 @@ static Value fn_stomp_connecte(int argCount, Value* args) {
         const char* ca = stomp_str(inst, "CertificatCA");
         const char* extra_ca = (ca && ca[0] != '\0') ? ca : NULL;
         if (!owl_tls_connect(&c->transport, adresse, port, OWL_TLS_VERIFY_FULL,
-                             tmo, extra_ca)) {
+                             tmo, extra_ca, NULL, NULL)) {
             owl_emit_native_error(E_NATIVE_STOMP_CONNECT_FAILURE, "STOMPConnecte",
                                   "native", "STOMPConnecte", "cible", cible,
                                   "detail", owl_tls_last_error(&c->transport), NULL);

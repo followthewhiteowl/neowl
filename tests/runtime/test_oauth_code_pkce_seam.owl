@@ -1,0 +1,136 @@
+Trace("=== OAuth2 code+PKCE : seam de testabilité (3 natives test-only __OAuth*) ===")
+
+// Contrat figé (ticket , section "Seam de testabilité") : le flow
+// live (navigateur + accept() + timeout) n'est pas testable en déterministe.
+// Décomposition en 3 segments purs/mockables, exercés ici directement.
+
+
+// === __OAuthConstruitURLEtPKCE : URL d'autorisation + PKCE S256 ===
+oParamsPkce est un OAuth2Paramètres
+oParamsPkce..ClientID         = "mon-client-pkce"
+oParamsPkce..URLAuth          = "https://auth.exemple.test/authorize"
+oParamsPkce..URLRedirection   = "http://localhost:18240/retour"
+oParamsPkce..Scope            = "lire ecrire"
+oParamsPkce..TypeAutorisation = taCodeAutorisation
+// ParamètresSupplémentaires : fusionnés dans l'URL d'autorisation (première
+// requête d'authentification). Cas réel : router vers un annuaire d'entreprise.
+// Une entrée simple + une entrée dont la valeur exige un percent-encodage.
+oParamsPkce..ParamètresSupplémentaires["identity_provider"] = "scAD"
+oParamsPkce..ParamètresSupplémentaires["login_hint"]        = "jean dupont"
+
+rPkce est un tableau associatif de chaînes = __OAuthConstruitURLEtPKCE(oParamsPkce)
+
+sUrlPkce est une chaîne = rPkce["url"]
+dbgVérifieVrai(Position(sUrlPkce, "response_type=code") > 0, "URL auth porte response_type=code")
+dbgVérifieVrai(Position(sUrlPkce, "client_id=") > 0, "URL auth porte client_id")
+dbgVérifieVrai(Position(sUrlPkce, "redirect_uri=") > 0, "URL auth porte redirect_uri")
+dbgVérifieVrai(Position(sUrlPkce, "scope=") > 0, "URL auth porte scope (posé)")
+dbgVérifieVrai(Position(sUrlPkce, "state=") > 0, "URL auth porte state")
+dbgVérifieVrai(Position(sUrlPkce, "code_challenge=") > 0, "URL auth porte code_challenge")
+dbgVérifieVrai(Position(sUrlPkce, "code_challenge_method=S256") > 0, "code_challenge_method=S256 (pas de variante plain)")
+dbgVérifieFaux(Position(sUrlPkce, "response_type=token") > 0, "jamais d'implicit flow dans l'URL auth")
+dbgVérifieVrai(Position(sUrlPkce, "identity_provider=scAD") > 0, "URL auth porte le paramètre supplémentaire (routage annuaire)")
+dbgVérifieVrai(Position(sUrlPkce, "login_hint=jean%20dupont") > 0, "paramètre supplémentaire percent-encodé (clé et valeur)")
+
+sVerifierPkce  est une chaîne = rPkce["verifier"]
+sStatePkce     est une chaîne = rPkce["state"]
+sChallengePkce est une chaîne = rPkce["challenge"]
+dbgVérifieVrai(Taille(sVerifierPkce) > 0, "verifier non vide")
+dbgVérifieVrai(Taille(sStatePkce) > 0, "state non vide")
+dbgVérifieVrai(Position(sUrlPkce, sChallengePkce) > 0, "le challenge renvoyé figure bien dans l'URL auth")
+
+// Cross-vérification S256 (RFC 7636) : challenge = BASE64URL(SHA256(verifier)).
+// HashChaine() 1-arg = SHA-256 par défaut, en hexadécimal ; on repasse en
+// octets bruts via HexaVersChaine avant le ré-encodage BASE64URL.
+sHashHexPkce          est une chaîne = HashChaîne(sVerifierPkce)
+sHashBrutPkce         est une chaîne = HexaVersChaîne(sHashHexPkce)
+sChallengeAttenduPkce est une chaîne = ChaîneVersBase64(sHashBrutPkce, encodeBASE64URL)
+dbgVérifieEgalité(sChallengePkce, sChallengeAttenduPkce, "challenge = BASE64URL(SHA256(verifier)) (S256 canon RFC 7636)")
+
+
+// === __OAuthExtraitCode : parsing de l'URL de redirection ===
+
+// Nominal : state concorde -> le code est extrait.
+sCodeNominal est une chaîne = __OAuthExtraitCode("http://localhost:9876/?code=ABC123&state=S1", "S1")
+dbgVérifieEgalité(sCodeNominal, "ABC123", "code extrait quand le state concorde")
+
+// Mismatch de state -> erreur nette, pas d'extraction silencieuse.
+ErreurRAZ()
+sCodeMismatch est une chaîne = __OAuthExtraitCode("http://localhost:9876/?code=ABC123&state=AUTRE", "S1")
+bErrMismatch  est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrMismatch, "state ne concorde pas -> erreur nette")
+
+// Code absent de l'URL de redirection -> erreur nette.
+ErreurRAZ()
+sCodeAbsent est une chaîne = __OAuthExtraitCode("http://localhost:9876/?state=S1", "S1")
+bErrAbsent  est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrAbsent, "code absent de la redirection -> erreur nette")
+dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_OAUTH_AUTH_CODE_FAILED", "code dédié flux par code d'autorisation interrompu")
+
+// Le fournisseur renvoie un paramètre error= (ex. accès refusé) -> erreur nette.
+ErreurRAZ()
+sCodeErreurIdp est une chaîne = __OAuthExtraitCode("http://localhost:9876/?error=access_denied&state=S1", "S1")
+bErrIdp        est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrIdp, "paramètre error= du fournisseur -> erreur nette")
+
+
+// === __OAuthEchangeCode : échange code -> jeton (HTTPEnvoie mockable) ===
+
+// Nominal : le fournisseur répond un jeton valide ; le corps POST porte
+// grant_type=authorization_code, le code, le verifier et le redirect_uri.
+repEchange est un httpRéponse
+repEchange..CodeEtat = 200
+repEchange..Contenu  = `{"access_token":"atk-pkce","expires_in":3600}`
+
+mockHttpEchange est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttpEchange)
+MockAvec(mockHttpEchange, MockTout)
+MockRetourne(mockHttpEchange, repEchange)
+MockActive(mockHttpEchange)
+
+oParamsEchange est un OAuth2Paramètres
+oParamsEchange..ClientID         = "mon-client-pkce"
+oParamsEchange..URLToken         = "https://auth.exemple.test/token"
+oParamsEchange..URLRedirection   = "http://localhost:18241/retour"
+oParamsEchange..TypeAutorisation = taCodeAutorisation
+
+tEchange est un AuthToken = __OAuthEchangeCode(oParamsEchange, "ABC123", "verif-xyz")
+
+dbgVérifieVrai(tEchange..Valide, "échange nominal -> jeton valide")
+dbgVérifieEgalité(tEchange..Valeur, "atk-pkce", "échange nominal -> valeur du jeton")
+
+reqCaptureeEchange est un httpRequête = MockDernierArgument(mockHttpEchange, 1)
+sCorpsEchange      est une chaîne     = BufferVersChaîne(reqCaptureeEchange..Contenu)
+dbgVérifieVrai(Position(sCorpsEchange, "grant_type=authorization_code") > 0, "corps POST porte grant_type=authorization_code")
+dbgVérifieVrai(Position(sCorpsEchange, "code=ABC123") > 0, "corps POST porte le code")
+dbgVérifieVrai(Position(sCorpsEchange, "code_verifier=verif-xyz") > 0, "corps POST porte le code_verifier PKCE")
+dbgVérifieVrai(Position(sCorpsEchange, "redirect_uri=") > 0, "corps POST porte le redirect_uri")
+
+MockDésactive(mockHttpEchange)
+
+
+// Échec serveur (code déjà consommé, verifier invalide, etc.) : jeton
+// marqué invalide, réponse brute du serveur disponible pour diagnostic.
+repEchangeErreur est un httpRéponse
+repEchangeErreur..CodeEtat = 400
+repEchangeErreur..Contenu  = `{"error":"invalid_grant"}`
+
+mockHttpEchangeErreur est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttpEchangeErreur)
+MockAvec(mockHttpEchangeErreur, MockTout)
+MockRetourne(mockHttpEchangeErreur, repEchangeErreur)
+MockActive(mockHttpEchangeErreur)
+
+oParamsEchangeErreur est un OAuth2Paramètres
+oParamsEchangeErreur..URLToken         = "https://auth.exemple.test/token"
+oParamsEchangeErreur..TypeAutorisation = taCodeAutorisation
+
+tEchangeErreur est un AuthToken = __OAuthEchangeCode(oParamsEchangeErreur, "CODE-INVALIDE", "verif-mauvais")
+
+dbgVérifieFaux(tEchangeErreur..Valide, "échec serveur -> jeton invalide")
+sServeurEchangeErreur est une chaîne = BufferVersChaîne(tEchangeErreur..RéponseServeur)
+dbgVérifieVrai(Position(sServeurEchangeErreur, "invalid_grant") > 0, "RéponseServeur peuplée avec la réponse d'erreur")
+
+MockDésactive(mockHttpEchangeErreur)
+
+dbgBilanTest()

@@ -35,6 +35,7 @@
 #include "memory.h"
 #include "sentinels.h"
 #include "etat_decl.h"
+#include "scanner.h"       /*  : scanner_strip_accents (match de nom de champ) */
 #include "stdlib_ui.h"     /*  : owl_etat_prepare_props */
 #include "ui_catalog.h"    /*  : lookup props bilingue via catalogue */
 
@@ -1359,6 +1360,12 @@ static void render_etat_codebarre(OwlPdfDoc* d, const OwlControlDecl* ctrl) {
  * avant son rendu PDF. Permet a l'utilisateur de modifier les props du
  * control au dernier moment (ex: changer le Libellé selon une variable
  * d'iteration). */
+/*  — controle d'etat dont le code (top_level) s'execute actuellement.
+ * Pose par run_etat_controls_top_level autour de chaque corps de champ ; lu par
+ * la native cachee __etat_ancetre_champ (appel `Ancetre()` nu) pour retrouver le
+ * corps du champ homonyme du modele parent. NULL hors execution de corps. */
+static const OwlControlDecl* g_etat_current_control = NULL;
+
 static void trigger_avant_impression(const OwlControlDecl* c) {
     if (!c) return;
     for (int i = 0; i < c->event_count; i++) {
@@ -1431,7 +1438,10 @@ static void run_etat_controls_top_level(const OwlEtatDecl* etat,
                  * du sous-champ. */
                 Value sender = owl_moimeme_widget_value_for_name(c->name);
                 vm_event_sender_push(sender);
+                const OwlControlDecl* prevCtrl = g_etat_current_control;
+                g_etat_current_control = c;   /*  — cible de Ancetre() */
                 call_etat_block_fn(c->top_level);
+                g_etat_current_control = prevCtrl;
                 vm_event_sender_pop();
             }
         }
@@ -1658,6 +1668,314 @@ static void apply_etat_properties(OwlPdfDoc* d, const OwlEtatDecl* etat) {
     if (hasMarges) owl_pdf_set_margins(d, mh, mb, mg, md);
 }
 
+/* ============================================================
+ *  — heritage d'etats par modele (aplatissement)
+ * ============================================================ */
+
+/* Nom de propriete present (sans distinction casse) dans la liste d'un bloc. */
+static bool block_has_prop_named(const OwlEtatBlockDecl* b, const char* name) {
+    for (int i = 0; i < b->property_count; i++) {
+        if (strcasecmp(b->properties[i].name, name) == 0) return true;
+    }
+    return false;
+}
+
+/* Nom de propriete present (sans distinction casse) dans un controle. */
+static bool ctrl_has_prop_named(const OwlControlDecl* c, const char* name) {
+    for (int i = 0; i < c->property_count; i++) {
+        if (strcasecmp(c->properties[i].name, name) == 0) return true;
+    }
+    return false;
+}
+
+/* Controle d'un bloc par nom (casse/accents ignores via strip). NULL si absent. */
+static OwlControlDecl* block_find_ctrl_by_name(const OwlEtatBlockDecl* b,
+                                               const char* name) {
+    if (!b || !name) return NULL;
+    char sa[256];
+    int na = scanner_strip_accents(name, (int)strlen(name), sa, sizeof(sa));
+    for (int i = 0; i < b->control_count; i++) {
+        OwlControlDecl* c = b->controls[i];
+        if (!c || !c->name) continue;
+        char sb[256];
+        int nb = scanner_strip_accents(c->name, (int)strlen(c->name), sb, sizeof(sb));
+        if (na == nb && strncasecmp(sa, sb, (size_t)na) == 0) return c;
+    }
+    return NULL;
+}
+
+/* Override partiel : le controle enfant 'cc' surcharge le controle modele 'mc'.
+ * Les props du modele absentes chez l'enfant cascadent (ajoutees) ; l'enfant
+ * garde la main sur les props qu'il pose. Le code du champ modele devient le
+ * corps-ancetre appele par Ancetre() depuis le code de l'enfant. */
+static void flatten_override_control(OwlControlDecl* cc, const OwlControlDecl* mc) {
+    for (int i = 0; i < mc->property_count; i++) {
+        const OwlPropertyInit* mp = &mc->properties[i];
+        if (ctrl_has_prop_named(cc, mp->name)) continue;   /* enfant gagne */
+        owl_control_decl_add_property(cc, mp->name, mp->const_value, mp->eval,
+                                      mp->is_constant, mp->line);
+    }
+    cc->ancestor_top_level = mc->top_level;
+}
+
+/* Fusionne un bloc canon du modele (mblk) dans le bloc homonyme de l'etat
+ * (cblk) : props de bloc en cascade (enfant gagne), controles reordonnes
+ * modele-d'abord. Un controle de meme nom = override partiel (child-owned,
+ * conserve) ; sinon le controle modele est insere emprunte. Les controles
+ * propres a l'etat non surcharges suivent, dans leur ordre d'ecriture. */
+static void flatten_merge_canon_block(OwlEtatBlockDecl* cblk,
+                                      const OwlEtatBlockDecl* mblk) {
+    /* 1. Props de bloc (Hauteur...) : le modele comble les trous. */
+    for (int i = 0; i < mblk->property_count; i++) {
+        const OwlPropertyInit* mp = &mblk->properties[i];
+        if (block_has_prop_named(cblk, mp->name)) continue;
+        owl_etat_block_decl_add_property(cblk, mp->name, mp->const_value,
+                                         mp->eval, mp->is_constant, mp->line);
+    }
+    /* 2. Controles : nouvel ordre [modele (ou override) ...][enfant restants]. */
+    int childN = cblk->control_count;
+    int newCap = mblk->control_count + childN;
+    if (newCap < 1) return;
+    OwlControlDecl** nc = (OwlControlDecl**)malloc(sizeof(OwlControlDecl*) * (size_t)newCap);
+    bool* no = (bool*)malloc(sizeof(bool) * (size_t)newCap);
+    bool* childUsed = (bool*)calloc((size_t)(childN > 0 ? childN : 1), sizeof(bool));
+    int n = 0;
+    for (int mi = 0; mi < mblk->control_count; mi++) {
+        OwlControlDecl* mc = mblk->controls[mi];
+        if (!mc) continue;
+        /* Index enfant du meme nom (override) ? */
+        int ccIdx = -1;
+        OwlControlDecl* cc = block_find_ctrl_by_name(cblk, mc->name);
+        if (cc) {
+            for (int ci = 0; ci < childN; ci++) {
+                if (cblk->controls[ci] == cc) { ccIdx = ci; break; }
+            }
+        }
+        if (cc && ccIdx >= 0) {
+            flatten_override_control(cc, mc);
+            nc[n] = cc; no[n] = cblk->controls_owned[ccIdx]; n++;
+            childUsed[ccIdx] = true;
+        } else {
+            nc[n] = mc; no[n] = false; n++;   /* emprunte au modele */
+        }
+    }
+    for (int ci = 0; ci < childN; ci++) {
+        if (childUsed[ci]) continue;
+        nc[n] = cblk->controls[ci]; no[n] = cblk->controls_owned[ci]; n++;
+    }
+    free(cblk->controls);
+    free(cblk->controls_owned);
+    free(childUsed);
+    cblk->controls = nc;
+    cblk->controls_owned = no;
+    cblk->control_count = n;
+    cblk->control_capacity = newCap;
+}
+
+/* Adopte un bloc entier du modele dans l'etat (bloc canon absent chez l'enfant,
+ * ou bloc Iteration jamais fusionne) : cree un bloc neuf, emprunte le body
+ * (ObjFunction GC-managee, partagee), copie les props, emprunte les controles. */
+static void flatten_append_borrowed_block(OwlEtatDecl* child,
+                                          const OwlEtatBlockDecl* mblk) {
+    OwlEtatBlockDecl* nb = owl_etat_decl_add_block(child, mblk->kind,
+                                                   mblk->name, mblk->line);
+    if (!nb) return;
+    nb->body = mblk->body;   /* partage le bytecode (pas libere par le bloc) */
+    for (int i = 0; i < mblk->property_count; i++) {
+        const OwlPropertyInit* mp = &mblk->properties[i];
+        owl_etat_block_decl_add_property(nb, mp->name, mp->const_value,
+                                         mp->eval, mp->is_constant, mp->line);
+    }
+    for (int i = 0; i < mblk->control_count; i++) {
+        if (mblk->controls[i])
+            owl_etat_block_decl_add_borrowed_control(nb, mblk->controls[i]);
+    }
+}
+
+/*  — `target` est-il atteignable dans l'ascendance de `node` (chaine
+ * `Herite de` multi-parents) ? DFS borne en profondeur : le plafond tient lieu
+ * de cap anti-boucle.  : la circularite est signalee au COMPILE ; ce
+ * test ne sert plus qu'a couper une recursion cyclique au runtime (defensif,
+ * sans message). */
+static bool etat_ancestry_reaches(const OwlEtatDecl* node,
+                                  const OwlEtatDecl* target, int depth) {
+    if (node == NULL) return false;
+    if (depth >= 64) return true;            /* plafond atteint = cycle */
+    if (node == target) return true;
+    for (int i = 0; i < node->parent_name_count; i++) {
+        const OwlEtatDecl* p = vm_etat_lookup(node->parent_names[i]);
+        if (etat_ancestry_reaches(p, target, depth + 1)) return true;
+    }
+    return false;
+}
+
+/* Aplatit un etat heritier : resout les modeles cites par `Herite de A, B`,
+ * fusionne leurs blocs/champs/props dans le decl de l'etat (ordre d'inclusion ;
+ * modele PRINCIPAL = le premier). Idempotent (child->flattened), lazy (1er
+ * iImprimeEtat, quand tous les fichiers voisins sont compiles -> ordre de
+ * compilation indifferent). Gardes runtime restantes : modele introuvable /
+ * non-modele. Circularite, collision de globale/champ et iteration de meme
+ * nom sont desormais des erreurs de COMPILATION. */
+static bool owl_etat_flatten(OwlEtatDecl* child) {
+    if (!child || child->flattened) return true;
+    child->flattened = true;                 /* idempotence meme en cas d'erreur */
+    if (child->parent_name_count == 0) return true;
+
+    bool ok = true;
+
+    /* 1. Resout + valide chaque modele parent (ordre d'inclusion). Chaque modele
+     * est aplati d'abord (il peut lui-meme heriter : modele-de-modeles). */
+    const OwlEtatDecl* resolved[OWL_ETAT_MAX_PARENTS];
+    int nResolved = 0;
+    for (int pi = 0; pi < child->parent_name_count; pi++) {
+        const char* pname = child->parent_names[pi];
+        const OwlEtatDecl* parent = vm_etat_lookup(pname);
+        if (!parent) {
+            owl_emit_native_error(E_SEM_ETAT_HERITAGE_PARENT_INCONNU, "iImprimeEtat",
+                                  "name", child->name, "parent", pname, NULL);
+            ok = false;
+            continue;
+        }
+        if (!parent->is_template) {
+            owl_emit_native_error(E_SEM_ETAT_HERITAGE_PARENT_NON_MODELE, "iImprimeEtat",
+                                  "name", child->name, "parent", pname, NULL);
+            ok = false;
+            continue;
+        }
+        /*  — la circularite est desormais une erreur de COMPILATION
+         * (compiler_validate_etat_inheritance). Ce test ne subsiste qu'en cap
+         * anti-boucle SILENCIEUX : si un cycle atteignait malgre tout le
+         * runtime, on saute le parent cyclique sans recurser (pas de message,
+         * pas de hang). Collisions de globale/champ : idem, migrees au compile. */
+        if (etat_ancestry_reaches(parent, child, 0)) {
+            continue;
+        }
+        if (!owl_etat_flatten((OwlEtatDecl*)parent)) ok = false;
+        if (nResolved < OWL_ETAT_MAX_PARENTS) resolved[nResolved++] = parent;
+    }
+    if (!ok) return false;
+
+    /* Memorise les modeles resolus (parents[0] = principal). */
+    if (nResolved > 0) {
+        child->parents =
+            (const OwlEtatDecl**)malloc(sizeof(OwlEtatDecl*) * (size_t)nResolved);
+        for (int r = 0; r < nResolved; r++) child->parents[r] = resolved[r];
+        child->parent_count = nResolved;
+    }
+
+    /* 4. Fusion des blocs/champs : ordre d'inclusion final [modele0][modele1]
+     * ...[etat]. flatten_merge_canon_block insere les champs du modele fusionne
+     * AVANT ceux deja presents -> on fusionne les modeles en ordre INVERSE pour
+     * que le premier modele (principal) finisse en tete. */
+    for (int r = nResolved - 1; r >= 0; r--) {
+        const OwlEtatDecl* parent = resolved[r];
+        for (int pb = 0; pb < parent->block_count; pb++) {
+            const OwlEtatBlockDecl* mblk = &parent->blocks[pb];
+            if (mblk->kind == OWL_ETAT_BLOCK_ITERATION) {
+                /*  — collision d'Iteration = erreur de COMPILATION.
+                 * Au runtime on se contente de ne pas dupliquer (defensif). */
+                if (owl_etat_decl_find_block_by_name(child, mblk->name) != NULL) {
+                    continue;   /* non fusionne, non duplique */
+                }
+                flatten_append_borrowed_block(child, mblk);
+                continue;
+            }
+            OwlEtatBlockDecl* cblk =
+                (OwlEtatBlockDecl*)owl_etat_decl_find_canon_block(child, mblk->kind);
+            if (cblk == NULL) flatten_append_borrowed_block(child, mblk);
+            else              flatten_merge_canon_block(cblk, mblk);
+        }
+    }
+
+    /* 5. Proprietes top-level (Format/Orientation/Marges) : le modele PRINCIPAL
+     * (resolved[0]) gouverne ; l'enfant garde la main sur ce qu'il pose, le
+     * principal comble les trous. Sans cette propagation, un etat sans PROPRIETES
+     * propres n'heritait ni l'orientation ni le format du modele (MediaBox). */
+    if (nResolved > 0) {
+        const OwlEtatDecl* principal = resolved[0];
+        for (int i = 0; i < principal->property_count; i++) {
+            const OwlPropertyInit* mp = &principal->properties[i];
+            bool seen = false;
+            for (int j = 0; j < child->property_count; j++) {
+                if (strcasecmp(child->properties[j].name, mp->name) == 0) { seen = true; break; }
+            }
+            if (!seen) {
+                owl_etat_decl_add_property(child, mp->name, mp->const_value, mp->eval,
+                                           mp->is_constant, mp->line);
+            }
+        }
+    }
+
+    /* 6. user_procs des modeles : references dans le decl enfant pour les lookups
+     * (Lecture/Filtre). Ouverture/Fermeture restent traitees a part (ordre
+     * cumulatif) dans iImprimeEtat. */
+    for (int r = 0; r < nResolved; r++) {
+        const OwlEtatDecl* parent = resolved[r];
+        for (int i = 0; i < parent->user_proc_count; i++) {
+            bool dup = false;
+            for (int j = 0; j < child->user_proc_count; j++) {
+                if (strcasecmp(child->user_procs[j].name, parent->user_procs[i].name) == 0) {
+                    dup = true; break;
+                }
+            }
+            if (!dup) {
+                owl_etat_decl_add_user_proc(child, parent->user_procs[i].name,
+                                            parent->user_procs[i].impl,
+                                            parent->user_procs[i].line);
+            }
+        }
+    }
+    return ok;
+}
+
+/* __etat_ancetre_champ() — native cachee emise par le compilo pour `Ancetre()`
+ * nu dans le code d'un champ d'etat surcharge. Appelle le corps du champ
+ * homonyme du modele (pose sur ancestor_top_level au flatten). Silencieux si
+ * hors contexte ou sans ancetre (le champ n'override rien). */
+static Value fn_etat_ancetre_champ(int argCount, Value* args) {
+    (void)argCount; (void)args;
+    const OwlControlDecl* c = g_etat_current_control;
+    if (c && c->ancestor_top_level) {
+        call_etat_block_fn(c->ancestor_top_level);
+    }
+    return NIL_VAL;
+}
+
+/*  — code d'ouverture (top-level) cumulatif des modeles parents, en
+ * ordre topologique : les ASCENDANTS d'abord (principal -> secondaires, et pour
+ * un modele-de-modeles le grand-parent avant le parent), puis `node`. Une seule
+ * fois par process (top_level_done) : initialise notamment les globales
+ * top-level du modele (slot partage `<MODELE>$<var>`) avant que l'etat ne les
+ * lise. Appele AVANT le top-level de l'etat lui-meme. */
+static void run_etat_parent_top_levels(const OwlEtatDecl* node) {
+    if (!node) return;
+    for (int pi = 0; pi < node->parent_count; pi++) {
+        run_etat_parent_top_levels(node->parents[pi]);
+    }
+    if (node->top_level && !node->top_level_done) {
+        ((OwlEtatDecl*)node)->top_level_done = true;
+        call_etat_block_fn(node->top_level);
+    }
+}
+
+/*  — Fermeture cumulative des modeles parents en ordre INVERSE de
+ * l'ouverture : `node` d'abord, puis ses ascendants (descendants avant
+ * ascendants). Appele APRES la Fermeture de l'etat, pour chaque parent en ordre
+ * d'inclusion inverse. */
+static void run_etat_parent_closings(const OwlEtatDecl* node, Value sender) {
+    if (!node) return;
+    const OwlEventBlock* ev = owl_etat_decl_find_event(node, "Fermeture");
+    if (!ev) ev = owl_etat_decl_find_event(node, "Closing");
+    if (ev && ev->impl) {
+        vm_event_sender_push(sender);
+        call_etat_block_fn(ev->impl);
+        vm_event_sender_pop();
+    }
+    for (int pi = node->parent_count - 1; pi >= 0; pi--) {
+        run_etat_parent_closings(node->parents[pi], sender);
+    }
+}
+
 /* iImprimeEtat(<Etat> [, <param1>, <param2>, ...]) — canon.
  *
  * Execute un Etat declare via 'ETAT_X est un Etat(<params>) ... FIN'.
@@ -1712,6 +2030,18 @@ static Value fn_i_imprime_etat(int argCount, Value* args) {
                               "native", "iImprimeEtat",
                               "name", etatName,
                               NULL);
+        return BOOL_VAL(false);
+    }
+
+    /*  — qu'un ModeleEtat ne s'imprime pas nu est verifie au COMPILE
+     * (garde #2, compiler_validate_etat_inheritance). Plus de garde runtime ici. */
+
+    /*  — aplatit l'heritage de modele (1x, lazy) : fusionne le modele
+     * parent dans le decl avant toute materialisation / rendu. Une garde en
+     * echec (modele introuvable / non-modele) avorte l'impression (soft-error
+     * deja posee). Circularite + collisions sont desormais attrapees au compile
+     *. */
+    if (!owl_etat_flatten((OwlEtatDecl*)etat)) {
         return BOOL_VAL(false);
     }
 
@@ -1839,6 +2169,13 @@ static Value fn_i_imprime_etat(int argCount, Value* args) {
      * code top-level vit dans decl->top_level, pas dans events[]). Le lookup ci
      * dessous reste defensif pour une eventuelle source future. */
     vm_event_sender_push(etatSender);
+    /*  /  — events auto-cumulatifs : le code d'ouverture
+     * (top-level) des modeles parents s'execute AVANT celui de l'etat, en ordre
+     * d'inclusion (principal d'abord) et transitivement (grand-parent avant
+     * parent). Une seule fois pour la vie du process (top_level_done). */
+    for (int pi = 0; pi < etat->parent_count; pi++) {
+        run_etat_parent_top_levels(etat->parents[pi]);
+    }
     if (etat->top_level && !etat->top_level_done) {
         ((OwlEtatDecl*)etat)->top_level_done = true;
         call_etat_block_fn(etat->top_level);
@@ -1948,13 +2285,21 @@ static Value fn_i_imprime_etat(int argCount, Value* args) {
         run_etat_block(d, b);
     }
 
-    /* 7. PROCEDURE Fermeture.  — push etatSender (idem Lecture). */
+    /* 7. PROCEDURE Fermeture.  — push etatSender (idem Lecture).
+     *  — teardown en ordre INVERSE de l'ouverture : la Fermeture de
+     * l'etat s'execute AVANT celle du modele parent (etat puis modele). */
     ev = owl_etat_decl_find_event(etat, "Fermeture");
     if (!ev) ev = owl_etat_decl_find_event(etat, "Closing");
     if (ev && ev->impl) {
         vm_event_sender_push(etatSender);
         call_etat_block_fn(ev->impl);
         vm_event_sender_pop();
+    }
+    /*  — Fermeture des modeles parents en ordre d'inclusion INVERSE
+     * (etat deja ferme ci-dessus ; puis dernier modele -> premier modele, et
+     * descendants avant ascendants). */
+    for (int pi = etat->parent_count - 1; pi >= 0; pi--) {
+        run_etat_parent_closings(etat->parents[pi], etatSender);
     }
 
     /*  lot D — pop de l'instance d'Etat. APRES Fermeture (le code
@@ -2987,4 +3332,7 @@ void stdlib_pdf_impls_wire(void) {
     stdlib_pdf_defs_set_impl("iEllipse",             fn_i_ellipse);
     /* Image */
     stdlib_pdf_defs_set_impl("iImprimeImage",        fn_i_imprime_image);
+    /*  — native cachee pour `Ancetre()` nu dans un champ d'etat
+     * surcharge (heritage de modele). Hors registre (nom interne `__`). */
+    owl_define_native("__etat_ancetre_champ", fn_etat_ancetre_champ, 0);
 }

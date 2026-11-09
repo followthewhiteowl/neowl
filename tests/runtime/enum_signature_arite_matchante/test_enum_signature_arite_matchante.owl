@@ -1,0 +1,66 @@
+//  — non-régression + garde-fou de la validation enum au compile
+// quand la native est multi-arités (le param enum-contraint n'apparaît que
+// dans une arité >= 2). Les cas "mauvais identifiant rejeté" vivent dans
+// tests/compile-error/enum_signature_arite_*.owl (ce fichier ne couvre que
+// les cas qui DOIVENT rester verts, avant et après le fix).
+
+TestModeHeadless(Vrai)
+
+Trace("=== Non-régression : membre d'enum valide sur arité >= 2 ===")
+
+// --- Compresse(données, type, niveau) — arité 3, type = compresseGZIP ---
+donneesSrc     est un buffer = ChaîneVersBuffer("owl-enum-arite-matchante")
+bufGzip        est un buffer = Compresse(donneesSrc, compresseGZIP, 9)
+bufDecompresse est un buffer = Décompresse(bufGzip)
+dbgVérifieEgalité(BufferVersChaîne(bufDecompresse), "owl-enum-arite-matchante",
+"Compresse(données, compresseGZIP, 9) restitue les données d'origine")
+
+// --- fChargeTexte(chemin, encodage) — arité 2, encodage = encUTF8 valide ---
+cheminInexistant est une chaîne = "owl-enum-arite-matchante-inexistant.txt"
+contenuCharge    est une chaîne = fChargeTexte(cheminInexistant, encUTF8)
+dbgVérifieEgalité(contenuCharge, "",
+"fChargeTexte(chemin, encUTF8) sur fichier absent renvoie une chaîne vide")
+
+// --- TableauCherche(tableau, mode, valeur) — arité 3, mode = tcLineaire ---
+valeursT est un tableau d'entiers
+valeursT.Ajoute(10)
+valeursT.Ajoute(20)
+valeursT.Ajoute(30)
+posT est un entier = TableauCherche(valeursT, tcLineaire, 20)
+dbgVérifieEgalité(posT, 2, "TableauCherche(tableau, tcLineaire, 20) trouve la position 2")
+
+Trace("=== Garde-fou : natives non imbriquées, pas de faux positif enum ===")
+
+// --- FenTaille(fenêtre, largeur, hauteur) — arité 3, AUCUN enum à cette
+// arité (modeTaille n'existe qu'en arité 2). 700/500 sont des entiers
+// bruts, pas des membres de modeTaille : doit rester clean. ---
+Ouvre(FEN_GuardTaille)
+FenTaille(FEN_GuardTaille, 700, 500)
+Ferme(FEN_GuardTaille)
+dbgVérifieVrai(Vrai, "FenTaille(fenêtre, 700, 500) compile et s'exécute sans erreur")
+
+// --- Cherche(tableau, valeur) — arité 2, AUCUN enum à cette arité
+// (rechercheTableau n'existe qu'en arité 3). ---
+valeursC est un tableau d'entiers
+valeursC.Ajoute(5)
+valeursC.Ajoute(15)
+valeursC.Ajoute(25)
+posC est un entier = Cherche(valeursC, 15)
+dbgVérifieEgalité(posC, 2, "Cherche(tableau, 15) sans mode trouve la position 2")
+
+// --- TableauCherche(tableau, valeur) — même garde-fou, arité 2 ---
+posC2 est un entier = TableauCherche(valeursC, 25)
+dbgVérifieEgalité(posC2, 3, "TableauCherche(tableau, 25) sans mode trouve la position 3")
+
+Trace("=== allowsRawInt : littéral entier légitime sur le slot type ===")
+
+// --- Compresse(données, 9) — arité 2, "9" est un petit entier (hors bande
+// sentinelle compresseType) : interprété comme niveau, type par défaut
+// (gzip). Doit produire le même résultat que la forme explicite, et ne
+// JAMAIS déclencher le warning littéral-numérique-sur-enum. ---
+bufRawInt          est un buffer = Compresse(donneesSrc, 9)
+bufRawIntExplicite est un buffer = Compresse(donneesSrc, compresseGZIP, 9)
+dbgVérifieEgalité(bufRawInt, bufRawIntExplicite,
+"Compresse(données, 9) == Compresse(données, compresseGZIP, 9)")
+
+dbgBilanTest()

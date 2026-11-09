@@ -1,0 +1,120 @@
+// @sujet : PaysListe
+// @résumé : Renvoie la liste des pays (type composite `Pays`), tous ou filtrés
+// par continent (type composite `Continent`, constantes `continentXxx`).
+// Chaque pays expose `..Nom`, `..CodeISO2`, `..CodeISO3`, `..CodeISONum`,
+// `..Continent` et `..PréfixeTéléphone`.
+
+// ═════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Cherche un pays par son code ISO2 dans la liste, renvoie son index (1-based)
+// ou 0 si absent.
+PROCEDURE PRIVÉE trouveIndexParCodeISO2(tabPays est un tableau de Pays, code est une chaîne) : entier
+	i est un entier
+	POUR i = 1 À tabPays..Occurrence
+		SI tabPays[i]..CodeISO2 = code ALORS
+			RENVOYER i
+		FIN
+	FIN
+	RENVOYER 0
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PUBLIQUES : exemples documentaires pour utilisateur
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Sans argument, PaysListe renvoie l'ensemble des pays connus. Le compte
+// doit tomber dans la fourchette attendue d'une liste de pays complète,
+// sans qu'on ait à nommer une entrée en particulier.
+PROCEDURE PUBLIQUE scenario_paysliste_sans_argument_couverture_complete()
+	tabPays est un tableau de Pays = PaysListe()
+	dbgVérifieVrai(tabPays..Occurrence > 0, "PaysListe() renvoie au moins un pays")
+	dbgVérifieVrai(tabPays..Occurrence >= 240, "PaysListe() couvre au moins 240 pays/territoires")
+	dbgVérifieVrai(tabPays..Occurrence <= 260, "PaysListe() reste dans une fourchette raisonnable de pays/territoires")
+FIN
+
+// Un pays retrouvé par son code ISO2 expose des codes et un préfixe
+// téléphonique stables (faits ISO 3166-1 / UIT, pas des choix OWL).
+PROCEDURE PUBLIQUE scenario_paysliste_codes_stables_france()
+	tabPays est un tableau de Pays = PaysListe()
+	idx     est un entier          = trouveIndexParCodeISO2(tabPays, "FR")
+	dbgVérifieVrai(idx > 0, "un pays de code ISO2 FR est présent dans la liste")
+
+	unPays est un Pays = tabPays[idx]
+	dbgVérifieEgalité(unPays..CodeISO3, "FRA", "code ISO3 attendu pour FR")
+	dbgVérifieEgalité(unPays..CodeISONum, 250, "code numérique ISO attendu pour FR")
+	dbgVérifieEgalité(unPays..Continent..Nom, "Europe", "continent attendu pour FR")
+	dbgVérifieEgalité(unPays..PréfixeTéléphone, "+33", "préfixe téléphonique attendu pour FR")
+FIN
+
+PROCEDURE PUBLIQUE scenario_paysliste_codes_stables_etats_unis()
+	tabPays est un tableau de Pays = PaysListe()
+	idx     est un entier          = trouveIndexParCodeISO2(tabPays, "US")
+	dbgVérifieVrai(idx > 0, "un pays de code ISO2 US est présent dans la liste")
+
+	unPays est un Pays = tabPays[idx]
+	dbgVérifieEgalité(unPays..CodeISO3, "USA", "code ISO3 attendu pour US")
+	dbgVérifieEgalité(unPays..CodeISONum, 840, "code numérique ISO attendu pour US")
+	dbgVérifieEgalité(unPays..Continent..Nom, "Amérique du Nord", "continent attendu pour US")
+	dbgVérifieEgalité(unPays..PréfixeTéléphone, "+1", "préfixe téléphonique attendu pour US")
+FIN
+
+PROCEDURE PUBLIQUE scenario_paysliste_codes_stables_japon()
+	tabPays est un tableau de Pays = PaysListe()
+	idx     est un entier          = trouveIndexParCodeISO2(tabPays, "JP")
+	dbgVérifieVrai(idx > 0, "un pays de code ISO2 JP est présent dans la liste")
+
+	unPays est un Pays = tabPays[idx]
+	dbgVérifieEgalité(unPays..CodeISO3, "JPN", "code ISO3 attendu pour JP")
+	dbgVérifieEgalité(unPays..CodeISONum, 392, "code numérique ISO attendu pour JP")
+	dbgVérifieEgalité(unPays..Continent..Nom, "Asie", "continent attendu pour JP")
+	dbgVérifieEgalité(unPays..PréfixeTéléphone, "+81", "préfixe téléphonique attendu pour JP")
+FIN
+
+// Avec un argument continent, PaysListe filtre : toutes les entrées
+// appartiennent au continent demandé, un pays européen connu est présent,
+// un pays non-européen connu est absent.
+PROCEDURE PUBLIQUE scenario_paysliste_filtre_continent_europe()
+	tabPaysEurope est un tableau de Pays = PaysListe(continentEurope)
+	dbgVérifieVrai(tabPaysEurope..Occurrence > 0, "le filtre Europe renvoie au moins un pays")
+
+	nHorsEurope est un entier = 0
+	i           est un entier
+	POUR i = 1 À tabPaysEurope..Occurrence
+		SI tabPaysEurope[i]..Continent..Nom <> "Europe" ALORS
+			nHorsEurope += 1
+		FIN
+	FIN
+	dbgVérifieEgalité(nHorsEurope, 0, "toutes les entrées filtrées Europe ont bien le continent Europe")
+
+	dbgVérifieVrai(trouveIndexParCodeISO2(tabPaysEurope, "FR") > 0, "la France fait partie du filtre Europe")
+	dbgVérifieEgalité(trouveIndexParCodeISO2(tabPaysEurope, "US"), 0, "les États-Unis ne font pas partie du filtre Europe")
+FIN
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROCEDURES PRIVÉES : forme anglaise + cas limites
+// ═════════════════════════════════════════════════════════════════════════════
+
+// La forme anglaise CountryList / Country / Continent désigne la même
+// fonctionnalité, avec les mêmes faits ISO.
+PROCEDURE PRIVÉE scenario_edge_forme_anglaise()
+	tabPays is an array of Country = CountryList()
+	dbgVérifieVrai(tabPays..Occurrence > 0, "CountryList() renvoie au moins un pays")
+
+	idx est un entier = trouveIndexParCodeISO2(tabPays, "FR")
+	dbgVérifieVrai(idx > 0, "un pays de code ISO2 FR est présent dans la liste anglaise")
+	unPays is a Country = tabPays[idx]
+	dbgVérifieEgalité(unPays..CodeISO3, "FRA", "CountryList() : code ISO3 attendu pour FR")
+FIN
+
+// Filtrer par un continent sans aucun pays listé serait un bug : chaque
+// continent du modèle 7-continents doit renvoyer au moins une entrée.
+PROCEDURE PRIVÉE scenario_edge_chaque_continent_a_au_moins_un_pays()
+	dbgVérifieVrai(PaysListe(continentAfrique)..Occurrence > 0, "continentAfrique a au moins un pays")
+	dbgVérifieVrai(PaysListe(continentAmériqueNord)..Occurrence > 0, "continentAmériqueNord a au moins un pays")
+	dbgVérifieVrai(PaysListe(continentAmériqueSud)..Occurrence > 0, "continentAmériqueSud a au moins un pays")
+	dbgVérifieVrai(PaysListe(continentAsie)..Occurrence > 0, "continentAsie a au moins un pays")
+	dbgVérifieVrai(PaysListe(continentEurope)..Occurrence > 0, "continentEurope a au moins un pays")
+	dbgVérifieVrai(PaysListe(continentOcéanie)..Occurrence > 0, "continentOcéanie a au moins un pays")
+FIN

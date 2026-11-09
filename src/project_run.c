@@ -230,6 +230,11 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
         return INTERPRET_RUNTIME_ERROR;
     }
 
+    /*  — registre des sites iImprimeEtat(IDENT) remis a zero en debut
+     * de session : evite toute fuite d'un lancement au suivant (owl test joue
+     * N tests dans le meme process). */
+    compiler_etat_print_sites_reset();
+
     /* Count non-test files (excluding entry) to decide mode */
     int collectionCount = 0;
     for (int i = 0; i < project->fileCount; i++) {
@@ -264,6 +269,12 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
             symtable_destroy(symbols);
             return INTERPRET_COMPILE_ERROR;
         }
+        /*  — gardes compile-time de l'heritage d'Etat (circularite,
+         * collisions, modele imprime nu), sur vm.etats desormais complet. */
+        if (!compiler_validate_etat_inheritance()) {
+            symtable_destroy(symbols);
+            return INTERPRET_COMPILE_ERROR;
+        }
         if (compileOnly) {
             /* Compile reussi (fn != NULL) : c'est tout ce que le portail
              * verifie. Pas d'exec, pas de boot i18n, pas de teardown. */
@@ -289,17 +300,25 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
      * Le fichier d'entree n'est JAMAIS skippe meme s'il est test_*.owl :
      * `owl <test_x.owl>` doit hydrater ses globals top-level pour que les
      * voisins resolvent ses procedures (parite avec --check / owl test).
-     * Les AUTRES test_*.owl voisins restent exclus (companions). */
+     * Les AUTRES test_*.owl voisins restent exclus (companions).
+     *
+     * Indexation COMPACTE (append) : fileNames[] est un tableau fixe
+     * (MAX_PROJECT_FILES). is_project_file_name l'itere par VALEUR (compare le
+     * nom) sur [0, fileNameCount[, jamais par cle d'indice. Indexer
+     * fileNames[i] par l'indice projet GLOBAL faisait silencieusement sauter
+     * l'enregistrement (garde `i < MAX_PROJECT_FILES`) des que l'indice
+     * franchissait 256 : un element voisin ne resolvait alors plus comme nom de
+     * fichier projet, cassant l'acces qualifie `ELEM.gVar`. L'append rend
+     * l'enregistrement independant de l'indice global (miroir de testing.c). */
     for (int i = 0; i < project->fileCount; i++) {
         if (project->files[i].isTest && i != entry) continue;
-        if (i < MAX_PROJECT_FILES) {
+        if (symbols->fileNameCount < MAX_PROJECT_FILES) {
+            int slot = symbols->fileNameCount;
             size_t len = strlen(project->files[i].name);
             if (len >= 128) len = 127;
-            memcpy(symbols->fileNames[i], project->files[i].name, len);
-            symbols->fileNames[i][len] = '\0';
-            if (i >= symbols->fileNameCount) {
-                symbols->fileNameCount = i + 1;
-            }
+            memcpy(symbols->fileNames[slot], project->files[i].name, len);
+            symbols->fileNames[slot][len] = '\0';
+            symbols->fileNameCount = slot + 1;
         }
     }
 
@@ -547,6 +566,15 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
      * statiques du perimetre sont deja vivantes.
      * ================================================================ */
 
+    /*  — gardes compile-time de l'heritage d'Etat, apres compile de
+     * TOUT le perimetre (vm.etats complet, ordre de compilation indifferent).
+     * Avant le portail compileOnly : attrape aussi en mode `owl build`. */
+    if (!compiler_validate_etat_inheritance()) {
+        while (rootCount-- > 0) vm_pop();
+        symtable_destroy(symbols);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
     /* Portail de compile : tout compile de phase 1 est fait. On
      * saute la phase 2 (corps imperatifs) et le teardown — on ne veut PAS
      * executer le programme, juste prouver qu'il compile. */
@@ -674,6 +702,45 @@ InterpretResult project_run_sources_no_teardown(
     }
     InterpretResult r = project_run_ex(&project, false, false);
     /* Detache les emprunts pour que project_free ne les libere pas. */
+    for (int i = 0; i < count; i++) {
+        project.files[i].name = NULL;
+        project.files[i].path = NULL;
+        project.files[i].source = NULL;
+    }
+    project_free(&project);
+    return r;
+}
+
+/*  — COMPILE la frontiere sans EXECUTER le top-level. Meme moteur que
+ * project_run_sources_no_teardown mais en mode compileOnly : phase 1 complete
+ * (prescan + compile de tous les fichiers, incluant l'enregistrement des blocs
+ * `<Nom> est un ServiceREST` dans owl_service_registry), phase 2 (corps
+ * imperatifs, dont le top-level de projet.owl) SAUTEE. Permet a `owl openapi`
+ * de compter les services des compagnons pour situer le suffixe de l'entree
+ * SANS rejouer leur top-level (Trace, I/O) — la vraie passe (run complet) ne
+ * s'execute donc qu'une seule fois. Tableaux empruntes (comme la soeur). */
+InterpretResult project_compile_sources_only(
+        const char* const* names, const char* const* paths,
+        const char* const* sources, int count,
+        int entryIndex, bool isProjectMode) {
+    if (count <= 0 || entryIndex < 0 || entryIndex >= count) {
+        return INTERPRET_COMPILE_ERROR;
+    }
+    Project project;
+    project_init(&project);
+    project.files = (ProjectFile*)calloc((size_t)count, sizeof(ProjectFile));
+    if (project.files == NULL) return INTERPRET_COMPILE_ERROR;
+    project.fileCapacity = count;
+    project.fileCount    = count;
+    project.entryIndex   = entryIndex;
+    project.isProjectMode = isProjectMode;
+    for (int i = 0; i < count; i++) {
+        project.files[i].name   = (char*)names[i];
+        project.files[i].path   = (char*)paths[i];
+        project.files[i].source = (char*)sources[i];
+        project.files[i].isTest = false;
+    }
+    InterpretResult r = project_run_ex(&project, false, /*compileOnly=*/true);
     for (int i = 0; i < count; i++) {
         project.files[i].name = NULL;
         project.files[i].path = NULL;

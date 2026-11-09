@@ -1,0 +1,42 @@
+// @sujet : Saut de page déclenché avant tout dessin dans un PDF
+// @resume : Un saut de page demandé en tête d'impression, avant qu'aucun contenu n'ait été dessiné, ouvre bien une page neuve : le PDF produit compte deux pages (la vierge initiale + celle qui suit le saut), avec une boîte média valide. Le cas symétrique (dessin puis saut) sert de contrôle.
+
+TestModeHeadless(Vrai)
+
+// Saut de page AVANT tout dessin : la page initiale reste vierge, le saut en
+// ouvre une seconde. Le PDF doit compter deux pages (le saut ne doit pas être
+// avalé faute de contenu préalable).
+PROCEDURE PUBLIQUE scenario_saut_avant_dessin_ouvre_deux_pages()
+	sChemin est une chaîne = fRepTemp() + "\owl_test_pdf_saut_avant_dessin.pdf"
+	iDestination(iPDFGénérique, sChemin)
+	iSautePage()
+	iImprime("Contenu de la seconde page.")
+	iFinImprime()
+
+	bufPdf est un buffer  = fChargeBuffer(sChemin)
+	sPdf   est une chaîne = bufPdf
+
+	dbgVérifieVrai(sPdf.Contient("/Count 2"),
+	"Le saut avant dessin produit un PDF de deux pages")
+	dbgVérifieVrai(sPdf.Contient("595.000000 842.000000"),
+	"La boîte média de la page est valide (A4 portrait)")
+FIN
+
+// Contrôle : dessin puis saut puis dessin produit lui aussi deux pages. Garantit
+// que l'assertion "/Count 2" est atteignable et non triviale.
+PROCEDURE PUBLIQUE scenario_dessin_puis_saut_ouvre_deux_pages()
+	sChemin est une chaîne = fRepTemp() + "\owl_test_pdf_dessin_puis_saut.pdf"
+	iDestination(iPDFGénérique, sChemin)
+	iImprime("Première page.")
+	iSautePage()
+	iImprime("Seconde page.")
+	iFinImprime()
+
+	bufPdf est un buffer  = fChargeBuffer(sChemin)
+	sPdf   est une chaîne = bufPdf
+
+	dbgVérifieVrai(sPdf.Contient("/Count 2"),
+	"Le dessin suivi d'un saut produit un PDF de deux pages")
+FIN
+
+dbgBilanTest()

@@ -150,7 +150,7 @@ typedef struct {
 static void client_travail(ClientArgs* a) {
     OwlTlsSocket s;
     owl_tls_init(&s);
-    if (!owl_tls_connect(&s, "127.0.0.1", a->port, OWL_TLS_VERIFY_NONE, 5000, NULL)) {
+    if (!owl_tls_connect(&s, "127.0.0.1", a->port, OWL_TLS_VERIFY_NONE, 5000, NULL, NULL, NULL)) {
         fprintf(stderr, "  [reac] client connect echoue : %s\n", owl_tls_last_error(&s));
         return;
     }

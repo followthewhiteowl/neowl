@@ -745,6 +745,13 @@ static block.
 InterceptEvent(procEachKey, SAI_Amount, evtEachChange)
 ```
 
+> **Scope: control events only.** `InterceptEvent` targets **control** events only,
+> named by an `evtXxx` constant. For **window-level** logic — closing, close
+> authorization, resize, global keys — use the **window's event blocks**
+> (`Closing`, `CloseAuthorization`, `onResize`...), not this function. To run code
+> **when a window opens**, place it in the window's **top-level body**: that is what
+> runs on opening. There is no "whole-project" scope here.
+
 - **Procedure**: the intercepted procedure. It must be declared in the **same file**
   as the call (OWL scope resolution does not reach a procedure in another file).
 - **Control**: the target control.

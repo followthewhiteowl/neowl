@@ -1,0 +1,26 @@
+// @sujet : Héritage d'état par modèle — override partiel d'un champ
+// @resume : Un champ hérité d'un ModèleÉtat peut être redéclaré par nom dans l'État avec seulement la ou les propriétés à changer. Les propriétés non reposées cascadent telles quelles depuis le modèle ; seule la propriété reposée change.
+//
+// Ressources voisines : MOD_Devis.owl (modèle), ETAT_Devis.owl (état
+// qui override Libellé seul sur LBL_Titre).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + "|"
+FIN
+
+// Cas nominal : override partiel (Libellé seul change, le reste cascade du modèle)
+PROCEDURE PUBLIQUE scenario_override_partiel_champ_herite()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_override.pdf")
+	iImprimeEtat(ETAT_Devis)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve,
+	"X=12;Y=8;Largeur=150;Hauteur=12;Libelle=Devis n°42|",
+	"Override partiel : X/Y/Largeur/Hauteur cascadent du modèle, seul Libellé change")
+FIN
+
+dbgBilanTest()

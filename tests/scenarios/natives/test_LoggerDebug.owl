@@ -1,0 +1,39 @@
+// @sujet : LoggerDebug
+// @résumé : Émet un message au niveau Debug via le logger par défaut implicite, sans déclarer de variable Logger. Comportement identique à monLog.Debug(...) sur une instance.
+
+// Formateur minimal : ne restitue que le message brut, pour vérifier le
+// contenu exact écrit dans la destination.
+PROCEDURE fmtMsgDebug(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+// LoggerDebug écrit le message quand le seuil du logger par défaut
+// implicite autorise le niveau Debug.
+PROCEDURE PUBLIQUE scenario_loggerdebug_ecrit_sous_seuil_permissif()
+	chemin est une chaîne = "_tmp_loggerdebug_nominal.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivDebug, fmtMsgDebug, chemin)
+	LoggerDebug("valeur intermédiaire = 42")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "valeur intermédiaire = 42"), 25, "LoggerDebug écrit le message exact fourni")
+
+	fSupprime(chemin)
+FIN
+
+// Au-dessus du niveau Debug, le seuil du logger par défaut implicite
+// bloque l'émission : aucune sortie n'atteint la destination.
+PROCEDURE PRIVÉE scenario_edge_loggerdebug_sous_seuil_plus_strict()
+	chemin est une chaîne = "_tmp_loggerdebug_filtre.txt"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "")
+
+	LoggerParamètre(nivInfo, fmtMsgDebug, chemin)
+	LoggerDebug("ne doit pas apparaître")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(Contient(contenu, "ne doit pas apparaître"), 0, "LoggerDebug sous le seuil nivInfo n'écrit rien")
+
+	fSupprime(chemin)
+FIN

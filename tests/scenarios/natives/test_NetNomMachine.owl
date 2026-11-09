@@ -1,0 +1,32 @@
+// @sujet : NetNomMachine
+// @résumé : Nom réseau d'une machine, locale par défaut ou résolue depuis une adresse IP.
+
+PROCEDURE PUBLIQUE scenario_machine_locale()
+	// Sans argument, le nom de la machine locale est renvoyé.
+	nom est une chaîne = NetNomMachine()
+	dbgVérifieVrai(Taille(nom) > 0, "le nom de la machine locale est non vide")
+FIN
+
+PROCEDURE PUBLIQUE scenario_stable()
+	// Deux appels successifs renvoient le même nom pour la machine locale.
+	nom1 est une chaîne = NetNomMachine()
+	nom2 est une chaîne = NetNomMachine()
+	dbgVérifieEgalité(nom1, nom2, "appels successifs stables sur la machine locale")
+FIN
+
+PROCEDURE PUBLIQUE scenario_resolution_adresse_boucle()
+	// Résolution DNS inverse de l'adresse de boucle locale : l'appel ne doit pas
+	// planter, même si le résultat peut varier (voire être vide) selon la
+	// configuration réseau de la machine.
+	ErreurRAZ()
+	nom       est une chaîne = NetNomMachine("127.0.0.1")
+	bEnErreur est un booléen = ErreurDétectée
+	dbgVérifieVrai(PAS bEnErreur, "la résolution sur une adresse de boucle valide n'est pas en erreur")
+FIN
+
+PROCEDURE PRIVÉE scenario_adresse_malformee()
+	// Une adresse malformée ne doit pas planter : on attend une chaîne vide
+	// plutôt qu'un nom résolu arbitrairement.
+	nom est une chaîne = NetNomMachine("999.999.999.999")
+	dbgVérifieEgalité(nom, "", "adresse IP malformée -> nom vide")
+FIN

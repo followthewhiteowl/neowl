@@ -121,6 +121,15 @@ InterpretResult project_run_sources_no_teardown(
         const char* const* sources, int count,
         int entryIndex, bool isProjectMode);
 
+/* `owl openapi` : COMPILE la frontiere (phase 1 : prescan + compile,
+ * incluant l'enregistrement des ServiceREST) sans EXECUTER le top-level
+ * (phase 2). Sert a compter les services des compagnons sans rejouer leurs
+ * effets de bord. Tableaux empruntes, memes conventions que la soeur. */
+InterpretResult project_compile_sources_only(
+        const char* const* names, const char* const* paths,
+        const char* const* sources, int count,
+        int entryIndex, bool isProjectMode);
+
 /* Teardown de fin de run PROJET : appelle Fermeture() (FR canon) ou son
  * alias Closing() (EN) si definie. N'auto-appelle PLUS Main() ( :
  * fin du dispatch cache, pilier 2 — le top-level EST le programme). A

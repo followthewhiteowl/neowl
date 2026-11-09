@@ -1,0 +1,34 @@
+// VariableRAZ — verrou runtime : instance de classe, champs réinitialisés
+// récursivement (y compris un champ composé type Structure), pas de
+// destructeur/constructeur ré-invoqué (modèle GC OWL, pas de ré-allocation).
+
+cJoueur est une Classe
+PUBLIC
+	stScore est une Structure
+		points est un entier
+		niveau est un entier
+	FIN
+
+	nom   est une chaîne
+	vie   est un entier
+	score est un stScore
+
+	PROCEDURE Constructeur()
+		:vie = 100
+	FIN
+FIN
+
+PROCEDURE scenario_classe_champs_reinitialises_recursivement()
+	j est un cJoueur()
+	j.nom = "Roger"
+	j.vie = 42
+	j.score.points = 9001
+	j.score.niveau = 7
+
+	VariableRAZ(j)
+
+	dbgVérifieEgalité(j.nom, "", "champ chaîne d'instance remis à vide")
+	dbgVérifieEgalité(j.vie, 0, "champ entier d'instance remis à zéro (pas re-Constructeur)")
+	dbgVérifieEgalité(j.score.points, 0, "champ imbriqué (structure) points remis à zéro")
+	dbgVérifieEgalité(j.score.niveau, 0, "champ imbriqué (structure) niveau remis à zéro")
+FIN

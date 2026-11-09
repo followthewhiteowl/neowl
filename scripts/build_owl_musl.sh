@@ -18,6 +18,7 @@
 #   - vendor/zig/x86_64-linux/zig        (sinon scripts/setup_zig.sh)
 #   - _local/qt6/x86_64-linux-musl/install       (sinon build_qt6_zig_native.sh OWL_MUSL=1)
 #   - _local/duckdb/x86_64-linux-musl/install    (sinon build_duckdb_zig_native.sh OWL_MUSL=1)
+#   - _local/tesseract/x86_64-linux-musl/install (sinon build_tesseract_zig_native.sh OWL_MUSL=1 ; OCR gate ON)
 #   - _local/host_tools/qt6              (Qt6 host glibc : moc/rcc/qmake ; via `make qt6`)
 #
 # Idempotent : relançable. Le build est incremental (build dir conserve) ;
@@ -42,6 +43,7 @@ esac
 MUSL_TRIPLE="x86_64-linux-musl"
 QT6_MUSL="$ROOT/_local/qt6/$MUSL_TRIPLE/install"
 DUCKDB_MUSL="$ROOT/_local/duckdb/$MUSL_TRIPLE/install"
+TESS_MUSL="$ROOT/_local/tesseract/$MUSL_TRIPLE/install"
 BUILD_DIR="$ROOT/_local/build/release_$MUSL_TRIPLE"
 OUT_DIR="$ROOT/release/linux-musl"
 
@@ -130,6 +132,21 @@ if [ ! -f "$QT6_MUSL/lib/cmake/Qt6/Qt6Config.cmake" ]; then
 fi
 [ -f "$QT6_MUSL/lib/cmake/Qt6/Qt6Config.cmake" ] || {
     echo "ERROR: Qt6-musl introuvable apres build ($QT6_MUSL)." >&2; exit 2; }
+
+# OCR (Tesseract+Leptonica) musl : gate OWL_ENABLE_OCR ON par defaut -> owl.exe
+# linke owl_tesseract (libtesseract.a + libleptonica.a). On provisionne les .a
+# musl si le marker d'install manque OU si une des deux lib est absente (build
+# jadis arrete apres leptonica). Rebuild idempotent, meme pattern que duckdb/qt6.
+if [ ! -f "$TESS_MUSL/.owl_install_complete" ] \
+   || [ -z "$(ls "$TESS_MUSL"/lib/libtesseract*.a 2>/dev/null)" ] \
+   || [ ! -f "$TESS_MUSL/lib/libleptonica.a" ]; then
+    echo "    OCR-musl (Tesseract+Leptonica) absent/incomplet -> build_tesseract_zig_native.sh (OWL_MUSL=1, lourd)"
+    OWL_MUSL=1 bash "$ROOT/scripts/build_tesseract_zig_native.sh"
+fi
+[ -f "$TESS_MUSL/.owl_install_complete" ] \
+  && [ -n "$(ls "$TESS_MUSL"/lib/libtesseract*.a 2>/dev/null)" ] \
+  && [ -f "$TESS_MUSL/lib/libleptonica.a" ] || {
+    echo "ERROR: OCR-musl (libtesseract.a / libleptonica.a) introuvable apres build ($TESS_MUSL/lib)." >&2; exit 2; }
 
 echo "    Prerequis OK."
 echo ""

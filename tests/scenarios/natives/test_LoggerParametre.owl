@@ -1,0 +1,64 @@
+// @sujet : LoggerParamètre
+// @résumé : Ajuste les propriétés du logger par défaut implicite (seuil, formateur, destination) sans déclarer de variable Logger. Mêmes réglages que ..Niveau/..Formateur/..Destination sur une instance.
+
+// Formateur minimal : ne restitue que le message brut.
+PROCEDURE fmtMsgParametre(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+// LoggerParamètre règle en un seul appel le seuil, le formateur et la
+// destination du logger par défaut implicite. Le seuil filtre ensuite les
+// appels aux natives statiques exactement comme ..Niveau filtrerait les
+// méthodes d'une instance Logger.
+PROCEDURE PUBLIQUE scenario_loggerparametre_configure_seuil_formateur_destination()
+	chemin est une chaîne = "_tmp_loggerparametre_config.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivAvert, fmtMsgParametre, chemin)
+
+	LoggerDebug("ignoré aussi")
+	LoggerInfo("ignoré encore")
+	LoggerAvert("gardé")
+	LoggerErreur("gardé aussi")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(Contient(contenu, "ignoré"), 0, "LoggerParamètre(nivAvert, ...) bloque Debug/Info sur le logger par défaut")
+	dbgVérifieVrai(Contient(contenu, "gardé") > 0, "LoggerParamètre(nivAvert, ...) laisse passer Avert/Erreur")
+
+	fSupprime(chemin)
+FIN
+
+// Reconfigurer LoggerParamètre avec un seuil plus permissif change le
+// comportement du logger par défaut pour les appels suivants.
+PROCEDURE PUBLIQUE scenario_loggerparametre_reconfiguration_change_le_seuil()
+	chemin est une chaîne = "_tmp_loggerparametre_reconfig.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivErreur, fmtMsgParametre, chemin)
+	LoggerInfo("toujours ignoré au premier réglage")
+
+	contenu1 est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(Contient(contenu1, "toujours ignoré"), 0, "seuil nivErreur initial : Info ignoré")
+
+	LoggerParamètre(nivInfo, fmtMsgParametre, chemin)
+	LoggerInfo("accepté après reconfiguration")
+
+	contenu2 est une chaîne = fChargeTexte(chemin)
+	dbgVérifieVrai(Contient(contenu2, "accepté après reconfiguration") > 0, "seuil reconfiguré à nivInfo : Info accepté")
+
+	fSupprime(chemin)
+FIN
+
+// Forme anglaise : LoggerSetting configure le même logger par défaut.
+PROCEDURE PUBLIQUE scenario_forme_anglaise_loggersetting()
+	chemin est une chaîne = "_tmp_loggersetting_en.txt"
+	fSupprime(chemin)
+
+	LoggerSetting(nivInfo, fmtMsgParametre, chemin)
+	LoggerInfo("configured via English form")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieVrai(Contient(contenu, "configured via English form") > 0, "LoggerSetting (forme anglaise) configure le logger par défaut")
+
+	fSupprime(chemin)
+FIN

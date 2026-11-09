@@ -421,6 +421,8 @@ static const Keyword keywords[] = {
     /* --- DSL Etat V2 --- */
     {"etat",          TOKEN_ETAT},
     {"report",        TOKEN_ETAT},
+    {"modeleetat",    TOKEN_MODELE_ETAT},
+    {"reporttemplate",TOKEN_MODELE_ETAT},
 
     {NULL, TOKEN_EOF} /* sentinel */
 };
@@ -530,14 +532,14 @@ static Token make_token(Scanner* s, TokenType type) {
 }
 
 /* Construit un Token TOKEN_ERROR a partir du registry owl_errors. Rend le
- * template FR via lookup + substitution {key} par paires va_args, et pose
- * la string rendue dans un buffer statique. Le compiler consomme le
+ * template FR ou EN (selon le mode de rendu courant) via lookup + substitution
+ * {key} par paires va_args, et pose la string rendue dans un buffer statique. Le compiler consomme le
  * message immediatement (error_at_current -> print), donc duree de vie OK
  * pour un scanner mono-erreur a la fois. */
 static Token error_token_registry(Scanner* s, OwlErrorCode code, ...) {
     static char buf[1024];
     const OwlErrorDef* d = owl_registry_error_by_code(code);
-    const char* tpl = d ? d->templateFR : "";
+    const char* tpl = d ? (owl_error_render_lang_is_en() ? d->templateEN : d->templateFR) : "";
     /* Rendu manuel ici pour eviter double API. On reutilise toutefois la
      * meme logique : copy + substitution {key} via va_args. */
     va_list args;
@@ -1512,6 +1514,7 @@ const char* token_type_name(TokenType type) {
         case TOKEN_DESTRUCTEUR:       return "Destructeur";
         case TOKEN_FENETRE:           return "FENETRE";
         case TOKEN_ETAT:              return "ETAT";
+        case TOKEN_MODELE_ETAT:       return "MODELEETAT";
         case TOKEN_LIBELLE:           return "LIBELLE";
         case TOKEN_BOUTON:            return "BOUTON";
         case TOKEN_SAISIE:            return "SAISIE";

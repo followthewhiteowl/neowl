@@ -1,0 +1,25 @@
+// @sujet : Héritage d'état par modèle — blocs Itération non fusionnés
+// @resume : Les blocs Itération d'un ModèleÉtat et de l'État qui en hérite ne fusionnent jamais (contrairement aux blocs canon type Corps). Ils coexistent comme blocs distincts, chacun imprimable indépendamment via iImprimeBloc.
+//
+// Ressources voisines : MOD_Catalogue.owl (modèle, bloc ITER_Modele),
+// ETAT_Catalogue.owl (état héritier, bloc ITER_Etat).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : les deux blocs Itération coexistent et s'impriment indépendamment
+PROCEDURE PUBLIQUE scenario_blocs_iteration_coexistent_sans_fusion()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_iteration.pdf")
+	iImprimeEtat(ETAT_Catalogue)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "iteration-modele;iteration-etat;",
+	"Les blocs Itération du modèle et de l'état coexistent, non fusionnés")
+FIN
+
+dbgBilanTest()

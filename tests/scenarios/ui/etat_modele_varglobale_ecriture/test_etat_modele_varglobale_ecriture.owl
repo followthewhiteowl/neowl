@@ -1,0 +1,25 @@
+// @sujet : Héritage d'état par modèle — écriture d'une variable globale du modèle
+// @resume : Une variable globale déclarée au top-level d'un ModèleÉtat doit être écrivable depuis le code de l'État qui en hérite, pas seulement lisible.
+//
+// Ressources voisines : MOD_GlobEcriture.owl (déclare gMessage),
+// ETAT_GlobEcriture.owl (état héritier, écrit puis relit gMessage).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + "|"
+FIN
+
+// Cas nominal : la globale déclarée dans le modèle est écrivable depuis l'état héritier
+PROCEDURE PUBLIQUE scenario_ecrit_globale_heritee_du_modele()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_varglobale_ecriture.pdf")
+	iImprimeEtat(ETAT_GlobEcriture)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "etat-ecrit:modifie par l'etat|",
+	"La variable globale du modèle est écrivable depuis le code de l'état héritier")
+FIN
+
+dbgBilanTest()

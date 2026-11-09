@@ -54,7 +54,7 @@ static void test_connect_refused(void) {
     /* 127.0.0.1:1 : aucun service standard. Connect doit echouer
      * au stade TCP (avant meme le handshake TLS). last_error refletera
      * l'erreur TCP propagee. */
-    bool ok = owl_tls_connect(&s, "127.0.0.1", 1, OWL_TLS_VERIFY_FULL, 1000, NULL);
+    bool ok = owl_tls_connect(&s, "127.0.0.1", 1, OWL_TLS_VERIFY_FULL, 1000, NULL, NULL, NULL);
     TLS_CHECK(!ok, "connect port ferme echoue");
     TLS_CHECK(s.last_error[0] != '\0', "last_error rempli sur echec");
     /* Verifie que le message contient la mention TCP (pas TLS). */

@@ -47,11 +47,19 @@
 #  include <fcntl.h>          /* _O_BINARY (bascule de mode sur fd 1) */
 #  define owl_getcwd(buf, sz)  _getcwd((buf), (sz))
 #  define owl_chdir(path)      _chdir((path))
+#  define owl_fileno           _fileno
+#  define owl_dup              _dup
+#  define owl_dup2             _dup2
+#  define owl_close            _close
 #else
 #  include <unistd.h>
 #  include <sys/select.h>
 #  define owl_getcwd(buf, sz)  getcwd((buf), (sz))
 #  define owl_chdir(path)      chdir((path))
+#  define owl_fileno           fileno
+#  define owl_dup              dup
+#  define owl_dup2             dup2
+#  define owl_close            close
 #endif
 
 /* ================================================================
@@ -2689,6 +2697,124 @@ static void doc_emit_member_xref(const char* fname) {
     printf(",\"memberXrefEN\":"); json_escape(stdout, en);
 }
 
+/*  — canal see-also curé pour les widgets composés. Certains champs
+ * ont une structure interne et/ou un descripteur de style documentés par des
+ * fiches distinctes (Table -> Colonne, styleTable) : le reverse-lookup
+ * type-based des natives ne les relie pas, on maille explicitement ici. Rendu
+ * dans la section "Voir aussi" du viewer (parité avec le renvoi CLI
+ * "owl explain Colonne"). Table pilotée par nom FR canon (match insensible
+ * casse/accent via doc_norm_key) ; générique, tout widget peut s'y ajouter. */
+static void doc_emit_widget_seealso(const char* nameFR) {
+    static const struct { const char* widget; const char* related[4]; } MAP[] = {
+        { "Table", { "Colonne", "styleTable", NULL, NULL } },
+    };
+    if (!nameFR || !*nameFR) return;
+    char key[128];
+    doc_norm_key(nameFR, key, sizeof(key));
+    for (size_t i = 0; i < sizeof(MAP) / sizeof(MAP[0]); i++) {
+        char wk[128];
+        doc_norm_key(MAP[i].widget, wk, sizeof(wk));
+        if (strcmp(wk, key) != 0) continue;
+        printf(",\"widgetSeeAlso\":[");
+        for (int j = 0; MAP[i].related[j]; j++) {
+            if (j) printf(",");
+            json_escape(stdout, MAP[i].related[j]);
+        }
+        printf("]");
+        return;
+    }
+}
+
+/*  — snippet de déclaration curé, visible dans la fiche HTML du
+ * widget. Les `examples` des champs proviennent du corpus de scénarios (corps
+ * de tests : OuvreSoeur + assertions), qui ne MONTRENT pas comment déclarer le
+ * champ. Pour Table, la plainte centrale (support #308) était l'absence d'un
+ * exemple de déclaration de COLONNE : on en émet un, concis et vérifié
+ * compilable, rendu dans sa propre section du viewer (title/code/codeEN). */
+static void doc_emit_widget_decl_example(const char* nameFR) {
+    if (!nameFR || !*nameFR) return;
+    char key[128];
+    doc_norm_key(nameFR, key, sizeof(key));
+    char tk[128];
+    doc_norm_key("Table", tk, sizeof(tk));
+    if (strcmp(key, tk) != 0) return;
+
+    /* Enveloppé dans une Fenêtre complète : un `Champ Table` n'est valide que
+     * nesté dans une Fenêtre/Page, jamais en top-level. L'exemple doit se
+     * copier-coller tel quel dans un fichier .owl et passer `owl --check` sans
+     * wrapper externe — verrouillé par tests/cli/doc_lang/table_html_colonne_scan.c
+     * qui lance un vrai `owl --check` dessus. */
+    static const char* CODE_FR =
+        "FEN_Contacts est une Fenêtre\n"
+        "\tPROPRIETES\n"
+        "\t\tTitre       = \"Contacts\"\n"
+        "\t\tLargeur     = 600\n"
+        "\t\tHauteur     = 400\n"
+        "\tFIN\n"
+        "\n"
+        "\tTABLE_Contacts est un Champ Table\n"
+        "\t\tPROPRIETES\n"
+        "\t\t\tÉtire = Vrai\n"
+        "\t\tFIN\n"
+        "\n"
+        "\t\tCOL_Nom est une Colonne\n"
+        "\t\t\tPROPRIETES\n"
+        "\t\t\t\tLibellé = \"Nom\"\n"
+        "\t\t\t\tType    = colTypeTexte\n"
+        "\t\t\t\tLargeur = 220\n"
+        "\t\t\tFIN\n"
+        "\t\tFIN\n"
+        "\n"
+        "\t\tCOL_Age est une Colonne\n"
+        "\t\t\tPROPRIETES\n"
+        "\t\t\t\tLibellé = \"Âge\"\n"
+        "\t\t\t\tType    = colTypeNumerique\n"
+        "\t\t\t\tLargeur = 100\n"
+        "\t\t\tFIN\n"
+        "\t\tFIN\n"
+        "\tFIN\n"
+        "FIN\n";
+    static const char* CODE_EN =
+        "FEN_Contacts is a Window\n"
+        "\tPROPERTIES\n"
+        "\t\tTitle  = \"Contacts\"\n"
+        "\t\tWidth  = 600\n"
+        "\t\tHeight = 400\n"
+        "\tEND\n"
+        "\n"
+        "\tTABLE_Contacts is a Control Table\n"
+        "\t\tPROPERTIES\n"
+        "\t\t\tStretch = True\n"
+        "\t\tEND\n"
+        "\n"
+        "\t\tCOL_Name is a Column\n"
+        "\t\t\tPROPERTIES\n"
+        "\t\t\t\tCaption = \"Name\"\n"
+        "\t\t\t\tType    = colTypeText\n"
+        "\t\t\t\tWidth   = 220\n"
+        "\t\t\tEND\n"
+        "\t\tEND\n"
+        "\n"
+        "\t\tCOL_Age is a Column\n"
+        "\t\t\tPROPERTIES\n"
+        "\t\t\t\tCaption = \"Age\"\n"
+        "\t\t\t\tType    = colTypeNumeric\n"
+        "\t\t\t\tWidth   = 100\n"
+        "\t\t\tEND\n"
+        "\t\tEND\n"
+        "\tEND\n"
+        "END\n";
+    printf(",\"declExample\":{\"title\":");
+    json_escape(stdout, "Déclaration d'une Table et de ses colonnes");
+    printf(",\"titleEN\":");
+    json_escape(stdout, "Declaring a Table and its columns");
+    printf(",\"code\":");
+    json_escape(stdout, CODE_FR);
+    printf(",\"codeEN\":");
+    json_escape(stdout, CODE_EN);
+    printf("}");
+}
+
 /* Type lisible d'une propriété DSL (enum/object portés à part dans le JSON). */
 static const char* doc_prop_type_label(const OwlControlPropDef* p) {
     switch (p->type) {
@@ -2837,6 +2963,21 @@ static int collect_doc_fiches(OwlDocFicheId** out) {
     for (const OwlEmbeddedDoc* g = EMBEDDED_PUBLIC_DOCS; g->name; g++) {
         FICHE_PUSH("reference", g->name);
     }
+    /* propriétés DSL de widget : une fiche "property" par nom FR, dédupliquée
+     * (la même prop vit sur plusieurs kinds). Même univers + même kind que les
+     * fiches kind:"property" synthétisées côté viewer depuis DSLPROPS, pour que
+     * la page Nouveautés sache lister une propriété nouvelle (ex. ..Plan). Les
+     * champs de types composites restent hors baseline (cf. ). */
+    int propStart = cnt;
+    for (int i = 0, npr = owl_dsl_props_count(); i < npr; i++) {
+        const OwlDSLPropEntry* e = owl_dsl_prop_at(i);
+        if (!e || !e->def || !e->def->nameFR) continue;
+        const char* nm = e->def->nameFR;
+        bool seen = false;
+        for (int j = propStart; j < cnt; j++)
+            if (strcmp(arr[j].name, nm) == 0) { seen = true; break; }
+        if (!seen) FICHE_PUSH("property", nm);
+    }
     #undef FICHE_PUSH
     *out = arr;
     return cnt;
@@ -2939,6 +3080,13 @@ static void novelty_note(const char* kind, const char* name,
     } else if (strcmp(kind, "widget") == 0) {
         for (const OwlControlKindInfo* k = owl_control_kinds_table(); k->nameFR; k++)
             if (strcmp(k->nameFR, name) == 0) { *frOut = k->descFR; *enOut = k->descEN; break; }
+    } else if (strcmp(kind, "property") == 0) {
+        for (int i = 0, npr = owl_dsl_props_count(); i < npr; i++) {
+            const OwlDSLPropEntry* e = owl_dsl_prop_at(i);
+            if (e && e->def && e->def->nameFR && strcmp(e->def->nameFR, name) == 0) {
+                *frOut = e->def->descFR; *enOut = e->def->descEN; break;
+            }
+        }
     }
 }
 
@@ -3317,6 +3465,8 @@ static void dump_doc_html(const char* tplPath) {
         cli_doc_emit_examples_json(k->nameFR, k->nameAscii ? k->nameAscii : k->nameFR);
         cli_doc_emit_public_docs_json(k->nameFR, k->nameAscii ? k->nameAscii : k->nameFR);
         doc_emit_member_xref(k->nameFR);
+        doc_emit_widget_seealso(k->nameFR);
+        doc_emit_widget_decl_example(k->nameFR);
         printf("}");
     }
 
@@ -4358,6 +4508,26 @@ static void load_overlays_from_stdin(Project* project) {
     vm_pop();
 }
 
+/*  — index du fichier qui DECLARE un element top-level (Etat/modele)
+ * de ce nom, via le registre d'elements du prescan. Nom compare casse + accent
+ * insensible (invariant 2, meme regle que etat_chain_name_eq cote compiler).
+ * -1 si introuvable. Sert a attribuer un diagnostic d'heritage d'Etat au bon
+ * FileDiag en mode DOSSIER (sortie multi-fichiers). */
+static int check_project_element_file_index(const SymbolTable* symbols,
+                                            const char* name) {
+    if (symbols == NULL || name == NULL) return -1;
+    char ns[128];
+    int nl = scanner_strip_accents(name, (int)strlen(name), ns, sizeof(ns));
+    for (int k = 0; k < symbols->elementCount; k++) {
+        const char* en = symbols->elements[k].name;
+        char es[128];
+        int el = scanner_strip_accents(en, (int)strlen(en), es, sizeof(es));
+        if (el == nl && strncasecmp(es, ns, (size_t)nl) == 0)
+            return symbols->elements[k].fileIndex;
+    }
+    return -1;
+}
+
 /* Non-static : drive in-process par cli_ops_test.c (self-test-cli-ops) pour
  * couvrir le check en mode DOSSIER (deux passes contexte + capture), que le
  * shim mono-fichier ne peut pas exercer. */
@@ -4532,6 +4702,20 @@ int handle_check_project_command(const char* dir, const char* activeFile,
     compiler_hydrate_field_vis_from_symbols(symbols);          /* visibilite champs */
     compiler_hydrate_method_vis_from_symbols(symbols);         /* visibilite methodes */
 
+    /*  — registre des sites iImprimeEtat remis a zero avant la compile :
+     * la garde modele-non-imprimable (compiler_validate_etat_inheritance) ne doit
+     * voir que les sites du perimetre compile ici. */
+    compiler_etat_print_sites_reset();
+
+    /*  — mapping site iImprimeEtat -> fichier appelant. En mode DOSSIER
+     * la garde modele-non-imprimable (garde #2) est ancree sur la ligne de
+     * l'appel : pour l'attribuer au bon FileDiag, on retient quel fichier a
+     * enregistre chaque site (delta du compteur de sites avant/apres compile).
+     * Cap 256 = OWL_ETAT_PRINT_SITES_MAX cote compiler (au-dela le compiler ne
+     * capture plus de site). */
+    int siteOwner[256];
+    int siteOwnerPrev = 0;
+
     for (int i = 0; i < project.fileCount && fileDiagCount < MAX_PROJECT_FILES; i++) {
         if (activeFile != NULL) {
             char fdCanon[1024];
@@ -4556,6 +4740,15 @@ int handle_check_project_command(const char* dir, const char* activeFile,
         compile_set_error_capture(NULL, 0, NULL);
         compile_set_warning_capture(NULL, 0, NULL);
 
+        /*  — attribue les sites iImprimeEtat decouverts par ce compile
+         * au fichier i (pour la garde #2 en mode DOSSIER, cf. plus bas). */
+        {
+            int nowSites = compiler_etat_print_sites_count();
+            for (int s = siteOwnerPrev; s < nowSites && s < 256; s++)
+                siteOwner[s] = i;
+            siteOwnerPrev = nowSites;
+        }
+
         FileDiag* fd = &fileDiags[fileDiagCount++];
         strncpy(fd->path, project.files[i].path, 511);
         fd->path[511] = '\0';
@@ -4576,6 +4769,158 @@ int handle_check_project_command(const char* dir, const char* activeFile,
             d->sev  = 2;
             strncpy(d->msg, warnings[j].message, 255);
             d->msg[255] = '\0';
+        }
+    }
+
+    /*  — gardes d'heritage d'Etat au check projet mode activeFile
+     * (editeur per-frappe). Le CLI --check (handle_check_command) compile TOUS
+     * les compagnons avant de valider ; ici, pour borner la latence,
+     * on ne resout QUE la chaine d'heritage des Etats du fichier actif : on
+     * compile uniquement les fichiers voisins declarant un modele de cette chaine
+     * (+ cibles iImprimeEtat), puis on rejoue la validation en la bornant aux
+     * Etats du fichier actif (resolution des parents contre tout vm.etats, mais
+     * emission seulement pour les Etats de la cible -> pas de faux positif
+     * attribue a la cible pour un modele voisin fautif). Miroir du mecanisme
+     * classes (resolution ciblee cross-fichier, pas de full-compile des voisins).
+     *
+     * Doit tourner AVANT compiler_neighbor_prebuild_reset : le replay des aretes
+     * voisines (g_element_parents) utilise le prebuild. */
+    if (activeFile != NULL && fileDiagCount > 0) {
+        int targetEtatCount  = vm.etatCount;
+        int targetPrintSites = compiler_etat_print_sites_count();
+
+        int chainFiles[MAX_PROJECT_FILES];
+        int chainCount = compiler_collect_active_etat_chain_files(
+                             symbols, chainFiles, MAX_PROJECT_FILES);
+        for (int c = 0; c < chainCount; c++) {
+            int idx = chainFiles[c];
+            if (idx < 0 || idx >= project.fileCount) continue;
+            /* Contexte seul : diagnostics du voisin jetes (seul le fichier actif
+             * est rapporte en mode activeFile). */
+            CompileDiagnostic sinkE[32]; int sinkEC = 0;
+            CompileDiagnostic sinkW[32]; int sinkWC = 0;
+            compile_set_error_capture(sinkE, 32, &sinkEC);
+            compile_set_warning_capture(sinkW, 32, &sinkWC);
+            compile_in_project(project.files[idx].source,
+                               project.files[idx].path, symbols, idx);
+            compile_set_error_capture(NULL, 0, NULL);
+            compile_set_warning_capture(NULL, 0, NULL);
+        }
+
+        /* FileDiag de la cible (unique compile en mode activeFile). */
+        FileDiag* etatTgt = NULL;
+        for (int i = 0; i < fileDiagCount; i++) {
+            char fdCanon[1024];
+            path_canonicalize(fileDiags[i].path, fdCanon, sizeof(fdCanon));
+            if (strcmp(fdCanon, afCanonCompile) == 0) { etatTgt = &fileDiags[i]; break; }
+        }
+        if (etatTgt != NULL) {
+            CompileDiagnostic etatErrs[16];
+            int etatErrCount = 0;
+            compile_set_error_capture(etatErrs, 16, &etatErrCount);
+            compiler_validate_etat_inheritance_range(0, targetEtatCount,
+                                                     targetPrintSites);
+            compile_set_error_capture(NULL, 0, NULL);
+            for (int k = 0; k < etatErrCount && etatTgt->diagCount < 128; k++) {
+                Diag* d = &etatTgt->diags[etatTgt->diagCount++];
+                d->line = etatErrs[k].line;
+                d->col  = etatErrs[k].column;
+                d->sev  = 1;
+                strncpy(d->msg, etatErrs[k].message, 255);
+                d->msg[255] = '\0';
+            }
+        }
+    }
+
+    /*  — gardes d'heritage d'Etat au check projet mode DOSSIER
+     * (activeFile == NULL). Tous les fichiers prod sont deja compiles ici, donc
+     * vm.etats et les sites iImprimeEtat sont complets : on valide directement,
+     * sans la collecte de chaine du mode activeFile (qui ne compile que la
+     * cible). La validation est fail-fast (au plus un diagnostic). Point dur :
+     * la sortie est multi-fichiers ; un diagnostic d'heritage est ancre sur une
+     * ligne SANS path -> on l'attribue au FileDiag du fichier qui DECLARE l'Etat
+     * fautif (erreurs d'heritage) ou qui porte l'appel iImprimeEtat (garde
+     * modele-non-imprimable), via check_project_element_file_index / siteOwner. */
+    if (activeFile == NULL && fileDiagCount > 0) {
+        /* Erreurs d'heritage par Etat : on valide chaque Etat isolement
+         * (range [ei, ei+1)) pour savoir lequel est fautif -> son fichier
+         * declarant. La resolution des parents reste globale (vm_etat_lookup) ;
+         * seule l'EMISSION est bornee. Fail-fast : on s'arrete au 1er diag,
+         * comme la validation complete du mono (handle_check_command). */
+        bool etatDiagEmitted = false;
+        for (int ei = 0; ei < vm.etatCount && !etatDiagEmitted; ei++) {
+            if (vm.etats[ei] == NULL) continue;
+            CompileDiagnostic etatErrs[16];
+            int etatErrCount = 0;
+            compile_set_error_capture(etatErrs, 16, &etatErrCount);
+            compiler_validate_etat_inheritance_range(ei, ei + 1, 0);
+            compile_set_error_capture(NULL, 0, NULL);
+            if (etatErrCount == 0) continue;
+
+            int fidx = check_project_element_file_index(symbols, vm.etats[ei]->name);
+            FileDiag* fd = NULL;
+            if (fidx >= 0 && fidx < project.fileCount) {
+                char tgtCanon[1024];
+                path_canonicalize(project.files[fidx].path, tgtCanon, sizeof(tgtCanon));
+                for (int d = 0; d < fileDiagCount; d++) {
+                    char fdCanon[1024];
+                    path_canonicalize(fileDiags[d].path, fdCanon, sizeof(fdCanon));
+                    if (strcmp(fdCanon, tgtCanon) == 0) { fd = &fileDiags[d]; break; }
+                }
+            }
+            /* Fichier declarant introuvable (hors scope decouvert) : on rattache
+             * au 1er FileDiag plutot que d'avaler l'erreur (faux negatif pire). */
+            if (fd == NULL) fd = &fileDiags[0];
+            for (int k = 0; k < etatErrCount && fd->diagCount < 128; k++) {
+                Diag* d = &fd->diags[fd->diagCount++];
+                d->line = etatErrs[k].line;
+                d->col  = etatErrs[k].column;
+                d->sev  = 1;
+                strncpy(d->msg, etatErrs[k].message, 255);
+                d->msg[255] = '\0';
+            }
+            etatDiagEmitted = true;
+        }
+
+        /* Garde modele-non-imprimable (sites iImprimeEtat) : seulement si aucune
+         * erreur d'heritage, pour respecter l'ordre fail-fast de la validation
+         * complete (Etats avant sites). On fait croitre la borne de sites : la
+         * 1re borne qui echoue isole le site fautif (pc-1), qu'on attribue a son
+         * fichier appelant (siteOwner). */
+        if (!etatDiagEmitted) {
+            int totalSites = compiler_etat_print_sites_count();
+            if (totalSites > 256) totalSites = 256;
+            for (int pc = 1; pc <= totalSites; pc++) {
+                CompileDiagnostic siteErrs[16];
+                int siteErrCount = 0;
+                compile_set_error_capture(siteErrs, 16, &siteErrCount);
+                compiler_validate_etat_inheritance_range(vm.etatCount, vm.etatCount, pc);
+                compile_set_error_capture(NULL, 0, NULL);
+                if (siteErrCount == 0) continue;
+
+                int badSite = pc - 1;
+                int fidx = (badSite >= 0 && badSite < 256) ? siteOwner[badSite] : -1;
+                FileDiag* fd = NULL;
+                if (fidx >= 0 && fidx < project.fileCount) {
+                    char tgtCanon[1024];
+                    path_canonicalize(project.files[fidx].path, tgtCanon, sizeof(tgtCanon));
+                    for (int d = 0; d < fileDiagCount; d++) {
+                        char fdCanon[1024];
+                        path_canonicalize(fileDiags[d].path, fdCanon, sizeof(fdCanon));
+                        if (strcmp(fdCanon, tgtCanon) == 0) { fd = &fileDiags[d]; break; }
+                    }
+                }
+                if (fd == NULL) fd = &fileDiags[0];
+                for (int k = 0; k < siteErrCount && fd->diagCount < 128; k++) {
+                    Diag* d = &fd->diags[fd->diagCount++];
+                    d->line = siteErrs[k].line;
+                    d->col  = siteErrs[k].column;
+                    d->sev  = 1;
+                    strncpy(d->msg, siteErrs[k].message, 255);
+                    d->msg[255] = '\0';
+                }
+                break;
+            }
         }
     }
 
@@ -5164,6 +5509,10 @@ int handle_check_command_no_vm_lifecycle_ex(const char* filepath,
         }
     }
 
+    /*  — registre des sites iImprimeEtat(IDENT) remis a zero avant la
+     * compile de la cible (et des compagnons) pour la garde compile-time #2. */
+    compiler_etat_print_sites_reset();
+
     ObjFunction* fn;
     if (hasProject) {
         fn = compile_in_project(source, filepath, symbols, currentFileIndex);
@@ -5234,6 +5583,14 @@ int handle_check_command_no_vm_lifecycle_ex(const char* filepath,
 
         CompileDiagnostic compErrors[8];
         CompileDiagnostic compWarnings[8];
+        /* On compile TOUS les compagnons du perimetre (peuplement complet des
+         * registres : vm.etats, POO, globales), mais on ne RAPPORTE que la
+         * premiere erreur de compagnon. Arreter la boucle au premier fautif
+         * (ancien `break`) laissait les registres partiels : une garde
+         * post-compile qui itere vm.etats (heritage d'Etat) devenait alors
+         * non-deterministe — un cycle entre modeles charges plus loin dans
+         * l'ordre passait inapercu selon le fichier-cible. */
+        bool companionErrorReported = false;
         for (int oc = 0; oc < orderCount; oc++) {
             int i = order[oc];
             int compErrorCount = 0, compWarningCount = 0;
@@ -5245,7 +5602,7 @@ int handle_check_command_no_vm_lifecycle_ex(const char* filepath,
                                symbols, i);
             compile_set_error_capture(NULL, 0, NULL);
             compile_set_warning_capture(NULL, 0, NULL);
-            if (compErrorCount == 0) continue;
+            if (compErrorCount == 0 || companionErrorReported) continue;
 
             /* Un diagnostic de niveau DOSSIER (deux marqueurs de projet, par
              * exemple) est leve a l'identique par chaque fichier du perimetre :
@@ -5274,7 +5631,28 @@ int handle_check_command_no_vm_lifecycle_ex(const char* filepath,
             snprintf(d->message, sizeof(d->message), "%s:%d : %s",
                      rel, compErrors[0].line, compErrors[0].message);
             snprintf(d->file, sizeof(d->file), "%s", rel);
-            break;
+            companionErrorReported = true;
+        }
+    }
+
+    /*  — gardes compile-time de l'heritage d'Etat, apres compile de la
+     * cible ET des compagnons (vm.etats complet, sites iImprimeEtat captures).
+     * Les diagnostics rejoignent le buffer d'erreurs de la cible (sans prefixe
+     * fichier : la faute est dans le perimetre controle, ancree sur la ligne
+     * de l'Etat / de l'appel).
+     *
+     * Capture dans un tampon LOCAL puis fusion : rebinder errors[]/&errorCount
+     * directement remettrait le compteur a zero (compile_set_error_capture
+     * reinitialise *count), effacant les erreurs de la cible et des compagnons
+     * deja collectees. */
+    if (errorCount < 128) {
+        CompileDiagnostic etatErrs[16];
+        int etatErrCount = 0;
+        compile_set_error_capture(etatErrs, 16, &etatErrCount);
+        compiler_validate_etat_inheritance();
+        compile_set_error_capture(NULL, 0, NULL);
+        for (int k = 0; k < etatErrCount && errorCount < 128; k++) {
+            errors[errorCount++] = etatErrs[k];
         }
     }
 
@@ -7274,7 +7652,23 @@ static int handle_openapi_command(int argc, char** argv) {
 
     int entry_start = 0;
     char err[256] = {0};
+
+    /*  — le JSON OpenAPI est le SEUL contenu legitime de stdout. La
+     * compilation ci-dessous rejoue le top-level du projet (projet.owl), dont
+     * un Trace ou toute I/O user salirait le document. On redirige la sortie
+     * user vers stderr PENDANT le run, puis on restaure le vrai stdout avant
+     * d'emettre le document. Erreurs CLI (fprintf stderr) non concernees. */
+    fflush(stdout);
+    int saved_stdout = owl_dup(owl_fileno(stdout));
+    if (saved_stdout >= 0) owl_dup2(owl_fileno(stderr), owl_fileno(stdout));
+
     int total = owl_serve_compile_projet(&projet, &entry_start, err, sizeof(err));
+
+    fflush(stdout);  /* pousse la sortie user bufferisee vers la cible stderr */
+    if (saved_stdout >= 0) {
+        owl_dup2(saved_stdout, owl_fileno(stdout));  /* restaure le vrai stdout */
+        owl_close(saved_stdout);
+    }
 
     int rc = 0;
     if (total < 0) {
@@ -8177,6 +8571,11 @@ int main(int argc, char* argv[]) {
             extern int net_le_buffer_self_test_run(void);
             extern int net_tcp_self_test_run(void);
             extern int net_tcp_tls_self_test_run(void);
+            extern int ldap_ber_self_test_run(void);
+            extern int ldap_pdu_self_test_run(void);
+            extern int ldap_filter_self_test_run(void);
+            extern int ldap_client_self_test_run(void);
+            extern int ldap_negotiate_self_test_run(void);
             extern int auth_scram_self_test_run(void);
             extern int code_sign_self_test_run(void);
             extern int code_sign_pe_self_test_run(void);
@@ -8206,6 +8605,11 @@ int main(int argc, char* argv[]) {
             failures += net_le_buffer_self_test_run(); net_familles++;
             failures += net_tcp_self_test_run(); net_familles++;
             failures += net_tcp_tls_self_test_run(); net_familles++;
+            failures += ldap_ber_self_test_run(); net_familles++;
+            failures += ldap_pdu_self_test_run(); net_familles++;
+            failures += ldap_filter_self_test_run(); net_familles++;
+            failures += ldap_client_self_test_run(); net_familles++;
+            failures += ldap_negotiate_self_test_run(); net_familles++;
             failures += auth_scram_self_test_run(); net_familles++;
             failures += code_sign_self_test_run(); net_familles++;
             failures += code_sign_pe_self_test_run(); net_familles++;

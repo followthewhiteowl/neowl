@@ -93,6 +93,51 @@ PROCEDURE PRIVÉE scenario_repetitif_fort_ratio()
 FIN
 
 
+// Niveau sans type : Compresse(data, 9) traite 9 comme un NIVEAU de
+// compression (le type reste gzip par défaut), pas comme un type. Un entier
+// ordinaire en 2e argument désigne le niveau ; seul un type nommé (constante
+// compresse*) sélectionne l'algorithme.
+PROCEDURE scenario_niveau_sans_type()
+	sTexte est une chaîne = Répète("Hello world. ", 40)
+
+	bCourt est un buffer = Compresse(sTexte, 9)
+
+	// Type gzip par défaut : l'en-tête magique gzip (0x1F 0x8B) est présent.
+	// Si 9 était pris pour un type, le flux serait du deflate brut sans en-tête.
+	dbgVérifieEgalité(bCourt[[1]], 31, "Compresse(data, 9) : en-tête gzip octet 0x1F")
+	dbgVérifieEgalité(bCourt[[2]], 139, "Compresse(data, 9) : en-tête gzip octet 0x8B")
+
+	// Niveau 9 honoré : sortie identique à la forme explicite gzip niveau 9.
+	bExplicite est un buffer = Compresse(sTexte, compresseGZIP, 9)
+	dbgVérifieEgalité(Taille(bCourt), Taille(bExplicite), "Compresse(data, 9) == gzip niveau 9 explicite")
+
+	// Round-trip : les données d'origine sont restaurées.
+	sRestau est une chaîne = BufferVersChaîne(Décompresse(bCourt))
+	dbgVérifieEgalité(sRestau, sTexte, "Round-trip Compresse(data, 9)")
+FIN
+
+
+// Le niveau court est une vraie dimension : niveau 9 compresse strictement
+// plus que le niveau 0 (store gzip). Garantit que 9 n'est pas ignoré.
+PROCEDURE scenario_niveau_court_vs_niveau_zero()
+	sTexte est une chaîne = Répète("ABCD", 500)
+	bNiv9 est un buffer = Compresse(sTexte, 9)
+	bNiv0 est un buffer = Compresse(sTexte, compresseGZIP, 0)
+	dbgVérifieVrai(Taille(bNiv9) < Taille(bNiv0), "Compresse(data, 9) applique un niveau de compression réel")
+FIN
+
+
+// Non-régression : la forme explicite type-nommé reste intacte. compresseLZW
+// produit du deflate brut, SANS enveloppe gzip (premier octet != 0x1F).
+PROCEDURE scenario_type_nomme_non_regresse()
+	sTexte est une chaîne = Répète("payload ", 30)
+	bLzw est un buffer = Compresse(sTexte, compresseLZW)
+	dbgVérifieVrai(bLzw[[1]] <> 31, "compresseLZW ne pose pas d'en-tête gzip")
+	sRestau est une chaîne = BufferVersChaîne(Décompresse(bLzw, compresseLZW))
+	dbgVérifieEgalité(sRestau, sTexte, "Round-trip compresseLZW")
+FIN
+
+
 // Cas limite : données aléatoires ou non compressibles. Le ratio de
 // compression est proche de 1 (aucune réduction significative).
 PROCEDURE PRIVÉE scenario_donnees_non_compressibles()

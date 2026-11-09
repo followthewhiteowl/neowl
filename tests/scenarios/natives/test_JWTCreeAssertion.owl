@@ -1,0 +1,135 @@
+// @sujet : JWTCréeAssertion
+// @résumé : Signe en RS256 un entête et un payload JSON fournis par l'appelant, sans claim implicite (pas d'horodatage automatique) : l'assertion JWT produite est entièrement déterministe.
+
+
+// Paire RSA JETABLE #1 (2048 bits, PKCS#8), générée uniquement pour cette
+// suite de scénarios. Ce n'est pas un secret réel, elle ne protège rien.
+sCléPriveeTest est une chaîne = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDaB9XbmDnvX0KH
+nTW7dr+rPmSOSELTeVrAIx/mUDhCXjLLrc8T6itwQ6QawHuTuaGo1lomzUL4ptqo
+LVzJElL38Fm53IXNrTePQC6e1czn1trbDgl/2d/Vmc7nzEpiToISs+JNlmNakW21
+9CjlunjGfw4gDLTYPurNjnt6YMk3yLUn8wjPu5P3tesTnNPeeFwAn5c/daFf96b5
+zGTtyzstpmy32oT3vrYk8OR7Dvp2hV0jaLsS8TqyP8Zlt6yKhnboKdAUobg731KE
+A89btO/AlcPZIsiFXt3rSUGWBmzqvSGjhlI76ulzBQmMI24tKG4znibls/XEdq4H
+Bt+7GaCnAgMBAAECggEAQLQckjudzdzuSIKuJID8JpywiM0HD+0usmB6IgZie8eq
+uWlOT/GpjHp2Y/4FbnSjdhCO1n8JxfL2Zvx3UbCfcLciWZcJGl2yZE++xiJa2d6Y
+OnPy+78zvxcTIRUuafg0f8pkeXQM7h7EeUAJNwvctcOU9Ivwy0/4rKIBIPNCI8xf
+Q1++FmpxDcbEUR+7uhLFq26IFpqcgkYetDho7IFEccguhojB2443LwIUpljBFmp7
+bZoH3fWBYjEjkAam0Xi/shC/Uh4eodjvz+GsrZ1NghWTPvhOTUEngV1zHi9oAFE4
+AeqkrxFF2EIKXYoOsKNz7F8VZvR7QtPwL/Y+Wu3j0QKBgQDubkgSOYH0+UlrPpZa
+kRPieH5bsCmwdigPAJVIPdVNKjy6EpWHfmwOl+8mZpO0sZlSS8ICw3epArLJdKZT
+4aTE2QeUFo2uhsgAMgH70vqRu3wkbzAvk6mUWbjVJOFgxZUL9MGwMtwpcsyYYdbL
+28EUTgYNuA0g9oUxUljRqDibfwKBgQDqGLpvuG2D4D6IwgEvNmCskuGLhVzhQFVx
+2Zw9GEj/8K/4FQr2zzwBSmngZwufE0+owNxWnhciabCVQejpq7egJbBLJPswrq/D
+MTnMsuobRGKKEe9ed+iIXFXHGQpTKUKrP3TR7MIvI53F305ociaEjysP5e4XRYys
+odoG81Mu2QKBgQCS38Zvy5MdiA7NDJHsGmCIardT3dHgjPiiPTa4eLaTwUgFS3tn
+Kt5/ouJD4n5smdab1mUd9LEaoLnn1X68P0yToinD9Jy0fPxo+mU0bkPCUB7qBsBF
+Ho4g/6AXVI+tYCkvY0eJNdtfgQM9f0+k5qsqyeF6w/z6aEGmH1btV9X/GwKBgCMn
+x4fTmI6/dGSxTeA7OFVyUXDUfFhPgwVv+qiqJvxYtvR4pIbgJFDFThUnJHWlPsdG
+/0/6udqvKJehqEq/QPpJ7qm6SgbLlRWpJNb633Fs2aeGff4f38nqo+8ccZJ/lcWF
+6BNGjPrrTFxU5r+EtQgfQAZJL3JLPY8HV2jHzewxAoGBAOi3a21f9gccvKf5TTPT
+yDgDbi9D9cOnBOq3/jnXH2wTPy1QVm1mHjDCW6dgSGDIJMdgyucWHBUG9LIlFIqu
+kMGZ9nvThsqq9kHeaLZI43O/awiHxkDFlIYsoUb+KAHvTm+vJ5GjpHrkhkBp+d+M
+M9wiSHQkck90lpBb+owRRWaM
+-----END PRIVATE KEY-----`
+
+// Clé publique correspondant exactement à la paire #1 ci-dessus : c'est
+// contre elle que la signature de l'assertion DOIT se vérifier.
+sCléPubliqueTest est une chaîne = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2gfV25g5719Ch501u3a/
+qz5kjkhC03lawCMf5lA4Ql4yy63PE+orcEOkGsB7k7mhqNZaJs1C+KbaqC1cyRJS
+9/BZudyFza03j0AuntXM59ba2w4Jf9nf1ZnO58xKYk6CErPiTZZjWpFttfQo5bp4
+xn8OIAy02D7qzY57emDJN8i1J/MIz7uT97XrE5zT3nhcAJ+XP3WhX/em+cxk7cs7
+LaZst9qE9762JPDkew76doVdI2i7EvE6sj/GZbesioZ26CnQFKG4O99ShAPPW7Tv
+wJXD2SLIhV7d60lBlgZs6r0ho4ZSO+rpcwUJjCNuLShuM54m5bP1xHauBwbfuxmg
+pwIDAQAB
+-----END PUBLIC KEY-----`
+
+// Clé publique d'une paire RSA DISTINCTE (#2, jetable) : utilisée uniquement
+// pour prouver que la signature ne valide pas contre n'importe quelle clé.
+sCléPubliqueAutre est une chaîne = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuKwqPrQMr7H6jWqY6vz8
+sbty9SeVD6JzZInMnR+W6cqyF9neBhAzvplpoGCi/+kmnySyCQiyNH2pLlv+HNtg
+f7jjggVQ5o3lyc3DL5AclWUksiUE4S/Zwo7B4eaEE66KJogZEFr/Qg3jk1RWMD9K
+k8Ty0zli04DeWwIL4XFPPkhc2rFS9uzv9Fyxylccoa0HmEM0hiujg9Od3+tlUpHG
+bNy41UXrbYNKGfw9XzuAbSIA31SEuLtYbmcjaom8FArvxVtJizli+x47T5x8lKKd
+oPHKkB/gXClkUVJ+RrAoER/DjfOemUwOt0TaWMx7DcIwFLCEqVUgOVIiNqbMaD5x
+lwIDAQAB
+-----END PUBLIC KEY-----`
+
+// Entête et payload JSON FIXES (aucune horloge) : la même paire d'entrées
+// doit produire exactement la même assertion à chaque appel.
+sEntete  est une chaîne = `{"alg":"RS256","typ":"JWT"}`
+sPayload est une chaîne = `{"iss":"mon-client","sub":"mon-client","aud":"https://auth.exemple.test","exp":9999999999}`
+
+
+// L'assertion produite depuis un entête et un payload JSON bruts est un JWT
+// bien formé (3 segments), dont l'entête et le payload décodés restituent
+// exactement les claims fournis, et dont la signature RS256 se vérifie
+// contre la clé publique correspondant à la clé privée utilisée.
+PROCEDURE PUBLIQUE scenario_rs256_nominal()
+	jwt est une chaîne = JWTCréeAssertion(sEntete, sPayload, sCléPriveeTest)
+
+	segments est un tableau de chaînes = ChaîneDécoupe(jwt, ".")
+	dbgVérifieEgalité(segments..Occurrence, 3, "un JWT compte 3 segments séparés par des points")
+
+	sEnteteJSON  est une chaîne = Base64VersChaîne(segments[1], encodeBASE64URL)
+	sPayloadJSON est une chaîne = Base64VersChaîne(segments[2], encodeBASE64URL)
+
+	jEntete est un JSON = ChaîneVersJSON(sEnteteJSON)
+	dbgVérifieEgalité(jEntete.alg, "RS256", "entête restituée telle que fournie")
+	dbgVérifieEgalité(jEntete.typ, "JWT", "entête restituée telle que fournie")
+
+	jPayload est un JSON = ChaîneVersJSON(sPayloadJSON)
+	dbgVérifieEgalité(jPayload.iss, "mon-client", "payload restitué tel que fourni")
+	dbgVérifieEgalité(jPayload.sub, "mon-client", "payload restitué tel que fourni")
+	dbgVérifieEgalité(jPayload.aud, "https://auth.exemple.test", "payload restitué tel que fourni")
+	dbgVérifieEgalité(jPayload.Exp, 9999999999, "payload restitué tel que fourni")
+
+	dbgVérifieVrai(__JWTVerifieSignature(jwt, sCléPubliqueTest), "signature RS256 valide contre la clé publique correspondante")
+FIN
+
+
+// Aucun claim n'est ajouté automatiquement (ni iat ni exp) : l'appelant
+// fournit tout, donc deux appels avec les mêmes entrées produisent
+// exactement le même JWT.
+PROCEDURE PUBLIQUE scenario_deterministe_memes_entrees_meme_jwt()
+	jwt1 est une chaîne = JWTCréeAssertion(sEntete, sPayload, sCléPriveeTest)
+	jwt2 est une chaîne = JWTCréeAssertion(sEntete, sPayload, sCléPriveeTest)
+	dbgVérifieEgalité(jwt1, jwt2, "mêmes entrées -> même JWT (aucune horloge implicite)")
+FIN
+
+
+// La signature ne valide pas contre une clé publique d'une autre paire RSA :
+// preuve que la vérification est cryptographique et pas une tautologie.
+PROCEDURE PUBLIQUE scenario_signature_rejetee_mauvaise_cle()
+	jwt est une chaîne = JWTCréeAssertion(sEntete, sPayload, sCléPriveeTest)
+	dbgVérifieFaux(__JWTVerifieSignature(jwt, sCléPubliqueAutre), "signature RS256 ne valide pas contre une clé publique d'une autre paire")
+FIN
+
+
+// jwtHS256 n'est pas supporté en phase courante (ambiguïté canon clé-vs-secret
+// différée, cf. AuthIdentifie(JWTParamètres)) : un entête qui annonce HS256
+// échoue nettement, sans tentative silencieuse de signer en HMAC avec une
+// clé PEM RSA.
+PROCEDURE PUBLIQUE scenario_hs256_non_supporte()
+	sEnteteHS256 est une chaîne = `{"alg":"HS256","typ":"JWT"}`
+
+	ErreurRAZ()
+	JWTCréeAssertion(sEnteteHS256, sPayload, sCléPriveeTest)
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "entête alg=HS256 -> erreur nette")
+	dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_JWT_ALGORITHM_UNSUPPORTED", "code dédié algorithme JWT non supporté")
+FIN
+
+
+// Une clé qui n'est pas un PEM exploitable échoue nettement, sans crash.
+PROCEDURE PRIVÉE scenario_edge_cle_pem_invalide()
+	ErreurRAZ()
+	JWTCréeAssertion(sEntete, sPayload, "pas-une-cle-pem")
+	bErr est un booléen = ErreurDétectée
+	dbgVérifieVrai(bErr, "clé PEM invalide -> erreur nette, pas de crash")
+FIN
+
+
+dbgBilanTest()

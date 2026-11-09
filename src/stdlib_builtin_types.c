@@ -1696,6 +1696,10 @@ static ObjInstance* build_httpRequete_template(void) {
     inst_field_set_int   (tpl, "VersionSSL",             0);
     inst_field_set_int   (tpl, "IgnoreErreur",           0);
 
+    /*  — OAuth 2.0. */
+    inst_field_set_value (tpl, "AuthToken",           NIL_VAL);
+    inst_field_set_bool  (tpl, "RafraichitTokenAuto", true);
+
     return tpl;
 }
 
@@ -1949,6 +1953,11 @@ static const OwlField FIELDS_httpRequete[] = {
      .allowedBase=&E_protocoleVersions, .nameEN="ChosenSSLVersion"},
     {"IgnoreErreur",     NULL,       "entier",                      "0",      "bitmask d'erreurs HTTP/TLS à ignorer", "bitmask of HTTP/TLS errors to ignore",
      .allowedBase=&E_httpIgnoreErreur, .nameEN="IgnoreError"},
+    /*  — OAuth 2.0. AuthToken émet un en-tête Authorization: Bearer à
+     * l'envoi (hook pré-envoi vm.c) ; RafraîchitTokenAuto (défaut Vrai) pilote
+     * le rafraîchissement automatique d'un jeton expiré avant l'envoi. */
+    {"AuthToken",        NULL,       "AuthToken",                   "Null",   "jeton d'authentification OAuth 2.0 émis en en-tête Authorization: Bearer", "OAuth 2.0 authentication token sent as the Authorization: Bearer header", .nameEN="AuthToken"},
+    {"RafraichitTokenAuto", "RafraîchitTokenAuto", "booléen",       "Vrai",   "rafraîchit automatiquement un jeton expiré avant l'envoi (défaut Vrai)", "automatically refreshes an expired token before sending (default True)", .nameEN="AutoRefreshToken"},
     {0},
 };
 

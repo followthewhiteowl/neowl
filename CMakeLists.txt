@@ -754,6 +754,56 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(owl_llama INTERFACE ${CMAKE_DL_LIBS} m)
 endif()
 
+# --- OCR : Leptonica 1.85.0 + Tesseract 5.5.2 (gate opt-in OWL_HAS_OCR) ---
+# Enabler moteur OCR (cf ). Vendore source dans vendor/leptonica/ +
+# vendor/tesseract/ (sous-ensembles cures : prog/docs/autotools/training elagues
+# — cf vendor/VERSIONS.md). Build statique via scripts/build_tesseract_zig_native.sh
+# (Leptonica codecs OFF puis Tesseract legacy+LSTM, output _local/tesseract/<host>/
+# install/). Meme toolchain zig clang+libc++ qu'owl.exe -> ABI libc++ coherente.
+#
+# GATE : ON par defaut (decision dev  — tout-inclus integral, les natives
+# OCRExtraitTexte & co tournent dans le flux normal, make quick compris). Le gate
+# reste l'echappatoire explicite pour un bring-up plateforme : -DOWL_ENABLE_OCR=OFF
+# retire tout Tesseract/Leptonica (owl.exe byte-pour-byte inchange, natives OCR
+# enregistrees avec impl=NULL -> erreur runtime claire si appelees).
+option(OWL_ENABLE_OCR "Compile le moteur OCR (Tesseract+Leptonica, gate OWL_HAS_OCR)" ON)
+if(OWL_ENABLE_OCR)
+    if(WIN32)
+        set(_owl_tess_host "x86_64-windows")
+    elseif(APPLE)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(_owl_tess_host "aarch64-macos")
+        else()
+            set(_owl_tess_host "x86_64-macos")
+        endif()
+    elseif(OWL_MUSL_STATIC)
+        set(_owl_tess_host "x86_64-linux-musl")
+    else()
+        set(_owl_tess_host "x86_64-linux")
+    endif()
+    set(OWL_TESS_INSTALL "${CMAKE_SOURCE_DIR}/_local/tesseract/${_owl_tess_host}/install"
+        CACHE PATH "Path to Tesseract+Leptonica build (scripts/build_tesseract_zig_native.sh)")
+
+    if(NOT EXISTS "${OWL_TESS_INSTALL}/.owl_install_complete")
+        message(FATAL_ERROR
+            "Build OCR (Tesseract+Leptonica) manquant.\n"
+            "  Lance : bash scripts/build_tesseract_zig_native.sh   (one-time)\n"
+            "  Cherche : ${OWL_TESS_INSTALL}/.owl_install_complete")
+    endif()
+
+    add_library(owl_tesseract INTERFACE)
+    target_include_directories(owl_tesseract INTERFACE "${OWL_TESS_INSTALL}/include")
+    # libtesseract consomme libleptonica -> ordre de link respecte. Exports PE
+    # propres par construction (BUILD_SHARED_LIBS=OFF -> TESS_API vide), aucun
+    # patch anti-dllexport requis (contrairement a llhttp).
+    target_link_libraries(owl_tesseract INTERFACE
+        "${OWL_TESS_INSTALL}/lib/libtesseract.a"
+        "${OWL_TESS_INSTALL}/lib/libleptonica.a")
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(owl_tesseract INTERFACE m)
+    endif()
+endif()
+
 # --- libxml2 2.13.4 (vendorisé — DOM, XPath, namespace, validation XSD) ---
 # Options minimales : UTF-8 seul, pas de réseau, pas de threads, pas de
 # compression (zlib/lzma gérés ailleurs), pas de bindings Python/Perl.
@@ -1152,6 +1202,7 @@ set(OWL_CORE_SRCS
     # Module neutre (aucune dependance VM/GC hors tableau resultat), socle du
     # pipeline de detection au-dessus du Tenseur/IAModele.
     src/stdlib_detection.c
+    src/stdlib_pays.c
     src/stdlib_xls.c
     src/stdlib_llm.c
     # serve-llm : API LLM locale compatible OpenAI (POST
@@ -1184,6 +1235,9 @@ set(OWL_CORE_SRCS
     src/blake2.c
     src/stdlib_regex.c
     src/stdlib_http.c
+    #  : famille NetXxx (infos reseau portables) — getaddrinfo/
+    # getnameinfo/inet_ntop, winsock2 sous Win32 (ws2_32 deja link owl_core).
+    src/stdlib_net.c
     src/stdlib_http_service.c
     src/stdlib_ftp.c
     # Fondations courriel (, Lot 0) : types Email / emailSessionSMTP /
@@ -1217,6 +1271,8 @@ set(OWL_CORE_SRCS
     src/stdlib_image.c
     src/stdlib_icones.c
     src/stdlib_codebarres.c
+    src/stdlib_log.c
+    src/stdlib_oauth.c
     src/stdlib_theme.c
     src/owl_image_stb.c
     # Encodeurs MIME internes : Quoted-Printable + mots-encodes
@@ -1233,6 +1289,44 @@ set(OWL_CORE_SRCS
     src/internal_tests/net_tcp_test.c
     src/net_tcp_tls.c
     src/internal_tests/net_tcp_tls_test.c
+    # Couche BER LDAP : encode/decode du wire LDAP (RFC 4511),
+    # qui EST du BER, par-dessus les primitives ASN.1 de mbedtls. PURE
+    # encoder/decoder (buffer a rebours, tags APPLICATION/CONTEXT, enveloppe
+    # LDAPMessage). Aucune socket, aucune VM. Self-test joue par --self-test-net.
+    src/ldap_ber.c
+    src/internal_tests/ldap_ber_test.c
+    # Couche PDU LDAP : encode des requetes (Bind/Search/Unbind)
+    # et parse des reponses (BindResponse, SearchResultEntry mono/multi-value,
+    # SearchResultDone) par-dessus ldap_ber. Le filtre est injecte comme bloc
+    # BER opaque. PURE encoder/decoder, aucune socket. Self-test --self-test-net.
+    src/ldap_pdu.c
+    src/internal_tests/ldap_pdu_test.c
+    # Couche filtres LDAP : compile une chaine de filtre RFC 4515
+    # ("(&(objectClass=user)(!(cn=andy)))") en son bloc Filter BER (RFC 4511
+    # 4.5.1), pret a etre injecte comme filtre opaque dans un SearchRequest.
+    # PURE parse+encode, aucune socket. Self-test joue par --self-test-net.
+    src/ldap_filter.c
+    src/internal_tests/ldap_filter_test.c
+    # Client LDAP : orchestration reseau au-dessus de ldap_ber/pdu/
+    # filter et du transport net_tcp / net_tcp_tls (LDAPS). Simple bind,
+    # recherche, lecture d'attributs d'un objet. C pur, pas de VM. Teste par
+    # ldap_client_test contre le mock in-process ldap_mock_server (--self-test-net).
+    src/ldap_client.c
+    # Mock serveur LDAP in-process, modele sur ftp_mock_server mais
+    # bati sur net_tcp_server : Bind (49 si creds faux), SearchResultEntry canned
+    # (mono + multi-value), Unbind. Clair uniquement (LDAPS couvert par net_tcp_tls).
+    src/ldap_mock_server.c
+    src/internal_tests/ldap_client_test.c
+    # Backend auth negociee LDAP : fournisseur de jetons GSS-SPNEGO
+    # adosse au fournisseur de securite de l'OS (SSPI secur32 sous Windows,
+    # GSSAPI systeme en dlopen sous POSIX) + channel binding tls-server-end-point
+    # (RFC 5929). C pur, pas de VM. Le vrai bind Negotiate exige un AD (e2e) ;
+    # le channel binding est teste hermetiquement par --self-test-net.
+    src/ldap_negotiate.c
+    src/internal_tests/ldap_negotiate_test.c
+    # Surface langage LDAP : 6 natives LDAPxxx + structure globale
+    # predefinie LDAPSession, cablees sur ldap_client. VM-aware.
+    src/stdlib_ldap.c
     # Pair TCP de test controlant les octets emis et le decoupage des
     # write(). Consomme par le self-test du parsing de reponse HTTP
     # et, a terme, par le corpus d'attaque du serveur HTTP.
@@ -1675,6 +1769,42 @@ elseif(UNIX AND NOT APPLE AND OWL_MUSL_STATIC)
 endif()
 
 # ------------------------------------------------------------------
+# ocr_smoketest — validation standalone du vendoring Tesseract+Leptonica
+# (gate OWL_ENABLE_OCR uniquement). PREUVE DE DONE de l'enabler OCR : OCR exact
+# d'un texte imprime FR et EN, en mode modeles bakes (.rodata, FileReader
+# in-memory) ET en mode override repertoire user. Decode l'image via stb_image
+# (codecs Leptonica OFF). Donne aussi le vrai poids OCR (code + modeles), que le
+# gate owl.exe ne montre pas faute de native consommatrice (--gc-sections evacue
+# tout). Hors batterie par defaut : le build par defaut est gate OFF, donc ce
+# binaire n'existe pas (on ne degrade jamais le vert gate OFF). Pour l'exercer :
+#   cmake ... -DOWL_ENABLE_OCR=ON && cmake --build build --target ocr_smoketest
+#   ./build/ocr_smoketest.exe
+# ------------------------------------------------------------------
+if(OWL_ENABLE_OCR)
+    add_executable(ocr_smoketest
+        src/internal_tests/tesseract_smoketest.cpp
+        src/internal_tests/tesseract_embed.c)
+    target_include_directories(ocr_smoketest PRIVATE "${VENDOR_DIR}/stb")
+    target_link_libraries(ocr_smoketest PRIVATE owl_tesseract)
+    set_target_properties(ocr_smoketest PROPERTIES LINKER_LANGUAGE CXX)
+    target_compile_options(ocr_smoketest PRIVATE -O2)
+    target_link_options(ocr_smoketest PRIVATE -Wl,--gc-sections)
+    # Chemins des blobs incbin (modeles tessdata_fast FR+EN + fixtures image),
+    # stringifies dans tesseract_embed.c : aucun chemin absolu en dur dans le repo.
+    set_property(SOURCE src/internal_tests/tesseract_embed.c PROPERTY COMPILE_DEFINITIONS
+        "OWL_OCR_ENG_TRAINEDDATA=${CMAKE_SOURCE_DIR}/vendor/tessdata/fast/eng.traineddata"
+        "OWL_OCR_FRA_TRAINEDDATA=${CMAKE_SOURCE_DIR}/vendor/tessdata/fast/fra.traineddata"
+        "OWL_OCR_IMG_EN=${CMAKE_SOURCE_DIR}/src/internal_tests/fixtures/ocr_en.png"
+        "OWL_OCR_IMG_FR=${CMAKE_SOURCE_DIR}/src/internal_tests/fixtures/ocr_fr.png")
+    if(WIN32)
+        target_link_options(ocr_smoketest PRIVATE
+            -Wl,-subsystem,console -static -static-libgcc -static-libstdc++)
+    elseif(UNIX AND NOT APPLE AND OWL_MUSL_STATIC)
+        target_link_options(ocr_smoketest PRIVATE -static)
+    endif()
+endif()
+
+# ------------------------------------------------------------------
 # icons_catalog_gen — tool host  Lot 2a-i.
 # Parse vendor/iconify-sets/*.json, filtre fluent -24- / line-md
 # svg-static, calcule xxh3-64 par body, concatene en blob compresse
@@ -1951,12 +2081,19 @@ if(WIN32)
     target_compile_definitions(owl_core PUBLIC WIN32_LEAN_AND_MEAN NOCRYPT)
     # dbghelp : StackWalk64 + Sym* pour le crash handler (platform.c, ).
     # advapi32 : API base de registre (RegCreateKeyEx/RegSetValueEx/..., ).
-    target_link_libraries(owl_core PUBLIC ws2_32 bcrypt dbghelp advapi32)
+    # iphlpapi : GetAdaptersAddresses pour l'enumeration des cartes reseau
+    # (NetAdresseMAC, stdlib_net.c, ).
+    # secur32 : SSPI (AcquireCredentialsHandle/InitializeSecurityContext) pour
+    # l'auth negociee LDAP (ldap_negotiate.c, ). Import lib systeme,
+    # meme tier que ws2_32/bcrypt, zero vendoring.
+    target_link_libraries(owl_core PUBLIC ws2_32 bcrypt dbghelp advapi32 iphlpapi secur32)
 else()
     # pthread requis par debug_stdio.c (Lot D.2.3) qui spawn un thread
     # de lecture stdin pendant que la VM tourne sur le main thread.
+    # ${CMAKE_DL_LIBS} (dl) : dlopen du backend GSSAPI systeme pour l'auth
+    # negociee LDAP (ldap_negotiate.c POSIX, ).
     find_package(Threads REQUIRED)
-    target_link_libraries(owl_core PUBLIC m Threads::Threads)
+    target_link_libraries(owl_core PUBLIC m Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 
 # Kernels numeriques (produit matriciel, convolution) : coupe la contraction
@@ -2148,6 +2285,9 @@ add_library(owl_runtime_console STATIC
     #  : donnees de registre UI (Qt-free). owl_stdlib.c appelle
     # stdlib_ui_defs_register() inconditionnellement -> requis en console.
     src/stdlib_ui_defs.c
+    #  : donnees de registre OCR (Tesseract-free). owl_stdlib.c appelle
+    # stdlib_ocr_defs_register() inconditionnellement -> requis en console.
+    src/stdlib_ocr_defs.c
 )
 target_compile_definitions(owl_runtime_console PUBLIC OWL_HAS_SQL)
 target_link_libraries(owl_runtime_console PUBLIC owl_core owl_sql)
@@ -2376,6 +2516,7 @@ add_library(owl_runtime_gui STATIC
     src/pdf_postprocess.cpp
     src/stdlib_pdf.c
     src/stdlib_pdf_defs.c       #  : donnees de registre PDF (Qt-free)
+    src/stdlib_ocr_defs.c       #  : donnees de registre OCR (Tesseract-free)
     src/icone_render_qt.cpp
     ${_OWL_FONT_RESOURCES_GUI}
 )
@@ -2424,6 +2565,7 @@ add_executable(owl
     src/pdf_postprocess.cpp
     src/stdlib_pdf.c
     src/stdlib_pdf_defs.c       #  : donnees de registre PDF (Qt-free)
+    src/stdlib_ocr_defs.c       #  : donnees de registre OCR (Tesseract-free)
     src/icone_render_qt.cpp
     ${OWL_FONT_RESOURCES}
 )
@@ -2457,6 +2599,32 @@ target_link_libraries(owl PRIVATE libqpdf)
 # pas dans la lib partagee, et l'integration dans owl-build serait incomplete).
 target_compile_definitions(owl_runtime_gui PUBLIC OWL_HAS_QPDF)
 target_link_libraries(owl_runtime_gui PUBLIC libqpdf)
+
+# OCR — Tesseract 5.5.2 + Leptonica (gate OWL_HAS_OCR, cf ).
+#  : la native OCRExtraitTexte consomme reellement le moteur. Sous
+# OWL_ENABLE_OCR (ON par defaut), on compile dans owl.exe la glue native
+# (stdlib_ocr.c), le backend Tesseract (stdlib_ocr_engine.cpp) et les modeles
+# eng+fra bakes (stdlib_ocr_embed.c), puis on link owl_tesseract. Les DEFS
+# (stdlib_ocr_defs.c) sont, elles, compilees inconditionnellement dans la liste
+# de sources ci-dessus (registre identique quel que soit le build).
+# Gate OFF : aucun de ces fichiers n'est compile, impl=NULL -> erreur runtime
+# claire, owl.exe strictement inchange.
+if(OWL_ENABLE_OCR)
+    target_compile_definitions(owl PRIVATE OWL_HAS_OCR)
+    target_sources(owl PRIVATE
+        src/stdlib_ocr.c
+        src/stdlib_ocr_engine.cpp
+        src/stdlib_ocr_embed.c)
+    # stb_image.h : declarations seules (l'implementation vient d'owl_core via
+    # owl_image_stb.c ; ne pas redefinir STB_IMAGE_IMPLEMENTATION ici).
+    target_include_directories(owl PRIVATE "${VENDOR_DIR}/stb")
+    # Chemins des modeles stringifies dans stdlib_ocr_embed.c -> zero chemin
+    # absolu en dur dans le repo (meme mecanisme qu'ocr_smoketest).
+    set_property(SOURCE src/stdlib_ocr_embed.c PROPERTY COMPILE_DEFINITIONS
+        "OWL_OCR_ENG_TRAINEDDATA=${CMAKE_SOURCE_DIR}/vendor/tessdata/fast/eng.traineddata"
+        "OWL_OCR_FRA_TRAINEDDATA=${CMAKE_SOURCE_DIR}/vendor/tessdata/fast/fra.traineddata")
+    target_link_libraries(owl PRIVATE owl_tesseract)
+endif()
 
 # llama.cpp / ggml — enabler LLM GGUF (bataille 2). Depuis , le type
 # LLM (src/stdlib_llm.c) consomme reellement llama/ggml : owl_llama est linke en
@@ -2612,6 +2780,9 @@ if(OWL_DEV_TOOLS)
         #  : donnees de registre UI (Qt-free). owl-cli --check doit
         # resoudre les natives UI a l'identique d'owl.exe (parite du verdict).
         src/stdlib_ui_defs.c
+        #  : donnees de registre OCR (Tesseract-free). owl-cli --check
+        # doit resoudre OCRExtraitTexte a l'identique d'owl.exe.
+        src/stdlib_ocr_defs.c
     )
     # owl_internal_tests avant owl_core (dependance de link). Pas de SQL sur
     # owl-cli -> owl_sql_internal_tests absent (main.c garde les appels SQL

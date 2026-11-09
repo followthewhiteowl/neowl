@@ -1,0 +1,26 @@
+// @sujet : Héritage d'état par plusieurs modèles — fusion des champs
+// @resume : Un État qui porte `Hérite de A, B` reçoit les champs des DEUX modèles à l'impression, fusionnés dans le même bloc Corps avec le champ propre à l'état, dans l'ordre d'inclusion gauche→droite puis l'état.
+//
+// Ressources voisines : MOD_MultiChampsA.owl, MOD_MultiChampsB.owl
+// (modèles), ETAT_MultiChamps.owl (état héritier des deux).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : fusion des champs des deux modèles + le champ propre de l'état
+PROCEDURE PUBLIQUE scenario_etat_herite_champs_deux_modeles()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_multi_champs.pdf")
+	iImprimeEtat(ETAT_MultiChamps)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve,
+	"modeleA:Modele A;modeleB:Modele B;etat:Etat;",
+	"Champs des deux modèles présents et fusionnés avec celui de l'état, dans l'ordre d'inclusion")
+FIN
+
+dbgBilanTest()

@@ -1,0 +1,27 @@
+// @sujet : Héritage d'état par modèle — variable globale transitive via un modèle-de-modèles
+// @resume : Une variable globale déclarée au top-level d'un ModèleÉtat reste lisible depuis un État qui hérite d'un modèle-de-modèle, deux niveaux plus bas dans la chaîne.
+//
+// Ressources voisines : MOD_GlobTransParent.owl (déclare gMessage),
+// MOD_GlobTransEnfant.owl (modèle-de-modèle, hérite de
+// MOD_GlobTransParent sans redéclarer gMessage), ETAT_GlobTransitif.owl
+// (état héritier de MOD_GlobTransEnfant, lit gMessage).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + "|"
+FIN
+
+// Cas nominal : la globale du grand-parent reste lisible à travers le modèle-de-modèle
+PROCEDURE PUBLIQUE scenario_lit_globale_transitive_modele_de_modele()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_varglobale_transitif.pdf")
+	iImprimeEtat(ETAT_GlobTransitif)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "etat-lit:depuis le parent|",
+	"La variable globale déclarée deux niveaux plus haut est lisible transitivement")
+FIN
+
+dbgBilanTest()

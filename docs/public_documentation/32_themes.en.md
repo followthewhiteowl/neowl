@@ -59,7 +59,7 @@ A style mentions only the sub-elements and properties it changes; everything
 else keeps its default value (cf. `29_couleurs.md` for colors).
 
 For a control made of several parts, like the Table control, a global font and
-color set on the control (`TBL..Font..Size`, `TBL..CouleurTexte`, …) apply as
+color set on the control (`TBL..Font..Size`, `TBL..Font..Color`, …) apply as
 the base for rendering all parts (cells and headers). The detailed style then
 overrides this base per sub-element — `ColumnTitle` (the column header),
 `RowLabel` (the cell text), `SelectedRow`, etc. Both coexist: the control's

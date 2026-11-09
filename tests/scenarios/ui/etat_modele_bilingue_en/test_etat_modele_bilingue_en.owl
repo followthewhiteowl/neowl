@@ -1,0 +1,25 @@
+// @sujet : Héritage d'état par modèle — forme 100% EN
+// @resume : ReportTemplate (forme EN de ModèleÉtat) et le mot-clé EN d'héritage (Inherits) produisent le même comportement de fusion de champs que leurs équivalents FR, miroir de tests/scenarios/ui/etat_bilingue_en pour l'État simple.
+//
+// Ressources voisines : MOD_BaseEN.owl (ReportTemplate), ETAT_ChildEN.owl
+// (Report qui Inherits MOD_BaseEN).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : ReportTemplate + Inherits fusionnent les champs comme en FR
+PROCEDURE PUBLIQUE scenario_report_herite_champs_template_en()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_bilingue.pdf")
+	iImprimeEtat(ETAT_ChildEN)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "template:Template : base label;report:Report : child label;",
+	"ReportTemplate + Inherits (100% EN) fusionnent les champs comme ModèleÉtat + Hérite de")
+FIN
+
+dbgBilanTest()

@@ -865,8 +865,65 @@ static void value_to_json(JBuf* b, Value v, int depth, bool compact) {
                 jb_char(b, ':'); if (!compact) jb_char(b, ' ');
                 value_to_json(b, fv, depth + 1, compact);
             }
+        } else if (td_fields != NULL) {
+            /* Type réifié avec schéma déclaré (OwlField[]) : n'émettre QUE les
+             * champs déclarés. L'état runtime non déclaré (poignées
+             * _handle/_timeout, caches, paramètres retenus, secrets...) reste
+             * interne — "déclaré = public = sérialisé". Évite la fuite d'un
+             * ClientSecret/_params d'AuthToken via JSONSérialise, sans
+             * convention de nom magique. On conserve la CLÉ STOCKÉE telle
+             * quelle (pas de renommage canonique → pas de dérive des sorties
+             * existantes). */
+            for (const OwlField* f = td_fields; f->name; f++) {
+                /* Retrouver l'entrée stockée sous l'une des formes du champ
+                 * (runtime casse/accent-insensible). Scan sans alloc. */
+                const char* emitKey = NULL;
+                Value storedVal = NIL_VAL;
+                bool stored = false;
+                for (int i = 0; i < inst->fields.capacity; i++) {
+                    Entry* e = &inst->fields.entries[i];
+                    if (e->key == NULL) continue;
+                    if (strcasecmp(e->key->chars, f->name) == 0
+                        || (f->nameAccented
+                            && strcasecmp(e->key->chars, f->nameAccented) == 0)
+                        || (f->nameEN
+                            && strcasecmp(e->key->chars, f->nameEN) == 0)) {
+                        emitKey = e->key->chars;
+                        storedVal = e->value;
+                        stored = true;
+                        break;
+                    }
+                }
+                Value fv;
+                bool have = false;
+                if (f->computeGetter != NULL) {
+                    /* Valeur live (ex. AuthToken..Valide, Chrono..Valeur). */
+                    fv = f->computeGetter(1, &v);
+                    have = true;
+                } else if (stored) {
+                    fv = storedVal;
+                    have = true;
+                }
+                if (!have) continue;
+                if (emitKey == NULL) emitKey = f->name; /* getter non stocké */
+                bool skip = false;
+                const char* rename = NULL;
+                if (typeName) {
+                    compiler_user_type_field_serialise(
+                        typeName, typeLen,
+                        emitKey, (int)strlen(emitKey),
+                        &skip, &rename);
+                }
+                if (skip) continue;
+                if (written++ > 0) jb_char(b, ',');
+                jb_indent(b, depth + 1, compact);
+                jb_json_string(b, rename ? rename : emitKey);
+                jb_char(b, ':'); if (!compact) jb_char(b, ' ');
+                value_to_json(b, fv, depth + 1, compact);
+            }
         } else {
-            /* Pas d'ordre déclaré : itère la table de hash dans son ordre interne. */
+            /* Pas de schéma déclaré : itère la table de hash dans son ordre
+             * interne (comportement inchangé — on ne peut pas faire mieux). */
             for (int i = 0; i < inst->fields.capacity; i++) {
                 Entry* e = &inst->fields.entries[i];
                 if (e->key == NULL) continue;
@@ -879,25 +936,11 @@ static void value_to_json(JBuf* b, Value v, int depth, bool compact) {
                         &skip, &rename);
                 }
                 if (skip) continue;
-                Value fv = e->value;
-                if (td_fields != NULL) {
-                    for (const OwlField* f = td_fields; f->name; f++) {
-                        if (f->computeGetter == NULL) continue;
-                        if (strcasecmp(e->key->chars, f->name) == 0
-                            || (f->nameAccented
-                                && strcasecmp(e->key->chars, f->nameAccented) == 0)
-                            || (f->nameEN
-                                && strcasecmp(e->key->chars, f->nameEN) == 0)) {
-                            fv = f->computeGetter(1, &v);
-                            break;
-                        }
-                    }
-                }
                 if (written++ > 0) jb_char(b, ',');
                 jb_indent(b, depth + 1, compact);
                 jb_json_string(b, rename ? rename : e->key->chars);
                 jb_char(b, ':'); if (!compact) jb_char(b, ' ');
-                value_to_json(b, fv, depth + 1, compact);
+                value_to_json(b, e->value, depth + 1, compact);
             }
         }
         if (written > 0) jb_indent(b, depth, compact);

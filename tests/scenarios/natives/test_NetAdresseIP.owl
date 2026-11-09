@@ -1,0 +1,37 @@
+// @sujet : NetAdresseIP
+// @résumé : Adresse IPv4 d'un poste, accédée par indice (0 = première adresse).
+
+PROCEDURE PUBLIQUE scenario_premiere_adresse_locale()
+	// Sans argument, la première adresse IPv4 de la machine locale est renvoyée.
+	ip est une chaîne = NetAdresseIP()
+	dbgVérifieVrai(Taille(ip) > 0, "une adresse IPv4 locale est renvoyée")
+	dbgVérifieVrai(RegexVérifie(ip, "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"), "format IPv4 à quatre octets séparés par des points")
+FIN
+
+PROCEDURE PUBLIQUE scenario_indice_explicite_identique_au_defaut()
+	// L'indice explicite 0 donne la même adresse que l'appel sans indice.
+	ip1 est une chaîne = NetAdresseIP()
+	ip2 est une chaîne = NetAdresseIP("", 0)
+	dbgVérifieEgalité(ip1, ip2, "indice 0 explicite = comportement par défaut")
+FIN
+
+PROCEDURE PUBLIQUE scenario_indice_hors_liste()
+	// Un indice bien au-delà du nombre d'adresses disponibles renvoie une
+	// chaîne vide, jamais une erreur bloquante.
+	ip est une chaîne = NetAdresseIP("", 999)
+	dbgVérifieEgalité(ip, "", "indice hors liste renvoie une chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_indice_negatif()
+	// Un indice négatif n'est pas une position de liste valide : chaîne vide
+	// attendue, comme pour un indice trop grand.
+	ip est une chaîne = NetAdresseIP("",-1)
+	dbgVérifieEgalité(ip, "", "indice négatif renvoie une chaîne vide")
+FIN
+
+PROCEDURE PRIVÉE scenario_nom_machine_inconnu()
+	// Un nom de machine introuvable sur le réseau ne doit pas planter : chaîne
+	// vide attendue plutôt qu'une adresse inventée.
+	ip est une chaîne = NetAdresseIP("hote-inexistant-xyz-999.invalid")
+	dbgVérifieEgalité(ip, "", "machine introuvable -> chaîne vide")
+FIN

@@ -223,10 +223,12 @@ static int decl_type_index(const Word* w, int n) {
     return 2;       /* connecteur nu : le type suit directement le "est"/"is" */
 }
 
-/* Racine widget : Fenetre/Window OU Etat/Report (meme DSL, meme kind). */
+/* Racine widget : Fenetre/Window OU Etat/Report OU ModeleEtat/ReportTemplate
+ * (meme DSL, meme kind). */
 static bool is_type_window(const Word* w) {
     return eq(w, "fenetre") || eq(w, "window") ||
-           eq(w, "etat")    || eq(w, "report");
+           eq(w, "etat")    || eq(w, "report") ||
+           eq(w, "modeleetat") || eq(w, "reporttemplate");  /*  — parite ModeleEtat (cf. ) */
 }
 
 /* Champ : FR "Champ", EN "Control" (canon) ; "Field" tolere. */

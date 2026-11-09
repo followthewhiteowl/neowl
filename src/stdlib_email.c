@@ -1552,7 +1552,7 @@ static Value fn_email_ouvre_session(int argCount, Value* args) {
 
     if (option == EMAIL_OPTION_SSL) {
         /* TLS implicite d'emblee (port 465 usuel). */
-        if (!owl_tls_connect(&s->sock, host, port, OWL_TLS_VERIFY_FULL, timeout, extra_ca)) {
+        if (!owl_tls_connect(&s->sock, host, port, OWL_TLS_VERIFY_FULL, timeout, extra_ca, NULL, NULL)) {
             owl_emit_native_error(E_NATIVE_EMAIL_CONNECT_FAILURE, "EmailOuvreSession",
                                   "native", "EmailOuvreSession", "cible", cible,
                                   "detail", owl_tls_last_error(&s->sock), NULL);

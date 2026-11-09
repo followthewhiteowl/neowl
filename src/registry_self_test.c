@@ -331,6 +331,7 @@ static const char* const KNOWN_TYPE_FUNCTION_DOUBLES[] = {
     "xmldocument",      /* XMLDocument (fn créatrice) + xmlDocument (type DOM) */
     "langue",           /* Langue (fn getter/setter) + langue (type BCP 47) */
     "tenseur",          /* Tenseur (fn constructrice) + Tenseur (type autograd) */
+    "authtoken",        /* AuthToken (fn constructrice) + AuthToken (type jeton OAuth2) */
     NULL
 };
 
@@ -1728,33 +1729,63 @@ static const char* find_bare_wl(const char* s) {
     return NULL;
 }
 
+/* Comme find_ci, mais n'accepte un match que sur FRONTIERE DE MOT : le
+ * caractere qui precede le debut du match ET celui qui suit sa fin doivent
+ * etre non-alphanumeriques (ou un bord de chaine). Reserve aux jetons courts
+ * alphanumeriques (Qt6/QT6) qui coincident par hasard dans un blob base64 /
+ * hash / UUID ( : cle RSA 2048 en scenario public = faux positif).
+ * "Qt6" isole en prose matche ; "rDQT6AEV" au milieu d'une base64 ne matche
+ * pas. Les marques tierces longues gardent le find_ci sous-chaine strict. */
+static const char* find_ci_word_boundary(const char* hay, const char* needle) {
+    if (!hay || !needle) return NULL;
+    int nlen = (int)strlen(needle);
+    if (nlen == 0) return hay;
+    const char* p = hay;
+    while ((p = find_ci(p, needle)) != NULL) {
+        bool leftOk = (p == hay) ||
+                      !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+        unsigned char after = (unsigned char)p[nlen];
+        bool rightOk = (after == '\0') || !(isalnum(after) || after == '_');
+        if (leftOk && rightOk) return p;
+        p++;
+    }
+    return NULL;
+}
+
 /* Scan global d'une chaine. Retourne le 1er match trouve (ptr vers le
  * litteral interdit) + remplit *outKind avec un libelle de categorie. */
 static const char* find_forbidden_mention(const char* s, const char** outKind) {
     if (!s) return NULL;
     /* Les motifs recherches sont coupes en litteraux adjacents (reconcatenes
      * par le compilateur) pour que l'inspection statique du binaire source ne
-     * les retrouve pas tels quels. La detection runtime reste identique. */
-    static const struct { const char* lit; const char* kind; } LITERALS[] = {
-        {"WLan" "gage",  "mention de marque tierce interdite"},
-        {"Win" "Dev",    "mention de marque tierce interdite"},
-        {"PC" "SOFT",    "mention de marque tierce interdite"},
-        {"PC" " SOFT",   "mention de marque tierce interdite"},
-        {"PC" "-SOFT",   "mention de marque tierce interdite"},
-        {"canon " "W" "L",  "reference au canon tiers interdite"},
-        {"W" "L doc",    "reference au canon tiers interdite"},
-        {"W" "L canon",  "reference au canon tiers interdite"},
+     * les retrouve pas tels quels. La detection runtime reste identique.
+     * wordBoundary=1 : match seulement sur frontiere de mot (jetons courts
+     * alpha-prone-a-coincidence). wordBoundary=0 : sous-chaine stricte
+     * (marques tierces longues, detection maximale, cf. ). */
+    static const struct { const char* lit; const char* kind; int wordBoundary; } LITERALS[] = {
+        {"WLan" "gage",  "mention de marque tierce interdite", 0},
+        {"Win" "Dev",    "mention de marque tierce interdite", 0},
+        {"PC" "SOFT",    "mention de marque tierce interdite", 0},
+        {"PC" " SOFT",   "mention de marque tierce interdite", 0},
+        {"PC" "-SOFT",   "mention de marque tierce interdite", 0},
+        {"canon " "W" "L",  "reference au canon tiers interdite", 0},
+        {"W" "L doc",    "reference au canon tiers interdite", 0},
+        {"W" "L canon",  "reference au canon tiers interdite", 0},
         /* Implementation interne : le toolkit GUI utilise (Qt) ne doit
          * pas fuir dans les chaines user-facing. Le dev OWL parle de
          * "backend graphique", "moteur de rendu", "natif" — pas du nom
-         * du toolkit. Les commentaires C internes restent libres. */
-        {"Qt6",       "mention toolkit interne (Qt6)"},
-        {"QT6",       "mention toolkit interne (QT6)"},
-        {"Qt ",       "mention toolkit interne (Qt)"},
-        {NULL, NULL}
+         * du toolkit. Les commentaires C internes restent libres.
+         * Jetons courts alphanumeriques -> frontiere de mot obligatoire
+         * : sinon faux positif dans toute base64/hash/UUID. */
+        {"Qt6",       "mention toolkit interne (Qt6)", 1},
+        {"QT6",       "mention toolkit interne (QT6)", 1},
+        {"Qt ",       "mention toolkit interne (Qt)", 0},
+        {NULL, NULL, 0}
     };
     for (int i = 0; LITERALS[i].lit; i++) {
-        const char* hit = find_ci(s, LITERALS[i].lit);
+        const char* hit = LITERALS[i].wordBoundary
+            ? find_ci_word_boundary(s, LITERALS[i].lit)
+            : find_ci(s, LITERALS[i].lit);
         if (hit) { if (outKind) *outKind = LITERALS[i].kind; return hit; }
     }
     { const char* h = find_doc_id(s);
@@ -1768,6 +1799,59 @@ static const char* find_forbidden_mention(const char* s, const char** outKind) {
     { const char* h = find_bare_wl(s);  /*  */
       if (h) { if (outKind) *outKind = "abreviation de marque tierce interdite"; return h; } }
     return NULL;
+}
+
+/* ============================================================
+ * Regle 69 : fixtures de non-regression du matcher de
+ * mentions interdites. Defense en profondeur — c'est de la detection
+ * de fuite (enjeu juridique), on ne peut pas se permettre un trou
+ * silencieux. Chaque fixture passe par find_forbidden_mention() et on
+ * raise une violation si le verdict differe de l'attendu.
+ *
+ * Deux proprietes a tenir simultanement :
+ *  - jetons courts toolkit (Qt6/QT6) : detectes en PROSE isolee, mais
+ *    PAS au milieu d'un blob alphanumerique (base64/hash/UUID), ou ils
+ *    coincident par hasard (cf. cle RSA en scenario public, ).
+ *  - marques tierces longues (editeurs tiers, formes completes) : detection
+ *    maximale conservee, sous-chaine stricte, zero regression.
+ *
+ * Les fixtures sensibles sont coupees en litteraux adjacents (comme la
+ * table LITERALS) pour que l'inspection statique de la source ne les
+ * retrouve pas telles quelles ; la concatenation compile-time rend la
+ * chaine reelle au runtime, donc le matcher voit bien le motif entier.
+ * ============================================================ */
+static void check_rule69_mention_matcher_fixtures(Reporter* r) {
+    static const struct {
+        const char* input;
+        bool        expectHit;  /* true = doit etre detecte */
+        const char* label;
+    } FIX[] = {
+        /* Qt6 isole en prose : DOIT rester detecte (frontiere de mot). */
+        { "rendu via " "Qt6",                 true,  "Qt6 isole (prose)" },
+        { "fenetre " "QT6" " native",         true,  "QT6 isole (prose, maj)" },
+        /* Qt6/qt6 noye dans un blob base64 : NE DOIT PAS matcher. */
+        { "cle = rD" "QT6" "AEVxyz1234",      false, "QT6 au milieu d'un blob base64" },
+        { "hash a" "qt6" "bcdef0",            false, "qt6 au milieu d'un identifiant" },
+        /* Marques tierces longues : detection maximale, sous-chaine stricte. */
+        { "compatible " "Win" "Dev" " 28",    true,  "marque " "Win" "Dev" " (non-regression)" },
+        { "redige en " "WLan" "gage",         true,  "marque " "WLan" "gage" " (non-regression)" },
+        { NULL, false, NULL }
+    };
+    for (int i = 0; FIX[i].input; i++) {
+        const char* kind = NULL;
+        bool hit = (find_forbidden_mention(FIX[i].input, &kind) != NULL);
+        if (hit != FIX[i].expectHit) {
+            char detail[256];
+            snprintf(detail, sizeof(detail),
+                     "fixture matcher '%s' : attendu %s, obtenu %s "
+                     "(trou de detection de fuite ou faux positif)",
+                     FIX[i].label,
+                     FIX[i].expectHit ? "detecte" : "NON detecte",
+                     hit ? "detecte" : "NON detecte");
+            rep_violation(r, "rule69_mention_matcher_fixtures",
+                          FIX[i].label, detail);
+        }
+    }
 }
 
 /* ============================================================
@@ -3317,13 +3401,15 @@ static void scan_test_scenarios_dir(const char* dirPath, Reporter* r,
             if (allow_companions && is_owl_type_companion_file(name, full))
                 continue;
             /* Exception ressources voisines ( canon split DSL strict) :
-             * FEN_*.owl et ETAT_*.owl sont des declarations de Fenetre/Etat
-             * voisines d'un test_*.owl pilote dans le meme sous-dossier.
-             * Cohérent avec  "Migration : test_xxx.owl script +
-             * voisin ressource pure". */
+             * FEN_*.owl, ETAT_*.owl et MOD_*.owl sont des declarations de
+             * Fenetre/Etat/ModeleEtat voisines d'un test_*.owl pilote dans le
+             * meme sous-dossier. MOD_ = companion canon d'un ModeleEtat
+             * (, heritage d'etats). Cohérent avec 
+             * "Migration : test_xxx.owl script + voisin ressource pure". */
             if (allow_companions &&
                 (strncmp(name, "FEN_", 4) == 0 ||
-                 strncmp(name, "ETAT_", 5) == 0) &&
+                 strncmp(name, "ETAT_", 5) == 0 ||
+                 strncmp(name, "MOD_", 4) == 0) &&
                 is_owl_ext) continue;
             char detail[400];
             snprintf(detail, sizeof(detail),
@@ -4635,7 +4721,7 @@ static void check_rule51_name_en_consts_enums_types(Reporter* r) {
 
 static int rule53_subdir_whitelisted(const char* name) {
     static const char* wl[] = {
-        "natives", "types", "language", "ui", "poo", NULL
+        "natives", "types", "language", "ui", "poo", "ocr", NULL
     };
     for (int i = 0; wl[i]; i++)
         if (strcmp(name, wl[i]) == 0) return 1;
@@ -6190,6 +6276,185 @@ static void check_rule67_fields_type_constructible_or_marked(Reporter* r) {
     }
 }
 
+/* ============================================================
+ * Regle 68 : pas deux bases sentinelle au meme offset
+ *
+ * OWL_SENTINEL_OFFSET(n) = INT32_MIN + n*0x100 (sentinels.h) est une
+ * fonction PURE de n. Deux '#define OWL_X_BASE OWL_SENTINEL_OFFSET(n)' avec
+ * le meme n — dans le meme fichier ou dans deux fichiers differents —
+ * produisent des bases numeriquement identiques : collision silencieuse
+ * (p.ex. continentAfrique == logNiveauDebug bit-a-bit, cf constat ,
+ * OWL_CONTINENT_BASE et OWL_LOG_BASE partageaient l'offset 108).
+ * --self-test-registry itere le REGISTRE, pas la source : il ne voit pas
+ * deux bases qui coincident tant que leurs familles ne se recouvrent pas
+ * encore. Cette regle scanne le source C (src/) pour l'attraper en amont.
+ *
+ * Le coeur de detection est isole dans owl_sentinel_scan_duplicates() —
+ * fonction pure sur un buffer texte — pour etre testable par un harnais qui
+ * l'extrait du source tel quel (tests/runtime_c/sentinel_offset_dup/).
+ *
+ * Note : si l'exe tourne hors du depot (binaire livre), opendir("src")
+ * echoue et la regle skip silencieusement — garde dev-time, comme la
+ * regle 22 qui scanne examples/tests/docs.
+ * ============================================================ */
+
+#define OWL_SENTINEL_MAX_DUP 64
+typedef struct {
+    int count;      /* nombre de doublons rapportes (sature a MAX) */
+    int overflow;   /* 1 si des doublons au-dela de MAX ont ete ignores */
+    int offset[OWL_SENTINEL_MAX_DUP];
+    char nameA[OWL_SENTINEL_MAX_DUP][96];
+    char nameB[OWL_SENTINEL_MAX_DUP][96];
+} OwlSentinelDupReport;
+
+/* NOTE : signature sur une seule ligne et au ras de la marge — le harnais
+ * de test extrait le corps par bornage sur '^void owl_sentinel_scan_duplicates('. */
+void owl_sentinel_scan_duplicates(const char* text, OwlSentinelDupReport* rep) {
+    rep->count = 0;
+    rep->overflow = 0;
+    if (!text) return;
+
+    /* Table (offset n -> premier nom vu). n tient largement sous SLOTS pour
+     * les familles existantes (max ~112). Les offsets >= SLOTS sont ignores
+     * (inexistants aujourd'hui). static : le self-test est mono-thread. */
+    enum { OWL_SENTINEL_SLOTS = 4096 };
+    static char firstName[OWL_SENTINEL_SLOTS][96];
+    static int seen[OWL_SENTINEL_SLOTS];
+    for (int i = 0; i < OWL_SENTINEL_SLOTS; i++) seen[i] = 0;
+
+    const char* marker = "OWL_SENTINEL_OFFSET(";
+    size_t markerLen = strlen(marker);
+
+    const char* p = text;
+    while (*p) {
+        const char* nl = strchr(p, '\n');
+        size_t len = nl ? (size_t)(nl - p) : strlen(p);
+        char line[1024];
+        if (len >= sizeof(line)) len = sizeof(line) - 1;
+        memcpy(line, p, len);
+        line[len] = '\0';
+        p = nl ? nl + 1 : p + strlen(p);
+
+        /* Seules les directives #define comptent (ecarte commentaires et
+         * usages derives type OWL_X_BASE + 1). */
+        const char* hashdef = strstr(line, "#define");
+        if (!hashdef) continue;
+
+        /* Doit referencer OWL_SENTINEL_OFFSET( suivi IMMEDIATEMENT d'un
+         * chiffre. La ligne de DEFINITION de la macro ('(n)') echoue ici. */
+        const char* occ = strstr(line, marker);
+        if (!occ) continue;
+        const char* digits = occ + markerLen;
+        if (*digits < '0' || *digits > '9') continue;
+        int n = 0;
+        for (const char* d = digits; *d >= '0' && *d <= '9'; d++)
+            n = n * 10 + (*d - '0');
+        if (n < 0 || n >= OWL_SENTINEL_SLOTS) continue;
+
+        /* Nom defini = premier token apres #define. */
+        const char* q = hashdef + strlen("#define");
+        while (*q == ' ' || *q == '\t') q++;
+        char name[96];
+        int ni = 0;
+        while (*q && *q != ' ' && *q != '\t' && *q != '(' &&
+               ni < (int)sizeof(name) - 1)
+            name[ni++] = *q++;
+        name[ni] = '\0';
+        if (ni == 0) continue;
+
+        if (!seen[n]) {
+            seen[n] = 1;
+            snprintf(firstName[n], sizeof(firstName[n]), "%s", name);
+        } else if (strcmp(firstName[n], name) != 0) {
+            /* Meme offset, nom different = collision de famille. (Meme nom =
+             * redefinition benigne, ignoree.) */
+            if (rep->count < OWL_SENTINEL_MAX_DUP) {
+                int k = rep->count++;
+                rep->offset[k] = n;
+                snprintf(rep->nameA[k], sizeof(rep->nameA[k]), "%s", firstName[n]);
+                snprintf(rep->nameB[k], sizeof(rep->nameB[k]), "%s", name);
+            } else {
+                rep->overflow = 1;
+            }
+        }
+    }
+}
+
+static void rule68_append_file(const char* path, char** buf,
+                               size_t* len, size_t* cap) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz <= 0 || sz > 8 * 1024 * 1024) { fclose(f); return; }
+    if (*len + (size_t)sz + 2 > *cap) {
+        size_t nc = *cap ? *cap : 65536;
+        while (nc < *len + (size_t)sz + 2) nc *= 2;
+        char* nb = realloc(*buf, nc);
+        if (!nb) { fclose(f); return; }
+        *buf = nb;
+        *cap = nc;
+    }
+    size_t nread = fread(*buf + *len, 1, (size_t)sz, f);
+    *len += nread;
+    (*buf)[(*len)++] = '\n';   /* separateur de fichier */
+    (*buf)[*len] = '\0';
+    fclose(f);
+}
+
+static void rule68_walk(const char* dirPath, char** buf,
+                        size_t* len, size_t* cap) {
+    DIR* d = opendir(dirPath);
+    if (!d) return;
+    struct dirent* e;
+    while ((e = readdir(d)) != NULL) {
+        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        char full[1024];
+        snprintf(full, sizeof(full), "%s/%s", dirPath, e->d_name);
+        struct stat st;
+        if (stat(full, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            rule68_walk(full, buf, len, cap);
+        } else if (S_ISREG(st.st_mode)) {
+            const char* ext = strrchr(e->d_name, '.');
+            if (ext && (strcmp(ext, ".c") == 0 || strcmp(ext, ".h") == 0))
+                rule68_append_file(full, buf, len, cap);
+        }
+    }
+    closedir(d);
+}
+
+static void check_rule68_no_duplicate_sentinel_offset(Reporter* r) {
+    char* buf = NULL;
+    size_t len = 0, cap = 0;
+    rule68_walk("src", &buf, &len, &cap);
+    if (!buf) return;  /* src/ introuvable (exe hors depot) : skip */
+
+    OwlSentinelDupReport rep;
+    owl_sentinel_scan_duplicates(buf, &rep);
+    free(buf);
+
+    for (int i = 0; i < rep.count; i++) {
+        char sym[64];
+        snprintf(sym, sizeof(sym), "OWL_SENTINEL_OFFSET(%d)", rep.offset[i]);
+        char detail[420];
+        snprintf(detail, sizeof(detail),
+            "offset sentinelle %d utilise par %s et %s. OWL_SENTINEL_OFFSET(n) "
+            "est une fonction pure de n : deux bases au meme n produisent des "
+            "valeurs int32 identiques (collision bit-a-bit entre familles de "
+            "constantes). Re-offsetter l'une des deux vers un n libre "
+            "(src/sentinels.h).",
+            rep.offset[i], rep.nameA[i], rep.nameB[i]);
+        rep_violation(r, "no_duplicate_sentinel_offset", sym, detail);
+    }
+    if (rep.overflow) {
+        rep_violation(r, "no_duplicate_sentinel_offset", "OWL_SENTINEL_OFFSET",
+            "plus de doublons d'offset que la capacite de rapport — corriger "
+            "les premiers puis relancer.");
+    }
+}
+
 int registry_self_test_run(FILE* out) {
     Reporter r;
     rep_init(&r, out);
@@ -6266,6 +6531,8 @@ int registry_self_test_run(FILE* out) {
     check_rule65_ui_native_impl_wired(&r);          /*  : natives UI toutes cablees en build GUI */
     check_rule66_type_name_en_resolves(&r);          /*  : forme EN du nom de type resout (invariant 3) */
     check_rule67_fields_type_constructible_or_marked(&r); /*  : type a fields constructible (vm.types/factory) ou marque non declarable */
+    check_rule68_no_duplicate_sentinel_offset(&r);  /*  : deux bases OWL_SENTINEL_OFFSET(n) au meme n = collision int32 bit-a-bit */
+    check_rule69_mention_matcher_fixtures(&r);      /*  : non-regression matcher mentions (Qt6 frontiere de mot, marques sous-chaine) */
 
     fputs("\n  ],\n", out);
     fprintf(out, "  \"violation_count\": %d,\n", r.count);

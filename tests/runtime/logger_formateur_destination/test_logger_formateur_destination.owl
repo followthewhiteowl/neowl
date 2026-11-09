@@ -1,0 +1,77 @@
+// Verrou technique : LogEnreg porte les métadonnées décomposées
+// (..Horodatage, ..Niveau, ..Message) lisibles depuis ..Formateur, et
+// ..Formateur / ..Destination sont deux leviers indépendants : changer
+// l'un ne change pas l'autre.
+
+dernierHorodatage     est une chaîne = ""
+dernierMessageCapture est une chaîne = ""
+flagNiveauEstErreur   est un booléen = Faux
+
+PROCEDURE formateurCapture(rEnreg est un LogEnreg)
+	dernierHorodatage     = rEnreg..Horodatage
+	dernierMessageCapture = rEnreg..Message
+	flagNiveauEstErreur   = (rEnreg..Niveau = nivErreur)
+	RENVOYER rEnreg..Message
+FIN
+
+PROCEDURE formateurMessageSeul(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+PROCEDURE formateurCrochets(rEnreg est un LogEnreg)
+	RENVOYER `<<[%rEnreg..Message%]>>`
+FIN
+
+chemin  est une chaîne = "_tmp_logger_fmtdest_a.txt"
+cheminB est une chaîne = "_tmp_logger_fmtdest_b.txt"
+
+// --- A : les champs décomposés du LogEnreg sont lisibles dans le formateur ---
+fSupprime(chemin)
+log1 est un Logger
+log1..Niveau      = nivDebug
+log1..Formateur   = formateurCapture
+log1..Destination = chemin
+log1.Erreur("panne détectée")
+
+dbgVérifieVrai(Taille(dernierHorodatage) > 0, "LogEnreg..Horodatage est renseigné (non vide) dans le formateur")
+dbgVérifieEgalité(dernierMessageCapture, "panne détectée", "LogEnreg..Message restitue exactement le texte fourni à .Erreur")
+dbgVérifieVrai(flagNiveauEstErreur, "LogEnreg..Niveau vaut nivErreur pour un appel .Erreur")
+
+// --- B : changer ..Formateur seul change la forme, pas la destination ---
+fSupprime(chemin)
+log2 est un Logger
+log2..Niveau      = nivDebug
+log2..Formateur   = formateurMessageSeul
+log2..Destination = chemin
+log2.Info("ping")
+contenuAvant est une chaîne = fChargeTexte(chemin)
+dbgVérifieEgalité(Contient(contenuAvant, "<<"), 0, "formateur minimal : pas de crochets dans la sortie")
+
+fSupprime(chemin)
+log2..Formateur = formateurCrochets
+log2.Info("ping")
+contenuApres est une chaîne = fChargeTexte(chemin)
+dbgVérifieVrai(Contient(contenuApres, "<<ping>>") > 0, "après changement de ..Formateur : la même destination reçoit la nouvelle forme")
+
+// --- C : changer ..Destination seul change l'emplacement, pas la forme ---
+fSupprime(chemin)
+fSupprime(cheminB)
+log3 est un Logger
+log3..Niveau      = nivDebug
+log3..Formateur   = formateurCrochets
+log3..Destination = chemin
+log3.Info("pong")
+contenuChemin1 est une chaîne = fChargeTexte(chemin)
+dbgVérifieVrai(Contient(contenuChemin1, "<<pong>>") > 0, "destination initiale reçoit la sortie formatée")
+
+log3..Destination = cheminB
+log3.Info("pong2")
+contenuCheminA_inchange est une chaîne = fChargeTexte(chemin)
+contenuCheminB          est une chaîne = fChargeTexte(cheminB)
+dbgVérifieEgalité(Contient(contenuCheminA_inchange, "pong2"), 0, "l'ancienne destination ne reçoit plus rien après le changement")
+dbgVérifieVrai(Contient(contenuCheminB, "<<pong2>>") > 0, "après changement de ..Destination : la nouvelle destination reçoit la même forme de sortie")
+
+fSupprime(chemin)
+fSupprime(cheminB)
+
+dbgBilanTest()

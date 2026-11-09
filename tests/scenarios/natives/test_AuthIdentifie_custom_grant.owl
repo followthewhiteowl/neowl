@@ -1,0 +1,85 @@
+// @sujet : AuthIdentifie
+// @résumé : Flux d'autorisation personnalisé (gtCustomGrantType) : le framework ne construit rien lui-même, il transmet tel quel au fournisseur de jeton les paramètres supplémentaires posés par l'appelant — ici une assertion JWT signée (RFC 7523) injectée manuellement.
+
+
+// Mock de la couche HTTP interne : AuthIdentifie envoie une requête de jeton
+// via HTTPEnvoie, interceptée ici pour rester déterministe (pas de serveur
+// live).
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+
+// Clé de test JETABLE (RSA 2048 bits, PKCS#8), générée uniquement pour cette
+// suite de scénarios. Ce n'est pas un secret réel, elle ne protège rien.
+sCléPriveeTest est une chaîne = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDaB9XbmDnvX0KH
+nTW7dr+rPmSOSELTeVrAIx/mUDhCXjLLrc8T6itwQ6QawHuTuaGo1lomzUL4ptqo
+LVzJElL38Fm53IXNrTePQC6e1czn1trbDgl/2d/Vmc7nzEpiToISs+JNlmNakW21
+9CjlunjGfw4gDLTYPurNjnt6YMk3yLUn8wjPu5P3tesTnNPeeFwAn5c/daFf96b5
+zGTtyzstpmy32oT3vrYk8OR7Dvp2hV0jaLsS8TqyP8Zlt6yKhnboKdAUobg731KE
+A89btO/AlcPZIsiFXt3rSUGWBmzqvSGjhlI76ulzBQmMI24tKG4znibls/XEdq4H
+Bt+7GaCnAgMBAAECggEAQLQckjudzdzuSIKuJID8JpywiM0HD+0usmB6IgZie8eq
+uWlOT/GpjHp2Y/4FbnSjdhCO1n8JxfL2Zvx3UbCfcLciWZcJGl2yZE++xiJa2d6Y
+OnPy+78zvxcTIRUuafg0f8pkeXQM7h7EeUAJNwvctcOU9Ivwy0/4rKIBIPNCI8xf
+Q1++FmpxDcbEUR+7uhLFq26IFpqcgkYetDho7IFEccguhojB2443LwIUpljBFmp7
+bZoH3fWBYjEjkAam0Xi/shC/Uh4eodjvz+GsrZ1NghWTPvhOTUEngV1zHi9oAFE4
+AeqkrxFF2EIKXYoOsKNz7F8VZvR7QtPwL/Y+Wu3j0QKBgQDubkgSOYH0+UlrPpZa
+kRPieH5bsCmwdigPAJVIPdVNKjy6EpWHfmwOl+8mZpO0sZlSS8ICw3epArLJdKZT
+4aTE2QeUFo2uhsgAMgH70vqRu3wkbzAvk6mUWbjVJOFgxZUL9MGwMtwpcsyYYdbL
+28EUTgYNuA0g9oUxUljRqDibfwKBgQDqGLpvuG2D4D6IwgEvNmCskuGLhVzhQFVx
+2Zw9GEj/8K/4FQr2zzwBSmngZwufE0+owNxWnhciabCVQejpq7egJbBLJPswrq/D
+MTnMsuobRGKKEe9ed+iIXFXHGQpTKUKrP3TR7MIvI53F305ociaEjysP5e4XRYys
+odoG81Mu2QKBgQCS38Zvy5MdiA7NDJHsGmCIardT3dHgjPiiPTa4eLaTwUgFS3tn
+Kt5/ouJD4n5smdab1mUd9LEaoLnn1X68P0yToinD9Jy0fPxo+mU0bkPCUB7qBsBF
+Ho4g/6AXVI+tYCkvY0eJNdtfgQM9f0+k5qsqyeF6w/z6aEGmH1btV9X/GwKBgCMn
+x4fTmI6/dGSxTeA7OFVyUXDUfFhPgwVv+qiqJvxYtvR4pIbgJFDFThUnJHWlPsdG
+/0/6udqvKJehqEq/QPpJ7qm6SgbLlRWpJNb633Fs2aeGff4f38nqo+8ccZJ/lcWF
+6BNGjPrrTFxU5r+EtQgfQAZJL3JLPY8HV2jHzewxAoGBAOi3a21f9gccvKf5TTPT
+yDgDbi9D9cOnBOq3/jnXH2wTPy1QVm1mHjDCW6dgSGDIJMdgyucWHBUG9LIlFIqu
+kMGZ9nvThsqq9kHeaLZI43O/awiHxkDFlIYsoUb+KAHvTm+vJ5GjpHrkhkBp+d+M
+M9wiSHQkck90lpBb+owRRWaM
+-----END PRIVATE KEY-----`
+
+
+PROCEDURE avantChaqueTest()
+	rep est un httpRéponse
+	rep..CodeEtat = 200
+	rep..Contenu  = `{"access_token":"atk-custom-grant","expires_in":3600}`
+	mockHttp      = MockCrée(HTTPEnvoie).Quand().Retourne(rep).Active()
+FIN
+
+
+PROCEDURE apresChaqueTest()
+	mockHttp.Désactive()
+FIN
+
+
+// Flux personnalisé (gtCustomGrantType) : l'appelant signe lui-même une
+// assertion JWT (JWTCréeAssertion) et la pose dans les paramètres
+// supplémentaires avec son type ; AuthIdentifie transmet ces paramètres au
+// fournisseur de jeton sans logique JWT propre (c'est tout le sens de
+// "personnalisé" — le framework ne décide rien à la place de l'appelant).
+PROCEDURE PUBLIQUE scenario_custom_grant_type_porte_assertion_jwt()
+	sEntete  est une chaîne = `{"alg":"RS256","typ":"JWT"}`
+	sPayload est une chaîne = `{"iss":"mon-client","sub":"mon-client","aud":"https://auth.exemple.test/token","exp":9999999999}`
+	jwt      est une chaîne = JWTCréeAssertion(sEntete, sPayload, sCléPriveeTest)
+
+	oParams est un OAuth2Paramètres
+	oParams..ClientID                                           = "mon-client"
+	oParams..URLToken                                           = "https://auth.exemple.test/token"
+	oParams..TypeAutorisation                                   = gtCustomGrantType
+	oParams..ParamètresSupplémentaires["client_assertion"]      = jwt
+	oParams..ParamètresSupplémentaires["client_assertion_type"] = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+
+	t est un AuthToken = AuthIdentifie(oParams)
+
+	dbgVérifieVrai(t..Valide, "flux personnalisé -> jeton valide")
+	dbgVérifieEgalité(t..Valeur, "atk-custom-grant")
+
+	reqCapturee est un httpRequête = MockDernierArgument(mockHttp, 1)
+	dbgVérifieEgalité(reqCapturee..URL, "https://auth.exemple.test/token")
+	sCorps est une chaîne = BufferVersChaîne(reqCapturee..Contenu)
+	dbgVérifieVrai(Position(sCorps, "client_assertion=") > 0, "corps POST porte client_assertion")
+	dbgVérifieVrai(Position(sCorps, "client_assertion_type=urn%3Aietf%3Aparams%3Aoauth%3Aclient-assertion-type%3Ajwt-bearer") > 0, "corps POST porte client_assertion_type RFC 7523 (percent-encodé)")
+FIN
+
+
+dbgBilanTest()

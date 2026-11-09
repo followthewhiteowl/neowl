@@ -1053,6 +1053,11 @@ int run_tests_ex(const TestOptions* opts) {
          * traverse pas. Le compagnon projet.owl du test courant, compile juste
          * apres, re-arme le format pour CE test. */
         compiler_projet_boot_langue_reset();
+        /*  — registre des sites iImprimeEtat(IDENT) remis a zero a
+         * chaque frontiere de test (le runner joue N tests dans le meme
+         * process, et ne traverse pas project_run qui fait ce reset). Sans ca,
+         * une garde #2 d'un test precedent fuiterait sur le suivant. */
+        compiler_etat_print_sites_reset();
         testing_set_verbosity(opts->verbosity);
         /* Active EnModeTestUnitaire() pour la duree de l'execution : le code
          * teste peut detecter le contexte (canon) et adapter (skip
@@ -1102,29 +1107,40 @@ int run_tests_ex(const TestOptions* opts) {
             /* Enregistre les fileNames pour la resolution qualifiee +
              * prescan chaque compagnon AVANT le test.owl. Le prescan
              * remplit symtable avec les classes/procedures de chaque
-             * compagnon, ce qui permet a test.owl de les referencer. */
+             * compagnon, ce qui permet a test.owl de les referencer.
+             *
+             * Indexation COMPACTE (append) : fileNames[] est un tableau fixe
+             * (MAX_PROJECT_FILES) propre a CE test et ne contient qu'une poignee
+             * de compagnons. is_project_file_name l'itere par VALEUR (compare le
+             * nom), jamais par cle d'indice. En suite globale le runner construit
+             * un seul Project de milliers de fichiers : l'indice projet global
+             * (ci / i) depasse MAX_PROJECT_FILES, et indexer fileNames[ci]
+             * directement faisait silencieusement sauter l'enregistrement
+             * (garde `ci < MAX_PROJECT_FILES`) des que l'indice franchissait 256.
+             * Un Etat voisin (SYM_VARIABLE, pas SYM_WINDOW) ne resolvait alors
+             * plus comme nom d'element projet : l'acces qualifie `ETAT_X.gVar`
+             * retombait sur une chaine -> crash runtime. L'append rend
+             * l'enregistrement independant de l'indice global. */
             for (int c = 0; c < companionCount; c++) {
                 int ci = companionIndices[c];
-                if (ci < MAX_PROJECT_FILES) {
+                if (testSymbols->fileNameCount < MAX_PROJECT_FILES) {
+                    int slot = testSymbols->fileNameCount;
                     size_t nlen = strlen(project.files[ci].name);
                     if (nlen >= 128) nlen = 127;
-                    memcpy(testSymbols->fileNames[ci],
+                    memcpy(testSymbols->fileNames[slot],
                            project.files[ci].name, nlen);
-                    testSymbols->fileNames[ci][nlen] = '\0';
-                    if (ci >= testSymbols->fileNameCount) {
-                        testSymbols->fileNameCount = ci + 1;
-                    }
+                    testSymbols->fileNames[slot][nlen] = '\0';
+                    testSymbols->fileNameCount = slot + 1;
                 }
             }
             /* Idem pour le test.owl lui-meme. */
-            if (i < MAX_PROJECT_FILES) {
+            if (testSymbols->fileNameCount < MAX_PROJECT_FILES) {
+                int slot = testSymbols->fileNameCount;
                 size_t nlen = strlen(project.files[i].name);
                 if (nlen >= 128) nlen = 127;
-                memcpy(testSymbols->fileNames[i], project.files[i].name, nlen);
-                testSymbols->fileNames[i][nlen] = '\0';
-                if (i >= testSymbols->fileNameCount) {
-                    testSymbols->fileNameCount = i + 1;
-                }
+                memcpy(testSymbols->fileNames[slot], project.files[i].name, nlen);
+                testSymbols->fileNames[slot][nlen] = '\0';
+                testSymbols->fileNameCount = slot + 1;
             }
             for (int c = 0; c < companionCount; c++) {
                 int ci = companionIndices[c];
@@ -1186,6 +1202,15 @@ int run_tests_ex(const TestOptions* opts) {
                           compile_in_project(project.files[i].source,
                                              project.files[i].path,
                                              testSymbols, i);
+        /*  — gardes compile-time de l'heritage d'Etat sur vm.etats
+         * desormais complet (compagnons + fichier de test compiles). Parite
+         * run / --check / test : un etat casse (heritage circulaire, collision,
+         * modele imprime nu) echoue en erreur de compilation, pas en assertion
+         * runtime. On neutralise fn pour router vers le chemin "compile error"
+         * (suite rapportee en CRASH). */
+        if (fn != NULL && !compiler_validate_etat_inheritance()) {
+            fn = NULL;
+        }
         /* Expose le buffer warnings au runtime APRES le compile (qui l'a
          * rempli) et AVANT vm_execute (qui executera les assertions
          * __dbgAvertissementAttendu du test). */

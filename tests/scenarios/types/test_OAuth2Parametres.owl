@@ -1,0 +1,91 @@
+// @sujet : OAuth2Paramètres
+// @résumé : Paramètres de configuration pour une authentification OAuth2 : identifiants client, URLs du fournisseur, portée, méthode d'authentification client et paramètres additionnels fusionnés à la requête d'obtention du jeton.
+
+
+// Un jeu de paramètres sans aucune affectation expose des valeurs par défaut
+// sûres : chaînes vides, méthode d'authentification client oauth2AuthPost
+// (identifiants dans le corps de la requête), aucune entrée supplémentaire à
+// fusionner.
+PROCEDURE scenario_creation_avec_defauts()
+	oParams est un OAuth2Paramètres
+	dbgVérifieEgalité(oParams..ClientID, "")
+	dbgVérifieEgalité(oParams..ClientSecret, "")
+	dbgVérifieEgalité(oParams..Scope, "")
+	dbgVérifieEgalité(oParams..URLAuth, "")
+	dbgVérifieEgalité(oParams..URLRedirection, "")
+	dbgVérifieEgalité(oParams..URLToken, "")
+	dbgVérifieEgalité(oParams..MéthodeAuthClient, oauth2AuthPost)
+FIN
+
+
+// Le databinding par `..` suit la convention des autres types composés :
+// affectation directe, relecture identique.
+PROCEDURE scenario_databinding_complet()
+	oParams est un OAuth2Paramètres
+	oParams..ClientID       = "mon-client"
+	oParams..ClientSecret   = "mon-secret"
+	oParams..Scope          = "lire ecrire"
+	oParams..URLAuth        = "https://auth.exemple.test/authorize"
+	oParams..URLRedirection = "https://app.exemple.test/callback"
+	oParams..URLToken       = "https://auth.exemple.test/token"
+
+	dbgVérifieEgalité(oParams..ClientID, "mon-client")
+	dbgVérifieEgalité(oParams..ClientSecret, "mon-secret")
+	dbgVérifieEgalité(oParams..Scope, "lire ecrire")
+	dbgVérifieEgalité(oParams..URLAuth, "https://auth.exemple.test/authorize")
+	dbgVérifieEgalité(oParams..URLRedirection, "https://app.exemple.test/callback")
+	dbgVérifieEgalité(oParams..URLToken, "https://auth.exemple.test/token")
+FIN
+
+
+// Le type d'autorisation se pilote par constante nommée. Poser puis relire
+// `taApplicationCliente` (flux machine-à-machine, sans fenêtre de login)
+// retourne la même valeur.
+PROCEDURE scenario_type_autorisation_application_cliente()
+	oParams est un OAuth2Paramètres
+	oParams..TypeAutorisation = taApplicationCliente
+	dbgVérifieEgalité(oParams..TypeAutorisation, taApplicationCliente)
+FIN
+
+
+// Même principe pour le flux par code d'autorisation : le databinding du
+// paramètre est exercé ici indépendamment de la disponibilité du flux
+// interactif (différé).
+PROCEDURE scenario_type_autorisation_code()
+	oParams est un OAuth2Paramètres
+	oParams..TypeAutorisation = taCodeAutorisation
+	dbgVérifieEgalité(oParams..TypeAutorisation, taCodeAutorisation)
+FIN
+
+
+// `TypeRéponse` suit le même databinding par constante nommée.
+PROCEDURE scenario_type_reponse_databinding()
+	oParams est un OAuth2Paramètres
+	oParams..TypeRéponse = oauth2TypeRéponseCode
+	dbgVérifieEgalité(oParams..TypeRéponse, oauth2TypeRéponseCode)
+
+	oParams..TypeRéponse = oauth2TypeRéponseToken
+	dbgVérifieEgalité(oParams..TypeRéponse, oauth2TypeRéponseToken)
+FIN
+
+
+// La méthode d'authentification client se pilote par constante nommée :
+// oauth2AuthPost (défaut, identifiants dans le corps de la requête) ou
+// oauth2AuthBasic (en-tête HTTP).
+PROCEDURE scenario_methode_auth_client_basic()
+	oParams est un OAuth2Paramètres
+	oParams..MéthodeAuthClient = oauth2AuthBasic
+	dbgVérifieEgalité(oParams..MéthodeAuthClient, oauth2AuthBasic)
+FIN
+
+
+// Les paramètres supplémentaires forment un tableau associatif de chaînes :
+// vide par défaut, chaque entrée posée est relue à l'identique.
+PROCEDURE scenario_parametres_supplementaires_tableau_associatif()
+	oParams est un OAuth2Paramètres
+	dbgVérifieEgalité(oParams..ParamètresSupplémentaires..Occurrence, 0)
+
+	oParams..ParamètresSupplémentaires["audience"] = "https://api.exemple.test"
+	dbgVérifieEgalité(oParams..ParamètresSupplémentaires..Occurrence, 1)
+	dbgVérifieEgalité(oParams..ParamètresSupplémentaires["audience"], "https://api.exemple.test")
+FIN

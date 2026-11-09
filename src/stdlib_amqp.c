@@ -804,7 +804,7 @@ static Value fn_amqp_connecte(int argCount, Value* args) {
         const char* ca = amqp_str(inst, "CertificatCA");
         const char* extra_ca = (ca && ca[0] != '\0') ? ca : NULL;
         if (!owl_tls_connect(&c->transport, adresse, port, OWL_TLS_VERIFY_FULL,
-                             tmo, extra_ca)) {
+                             tmo, extra_ca, NULL, NULL)) {
             owl_emit_native_error(E_NATIVE_AMQP_CONNECT_FAILURE, "AMQPConnecte",
                                   "native", "AMQPConnecte", "cible", cible,
                                   "detail", owl_tls_last_error(&c->transport), NULL);

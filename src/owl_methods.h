@@ -63,6 +63,8 @@ typedef enum {
     METHOD_TYPE_MLLINEAIRE,    /* ObjMLLineaire (OBJ_MLLINEAIRE) — Entraîne, Prédit */
     METHOD_TYPE_MLLOGISTIQUE,  /* ObjMLLogistique (OBJ_MLLOGISTIQUE) — Entraîne, Prédit */
     METHOD_TYPE_MLKMEANS,      /* ObjMLKMeans (OBJ_MLKMEANS) — Entraîne, Prédit */
+    METHOD_TYPE_LOGGER,        /* ObjInstance with structName == "Logger" */
+    METHOD_TYPE_LDAP_SESSION,  /* ObjInstance with structName == "ldapSession" */
     METHOD_TYPE_COUNT
 } MethodReceiverType;
 

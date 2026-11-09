@@ -1,0 +1,25 @@
+// @sujet : Héritage d'état par modèle — lecture d'une variable globale du modèle
+// @resume : Une variable globale déclarée au top-level d'un ModèleÉtat doit être lisible depuis le code de l'État qui en hérite, au même titre qu'une déclaration globale fusionnée.
+//
+// Ressources voisines : MOD_GlobLecture.owl (déclare gMessage),
+// ETAT_GlobLecture.owl (état héritier, lit gMessage).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + "|"
+FIN
+
+// Cas nominal : la globale déclarée dans le modèle est lisible depuis l'état héritier
+PROCEDURE PUBLIQUE scenario_lit_globale_heritee_du_modele()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_varglobale_lecture.pdf")
+	iImprimeEtat(ETAT_GlobLecture)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "etat-lit:depuis le modele|",
+	"La variable globale du modèle est lisible depuis le code de l'état héritier")
+FIN
+
+dbgBilanTest()

@@ -21,6 +21,9 @@
 extern "C" {
 #endif
 
+/*  — borne du nombre de modeles parents d'un `Herite de A, B, ...`. */
+#define OWL_ETAT_MAX_PARENTS 32
+
 /* ---- Types de blocs Etat (canon) ---- */
 
 typedef enum {
@@ -54,6 +57,12 @@ typedef struct {
     /* Champs WYSIWYG (Libelle/Image/...) places dans le bloc. Imprimes au
      * runtime apres l'execution du body via iImprimeZone + iPolice. */
     OwlControlDecl**   controls;
+    /*  — aplatissement d'heritage de modele : un controle issu du
+     * modele parent est REFERENCE (meme pointeur que le decl du modele), pas
+     * copie. controls_owned[i]=false signale un controle emprunte : le free du
+     * bloc ne doit pas le liberer (le decl du modele s'en charge), sinon
+     * double-free au teardown. true pour les controles propres a l'etat. */
+    bool*              controls_owned;
     int                control_count;
     int                control_capacity;
     int                line;
@@ -86,7 +95,7 @@ typedef struct {
  * PROCEDUREs). Au runtime iImprimeEtat injecte leurs valeurs avant
  * d'executer le code.
  */
-typedef struct {
+typedef struct OwlEtatDecl {
     Obj                obj;              /* Heritage Obj pour GC */
     char*              name;             /* "ETA_Facture" (alloue) */
     OwlPropertyInit*   properties;       /* Format, Orientation, Marges */
@@ -113,6 +122,23 @@ typedef struct {
      * UNE seule fois (top_level_done), pas au boot, pas par impression. */
     ObjFunction*       top_level;
     bool               top_level_done;
+    /*  /  — modeles d'etat (heritage de rapport).
+     * is_template : declare via `est un ModeleEtat`/`ReportTemplate`. Non
+     *   imprimable seul (iImprimeEtat(modele) = erreur).
+     * parent_names : noms des modeles cites par `Herite de A, B`/`Inherits A, B`
+     *   (ordre d'inclusion gauche->droite). parent_names[0] = modele PRINCIPAL
+     *   (gouverne les proprietes niveau-etat et niveau-bloc). Vide si l'etat
+     *   n'herite de rien. Resolus en pointeurs au 1er print.
+     * parents : modeles resolus (lazy, 1er iImprimeEtat), meme ordre que
+     *   parent_names. parents[0] = principal. Vide si pas d'heritage.
+     * flattened : passe d'aplatissement deja executee (idempotence). */
+    bool               is_template;
+    char**             parent_names;
+    int                parent_name_count;
+    int                parent_name_capacity;
+    const struct OwlEtatDecl** parents;
+    int                parent_count;
+    bool               flattened;
     int                line;
 } OwlEtatDecl;
 
@@ -120,6 +146,10 @@ typedef struct {
 
 OwlEtatDecl*       owl_etat_decl_new(const char* name, int line);
 void               owl_etat_decl_free(OwlEtatDecl* e);
+
+/*  — ajoute un modele parent cite par `Herite de A, B` (ordre
+ * d'inclusion ; le premier ajoute = modele principal). */
+void               owl_etat_decl_add_parent_name(OwlEtatDecl* e, const char* name);
 
 void               owl_etat_decl_add_property(OwlEtatDecl* e, const char* name,
                                                 Value const_value, ObjFunction* eval,
@@ -135,6 +165,9 @@ void               owl_etat_block_decl_add_property(OwlEtatBlockDecl* b, const c
                                                        Value const_value, ObjFunction* eval,
                                                        bool is_constant, int line);
 void               owl_etat_block_decl_add_control(OwlEtatBlockDecl* b, OwlControlDecl* c);
+/*  — ajoute un controle emprunte au modele parent (non libere par le
+ * bloc de l'etat heritier : le decl du modele en garde la propriete). */
+void               owl_etat_block_decl_add_borrowed_control(OwlEtatBlockDecl* b, OwlControlDecl* c);
 
 /* Declare un parametre d'Etat (`est un Etat(<name> [est un <type>] [= <defaut>])`).
  * has_default=false + default_value ignore quand le param n'a pas de defaut. */

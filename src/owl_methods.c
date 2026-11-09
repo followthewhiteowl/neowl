@@ -157,6 +157,10 @@ int method_receiver_type(Value receiver) {
                     return METHOD_TYPE_AWS_BEDROCK_CLIENT;
                 if (strcmp(inst->structName->chars, "AwsLambdaClient") == 0)
                     return METHOD_TYPE_AWS_LAMBDA_CLIENT;
+                if (strcmp(inst->structName->chars, "Logger") == 0)
+                    return METHOD_TYPE_LOGGER;
+                if (strcmp(inst->structName->chars, "ldapSession") == 0)
+                    return METHOD_TYPE_LDAP_SESSION;
             }
             return -1;
         }
@@ -284,6 +288,8 @@ static const MethodReceiverInfo METHOD_RECEIVER_INFO[METHOD_TYPE_COUNT] = {
     [METHOD_TYPE_MLLINEAIRE]        = {"MLRegressionLineaire",   "MLLinearRegression"},
     [METHOD_TYPE_MLLOGISTIQUE]      = {"MLRegressionLogistique", "MLLogisticRegression"},
     [METHOD_TYPE_MLKMEANS]          = {"MLKMeans",           "MLKMeans"},
+    [METHOD_TYPE_LOGGER]            = {"Logger",             "Logger"},
+    [METHOD_TYPE_LDAP_SESSION]      = {"ldapSession",        "ldapSession"},
 };
 
 const MethodReceiverInfo* method_receiver_info(MethodReceiverType t) {

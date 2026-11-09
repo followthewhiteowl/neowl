@@ -1,0 +1,88 @@
+// Verrou technique : le seuil ..Niveau d'un Logger filtre les 4 niveaux
+// standardisés (nivDebug < nivInfo < nivAvert < nivErreur).
+// Sous le seuil -> aucune sortie. Au seuil ou au-dessus -> sortie émise.
+// Matrice complète (4 seuils x 4 niveaux appelés) pour verrouiller les
+// bornes exactes, pas seulement le cas nominal couvert par les scénarios
+// pédagogiques.
+
+PROCEDURE fmtMsgSeuil(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+PROCEDURE emetQuatreNiveaux(log est un Logger)
+	log.Debug("ND")
+	log.Info("NI")
+	log.Avert("NA")
+	log.Erreur("NE")
+FIN
+
+chemin est une chaîne = "_tmp_logger_seuil_matrice.txt"
+
+// --- Seuil nivDebug : tous les niveaux passent ---
+fSupprime(chemin)
+log1 est un Logger
+log1..Niveau      = nivDebug
+log1..Formateur   = fmtMsgSeuil
+log1..Destination = chemin
+emetQuatreNiveaux(log1)
+c1 est une chaîne = fChargeTexte(chemin)
+dbgVérifieVrai(Contient(c1, "ND") > 0, "seuil nivDebug : Debug passe")
+dbgVérifieVrai(Contient(c1, "NI") > 0, "seuil nivDebug : Info passe")
+dbgVérifieVrai(Contient(c1, "NA") > 0, "seuil nivDebug : Avert passe")
+dbgVérifieVrai(Contient(c1, "NE") > 0, "seuil nivDebug : Erreur passe")
+
+// --- Seuil nivInfo : Debug bloqué, le reste passe ---
+fSupprime(chemin)
+log2 est un Logger
+log2..Niveau      = nivInfo
+log2..Formateur   = fmtMsgSeuil
+log2..Destination = chemin
+emetQuatreNiveaux(log2)
+c2 est une chaîne = fChargeTexte(chemin)
+dbgVérifieEgalité(Contient(c2, "ND"), 0, "seuil nivInfo : Debug bloqué")
+dbgVérifieVrai(Contient(c2, "NI") > 0, "seuil nivInfo : Info passe")
+dbgVérifieVrai(Contient(c2, "NA") > 0, "seuil nivInfo : Avert passe")
+dbgVérifieVrai(Contient(c2, "NE") > 0, "seuil nivInfo : Erreur passe")
+
+// --- Seuil nivAvert : seuls Avert et Erreur passent ---
+fSupprime(chemin)
+log3 est un Logger
+log3..Niveau      = nivAvert
+log3..Formateur   = fmtMsgSeuil
+log3..Destination = chemin
+emetQuatreNiveaux(log3)
+c3 est une chaîne = fChargeTexte(chemin)
+dbgVérifieEgalité(Contient(c3, "ND"), 0, "seuil nivAvert : Debug bloqué")
+dbgVérifieEgalité(Contient(c3, "NI"), 0, "seuil nivAvert : Info bloqué")
+dbgVérifieVrai(Contient(c3, "NA") > 0, "seuil nivAvert : Avert passe")
+dbgVérifieVrai(Contient(c3, "NE") > 0, "seuil nivAvert : Erreur passe")
+
+// --- Seuil nivErreur : seul Erreur passe ---
+fSupprime(chemin)
+log4 est un Logger
+log4..Niveau      = nivErreur
+log4..Formateur   = fmtMsgSeuil
+log4..Destination = chemin
+emetQuatreNiveaux(log4)
+c4 est une chaîne = fChargeTexte(chemin)
+dbgVérifieEgalité(Contient(c4, "ND"), 0, "seuil nivErreur : Debug bloqué")
+dbgVérifieEgalité(Contient(c4, "NI"), 0, "seuil nivErreur : Info bloqué")
+dbgVérifieEgalité(Contient(c4, "NA"), 0, "seuil nivErreur : Avert bloqué")
+dbgVérifieVrai(Contient(c4, "NE") > 0, "seuil nivErreur : Erreur passe")
+
+// --- Edge : changer ..Niveau à chaud sur la même instance ---
+fSupprime(chemin)
+log5 est un Logger
+log5..Niveau      = nivErreur
+log5..Formateur   = fmtMsgSeuil
+log5..Destination = chemin
+log5.Info("avant réglage : bloqué")
+log5..Niveau = nivDebug
+log5.Info("après réglage : passe")
+c5 est une chaîne = fChargeTexte(chemin)
+dbgVérifieEgalité(Contient(c5, "avant réglage"), 0, "ancien seuil respecté avant le changement de ..Niveau")
+dbgVérifieVrai(Contient(c5, "après réglage") > 0, "nouveau seuil appliqué immédiatement après le changement de ..Niveau")
+
+fSupprime(chemin)
+
+dbgBilanTest()

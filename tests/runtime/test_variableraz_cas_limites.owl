@@ -1,0 +1,54 @@
+// VariableRAZ — verrous runtime non-pedagogiques :
+//   - tableau associatif / pile : vidage complet (Occurrence -> 0), divergent
+//     du comportement "tableau fixe" (dimensions conservées, cf. scenario PUB).
+//   - membre de structure avec défaut déclaré : restauré à SON défaut déclaré,
+//     pas au type-zéro brut (décision coordinator ).
+//   - tableau fixe multi-éléments : dimensions conservées même après
+//     remplissage dense.
+
+Trace("=== VariableRAZ : cas limites ===")
+
+// --- Tableau associatif : vidage complet, pas juste mise à zéro des valeurs ---
+aTab est un tableau associatif de chaînes
+aTab["nom"] = "Roger"
+aTab["ville"] = "Langley"
+VariableRAZ(aTab)
+dbgVérifieEgalité(aTab..Occurrence, 0, "VariableRAZ vide complètement un tableau associatif")
+dbgVérifieVrai(aTab..Vide, "tableau associatif vide après VariableRAZ")
+
+// --- Pile : vidage complet (équivaut à SupprimeTout) ---
+p est une pile de entiers
+Empile(p, 1)
+Empile(p, 2)
+Empile(p, 3)
+VariableRAZ(p)
+dbgVérifieEgalité(p..Occurrence, 0, "VariableRAZ vide complètement une pile")
+
+// Re-remplissage après VariableRAZ : la pile reste utilisable
+Empile(p, 100)
+dbgVérifieEgalité(p..Occurrence, 1, "pile ré-utilisable après VariableRAZ")
+
+// --- Membre à défaut déclaré : restauré à son défaut, pas à 0 ---
+CT_Config est une Structure
+	nTimeout est un entier  = 5
+	sNom     est une chaîne
+FIN
+
+cfg est un CT_Config
+cfg.nTimeout = 999
+cfg.sNom = "override"
+VariableRAZ(cfg)
+dbgVérifieEgalité(cfg.nTimeout, 5, "membre à défaut déclaré restauré à son défaut (5), pas à 0")
+dbgVérifieEgalité(cfg.sNom, "", "membre sans défaut déclaré reste au type-zéro")
+
+// --- Tableau fixe dense : dimensions conservées (≠ TableauSupprimeTout) ---
+gros est un tableau de 10 entiers
+POUR i = 1 À 10
+	gros[i] = i * 7
+FIN
+VariableRAZ(gros)
+dbgVérifieEgalité(gros..Occurrence, 10, "tableau fixe : dimensions conservées après VariableRAZ")
+dbgVérifieEgalité(gros[1], 0, "premier élément remis à zéro")
+dbgVérifieEgalité(gros[10], 0, "dernier élément remis à zéro")
+
+dbgBilanTest()

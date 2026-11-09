@@ -199,6 +199,11 @@ typedef struct OwlControlDecl {
      * fenetre, dans l'ordre d'ecriture). NULL si le champ n'a pas de code
      * top-level. */
     ObjFunction*       top_level;
+    /*  — code du champ homonyme du modele parent (heritage d'etat).
+     * Pose au 1er print quand un champ d'etat surcharge par nom un champ du
+     * modele : Ancetre() dans le code de surcharge appelle ce corps. NULL si
+     * le champ n'override rien. Emprunte au decl du modele (pas libere ici). */
+    ObjFunction*       ancestor_top_level;
     /*  — menu contextuel attache au champ via `MenuContextuel = <nom>`
      * (clic droit sur le champ). NULL si aucun. Le nom reference un bloc
      * `<nom> est un MenuContextuel` de la fenetre ; resolu au parse (differe a

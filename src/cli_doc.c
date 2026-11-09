@@ -381,6 +381,11 @@ static const PublicDocAlias PUBLIC_DOC_ALIASES[] = {
     { "package",      "43_packaging" },
     { "empaqueter",   "43_packaging" },
     { "distribuer",   "43_packaging" },
+    { "journalisation", "44_journalisation" },
+    { "journal",      "44_journalisation" },
+    { "logging",      "44_journalisation" },
+    { "logger",       "44_journalisation" },
+    { "log",          "44_journalisation" },
     { NULL, NULL }
 };
 
@@ -7448,20 +7453,20 @@ static int explain_widget(const OwlControlKindInfo* info, int kind_or_neg1,
                   "Columns: each column is a Column sub-block "
                   "(Caption, Type, Width). Details: owl explain Column."),
                C_RESET);
-        /* La police/couleur globale du champ (TBL..Police, TBL..CouleurTexte)
+        /* La police/couleur globale du champ (TBL..Police, TBL..PoliceCouleur)
          * sert de base au rendu des cellules et en-têtes (posée sur la vue) ;
          * le styleTable surcharge ensuite par sous-élément. Les deux coexistent. */
         printf("  %s%s%s\n",
                C_DIM,
                dl(opts->lang,
                   "Police et couleur : une police/couleur globale du champ "
-                  "(TAB..Police, TAB..CouleurTexte) sert de base au rendu des "
+                  "(TAB..Police, TAB..PoliceCouleur) sert de base au rendu des "
                   "cellules et en-têtes ; le style détaillé la surcharge par "
                   "sous-élément (Style..TitreColonne..Police, "
                   "Style..LibelléLignes..Couleur, Style..LigneSélectionnée..Police…). "
                   "Les deux coexistent. Sous-éléments : owl explain styleTable.",
-                  "Font and color: a global field font/color (TAB..Police, "
-                  "TAB..CouleurTexte) serves as the base for rendering cells and "
+                  "Font and color: a global field font/color (TAB..Font, "
+                  "TAB..FontColor) serves as the base for rendering cells and "
                   "headers; the detailed style overrides it per sub-element "
                   "(Style..ColumnTitle..Font, Style..RowLabel..Color, "
                   "Style..SelectedRow..Font…). Both coexist. "

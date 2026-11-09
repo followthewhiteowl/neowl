@@ -1,0 +1,148 @@
+Trace("=== httpRequête..AuthToken (émission Bearer + rafraîchissement auto M1/M2/M3) ===")
+
+// === Jeton valide : l'en-tête Bearer part tel quel, aucun rafraîchissement ===
+repAppli est un httpRéponse
+repAppli..CodeEtat = 200
+repAppli..Contenu  = `{"status":"ok"}`
+
+mockHttp est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttp)
+MockAvec(mockHttp, MockTout)
+MockRetourne(mockHttp, repAppli)
+MockActive(mockHttp)
+
+oParamsValide est un OAuth2Paramètres
+sJsonValide   est une chaîne                               = `{"access_token":"atk-valide","expires_in":3600}`
+tValide       est un AuthToken(oParamsValide, sJsonValide)
+
+reqValide est un httpRequête
+reqValide..URL       = "https://api.exemple.test/ressource"
+reqValide..AuthToken = tValide
+
+HTTPEnvoie(reqValide)
+
+reqCaptureeValide est un httpRequête = MockDernierArgument(mockHttp, 1)
+dbgVérifieEgalité(reqCaptureeValide..Entête["Authorization"], "Bearer atk-valide", "jeton valide -> en-tête Bearer émis tel quel")
+dbgVérifieVrai(MockVérifieAppelé(mockHttp, 1), "jeton valide -> un seul appel réseau (pas de rafraîchissement)")
+
+MockDésactive(mockHttp)
+
+
+// === Jeton expiré, RafraîchitTokenAuto=Vrai (défaut) : rafraîchissement via
+// jeton de rafraîchissement AVANT l'envoi applicatif, puis en-tête Bearer à
+// jour ===
+repRefresh est un httpRéponse
+repRefresh..CodeEtat = 200
+repRefresh..Contenu  = `{"access_token":"atk-rafraichi","expires_in":3600}`
+
+mockHttp2 est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttp2)
+MockAvec(mockHttp2, MockTout)
+MockRetourne(mockHttp2, repRefresh)
+MockActive(mockHttp2)
+
+oParamsExpire est un OAuth2Paramètres
+oParamsExpire..URLToken = "https://auth.exemple.test/token"
+sJsonExpire est une chaîne                               = `{"access_token":"atk-perime","expires_in":0,"refresh_token":"rtk-dispo"}`
+tExpire     est un AuthToken(oParamsExpire, sJsonExpire)
+
+reqAuto est un httpRequête
+reqAuto..URL       = "https://api.exemple.test/ressource"
+reqAuto..AuthToken = tExpire
+
+HTTPEnvoie(reqAuto)
+
+dbgVérifieVrai(MockVérifieAppelé(mockHttp2, 2), "jeton expiré + RafraîchitTokenAuto=Vrai -> rafraîchissement puis envoi (2 appels réseau)")
+
+reqCaptureeFinale est un httpRequête = MockDernierArgument(mockHttp2, 1)
+dbgVérifieEgalité(reqCaptureeFinale..Entête["Authorization"], "Bearer atk-rafraichi", "l'envoi applicatif porte le jeton rafraîchi, pas l'ancien")
+
+MockDésactive(mockHttp2)
+
+
+// === Jeton expiré, RafraîchitTokenAuto=Faux : le jeton périmé est envoyé
+// tel quel, aucun rafraîchissement déclenché ===
+mockHttp3 est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttp3)
+MockAvec(mockHttp3, MockTout)
+MockRetourne(mockHttp3, repAppli)
+MockActive(mockHttp3)
+
+reqSansAuto est un httpRequête
+reqSansAuto..URL                 = "https://api.exemple.test/ressource"
+reqSansAuto..AuthToken           = tExpire
+reqSansAuto..RafraîchitTokenAuto = Faux
+
+HTTPEnvoie(reqSansAuto)
+
+reqCaptureeSansAuto est un httpRequête = MockDernierArgument(mockHttp3, 1)
+dbgVérifieEgalité(reqCaptureeSansAuto..Entête["Authorization"], "Bearer atk-perime", "RafraîchitTokenAuto=Faux -> jeton périmé envoyé tel quel")
+dbgVérifieVrai(MockVérifieAppelé(mockHttp3, 1), "RafraîchitTokenAuto=Faux -> aucun appel de rafraîchissement")
+
+MockDésactive(mockHttp3)
+
+
+// === Jeton non-rafraîchissable (ni jeton de rafraîchissement, ni jeu de
+// paramètres client exploitable) : erreur nette AVANT l'envoi applicatif,
+// pas d'envoi silencieux d'un jeton mort ===
+mockHttp4 est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttp4)
+MockAvec(mockHttp4, MockTout)
+MockRetourne(mockHttp4, repAppli)
+MockActive(mockHttp4)
+
+oParamsVide         est un OAuth2Paramètres
+sJsonSansRefresh    est une chaîne                                  = `{"access_token":"atk-perime-sec","expires_in":0}`
+tNonRafraichissable est un AuthToken(oParamsVide, sJsonSansRefresh)
+
+reqEchec est un httpRequête
+reqEchec..URL       = "https://api.exemple.test/ressource"
+reqEchec..AuthToken = tNonRafraichissable
+
+ErreurRAZ()
+HTTPEnvoie(reqEchec)
+bErrEchec est un booléen = ErreurDétectée
+dbgVérifieVrai(bErrEchec, "jeton expiré non rafraîchissable -> erreur avant envoi")
+dbgVérifieEgalité(ErreurInfo(errCode), "E_NATIVE_OAUTH_TOKEN_NOT_REFRESHABLE", "code dédié jeton non renouvelable")
+dbgVérifieVrai(MockVérifieAppelé(mockHttp4, 0), "aucune requête applicative envoyée avec un jeton mort")
+
+MockDésactive(mockHttp4)
+
+
+// === Jeton expiré, sans jeton de rafraîchissement, MAIS les paramètres
+// client_credentials d'origine sont retenus et exploitables (URLToken +
+// ClientID + ClientSecret + grant client_credentials) : le rafraîchissement
+// réussit en rejouant un client_credentials, ce n'est pas une erreur ===
+repRejeu est un httpRéponse
+repRejeu..CodeEtat = 200
+repRejeu..Contenu  = `{"access_token":"atk-rejeu-cc","expires_in":3600}`
+
+mockHttp5 est un MockNative = MockCrée(HTTPEnvoie)
+MockQuand(mockHttp5)
+MockAvec(mockHttp5, MockTout)
+MockRetourne(mockHttp5, repRejeu)
+MockActive(mockHttp5)
+
+oParamsRejeu est un OAuth2Paramètres
+oParamsRejeu..URLToken         = "https://auth.exemple.test/token"
+oParamsRejeu..ClientID         = "mon-client"
+oParamsRejeu..ClientSecret     = "mon-secret"
+oParamsRejeu..TypeAutorisation = taApplicationCliente
+
+sJsonRejeu est une chaîne                             = `{"access_token":"atk-perime-rejeu","expires_in":0}`
+tRejeu     est un AuthToken(oParamsRejeu, sJsonRejeu)
+
+reqRejeu est un httpRequête
+reqRejeu..URL       = "https://api.exemple.test/ressource"
+reqRejeu..AuthToken = tRejeu
+
+HTTPEnvoie(reqRejeu)
+
+dbgVérifieVrai(MockVérifieAppelé(mockHttp5, 2), "jeton expiré sans jeton de rafraîchissement, params client_credentials exploitables -> rejeu client_credentials puis envoi (2 appels réseau)")
+
+reqCaptureeRejeu est un httpRequête = MockDernierArgument(mockHttp5, 1)
+dbgVérifieEgalité(reqCaptureeRejeu..Entête["Authorization"], "Bearer atk-rejeu-cc", "l'envoi applicatif porte le jeton obtenu par rejeu client_credentials")
+
+MockDésactive(mockHttp5)
+
+dbgBilanTest()

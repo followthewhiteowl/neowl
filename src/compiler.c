@@ -461,9 +461,24 @@ typedef struct {
 static ElementGlobal g_element_globals[MAX_ELEMENT_GLOBALS];
 static int g_element_globals_count = 0;
 
+/*  — aretes d'heritage inter-elements (`Herite de`). Declare ici pour
+ * que element_globals_reset (juste en dessous) les reinitialise avec les
+ * globales d'element. Fonctions (register/resolve) definies apres
+ * element_globals_has. */
+#define MAX_ELEMENT_PARENTS 512
+typedef struct {
+    char child[64];  int childStripLen;  char childStrip[64];
+    char parent[64]; int parentStripLen; char parentStrip[64];
+} ElementParentEdge;
+static ElementParentEdge g_element_parents[MAX_ELEMENT_PARENTS];
+static int g_element_parents_count = 0;
+
 static void element_globals_reset(void) {
     g_element_globals_count = 0;
     g_theme_block_seen = false;
+    /*  — les aretes d'heritage partagent le cycle de vie des globales
+     * d'element (hydratees ensemble, reset ensemble). */
+    g_element_parents_count = 0;
 }
 
 /* Construit `<ELEM>$<var>` dans `out`. Retourne la longueur (0 si pas
@@ -515,6 +530,81 @@ static bool element_globals_has(const char* elem, int elemLen,
         if (gi->elemStripLen == es && gi->nameStripLen == ns
             && strncasecmp(gi->elemStrip, eStrip, (size_t)es) == 0
             && strncasecmp(gi->nameStrip, nStrip, (size_t)ns) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* ============================================================================
+ *  — aretes d'heritage inter-elements (Etat/ModeleEtat `Herite de`).
+ *
+ * Une variable globale declaree au top-level d'un ModeleEtat est stockee
+ * mangled `<MODELE>$<var>` (, comme toute globale d'element). Pour
+ * qu'un Etat qui herite de ce modele puisse la lire ET l'ecrire, le compilateur
+ * doit reecrire un nom nu `gVar` du code de l'etat vers le slot du modele
+ * PROPRIETAIRE `<MODELE>$gVar` (slot partage -> lecture/ecriture synchronisees).
+ * Ce registre memorise les aretes (enfant -> modele parent) pour remonter la
+ * chaine d'heritage au compile-time, transitivement (modele-de-modeles).
+ * Alimente par le parse du fichier courant (etat_declaration, `Herite de`) et
+ * par le scan des voisins (globals_scan_one_source). Meme cycle de vie que
+ * g_element_globals : reset ensemble (element_globals_reset). Le registre
+ * (g_element_parents) est declare pres de g_element_globals pour que
+ * element_globals_reset le voie.
+ * ============================================================================ */
+
+/* Enregistre l'arete (child -> parent) si absente. Accent+casse-insensible. */
+static void element_parent_register(const char* child, int childLen,
+                                    const char* parent, int parentLen) {
+    if (childLen <= 0 || childLen >= 64 || parentLen <= 0 || parentLen >= 64) return;
+    char cStrip[64], pStrip[64];
+    int cs = scanner_strip_accents(child, childLen, cStrip, sizeof(cStrip));
+    int ps = scanner_strip_accents(parent, parentLen, pStrip, sizeof(pStrip));
+    for (int i = 0; i < g_element_parents_count; i++) {
+        const ElementParentEdge* e = &g_element_parents[i];
+        if (e->childStripLen == cs && e->parentStripLen == ps
+            && strncasecmp(e->childStrip, cStrip, (size_t)cs) == 0
+            && strncasecmp(e->parentStrip, pStrip, (size_t)ps) == 0) {
+            return;
+        }
+    }
+    if (g_element_parents_count >= MAX_ELEMENT_PARENTS) return;
+    ElementParentEdge* e = &g_element_parents[g_element_parents_count++];
+    memcpy(e->child, child, (size_t)childLen);   e->child[childLen] = '\0';
+    memcpy(e->parent, parent, (size_t)parentLen); e->parent[parentLen] = '\0';
+    memcpy(e->childStrip, cStrip, (size_t)cs); e->childStrip[cs] = '\0'; e->childStripLen = cs;
+    memcpy(e->parentStrip, pStrip, (size_t)ps); e->parentStrip[ps] = '\0'; e->parentStripLen = ps;
+}
+
+/* Remonte la chaine d'heritage de `elem` (DFS gauche->droite, profondeur bornee
+ * = garde anti-cycle) et renvoie dans ownerOut le nom (forme tapee) du premier
+ * modele ancetre qui declare une globale top-level `name`. Faux si aucun. Le
+ * slot runtime est `<owner>$<name>`, partage avec le code du modele proprietaire
+ * (resolution canon casse/accent-insensible cote vm.globals). */
+static bool element_inherited_global_owner(const char* elem, int elemLen,
+                                           const char* name, int nameLen,
+                                           char* ownerOut, size_t ownerSize,
+                                           int depth) {
+    if (elemLen <= 0 || depth >= 64) return false;
+    char eStrip[64];
+    int es = scanner_strip_accents(elem, elemLen, eStrip, sizeof(eStrip));
+    for (int i = 0; i < g_element_parents_count; i++) {
+        const ElementParentEdge* ed = &g_element_parents[i];
+        if (ed->childStripLen != es
+            || strncasecmp(ed->childStrip, eStrip, (size_t)es) != 0) continue;
+        int pLen = (int)strlen(ed->parent);
+        /* Parent direct : declare-t-il la globale ? */
+        if (element_globals_has(ed->parent, pLen, name, nameLen)) {
+            if ((size_t)pLen < ownerSize) {
+                memcpy(ownerOut, ed->parent, (size_t)pLen);
+                ownerOut[pLen] = '\0';
+                return true;
+            }
+            return false;
+        }
+        /* Sinon remonter (modele-de-modeles). */
+        if (element_inherited_global_owner(ed->parent, pLen, name, nameLen,
+                                           ownerOut, ownerSize, depth + 1)) {
             return true;
         }
     }
@@ -3974,6 +4064,7 @@ typedef struct { char coll[64]; char name[64]; bool exposed; } NeiCollRec;
 typedef struct { char name[64]; OwlControlKind kind; } NeiWidgetRec;
 typedef struct { int ownerLocal; char name[64]; } NeiChildRec;
 typedef struct { char name[64]; int line; } NeiCGlobalRec;
+typedef struct { char child[64]; char parent[64]; } NeiParentRec; /*  */
 
 typedef struct {
     int fileIndex;
@@ -3983,6 +4074,7 @@ typedef struct {
     NeiCGlobalRec* cglobals; int cglobalCount; /* globales Compile() du voisin */
     NeiGlobalRec*  globals;  int globalCount;
     NeiElemRec*    elems;    int elemCount;
+    NeiParentRec*  parents;  int parentCount;  /*  — aretes `Herite de` */
     NeiCollRec*    colls;    int collCount;
 } NeighborContribution;
 
@@ -4010,6 +4102,10 @@ static void neighbor_replay_globals(int curFileIndex) {
             element_globals_register(c->elems[i].elem,
                 (int)strlen(c->elems[i].elem),
                 c->elems[i].name, (int)strlen(c->elems[i].name));
+        for (int i = 0; i < c->parentCount; i++)   /*  */
+            element_parent_register(c->parents[i].child,
+                (int)strlen(c->parents[i].child),
+                c->parents[i].parent, (int)strlen(c->parents[i].parent));
     }
 }
 
@@ -4059,6 +4155,33 @@ static void globals_scan_one_source(const char* src) {
                 if (elementDepth >= 0 && depth <= elementDepth) {
                     curElem[0] = '\0';
                     elementDepth = -1;
+                }
+                continue;
+            }
+
+            /*  — `Herite de A, B` au niveau body d'un Etat/ModeleEtat
+             * voisin : enregistre les aretes d'heritage (curElem -> modele) pour
+             * la resolution transitive des globales heritees. Scan via un PROBE
+             * (copie du scanner) pour ne pas perturber le depth-tracking de la
+             * boucle principale : HERITE/DE/IDENT sont ensuite re-sautes
+             * naturellement (HERITE/DE non-IDENT, les noms de modeles echouent au
+             * lookahead `est un`). */
+            if (tok.type == TOKEN_HERITE && elementDepth >= 0
+                && curElem[0] != '\0' && depth == elementDepth + 1) {
+                Scanner probe = s;
+                Token t = scanner_scan_token(&probe);
+                while (t.type == TOKEN_NEWLINE) t = scanner_scan_token(&probe);
+                if (t.type == TOKEN_DE) {
+                    do { t = scanner_scan_token(&probe); } while (t.type == TOKEN_NEWLINE);
+                }
+                for (;;) {
+                    if (t.type != TOKEN_IDENTIFIER) break;
+                    element_parent_register(curElem, (int)strlen(curElem),
+                                            t.start, t.length);
+                    Token sep = scanner_scan_token(&probe);
+                    while (sep.type == TOKEN_NEWLINE) sep = scanner_scan_token(&probe);
+                    if (sep.type != TOKEN_COMMA) break;
+                    do { t = scanner_scan_token(&probe); } while (t.type == TOKEN_NEWLINE);
                 }
                 continue;
             }
@@ -4227,14 +4350,17 @@ static void globals_scan_one_source(const char* src) {
              * PROCEDURE, PROPRIETES) via le depth-tracker general de la boucle.
              * Les controles `LIB_X est un Champ ...` sont deja exclus plus haut
              * (modificateur Champ/Field -> depth++, ). */
-            if (after.type == TOKEN_FENETRE || after.type == TOKEN_ETAT) {
+            if (after.type == TOKEN_FENETRE || after.type == TOKEN_ETAT
+                || after.type == TOKEN_MODELE_ETAT) {
                 /*  — entre dans le body element : retient le nom de
                  * l'element et la profondeur de son body. Les globales de
                  * niveau body seront enregistrees QUALIFIEES (g_element_globals)
                  * et NON exposees en nom nu. depth++ pour suivre le FIN de
                  * l'element (son body vit a elementDepth + 1). Imbrication
                  * d'elements impossible (1 fichier = 1 Fenetre/Etat) -> pas de
-                 * pile a gerer. */
+                 * pile a gerer.  — TOKEN_MODELE_ETAT inclus : un modele
+                 * d'etat voisin expose ses globales top-level (qualifiees) pour
+                 * la resolution des globales heritees cote etat heritier. */
                 if (name.length < (int)sizeof(curElem)) {
                     memcpy(curElem, name.start, (size_t)name.length);
                     curElem[name.length] = '\0';
@@ -6091,7 +6217,8 @@ static bool demote_gui_declarator_to_identifier(void);
 static bool demote_liberer_native_call_to_identifier(void);
 static void constante_block(void);
 static void window_declaration(Token windowName, int line);
-static void etat_declaration(Token etatName, int line);
+static void etat_declaration(Token etatName, int line, bool is_template);
+static void etat_print_site_record(const char* name, int len, int line);
 static void named_variable(Token name, bool canAssign);
 
 /*  — forward decls helpers icone (definitions vers L8000+). */
@@ -6620,6 +6747,13 @@ static void string(bool canAssign) {
                 if (dotPos >= 0) {
                     int pos = dotPos + 1;
                     while (pos < idLen) {
+                        /*  : collapser les points consecutifs.
+                         * `..` est l'operateur de propriete (invariant 6) ;
+                         * `..champ` et `.champ` emettent le meme OP_STRUCT_GET. Sans ca,
+                         * `base..champ` produisait un segment vide -> OP_STRUCT_GET ""
+                         * -> NIL -> crash au champ suivant. */
+                        while (pos < idLen && idStart[pos] == '.') pos++;
+                        if (pos >= idLen) break;
                         int fieldStart = pos;
                         while (pos < idLen && idStart[pos] != '.') pos++;
                         Token fieldTok;
@@ -6627,7 +6761,6 @@ static void string(bool canAssign) {
                         fieldTok.length = pos - fieldStart;
                         ConstIdx nameConst = identifier_constant(&fieldTok);
                         emit_const_op(OP_STRUCT_GET, nameConst);
-                        if (pos < idLen) pos++; /* skip dot */
                     }
                 }
             }
@@ -11002,6 +11135,66 @@ static void compile_intercepte_evenement(const Token* callee) {
     emit_bytes(OP_CALL, argCount);
 }
 
+/*  — compte les arguments de niveau 0 de l'appel courant SANS compiler
+ * ni consommer : on peek une copie du scanner en suivant la profondeur des
+ * parenthèses/crochets/accolades. parser.current est le 1er token de la liste
+ * (le `(` ouvrant a déjà été consommé par le dispatch infixe). Sert à choisir
+ * la signature dont l'arité matche l'appel AVANT de valider les params
+ * enum-contraints (une native multi-arités porte un param enum différent selon
+ * l'arité : cf. Compresse type en arité 2/3, Cherche mode en arité 3). */
+static int lookahead_arg_count(void) {
+    if (check(TOKEN_RIGHT_PAREN)) return 0;
+    Scanner peek = parser.scanner;
+    Token tok = parser.current;
+    int depth = 0;
+    int count = 1;
+    for (;;) {
+        if (tok.type == TOKEN_EOF) break;
+        switch (tok.type) {
+            case TOKEN_LEFT_PAREN:
+            case TOKEN_LEFT_BRACKET:
+            case TOKEN_LEFT_BRACE:
+                depth++;
+                break;
+            case TOKEN_RIGHT_BRACKET:
+            case TOKEN_RIGHT_BRACE:
+                if (depth > 0) depth--;
+                break;
+            case TOKEN_RIGHT_PAREN:
+                if (depth == 0) return count;
+                depth--;
+                break;
+            case TOKEN_COMMA:
+                if (depth == 0) count++;
+                break;
+            default:
+                break;
+        }
+        tok = scanner_scan_token(&peek);
+    }
+    return count;
+}
+
+/*  — sélectionne la liste de params de la signature dont l'arité matche
+ * argCount, en réutilisant la MÊME règle que check_call_arity_ex (arity exacte
+ * ou variadique -1). Gère getters arité 0 (params possiblement NULL),
+ * variadiques (-1), arités non contiguës (match par valeur, jamais par index).
+ * Si aucune signature ne matche (arité erronée, signalée ailleurs par
+ * check_call_arity), on retombe sur signatures[0] pour éviter un déréférencement
+ * surprise et préserver le comportement historique sur le chemin d'erreur. */
+static const OwlParam* select_params_for_argcount(const OwlNativeDef* def,
+                                                   int argCount) {
+    if (!def || !def->signatures) return NULL;
+    const OwlSignature* variadic = NULL;
+    for (const OwlSignature* s = def->signatures; s->returnType != NULL; s++) {
+        if (s->arity == argCount) return s->params;
+        if (s->arity == -1 && variadic == NULL) variadic = s;
+    }
+    if (variadic) return variadic->params;
+    return def->signatures[0].returnType != NULL ? def->signatures[0].params
+                                                 : NULL;
+}
+
 static void call(bool canAssign) {
     (void)canAssign;
 
@@ -11026,6 +11219,16 @@ static void call(bool canAssign) {
         memcpy(fnName, callee.start, (size_t)callee.length);
         fnName[callee.length] = '\0';
         def = owl_registry_find(fnName);
+    }
+
+    /*  — garde compile-time #2 : capture le site iImprimeEtat(IDENT).
+     * Valide post-compile (compiler_validate_etat_inheritance) qu'un ModeleEtat
+     * n'est pas imprime nu. parser.current pointe le 1er argument (le `(` vient
+     * d'etre consomme comme infix). L'arg est toujours un identifiant d'Etat. */
+    if (def && def->canonical && strcmp(def->canonical, "iImprimeEtat") == 0
+        && parser.current.type == TOKEN_IDENTIFIER) {
+        etat_print_site_record(parser.current.start, parser.current.length,
+                               callee.line);
     }
 
     /*  — verrou compile-time : Ouvre / OuvreFille / OuvreSoeur sont
@@ -11092,7 +11295,10 @@ static void call(bool canAssign) {
 
     const OwlParam* params = NULL;
     if (def && def->signatures && def->signatures[0].returnType != NULL) {
-        params = def->signatures[0].params;
+        /*  — valider les args contre la signature dont l'arité matche
+         * l'appel, pas systématiquement signatures[0] : un param enum-contraint
+         * présent uniquement dans une arité ultérieure était jamais vérifié. */
+        params = select_params_for_argcount(def, lookahead_arg_count());
     }
 
     /* V1.7-1 : si pas de native trouvee, lookup dans la table des
@@ -13689,6 +13895,25 @@ static void this_field(bool canAssign) {
  * instance->klass->superclass cote VM. */
 static void ancetre_call(bool canAssign) {
     (void)canAssign;
+    /*  — `Ancetre()` NU (suivi de `(`, pas de `.`) dans le code d'un
+     * champ d'etat surcharge : chemin distinct du super-call de classe. Emet un
+     * appel a la native cachee __etat_ancetre_champ qui execute le corps du
+     * champ homonyme du modele parent (resolu au runtime via le controle
+     * courant). Reserve au scope Etat ; hors classe (currentClass == NULL). */
+    if (currentClass == NULL && g_in_etat_scope_depth > 0 && check(TOKEN_LEFT_PAREN)) {
+        advance_token();   /* consume '(' */
+        consume(TOKEN_RIGHT_PAREN, E_SYNTAX_EXP_RPAREN_PARAMS);
+        Token fnName;
+        fnName.type   = TOKEN_IDENTIFIER;
+        fnName.start  = "__etat_ancetre_champ";
+        fnName.length = 20;
+        fnName.line   = parser.previous.line;
+        fnName.column = parser.previous.column;
+        ConstIdx cst = identifier_constant(&fnName);
+        emit_const_op(OP_GET_GLOBAL, cst);
+        emit_bytes(OP_CALL, 0);
+        return;
+    }
     if (currentClass == NULL) {
         owl_emit_error_at(&parser.previous, E_SEM_ANCETRE_OUTSIDE_METHOD);
         return;
@@ -15444,6 +15669,17 @@ static bool is_known_global_name(const char* name, int length) {
                 collection_member_has(name, clen, (const char*)dollar + 1, mlen)) {
                 return true;
             }
+            /*  — globale top-level d'un ModeleEtat mangled `<MODELE>$var`.
+             * La resolution nom-nu d'un Etat heritier reecrit `gVar` vers ce slot
+             * (element_inherited_global_owner) ; le couple (MODELE, var) vit dans
+             * un fichier voisin, donc absent de g_declaredGlobals du LECTEUR. On le
+             * reconnait via g_element_globals (meme logique que les membres de
+             * collection ci-dessus) pour ne pas emettre un faux E_SEM_UNKNOWN_SYMBOL
+             * sur un slot herite legitime. */
+            if (mlen > 0 &&
+                element_globals_has(name, clen, (const char*)dollar + 1, mlen)) {
+                return true;
+            }
         }
     }
 
@@ -16277,6 +16513,32 @@ static void named_variable(Token name, bool canAssign) {
         if (pn > 0) {
             name.start  = elementResolveBuf;
             name.length = pn;
+        }
+    }
+
+    /*  — globale HERITEE d'un modele d'etat : si le nom nu n'est pas une
+     * globale de l'element courant mais une globale top-level d'un MODELE dont il
+     * herite (`Herite de A, B`), on reecrit vers le slot du modele proprietaire
+     * `<MODELE>$<var>` — le meme slot que le code du modele, donc lecture ET
+     * ecriture partagees. Transitif (modele-de-modeles) via la remontee de chaine.
+     * Place APRES la resolution intra-element (une globale propre a l'etat masque
+     * un homonyme herite) et seulement si le nom n'a pas deja ete reecrit. */
+    static char inheritedResolveBuf[256];
+    if (arg == -1 && name.start == preResolveName
+        && g_current_element_name[0] != '\0'
+        && g_element_parents_count > 0) {
+        char ownerBuf[64];
+        if (element_inherited_global_owner(g_current_element_name,
+                                           (int)strlen(g_current_element_name),
+                                           name.start, name.length,
+                                           ownerBuf, sizeof(ownerBuf), 0)) {
+            int pn = element_var_prefix(ownerBuf, name.start, name.length,
+                                        inheritedResolveBuf,
+                                        sizeof(inheritedResolveBuf));
+            if (pn > 0) {
+                name.start  = inheritedResolveBuf;
+                name.length = pn;
+            }
         }
     }
 
@@ -17656,6 +17918,51 @@ static void parse_precedence(Precedence precedence) {
      * Saisie, Table, Colonne) utilises comme variable en position d'expression. */
     (void)demote_widget_keyword_to_identifier();
     (void)demote_liberer_native_call_to_identifier();
+    /*  — une expression ne peut JAMAIS commencer par un boundary
+     * structurel (fermeture de bloc, en-tete de declaration, statement-starter)
+     * ni par EOF. Le cas pathologique : une chaine non terminee re-ouverte par
+     * le doublage `""` mange le `)` d'un appel ; la parenthese reste ouverte
+     * (bracketDepth > 0) et le parser reclame un argument de plus. Le prochain
+     * token est alors le boundary du bloc englobant (son `FIN`, un en-tete de
+     * PROCEDURE suivante...). L'advance inconditionnel ci-dessous le VOLERAIT au
+     * parser parent qui en a besoin pour refermer son scope -> cascade de
+     * parasites ("FIN attendu" a l'EOF, declarations vues imbriquees).
+     *
+     * On ne refuse de consommer QUE dans un groupe ouvert (bracketDepth > 0) :
+     * c'est exactement la situation du `)` mange. En statement PLAT (depth 0),
+     * un boundary parasite doit au contraire etre consomme pour garantir la
+     * progression — sinon synchronize() s'arrete aussi dessus (meme jeu de
+     * tokens) et la boucle de declarations tourne a l'infini (cas `< FIN >`
+     * seul). EOF est refuse a toute profondeur : le consommer est un no-op (le
+     * scanner reste a EOF) et les boucles de corps/top-level sortent sur
+     * check(EOF). Jeu de tokens aligne EXACTEMENT sur synchronize(). */
+    bool refuseBoundary = (parser.current.type == TOKEN_EOF);
+    if (!refuseBoundary && parser.scanner.bracketDepth > 0) {
+        switch (parser.current.type) {
+            case TOKEN_FIN:
+            case TOKEN_PROCEDURE:
+            case TOKEN_FONCTION:
+            case TOKEN_CLASSE:
+            case TOKEN_SI:
+            case TOKEN_POUR:
+            case TOKEN_TANTQUE:
+            case TOKEN_BOUCLE:
+            case TOKEN_SELON:
+            case TOKEN_RENVOYER:
+            case TOKEN_RETOUR:
+            case TOKEN_FAIRE:
+            case TOKEN_SINON:
+            case TOKEN_ENFIN:
+                refuseBoundary = true;
+                break;
+            default:;
+        }
+    }
+    if (refuseBoundary) {
+        owl_emit_error_current(E_SYNTAX_EXPECTED_EXPR);
+        g_lv_chain_base = lvSavedBase; g_lv_chain_count = lvSavedCount;
+        return;
+    }
     advance_token();
     ParseFn prefixRule = get_rule(parser.previous.type)->prefix;
     if (prefixRule == NULL) {
@@ -22283,7 +22590,16 @@ static void var_declaration_after_est(Token varName) {
     /* DSL Etat V2 : 'IDENT est un Etat ... FIN' */
     if (check(TOKEN_ETAT)) {
         advance_token(); /* consume ETAT/REPORT */
-        etat_declaration(varName, varName.line);
+        etat_declaration(varName, varName.line, /*is_template=*/false);
+        return;
+    }
+
+    /*  : 'IDENT est un ModeleEtat/ReportTemplate ... FIN' — modele
+     * d'etat (non imprimable seul, source d'heritage). Meme parse que l'Etat,
+     * flag is_template pose sur le decl. */
+    if (check(TOKEN_MODELE_ETAT)) {
+        advance_token(); /* consume MODELEETAT/REPORTTEMPLATE */
+        etat_declaration(varName, varName.line, /*is_template=*/true);
         return;
     }
 
@@ -35753,8 +36069,385 @@ static void etat_parse_subblock(OwlEtatDecl* decl, Token nameTok,
     if (b) b->body = body;
 }
 
+/* ================================================================
+ *  — gardes compile-time de l'heritage d'Etat.
+ *
+ * Phase 1 (/2385) validait l'heritage de modeles au RUNTIME
+ * (owl_etat_flatten, soft-error iImprimeEtat). Comme l'heritage est
+ * entierement statique (`Herite de <nom>` resolu contre les modeles
+ * declares, zero dynamique), on le bascule ici en erreur de compilation
+ * (fail-fast). Le merge effectif reste au runtime ; seule la DETECTION
+ * des gardes migre. Parent inconnu / non-modele restent des gardes
+ * runtime (le compile les saute : impossibles a valider sans resolution).
+ * ================================================================ */
+
+/* Sites d'appel iImprimeEtat(IDENT) captures pendant la compile pour la
+ * garde #2 (un ModeleEtat ne s'imprime pas nu). L'arg d'un imprime est
+ * toujours un identifiant d'Etat statique -> le compile attrape tout. */
+#define OWL_ETAT_PRINT_SITES_MAX 256
+typedef struct { char name[128]; int line; } EtatPrintSite;
+static EtatPrintSite g_etat_print_sites[OWL_ETAT_PRINT_SITES_MAX];
+static int g_etat_print_site_count = 0;
+
+void compiler_etat_print_sites_reset(void) { g_etat_print_site_count = 0; }
+
+int compiler_etat_print_sites_count(void) { return g_etat_print_site_count; }
+
+static void etat_print_site_record(const char* name, int len, int line) {
+    if (g_etat_print_site_count >= OWL_ETAT_PRINT_SITES_MAX) return;
+    if (len <= 0 || len >= (int)sizeof(g_etat_print_sites[0].name)) return;
+    EtatPrintSite* s = &g_etat_print_sites[g_etat_print_site_count++];
+    memcpy(s->name, name, (size_t)len);
+    s->name[len] = '\0';
+    s->line = line;
+}
+
+/* Token synthetique ancre sur la declaration d'un Etat (ligne `ETAT_X est
+ * un Etat`, colonne 1). Le message nomme deja l'entite concernee. */
+static Token etat_decl_token(const OwlEtatDecl* e) {
+    Token t;
+    t.type = TOKEN_IDENTIFIER;
+    t.start = e->name;
+    t.length = (int)strlen(e->name);
+    t.line = e->line;
+    t.column = 1;
+    return t;
+}
+
+/* Calque compile de block_find_ctrl_by_name (stdlib_pdf.c) : recherche
+ * d'un controle par nom, insensible casse+accents (invariant 2). */
+static OwlControlDecl* etat_compile_block_find_ctrl(const OwlEtatBlockDecl* b,
+                                                    const char* name) {
+    if (!b || !name) return NULL;
+    char sa[256];
+    int na = scanner_strip_accents(name, (int)strlen(name), sa, sizeof(sa));
+    for (int i = 0; i < b->control_count; i++) {
+        OwlControlDecl* c = b->controls[i];
+        if (!c || !c->name) continue;
+        char sb[256];
+        int nb = scanner_strip_accents(c->name, (int)strlen(c->name), sb, sizeof(sb));
+        if (na == nb && strncasecmp(sa, sb, (size_t)na) == 0) return c;
+    }
+    return NULL;
+}
+
+/* Calque compile de etat_ancestry_reaches (stdlib_pdf.c) : `target`
+ * est-il atteignable dans l'ascendance de `node` ? DFS borne a 64 ; le
+ * plafond tient lieu de garde anti-cycle (une boucle A<->B s'arrete a 64
+ * et est alors signalee circulaire). */
+static bool etat_compile_ancestry_reaches(const OwlEtatDecl* node,
+                                          const OwlEtatDecl* target, int depth) {
+    if (node == NULL) return false;
+    if (depth >= 64) return true;
+    if (node == target) return true;
+    for (int i = 0; i < node->parent_name_count; i++) {
+        const OwlEtatDecl* p = vm_etat_lookup(node->parent_names[i]);
+        if (etat_compile_ancestry_reaches(p, target, depth + 1)) return true;
+    }
+    return false;
+}
+
+/* Collision de champ TRANSITIVE : la fusion d'heritage aplatit les controles de
+ * TOUTE l'ascendance de modeles d'une branche, pas seulement du modele cite
+ * directement. Une collision peut donc naitre d'un grand-parent (modele-de-
+ * modeles). On collecte par branche sur toute l'ascendance ; la detection reste
+ * par paire de branches. */
+
+/* Un controle de nom `name` existe-t-il, dans le bloc (kind / iterName), sur
+ * toute l'ascendance (racine + modeles parents) de `node` ? iterName n'est
+ * consulte que pour les blocs Iteration (matches par nom) ; les blocs canon
+ * matchent par kind. DFS borne a 64 (une eventuelle boucle est deja signalee
+ * circulaire en amont ; le plafond est une ceinture). */
+static bool etat_branch_has_control(const OwlEtatDecl* node,
+                                    OwlEtatBlockKind kind, const char* iterName,
+                                    const char* name, int depth) {
+    if (node == NULL || depth >= 64) return false;
+    const OwlEtatBlockDecl* blk = (kind == OWL_ETAT_BLOCK_ITERATION)
+        ? owl_etat_decl_find_block_by_name(node, iterName)
+        : owl_etat_decl_find_canon_block(node, kind);
+    if (blk && etat_compile_block_find_ctrl(blk, name)) return true;
+    for (int pi = 0; pi < node->parent_name_count; pi++) {
+        const OwlEtatDecl* p = vm_etat_lookup(node->parent_names[pi]);
+        if (!p || !p->is_template) continue;
+        if (etat_branch_has_control(p, kind, iterName, name, depth + 1)) return true;
+    }
+    return false;
+}
+
+/* Visite transitive des controles de la branche `nodeA` (racine + ascendance) ;
+ * pour chacun, teste la collision avec l'ascendance complete de la branche
+ * `rootB`. Retourne le nom du 1er controle en collision, NULL sinon. */
+static const char* etat_branch_find_collision(const OwlEtatDecl* nodeA,
+                                              const OwlEtatDecl* rootB, int depth) {
+    if (nodeA == NULL || depth >= 64) return NULL;
+    for (int bi = 0; bi < nodeA->block_count; bi++) {
+        const OwlEtatBlockDecl* ba = &nodeA->blocks[bi];
+        for (int ci = 0; ci < ba->control_count; ci++) {
+            OwlControlDecl* ca = ba->controls[ci];
+            if (!ca || !ca->name) continue;
+            if (etat_branch_has_control(rootB, ba->kind, ba->name, ca->name, 0))
+                return ca->name;
+        }
+    }
+    for (int pi = 0; pi < nodeA->parent_name_count; pi++) {
+        const OwlEtatDecl* p = vm_etat_lookup(nodeA->parent_names[pi]);
+        if (!p || !p->is_template) continue;
+        const char* hit = etat_branch_find_collision(p, rootB, depth + 1);
+        if (hit) return hit;
+    }
+    return NULL;
+}
+
+/* Bloc Iteration de meme nom, detection TRANSITIVE : la fusion d'heritage
+ * aplatit les blocs de TOUTE l'ascendance de modeles d'une branche (modele-de-
+ * modeles), pas seulement du modele cite directement. Un bloc Iteration declare
+ * par un grand-parent entre donc en collision avec un bloc de meme nom du
+ * descendant. On parcourt l'ascendance de `node` (DFS borne 64) et on teste
+ * chaque bloc Iteration contre les blocs propres de `leaf`. Retourne le nom du
+ * 1er doublon, NULL sinon. */
+static const char* etat_branch_find_iteration_dup(const OwlEtatDecl* node,
+                                                  const OwlEtatDecl* leaf,
+                                                  int depth) {
+    if (node == NULL || depth >= 64) return NULL;
+    for (int bi = 0; bi < node->block_count; bi++) {
+        const OwlEtatBlockDecl* blk = &node->blocks[bi];
+        if (blk->kind != OWL_ETAT_BLOCK_ITERATION) continue;
+        if (owl_etat_decl_find_block_by_name(leaf, blk->name) != NULL)
+            return blk->name;
+    }
+    for (int pi = 0; pi < node->parent_name_count; pi++) {
+        const OwlEtatDecl* p = vm_etat_lookup(node->parent_names[pi]);
+        if (!p || !p->is_template) continue;
+        const char* hit = etat_branch_find_iteration_dup(p, leaf, depth + 1);
+        if (hit) return hit;
+    }
+    return NULL;
+}
+
+/* L'etat `node` ou un modele de son ascendance fournit-il un bloc Corps ?
+ * Invariant conserve sur la cloture d'heritage : un ModeleEtat
+ * peut n'etre qu'un fragment sans Corps, mais l'Etat APLATI doit en avoir
+ * un, qu'il le porte en propre ou l'herite d'un modele. DFS borne a 64
+ * (ceinture anti-boucle ; une eventuelle circularite est deja signalee en
+ * amont). Seuls les parents is_template participent a l'aplatissement. */
+static bool etat_branch_has_corps(const OwlEtatDecl* node, int depth) {
+    if (node == NULL || depth >= 64) return false;
+    if (owl_etat_decl_find_canon_block(node, OWL_ETAT_BLOCK_CORPS) != NULL)
+        return true;
+    for (int pi = 0; pi < node->parent_name_count; pi++) {
+        const OwlEtatDecl* p = vm_etat_lookup(node->parent_names[pi]);
+        if (!p || !p->is_template) continue;
+        if (etat_branch_has_corps(p, depth + 1)) return true;
+    }
+    return false;
+}
+
+/* Valide l'heritage d'Etat apres compile de tout le perimetre (vm.etats
+ * complet). Emet la PREMIERE garde trouvee comme erreur de compilation
+ * (fail-fast : panicMode suppresse la cascade) et renvoie false. true si
+ * aucune anomalie. Appele par project_run (run/test) et main (--check). */
+bool compiler_validate_etat_inheritance_range(int etatStart, int etatEnd,
+                                              int printSiteCount) {
+    parser.panicMode = false;   /* passe post-compile : efface un reliquat */
+
+    if (etatStart < 0) etatStart = 0;
+    if (etatEnd > vm.etatCount) etatEnd = vm.etatCount;
+    if (printSiteCount > g_etat_print_site_count)
+        printSiteCount = g_etat_print_site_count;
+
+    for (int i = etatStart; i < etatEnd; i++) {
+        OwlEtatDecl* e = vm.etats[i];
+        if (!e || e->parent_name_count == 0) continue;
+
+        /* Resout les parents DIRECTS. Parent inconnu / non-modele reste une
+         * garde runtime (soft-error iImprimeEtat) -> saute ici. */
+        const OwlEtatDecl* resolved[OWL_ETAT_MAX_PARENTS];
+        int nResolved = 0;
+        for (int pi = 0; pi < e->parent_name_count; pi++) {
+            const OwlEtatDecl* parent = vm_etat_lookup(e->parent_names[pi]);
+            if (!parent || !parent->is_template) continue;
+            if (etat_compile_ancestry_reaches(parent, e, 0)) {
+                Token tok = etat_decl_token(e);
+                owl_emit_error_at(&tok, E_SEM_ETAT_HERITAGE_CIRCULAIRE,
+                                  "name", parent->name, NULL);
+                return false;
+            }
+            if (nResolved < OWL_ETAT_MAX_PARENTS) resolved[nResolved++] = parent;
+        }
+
+        /*  — invariant Corps sur l'etat APLATI. Le check per-decl
+         * (parse) exempte les Etats a parents car leur Corps peut venir d'un
+         * modele non encore resolu ; on le re-pose ici sur la cloture, ou
+         * vm.etats est complet. Un Etat concret dont NI lui NI aucun modele
+         * ancetre ne fournit de Corps = erreur. Un ModeleEtat (fragment) n'y
+         * est jamais soumis : il n'est pas imprimable seul. */
+        if (!e->is_template && !etat_branch_has_corps(e, 0)) {
+            Token tok = etat_decl_token(e);
+            owl_emit_error_at(&tok, E_SEM_ETAT_BODY_NEEDS_CORPS,
+                              "name", e->name, NULL);
+            return false;
+        }
+
+        /* Collision de globale (param top-level) entre un parent et l'Etat. */
+        for (int r = 0; r < nResolved; r++) {
+            const OwlEtatDecl* parent = resolved[r];
+            for (int a = 0; a < parent->param_count; a++) {
+                for (int b = 0; b < e->param_count; b++) {
+                    if (strcasecmp(parent->params[a].name, e->params[b].name) == 0) {
+                        Token tok = etat_decl_token(e);
+                        owl_emit_error_at(&tok, E_SEM_ETAT_GLOBALE_HERITEE_COLLISION,
+                                          "name", e->params[b].name, NULL);
+                        return false;
+                    }
+                }
+            }
+        }
+
+        /* Collision de CHAMP entre deux branches d'heritage. Collecte
+         * TRANSITIVE : toute l'ascendance de modeles de chaque branche (un
+         * champ en collision peut provenir d'un grand-parent). Detection par
+         * paire de branches ; le message nomme les deux modeles cites. */
+        for (int a = 0; a < nResolved; a++) {
+            for (int b = a + 1; b < nResolved; b++) {
+                const OwlEtatDecl* pa = resolved[a];
+                const OwlEtatDecl* pb = resolved[b];
+                const char* hit = etat_branch_find_collision(pa, pb, 0);
+                if (hit) {
+                    Token tok = etat_decl_token(e);
+                    owl_emit_error_at(&tok, E_SEM_ETAT_CHAMP_INTER_MODELE_COLLISION,
+                                      "name", hit,
+                                      "modeleA", pa->name,
+                                      "modeleB", pb->name, NULL);
+                    return false;
+                }
+            }
+        }
+
+        /* Bloc Iteration de meme nom entre l'Etat et un modele de son
+         * ascendance. Collecte TRANSITIVE : toute la chaine de modeles de
+         * chaque branche (un doublon peut provenir d'un grand-parent, cf.
+         * collision de champ). */
+        for (int r = 0; r < nResolved; r++) {
+            const char* dup = etat_branch_find_iteration_dup(resolved[r], e, 0);
+            if (dup) {
+                Token tok = etat_decl_token(e);
+                owl_emit_error_at(&tok, E_SEM_ETAT_ITERATION_HERITEE_DUPLICATE,
+                                  "name", dup, NULL);
+                return false;
+            }
+        }
+    }
+
+    /* Garde #2 : iImprimeEtat(MODELE) nu -> refuse au compile, ancre sur la
+     * ligne de l'appel. Cible inconnue = garde runtime (etat introuvable). */
+    for (int s = 0; s < printSiteCount; s++) {
+        const OwlEtatDecl* e = vm_etat_lookup(g_etat_print_sites[s].name);
+        if (e && e->is_template) {
+            Token tok;
+            tok.type = TOKEN_IDENTIFIER;
+            tok.start = g_etat_print_sites[s].name;
+            tok.length = (int)strlen(g_etat_print_sites[s].name);
+            tok.line = g_etat_print_sites[s].line;
+            tok.column = 1;
+            owl_emit_error_at(&tok, E_SEM_ETAT_MODELE_NON_IMPRIMABLE,
+                              "name", g_etat_print_sites[s].name, NULL);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool compiler_validate_etat_inheritance(void) {
+    return compiler_validate_etat_inheritance_range(0, vm.etatCount,
+                                                    g_etat_print_site_count);
+}
+
+/*  — comparaison de noms d'elements, casse + accent insensibles (meme
+ * invariants que element_parent_register). Les noms d'Etats/modeles cites par
+ * `Herite de` ou dans un site d'impression peuvent diverger en casse/accent de
+ * la forme declaree ; on compare sur la forme strippee. */
+static bool etat_chain_name_eq(const char* a, const char* b) {
+    char as[64], bs[64];
+    int al = scanner_strip_accents(a, (int)strlen(a), as, sizeof(as));
+    int bl = scanner_strip_accents(b, (int)strlen(b), bs, sizeof(bs));
+    return al == bl && strncasecmp(as, bs, (size_t)al) == 0;
+}
+
+/* Ajoute `name` a l'ensemble s'il est absent (dedup casse+accent). */
+static void etat_chain_name_add(char set[][64], int* count, int cap,
+                                const char* name) {
+    if (name == NULL || name[0] == '\0' || *count >= cap) return;
+    if ((int)strlen(name) >= 64) return;
+    for (int i = 0; i < *count; i++)
+        if (etat_chain_name_eq(set[i], name)) return;
+    snprintf(set[(*count)++], 64, "%s", name);
+}
+
+/* Un Etat de ce nom est-il deja enregistre dans vm.etats ? */
+static bool etat_chain_in_vm(const char* name) {
+    for (int i = 0; i < vm.etatCount; i++)
+        if (vm.etats[i] && etat_chain_name_eq(vm.etats[i]->name, name))
+            return true;
+    return false;
+}
+
+int compiler_collect_active_etat_chain_files(SymbolTable* symbols,
+                                             int* outFileIndexes, int cap) {
+    if (symbols == NULL || outFileIndexes == NULL || cap <= 0) return 0;
+
+    /* Ensemble (visite + file BFS par index croissant) des noms de la cloture
+     * d'heritage. Static : ~32 Ko, hors pile ; appel unique par check. */
+    #define ETAT_CHAIN_MAX_NAMES 512
+    static char names[ETAT_CHAIN_MAX_NAMES][64];
+    int nameCount = 0;
+
+    /* Depart : les Etats deja compiles (fichier actif) + les cibles des sites
+     * iImprimeEtat (un modele voisin imprime nu doit etre resolu pour la garde
+     * modele-non-imprimable). */
+    for (int i = 0; i < vm.etatCount; i++) {
+        if (vm.etats[i])
+            etat_chain_name_add(names, &nameCount, ETAT_CHAIN_MAX_NAMES,
+                                vm.etats[i]->name);
+    }
+    for (int s = 0; s < g_etat_print_site_count; s++)
+        etat_chain_name_add(names, &nameCount, ETAT_CHAIN_MAX_NAMES,
+                            g_etat_print_sites[s].name);
+
+    /* Fermeture transitive via les aretes d'heritage cross-fichier. L'iteration
+     * sur nameCount en croissance = BFS (chaque parent ajoute est re-visite). */
+    for (int i = 0; i < nameCount; i++) {
+        for (int e = 0; e < g_element_parents_count; e++) {
+            if (etat_chain_name_eq(g_element_parents[e].child, names[i]))
+                etat_chain_name_add(names, &nameCount, ETAT_CHAIN_MAX_NAMES,
+                                    g_element_parents[e].parent);
+        }
+    }
+
+    /* Pour chaque nom absent de vm.etats, localise le fichier qui le declare
+     * (registre d'elements du prescan) et l'ajoute a compiler (dedup). */
+    int outCount = 0;
+    for (int i = 0; i < nameCount && outCount < cap; i++) {
+        if (etat_chain_in_vm(names[i])) continue;
+        int fidx = -1;
+        for (int k = 0; k < symbols->elementCount; k++) {
+            if (etat_chain_name_eq(symbols->elements[k].name, names[i])) {
+                fidx = symbols->elements[k].fileIndex;
+                break;
+            }
+        }
+        if (fidx < 0) continue;
+        bool dup = false;
+        for (int o = 0; o < outCount; o++)
+            if (outFileIndexes[o] == fidx) { dup = true; break; }
+        if (!dup) outFileIndexes[outCount++] = fidx;
+    }
+    #undef ETAT_CHAIN_MAX_NAMES
+    return outCount;
+}
+
 /* Parse: ETA_X est un Etat ... FIN. Le caller a deja consomme 'IDENT est un Etat'. */
-static void etat_declaration(Token etatName, int line) {
+static void etat_declaration(Token etatName, int line, bool is_template) {
     /*  — marque le scope Etat actif pour toute la duree du parse
      * de ce block (top-level + sub-blocs + PROCEDUREs internes). Le
      * verrou compile-time sur Ouvre/OuvreFille/OuvreSoeur consulte cette
@@ -35841,6 +36534,9 @@ static void etat_declaration(Token etatName, int line) {
         }
     }
     free(nameBuf);
+
+    /*  — marque le modele (non imprimable seul, source d'heritage). */
+    if (decl) decl->is_template = is_template;
 
     /* Parametres optionnels : 'est un Etat(<param1> [est un <type1>], ...)'.
      * Les params sont accessibles comme globales dans tout le scope de
@@ -35966,6 +36662,42 @@ static void etat_declaration(Token etatName, int line) {
         }
         while (check(TOKEN_NEWLINE)) advance_token();
         if (check(TOKEN_FIN) || check(TOKEN_EOF)) break;
+
+        /*  /  — `Herite de A, B` / `Inherits A, B` : liste de
+         * modeles (ordre d'inclusion ; le premier = modele PRINCIPAL). Le `de`
+         * (TOKEN_DE) est optionnel (absent de la forme EN `Inherits X`). Chaque
+         * modele est resolu/aplati au 1er print (passe runtime) : ici on memorise
+         * les noms sur le decl ET on enregistre l'arete d'heritage compile-time
+         * (element_parent_register) pour la resolution des globales heritees
+         * (une globale top-level d'un modele est lisible/ecrivable depuis l'etat
+         * heritier, transitivement). */
+        if (check(TOKEN_HERITE)) {
+            advance_token();              /* consume HERITE */
+            match_token(TOKEN_DE);        /* `de` optionnel (FR) */
+            do {
+                if (!check(TOKEN_IDENTIFIER)) {
+                    owl_emit_error_current(E_SYNTAX_EXP_ETAT_MODELE_NAME);
+                    parser.panicMode = false;
+                    break;
+                }
+                Token modeleTok = parser.current;
+                advance_token();          /* consume <modele> */
+                if (decl) {
+                    char* pn = (char*)malloc((size_t)modeleTok.length + 1);
+                    memcpy(pn, modeleTok.start, modeleTok.length);
+                    pn[modeleTok.length] = '\0';
+                    owl_etat_decl_add_parent_name(decl, pn);
+                    free(pn);
+                    if (g_current_element_name[0] != '\0') {
+                        element_parent_register(g_current_element_name,
+                                                (int)strlen(g_current_element_name),
+                                                modeleTok.start, modeleTok.length);
+                    }
+                }
+            } while (match_token(TOKEN_COMMA));
+            parser.panicMode = false;
+            continue;
+        }
 
         /* PROPRIETES { ... } FIN */
         if (check(TOKEN_PROPRIETES)) {
@@ -36269,14 +37001,26 @@ static void etat_declaration(Token etatName, int line) {
 
     consume(TOKEN_FIN, E_SYNTAX_EXP_FIN_ETAT);
 
-    /* Garde-fou : un Etat doit imperativement contenir un bloc Corps.
+    /* Garde-fou : un Etat concret doit imperativement contenir un bloc Corps.
      * Le Corps porte la donnee a imprimer (1 fois par enregistrement) ;
      * sans lui, l'Etat n'a aucun sens. C'est aussi ce que demande l'editeur
      * visuel pour ne jamais permettre a l'utilisateur de supprimer le bloc.
      * En cas de mix Fenetre/Etat detecte plus haut, le parse de l'Etat est
      * deja casse (panic mode peut sauter des sub-blocs), inutile d'ajouter
-     * une 2eme erreur — l'erreur de mix suffit. */
-    if (!mixed && decl != NULL && owl_etat_decl_find_canon_block(decl, OWL_ETAT_BLOCK_CORPS) == NULL) {
+     * une 2eme erreur — l'erreur de mix suffit.
+     *
+     *  — deux exemptions au parse, car le check per-decl ne peut pas
+     * conclure ici :
+     *  - un ModeleEtat (is_template) est un FRAGMENT reutilisable, jamais
+     *    imprime seul : il PEUT n'etre qu'un cadre (HautDePage
+     *    seul, etc.) sans Corps.
+     *  - un Etat qui `Herite de` un ou plusieurs modeles peut tenir son Corps
+     *    d'un modele non encore resolu a ce stade du parse.
+     * L'invariant « tout etat imprimable a un Corps » est re-pose sur l'etat
+     * APLATI (cloture d'heritage) dans compiler_validate_etat_inheritance_range. */
+    if (!mixed && decl != NULL && !decl->is_template
+        && decl->parent_name_count == 0
+        && owl_etat_decl_find_canon_block(decl, OWL_ETAT_BLOCK_CORPS) == NULL) {
         owl_emit_error_at(&etatName, E_SEM_ETAT_BODY_NEEDS_CORPS,
                           "name", decl->name,
                           NULL);
@@ -39226,6 +39970,7 @@ void compiler_neighbor_prebuild_reset(void) {
             free(g_neighbor_buf[k].cglobals);
             free(g_neighbor_buf[k].globals);
             free(g_neighbor_buf[k].elems);
+            free(g_neighbor_buf[k].parents);   /*  */
             free(g_neighbor_buf[k].colls);
         }
         free(g_neighbor_buf);
@@ -39325,6 +40070,21 @@ void compiler_neighbor_prebuild(SymbolTable* symbols) {
                        sizeof(c->elems[i].name));
             }
             if (!c->elems) c->elemCount = 0;
+        }
+        /*  — snapshot des aretes d'heritage (globals_scan_one_source les
+         * a peuplees dans g_element_parents, reset par element_globals_reset
+         * ci-dessus pour un snapshot propre par source). */
+        if (g_element_parents_count > 0) {
+            c->parentCount = g_element_parents_count;
+            c->parents = (NeiParentRec*)malloc(sizeof(NeiParentRec)
+                                               * (size_t)c->parentCount);
+            for (int i = 0; c->parents && i < c->parentCount; i++) {
+                memcpy(c->parents[i].child, g_element_parents[i].child,
+                       sizeof(c->parents[i].child));
+                memcpy(c->parents[i].parent, g_element_parents[i].parent,
+                       sizeof(c->parents[i].parent));
+            }
+            if (!c->parents) c->parentCount = 0;
         }
 
         /* --- Pass membres de collection --- */

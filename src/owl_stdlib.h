@@ -61,6 +61,7 @@ void stdlib_mlcluster_init(void);  /*  : type MLKMeans (clustering non-supervis�
 void stdlib_llm_init(void); /*  : type LLM (GGUF .Charge/.Génère) + OptionsGénération */
 void stdlib_dataset_init(void); /*  : ImageVersTenseur + types ImageÉtiquetée/Dataset + chargeurs */
 void stdlib_detection_init(void); /*  : IoU + SuppressionNonMax/NonMaxSuppression */
+void stdlib_pays_init(void); /*  : types Pays/Continent + enum continentXxx + PaysListe */
 void stdlib_xls_init(void);      /*  : type xlsDocument + ecriture/lecture .xlsx */
 void stdlib_io_init(void);
 /* Active le flush par ligne de stdout (sortie non-TTY) — cf. stdlib_io.c. */
@@ -78,6 +79,7 @@ Value fn_chrono_demarre(int argCount, Value* args);
 void stdlib_crypto_init(void);
 void stdlib_regex_init(void);
 void stdlib_http_init(void);
+void stdlib_net_init(void);            /*  : famille NetXxx (infos réseau portables) */
 void stdlib_http_service_init(void);   /*  : native FluxÉcrit (DSL service) */
 void stdlib_ftp_init(void);
 void stdlib_email_init(void);
@@ -88,6 +90,7 @@ void stdlib_amqp_init(void);
 void stdlib_stomp_init(void);
 void stdlib_nats_init(void);
 void stdlib_aws_init(void);
+void stdlib_ldap_init(void);           /*  : natives LDAPxxx + handle type ldapSession */
 /* Horloge du jar de cookies — point d'injection reserve aux self-tests C
  * internes (cf. stdlib_http.c). Decale, en secondes, le temps courant que
  * lit la logique d'expiration : c'est le seul moyen d'observer une
@@ -197,6 +200,8 @@ void stdlib_xml_init(void);
 void stdlib_image_init(void);
 void stdlib_icones_init(void); /* Type Icone + enum Forme (catalogue SVG embarque) */
 void stdlib_codebarres_init(void); /* Type CodeBarres + CodeBarreVersImage (zint) */
+void stdlib_log_init(void);        /* Sous-systeme de log : type Logger + natives Logger* + enum logNiveau */
+void stdlib_oauth_init(void);      /*  : OAuth 2.0 (types OAuth2Paramètres/AuthToken + AuthIdentifie/AuthRenouvelleToken) */
 /*  Lot 2e-1 — resolution `icones.<nom>` runtime. Appele depuis vm.c
  * (OP_STRUCT_GET sur ObjIconesNamespace). Retourne un ObjIcone valide en cas
  * de hit, un ObjIcone vide (valide=false) + erreur native en cas de miss. */

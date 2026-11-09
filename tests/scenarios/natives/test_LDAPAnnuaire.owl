@@ -1,0 +1,356 @@
+// @sujet : LDAPConnecte, LDAPDéconnecte, LDAPRecherche, LDAPValeur, LDAPNbValeur
+// @résumé : Lecture d'un annuaire LDAP via un handle de session typé. Connexion, recherche récursive par filtre, lecture d'attributs mono- et multi-valués. Deux surfaces équivalentes : méthodes sur l'instance (sess.Connecte()) et natives globales prenant le handle (LDAPConnecte(sess)).
+
+// Chaque native LDAP est mockée individuellement : le serveur distant est une
+// dépendance externe, le mock l'isole comme pour un appel HTTP ou FTP (cf.
+// tests/scenarios/types/test_httpRequete.owl, tests/scenarios/natives/test_ftp_clair.owl).
+// Le round-trip réel (bind, recherche, parsing des réponses) est couvert côté
+// natif contre un serveur de test dédié ; ces scénarios documentent la forme
+// d'appel et le contrat de retour vus depuis le langage.
+
+// Une instance neuve de ldapSession démarre déjà aux valeurs par défaut :
+// port 389, version 3, vérification de certificat active, reste vide. Pas de
+// remise à zéro à appeler : une nouvelle instance EST l'état par défaut.
+PROCEDURE PUBLIQUE scenario_instance_neuve_demarre_aux_valeurs_par_defaut()
+	sess est un ldapSession
+
+	dbgVérifieEgalité(sess..Hôte, "", "l'hôte est vide par défaut")
+	dbgVérifieEgalité(sess..Port, 389, "le port vaut 389 par défaut")
+	dbgVérifieEgalité(sess..Version, 3, "la version vaut 3 par défaut")
+	dbgVérifieEgalité(sess..Utilisateur, "", "l'utilisateur est vide par défaut")
+	dbgVérifieEgalité(sess..MotDePasse, "", "le mot de passe est vide par défaut")
+	dbgVérifieEgalité(sess..Option, ldapOptionDéfaut, "l'option vaut le mode par défaut")
+	dbgVérifieVrai(sess..VérifieCertificat, "la vérification du certificat est active par défaut")
+	dbgVérifieEgalité(sess..CertificatCA, "", "aucune autorité de certification personnalisée par défaut")
+	dbgVérifieEgalité(sess..CertificatClient, "", "aucun certificat client par défaut")
+	dbgVérifieEgalité(sess..CléClient, "", "aucune clé client par défaut")
+FIN
+
+// Les propriétés posées sur une instance se relisent telles quelles : la
+// configuration d'une session est un databinding direct, comme pour une
+// httpRequête.
+PROCEDURE PUBLIQUE scenario_configuration_session_relit_les_proprietes()
+	sess est un ldapSession
+	sess..Hôte        = "domaine.local"
+	sess..Port        = 389
+	sess..Version     = 3
+	sess..Utilisateur = "user@domaine.local"
+	sess..MotDePasse  = "mdp"
+
+	dbgVérifieEgalité(sess..Hôte, "domaine.local", "hôte relu")
+	dbgVérifieEgalité(sess..Utilisateur, "user@domaine.local", "utilisateur relu")
+	dbgVérifieEgalité(sess..MotDePasse, "mdp", "mot de passe relu")
+FIN
+
+// Le niveau de confiance TLS se configure au cas par cas : relâcher la
+// vérification du certificat et fournir une autorité de certification
+// personnalisée sont deux propriétés distinctes, relues telles quelles.
+PROCEDURE PUBLIQUE scenario_confiance_tls_relit_les_proprietes()
+	sess est un ldapSession
+	sess..VérifieCertificat = Faux
+	sess..CertificatCA      = "C:\certs\ca-entreprise.pem"
+
+	dbgVérifieFaux(sess..VérifieCertificat, "la vérification du certificat relâchée est relue")
+	dbgVérifieEgalité(sess..CertificatCA, "C:\certs\ca-entreprise.pem", "l'autorité de certification personnalisée est relue")
+FIN
+
+// L'authentification par certificat client (mTLS / SASL EXTERNAL) se
+// configure par deux propriétés dédiées au transport : le certificat client
+// et sa clé privée, relus tels quels, indépendamment du mécanisme de bind
+// choisi par ailleurs.
+PROCEDURE PUBLIQUE scenario_configuration_authentification_externe_relit_les_proprietes()
+	sess est un ldapSession
+	sess..Authentification  = authExterne
+	sess..CertificatClient  = "C:\certs\client.pem"
+	sess..CléClient         = "C:\certs\client.key"
+
+	dbgVérifieEgalité(sess..CertificatClient, "C:\certs\client.pem", "le certificat client est relu")
+	dbgVérifieEgalité(sess..CléClient, "C:\certs\client.key", "la clé client est relue")
+FIN
+
+// Connexion avec authentification par certificat client : la configuration
+// est posée (mécanisme externe + certificat + clé), la connexion elle-même
+// est mockée comme pour les autres scénarios de connexion (le serveur
+// distant est une dépendance externe). La preuve du handshake mTLS réel et
+// du bind SASL EXTERNAL se fait côté natif contre un serveur de test dédié.
+PROCEDURE PUBLIQUE scenario_connexion_authentification_externe_via_methode()
+	sess est un ldapSession
+	sess..Hôte              = "domaine.local"
+	sess..Authentification  = authExterne
+	sess..CertificatClient  = "C:\certs\client.pem"
+	sess..CléClient         = "C:\certs\client.key"
+
+	mockConnecte est un MockNative = MockCrée(LDAPConnecte)
+	mockConnecte.Quand().Retourne(Vrai).Active()
+
+	bConnectée est un booléen = sess.Connecte()
+
+	dbgVérifieVrai(bConnectée, "la connexion mockée avec authentification par certificat client est établie")
+
+	mockConnecte.Desactive()
+FIN
+
+// L'authentification négociée (SASL GSS-SPNEGO, identité de la session OS
+// courante) se sélectionne par le mécanisme de bind, relu tel quel. Elle exige
+// le transport sécurisé (optionSSL), d'où lequel est posé de pair.
+PROCEDURE PUBLIQUE scenario_configuration_authentification_negotiate_relit_la_propriete()
+	sess est un ldapSession
+	sess..Option           = optionSSL
+	sess..Authentification = authNegotiate
+
+	dbgVérifieEgalité(sess..Authentification, authNegotiate, "le mécanisme négocié est relu")
+	dbgVérifieEgalité(sess..Option, optionSSL, "le transport sécurisé requis par le mécanisme négocié est relu")
+FIN
+
+// Connexion avec authentification négociée : la configuration est posée
+// (mécanisme négocié + transport sécurisé), la connexion elle-même est mockée
+// comme pour les autres scénarios de connexion (le serveur distant est une
+// dépendance externe). La preuve du bind SASL GSS-SPNEGO réel (jetons SSPI /
+// GSSAPI + channel binding) se fait côté natif contre l'annuaire du domaine.
+PROCEDURE PUBLIQUE scenario_connexion_authentification_negotiate_via_methode()
+	sess est un ldapSession
+	sess..Hôte             = "domaine.local"
+	sess..Option           = optionSSL
+	sess..Authentification = authNegotiate
+
+	mockConnecte est un MockNative = MockCrée(LDAPConnecte)
+	mockConnecte.Quand().Retourne(Vrai).Active()
+
+	bConnectée est un booléen = sess.Connecte()
+
+	dbgVérifieVrai(bConnectée, "la connexion mockée avec authentification négociée est établie")
+
+	mockConnecte.Desactive()
+FIN
+
+// Connexion réussie via la méthode d'instance : sess.Connecte() retourne un
+// booléen de succès. La configuration de la session a déjà été posée au
+// préalable.
+PROCEDURE PUBLIQUE scenario_connexion_etablie_via_methode()
+	sess est un ldapSession
+	sess..Hôte        = "domaine.local"
+	sess..Utilisateur = "user@domaine.local"
+	sess..MotDePasse  = "mdp"
+
+	mockConnecte est un MockNative = MockCrée(LDAPConnecte)
+	mockConnecte.Quand().Retourne(Vrai).Active()
+
+	bConnectée est un booléen = sess.Connecte()
+
+	dbgVérifieVrai(bConnectée, "la connexion mockée est établie via la méthode")
+
+	mockConnecte.Desactive()
+FIN
+
+// Même connexion, via la native globale prenant le handle en argument :
+// deux surfaces équivalentes pour le même contrat.
+PROCEDURE PUBLIQUE scenario_connexion_etablie_via_native_globale()
+	sess est un ldapSession
+	sess..Hôte        = "domaine.local"
+	sess..Utilisateur = "user@domaine.local"
+	sess..MotDePasse  = "mdp"
+
+	mockConnecte est un MockNative = MockCrée(LDAPConnecte)
+	mockConnecte.Quand().Retourne(Vrai).Active()
+
+	bConnectée est un booléen = LDAPConnecte(sess)
+
+	dbgVérifieVrai(bConnectée, "la connexion mockée est établie via la native globale")
+
+	mockConnecte.Desactive()
+FIN
+
+// Connexion en échec : la cible est réellement contactée (pas de mock ici,
+// comme pour l'échec d'ouverture d'une connexion FTP) sur un port fermé.
+// ErreurDétectée se lit en premier, avant tout autre appel.
+PROCEDURE PUBLIQUE scenario_connexion_echec_hote_injoignable()
+	sess est un ldapSession
+	sess..Hôte = "127.0.0.1"
+	sess..Port = 1
+
+	bConnectée est un booléen = LDAPConnecte(sess)
+
+	dbgVérifieVrai(ErreurDétectée, "l'échec de connexion est signalé")
+	dbgVérifieFaux(bConnectée, "la connexion échoue sur un hôte injoignable")
+FIN
+
+// Seule la version 3 du protocole est prise en charge. Toute autre valeur de
+// ..Version (dont la v2 dépréciée) est refusée explicitement avant toute
+// tentative réseau : ErreurDétectée se lit en premier, puis le message nomme
+// la version non supportée.
+PROCEDURE PUBLIQUE scenario_connexion_rejet_version_non_supportee()
+	sess est un ldapSession
+	sess..Hôte    = "127.0.0.1"
+	sess..Version = 2
+
+	bConnectée est un booléen = LDAPConnecte(sess)
+
+	dbgVérifieVrai(ErreurDétectée, "la version non prise en charge est signalée")
+	dbgVérifieFaux(bConnectée, "la connexion est refusée pour une version non prise en charge")
+	dbgVérifieEgalité(ErreurInfo(errMessage), "LDAPConnecte: connexion à l'annuaire 127.0.0.1 impossible (LDAP v3 requis, version 2 non supportée).", "le rejet nomme explicitement la version non prise en charge")
+FIN
+
+// Déconnexion propre via la méthode d'instance : sess.Déconnecte() retourne
+// un booléen de confirmation de fermeture.
+PROCEDURE PUBLIQUE scenario_deconnexion_confirme_fermeture_via_methode()
+	sess est un ldapSession
+
+	mockDeconnecte est un MockNative = MockCrée(LDAPDéconnecte)
+	mockDeconnecte.Quand().Retourne(Vrai).Active()
+
+	bFermée est un booléen = sess.Déconnecte()
+
+	dbgVérifieVrai(bFermée, "la déconnexion est confirmée via la méthode")
+
+	mockDeconnecte.Desactive()
+FIN
+
+// Même déconnexion, via la native globale prenant le handle en argument.
+PROCEDURE PUBLIQUE scenario_deconnexion_confirme_fermeture_via_native_globale()
+	sess est un ldapSession
+
+	mockDeconnecte est un MockNative = MockCrée(LDAPDéconnecte)
+	mockDeconnecte.Quand().Retourne(Vrai).Active()
+
+	bFermée est un booléen = LDAPDéconnecte(sess)
+
+	dbgVérifieVrai(bFermée, "la déconnexion est confirmée via la native globale")
+
+	mockDeconnecte.Desactive()
+FIN
+
+// Recherche récursive via la méthode d'instance : sess.Recherche(dnBase,
+// filtre) retourne les DN trouvés séparés par un retour chariot (RC).
+PROCEDURE PUBLIQUE scenario_recherche_via_methode_retourne_dn_separes_par_rc()
+	sess est un ldapSession
+	sRésultatAttendu est une chaîne = "cn=alice,cn=users,dc=domaine,dc=local" + CRLF + "cn=bob,cn=users,dc=domaine,dc=local"
+
+	mockRecherche est un MockNative = MockCrée(LDAPRecherche)
+	mockRecherche.Quand().Retourne(sRésultatAttendu).Active()
+
+	sDn est une chaîne = sess.Recherche("cn=users,dc=domaine,dc=local", "(displayname=a*)")
+
+	dbgVérifieEgalité(sDn, sRésultatAttendu, "les DN trouvés sont séparés par RC, via la méthode")
+
+	mockRecherche.Desactive()
+FIN
+
+// Recherche combinant plusieurs critères avec les opérateurs ET / NON du
+// filtre LDAP standard, via la native globale prenant le handle.
+PROCEDURE PUBLIQUE scenario_recherche_via_native_globale_filtre_combine()
+	sess est un ldapSession
+
+	mockRecherche est un MockNative = MockCrée(LDAPRecherche)
+	mockRecherche.Quand().Retourne("cn=carole,cn=users,dc=domaine,dc=local").Active()
+
+	sDn est une chaîne = LDAPRecherche(sess, "cn=users,dc=domaine,dc=local", "(&(objectCategory=person)(objectClass=user)(!cn=andy))")
+
+	dbgVérifieEgalité(sDn, "cn=carole,cn=users,dc=domaine,dc=local", "le DN correspondant au filtre combiné est retourné, via la native globale")
+
+	mockRecherche.Desactive()
+FIN
+
+// Cas limite : aucune correspondance retourne une chaîne vide, distinct
+// d'une erreur de connexion.
+PROCEDURE PRIVÉE scenario_edge_recherche_aucun_resultat()
+	sess est un ldapSession
+
+	mockRecherche est un MockNative = MockCrée(LDAPRecherche)
+	mockRecherche.Quand().Retourne("").Active()
+
+	sDn est une chaîne = LDAPRecherche(sess, "cn=users,dc=domaine,dc=local", "(cn=personne_inexistante)")
+
+	dbgVérifieEgalité(sDn, "", "aucune correspondance retourne une chaîne vide")
+
+	mockRecherche.Desactive()
+FIN
+
+// Lecture d'un attribut mono-valué via la méthode d'instance : l'indice est
+// omis, la valeur du premier (et unique) élément est retournée.
+PROCEDURE PUBLIQUE scenario_valeur_via_methode_indice_implicite_premier_element()
+	sess est un ldapSession
+
+	mockValeur est un MockNative = MockCrée(LDAPValeur)
+	mockValeur.Quand().Retourne("Dupont").Active()
+
+	sValeur est une chaîne = sess.Valeur("cn=alice,cn=users,dc=domaine,dc=local", "sn")
+
+	dbgVérifieEgalité(sValeur, "Dupont", "l'indice omis renvoie la première valeur, via la méthode")
+
+	mockValeur.Desactive()
+FIN
+
+// Lecture d'un attribut multi-valué via la native globale : l'indice
+// explicite (1-based) cible une valeur précise parmi plusieurs.
+PROCEDURE PUBLIQUE scenario_valeur_via_native_globale_indice_explicite_attribut_multivalue()
+	sess est un ldapSession
+
+	mockValeur est un MockNative = MockCrée(LDAPValeur)
+	mockValeur.Quand().Retourne("cn=groupeA,dc=domaine,dc=local").Active()
+
+	sValeur est une chaîne = LDAPValeur(sess, "cn=alice,cn=users,dc=domaine,dc=local", "memberOf", 2)
+
+	dbgVérifieEgalité(sValeur, "cn=groupeA,dc=domaine,dc=local", "l'indice explicite cible la bonne valeur, via la native globale")
+
+	mockValeur.Desactive()
+FIN
+
+// Cas limite : attribut absent ou valeur vide retourne une chaîne vide,
+// sans lever d'erreur.
+PROCEDURE PRIVÉE scenario_edge_valeur_attribut_absent()
+	sess est un ldapSession
+
+	mockValeur est un MockNative = MockCrée(LDAPValeur)
+	mockValeur.Quand().Retourne("").Active()
+
+	sValeur est une chaîne = LDAPValeur(sess, "cn=alice,cn=users,dc=domaine,dc=local", "attributInexistant")
+
+	dbgVérifieEgalité(sValeur, "", "un attribut absent renvoie une chaîne vide")
+
+	mockValeur.Desactive()
+FIN
+
+// Comptage des valeurs d'un attribut multi-valué via la méthode d'instance.
+PROCEDURE PUBLIQUE scenario_nbvaleur_via_methode_compte_les_occurrences()
+	sess est un ldapSession
+
+	mockNbValeur est un MockNative = MockCrée(LDAPNbValeur)
+	mockNbValeur.Quand().Retourne(3).Active()
+
+	nCompte est un entier = sess.NbValeur("cn=alice,cn=users,dc=domaine,dc=local", "memberOf")
+
+	dbgVérifieEgalité(nCompte, 3, "le nombre de valeurs de l'attribut multivalué est retourné, via la méthode")
+
+	mockNbValeur.Desactive()
+FIN
+
+// Même comptage, via la native globale prenant le handle en argument.
+PROCEDURE PUBLIQUE scenario_nbvaleur_via_native_globale_compte_les_occurrences()
+	sess est un ldapSession
+
+	mockNbValeur est un MockNative = MockCrée(LDAPNbValeur)
+	mockNbValeur.Quand().Retourne(3).Active()
+
+	nCompte est un entier = LDAPNbValeur(sess, "cn=alice,cn=users,dc=domaine,dc=local", "memberOf")
+
+	dbgVérifieEgalité(nCompte, 3, "le nombre de valeurs de l'attribut multivalué est retourné, via la native globale")
+
+	mockNbValeur.Desactive()
+FIN
+
+// Cas limite : un attribut sans aucune valeur retourne 0, distinct d'une
+// erreur.
+PROCEDURE PRIVÉE scenario_edge_nbvaleur_zero()
+	sess est un ldapSession
+
+	mockNbValeur est un MockNative = MockCrée(LDAPNbValeur)
+	mockNbValeur.Quand().Retourne(0).Active()
+
+	nCompte est un entier = LDAPNbValeur(sess, "cn=alice,cn=users,dc=domaine,dc=local", "attributVide")
+
+	dbgVérifieEgalité(nCompte, 0, "un attribut sans valeur retourne 0")
+
+	mockNbValeur.Desactive()
+FIN
+
+dbgBilanTest()

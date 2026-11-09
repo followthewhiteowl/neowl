@@ -1,0 +1,39 @@
+// @sujet : LoggerInfo
+// @résumé : Émet un message au niveau Info via le logger par défaut implicite, sans déclarer de variable Logger. Comportement identique à monLog.Info(...) sur une instance.
+
+// Formateur minimal : ne restitue que le message brut, pour vérifier le
+// contenu exact écrit dans la destination.
+PROCEDURE fmtMsgInfo(rEnreg est un LogEnreg)
+	RENVOYER rEnreg..Message
+FIN
+
+// LoggerInfo écrit le message quand le seuil du logger par défaut
+// implicite autorise le niveau Info.
+PROCEDURE PUBLIQUE scenario_loggerinfo_ecrit_sous_seuil_permissif()
+	chemin est une chaîne = "_tmp_loggerinfo_nominal.txt"
+	fSupprime(chemin)
+
+	LoggerParamètre(nivInfo, fmtMsgInfo, chemin)
+	LoggerInfo("service démarré")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(ChaîneCommencePar(contenu, "service démarré"), 15, "LoggerInfo écrit le message exact fourni")
+
+	fSupprime(chemin)
+FIN
+
+// Au-dessus du niveau Info, le seuil du logger par défaut implicite
+// bloque l'émission : aucune sortie n'atteint la destination.
+PROCEDURE PRIVÉE scenario_edge_loggerinfo_sous_seuil_plus_strict()
+	chemin est une chaîne = "_tmp_loggerinfo_filtre.txt"
+	fSupprime(chemin)
+	fSauveTexte(chemin, "")
+
+	LoggerParamètre(nivAvert, fmtMsgInfo, chemin)
+	LoggerInfo("ne doit pas apparaître")
+
+	contenu est une chaîne = fChargeTexte(chemin)
+	dbgVérifieEgalité(Contient(contenu, "ne doit pas apparaître"), 0, "LoggerInfo sous le seuil nivAvert n'écrit rien")
+
+	fSupprime(chemin)
+FIN

@@ -1,0 +1,103 @@
+// @sujet : HTMLVersTexte
+// @résumé : Convertit du HTML en texte brut : balises retirées, entités décodées, blancs normalisés.
+
+// ============================================================================
+// PROCEDURES PUBLIQUES
+// ============================================================================
+
+// Cas nominal : les balises de mise en forme inline sont retirées, seul le
+// texte qu'elles encadrent subsiste.
+PROCEDURE PUBLIQUE scenario_strip_balises_inline()
+	resultat est une chaîne = HTMLVersTexte("<b>Bonjour</b>")
+	dbgVérifieEgalité(resultat, "Bonjour", "balise <b> retirée, contenu conservé")
+
+	imbrique est une chaîne = HTMLVersTexte("debut<span>milieu</span>fin")
+	dbgVérifieEgalité(imbrique, "debutmilieufin", "balises inline sans espace supprimées")
+FIN
+
+// Les entités nommées courantes sont décodées vers leur caractère.
+PROCEDURE PUBLIQUE scenario_entites_nommees()
+	resultat est une chaîne = HTMLVersTexte("&lt;a&gt; &amp; &quot;b&quot;")
+	dbgVérifieEgalité(resultat, `<a> & "b"`, "lt/gt/amp/quot décodées")
+
+	apos est une chaîne = HTMLVersTexte("l&apos;objet")
+	dbgVérifieEgalité(apos, "l'objet", "apostrophe décodée")
+FIN
+
+// &nbsp; devient un espace normal mais n'est PAS collapsé : plusieurs
+// insécables consécutifs restent plusieurs espaces.
+PROCEDURE PUBLIQUE scenario_nbsp_preserve()
+	resultat est une chaîne = HTMLVersTexte("x&nbsp;&nbsp;y")
+	dbgVérifieEgalité(resultat, "x  y", "deux &nbsp; = deux espaces préservés")
+FIN
+
+// Entités numériques décimales (&#NNN;) et hexadécimales (&#xHH;).
+PROCEDURE PUBLIQUE scenario_entites_numeriques()
+	resultat est une chaîne = HTMLVersTexte("&#65;&#66; &#x43;")
+	dbgVérifieEgalité(resultat, "AB C", "décimal 65/66 et hexa 0x43 décodés")
+FIN
+
+// Une entité inconnue est laissée verbatim (aucune perte de donnée).
+PROCEDURE PUBLIQUE scenario_entite_inconnue_verbatim()
+	resultat est une chaîne = HTMLVersTexte("valeur &inconnue; ici")
+	dbgVérifieEgalité(resultat, "valeur &inconnue; ici", "entité non reconnue conservée telle quelle")
+FIN
+
+// <br> insère un seul saut de ligne ; la casse de la balise est ignorée.
+PROCEDURE PUBLIQUE scenario_br_saut_simple()
+	resultat est une chaîne = HTMLVersTexte("ligne1<br>ligne2")
+	dbgVérifieEgalité(resultat, "ligne1" + LF + "ligne2", "<br> produit un saut de ligne")
+
+	casse est une chaîne = HTMLVersTexte("ligne1<BR>ligne2")
+	dbgVérifieEgalité(casse, "ligne1" + LF + "ligne2", "<BR> équivaut à <br> (casse insensible)")
+FIN
+
+// Un paragraphe <p> produit un double saut de ligne entre les blocs.
+PROCEDURE PUBLIQUE scenario_paragraphe_double_saut()
+	resultat est une chaîne = HTMLVersTexte("<p>para1</p><p>para2</p>")
+	dbgVérifieEgalité(resultat, "para1" + LF + LF + "para2", "<p> sépare par un double saut")
+FIN
+
+// Dans un tableau, les colonnes <td> sont séparées par une tabulation.
+PROCEDURE PUBLIQUE scenario_cellule_tabulation()
+	resultat est une chaîne = HTMLVersTexte("<tr><td>col1<td>col2</tr>")
+	dbgVérifieEgalité(resultat, "col1" + Caract(9) + "col2", "<td> sépare les colonnes par une tabulation")
+FIN
+
+// Le contenu des éléments non-affichés est entièrement ignoré.
+PROCEDURE PUBLIQUE scenario_contenu_ignore()
+	sansScript est une chaîne = HTMLVersTexte("<script>var x = 1;</script>visible")
+	dbgVérifieEgalité(sansScript, "visible", "contenu de <script> absent de la sortie")
+
+	sansStyle est une chaîne = HTMLVersTexte("<style>.a{color:red}</style>texte")
+	dbgVérifieEgalité(sansStyle, "texte", "contenu de <style> absent de la sortie")
+
+	sansCommentaire est une chaîne = HTMLVersTexte("avant <!--secret--> apres")
+	dbgVérifieEgalité(sansCommentaire, "avant apres", "commentaire HTML absent de la sortie")
+
+	sansEntete est une chaîne = HTMLVersTexte("<head><title>Titre</title></head>corps")
+	dbgVérifieEgalité(sansEntete, "corps", "contenu de <head> absent de la sortie")
+FIN
+
+// Les retours chariot et espaces multiples sont réduits à un espace unique.
+PROCEDURE PUBLIQUE scenario_collapse_blancs()
+	resultat est une chaîne = HTMLVersTexte("mot1     mot2")
+	dbgVérifieEgalité(resultat, "mot1 mot2", "espaces multiples réduits à un seul")
+FIN
+
+// Les blocs sémantiques HTML5 (section, article, blockquote, nav, header,
+// footer, main, aside, figure) se comportent comme un bloc générique : ils
+// introduisent un saut de ligne simple entre leurs contenus.
+PROCEDURE PUBLIQUE scenario_blocs_html5_saut()
+	section est une chaîne = HTMLVersTexte("<section>a</section><section>b</section>")
+	dbgVérifieEgalité(section, "a" + LF + "b", "<section> sépare par un saut de ligne")
+
+	article est une chaîne = HTMLVersTexte("<article>un</article><article>deux</article>")
+	dbgVérifieEgalité(article, "un" + LF + "deux", "<article> sépare par un saut de ligne")
+
+	citation est une chaîne = HTMLVersTexte("avant<blockquote>cité</blockquote>apres")
+	dbgVérifieEgalité(citation, "avant" + LF + "cité" + LF + "apres", "<blockquote> encadre par un saut de ligne")
+
+	entete est une chaîne = HTMLVersTexte("<header>titre</header><footer>pied</footer>")
+	dbgVérifieEgalité(entete, "titre" + LF + "pied", "<header> et <footer> séparent par un saut de ligne")
+FIN

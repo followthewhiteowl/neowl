@@ -5,10 +5,14 @@
 #include "ui_catalog.h"
 #include "stdlib_pdf_defs.h"   /* donnees de registre PDF (Qt-free, console + GUI) */
 #include "stdlib_ui_defs.h"    /* donnees de registre UI  (Qt-free, console + GUI) */
+#include "stdlib_ocr_defs.h"   /* donnees de registre OCR (Tesseract-free, tous builds) */
 
 #ifdef OWL_HAS_GUI
 #include "stdlib_ui.h"
 #include "stdlib_pdf.h"
+#endif
+#ifdef OWL_HAS_OCR
+#include "stdlib_ocr.h"
 #endif
 
 void stdlib_init(void) {
@@ -55,6 +59,7 @@ void stdlib_init(void) {
     stdlib_crypto_init();
     stdlib_regex_init();
     stdlib_http_init();
+    stdlib_net_init();          /*  : famille NetXxx (NetNomMachine, NetAdresseIP, NetListeAdresseIP) */
     stdlib_http_service_init(); /*  : surface OWL du DSL de service (FluxÉcrit) */
     stdlib_ftp_init();          /*  : type ftpClient + client FTP en clair */
     stdlib_email_init();        /*  : types Email/emailSessionSMTP/emailAttache + constantes (Lot 0) */
@@ -65,6 +70,7 @@ void stdlib_init(void) {
     stdlib_stomp_init();        /*  : types stompSession/stompMessage + client STOMP 1.2 */
     stdlib_nats_init();         /*  : types natsConnexion/natsMessage + client NATS */
     stdlib_aws_init();          /*  : type AWSSession + enum awsService + AWSRequête */
+    stdlib_ldap_init();         /*  : natives LDAPxxx + handle type ldapSession */
     stdlib_bitwise_init();
     stdlib_similarity_init();   /* SimilaritéTexte : TexteDistance (socle famille) */
     stdlib_reflect_init();
@@ -81,9 +87,12 @@ void stdlib_init(void) {
     stdlib_image_init();        /* Lot I.1 : type Image natif (load/save raster) */
     stdlib_dataset_init();      /*  : ImageVersTenseur + types ImageÉtiquetée/Dataset + chargeurs */
     stdlib_detection_init();    /*  : IoU + SuppressionNonMax/NonMaxSuppression */
+    stdlib_pays_init();         /*  : types Pays/Continent + enum continentXxx + PaysListe */
     stdlib_xls_init();          /*  : type xlsDocument + ecriture/lecture .xlsx (OOXML) */
     stdlib_icones_init();       /* Type Icone + enum Forme (catalogue SVG embarque) */
     stdlib_codebarres_init();   /*  : type CodeBarres + generation (zint) */
+    stdlib_log_init();          /*  : sous-systeme de log (type Logger + natives Logger*) */
+    stdlib_oauth_init();        /*  : OAuth 2.0 headless (types + AuthIdentifie/AuthRenouvelleToken + hook pré-envoi) */
     stdlib_theme_init();        /*  : namespace theme.<nom> (styles nommes) */
 #ifdef OWL_HAS_SQL
     stdlib_sql_init();          /* SQL.2.a : moteur SQL embarque (SQLite V1) */
@@ -100,12 +109,17 @@ void stdlib_init(void) {
     stdlib_ui_init();           /* Phase E : hooks Qt (get/set prop, timer, rasterizer, ...) */
     stdlib_pdf_impls_wire();    /* remplit DEFS[].impl PDF AVANT register -> chemin GUI normal */
 #endif
+#ifdef OWL_HAS_OCR
+    stdlib_ocr_impls_wire();    /* remplit DEFS[].impl OCR AVANT register -> chemin dispatchable */
+#endif
     /* INCONDITIONNEL (console comme GUI) : le registre annonce les signatures
-     * des natives UI + Etats/PDF (et les enums/consts UI) pour que le compilateur
-     * les resolve a l'identique. Hors GUI, .impl reste NULL (jamais dispatche :
-     * contextes compile-only, owl-cli --check + portail de compile d'owl-build). */
+     * des natives UI + Etats/PDF + OCR (et les enums/consts UI) pour que le
+     * compilateur les resolve a l'identique. Hors backend, .impl reste NULL
+     * (jamais dispatche : contextes compile-only, owl-cli --check + portail de
+     * compile d'owl-build ; ou appel runtime -> erreur claire). */
     stdlib_ui_defs_register();  /* Info, Erreur, ChampsDe, fSelecteur, ... + enums UI */
     stdlib_pdf_defs_register(); /* Etats V1 : iImprimeEtat, iLigne, iCadre, iImprime, ... */
+    stdlib_ocr_defs_register(); /* OCR : OCRExtraitTexte / OCRExtractText */
     register_builtin_types();
     /* Native dispatcher __InstanceCoerce — apres que tous les modules
      * stdlib_xxx_init() ont eu l'occasion d'enregistrer leurs parsers

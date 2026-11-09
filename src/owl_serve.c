@@ -47,6 +47,13 @@ extern InterpretResult project_run_sources_no_teardown(
         const char* const* names, const char* const* paths,
         const char* const* sources, int count,
         int entryIndex, bool isProjectMode);
+/*  — variante compile-only : compile la frontiere (enregistre les
+ * ServiceREST) sans executer le top-level. Sert au comptage des services des
+ * compagnons sans rejouer leurs effets de bord (double-execution d'openapi). */
+extern InterpretResult project_compile_sources_only(
+        const char* const* names, const char* const* paths,
+        const char* const* sources, int count,
+        int entryIndex, bool isProjectMode);
 
 struct OwlServeMontage {
     OwlTcpListener    listener;
@@ -84,7 +91,12 @@ static void err_pose(char* err_out, size_t cap, const char* msg) {
  * son entree). L'entree etant compilee en dernier, cette valeur = l'index de
  * debut de ses services dans le registre de la compilation complete. VM et
  * registre ephemeres : reset avant/apres pour ne pas polluer la vraie passe.
- * 0 si le fichier est auto-suffisant (aucun compagnon). */
+ * 0 si le fichier est auto-suffisant (aucun compagnon).
+ *
+ *  — COMPILE-ONLY : les ServiceREST sont enregistres a la COMPILATION,
+ * donc le comptage n'a pas besoin d'executer le top-level des compagnons. On
+ * evite ainsi de rejouer projet.owl (Trace, I/O) une 1re fois ici avant la
+ * vraie passe (owl_serve_compile_projet) qui l'execute pour de bon. */
 static int compagnons_service_count(const OwlServeProjet* projet) {
     int n = projet->nb - 1;
     if (n <= 0) return 0;
@@ -107,8 +119,8 @@ static int compagnons_service_count(const OwlServeProjet* projet) {
 
     compiler_reset_poo_state();
     vm_init();
-    project_run_sources_no_teardown(noms, chemins, sources, w, 0,
-                                    projet->mode_projet != 0);
+    project_compile_sources_only(noms, chemins, sources, w, 0,
+                                 projet->mode_projet != 0);
     int c = owl_service_registry_count();
     vm_free();
     compiler_reset_poo_state();  /* laisse le registre propre pour la vraie passe */

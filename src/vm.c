@@ -41,6 +41,32 @@ void vm_request_interrupt(void) { g_interrupt_requested = 1; }
 static bool g_json_error_mode = false;
 void vm_set_json_errors(bool enabled) { g_json_error_mode = enabled; }
 
+/*  — hook pré-envoi HTTP (OAuth2). Un module stdlib (stdlib_oauth.c)
+ * pose ici un couple (target, hook) via vm_set_http_presend_hook. Dans
+ * call_value, cas OBJ_NATIVE, si la native appelée EST exactement `target`
+ * (comparaison de pointeur — coût nul pour toute autre native), `hook` est
+ * invoqué avec (argCount, args) AVANT l'interception mock. Il peut muter la
+ * requête (injecter Authorization: Bearer, rafraîchir un jeton) et retourner
+ * <0 pour empêcher l'envoi (jeton expiré non rafraîchissable : erreur soft
+ * déjà émise).
+ *
+ * Pourquoi send-time ET avant le mock : la requête captée par le mock doit
+ * déjà porter l'en-tête Bearer effectif — les tests l'exigent
+ * (test_httpRequete_authtoken_mocked.owl : MockDernierArgument relit
+ * l'Authorization émis). L'injection ne mute PAS l'objet AuthToken : un Bearer
+ * effectif est recalculé à CHAQUE envoi (preuve : le même jeton est réutilisé
+ * entre le bloc auto-refresh et le bloc toggle=Faux, sans contamination).
+ * Assignation-time est exclue (le toggle RafraîchitTokenAuto est posé APRÈS
+ * ..AuthToken). Seuil d'extension VM minimal et gaté : toute la logique OAuth
+ * vit dans stdlib_oauth.c. Candidat ADR (nouveau point d'extension VM). */
+static NativeFn g_http_presend_target = NULL;
+static int (*g_http_presend_hook)(int, Value*) = NULL;
+
+void vm_set_http_presend_hook(NativeFn target, int (*hook)(int, Value*)) {
+    g_http_presend_target = target;
+    g_http_presend_hook   = hook;
+}
+
 void vm_current_location(const char** outFile, int* outLine) {
     if (!outFile || !outLine) return;
     *outFile = NULL;
@@ -625,6 +651,8 @@ static Value native_enum_val(int argCount, Value* args) {
 }
 
 static Value value_deep_clone(Value v);
+static bool vm_globals_canon_get(ObjString* searchKey, Value* outValue,
+                                 ObjString** outVerbatim);
 
 /* __StructClone(template) - clone an ObjInstance en deleguant CHAQUE champ a
  * value_deep_clone. Le template porte les valeurs initiales declarees ; sans
@@ -676,8 +704,21 @@ Value owl_clone_global_template(const char* name) {
     if (!name) return NIL_VAL;
     ObjString* k = obj_copy_string(name, (int)strlen(name));
     Value tplVal;
-    if (!table_get(&vm.types, k, &tplVal) || !IS_INSTANCE(tplVal)) return NIL_VAL;
-    return native_struct_clone(1, &tplVal);
+    /* Types builtin (Cadre, Police, httpRequête...) : registre de types. */
+    if (table_get(&vm.types, k, &tplVal) && IS_INSTANCE(tplVal)) {
+        return native_struct_clone(1, &tplVal);
+    }
+    /* Structures utilisateur : hors registre de types, leur template est une
+     * globale (le compilateur emet OP_GET_GLOBAL, pas OP_GET_TYPE_GLOBAL).
+     * Resolution canon (casse/accents) pour suivre la meme regle que l'acces
+     * runtime. */
+    vm_push(OBJ_VAL(k));
+    bool found = vm_globals_canon_get(k, &tplVal, NULL);
+    vm_pop(); /* k */
+    if (found && IS_INSTANCE(tplVal)) {
+        return native_struct_clone(1, &tplVal);
+    }
+    return NIL_VAL;
 }
 
 /*  — convergence des raccourcis Police plats vers la prop composee.
@@ -2830,6 +2871,21 @@ static bool call_value(Value callee, int argCount) {
                                            "expected", expBuf,
                                            "got", gotBuf, NULL);
                     return false;
+                }
+
+                /*  — hook pré-envoi HTTP (OAuth2), AVANT le mock :
+                 * injecte Authorization: Bearer et/ou rafraîchit le jeton sur
+                 * la requête. Voir vm_set_http_presend_hook. */
+                if (g_http_presend_hook != NULL && fn == g_http_presend_target) {
+                    int hr = g_http_presend_hook(argCount, vm.stackTop - argCount);
+                    if (hr < 0) {
+                        /* Jeton mort non rafraîchissable : on n'envoie pas.
+                         * Erreur soft déjà émise par le hook ; on rend Null
+                         * comme une native qui échoue sans dérouler la pile. */
+                        vm.stackTop -= argCount + 1;
+                        vm_push(NIL_VAL);
+                        return true;
+                    }
                 }
 
                 /* MOCK INTERCEPTION: Try to intercept with mock system */
@@ -11137,11 +11193,21 @@ static InterpretResult run(void) {
                          * identique. */
                         Value result;
                         Value mockResult;
+                        /*  — sentinelle frame, miroir de call_value/OP_CALL
+                         *. Si le natif-methode unwind via runtime_error()
+                         * interne (typiquement un callback reentrant — formateur/
+                         * emetteur Logger — qui leve), la VM est purgee (frameCount=0,
+                         * stackTop=stack) : le post-call ci-dessous tournerait sur une
+                         * stack vide -> segfault. On propage l'echec proprement. */
+                        int frameSentinel = vm.frameCount;
                         if (mock_try_intercept_fn(fn, effectiveArgCount, args,
                                                   &mockResult)) {
                             result = mockResult;
                         } else {
                             result = fn(effectiveArgCount, args);
+                        }
+                        if (vm.frameCount < frameSentinel) {
+                            return INTERPRET_RUNTIME_ERROR;
                         }
                         vm.stackTop -= (argCount + 1);
                         vm_push(result);

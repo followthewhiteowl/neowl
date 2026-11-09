@@ -1,0 +1,37 @@
+// @sujet : Héritage d'état par modèle — Ancêtre() dans un champ surchargé
+// @resume : Un champ hérité d'un ModèleÉtat et surchargé dans l'État peut appeler Ancêtre() dans son code pour exécuter explicitement le code du champ du modèle avant d'étendre son propre comportement. Omettre Ancêtre() ignore le code du modèle.
+//
+// Ressources voisines : MOD_Ancetre.owl (modèle), ETAT_AncetrePresent.owl
+// (appelle Ancêtre()), ETAT_AncetreOmis.owl (ne l'appelle pas).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : Ancêtre() exécute le code du modèle avant celui de l'état
+PROCEDURE PUBLIQUE scenario_ancetre_present_execute_code_modele()
+	seqObserve = ""
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_ancetre_present.pdf")
+	iImprimeEtat(ETAT_AncetrePresent)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "code-modele;code-etat-avec-ancetre;",
+	"Ancêtre() exécute le code du champ du modèle avant celui de l'état")
+FIN
+
+// Cas nominal : omettre Ancêtre() ignore le code du modèle
+PROCEDURE PUBLIQUE scenario_ancetre_omis_ignore_code_modele()
+	seqObserve = ""
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_ancetre_omis.pdf")
+	iImprimeEtat(ETAT_AncetreOmis)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve, "code-etat-sans-ancetre;",
+	"Sans Ancêtre(), le code du champ du modèle n'est pas exécuté")
+FIN
+
+dbgBilanTest()

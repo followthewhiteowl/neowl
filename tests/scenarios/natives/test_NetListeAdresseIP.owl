@@ -1,0 +1,48 @@
+// @sujet : NetListeAdresseIP
+// @résumé : Liste des adresses IP d'une machine, renvoyée sous forme de tableau de chaînes
+// (et non d'une chaîne séparée par des retours chariot). Les options de filtrage
+// IPv4 / IPv6 sont des constantes combinables.
+
+PROCEDURE PUBLIQUE scenario_toutes_adresses_tableau_non_vide()
+	// Sans option, la liste contient toutes les adresses IPv4 et IPv6 connues
+	// de la machine locale, sous forme de tableau.
+	adresses est un tableau de chaînes = NetListeAdresseIP()
+	dbgVérifieVrai(adresses..Occurrence > 0, "au moins une adresse réseau trouvée")
+FIN
+
+PROCEDURE PUBLIQUE scenario_chaque_entree_au_format_ip()
+	// Chaque entrée de la liste est soit une IPv4 (octets séparés par des
+	// points), soit une IPv6 (groupes séparés par des deux-points).
+	adresses est un tableau de chaînes = NetListeAdresseIP()
+	nOK      est un entier             = 0
+	POUR TOUT sAdr DE adresses
+		SI RegexVérifie(sAdr, "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$") OU Position(sAdr, ":") > 0 ALORS
+			nOK += 1
+		FIN
+	FIN
+	dbgVérifieEgalité(nOK, adresses..Occurrence, "chaque entrée est au format IPv4 ou IPv6")
+FIN
+
+PROCEDURE PUBLIQUE scenario_filtre_ipv4_seul()
+	// Filtrer explicitement sur IPv4 : chaque entrée obtenue est bien au
+	// format IPv4 (aucune entrée IPv6 ne doit s'y glisser).
+	adressesV4 est un tableau de chaînes = NetListeAdresseIP("", IPv4)
+	POUR TOUT sAdr DE adressesV4
+		dbgVérifieVrai(RegexVérifie(sAdr, "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"), "entrée filtrée IPv4 au format attendu")
+	FIN
+FIN
+
+PROCEDURE PUBLIQUE scenario_combinaison_ipv4_ipv6_egale_au_defaut()
+	// La combinaison explicite des deux options équivaut à l'appel par défaut
+	// (qui renvoie déjà les deux familles d'adresses).
+	adressesDefaut    est un tableau de chaînes = NetListeAdresseIP()
+	adressesCombinees est un tableau de chaînes = NetListeAdresseIP("", IPv4 + IPv6)
+	dbgVérifieEgalité(adressesCombinees..Occurrence, adressesDefaut..Occurrence, "combinaison explicite = comportement par défaut")
+FIN
+
+PROCEDURE PRIVÉE scenario_machine_inconnue_tableau_vide()
+	// Un nom de machine introuvable sur le réseau ne doit pas planter : un
+	// tableau vide est attendu plutôt qu'une erreur bloquante.
+	adresses est un tableau de chaînes = NetListeAdresseIP("hote-inexistant-xyz-999.invalid")
+	dbgVérifieEgalité(adresses..Occurrence, 0, "machine introuvable -> tableau vide")
+FIN

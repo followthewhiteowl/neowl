@@ -1,0 +1,26 @@
+// @sujet : Héritage d'état par plusieurs modèles — ordre des events auto-cumulatifs
+// @resume : Avec `Hérite de A, B`, l'ouverture (code top-level) s'exécute dans l'ordre d'inclusion A puis B puis l'état. La Fermeture s'exécute dans l'ordre inverse : l'état puis B puis A.
+//
+// Ressources voisines : MOD_EventsA.owl, MOD_EventsB.owl (modèles),
+// ETAT_MultiEvents.owl (état héritier des deux).
+
+TestModeHeadless(Vrai)
+
+seqObserve est une chaîne = ""
+
+PROCEDURE callback_observe(sEvenement est une chaîne)
+	seqObserve += sEvenement + ";"
+FIN
+
+// Cas nominal : ouverture A->B->état, fermeture état->B->A (ordre inverse)
+PROCEDURE PUBLIQUE scenario_events_auto_cumulatifs_ordre_deux_modeles()
+	iDestination(iPDFGénérique, fRepTemp() + "\owl_test_etat_multi_events.pdf")
+	iImprimeEtat(ETAT_MultiEvents)
+	iFinImprime()
+
+	dbgVérifieEgalité(seqObserve,
+	"ouverture-A;ouverture-B;ouverture-etat;fermeture-etat;fermeture-B;fermeture-A;",
+	"Ouverture = A puis B puis état ; Fermeture = état puis B puis A (ordre inverse)")
+FIN
+
+dbgBilanTest()

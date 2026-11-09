@@ -312,6 +312,46 @@ int compile_peek_had_error(void);
  * qui veulent enchainer plusieurs emit sans rester en panicMode. */
 void compile_reset_parser_error_state(void);
 
+/*  — gardes compile-time de l'heritage d'Etat.
+ *
+ * compiler_etat_print_sites_reset : vide le registre des sites d'appel
+ *   iImprimeEtat(IDENT) captures pendant la compile. A appeler en DEBUT de
+ *   session de compile (run/test/--check) pour eviter toute fuite d'un
+ *   lot au suivant.
+ * compiler_validate_etat_inheritance : valide l'heritage d'Etat sur vm.etats
+ *   complet (circularite, collision globale/champ, iteration de meme nom) et
+ *   les sites d'impression (modele imprime nu). Emet la premiere garde
+ *   trouvee comme erreur de compilation et renvoie false ; true si aucune
+ *   anomalie. A appeler APRES compile de tout le perimetre. */
+void compiler_etat_print_sites_reset(void);
+bool compiler_validate_etat_inheritance(void);
+
+/*  — squiggles d'heritage d'Etat dans l'editeur (check projet mode
+ * activeFile). Le CLI --check compile tous les compagnons avant de valider ;
+ * l'editeur per-frappe ne compile que le fichier actif (latence, ),
+ * donc les modeles voisins manquent a vm.etats et la validation les saute.
+ *
+ * compiler_etat_print_sites_count : nombre de sites iImprimeEtat captures
+ *   jusqu'ici (snapshot apres compile de la cible, avant compile des voisins).
+ * compiler_collect_active_etat_chain_files : calcule la cloture d'heritage des
+ *   Etats deja dans vm.etats (+ cibles iImprimeEtat) via les aretes
+ *   g_element_parents, et renvoie dans outFileIndexes[] (capacite cap) les
+ *   index des fichiers voisins qui declarent un modele de cette cloture NON
+ *   encore present dans vm.etats. Le caller compile ces seuls fichiers pour
+ *   peupler vm.etats (latence bornee a la profondeur d'heritage). Prerequis :
+ *   la cible est deja compilee, g_element_parents porte les aretes cross-fichier
+ *   (prebuild voisins actif). Retourne le nombre d'index ecrits.
+ * compiler_validate_etat_inheritance_range : variante bornee de la validation.
+ *   Ne valide QUE les Etats vm.etats[etatStart..etatEnd) et les sites
+ *   d'impression [0..printSiteCount), mais resout les parents contre tout
+ *   vm.etats. Permet de ne rapporter que les erreurs des Etats du fichier actif
+ *   sans fausser l'attribution avec un modele voisin fautif. */
+int  compiler_etat_print_sites_count(void);
+int  compiler_collect_active_etat_chain_files(SymbolTable* symbols,
+                                              int* outFileIndexes, int cap);
+bool compiler_validate_etat_inheritance_range(int etatStart, int etatEnd,
+                                              int printSiteCount);
+
 /* ================================================================
  * USER TYPE FIELD METADATA (pour stdlib_json::Sérialise/Désérialise)
  * ================================================================

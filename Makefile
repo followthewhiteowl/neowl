@@ -241,7 +241,8 @@ $(BUILDDIR)/build.ninja:
 	  -DCMAKE_BUILD_TYPE=Release \
 	  -DOWL_QT6_INSTALL=$(CURDIR)/$(QT6_ZIG_INST) \
 	  -DQT_HOST_PATH=$(CURDIR)/$(BUILDDIR_QT6_INST) \
-	  -DOWL_DEV_TOOLS=ON
+	  -DOWL_DEV_TOOLS=ON \
+	  -DOWL_ENABLE_OCR=ON
 
 # ----------------------------------------------------------
 # Tests

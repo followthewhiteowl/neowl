@@ -2145,8 +2145,13 @@ static void scan_one_source_for_user_symbols(const char* source, int docIndex,
             }
 
             /* Pattern : prev2 = IDENT, prev1 = EST, tok = Fenetre/Etat/...
-             * Le nom declare est prev2. */
-            if ((tok.type == TOKEN_FENETRE || tok.type == TOKEN_ETAT)
+             * Le nom declare est prev2.
+             *  — TOKEN_MODELE_ETAT a parite avec TOKEN_ETAT : un
+             * `MOD_X est un ModeleEtat` est un objet nomme du DSL au meme titre
+             * qu'un Etat (coloration class vert fonce + go-to-def). isWindow
+             * reste faux (ni Fenetre, donc pas cible Ouvre). */
+            if ((tok.type == TOKEN_FENETRE || tok.type == TOKEN_ETAT
+                 || tok.type == TOKEN_MODELE_ETAT)
                 && prev1.type == TOKEN_EST
                 && prev2.type == TOKEN_IDENTIFIER
                 && userWindowCount < 256) {
@@ -2460,9 +2465,14 @@ static void scan_one_source_for_user_symbols(const char* source, int docIndex,
                         }
                         if (scopeTop < 64) scopeStack[scopeTop++] = SCOPE_BLOCK;
                     } else if ((typeToken.type == TOKEN_FENETRE || typeToken.type == TOKEN_ETAT
+                         || typeToken.type == TOKEN_MODELE_ETAT
                          || typeIsProjet || typeIsService)
                         && userWindowCount < 256) {
-                        /*  — TOKEN_ETAT (`ETAT_X est un Etat`) capture
+                        /*  — TOKEN_MODELE_ETAT a parite avec TOKEN_ETAT :
+                         * meme capture (nom d'objet DSL -> class vert fonce,
+                         * go-to-def via window_def_record pour un compagnon
+                         * modele FERME). isWindow reste faux (exclu de Ouvre).
+                         *  — TOKEN_ETAT (`ETAT_X est un Etat`) capture
                          * symetrique a TOKEN_FENETRE : nom top-level declare
                          * comme objet nomme du DSL (couleur class, vert fonce
                          * dans le theme). Sans TOKEN_ETAT ici, ETAT_Mensuel
@@ -2995,7 +3005,10 @@ static void scan_one_file_for_dsl(const char* path) {
     for (;;) {
         Token tok = scanner_scan_token(&sc);
         if (tok.type == TOKEN_EOF) break;
-        if ((tok.type == TOKEN_FENETRE || tok.type == TOKEN_ETAT)
+        /*  — TOKEN_MODELE_ETAT a parite avec TOKEN_ETAT (coloration du
+         * nom d'un modele reference depuis un autre fichier projet). */
+        if ((tok.type == TOKEN_FENETRE || tok.type == TOKEN_ETAT
+             || tok.type == TOKEN_MODELE_ETAT)
             && prev1.type == TOKEN_EST
             && prev2.type == TOKEN_IDENTIFIER
             && userWindowCount < 256) {
@@ -4049,7 +4062,10 @@ static DslCtx detect_dsl_context_ex(const char* source, int cursor_offset) {
 
         if (t.type == TOKEN_FENETRE && wasEst && top < 64) {
             stack[top++] = 'F';
-        } else if (t.type == TOKEN_ETAT && wasEst && top < 64) {
+        } else if ((t.type == TOKEN_ETAT || t.type == TOKEN_MODELE_ETAT)
+                   && wasEst && top < 64) {
+            /*  — un ModeleEtat ouvre un contexte 'E' comme un Etat :
+             * ses sous-blocs/champs sont bornes a l'identique. */
             stack[top++] = 'E';
         } else if ((t.type == TOKEN_LIBELLE || t.type == TOKEN_BOUTON
                     || t.type == TOKEN_SAISIE || t.type == TOKEN_TABLE
@@ -4283,7 +4299,9 @@ static int enclosing_window_start(const char* source, int cursor_offset) {
             continue;
         }
 
-        if ((t.type == TOKEN_FENETRE || t.type == TOKEN_ETAT) && wasEst) {
+        if ((t.type == TOKEN_FENETRE || t.type == TOKEN_ETAT
+             || t.type == TOKEN_MODELE_ETAT) && wasEst) {
+            /*  — ModeleEtat = bloc englobant au meme titre qu'un Etat. */
             opens = true; isWin = true;
         } else if ((t.type == TOKEN_LIBELLE || t.type == TOKEN_BOUTON
                     || t.type == TOKEN_SAISIE || t.type == TOKEN_TABLE
@@ -4536,7 +4554,9 @@ static int find_dsl_block_start(const char* source, int cursor_offset, char ctxK
           || (ctxKind == 'S' && t.type == TOKEN_SAISIE)
           || (ctxKind == 'T' && t.type == TOKEN_TABLE)
           || (ctxKind == 'C' && t.type == TOKEN_COLONNE)
-          || (ctxKind == 'E' && t.type == TOKEN_ETAT))) {
+          /*  — un contexte 'E' se rouvre aussi sur ModeleEtat. */
+          || (ctxKind == 'E' && (t.type == TOKEN_ETAT
+                               || t.type == TOKEN_MODELE_ETAT)))) {
             lastBlockStart = (lastIdentOff >= 0) ? lastIdentOff : off;
         }
         /*  — genres sans token scanner dedie (Onglet, Volet, Combo,
@@ -4727,7 +4747,7 @@ static int find_dsl_block_end(const char* source, int block_start, int cursor_of
                t.type == TOKEN_FENETRE  || t.type == TOKEN_LIBELLE
             || t.type == TOKEN_BOUTON   || t.type == TOKEN_SAISIE
             || t.type == TOKEN_TABLE    || t.type == TOKEN_COLONNE
-            || t.type == TOKEN_ETAT
+            || t.type == TOKEN_ETAT     || t.type == TOKEN_MODELE_ETAT  /*  */
             || (blockCh != 0 && (sawChampPrefix || blockCh == 'V')));
         /* Sous-bloc DSL Etat (Iteration/Corps/...) reconnu par mot-cle ident.
          *  — `Image` ajoute : sous-controle widget d'un Etat sans
@@ -6403,6 +6423,21 @@ JsonValue* handle_completion(JsonValue* params) {
                         typeDeclContext = true;
                         controlModifierContext = true;
                         typeDeclHasArticle = true;
+                    } else if (WMOD(1) && WKW(2)) {
+                        /*  (support #431) — forme EN SANS article AVEC un
+                         * début de type déjà tapé : `is Control i<partial>`.
+                         * words = [partiel, modificateur, copule] (pas d'article).
+                         *  ne couvrait que le modificateur en tête de
+                         * partial (`is Control|`/`is Control `) ; dès qu'un préfixe
+                         * de type est tapé, le modificateur passe en words[1] et
+                         * seule la variante AVEC article (WMOD(1)&&WART(2))
+                         * existait → on tombait sur la complétion générique
+                         * (primitifs). Parité no-article. Pas de glued : le mot
+                         * courant côté client est le préfixe de type, le filtrage
+                         * client est donc correct. */
+                        typeDeclContext = true;
+                        controlModifierContext = true;
+                        typeDeclHasArticle = false;
                     }
                 } else {
                     /* Curseur après séparateur. words[0] = dernier mot complet. */
@@ -8070,6 +8105,31 @@ JsonValue* handle_completion(JsonValue* params) {
             json_object_set(item, "sortText", json_new_string(sortBuf));
             json_array_push(items, item);
         }
+        /*  — globales top-level d'un compagnon FERME (diskGlobals[],
+         * ex. globale nue d'une CollectionDeProcedures). La boucle userSymbols
+         * ci-dessus ne voit que les docs ouverts ; sans cette passe la globale
+         * est absente de la completion de valeur de propriete alors que le
+         * contexte general l'emet (meme pattern que  plus bas). Dedup
+         * au nom : une globale deja proposee via un doc ouvert prime. */
+        for (int i = 0; i < diskGlobalCount; i++) {
+            bool alreadyOpen = false;
+            for (int j = 0; j < userSymbolCount; j++) {
+                if (userSymbols[j].kind == 6
+                    && strcasecmp(userSymbols[j].name, diskGlobals[i].name) == 0) {
+                    alreadyOpen = true;
+                    break;
+                }
+            }
+            if (alreadyOpen) continue;
+            JsonValue* item = json_new_object();
+            json_object_set(item, "label", json_new_string(diskGlobals[i].name));
+            json_object_set(item, "kind", json_new_int(6));
+            json_object_set(item, "detail", json_new_string(diskGlobals[i].type));
+            char sortBuf[160];
+            snprintf(sortBuf, sizeof(sortBuf), "3_%.120s", diskGlobals[i].name);
+            json_object_set(item, "sortText", json_new_string(sortBuf));
+            json_array_push(items, item);
+        }
         return items;
     }
 
@@ -8235,6 +8295,35 @@ JsonValue* handle_completion(JsonValue* params) {
                 json_object_set(item, "kind", json_new_int(8)); /* Class */
                 json_object_set(item, "detail", json_new_string("Fenetre OWL"));
                 json_object_set(item, "sortText", json_new_string("\""));
+                json_array_push(items, item);
+            }
+            return items;
+        }
+    }
+
+    /*  — au 1er arg d'IntercepteEvenement/InterceptEvent (le parametre
+     * est une PROCEDURE), n'exposer QUE les procedures du FICHIER COURANT —
+     * miroir du bloc Ouvre ci-dessus (early-return focalise, coupe le catalogue
+     * natif general). Portee same-file stricte : une procedure declaree dans une
+     * CollectionDeProcedures ou tout autre compagnon ne resout PAS a la
+     * compilation (erreur « procedure inconnue »), donc on exclut diskProcs[] et
+     * les procedures des autres docs ouverts en filtrant userSymbols[] (kind 3 =
+     * Function/Procedure) sur le docIndex du document courant. IntercepteEvenement
+     * Fin est volontairement hors scope : son arg 0 est un champ, pas une proc. */
+    if (callArgContext && callArgIndex == 0 && callFnName[0] && td && pos) {
+        const NativeInfo* ifn = catalog_find_native(callFnName);
+        if (ifn && ifn->nameAscii
+            && strcmp(ifn->nameAscii, "IntercepteEvenement") == 0) {
+            int curIdx = find_doc(json_get_string(td, "uri"));
+            for (int i = 0; i < userSymbolCount; i++) {
+                if (userSymbols[i].kind != 3) continue;          /* 3 = Function/Procedure */
+                if (userSymbols[i].docIndex != curIdx) continue; /* same-file only */
+                JsonValue* item = json_new_object();
+                json_object_set(item, "label", json_new_string(userSymbols[i].name));
+                json_object_set(item, "kind", json_new_int(3)); /* Function */
+                if (userSymbols[i].detail[0])
+                    json_object_set(item, "detail", json_new_string(userSymbols[i].detail));
+                json_object_set(item, "sortText", json_new_string("\"")); /* flotte en tete */
                 json_array_push(items, item);
             }
             return items;
