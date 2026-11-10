@@ -1983,6 +1983,23 @@ static void user_procs_reset(void);
  * ecrite par compiler_custom_props_scan_sources plus bas). */
 static bool g_custom_props_scan_done = false;
 
+/*  — invalide les caches build-once des scans projet re-tokenisants
+ * (index nom->type declare + les deux bools Projet). Appele a chaque frontiere
+ * de compilation, comme g_custom_props_scan_done. Definition plus bas, a cote
+ * du builder de l'index. */
+static void proj_scan_caches_invalidate(void);
+
+/*  — caches build-once des deux bools Projet re-tokenisants (soeurs du
+ * meme O(N^2) quand appelees par champ / par bloc theme). -1 = non calcule.
+ * Declares ici car utilises avant le bloc de l'index (voir plus bas). Le type
+ * SymbolTable est deja visible (projectSymbols, l. ~222). */
+static int g_namingWarnCache = -1;
+static const SymbolTable* g_namingWarnTable = NULL;
+static int g_namingWarnSrcCount = -2;
+static int g_themeDesignatedCache = -1;
+static const SymbolTable* g_themeDesignatedTable = NULL;
+static int g_themeDesignatedSrcCount = -2;
+
 void compiler_reset_poo_state(void) {
     g_class_super_count           = 0;
     g_class_field_vis_count       = 0;
@@ -2014,6 +2031,7 @@ void compiler_reset_poo_state(void) {
      * persiste jusqu'a l'execution (la VM le consulte pour `champ..maProp`). */
     owl_custom_props_reset();
     g_custom_props_scan_done      = false;
+    proj_scan_caches_invalidate();  /*  */
     g_dsl_alias_count             = 0;
     g_dsl_alias_stack_top         = 0;
     /*  lot 4 — mini-stack des decls control en cours de parse
@@ -2955,6 +2973,83 @@ static void colon_member_cross_check_global(void) {
  * concrete OU un ancetre intermediaire concret. Comme g_declared_method_sigs
  * est aliment par toutes les PROCEDURE cX.Foo() (sauf abstraites), c'est
  * suffisant pour distinguer redefinition concrete vs abstraite. */
+/*  — hoist du cross-check abstrait hors du compile par-fichier.
+ *
+ * En mode projet DOSSIER (`owl --check <dir>`), abstract_cross_check_global
+ * tournait en fin de CHAQUE compile_in_project, balayant knownUserTypes
+ * pre-peuple de TOUTES les classes du projet -> O(Nfichiers x Nclasses) et
+ * emission dupliquee de la meme violation dans chaque fichier. Le driver pose
+ * ce drapeau avant la boucle de compile : compile_in_project saute alors le
+ * check, et le driver lance compiler_abstract_cross_check_project() UNE fois
+ * apres la boucle (toutes les tables POO accumulees -> O(Nclasses), aucune
+ * duplication, ordre-independant). Les autres points d'entree
+ * (compile_in_project_split RUN, test runner, --check mono) laissent le drapeau
+ * a false et conservent le check inline. */
+static bool g_defer_project_abstract_check = false;
+void compiler_set_defer_project_abstract_check(bool on) {
+    g_defer_project_abstract_check = on;
+}
+
+/* Capture, en parallele de l'ordre d'emission, le nom de la classe fautive de
+ * chaque diagnostic abstract_cross_check — pour que le driver dossier attribue
+ * la violation au fichier declarant la classe (check_project_element_file_index).
+ * Un owner par emission, dans le meme ordre : l'index k de la capture d'erreur
+ * correspond a l'owner k. */
+#define CROSSCHECK_OWNER_MAX 256
+static char g_crosscheck_owners[CROSSCHECK_OWNER_MAX][64];
+static int  g_crosscheck_owner_count = 0;
+static bool g_crosscheck_record_owners = false;
+static void crosscheck_owner_record(const char* name, int len) {
+    if (!g_crosscheck_record_owners) return;
+    if (g_crosscheck_owner_count >= CROSSCHECK_OWNER_MAX) return;
+    int l = len < 63 ? len : 63;
+    memcpy(g_crosscheck_owners[g_crosscheck_owner_count], name, (size_t)l);
+    g_crosscheck_owners[g_crosscheck_owner_count][l] = '\0';
+    g_crosscheck_owner_count++;
+}
+
+/*  — fallback prescan pour abstract_cross_check_global : au check
+ * par-fichier (mode --check mono/activeFile), une classe derivee declaree dans
+ * un fichier VOISIN est prescannee mais pas encore full-compilee quand le check
+ * tourne, donc sa redefinition concrete n'est pas (encore) dans
+ * g_declared_method_sigs -> faux positif "methode abstraite non redefinie".
+ * On consulte la table prescan classMethods[] (qui capture les methodes
+ * CONCRETES inline/externes de tous les fichiers du projet ; les methodes
+ * `PROCEDURE abstraite` n'y figurent PAS, cf. prescan.c) le long de la chaine
+ * d'heritage, en miroir de declared_method_sig_lookup_inherited. */
+static bool prescan_concrete_redef_in_chain(const char* className, int classLen,
+                                            const char* methodName,
+                                            int methodLen) {
+    if (projectSymbols == NULL) return false;
+    const char* cur = className;
+    int curLen = classLen;
+    for (int hops = 0; hops < 64; hops++) {
+        for (int i = 0; i < projectSymbols->classMethodCount; i++) {
+            const char* cn = projectSymbols->classMethods[i].className;
+            const char* mn = projectSymbols->classMethods[i].sig.name;
+            if ((int)strlen(cn) != curLen || (int)strlen(mn) != methodLen) continue;
+            if (strncasecmp(cn, cur, (size_t)curLen) != 0) continue;
+            if (strncasecmp(mn, methodName, (size_t)methodLen) != 0) continue;
+            return true;
+        }
+        const char* nextName = NULL;
+        int nextLen = 0;
+        for (int i = 0; i < g_class_super_count; i++) {
+            ClassSuperEntry* se = &g_class_super[i];
+            if (se->classLen == curLen &&
+                strncasecmp(se->className, cur, (size_t)curLen) == 0) {
+                nextName = se->superName;
+                nextLen  = se->superLen;
+                break;
+            }
+        }
+        if (!nextName || nextLen <= 0) return false;
+        cur = nextName;
+        curLen = nextLen;
+    }
+    return false;
+}
+
 static void abstract_cross_check_global(void) {
     for (int k = 0; k < knownUserTypeCount; k++) {
         if (knownUserTypes[k].kind != OWL_USER_TYPE_CLASSE) continue;
@@ -3006,9 +3101,15 @@ static void abstract_cross_check_global(void) {
                      * branche isAbstractMethod dans proc_declaration),
                      * impl est forcement concret. */
                     isRedefined = true;
+                } else if (prescan_concrete_redef_in_chain(
+                               cName, cLen, am->methodName, am->methodLen)) {
+                    /*  — redefinition concrete vue au prescan d'un
+                     * fichier voisin pas encore full-compile a cet instant. */
+                    isRedefined = true;
                 }
                 if (!isRedefined) {
                     parser.panicMode = false;
+                    crosscheck_owner_record(cName, cLen);
                     Token syn;
                     syn.start = cName;
                     syn.length = cLen;
@@ -3033,6 +3134,23 @@ static void abstract_cross_check_global(void) {
             curLen = nextLen;
         }
     }
+}
+
+/*  — passe projet unique du cross-check abstrait (mode DOSSIER). Le
+ * driver active l'enregistrement des owners, pointe la capture d'erreur sur son
+ * tampon local, appelle cette fonction une fois apres la boucle de compile
+ * (toutes les tables POO accumulees), puis attribue chaque diagnostic k au
+ * fichier declarant g_crosscheck_owners[k]. */
+void compiler_abstract_cross_check_project(void) {
+    g_crosscheck_owner_count = 0;
+    g_crosscheck_record_owners = true;
+    abstract_cross_check_global();
+    g_crosscheck_record_owners = false;
+}
+int compiler_crosscheck_owner_count(void) { return g_crosscheck_owner_count; }
+const char* compiler_crosscheck_owner_at(int i) {
+    if (i < 0 || i >= g_crosscheck_owner_count) return "";
+    return g_crosscheck_owners[i];
 }
 
 static Chunk* current_chunk(void) {
@@ -18940,7 +19058,7 @@ bool compiler_projet_format_monetaire(char* symbole, int symboleCap,
  * EnableNamingConventionWarning = True) a l'interieur du bloc. Le suivi de
  * profondeur ne sert qu'a delimiter le bloc Projet ; jeu d'ouvreurs calque sur
  * project_designates_a_theme. Faux / absent -> false. */
-static bool compiler_projet_active_avertissement_nommage(void) {
+static bool compiler_projet_active_avertissement_nommage_scan(void) {
     if (projectSymbols == NULL) return false;
     for (int k = 0; k < projectSymbols->sourceCount; k++) {
         const char* src = projectSymbols->sources[k].source;
@@ -18997,6 +19115,23 @@ static bool compiler_projet_active_avertissement_nommage(void) {
         }
     }
     return false;
+}
+
+/*  — cache build-once du scan ci-dessus (appele par champ via
+ * field_check_canonical_prefix : sans cache, O(champs x Nsources) = O(N^2)).
+ * Resultat project-stable, invalide par (projectSymbols, sourceCount) +
+ * proj_scan_caches_invalidate a chaque frontiere de compilation. */
+static bool compiler_projet_active_avertissement_nommage(void) {
+    int sc = projectSymbols != NULL ? projectSymbols->sourceCount : -1;
+    if (g_namingWarnCache != -1
+        && g_namingWarnTable == projectSymbols
+        && g_namingWarnSrcCount == sc)
+        return g_namingWarnCache == 1;
+    bool result = compiler_projet_active_avertissement_nommage_scan();
+    g_namingWarnCache    = result ? 1 : 0;
+    g_namingWarnTable    = projectSymbols;
+    g_namingWarnSrcCount = sc;
+    return result;
 }
 
 /*  — remplit le registre des props custom (owl_custom_props_*) depuis
@@ -19161,20 +19296,93 @@ static bool type_name_is_window(const char* type) {
     return false;
 }
 
-/*  — cherche dans les sources du projet (prescan) une declaration
- * top-level `<name> est un <Type>` et rend son type declare. Reutilise l'idiome
- * de scan cross-fichier de hydrate_globals_from_neighbors (projectSymbols->
- * sources). Sert a valider que la reference assignee a Projet..Theme designe
- * bien une instance de type Theme, et a nommer le type reel dans le message de
- * type-mismatch sinon. Retourne true + remplit outType si la declaration est
- * trouvee. */
-static bool project_ident_declared_type(const char* name, int len,
-                                        char* outType, int outSize) {
-    if (projectSymbols == NULL || name == NULL || len <= 0 || outSize <= 0)
-        return false;
-    char wantCanon[128];
-    int wantLen = scanner_strip_accents(name, len, wantCanon, sizeof(wantCanon));
-    if (wantLen <= 0) return false;
+/*  — index build-once nom(canon)->type declare top-level.
+ *
+ * project_ident_declared_type (ci-dessous) re-tokenisait TOUTES les sources du
+ * projet a CHAQUE appel pour un resultat project-stable. Appelee par la
+ * resolution de type cross-fichier des `..`, elle dominait le wall sur gros
+ * projet (O(appels x Nsources) = O(N^2)). On tokenise une fois par projet dans
+ * cet index (cle = nom accent-strippe + minuscule, valeur = texte source brut du
+ * type) ; les lookups deviennent O(1). Semantique STRICTEMENT preservee :
+ * meme machine a etats de scan, meme filtre depth==0, meme matching
+ * casse+accent-insensible, meme "premiere declaration gagne". Invalide par
+ * (projectSymbols, sourceCount) + remis a zero a chaque compiler_reset_poo_state
+ * (proj_scan_caches_invalidate), comme le scan des props custom. */
+#define PROJ_DECL_TYPE_BUCKETS 8192  /* puissance de 2 */
+typedef struct {
+    char key[128];   /* nom declare, accent-strippe + minuscule */
+    int  keyLen;
+    char type[128];  /* texte source brut du token de type (tronque a 127) */
+    int  typeLen;
+    int  next;       /* chainage de bucket, -1 = fin */
+} ProjDeclTypeEntry;
+
+static ProjDeclTypeEntry* g_projDeclTypeEntries = NULL;
+static int g_projDeclTypeCount = 0;
+static int g_projDeclTypeCap   = 0;
+static int g_projDeclTypeBuckets[PROJ_DECL_TYPE_BUCKETS];
+/* stamp d'identite du jeu de sources pour lequel l'index a ete construit. */
+static const SymbolTable* g_projDeclTypeTable = NULL;
+static int g_projDeclTypeSrcCount = -2;  /* -2 = jamais construit */
+
+static void proj_scan_caches_invalidate(void) {
+    g_projDeclTypeTable       = NULL;
+    g_projDeclTypeSrcCount    = -2;
+    g_namingWarnCache         = -1;
+    g_namingWarnTable         = NULL;
+    g_namingWarnSrcCount      = -2;
+    g_themeDesignatedCache    = -1;
+    g_themeDesignatedTable    = NULL;
+    g_themeDesignatedSrcCount = -2;
+}
+
+static uint32_t proj_decl_type_hash(const char* key, int len) {
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < len; i++) {
+        h ^= (unsigned char)key[i];
+        h *= 16777619u;
+    }
+    return h & (PROJ_DECL_TYPE_BUCKETS - 1);
+}
+
+/* Insere (key deja minuscule) si absente : premiere declaration gagne, miroir
+ * du `return` au 1er match de l'ancienne boucle lineaire. */
+static void proj_decl_type_insert(const char* key, int keyLen,
+                                   const char* typeText, int typeLen) {
+    uint32_t b = proj_decl_type_hash(key, keyLen);
+    for (int i = g_projDeclTypeBuckets[b]; i != -1;
+         i = g_projDeclTypeEntries[i].next) {
+        if (g_projDeclTypeEntries[i].keyLen == keyLen
+            && memcmp(g_projDeclTypeEntries[i].key, key, (size_t)keyLen) == 0)
+            return;  /* deja vue : la 1re l'emporte */
+    }
+    if (g_projDeclTypeCount >= g_projDeclTypeCap) {
+        int newCap = g_projDeclTypeCap < 256 ? 256 : g_projDeclTypeCap * 2;
+        g_projDeclTypeEntries = (ProjDeclTypeEntry*)realloc(
+            g_projDeclTypeEntries,
+            (size_t)newCap * sizeof(ProjDeclTypeEntry));
+        g_projDeclTypeCap = newCap;
+    }
+    ProjDeclTypeEntry* e = &g_projDeclTypeEntries[g_projDeclTypeCount];
+    memcpy(e->key, key, (size_t)keyLen);
+    e->keyLen = keyLen;
+    int tl = typeLen < (int)sizeof(e->type) - 1 ? typeLen : (int)sizeof(e->type) - 1;
+    memcpy(e->type, typeText, (size_t)tl);
+    e->type[tl] = '\0';
+    e->typeLen = tl;
+    e->next = g_projDeclTypeBuckets[b];
+    g_projDeclTypeBuckets[b] = g_projDeclTypeCount;
+    g_projDeclTypeCount++;
+}
+
+/* Reconstruit l'index depuis les sources du prescan. La machine a etats de scan
+ * est le calque exact de l'ancienne project_ident_declared_type : seule l'action
+ * au point de match change (insertion au lieu de comparer+retourner). */
+static void proj_decl_type_build(void) {
+    for (int i = 0; i < PROJ_DECL_TYPE_BUCKETS; i++)
+        g_projDeclTypeBuckets[i] = -1;
+    g_projDeclTypeCount = 0;
+    if (projectSymbols == NULL) return;
     for (int k = 0; k < projectSymbols->sourceCount; k++) {
         const char* src = projectSymbols->sources[k].source;
         if (src == NULL) continue;
@@ -19191,9 +19399,6 @@ static bool project_ident_declared_type(const char* name, int len,
                 if (depth > 0) depth--;
                 prev2 = prev1; prev1 = tok; continue;
             }
-            /* Ouvrants lexicaux : source unique. Les formes sans FIN
-             * rendent 0. AVEC reste local — hors table, discriminant de
-             * position, que cette boucle ne suit pas. */
             if (prescan_token_in_depth_table(tok.type)) {
                 if (local_scan_depth_delta(tok, &s) > 0) depth++;
                 prev2 = prev1; prev1 = tok; continue;
@@ -19202,19 +19407,7 @@ static bool project_ident_declared_type(const char* name, int len,
                 depth++;
                 prev2 = prev1; prev1 = tok; continue;
             }
-            /* Motif top-level `IDENT(name) EST IDENT(type)` : le scanner strippe
-             * l'article un/une, le type suit donc directement EST. Le type peut
-             * etre un IDENTIFIER (Theme, styleXxx...) ou un mot-cle de bloc :
-             * `est une Fenetre` scanne Fenetre en TOKEN_FENETRE, on
-             * l'accepte comme type et on copie son texte source (accent-strippe
-             * ensuite par les tests de type appelants). */
-            /*  — copule EN `is a/an <Type>` : l'article s'intercale
-             * entre EST et le type. Le scanner mappe `a` sur TOKEN_A (borne de
-             * plage, non-strippable) et laisse `an` en IDENT 2-char ; en FR il
-             * strippe deja `un/une`. En position post-copule on absorbe cet
-             * article comme filler (sans le pousser dans prev1/prev2), sinon le
-             * motif `IDENT EST TYPE` ne matche jamais en EN (prev1 serait
-             * l'article, pas EST). Miroir de consume_en_a_an_filler. */
+            /* Copule EN `is a/an <Type>` : article absorbe sans pousser prev1. */
             if (prev1.type == TOKEN_EST
                 && (tok.type == TOKEN_A
                     || (tok.type == TOKEN_IDENTIFIER && tok.length == 2
@@ -19225,18 +19418,62 @@ static bool project_ident_declared_type(const char* name, int len,
                           || tok.type == TOKEN_FENETRE;
             if (depth == 0 && tokIsType
                 && prev1.type == TOKEN_EST && prev2.type == TOKEN_IDENTIFIER) {
-                char haveCanon[128];
-                int haveLen = scanner_strip_accents(prev2.start, prev2.length,
-                                                    haveCanon, sizeof(haveCanon));
-                if (haveLen == wantLen
-                    && strncasecmp(haveCanon, wantCanon, wantLen) == 0) {
-                    int n = tok.length < outSize - 1 ? tok.length : outSize - 1;
-                    memcpy(outType, tok.start, (size_t)n);
-                    outType[n] = '\0';
-                    return true;
+                char keyCanon[128];
+                int keyLen = scanner_strip_accents(prev2.start, prev2.length,
+                                                   keyCanon, sizeof(keyCanon));
+                if (keyLen > 0) {
+                    for (int c = 0; c < keyLen; c++)
+                        keyCanon[c] = (char)tolower((unsigned char)keyCanon[c]);
+                    proj_decl_type_insert(keyCanon, keyLen, tok.start, tok.length);
                 }
             }
             prev2 = prev1; prev1 = tok;
+        }
+    }
+}
+
+/* Construit l'index si le jeu de sources courant differe de celui memoise. */
+static void proj_decl_type_ensure(void) {
+    int sc = projectSymbols != NULL ? projectSymbols->sourceCount : -1;
+    if (g_projDeclTypeSrcCount != -2
+        && g_projDeclTypeTable == projectSymbols
+        && g_projDeclTypeSrcCount == sc)
+        return;
+    proj_decl_type_build();
+    g_projDeclTypeTable    = projectSymbols;
+    g_projDeclTypeSrcCount = sc;
+}
+
+/*  — cherche dans les sources du projet (prescan) une declaration
+ * top-level `<name> est un <Type>` et rend son type declare. Reutilise l'idiome
+ * de scan cross-fichier de hydrate_globals_from_neighbors (projectSymbols->
+ * sources). Sert a valider que la reference assignee a Projet..Theme designe
+ * bien une instance de type Theme, et a nommer le type reel dans le message de
+ * type-mismatch sinon. Retourne true + remplit outType si la declaration est
+ * trouvee. */
+static bool project_ident_declared_type(const char* name, int len,
+                                        char* outType, int outSize) {
+    if (projectSymbols == NULL || name == NULL || len <= 0 || outSize <= 0)
+        return false;
+    char wantCanon[128];
+    int wantLen = scanner_strip_accents(name, len, wantCanon, sizeof(wantCanon));
+    if (wantLen <= 0) return false;
+    /* Cle casse-insensible : l'index stocke le nom en minuscule accent-strippe,
+     * on compare donc sur la meme normalisation (equivaut au strncasecmp de
+     * l'ancienne boucle sur deux formes deja accent-strippees). */
+    for (int c = 0; c < wantLen; c++)
+        wantCanon[c] = (char)tolower((unsigned char)wantCanon[c]);
+    proj_decl_type_ensure();
+    uint32_t b = proj_decl_type_hash(wantCanon, wantLen);
+    for (int i = g_projDeclTypeBuckets[b]; i != -1;
+         i = g_projDeclTypeEntries[i].next) {
+        const ProjDeclTypeEntry* e = &g_projDeclTypeEntries[i];
+        if (e->keyLen == wantLen
+            && memcmp(e->key, wantCanon, (size_t)wantLen) == 0) {
+            int n = e->typeLen < outSize - 1 ? e->typeLen : outSize - 1;
+            memcpy(outType, e->type, (size_t)n);
+            outType[n] = '\0';
+            return true;
         }
     }
     return false;
@@ -19256,7 +19493,7 @@ static bool project_ident_declared_type(const char* name, int len,
  * de profondeur ne sert qu'a ne pas prendre pour une designation un `Theme =`
  * ecrit APRES le FIN du bloc Projet ; jeu d'ouvreurs calque sur
  * project_ident_declared_type, sortie sur EOF garantie. */
-static bool project_designates_a_theme(void) {
+static bool project_designates_a_theme_scan(void) {
     if (projectSymbols == NULL) return false;
     for (int k = 0; k < projectSymbols->sourceCount; k++) {
         const char* src = projectSymbols->sources[k].source;
@@ -19309,6 +19546,21 @@ static bool project_designates_a_theme(void) {
         }
     }
     return false;
+}
+
+/*  — cache build-once du scan ci-dessus. Resultat project-stable,
+ * invalide par (projectSymbols, sourceCount) + proj_scan_caches_invalidate. */
+static bool project_designates_a_theme(void) {
+    int sc = projectSymbols != NULL ? projectSymbols->sourceCount : -1;
+    if (g_themeDesignatedCache != -1
+        && g_themeDesignatedTable == projectSymbols
+        && g_themeDesignatedSrcCount == sc)
+        return g_themeDesignatedCache == 1;
+    bool result = project_designates_a_theme_scan();
+    g_themeDesignatedCache    = result ? 1 : 0;
+    g_themeDesignatedTable    = projectSymbols;
+    g_themeDesignatedSrcCount = sc;
+    return result;
 }
 
 /*  — un nom de type designe-t-il un type de style compose ? Les types
@@ -37658,6 +37910,24 @@ static bool enfin_gate_reject_current_statement(void) {
     return true;
 }
 
+/*  — wrapper de progression universel. declaration() n'est appelee par
+ * une boucle de corps/top-level QUE sur un vrai debut d'instruction (jamais sur
+ * un closer de bloc : la condition de boucle filtre FIN/ENFIN/EOF avant). Elle
+ * DOIT donc consommer au moins un token ; une iteration a zero progres est la
+ * signature du deadlock parse_precedence/synchronize (groupe `(` laisse ouvert
+ * contenant un closer `SINON`/`FAIRE`/`ENFIN`). On force alors une avance, ce
+ * qui garantit la terminaison de TOUTE boucle appelante sans toucher aux
+ * token-sets de recuperation (/0562). Couvre les ~50 boucles de corps
+ * d'un seul point. */
+static void declaration_inner(void);
+static void declaration(void) {
+    const char* before = parser.current.start;
+    declaration_inner();
+    if (parser.current.start == before && parser.current.type != TOKEN_EOF) {
+        advance_token();
+    }
+}
+
 static void statement(void) {
     if (enfin_gate_reject_current_statement()) {
         return;
@@ -38637,7 +38907,7 @@ static bool detect_hyphen_in_element_name(char* out, int outsz, Token* outNameTo
     return true;
 }
 
-static void declaration(void) {
+static void declaration_inner(void) {
     /*  — chaque instruction (top-level ET corps de fonction, qui
      * passent tous par declaration()) repart d'une chaine LVALUE vierge. Les
      * segments intermediaires enregistres pour l'auto-vivification JSON ne
@@ -41016,7 +41286,23 @@ static ObjFunction* compile_impl(const char* source, bool asFunction) {
     if (doHoisting) enforce_reserved_projet_requires_block();
     if (doHoisting) enforce_no_ambiguous_projet_markers();
 
+    const char* prevIterStart = NULL;
     while (!check(TOKEN_EOF)) {
+        /*  — garde de progression : si l'iteration precedente n'a
+         * consomme AUCUN token, forcer l'avance pour garantir la terminaison.
+         * Cas pathologique : un groupe `(` laisse ouvert contenant un closer de
+         * recuperation (`SINON`/`FAIRE`/`ENFIN`) a l'interieur — parse_precedence
+         * (refuseBoundary, bracketDepth>0) ET synchronize() rendent tous deux la
+         * main SANS consommer ce token, et cette boucle re-entre a l'infini
+         * (runaway RAM/CPU observe sur `allouer un cX(1 ? "a" sinon "")`). O(1),
+         * defensif, borne toute la famille sans toucher aux token-sets de
+         * recuperation (/0562). */
+        if (parser.current.start == prevIterStart) {
+            advance_token();
+            if (check(TOKEN_EOF)) break;
+        }
+        prevIterStart = parser.current.start;
+
         /* When the PROCEDURE header was absorbed, an optional trailing `FIN`
          * terminates the body (standard syntax). */
         if (absorbedProc && check(TOKEN_FIN)) { advance_token(); break; }
@@ -41277,7 +41563,14 @@ ObjFunction* compile_in_project(const char* source, const char* filename,
      * ambiguite de frontiere, meme verrou symetrique que le chemin RUN. */
     enforce_no_ambiguous_projet_markers();
 
+    const char* prevIterStart = NULL;
     while (!check(TOKEN_EOF)) {
+        /*  — garde de progression (cf. compile_impl). */
+        if (parser.current.start == prevIterStart) {
+            advance_token();
+            if (check(TOKEN_EOF)) break;
+        }
+        prevIterStart = parser.current.start;
         int startOff = current_chunk()->count;
         bool isDecl = peek_top_level_is_declaration();
         if (!isDecl && g_file_first_non_class_stmt_line == 0
@@ -41312,7 +41605,9 @@ ObjFunction* compile_in_project(const char* source, const char* filename,
      * meme fichier OU avoir ete vues lors d'une compilation precedente
      * (tables persistantes). */
     interface_cross_check_global();
-    abstract_cross_check_global();
+    /*  — en mode projet DOSSIER le driver hoiste ce check apres la
+     * boucle (une passe, O(Nclasses), pas de duplication). */
+    if (!g_defer_project_abstract_check) abstract_cross_check_global();
     colon_member_cross_check_global();
     emit_toplevel_element_dups();  /*  : unicite des noms d'elements */
 
@@ -41492,7 +41787,14 @@ bool compile_in_project_split(const char* source, const char* filename,
      * ambiguite de frontiere, meme verrou symetrique que le chemin RUN. */
     enforce_no_ambiguous_projet_markers();
 
+    const char* prevIterStart = NULL;
     while (!check(TOKEN_EOF)) {
+        /*  — garde de progression (cf. compile_impl). */
+        if (parser.current.start == prevIterStart) {
+            advance_token();
+            if (check(TOKEN_EOF)) break;
+        }
+        prevIterStart = parser.current.start;
         int startOff = current_chunk()->count;
         bool isDecl = peek_top_level_is_declaration();
         if (!isDecl && g_file_first_non_class_stmt_line == 0

@@ -1365,6 +1365,11 @@ static void print_filtered_keywords(bool (*predicate)(TokenType)) {
 
 static void json_escape(FILE* f, const char* s);  /* forward — defini plus bas */
 
+/* Flag du mode script-safe de json_escape (defini ici car dump_doc_html,
+ * plus haut dans le fichier, l'arme/desarme). Voir le commentaire detaille a
+ * la definition de json_escape. */
+static int g_doc_script_safe = 0;
+
 /* Mapping OwlPropType → string JSON-friendly pour --vscode-data. */
 static const char* prop_type_json(OwlPropType t) {
     switch (t) {
@@ -3138,6 +3143,15 @@ static void dump_doc_html(const char* tplPath) {
 
     fwrite(tpl, 1, (size_t)(at - tpl), stdout);
 
+    /* Toute chaine emise jusqu'au fputs du reste du template tombe dans le
+     * <script> inline : neutraliser '<' pour qu'aucune "</script>" litterale
+     * ne ferme le bloc (cf. g_doc_script_safe). Borne TOUT l'injecte
+     * (OWL_VERSION + DATA + GUIDES + DSLPROPS + ERRORS + LIMITS + OPERATORS +
+     * GLOBALVARS), pas seulement le champ code. Le code des exemples est
+     * emis par cli_doc.c (escapers dedies) : on arme aussi son flag. */
+    g_doc_script_safe = 1;
+    cli_doc_set_script_safe(1);
+
     vm_init();
 
     printf("\nconst OWL_VERSION = ");
@@ -3817,6 +3831,9 @@ static void dump_doc_html(const char* tplPath) {
     printf("\n];\n");
 
     vm_free();
+
+    g_doc_script_safe = 0;
+    cli_doc_set_script_safe(0);
 
     fputs(at + strlen(MARK), stdout);
     free(tpl);
@@ -4716,6 +4733,12 @@ int handle_check_project_command(const char* dir, const char* activeFile,
     int siteOwner[256];
     int siteOwnerPrev = 0;
 
+    /*  — en mode DOSSIER, le cross-check abstrait est hoiste APRES la
+     * boucle (une seule passe projet au lieu d'une par fichier : O(Nclasses) au
+     * lieu de O(Nfichiers x Nclasses), zero duplication, ordre-independant). En
+     * mode activeFile on garde le check inline (seul le fichier cible compile). */
+    compiler_set_defer_project_abstract_check(activeFile == NULL);
+
     for (int i = 0; i < project.fileCount && fileDiagCount < MAX_PROJECT_FILES; i++) {
         if (activeFile != NULL) {
             char fdCanon[1024];
@@ -4768,6 +4791,43 @@ int handle_check_project_command(const char* dir, const char* activeFile,
             d->col  = warnings[j].column;
             d->sev  = 2;
             strncpy(d->msg, warnings[j].message, 255);
+            d->msg[255] = '\0';
+        }
+    }
+
+    compiler_set_defer_project_abstract_check(false);
+
+    /*  — passe projet unique du cross-check abstrait (mode DOSSIER).
+     * Toutes les classes du projet sont compilees ici : le check tourne une
+     * fois, sans duplication et sans dependre de l'ordre de decouverte. Chaque
+     * violation est attribuee au fichier declarant la classe fautive (owner),
+     * comme le bloc d'heritage d'Etat ci-dessous. */
+    if (activeFile == NULL && fileDiagCount > 0) {
+        CompileDiagnostic absErrs[128];
+        int absErrCount = 0;
+        compile_set_error_capture(absErrs, 128, &absErrCount);
+        compiler_abstract_cross_check_project();
+        compile_set_error_capture(NULL, 0, NULL);
+        for (int k = 0; k < absErrCount; k++) {
+            int fidx = check_project_element_file_index(
+                           symbols, compiler_crosscheck_owner_at(k));
+            FileDiag* fd = NULL;
+            if (fidx >= 0 && fidx < project.fileCount) {
+                char tgtCanon[1024];
+                path_canonicalize(project.files[fidx].path, tgtCanon, sizeof(tgtCanon));
+                for (int d = 0; d < fileDiagCount; d++) {
+                    char fdCanon[1024];
+                    path_canonicalize(fileDiags[d].path, fdCanon, sizeof(fdCanon));
+                    if (strcmp(fdCanon, tgtCanon) == 0) { fd = &fileDiags[d]; break; }
+                }
+            }
+            if (fd == NULL) fd = &fileDiags[0];
+            if (fd->diagCount >= 128) continue;
+            Diag* d = &fd->diags[fd->diagCount++];
+            d->line = absErrs[k].line;
+            d->col  = absErrs[k].column;
+            d->sev  = 1;
+            strncpy(d->msg, absErrs[k].message, 255);
             d->msg[255] = '\0';
         }
     }
@@ -5773,6 +5833,18 @@ int handle_check_command_isolated(const char* filepath) {
  * FMT COMMAND
  * ================================================================ */
 
+/* Quand actif, json_escape emet '<' sous forme "<". Sert UNIQUEMENT a la
+ * region injectee de l'aide HTML (--dump-doc-html) : les chaines du registry y
+ * atterrissent dans un <script> inline, et une sequence "</script>" litterale
+ * (ex. l'exemple de HTMLVersTexte) fermerait le bloc cote navigateur -> DATA
+ * jamais defini -> liste de symboles vide. "<" est du JSON valide, decode
+ * en '<' par le parse JS : rendu runtime identique. Path CLI one-shot,
+ * mono-thread, pas de reentrance -> flag file-scope suffit. Hors de cette
+ * region le flag reste a 0 : les ~190 autres call sites (explain --json,
+ * vscode-data, catalog) sont strictement inchanges, zero golden churn.
+ * (Le flag g_doc_script_safe lui-meme est declare plus haut, avant
+ * dump_doc_html qui l'arme.) */
+
 /* Minimal JSON string escaper: quotes " and \, escapes control chars as
  * \uXXXX. Doesn't cover every corner but is sufficient for registry data
  * (ASCII descriptions + UTF-8 accented text). */
@@ -5786,6 +5858,7 @@ static void json_escape(FILE* f, const char* s) {
         else if (*p == '\r') fputs("\\r", f);
         else if (*p == '\t') fputs("\\t", f);
         else if (*p < 0x20)  fprintf(f, "\\u%04x", *p);
+        else if (*p == '<' && g_doc_script_safe) fputs("\\u003c", f);
         else                 fputc(*p, f);
     }
     fputc('"', f);

@@ -1359,6 +1359,7 @@ int build_project(const char* dir, const char* outputName,
     char* qt6_root_default = NULL;
     char* duckdb_root_default = NULL;
     char* llama_root_default = NULL;
+    char* tesseract_root_default = NULL;
     {
         FILE* cf = fopen(cfgPath, "r");
         if (cf == NULL) {
@@ -1393,25 +1394,27 @@ int build_project(const char* dir, const char* outputName,
             else if (strcmp(buf, "QT6_ROOT_DEFAULT") == 0) field = &qt6_root_default;
             else if (strcmp(buf, "DUCKDB_ROOT_DEFAULT") == 0) field = &duckdb_root_default;
             else if (strcmp(buf, "LLAMA_ROOT_DEFAULT") == 0) field = &llama_root_default;
+            else if (strcmp(buf, "TESSERACT_ROOT_DEFAULT") == 0) field = &tesseract_root_default;
             if (field) *field = safe_strdup(val);
         }
         fclose(cf);
     }
 
-    /* B.5 : resout @QT6_ROOT@ / @DUCKDB_ROOT@ / @LLAMA_ROOT@ dans OBJECTS/LIBS_ABS.
-     * Chaque root, par priorite :
+    /* B.5 : resout @QT6_ROOT@ / @DUCKDB_ROOT@ / @LLAMA_ROOT@ / @TESSERACT_ROOT@
+     * dans OBJECTS/LIBS_ABS. Chaque root, par priorite :
      *   1. OWL_<NAME>_ROOT_<TARGET> env (ex OWL_QT6_ROOT_WINDOWS_X86_64)
      *   2. OWL_<NAME>_ROOT env (toutes plateformes)
      *   3. <owlRoot>/<subdir>/<target>/ (layout d'extraction du mega)
      *   4. <NAME>_ROOT_DEFAULT du cfg (mode dev = path absolu d'origine)
-     * DuckDB + llama sont stages par package_dist et relocalises ici : sans ca
-     * leurs .a seraient references par le chemin d'arbre de build (owl-build
-     * casse hors machine de build). */
+     * DuckDB + llama + Tesseract sont stages par package_dist et relocalises ici :
+     * sans ca leurs .a seraient references par le chemin d'arbre de build
+     * (owl-build casse hors machine de build). */
     {
         struct { const char* ph; const char* name; const char* subdir; const char* def; char root[1024]; } roots[] = {
-            { "@QT6_ROOT@",    "QT6",    "qt6",    qt6_root_default,    { 0 } },
-            { "@DUCKDB_ROOT@", "DUCKDB", "duckdb", duckdb_root_default, { 0 } },
-            { "@LLAMA_ROOT@",  "LLAMA",  "llama",  llama_root_default,  { 0 } },
+            { "@QT6_ROOT@",       "QT6",       "qt6",       qt6_root_default,       { 0 } },
+            { "@DUCKDB_ROOT@",    "DUCKDB",    "duckdb",    duckdb_root_default,    { 0 } },
+            { "@LLAMA_ROOT@",     "LLAMA",     "llama",     llama_root_default,     { 0 } },
+            { "@TESSERACT_ROOT@", "TESSERACT", "tesseract", tesseract_root_default, { 0 } },
         };
         int nroots = (int)(sizeof(roots) / sizeof(roots[0]));
         for (int ri = 0; ri < nroots; ri++) {
@@ -1437,7 +1440,7 @@ int build_project(const char* dir, const char* outputName,
             }
             if (roots[ri].root[0]) printf("owl build: %s_root = %s\n", roots[ri].subdir, roots[ri].root);
         }
-        /* Substitue les 3 placeholders dans objects + libs_abs (un seul scan). */
+        /* Substitue les placeholders dans objects + libs_abs (un seul scan). */
         char** ptrs[] = { &objects, &libs_abs };
         for (int fi = 0; fi < 2; fi++) {
             const char* src = *ptrs[fi];
@@ -1518,7 +1521,7 @@ int build_project(const char* dir, const char* outputName,
             ? "owl build: bundle compile failed (exit %d)\n"
             : "owl build: echec de compilation du bundle (code %d)\n", rcCompile);
         free(owlRoot); free(incDir); free(libDir); free(cfgPath);
-        free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default);
+        free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default); free(tesseract_root_default);
         return 65;
     }
 
@@ -1680,7 +1683,7 @@ int build_project(const char* dir, const char* outputName,
                     outDirBuf);
                 remove(rspPath);
                 free(owlRoot); free(incDir); free(libDir); free(cfgPath);
-                free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default);
+                free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default); free(tesseract_root_default);
                 project_free(&project);
                 return 65;
             }
@@ -1720,7 +1723,7 @@ int build_project(const char* dir, const char* outputName,
         remove(rspPath);
     }
     free(owlRoot); free(incDir); free(libDir); free(cfgPath);
-    free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default);
+    free(link_flags); free(objects); free(libs_rel); free(libs_abs); free(libs_names); free(qt6_root_default); free(duckdb_root_default); free(llama_root_default); free(tesseract_root_default);
     project_free(&project);
 
     if (rc != 0) {

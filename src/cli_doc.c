@@ -1275,6 +1275,19 @@ static void render_markdown_to_terminal(const unsigned char* data, long len) {
  * Pas de bibliothèque externe : écriture manuelle avec échappement.
  * ------------------------------------------------------------------ */
 
+/* Quand actif, les escapers JSON de ce fichier emettent '<' sous forme
+ * "<". Sert UNIQUEMENT a la region injectee de l'aide HTML
+ * (owl --dump-doc-html) : le code des exemples (ex. celui de HTMLVersTexte,
+ * qui contient "<script>...</script>") atterrit dans un <script> inline ;
+ * un "</script>" litteral fermerait le bloc cote navigateur -> DATA jamais
+ * defini -> liste de symboles vide. "<" est du JSON valide, decode en
+ * '<' par le parse JS : rendu runtime identique. Path CLI one-shot,
+ * mono-thread, pas de reentrance. Hors de cette region le flag reste a 0 :
+ * explain --json / vscode-data / catalog sont strictement inchanges. */
+static int g_cli_doc_script_safe = 0;
+
+void cli_doc_set_script_safe(int on) { g_cli_doc_script_safe = on ? 1 : 0; }
+
 static void json_write_string(const unsigned char* s, long len) {
     putchar('"');
     for (long i = 0; i < len; i++) {
@@ -1285,6 +1298,10 @@ static void json_write_string(const unsigned char* s, long len) {
             case '\n': fputs("\\n",  stdout); break;
             case '\r': fputs("\\r",  stdout); break;
             case '\t': fputs("\\t",  stdout); break;
+            case '<':
+                if (g_cli_doc_script_safe) fputs("\\u003c", stdout);
+                else                       putchar('<');
+                break;
             default:
                 if (c < 0x20) printf("\\u%04x", c);
                 else          putchar((char)c);
@@ -4323,6 +4340,10 @@ static void json_write_proc_body_stripped(const char* body_start,
                 case '"':  fputs("\\\"", stdout); break;
                 case '\\': fputs("\\\\", stdout); break;
                 case '\t': fputs("\\t",  stdout); break;
+                case '<':
+                    if (g_cli_doc_script_safe) fputs("\\u003c", stdout);
+                    else                       putchar('<');
+                    break;
                 default:
                     if (c < 0x20) printf("\\u%04x", c);
                     else          putchar((char)c);

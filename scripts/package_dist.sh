@@ -45,7 +45,7 @@ mkdir -p "$DIST/zig" "$DIST/include" "$DIST/lib"
 # No-op si deja placeholderise / DEFAULT vide. Idempotent.
 relocatabilize_cfg() {
     local cfg="$1" name var val ph
-    for name in QT6 DUCKDB LLAMA; do
+    for name in QT6 DUCKDB LLAMA TESSERACT; do
         var="${name}_ROOT_DEFAULT"
         ph="@${name}_ROOT@"
         val=$(grep "^${var}=" "$cfg" | head -1 | sed "s#^${var}=##")
@@ -114,11 +114,13 @@ if [ -d "$QT6_WIN" ]; then
     stage_qt6 "$QT6_WIN" "$DIST/qt6/windows-x86_64"
 fi
 
-# 4b. DuckDB + llama install (lib/) par target. Relocalises via @DUCKDB_ROOT@ /
-# @LLAMA_ROOT@ : owl-build cherche <DIST>/<name>/<target>/lib/*.a. Sans ca, le
-# link spec reference les .a par chemin d'arbre de build -> owl-build casse hors
-# machine de build. Seul lib/ est requis au link (include/ inutile ici).
-for dep in duckdb llama; do
+# 4b. DuckDB + llama + tesseract install (lib/) par target. Relocalises via
+# @DUCKDB_ROOT@ / @LLAMA_ROOT@ / @TESSERACT_ROOT@ : owl-build cherche
+# <DIST>/<name>/<target>/lib/*.a. Sans ca, le link spec reference les .a par
+# chemin d'arbre de build -> owl-build casse hors machine de build. Seul lib/
+# est requis au link (include/ inutile ici). tesseract/lib/ grabe les deux .a
+# OCR (libtesseract + libleptonica), couvertes par un seul @TESSERACT_ROOT@.
+for dep in duckdb llama tesseract; do
     for pair in "linux-x86_64:x86_64-linux-musl" "windows-x86_64:x86_64-windows"; do
         tgt="${pair%%:*}"; host="${pair##*:}"
         src="$ROOT/_local/$dep/$host/install/lib"

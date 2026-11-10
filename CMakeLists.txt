@@ -2876,6 +2876,7 @@ if(OWL_BUILD_OWL)
                 -DQT6_ROOT=${OWL_QT6_INSTALL}
                 -DDUCKDB_ROOT=${OWL_DUCKDB_INSTALL}
                 -DLLAMA_ROOT=${OWL_LLAMA_INSTALL}
+                -DTESS_ROOT=${OWL_TESS_INSTALL}
                 -P ${CMAKE_SOURCE_DIR}/scripts/extract_link_spec.cmake
         VERBATIM
     )

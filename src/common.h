@@ -16,7 +16,7 @@
 /* #define DEBUG_STRESS_GC */
 /* #define DEBUG_LOG_GC */
 
-#define OWL_VERSION "1.8.0"
+#define OWL_VERSION "1.8.1"
 #define OWL_NEXT_VERSION "1.9.0"
 #define OWL_VERSION_MAJOR 1
 #define OWL_VERSION_MINOR 8

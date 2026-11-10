@@ -23,6 +23,17 @@ ObjFunction* compile_as_function(const char* source);
 ObjFunction* compile_in_project(const char* source, const char* filename,
                                  SymbolTable* symbols, int fileIndex);
 
+/*  — hoist du cross-check abstrait en mode projet DOSSIER. Le driver
+ * `owl --check <dir>` pose le drapeau avant la boucle de compile par-fichier
+ * (compile_in_project saute alors abstract_cross_check_global), puis lance
+ * compiler_abstract_cross_check_project() UNE fois apres la boucle. Les owners
+ * (nom de la classe fautive par diagnostic, meme ordre que la capture d'erreur)
+ * permettent d'attribuer chaque violation au fichier declarant. */
+void compiler_set_defer_project_abstract_check(bool on);
+void compiler_abstract_cross_check_project(void);
+int  compiler_crosscheck_owner_count(void);
+const char* compiler_crosscheck_owner_at(int i);
+
 /*  — precalcule l'etat voisins (widgets/sous-widgets, globales bare,
  * membres de collection) UNE fois pour tout le projet, puis chaque
  * compile_in_project rejoue les contributions des autres fichiers au lieu de

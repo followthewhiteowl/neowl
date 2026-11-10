@@ -179,6 +179,11 @@ struct OwlNativeDef;
 struct OwlTypeDef;
 void cli_doc_emit_examples_json(const char* name, const char* name_ascii);
 void cli_doc_emit_neighbors_json(const struct OwlNativeDef* d);
+/*  — active/desactive l'echappement '<' -> "<" des escapers JSON
+ * de ce module. Mis a 1 par dump_doc_html autour de la region injectee dans le
+ * <script> inline de l'aide HTML (empeche un "</script>" litteral d'un exemple
+ * de fermer le bloc). A 0 partout ailleurs : aucun autre export affecte. */
+void cli_doc_set_script_safe(int on);
 /*  — liens fiche->guide (declaratifs + heuristique) :
  *   ,"public_documentation":[<stem>, …]  (rien émis si aucun lien) */
 void cli_doc_emit_public_docs_json(const char* canon, const char* canon_ascii);

@@ -36,6 +36,7 @@
 #   - search_exact_match_rank_scan.c : panel de non-regression du ranking (symboles exacts deja en tete, FR) + cas a corriger (owl search colonne -> champ Colonne hors top-3) + symetrie FR/EN (colonne vs column), residuel / (support #308)
 #   - table_html_colonne_scan.c : aide HTML du champ Table (DATA[]) porte le see-also vers la fiche Colonne + un exemple de declaration de colonne ; plus de propriete bidon CouleurTexte ; sync CLI owl explain Table (PoliceCouleur) (support #308)
 #   - novelties_property_plan_scan.c : la page Nouveautes liste les proprietes de widget nouvelles (..Plan/..Plane), pas seulement les fiches nommees (support #439)
+#   - owl_doc_html_script_safe_scan.c : l'aide HTML generee ne contient qu'UN `</script` (region injectee script-safe, '<'-><) ; empeche qu'une chaine du registry (ex. exemple HTMLVersTexte) ferme le <script> inline et vide la liste de symboles
 #
 # Usage:
 #   ./run.sh                 # utilise ./build/owl.exe (racine repo)
@@ -54,7 +55,7 @@ if [ ! -f "$OWL" ]; then
 fi
 
 rc=0
-for scan in leak_scan internal_native_scan keyword_en_scan projet_prop_scan projet_prop_descen_scan enum_dup_scan enum_accent_dup_scan date_returntype_scan explain_json_lang_scan type_field_nav_scan collision_crossref_scan widget_prop_regression_scan doc_fiches_baseline_stable_scan list_scroll_reset_scan widget_style_descen_scan table_seealso_scan crossref_pin_scan crossref_heuristic_regression_scan crossref_viewer_parity_scan search_doc_first_scan crossref_pin_st3_sql_scan crossref_dslprop_scan projet_naming_backlink_scan projet_example_scan widget_member_sort_lang_scan category_filter_lang_scan guide_lang_scan cli_learn_lang_scan guide_nav_en_scan examples_en_translate_scan displaymask_saisie_desc_scan search_exact_match_rank_scan table_html_colonne_scan novelties_property_plan_scan; do
+for scan in leak_scan internal_native_scan keyword_en_scan projet_prop_scan projet_prop_descen_scan enum_dup_scan enum_accent_dup_scan date_returntype_scan explain_json_lang_scan type_field_nav_scan collision_crossref_scan widget_prop_regression_scan doc_fiches_baseline_stable_scan list_scroll_reset_scan widget_style_descen_scan table_seealso_scan crossref_pin_scan crossref_heuristic_regression_scan crossref_viewer_parity_scan search_doc_first_scan crossref_pin_st3_sql_scan crossref_dslprop_scan projet_naming_backlink_scan projet_example_scan widget_member_sort_lang_scan category_filter_lang_scan guide_lang_scan cli_learn_lang_scan guide_nav_en_scan examples_en_translate_scan displaymask_saisie_desc_scan search_exact_match_rank_scan table_html_colonne_scan novelties_property_plan_scan owl_doc_html_script_safe_scan; do
     BIN="$ROOT/$scan.exe"
     gcc -O0 -Wall -o "$BIN" "$ROOT/$scan.c" || {
         echo "cli_doc_lang: echec compilation $scan.c"

@@ -105,6 +105,13 @@ if(DEFINED LLAMA_ROOT)
     string(REPLACE "\\" "/" LLAMA_ROOT_NORM "${LLAMA_ROOT}")
     string(REPLACE "${LLAMA_ROOT_NORM}" "@LLAMA_ROOT@" LIBS_ABS "${LIBS_ABS}")
 endif()
+# Tesseract/Leptonica : un seul @TESSERACT_ROOT@ (= dossier install) couvre les
+# deux libs, elles partagent install/lib/. TESS_ROOT peut arriver vide quand le
+# gate OCR est OFF (OWL_TESS_INSTALL non defini) -> on ne touche a rien.
+if(DEFINED TESS_ROOT AND NOT TESS_ROOT STREQUAL "")
+    string(REPLACE "\\" "/" TESS_ROOT_NORM "${TESS_ROOT}")
+    string(REPLACE "${TESS_ROOT_NORM}" "@TESSERACT_ROOT@" LIBS_ABS "${LIBS_ABS}")
+endif()
 
 # Trim leading spaces
 string(REGEX REPLACE "^ +" "" LINK_FLAGS "${LINK_FLAGS}")
@@ -129,6 +136,16 @@ set(_llama_default "")
 if(DEFINED LLAMA_ROOT)
     string(REPLACE "\\" "/" _llama_default "${LLAMA_ROOT}")
 endif()
+# Gate OCR OFF -> TESS_ROOT vide -> aucune ligne TESSERACT_ROOT_DEFAULT emise
+# (cfg inchange, pas d'orpheline). La ligne porte sa propre fin de ligne pour
+# s'inserer sans laisser de blanc quand elle est absente.
+set(_tess_default "")
+set(_tess_default_line "")
+if(DEFINED TESS_ROOT AND NOT TESS_ROOT STREQUAL "")
+    string(REPLACE "\\" "/" _tess_default "${TESS_ROOT}")
+    set(_tess_default_line "TESSERACT_ROOT_DEFAULT=${_tess_default}
+")
+endif()
 
 set(CFG_CONTENT
 "# owl_link_gui.cfg — genere par scripts/extract_link_spec.cmake
@@ -141,7 +158,7 @@ set(CFG_CONTENT
 QT6_ROOT_DEFAULT=${_qt6_default}
 DUCKDB_ROOT_DEFAULT=${_duckdb_default}
 LLAMA_ROOT_DEFAULT=${_llama_default}
-LINK_FLAGS=${LINK_FLAGS}
+${_tess_default_line}LINK_FLAGS=${LINK_FLAGS}
 OBJECTS=${OBJECTS}
 LIBS_REL=${LIBS_REL}
 LIBS_ABS=${LIBS_ABS}

@@ -228,6 +228,14 @@ reg limits-probe bin 0 limits-probe.log \
     "Pour chaque limite sondee, N-1 doit compiler et N+1 doit echouer en nommant CETTE limite. Un N-1 refuse signale un mur emprunte : une autre limite, ou une table dimensionnee sur le nom d'une autre, frappe avant — c'est le cas que le controle statique ne peut pas voir. Un N+1 accepte signale une saturation muette. ~40 s. Les sondes ecartees et leur raison sont listees en tete de tests/limits/run.sh." \
     'OWL_BIN="$OWL" bash tests/limits/run.sh'
 
+# `bin` : le cfg n'existe qu'apres le build d'owl (POST_BUILD). Gate sur le
+# build evite le faux rouge "cfg absent" (exit 2) en contexte sans binaire :
+# build casse -> check rapporte NON EXECUTE, jamais rouge.
+reg cfg-relocatable bin 0 cfg-relocatable.log \
+    "CFG NON RELOCALISABLE : un chemin machine absolu subsiste dans owl_link_gui.cfg." \
+    "Une lib externe vendoree reference par chemin d'arbre de build (_local/ ou prefixe absolu) dans LIBS_ABS/OBJECTS casse owl-build sur poste tiers et fuite le chemin machine. Brancher la lib sur @XXX_ROOT@ (extract_link_spec.cmake + project_run.c + package_dist.sh), NE PAS editer le cfg." \
+    'bash tests/packaging/check_link_cfg_relocatable.sh'
+
 reg lint-gc none 0 lint-gc.log \
     "LINT GC CANON violee : table_set direct hors canon." \
     "Utilise inst_field_set_* / obj_globals_set (cf ADR_0057+0058+0059). Build refuse." \
@@ -318,6 +326,11 @@ reg cli-ui-console-parity bin 0 cli-ui-console-parity.log \
     "PARITE UI CONSOLE/GUI violee : owl-cli --check (registre console, sans Qt) et owl.exe --check rendent des verdicts differents sur les natives UI." \
     "owl-build compile le C dans un process CONSOLE (owl_runtime_console, sans OWL_HAS_GUI) : son registre doit annoncer les signatures des 108 natives UI (+ leurs enums touche/fsel/modeTaille/recherche) pour que le portail de compile recale/accepte un projet UI EXACTEMENT comme l'exe GUI qu'il produit (parite du verdict). Les donnees de registre vivent dans src/stdlib_ui_defs.c (Qt-free), enregistrees inconditionnellement par owl_stdlib.c ; les impls Qt (stdlib_ui.c) sont injectees en GUI seulement via stdlib_ui_impls_wire(). Le harnais compare owl.exe --check vs owl-cli.exe --check sur 4 fixtures (valid_fr, valid_en, arity, enum) : un rouge pointe le split stdlib_ui_defs.c, la migration des enums UI en inconditionnel, ou l'ordre d'init owl_stdlib.c (fix/2226), pas le compilateur. SKIP gracieux si owl-cli.exe absent (build sans OWL_DEV_TOOLS)." \
     'if [ -x "$PWD/$BUILDDIR/owl-cli.exe" ]; then OWL_BIN="$PWD/$BUILDDIR/owl.exe" OWL_CLI_BIN="$PWD/$BUILDDIR/owl-cli.exe" bash tests/cli/ui_console_parity/run.sh; else echo "owl-cli.exe absent -> SKIP (build OWL_DEV_TOOLS=ON pour exercer la parite)"; fi'
+
+reg cli-terminaison-allouer-ternaire bin 0 cli-terminaison-allouer-ternaire.log \
+    "TERMINAISON DU PARSEUR violee : owl --check boucle a l'infini (runaway RAM/CPU) sur un groupe ( laisse ouvert contenant un closer de recuperation." \
+    "Un groupe \`(\` laisse ouvert ET contenant un closer de recuperation (\`sinon\`/\`faire\`/\`enfin\`) a l'interieur fait boucler le parseur : parse_precedence (refuseBoundary, bracketDepth>0) ET synchronize() rendent tous deux la main SANS consommer ce token, et la boucle de declarations re-entre a l'infini. Declencheur reel emis par un convertisseur tiers : \`allouer un cX(1 ? \"a\" sinon \"\")\`. La garde de progression (compile_impl / compile_in_project / _split, src/compiler.c) force une avance quand une iteration n'a consomme aucun token. Le harnais passe chaque cas par un sous-process borne par timeout : rouge = TIMEOUT (non-terminaison), vert = terminaison rapide + erreur de compilation propre. Un rouge ici pointe la garde de progression des boucles de declarations top-level, pas les token-sets de recuperation (fix/2425)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/check_terminaison_allouer_ternaire/run.sh'
 
 reg real-to-str-locale none 0 real-to-str-locale.log \
     "LOCALE VIOLEE : owl_real_to_str fuit le separateur decimal de LC_NUMERIC." \

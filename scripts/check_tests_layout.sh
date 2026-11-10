@@ -18,7 +18,9 @@ cd "$ROOT"
 # Buckets top-level autorises sous tests/. Superset : un arbre public (export)
 # en voit un sous-ensemble (conformance / _review exclus de l'export) — le
 # verrou ne rougit que sur un PRESENT non liste, jamais sur un liste absent.
-ALLOW="_review cli compile-error compiler conformance dap doc-lint-fixtures formatter internal_fixtures limits lsp regression runtime runtime_c scenarios translate ui_min_floors"
+# packaging : garde-fous d'empaquetage/release (relocatabilite du cfg de link
+# owl-build, staging mega) — domaine distinct des tests de langage/CLI.
+ALLOW="_review cli compile-error compiler conformance dap doc-lint-fixtures formatter internal_fixtures limits lsp packaging regression runtime runtime_c scenarios translate ui_min_floors"
 
 # Dossiers top-level portant au moins un fichier tracke (NF>2 : exclut les
 # fichiers a la racine de tests/, p.ex. tests/README.md).
