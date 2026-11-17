@@ -1,0 +1,79 @@
+// @sujet : ArbreSelectPlus, ArbreSelect, ArbreSelectMoins
+// @résumé : ArbreSelectPlus sélectionne un élément par son chemin TAB-séparé,
+// ArbreSelect renvoie le chemin de l'élément sélectionné (chaîne vide si
+// aucun), et ArbreSelectMoins désélectionne un élément précédemment
+// sélectionné. La sélection reste mono-élément : un nouvel ArbreSelectPlus
+// remplace la sélection courante.
+//
+// Ressource DSL : FEN_ArbreSelection.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_selectionne_lit_et_deselectionne()
+	Ouvre(FEN_ArbreSelection)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	dbgVérifieEgalité(LireSelection(), "", "rien de sélectionné à l'ouverture")
+
+	bOk est un booléen = ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	dbgVérifieVrai(bOk, "ArbreSelectPlus sur un chemin existant réussit")
+
+	dbgVérifieEgalité(LireSelection(), "Fruits" + TAB + "Agrumes" + TAB + "Orange", "ArbreSelect renvoie le chemin sélectionné")
+
+	bOk2 est un booléen = ArbreSelectMoins(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	dbgVérifieVrai(bOk2, "ArbreSelectMoins désélectionne l'élément")
+
+	dbgVérifieEgalité(LireSelection(), "", "plus rien de sélectionné après désélection")
+
+	Ferme(FEN_ArbreSelection)
+FIN
+
+// Edge case : sélectionner un chemin qui n'existe pas dans l'arbre échoue et
+// ne modifie pas l'état de sélection.
+PROCEDURE PRIVÉE scenario_edge_arbre_selectplus_chemin_inexistant()
+	Ouvre(FEN_ArbreSelection)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+
+	bOk est un booléen = ArbreSelectPlus(ARBRE_Categories, "Légumes" + TAB + "Carotte")
+	dbgVérifieFaux(bOk, "ArbreSelectPlus sur un chemin inexistant échoue")
+
+	dbgVérifieEgalité(LireSelection(), "", "aucune sélection posée par un chemin inexistant")
+
+	Ferme(FEN_ArbreSelection)
+FIN
+
+// Edge case : désélectionner un chemin qui n'existe pas dans l'arbre échoue
+// et ne modifie pas la sélection en cours.
+PROCEDURE PRIVÉE scenario_edge_arbre_selectmoins_chemin_inexistant()
+	Ouvre(FEN_ArbreSelection)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+
+	bOk est un booléen = ArbreSelectMoins(ARBRE_Categories, "Légumes" + TAB + "Carotte")
+	dbgVérifieFaux(bOk, "ArbreSelectMoins sur un chemin inexistant échoue")
+
+	dbgVérifieEgalité(LireSelection(), "Fruits" + TAB + "Agrumes" + TAB + "Orange", "la sélection existante n'est pas affectée par un échec de désélection")
+
+	Ferme(FEN_ArbreSelection)
+FIN
+
+// Edge case : la sélection reste mono-élément — sélectionner un second nœud
+// remplace le premier, il ne s'additionne pas.
+PROCEDURE PRIVÉE scenario_edge_arbre_selectplus_mono_selection_remplace()
+	Ouvre(FEN_ArbreSelection)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	dbgVérifieEgalité(LireSelection(), "Fruits" + TAB + "Rouges" + TAB + "Fraise", "en mono-sélection, le dernier ArbreSelectPlus remplace la sélection précédente")
+
+	Ferme(FEN_ArbreSelection)
+FIN

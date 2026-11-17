@@ -166,6 +166,37 @@ iFinImprime()
 Appeler `iImprimeEtat` sans `iDestination` préalable produit une erreur
 runtime.
 
+### Aperçu à l'écran : le visualisateur de rapports
+
+`iDestination(iVisualisateur)` dirige l'impression suivante vers une
+**fenêtre d'aperçu à l'écran**, au lieu d'un fichier PDF ou d'une
+imprimante. Les pages rendues y sont **empilées**, avec **navigation**
+page à page, **zoom**, et des actions d'**impression** et d'**export PDF**
+accessibles depuis la fenêtre.
+
+```owl
+iDestination(iVisualisateur, i100, "Aperçu facture")
+iImprimeEtat(ETAT_Facture)
+iFinImprime()
+```
+
+La séquence reste la même (`iDestination` → `iImprimeEtat` →
+`iFinImprime`) ; seule la destination change. Après `iFinImprime`, la
+fenêtre de visualisation s'affiche avec les pages produites.
+
+Au-delà de la destination, l'appel accepte des paramètres optionnels qui
+règlent l'apparence de la fenêtre :
+
+| Paramètre | Rôle |
+|---|---|
+| `zoom` | Zoom initial : un préréglage (`i100`, `iapZoomLargeurPage`, `iPage`, `iZoomDéfaut`) ou un pourcentage de `10` à `999` |
+| `titre` | Titre de la fenêtre de visualisation |
+| `boutons` | Booléen — `Faux` masque la barre de boutons |
+| `positionX`, `positionY` | Position de la fenêtre en pixels |
+| `largeur`, `hauteur` | Taille de la fenêtre en pixels |
+
+Sans dimensions fournies, la fenêtre s'ouvre **maximisée**.
+
 ---
 
 ## 4. Séquence d'exécution

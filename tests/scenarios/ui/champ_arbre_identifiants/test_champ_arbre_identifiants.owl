@@ -1,0 +1,70 @@
+// @sujet : ArbreAjoute (5e paramètre), ArbreID, ArbreRécupèreIdentifiant
+// @résumé : ArbreAjoute accepte un identifiant en 5e paramètre, associé à
+// l'élément ajouté (chaîne vide par défaut). ArbreRécupèreIdentifiant relit
+// cet identifiant à partir du chemin de l'élément. ArbreID construit, à
+// partir d'un identifiant, le fragment de chemin qui désigne précisément
+// l'élément portant cet identifiant. La constante aAccepteDoublon (6e
+// paramètre, mode d'ajout) autorise deux éléments de même libellé au même
+// niveau, que ArbreID permet alors de distinguer.
+//
+// Ressource DSL : FEN_ArbreIdentifiants.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_ajoute_associe_un_identifiant_a_lelement()
+	Ouvre(FEN_ArbreIdentifiants)
+
+	bOk est un booléen = ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A", aDéfaut, aDéfaut, "id1")
+	dbgVérifieVrai(bOk, "ArbreAjoute avec un identifiant en 5e paramètre réussit")
+
+	dbgVérifieEgalité(ArbreRécupèreIdentifiant(ARBRE_Categories, "Racine" + TAB + "A"), "id1", "l'identifiant associé à l'ajout est relu via ArbreRécupèreIdentifiant")
+
+	Ferme(FEN_ArbreIdentifiants)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_ajoute_sans_identifiant_renvoie_chaine_vide()
+	Ouvre(FEN_ArbreIdentifiants)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+
+	dbgVérifieEgalité(ArbreRécupèreIdentifiant(ARBRE_Categories, "Racine" + TAB + "B"), "", "un élément ajouté sans identifiant n'en a aucun à relire")
+
+	Ferme(FEN_ArbreIdentifiants)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_ajoute_accepte_doublon_distingue_par_arbreid()
+	Ouvre(FEN_ArbreIdentifiants)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A", aDéfaut, aDéfaut, "id1")
+	bOk est un booléen = ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A", aDéfaut, aDéfaut, "id2", aAccepteDoublon)
+	dbgVérifieVrai(bOk, "un 2e ajout de même libellé réussit quand aAccepteDoublon est précisé")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), 3, "la racine et les 2 homonymes 'A' sont comptés distinctement")
+
+	dbgVérifieEgalité(ArbreRécupèreIdentifiant(ARBRE_Categories, "Racine" + TAB + "A" + ArbreID("id2")), "id2", `le chemin qualifié par ArbreID("id2") désigne l'homonyme id2`)
+
+	dbgVérifieEgalité(ArbreRécupèreIdentifiant(ARBRE_Categories, "Racine" + TAB + "A"), "id1", "le chemin non qualifié désigne le 1er homonyme (id1)")
+
+	bSupprimé est un booléen = ArbreSupprime(ARBRE_Categories, "Racine" + TAB + "A" + ArbreID("id2"))
+	dbgVérifieVrai(bSupprimé, `ArbreSupprime qualifié par ArbreID("id2") retire uniquement l'homonyme id2`)
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), 2, "après suppression de l'homonyme id2, seule la racine et id1 restent")
+
+	dbgVérifieEgalité(ArbreRécupèreIdentifiant(ARBRE_Categories, "Racine" + TAB + "A"), "id1", "l'homonyme id1 subsiste après la suppression ciblée de id2")
+
+	Ferme(FEN_ArbreIdentifiants)
+FIN
+
+// Edge case : ArbreID construit un fragment de chemin à partir d'un
+// identifiant qui n'est associé à aucun élément existant ; le chemin qualifié
+// ne désigne alors aucun élément (introuvable), sans crash.
+PROCEDURE PRIVÉE scenario_edge_arbreid_identifiant_inexistant_chemin_introuvable()
+	Ouvre(FEN_ArbreIdentifiants)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A", aDéfaut, aDéfaut, "id1")
+
+	bTrouve est un booléen = ArbreSelectPlus(ARBRE_Categories, "Racine" + TAB + "A" + ArbreID("idFantome"))
+	dbgVérifieFaux(bTrouve, "un chemin qualifié par un identifiant absent ne désigne aucun élément")
+
+	Ferme(FEN_ArbreIdentifiants)
+FIN

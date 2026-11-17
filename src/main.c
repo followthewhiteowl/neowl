@@ -202,31 +202,21 @@ static int run_project_scoped(const char* dir, const char* entryFile,
 
     InterpretResult result = project_run(&project);
 
-    /*  — lancement PROJET (owl <dir> / owl projet.owl) : apres le body
-     * + les compagnons, ouvre la fenetre de demarrage (metadonnee typee
-     * FenetreDemarrage / StartupWindow) si renseignee. En lancement fichier
-     * (F9 : owl <FEN>), l'entree n'est pas le marqueur projet -> pas d'ouverture
-     * ici, c'est l'auto-open GO-mode qui ouvre la fenetre CIBLE (plus de
-     * double-ouverture). La designation est un const char* pointant une
-     * constante du chunk : on la copie AVANT project_free et avant toute alloc
-     * (owl_run_startup_window alloue), sinon un GC pourrait liberer l'ObjString. */
-    char startupWin[128] = "";
-    bool projectLaunch = projectMode
-        && (entryFile == NULL || is_projet_marker_name(entryFile));
-    if (result == INTERPRET_OK && projectLaunch) {
-        const char* sw = compiler_projet_designated_startup_window();
-        if (sw != NULL && sw[0] != '\0') {
-            strncpy(startupWin, sw, sizeof(startupWin) - 1);
-            startupWin[sizeof(startupWin) - 1] = '\0';
-        }
-    }
+    /* Code de sortie du process (, modele projet corrige ),
+     * pose dans vm.exit_code pendant project_run : RENVOYER top-level pour un
+     * SCRIPT, RENVOYER de Fermeture() pour un PROJET. La fenetre de demarrage
+     * eventuelle (FenetreDemarrage / StartupWindow) a deja ete ouverte ET
+     * fermee DANS project_run, AVANT le teardown Fermeture() — plus aucune
+     * ouverture ici (lancement fichier F9 : auto-open GO-mode, voir plus bas).
+     * Capture AVANT project_free. Une erreur reelle (compile/runtime) prime :
+     * exit_code n'est consulte que sur INTERPRET_OK. */
+    int renvoyerExit = (result == INTERPRET_OK) ? vm.exit_code : 0;
 
     project_free(&project);
 
     if (result == INTERPRET_COMPILE_ERROR) return 65;
     if (result == INTERPRET_RUNTIME_ERROR) return 70;
-    if (startupWin[0] != '\0') return owl_run_startup_window(startupWin);
-    return 0;
+    return renvoyerExit;
 }
 
 /* Dispatch `owl <dossier>` aligne sur la frontiere de projet (,
@@ -7609,6 +7599,14 @@ static void parse_session_flags(int* pArgc, char* argv[]) {
             }
         } else if (strncmp(argv[r], "--lang=", 7) == 0) {
             owl_error_render_set_lang_en(strcmp(argv[r] + 7, "en") == 0);
+        } else if (strcmp(argv[r], "--en") == 0) {
+            /*  : raccourcis de langue, equivalents a `--lang en`/`--lang fr`.
+             * Strippes ici comme flags de session pour que le dispatch de commande
+             * ne les prenne pas pour la commande. Les commandes doc (cli_doc)
+             * lisent la langue globale comme defaut. */
+            owl_error_render_set_lang_en(1);
+        } else if (strcmp(argv[r], "--fr") == 0) {
+            owl_error_render_set_lang_en(0);
         } else {
             argv[w++] = argv[r];
         }

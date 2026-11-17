@@ -597,6 +597,175 @@ target_compile_options(owl_libssh2 PRIVATE
     -ffunction-sections
 )
 
+# --- libwebp 1.5.0 (decodeur WebP, BSD-3) ---
+# Enabler du decodage WebP ( : branchement dans src/owl_image_stb.c).
+# Sous-ensemble DECODEUR cure : on ne vendore que les .c des cibles amont
+# webpdecode + webpdspdecode + webputilsdecode (cf src/*/Makefile.am, categories
+# COMMON + decode). Encodeur (enc/), mux/, demux/, examples/, sharpyuv/ ECARTES
+# (zero chemin d'encodage). Zero dependance externe : les codecs annexes sont
+# hors decodeur et le threading est OFF (HAVE_CONFIG_H non defini -> WEBP_USE_THREAD
+# absent -> decode mono-thread, pas de pthread tire).
+#
+# SIMD par dispatch RUNTIME (dsp/cpu.c -> VP8GetCPUInfo via cpuid), comme
+# tesseract : aucun -march global impose, aucun piege aarch64 (contrairement a
+# l'argon2 opt.c). Les variantes SSE2/SSE41 (x86) et NEON (aarch64) coexistent,
+# chacune #ifdef-gardee sur les macros de la cible -> compile a vide hors cible.
+# Les variantes MIPS/MSA sont ECARTEES (jamais une cible OWL). Seules les 5
+# sources *_sse41.c exigent -msse4.1 pour que __SSE4_1__ active leur corps (SSE2
+# est baseline x86-64, NEON baseline aarch64 -> aucun flag). Cross Win+Linux
+# prouvee (zig clang, decode 1x1 reel) ; aarch64-macos : NEON baseline, non teste.
+#
+# 3 HEADERS encodeur conserves (webp/encode.h, enc/histogram_enc.h,
+# enc/backward_references_enc.h) car dsp/lossless.h + utils/{palette,utils}.c les
+# #includent (declarations partagees enc/dec) ; AUCUN .c encodeur n'est compile,
+# le decodeur ne reference aucune de ces fonctions (verifie au link : 0 symbole
+# indefini). Include PRIVATE (vendor/libwebp, pour les #include "src/...") : les
+# en-tetes internes (dsp.h, utils.h, dec.h a noms generiques) ne doivent PAS
+# remonter sur le search-path global d'owl_core via owl_vendor (piege mpdecimal).
+set(LIBWEBP_SRCS
+    "${VENDOR_DIR}/libwebp/src/dec/alpha_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/buffer_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/frame_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/idec_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/io_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/quant_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/tree_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/vp8_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/vp8l_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dec/webp_dec.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/alpha_processing.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/cpu.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/dec.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/dec_clip_tables.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/filters.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/lossless.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/rescaler.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/upsampling.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/yuv.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/alpha_processing_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/dec_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/filters_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/lossless_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/rescaler_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/upsampling_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/yuv_sse2.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/alpha_processing_sse41.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/dec_sse41.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/lossless_sse41.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/upsampling_sse41.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/yuv_sse41.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/alpha_processing_neon.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/dec_neon.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/filters_neon.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/lossless_neon.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/rescaler_neon.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/upsampling_neon.c"
+    "${VENDOR_DIR}/libwebp/src/dsp/yuv_neon.c"
+    "${VENDOR_DIR}/libwebp/src/utils/bit_reader_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/color_cache_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/filters_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/huffman_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/palette.c"
+    "${VENDOR_DIR}/libwebp/src/utils/quant_levels_dec_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/rescaler_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/random_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/thread_utils.c"
+    "${VENDOR_DIR}/libwebp/src/utils/utils.c"
+)
+add_library(owl_webp STATIC ${LIBWEBP_SRCS})
+target_include_directories(owl_webp PRIVATE "${VENDOR_DIR}/libwebp")
+# -msse4.1 UNIQUEMENT sur les 5 sources SSE4.1, et UNIQUEMENT sur cible x86 :
+# active __SSE4_1__ pour leur corps, sans imposer de baseline au reste. Sur
+# aarch64 la garde laisse ces fichiers compiler a vide (NEON prend le relais).
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64|i[3-6]86|x86")
+    set_source_files_properties(
+        "${VENDOR_DIR}/libwebp/src/dsp/alpha_processing_sse41.c"
+        "${VENDOR_DIR}/libwebp/src/dsp/dec_sse41.c"
+        "${VENDOR_DIR}/libwebp/src/dsp/lossless_sse41.c"
+        "${VENDOR_DIR}/libwebp/src/dsp/upsampling_sse41.c"
+        "${VENDOR_DIR}/libwebp/src/dsp/yuv_sse41.c"
+        PROPERTIES COMPILE_OPTIONS "-msse4.1")
+endif()
+# Pas de define anti-dllexport : WEBP_EXTERN n'emet __declspec(dllexport) que si
+# (_WIN32 && WEBP_DLL), non defini en statique -> les WebP* n'entrent pas dans la
+# table d'export PE. Hardening (calque zint/libxls) : NDEBUG, visibility hidden,
+# sections separees pour que --gc-sections (herite au link owl) vire tout le
+# non-consomme tant qu'aucune native ne tape l'API.
+target_compile_definitions(owl_webp PRIVATE NDEBUG)
+target_compile_options(owl_webp PRIVATE
+    -O2
+    -fvisibility=hidden
+    -ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
+    -fdata-sections
+    -ffunction-sections
+)
+
+# --- brotli 1.1.0 (decodeur, MIT) + woff2 (decodeur, MIT) ---
+# Cascade enabler du chargement de polices WOFF2 ( : branchement dans
+# src/ui_qt.cpp). WOFF2 = sfnt (TTF/OTF) compresse brotli ; le decodeur woff2
+# depend donc du decodeur brotli. On ne vendore QUE les decodeurs.
+#
+# brotli : c/common (constants, context, dictionary embarque, platform,
+# shared_dictionary, transform) + c/dec (bit_reader, decode, huffman, state),
+# encodeur (c/enc) ECARTE. 100% C portable, zero asm, zero dependance, dictionnaire
+# embarque dans dictionary.c (pas de .bin au runtime). Pas de dllexport en statique
+# (BROTLI_DEC_API = __declspec(dllexport) seulement sous BROTLI_SHARED_COMPILATION,
+# non defini) -> 0 export PE.
+set(BROTLI_SRCS
+    "${VENDOR_DIR}/brotli/c/common/constants.c"
+    "${VENDOR_DIR}/brotli/c/common/context.c"
+    "${VENDOR_DIR}/brotli/c/common/dictionary.c"
+    "${VENDOR_DIR}/brotli/c/common/platform.c"
+    "${VENDOR_DIR}/brotli/c/common/shared_dictionary.c"
+    "${VENDOR_DIR}/brotli/c/common/transform.c"
+    "${VENDOR_DIR}/brotli/c/dec/bit_reader.c"
+    "${VENDOR_DIR}/brotli/c/dec/decode.c"
+    "${VENDOR_DIR}/brotli/c/dec/huffman.c"
+    "${VENDOR_DIR}/brotli/c/dec/state.c"
+)
+add_library(owl_brotli STATIC ${BROTLI_SRCS})
+# PRIVATE : <brotli/decode.h> est sous le sous-dossier brotli/ (namespace sain),
+# mais on garde l'include PRIVATE a owl_brotli + ses consommateurs declares
+# (owl_woff2) pour ne rien exposer sur le search-path global d'owl_core.
+target_include_directories(owl_brotli PRIVATE "${VENDOR_DIR}/brotli/c/include")
+target_compile_definitions(owl_brotli PRIVATE NDEBUG)
+target_compile_options(owl_brotli PRIVATE
+    -O2
+    -fvisibility=hidden
+    -ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
+    -fdata-sections
+    -ffunction-sections
+)
+
+# woff2 : woff2common (table_tags, variable_length, woff2_common) + woff2dec
+# (woff2_dec, woff2_out). Encodeur (woff2_enc, font, glyph, normalize, transform)
+# + outils CLI ECARTES. C++ (namespace woff2, API woff2::ConvertWOFF2ToTTF) :
+# compile EN ARBRE principal avec le meme compilateur que son consommateur
+# ui_qt.cpp (ABI std:: coherente). Un sous-build zig/libc++ serait INCORRECT ici
+# (ui_qt.cpp = libstdc++ en build dev -> mismatch ABI std::string). Depend de
+# owl_brotli en PRIVATE (les symboles brotli sont propages au link des STATIC).
+set(WOFF2_SRCS
+    "${VENDOR_DIR}/woff2/src/table_tags.cc"
+    "${VENDOR_DIR}/woff2/src/variable_length.cc"
+    "${VENDOR_DIR}/woff2/src/woff2_common.cc"
+    "${VENDOR_DIR}/woff2/src/woff2_dec.cc"
+    "${VENDOR_DIR}/woff2/src/woff2_out.cc"
+)
+add_library(owl_woff2 STATIC ${WOFF2_SRCS})
+target_include_directories(owl_woff2 PRIVATE
+    "${VENDOR_DIR}/woff2/include"
+    "${VENDOR_DIR}/woff2/src"
+    "${VENDOR_DIR}/brotli/c/include")
+target_link_libraries(owl_woff2 PRIVATE owl_brotli)
+target_compile_definitions(owl_woff2 PRIVATE NDEBUG)
+target_compile_options(owl_woff2 PRIVATE
+    -O2
+    -fvisibility=hidden
+    -ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
+    -fdata-sections
+    -ffunction-sections
+)
+
 # --- SQLite (moteur SQL embarque, amalgamation single-file) ---
 # THREADSAFE=1 (mode serialise) : protege par mutex interne, securise pour
 # le futur multithread OWL. FTS5/JSON1/RTree pour rester moderne.
@@ -1094,7 +1263,7 @@ endif()
 # duckdb_static seul pèse ~71 MB : owl-cli (benchmarks langage pur) n'en a
 # pas besoin.
 add_library(owl_vendor INTERFACE)
-target_link_libraries(owl_vendor INTERFACE owl_mbedtls owl_miniz owl_lzma owl_pcre2 owl_ca owl_md4c owl_zstd owl_mpdecimal owl_zint owl_argon2 owl_llhttp owl_libxls owl_libssh2 LibXml2::LibXml2)
+target_link_libraries(owl_vendor INTERFACE owl_mbedtls owl_miniz owl_lzma owl_pcre2 owl_ca owl_md4c owl_zstd owl_mpdecimal owl_zint owl_argon2 owl_llhttp owl_libxls owl_libssh2 owl_webp owl_woff2 LibXml2::LibXml2)
 
 # Vendor SQL — sqlite + duckdb + odbc. Lié seulement à owl_sql (cf plus bas),
 # donc présent dans owl.exe mais absent d'owl-cli.
@@ -1697,6 +1866,37 @@ endif()
 target_compile_options(libssh2_smoketest PRIVATE -Wall -Wextra -O2)
 
 # ------------------------------------------------------------------
+# libwebp_smoketest — validation standalone du vendoring libwebp 1.5.0
+# (decodeur WebP, enabler ). Prouve compile + link + DECODAGE : decode
+# une fixture WebP lossless 1x1 embarquee (VP8L) en RGBA et verifie dimensions +
+# pixel exact. Prouve aussi au link que l'elagage encodeur est sain (0 symbole
+# indefini). Non inclus dans owl.exe tant qu'aucune native ne tape l'API ;
+# consomme plus tard par src/owl_image_stb.c. L'include pointe le repertoire
+# racine du header public (webp/decode.h).
+# ------------------------------------------------------------------
+add_executable(libwebp_smoketest src/internal_tests/libwebp_smoketest.c)
+target_include_directories(libwebp_smoketest PRIVATE "${VENDOR_DIR}/libwebp/src")
+target_link_libraries(libwebp_smoketest PRIVATE owl_webp)
+target_compile_options(libwebp_smoketest PRIVATE -Wall -Wextra -O2)
+
+# ------------------------------------------------------------------
+# woff2_smoketest — validation standalone de la cascade brotli(dec) + woff2(dec)
+# (enabler , polices WOFF2). C++ car l'API woff2::ConvertWOFF2ToTTF vit
+# dans un namespace. Prouve compile + link + RECONSTRUCTION au RUNTIME : decode
+# une fixture WOFF2 minimale embarquee (292 o, police TTF jouet compressee brotli)
+# et verifie que le sfnt reconstruit porte un magic valide (0x00010000 / OTTO) —
+# preuve que brotli ET la reconstruction woff2 tournent de bout en bout. Non
+# inclus dans owl.exe tant qu'aucune native ne tape l'API ; consomme plus tard
+# par src/ui_qt.cpp.
+# ------------------------------------------------------------------
+add_executable(woff2_smoketest src/internal_tests/woff2_smoketest.cpp)
+target_include_directories(woff2_smoketest PRIVATE
+    "${VENDOR_DIR}/woff2/include" "${VENDOR_DIR}/brotli/c/include")
+target_link_libraries(woff2_smoketest PRIVATE owl_woff2)
+set_target_properties(woff2_smoketest PROPERTIES LINKER_LANGUAGE CXX)
+target_compile_options(woff2_smoketest PRIVATE -Wall -Wextra -O2)
+
+# ------------------------------------------------------------------
 # aws_sigv4_smoketest — validation byte-exacte du coeur AWS Signature V4
 # (enabler chantier AWS). Rejoue l'exemple canonique documente par AWS
 # (GET iam / us-east-1) dont chaque valeur intermediaire est publiee :
@@ -2034,6 +2234,9 @@ add_library(owl_core STATIC ${OWL_CORE_SRCS})
 owl_codeview_debug(owl_core)
 add_dependencies(owl_core owl_core_guard_check)
 target_include_directories(owl_core PUBLIC src lsp "${VENDOR_DIR}/stb")
+# Décodeur WebP (owl_image_stb.c) : les includes d'owl_webp sont PRIVATE, on
+# ajoute donc le répertoire d'en-têtes au consommateur de façon scopée.
+target_include_directories(owl_core PRIVATE "${VENDOR_DIR}/libwebp/src")
 target_link_libraries(owl_core PUBLIC owl_vendor)
 # Modele de nombre v2 : le type numerique = bignum decimal adosse a
 # mpdecimal (OBJ_NUMERIC heap-manage par le GC). PUBLIC : propage l'include dir
@@ -2488,6 +2691,34 @@ unset(PKG_CONFIG_EXECUTABLE CACHE)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets PrintSupport Svg)
 
+# Garde anti cache desync : find_package peuple Qt6_DIR avec le dossier du
+# Qt6Config.cmake reellement resolu (= <install>/lib/cmake/Qt6). Si cette Qt
+# n'est pas sous OWL_QT6_INSTALL, c'est que le cache build/ est incoherent :
+# OWL_QT6_INSTALL a ete reconfigure (ex: vers les host-tools moc/rcc) mais
+# Qt6_DIR, mis en cache par un configure anterieur, pointe encore ailleurs.
+# Cette divergence passe inapercue jusqu'au link (gate cfg-relocatable).
+# On compare en REALPATH + TO_CMAKE_PATH + minuscule pour ne pas faux-positiver
+# sur une simple difference de forme (backslash/slash, .., casse Windows).
+get_filename_component(_owl_qt6_dir_real "${Qt6_DIR}" REALPATH)
+get_filename_component(_owl_qt6_install_real "${OWL_QT6_INSTALL}" REALPATH)
+file(TO_CMAKE_PATH "${_owl_qt6_dir_real}" _owl_qt6_dir_real)
+file(TO_CMAKE_PATH "${_owl_qt6_install_real}" _owl_qt6_install_real)
+string(TOLOWER "${_owl_qt6_dir_real}" _owl_qt6_dir_cmp)
+string(TOLOWER "${_owl_qt6_install_real}" _owl_qt6_install_cmp)
+string(FIND "${_owl_qt6_dir_cmp}" "${_owl_qt6_install_cmp}" _owl_qt6_prefix_pos)
+if(NOT _owl_qt6_prefix_pos EQUAL 0)
+    message(FATAL_ERROR
+        "Cache build/ desynchronise : la Qt6 resolue ne correspond pas a "
+        "OWL_QT6_INSTALL.\n"
+        "  OWL_QT6_INSTALL = ${_owl_qt6_install_real}\n"
+        "  Qt6_DIR (resolu)= ${_owl_qt6_dir_real}\n"
+        "Qt6_DIR devrait etre sous <OWL_QT6_INSTALL>/lib/cmake/Qt6. Un "
+        "re-configure a change OWL_QT6_INSTALL sans invalider Qt6_DIR (reste "
+        "en cache d'un configure anterieur).\n"
+        "Correction : supprime le cache et reconfigure "
+        "(rm -rf ${CMAKE_BINARY_DIR}, puis relance le build).")
+endif()
+
 # Qt resource avec les fontes Liberation + DejaVu (rendu PDF deterministe
 # cross-platform). Le .qrc est compile en .cpp et embed les .ttf
 # directement dans owl.exe. Cf assets/fonts.qrc et apply_owl_fonts()
@@ -2521,6 +2752,8 @@ add_library(owl_runtime_gui STATIC
     ${_OWL_FONT_RESOURCES_GUI}
 )
 target_compile_definitions(owl_runtime_gui PUBLIC OWL_HAS_GUI OWL_HAS_SQL)
+#  — ui_qt.cpp decode les polices web woff2 (headers woff2/*.h).
+target_include_directories(owl_runtime_gui PRIVATE "${VENDOR_DIR}/woff2/include")
 target_link_libraries(owl_runtime_gui PUBLIC
     owl_core
     owl_sql
@@ -2570,6 +2803,8 @@ add_executable(owl
     ${OWL_FONT_RESOURCES}
 )
 target_compile_definitions(owl PRIVATE OWL_HAS_GUI OWL_HAS_SQL)
+#  — ui_qt.cpp decode les polices web woff2 (headers woff2/*.h).
+target_include_directories(owl PRIVATE "${VENDOR_DIR}/woff2/include")
 target_link_libraries(owl PRIVATE
     # self-tests internes (--self-test-*, appeles depuis main.c) : hors des
     # archives owl_core/owl_sql pour le scoping licence, re-linkes ici pour le
@@ -2944,6 +3179,9 @@ if(OWL_BUILD_LSP)
         lsp/lsp_memory.c
         lsp/lsp_catalog.c
         lsp/lsp_proc.c          #  : spawn borne (timeout owl --check)
+        #  : no-op error_capacity_exceeded. prescan.c (TU partage) y
+        # fait appel ; la def canon vit dans compiler.c (owl_core, exclu du LSP).
+        lsp/lsp_limits_stub.c
         ${LSP_CATALOG_GEN}
         src/scanner.c
         # Scanner consomme le registry owl_errors depuis  pour

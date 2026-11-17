@@ -1940,6 +1940,9 @@ void vm_init(void) {
     vm.headless_mode = false;   /*  : owl standard = GUI normale ;
                                  * le runner test re-active ce flag a true
                                  * apres vm_init() pour chaque fichier. */
+    vm.exit_code = 0;           /*  : code de sortie process (RENVOYER
+                                 * top-level). */
+    vm.capture_exit_code = false;
 
     /*  — remise a zero de la capture compile-time des fenetres du
      * projet : sans ca, un fichier script tournant apres un projet dans le meme
@@ -2789,6 +2792,31 @@ static bool call_value(Value callee, int argCount);
 static Value value_deep_clone(Value v);
 static void instance_copy_defaults(Table* from, ObjInstance* instance);
 
+/*  — produit une copie FRAICHE d'un tableau par defaut (template
+ * baken a la compilation pour `tableau DE <Type> = []`). Indispensable pour que
+ * chaque appel sans argument recoive son propre tableau : pousser le template
+ * tel quel le ferait aliaser et muter entre appels. Les metadonnees de type
+ * (fill kind primitif, structure d'element, mode d'agrandissement) sont
+ * recopiees — value_deep_clone generique les perdrait. Le template est
+ * typiquement vide ; la boucle couvre un eventuel contenu par robustesse. */
+static Value fresh_default_array(ObjArray* tmpl) {
+    vm_push(OBJ_VAL(tmpl));               /* root template */
+    ObjArray* arr = obj_new_array();
+    vm_push(OBJ_VAL(arr));                /* root copie en construction */
+    arr->elementPrimKind   = tmpl->elementPrimKind;
+    arr->elementStructType = tmpl->elementStructType;  /* ObjString interne, partage sur */
+    arr->growthMode        = tmpl->growthMode;
+    for (int i = 0; i < tmpl->elements.count; i++) {
+        Value c = value_deep_clone(tmpl->elements.values[i]);
+        if (IS_OBJ(c)) vm_push(c);
+        value_array_write(&arr->elements, c);
+        if (IS_OBJ(c)) vm_pop();
+    }
+    vm_pop();  /* arr */
+    vm_pop();  /* tmpl */
+    return OBJ_VAL(arr);
+}
+
 static bool call(ObjFunction* function, int argCount) {
     /* Pad with default values for any optional parameters not supplied.
      * minArity = first N required params; arity = total. Defaults are stored
@@ -2824,7 +2852,14 @@ static bool call(ObjFunction* function, int argCount) {
                                    "position", posBuf, NULL);
             return false;
         }
-        vm_push(function->defaults[defaultIdx]);
+        Value dflt = function->defaults[defaultIdx];
+        /*  — un defaut tableau (template `tableau DE <Type> = []`) doit
+         * donner une instance FRAICHE a chaque appel (anti-aliasing). Les autres
+         * defauts (scalaires, chaines interned) sont pousses tels quels. */
+        if (IS_ARRAY(dflt)) {
+            dflt = fresh_default_array(AS_ARRAY(dflt));
+        }
+        vm_push(dflt);
         argCount++;
     }
 
@@ -6012,6 +6047,23 @@ static InterpretResult run(void) {
                      * qui resout une prop dynamique) ne doit pas etre confondue
                      * avec l'exit du script. */
                     if (exitFrame == 0 && !reentrantBoundary) {
+                        /*  — RENVOYER <entier> au top-level du corps-
+                         * programme pilote le code de sortie du process. La
+                         * capture est bornee par capture_exit_code (posee par
+                         * project_run.c autour du seul vm_execute du programme) :
+                         * les corps compagnons et le teardown Fermeture()
+                         * atteignent aussi cette branche mais ne doivent PAS
+                         * poser le code. Entier -> tel quel ; reel -> tronque ;
+                         * non-entier/absent (NIL) -> defaut 0 laisse. */
+                        if (vm.capture_exit_code) {
+                            if (IS_INTEGER(result)) {
+                                vm.exit_code = (int)AS_INTEGER(result);
+                            } else if (IS_REAL(result)) {
+                                vm.exit_code = (int)AS_REAL(result);
+                            } else {
+                                vm.exit_code = 0;
+                            }
+                        }
                         vm_pop(); /* pop the script function */
                     } else {
                         vm.stackTop = frame->slots;

@@ -1,0 +1,41 @@
+//  (ST-B) — `ImageFond..Source` en chemin RELATIF doit résoudre et
+// peindre l'image. On dépose le fichier dans un dossier temporaire dédié,
+// on s'y place (fChangeRepertoire) avant Ouvre(), puis on restaure le
+// dossier courant initial — aucun chemin absolu en dur dans le fichier
+// voisin (piège famille  : relocalisation / anonymat).
+//
+// HYPOTHÈSE À VALIDER PAR L'IMPLEMENTER (cf. rapport test_writer) : ce test
+// assume une résolution relative au dossier courant du PROCESSUS (comme les
+// autres natives fichier de ce dépôt), pas au dossier du script/projet —
+// aucune native de type "dossier du script" n'existe aujourd'hui pour
+// trancher autrement.
+//
+// ROUGE attendu avant impl : le fichier voisin ne compile pas (`ImageFond`
+// inconnu sur styleCadreExtérieur). Cf. FEN_StyleImageFondCheminRelatif.owl.
+
+TestModeHeadless(Faux)
+
+sAvant   est une chaîne = fRepEnCours()
+sTravail est une chaîne = fRepTemp() + "/owl_test_2471_chemin_relatif"
+fRepCree(sTravail)
+fChangeRepertoire(sTravail)
+
+imgFond est une Image = dCréeImage(16, 16, RVB(200, 0, 200))
+dSauveImagePNG(imgFond, "owl_test_2471_image_fond_relatif.png")
+
+OuvreSoeur(FEN_StyleImageFondCheminRelatif)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleImageFondCheminRelatif)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// CNT_Relatif [X=20..120,Y=20..120], centre=(70,70)
+cCentre est un entier = dPixelCouleur(img, 70, 70)
+dbgVérifieEgalité(cCentre, RVB(200, 0, 200), "chemin relatif : Source résout par rapport au dossier courant du processus et peint l'image")
+
+Ferme(FEN_StyleImageFondCheminRelatif)
+
+fChangeRepertoire(sAvant)
+fSupprime(sTravail + "/owl_test_2471_image_fond_relatif.png")
+fRepSupprime(sTravail)
+
+dbgBilanTest()

@@ -35,7 +35,7 @@ static const char* const ETAT_VISIBLE_SUBSET[] = {
  * effectif (cadHomothetique) est porte par la couche 1 (.dft du catalogue),
  * partage avec le runtime. */
 static const char* const CADRAGE_SUBSET[] = {
-    "cadCentre", "cadEtire", "cadHomothetique", NULL
+    "cadCentre", "cadEtire", "cadHomothetique", "cadRempli", NULL
 };
 
 /* Sous-ensemble Etat propre au Champ Image : Actif / Inactif / Grise. Distinct
@@ -1403,6 +1403,16 @@ static const OwlPresLeafEntry PRES_LEAVES[] = {
     { "styleListe", "LibelleLignes",     OWL_PRES_EDITOR_COMPOSITE, "Libellé des lignes", "Row label"    },
     { "styleListe", "LigneSelectionnee", OWL_PRES_EDITOR_COMPOSITE, "Ligne sélectionnée", "Selected row" },
 
+    /* styleArbre : modele widget du Champ Arbre (vue hierarchique),
+     * struct de trois sous-elements structurels rendus en sous-accordeon. Le
+     * cadre + fond (CadreExtérieur) reutilise styleCadreExterieur ; le texte des
+     * noeuds (LibelléLignes) et le texte du noeud selectionne (LigneSélectionnée)
+     * reutilisent la brique texte (styleLibelleSaisie). Cle = forme canon
+     * (= object_type de la prop Style). */
+    { "styleArbre", "CadreExterieur",    OWL_PRES_EDITOR_COMPOSITE, "Cadre extérieur",    "Outer frame"  },
+    { "styleArbre", "LibelleLignes",     OWL_PRES_EDITOR_COMPOSITE, "Libellé des lignes", "Row label"    },
+    { "styleArbre", "LigneSelectionnee", OWL_PRES_EDITOR_COMPOSITE, "Ligne sélectionnée", "Selected row" },
+
     /* styleCombo : modele widget du Champ Combo (liste deroulante),
      * struct de cinq sous-elements structurels rendus en sous-accordeon. Libellé
      * (le libellé integre) + CadreExtérieur (le conteneur) + ZoneSaisie (le champ
@@ -1871,6 +1881,7 @@ static const OwlEnumLabelOverride PRES_ENUM_LABEL_OVERRIDES[] = {
     { "cadrage", "cadCentre",       "Centré",       "Center"       },
     { "cadrage", "cadEtire",        "Étiré",        "Stretch"      },
     { "cadrage", "cadHomothetique", "Homothétique", "Proportional" },
+    { "cadrage", "cadRempli",       "Rempli",       "Cover"        },
     /* Type d'une colonne de Table (colType*) : FR accentue perdu par la
      * derivation (Numerique/Booleen). EN idiomatique court (Text/Numeric...). */
     { "colTypes", "colTypeTexte",     "Texte",     "Text"     },

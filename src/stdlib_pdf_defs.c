@@ -35,6 +35,20 @@ static const OwlParam p_dest[]    = {{"type","entier","Destination iPDFGenerique
  * (1 element par page rasterisee). */
 static const OwlParam p_dest_img[] = {{"type","entier","Doit etre iImageMemoire", &E_IDest, NULL},
                                        {"images","tableau","tableau de Image cible (peuple a iFinImprime)"},{0}};
+/* Signature visualisateur : iDestination(iVisualisateur [, Zoom [, Titre [,
+ * Boutons [, PosX [, PosY [, Largeur [, Hauteur]]]]]]]). Zoom = preset nomme
+ * (i100/iPage/iapZoomLargeurPage/iZoomDefaut) ou pourcentage 10..999. */
+static const OwlParam p_dest_vis[] = {
+    {"type","entier","Doit etre iVisualisateur", &E_IDest, NULL},
+    {"zoom","entier","Zoom initial : preset (i100/iPage/iapZoomLargeurPage/iZoomDefaut) ou pourcentage 10-999", .allowedBase=&E_IZoom, .allowsRawInt=true},
+    {"titre","chaine","Titre de la fenetre du visualisateur"},
+    {"boutons","booleen","Vrai (defaut) affiche la barre de boutons"},
+    {"positionX","entier","Abscisse de la fenetre en pixels (defaut 100)"},
+    {"positionY","entier","Ordonnee de la fenetre en pixels (defaut 100)"},
+    {"largeur","entier","Largeur de la fenetre en pixels (sans largeur/hauteur : fenetre maximisee)"},
+    {"hauteur","entier","Hauteur de la fenetre en pixels (sans largeur/hauteur : fenetre maximisee)"},
+    {0}
+};
 static const OwlParam p_marge[]   = {{"haut","reel","mm"},{"bas","reel","mm"},
                                       {"gauche","reel","mm"},{"droite","reel","mm"},{0}};
 static const OwlParam p_imprime[] = {{"texte","chaîne|entier","Texte (peut contenir iPolice/iPosX prefix)"},{0}};
@@ -119,6 +133,12 @@ static const OwlSignature sig_dest[]    = {
     { 1, p_dest,     "entier", "Type de destination seul"},
     { 2, p_dest,     "entier", "Type + chemin de sortie (PDF)"},
     { 2, p_dest_img, "entier", "Destination courante (iImageMemoire)"},
+    { 3, p_dest_vis, "entier", "iVisualisateur + Zoom + Titre"},
+    { 4, p_dest_vis, "entier", "+ Boutons"},
+    { 5, p_dest_vis, "entier", "+ Position X"},
+    { 6, p_dest_vis, "entier", "+ Position Y"},
+    { 7, p_dest_vis, "entier", "+ Largeur"},
+    { 8, p_dest_vis, "entier", "+ Hauteur"},
     {0}
 };
 static const OwlSignature sig_simple[]  = {{0, p_simple, "", ""}, {0}};

@@ -1,0 +1,29 @@
+// Contrat CIBLE  : un même nom ne peut apparaître dans deux
+// sources de binding à la fois — ici `nom` est déclaré à la fois dans
+// `Requête` (query) et dans `Formulaire` (corps urlencoded). Refus attendu
+// à la compilation (binding ambigu), miroir de la garde existante
+// Chemin/Requête (cf. service_binding_param_double_source.owl).
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `Formulaire` n'existe
+// pas encore comme propriété d'`OpérationHTTP` — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de double source. À régénérer une fois  livré.
+ServiceFormulaireRequeteDoubleSource est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "items"]
+	FIN
+
+	CreeItem est une OpérationHTTP
+		PROPRIETES
+			Méthode    = httpPost
+			Chemin     = ["items"]
+			Requête    = [nom]
+			Formulaire = [nom]
+			Réponses   = [httpOK]
+			CodeÉtat   = httpOK
+		FIN
+		PROCEDURE surRequête(nom est une chaîne) : chaîne
+			RENVOYER nom
+		FIN
+	FIN
+FIN

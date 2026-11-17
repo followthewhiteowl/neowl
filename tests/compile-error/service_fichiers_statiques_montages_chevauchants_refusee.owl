@@ -1,0 +1,42 @@
+// Contrat CIBLE  : deux montages `FichiersStatiques` déclarés dans
+// le même service, à `PréfixeUrl` identiques/chevauchants ("static" et
+// "static"), sont ambigus — refus attendu à la compilation.
+//
+// NOTE test_writer (à trancher côté implémentation, cf. rapport) :
+// aujourd'hui `FichiersStatiques` est une propriété SINGULIÈRE d'un
+// ServiceREST (un seul montage par service, comme l'était `Statique` en
+// ) — il ne peut donc pas exister deux montages à préfixes
+// réellement DIFFÉRENTS qui se recouvrent partiellement : la seule forme
+// observable de "chevauchement" est la DUPLICATION de la même propriété
+// `FichiersStatiques` dans un même bloc PROPRIETES. Ce cas couvre donc la
+// garde "montages chevauchants" via sa manifestation la plus simple : deux
+// déclarations de la propriété. Si le dev choisit plutôt une liste de
+// montages multiples par service, ce fichier devra être étendu avec deux
+// PréfixeUrl réellement distincts qui se recouvrent (ex: ["static"] et
+// ["static", "img"]).
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `FichiersStatiques`
+// n'existe pas encore comme propriété de `ServiceREST` (seul l'ancien nom
+// `Statique` l'est, break-net à venir) — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de doublon/chevauchement. À régénérer une fois 
+// livré.
+ServiceDocuments est un ServiceREST
+	PROPRIETES
+		UrlBase           = ["api"]
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "assets"}
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "autres"}
+	FIN
+
+	Ping est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["ping"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			RENVOYER "ok"
+		FIN
+	FIN
+FIN

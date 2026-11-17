@@ -1,0 +1,34 @@
+// @sujet : Noms de champ de structure — mots-clés réservés du langage
+// @résumé : Vérifie qu'un mot-clé réservé (contrôle de flux ou type primitif) est accepté comme nom de champ de structure ordinaire, en écriture et en lecture. Un enregistrement qui garde un champ nommé « autre » ou « si » reste un besoin métier légitime, pas une curiosité : le mot garde son rôle de mot-clé dans un statement, mais devient un identifiant ordinaire en position de nom de champ.
+
+Rub est une Structure
+	autre  est un entier
+	si     est un entier
+	pour   est un entier
+	chaine est une chaîne
+FIN
+
+// Chaque champ nommé par un mot-clé réservé doit s'écrire puis se relire
+// sans perte. On verrouille la valeur exacte pour que le test capture
+// réellement l'aller-retour (pas juste un « non-Null »).
+PROCEDURE PUBLIQUE scenario_champ_mot_cle_reserve_ecriture_lecture()
+	r est un Rub
+	r.autre = 5
+	r.si = 10
+	r.pour = 15
+	r.chaine = "abc"
+
+	dbgVérifieEgalité(r.autre, 5, "champ autre lu")
+	dbgVérifieEgalité(r.si, 10, "champ si lu")
+	dbgVérifieEgalité(r.pour, 15, "champ pour lu")
+	dbgVérifieEgalité(r.chaine, "abc", "champ chaine lu")
+FIN
+
+// Le défaut zéro-typé reste cohérent avec le type déclaré, même quand le
+// nom du champ est un mot-clé réservé : le champ existe sur l'instance
+// fraîche sans écriture préalable.
+PROCEDURE PUBLIQUE scenario_champ_mot_cle_reserve_defaut_zero()
+	r est un Rub
+	dbgVérifieEgalité(r.autre, 0, "champ autre auto-initialisé à zéro")
+	dbgVérifieEgalité(r.chaine, "", "champ chaine auto-initialisé à vide")
+FIN

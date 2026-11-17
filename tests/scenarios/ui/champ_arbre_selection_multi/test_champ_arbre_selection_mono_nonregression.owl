@@ -1,0 +1,28 @@
+// @sujet : ArbreSelectOccurrence (non-régression du mode mono)
+// @résumé : sur un Arbre sans la propriété Multisélection déclarée (donc en
+// mode mono par défaut), ArbreSelectPlus continue de remplacer la sélection
+// courante au lieu de l'accumuler, et ArbreSelectOccurrence renvoie 0 ou 1
+// selon qu'un noeud est sélectionné ou non. Ce scénario verrouille le
+// comportement historique du mode mono face à l'arrivée de la
+// multi-sélection.
+//
+// Ressource DSL : FEN_ArbreSelectionMono.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_mono_selectplus_remplace_et_occurrence_reste_a_un()
+	Ouvre(FEN_ArbreSelectionMono)
+
+	ArbreAjoute(ARBRE_Mono, "Fruits" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Mono, "Fruits" + TAB + "Citron")
+
+	dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Mono), 0, "aucune sélection à l'ouverture")
+
+	ArbreSelectPlus(ARBRE_Mono, "Fruits" + TAB + "Orange")
+	ArbreSelectPlus(ARBRE_Mono, "Fruits" + TAB + "Citron")
+
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Mono), "Fruits" + TAB + "Citron", "en mono, le second SelectPlus remplace le premier")
+	dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Mono), 1, "en mono, un seul élément reste sélectionné")
+
+	Ferme(FEN_ArbreSelectionMono)
+FIN

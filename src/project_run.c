@@ -13,6 +13,7 @@
 #include "prescan.h"
 #include "compiler.h"
 #include "memory.h"
+#include "startup_window.h"  /* owl_run_startup_window : fenetre de demarrage ouverte AVANT le teardown Fermeture() */
 #include "owl_errors.h"  /* owl_error_render_lang_is_en : chrome owl-build bilingue */
 #include "miniz.h"       /* deflate du source embarque dans le bundle genere (spike ) */
 /* owl_service_registry_count : detection ServiceREST au build */
@@ -284,10 +285,24 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
         if (project->isProjectMode && entryIsProjet) {
             owl_boot_project_i18n();
         }
+        /* Code de sortie du process (, modele projet corrige ).
+         * SCRIPT (fichier lance, pas projet.owl) : son RENVOYER <entier> top-
+         * level pilote l'exit code -> capture active ici. PROJET (projet.owl
+         * seul) : le top-level NE porte PAS le code -> capture OFF ; c'est le
+         * RENVOYER de Fermeture() (teardown, joue en dernier) qui le porte -> la
+         * fenetre de capture s'ouvre autour de call_project_teardown. */
+        bool entryIsProjectLaunch = project->isProjectMode && entryIsProjet;
+        vm.capture_exit_code = !entryIsProjectLaunch;
         InterpretResult r = vm_execute(fn);
+        vm.capture_exit_code = false;
         symtable_destroy(symbols);
         if (r != INTERPRET_OK) return r;
-        if (project->isProjectMode && runTeardown) return call_project_teardown();
+        if (project->isProjectMode && runTeardown) {
+            vm.capture_exit_code = true;
+            InterpretResult tr = call_project_teardown();
+            vm.capture_exit_code = false;
+            return tr;
+        }
         return r;
     }
 
@@ -616,7 +631,14 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
      * (son corps = le programme, joue en 2.c).  : "le fichier lance
      * execute toujours son propre code de niveau superieur". */
     if (projetIdx != entry && !split_fn_is_empty(entryBodyFn)) {
+        /*  — le corps-programme pilote le code de sortie (RENVOYER
+         * top-level). En l'absence de projet.owl (projetIdx < 0), le fichier
+         * lance EST le programme : sa capture est active. Sinon (projet avec
+         * F9 sur un compagnon), c'est le corps de projet.owl qui est le
+         * programme (2.c) — le compagnon ne pose pas le code. */
+        vm.capture_exit_code = (projetIdx < 0);
         result = vm_execute(entryBodyFn);
+        vm.capture_exit_code = false;
         if (result != INTERPRET_OK) {
             while (rootCount-- > 0) vm_pop();
             symtable_destroy(symbols);
@@ -632,6 +654,10 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
      * avant, le corps projet-compagnon jouait AVANT l'entree — il mutait les
      * globales de collection que l'entree lisait ensuite (ordre incoherent). */
     if (projetIdx >= 0 && !split_fn_is_empty(projetBodyFn)) {
+        /*  — en mode projet, le top-level de projet.owl EST le programme
+         * (/) MAIS ne porte PAS le code de sortie : c'est le
+         * RENVOYER de Fermeture() (teardown, phase 3, joue en dernier apres la
+         * fenetre de demarrage eventuelle) qui le porte. Capture OFF ici. */
         result = vm_execute(projetBodyFn);
     }
 
@@ -649,8 +675,38 @@ static InterpretResult project_run_ex(Project* project, bool runTeardown,
      *      distinct capturé par-fichier (vm.globals aplati ne garderait qu'un
      *      homonyme) : on le rejoue via vm_execute. termFns reste rooté
      *      (rootCount) pendant toute cette phase — le depilement vient apres. */
-    if (project->isProjectMode && runTeardown) {
+    /*  — fenetre de demarrage (projet lance uniquement) : elle vit ET se
+     * ferme AVANT le teardown, pour que Fermeture() (qui porte le code de sortie
+     * du projet) tourne EN DERNIER. owl test / serve / build ne passent pas ici
+     * (runTeardown=false). La designation est un const char* du chunk (ObjString
+     * GC) -> copie en buffer local AVANT owl_run_startup_window (qui alloue). */
+    if (result == INTERPRET_OK && project->isProjectMode && runTeardown
+        && projetIdx >= 0) {
+        const char* sw = compiler_projet_designated_startup_window();
+        if (sw != NULL && sw[0] != '\0') {
+            char swName[128];
+            strncpy(swName, sw, sizeof(swName) - 1);
+            swName[sizeof(swName) - 1] = '\0';
+            int wr = owl_run_startup_window(swName);
+            /*  — tout code de paramétrage/erreur de la fenêtre PRIME et
+             * devient le code de sortie du process, sans être écrasé par le
+             * teardown Fermeture() : en basculant `result` hors de INTERPRET_OK
+             * on saute le bloc teardown suivant (gardé par `result ==
+             * INTERPRET_OK`) ET main.c renvoie 65/70 (les erreurs priment sur
+             * vm.exit_code). 70 = runtime error, 65 = refus de paramétrage
+             * (type avancé non supporté, `--arg` invalide, requis manquant). */
+            if (wr == 70) result = INTERPRET_RUNTIME_ERROR;
+            else if (wr != 0) result = INTERPRET_COMPILE_ERROR;
+        }
+    }
+
+    if (result == INTERPRET_OK && project->isProjectMode && runTeardown) {
+        /*  — le RENVOYER <entier> de Fermeture() porte le code de sortie
+         * du projet. Capture bornee a ce seul teardown : les Terminaison() des
+         * compagnons qui suivent (vm_execute, capture OFF) ne l'ecrasent pas. */
+        vm.capture_exit_code = true;
         result = call_project_teardown();
+        vm.capture_exit_code = false;
         for (int i = termFns->elements.count - 1;
              i >= 0 && result == INTERPRET_OK; i--) {
             result = vm_execute(AS_FUNCTION(termFns->elements.values[i]));
@@ -1037,14 +1093,21 @@ int build_project(const char* dir, const char* outputName,
     fprintf(out,
         "void owl_force_utf8_console(void);\n\n");
 
-    /*  — ouverture de la fenetre de demarrage (projet GUI). Vit dans
-     * owl_core (Qt-free, resout Ouvre via vm.globals a l'execution) ; forward-
-     * declaree ici comme owl_force_utf8_console plutot que via #include pour ne
-     * pas dependre de la distribution du header. Non emise en mode serveur (le
-     * montage serve bloque deja, pas de fenetre de demarrage). */
+    /*  — la fenetre de demarrage (projet GUI) est ouverte DANS
+     * project_run (owl_core), avant le teardown Fermeture() : le main genere ne
+     * l'ouvre plus et n'a donc plus besoin de forward-declarer
+     * owl_run_startup_window. Les setters de ligne de commande restent requis. */
     if (!declaresService) {
+        /*  — l'exe applicatif recoit sa ligne de commande via ces deux
+         * setters, appeles dans le main genere avant project_run (voir plus
+         * bas). Symetrie avec main.c (mode `owl <projet> args...`) ; forward-
+         * declares ici comme les voisines plutot que via #include. Les deux
+         * symboles vivent dans owl_core (stdlib_console.c / startup_window.c),
+         * deja linke dans tout exe produit. Non emis en mode serveur : l'exe
+         * service a son propre contrat CLI (--port/--bind). */
         fprintf(out,
-            "int owl_run_startup_window(const char* fenName);\n\n");
+            "void stdlib_console_set_script_args(int argc, char** argv);\n"
+            "void owl_startup_set_cli_args(int argc, char** argv);\n\n");
     }
 
     /*  — projet fenetre lie en sous-systeme windows : rattache la
@@ -1185,7 +1248,7 @@ int build_project(const char* dir, const char* outputName,
             "}\n");
     } else {
         fprintf(out,
-            "int main(void) {\n");
+            "int main(int argc, char* argv[]) {\n");
         /*  — build GUI (sous-systeme windows) : rattache la console
          * parente au tout debut, avant tout output, pour router Trace vers le
          * terminal lanceur le cas echeant. Non emise en build console. */
@@ -1193,7 +1256,14 @@ int build_project(const char* dir, const char* outputName,
             fprintf(out,
             "    owl_attach_parent_console_if_any();\n");
         }
+        /*  — l'exe applicatif strippe son seul argv[0] (nom de l'exe) :
+         * tout le reste EST la ligne de commande de l'app (pas de nom de fichier
+         * a sauter comme en mode `owl <projet>`). D'ou argc-1/argv+1, alors que
+         * main.c fait argc-2/argv+2. Pose AVANT project_run pour que
+         * LigneCommande() voie les mots des le top-level du projet. */
         fprintf(out,
+            "    stdlib_console_set_script_args(argc - 1, argv + 1);\n"
+            "    owl_startup_set_cli_args(argc - 1, argv + 1);\n"
             "    owl_force_utf8_console();\n"
             "    vm_init();\n"
             "    Project project;\n"
@@ -1226,27 +1296,17 @@ int build_project(const char* dir, const char* outputName,
             "    project.isProjectMode = true;\n"
             "    owl_set_warnings_suppressed(1);\n"
             "    InterpretResult result = project_run(&project);\n"
-            /*  — symetrie avec run_project_scoped (main.c) : apres le
-             * body projet, ouvre la FenetreDemarrage (metadonnee typee peuplee
-             * par le compile de projet.owl) et entre dans l'event loop. La
-             * designation est un const char* du chunk -> copie AVANT project_free
-             * et avant toute alloc (owl_run_startup_window alloue). L'ouverture
-             * utilise la VM -> AVANT vm_free. Projet sans FenetreDemarrage :
-             * _startupWin vide -> run-once puis sortie, pas d'event loop fantome. */
-            "    char _startupWin[128];\n"
-            "    _startupWin[0] = '\\0';\n"
-            "    if (result == INTERPRET_OK) {\n"
-            "        const char* sw = compiler_projet_designated_startup_window();\n"
-            "        if (sw != NULL && sw[0] != '\\0') {\n"
-            "            strncpy(_startupWin, sw, sizeof(_startupWin) - 1);\n"
-            "            _startupWin[sizeof(_startupWin) - 1] = '\\0';\n"
-            "        }\n"
-            "    }\n"
+            /*  — la FenetreDemarrage est desormais ouverte ET fermee
+             * DANS project_run (avant le teardown Fermeture()), identique a
+             * owl.exe : plus d'ouverture ici. Le code de sortie = vm.exit_code
+             * (RENVOYER de Fermeture() pour un projet), pose pendant project_run ;
+             * une erreur compile/runtime prime. */
+            "    int renvoyerExit = (result == INTERPRET_OK) ? vm.exit_code : 0;\n"
             "    project_free(&project);\n"
             "    int rc = 0;\n"
             "    if (result == INTERPRET_COMPILE_ERROR) rc = 65;\n"
             "    else if (result == INTERPRET_RUNTIME_ERROR) rc = 70;\n"
-            "    else if (_startupWin[0] != '\\0') rc = owl_run_startup_window(_startupWin);\n"
+            "    else rc = renvoyerExit;\n"
             "    vm_free();\n"
             "    return rc;\n"
             "}\n");

@@ -1,0 +1,25 @@
+// Régression  (follow-up de ) : l'attribut <Sérialise> placé
+// AU MILIEU d'un type tableau (entre "tableau" et "de <Type>") casse la
+// compilation d'une Structure : le mot 'DE' est pris pour un identifiant au
+// lieu d'être reconnu comme mot-clé de la spec de type, et l'attribut n'est
+// jamais consommé ni propagé vers serialise_skip/serialise_rename.
+
+STxSerialiseTableauMilieu est une Structure
+	tab est un tableau <Sérialise="tenants"> de chaines
+	champCache est un tableau <Sérialise=Faux> de chaines
+FIN
+
+s est un STxSerialiseTableauMilieu
+s.tab.Ajoute("a")
+s.tab.Ajoute("b")
+s.champCache.Ajoute("secret")
+
+buf est une chaine
+Sérialise(s, buf, psdMinifie)
+
+dbgVerifieVrai(Position(buf, """tenants""") > 0, "rename : clé JSON tenants présente")
+dbgVerifieEgalite(Position(buf, """tab"""), 0, "rename : nom OWL original tab absent du JSON")
+dbgVerifieEgalite(Position(buf, "secret"), 0, "exclusion : valeur du champ champCache absente du JSON")
+dbgVerifieEgalite(Position(buf, """champCache"""), 0, "exclusion : clé du champ champCache absente du JSON")
+
+dbgBilanTest()

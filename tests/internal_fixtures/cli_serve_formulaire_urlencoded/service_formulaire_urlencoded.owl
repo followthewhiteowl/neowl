@@ -1,0 +1,27 @@
+// Fixture  — binding d'un corps `application/x-www-form-urlencoded`
+// aux paramètres homonymes de `surRequête`, via la propriété `Formulaire`
+// (miroir de `Requête` pour la query). AUJOURD'HUI (propriété absente) :
+// `Formulaire` n'est pas une propriété reconnue d'`OpérationHTTP` -> refus
+// à la COMPILATION, avant que `owl serve` ne monte.
+//
+// `age` prouve la coercition vers un type non-chaîne : le formulaire envoie
+// "30" (texte), le handler renvoie `age + 1` converti en chaîne -> "31" si
+// la coercition vers entier a bien eu lieu.
+ServiceFormulaire est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Inscription est une OpérationHTTP
+		PROPRIETES
+			Méthode    = httpPost
+			Chemin     = ["inscription"]
+			Formulaire = [nom, email, age]
+			Réponses   = [httpOK]
+			CodeÉtat   = httpOK
+		FIN
+		PROCEDURE surRequête(nom est une chaîne, email est une chaîne, age est un entier) : chaîne
+			RENVOYER nom + "|" + email + "|" + (age + 1)
+		FIN
+	FIN
+FIN

@@ -1,0 +1,61 @@
+// Fenêtre voisine — ressource pour test_canvas_anime_timer.owl.
+// Une surface de dessin animée : un Champ Image repeint périodiquement par
+// un Timer. Chaque tic ouvre une session de dessin sur le même Champ Image,
+// efface la surface, trace une forme dont la position et la couleur dépendent
+// du numéro de frame, relit un pixel témoin, puis notifie le script de test.
+
+FEN_CanvasAnime est une Fenêtre
+	PROPRIETES
+		Titre       = "Surface animée"
+		Largeur     = 360
+		Hauteur     = 160
+		Disposition = dispLibre
+	FIN
+
+	IMG_Canvas est un Champ Image
+		PROPRIETES
+			X           = 10
+			Y           = 10
+			Largeur     = 320
+			Hauteur     = 100
+			CouleurFond = Blanc
+		FIN
+	FIN
+
+	nFrame est un entier = 0
+	tTimer est un Timer
+
+	PROCEDURE FinInitialisation()
+		PROCEDURE ActionTic()
+			nFrame += 1
+
+			// Position et couleur dérivées du numéro de frame : chaque tic
+			// produit un état d'image différent dans le même Champ Image.
+			xPos est un entier = 5 + (nFrame * 10)
+			couleurFrame est un entier = RVB(nFrame * 40, 0, 255 - (nFrame * 20))
+
+			// dDébutDessin (option dEffacer par défaut) efface la surface avant
+			// de retracer : le Champ Image est repeint de zéro à chaque tic.
+			dDébutDessin(IMG_Canvas)
+			dStylo(couleurFrame)
+			dRectangle(xPos, 20, xPos + 20, 60, couleurFrame)
+
+			// Pixel témoin au centre de la forme : signature de la frame
+			// courante, relue directement depuis la surface dessinée.
+			sig est un entier = dPixelCouleur(xPos + 10, 40)
+
+			dFinDessin(IMG_Canvas)
+
+			callback_frame(nFrame, sig)
+		FIN
+
+		tTimer..Intervalle = 20
+		tTimer..Procédure  = ActionTic
+		tTimer..Répète     = Vrai
+		TimerDémarre(tTimer)
+	FIN
+
+	PROCEDURE ArretTimer()
+		TimerArrête(tTimer)
+	FIN
+FIN

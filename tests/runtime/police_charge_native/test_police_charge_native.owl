@@ -1,0 +1,38 @@
+// PoliceCharge(chemin) charge un fichier de police .ttf/.otf et rend sa
+// famille utilisable dans Champ..Police..Nom. On MESURE la police
+// EFFECTIVEMENT appliquée au widget Qt réellement monté (pas seulement que
+// l'affectation n'a pas erré), via __DebugPoliceChamp (descripteur
+// "famille|taille|gras|italique").
+//
+// Fixture : police_test_fixture.ttf (police "Roboto Mono", licence
+// Apache 2.0), choisie pour sa famille distincte des polices livrées par
+// défaut (Liberation Sans/Serif/Mono, DejaVu Sans) : la mesure prouve que
+// c'est bien CETTE police qui est prise, pas une police déjà embarquée.
+//
+// ROUGE attendu aujourd'hui : PoliceCharge est une native inconnue.
+//
+// La fenêtre voisine FEN_PoliceChargeNative.owl porte la déclaration.
+
+TestModeHeadless(Faux)
+
+sFamille est une chaîne = PoliceCharge("tests/runtime/police_charge_native/police_test_fixture.ttf")
+dbgVérifieVrai(ErreurDétectée = Faux, "chargement de la police : pas d'erreur")
+dbgVérifieVrai(Taille(sFamille) > 0, "PoliceCharge renvoie un nom de famille non vide")
+dbgVérifieFaux(Contient(sFamille, "Liberation"), "la famille chargée n'est pas une police livrée")
+dbgVérifieFaux(Contient(sFamille, "DejaVu"), "la famille chargée n'est pas une police livrée")
+
+OuvreSoeur(FEN_PoliceChargeNative)
+
+// Preuve de mutation : la police par défaut du widget n'est pas déjà la
+// famille chargée.
+descAvant est une chaîne = __DebugPoliceChamp(LIB_Police)
+Trace("=== avant === " + descAvant)
+dbgVérifieFaux(Contient(descAvant, sFamille), "pré-condition : la police par défaut du widget n'est pas déjà la famille chargée")
+
+LIB_Police..Police..Nom = sFamille
+descApres est une chaîne = __DebugPoliceChamp(LIB_Police)
+Trace("=== après === " + descApres)
+dbgVérifieVrai(Contient(descApres, sFamille), "la police chargée est réellement appliquée au widget (mesure effective)")
+
+Ferme(FEN_PoliceChargeNative)
+dbgBilanTest()

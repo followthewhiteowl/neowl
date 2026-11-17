@@ -1,0 +1,123 @@
+// @sujet : ArbreSupprime, ArbreModifie
+// @résumé : ArbreSupprime retire un élément et l'ensemble de ses descendants
+// de l'arbre (ou renvoie Faux si le chemin n'existe pas). ArbreModifie
+// renomme un élément existant, sans perdre ses éventuels fils, qui
+// deviennent accessibles sous le nouveau chemin (ou renvoie Faux si le
+// chemin n'existe pas).
+//
+// Ressource DSL : FEN_ArbreStructure.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_supprime_retire_sous_arbre_et_conserve_parent()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), 6, "6 nœuds après peuplement (Fruits, Agrumes, Orange, Citron, Rouges, Fraise)")
+
+	bOk est un booléen = ArbreSupprime(ARBRE_Categories, "Fruits" + TAB + "Agrumes")
+	dbgVérifieVrai(bOk, "ArbreSupprime sur un chemin existant réussit")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), 3, "Agrumes, Orange et Citron retirés : 6 - 3 = 3 nœuds restants")
+
+	dbgVérifieFaux(ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange"), "le sous-arbre supprimé n'existe plus")
+	dbgVérifieVrai(ArbreSelectPlus(ARBRE_Categories, "Fruits"), "le nœud parent est conservé")
+
+	Ferme(FEN_ArbreStructure)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_modifie_renomme_feuille_sans_changer_occurrence()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+	nAvant est un entier = ArbreOccurrence(ARBRE_Categories)
+
+	bOk est un booléen = ArbreModifie(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise", "Framboise")
+	dbgVérifieVrai(bOk, "ArbreModifie sur un chemin existant réussit")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), nAvant, "ArbreModifie ne change pas le nombre de nœuds")
+
+	dbgVérifieFaux(ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise"), "l'ancien chemin a disparu")
+	dbgVérifieVrai(ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Framboise"), "le nouveau chemin existe")
+
+	Ferme(FEN_ArbreStructure)
+FIN
+
+// Edge case : supprimer un chemin qui n'existe pas dans l'arbre échoue et ne
+// modifie pas le nombre de nœuds.
+PROCEDURE PRIVÉE scenario_edge_arbre_supprime_chemin_inexistant()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	nAvant est un entier = ArbreOccurrence(ARBRE_Categories)
+
+	bOk est un booléen = ArbreSupprime(ARBRE_Categories, "Légumes" + TAB + "Carotte")
+	dbgVérifieFaux(bOk, "ArbreSupprime sur un chemin inexistant échoue")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), nAvant, "l'échec de ArbreSupprime ne change pas le nombre de nœuds")
+
+	Ferme(FEN_ArbreStructure)
+FIN
+
+// Edge case : renommer un chemin qui n'existe pas dans l'arbre échoue.
+PROCEDURE PRIVÉE scenario_edge_arbre_modifie_chemin_inexistant()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+
+	bOk est un booléen = ArbreModifie(ARBRE_Categories, "Légumes" + TAB + "Carotte", "Patate")
+	dbgVérifieFaux(bOk, "ArbreModifie sur un chemin inexistant échoue")
+
+	Ferme(FEN_ArbreStructure)
+FIN
+
+// Edge case : renommer un nœud intermédiaire ne perd pas ses fils, qui
+// deviennent accessibles sous le nouveau chemin parent.
+PROCEDURE PRIVÉE scenario_edge_arbre_modifie_noeud_intermediaire_conserve_fils()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+
+	bOk est un booléen = ArbreModifie(ARBRE_Categories, "Fruits" + TAB + "Agrumes", "Citrus")
+	dbgVérifieVrai(bOk, "ArbreModifie d'un nœud intermédiaire réussit")
+
+	dbgVérifieFaux(ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange"), "l'ancien chemin parent a disparu")
+	dbgVérifieVrai(ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Citrus" + TAB + "Orange"), "le fils reste accessible sous le nouveau chemin parent")
+	dbgVérifieVrai(ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Citrus" + TAB + "Citron"), "l'autre fils reste aussi accessible sous le nouveau chemin parent")
+
+	Ferme(FEN_ArbreStructure)
+FIN
+
+// Edge case : supprimer un nœud qui contient la sélection courante ne doit
+// jamais laisser la sélection pointer un chemin mort.
+PROCEDURE PRIVÉE scenario_edge_arbre_supprime_nettoie_selection_descendante()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+
+	ArbreSupprime(ARBRE_Categories, "Fruits" + TAB + "Agrumes")
+
+	dbgVérifieEgalité(LireSelection(), "", "la sélection d'un nœud supprimé est nettoyée, pas laissée sur un chemin mort")
+
+	Ferme(FEN_ArbreStructure)
+FIN
+
+// Edge case : renommer le nœud sélectionné déplace la sélection vers le
+// nouveau chemin (même nœud, nouveau libellé).
+PROCEDURE PRIVÉE scenario_edge_arbre_modifie_noeud_selectionne_suit_renommage()
+	Ouvre(FEN_ArbreStructure)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+	ArbreSelectPlus(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	ArbreModifie(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise", "Framboise")
+
+	dbgVérifieEgalité(LireSelection(), "Fruits" + TAB + "Rouges" + TAB + "Framboise", "la sélection suit le renommage du nœud sélectionné")
+
+	Ferme(FEN_ArbreStructure)
+FIN

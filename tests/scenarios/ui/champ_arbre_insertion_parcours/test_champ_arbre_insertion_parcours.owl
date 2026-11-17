@@ -1,0 +1,163 @@
+// @sujet : ArbreRécupèreFils, ArbreInsère
+// @résumé : ArbreRécupèreFils parcourt les fils directs d'un nœud, dans
+// l'ordre, via un curseur d'itération (aPremier puis une suite d'aSuivant
+// jusqu'à la chaîne vide). ArbreInsère place une nouvelle feuille juste après
+// un nœud frère existant (renvoie Faux si ce frère n'existe pas), ce que
+// ArbreRécupèreFils permet d'observer.
+//
+// Ressource DSL : FEN_ArbreInsertionParcours.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+// Concatène en une seule chaîne TAB-séparée les fils directs du nœud au
+// chemin donné, dans l'ordre de parcours (aPremier puis aSuivant jusqu'à
+// épuisement). Simplifie les assertions sur l'ordre sans répéter la boucle
+// dans chaque scénario.
+PROCEDURE ParcoursFils(chemin est une chaîne)
+	sVisites est une chaîne = ""
+	sCourant est une chaîne = ArbreRécupèreFils(ARBRE_Categories, chemin, aPremier)
+	TANTQUE sCourant <> ""
+		SI sVisites <> "" ALORS
+			sVisites += TAB
+		FIN
+		sVisites += sCourant
+		sCourant = ArbreRécupèreFils(ARBRE_Categories, chemin, aSuivant)
+	FIN
+	RENVOYER sVisites
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_recupere_fils_parcourt_dans_lordre_jusqua_epuisement()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "C")
+
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine", aPremier), "A", "aPremier renvoie le 1er fils direct")
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine", aSuivant), "B", "aSuivant renvoie le fils suivant")
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine", aSuivant), "C", "aSuivant renvoie le 3e fils")
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine", aSuivant), "", "aSuivant renvoie une chaîne vide une fois les fils épuisés")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_recupere_fils_aPremier_reinitialise_le_curseur()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+
+	ArbreRécupèreFils(ARBRE_Categories, "Racine", aPremier)
+	ArbreRécupèreFils(ARBRE_Categories, "Racine", aSuivant)
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine", aSuivant), "", "le parcours précédent est épuisé")
+
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine", aPremier), "A", "un nouvel aPremier redémarre le parcours depuis le début")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_recupere_fils_entrelace_deux_parents_sans_se_perdre()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "P1" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "P1" + TAB + "B")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "P2" + TAB + "C")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "P2" + TAB + "D")
+
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine" + TAB + "P1", aPremier), "A", "P1 démarre son parcours sur son 1er fils")
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine" + TAB + "P2", aPremier), "C", "P2 démarre son propre parcours sans toucher à celui de P1")
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine" + TAB + "P1", aSuivant), "B", "P1 reprend son parcours là où il l'avait laissé, malgré l'intercalation de P2")
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine" + TAB + "P2", aSuivant), "D", "P2 reprend aussi son propre parcours là où il l'avait laissé")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_insere_place_la_feuille_apres_le_frere()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+	nAvant est un entier = ArbreOccurrence(ARBRE_Categories)
+
+	bOk est un booléen = ArbreInsère(ARBRE_Categories, "Racine" + TAB + "A", "X")
+	dbgVérifieVrai(bOk, "ArbreInsère sur un chemin frère existant réussit")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), nAvant + 1, "ArbreInsère ajoute un nœud de plus")
+	dbgVérifieEgalité(ParcoursFils("Racine"), "A" + TAB + "X" + TAB + "B", "X est inséré juste après A, avant B")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+// Edge case : ArbreRécupèreFils sur un nœud sans fils (une feuille) renvoie
+// la chaîne vide, sans qu'aucune boucle ne soit nécessaire pour l'observer.
+PROCEDURE PRIVÉE scenario_edge_arbre_recupere_fils_sur_feuille_renvoie_vide()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Racine" + TAB + "A", aPremier), "", "une feuille sans fils n'a rien à renvoyer")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+// Edge case : ArbreRécupèreFils sur un chemin inexistant renvoie la chaîne
+// vide plutôt qu'un crash ou une valeur inventée.
+PROCEDURE PRIVÉE scenario_edge_arbre_recupere_fils_chemin_inexistant_renvoie_vide()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreRécupèreFils(ARBRE_Categories, "Fantôme", aPremier), "", "un chemin inexistant n'a aucun fils à renvoyer")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+// Edge case : ArbreRécupèreFils sur la racine (chemin vide) renvoie les fils
+// de plus haut niveau de l'arbre.
+PROCEDURE PRIVÉE scenario_edge_arbre_recupere_fils_chemin_vide_cest_la_racine()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine1" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine2" + TAB + "B")
+
+	dbgVérifieEgalité(ParcoursFils(""), "Racine1" + TAB + "Racine2", "un chemin vide parcourt les fils de la racine de l'arbre")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+// Edge case : ArbreInsère sur un chemin frère inexistant échoue et ne modifie
+// ni le nombre de nœuds ni l'ordre des fils existants.
+PROCEDURE PRIVÉE scenario_edge_arbre_insere_chemin_frere_inexistant_echoue()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+	nAvant est un entier = ArbreOccurrence(ARBRE_Categories)
+
+	bOk est un booléen = ArbreInsère(ARBRE_Categories, "Racine" + TAB + "Fantôme", "X")
+	dbgVérifieFaux(bOk, "ArbreInsère sur un chemin frère inexistant échoue")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), nAvant, "l'échec de ArbreInsère ne change pas le nombre de nœuds")
+	dbgVérifieEgalité(ParcoursFils("Racine"), "A" + TAB + "B", "l'échec de ArbreInsère ne change pas l'ordre des fils existants")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN
+
+// Edge case (doublon) : ArbreInsère ne contrôle pas les doublons — insérer un
+// nom déjà présent sous le même parent réussit et produit deux feuilles
+// distinctes portant le même libellé, à la position demandée.
+PROCEDURE PRIVÉE scenario_edge_arbre_insere_nom_deja_present_cree_un_doublon()
+	Ouvre(FEN_ArbreInsertionParcours)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+	nAvant est un entier = ArbreOccurrence(ARBRE_Categories)
+
+	bOk est un booléen = ArbreInsère(ARBRE_Categories, "Racine" + TAB + "A", "A")
+	dbgVérifieVrai(bOk, "ArbreInsère insère un doublon sans le bloquer")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), nAvant + 1, "le doublon compte comme un nœud de plus")
+	dbgVérifieEgalité(ParcoursFils("Racine"), "A" + TAB + "A" + TAB + "B", "les deux feuilles 'A' coexistent, la nouvelle juste après l'originale")
+
+	Ferme(FEN_ArbreInsertionParcours)
+FIN

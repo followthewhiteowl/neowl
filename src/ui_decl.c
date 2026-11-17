@@ -656,6 +656,7 @@ const char* owl_control_kind_name(OwlControlKind kind) {
         case OWL_CONTROL_CODEBARRE: return "CodeBarres";
         case OWL_CONTROL_ONGLET:    return "Onglet";
         case OWL_CONTROL_VOLET:     return "Volet";
+        case OWL_CONTROL_ARBRE:     return "Arbre";
         case OWL_CONTROL_WINDOW:    return "Fenetre";
     }
     return "?";
@@ -696,6 +697,8 @@ OwlControlKind owl_control_kind_from_name(const char* name) {
                                        return OWL_CONTROL_ONGLET;
     if (name_eq_ci(name, "Volet") || name_eq_ci(name, "Pane"))
                                        return OWL_CONTROL_VOLET;
+    if (name_eq_ci(name, "Arbre") || name_eq_ci(name, "TreeView"))
+                                       return OWL_CONTROL_ARBRE;
     return OWL_CONTROL_LABEL; /* default fallback, ne devrait pas arriver */
 }
 
@@ -816,6 +819,15 @@ static const OwlControlKindInfo CONTROL_KINDS[] = {
      "Organise le contenu en pages (volets), une seule visible à la fois ; l'utilisateur navigue en cliquant sur les onglets.",
      "Organizes content into pages (panes), one visible at a time; the user navigates by clicking the tabs.",
      OWL_KIND_GENRE_M},   /* un onglet */
+    /* Champ Arbre — vue hiérarchique mono-colonne. Les nœuds sont adressés par
+     * un chemin dont les segments sont séparés par une tabulation ; les nœuds
+     * intermédiaires manquants sont créés automatiquement. defaultProperty=NULL :
+     * le contenu est une arborescence peuplée par les natives Arbre*, pas une
+     * valeur scalaire affectable directement. */
+    {"Arbre",               NULL,        "TreeView",         true,  NULL, "ARBRE_",
+     "Affiche une arborescence de nœuds sur une seule colonne, avec pliage et dépliage.",
+     "Displays a tree of nodes in a single column, with expand and collapse.",
+     OWL_KIND_GENRE_M},   /* un arbre */
     /* Colonne : sous-element de Table, pas un widget runtime independant.
      * is_widget=false car owl_control_kind_of_info ne resout pas
      * "Colonne" en OwlControlKind (il n'y a pas d'enum dedie). */
@@ -904,7 +916,8 @@ static bool kind_from_canon(const char* canon, OwlControlKind* out) {
         OWL_CONTROL_LISTE, OWL_CONTROL_COMBO, OWL_CONTROL_SELECTEUR,
         OWL_CONTROL_INTERRUPTEUR, OWL_CONTROL_ZONE_REPETEE,
         OWL_CONTROL_JAUGE, OWL_CONTROL_CODEBARRE,
-        OWL_CONTROL_ONGLET, OWL_CONTROL_VOLET, OWL_CONTROL_WINDOW,
+        OWL_CONTROL_ONGLET, OWL_CONTROL_VOLET, OWL_CONTROL_ARBRE,
+        OWL_CONTROL_WINDOW,
     };
     for (size_t i = 0; i < sizeof(candidates)/sizeof(candidates[0]); i++) {
         OwlControlKind k = candidates[i];

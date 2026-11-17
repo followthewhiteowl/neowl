@@ -1,10 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-only WITH LicenseRef-OWL-Runtime-Exception
 #include "prescan.h"
 #include "scanner.h"
+#include "owl_limits.h"   /* MAX_DECLARED_METHODS + error_capacity_exceeded */
 
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+/*  : les tables classMethods[] et classMethodVis[] sont
+ * dimensionnees sur PRESCAN_MAX_CLASS_METHODS, tenu EN SYNC avec
+ * MAX_DECLARED_METHODS. Au plafond, on refuse bruyamment par le chemin canon
+ * (error_capacity_exceeded, qui nomme la limite et renvoie vers `owl explain`)
+ * plutot que d'abandonner l'entree en silence : une entree classMethods[] perdue
+ * faisait echouer en aval le check de redefinition de methode abstraite (faux
+ * positif "n'est pas abstraite mais herite...") ; une entree classMethodVis[]
+ * perdue laissait passer un acces PRIVE illegal cross-fichier (faux negatif de
+ * visibilite en `owl --check --project`). Le compilateur plafonne le meme
+ * compteur global a MAX_DECLARED_METHODS, donc ce plafond n'est atteignable que
+ * sur un source qui sature deja le compilo ; le panicMode du parser dedupe les
+ * emissions multiples d'une meme passe. */
+static void prescan_class_methods_overflow(void) {
+    error_capacity_exceeded("MAX_DECLARED_METHODS", MAX_DECLARED_METHODS);
+}
 
 /*  — perimetre de decouverte projet. Quand restrict==true (mode
  * projet), un fichier compagnon PLAT (top-level a contenu lache : proc/fonction
@@ -806,7 +823,9 @@ bool prescan_file(SymbolTable* t, const char* source, int fileIndex) {
                             if (methodTok.type != TOKEN_NEWLINE) break;
                         }
                         if (methodTok.type == TOKEN_IDENTIFIER &&
-                            t->classMethodCount < 512) {
+                            t->classMethodCount >= PRESCAN_MAX_CLASS_METHODS) {
+                            prescan_class_methods_overflow();
+                        } else if (methodTok.type == TOKEN_IDENTIFIER) {
                             int ci = t->classMethodCount;
                             int cl = nameToken.length < 127 ? nameToken.length : 127;
                             memcpy(t->classMethods[ci].className, nameToken.start, cl);
@@ -1050,7 +1069,10 @@ bool prescan_file(SymbolTable* t, const char* source, int fileIndex) {
                                             /* Seules les methodes nommees (IDENTIFIER) sont
                                              * cibles de :M()/.M() ; Constructeur/Destructeur
                                              * exclus (pas d'appel colon-ref). */
-                                            if (mt.type == TOKEN_IDENTIFIER && t->classMethodVisCount < 512) {
+                                            if (mt.type == TOKEN_IDENTIFIER &&
+                                                t->classMethodVisCount >= PRESCAN_MAX_CLASS_METHODS) {
+                                                prescan_class_methods_overflow();
+                                            } else if (mt.type == TOKEN_IDENTIFIER) {
                                                 int mi = t->classMethodVisCount;
                                                 int cl5 = identTok.length < 127 ? identTok.length : 127;
                                                 memcpy(t->classMethodVis[mi].className, identTok.start, cl5);
@@ -1073,7 +1095,9 @@ bool prescan_file(SymbolTable* t, const char* source, int fileIndex) {
                                         bool isCstr = (after.type == TOKEN_CONSTRUCTEUR);
                                         bool isRegularMethod = (after.type == TOKEN_IDENTIFIER);
                                         if ((isCstr || isRegularMethod) &&
-                                            t->classMethodCount < 512) {
+                                            t->classMethodCount >= PRESCAN_MAX_CLASS_METHODS) {
+                                            prescan_class_methods_overflow();
+                                        } else if (isCstr || isRegularMethod) {
                                             int ci = t->classMethodCount;
                                             int cl4 = identTok.length < 127
                                                       ? identTok.length : 127;

@@ -1,0 +1,34 @@
+// Chargement d'une image au format webp.
+//
+// Fixture "fixture.webp" : 499x116 pixels, pixel (0,0) gris très sombre
+// RVB(12, 12, 12). Dimensions figées une fois pour toutes par le fichier
+// source, à ne pas confondre avec des valeurs magiques arbitraires.
+
+cheminWebp     est une chaîne = fRepTemp() + fSep() + "test_webp_decodage_fixture.webp"
+cheminInvalide est une chaîne = fRepTemp() + fSep() + "test_webp_decodage_invalide.webp"
+
+PROCEDURE PreparerFixtures()
+	octetsFixture est un buffer = fChargeBuffer("tests/runtime/webp_decodage/fixture.webp")
+	fSauveBuffer(cheminWebp, octetsFixture)
+	fSauveTexte(cheminInvalide, "ceci n'est pas un fichier webp")
+FIN
+
+PreparerFixtures()
+
+// ----- Nominal : chargement d'un vrai fichier webp -----
+imgWebp est une Image = dChargeImage(cheminWebp)
+dbgVérifieEgalité(imgWebp..Valide, Vrai, "image webp chargée valide")
+dbgVérifieEgalité(imgWebp..Largeur, 499, "largeur de la fixture webp")
+dbgVérifieEgalité(imgWebp..Hauteur, 116, "hauteur de la fixture webp")
+dbgVérifieEgalité(imgWebp[0, 0], RVB(12, 12, 12), "pixel (0,0) de la fixture webp")
+
+// ----- Fichier au contenu invalide (pas du webp) : erreur propre, pas de crash -----
+imgInvalide    est une Image  = dChargeImage(cheminInvalide)
+erreurPresente est un booléen = (ErreurInfo() <> "")
+dbgVérifieEgalité(imgInvalide..Valide, Faux, "contenu non webp : image invalide")
+dbgVérifieVrai(erreurPresente, "contenu non webp : erreur enregistrée")
+
+fSupprime(cheminWebp)
+fSupprime(cheminInvalide)
+
+dbgBilanTest()

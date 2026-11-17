@@ -1,0 +1,132 @@
+// @sujet : ArbreDéroule, ArbreEnroule, ArbreEtat
+// @résumé : ArbreEtat lit l'état interne (plié/déplié) d'un nœud, indépendant
+// de celui de ses parents ou de ses frères. ArbreDéroule et ArbreEnroule
+// basculent cet état et renvoient Faux sur un chemin inexistant, sans rien
+// modifier.
+//
+// Ressource DSL : FEN_ArbrePliDepli.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_etat_defaut_dun_noeud_fraichement_ajoute_est_enroule()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aEnroulé, "un nœud fraîchement ajouté démarre enroulé")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_deroule_bascule_letat_vers_deroule()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	bOk est un booléen = ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A")
+	dbgVérifieVrai(bOk, "ArbreDéroule sur un nœud existant réussit")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aDéroulé, "après ArbreDéroule, l'état du nœud est déroulé")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_enroule_bascule_letat_vers_enroule()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A")
+
+	bOk est un booléen = ArbreEnroule(ARBRE_Categories, "Racine" + TAB + "A")
+	dbgVérifieVrai(bOk, "ArbreEnroule sur un nœud existant réussit")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aEnroulé, "après ArbreEnroule, l'état du nœud est à nouveau enroulé")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_deroule_un_noeud_ne_change_pas_letat_dun_autre()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+
+	ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aDéroulé, "A est bien déroulé")
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "B"), aEnroulé, "B reste à son état par défaut, non contaminé par A")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_etat_dun_fils_est_independant_de_celui_du_parent()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A" + TAB + "A1")
+
+	ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aDéroulé, "A est déroulé")
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A" + TAB + "A1"), aEnroulé, "dérouler A ne déroule pas son fils A1")
+
+	ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A" + TAB + "A1")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aDéroulé, "dérouler A1 ne change pas l'état propre de A, son parent")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+// Edge case : ArbreEtat sur un chemin inexistant renvoie aErreur plutôt
+// qu'une valeur fabriquée.
+PROCEDURE PRIVÉE scenario_edge_arbre_etat_chemin_inexistant_renvoie_aErreur()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Fantôme"), aErreur, "un chemin inexistant renvoie aErreur")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+// Edge case : ArbreDéroule sur un chemin inexistant échoue et ne fabrique
+// aucun état (le chemin reste en aErreur après la tentative).
+PROCEDURE PRIVÉE scenario_edge_arbre_deroule_chemin_inexistant_echoue_sans_rien_creer()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	bOk est un booléen = ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "Fantôme")
+	dbgVérifieFaux(bOk, "ArbreDéroule sur un chemin inexistant échoue")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "Fantôme"), aErreur, "aucun état n'a été fabriqué pour le chemin fantôme")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+// Edge case : ArbreEnroule sur un chemin inexistant échoue.
+PROCEDURE PRIVÉE scenario_edge_arbre_enroule_chemin_inexistant_echoue()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+
+	bOk est un booléen = ArbreEnroule(ARBRE_Categories, "Racine" + TAB + "Fantôme")
+	dbgVérifieFaux(bOk, "ArbreEnroule sur un chemin inexistant échoue")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN
+
+// Edge case : dérouler un nœud déjà déroulé est idempotent — l'appel
+// réussit à nouveau et l'état reste déroulé.
+PROCEDURE PRIVÉE scenario_edge_arbre_deroule_noeud_deja_deroule_est_idempotent()
+	Ouvre(FEN_ArbrePliDepli)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A")
+
+	bOk est un booléen = ArbreDéroule(ARBRE_Categories, "Racine" + TAB + "A")
+	dbgVérifieVrai(bOk, "dérouler un nœud déjà déroulé réussit encore")
+
+	dbgVérifieEgalité(ArbreEtat(ARBRE_Categories, "Racine" + TAB + "A"), aDéroulé, "l'état reste déroulé, sans surprise")
+
+	Ferme(FEN_ArbrePliDepli)
+FIN

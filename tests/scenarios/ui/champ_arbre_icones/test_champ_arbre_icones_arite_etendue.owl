@@ -1,0 +1,54 @@
+// @sujet : ArbreAjoute
+// @résumé : ArbreAjoute accepte une image enroulée (3e argument) et une
+// image déroulée (4e argument) pour personnaliser l'icône d'un nœud,
+// sous forme de référence de catalogue (icones.<nom>), de chemin de
+// fichier, d'une instance Icône, ou des constantes aDéfaut / Null.
+// L'ajout d'une image personnalisée ne change pas le compte de nœuds.
+//
+// Ressource DSL : FEN_ArbreIcones.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_ajoute_arite_trois_args_image_enroulee()
+	Ouvre(FEN_ArbreIcones)
+
+	bOk est un booléen = ArbreAjoute(ARBRE_Icones, "Documents", aDéfaut)
+	dbgVérifieVrai(bOk, "ArbreAjoute à 3 arguments (image enroulée = aDéfaut) réussit")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Icones), 1, "l'image personnalisée ne change pas le compte de nœuds")
+
+	Ferme(FEN_ArbreIcones)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_ajoute_arite_quatre_args_images_catalogue()
+	Ouvre(FEN_ArbreIcones)
+
+	bOk est un booléen = ArbreAjoute(ARBRE_Icones, "Documents" + TAB + "Rapport", "icones.folder", "icones.folder_open")
+	dbgVérifieVrai(bOk, "ArbreAjoute à 4 arguments (images de catalogue) réussit")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Icones), 2, "les images personnalisées ne changent pas le compte de nœuds (Documents + Rapport)")
+
+	Ferme(FEN_ArbreIcones)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_ajoute_arite_quatre_args_images_null()
+	Ouvre(FEN_ArbreIcones)
+
+	bOk est un booléen = ArbreAjoute(ARBRE_Icones, "Documents" + TAB + "Vide", Null, Null)
+	dbgVérifieVrai(bOk, "ArbreAjoute à 4 arguments (images Null, Null) réussit")
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Icones), 2, "les images Null ne changent pas le compte de nœuds (Documents + Vide)")
+
+	Ferme(FEN_ArbreIcones)
+FIN
+
+// Edge case : les deux formes d'image (aDéfaut et référence catalogue)
+// cohabitent sans problème sur le même appel à 4 arguments.
+PROCEDURE PRIVÉE scenario_edge_arbre_ajoute_arite_quatre_args_mix_adefaut_et_catalogue()
+	Ouvre(FEN_ArbreIcones)
+
+	bOk est un booléen = ArbreAjoute(ARBRE_Icones, "Documents" + TAB + "Spécial", aDéfaut, "icones.star")
+	dbgVérifieVrai(bOk, "ArbreAjoute à 4 arguments (aDéfaut + référence catalogue mélangés) réussit")
+
+	Ferme(FEN_ArbreIcones)
+FIN

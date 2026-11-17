@@ -114,6 +114,9 @@ typedef struct {
                                    * ADDITIF, distinct de structTypeName qui reste VIDE pour un
                                    * tableau (invariant de desambiguisation tab[i] vs STY[etat]).
                                    * Sert au refus `t[i]..prop` du registre masque. */
+    int  arrayElemType;           /* TokenType primitif d'element d'un `tableau de <prim>`
+                                   * (TOKEN_ENTIER…), TOKEN_EOF sinon. Sert a l'identite de
+                                   * surcharge par type d'element. */
     const char* icone_catalog_name; /* Pour une slot typee Icone, nom catalogue Iconify
                                      * (pointeur vers OwlIconCatalogEntry.name, static storage,
                                      * pas de free). NULL sinon. Sert au warning compile-time
@@ -341,6 +344,7 @@ typedef struct {
     char       structTypeName[64]; /* "httpRequête", "Chrono"… when declaredType==TOKEN_IDENTIFIER */
     char       arrayElemStructType[64]; /*  — cf. Local.arrayElemStructType : type
                                          * d'element user d'un `tableau de <TypeUser>`. ADDITIF. */
+    int        arrayElemType;           /* cf. Local.arrayElemType : TokenType primitif d'element. */
 } TypedGlobal;
 
 /* Dimensionnee sur MAX_DECLARED_GLOBALS : ses entrees viennent des memes
@@ -868,6 +872,7 @@ static void typed_globals_add(const char* name, int length, int declaredType,
     g->isUndetectable = isUndetectable;
     g->structTypeName[0] = '\0';
     g->arrayElemStructType[0] = '\0';
+    g->arrayElemType = TOKEN_EOF;
 }
 
 
@@ -895,6 +900,17 @@ static void typed_globals_set_array_elem_struct(const char* name, int length,
             int n = typeNameLen < 63 ? typeNameLen : 63;
             memcpy(g->arrayElemStructType, typeName, (size_t)n);
             g->arrayElemStructType[n] = '\0';
+            return;
+        }
+    }
+}
+
+static void typed_globals_set_array_elem_type(const char* name, int length,
+                                              int elemToken) {
+    for (int i = 0; i < g_typed_globals_count; i++) {
+        TypedGlobal* g = &g_typed_globals[i];
+        if (g->length == length && memcmp(g->name, name, (size_t)length) == 0) {
+            g->arrayElemType = elemToken;
             return;
         }
     }
@@ -1203,6 +1219,12 @@ typedef struct {
      * (`:champ = {...}`), PAS une réification de propriété first-class
      * : aucun getter/setter synthétisé, juste l'info de type. */
     int  typeToken;
+    /*  — attributs <Sérialise> inline portés par un membre de CLASSE.
+     * Stockés ici (registre persistant) et non dans knownUserTypes qui se remet
+     * à zéro à chaque fichier : la classe est sérialisée depuis un AUTRE fichier
+     * (1 classe = 1 fichier), donc la métadonnée doit traverser le reset. */
+    bool serialise_skip;        /* true -> champ exclu de Sérialise */
+    char serialise_rename[64];  /* clé JSON alternative, vide si aucune */
 } ClassFieldVisEntry;
 static ClassFieldVisEntry g_class_field_vis[MAX_CLASS_FIELD_VIS];
 static int g_class_field_vis_count = 0;
@@ -1422,6 +1444,86 @@ static void class_field_vis_register(const char* className, int classLen,
     memcpy(e->fieldName, fieldName, fl); e->fieldName[fl] = '\0'; e->fieldLen = fl;
     e->visibility = vis;
     e->typeToken  = -1;
+    e->serialise_skip = false;
+    e->serialise_rename[0] = '\0';
+}
+
+/*  — pose les attributs <Sérialise> sur l'entrée de champ de classe
+ * (créée au préalable par class_field_vis_register). Persiste cross-fichier. */
+static void class_field_serialise_set(const char* className, int classLen,
+                                      const char* fieldName, int fieldLen,
+                                      bool skip, const char* rename, int renameLen) {
+    int idx = class_field_vis_find_index(className, classLen, fieldName, fieldLen);
+    if (idx < 0) return;
+    ClassFieldVisEntry* e = &g_class_field_vis[idx];
+    e->serialise_skip = skip;
+    if (rename && renameLen > 0) {
+        int rn = renameLen < 63 ? renameLen : 63;
+        memcpy(e->serialise_rename, rename, (size_t)rn);
+        e->serialise_rename[rn] = '\0';
+    } else {
+        e->serialise_rename[0] = '\0';
+    }
+}
+
+/*  — lit les attributs <Sérialise> d'un champ de classe. Deux passes :
+ * match exact casse-insensible (chemin nominal, noms ASCII), puis repli
+ * accent-insensible pour les noms de champ accentués, à l'image de
+ * user_type_find_field. Renvoie false si le couple (classe, champ) est inconnu
+ * ou sans attribut. */
+static bool class_field_serialise_lookup(const char* className, int classLen,
+                                         const char* fieldName, int fieldLen,
+                                         bool* outSkip, const char** outRename) {
+    int idx = class_field_vis_find_index(className, classLen, fieldName, fieldLen);
+    if (idx < 0) {
+        char strippedQ[64];
+        int sql = scanner_strip_accents(fieldName, fieldLen,
+                                        strippedQ, sizeof(strippedQ));
+        for (int i = 0; i < g_class_field_vis_count; i++) {
+            ClassFieldVisEntry* e = &g_class_field_vis[i];
+            if (e->classLen != classLen) continue;
+            if (strncasecmp(e->className, className, (size_t)classLen) != 0) continue;
+            char strippedF[64];
+            int sfl = scanner_strip_accents(e->fieldName, e->fieldLen,
+                                            strippedF, sizeof(strippedF));
+            if (sfl == sql && strncasecmp(strippedQ, strippedF, (size_t)sql) == 0) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) return false;
+    }
+    ClassFieldVisEntry* e = &g_class_field_vis[idx];
+    if (!e->serialise_skip && e->serialise_rename[0] == '\0') return false;
+    if (outSkip)   *outSkip = e->serialise_skip;
+    if (outRename) *outRename = e->serialise_rename[0] ? e->serialise_rename : NULL;
+    return true;
+}
+
+/*  — recherche inverse par clé JSON renommée (pour Désérialise) sur
+ * les champs de classe. Renvoie le nom de champ OWL dont serialise_rename
+ * matche jsonKey (casse+accent insensible), ou NULL. */
+static const char* class_field_by_rename(const char* className, int classLen,
+                                         const char* jsonKey, int jsonKeyLen,
+                                         int* outFieldLen) {
+    char keyStripped[64];
+    int kl = scanner_strip_accents(jsonKey, jsonKeyLen,
+                                   keyStripped, sizeof(keyStripped));
+    for (int i = 0; i < g_class_field_vis_count; i++) {
+        ClassFieldVisEntry* e = &g_class_field_vis[i];
+        if (e->classLen != classLen) continue;
+        if (strncasecmp(e->className, className, (size_t)classLen) != 0) continue;
+        if (e->serialise_rename[0] == '\0') continue;
+        char rnStripped[64];
+        int rl = scanner_strip_accents(e->serialise_rename,
+                                       (int)strlen(e->serialise_rename),
+                                       rnStripped, sizeof(rnStripped));
+        if (rl == kl && strncasecmp(keyStripped, rnStripped, (size_t)kl) == 0) {
+            if (outFieldLen) *outFieldLen = e->fieldLen;
+            return e->fieldName;
+        }
+    }
+    return NULL;
 }
 
 /*  — enregistre le type déclaré d'un champ de classe (après
@@ -1952,9 +2054,14 @@ typedef struct {
     int  paramCount;
     char paramTypes[MAX_METHOD_PARAMS][32];
     char returnType[32];
+    int  declaredLine; /*  — ligne de declaration, pour le message de
+                        * doublon de signature identique entre overloads. */
 } DeclaredMethodSigEntry;
 static DeclaredMethodSigEntry g_declared_method_sigs[MAX_DECLARED_METHODS];
 static int g_declared_method_sigs_count = 0;
+/*  — borne du nombre de formes surchargees d'un meme nom collectees
+ * pour la resolution (bien au-dela des usages reels : cas moteur = 3). */
+#define MAX_METHOD_OVERLOADS 32
 
 /*  : reset des tables POO compile-time persistantes. Cible : le
  * test runner (testing.c) qui compile chaque test_*.owl dans une VM
@@ -1989,6 +2096,13 @@ static bool g_custom_props_scan_done = false;
  * du builder de l'index. */
 static void proj_scan_caches_invalidate(void);
 
+/*  — lookup de l'index build-once nom->type d'element `tableau de
+ * <Struct>`. Definition plus bas, a cote du builder (meme schema que l'index
+ * nom->type declare). Declare ici car appele par
+ * resolve_var_array_element_struct_xfile, bien plus haut dans le fichier. */
+static const char* proj_array_elem_struct_xfile_lookup(const char* name, int length,
+                                                       char* buf, int bufSize);
+
 /*  — caches build-once des deux bools Projet re-tokenisants (soeurs du
  * meme O(N^2) quand appelees par champ / par bloc theme). -1 = non calcule.
  * Declares ici car utilises avant le bloc de l'index (voir plus bas). Le type
@@ -1999,6 +2113,11 @@ static int g_namingWarnSrcCount = -2;
 static int g_themeDesignatedCache = -1;
 static const SymbolTable* g_themeDesignatedTable = NULL;
 static int g_themeDesignatedSrcCount = -2;
+/*  — stamp d'identite de l'index nom->type d'element `tableau de
+ * <Struct>`. Declare ici (comme les stamps ci-dessus) car lu par
+ * proj_scan_caches_invalidate, en amont du bloc de l'index. */
+static const SymbolTable* g_projArrElemTable = NULL;
+static int g_projArrElemSrcCount = -2;
 
 void compiler_reset_poo_state(void) {
     g_class_super_count           = 0;
@@ -2119,27 +2238,161 @@ static void class_interface_register(const char* className, int classLen,
     e->declaredLine = line;
 }
 
+/* ================================================================
+ * SURCHARGE DE METHODE DE CLASSE (, )
+ *
+ * Resolution COMPILE-TIME sur type DECLARE. Le runtime reste un simple
+ * lookup par cle : une forme surchargee secondaire est stockee sous une
+ * cle manglee "<nom>#<arite>#<t0>#<t1>..." ; la premiere forme declaree
+ * garde la cle plate <nom> (zero regression pour les noms non surcharges
+ * et pour l'heritage / Ancetre / soeurs qui lookupent par nom plat). Le
+ * compilateur resout l'overload au site d'appel et emet la cle choisie.
+ * ================================================================ */
+
+/* Nom de type canonique FR d'un TokenType : 1re entree de la table clavier
+ * portant ce type (ordre FR-d'abord), ex. TOKEN_ENTIER -> "entier",
+ * TOKEN_CHAINE -> "chaine". NULL si aucun mot-cle ne porte ce type. */
+static const char* overload_canon_name_for_token(TokenType tt) {
+    for (int i = 0; ; i++) {
+        TokenType kt;
+        const char* kw = scanner_keyword_at(i, &kt);
+        if (kw == NULL) break;
+        if (kt == tt) return kw;
+    }
+    return NULL;
+}
+
+/* Normalise un nom de type vers une IDENTITE bilingue canonique : accents
+ * strippes + minuscules ASCII, puis repli FR⇄EN via la table clavier du
+ * scanner (integer⇄entier, string⇄chaine, array⇄tableau...). Un nom hors
+ * table (type utilisateur, ou identite composite deja canon "tableau<entier>")
+ * retombe sur sa forme strippee/minuscule — idempotent. Pont indispensable
+ * pour que la resolution de surcharge compare la MEME identite de type quelle
+ * que soit la grammaire (FR/EN) employee a la declaration du parametre ou de
+ * l'argument. */
+static int overload_type_norm(const char* src, int len, char* out, int outsz) {
+    char stripped[64];
+    int sl = scanner_strip_accents(src, len, stripped, (int)sizeof(stripped));
+    int n = sl < (int)sizeof(stripped) - 1 ? sl : (int)sizeof(stripped) - 1;
+    for (int i = 0; i < n; i++) {
+        char c = stripped[i];
+        stripped[i] = (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+    }
+    stripped[n] = '\0';
+    for (int i = 0; ; i++) {
+        TokenType kt;
+        const char* kw = scanner_keyword_at(i, &kt);
+        if (kw == NULL) break;
+        if ((int)strlen(kw) == n && memcmp(kw, stripped, (size_t)n) == 0) {
+            const char* canon = overload_canon_name_for_token(kt);
+            if (canon != NULL) {
+                int cn = (int)strlen(canon);
+                if (cn > outsz - 1) cn = outsz - 1;
+                memcpy(out, canon, (size_t)cn);
+                out[cn] = '\0';
+                return cn;
+            }
+            break;
+        }
+    }
+    int cn = n < outsz - 1 ? n : outsz - 1;
+    memcpy(out, stripped, (size_t)cn);
+    out[cn] = '\0';
+    return cn;
+}
+
+/* Compose l'identite canonique d'un type tableau : "tableau<elem>" ou elem est
+ * deja canonicalise bilingue. elemToken (primitif) prime ; sinon elemName (type
+ * nomme utilisateur) strippe/minuscule. Rend "tableau" nu si aucun element
+ * connu. Appele des DEUX cotes (declaration de parametre ET type statique de
+ * l'argument) pour produire une cle de signature byte-identique. */
+static void overload_build_array_type(TokenType elemToken,
+                                      const char* elemName, int elemNameLen,
+                                      char* out, int outsz) {
+    char elemCanon[48];
+    elemCanon[0] = '\0';
+    if (elemToken != TOKEN_EOF) {
+        const char* c = overload_canon_name_for_token(elemToken);
+        if (c != NULL) snprintf(elemCanon, sizeof(elemCanon), "%s", c);
+    } else if (elemName != NULL && elemNameLen > 0) {
+        overload_type_norm(elemName, elemNameLen, elemCanon, sizeof(elemCanon));
+    }
+    if (elemCanon[0] != '\0')
+        snprintf(out, (size_t)outsz, "tableau<%s>", elemCanon);
+    else
+        snprintf(out, (size_t)outsz, "tableau");
+}
+
+/* true si deux types declares (textes bruts) sont identiques (norm). */
+static bool overload_types_equal(const char* a, const char* b) {
+    char na[64], nb[64];
+    overload_type_norm(a, (int)strlen(a), na, sizeof(na));
+    overload_type_norm(b, (int)strlen(b), nb, sizeof(nb));
+    return strcmp(na, nb) == 0;
+}
+
+/* Cle manglee d'une forme secondaire : "<nomStrippe>#<arite>#<t0>#<t1>...".
+ * store et call-site produisent une cle byte-identique pour une meme
+ * signature (types normalises). */
+static void overload_mangle_key(const char* strippedName, int nameLen,
+                                int paramCount, const char paramTypes[][32],
+                                char* out, int outsz) {
+    int off = snprintf(out, (size_t)outsz, "%.*s#%d", nameLen, strippedName, paramCount);
+    for (int p = 0; p < paramCount && off < outsz - 1; p++) {
+        char norm[64];
+        overload_type_norm(paramTypes[p], (int)strlen(paramTypes[p]), norm, sizeof(norm));
+        off += snprintf(out + off, (size_t)(outsz - off), "#%s", norm);
+    }
+}
+
+/* Format lisible d'une signature pour les messages : "Nom(t0, t1)". */
+static void overload_format_sig(const char* methodName, int methodLen,
+                                int paramCount, const char paramTypes[][32],
+                                char* out, int outsz) {
+    int off = snprintf(out, (size_t)outsz, "%.*s(", methodLen, methodName);
+    for (int p = 0; p < paramCount && off < outsz - 1; p++) {
+        off += snprintf(out + off, (size_t)(outsz - off), "%s%s",
+                        p ? ", " : "", paramTypes[p]);
+    }
+    if (off < outsz - 1) snprintf(out + off, (size_t)(outsz - off), ")");
+}
+
+static const char* overload_vis_word_fr(OwlVisibility v) {
+    switch (v) {
+        case OWL_VIS_PRIVE:   return "priv\xc3\xa9""e";       /* privée */
+        case OWL_VIS_PROTEGE: return "prot\xc3\xa9g\xc3\xa9""e"; /* protégée */
+        default:              return "publique";
+    }
+}
+
 static void declared_method_sig_register(const char* className, int classLen,
                                          const char* methodName, int methodLen,
                                          int paramCount,
                                          char paramTypes[][32],
-                                         const char* returnType) {
-    /* Ecrase si existant (re-compile du meme fichier). */
+                                         const char* returnType,
+                                         int declaredLine) {
+    /*  — dedup sur (classe, nom, MEME signature) : re-compile du meme
+     * fichier ecrase l'entree ; une signature DISTINCTE du meme nom est une
+     * surcharge et s'ajoute (append). */
     for (int i = 0; i < g_declared_method_sigs_count; i++) {
         DeclaredMethodSigEntry* e = &g_declared_method_sigs[i];
-        if (e->classLen == classLen && e->methodLen == methodLen &&
-            strncasecmp(e->className, className, (size_t)classLen) == 0 &&
-            strncasecmp(e->methodName, methodName, (size_t)methodLen) == 0) {
-            e->paramCount = paramCount;
-            memset(e->paramTypes, 0, sizeof(e->paramTypes));
-            for (int p = 0; p < paramCount && p < MAX_METHOD_PARAMS; p++) {
-                strncpy(e->paramTypes[p], paramTypes[p], 31);
-                e->paramTypes[p][31] = '\0';
+        if (e->classLen != classLen || e->methodLen != methodLen) continue;
+        if (strncasecmp(e->className, className, (size_t)classLen) != 0) continue;
+        if (strncasecmp(e->methodName, methodName, (size_t)methodLen) != 0) continue;
+        if (e->paramCount != paramCount) continue;
+        bool sameSig = true;
+        for (int p = 0; p < paramCount; p++) {
+            if (!overload_types_equal(e->paramTypes[p], paramTypes[p])) {
+                sameSig = false;
+                break;
             }
-            strncpy(e->returnType, returnType ? returnType : "", 31);
-            e->returnType[31] = '\0';
-            return;
         }
+        if (!sameSig) continue;
+        /* Meme signature : ecrase (re-compile idempotent). */
+        strncpy(e->returnType, returnType ? returnType : "", 31);
+        e->returnType[31] = '\0';
+        e->declaredLine = declaredLine;
+        return;
     }
     if (g_declared_method_sigs_count >= MAX_DECLARED_METHODS) {
         error_capacity_exceeded("MAX_DECLARED_METHODS", MAX_DECLARED_METHODS);
@@ -2158,6 +2411,24 @@ static void declared_method_sig_register(const char* className, int classLen,
     }
     strncpy(e->returnType, returnType ? returnType : "", 31);
     e->returnType[31] = '\0';
+    e->declaredLine = declaredLine;
+}
+
+/*  — collecte toutes les signatures SAME-CLASS d'un nom de methode
+ * (ordre de declaration = ordre du tableau g_declared_method_sigs). Retourne
+ * le nombre d'overloads trouves (0..maxOut). */
+static int overload_collect(const char* className, int classLen,
+                            const char* methodName, int methodLen,
+                            const DeclaredMethodSigEntry** out, int maxOut) {
+    int n = 0;
+    for (int i = 0; i < g_declared_method_sigs_count && n < maxOut; i++) {
+        DeclaredMethodSigEntry* e = &g_declared_method_sigs[i];
+        if (e->classLen != classLen || e->methodLen != methodLen) continue;
+        if (strncasecmp(e->className, className, (size_t)classLen) != 0) continue;
+        if (strncasecmp(e->methodName, methodName, (size_t)methodLen) != 0) continue;
+        out[n++] = e;
+    }
+    return n;
 }
 
 /* Cherche une methode declaree pour `className` OU une de ses classes ancetres
@@ -2469,7 +2740,17 @@ bool compiler_user_type_field_serialise(const char* typeName, int typeLen,
                                         const char* fieldName, int fieldLen,
                                         bool* outSkip, const char** outRename) {
     const UserTypeField* f = user_type_find_field(typeName, typeLen, fieldName, fieldLen);
-    if (!f) return false;
+    if (!f) {
+        /*  — repli sur le registre persistant des attributs
+         * <Sérialise> de champ de CLASSE. Les champs de classe ne sont pas
+         * réifiés dans knownUserTypes et celui-ci est remis à zéro
+         * à chaque fichier ; une classe vivant TOUJOURS dans son propre fichier
+         * (1 classe = 1 fichier), sa métadonnée doit survivre à ce reset pour
+         * être lisible depuis le fichier qui la sérialise. */
+        return class_field_serialise_lookup(typeName, typeLen,
+                                            fieldName, fieldLen,
+                                            outSkip, outRename);
+    }
     if (outSkip)   *outSkip = f->serialise_skip;
     if (outRename) *outRename = f->serialise_rename[0] ? f->serialise_rename : NULL;
     return true;
@@ -2482,22 +2763,24 @@ const char* compiler_user_type_field_by_rename(const char* typeName, int typeLen
                                                const char* jsonKey, int jsonKeyLen,
                                                int* outFieldLen) {
     int idx = user_type_index(typeName, typeLen);
-    if (idx < 0) return NULL;
-    char keyStripped[64];
-    int kl = scanner_strip_accents(jsonKey, jsonKeyLen, keyStripped, sizeof(keyStripped));
-    for (int fi = knownUserTypes[idx].fieldFirst; fi >= 0; fi = userTypeFieldPool[fi].next) {
-        UserTypeField* f = &userTypeFieldPool[fi];
-        if (f->serialise_rename[0] == '\0') continue;
-        char rnStripped[64];
-        int rl = scanner_strip_accents(f->serialise_rename,
-                                       (int)strlen(f->serialise_rename),
-                                       rnStripped, sizeof(rnStripped));
-        if (rl == kl && strncasecmp(keyStripped, rnStripped, (size_t)kl) == 0) {
-            if (outFieldLen) *outFieldLen = f->length;
-            return f->name;
+    if (idx >= 0) {
+        char keyStripped[64];
+        int kl = scanner_strip_accents(jsonKey, jsonKeyLen, keyStripped, sizeof(keyStripped));
+        for (int fi = knownUserTypes[idx].fieldFirst; fi >= 0; fi = userTypeFieldPool[fi].next) {
+            UserTypeField* f = &userTypeFieldPool[fi];
+            if (f->serialise_rename[0] == '\0') continue;
+            char rnStripped[64];
+            int rl = scanner_strip_accents(f->serialise_rename,
+                                           (int)strlen(f->serialise_rename),
+                                           rnStripped, sizeof(rnStripped));
+            if (rl == kl && strncasecmp(keyStripped, rnStripped, (size_t)kl) == 0) {
+                if (outFieldLen) *outFieldLen = f->length;
+                return f->name;
+            }
         }
     }
-    return NULL;
+    /*  — repli classe (registre persistant cross-fichier). */
+    return class_field_by_rename(typeName, typeLen, jsonKey, jsonKeyLen, outFieldLen);
 }
 
 static const UserTypeField* user_type_find_field(const char* typeName, int typeLen,
@@ -3874,8 +4157,35 @@ static void mark_globals_used_from_neighbors(void) {
         if (g->isUsed) continue;
         int cl = scanner_canonicalize_identifier(g->name, g->nameLen,
                                                  canon, sizeof(canon));
-        if (refset_referenced_by_other(canon, cl, currentFileIndex))
+        if (refset_referenced_by_other(canon, cl, currentFileIndex)) {
             g->isUsed = true;
+            continue;
+        }
+        /*  — une globale de collection est stockee mangled `<COL>$var`
+         * mais reste EXPOSEE en nom nu : un voisin la
+         * reference par son nom nu, qui alimente le refset sous la forme NUE,
+         * jamais sous la cle manglee. On re-interroge donc le refset avec le
+         * nom nu quand (prefixe, nu) est un membre EXPOSE de collection. Le
+         * mangling d'element Fenetre/Etat (`<ELEM>$var`), lui, ENCAPSULE
+         * (, ) et n'est PAS un membre de collection : le filtre
+         * collection_member_has l'ecarte, son nom nu reste donc non-rejoignable
+         * de l'exterieur. Le temoin negatif (globale de collection vraiment
+         * inutilisee) survit : sans voisin referent, le nom nu n'est tagge que
+         * du fichier courant -> refset_referenced_by_other reste faux. */
+        const char* dollar = strchr(g->name, '$');
+        if (dollar != NULL && dollar[1] != '\0') {
+            int prefixLen = (int)(dollar - g->name);
+            const char* bare = dollar + 1;
+            int bareLen = (int)strlen(bare);
+            if (collection_member_has(g->name, prefixLen, bare, bareLen)
+                && !collection_member_is_unexposed(g->name, prefixLen,
+                                                   bare, bareLen)) {
+                int bl = scanner_canonicalize_identifier(bare, bareLen,
+                                                         canon, sizeof(canon));
+                if (refset_referenced_by_other(canon, bl, currentFileIndex))
+                    g->isUsed = true;
+            }
+        }
     }
 }
 
@@ -5477,6 +5787,7 @@ static void init_compiler(Compiler* compiler, FunctionType type) {
     local->declaredType = TOKEN_EOF;
     local->structTypeName[0] = '\0';
     local->arrayElemStructType[0] = '\0';
+    local->arrayElemType = TOKEN_EOF;
     local->icone_catalog_name = NULL;
     if (type == TYPE_METHOD || type == TYPE_CONSTRUCTOR) {
         local->name.start = "this";
@@ -5816,6 +6127,7 @@ static void add_local(Token name) {
      * test_json_vers_chaine. */
     local->structTypeName[0] = '\0';
     local->arrayElemStructType[0] = '\0';
+    local->arrayElemType = TOKEN_EOF;
     local->icone_catalog_name = NULL;
     local->isErrorPlaceholder = false;  /*  : set true par declare_variable apres
                                          * shadow erreur ; init false sinon. */
@@ -6280,6 +6592,19 @@ static void record_array_elem_struct_type(Token varName,
     }
 }
 
+/* Pendant primitif de record_array_elem_struct_type : memorise le TokenType
+ * d'element d'un `tableau de <prim>` (TOKEN_ENTIER…) sur la variable juste
+ * declaree. Meme routage local/confine/global. Sert a l'identite de surcharge
+ * par type d'element (resolution d'appel). */
+static void record_array_elem_type(Token varName, int elemToken) {
+    if (elemToken == TOKEN_EOF) return;
+    if ((current->scopeDepth > 0 || g_last_declare_confined) && current->localCount > 0) {
+        current->locals[current->localCount - 1].arrayElemType = elemToken;
+    } else if (current->scopeDepth == 0) {
+        typed_globals_set_array_elem_type(varName.start, varName.length, elemToken);
+    }
+}
+
 /*  — pose l'opt-out unused (attribut <utile>/<useful>) sur le support
  * de la variable JUSTE declaree. Meme routage local/confine/global que
  * record_declared_type. A appeler APRES declare_variable. */
@@ -6307,6 +6632,7 @@ static bool dsl_prop_expects_array(const OwlControlPropDef* def);
 static const char* prop_inline_target_type(const OwlControlPropDef* def);
 static void statement(void);
 static void declaration(void);
+static void switch_jumps_push(int** jumps, int* count, int* cap, int jump);
 static ParseRule* get_rule(TokenType type);
 static void parse_precedence(Precedence precedence);
 static void in_operator_sc(bool negate);
@@ -6332,6 +6658,7 @@ static bool tokentype_is_widget_keyword(TokenType t);
 static bool demote_widget_keyword_to_identifier(void);
 static bool demote_free_type_to_identifier(void);
 static bool demote_gui_declarator_to_identifier(void);
+static bool demote_reserved_keyword_to_identifier(void);
 static bool demote_liberer_native_call_to_identifier(void);
 static void constante_block(void);
 static void window_declaration(Token windowName, int line);
@@ -9785,6 +10112,11 @@ static const char* service_ctx_request_sub_canon(const char* prop) {
         return "Chemin";
     if (strcasecmp(prop, "Identite") == 0 || strcasecmp(prop, "Identity") == 0)
         return "Identite";
+    /*  — corps BRUT de la requete entrante, en LECTURE (miroir cote
+     * lecture de ..Réponse..Corps). Chaine d'octets non parsee seme par
+     * http_exec ; MoiMême..Requête..Corps rend le corps recu tel quel. */
+    if (strcasecmp(prop, "Corps") == 0 || strcasecmp(prop, "Body") == 0)
+        return "Corps";
     /*  — en-tetes ENTRANTS de la requete, en LECTURE (miroir cote
      * lecture de ..Réponse..Entêtes). Assoc chaine->chaine sans-casse seme par
      * http_exec ; MoiMême..Requête..Entêtes["Nom"] lit un en-tete recu. */
@@ -10027,65 +10359,20 @@ static const char* resolve_var_struct_type_xfile(const char* name, int length,
 /*  — type d'element STRUCTURE d'un global `tableau de <Struct>` declare
  * chez un voisin, avec repli cross-fichier. resolve_var_array_element_struct ne
  * voit que le fichier courant. project_ident_declared_type ne rend que le 1er
- * token du type ("tableau"), d'ou ce scan textuel dedie des sources projet, qui
+ * token du type ("tableau"), d'ou un scan textuel dedie des sources projet, qui
  * capture le nom APRES `de` quand le global est un `tableau [...] de <IDENT>`,
- * et ne l'accepte que s'il designe une structure user. Un etat par declaration
- * (remis a zero a chaque NEWLINE : un global tient sur une ligne). */
+ * et ne l'accepte que s'il designe une structure user.
+ *
+ *  — ce scan re-tokenisait TOUTES les sources du projet a CHAQUE acces
+ * membre d'un tel global (frequent dans le code converti) : dernier rescanner
+ * per-call O(N^2) apres . La machine a etats est desormais appliquee
+ * une seule fois par projet dans l'index build-once
+ * proj_array_elem_struct_xfile_lookup ; semantique strictement preservee. */
 static const char* resolve_var_array_element_struct_xfile(const char* name, int length,
                                                           char* buf, int bufSize) {
     const char* es = resolve_var_array_element_struct(name, length);
     if (es != NULL) return es;
-    if (projectSymbols == NULL || name == NULL || length <= 0 || bufSize <= 1)
-        return NULL;
-    char wantCanon[128];
-    int wantLen = scanner_strip_accents(name, length, wantCanon, sizeof(wantCanon));
-    if (wantLen <= 0) return NULL;
-    for (int k = 0; k < projectSymbols->sourceCount; k++) {
-        const char* src = projectSymbols->sources[k].source;
-        if (src == NULL) continue;
-        Scanner s;
-        scanner_init(&s, src);
-        /* 0 = rien ; 1 = `name EST TABLEAU` vu (on attend `DE`) ; 2 = `DE` vu
-         * (on attend l'IDENT d'element). */
-        int stage = 0;
-        Token prev2 = (Token){0};
-        Token prev1 = (Token){0};
-        for (;;) {
-            Token tok = scanner_scan_token(&s);
-            if (tok.type == TOKEN_EOF) break;
-            if (tok.type == TOKEN_NEWLINE) {
-                stage = 0; prev2 = prev1 = (Token){0}; continue;
-            }
-            if (tok.type == TOKEN_ERROR) continue;
-            if (stage == 0) {
-                if (tok.type == TOKEN_TABLEAU && prev1.type == TOKEN_EST
-                    && prev2.type == TOKEN_IDENTIFIER) {
-                    char haveCanon[128];
-                    int haveLen = scanner_strip_accents(prev2.start, prev2.length,
-                                                        haveCanon, sizeof(haveCanon));
-                    if (haveLen == wantLen
-                        && strncasecmp(haveCanon, wantCanon, (size_t)wantLen) == 0)
-                        stage = 1;
-                }
-            } else if (stage == 1) {
-                if (tok.type == TOKEN_DE) stage = 2;
-            } else {
-                if (tok.type == TOKEN_IDENTIFIER) {
-                    int el = (int)tok.length;
-                    if (!type_name_is_structure(tok.start, el)) return NULL;
-                    int n = el < bufSize - 1 ? el : bufSize - 1;
-                    memcpy(buf, tok.start, (size_t)n);
-                    buf[n] = '\0';
-                    return buf;
-                }
-                /* token non-IDENT apres `de` (`tableau de chaine` -> mot-cle) :
-                 * pas un element struct. */
-                stage = 0;
-            }
-            prev2 = prev1; prev1 = tok;
-        }
-    }
-    return NULL;
+    return proj_array_elem_struct_xfile_lookup(name, length, buf, bufSize);
 }
 
 /* Resolve a variable name to its declared TOKEN type (e.g. TOKEN_TABLEAU,
@@ -10111,6 +10398,58 @@ static int resolve_var_declared_type(const char* name, int length) {
         }
     }
     return TOKEN_EOF;
+}
+
+/* TokenType primitif d'element d'une variable `tableau de <prim>` (TOKEN_ENTIER…),
+ * ou TOKEN_EOF si inconnu / element nomme. Pendant de resolve_var_declared_type
+ * pour la resolution de surcharge par type d'element. */
+static int resolve_var_array_elem_type(const char* name, int length) {
+    if (name == NULL || length <= 0) return TOKEN_EOF;
+    if (current) {
+        for (int i = current->localCount - 1; i >= 0; i--) {
+            Local* lc = &current->locals[i];
+            if (lc->name.length == length &&
+                memcmp(lc->name.start, name, (size_t)length) == 0) {
+                return lc->arrayElemType;
+            }
+        }
+    }
+    for (int i = 0; i < g_typed_globals_count; i++) {
+        TypedGlobal* g = &g_typed_globals[i];
+        if (g->length == length && memcmp(g->name, name, (size_t)length) == 0) {
+            return g->arrayElemType;
+        }
+    }
+    return TOKEN_EOF;
+}
+
+/* Nom de type d'element NOMME (structure/classe) d'une variable
+ * `tableau de <TypeUser>`, longueur via *outLen ; NULL si aucun. Pendant de
+ * resolve_var_array_elem_type pour les elements non primitifs. */
+static const char* resolve_var_array_elem_struct(const char* name, int length,
+                                                 int* outLen) {
+    *outLen = 0;
+    if (name == NULL || length <= 0) return NULL;
+    if (current) {
+        for (int i = current->localCount - 1; i >= 0; i--) {
+            Local* lc = &current->locals[i];
+            if (lc->name.length == length &&
+                memcmp(lc->name.start, name, (size_t)length) == 0) {
+                if (lc->arrayElemStructType[0] == '\0') return NULL;
+                *outLen = (int)strlen(lc->arrayElemStructType);
+                return lc->arrayElemStructType;
+            }
+        }
+    }
+    for (int i = 0; i < g_typed_globals_count; i++) {
+        TypedGlobal* g = &g_typed_globals[i];
+        if (g->length == length && memcmp(g->name, name, (size_t)length) == 0) {
+            if (g->arrayElemStructType[0] == '\0') return NULL;
+            *outLen = (int)strlen(g->arrayElemStructType);
+            return g->arrayElemStructType;
+        }
+    }
+    return NULL;
 }
 
 /* Mappe le texte du type declare d'un champ de structure (ex. "monétaire",
@@ -11863,6 +12202,209 @@ static bool column_receiver_prop_is_writable(const char* propProbe) {
 /*  — population lazy du registre props custom depuis les sources du
  * prescan (definie plus bas, pres des autres scanners cross-fichier). */
 static void compiler_custom_props_scan_sources(void);
+
+/* ================================================================
+ *  — resolution d'un appel de methode SURCHARGEE au site d'appel.
+ * Compile-time, sur type DECLARE des arguments. Aucune inspection runtime.
+ * ================================================================ */
+
+/* Type statique d'un argument tel que mesure au site d'appel. */
+typedef struct {
+    char type[48];   /* type normalise (lowercase/sans accent), "" si inconnu */
+    bool known;
+    bool isCall;     /* argument = appel `ident(...)` */
+    char callee[64]; /* nom de l'appele si isCall */
+} OverloadArg;
+
+static bool overload_is_scalar_prim(const char* t) {
+    static const char* prims[] = {
+        "entier", "reel", "chaine", "booleen", "numerique",
+        "monetaire", "caractere", "buffer", NULL };
+    for (int i = 0; prims[i]; i++) if (strcmp(prims[i], t) == 0) return true;
+    return false;
+}
+
+static void overload_classify_arg(Token first, bool hasSecond, Token second,
+                                  OverloadArg* a) {
+    a->type[0] = '\0'; a->known = false; a->isCall = false; a->callee[0] = '\0';
+    if (hasSecond && first.type == TOKEN_IDENTIFIER
+        && second.type == TOKEN_LEFT_PAREN) {
+        a->isCall = true;
+        int n = first.length < 63 ? first.length : 63;
+        memcpy(a->callee, first.start, (size_t)n); a->callee[n] = '\0';
+        return; /* retour d'appel non type a ce stade -> inconnu (MVP) */
+    }
+    if (hasSecond) return; /* expression composee -> inconnu */
+    const char* ts = NULL;
+    switch (first.type) {
+        case TOKEN_INTEGER:       ts = "entier";  break;
+        case TOKEN_REAL:          ts = "reel";    break;
+        case TOKEN_STRING:
+        case TOKEN_STRING_INTERP: ts = "chaine";  break;
+        case TOKEN_VRAI:
+        case TOKEN_FAUX:          ts = "booleen"; break;
+        case TOKEN_IDENTIFIER: {
+            int tt = resolve_var_declared_type(first.start, first.length);
+            switch (tt) {
+                case TOKEN_ENTIER:    ts = "entier";    break;
+                case TOKEN_REEL:      ts = "reel";      break;
+                case TOKEN_CHAINE:    ts = "chaine";    break;
+                case TOKEN_BOOLEEN:   ts = "booleen";   break;
+                case TOKEN_NUMERIQUE: ts = "numerique"; break;
+                case TOKEN_MONETAIRE: ts = "monetaire"; break;
+                case TOKEN_CARACTERE: ts = "caractere"; break;
+                case TOKEN_BUFFER:    ts = "buffer";    break;
+                case TOKEN_TABLEAU: {
+                    /* Identite par type d'element : "tableau<entier>" quand le
+                     * type d'element de la variable est connu, "tableau" nu
+                     * sinon. Symetrique du cote declaration de parametre. */
+                    int elemTok = resolve_var_array_elem_type(first.start, first.length);
+                    int esLen = 0;
+                    const char* es = (elemTok == TOKEN_EOF)
+                        ? resolve_var_array_elem_struct(first.start, first.length, &esLen)
+                        : NULL;
+                    overload_build_array_type((TokenType)elemTok, es, esLen,
+                                              a->type, sizeof(a->type));
+                    a->known = true;
+                    return;
+                }
+                default:              ts = NULL;        break;
+            }
+            break;
+        }
+        default: ts = NULL; break;
+    }
+    if (ts) { snprintf(a->type, sizeof(a->type), "%s", ts); a->known = true; }
+}
+
+/* Cout d'ajustement arg->param : 0 exact, 1 coercible (filet souple), -1
+ * incompatible (hors competition). Barème MVP : rang 0 = type
+ * identique, rang 1 = deux scalaires primitifs (coercition souple existante),
+ * incompatible sinon (ex. scalaire vs tableau, classes distinctes). */
+static int overload_match_cost(const OverloadArg* a, const char* paramTypeRaw) {
+    char pn[48];
+    overload_type_norm(paramTypeRaw, (int)strlen(paramTypeRaw), pn, sizeof(pn));
+    if (strcmp(a->type, pn) == 0) return 0;
+    if (overload_is_scalar_prim(a->type) && overload_is_scalar_prim(pn)) return 1;
+    return -1;
+}
+
+/* Resout `recv.methodTok(args)`. parser.current = PREMIER token d'argument
+ * (juste apres `(`). Ne consomme/altere RIEN (scan sur copie du scanner).
+ * Retour :
+ *   0  = pas de surcharge en jeu (0/1 forme, aucune arite candidate, ou 1ere
+ *        forme choisie) -> l'appelant emet la cle plate `name`.
+ *   1  = overload secondaire resolu -> *outKeyConst = cle manglee a emettre.
+ *  -1  = ambiguite "aveugle" : erreur emise au site d'appel ; l'appelant
+ *        retombe sur la cle plate (le compile est deja en erreur). */
+static int overload_resolve_call(const char* recvType, Token methodTok,
+                                 ConstIdx* outKeyConst) {
+    if (recvType == NULL) return 0;
+    int rtl = (int)strlen(recvType);
+    const DeclaredMethodSigEntry* ovl[MAX_METHOD_OVERLOADS];
+    int ovc = overload_collect(recvType, rtl, methodTok.start, methodTok.length,
+                               ovl, MAX_METHOD_OVERLOADS);
+    if (ovc < 2) return 0; /* nom non surcharge : chemin plat inchange */
+
+    OverloadArg args[MAX_METHOD_PARAMS];
+    int argc = 0;
+    {
+        Scanner sc = parser.scanner;   /* positionne juste apres parser.current */
+        Token cur = parser.current;
+        int depth = 0;
+        while (cur.type != TOKEN_RIGHT_PAREN && cur.type != TOKEN_EOF
+               && argc < MAX_METHOD_PARAMS) {
+            Token first = cur;
+            Token second; second.type = TOKEN_EOF;
+            bool hasSecond = false;
+            int tnum = 0;
+            for (;;) {
+                if (cur.type == TOKEN_EOF) break;
+                if (depth == 0 && (cur.type == TOKEN_RIGHT_PAREN
+                                   || cur.type == TOKEN_COMMA)) break;
+                if (depth == 0 && tnum == 1) { second = cur; hasSecond = true; }
+                TokenType tt = cur.type;
+                if (tt == TOKEN_LEFT_PAREN || tt == TOKEN_LEFT_BRACKET
+                    || tt == TOKEN_LEFT_BRACE) depth++;
+                else if (tt == TOKEN_RIGHT_PAREN || tt == TOKEN_RIGHT_BRACKET
+                         || tt == TOKEN_RIGHT_BRACE) depth--;
+                do { cur = scanner_scan_token(&sc); }
+                while (cur.type == TOKEN_NEWLINE || cur.type == TOKEN_SEMICOLON);
+                tnum++;
+            }
+            overload_classify_arg(first, hasSecond, second, &args[argc]);
+            argc++;
+            if (cur.type == TOKEN_COMMA) {
+                do { cur = scanner_scan_token(&sc); }
+                while (cur.type == TOKEN_NEWLINE || cur.type == TOKEN_SEMICOLON);
+                continue;
+            }
+            break;
+        }
+    }
+
+    /* Filtre par arite. */
+    int cand[MAX_METHOD_OVERLOADS]; int candCount = 0;
+    for (int i = 0; i < ovc; i++)
+        if (ovl[i]->paramCount == argc) cand[candCount++] = i;
+    if (candCount == 0) return 0; /* aucune arite ne matche : chemin plat */
+
+    int winner = -1;
+    if (candCount == 1) {
+        winner = cand[0];
+    } else {
+        /* Aveugle : un argument de type inconnu en contexte ambigu -> erreur
+         * AU SITE D'APPEL (jamais sur la declaration). */
+        for (int k = 0; k < argc; k++) {
+            if (!args[k].known) {
+                char call[96], callee[64], methodBuf[64];
+                if (args[k].isCall) {
+                    snprintf(call, sizeof(call), "%s()", args[k].callee);
+                    snprintf(callee, sizeof(callee), "%s", args[k].callee);
+                } else {
+                    snprintf(call, sizeof(call), "argument %d", k + 1);
+                    callee[0] = '\0';
+                }
+                int mn = methodTok.length < 63 ? methodTok.length : 63;
+                memcpy(methodBuf, methodTok.start, (size_t)mn); methodBuf[mn] = '\0';
+                owl_emit_error_at(&methodTok, E_SEM_OVERLOAD_AMBIGUOUS_CALL,
+                                  "method", methodBuf,
+                                  "call", call,
+                                  "callee", callee,
+                                  NULL);
+                return -1;
+            }
+        }
+        /* Classement : cout total minimal, candidat incompatible exclu, egalite
+         * -> premiere forme declaree (indice le plus petit, retenu car on
+         * n'ecrase que sur cout STRICTEMENT inferieur). */
+        int bestCost = argc + 1; /* cout max possible = argc (1/arg) */
+        for (int c = 0; c < candCount; c++) {
+            int i = cand[c];
+            int total = 0; bool ok = true;
+            for (int k = 0; k < argc; k++) {
+                int cost = overload_match_cost(&args[k], ovl[i]->paramTypes[k]);
+                if (cost < 0) { ok = false; break; }
+                total += cost;
+            }
+            if (!ok) continue;
+            if (total < bestCost) { bestCost = total; winner = i; }
+        }
+    }
+
+    if (winner < 0) return 0;   /* aucun candidat compatible : chemin plat */
+    if (winner == 0) return 0;  /* 1ere forme declaree -> cle plate */
+
+    char nameStripped[256];
+    int nsl = scanner_strip_accents(methodTok.start, methodTok.length,
+                                    nameStripped, sizeof(nameStripped));
+    char mangled[320];
+    overload_mangle_key(nameStripped, nsl, ovl[winner]->paramCount,
+                        ovl[winner]->paramTypes, mangled, sizeof(mangled));
+    *outKeyConst = make_constant(OBJ_VAL(
+        obj_copy_string(mangled, (int)strlen(mangled))));
+    return 1;
+}
 
 /* Dot access for struct fields and method calls: expr.fieldName or expr.method(args) */
 static void dot(bool canAssign) {
@@ -13735,10 +14277,24 @@ static void dot(bool canAssign) {
                 recvType, (int)strlen(recvType),
                 fieldTok.start, fieldTok.length);
         }
-        uint8_t argCount = methSig ? argument_list_with_method_sig(methSig)
-                                   : argument_list();
+        /*  — surcharge : resout la forme ciblee AVANT de compiler les
+         * arguments (parser.current = 1er token d'argument). invokeKey reste la
+         * cle plate `name` sauf si une forme secondaire est selectionnee. */
+        ConstIdx invokeKey = name;
+        int ovlRes = overload_resolve_call(recvType, fieldTok, &invokeKey);
+        uint8_t argCount;
+        if (ovlRes != 0) {
+            /* Appel surcharge resolu (ou ambigu) : args compiles sans coercion
+             * de signature (la forme choisie porte ses propres types au
+             * runtime ; la coercition reste le filet sous le match exact). */
+            argCount = argument_list();
+        } else if (methSig) {
+            argCount = argument_list_with_method_sig(methSig);
+        } else {
+            argCount = argument_list();
+        }
         check_method_call_arity(methRecvType, &methTok, (int)argCount);
-        emit_const_op_b(OP_INVOKE, name, argCount);
+        emit_const_op_b(OP_INVOKE, invokeKey, argCount);
         /* Symétrique à call() : après un appel de méthode, le receveur
          * effectif du prochain dot est la valeur de retour (type inconnu).
          * On casse la chaîne pour éviter `m.Quand().Retourne(rep).Active()`
@@ -13862,6 +14418,12 @@ static void this_field(bool canAssign) {
     /*  : la position de l'erreur "membre inconnu" pointe le
      * token `:` (parser.previous a l'entree, avant de consommer l'IDENT). */
     Token colonTok = parser.previous;
+    /*  : un membre nomme comme un mot-cle reserve (`:autre`,
+     * `:chaine`...) ou un declarateur widget (`:Label`) reste accessible via
+     * `:membre` — demotion avant le consume IDENTIFIER (parite avec dot(), qui
+     * accepte deja n'importe quel mot apres un `.`). */
+    (void)demote_reserved_keyword_to_identifier();
+    (void)demote_widget_keyword_to_identifier();
     consume(TOKEN_IDENTIFIER, E_SYNTAX_EXP_FIELD_NAME_AFTER_COLON);
     Token memberTok = parser.previous;
     ConstIdx name = identifier_constant(&parser.previous);
@@ -13889,8 +14451,21 @@ static void this_field(bool canAssign) {
     if (check(TOKEN_LEFT_PAREN)) {
         emit_bytes(OP_GET_LOCAL, 0);              /* push this */
         advance_token();                          /* consume '(' */
+        /*  — surcharge : l'appel de methode soeur `:M(args)` resout la
+         * forme ciblee exactement comme le site externe `recv.M(args)`. Le
+         * receveur est la classe courante (connue a la compilation) ;
+         * parser.current pointe le 1er token d'argument (overload_resolve_call
+         * scanne sur une copie et ne consomme rien). invokeKey reste la cle
+         * plate `name` sauf si une forme secondaire surchargee est choisie. */
+        char curClassName[128];
+        int ccl = currentClass->name.length < (int)sizeof(curClassName) - 1
+                  ? currentClass->name.length : (int)sizeof(curClassName) - 1;
+        memcpy(curClassName, currentClass->name.start, (size_t)ccl);
+        curClassName[ccl] = '\0';
+        ConstIdx invokeKey = name;
+        (void)overload_resolve_call(curClassName, memberTok, &invokeKey);
         uint8_t argCount = argument_list();
-        emit_const_op_b(OP_INVOKE, name, argCount);
+        emit_const_op_b(OP_INVOKE, invokeKey, argCount);
         /* Apres un appel de methode, le receveur effectif du prochain dot
          * est la valeur de retour (type inconnu). Aligne sur dot_access. */
         g_chain_broken = true;
@@ -15865,6 +16440,39 @@ static bool is_known_global_name(const char* name, int length) {
     return false;
 }
 
+/*  — le nom nu designe-t-il la VALEUR d'une enumeration projet-globale
+ * (declaree dans un compagnon : collection ou top-level) ? Le prescan catalogue
+ * chaque valeur comme membre de son enum (owner = nom de l'enum). On confirme
+ * que l'owner est bien une SYM_ENUM.
+ *
+ * Au top-level, une telle valeur se resout via vm.globals (le corps de la
+ * collection a deja tourne au moment ou le fichier lance compile). Mais le corps
+ * d'une methode de classe compagnon est compile AVANT l'init de la collection :
+ * la valeur n'est pas encore globale au compile -> is_known_global_name la
+ * rejette. Le prescan, lui, la connait : on l'utilise pour autoriser l'emission
+ * d'un OP_GET_GLOBAL, resolu au runtime (la methode n'est appelee qu'apres l'init
+ * de la collection, cf. ordre  : collections avant les consommateurs).
+ * Comparaison casse+accent-insensible (meme contrat que vm.globals_canon_idx). */
+static bool is_project_enum_member_value(const char* name, int length) {
+    if (projectSymbols == NULL || length <= 0) return false;
+    char canonName[256];
+    int canonLen = scanner_canonicalize_identifier(name, length,
+                                                   canonName, sizeof(canonName));
+    for (int i = 0; i < projectSymbols->memberCount; i++) {
+        ProjectMember* m = &projectSymbols->members[i];
+        char canonMember[256];
+        int cmLen = scanner_canonicalize_identifier(m->name, (int)strlen(m->name),
+                                                    canonMember, sizeof(canonMember));
+        if (cmLen != canonLen || memcmp(canonMember, canonName, (size_t)canonLen) != 0)
+            continue;
+        bool ambiguous = false;
+        ProjectSymbol* owner = symtable_find(projectSymbols,
+            m->ownerType, (int)strlen(m->ownerType), &ambiguous);
+        if (owner != NULL && owner->kind == SYM_ENUM) return true;
+    }
+    return false;
+}
+
 /*  — un nom nu candidat au receveur colonne est-il deja un
  * symbole GENUINE qui doit garder la priorite (arbre de decision : « deja connu
  * -> inchange ») ? Reprend les criteres de is_known_global_name SAUF la table
@@ -17582,6 +18190,24 @@ static void named_variable(Token name, bool canAssign) {
             emit_const_op(OP_STRUCT_GET, constNameC);
             return;
         }
+        /*  — nom nu = valeur d'enum projet-globale, declaree dans un
+         * compagnon (collection ou top-level). La valeur n'est pas forcement
+         * dans vm.globals au moment ou le fichier lecteur compile : sous le
+         * modele deux phases (owl test / project_run compilent TOUS les
+         * compagnons AVANT d'executer le moindre corps), la collection qui la
+         * pose n'a pas encore tourne -> is_known_global_name la rejetterait.
+         * Mais le prescan la connait : on autorise l'emission OP_GET_GLOBAL,
+         * resolue au runtime (l'init des collections precede ses consommateurs,
+         * ordre ). Vaut aussi bien depuis un corps de methode de classe
+         * que depuis le top-level du lecteur — l'hypothese "top-level resolu via
+         * vm.globals" ne tient plus sous le modele deux phases. Un local / champ
+         * / constante homonyme a deja gagne plus haut (arg != -1,
+         * class_constant_is), donc pas de collision. */
+        if (isGlobal && getOp == OP_GET_GLOBAL &&
+            is_project_enum_member_value(name.start, name.length)) {
+            emit_var_op(getOp, arg);
+            return;
+        }
         if (isGlobal && (getOp == OP_GET_GLOBAL || getOp == OP_GET_GLOBAL_CALLEE) &&
             !is_known_global_name(name.start, name.length)) {
             const char* kind = (getOp == OP_GET_GLOBAL_CALLEE)
@@ -18573,6 +19199,81 @@ static bool peek_top_level_is_class_declaration(Token* outName) {
 static bool try_consume_assoc_array_field_type(int* outValueKind,
                                                Token* outValueTypeName);
 
+/*  — canal de capture du type parse par skip_type_spec_ex, pour le
+ * seul site qui en a besoin : le defaut `[]` d'un parametre `tableau DE <Type>`
+ * (l'invariant impose un tableau TYPE, le type d'element vient de la
+ * declaration). Rempli pendant skip_type_spec_ex au niveau EXTERNE uniquement
+ * (asCollectionElem == false) ; le lecteur reset (tsx_reset) AVANT son appel et
+ * lit APRES. Pas de changement de signature -> les autres callers ignorent ces
+ * champs sans y toucher. */
+static bool    g_tsx_head_is_array = false;  /* tete = `tableau` (non associatif) */
+static bool    g_tsx_is_assoc      = false;  /* tableau associatif */
+static bool    g_tsx_has_elem      = false;  /* `de <Type>` d'element consomme */
+static uint8_t g_tsx_elem_fill_kind = 0;     /* 0 aucun; 1 chaine..6 numerique */
+static Token   g_tsx_elem_struct;            /* type nomme d'element, {NULL,0} sinon */
+static int     g_tsx_elem_token = TOKEN_EOF; /* TokenType primitif d'element (TOKEN_ENTIER…),
+                                              * TOKEN_EOF si aucun / type nomme */
+
+static void tsx_reset(void) {
+    g_tsx_head_is_array  = false;
+    g_tsx_is_assoc       = false;
+    g_tsx_has_elem       = false;
+    g_tsx_elem_fill_kind = 0;
+    g_tsx_elem_struct.start  = NULL;
+    g_tsx_elem_struct.length = 0;
+    g_tsx_elem_token     = TOKEN_EOF;
+}
+
+/* Renseigne l'element d'un `tableau de <Type>` depuis son token de type.
+ * Primitif (keyword singulier OU identifiant pluriel `chaines`) -> fill kind ;
+ * sinon type nomme (structure/type utilisateur) -> g_tsx_elem_struct. */
+static void tsx_capture_elem(Token t) {
+    g_tsx_has_elem       = true;
+    g_tsx_elem_fill_kind = 0;
+    g_tsx_elem_struct.start  = NULL;
+    g_tsx_elem_struct.length = 0;
+    g_tsx_elem_token     = TOKEN_EOF;
+    TokenType tt = t.type;
+    if (tt == TOKEN_IDENTIFIER) {
+        TokenType prim = singular_primitive_type_token(t.start, t.length);
+        if (prim != TOKEN_EOF) {
+            tt = prim;
+        } else {
+            g_tsx_elem_struct = t;   /* type nomme (ex: `tableau de Point`) */
+            return;
+        }
+    }
+    g_tsx_elem_token = (int)tt;      /* primitif d'element pour l'identite de surcharge */
+    switch (tt) {
+        case TOKEN_CHAINE:    g_tsx_elem_fill_kind = 1; break;
+        case TOKEN_ENTIER:    g_tsx_elem_fill_kind = 2; break;
+        case TOKEN_REEL:      g_tsx_elem_fill_kind = 3; break;
+        case TOKEN_BOOLEEN:   g_tsx_elem_fill_kind = 4; break;
+        case TOKEN_MONETAIRE: g_tsx_elem_fill_kind = 5; break;
+        case TOKEN_NUMERIQUE: g_tsx_elem_fill_kind = 6; break;
+        default: break;  /* autre type (date, nested, ...) : pas de fill primitif */
+    }
+}
+
+/*  — baken un tableau TYPE VIDE a utiliser comme valeur par defaut.
+ * Le type d'element (fill kind primitif ou nom de structure) vient de la
+ * declaration du parametre, jamais de `[]`. Le tableau sert de TEMPLATE : la VM
+ * en produit une copie FRAICHE a chaque appel sans argument (anti-aliasing, cf.
+ * call() dans vm.c). Epingle dans le pool de constantes de la fonction courante
+ * pour garantir la survie GC jusqu'a la copie dans function->defaults. */
+static Value make_empty_typed_array_default(uint8_t fillKind, Token structName) {
+    ObjArray* arr = obj_new_array();
+    vm_push(OBJ_VAL(arr));                 /* root pendant les sous-allocs */
+    arr->elementPrimKind = (int)fillKind;
+    if (structName.start != NULL && structName.length > 0) {
+        arr->elementStructType =
+            obj_copy_string(structName.start, structName.length);
+    }
+    (void)make_constant(OBJ_VAL(arr));     /* epingle pour la survie GC */
+    vm_pop();
+    return OBJ_VAL(arr);
+}
+
 /*  — variante validante de skip_type_spec. `validate` branche la
  * verification du nom de type (via la table pending post-parse) sur les
  * contextes qui l'ignoraient (champ de structure, parametre collection) ;
@@ -18598,7 +19299,10 @@ static void skip_type_spec_ex(bool validate, bool asCollectionElem) {
     {
         int assocVK = 0;
         Token assocVTN; assocVTN.start = NULL; assocVTN.length = 0;
-        if (try_consume_assoc_array_field_type(&assocVK, &assocVTN)) return;
+        if (try_consume_assoc_array_field_type(&assocVK, &assocVTN)) {
+            if (!asCollectionElem) g_tsx_is_assoc = true;  /*  */
+            return;
+        }
     }
 
     bool wasString = check(TOKEN_CHAINE);
@@ -18611,8 +19315,12 @@ static void skip_type_spec_ex(bool validate, bool asCollectionElem) {
             record_pending_type_ref(typeTok);
         }
     }
+    TokenType tsxHeadType = parser.current.type;  /*  — tete de type */
     if (is_type_token()) {
         advance_token();
+        if (!asCollectionElem && tsxHeadType == TOKEN_TABLEAU) {
+            g_tsx_head_is_array = true;  /*  */
+        }
     } else {
         owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_TYPE_NAME);
         return;
@@ -18673,6 +19381,7 @@ static void skip_type_spec_ex(bool validate, bool asCollectionElem) {
      * suivante. */
     if (match_token(TOKEN_DE)) {
         /* Element de collection : semantique record_collection_elem_type_ref. */
+        if (!asCollectionElem) tsx_capture_elem(parser.current);  /*  */
         skip_type_spec_ex(validate, true);
     } else if (!crossedNewline &&
                (check(TOKEN_ENTIER) || check(TOKEN_REEL) || check(TOKEN_CHAINE) ||
@@ -18680,6 +19389,7 @@ static void skip_type_spec_ex(bool validate, bool asCollectionElem) {
                 check(TOKEN_CARACTERE) || check(TOKEN_DATE) || check(TOKEN_HEURE) ||
                 check(TOKEN_DATEHEURE) || check(TOKEN_DUREE) || check(TOKEN_BUFFER) ||
                 check(TOKEN_UUID) || check(TOKEN_JSON_KW))) {
+        if (!asCollectionElem) tsx_capture_elem(parser.current);  /*  */
         advance_token(); /* consume the type keyword directly after d' elision */
     }
 }
@@ -19328,6 +20038,8 @@ static int g_projDeclTypeSrcCount = -2;  /* -2 = jamais construit */
 static void proj_scan_caches_invalidate(void) {
     g_projDeclTypeTable       = NULL;
     g_projDeclTypeSrcCount    = -2;
+    g_projArrElemTable        = NULL;   /*  */
+    g_projArrElemSrcCount     = -2;
     g_namingWarnCache         = -1;
     g_namingWarnTable         = NULL;
     g_namingWarnSrcCount      = -2;
@@ -19477,6 +20189,170 @@ static bool project_ident_declared_type(const char* name, int len,
         }
     }
     return false;
+}
+
+/*  — index build-once nom(canon)->type d'ELEMENT d'un global
+ * `tableau de <Struct>`, parallele a proj_decl_type.
+ *
+ * resolve_var_array_element_struct_xfile re-tokenisait TOUTES les sources du
+ * projet a CHAQUE acces membre d'un global `tableau de <struct>` (frequent dans
+ * le code converti) : dernier rescanner per-call O(N^2) apres . La
+ * requete differe de proj_decl_type (type d'ELEMENT apres `de`, pas type
+ * declare top-level), d'ou cet index parallele. Semantique STRICTEMENT
+ * preservee : meme machine a etats (`<IDENT> est tableau ... de <X>`, un etat
+ * par ligne), meme "premiere declaration IDENT-element gagne" (un
+ * `tableau de <mot-cle>` reste transparent, on continue a chercher), meme
+ * filtre type_name_is_structure APPLIQUE AU LOOKUP — l'index stocke le token
+ * d'element brut, exactement comme l'ancien scan decidait a l'instant de
+ * l'appel. Reutilise la table de hachage de proj_decl_type (meme nombre de
+ * buckets, meme fonction de hachage). Invalide par le meme stamp
+ * (projectSymbols, sourceCount) + proj_scan_caches_invalidate. */
+typedef struct {
+    char key[128];   /* nom du global, accent-strippe + minuscule */
+    int  keyLen;
+    char elem[128];  /* token d'element brut apres `de` (tronque a 127) */
+    int  elemLen;
+    int  next;       /* chainage de bucket, -1 = fin */
+} ProjArrElemEntry;
+
+static ProjArrElemEntry* g_projArrElemEntries = NULL;
+static int g_projArrElemCount = 0;
+static int g_projArrElemCap   = 0;
+static int g_projArrElemBuckets[PROJ_DECL_TYPE_BUCKETS];
+/* g_projArrElemTable / g_projArrElemSrcCount : stamp declare en amont (pres des
+ * autres stamps de scan projet), car lu par proj_scan_caches_invalidate. */
+
+/* Insere (key deja minuscule) si absente : premiere declaration IDENT-element
+ * gagne, miroir du `return` au 1er match de l'ancien scan lineaire. */
+static void proj_arr_elem_insert(const char* key, int keyLen,
+                                 const char* elemText, int elemLen) {
+    uint32_t b = proj_decl_type_hash(key, keyLen);
+    for (int i = g_projArrElemBuckets[b]; i != -1;
+         i = g_projArrElemEntries[i].next) {
+        if (g_projArrElemEntries[i].keyLen == keyLen
+            && memcmp(g_projArrElemEntries[i].key, key, (size_t)keyLen) == 0)
+            return;  /* deja vue : la 1re l'emporte */
+    }
+    if (g_projArrElemCount >= g_projArrElemCap) {
+        int newCap = g_projArrElemCap < 128 ? 128 : g_projArrElemCap * 2;
+        g_projArrElemEntries = (ProjArrElemEntry*)realloc(
+            g_projArrElemEntries,
+            (size_t)newCap * sizeof(ProjArrElemEntry));
+        g_projArrElemCap = newCap;
+    }
+    ProjArrElemEntry* e = &g_projArrElemEntries[g_projArrElemCount];
+    memcpy(e->key, key, (size_t)keyLen);
+    e->keyLen = keyLen;
+    int el = elemLen < (int)sizeof(e->elem) - 1 ? elemLen : (int)sizeof(e->elem) - 1;
+    memcpy(e->elem, elemText, (size_t)el);
+    e->elem[el] = '\0';
+    e->elemLen = el;
+    e->next = g_projArrElemBuckets[b];
+    g_projArrElemBuckets[b] = g_projArrElemCount;
+    g_projArrElemCount++;
+}
+
+/* Reconstruit l'index depuis les sources du prescan. La machine a etats est le
+ * calque exact de l'ancien scan de resolve_var_array_element_struct_xfile :
+ * seule l'action au point de match change (insertion au lieu de comparer au nom
+ * recherche + retourner). Le filtre type_name_is_structure n'est PAS applique
+ * ici : il l'etait a l'instant de l'appel dans l'ancien scan, on le repousse
+ * donc au lookup (voir plus bas). */
+static void proj_arr_elem_build(void) {
+    for (int i = 0; i < PROJ_DECL_TYPE_BUCKETS; i++)
+        g_projArrElemBuckets[i] = -1;
+    g_projArrElemCount = 0;
+    if (projectSymbols == NULL) return;
+    for (int k = 0; k < projectSymbols->sourceCount; k++) {
+        const char* src = projectSymbols->sources[k].source;
+        if (src == NULL) continue;
+        Scanner s;
+        scanner_init(&s, src);
+        /* 0 = rien ; 1 = `<IDENT> EST TABLEAU` vu (on attend `DE`) ; 2 = `DE` vu
+         * (on attend l'IDENT d'element). */
+        int stage = 0;
+        char candCanon[128];
+        int candLen = 0;
+        Token prev2 = (Token){0};
+        Token prev1 = (Token){0};
+        for (;;) {
+            Token tok = scanner_scan_token(&s);
+            if (tok.type == TOKEN_EOF) break;
+            if (tok.type == TOKEN_NEWLINE) {
+                stage = 0; prev2 = prev1 = (Token){0}; continue;
+            }
+            if (tok.type == TOKEN_ERROR) continue;
+            if (stage == 0) {
+                if (tok.type == TOKEN_TABLEAU && prev1.type == TOKEN_EST
+                    && prev2.type == TOKEN_IDENTIFIER) {
+                    candLen = scanner_strip_accents(prev2.start, prev2.length,
+                                                    candCanon, sizeof(candCanon));
+                    if (candLen > 0) {
+                        for (int c = 0; c < candLen; c++)
+                            candCanon[c] = (char)tolower((unsigned char)candCanon[c]);
+                        stage = 1;
+                    }
+                }
+            } else if (stage == 1) {
+                if (tok.type == TOKEN_DE) stage = 2;
+            } else {
+                if (tok.type == TOKEN_IDENTIFIER) {
+                    proj_arr_elem_insert(candCanon, candLen,
+                                         tok.start, (int)tok.length);
+                    stage = 0;
+                } else {
+                    /* token non-IDENT apres `de` (`tableau de chaine` -> mot-cle) :
+                     * pas un element struct ; on continue a chercher une autre
+                     * declaration du meme global, comme l'ancien scan. */
+                    stage = 0;
+                }
+            }
+            prev2 = prev1; prev1 = tok;
+        }
+    }
+}
+
+/* Construit l'index si le jeu de sources courant differe de celui memoise. */
+static void proj_arr_elem_ensure(void) {
+    int sc = projectSymbols != NULL ? projectSymbols->sourceCount : -1;
+    if (g_projArrElemSrcCount != -2
+        && g_projArrElemTable == projectSymbols
+        && g_projArrElemSrcCount == sc)
+        return;
+    proj_arr_elem_build();
+    g_projArrElemTable    = projectSymbols;
+    g_projArrElemSrcCount = sc;
+}
+
+/* Lookup O(1) du type d'element struct cross-fichier. Rend buf (rempli avec le
+ * nom de l'element) si le global designe un `tableau ... de <Struct user>`,
+ * sinon NULL — y compris quand l'element existe mais n'est pas une structure
+ * (le filtre type_name_is_structure est applique ICI, a l'instant de l'appel,
+ * exactement comme l'ancien scan). */
+static const char* proj_array_elem_struct_xfile_lookup(const char* name, int length,
+                                                       char* buf, int bufSize) {
+    if (projectSymbols == NULL || name == NULL || length <= 0 || bufSize <= 1)
+        return NULL;
+    char wantCanon[128];
+    int wantLen = scanner_strip_accents(name, length, wantCanon, sizeof(wantCanon));
+    if (wantLen <= 0) return NULL;
+    for (int c = 0; c < wantLen; c++)
+        wantCanon[c] = (char)tolower((unsigned char)wantCanon[c]);
+    proj_arr_elem_ensure();
+    uint32_t b = proj_decl_type_hash(wantCanon, wantLen);
+    for (int i = g_projArrElemBuckets[b]; i != -1;
+         i = g_projArrElemEntries[i].next) {
+        const ProjArrElemEntry* e = &g_projArrElemEntries[i];
+        if (e->keyLen == wantLen
+            && memcmp(e->key, wantCanon, (size_t)wantLen) == 0) {
+            if (!type_name_is_structure(e->elem, e->elemLen)) return NULL;
+            int n = e->elemLen < bufSize - 1 ? e->elemLen : bufSize - 1;
+            memcpy(buf, e->elem, (size_t)n);
+            buf[n] = '\0';
+            return buf;
+        }
+    }
+    return NULL;
 }
 
 /*  — le projet designe-t-il UN theme, quel qu'il soit ?
@@ -21647,6 +22523,36 @@ static void service_parse_operation_properties(OwlOperationDecl* op) {
             } else {
                 service_skip_to_eol();
             }
+        } else if (strcasecmp(probe, "Formulaire") == 0) {
+            /*  — corps `application/x-www-form-urlencoded` : liste
+             * d'identifiants referencant des params de surRequête, lies par nom
+             * et coerces vers leur type (miroir de Requete pour la query). Les
+             * gardes de coherence (methode a corps, source unique, exclusivite
+             * JSON/multipart, completude de signature) sont appliquees par
+             * l'analyseur de routes apres le parse complet. */
+            if (match_token(TOKEN_LEFT_BRACKET)) {
+                if (!check(TOKEN_RIGHT_BRACKET)) {
+                    do {
+                        while (check(TOKEN_NEWLINE)) advance_token();
+                        if (check(TOKEN_IDENTIFIER)) {
+                            str_array_push(&op->formParams,
+                                &op->formParamCount,
+                                parser.current.start, parser.current.length);
+                            advance_token();
+                        } else {
+                            break;
+                        }
+                    } while (match_token(TOKEN_COMMA));
+                }
+                match_token(TOKEN_RIGHT_BRACKET);
+            } else {
+                owl_emit_error_at(&propTok, E_SEM_DSL_PROP_TYPE_INCOMPATIBLE,
+                                  "prop", "Formulaire",
+                                  "expected", "une liste de noms de champs",
+                                  NULL);
+                parser.panicMode = false;
+                service_skip_to_eol();
+            }
         } else if (strcasecmp(probe, "Authentification") == 0) {
             /*  — opt-out par operation. Seule httpAuthAucune a un sens
              * au niveau operation en lot 1 : elle exempte l'operation du hook
@@ -21971,6 +22877,151 @@ static bool service_jwks_url_forme_ok(const char* url) {
 
 /* Parse le bloc PROPRIETES ... FIN d'un ServiceREST (UrlBase,
  * Authentification). Precondition : current = PROPRIETES. */
+/*  — parse la valeur de la propriete `FichiersStatiques` d'un
+ * ServiceREST : un LITTERAL COMPOSITE
+ * `{ PréfixeUrl: ["seg", ...], DossierSource: "chemin" }` (et non un bloc
+ * imbrique). Cles bilingues PréfixeUrl/UrlPrefix et DossierSource/
+ * SourceDirectory.  — modele SINGULIER : un seul montage par service
+ * (STATIC_DUPLICATE sur une seconde declaration), PréfixeUrl liste de segments
+ * NON VIDE (STATIC_PREFIX_EMPTY) et DossierSource chaine NON VIDE
+ * (STATIC_DIR_EMPTY). Precondition : le `=` a deja ete consomme, current = `{`.
+ * Tolere les retours a la ligne internes. */
+static void service_parse_static_mount(OwlServiceDecl* svc, const Token* propTok) {
+    /*  — garde 2 : montage unique. Une seconde declaration de la
+     * propriete dans le meme service est refusee. On signale au premier token
+     * du doublon, puis on parse quand meme la valeur pour resynchroniser. */
+    bool duplicate = (svc != NULL && svc->staticMountSeen);
+    if (duplicate) {
+        owl_emit_error_at((Token*)propTok, E_SEM_DSL_SERVICE_STATIC_DUPLICATE, NULL);
+        parser.panicMode = false;
+    }
+    if (svc != NULL) svc->staticMountSeen = 1;
+
+    if (!match_token(TOKEN_LEFT_BRACE)) {
+        owl_emit_error_at((Token*)propTok, E_SEM_DSL_PROP_TYPE_INCOMPATIBLE,
+                          "prop", "FichiersStatiques",
+                          "expected",
+                          "un litteral { PrefixeUrl: [...], DossierSource: \"...\" }",
+                          NULL);
+        parser.panicMode = false;
+        service_skip_to_eol();
+        return;
+    }
+
+    char** prefix      = NULL;
+    int    prefixCount = 0;
+    char*  dir         = NULL;
+
+    for (;;) {
+        while (check(TOKEN_NEWLINE)) advance_token();
+        if (check(TOKEN_RIGHT_BRACE) || check(TOKEN_FIN) || check(TOKEN_EOF)) break;
+
+        if (!check(TOKEN_IDENTIFIER)) {
+            owl_emit_error_current(E_SYNTAX_EXPECTED_PROP_NAME_IN_PROPRIETES);
+            parser.panicMode = false;
+            break;
+        }
+        Token keyTok = parser.current;
+        char key[64];
+        int kn = scanner_strip_accents(keyTok.start, keyTok.length,
+                                       key, sizeof(key));
+        if (kn <= 0) key[0] = '\0';
+        advance_token();
+
+        if (!match_token(TOKEN_COLON)) {
+            owl_emit_error_at(&keyTok, E_SYNTAX_EXPECTED_EQUAL_AFTER_PROP);
+            parser.panicMode = false;
+            break;
+        }
+
+        if (strcasecmp(key, "PrefixeUrl") == 0 || strcasecmp(key, "UrlPrefix") == 0) {
+            if (!match_token(TOKEN_LEFT_BRACKET)) {
+                owl_emit_error_at(&keyTok, E_SEM_DSL_PROP_TYPE_INCOMPATIBLE,
+                                  "prop", "PrefixeUrl",
+                                  "expected", "une liste de segments", NULL);
+                parser.panicMode = false;
+                break;
+            }
+            if (!check(TOKEN_RIGHT_BRACKET)) {
+                do {
+                    while (check(TOKEN_NEWLINE)) advance_token();
+                    if (!check(TOKEN_STRING)) break;
+                    Token st = parser.current;
+                    const char* inner = st.start + 1;
+                    int ilen = st.length >= 2 ? st.length - 2 : 0;
+                    advance_token();
+                    if (!service_path_segment_ok(inner, ilen)) {
+                        char seg[128];
+                        int sl = ilen < 127 ? ilen : 127;
+                        memcpy(seg, inner, (size_t)sl); seg[sl] = '\0';
+                        owl_emit_error_at(&st,
+                            E_SEM_DSL_SERVICE_PATH_SEGMENT_INVALID,
+                            "segment", seg, NULL);
+                        parser.panicMode = false;
+                    } else {
+                        str_array_push(&prefix, &prefixCount, inner, ilen);
+                    }
+                } while (match_token(TOKEN_COMMA));
+            }
+            match_token(TOKEN_RIGHT_BRACKET);
+        } else if (strcasecmp(key, "DossierSource") == 0 ||
+                   strcasecmp(key, "SourceDirectory") == 0) {
+            if (!check(TOKEN_STRING)) {
+                owl_emit_error_at(&keyTok, E_SEM_DSL_PROP_TYPE_INCOMPATIBLE,
+                                  "prop", "DossierSource",
+                                  "expected", "une chaine", NULL);
+                parser.panicMode = false;
+                break;
+            }
+            Token st = parser.current;
+            const char* inner = st.start + 1;
+            int ilen = st.length >= 2 ? st.length - 2 : 0;
+            advance_token();
+            free(dir);
+            dir = (char*)malloc((size_t)ilen + 1);
+            memcpy(dir, inner, (size_t)ilen); dir[ilen] = '\0';
+        } else {
+            char kbuf[128];
+            int kl = keyTok.length < 127 ? keyTok.length : 127;
+            memcpy(kbuf, keyTok.start, (size_t)kl); kbuf[kl] = '\0';
+            owl_emit_error_at(&keyTok, E_SEM_DSL_SERVICE_PROP_UNKNOWN,
+                              "prop", kbuf, NULL);
+            parser.panicMode = false;
+            break;
+        }
+
+        while (check(TOKEN_NEWLINE)) advance_token();
+        if (!match_token(TOKEN_COMMA)) break;
+    }
+    match_token(TOKEN_RIGHT_BRACE);
+
+    /*  — garde 3 : montage bien forme. PréfixeUrl = liste de segments
+     * NON VIDE (sinon aucune URL exploitable) ; DossierSource = chaine NON VIDE
+     * (sinon aucun dossier disque exploitable). Erreurs independantes, signalees
+     * au token de la propriete. */
+    if (prefixCount == 0) {
+        owl_emit_error_at((Token*)propTok, E_SEM_DSL_SERVICE_STATIC_PREFIX_EMPTY, NULL);
+        parser.panicMode = false;
+    }
+    if (dir == NULL || dir[0] == '\0') {
+        owl_emit_error_at((Token*)propTok, E_SEM_DSL_SERVICE_STATIC_DIR_EMPTY, NULL);
+        parser.panicMode = false;
+    }
+
+    if (svc != NULL) {
+        for (int i = 0; i < svc->staticPrefixCount; i++) free(svc->staticPrefix[i]);
+        free(svc->staticPrefix);
+        free(svc->staticDir);
+        svc->staticPrefix      = prefix;
+        svc->staticPrefixCount = prefixCount;
+        svc->staticDir         = dir;
+    } else {
+        for (int i = 0; i < prefixCount; i++) free(prefix[i]);
+        free(prefix);
+        free(dir);
+    }
+}
+
 static void service_parse_service_properties(OwlServiceDecl* svc) {
     advance_token(); /* consume PROPRIETES */
     while (!check(TOKEN_FIN) && !check(TOKEN_EOF)) {
@@ -22143,6 +23194,9 @@ static void service_parse_service_properties(OwlServiceDecl* svc) {
                 parser.panicMode = false;
                 service_skip_to_eol();
             }
+        } else if (strcasecmp(probe, "FichiersStatiques") == 0 ||
+                   strcasecmp(probe, "StaticFiles") == 0) {
+            service_parse_static_mount(svc, &propTok);
         } else {
             char prop[128];
             int prl = propTok.length < 127 ? propTok.length : 127;
@@ -22231,8 +23285,38 @@ static int service_classify_param(const OwlOperationDecl* op,
             return 1 /* OWL_SVC_SRC_QUERY */;
         }
     }
+    for (int f = 0; f < op->formParamCount; f++) {
+        if (op->formParams[f] != NULL && strcmp(op->formParams[f], p->name) == 0) {
+            return 3 /* OWL_SVC_SRC_FORM */;
+        }
+    }
     if (p->isStructured) return 2 /* OWL_SVC_SRC_BODY */;
     return 1 /* OWL_SVC_SRC_QUERY */;
+}
+
+/*  — resout le dossier d'un montage statique en chemin utilisable a
+ * l'execution. Un chemin absolu (POSIX "/..." ou Windows "X:...") est pris tel
+ * quel ; sinon il est resolu relativement au DOSSIER du fichier source compile
+ * (currentFilename), pour que le serveur trouve les assets quel que soit le
+ * repertoire courant. Normalisation lexicale (pas de realpath) : la garde
+ * anti-traversee cote executeur ne depend pas de la canonicalisation du root. */
+static void service_resolve_static_root(const char* dir, char* out, size_t cap) {
+    int isAbs = dir[0] == '/' || dir[0] == '\\' ||
+                (dir[0] != '\0' && dir[1] == ':');
+    if (isAbs || currentFilename == NULL) {
+        snprintf(out, cap, "%s", dir);
+        return;
+    }
+    const char* lastSep = NULL;
+    for (const char* p = currentFilename; *p; p++) {
+        if (*p == '/' || *p == '\\') lastSep = p;
+    }
+    if (lastSep == NULL) {
+        snprintf(out, cap, "%s", dir);   /* fichier sans dossier -> relatif au CWD */
+    } else {
+        int dlen = (int)(lastSep - currentFilename);
+        snprintf(out, cap, "%.*s/%s", dlen, currentFilename, dir);
+    }
 }
 
 static void service_register_runtime_routes(const OwlServiceDecl* svc) {
@@ -22312,6 +23396,29 @@ static void service_register_runtime_routes(const OwlServiceDecl* svc) {
                                           p->isStructured, p->hasDefault, pathIndex,
                                           fileUpload);
         }
+    }
+
+    /*  — publie le montage statique au registre durable (consulte par
+     * l'executeur quand aucune route metier n'apparie). Prefixe canonique =
+     * "/" + UrlBase + staticPrefix ; dossier resolu relatif au fichier source. */
+    if (svc->staticDir != NULL) {
+        char prefixPath[512];
+        int n = 0;
+        for (int u = 0; u < svc->urlBaseCount; u++) {
+            n += snprintf(prefixPath + n, sizeof(prefixPath) - (size_t)n,
+                          "/%s", svc->urlBase[u]);
+            if (n >= (int)sizeof(prefixPath) - 1) break;
+        }
+        for (int s = 0; s < svc->staticPrefixCount &&
+                        n < (int)sizeof(prefixPath) - 1; s++) {
+            n += snprintf(prefixPath + n, sizeof(prefixPath) - (size_t)n,
+                          "/%s", svc->staticPrefix[s]);
+        }
+        if (n == 0) { prefixPath[0] = '/'; prefixPath[1] = '\0'; }
+
+        char rootDir[1024];
+        service_resolve_static_root(svc->staticDir, rootDir, sizeof(rootDir));
+        owl_service_static_mount_add(prefixPath, rootDir);
     }
 }
 
@@ -23582,6 +24689,11 @@ static void var_declaration_after_est(Token varName) {
         record_array_elem_struct_type(varName, arrayElemStructName.start,
                                       arrayElemStructName.length);
     }
+    /* Type d'element PRIMITIF d'un `tableau de <prim>` : support de l'identite
+     * de surcharge par type d'element (resolution d'appel). */
+    if (isArray && arrayElemTokenType != 0) {
+        record_array_elem_type(varName, arrayElemTokenType);
+    }
     /*  — attribut <utile>/<useful> parse ci-dessus : exempte du
      * W_SEM_VAR_UNUSED, comme le prefixe `_` mais explicite et nommable. */
     if (suppressUnused) {
@@ -24500,9 +25612,12 @@ static void var_declaration_after_est(Token varName) {
  * line as ALORS, parse exactly one statement and skip the FIN requirement.
  * Shortcut for early-return / early-break patterns. */
 static void if_statement(void) {
-    /* We collect all end-jumps to patch at the very end */
-    int endJumps[64];
-    int endJumpCount = 0;
+    /* We collect all end-jumps to patch at the very end. Tableau dynamique :
+     * une chaîne SI/SINON SI longue est du code légitime, un cap silencieux
+     * laisserait couler les branches au-delà dans le SINON final. */
+    int* endJumps    = NULL;
+    int  endJumpCount = 0;
+    int  endJumpCap   = 0;
 
     /* --- First SI branch --- */
     condition_expression();
@@ -24530,7 +25645,7 @@ static void if_statement(void) {
     }
     end_scope();
 
-    endJumps[endJumpCount++] = emit_jump(OP_JUMP);
+    switch_jumps_push(&endJumps, &endJumpCount, &endJumpCap, emit_jump(OP_JUMP));
     patch_jump(thenJump);
     emit_byte(OP_POP);
 
@@ -24553,6 +25668,7 @@ static void if_statement(void) {
             advance_token();
         }
         for (int i = 0; i < endJumpCount; i++) patch_jump(endJumps[i]);
+        FREE_ARRAY(int, endJumps, endJumpCap);
         return;
     }
 
@@ -24584,9 +25700,8 @@ static void if_statement(void) {
             }
             end_scope();
 
-            if (endJumpCount < 64) {
-                endJumps[endJumpCount++] = emit_jump(OP_JUMP);
-            }
+            switch_jumps_push(&endJumps, &endJumpCount, &endJumpCap,
+                              emit_jump(OP_JUMP));
             patch_jump(elseIfJump);
             emit_byte(OP_POP);
             /* Continue loop to check for more SINON SI or final SINON */
@@ -24605,6 +25720,7 @@ static void if_statement(void) {
     for (int i = 0; i < endJumpCount; i++) {
         patch_jump(endJumps[i]);
     }
+    FREE_ARRAY(int, endJumps, endJumpCap);
 
     consume(TOKEN_FIN, E_SYNTAX_EXP_FIN_SI);
 }
@@ -25931,6 +27047,20 @@ static void compile_cas_pattern(int switchSlot) {
     emit_byte(OP_EQUAL);
 }
 
+/* Pousse un offset de saut dans un tableau dynamique (croissance realloc).
+ * Le nombre de CAS d'un SELON et de valeurs OR (`CAS a,b,c,...`) d'une branche
+ * n'a pas de borne naturelle (dispatch de workflow genere). Un cap fixe
+ * silencieux laissait les sauts au-dela tomber non patches : fallthrough dans
+ * AUTRE CAS (endJumps) ou placeholder 0xffff non resolu -> crash (orJumps). */
+static void switch_jumps_push(int** jumps, int* count, int* cap, int jump) {
+    if (*count + 1 > *cap) {
+        int oldCap = *cap;
+        *cap = GROW_CAPACITY(*cap);
+        *jumps = GROW_ARRAY(int, *jumps, oldCap, *cap);
+    }
+    (*jumps)[(*count)++] = jump;
+}
+
 /* Parse: SELON expression CAS ... FIN */
 static void switch_statement(void) {
     begin_scope();
@@ -25940,19 +27070,21 @@ static void switch_statement(void) {
 
     push_switch();
 
-    int endJumps[256];
+    int* endJumps = NULL;
     int endCount = 0;
+    int endCap = 0;
 
     while (check(TOKEN_CAS) || check(TOKEN_AUTRE)) {
         if (match_token(TOKEN_CAS)) {
-            int orJumps[64];
+            int* orJumps = NULL;
             int orCount = 0;
+            int orCap = 0;
 
             compile_cas_pattern(switchSlot);
             int matchJump = emit_jump(OP_JUMP_IF_FALSE);
             emit_byte(OP_POP);
             int bodyJump = emit_jump(OP_JUMP);
-            orJumps[orCount++] = bodyJump;
+            switch_jumps_push(&orJumps, &orCount, &orCap, bodyJump);
             patch_jump(matchJump);
             emit_byte(OP_POP);
 
@@ -25961,7 +27093,7 @@ static void switch_statement(void) {
                 int mj = emit_jump(OP_JUMP_IF_FALSE);
                 emit_byte(OP_POP);
                 int bj = emit_jump(OP_JUMP);
-                if (orCount < 64) orJumps[orCount++] = bj;
+                switch_jumps_push(&orJumps, &orCount, &orCap, bj);
                 patch_jump(mj);
                 emit_byte(OP_POP);
             }
@@ -25971,6 +27103,7 @@ static void switch_statement(void) {
             for (int i = 0; i < orCount; i++) {
                 patch_jump(orJumps[i]);
             }
+            FREE_ARRAY(int, orJumps, orCap);
 
             /* `:` apres pattern(s) — optionnel en canon. */
             match_token(TOKEN_COLON);
@@ -25980,9 +27113,7 @@ static void switch_statement(void) {
                 declaration();
             }
 
-            if (endCount < 256) {
-                endJumps[endCount++] = emit_jump(OP_JUMP);
-            }
+            switch_jumps_push(&endJumps, &endCount, &endCap, emit_jump(OP_JUMP));
 
             patch_jump(skipBody);
 
@@ -25997,15 +27128,14 @@ static void switch_statement(void) {
                 declaration();
             }
 
-            if (endCount < 256) {
-                endJumps[endCount++] = emit_jump(OP_JUMP);
-            }
+            switch_jumps_push(&endJumps, &endCount, &endCap, emit_jump(OP_JUMP));
         }
     }
 
     for (int i = 0; i < endCount; i++) {
         patch_jump(endJumps[i]);
     }
+    FREE_ARRAY(int, endJumps, endCap);
 
     pop_switch();
     end_scope();
@@ -26868,35 +27998,32 @@ static void compile_inline_class_method(InlineMethodKind kind,
         effectiveNameLen   = 12;
     }
 
-    /* Dup detection (uniquement pour les methodes nommees user — pas pour
-     * constructeur/destructeur qui ont une cle reservee unique par classe). */
+    /*  — visibilite de la 1ere forme deja declaree pour ce nom
+     * (capturee AVANT l'ecrasement par method_visibility_register ci-dessous),
+     * pour le check de coherence de visibilite entre syntaxes surchargees. Le
+     * check lui-meme se fait apres le parse des parametres (signature connue). */
+    OwlVisibility priorMethodVis = OWL_VIS_PUBLIC;
+    bool          hadPriorMethodVis = false;
+    /*  — true si cette forme est une surcharge SECONDAIRE (une forme
+     * du meme nom precede) : stockee alors sous cle manglee. */
+    bool          isSecondaryOverload = false;
+
+    /*  — detection de doublon / surcharge deplacee APRES le parse des
+     * parametres (la signature discrimine doublon-identique vs surcharge). Ici
+     * on alimente juste les registres name-keyes (sister-call, visibilite,
+     * GLOBALE, warning d'homonymie), inchanges. */
     if (kind == INLINE_KIND_METHOD) {
-        int dupIdx = find_declared_method(
+        int pvIdx = method_visibility_find_index(
             className.start, className.length,
             methodName.start, methodName.length);
-        if (dupIdx >= 0) {
-            char methodBuf[128];
-            char classBuf[128];
-            int ml = methodName.length < (int)sizeof(methodBuf) - 1
-                     ? methodName.length : (int)sizeof(methodBuf) - 1;
-            int cl = className.length < (int)sizeof(classBuf) - 1
-                     ? className.length : (int)sizeof(classBuf) - 1;
-            memcpy(methodBuf, methodName.start, (size_t)ml); methodBuf[ml] = '\0';
-            memcpy(classBuf, className.start, (size_t)cl); classBuf[cl] = '\0';
-            char lineBuf[16];
-            snprintf(lineBuf, sizeof(lineBuf), "%d",
-                     declaredMethods[dupIdx].declaredLine);
-            owl_emit_error_at(&procKeyword, E_SEM_METHOD_DUPLICATE,
-                              "method", methodBuf,
-                              "class", classBuf,
-                              "line", lineBuf,
-                              NULL);
-        } else {
-            register_declared_method(
-                className.start, className.length,
-                methodName.start, methodName.length,
-                procKeyword.line);
+        if (pvIdx >= 0) {
+            hadPriorMethodVis = true;
+            priorMethodVis = g_method_visibility[pvIdx].visibility;
         }
+        register_declared_method(
+            className.start, className.length,
+            methodName.start, methodName.length,
+            procKeyword.line);
         method_visibility_register(
             className.start, className.length,
             methodName.start, methodName.length,
@@ -27040,6 +28167,11 @@ static void compile_inline_class_method(InlineMethodKind kind,
                 error_capacity_exceeded("MAX_METHOD_PARAMS", MAX_METHOD_PARAMS);
             }
             if (match_token(TOKEN_EST)) {
+                /* Avale l'article EN `a`/`an` (`is a string`) AVANT de capturer
+                 * la tete de type : sinon la signature memorise "a"/"an" au lieu
+                 * du type reel et la resolution de surcharge EN echoue (le FR
+                 * utilise un filler sentinel scanner, deja transparent ici). */
+                consume_en_a_an_filler();
                 if (sigParamCount < MAX_METHOD_PARAMS && /* capacity-ok: borne d'ecriture, le refus est pose juste au-dessus */
                     (check(TOKEN_IDENTIFIER) || is_type_token())) {
                     int n = parser.current.length < 31
@@ -27054,8 +28186,18 @@ static void compile_inline_class_method(InlineMethodKind kind,
                  * collection apres `de` (`tableau de Zorglub` ->
                  * record_collection_elem_type_ref). skip_type_spec_ex se charge
                  * des deux enregistrements ; les primitifs ne sont jamais
-                 * rejetes. */
+                 * rejetes. L'etat tsx capture le type d'element du tableau pour
+                 * l'identite de surcharge par type d'element. */
+                tsx_reset();
                 skip_type_spec_ex(true, false);
+                if (sigParamCount < MAX_METHOD_PARAMS /* capacity-ok: borne d'ecriture, le refus MAX_METHOD_PARAMS est pose plus haut */
+                    && g_tsx_head_is_array && !g_tsx_is_assoc) {
+                    overload_build_array_type((TokenType)g_tsx_elem_token,
+                                              g_tsx_elem_struct.start,
+                                              g_tsx_elem_struct.length,
+                                              sigParamTypes[sigParamCount],
+                                              32);
+                }
             }
             /*  — attribut de declaration <utile>/<useful> pose apres le
              * type d'un parametre de METHODE (2e des trois copies du parseur de
@@ -27133,10 +28275,65 @@ static void compile_inline_class_method(InlineMethodKind kind,
     }
 
     if (kind == INLINE_KIND_METHOD) {
+        /*  — formes DEJA declarees pour ce nom (avant d'enregistrer la
+         * courante). Ordre = ordre de declaration. */
+        const DeclaredMethodSigEntry* priors[MAX_METHOD_OVERLOADS];
+        int priorCount = overload_collect(className.start, className.length,
+                                          methodName.start, methodName.length,
+                                          priors, MAX_METHOD_OVERLOADS);
+        /* Doublon de signature IDENTIQUE (meme arite + memes types) : reste
+         * rejete. Une signature DISTINCTE du meme nom = surcharge valide. */
+        const DeclaredMethodSigEntry* identical = NULL;
+        for (int i = 0; i < priorCount; i++) {
+            if (priors[i]->paramCount != sigParamCount) continue;
+            bool same = true;
+            for (int p = 0; p < sigParamCount; p++) {
+                if (!overload_types_equal(priors[i]->paramTypes[p],
+                                          sigParamTypes[p])) { same = false; break; }
+            }
+            if (same) { identical = priors[i]; break; }
+        }
+        char methodBuf[128], classBuf[128];
+        int mbl = methodName.length < (int)sizeof(methodBuf) - 1
+                  ? methodName.length : (int)sizeof(methodBuf) - 1;
+        int cbl = className.length < (int)sizeof(classBuf) - 1
+                  ? className.length : (int)sizeof(classBuf) - 1;
+        memcpy(methodBuf, methodName.start, (size_t)mbl); methodBuf[mbl] = '\0';
+        memcpy(classBuf, className.start, (size_t)cbl); classBuf[cbl] = '\0';
+        if (identical != NULL) {
+            char lineBuf[16];
+            snprintf(lineBuf, sizeof(lineBuf), "%d", identical->declaredLine);
+            owl_emit_error_at(&procKeyword, E_SEM_METHOD_DUPLICATE,
+                              "method", methodBuf,
+                              "class", classBuf,
+                              "line", lineBuf,
+                              NULL);
+        } else if (priorCount > 0) {
+            /* Surcharge valide : forme secondaire (cle manglee a l'emission). */
+            isSecondaryOverload = true;
+            /* Coherence de visibilite : toutes les syntaxes du nom doivent
+             * partager la meme visibilite. */
+            if (hadPriorMethodVis && priorMethodVis != procVis) {
+                char sig1[192], sig2[192];
+                overload_format_sig(methodName.start, methodName.length,
+                                    priors[0]->paramCount, priors[0]->paramTypes,
+                                    sig1, sizeof(sig1));
+                overload_format_sig(methodName.start, methodName.length,
+                                    sigParamCount, sigParamTypes,
+                                    sig2, sizeof(sig2));
+                owl_emit_error_at(&procKeyword, E_SEM_OVERLOAD_VISIBILITY_MISMATCH,
+                                  "method", methodBuf,
+                                  "sig1", sig1,
+                                  "vis1", overload_vis_word_fr(priorMethodVis),
+                                  "sig2", sig2,
+                                  "vis2", overload_vis_word_fr(procVis),
+                                  NULL);
+            }
+        }
         declared_method_sig_register(className.start, className.length,
                                      methodName.start, methodName.length,
                                      sigParamCount, sigParamTypes,
-                                     sigReturnType);
+                                     sigReturnType, procKeyword.line);
     } else if (kind == INLINE_KIND_CONSTRUCTOR) {
         /*  : enregistre l'arite minimale du constructeur pour le
          * check compile-time de `oFoo est un cFoo` (sans `()`). minArity
@@ -27189,8 +28386,20 @@ static void compile_inline_class_method(InlineMethodKind kind,
     int methodNameStrippedLen = scanner_strip_accents(
         effectiveNameStart, effectiveNameLen,
         methodNameStripped, sizeof(methodNameStripped));
-    ConstIdx methodNameConst = make_constant(OBJ_VAL(
-        obj_copy_string(methodNameStripped, methodNameStrippedLen)));
+    ConstIdx methodNameConst;
+    if (isSecondaryOverload) {
+        /*  — forme secondaire : cle manglee par signature
+         * "<nom>#<arite>#<t0>#..." (symetrie exacte avec la resolution au
+         * site d'appel, qui emet la meme cle pour l'overload choisi). */
+        char mangled[320];
+        overload_mangle_key(methodNameStripped, methodNameStrippedLen,
+                            sigParamCount, sigParamTypes, mangled, sizeof(mangled));
+        methodNameConst = make_constant(OBJ_VAL(
+            obj_copy_string(mangled, (int)strlen(mangled))));
+    } else {
+        methodNameConst = make_constant(OBJ_VAL(
+            obj_copy_string(methodNameStripped, methodNameStrippedLen)));
+    }
     emit_const_op(OP_METHOD, methodNameConst);
 
     parser.previous = savedPrev;
@@ -27561,6 +28770,18 @@ static void class_declaration(Token className) {
             }
 
             /* Methode normale : `PROCEDURE <Nom>(...)`. */
+            /*  : un mot-cle reserve (autre/si/chaine...) ou un
+             * declarateur widget (Label/Bouton/Table/Colonne...) en position de
+             * NOM DE METHODE est un identifiant ordinaire — demotion avant le
+             * check IDENTIFIER. ETAT et FENETRE restent reserves ici : leurs
+             * sous-blocs DSL (Report / Fenetre) entrent en collision reelle au
+             * `(` (cf. nom_methode_mot_reserve_etat). */
+            if (parser.current.type != TOKEN_ETAT
+                && parser.current.type != TOKEN_FENETRE
+                && (tokentype_is_reserved_keyword(parser.current.type)
+                    || tokentype_is_widget_keyword(parser.current.type))) {
+                parser.current.type = TOKEN_IDENTIFIER;
+            }
             if (!check(TOKEN_IDENTIFIER)) {
                 /*  Cas 2 : nom de methode = mot reserve (TOKEN_ETAT,
                  * TOKEN_SIGNE, TOKEN_FENETRE, scalaires primitifs, control-flow,
@@ -27609,6 +28830,13 @@ static void class_declaration(Token className) {
                 procVis, isGlobalMethod, isAbstractMethod);
             continue;
         }
+
+        /*  : un mot-cle reserve (autre/si/chaine...) en position de
+         * NOM DE CHAMP de classe est un identifiant ordinaire. Les directives
+         * (PUBLIC/PROCEDURE/CONSTANTE...) sont deja consommees plus haut avec
+         * `continue` ; HERITE n'est pas dans le set reserve (check intact
+         * ci-dessous). Demotion avant le dispatch de champ. */
+        (void)demote_reserved_keyword_to_identifier();
 
         if (check(TOKEN_HERITE)) {
             advance_token();
@@ -27821,6 +29049,81 @@ static void class_declaration(Token className) {
                         type_name_is_structure(fieldTypeTok.start,
                                                fieldTypeTok.length);
                     if (!fieldIsAssoc) skip_type_spec();
+                    /*  — attribut <Sérialise=...> inline sur un membre
+                     * de CLASSE, parité avec les structures. Le corps de classe
+                     * ne réifie pas ses champs dans knownUserTypes,
+                     * mais la sérialisation runtime lit
+                     * compiler_user_type_field_serialise(classe, champ). On
+                     * enregistre donc UNIQUEMENT les champs porteurs d'un
+                     * attribut <Sérialise>, avec leurs métadonnées skip/rename —
+                     * assez pour que value_to_json honore rename/exclusion, sans
+                     * réifier le reste du schéma. Sans cette consommation, le `<`
+                     * restait non lu et désynchronisait tout le corps de classe
+                     * (le Destructeur plus bas passait pour méthode externe). */
+                    if (check(TOKEN_LESS)) {
+                        advance_token();  /* consume '<' */
+                        while (!check(TOKEN_GREATER) && !check(TOKEN_EOF) &&
+                               !check(TOKEN_NEWLINE)) {
+                            if (check(TOKEN_IDENTIFIER)) {
+                                Token attr = parser.current;
+                                advance_token();
+                                bool isSerialise =
+                                    (attr.length == 10 && strncmp(attr.start,
+                                        "S\xc3\xa9" "rialise", 10) == 0) ||
+                                    (attr.length == 9  && strncasecmp(attr.start,
+                                        "Serialise", 9) == 0);
+                                if (isSerialise && match_token(TOKEN_EQUAL)) {
+                                    bool skip = false;
+                                    const char* rename = NULL;
+                                    int renameLen = 0;
+                                    if (check(TOKEN_FAUX)) {
+                                        advance_token();
+                                        skip = true;
+                                    } else if (check(TOKEN_VRAI)) {
+                                        advance_token();
+                                        /* Sérialise=Vrai = défaut, no-op. */
+                                    } else if (check(TOKEN_STRING)) {
+                                        Token rn = parser.current;
+                                        advance_token();
+                                        /* `rename` n'est pas enraciné : aucune
+                                         * allocation OWL ne doit s'intercaler
+                                         * jusqu'au memcpy du consommateur (idem
+                                         * struct). user_type_add_field et
+                                         * user_type_set_field_serialise copient
+                                         * sans allouer d'Obj. */
+                                        ObjString* renameStr =
+                                            string_literal_value_from_token(rn);
+                                        rename = renameStr->chars;
+                                        renameLen = renameStr->length;
+                                    }
+                                    if (skip || rename) {
+                                        /* Stocke dans le registre persistant
+                                         * (survit au reset per-fichier de
+                                         * knownUserTypes) : l'entrée de champ a
+                                         * déjà été créée par
+                                         * class_field_vis_register plus haut. */
+                                        class_field_serialise_set(
+                                            className.start, className.length,
+                                            fieldName.start, fieldName.length,
+                                            skip, rename, renameLen);
+                                    }
+                                }
+                                /* Attribut sans valeur ou inconnu : skippé. */
+                            } else {
+                                advance_token();
+                            }
+                            if (check(TOKEN_COMMA)) advance_token();
+                        }
+                        if (check(TOKEN_GREATER)) advance_token();
+                    }
+                    /*  — parite struct : l'attribut <Sérialise> au
+                     * milieu d'un `tableau <attr> de X` de membre de classe.
+                     * skip_type_spec s'est arrete sur `<` ; le bloc ci-dessus a
+                     * lu l'attribut, il reste `de <TypeElement>` a consommer.
+                     * Sans attribut, `de X` est deja absorbe : garde inerte. */
+                    if (fieldIsArray && match_token(TOKEN_DE)) {
+                        skip_type_spec();
+                    }
                     if (match_token(TOKEN_EQUAL)) {
                         /*  : valeur par defaut d'un champ d'instance.
                          * On stocke dans klass->defaults via OP_ENUM_VALUE
@@ -27860,23 +29163,6 @@ static void class_declaration(Token className) {
             } else {
                 owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_EST_AFTER_CLASS_FIELD);
             }
-        } else if (tokentype_is_reserved_keyword(parser.current.type)) {
-            /*  : nom de champ de classe ne peut pas etre un mot-cle
-             * reserve. Note : TOKEN_PROCEDURE / TOKEN_FONCTION / TOKEN_HERITE /
-             * TOKEN_PUBLIC / TOKEN_PRIVE / TOKEN_PROTEGE / TOKEN_GLOBAL /
-             * TOKEN_IMPLEMENTE sont deja consommes plus haut comme directives
-             * legitimes — on n'arrive ici que pour les keywords fautifs en
-             * position de nom de champ (`chaine est une chaîne`, etc.). */
-            char kwname[32];
-            keyword_canonical_uppercase_for(parser.current, kwname, sizeof(kwname));
-            owl_emit_error_current(E_SEM_KEYWORD_AS_VAR_NAME, "name", kwname, NULL);
-            /* Skip jusqu'a la fin de la ligne logique. */
-            while (parser.current.type != TOKEN_FIN &&
-                   parser.current.type != TOKEN_EOF &&
-                   parser.current.type != TOKEN_NEWLINE) {
-                advance_token();
-            }
-            if (parser.current.type == TOKEN_NEWLINE) advance_token();
         } else {
             owl_emit_error_at(&parser.previous, E_SYNTAX_EXPECTED_MEMBER_DECL_IN_CLASS);
             advance_token();
@@ -28205,6 +29491,7 @@ static void proc_declaration(void) {
                 if (current->function->arity > 255) {
                     owl_emit_error_current(E_SYNTAX_TOO_MANY_PARAMETERS);
                 }
+                tsx_reset();  /*  — etat de type neuf pour ce parametre */
                 bool isLocalParam = match_token(TOKEN_LOCAL);
                 if (reject_keyword_as_param_name()) advance_token();
                 else consume(TOKEN_IDENTIFIER, E_SYNTAX_EXPECTED_PARAM_NAME);
@@ -28283,7 +29570,30 @@ static void proc_declaration(void) {
                  * rule). */
                 if (match_token(TOKEN_EQUAL)) {
                     Value v;
-                    if (parse_default_literal(&v)) {
+                    /*  — `tableau DE <Type> = []` : defaut = tableau
+                     * TYPE vide. L'invariant impose un type d'element explicite
+                     * (via `de <Type>`) ; un `tableau` bare ou un tableau
+                     * associatif ne prend PAS ce chemin et retombe sur le rejet
+                     * standard de parse_default_literal. Seul `[]` (vide) est
+                     * accepte : un litteral de tableau non vide reste hors scope. */
+                    bool arrayTypedDefault = g_tsx_head_is_array
+                                             && !g_tsx_is_assoc
+                                             && g_tsx_has_elem;
+                    if (arrayTypedDefault && check(TOKEN_LEFT_BRACKET)) {
+                        advance_token();  /* consume '[' */
+                        if (match_token(TOKEN_RIGHT_BRACKET)) {
+                            v = make_empty_typed_array_default(g_tsx_elem_fill_kind,
+                                                               g_tsx_elem_struct);
+                            defaults[defaultCount++] = v;
+                            if (current->localCount > 0)
+                                current->locals[current->localCount - 1].hasInitializer = true;
+                        } else {
+                            /* `[v1, ...]` non vide : hors scope, rejet. */
+                            owl_emit_error_at(&parser.previous,
+                                              E_SEM_DEFAULT_MUST_BE_LITERAL);
+                            skip_invalid_param_default();
+                        }
+                    } else if (parse_default_literal(&v)) {
                         defaults[defaultCount++] = v;
                         if (current->localCount > 0)
                             current->locals[current->localCount - 1].hasInitializer = true;
@@ -37406,23 +38716,12 @@ static void struct_declaration(Token structName) {
          * champ → demote en IDENTIFIER (mot-cle contextuel). NE touche PAS aux
          * mots-cles de controle (traites par le garde reserved juste apres). */
         (void)demote_gui_declarator_to_identifier();
-        /*  : nom de champ ne peut pas etre un mot-cle reserve
-         * (`buffer est un buffer`, `tableau est un tableau`, ...). Message
-         * dedie avant le fallback generique "Nom de field attendu". */
-        if (tokentype_is_reserved_keyword(parser.current.type)) {
-            char kwname[32];
-            keyword_canonical_uppercase_for(parser.current, kwname, sizeof(kwname));
-            owl_emit_error_current(E_SEM_KEYWORD_AS_VAR_NAME, "name", kwname, NULL);
-            /* Skip jusqu'a la fin de la ligne logique pour eviter une
-             * cascade d'erreurs sur les tokens du type qui suit. */
-            while (parser.current.type != TOKEN_FIN &&
-                   parser.current.type != TOKEN_EOF &&
-                   parser.current.type != TOKEN_NEWLINE) {
-                advance_token();
-            }
-            if (parser.current.type == TOKEN_NEWLINE) advance_token();
-            continue;
-        }
+        /*  : un mot-cle reserve (autre/si/chaine/tableau...) en
+         * position de NOM DE CHAMP de structure est un identifiant ordinaire.
+         * Le corps de Structure n'accueille que des declarations de champ :
+         * aucune ambiguite avec un statement ici. Demotion avant la garde
+         * check(IDENTIFIER). */
+        (void)demote_reserved_keyword_to_identifier();
         if (check(TOKEN_IDENTIFIER)) {
             advance_token();
             Token fieldTok = parser.previous;
@@ -37728,6 +39027,17 @@ static void struct_declaration(Token structName) {
                         if (check(TOKEN_COMMA)) advance_token();
                     }
                     if (check(TOKEN_GREATER)) advance_token();
+                }
+
+                /*  — l'attribut <Sérialise> inline d'un champ
+                 * `tableau <attr> de X` s'intercale entre `tableau` et `de` :
+                 * skip_type_spec_ex s'est arrete sur `<`, le bloc ci-dessus a
+                 * consomme l'attribut, il reste `de <TypeElement>` a absorber
+                 * (sinon « DE mot reserve » + desync du champ suivant). Le cas
+                 * `tableau de X` sans attribut a deja tout consomme : le `de`
+                 * n'est alors plus en attente, la garde reste inerte. */
+                if (typeTok.type == TOKEN_TABLEAU && match_token(TOKEN_DE)) {
+                    skip_type_spec_ex(true, true);
                 }
 
                 /* Valeur initiale du champ. Elle ECRASE le default zero-typed
@@ -38699,6 +40009,19 @@ static bool tokentype_is_gui_declarator(TokenType t) {
  * de demote_free_type_to_identifier. Ne consomme rien. */
 static bool demote_gui_declarator_to_identifier(void) {
     if (!tokentype_is_gui_declarator(parser.current.type)) return false;
+    parser.current.type = TOKEN_IDENTIFIER;
+    return true;
+}
+
+/*  : demote un mot-cle reserve (SI/POUR/AUTRE/CHAINE/TABLEAU/
+ * CLASSE/INTERFACE...) en TOKEN_IDENTIFIER. Appele UNIQUEMENT en position de
+ * NOM DE MEMBRE — champ de structure, champ/methode de classe, acces `:membre`
+ * — ou le mot est un identifiant ordinaire (le texte source est preserve, seul
+ * le type change). JAMAIS en position de variable locale (clash statement) ni
+ * d'expression. Miroir de demote_gui_declarator_to_identifier. Ne consomme
+ * rien. */
+static bool demote_reserved_keyword_to_identifier(void) {
+    if (!tokentype_is_reserved_keyword(parser.current.type)) return false;
     parser.current.type = TOKEN_IDENTIFIER;
     return true;
 }

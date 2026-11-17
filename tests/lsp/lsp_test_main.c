@@ -5838,6 +5838,42 @@ static void test_hover_enum_sibling_values_fr_default(void) {
     json_free(params);
 }
 
+/*  — garde anti-OOB du motif cumulatif `off += snprintf(buf+off,
+ * cap-off, …)` du rendu hover. Un symbole a description tres longue
+ * (IntercepteEvenement : ~1,2 Ko de desc) remplit le buffer hover[2048] ;
+ * sans garde `off < cap`, `cap - off` sous-deborde (size_t geant) et
+ * `buf + off` forme un pointeur hors-bornes -> ecriture OOB. Apres fix :
+ * troncature propre, buffer NUL-termine, longueur bornee a cap-1. */
+static void test_hover_long_desc_no_overflow(void) {
+    printf("\n[TEST] fix/2465 : hover sur symbole a desc tres longue -> troncature propre, pas d'OOB\n");
+    const char* src = "IntercepteEvenement()\n";
+    setup_doc(URI, src);
+    lspServer.language[0] = '\0';
+
+    JsonValue* params = make_hover_params(URI, 0, 5);
+    JsonValue* result = handle_hover(params);
+    const char* v = hover_value(result);
+
+    /* Valeur exacte : le hover d'une native ouvre sur le bloc owl + le nom. */
+    ASSERT_HOVER_CONTAINS(v, "```owl",     "hover long desc : bloc owl present");
+    ASSERT_HOVER_CONTAINS(v, "Intercepte", "hover long desc : nom de la native present");
+
+    /* Garde OOB : la valeur rendue DOIT tenir dans hover[2048] (troncature
+     * propre, NUL-terminee). Avant fix, off depasse 2048 et les derniers
+     * snprintf ecrivent hors du buffer -> strlen deborde 2048 (ou crash). */
+    size_t n = v ? strlen(v) : 0;
+    if (v && n >= 64 && n < 2048) {
+        g_pass++;
+        printf("  [OK]   hover long desc : longueur bornee (%zu < 2048)\n", n);
+    } else {
+        g_fail++;
+        printf("  [FAIL] hover long desc : longueur %zu hors borne (hover[2048] deborde ou vide)\n", n);
+    }
+
+    json_free(result);
+    json_free(params);
+}
+
 /* ================================================================
  *   — Completion EN sur constantes + types
  *
@@ -10214,6 +10250,58 @@ static void test_semantic_onglet_volet_enfant_event_en(void) {
 }
 
 /* ================================================================
+ *   — LSP coloration Champ Arbre : le nom d'instance d'un
+ *  Champ Arbre est un nom de champ -> property (type 2, vert fonce),
+ *  comme tout autre widget. Sans le flag isArbreKind cote scan,
+ *  `ARBRE_X est un Champ Arbre` retombait dans le filet sawChampPrefix
+ *  et restait variable (vert clair). Miroir exact du cas Onglet
+ * .
+ * ================================================================ */
+
+/* Cas FR : `ARBRE_X est un Champ Arbre` -> property, a parite avec un
+ * widget deja reconnu (Bouton) declare juste a cote. */
+static void test_semantic_arbre_fr(void) {
+    printf("\n[TEST] fix/2500 : Champ Arbre (FR) -> property (vert fonce)\n");
+    const char* src =
+        "FEN_Test est une Fenetre\n"               /* 0 */
+        "    ARBRE_X est un Champ Arbre\n"         /* 1 : ARBRE_X col 4 */
+        "    BTN_Y est un Champ Bouton\n"          /* 2 : BTN_Y col 4 */
+        "FIN\n";                                   /* 3 */
+    setup_doc(URI, src);
+    JsonValue* params = make_semantic_tokens_params(URI);
+    JsonValue* result = handle_semantic_tokens(params);
+    dump_semantic_tokens(result, "arbre FR");
+
+    /* ARBRE_X : nom du Champ Arbre -> property (2), comme tout champ. */
+    ASSERT_HAS_TOKEN(result, 1, 4, 2, "ARBRE_X (Champ Arbre) -> property (vert fonce)");
+    /* Parite : BTN_Y (widget deja reconnu) est aussi property (2). */
+    ASSERT_HAS_TOKEN(result, 2, 4, 2, "BTN_Y (Champ Bouton) -> property (vert fonce)");
+
+    json_free(result);
+    json_free(params);
+}
+
+/* Cas EN : miroir bilingue (`is a Control TreeView`). */
+static void test_semantic_arbre_en(void) {
+    printf("\n[TEST] fix/2500 : Control TreeView (EN) -> property (vert fonce)\n");
+    const char* src =
+        "FEN_Test est une Fenetre\n"               /* 0 */
+        "    ARBRE_X is a Control TreeView\n"      /* 1 : ARBRE_X col 4 */
+        "    BTN_Y is a Control Button\n"          /* 2 : BTN_Y col 4 */
+        "FIN\n";                                   /* 3 */
+    setup_doc(URI, src);
+    JsonValue* params = make_semantic_tokens_params(URI);
+    JsonValue* result = handle_semantic_tokens(params);
+    dump_semantic_tokens(result, "arbre EN");
+
+    ASSERT_HAS_TOKEN(result, 1, 4, 2, "ARBRE_X (Control TreeView) -> property (vert fonce)");
+    ASSERT_HAS_TOKEN(result, 2, 4, 2, "BTN_Y (Control Button) -> property (vert fonce)");
+
+    json_free(result);
+    json_free(params);
+}
+
+/* ================================================================
  *   — propriete d'en-tete de colonne ecrite `Label`/`Libellé`
  *  (forme EN/FR du widget Libellé, scannee TOKEN_LIBELLE) en position de
  *  PROP dans un bloc PROPRIETES -> property (2, vert), pas keyword (orange).
@@ -13240,6 +13328,60 @@ static void test_completion_collection_global_window_open(void) {
     json_free(params);
 }
 
+/*  — parite no-init : une globale de collection declaree SANS
+ * initialiseur (`gpraConnections est un entier`, pas `= 0`) doit rester
+ * proposee en completion dans une fenetre voisine, exactement comme la
+ * variante  qui testait avec `= 0`. Le faux positif "declaree mais
+ * jamais utilisee" (volet compilo) est corrige a part ; ce filet verrouille
+ * que le volet completion ne depend pas de la presence d'un initialiseur. */
+static void test_completion_collection_global_no_init_parity(void) {
+    printf("\n[TEST] fix/2428 : completion globale de collection SANS initialiseur (parite no-init)\n");
+    static char wMainUri[600];
+    static char cprUri[600];
+    char workspaceRoot[512];
+    char wMainPath[512];
+    char cprPath[512];
+    resolve_fixture_path(workspaceRoot, sizeof(workspaceRoot), "collection_window");
+    resolve_fixture_path(wMainPath, sizeof(wMainPath), "collection_window/w_Main.owl");
+    resolve_fixture_path(cprPath, sizeof(cprPath), "collection_window/CPR_Analysis.owl");
+    snprintf(wMainUri, sizeof(wMainUri), "file:///%s", wMainPath);
+    snprintf(cprUri, sizeof(cprUri), "file:///%s", cprPath);
+    for (char* q = wMainUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    for (char* q = cprUri + 8; *q; q++) if (*q == '\\') *q = '/';
+    const char* wMainSrc =
+        "w_Main est une Fen\xc3\xaatre\n"       /* 0 */
+        "\tPROPRIETES\n"                        /* 1 */
+        "\t\tTitre = \"Main\"\n"                /* 2 */
+        "\tFIN\n"                               /* 3 */
+        "\tPROCEDURE surClic()\n"               /* 4 */
+        "\t\t\n"                                /* 5 : curseur ici */
+        "\tFIN\n"                               /* 6 */
+        "FIN\n";                                /* 7 */
+    /* Globale SANS initialiseur — difference unique avec . */
+    const char* cprSrc =
+        "CPR_Analysis est une CollectionDeProc\xc3\xa9""dures\n"
+        "\tgpraConnections est un entier\n"
+        "\tPROCEDURE Analyse()\n"
+        "\t\tRENVOYER gpraConnections\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_workspace_with_rootpath(workspaceRoot, wMainUri, wMainSrc);
+    lspServer.documentCount = 2;
+    snprintf(lspServer.documents[1].uri, sizeof(lspServer.documents[1].uri), "%s", cprUri);
+    lspServer.documents[1].content = strdup(cprSrc);
+    lspServer.documents[1].contentLen = (int)strlen(cprSrc);
+    lspServer.documents[1].version = 1;
+
+    JsonValue* params = make_completion_params(wMainUri, 5, 2);
+    JsonValue* items = handle_completion(params);
+
+    ASSERT_HAS(items, "gpraConnections",
+               "2428 : globale collection SANS init proposee dans fenetre voisine");
+
+    json_free(items);
+    json_free(params);
+}
+
 /*  (spin-off ) — completion de VALEUR d'une propriete
  * (`recepteur..Champ = <curseur>`, propValueContext) dans le corps d'une
  * fenetre. La globale nue d'une collection compagnon FERME (gpraConnections
@@ -15539,6 +15681,128 @@ static void test_diag_cache_cleared_when_check_clean(void) {
 }
 
 /* ================================================================
+ *   — diagnostic live scanner : langue EN/FR + dedup vs cache --check
+ * ================================================================ */
+
+/* Stub compile-time : si l'implementeur n'a pas encore expose l'accesseur
+ * test-only qui construit (sans l'envoyer) le tableau de diagnostics publie,
+ * il renvoie un tableau vide -> les assertions rougissent explicitement. */
+#ifndef LSP_BUILD_DIAG_FOR_TEST_IMPLEMENTED
+static JsonValue* lsp_build_diagnostics_for_test(const char* uri) {
+    (void)uri;
+    return json_new_array();
+}
+#endif
+
+/* Nb d'entrees dans le tableau de diagnostics. */
+static int diag_array_count(JsonValue* arr) {
+    if (!arr || arr->type != JSON_ARRAY) return -1;
+    return arr->as.arrayVal.count;
+}
+
+/* Message de la i-eme entree (ou NULL). */
+static const char* diag_array_message(JsonValue* arr, int i) {
+    if (!arr || arr->type != JSON_ARRAY) return NULL;
+    if (i < 0 || i >= arr->as.arrayVal.count) return NULL;
+    return json_get_string(arr->as.arrayVal.items[i], "message");
+}
+
+/* Compte les entrees dont le message == msg (exact). */
+static int diag_array_count_msg(JsonValue* arr, const char* msg) {
+    if (!arr || arr->type != JSON_ARRAY) return 0;
+    int n = 0;
+    for (int i = 0; i < arr->as.arrayVal.count; i++) {
+        const char* m = json_get_string(arr->as.arrayVal.items[i], "message");
+        if (m && strcmp(m, msg) == 0) n++;
+    }
+    return n;
+}
+
+#define ASSERT_INT_EQ(got, exp, test_name) do { \
+    int _g = (got), _e = (exp); \
+    if (_g == _e) { g_pass++; printf("  [OK]   %s : %d\n", test_name, _g); } \
+    else { g_fail++; printf("  [FAIL] %s : got %d attendu %d\n", test_name, _g, _e); } \
+} while (0)
+
+#define ASSERT_STR_EQ(got, exp, test_name) do { \
+    const char* _g = (got); const char* _e = (exp); \
+    if (_g && strcmp(_g, _e) == 0) { g_pass++; printf("  [OK]   %s : \"%s\"\n", test_name, _g); } \
+    else { g_fail++; printf("  [FAIL] %s : got \"%s\" attendu \"%s\"\n", test_name, _g ? _g : "(null)", _e); } \
+} while (0)
+
+/*  T1 — en mode EN, le diagnostic live « chaine non terminee » doit
+ * porter le message ANGLAIS. Avant le fix : le scanner live rend le gabarit FR
+ * par defaut (owl_error_render_lang_is_en()==0) meme si lspServer.language=en.
+ * RED attendu (stub) : tableau vide -> count 0, message (null). */
+static void test_diag_live_scanner_lang_en(void) {
+    printf("\n[TEST] fix/2430 T1 : diagnostic live scanner EN (Unterminated string.)\n");
+    const char* uri = "file:///c:/test/fix2430_en.owl";
+    const char* src = "\"abc\n";  /* chaine non terminee, ligne 1 col 1 */
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+    setup_doc(uri, src);
+    JsonValue* diags = lsp_build_diagnostics_for_test(uri);
+    ASSERT_INT_EQ(diag_array_count(diags), 1, "fix/2430 T1 : un seul diagnostic");
+    ASSERT_STR_EQ(diag_array_message(diags, 0), "Unterminated string.",
+                  "fix/2430 T1 : message EN");
+    json_free(diags);
+}
+
+/*  T2 — en mode FR, meme erreur, message FRANCAIS. */
+static void test_diag_live_scanner_lang_fr(void) {
+    printf("\n[TEST] fix/2430 T2 : diagnostic live scanner FR (Chaine non terminee.)\n");
+    const char* uri = "file:///c:/test/fix2430_fr.owl";
+    const char* src = "\"abc\n";
+    snprintf(lspServer.language, sizeof(lspServer.language), "fr");
+    setup_doc(uri, src);
+    JsonValue* diags = lsp_build_diagnostics_for_test(uri);
+    ASSERT_INT_EQ(diag_array_count(diags), 1, "fix/2430 T2 : un seul diagnostic");
+    ASSERT_STR_EQ(diag_array_message(diags, 0), "Cha\xc3\xaene non termin\xc3\xa9""e.",
+                  "fix/2430 T2 : message FR");
+    json_free(diags);
+}
+
+/*  T3 — dedup : quand le cache --check contient deja l'erreur a la
+ * MEME position (ligne/colonne), la passe live ne doit PAS la re-ajouter.
+ * Le cache (lsp_populate_compiler_diag_cache) pose un diag en (1,1) ; la source
+ * a une chaine non terminee en (1,1) -> live deduplique -> UN SEUL diagnostic.
+ * RED attendu (stub) : tableau vide -> count 0 (!= 1). */
+static void test_diag_live_dedup_against_check_cache(void) {
+    printf("\n[TEST] fix/2430 T3 : dedup live vs cache --check (meme position)\n");
+    const char* uri = "file:///c:/test/fix2430_dedup.owl";
+    const char* src = "\"abc\n";  /* erreur live en (1,1), comme le cache */
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+    setup_doc(uri, src);
+    lsp_populate_compiler_diag_cache(uri, 1);  /* 1 diag cache en (1,1) */
+    JsonValue* diags = lsp_build_diagnostics_for_test(uri);
+    /* Un seul diagnostic total : le cache ; le live en (1,1) est deduplique. */
+    ASSERT_INT_EQ(diag_array_count(diags), 1, "fix/2430 T3 : pas de double (cache+live fusionnes)");
+    /* Le message EN du live n'apparait pas (c'est l'entree cache qui survit). */
+    ASSERT_INT_EQ(diag_array_count_msg(diags, "Unterminated string."), 0,
+                  "fix/2430 T3 : le live duplique a ete retire");
+    json_free(diags);
+    lsp_clear_compiler_diag_cache(uri);
+}
+
+/*  T4 — non-dedup : une erreur live a une position NON couverte par le
+ * cache doit etre conservee (feedback des erreurs pas encore sauvees). Cache en
+ * (1,1) ; erreur live en (2,1) -> les DEUX diagnostics presents. */
+static void test_diag_live_keeps_distinct_position(void) {
+    printf("\n[TEST] fix/2430 T4 : erreur live a position distincte conservee\n");
+    const char* uri = "file:///c:/test/fix2430_distinct.owl";
+    const char* src = "n est un entier = 0\n\"abc\n";  /* chaine non terminee ligne 2 col 1 */
+    snprintf(lspServer.language, sizeof(lspServer.language), "en");
+    setup_doc(uri, src);
+    lsp_populate_compiler_diag_cache(uri, 1);  /* cache en (1,1) */
+    JsonValue* diags = lsp_build_diagnostics_for_test(uri);
+    /* 1 cache (1,1) + 1 live (2,1) distincts = 2 diagnostics. */
+    ASSERT_INT_EQ(diag_array_count(diags), 2, "fix/2430 T4 : cache + live distincts");
+    ASSERT_INT_EQ(diag_array_count_msg(diags, "Unterminated string."), 1,
+                  "fix/2430 T4 : le live distinct est bien present (EN)");
+    json_free(diags);
+    lsp_clear_compiler_diag_cache(uri);
+}
+
+/* ================================================================
  *   — cluster qualite auto-completion
  * ================================================================ */
 
@@ -17034,6 +17298,12 @@ static void test_doc_symbol_collection_categories(void);
 static void test_doc_symbol_modele_etat(void);
 static void test_folding_modele_etat(void);
 static void test_doc_symbol_report_template_en(void);
+
+/*  — buffer de controle isole (vue F2 "owl-bloc:") : racine = le
+ * controle rendu par le chemin widget (PAS en buckets module). */
+static void test_doc_symbol_isolated_control_fr(void);
+static void test_doc_symbol_isolated_control_en(void);
+static void test_doc_symbol_module_class_not_hijacked(void);
 
 /*  — une globale top-level de fenetre est proposee en RHS d'une
  * prop a valeur libre (chaine) du bloc PROPRIETES d'un widget de la meme
@@ -19164,6 +19434,10 @@ int main(int argc, char** argv) {
     test_semantic_onglet_volet_enfant_event_fr();
     test_semantic_onglet_volet_enfant_event_en();
 
+    /*  — LSP coloration Champ Arbre -> property (miroir Onglet). */
+    test_semantic_arbre_fr();
+    test_semantic_arbre_en();
+
     /*  — `Label`/`Libellé` prop d'en-tete de colonne -> property. */
     test_semantic_column_label_property_fr();
     test_semantic_column_libelle_property_accent();
@@ -19347,6 +19621,7 @@ int main(int argc, char** argv) {
     test_completion_collection_global_open();
     test_completion_collection_global_window_closed();
     test_completion_collection_global_window_open();
+    test_completion_collection_global_no_init_parity();
     test_completion_propvalue_global_collection_closed();
     test_completion_propvalue_global_collection_open();
     test_1219_crossfile_native_collision_tokens();
@@ -19437,6 +19712,12 @@ int main(int argc, char** argv) {
     test_diag_scanner_errors_dont_erase_compiler_cache();
     test_diag_cache_cleared_when_check_clean();
 
+    /*  — diagnostic live scanner : langue EN/FR + dedup vs cache --check. */
+    test_diag_live_scanner_lang_en();
+    test_diag_live_scanner_lang_fr();
+    test_diag_live_dedup_against_check_cache();
+    test_diag_live_keeps_distinct_position();
+
     /*  — go-to-definition POO (C1-C4 rouges attendus, C5 vert). */
     test_definition_class_name();
     test_definition_enum_name();
@@ -19506,6 +19787,9 @@ int main(int argc, char** argv) {
     /*  — hover EN valeur enum : soeurs en noms EN (RED avant impl). */
     test_hover_enum_sibling_values_en();
     test_hover_enum_sibling_values_fr_default();
+
+    /*  — garde anti-OOB du motif snprintf cumulatif du hover. */
+    test_hover_long_desc_no_overflow();
 
     /*  — completion EN const/type quand language=en (RED avant impl). */
     test_completion_const_en();
@@ -19694,6 +19978,10 @@ int main(int argc, char** argv) {
     test_doc_symbol_modele_etat();
     test_folding_modele_etat();
     test_doc_symbol_report_template_en();
+    /*  -- controle isole (F2) rendu comme racine widget, pas en buckets. */
+    test_doc_symbol_isolated_control_fr();
+    test_doc_symbol_isolated_control_en();
+    test_doc_symbol_module_class_not_hijacked();
     test_doc_symbol_module_3procs();
     test_doc_symbol_module_proc_prive();
     test_doc_symbol_module_fonction();
@@ -21101,6 +21389,126 @@ static void test_doc_symbol_report_template_en(void) {
         ASSERT_SYM_KIND(mod, LSP_KIND_CLASS,
             "2420/report-template-en : MOD_En kind=Class(5)");
     }
+
+    json_free(result);
+    json_free(params);
+}
+
+/* ----- (A'') Controle isole (vue F2 "owl-bloc:") --  --------- */
+
+/*  — la vue F2 d'un controle ouvre un doc virtuel "owl-bloc:" dont le
+ * contenu est le bloc du controle dedente colonne 0 :
+ *   line 0 : BTN_Go est un Champ Bouton
+ *   line 1 :   PROPRIETES
+ *   line 2 :     X = 10
+ *   line 3 :     Libelle = "Go"
+ *   line 4 :   FIN
+ *   line 5 :   PROCEDURE surClic()
+ *   line 6 :     Trace("clic")
+ *   line 7 :   FIN
+ *   line 8 : FIN
+ * Avant le fix : 1re ligne L_FIELD (pas L_WINDOW) -> hasWindow=false -> chemin
+ * module -> le champ atterrit dans un bucket "Classes" et ses cles PROPRIETES
+ * en "Constantes". Attendu : un seul noeud racine = le controle (kind Field,
+ * detail "Bouton"), enfant = l'evenement surClic ; AUCUN bucket "Classes" /
+ * "Constantes", AUCUNE cle de PROPRIETES comme declaration. */
+static void test_doc_symbol_isolated_control_fr(void) {
+    printf("\n[TEST] fix/2429 documentSymbol : controle isole (FR) -> racine widget\n");
+    const char* src =
+        "BTN_Go est un Champ Bouton\n"
+        "\tPROPRIETES\n"
+        "\t\tX = 10\n"
+        "\t\tLibelle = \"Go\"\n"
+        "\tFIN\n"
+        "\tPROCEDURE surClic()\n"
+        "\t\tTrace(\"clic\")\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_document_symbol(params);
+
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "2429/ctrl-fr : 1 seul symbole racine");
+    ASSERT_SYM_NOT_EXISTS(result, "Classes",    "2429/ctrl-fr : pas de bucket Classes");
+    ASSERT_SYM_NOT_EXISTS(result, "Constantes", "2429/ctrl-fr : pas de bucket Constantes");
+    ASSERT_SYM_NOT_EXISTS(result, "Constants",  "2429/ctrl-fr : pas de bucket Constants");
+    ASSERT_SYM_EXISTS(result, "BTN_Go", "2429/ctrl-fr : racine = BTN_Go");
+    {
+        JsonValue* btn = find_sym(result, "BTN_Go");
+        ASSERT_SYM_KIND(btn, LSP_KIND_FIELD,   "2429/ctrl-fr : BTN_Go kind=Field(8)");
+        ASSERT_SYM_DETAIL(btn, "Bouton",       "2429/ctrl-fr : BTN_Go detail=Bouton");
+        ASSERT_SYM_LINE(btn, 0, 8,             "2429/ctrl-fr : BTN_Go range [0..8]");
+        JsonValue* btn_ch = sym_children(btn);
+        ASSERT_SYM_CHILDREN_COUNT(btn, 1,      "2429/ctrl-fr : BTN_Go a 1 enfant (surClic)");
+        ASSERT_SYM_EXISTS(btn_ch, "surClic",   "2429/ctrl-fr : surClic enfant de BTN_Go");
+        /* Les cles du PROPRIETES ne sont PAS emises comme symboles. */
+        ASSERT_SYM_NOT_EXISTS(btn_ch, "X",       "2429/ctrl-fr : X (prop) non emis");
+        ASSERT_SYM_NOT_EXISTS(btn_ch, "Libelle", "2429/ctrl-fr : Libelle (prop) non emis");
+        JsonValue* sc = find_sym(btn_ch, "surClic");
+        ASSERT_SYM_KIND(sc, LSP_KIND_METHOD,   "2429/ctrl-fr : surClic kind=Method(6)");
+    }
+
+    json_free(result);
+    json_free(params);
+}
+
+/*  — meme cas en EN : "is a Control Button" + evenement "onClick".
+ * Verrouille le respect de la langue du buffer (pas de forme FR hardcodee). */
+static void test_doc_symbol_isolated_control_en(void) {
+    printf("\n[TEST] fix/2429 documentSymbol : controle isole (EN) -> racine widget\n");
+    const char* src =
+        "BTN_Go is a Control Button\n"
+        "\tPROPERTIES\n"
+        "\t\tX = 10\n"
+        "\tEND\n"
+        "\tPROCEDURE onClick()\n"
+        "\t\tTrace(\"click\")\n"
+        "\tEND\n"
+        "END\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_document_symbol(params);
+
+    ASSERT_SYM_ARRAY_COUNT(result, 1, "2429/ctrl-en : 1 seul symbole racine");
+    ASSERT_SYM_NOT_EXISTS(result, "Classes",   "2429/ctrl-en : pas de bucket Classes");
+    ASSERT_SYM_NOT_EXISTS(result, "Constants", "2429/ctrl-en : pas de bucket Constants");
+    ASSERT_SYM_EXISTS(result, "BTN_Go", "2429/ctrl-en : racine = BTN_Go");
+    {
+        JsonValue* btn = find_sym(result, "BTN_Go");
+        ASSERT_SYM_KIND(btn, LSP_KIND_FIELD, "2429/ctrl-en : BTN_Go kind=Field(8)");
+        ASSERT_SYM_DETAIL(btn, "Button",     "2429/ctrl-en : BTN_Go detail=Button");
+        JsonValue* btn_ch = sym_children(btn);
+        ASSERT_SYM_CHILDREN_COUNT(btn, 1,    "2429/ctrl-en : BTN_Go a 1 enfant (onClick)");
+        ASSERT_SYM_EXISTS(btn_ch, "onClick", "2429/ctrl-en : onClick enfant de BTN_Go");
+    }
+
+    json_free(result);
+    json_free(params);
+}
+
+/*  — non-regression : la detection de racine widget isolee ne doit PAS
+ * capturer une vraie classe top-level d'un module. "MaClasse est une Classe"
+ * reste rangee dans le bucket "Classes" (chemin module inchange). */
+static void test_doc_symbol_module_class_not_hijacked(void) {
+    printf("\n[TEST] fix/2429 documentSymbol : classe top-level module non detournee\n");
+    const char* src =
+        "MaClasse est une Classe\n"
+        "\tPROCEDURE Faire()\n"
+        "\t\tTrace(\"x\")\n"
+        "\tFIN\n"
+        "FIN\n";
+    setup_doc(URI, src);
+    JsonValue* params = make_text_document_params(URI);
+    JsonValue* result = handle_document_symbol(params);
+
+    ASSERT_SYM_EXISTS(result, "Classes", "2429/no-hijack : bucket Classes present");
+    {
+        JsonValue* cls = find_sym(result, "Classes");
+        JsonValue* cls_ch = sym_children(cls);
+        ASSERT_SYM_EXISTS(cls_ch, "MaClasse", "2429/no-hijack : MaClasse sous Classes");
+    }
+    ASSERT_SYM_NOT_EXISTS(result, "MaClasse",
+        "2429/no-hijack : MaClasse PAS racine directe");
 
     json_free(result);
     json_free(params);

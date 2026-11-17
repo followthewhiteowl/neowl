@@ -7,6 +7,7 @@
 #include "../src/owl_keyword_catalog.h"   /*  — fiches mots-cles bilingues */
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -37,6 +38,33 @@ static inline int64_t LSP_NOW_MS(void) {
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 #endif
+
+/*  — append formate borne pour les buffers de rendu cumulatif (hover,
+ * doc, completion markdown, filterText). Remplace le motif non garde
+ * `off += snprintf(buf + off, cap - off, …)` : sur un contenu catalogue tres
+ * long, `off` pouvait atteindre/depasser `cap`, d'ou `cap - off` qui
+ * sous-deborde (size_t geant) et `buf + off` qui pointe hors du buffer ->
+ * ecriture OOB. Ici : no-op des que le buffer est plein, et clamp de `off` a
+ * `cap - 1` a la troncature pour que les appends suivants restent inoffensifs.
+ * Le buffer reste toujours NUL-termine. `off` est un int (comme sur tous les
+ * sites appelants) ; cap >= 1 attendu. */
+static void lsp_append_fmt(char* buf, int* off, size_t cap, const char* fmt, ...) {
+    if (cap == 0) return;
+    if (*off < 0 || (size_t)*off >= cap) {
+        buf[cap - 1] = '\0';
+        *off = (int)cap - 1;
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf + *off, cap - (size_t)*off, fmt, ap);
+    va_end(ap);
+    if (n < 0) return;
+    if ((size_t)n >= cap - (size_t)*off)
+        *off = (int)cap - 1;   /* tronque : buffer NUL-termine par vsnprintf */
+    else
+        *off += n;
+}
 
 /* Chemin du binaire owl-lsp COURANT (owl-lsp.exe et owl.exe sont distribues
  * ensemble : le voisin est le bon owl.exe dans tous les cas — release comme
@@ -125,6 +153,7 @@ static void lsp_notify_check_slow(void) {
 #include "../src/formatter.h"       /* owl_format_ctx + owl_format_build_context */
 #include "../src/project.h"         /* resolve_project_root, ProjectMode */
 #include "../src/icons_catalog.h"   /*  — completion `icones.<prefix>` */
+#include "../src/owl_errors.h"      /*  — rendu d'erreur in-process bilingue */
 
 /* ================================================================
  * HELPERS
@@ -2418,6 +2447,13 @@ static void scan_one_source_for_user_symbols(const char* source, int docIndex,
                      * PAS le nom -> ONG_X colore variable (vert clair) au lieu de
                      * property (vert fonce) comme tout autre champ. */
                     bool isOngletKind       = tokenIsWidget && tokenKind == OWL_CONTROL_ONGLET;
+                    /*  — Champ Arbre : meme cas que l'Onglet (widget
+                     * is_widget=true reconnu par owl_control_kind_from_token).
+                     * Sans cette detection, `ARBRE_X est un Champ Arbre`
+                     * retombait dans le filet sawChampPrefix (N'enregistre PAS
+                     * le nom) -> ARBRE_X colore variable (vert clair) au lieu
+                     * de property (vert fonce). */
+                    bool isArbreKind        = tokenIsWidget && tokenKind == OWL_CONTROL_ARBRE;
                     bool typeIsProjet = (typeToken.type == TOKEN_IDENTIFIER)
                                         && is_projet_type_token(&typeToken);
                     /*  — `X est un ServiceREST` / `Y est une
@@ -2513,7 +2549,8 @@ static void scan_one_source_for_user_symbols(const char* source, int docIndex,
                              || isInterrupteurKind
                              || isZrKind
                              || isJaugeKind
-                             || isOngletKind)
+                             || isOngletKind
+                             || isArbreKind)
                                && userControlCount < 1024) {
                         int n = tok.length < 127 ? tok.length : 127;
                         memcpy(userControls[userControlCount].name, tok.start, n);
@@ -2532,6 +2569,7 @@ static void scan_one_source_for_user_symbols(const char* source, int docIndex,
                             : isZrKind                          ? 'Y'
                             : isJaugeKind                       ? 'J'
                             : isOngletKind                      ? 'N'
+                            : isArbreKind                       ? 'A'
                             : '?';
                         userControlCount++;
                         /*  — memorise le dernier Champ Table ouvert :
@@ -3178,6 +3216,13 @@ JsonValue* handle_initialize(JsonValue* params) {
     }
     lsp_log("Completion language: %s", lspServer.language);
 
+    /*  — aligne le rendu d'erreur in-process (passes scanner du LSP :
+     * publish_diagnostics) sur la langue active. Sans ca, le scanner live
+     * retombe sur le gabarit FR par defaut (owl_error_render_lang_is_en()==0)
+     * meme en mode EN. Le subprocess `owl --check` garde son propre etat via
+     * `--lang` argv (lsp_proc.c), on n'y touche pas. */
+    owl_error_render_set_lang_en(strcmp(lspServer.language, "en") == 0);
+
     /* Resolve owl executable for --check diagnostics.
      * owl.exe est all-in-one (interpreter + GUI Qt6) depuis le merge,
      * plus de owl-gui.exe separe.
@@ -3559,12 +3604,11 @@ static void lsp_check_schedule(void);
 static void apply_check_result(const char* uri, LspRunStatus rs,
                                char* output, int total, CheckKind kind);
 
-void publish_diagnostics(const char* uri) {
-    int64_t _t_pd = LSP_NOW_MS();  /*  timing */
-    int idx = find_doc(uri);
-    if (idx < 0) return;
-
-    const char* source = lspServer.documents[idx].content;
+/*  — construit le tableau des diagnostics d'un URI (cache --check
+ * republie + passe scanner live), SANS l'envoyer. Separe de publish_diagnostics
+ * pour la testabilite (le harness ne peut pas intercepter les notifications
+ * stdout ; il inspecte ce tableau). */
+static JsonValue* build_diagnostics_array(const char* uri, const char* source) {
     JsonValue* diagnostics = json_new_array();
 
     /*  — Republie d'abord les diagnostics semantiques (--check) du
@@ -3583,6 +3627,12 @@ void publish_diagnostics(const char* uri) {
         }
     }
 
+    /*  — le rendu in-process suit la langue active du LSP. Idempotent :
+     * re-applique a chaque publication, couvre le didOpen tres precoce et le
+     * harness de test (qui ne passe pas par handle_initialize). Sans ca, le
+     * scanner live rend le gabarit FR par defaut meme en mode EN. */
+    owl_error_render_set_lang_en(strcmp(lspServer.language, "en") == 0);
+
     Scanner diagScanner;
     scanner_init(&diagScanner, source);
 
@@ -3590,6 +3640,24 @@ void publish_diagnostics(const char* uri) {
         Token tok = scanner_scan_token(&diagScanner);
         if (tok.type == TOKEN_EOF) break;
         if (tok.type == TOKEN_ERROR) {
+            /*  — dedup contre le cache --check : si une erreur est deja
+             * cachee a la MEME position (ligne/colonne, toutes deux 1-based cote
+             * cache ET cote token), ne pas re-ajouter le diag live. Sinon double
+             * (ex. chaine non terminee : EN par le cache + FR/EN par le live).
+             * Les erreurs live a des positions NON couvertes restent (feedback
+             * des erreurs pas encore sauvees). */
+            bool coveredByCache = false;
+            if (cached) {
+                for (int i = 0; i < cached->count; i++) {
+                    if (cached->diags[i].line == tok.line &&
+                        cached->diags[i].column == tok.column) {
+                        coveredByCache = true;
+                        break;
+                    }
+                }
+            }
+            if (coveredByCache) continue;
+
             JsonValue* diag = json_new_object();
             JsonValue* range = json_new_object();
             JsonValue* start = json_new_object();
@@ -3607,6 +3675,25 @@ void publish_diagnostics(const char* uri) {
             json_array_push(diagnostics, diag);
         }
     }
+
+    return diagnostics;
+}
+
+/* test only : expose le tableau de diagnostics publie pour un URI
+ * sans l'envoyer, afin d'inspecter messages/positions/nombre. */
+JsonValue* lsp_build_diagnostics_for_test(const char* uri) {
+    int idx = find_doc(uri);
+    if (idx < 0) return json_new_array();
+    return build_diagnostics_array(uri, lspServer.documents[idx].content);
+}
+
+void publish_diagnostics(const char* uri) {
+    int64_t _t_pd = LSP_NOW_MS();  /*  timing */
+    int idx = find_doc(uri);
+    if (idx < 0) return;
+
+    const char* source = lspServer.documents[idx].content;
+    JsonValue* diagnostics = build_diagnostics_array(uri, source);
 
     JsonValue* params = json_new_object();
     json_object_set(params, "uri", json_new_string(uri));
@@ -3779,6 +3866,7 @@ static const DslKindCharMap DSL_KIND_CHARS[] = {
     {'D', OWL_CONTROL_CODEBARRE},    /* D = coDebarres (C pris par colonne) */
     {'N', OWL_CONTROL_ONGLET},       /* N = oNglet (O pris par cOnteneur) */
     {'V', OWL_CONTROL_VOLET},        /* V = Volet */
+    {'A', OWL_CONTROL_ARBRE},        /* A = Arbre */
 };
 #define DSL_KIND_CHARS_N (int)(sizeof(DSL_KIND_CHARS)/sizeof(DSL_KIND_CHARS[0]))
 
@@ -4880,7 +4968,7 @@ static void build_native_snippet_skip(char* out, size_t outSize,
     int slot = 0; /* tabstop renuméroté depuis 1 (indépendant de p) */
     for (int p = startParam; p < shortest->paramCount && off < (int)outSize - 16; p++) {
         if (p > startParam)
-            off += snprintf(out + off, outSize - off, ", ");
+            lsp_append_fmt(out, &off, outSize, ", ");
         slot++;
 
         const OwlNativeParamInfo* pi = &shortest->params[p];
@@ -4891,18 +4979,18 @@ static void build_native_snippet_skip(char* out, size_t outSize,
                           && e->valueCount > 0
                           && e->valueCount <= SNIPPET_ENUM_CHOICES_MAX;
         if (useChoices) {
-            off += snprintf(out + off, outSize - off, "${%d|", slot);
+            lsp_append_fmt(out, &off, outSize, "${%d|", slot);
             for (const char* const* v = e->values;
                  *v && off < (int)outSize - 32; v++) {
                 if (v != e->values)
-                    off += snprintf(out + off, outSize - off, ",");
-                off += snprintf(out + off, outSize - off, "%s",
+                    lsp_append_fmt(out, &off, outSize, ",");
+                lsp_append_fmt(out, &off, outSize, "%s",
                                 snippet_enum_value_label(*v, wantEN));
             }
             if (off < (int)outSize - 4)
-                off += snprintf(out + off, outSize - off, "|}");
+                lsp_append_fmt(out, &off, outSize, "|}");
         } else {
-            off += snprintf(out + off, outSize - off,
+            lsp_append_fmt(out, &off, outSize,
                             "${%d:%s}", slot, pi->name);
         }
     }
@@ -4933,8 +5021,8 @@ static void build_native_plain_params(char* out, size_t outSize,
     int off = 0;
     for (int p = startParam; p < shortest->paramCount && off < (int)outSize - 8; p++) {
         if (p > startParam)
-            off += snprintf(out + off, outSize - off, ", ");
-        off += snprintf(out + off, outSize - off, "%s", shortest->params[p].name);
+            lsp_append_fmt(out, &off, outSize, ", ");
+        lsp_append_fmt(out, &off, outSize, "%s", shortest->params[p].name);
     }
 }
 
@@ -7049,7 +7137,7 @@ JsonValue* handle_completion(JsonValue* params) {
                 int off = snprintf(ft, sizeof(ft), "%s %s", tLabel, t->name);
                 if (t->nameAscii && *t->nameAscii &&
                     strcmp(t->nameAscii, t->name) != 0)
-                    off += snprintf(ft + off, sizeof(ft) - off, " %s", t->nameAscii);
+                    lsp_append_fmt(ft, &off, sizeof(ft), " %s", t->nameAscii);
                 if (tHasEN)
                     snprintf(ft + off, sizeof(ft) - off, " %s", t->nameEN);
                 json_object_set(item, "filterText", json_new_string(ft));
@@ -8365,16 +8453,16 @@ JsonValue* handle_completion(JsonValue* params) {
 
         char md[FN_MD_MAX];
         int off = 0;
-        off += snprintf(md+off, FN_MD_MAX-off, "```owl\n%s\n```\n\n", fn->signatures[0].signature);
+        lsp_append_fmt(md, &off, FN_MD_MAX, "```owl\n%s\n```\n\n", fn->signatures[0].signature);
         if (fn->signatures[0].returnType && *fn->signatures[0].returnType)
-            off += snprintf(md+off, FN_MD_MAX-off, "**\xe2\x86\x92** `%s`\n\n",
+            lsp_append_fmt(md, &off, FN_MD_MAX, "**\xe2\x86\x92** `%s`\n\n",
                             fn->signatures[0].returnType);
         if (fn->description && *fn->description)
-            off += snprintf(md+off, FN_MD_MAX-off, "%s\n", fn->description);
+            lsp_append_fmt(md, &off, FN_MD_MAX, "%s\n", fn->description);
         if (fn->category && *fn->category)
-            off += snprintf(md+off, FN_MD_MAX-off, "\n*Cat\xc3\xa9gorie :* %s", fn->category);
+            lsp_append_fmt(md, &off, FN_MD_MAX, "\n*Cat\xc3\xa9gorie :* %s", fn->category);
         if (hasEN)
-            off += snprintf(md+off, FN_MD_MAX-off, " \xc2\xb7 *EN :* `%s`", fn->nameEN);
+            lsp_append_fmt(md, &off, FN_MD_MAX, " \xc2\xb7 *EN :* `%s`", fn->nameEN);
         (void)off;
 
         if (pushFR) {
@@ -8404,13 +8492,13 @@ JsonValue* handle_completion(JsonValue* params) {
         if (pushEN) {
             char mdEN[FN_MD_MAX];
             int oe = 0;
-            oe += snprintf(mdEN+oe, FN_MD_MAX-oe, "```owl\n%s\n```\n\n", fn->signatures[0].signature);
+            lsp_append_fmt(mdEN, &oe, FN_MD_MAX, "```owl\n%s\n```\n\n", fn->signatures[0].signature);
             if (fn->signatures[0].returnType && *fn->signatures[0].returnType)
-                oe += snprintf(mdEN+oe, FN_MD_MAX-oe, "**\xe2\x86\x92** `%s`\n\n",
+                lsp_append_fmt(mdEN, &oe, FN_MD_MAX, "**\xe2\x86\x92** `%s`\n\n",
                                fn->signatures[0].returnType);
             if (fn->descriptionEN && *fn->descriptionEN)
-                oe += snprintf(mdEN+oe, FN_MD_MAX-oe, "%s\n", fn->descriptionEN);
-            oe += snprintf(mdEN+oe, FN_MD_MAX-oe, "\n*FR alias :* `%s`", fn->name);
+                lsp_append_fmt(mdEN, &oe, FN_MD_MAX, "%s\n", fn->descriptionEN);
+            lsp_append_fmt(mdEN, &oe, FN_MD_MAX, "\n*FR alias :* `%s`", fn->name);
             (void)oe;
 
             JsonValue* itemEN = json_new_object();
@@ -8625,7 +8713,7 @@ JsonValue* handle_completion(JsonValue* params) {
             int off = snprintf(ft, sizeof(ft), "%s %s", tLabel, t->name);
             if (t->nameAscii && *t->nameAscii &&
                 strcmp(t->nameAscii, t->name) != 0)
-                off += snprintf(ft + off, sizeof(ft) - off, " %s", t->nameAscii);
+                lsp_append_fmt(ft, &off, sizeof(ft), " %s", t->nameAscii);
             if (tHasEN)
                 snprintf(ft + off, sizeof(ft) - off, " %s", t->nameEN);
             json_object_set(item, "filterText", json_new_string(ft));
@@ -8977,20 +9065,20 @@ JsonValue* handle_completion(JsonValue* params) {
                             int off = snprintf(doc, sizeof(doc),
                                 "**`PROCEDURE %s", evName);
                             for (int p = 0; p < d->paramCount && off < (int)sizeof(doc) - 64; p++) {
-                                off += snprintf(doc + off, sizeof(doc) - off,
+                                lsp_append_fmt(doc, &off, sizeof(doc),
                                     "%s%s est un %s",
                                     p == 0 ? "(" : ", ",
                                     d->params[p].name,
                                     d->params[p].typeName);
                             }
-                            off += snprintf(doc + off, sizeof(doc) - off,
+                            lsp_append_fmt(doc, &off, sizeof(doc),
                                 "%s`**\n\n%s\n\n*%s: %s*",
                                 d->paramCount > 0 ? ")" : "()",
                                 docDescPrimary,
                                 wantEN ? "FR" : "EN",
                                 docDescAlt);
                             for (int p = 0; p < d->paramCount && off < (int)sizeof(doc) - 200; p++) {
-                                off += snprintf(doc + off, sizeof(doc) - off,
+                                lsp_append_fmt(doc, &off, sizeof(doc),
                                     "\n\n- **`%s`** (`%s`) : %s",
                                     d->params[p].name,
                                     d->params[p].typeName,
@@ -9013,14 +9101,14 @@ JsonValue* handle_completion(JsonValue* params) {
                             } else {
                                 int soff = snprintf(snip, sizeof(snip), "%s", evName);
                                 for (int p = 0; p < d->paramCount && soff < (int)sizeof(snip) - 64; p++) {
-                                    soff += snprintf(snip + soff, sizeof(snip) - soff,
+                                    lsp_append_fmt(snip, &soff, sizeof(snip),
                                         "%s${%d:%s} est un %s",
                                         p == 0 ? "(" : ", ",
                                         p + 1,
                                         d->params[p].name,
                                         d->params[p].typeName);
                                 }
-                                soff += snprintf(snip + soff, sizeof(snip) - soff,
+                                lsp_append_fmt(snip, &soff, sizeof(snip),
                                     "%s\n\t$0\n%s",
                                     d->paramCount > 0 ? ")" : "()",
                                     snippet_end_kw(wantEN));
@@ -10847,13 +10935,13 @@ JsonValue* handle_hover(JsonValue* params) {
                 const char* ptype = wantEN
                     ? lsp_primitive_type_en(ev->params[p].typeName)
                     : ev->params[p].typeName;
-                off += snprintf(md + off, sizeof(md) - off,
+                lsp_append_fmt(md, &off, sizeof(md),
                     "%s%s est un %s",
                     p == 0 ? "(" : ", ",
                     ev->params[p].name,
                     ptype);
             }
-            off += snprintf(md + off, sizeof(md) - off,
+            lsp_append_fmt(md, &off, sizeof(md),
                 "%s`**\n\n%s",
                 ev->paramCount > 0 ? ")" : "()",
                 descPrimary);
@@ -10865,7 +10953,7 @@ JsonValue* handle_hover(JsonValue* params) {
                 const char* ptype2 = wantEN
                     ? lsp_primitive_type_en(ev->params[p].typeName)
                     : ev->params[p].typeName;
-                off += snprintf(md + off, sizeof(md) - off,
+                lsp_append_fmt(md, &off, sizeof(md),
                     "\n\n- **`%s`** (`%s`) : %s",
                     ev->params[p].name, ptype2, pdesc);
             }
@@ -10958,11 +11046,11 @@ JsonValue* handle_hover(JsonValue* params) {
                  * renvoyant vers les fiches ou vivent les exemples. */
                 if (prop->fiches && prop->fiches[0] && off > 0
                     && off < (int)sizeof(md)) {
-                    off += snprintf(md + off, sizeof(md) - off, "\n\n**%s** : ",
+                    lsp_append_fmt(md, &off, sizeof(md), "\n\n**%s** : ",
                                     wantEN ? "See also" : "Voir aussi");
                     for (int fi = 0; prop->fiches[fi] && off > 0
                                      && off < (int)sizeof(md); fi++) {
-                        off += snprintf(md + off, sizeof(md) - off, "%s`%s`",
+                        lsp_append_fmt(md, &off, sizeof(md), "%s`%s`",
                                         fi ? ", " : "", prop->fiches[fi]);
                     }
                 }
@@ -11108,26 +11196,26 @@ JsonValue* handle_hover(JsonValue* params) {
             if (strcasecmp(f->fieldName, word) != 0) continue;
             char hover[2048];
             int off = 0;
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 "```owl\n%s..%s : %s%s%s\n```\n\n",
                 f->typeName, f->fieldName,
                 f->fieldType,
                 f->subTypeName ? " " : "",
                 f->subTypeName ? f->subTypeName : "");
             if (f->descFR) {
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "%s\n\n", f->descFR);
             }
             if (strcmp(f->fieldType, "enum") == 0 && f->subTypeName) {
                 const OwlEnumInfo* ei = owl_enum_info_find(f->subTypeName);
                 if (ei && ei->values) {
-                    off += snprintf(hover + off, sizeof(hover) - off,
+                    lsp_append_fmt(hover, &off, sizeof(hover),
                         "**Valeurs %s** : ", ei->name);
                     for (const char* const* v = ei->values; *v; v++) {
-                        off += snprintf(hover + off, sizeof(hover) - off,
+                        lsp_append_fmt(hover, &off, sizeof(hover),
                             "`%s`%s", *v, *(v+1) ? ", " : "");
                     }
-                    off += snprintf(hover + off, sizeof(hover) - off, "\n");
+                    lsp_append_fmt(hover, &off, sizeof(hover), "\n");
                 }
             }
             JsonValue* result = json_new_object();
@@ -11337,7 +11425,7 @@ JsonValue* handle_hover(JsonValue* params) {
              * EN au catalogue → fallback FR, jamais de vide). */
             const char* cTitle = (wantEN && c->nameEN && *c->nameEN)
                                  ? c->nameEN : c->name;
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 "```owl\n%s %s\n```\n\n%s\n\n",
                 wantEN ? "constant" : "constante",
                 cTitle,
@@ -11347,7 +11435,7 @@ JsonValue* handle_hover(JsonValue* params) {
             for (int e = 0; e < OWL_ENUM_CATALOG_COUNT; e++) {
                 const OwlEnumInfo* ei = &OWL_ENUM_CATALOG[e];
                 if (!owl_enum_info_contains(ei, c->name)) continue;
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     wantEN ? "**Member of %s** — other values: "
                            : "**Membre de %s** — autres valeurs : ", ei->name);
                 for (const char* const* v = ei->values; *v; v++) {
@@ -11367,13 +11455,13 @@ JsonValue* handle_hover(JsonValue* params) {
                             }
                         }
                     }
-                    off += snprintf(hover + off, sizeof(hover) - off,
+                    lsp_append_fmt(hover, &off, sizeof(hover),
                         "`%s`%s", vName, *(v+1) ? ", " : "");
                 }
-                off += snprintf(hover + off, sizeof(hover) - off, "\n\n");
+                lsp_append_fmt(hover, &off, sizeof(hover), "\n\n");
                 break;
             }
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 "---\n*[%s]*",
                 c->category ? c->category : "Divers");
             JsonValue* result = json_new_object();
@@ -11398,12 +11486,12 @@ JsonValue* handle_hover(JsonValue* params) {
             const char* tDesc = (wantEN && t->descriptionEN && *t->descriptionEN)
                                  ? t->descriptionEN
                                  : (t->description ? t->description : "");
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 wantEN ? "```owl\n%s is a Structure\n```\n\n%s\n\n"
                        : "```owl\n%s est une Structure\n```\n\n%s\n\n",
                 tTitle, tDesc);
             if (t->fieldCount > 0 && t->fields) {
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     wantEN ? "**Fields** :\n" : "**Champs** :\n");
                 for (int i = 0; i < t->fieldCount; i++) {
                     const OwlFieldInfo* f = &t->fields[i];
@@ -11416,11 +11504,11 @@ JsonValue* handle_hover(JsonValue* params) {
                     const char* fDesc = (wantEN && f->descriptionEN && *f->descriptionEN)
                                         ? f->descriptionEN
                                         : (f->description ? f->description : "");
-                    off += snprintf(hover + off, sizeof(hover) - off,
+                    lsp_append_fmt(hover, &off, sizeof(hover),
                         "- `%s` *(%s)* — %s\n", fName, fType, fDesc);
                 }
             }
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 "\n---\n*[%s]*", t->category ? t->category : "Divers");
             JsonValue* result = json_new_object();
             JsonValue* contents = json_new_object();
@@ -11439,7 +11527,7 @@ JsonValue* handle_hover(JsonValue* params) {
     if (fn) {
         char hover[2048];
         int off = 0;
-        off += snprintf(hover + off, sizeof(hover) - off, "```owl\n");
+        lsp_append_fmt(hover, &off, sizeof(hover), "```owl\n");
         /*  — en mode en, la signature canon (FR) prefixe le nom FR
          * (DonneFocus(champ)). On substitue le prefixe nom-de-fonction par
          * nameEN (SetFocus). Les noms de params restent FR (content gap acte
@@ -11451,14 +11539,14 @@ JsonValue* handle_hover(JsonValue* params) {
         for (int s = 0; s < fn->signatureCount; s++) {
             const char* sig = fn->signatures[s].signature;
             if (swapName && sig && strncmp(sig, fn->name, nameLen) == 0) {
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "%s%s\n", fn->nameEN, sig + nameLen);
             } else {
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "%s\n", sig);
             }
         }
-        off += snprintf(hover + off, sizeof(hover) - off, "```\n");
+        lsp_append_fmt(hover, &off, sizeof(hover), "```\n");
 
         const OwlNativeSigInfo* sig0 = &fn->signatures[0];
         if (sig0->returnType) {
@@ -11466,17 +11554,17 @@ JsonValue* handle_hover(JsonValue* params) {
              * entier→integer…). returnTypeEN est resolu au dump via le registry. */
             const char* rt = (wantEN && sig0->returnTypeEN && *sig0->returnTypeEN)
                              ? sig0->returnTypeEN : sig0->returnType;
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 "%s : `%s`\n\n",
                 wantEN ? "**Returns**" : "**Retourne**", rt);
         }
         /*  : desc EN en mode en (fallback FR si pas de descriptionEN). */
         const char* fdesc = (wantEN && fn->descriptionEN && *fn->descriptionEN)
                             ? fn->descriptionEN : fn->description;
-        off += snprintf(hover + off, sizeof(hover) - off,
+        lsp_append_fmt(hover, &off, sizeof(hover),
             "%s\n\n", fdesc);
         if (sig0->paramCount > 0) {
-            off += snprintf(hover + off, sizeof(hover) - off, "%s :\n",
+            lsp_append_fmt(hover, &off, sizeof(hover), "%s :\n",
                 wantEN ? "**Parameters**" : "**Parametres**");
             for (int p = 0; p < sig0->paramCount; p++) {
                 /*  — type du param suit la langue (typeEN au dump). Le
@@ -11484,14 +11572,14 @@ JsonValue* handle_hover(JsonValue* params) {
                 const char* pt = (wantEN && sig0->params[p].typeEN
                                   && *sig0->params[p].typeEN)
                                  ? sig0->params[p].typeEN : sig0->params[p].type;
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "- `%s` *(%s)* -- %s\n",
                     sig0->params[p].name, pt,
                     sig0->params[p].description);
             }
         }
         if (fn->signatureCount > 1) {
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 wantEN
                   ? "\n*%d more signatures — see signatureHelp while typing.*\n"
                   : "\n*%d signatures supplementaires — voir signatureHelp pendant la frappe.*\n",
@@ -11499,11 +11587,11 @@ JsonValue* handle_hover(JsonValue* params) {
         }
         /* En mode en : montrer l'alias FR ; en FR : l'alias EN (historique). */
         if (strcmp(fn->name, fn->nameEN) != 0) {
-            off += snprintf(hover + off, sizeof(hover) - off,
+            lsp_append_fmt(hover, &off, sizeof(hover),
                 wantEN ? "\n*FR alias: %s*\n" : "\n*Alias EN : %s*\n",
                 wantEN ? fn->name : fn->nameEN);
         }
-        off += snprintf(hover + off, sizeof(hover) - off,
+        lsp_append_fmt(hover, &off, sizeof(hover),
             "\n---\n*[%s]*", fn->category);
 
         JsonValue* result = json_new_object();
@@ -11583,16 +11671,16 @@ JsonValue* handle_hover(JsonValue* params) {
             const char* desc  = (wantEN && sn->descEN && *sn->descEN)
                                 ? sn->descEN : sn->descFR;
             if (kdefH->senses_count > 1)
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "%s**%s**\n\n", s == 0 ? "" : "\n---\n", label ? label : "");
             else
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "**%s**\n\n", label ? label : "");
             if (sn->syntax)
-                off += snprintf(hover + off, sizeof(hover) - off,
+                lsp_append_fmt(hover, &off, sizeof(hover),
                     "```owl\n%s\n```\n\n", sn->syntax);
             if (desc && *desc)
-                off += snprintf(hover + off, sizeof(hover) - off, "%s", desc);
+                lsp_append_fmt(hover, &off, sizeof(hover), "%s", desc);
         }
         JsonValue* result = json_new_object();
         JsonValue* contents = json_new_object();

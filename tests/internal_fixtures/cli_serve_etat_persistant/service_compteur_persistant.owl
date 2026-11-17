@@ -1,0 +1,23 @@
+// Fixture  — preuve empirique que les variables globales déclarées
+// dans le corps d'un service persistent entre deux requêtes HTTP successives
+// sur le même process `owl serve` (exécuteur mono-thread, serveur longue-vie).
+ServiceCompteur est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	nCompteur est un entier = 0
+
+	LitCompteur est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["compteur"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : entier
+			nCompteur = nCompteur + 1
+			RENVOYER nCompteur
+		FIN
+	FIN
+FIN

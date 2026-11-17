@@ -1,0 +1,60 @@
+//  — regression : iEnchaînementAjoute(ETAT_X) répété PLUSIEURS FOIS
+// avec le MEME État, suivi de iEnchaînementImprime(), doit produire une page
+// avec du contenu pour CHAQUE occurrence, pas seulement la dernière.
+//
+// Mesure : on scanne une zone englobant le Libellé sur chaque page rendue en
+// mémoire (iDestination(iImageMémoire, ...)) et on compte les pixels
+// non-blancs. Le simple compte de pages ne suffit pas à détecter le bug
+// (les N-1 premières pages blanches ont quand même le bon format) — il faut
+// mesurer le CONTENU.
+//
+// La ressource Etat ETAT_RepeteSimple vit dans le voisin
+// ETAT_RepeteSimple.owl.
+
+TestModeHeadless(Vrai)
+
+// Zone englobant le Libellé "Page imprimee" sur la page rendue (mesurée
+// empiriquement : le texte occupe environ x:[355,430] y:[240,255] px à
+// 300dpi pour la géométrie de ETAT_RepeteSimple). Marge large pour
+// tolérer les variations de rendu de police selon l'environnement.
+PROCEDURE nbPixelsNonBlancs(img est une Image)
+	n est un entier = 0
+	POUR x = 250 À 600 PAS 3
+		POUR y = 200 À 300 PAS 3
+			SI dPixelCouleur(img, x, y) <> Blanc ALORS
+				n = n + 1
+			FIN
+		FIN
+	FIN
+	RENVOYER n
+FIN
+
+// ----- Cas de controle : un seul État imprimé seul a du contenu -----
+tabSolo est un tableau de Image
+iDestination(iImageMémoire, tabSolo)
+iImprimeEtat(ETAT_RepeteSimple)
+iFinImprime()
+
+dbgVérifieEgalité(Taille(tabSolo), 1, "iImprimeEtat seul produit 1 page")
+nSolo est un entier = nbPixelsNonBlancs(tabSolo[1])
+dbgVérifieVrai(nSolo > 20, "iImprimeEtat seul : la page a du contenu (mesure atteignable)")
+
+// ----- Cas sous test : le MEME État enchaîné 3 fois -----
+tabRepete est un tableau de Image
+iDestination(iImageMémoire, tabRepete)
+iEnchaînementAjoute(ETAT_RepeteSimple)
+iEnchaînementAjoute(ETAT_RepeteSimple)
+iEnchaînementAjoute(ETAT_RepeteSimple)
+iEnchaînementImprime()
+
+dbgVérifieEgalité(Taille(tabRepete), 3, "enchaînement du meme Etat x3 produit 3 pages")
+
+n1 est un entier = nbPixelsNonBlancs(tabRepete[1])
+n2 est un entier = nbPixelsNonBlancs(tabRepete[2])
+n3 est un entier = nbPixelsNonBlancs(tabRepete[3])
+
+dbgVérifieVrai(n1 > 20, "page 1 de l'enchaînement (meme Etat) a du contenu")
+dbgVérifieVrai(n2 > 20, "page 2 de l'enchaînement (meme Etat) a du contenu")
+dbgVérifieVrai(n3 > 20, "page 3 de l'enchaînement (meme Etat) a du contenu")
+
+dbgBilanTest()

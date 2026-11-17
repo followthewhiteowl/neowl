@@ -1,0 +1,29 @@
+// Contrat CIBLE  : `Formulaire` (corps urlencoded) et `TypeContenu
+// = typeMimeFormulaireMultiPartie` (corps multipart, § 5) sont deux
+// contenus de requête mutuellement exclusifs — un seul encodage de corps
+// possible par requête. Refus attendu à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `Formulaire` n'existe
+// pas encore comme propriété d'`OpérationHTTP` — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de coexistence Formulaire/multipart. À régénérer une fois
+//  livré.
+ServiceFormulaireEtMultipart est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "documents"]
+	FIN
+
+	Televerse est une OpérationHTTP
+		PROPRIETES
+			Méthode     = httpPost
+			Chemin      = ["documents"]
+			TypeContenu = typeMimeFormulaireMultiPartie
+			Formulaire  = [titre]
+			Réponses    = [httpOK]
+			CodeÉtat    = httpOK
+		FIN
+		PROCEDURE surRequête(titre est une chaîne, scan est un FichierTéléversé) : chaîne
+			RENVOYER titre
+		FIN
+	FIN
+FIN

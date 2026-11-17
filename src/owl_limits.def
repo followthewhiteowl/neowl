@@ -20,7 +20,13 @@ OWL_LIMIT(MAX_LOOP_DEPTH,         16,   "Compiler/Controle",
           "Maximum nesting depth of loops (FOR / WHILE / LOOP) or SWITCH within "
           "a single procedure.")
 
-OWL_LIMIT(MAX_BREAKS,             64,   "Compiler/Controle",
+/* Plafonne volontairement a 256, pas au-dela : les sauts de fin de branche
+ * d'un SELON sont patchés via un tableau local endJumps[256] dans
+ * selon_statement (compiler.c). Tant que MAX_BREAKS <= 256, un SELON dont
+ * chaque branche fait SORTIR SELON frappe CETTE limite (erreur nette) avant
+ * d'atteindre le plafond silencieux de endJumps. Relever MAX_BREAKS seul
+ * rouvrirait ce piege. */
+OWL_LIMIT(MAX_BREAKS,             256,  "Compiler/Controle",
           "Nombre maximal d'instructions SORTIR ou CONTINUER (break/continue) "
           "dans une même boucle ou un même SELON.",
           "Maximum number of BREAK or CONTINUE statements inside a single loop "
@@ -55,7 +61,11 @@ OWL_LIMIT(MAX_USER_TYPE_FIELDS_TOTAL, 16384, "Compiler/Types",
           "across all declarations. There is no per-type ceiling: a single "
           "Structure may consume the whole budget.")
 
-OWL_LIMIT(MAX_DECLARED_METHODS,   1024, "Compiler/POO",
+/* KEEP IN SYNC avec PRESCAN_MAX_CLASS_METHODS dans prescan.h (cf. ) :
+ * la table de prescan classMethods[] est dimensionnee sur cette valeur. Un
+ * ecart (prescan plus bas que le compilo) rouvre une troncature silencieuse de
+ * la resolution cross-fichier au-dela du plus petit des deux plafonds. */
+OWL_LIMIT(MAX_DECLARED_METHODS,   8192, "Compiler/POO",
           "Nombre maximal de méthodes de classe déclarées par compilation.",
           "Maximum number of class methods declared per compilation.")
 

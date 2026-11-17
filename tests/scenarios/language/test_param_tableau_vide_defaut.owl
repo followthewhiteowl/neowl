@@ -1,0 +1,45 @@
+// @sujet : tableau
+// @résumé : Un paramètre `tableau de <Type>` accepte `[]` comme valeur par
+// défaut : le type d'élément vient de la déclaration, `[]` ne fournit que la
+// valeur vide. L'argument explicite reste prioritaire sur le défaut.
+
+// --- Helpers : paramètre tableau typé avec défaut [] ---
+
+PROCEDURE compteÉléments(éléments est un tableau de chaînes = [])
+	RENVOYER éléments..Occurrence
+FIN
+
+PROCEDURE ajouteEtCompte(éléments est un tableau de chaînes = [])
+	éléments.Ajoute("x")
+	RENVOYER éléments..Occurrence
+FIN
+
+PROCEDURE PUBLIQUE scenario_param_tableau_vide_defaut_occurrence_nulle()
+	dbgVérifieEgalité(compteÉléments(), 0,
+	"appel sans argument : défaut [] donne un tableau vide (Occurrence = 0)")
+FIN
+
+PROCEDURE PUBLIQUE scenario_param_tableau_vide_defaut_est_typé()
+	// L'ajout prouve que le défaut [] produit bien un tableau de chaînes
+	// typé (pas un conteneur vide non typé) : Ajoute("x") n'est valide que
+	// sur un tableau de chaînes.
+	dbgVérifieEgalité(ajouteEtCompte(), 1,
+	"défaut [] produit un tableau de chaînes typé : Ajoute('x') fonctionne")
+FIN
+
+PROCEDURE PUBLIQUE scenario_param_tableau_vide_defaut_argument_explicite_prioritaire()
+	rempli est un tableau de chaînes
+	rempli.Ajoute("a")
+	rempli.Ajoute("b")
+	dbgVérifieEgalité(compteÉléments(rempli), 2,
+	"argument explicite non vide n'est pas écrasé par le défaut []")
+FIN
+
+PROCEDURE PRIVÉE scenario_edge_param_tableau_vide_defaut_frais_a_chaque_appel()
+	// Chaque appel sans argument doit recevoir un tableau FRAIS (pas un
+	// unique tableau par défaut partagé et muté entre appels successifs).
+	dbgVérifieEgalité(ajouteEtCompte(), 1,
+	"premier appel sans argument : tableau par défaut vide puis 1 élément ajouté")
+	dbgVérifieEgalité(ajouteEtCompte(), 1,
+	"second appel sans argument : nouveau défaut vide, pas d'état partagé avec le premier appel")
+FIN

@@ -1698,6 +1698,10 @@ extern const char* compiler_projet_format_duree(void);  /*  */
  * effectif actif (defini plus bas, apres FnbConfig). */
 static void input_num_apply_format_validator(OwlControl* w, const char* name);
 
+/*  — sync Qt->store de la selection d'un Champ Arbre (souris/clavier),
+ * branche a la creation du controle (defini plus bas, pres du store Arbre). */
+static void arbre_mouse_selection_sync(OwlControl* sender, void* userdata);
+
 static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
                                   int auto_y) {
     /* X/Y explicites prennent precedence ; sinon fallback auto-layout
@@ -2615,6 +2619,12 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
              * Le rendu Qt (QTabWidget + pages) arrive au lot 2. Aucun widget
              * materialise ici pour l'instant : keep-alive -Wswitch. */
             break;
+        case OWL_CONTROL_ARBRE:
+            /* Champ Arbre — QTreeWidget mono-colonne. Le contenu (noeuds) est
+             * peuple apres l'ouverture par les natives Arbre* ; arbre_sync_widget
+             * repousse le store vers le widget a chaque mutation. */
+            widget = owl_ui_tree_create(parent, x, y, w, h);
+            break;
         case OWL_CONTROL_WINDOW:
             /* Virtuel — un controle de kind WINDOW ne devrait pas atterrir
              * dans build_control. Silencieux pour eviter warning -Wswitch. */
@@ -2627,7 +2637,15 @@ static OwlControl* build_control(OwlWindow* parent, const OwlControlDecl* ctrl,
          * source de verite (seede depuis le declaratif), Qt l'applique. Le
          * wiring precede donc le bloc Police/Cadre. */
         ObjUiControlInstance* uici = current_window_uici_for_decl(ctrl);
-        if (uici != NULL) uici->widget = widget;
+        if (uici != NULL) {
+            uici->widget = widget;
+            /*  — Arbre : la selection souris/clavier Qt doit remonter
+             * vers le store OWL (__owl_tree_sel__) lu par ArbreSelect. Sans ce
+             * cablage, ArbreSelect renvoie la derniere selection programmatique
+             * (perimee) apres un clic. Mirror du Champ Liste. */
+            if (ctrl->kind == OWL_CONTROL_ARBRE)
+                owl_ui_tree_on_selection(widget, arbre_mouse_selection_sync, uici);
+        }
 
         bool visible = prop_bool(ctrl->properties, ctrl->property_count,
                                   "Visible", "Visible", true);
@@ -5896,6 +5914,43 @@ static void apply_gradient_from_style(OwlControl* w, ObjInstance* style,
     apply_gradient_from_degrade(w, instance_get_instance(cadreExt, "Degrade"));
 }
 
+/*  — applique l'image de fond du Conteneur depuis
+ * style..CadreExtérieur..ImageFond. Source vide => retrait (défaut neutre strict :
+ * un conteneur sans image rend exactement comme avant). Source introuvable ou au
+ * format non reconnu => ErreurInfo renseignée (contrat calqué sur dChargeImage) +
+ * repli neutre sur CouleurFond (aucune peinture avec des données invalides). Le
+ * chemin relatif résout par rapport au dossier courant du processus. */
+static void apply_bg_image_from_style(OwlControl* w, ObjInstance* style) {
+    if (!w || !style) return;
+    ObjInstance* cadreExt = instance_get_instance(style, "CadreExterieur");
+    if (!cadreExt) return;
+    ObjInstance* img = instance_get_instance(cadreExt, "ImageFond");
+    if (!img) return;
+    Value src;
+    const char* path = NULL;
+    if (instance_get_value(img, "Source", &src) && IS_STRING(src))
+        path = AS_CSTRING(src);
+    int cadrage = instance_get_int(img, "Cadrage", OWL_CADIMG_ETIRE);
+    if (!path || !*path) {
+        owl_ui_container_set_bg_image(w, NULL, cadrage);   /* retrait neutre */
+        return;
+    }
+    /* Validation + sémantique d'erreur côté OWL (le rendu Qt recharge ensuite le
+     * fichier validé). Un échec pose ErreurInfo et retombe sur le fond uni. */
+    OwlImage* probe = owl_image_load_from_file(path);
+    if (!probe) {
+        owl_emit_native_error(E_NATIVE_IMAGE_LOAD_FAILURE, "ImageFond",
+                              "native", "ImageFond",
+                              "path", path,
+                              "detail", "fichier absent ou format non reconnu",
+                              NULL);
+        owl_ui_container_set_bg_image(w, NULL, cadrage);   /* repli neutre */
+        return;
+    }
+    owl_image_free(probe);
+    owl_ui_container_set_bg_image(w, path, cadrage);
+}
+
 /*  — lit un slot d'état du CadreExtérieur (CouleurFond + Cadre + Dégradé)
  * et pose le fragment QSS d'état correspondant sur le widget. Miroir de
  * apply_style_state (états texte de ZoneSaisie/Libellé) côté cadre. stateIdx :
@@ -6388,6 +6443,83 @@ static void apply_style_to_control(OwlControl* w, ObjInstance* style,
         owl_ui_liste_set_style(w, &spec);
     }
 
+    /*  — Champ Arbre stylé (styleArbre widget). Mirror du bloc Liste :
+     * feuille QSS unique sur le QTreeWidget, decomposee par sous-element :
+     * CadreExtérieur -> fond + bordure de l'arbre ; LibelléLignes -> texte des
+     * noeuds (::item) ; LigneSélectionnée -> texte du noeud selectionne
+     * (::item:selected). */
+    if (kind == OWL_CONTROL_ARBRE) {
+        OwlArbreStyleSpec spec = {0};
+        spec.ext_bg   = -1; spec.ext_bg_alpha = 255;
+        spec.row_fg   = -1; spec.row_bg = -1;
+        spec.row_fg_alpha = 255; spec.row_bg_alpha = 255;
+        spec.row_bold = -1; spec.row_italic = -1;
+        spec.sel_fg   = -1; spec.sel_bg = -1;
+        spec.sel_fg_alpha = 255; spec.sel_bg_alpha = 255;
+        spec.sel_bold = -1; spec.sel_italic = -1;
+
+        OwlCadreSpec extBorder = {0};
+        const char* rowFamily = NULL;
+        const char* selFamily = NULL;
+
+        /* CadreExtérieur -> fond + bordure de l'arbre. */
+        ObjInstance* cadreExt = instance_get_instance(style, "CadreExterieur");
+        if (cadreExt) {
+            instance_get_color(cadreExt, "CouleurFond", &spec.ext_bg, &spec.ext_bg_alpha);
+            ObjInstance* cadre = instance_get_instance(cadreExt, "Cadre");
+            if (cadre && cadre_instance_is_visible(cadre)) {
+                cadre_instance_to_spec(cadre, &extBorder);
+                spec.ext_border = &extBorder;
+            }
+        }
+
+        /* LibelléLignes -> texte des noeuds (Couleur + Police). */
+        ObjInstance* rows = instance_get_instance(style, "LibelleLignes");
+        if (rows) {
+            instance_get_color(rows, "Couleur", &spec.row_fg, &spec.row_fg_alpha);
+            instance_get_color(rows, "CouleurFond", &spec.row_bg, &spec.row_bg_alpha);
+            ObjInstance* police = instance_get_instance(rows, "Police");
+            if (police && !police_instance_is_default(police)) {
+                Value nomV;
+                ObjString* nomK = obj_copy_string("Nom", 3);
+                if (table_get(&police->fields, nomK, &nomV)
+                    && IS_STRING(nomV) && AS_STRING(nomV)->length > 0)
+                    rowFamily = AS_CSTRING(nomV);
+                spec.row_font_family = rowFamily;
+                spec.row_font_size = instance_get_int(police, "Taille", 0);
+                spec.row_bold   = instance_get_bool(police, "Gras",     false) ? 1 : 0;
+                spec.row_italic = instance_get_bool(police, "Italique", false) ? 1 : 0;
+                int pc = -1, pcA = 255;
+                instance_get_color(police, "Couleur", &pc, &pcA);
+                if (pc > 0) { spec.row_fg = pc; spec.row_fg_alpha = pcA; }
+            }
+        }
+
+        /* LigneSélectionnée -> texte du noeud selectionne. */
+        ObjInstance* selRow = instance_get_instance(style, "LigneSelectionnee");
+        if (selRow) {
+            instance_get_color(selRow, "Couleur", &spec.sel_fg, &spec.sel_fg_alpha);
+            instance_get_color(selRow, "CouleurFond", &spec.sel_bg, &spec.sel_bg_alpha);
+            ObjInstance* police = instance_get_instance(selRow, "Police");
+            if (police && !police_instance_is_default(police)) {
+                Value nomV;
+                ObjString* nomK = obj_copy_string("Nom", 3);
+                if (table_get(&police->fields, nomK, &nomV)
+                    && IS_STRING(nomV) && AS_STRING(nomV)->length > 0)
+                    selFamily = AS_CSTRING(nomV);
+                spec.sel_font_family = selFamily;
+                spec.sel_font_size = instance_get_int(police, "Taille", 0);
+                spec.sel_bold   = instance_get_bool(police, "Gras",     false) ? 1 : 0;
+                spec.sel_italic = instance_get_bool(police, "Italique", false) ? 1 : 0;
+                int pc = -1, pcA = 255;
+                instance_get_color(police, "Couleur", &pc, &pcA);
+                if (pc > 0) { spec.sel_fg = pc; spec.sel_fg_alpha = pcA; }
+            }
+        }
+
+        owl_ui_arbre_set_style(w, &spec);
+    }
+
     /*  — Champ Combo stylé (styleCombo widget). Feuille QSS unique sur
      * le QComboBox, decomposee par sous-element : Libellé -> le QLabel du wrapper
      * integre ; CadreExtérieur -> fond + bordure englobante ; ZoneSaisie -> le
@@ -6522,6 +6654,8 @@ static void apply_style_to_control(OwlControl* w, ObjInstance* style,
                              &padL, &padT, &padR, &padB);
         owl_ui_container_set_style(w, bg, bgAlpha, extBorderPtr,
                                    padL, padT, padR, padB);
+        /*  — image de fond (au-dessus de CouleurFond, sous le contenu). */
+        apply_bg_image_from_style(w, style);
     }
 
     /*  — Champ Jauge stylé (styleJauge widget). Rendu HYBRIDE : le
@@ -11082,6 +11216,28 @@ static Value fn_debug_police_champ(int argCount, Value* args) {
     return OBJ_VAL(obj_copy_string(desc, (int)strlen(desc)));
 }
 
+/*  — PoliceCharge(chemin) / FontLoad(path) : charge un fichier de
+ * police (.ttf/.otf) dans la base applicative et renvoie son nom de famille,
+ * reutilisable dans Champ..Police..Nom. Succes = famille non vide. Echec
+ * (chemin illisible ou format non reconnu) = chaine vide + erreur signalee
+ * (ErreurDetectee/ErreurInfo), pas de crash. Extension OWL hors-canon : le
+ * runtime charge la police depuis un fichier (toolchain statique/autonome). */
+static Value fn_police_charge(int argCount, Value* args) {
+    OWL_REQUIRE_ARG("PoliceCharge", "chemin", 0, IS_STRING(args[0]), "chaîne",
+                    OBJ_VAL(obj_copy_string("", 0)));
+    const char* path = AS_CSTRING(args[0]);
+    ensure_ui_init();
+    const char* fam = owl_ui_police_charge(path);
+    if (fam == NULL || fam[0] == '\0') {
+        owl_emit_native_error(E_NATIVE_IO_OPEN_FAILURE, "PoliceCharge",
+                              "path", path,
+                              "detail", "police illisible ou format non reconnu",
+                              NULL);
+        return OBJ_VAL(obj_copy_string("", 0));
+    }
+    return OBJ_VAL(obj_copy_string(fam, (int)strlen(fam)));
+}
+
 /* ====================================================================
  *  Ouverture / Fermeture de fenetres (Phase E.1)
  * ==================================================================== */
@@ -12236,7 +12392,16 @@ static Value fn_demande_mise_a_jour_ihm(int argCount, Value* args) {
     return NIL_VAL;
 }
 
-/* FinProgramme - implem partielle (exit + message d'erreur optionnel). */
+/*  — teardown projet (Fermeture()/Closing()), declare dans project.h
+ * (inclus plus bas pour le Lot V). Forward-decl locale : fn_fin_programme vit
+ * avant cet include. */
+InterpretResult call_project_teardown(void);
+
+/* FinProgramme([<message>...][, <codeFermeture>]) — termine le programme.
+ * Le booleen de fin <codeFermeture> pilote l'execution du code de fermeture du
+ * projet (Fermeture()/Closing()) AVANT de quitter : Vrai => teardown joue,
+ * Faux (defaut) => teardown saute. Ce booleen n'est PAS un code de sortie :
+ * FinProgramme sort toujours avec le code 0. */
 static Value fn_fin_programme(int argCount, Value* args) {
     int last_msg = argCount;
     bool exec_close = false;
@@ -12249,7 +12414,9 @@ static Value fn_fin_programme(int argCount, Value* args) {
         if (msg && *msg) owl_ui_message_error("Fin du programme", msg);
         free(msg);
     }
-    (void)exec_close;
+    if (exec_close) {
+        call_project_teardown();
+    }
     exit(0);
     return NIL_VAL;
 }
@@ -14843,6 +15010,1125 @@ static Value fn_liste_select(int argCount, Value* args) {
     }
     return INTEGER_VAL(owl_ui_listcombo_get_selection(lst));
 }
+/* ====================================================================
+ *  Champ Arbre — natives Arbre* (MVP : Ajoute / SupprimeTout / Occurrence)
+ *
+ * Store headless : un ObjArray d'ObjString, chaque element etant le chemin
+ * COMPLET (segments separes par une tabulation) d'un noeud. Un noeud par chemin
+ * distinct ; ArbreAjoute materialise aussi tous les prefixes (noeuds
+ * intermediaires) et ne duplique jamais un chemin deja present. Le nombre total
+ * de noeuds est donc exactement le nombre d'elements du store. Le widget Qt,
+ * quand il est monte, est reconstruit depuis ce store (verite unique).
+ * ==================================================================== */
+#define OWL_UI_TREE_PATHS_KEY "__owl_tree__"
+
+/* Marqueur interne d'adressage par identifiant. ArbreID("id") renvoie
+ * "\x01id" ; un noeud a identifiant est stocke en concatenant "\x01id" a son
+ * dernier segment ("Racine\tA\x01id1"). 0x01 (SOH) ne peut apparaitre ni dans
+ * un libelle reel ni comme separateur (TAB = 0x09) : deux homonymes a id
+ * distincts sont donc deux chaines octet-distinctes, chacune une entree propre
+ * du store. Une requete non qualifiee (sans marqueur) matche le libelle en
+ * ignorant l'id du store ; une requete qualifiee impose l'egalite de l'id. */
+#define OWL_ARBRE_ID_MARK '\x01'
+
+/* Compare un segment de requete a un segment du store. Les libelles (partie
+ * avant le marqueur) doivent etre egaux ; si la requete porte un identifiant,
+ * le store doit porter le meme ; une requete non qualifiee ignore l'id du
+ * store. */
+static bool arbre_seg_match(const char* qseg, size_t qlen,
+                            const char* sseg, size_t slen) {
+    const char* qmark = (const char*)memchr(qseg, OWL_ARBRE_ID_MARK, qlen);
+    const char* smark = (const char*)memchr(sseg, OWL_ARBRE_ID_MARK, slen);
+    size_t qlabel = qmark ? (size_t)(qmark - qseg) : qlen;
+    size_t slabel = smark ? (size_t)(smark - sseg) : slen;
+    if (qlabel != slabel || memcmp(qseg, sseg, qlabel) != 0) return false;
+    if (!qmark) return true;              /* requete non qualifiee : id ignore */
+    if (!smark) return false;             /* requete veut un id, store n'en a pas */
+    size_t qid = qlen - qlabel - 1;
+    size_t sid = slen - slabel - 1;
+    return qid == sid && memcmp(qmark + 1, smark + 1, qid) == 0;
+}
+/* Vrai si l'entree `s` designe exactement le noeud de la requete `query` :
+ * meme nombre de segments, chaque segment matche (libelle + id-qualifie). Pour
+ * des chemins plats (sans marqueur) c'est l'egalite octet-a-octet. */
+static bool arbre_path_match(const char* s, size_t slen,
+                             const char* query, size_t qlen) {
+    size_t si = 0, qi = 0;
+    for (;;) {
+        size_t ss = si; while (si < slen && s[si] != '\t') si++;
+        size_t qs = qi; while (qi < qlen && query[qi] != '\t') qi++;
+        if (!arbre_seg_match(query + qs, qi - qs, s + ss, si - ss)) return false;
+        bool sMore = (si < slen), qMore = (qi < qlen);
+        if (sMore != qMore) return false; /* nombre de segments different */
+        if (!sMore) return true;
+        si++; qi++;                       /* passe la tabulation */
+    }
+}
+/* Vrai si `s` est le noeud de la requete `query` OU l'un de ses descendants :
+ * les premiers segments de `s` matchent `query` (id-qualifie), `s` pouvant
+ * avoir des segments supplementaires. */
+static bool arbre_path_under_query(const char* s, size_t slen,
+                                   const char* query, size_t qlen) {
+    size_t si = 0, qi = 0;
+    for (;;) {
+        size_t ss = si; while (si < slen && s[si] != '\t') si++;
+        size_t qs = qi; while (qi < qlen && query[qi] != '\t') qi++;
+        if (!arbre_seg_match(query + qs, qi - qs, s + ss, si - ss)) return false;
+        if (!(qi < qlen)) return true;    /* query epuisee : self-or-descendant */
+        if (!(si < slen)) return false;   /* s plus court que query */
+        si++; qi++;
+    }
+}
+/* Dernier segment de `s` (apres la derniere tabulation) ; identifiant du noeud
+ * = partie apres le marqueur de ce dernier segment, "" si aucun. */
+static const char* arbre_node_id(const char* s) {
+    const char* last = strrchr(s, '\t');
+    last = last ? last + 1 : s;
+    const char* mark = strchr(last, OWL_ARBRE_ID_MARK);
+    return mark ? mark + 1 : "";
+}
+
+static ObjUiControlInstance* arbre_uici_from_arg(Value v, const char* fnName) {
+    ObjUiControlInstance* uici = NULL;
+    if (IS_UI_CONTROL_REF(v))            uici = resolve_ui_ref(AS_UI_CONTROL_REF(v));
+    else if (IS_UI_CONTROL_INSTANCE(v))  uici = AS_UI_CONTROL_INSTANCE(v);
+    else if (IS_STRING(v))               uici = current_window_uici_by_name(AS_CSTRING(v));
+    if (!uici || !uici->decl || uici->decl->kind != OWL_CONTROL_ARBRE) {
+        owl_emit_native_error(E_NATIVE_ARG_TYPE_MISMATCH, fnName,
+                              "arg", "1", "expected", "Champ Arbre",
+                              "actual", "type de champ incompatible", NULL);
+        return NULL;
+    }
+    return uici;
+}
+static ObjArray* arbre_store_get_or_create(ObjUiControlInstance* uici) {
+    Value existing;
+    if (obj_ui_control_instance_headless_get(uici, OWL_UI_TREE_PATHS_KEY, &existing)
+        && IS_ARRAY(existing))
+        return AS_ARRAY(existing);
+    ObjArray* arr = obj_new_array();
+    vm_push(OBJ_VAL(arr));  /* root pendant le set (table grow -> GC) */
+    obj_ui_control_instance_headless_set(uici, OWL_UI_TREE_PATHS_KEY, OBJ_VAL(arr));
+    vm_pop();
+    return arr;
+}
+static ObjArray* arbre_store_peek(ObjUiControlInstance* uici) {
+    Value existing;
+    if (obj_ui_control_instance_headless_get(uici, OWL_UI_TREE_PATHS_KEY, &existing)
+        && IS_ARRAY(existing))
+        return AS_ARRAY(existing);
+    return NULL;
+}
+static bool arbre_path_present(ObjArray* paths, const char* p, size_t plen) {
+    for (int i = 0; i < paths->elements.count; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        if (arbre_path_match(s, strlen(s), p, plen)) return true;
+    }
+    return false;
+}
+/* Vrai si au moins un chemin du store est un fils direct ou indirect de `p`
+ * (prefixe exact `p` suivi d'une tabulation). Un noeud a fils affiche l'icone
+ * dossier par defaut ; une feuille (aucun fils) reste nue. */
+static bool arbre_has_children(ObjArray* paths, const char* p, size_t plen) {
+    for (int i = 0; i < paths->elements.count; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        if (strlen(s) > plen + 1 && memcmp(s, p, plen) == 0 && s[plen] == '\t')
+            return true;
+    }
+    return false;
+}
+
+/* ---- Icones de noeud (refs enroulée / déroulée par chemin) --------------
+ * Deux maps headless (chemin complet -> Value ref) memorisent l'image de chaque
+ * etat. Une ref est : une chaine "icones.<nom>" / chemin fichier, une instance
+ * Icône, la sentinelle aDéfaut (OWL_ARBRE_IMAGE_DEFAUT, rendu par defaut) ou
+ * Null (icone explicitement absente). Absence dans la map = rendu par defaut.
+ * Les refs sont re-resolues vers RGBA a chaque arbre_sync_widget (verite au
+ * store, comme les chemins). Taille cible fixe pour une icone de noeud. */
+#define OWL_UI_TREE_ICON_ENR_KEY "__owl_tree_icon_enr__"
+#define OWL_UI_TREE_ICON_DER_KEY "__owl_tree_icon_der__"
+#define OWL_ARBRE_ICON_SIZE 16
+
+static ObjAssocArray* arbre_icon_map_peek(ObjUiControlInstance* uici,
+                                          const char* key) {
+    Value v;
+    if (obj_ui_control_instance_headless_get(uici, key, &v) && IS_ASSOC_ARRAY(v))
+        return AS_ASSOC_ARRAY(v);
+    return NULL;
+}
+static ObjAssocArray* arbre_icon_map_get_or_create(ObjUiControlInstance* uici,
+                                                   const char* key) {
+    ObjAssocArray* map = arbre_icon_map_peek(uici, key);
+    if (map) return map;
+    map = obj_new_assoc(ASSOC_KEY_STRING, ASSOC_OPT_NONE, ASSOC_VALUE_VARIANT);
+    vm_push(OBJ_VAL(map));  /* root pendant le set (table grow -> GC) */
+    obj_ui_control_instance_headless_set(uici, key, OBJ_VAL(map));
+    vm_pop();
+    return map;
+}
+/* Caller garde le backing de `chemin` root (cle allouee ici). */
+static Value arbre_icon_ref_peek(ObjUiControlInstance* uici, const char* key,
+                                 const char* chemin, size_t clen, bool* exists) {
+    *exists = false;
+    ObjAssocArray* map = arbre_icon_map_peek(uici, key);
+    if (!map) return NIL_VAL;
+    ObjString* k = obj_copy_string(chemin, (int)clen);
+    int ex = 0;
+    Value v = obj_assoc_get(map, k, &ex);
+    *exists = (ex != 0);
+    return v;
+}
+static void arbre_icon_ref_set(ObjUiControlInstance* uici, const char* key,
+                               const char* chemin, size_t clen, Value ref) {
+    ObjAssocArray* map = arbre_icon_map_get_or_create(uici, key);
+    if (IS_OBJ(ref)) vm_push(ref);  /* ref rootee pendant alloc cle + grow */
+    obj_assoc_put_cstr(map, chemin, (int)clen, ref);
+    if (IS_OBJ(ref)) vm_pop();
+}
+static bool arbre_ref_is_adefaut(Value ref) {
+    return IS_INTEGER(ref) && (int)AS_INTEGER(ref) == OWL_ARBRE_IMAGE_DEFAUT;
+}
+
+/* Etat pli/depli propre a un noeud (defini plus bas) : Vrai = deroule. */
+static bool arbre_expanded_peek(ObjUiControlInstance* uici, const char* chemin, size_t clen);
+
+/* Rasterise un ObjIcone vers RGBA (taille noeud) et le pose dans le slot. */
+static void arbre_rasterize_icone_to_slot(ObjUiControlInstance* uici,
+                                          const char* chemin, int slot,
+                                          ObjIcone* icn) {
+    if (icn == NULL || !icn->valide || icn->svg_raw == NULL
+        || icn->svg_raw->length == 0)
+        return;
+    unsigned char* rgba = NULL;
+    int iw = 0, ih = 0;
+    bool want_bg = (icn->couleur_fond != -1);
+    /*  — icone de noeud SANS couleur explicite (couleur == -1, cas des
+     * dossiers par defaut et des icones.<nom> monochromes) : la teinter avec la
+     * couleur de texte effective de l'Arbre (lisible sur theme sombre) au lieu
+     * du noir. Une Icone a couleur explicite garde SA couleur (branche else
+     * inchangee). */
+    unsigned int color_bgr;
+    bool want_color;
+    if (icn->couleur == -1) {
+        int eff = owl_ui_tree_effective_text_color_bgr((OwlControl*)uici->widget);
+        color_bgr = (eff >= 0) ? (unsigned int)(eff & 0xFFFFFF) : 0u;
+        want_color = true;
+    } else {
+        color_bgr = (unsigned int)(icn->couleur & 0xFFFFFF);
+        want_color = icn->couleur_modifiable;
+    }
+    if (owl_icone_rasterize_rgba(
+            icn->svg_raw->chars, icn->svg_raw->length,
+            color_bgr, want_color,
+            OWL_ARBRE_ICON_SIZE, icn->rotation, icn->forme,
+            (unsigned int)((want_bg ? icn->couleur_fond : 0) & 0xFFFFFF),
+            want_bg, &rgba, &iw, &ih)) {
+        owl_ui_tree_set_item_icon_slot_rgba((OwlControl*)uici->widget, chemin,
+                                            slot, rgba, iw, ih);
+        free(rgba);
+    }
+}
+/* Pose l'icone dossier par defaut (folder / folder_open) dans le slot. */
+static void arbre_set_slot_default_folder(ObjUiControlInstance* uici,
+                                          const char* chemin, int slot,
+                                          bool open) {
+    const char* nom = open ? "folder_open" : "folder";
+    const OwlIconCatalogEntry* entry = owl_icones_catalog_find(nom);
+    if (entry == NULL) return;
+    Value v = owl_icones_materialize_entry(entry);
+    if (!IS_ICONE(v)) return;
+    vm_push(v);
+    arbre_rasterize_icone_to_slot(uici, chemin, slot, AS_ICONE(v));
+    vm_pop();
+}
+/* Resout une ref custom (chaine catalogue/fichier ou Icône) vers le slot. */
+static void arbre_set_slot_from_ref(ObjUiControlInstance* uici,
+                                    const char* chemin, int slot, Value ref) {
+    if (IS_ICONE(ref)) {
+        arbre_rasterize_icone_to_slot(uici, chemin, slot, AS_ICONE(ref));
+        return;
+    }
+    if (!IS_STRING(ref)) {  /* type non image : slot vide */
+        owl_ui_tree_set_item_icon_slot_rgba((OwlControl*)uici->widget, chemin,
+                                            slot, NULL, 0, 0);
+        return;
+    }
+    const char* str = AS_CSTRING(ref);  /* ref rootee dans la map : stable */
+    const char* nom = NULL;
+    if (strncasecmp(str, "icones.", 7) == 0)      nom = str + 7;
+    else if (strncasecmp(str, "icons.", 6) == 0)  nom = str + 6;
+    if (nom != NULL) {
+        const OwlIconCatalogEntry* entry = owl_icones_catalog_find(nom);
+        if (entry != NULL) {
+            Value v = owl_icones_materialize_entry(entry);
+            if (IS_ICONE(v)) {
+                vm_push(v);
+                arbre_rasterize_icone_to_slot(uici, chemin, slot, AS_ICONE(v));
+                vm_pop();
+                return;
+            }
+        }
+        /* Nom catalogue inconnu : slot vide (jamais QIcon("icones.foo")). */
+        owl_ui_tree_set_item_icon_slot_rgba((OwlControl*)uici->widget, chemin,
+                                            slot, NULL, 0, 0);
+        return;
+    }
+    /* Chemin de fichier disque : delegue a Qt (QIcon), arbitre des formats. */
+    owl_ui_tree_set_item_icon_slot_path((OwlControl*)uici->widget, chemin,
+                                        slot, str);
+}
+/* Remplit un slot (0 = enroule, 1 = deroule) : ref explicite sinon defaut.
+ * `open` indique la variante dossier du defaut (folder vs folder_open). */
+static void arbre_fill_slot(ObjUiControlInstance* uici, const char* chemin,
+                            int slot, bool have, Value ref, bool hasChildren,
+                            bool open) {
+    OwlControl* w = (OwlControl*)uici->widget;
+    if (!have || arbre_ref_is_adefaut(ref)) {
+        if (hasChildren) arbre_set_slot_default_folder(uici, chemin, slot, open);
+        else owl_ui_tree_set_item_icon_slot_rgba(w, chemin, slot, NULL, 0, 0);
+        return;
+    }
+    if (IS_NIL(ref)) {  /* Null : icone explicitement absente */
+        owl_ui_tree_set_item_icon_slot_rgba(w, chemin, slot, NULL, 0, 0);
+        return;
+    }
+    arbre_set_slot_from_ref(uici, chemin, slot, ref);
+}
+/* Pose les deux slots d'icone du noeud puis affiche celui de l'etat courant. */
+static void arbre_apply_node_icon(ObjUiControlInstance* uici, const char* chemin,
+                                  size_t clen, bool hasChildren, bool expanded) {
+    if (!uici->widget) return;
+    bool haveEnr = false, haveDer = false;
+    Value enr = arbre_icon_ref_peek(uici, OWL_UI_TREE_ICON_ENR_KEY,
+                                    chemin, clen, &haveEnr);
+    Value der = arbre_icon_ref_peek(uici, OWL_UI_TREE_ICON_DER_KEY,
+                                    chemin, clen, &haveDer);
+    /* Slot enroule : image enroulée. Slot deroule : image déroulée si posee,
+     * sinon retombe sur l'image enroulée (arité 3 : une seule image fournie). */
+    arbre_fill_slot(uici, chemin, 0, haveEnr, enr, hasChildren, false);
+    bool haveExp = haveDer ? true : haveEnr;
+    Value expRef = haveDer ? der : enr;
+    arbre_fill_slot(uici, chemin, 1, haveExp, expRef, hasChildren, true);
+    owl_ui_tree_show_item_icon((OwlControl*)uici->widget, chemin, expanded);
+}
+
+/* Reconstruit le widget Qt depuis le store (no-op headless : widget == NULL). */
+static void arbre_sync_widget(ObjUiControlInstance* uici) {
+    if (!uici || !uici->widget) return;
+    ObjArray* paths = arbre_store_peek(uici);
+    int n = paths ? paths->elements.count : 0;
+    const char** cpaths = (n > 0) ? (const char**)malloc(sizeof(char*) * (size_t)n)
+                                   : NULL;
+    for (int i = 0; i < n; i++) {
+        Value v = paths->elements.values[i];
+        cpaths[i] = IS_STRING(v) ? AS_CSTRING(v) : "";
+    }
+    owl_ui_tree_set_paths((OwlControl*)uici->widget, cpaths, n);
+    free(cpaths);
+    /* Le rebuild Qt repart tout plie ; re-applique l'etat pli/depli du store. */
+    for (int i = 0; i < n; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        owl_ui_tree_set_expanded((OwlControl*)uici->widget, s,
+                                 arbre_expanded_peek(uici, s, strlen(s)));
+    }
+    /* Icones de noeud : re-resolues depuis les refs du store (defaut folder/
+     * folder_open pour un noeud a fils, nue pour une feuille, custom sinon).
+     * Apres l'etat pli/depli pour afficher le bon slot. */
+    for (int i = 0; i < n; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        size_t sl = strlen(s);
+        arbre_apply_node_icon(uici, s, sl, arbre_has_children(paths, s, sl),
+                              arbre_expanded_peek(uici, s, sl));
+    }
+}
+static Value fn_arbre_ajoute(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreAjoute] (arbre, chemin) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreAjoute");
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    ObjArray* paths = arbre_store_get_or_create(uici);
+    /* Arité 5 : identifiant du noeud COMPLET (chaine ; vide = aucun id). Arité 6 :
+     * mode d'ajout (seule aAccepteDoublon est traitee ce lot). */
+    ObjString* keepId = NULL;
+    const char* identifiant = (argCount >= 5) ? list_value_to_text(args[4], &keepId) : "";
+    if (!identifiant) identifiant = "";
+    size_t idlen = strlen(identifiant);
+    bool accepteDoublon = (argCount >= 6 && IS_INTEGER(args[5])
+                           && (int)AS_INTEGER(args[5]) == OWL_ARBRE_ACCEPTE_DOUBLON);
+    size_t len = strlen(chemin);
+    /* Prefixes intermediaires (segments STRICTS, i < len) : materialises sans id,
+     * jamais dupliques. */
+    for (size_t i = 0; i < len; i++) {
+        if (chemin[i] == '\t' && !arbre_path_present(paths, chemin, i)) {
+            Value sv = OBJ_VAL(obj_copy_string(chemin, (int)i));
+            vm_push(sv);  /* value_array_write peut grow -> GC */
+            value_array_write(&paths->elements, sv);
+            vm_pop();
+        }
+    }
+    /* Noeud COMPLET. Le chemin fourni est non qualifie : arbre_path_present
+     * matche alors le label-path en ignorant les id du store. Absent -> ajout.
+     * Present + aAccepteDoublon -> homonyme distinct. Present sans aAccepteDoublon
+     * -> ignore (comportement par defaut inchange). Le noeud stocke concatene
+     * "\x01id" a son dernier segment des qu'un id est fourni, ou le marqueur seul
+     * pour qu'un homonyme sans id reste octet-distinct de son frere. */
+    const char* nodePath = chemin;        /* chemin stocke (defaut : tel quel) */
+    size_t nodeLen = len;
+    char* nodeBuf = NULL;
+    if (len > 0) {
+        bool exists = arbre_path_present(paths, chemin, len);
+        bool doAdd = (!exists) || accepteDoublon;
+        bool withMark = (idlen > 0) || (exists && accepteDoublon);
+        if (withMark) {
+            nodeLen = len + 1 + idlen;
+            nodeBuf = (char*)malloc(nodeLen + 1);
+            memcpy(nodeBuf, chemin, len);
+            nodeBuf[len] = OWL_ARBRE_ID_MARK;
+            memcpy(nodeBuf + len + 1, identifiant, idlen);
+            nodeBuf[nodeLen] = '\0';
+            nodePath = nodeBuf;
+        }
+        if (doAdd) {
+            Value sv = OBJ_VAL(obj_copy_string(nodePath, (int)nodeLen));
+            vm_push(sv);  /* value_array_write peut grow -> GC */
+            value_array_write(&paths->elements, sv);
+            vm_pop();
+        }
+    }
+    /* Arité 3/4 : memorise l'image enroulée (arg 3) et, le cas echeant, l'image
+     * déroulée (arg 4) du noeud COMPLET (keye par le chemin stocke, id compris).
+     * Les args sont rootes sur la pile VM pendant toute la native ; `chemin`,
+     * `identifiant` et `nodeBuf` (local) le sont aussi. */
+    if (argCount >= 3 && len > 0) {
+        arbre_icon_ref_set(uici, OWL_UI_TREE_ICON_ENR_KEY, nodePath, nodeLen, args[2]);
+        if (argCount >= 4)
+            arbre_icon_ref_set(uici, OWL_UI_TREE_ICON_DER_KEY, nodePath, nodeLen, args[3]);
+    }
+    free(nodeBuf);
+    (void)keep; (void)keepId;
+    arbre_sync_widget(uici);
+    return BOOL_VAL(true);
+}
+static Value fn_arbre_supprime_tout(int argCount, Value* args) {
+    if (argCount < 1) {
+        fprintf(stderr, "[ArbreSupprimeTout] (arbre) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreSupprimeTout");
+    if (!uici) return BOOL_VAL(false);
+    ObjArray* paths = arbre_store_peek(uici);
+    if (paths) paths->elements.count = 0;  /* GC : valeurs orphelines sweepees */
+    arbre_sync_widget(uici);
+    return BOOL_VAL(true);
+}
+static Value fn_arbre_occurrence(int argCount, Value* args) {
+    if (argCount < 1) return INTEGER_VAL(0);
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreOccurrence");
+    if (!uici) return INTEGER_VAL(0);
+    ObjArray* paths = arbre_store_peek(uici);
+    return INTEGER_VAL(paths ? paths->elements.count : 0);
+}
+
+/* ArbreID("id") : fragment d'adressage. Renvoie "\x01id", a concatener a un
+ * segment de chemin ("A" + ArbreID("id2")) pour designer l'homonyme portant cet
+ * id. Le marqueur 0x01 est interne et ne collisionne ni avec TAB ni avec un
+ * libelle reel. */
+static Value fn_arbre_id(int argCount, Value* args) {
+    ObjString* keep = NULL;
+    const char* id = (argCount >= 1) ? list_value_to_text(args[0], &keep) : "";
+    if (!id) id = "";
+    size_t idlen = strlen(id);
+    char* buf = (char*)malloc(idlen + 2);
+    buf[0] = OWL_ARBRE_ID_MARK;
+    memcpy(buf + 1, id, idlen);
+    Value r = OBJ_VAL(obj_copy_string(buf, (int)(idlen + 1)));
+    free(buf);
+    (void)keep;
+    return r;
+}
+
+/* ArbreRécupèreIdentifiant(arbre, chemin) : identifiant de l'element au chemin.
+ * Chemin nu -> id du 1er noeud de ce label-path (ordre du store) ; chemin
+ * qualifie par ArbreID -> match exact de l'homonyme. "" si aucun id / aucun
+ * noeud trouve. */
+static Value fn_arbre_recupere_identifiant(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreRecupereIdentifiant] (arbre, chemin) attendu.\n");
+        return OBJ_VAL(obj_copy_string("", 0));
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreR\xc3\xa9" "cup\xc3\xa8reIdentifiant");
+    if (!uici) return OBJ_VAL(obj_copy_string("", 0));
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    int n = paths ? paths->elements.count : 0;
+    for (int i = 0; i < n; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        if (arbre_path_match(s, strlen(s), chemin, clen)) {
+            const char* id = arbre_node_id(s);
+            (void)keep;
+            return OBJ_VAL(obj_copy_string(id, (int)strlen(id)));
+        }
+    }
+    (void)keep;
+    return OBJ_VAL(obj_copy_string("", 0));
+}
+
+/* ---- Selection (liste ORDONNEE de chemins) ----------------------------
+ * Le store des chemins (OWL_UI_TREE_PATHS_KEY) contient deja le chemin COMPLET
+ * de chaque noeud ; la selection est une liste ORDONNEE de ces chemins,
+ * memorisee sous une cle headless dediee. L'ordre est l'ordre d'AJOUT a la
+ * selection (premier SelectPlus = rang 1), independant de la position du noeud
+ * dans l'arbre. Liste absente / vide = rien de selectionne.
+ * En mode mono (propriete Multiselection = Faux, defaut), la liste a au plus
+ * un element : chaque SelectPlus la remplace. En multi, SelectPlus accumule. */
+#define OWL_UI_TREE_SEL_KEY "__owl_tree_sel__"
+
+static bool arbre_is_multi(ObjUiControlInstance* uici) {
+    if (!uici || !uici->decl) return false;
+    return prop_bool(uici->decl->properties, uici->decl->property_count,
+                     "Multis\xc3\xa9lection", "MultiSelection", false);
+}
+
+static ObjArray* arbre_selection_peek(ObjUiControlInstance* uici) {
+    Value v;
+    if (obj_ui_control_instance_headless_get(uici, OWL_UI_TREE_SEL_KEY, &v)
+        && IS_ARRAY(v))
+        return AS_ARRAY(v);
+    return NULL;
+}
+static ObjArray* arbre_selection_get_or_create(ObjUiControlInstance* uici) {
+    ObjArray* sel = arbre_selection_peek(uici);
+    if (sel) return sel;
+    ObjArray* arr = obj_new_array();
+    vm_push(OBJ_VAL(arr));  /* root pendant le set (table grow -> GC) */
+    obj_ui_control_instance_headless_set(uici, OWL_UI_TREE_SEL_KEY, OBJ_VAL(arr));
+    vm_pop();
+    return arr;
+}
+/* Index 0-based du chemin dans la selection, -1 si absent. */
+static int arbre_selection_index_of(ObjArray* sel, const char* path, size_t plen) {
+    if (!sel) return -1;
+    for (int i = 0; i < sel->elements.count; i++) {
+        Value v = sel->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        if (strlen(s) == plen && memcmp(s, path, plen) == 0) return i;
+    }
+    return -1;
+}
+static void arbre_selection_append(ObjArray* sel, const char* path, size_t plen) {
+    Value sv = OBJ_VAL(obj_copy_string(path, (int)plen));
+    vm_push(sv);  /* fresh ObjString rootee (value_array_write peut grow -> GC) */
+    value_array_write(&sel->elements, sv);
+    vm_pop();
+}
+/* Retire l'element a l'index donne en reindexant de maniere contigue. */
+static void arbre_selection_remove_at(ObjArray* sel, int idx) {
+    if (!sel || idx < 0 || idx >= sel->elements.count) return;
+    for (int i = idx; i < sel->elements.count - 1; i++)
+        sel->elements.values[i] = sel->elements.values[i + 1];
+    sel->elements.count--;  /* GC : valeur orpheline sweepee */
+}
+/* Synchro visuelle de la selection + mode (no-op headless : widget == NULL). */
+static void arbre_sync_selection_widget(ObjUiControlInstance* uici) {
+    if (!uici || !uici->widget) return;
+    ObjArray* sel = arbre_selection_peek(uici);
+    int n = sel ? sel->elements.count : 0;
+    const char** paths = NULL;
+    if (n > 0) {
+        paths = (const char**)malloc(sizeof(char*) * (size_t)n);
+        int m = 0;
+        for (int i = 0; i < n; i++) {
+            Value v = sel->elements.values[i];
+            if (IS_STRING(v)) paths[m++] = AS_CSTRING(v);
+        }
+        n = m;
+    }
+    owl_ui_tree_select_paths((OwlControl*)uici->widget, paths, n,
+                             arbre_is_multi(uici));
+    free(paths);
+}
+
+/* Visiteur du pont Qt : chaque chemin d'item selectionne est ajoute a la
+ * selection OWL en cours de reconstruction. */
+static void arbre_mouse_sync_visit(const char* path, void* ud) {
+    if (!path) return;
+    arbre_selection_append((ObjArray*)ud, path, strlen(path));
+}
+
+/* Handler itemSelectionChanged (hors set programmatique, cf. garde Qt) :
+ * reconstruit __owl_tree_sel__ depuis la selection Qt COURANTE. La selection
+ * Qt est la verite apres une action souris/clavier ; on remet le store a plat
+ * puis on le repeuple a partir des items selectionnes (mono ET multi). Le store
+ * est deja rooté (champ headless de l'uici) et arbre_selection_append roote
+ * chaque chaine fraiche pendant le grow. */
+static void arbre_mouse_selection_sync(OwlControl* sender, void* userdata) {
+    (void)sender;
+    ObjUiControlInstance* uici = (ObjUiControlInstance*)userdata;
+    if (!uici || !uici->widget) return;
+    ObjArray* sel = arbre_selection_get_or_create(uici);
+    sel->elements.count = 0;  /* GC : valeurs orphelines sweepees */
+    owl_ui_tree_selected_foreach((OwlControl*)uici->widget,
+                                 arbre_mouse_sync_visit, sel);
+}
+
+static Value fn_arbre_select_plus(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreSelectPlus] (arbre, chemin) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreSelectPlus");
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    if (!paths || !arbre_path_present(paths, chemin, clen)) {
+        (void)keep;
+        return BOOL_VAL(false);  /* chemin inexistant : aucun changement */
+    }
+    ObjArray* sel = arbre_selection_get_or_create(uici);
+    if (arbre_is_multi(uici)) {
+        /* Multi : accumule si absent, ordre d'ajout preserve. */
+        if (arbre_selection_index_of(sel, chemin, clen) < 0)
+            arbre_selection_append(sel, chemin, clen);
+    } else {
+        /* Mono : remplace la selection courante. */
+        sel->elements.count = 0;  /* GC : valeurs orphelines sweepees */
+        arbre_selection_append(sel, chemin, clen);
+    }
+    arbre_sync_selection_widget(uici);
+    (void)keep;
+    return BOOL_VAL(true);
+}
+
+static Value fn_arbre_select(int argCount, Value* args) {
+    if (argCount < 1) return OBJ_VAL(obj_copy_string("", 0));
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreSelect");
+    if (!uici) return OBJ_VAL(obj_copy_string("", 0));
+    ObjArray* sel = arbre_selection_peek(uici);
+    int count = sel ? sel->elements.count : 0;
+    /* Forme 1-arg : le 1er element selectionne (mono : l'unique). Forme 3-arg
+     * (champ, doublons, rang) : le rang-ieme selectionne (1-based, ordre
+     * d'ajout). Le param doublons n'est pas encore exploite (chemin Faux). */
+    int rang = 1;
+    if (argCount >= 3) rang = IS_INTEGER(args[2]) ? (int)AS_INTEGER(args[2]) : 0;
+    if (rang < 1 || rang > count) return OBJ_VAL(obj_copy_string("", 0));
+    Value v = sel->elements.values[rang - 1];
+    if (!IS_STRING(v)) return OBJ_VAL(obj_copy_string("", 0));
+    const char* s = AS_CSTRING(v);
+    return OBJ_VAL(obj_copy_string(s, (int)strlen(s)));
+}
+
+static Value fn_arbre_select_occurrence(int argCount, Value* args) {
+    if (argCount < 1) return INTEGER_VAL(0);
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreSelectOccurrence");
+    if (!uici) return INTEGER_VAL(0);
+    ObjArray* sel = arbre_selection_peek(uici);
+    return INTEGER_VAL(sel ? sel->elements.count : 0);
+}
+
+static Value fn_arbre_select_moins(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreSelectMoins] (arbre, chemin) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreSelectMoins");
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    if (!paths || !arbre_path_present(paths, chemin, clen)) {
+        (void)keep;
+        return BOOL_VAL(false);  /* chemin inexistant : selection intacte */
+    }
+    ObjArray* sel = arbre_selection_peek(uici);
+    int idx = arbre_selection_index_of(sel, chemin, clen);
+    (void)keep;
+    if (idx < 0) return BOOL_VAL(false);  /* existe mais pas selectionne */
+    arbre_selection_remove_at(sel, idx);
+    arbre_sync_selection_widget(uici);
+    return BOOL_VAL(true);
+}
+
+/* Vrai si `p` est le noeud `ancestor` lui-meme ou l'un de ses descendants
+ * (meme prefixe suivi d'une fin de chaine ou d'une tabulation). */
+static bool arbre_path_self_or_descendant(const char* p, const char* ancestor,
+                                          size_t anclen) {
+    if (strncmp(p, ancestor, anclen) != 0) return false;
+    return p[anclen] == '\0' || p[anclen] == '\t';
+}
+
+static Value fn_arbre_supprime(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreSupprime] (arbre, chemin) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreSupprime");
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    if (!paths || clen == 0 || !arbre_path_present(paths, chemin, clen)) {
+        (void)keep;
+        return BOOL_VAL(false);  /* chemin inexistant : aucun changement */
+    }
+    /* Compacte le store en retirant le noeud et tous ses descendants. Resolution
+     * id-aware : un chemin qualifie par ArbreID ne retire que l'homonyme vise, un
+     * chemin nu retire le 1er label-path correspondant et sa descendance. */
+    int w = 0;
+    for (int i = 0; i < paths->elements.count; i++) {
+        Value v = paths->elements.values[i];
+        const char* s = IS_STRING(v) ? AS_CSTRING(v) : "";
+        if (arbre_path_under_query(s, strlen(s), chemin, clen)) continue;
+        paths->elements.values[w++] = v;
+    }
+    paths->elements.count = w;  /* GC : valeurs orphelines sweepees */
+    /* La selection ne doit jamais pointer un chemin mort : retire tout element
+     * visant le noeud supprime ou l'un de ses descendants (parcours arriere
+     * pour une reindexation contigue sure). */
+    ObjArray* sel = arbre_selection_peek(uici);
+    if (sel) {
+        for (int i = sel->elements.count - 1; i >= 0; i--) {
+            Value v = sel->elements.values[i];
+            const char* s = IS_STRING(v) ? AS_CSTRING(v) : "";
+            if (arbre_path_under_query(s, strlen(s), chemin, clen))
+                arbre_selection_remove_at(sel, i);
+        }
+    }
+    (void)keep;
+    arbre_sync_widget(uici);
+    return BOOL_VAL(true);
+}
+
+static Value fn_arbre_modifie(int argCount, Value* args) {
+    if (argCount < 3) {
+        fprintf(stderr, "[ArbreModifie] (arbre, chemin, nouveauLibelle) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreModifie");
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keepC = NULL;
+    const char* chemin = list_value_to_text(args[1], &keepC);
+    if (!chemin) chemin = "";
+    ObjString* keepL = NULL;
+    const char* libelle = list_value_to_text(args[2], &keepL);
+    if (!libelle) libelle = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    if (!paths || clen == 0 || !arbre_path_present(paths, chemin, clen)) {
+        (void)keepC; (void)keepL;
+        return BOOL_VAL(false);  /* chemin inexistant : aucun changement */
+    }
+    /* Nouveau chemin du noeud : prefixe parent conserve + nouveau libelle.
+     * parentLen = longueur du prefixe "...\t" (0 pour un noeud racine). */
+    size_t parentLen = 0;
+    for (size_t i = 0; i < clen; i++) if (chemin[i] == '\t') parentLen = i + 1;
+    size_t llen = strlen(libelle);
+    size_t newLen = parentLen + llen;
+    char* newPath = (char*)malloc(newLen + 1);
+    memcpy(newPath, chemin, parentLen);
+    memcpy(newPath + parentLen, libelle, llen);
+    newPath[newLen] = '\0';
+    /* Re-prefixe le noeud et chacun de ses descendants : le suffixe (TAB + fils)
+     * est conserve tel quel, seul le prefixe `chemin` devient `newPath`. */
+    for (int i = 0; i < paths->elements.count; i++) {
+        Value v = paths->elements.values[i];
+        const char* s = IS_STRING(v) ? AS_CSTRING(v) : "";
+        if (!arbre_path_self_or_descendant(s, chemin, clen)) continue;
+        const char* suffix = s + clen;  /* "" (noeud) ou "\t..." (descendant) */
+        size_t suflen = strlen(suffix);
+        size_t total = newLen + suflen;
+        char* buf = (char*)malloc(total + 1);
+        memcpy(buf, newPath, newLen);
+        memcpy(buf + newLen, suffix, suflen);
+        buf[total] = '\0';
+        /* obj_copy_string suivi d'une affectation immediate dans le slot
+         * (reachable) : pas d'allocation intermediaire, slot rooted. */
+        paths->elements.values[i] = OBJ_VAL(obj_copy_string(buf, (int)total));
+        free(buf);
+    }
+    /* La selection suit le renommage : chaque element visant le noeud ou un
+     * descendant est re-prefixe (slot reachable, pas d'allocation orpheline). */
+    ObjArray* sel = arbre_selection_peek(uici);
+    if (sel) {
+        for (int i = 0; i < sel->elements.count; i++) {
+            Value v = sel->elements.values[i];
+            const char* s = IS_STRING(v) ? AS_CSTRING(v) : "";
+            if (!arbre_path_self_or_descendant(s, chemin, clen)) continue;
+            const char* suffix = s + clen;
+            size_t suflen = strlen(suffix);
+            size_t total = newLen + suflen;
+            char* buf = (char*)malloc(total + 1);
+            memcpy(buf, newPath, newLen);
+            memcpy(buf + newLen, suffix, suflen);
+            buf[total] = '\0';
+            sel->elements.values[i] = OBJ_VAL(obj_copy_string(buf, (int)total));
+            free(buf);
+        }
+    }
+    free(newPath);
+    (void)keepC; (void)keepL;
+    arbre_sync_widget(uici);
+    return BOOL_VAL(true);
+}
+
+/* ---- Insertion positionnee + parcours ordonne des fils directs ---------
+ * Les fils directs d'un noeud sont les entrees du store dont le chemin vaut
+ * exactement "<chemin>\t<libelle>" (sans tabulation residuelle dans le
+ * libelle). Un chemin vide designe la racine : les fils directs sont alors
+ * les entrees mono-segment (sans aucune tabulation). L'ordre de parcours est
+ * l'ordre du store, donc l'ordre d'insertion. */
+
+/* Vrai si l'entree `s` est un fils DIRECT du noeud `parent` (longueur plen).
+ * Pose *childOut sur le debut du libelle du fils (dans `s`). */
+static bool arbre_is_direct_child(const char* s, const char* parent, size_t plen,
+                                  const char** childOut) {
+    const char* child;
+    if (plen == 0) {
+        child = s;  /* racine : tout noeud de plus haut niveau */
+    } else {
+        if (strncmp(s, parent, plen) != 0 || s[plen] != '\t') return false;
+        child = s + plen + 1;
+    }
+    if (*child == '\0') return false;                 /* le noeud lui-meme */
+    if (strchr(child, '\t') != NULL) return false;    /* petit-fils, pas fils direct */
+    *childOut = child;
+    return true;
+}
+
+/* Curseur d'iteration keye PAR CHEMIN : map (chemin complet -> index, dans le
+ * store, du dernier fils renvoye sur le parcours de CE chemin). Cle absente =
+ * parcours pas encore demarre pour ce chemin (peek -> -1). Keyer par chemin
+ * rend deux parcours (meme entrelaces) independants : aSuivant sur P1 reprend
+ * la ou P1 en etait, insensible a un aPremier/aSuivant intercale sur P2. */
+#define OWL_UI_TREE_CURSOR_KEY "__owl_tree_cursor__"
+
+static ObjAssocArray* arbre_cursor_map_peek(ObjUiControlInstance* uici) {
+    Value v;
+    if (obj_ui_control_instance_headless_get(uici, OWL_UI_TREE_CURSOR_KEY, &v)
+        && IS_ASSOC_ARRAY(v))
+        return AS_ASSOC_ARRAY(v);
+    return NULL;
+}
+static ObjAssocArray* arbre_cursor_map_get_or_create(ObjUiControlInstance* uici) {
+    ObjAssocArray* map = arbre_cursor_map_peek(uici);
+    if (map) return map;
+    /* STRING key exacte (ASSOC_OPT_NONE : les chemins sont compares octet-a-octet
+     * dans le store), default ENTIER (sans incidence : peek teste la presence). */
+    map = obj_new_assoc(ASSOC_KEY_STRING, ASSOC_OPT_NONE, ASSOC_VALUE_ENTIER);
+    vm_push(OBJ_VAL(map));  /* root pendant le set (table grow -> GC) */
+    obj_ui_control_instance_headless_set(uici, OWL_UI_TREE_CURSOR_KEY, OBJ_VAL(map));
+    vm_pop();
+    return map;
+}
+/* Caller doit garder le backing de `chemin` root (cf. fn_arbre_recupere_fils :
+ * la cle est allouee ici -> un GC peut collecter un ObjString source non root). */
+static int arbre_cursor_peek(ObjUiControlInstance* uici, const char* chemin, size_t clen) {
+    ObjAssocArray* map = arbre_cursor_map_peek(uici);
+    if (!map) return -1;
+    ObjString* key = obj_copy_string(chemin, (int)clen);
+    int exists = 0;
+    Value v = obj_assoc_get(map, key, &exists);  /* ne grow pas : key non roote OK */
+    if (!exists || !IS_INTEGER(v)) return -1;
+    return (int)AS_INTEGER(v);
+}
+static void arbre_cursor_set(ObjUiControlInstance* uici, const char* chemin,
+                             size_t clen, int idx) {
+    ObjAssocArray* map = arbre_cursor_map_get_or_create(uici);
+    obj_assoc_put_cstr(map, chemin, (int)clen, INTEGER_VAL(idx));
+}
+
+static Value fn_arbre_recupere_fils(int argCount, Value* args) {
+    if (argCount < 3) {
+        fprintf(stderr, "[ArbreRecupereFils] (arbre, chemin, mode) attendu.\n");
+        return OBJ_VAL(obj_copy_string("", 0));
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreR\xc3\xa9" "cup\xc3\xa8reFils");
+    if (!uici) return OBJ_VAL(obj_copy_string("", 0));
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    /* keep (si non-NULL) possede le backing de `chemin` et n'est pas root : le
+     * proteger car peek/set du curseur allouent (cle ObjString + grow map -> GC). */
+    if (keep) vm_push(OBJ_VAL(keep));
+    int mode = IS_INTEGER(args[2]) ? (int)AS_INTEGER(args[2]) : OWL_ARBRE_PREMIER;
+
+    ObjArray* paths = arbre_store_peek(uici);
+    int n = paths ? paths->elements.count : 0;
+    /* aPremier redemarre a 0 ; aSuivant reprend apres le dernier fils renvoye
+     * SUR CE CHEMIN (curseur keye par chemin). */
+    int from = (mode == OWL_ARBRE_SUIVANT) ? arbre_cursor_peek(uici, chemin, clen) + 1 : 0;
+    if (from < 0) from = 0;
+    for (int i = from; i < n; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        const char* child = NULL;
+        if (arbre_is_direct_child(s, chemin, clen, &child)) {
+            arbre_cursor_set(uici, chemin, clen, i);
+            if (keep) vm_pop();
+            return OBJ_VAL(obj_copy_string(child, (int)strlen(child)));
+        }
+    }
+    if (keep) vm_pop();
+    return OBJ_VAL(obj_copy_string("", 0));  /* epuise / aucun fils */
+}
+
+static Value fn_arbre_insere(int argCount, Value* args) {
+    if (argCount < 3) {
+        fprintf(stderr, "[ArbreInsere] (arbre, cheminFrere, nomFeuille) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreIns\xc3\xa8re");
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keepF = NULL;
+    const char* frere = list_value_to_text(args[1], &keepF);
+    if (!frere) frere = "";
+    ObjString* keepL = NULL;
+    const char* feuille = list_value_to_text(args[2], &keepL);
+    if (!feuille) feuille = "";
+    size_t flen = strlen(frere);
+
+    ObjArray* paths = arbre_store_peek(uici);
+    /* Le frere doit exister ; on repere son index dans le store. */
+    int frereIdx = -1;
+    if (paths) {
+        for (int i = 0; i < paths->elements.count; i++) {
+            Value v = paths->elements.values[i];
+            if (!IS_STRING(v)) continue;
+            const char* s = AS_CSTRING(v);
+            if (strlen(s) == flen && memcmp(s, frere, flen) == 0) { frereIdx = i; break; }
+        }
+    }
+    if (!paths || flen == 0 || frereIdx < 0) {
+        (void)keepF; (void)keepL;
+        return BOOL_VAL(false);  /* chemin frere inexistant : aucun changement */
+    }
+    /* Nouveau chemin : prefixe parent du frere conserve + nouvelle feuille.
+     * parentLen = longueur du prefixe "...\t" (0 pour un noeud racine). */
+    size_t parentLen = 0;
+    for (size_t i = 0; i < flen; i++) if (frere[i] == '\t') parentLen = i + 1;
+    size_t leafLen = strlen(feuille);
+    size_t newLen = parentLen + leafLen;
+    char* newPath = (char*)malloc(newLen + 1);
+    memcpy(newPath, frere, parentLen);
+    memcpy(newPath + parentLen, feuille, leafLen);
+    newPath[newLen] = '\0';
+    /* Position d'insertion : juste apres le frere ET tout son sous-arbre, pour
+     * que les sous-arbres restent contigus. Le nouveau noeud reste donc apres
+     * le frere dans l'ordre des fils directs du parent (PAS de deduplication :
+     * un libelle deja present cree un second noeud). */
+    int insertAt = frereIdx + 1;
+    while (insertAt < paths->elements.count) {
+        Value v = paths->elements.values[insertAt];
+        const char* s = IS_STRING(v) ? AS_CSTRING(v) : "";
+        if (!arbre_path_self_or_descendant(s, frere, flen)) break;
+        insertAt++;
+    }
+    Value nv = OBJ_VAL(obj_copy_string(newPath, (int)newLen));
+    free(newPath);
+    vm_push(nv);  /* value_array_write peut grow -> GC */
+    value_array_write(&paths->elements, nv);
+    vm_pop();
+    /* Decale les elements [insertAt, count-2] d'un cran vers la droite, puis
+     * pose le nouveau noeud a `insertAt`. nv reste reference par le store. */
+    for (int k = paths->elements.count - 1; k > insertAt; k--)
+        paths->elements.values[k] = paths->elements.values[k - 1];
+    paths->elements.values[insertAt] = nv;
+    (void)keepF; (void)keepL;
+    arbre_sync_widget(uici);
+    return BOOL_VAL(true);
+}
+
+/* ---- Etat pli/depli PAR NOEUD ------------------------------------------
+ * Map (chemin complet -> entier 0/1 : 1 = deroule). L'etat est propre a chaque
+ * noeud : derouler A ne change ni B (frere) ni A1 (fils). Un chemin absent de
+ * la map vaut enroule (etat par defaut) s'il existe dans le store, sinon
+ * aErreur. On ne fabrique jamais d'etat pour un chemin inexistant. */
+#define OWL_UI_TREE_EXPANDED_KEY "__owl_tree_expanded__"
+
+static ObjAssocArray* arbre_expanded_map_peek(ObjUiControlInstance* uici) {
+    Value v;
+    if (obj_ui_control_instance_headless_get(uici, OWL_UI_TREE_EXPANDED_KEY, &v)
+        && IS_ASSOC_ARRAY(v))
+        return AS_ASSOC_ARRAY(v);
+    return NULL;
+}
+static ObjAssocArray* arbre_expanded_map_get_or_create(ObjUiControlInstance* uici) {
+    ObjAssocArray* map = arbre_expanded_map_peek(uici);
+    if (map) return map;
+    /* STRING key exacte (chemins compares octet-a-octet dans le store),
+     * valeur booleen (present+Vrai = deroule). */
+    map = obj_new_assoc(ASSOC_KEY_STRING, ASSOC_OPT_NONE, ASSOC_VALUE_BOOLEEN);
+    vm_push(OBJ_VAL(map));  /* root pendant le set (table grow -> GC) */
+    obj_ui_control_instance_headless_set(uici, OWL_UI_TREE_EXPANDED_KEY, OBJ_VAL(map));
+    vm_pop();
+    return map;
+}
+/* Caller doit garder le backing de `chemin` root : la cle est allouee ici
+ * (obj_copy_string) ; ne grow pas la map (get), donc key non roote OK, mais
+ * un ObjString source non root pourrait etre collecte au moment de l'alloc. */
+static bool arbre_expanded_peek(ObjUiControlInstance* uici, const char* chemin, size_t clen) {
+    ObjAssocArray* map = arbre_expanded_map_peek(uici);
+    if (!map) return false;
+    ObjString* key = obj_copy_string(chemin, (int)clen);
+    int exists = 0;
+    Value v = obj_assoc_get(map, key, &exists);
+    if (!exists) return false;
+    return IS_BOOL(v) ? AS_BOOL(v) : false;
+}
+static void arbre_expanded_set(ObjUiControlInstance* uici, const char* chemin,
+                               size_t clen, bool expanded) {
+    ObjAssocArray* map = arbre_expanded_map_get_or_create(uici);
+    obj_assoc_put_cstr(map, chemin, (int)clen, BOOL_VAL(expanded));
+}
+
+/* ArbreDeroule / ArbreEnroule partagent la meme mecanique : valider l'existence
+ * du noeud dans le store, puis basculer son etat. Faux si le noeud n'existe pas
+ * (aucun etat fabrique). Idempotent. */
+static Value arbre_set_etat(int argCount, Value* args, const char* fnName, bool expanded) {
+    if (argCount < 2) {
+        fprintf(stderr, "[%s] (arbre, noeud) attendu.\n", fnName);
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], fnName);
+    if (!uici) return BOOL_VAL(false);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    if (!paths || clen == 0 || !arbre_path_present(paths, chemin, clen)) {
+        (void)keep;
+        return BOOL_VAL(false);  /* noeud inexistant : aucun etat fabrique */
+    }
+    if (keep) vm_push(OBJ_VAL(keep));  /* backing root pendant l'alloc cle + grow */
+    arbre_expanded_set(uici, chemin, clen, expanded);
+    if (keep) vm_pop();
+    if (uici->widget)
+        owl_ui_tree_set_expanded((OwlControl*)uici->widget, chemin, expanded);
+    return BOOL_VAL(true);
+}
+static Value fn_arbre_deroule(int argCount, Value* args) {
+    return arbre_set_etat(argCount, args, "ArbreD\xc3\xa9roule", true);
+}
+static Value fn_arbre_enroule(int argCount, Value* args) {
+    return arbre_set_etat(argCount, args, "ArbreEnroule", false);
+}
+static Value fn_arbre_etat(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreEtat] (arbre, noeud) attendu.\n");
+        return INTEGER_VAL(OWL_ARBRE_ERREUR);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreEtat");
+    if (!uici) return INTEGER_VAL(OWL_ARBRE_ERREUR);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    size_t clen = strlen(chemin);
+    ObjArray* paths = arbre_store_peek(uici);
+    /* Existence d'abord, etat ensuite : un chemin absent du store vaut aErreur,
+     * jamais une valeur fabriquee. */
+    if (!paths || clen == 0 || !arbre_path_present(paths, chemin, clen)) {
+        (void)keep;
+        return INTEGER_VAL(OWL_ARBRE_ERREUR);
+    }
+    if (keep) vm_push(OBJ_VAL(keep));  /* backing root pendant l'alloc de la cle */
+    bool expanded = arbre_expanded_peek(uici, chemin, clen);
+    if (keep) vm_pop();
+    return INTEGER_VAL(expanded ? OWL_ARBRE_DEROULE : OWL_ARBRE_ENROULE);
+}
+
+/* ---- Recherche par libelle + tri alphabetique --------------------------
+ * Le libelle d'un noeud est le dernier segment de son chemin (apres la
+ * derniere tabulation ; le chemin entier pour un noeud racine). */
+static const char* arbre_last_segment(const char* path) {
+    const char* last = strrchr(path, '\t');
+    return last ? last + 1 : path;
+}
+
+static Value fn_arbre_cherche(int argCount, Value* args) {
+    if (argCount < 2) {
+        fprintf(stderr, "[ArbreCherche] (arbre, element) attendu.\n");
+        return OBJ_VAL(obj_copy_string("", 0));
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreCherche");
+    if (!uici) return OBJ_VAL(obj_copy_string("", 0));
+    ObjString* keep = NULL;
+    const char* element = list_value_to_text(args[1], &keep);
+    if (!element) element = "";
+    ObjArray* paths = arbre_store_peek(uici);
+    int n = paths ? paths->elements.count : 0;
+    /* Parcours du store EN ORDRE (meme ordre que ArbreRecupereFils) : match
+     * exact sensible a la casse sur le libelle, renvoi du chemin complet du
+     * 1er element trouve. */
+    for (int i = 0; i < n; i++) {
+        Value v = paths->elements.values[i];
+        if (!IS_STRING(v)) continue;
+        const char* s = AS_CSTRING(v);
+        if (strcmp(arbre_last_segment(s), element) == 0) {
+            (void)keep;
+            return OBJ_VAL(obj_copy_string(s, (int)strlen(s)));
+        }
+    }
+    (void)keep;
+    return OBJ_VAL(obj_copy_string("", 0));
+}
+
+/* Tri lexical octet-a-octet des chemins complets. La tabulation (0x09) etant
+ * inferieure a tout octet de libelle, un chemin parent precede toujours ses
+ * descendants et un fils continue (prefixe + TAB) precede un frere au libelle
+ * plus long : le tri a plat produit donc un parcours prefixe (DFS) ou les
+ * freres sont tries a chaque niveau, hierarchie preservee. */
+static int arbre_path_cmp(const void* a, const void* b) {
+    Value va = *(const Value*)a;
+    Value vb = *(const Value*)b;
+    const char* sa = IS_STRING(va) ? AS_CSTRING(va) : "";
+    const char* sb = IS_STRING(vb) ? AS_CSTRING(vb) : "";
+    return strcmp(sa, sb);
+}
+
+static Value fn_arbre_trie(int argCount, Value* args) {
+    if (argCount < 1) {
+        fprintf(stderr, "[ArbreTrie] (arbre) attendu.\n");
+        return BOOL_VAL(false);
+    }
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "ArbreTrie");
+    if (!uici) return BOOL_VAL(false);
+    ObjArray* paths = arbre_store_peek(uici);
+    /* qsort permute des slots Value existants : aucune allocation, pas de GC. */
+    if (paths && paths->elements.count > 1)
+        qsort(paths->elements.values, (size_t)paths->elements.count,
+              sizeof(Value), arbre_path_cmp);
+    arbre_sync_widget(uici);  /* rebuild QTreeWidget depuis le store reordonne */
+    return BOOL_VAL(true);
+}
+
 static OwlControl* combo_arg_or_error(Value v, const char* fnName) {
     /*  — cf. list_arg_or_error. */
     return resolve_widget_kinded(v, OWL_CONTROL_COMBO, -1,
@@ -16558,6 +17844,17 @@ static Value fn_test_fenetre_icone_largeur(int argCount, Value* args) {
     if (!wi || !wi->widget) return INTEGER_VAL(-1);
     return INTEGER_VAL(owl_ui_window_get_icon_width((OwlWindow*)wi->widget));
 }
+static Value fn_test_arbre_noeud_icone(int argCount, Value* args) {
+    if (argCount < 2) return INTEGER_VAL(-1);
+    ObjUiControlInstance* uici = arbre_uici_from_arg(args[0], "TestArbreNoeudIcone");
+    if (!uici || !uici->widget) return INTEGER_VAL(-1);
+    ObjString* keep = NULL;
+    const char* chemin = list_value_to_text(args[1], &keep);
+    if (!chemin) chemin = "";
+    int w = owl_ui_tree_node_icon_width((OwlControl*)uici->widget, chemin);
+    (void)keep;
+    return INTEGER_VAL(w);
+}
 static Value fentaille_shortcut(int argCount, Value* args, int mode) {
     ObjWindowInstance* wi = (argCount >= 1) ? fentaille_resolve(args[0])
                                             : vm_window_stack_top();
@@ -16858,6 +18155,7 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("TestSimuleSaisie", fn_test_simule_saisie);
     stdlib_ui_defs_set_impl("TestSimuleMenu", fn_test_simule_menu);
     stdlib_ui_defs_set_impl("TestFenetreIconeLargeur", fn_test_fenetre_icone_largeur);
+    stdlib_ui_defs_set_impl("TestArbreNoeudIcone", fn_test_arbre_noeud_icone);
     stdlib_ui_defs_set_impl("ChampsDe", fn_champs_de);
     stdlib_ui_defs_set_impl("DonneFocus", fn_donne_focus);
     stdlib_ui_defs_set_impl("FenEtat", fn_fenetre_etat);
@@ -16868,6 +18166,7 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("__DebugPoliceBarreMenu", fn_debug_police_barre_menu);
     stdlib_ui_defs_set_impl("__DebugPoliceSousMenu", fn_debug_police_sousmenu);
     stdlib_ui_defs_set_impl("__DebugPoliceChamp", fn_debug_police_champ);
+    stdlib_ui_defs_set_impl("PoliceCharge", fn_police_charge);
     stdlib_ui_defs_set_impl("__DebugEncreBarreMenu", fn_debug_encre_barre_menu);
     stdlib_ui_defs_set_impl("__DebugDernierMessage", fn_debug_dernier_message);
     stdlib_ui_defs_set_impl("__CaptureFenetre", fn_capture_fenetre);
@@ -16937,6 +18236,24 @@ void stdlib_ui_impls_wire(void) {
     stdlib_ui_defs_set_impl("ListeSelectOccurrence", fn_liste_select_occurrence);
     stdlib_ui_defs_set_impl("ListeDeplaceLigne", fn_liste_deplace_ligne);
     stdlib_ui_defs_set_impl("ListeInfoXY", fn_liste_info_xy);
+    stdlib_ui_defs_set_impl("ArbreAjoute", fn_arbre_ajoute);
+    stdlib_ui_defs_set_impl("ArbreSupprimeTout", fn_arbre_supprime_tout);
+    stdlib_ui_defs_set_impl("ArbreSupprime", fn_arbre_supprime);
+    stdlib_ui_defs_set_impl("ArbreModifie", fn_arbre_modifie);
+    stdlib_ui_defs_set_impl("ArbreOccurrence", fn_arbre_occurrence);
+    stdlib_ui_defs_set_impl("ArbreID", fn_arbre_id);
+    stdlib_ui_defs_set_impl("ArbreRecupereIdentifiant", fn_arbre_recupere_identifiant);
+    stdlib_ui_defs_set_impl("ArbreInsere", fn_arbre_insere);
+    stdlib_ui_defs_set_impl("ArbreRecupereFils", fn_arbre_recupere_fils);
+    stdlib_ui_defs_set_impl("ArbreSelectPlus", fn_arbre_select_plus);
+    stdlib_ui_defs_set_impl("ArbreSelect", fn_arbre_select);
+    stdlib_ui_defs_set_impl("ArbreSelectOccurrence", fn_arbre_select_occurrence);
+    stdlib_ui_defs_set_impl("ArbreSelectMoins", fn_arbre_select_moins);
+    stdlib_ui_defs_set_impl("ArbreDeroule", fn_arbre_deroule);
+    stdlib_ui_defs_set_impl("ArbreEnroule", fn_arbre_enroule);
+    stdlib_ui_defs_set_impl("ArbreEtat", fn_arbre_etat);
+    stdlib_ui_defs_set_impl("ArbreCherche", fn_arbre_cherche);
+    stdlib_ui_defs_set_impl("ArbreTrie", fn_arbre_trie);
     stdlib_ui_defs_set_impl("ComboOuvre", fn_combo_ouvre);
     stdlib_ui_defs_set_impl("ComboFerme", fn_combo_ferme);
     stdlib_ui_defs_set_impl("SelecteurAjoute", fn_selecteur_ajoute);
@@ -17331,6 +18648,7 @@ int owl_ui_min_floor_for_kind(int kind, int* out_w, int* out_h,
             c = owl_ui_onglet_create(host, 0, 0, 0, 0);
             if (c) owl_ui_onglet_add_volet(c, owl_ui_onglet_volet_create(), "");
             break;
+        case OWL_CONTROL_ARBRE:        c = owl_ui_tree_create(host, 0, 0, 0, 0);         break;
         default: break;
     }
 

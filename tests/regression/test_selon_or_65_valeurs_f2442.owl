@@ -1,0 +1,26 @@
+// Regression  : SELON avec une branche CAS a 70 valeurs OR
+// (`CAS 1,2,...,70`). L'ancien orJumps[64] avait un cap silencieux : le
+// bodyJump de la 65e valeur et au-dela n'etait jamais stocke donc jamais
+// patche -> placeholder 0xffff non resolu -> saut hors bornes -> SEGFAULT a
+// l'execution quand on entrait par une de ces valeurs. Le test_writer ne
+// pouvait pas committer ce cas (il crashait la suite entiere) ; devenu
+// deterministe une fois les tableaux de sauts dynamiques, c'est un test de
+// non-crash + resultat correct. Noms suffixes _f2442 : autodiscovery compile
+// tout le dossier dans le meme espace global.
+
+PROCEDURE OrSelon_f2442(k est un entier) : entier
+	res est un entier = 0
+	SELON k
+		CAS 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70: res = 777
+		AUTRE CAS: res = -1
+	FIN
+	RENVOYER res
+FIN
+
+dbgVérifieEgalité(OrSelon_f2442(1),   777, "premiere valeur OR, avant l'ancien cap orJumps[64]")
+dbgVérifieEgalité(OrSelon_f2442(64),  777, "64e valeur OR, derniere couverte par l'ancien cap")
+dbgVérifieEgalité(OrSelon_f2442(65),  777, "65e valeur OR : premiere au-dela du cap, ne crashe plus et matche")
+dbgVérifieEgalité(OrSelon_f2442(70),  777, "70e et derniere valeur OR du CAS")
+dbgVérifieEgalité(OrSelon_f2442(999), -1,  "valeur hors CAS -> AUTRE CAS legitime")
+
+dbgBilanTest()

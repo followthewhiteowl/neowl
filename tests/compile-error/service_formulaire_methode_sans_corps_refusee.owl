@@ -1,0 +1,28 @@
+// Contrat CIBLE  : la propriété `Formulaire` d'une `OpérationHTTP`
+// ne doit être acceptée que sur une méthode à corps (httpPost/httpPut/
+// httpPatch). Ici `Méthode = httpGet` (une méthode sans corps) porte
+// `Formulaire` : refus attendu à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `Formulaire` n'existe
+// pas encore comme propriété d'`OpérationHTTP` — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié « Formulaire sur une méthode sans corps ». À régénérer une
+// fois  livré.
+ServiceFormulaireMethodeSansCorps est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "items"]
+	FIN
+
+	ListeItems est une OpérationHTTP
+		PROPRIETES
+			Méthode    = httpGet
+			Chemin     = ["items"]
+			Formulaire = [Filtre]
+			Réponses   = [httpOK]
+			CodeÉtat   = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			RENVOYER "ok"
+		FIN
+	FIN
+FIN

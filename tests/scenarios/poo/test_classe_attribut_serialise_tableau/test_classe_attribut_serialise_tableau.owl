@@ -1,0 +1,34 @@
+// @sujet : Classe — attribut <Sérialise> inline au milieu d'un type tableau
+// @resume : Un membre tableau de classe peut porter <Sérialise="nom"> entre "tableau" et "de" pour renommer sa cle JSON, ou <Sérialise=Faux> pour l'exclure de la serialisation, comme pour un membre scalaire.
+
+// Cas nominal : la classe compile et s'instancie normalement malgre
+// l'attribut <Sérialise> place au milieu du type tableau de son premier
+// membre.
+PROCEDURE scenario_classe_instanciee_malgre_attribut_tableau_serialise()
+	o est un cTenantsSerialise
+	o.m_tTenants.Ajoute("alpha")
+	o.m_tTenants.Ajoute("beta")
+
+	dbgVérifieEgalité(o.m_tTenants.Taille(), 2, "tableau attribute reste manipulable normalement")
+	dbgVérifieEgalité(o.m_tTenants[1], "alpha", "premier element du tableau attribute lisible")
+FIN
+
+// La serialisation d'une instance de classe honore <Sérialise="nom"> (rename
+// de cle JSON) et <Sérialise=Faux> (exclusion) sur un membre tableau, comme
+// sur un membre scalaire.
+PROCEDURE scenario_serialisation_honore_rename_et_exclusion_sur_tableau()
+	o est un cTenantsSerialise
+	o.m_tTenants.Ajoute("alpha")
+	o.m_tTenants.Ajoute("beta")
+	o.m_tInterne.Ajoute("ne-doit-pas-sortir")
+	o.m_nScore = 42
+
+	buf est une chaîne
+	Sérialise(o, buf, psdMinifie)
+
+	dbgVérifieVrai(Position(buf, """tenants""") > 0, "rename : clé JSON tenants présente")
+	dbgVérifieEgalité(Position(buf, """m_tTenants"""), 0, "rename : nom OWL original absent du JSON")
+	dbgVérifieEgalité(Position(buf, "ne-doit-pas-sortir"), 0, "exclusion : valeur du tableau interne absente du JSON")
+	dbgVérifieEgalité(Position(buf, """m_tInterne"""), 0, "exclusion : clé du tableau interne absente du JSON")
+	dbgVérifieVrai(Position(buf, "42") > 0, "champ scalaire sans attribut serialise toujours present")
+FIN

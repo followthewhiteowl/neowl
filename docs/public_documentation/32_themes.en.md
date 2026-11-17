@@ -51,7 +51,8 @@ The other controls follow the same scheme (`styleTable`, `styleCombobox`,
 Each sub-element is itself a `{ ... }` literal:
 
 - `OuterFrame` / `CadreExtérieur` — the box: `BackgroundColor` / `CouleurFond`,
-  `Border` (color, thickness, radius), `Shadow`, `Gradient`, paddings.
+  `Border` (color, thickness, radius), `Shadow`, `Gradient`, `BackgroundImage`
+  / `ImageFond` (background image: `Source` + `Framing`), paddings.
 - `Caption` / `Libellé` — the text: `Color` / `Couleur`, `Font` / `Police`…
 - `InputZone` / `ZoneSaisie` — the editable zone of an input.
 
@@ -96,6 +97,47 @@ primaryButton is a styleButton = {
 }
 ```
 
+### Background image
+
+The `OuterFrame` accepts a **background image** through the `BackgroundImage` /
+`ImageFond` sub-element, with two members: `Source` / `Source` (file path,
+absolute or relative to the executable directory) and `Framing` / `Cadrage`
+(fill mode: `cadCenter`, `cadStretch`, `cadProportional`, `cadCover`).
+
+```owl
+heroCard is a styleContainer = {
+	OuterFrame = {
+		BackgroundColor = RGB(10, 12, 16)
+		BackgroundImage = { Source = "images/bg.png", Framing = cadProportional }
+	}
+}
+```
+
+The background image is painted **above** `BackgroundColor` and the `Gradient`,
+and **below** the control's content — the stacking order of an `OuterFrame`'s
+background layers is `BackgroundColor → Gradient → BackgroundImage → content`. A
+missing or unreadable file simply drops the image layer (the solid fill or
+gradient shows through), without interrupting the program.
+
+## Loading a custom font
+
+`Police..Nom` (Font..Name) accepts a family shipped with the application
+(Liberation Sans, Liberation Mono…) or a family made available at startup. To
+use a font provided as a `.ttf`/`.otf` file, load it first with `FontLoad`
+(French form `PoliceCharge`): the function returns the **family name** to reuse
+as the value of `Police..Nom`.
+
+```owl
+sFamily is a string = FontLoad("fonts/JetBrainsMono-Regular.ttf")
+IF sFamily <> "" THEN
+	SAI_Code..Police..Nom = sFamily
+END
+```
+
+On failure — missing file or unrecognised format — `FontLoad` returns an empty
+string and reports an error (`ErrorOccurred`, `ErrorInfo()`), without
+interrupting the program. A loaded font stays available for the whole run.
+
 ## Applying a style to a control
 
 In a control's `PROPERTIES`, the `Style` property receives the named style via
@@ -120,7 +162,7 @@ A window is styled like a control: it carries a `Style` property typed
 Container. This descriptor has a single sub-element, `OuterFrame` /
 `CadreExtérieur`, which describes the window background: `BackgroundColor`,
 paddings (`TopPadding`, `BottomPadding`, `LeftPadding`, `RightPadding`),
-`Border`, `Shadow` and `Gradient`.
+`Border`, `Shadow`, `Gradient` and `BackgroundImage`.
 
 The `Style` block is written in the window's `PROPERTIES`, as a `{ ... }`
 literal, and mentions only what changes:

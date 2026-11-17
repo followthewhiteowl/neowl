@@ -566,6 +566,17 @@ static const OwlSignature sig_envoie_touche[] = {
     {0}
 };
 
+/*  — PoliceCharge(chemin) : charge un fichier de police, renvoie sa
+ * famille (ou chaine vide + erreur en cas d'echec). */
+static const OwlParam p_police_charge[] = {
+    {"chemin", "chaine", "Chemin du fichier de police (.ttf/.otf/.woff2) à charger."},
+    {0}
+};
+static const OwlSignature sig_police_charge[] = {
+    {1, p_police_charge, "chaine",
+     "Nom de famille de la police chargée, ou chaîne vide en cas d'échec"},
+    {0}
+};
 static const OwlSignature sig_ouvre[]  = {{-1, p_fen,    "tout","ValeurRenvoyee de la fenetre"}, {0}};
 static const OwlSignature sig_close[]  = {{-1, p_close,  "",       ""}, {0}};
 static const OwlSignature sig_demande_maj_ihm[] = {
@@ -1115,6 +1126,162 @@ static const OwlSignature sig_liste_deplace[] = {
     {0}
 };
 static const OwlSignature sig_liste_info_xy[] = {{4,  p_liste_info_xy, "entier", "Indice de ligne au point ou -1"}, {0}};
+
+/* ====================================================================
+ *  Champ Arbre — natives Arbre* (MVP Ajoute / SupprimeTout / Occurrence)
+ * ==================================================================== */
+static const OwlParam p_arbre_simple[] = {
+    {"arbre", "tout", "Le Champ Arbre cible (référence ou nom)"}, {0}
+};
+static const OwlParam p_arbre_ajoute[] = {
+    {"arbre",  "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"chemin", "chaîne", "Chemin du noeud, segments separes par une tabulation"},
+    {"imageEnroulée", "tout", "Image du noeud a l'etat enroule : chaine icones.<nom> ou chemin de fichier, instance Icône, aDéfaut (image par defaut) ou Null (aucune icone)"},
+    {"imageDéroulée", "tout", "Image du noeud a l'etat deroule : memes formes que imageEnroulée ; absente, reprend imageEnroulée"},
+    {"identifiant", "chaîne", "Identifiant associe au noeud ajoute (vide par defaut). Relisible via ArbreRécupèreIdentifiant, adressable via ArbreID"},
+    {"modeAjout", "entier", "Mode d'ajout : aAccepteDoublon autorise un homonyme (meme libelle au meme niveau)"},
+    {0}
+};
+static const OwlSignature sig_arbre_ajoute[] = {
+    {2, p_arbre_ajoute, "booleen", "Vrai si ajout reussi"},
+    {3, p_arbre_ajoute, "booleen", "Vrai si ajout reussi"},
+    {4, p_arbre_ajoute, "booleen", "Vrai si ajout reussi"},
+    {5, p_arbre_ajoute, "booleen", "Vrai si ajout reussi"},
+    {6, p_arbre_ajoute, "booleen", "Vrai si ajout reussi (homonyme cree avec aAccepteDoublon)"},
+    {0}
+};
+static const OwlParam p_arbre_modifie[] = {
+    {"arbre",   "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"chemin",  "chaîne", "Chemin du noeud a renommer, segments separes par une tabulation"},
+    {"libelle", "chaîne", "Nouveau libelle du noeud"},
+    {0}
+};
+static const OwlSignature sig_arbre_modifie[] = {{3, p_arbre_modifie, "booleen", "Vrai si le noeud existait et a ete renomme"}, {0}};
+
+/* a* — mode d'iteration de ArbreRecupereFils (enum-contraint, cf sentinels.h).
+ * EN derive de la convention OWL (canon muet sur les formes EN, invariant 3). */
+static const char* const E_arbreIteration_values[] = {
+    "aPremier", "aSuivant", NULL
+};
+static const OwlEnum E_arbreIteration = {
+    .name="arbreIteration", .nameAscii="arbreIteration", .nameEN="treeIteration",
+    .category="UI",
+    .descFR="Mode de parcours de ArbreRecupereFils : premier fils (reinitialise "
+            "le curseur) ou fils suivant.",
+    .descEN="Iteration mode for TreeGiveChild: first child (resets the cursor) "
+            "or next child.",
+    .values=E_arbreIteration_values, .combinable=false
+};
+#define C_ARBRE_ITER(nm, en, val, dfr, den) {nm, "UI", INTEGER_VAL(val), dfr, den, en}
+static const OwlConstDef ARBRE_ITER_CONSTS[] = {
+    C_ARBRE_ITER("aPremier", "tvFirst", OWL_ARBRE_PREMIER,
+        "ArbreRecupereFils : reinitialise le curseur et renvoie le 1er fils direct du noeud.",
+        "TreeGiveChild: resets the cursor and returns the first direct child of the node."),
+    C_ARBRE_ITER("aSuivant", "tvNext", OWL_ARBRE_SUIVANT,
+        "ArbreRecupereFils : renvoie le fils direct suivant, chaine vide une fois les fils epuises.",
+        "TreeGiveChild: returns the next direct child, empty string once the children are exhausted."),
+};
+
+/* a* — etat pli/depli d'un noeud (retour de ArbreEtat). Valeur de retour pure :
+ * aucun param ne la consomme en entree, donc pas d'OwlEnum (qui ne sert qu'au
+ * filtre LSP / validation d'argument), seulement les constantes — cf.
+ * KEY_CONSTS / FSEL_CONSTS, memes constantes de retour sans enum.
+ * Formes EN canon (prefixe tv, TreeView) issues de la doc TreeStatus. */
+#define C_ARBRE_ETAT(nm, en, val, dfr, den) {nm, "UI", INTEGER_VAL(val), dfr, den, en}
+static const OwlConstDef ARBRE_ETAT_CONSTS[] = {
+    C_ARBRE_ETAT("aEnroul\xc3\xa9", "tvCollapse", OWL_ARBRE_ENROULE,
+        "ArbreEtat : le noeud est enroule (plie) ; etat par defaut d'un noeud.",
+        "TreeStatus: the node is collapsed (folded); a node's default state."),
+    C_ARBRE_ETAT("aD\xc3\xa9roul\xc3\xa9", "tvExpand", OWL_ARBRE_DEROULE,
+        "ArbreEtat : le noeud est deroule (deplie).",
+        "TreeStatus: the node is expanded (unfolded)."),
+    C_ARBRE_ETAT("aErreur", "tvError", OWL_ARBRE_ERREUR,
+        "ArbreEtat : le noeud designe n'existe pas.",
+        "TreeStatus: the addressed node does not exist."),
+};
+
+/* a* — image par defaut d'un noeud, argument image de ArbreAjoute
+ * (imageEnroulée / imageDéroulée). Sentinelle pure (aucun enum : seul un
+ * argument la consomme, pas de filtre LSP dedie). Forme EN canon tvDefault
+ * sourcee de la doc TreeAdd en ligne (3018012). */
+#define C_ARBRE_IMG(nm, en, val, dfr, den) {nm, "UI", INTEGER_VAL(val), dfr, den, en}
+static const OwlConstDef ARBRE_IMAGE_CONSTS[] = {
+    C_ARBRE_IMG("aD\xc3\xa9" "faut", "tvDefault", OWL_ARBRE_IMAGE_DEFAUT,
+        "ArbreAjoute : image par defaut du noeud (icone dossier pour un noeud a fils, aucune icone pour une feuille).",
+        "TreeAdd: the node's default image (folder icon for a node with children, no icon for a leaf)."),
+};
+
+/* a* — mode d'ajout d'un noeud, 6e argument de ArbreAjoute. Sentinelle pure
+ * (aucun enum : seul un argument la consomme). Forme EN canon tvAcceptDuplicate
+ * sourcee de la doc TreeAdd en ligne (3018012). */
+#define C_ARBRE_ADD(nm, en, val, dfr, den) {nm, "UI", INTEGER_VAL(val), dfr, den, en}
+static const OwlConstDef ARBRE_ADD_CONSTS[] = {
+    C_ARBRE_ADD("aAccepteDoublon", "tvAcceptDuplicate", OWL_ARBRE_ACCEPTE_DOUBLON,
+        "ArbreAjoute : autorise un homonyme (meme libelle au meme niveau). Le second ajout cree un noeud distinct au lieu d'etre ignore ; ArbreID permet ensuite de les distinguer.",
+        "TreeAdd: allows a homonym (same label at the same level). The second add creates a distinct node instead of being ignored; TreeID then tells them apart."),
+};
+static const OwlParam p_arbre_insere[] = {
+    {"arbre",       "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"cheminFrere", "chaîne", "Chemin du noeud frere existant, segments separes par une tabulation"},
+    {"nomFeuille",  "chaîne", "Libelle de la nouvelle feuille a inserer apres le frere"},
+    {0}
+};
+static const OwlSignature sig_arbre_insere[] = {{3, p_arbre_insere, "booleen", "Vrai si insere, Faux si le chemin frere n'existe pas"}, {0}};
+static const OwlParam p_arbre_recupere_fils[] = {
+    {"arbre",  "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"chemin", "chaîne", "Chemin du noeud parent, segments separes par une tabulation ; vide pour la racine"},
+    {"mode",   "entier", "aPremier (1er fils, reinitialise le curseur) ou aSuivant (fils suivant)",
+     .allowedBase=&E_arbreIteration},
+    {0}
+};
+static const OwlSignature sig_arbre_recupere_fils[] = {{3, p_arbre_recupere_fils, "chaine", "Libelle du fils direct, chaine vide une fois epuise ou si le noeud n'a aucun fils"}, {0}};
+static const OwlSignature sig_arbre_simple[] = {{1, p_arbre_simple, "booleen", "Vrai si reussi"}, {0}};
+static const OwlSignature sig_arbre_occ[]    = {{1, p_arbre_simple, "entier", "Nombre total de noeuds"}, {0}};
+/* Natives d'adressage (Supprime / SelectPlus / SelectMoins) : (arbre, chemin).
+ * Tableau dedie pour ne pas exposer les parametres image/identifiant de
+ * p_arbre_ajoute ; le chemin peut etre qualifie par ArbreID. */
+static const OwlParam p_arbre_chemin[] = {
+    {"arbre",  "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"chemin", "chaîne", "Chemin du noeud (segments separes par une tabulation), eventuellement qualifie par ArbreID"},
+    {0}
+};
+static const OwlSignature sig_arbre_select_path[] = {{2, p_arbre_chemin, "booleen", "Vrai si l'operation a reussi"}, {0}};
+static const OwlParam p_arbre_cherche[] = {
+    {"arbre",   "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"element", "chaîne", "Libelle exact (sensible a la casse) du noeud ou de la feuille a rechercher"},
+    {0}
+};
+static const OwlSignature sig_arbre_cherche[] = {{2, p_arbre_cherche, "chaine", "Chemin complet TAB-separe du 1er element trouve, chaine vide si aucun"}, {0}};
+static const OwlSignature sig_arbre_trie[] = {{1, p_arbre_simple, "booleen", "Vrai (y compris sur un arbre vide ou a un seul noeud)"}, {0}};
+static const OwlSignature sig_arbre_select_occ[]  = {{1, p_arbre_simple, "entier", "Nombre d'elements selectionnes (0 si aucun)"}, {0}};
+static const OwlParam p_arbre_select_rang[] = {
+    {"arbre",    "tout",    "Le Champ Arbre cible (référence ou nom)"},
+    {"doublons", "booléen", "Reserve a la desambiguisation par identifiant (seul Faux est traite)"},
+    {"rang",     "entier",  "Rang 1-based de l'element selectionne, dans l'ordre d'ajout a la selection"},
+    {0}
+};
+static const OwlSignature sig_arbre_select[] = {
+    {1, p_arbre_simple,      "chaine", "Chemin TAB-separe du 1er element selectionne, chaine vide si aucun"},
+    {3, p_arbre_select_rang, "chaine", "Chemin TAB-separe du rang-ieme element selectionne, chaine vide si le rang est hors bornes"},
+    {0}};
+static const OwlParam p_arbre_noeud[] = {
+    {"arbre", "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"noeud", "chaîne", "Chemin du noeud, segments separes par une tabulation"},
+    {0}
+};
+static const OwlSignature sig_arbre_etat_set[] = {{2, p_arbre_noeud, "booleen", "Vrai si le noeud existe, Faux sinon (etat inchange)"}, {0}};
+static const OwlSignature sig_arbre_etat_get[] = {{2, p_arbre_noeud, "entier", "aEnroulé, aDéroulé, ou aErreur si le noeud n'existe pas"}, {0}};
+static const OwlParam p_arbre_id[] = {
+    {"identifiant", "chaîne", "Identifiant d'un noeud a adresser"},
+    {0}
+};
+static const OwlSignature sig_arbre_id[] = {{1, p_arbre_id, "chaine", "Fragment de chemin a concatener a un segment pour designer le noeud portant cet identifiant"}, {0}};
+static const OwlParam p_arbre_recupere_id[] = {
+    {"arbre",  "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"chemin", "chaîne", "Chemin du noeud (segments separes par une tabulation), eventuellement qualifie par ArbreID"},
+    {0}
+};
+static const OwlSignature sig_arbre_recupere_id[] = {{2, p_arbre_recupere_id, "chaine", "Identifiant du noeud, chaine vide s'il n'en a aucun ou si le chemin est introuvable"}, {0}};
 
 /* ====================================================================
  *  Champ Combo — natives Combo-specifiques (ComboFerme / ComboOuvre)
@@ -2036,6 +2203,15 @@ static const OwlSignature sig_test_fen_icone_largeur[] = {
     {1, p_test_fen_icone_largeur, "entier", "Largeur de l'icone de la fenetre"},
     {0}
 };
+static const OwlParam p_test_arbre_noeud_icone[] = {
+    {"arbre",  "tout",   "Le Champ Arbre cible (référence ou nom)"},
+    {"chemin", "chaîne", "Chemin du noeud, segments separes par une tabulation"},
+    {0}
+};
+static const OwlSignature sig_test_arbre_noeud_icone[] = {
+    {2, p_test_arbre_noeud_icone, "entier", "Largeur de l'icone du noeud"},
+    {0}
+};
 static const OwlSignature sig_fentaille[] = {
     {0, p_fentaille_lire,       "entier", "Mode d'affichage courant de la fenetre active"},
     {1, p_fentaille_lire,       "entier", "Mode d'affichage courant de la fenetre"},
@@ -2138,6 +2314,11 @@ static OwlNativeDef DEFS[] = {
       .descFR="Retourne la largeur en pixels de la plus grande taille disponible de l'icone de la fenetre : 0 si aucune icone, -1 si la fenetre n'a pas de champ monte. Sert a verifier qu'une icone a bien ete appliquee sur un champ reel (TestModeHeadless(Faux)).",
       .descEN="Returns the width in pixels of the largest available size of the window icon: 0 if no icon, -1 if the window has no mounted control. Used to check that an icon was actually applied on a real control (TestHeadlessMode(False)).",
       .signatures=sig_test_fen_icone_largeur },
+    { .canonical="TestArbreNoeudIcone", .nameEN="TestTreeNodeIcon",
+      .category="Test",
+      .descFR="Retourne la largeur en pixels de l'icone affichee sur le noeud designe par son chemin (segments separes par une tabulation) : 0 si aucune icone, -1 si l'arbre n'a pas de champ monte. Sert a verifier qu'une icone a bien ete appliquee sur un noeud reel (TestModeHeadless(Faux)).",
+      .descEN="Returns the width in pixels of the icon shown on the node addressed by its path (segments separated by a tab): 0 if no icon, -1 if the tree has no mounted control. Used to check that an icon was actually applied on a real node (TestHeadlessMode(False)).",
+      .signatures=sig_test_arbre_noeud_icone },
     { .canonical="ChampsDe",      .nameEN="ControlsOf",
       .category="UI",
       .descFR="Renvoie le tableau des noms des champs directs d'une fenetre ou d'un champ conteneur, dans l'ordre de creation. Les champs internes a un conteneur ne figurent pas dans la liste de la fenetre : ils apparaissent dans la liste du conteneur lui-meme. Un parent sans champ direct renvoie un tableau vide. Chaque nom obtenu s'exploite ensuite par indirection scopee ({nom, indChamp}..Propriete).",
@@ -2315,6 +2496,11 @@ static OwlNativeDef DEFS[] = {
       .descFR="Ferme la fenetre courante.",
       .descEN="Close the current window.",
       .signatures=sig_close },
+    { .canonical="PoliceCharge",  .canonicalAscii="PoliceCharge",
+      .nameEN="FontLoad",         .category="UI",
+      .descFR="Charge un fichier de police (.ttf/.otf/.woff2) et renvoie son nom de famille, reutilisable comme valeur de la propriete Police..Nom d'un champ. Renvoie une chaine vide et signale une erreur lorsque le fichier est absent ou illisible.",
+      .descEN="Loads a font file (.ttf/.otf/.woff2) and returns its family name, reusable as the value of a control's Font..Name property. Returns an empty string and reports an error when the file is missing or unreadable.",
+      .signatures=sig_police_charge },
     { .canonical="DemandeMiseAJourIHM", .canonicalAscii="DemandeMiseAJourIHM",
       .nameEN="RequestUpdateUI",
       .category="UI",
@@ -2601,6 +2787,102 @@ static OwlNativeDef DEFS[] = {
       .signatures=sig_liste_info_xy,
       .methodBindings=MB_Liste_InfoXY },
 
+    /* Champ Arbre — natives Arbre* (MVP : peupler / vider / compter). */
+    { .canonical="ArbreAjoute", .nameEN="TreeAdd",
+      .category="UI",
+      .descFR="Ajoute un noeud a l'arbre, designe par son chemin (segments separes par une tabulation). Cree les noeuds intermediaires manquants ; sans effet si le chemin existe deja.",
+      .descEN="Adds a node to the tree, addressed by its path (segments separated by a tab). Creates missing intermediate nodes; no effect if the path already exists.",
+      .signatures=sig_arbre_ajoute },
+    { .canonical="ArbreSupprimeTout", .nameEN="TreeDeleteAll",
+      .category="UI",
+      .descFR="Vide l'arbre de tous ses noeuds.",
+      .descEN="Empties the tree of all its nodes.",
+      .signatures=sig_arbre_simple },
+    { .canonical="ArbreSupprime", .nameEN="TreeDelete",
+      .category="UI",
+      .descFR="Retire de l'arbre le noeud designe par son chemin (segments separes par une tabulation) ainsi que tous ses descendants. Retourne Vrai si le noeud existait, Faux sinon (arbre inchange). Une selection portant sur le noeud supprime ou l'un de ses descendants est effacee.",
+      .descEN="Removes from the tree the node addressed by its path (segments separated by a tab) together with all its descendants. Returns True if the node existed, False otherwise (tree unchanged). A selection on the deleted node or one of its descendants is cleared.",
+      .signatures=sig_arbre_select_path },
+    { .canonical="ArbreModifie", .nameEN="TreeModify",
+      .category="UI",
+      .descFR="Renomme le noeud designe par son chemin (segments separes par une tabulation) avec un nouveau libelle, en conservant ses fils, qui deviennent accessibles sous le nouveau chemin parent. Retourne Vrai si le noeud existait, Faux sinon (arbre inchange). Une selection portant sur le noeud ou l'un de ses descendants suit le renommage.",
+      .descEN="Renames the node addressed by its path (segments separated by a tab) with a new label, keeping its children, which become reachable under the new parent path. Returns True if the node existed, False otherwise (tree unchanged). A selection on the node or one of its descendants follows the rename.",
+      .signatures=sig_arbre_modifie },
+    { .canonical="ArbreOccurrence", .nameEN="TreeCount",
+      .category="UI",
+      .descFR="Retourne le nombre total de noeuds de l'arbre (racines, intermediaires et feuilles).",
+      .descEN="Returns the total number of nodes in the tree (roots, intermediate nodes and leaves).",
+      .signatures=sig_arbre_occ },
+    { .canonical="ArbreID", .nameEN="TreeID",
+      .category="UI",
+      .descFR="Construit, a partir d'un identifiant, un fragment de chemin a concatener a un segment (\"A\" + ArbreID(\"id2\")) pour designer precisement le noeud portant cet identifiant parmi des homonymes. Sans effet sur un noeud sans identifiant.",
+      .descEN="Builds, from an identifier, a path fragment to concatenate to a segment (\"A\" + TreeID(\"id2\")) to address precisely the node bearing that identifier among homonyms. No effect on a node without an identifier.",
+      .signatures=sig_arbre_id },
+    { .canonical="ArbreR\xc3\xa9" "cup\xc3\xa8reIdentifiant", .canonicalAscii="ArbreRecupereIdentifiant",
+      .nameEN="TreeIdentifier",
+      .category="UI",
+      .descFR="Retourne l'identifiant du noeud designe par son chemin (segments separes par une tabulation). Un chemin nu renvoie l'identifiant du premier noeud portant ce libelle ; un chemin qualifie par ArbreID cible l'homonyme exact. Chaine vide si le noeud n'a aucun identifiant ou si le chemin est introuvable.",
+      .descEN="Returns the identifier of the node addressed by its path (segments separated by a tab). A bare path returns the identifier of the first node bearing that label; a path qualified by TreeID targets the exact homonym. Empty string if the node has no identifier or if the path is not found.",
+      .signatures=sig_arbre_recupere_id },
+    { .canonical="ArbreSelectPlus", .nameEN="TreeSelectPlus",
+      .category="UI",
+      .descFR="Selectionne le noeud designe par son chemin (segments separes par une tabulation) ; remplace la selection courante. Retourne Vrai si le noeud existe, Faux sinon (selection inchangee).",
+      .descEN="Selects the node addressed by its path (segments separated by a tab); replaces the current selection. Returns True if the node exists, False otherwise (selection unchanged).",
+      .signatures=sig_arbre_select_path },
+    { .canonical="ArbreSelect", .nameEN="TreeSelect",
+      .category="UI",
+      .descFR="Retourne le chemin (segments separes par une tabulation) d'un noeud selectionne. Appele avec le seul arbre, renvoie le premier element de la selection. Appele avec (arbre, doublons, rang), renvoie le rang-ieme element selectionne (1-based, dans l'ordre d'ajout a la selection). Chaine vide si aucun noeud n'est selectionne ou si le rang est hors bornes.",
+      .descEN="Returns the path (segments separated by a tab) of a selected node. Called with only the tree, returns the first element of the selection. Called with (tree, duplicates, rank), returns the rank-th selected element (1-based, in the order it was added to the selection). Empty string when no node is selected or when the rank is out of bounds.",
+      .signatures=sig_arbre_select },
+    { .canonical="ArbreSelectOccurrence", .nameEN="TreeSelectCount",
+      .category="UI",
+      .descFR="Retourne le nombre de noeuds actuellement selectionnes : 0 si aucun, 1 en selection unique, N en multi-selection.",
+      .descEN="Returns the number of currently selected nodes: 0 if none, 1 in single selection, N in multi-selection.",
+      .signatures=sig_arbre_select_occ },
+    { .canonical="ArbreSelectMoins", .nameEN="TreeSelectMinus",
+      .category="UI",
+      .descFR="Deselectionne le noeud designe par son chemin (segments separes par une tabulation). Retourne Vrai si le noeud etait selectionne, Faux si le chemin n'existe pas.",
+      .descEN="Clears the selection of the node addressed by its path (segments separated by a tab). Returns True if the node was selected, False if the path does not exist.",
+      .signatures=sig_arbre_select_path },
+    { .canonical="ArbreIns\xc3\xa8re", .canonicalAscii="ArbreInsere",
+      .nameEN="TreeInsert",
+      .category="UI",
+      .descFR="Insere une nouvelle feuille comme frere du noeud designe par son chemin (segments separes par une tabulation), positionnee juste apres lui. Ne controle pas les doublons : un libelle deja present sous le meme parent cree un second noeud. Retourne Vrai si insere, Faux si le chemin frere n'existe pas (arbre inchange).",
+      .descEN="Inserts a new leaf as a sibling of the node addressed by its path (segments separated by a tab), positioned right after it. Does not check for duplicates: a label already present under the same parent creates a second node. Returns True if inserted, False if the sibling path does not exist (tree unchanged).",
+      .signatures=sig_arbre_insere },
+    { .canonical="ArbreR\xc3\xa9" "cup\xc3\xa8reFils", .canonicalAscii="ArbreRecupereFils",
+      .nameEN="TreeGiveChild",
+      .category="UI",
+      .descFR="Parcourt les fils directs du noeud designe par son chemin (segments separes par une tabulation ; vide pour la racine), dans l'ordre d'insertion. Avec aPremier, reinitialise le curseur et retourne le 1er fils ; avec aSuivant, retourne le fils suivant. Retourne une chaine vide une fois les fils epuises, sur une feuille ou sur un chemin inexistant.",
+      .descEN="Iterates over the direct children of the node addressed by its path (segments separated by a tab; empty for the root), in insertion order. With tvFirst, resets the cursor and returns the first child; with tvNext, returns the next child. Returns an empty string once the children are exhausted, on a leaf or on a nonexistent path.",
+      .signatures=sig_arbre_recupere_fils },
+    { .canonical="ArbreD\xc3\xa9roule", .canonicalAscii="ArbreDeroule",
+      .nameEN="TreeExpand",
+      .category="UI",
+      .descFR="Deroule (deplie) le noeud designe par son chemin (segments separes par une tabulation), sans toucher a l'etat de ses parents, freres ou fils. Retourne Vrai si le noeud existe, Faux sinon (aucun etat cree). Appel idempotent sur un noeud deja deroule.",
+      .descEN="Expands (unfolds) the node addressed by its path (segments separated by a tab), leaving the state of its parents, siblings and children untouched. Returns True if the node exists, False otherwise (no state created). Idempotent on an already expanded node.",
+      .signatures=sig_arbre_etat_set },
+    { .canonical="ArbreEnroule", .nameEN="TreeCollapse",
+      .category="UI",
+      .descFR="Enroule (plie) le noeud designe par son chemin (segments separes par une tabulation), sans toucher a l'etat de ses parents, freres ou fils. Retourne Vrai si le noeud existe, Faux sinon.",
+      .descEN="Collapses (folds) the node addressed by its path (segments separated by a tab), leaving the state of its parents, siblings and children untouched. Returns True if the node exists, False otherwise.",
+      .signatures=sig_arbre_etat_set },
+    { .canonical="ArbreEtat", .nameEN="TreeStatus",
+      .category="UI",
+      .descFR="Retourne l'etat pli/depli propre au noeud designe par son chemin (segments separes par une tabulation) : aEnroulé (plie, etat par defaut), aDéroulé (deplie), ou aErreur si le noeud n'existe pas. L'etat est independant de celui des parents et des fils.",
+      .descEN="Returns the fold/unfold state of the node addressed by its path (segments separated by a tab): tvCollapse (folded, default state), tvExpand (unfolded), or tvError if the node does not exist. The state is independent of that of parents and children.",
+      .signatures=sig_arbre_etat_get },
+    { .canonical="ArbreCherche", .nameEN="TreeFind",
+      .category="UI",
+      .descFR="Recherche un element (noeud ou feuille) par son libelle exact (sensible a la casse) et retourne le chemin complet (segments separes par une tabulation) du premier element trouve dans l'ordre de parcours. Retourne une chaine vide si aucun element ne porte ce libelle.",
+      .descEN="Searches for an element (node or leaf) by its exact label (case-sensitive) and returns the full path (segments separated by a tab) of the first element found in traversal order. Returns an empty string if no element bears that label.",
+      .signatures=sig_arbre_cherche },
+    { .canonical="ArbreTrie", .nameEN="TreeSort",
+      .category="UI",
+      .descFR="Trie les elements de l'arbre par libelle croissant, a tous les niveaux, sans creer ni supprimer de noeud : seul l'ordre des freres change, la hierarchie est preservee. Retourne toujours Vrai.",
+      .descEN="Sorts the elements of the tree by ascending label, at every level, without creating or removing any node: only the order of siblings changes, the hierarchy is preserved. Always returns True.",
+      .signatures=sig_arbre_trie },
+
     /* Champ Combo V1 — natives Combo-specifiques (canon). */
     { .canonical="ComboOuvre", .nameEN="ComboOpen",
       .category="UI",
@@ -2839,6 +3121,19 @@ void stdlib_ui_defs_register(void) {
     }
     owl_registry_register_consts(RECHERCHE_TABLE_CONSTS,
                                  (int)(sizeof(RECHERCHE_TABLE_CONSTS)/sizeof(RECHERCHE_TABLE_CONSTS[0])));
+    {
+        static const OwlEnum* const ARBRE_ITER_ENUMS[] = { &E_arbreIteration };
+        owl_registry_register_enums(ARBRE_ITER_ENUMS,
+                                    (int)(sizeof(ARBRE_ITER_ENUMS)/sizeof(ARBRE_ITER_ENUMS[0])));
+    }
+    owl_registry_register_consts(ARBRE_ITER_CONSTS,
+                                 (int)(sizeof(ARBRE_ITER_CONSTS)/sizeof(ARBRE_ITER_CONSTS[0])));
+    owl_registry_register_consts(ARBRE_ETAT_CONSTS,
+                                 (int)(sizeof(ARBRE_ETAT_CONSTS)/sizeof(ARBRE_ETAT_CONSTS[0])));
+    owl_registry_register_consts(ARBRE_IMAGE_CONSTS,
+                                 (int)(sizeof(ARBRE_IMAGE_CONSTS)/sizeof(ARBRE_IMAGE_CONSTS[0])));
+    owl_registry_register_consts(ARBRE_ADD_CONSTS,
+                                 (int)(sizeof(ARBRE_ADD_CONSTS)/sizeof(ARBRE_ADD_CONSTS[0])));
 
     /*  — constantes de masque de saisie de forçage de casse. Valeur de
      * type chaîne (MasqueSaisie est une prop STRING) : le token stocké pilote le

@@ -89,6 +89,17 @@ typedef struct {
  * KEEP IN SYNC avec MAX_METHOD_PARAMS dans owl_limits.def (cf. ). */
 #define PRESCAN_MAX_METHOD_PARAMS 64
 
+/*  : taille des tables de methodes de classe suivies cross-fichier,
+ * classMethods[] (signatures) et classMethodVis[] (visibilite, ).
+ * KEEP IN SYNC avec MAX_DECLARED_METHODS dans owl_limits.def. Tenir ces tables
+ * au meme plafond que le compilo evite une troncature silencieuse de la
+ * resolution cross-fichier entre les deux bornes : une entree abandonnee
+ * au-dela du plus petit plafond faisait faux-positiver le check de redefinition
+ * de methode abstraite (classMethods[], `owl --check`) OU faux-negativer le
+ * check de visibilite cross-fichier (classMethodVis[], un acces PRIVE illegal
+ * silencieusement autorise en `owl --check --project`, ). */
+#define PRESCAN_MAX_CLASS_METHODS 8192
+
 /* Une signature de methode (interface ou classe externe). */
 typedef struct {
     char name[128];
@@ -116,7 +127,7 @@ typedef struct {
     struct {
         char className[128];
         PrescanMethodSig sig;
-    } classMethods[512];
+    } classMethods[PRESCAN_MAX_CLASS_METHODS];
     int classMethodCount;
 
     /*  : visibilite des methodes de classe, pour hydrater
@@ -131,7 +142,7 @@ typedef struct {
         int  visibility;
         int  fileIndex;
         int  line;
-    } classMethodVis[512];
+    } classMethodVis[PRESCAN_MAX_CLASS_METHODS];
     int classMethodVisCount;
 
     /* Implementations (ClassName implements InterfaceName) */
@@ -192,11 +203,15 @@ bool symtable_verify_interfaces(SymbolTable* t);
 void symtable_init(SymbolTable* t);
 void symtable_free(SymbolTable* t);
 
-/*  : la SymbolTable pese ~5,8 Mo (dominee par PRESCAN_MAX_METHOD_PARAMS
- * via paramTypes[64][32] replique dans chaque PrescanMethodSig). Sur la pile,
- * sa taille plafonne le nombre de parametres : la reserve de pile est 16 Mo et
- * project_run.c en declare DEUX dans le meme cadre (~11,6 Mo, non recouvertes
- * meme a -O2). D'ou l'allocation HEAP obligatoire : symtable_create (calloc +
+/*  : la SymbolTable est volumineuse (dominee par PRESCAN_MAX_METHOD_PARAMS
+ * via paramTypes[64][32] replique dans chaque PrescanMethodSig).  l'a
+ * portee a ~24 Mo en alignant classMethods[] sur MAX_DECLARED_METHODS (8192) :
+ * ~19 Mo pour classMethods[8192] (2340 o/entree) + ~4,5 Mo pour
+ * interfaces[64].methods[32] ;  a aligne de meme classMethodVis[8192]
+ * (~272 o/entree, +2,2 Mo). Elle ne tient donc PLUS sur la pile (reserve 16 Mo).
+ * Un seul exemplaire est vivant a la fois (symtable_create ... symtable_destroy
+ * sequentiels par operation : run, --check, fmt), jamais N par voisin. D'ou
+ * l'allocation HEAP obligatoire : symtable_create (calloc +
  * symtable_init) / symtable_destroy (symtable_free + free du conteneur). Aucun
  * site ne doit remettre une SymbolTable sur la pile — cf. ADR (SymbolTable heap).
  * symtable_destroy est NULL-safe. */

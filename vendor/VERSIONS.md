@@ -84,6 +84,9 @@ Idéalement à migrer en submodule git un jour si l'upstream a un repo propre.
 | `llama.cpp` | b10442 | 2026-08-15 | https://github.com/ggml-org/llama.cpp — tag `b10442` (commit `9b0a2ce8`) | MIT |
 | `libxls` | 1.6.3 | 2026-08-26 | https://github.com/libxls/libxls (commit `881f6ec3`, master 2026-08-21) | BSD-2-Clause |
 | `libssh2` | 1.11.2_DEV (commit `cdbda3cd`) | 2026-08-26 | https://github.com/libssh2/libssh2 (master, PAS le tag 1.11.1 — vulnerable) | BSD-3-Clause |
+| `libwebp` | 1.5.0 | 2026-11-15 | https://chromium.googlesource.com/webm/libwebp (tag `v1.5.0`) | BSD-3-Clause (decodeur seul) |
+| `brotli` | 1.1.0 | 2026-11-15 | https://github.com/google/brotli/releases/tag/v1.1.0 | MIT (decodeur seul) |
+| `woff2` | commit `7b67e123` | 2026-11-15 | https://github.com/google/woff2 (master, commit `7b67e12355fe7da148db5c19d4261f0a498a9537`) | MIT (decodeur seul) |
 | `stb/stb_image.h` | v2.30 | — | https://github.com/nothings/stb | MIT/Public Domain |
 | `leptonica` | 1.85.0 | 2026-11-05 | https://github.com/DanBloomberg/leptonica/releases/tag/1.85.0 | BSD-2-style (Leptonica license) |
 | `tesseract` | 5.5.2 | 2026-11-05 | https://github.com/tesseract-ocr/tesseract/releases/tag/5.5.2 | Apache-2.0 |
@@ -475,6 +478,120 @@ sont ancetres du nouveau commit/tag (JAMAIS <= 1.11.1), reecraser `include/` + `
 en re-excluant les 3 backends non-mbedtls + leurs 4 headers (garder `blowfish.c`),
 mettre a jour la ligne du tableau + ce PIN, relancer `libssh2_smoketest`, revisiter
 `objdump` exports.
+
+**Note libwebp** : decodeur WebP (lossy VP8 + lossless VP8L + alpha), enabler du
+decodage `.webp` cote image OWL (feat/2496, branchement dans `src/owl_image_stb.c`
+a cote de stb_image qui ne lit pas le WebP). Licence **BSD-3-Clause** (`COPYING`
+vendore verbatim, + `PATENTS` et `AUTHORS`). Vendore en **sous-ensemble copie**
+(tag release `v1.5.0`, derniere stable de la branche 1.5.x ; 1.6.0 existe mais le
+pin reste sur 1.5.x par decision dev).
+
+*Sous-ensemble vendore (48 `.c`, decodeur SEUL).* Exactement les `.c` des cibles
+amont `webpdecode` + `webpdspdecode` + `webputilsdecode` (listes autoritatives des
+`src/{dec,dsp,utils}/Makefile.am`, categories COMMON + decode) : `src/dec/` (10
+`.c`), `src/dsp/` COMMON (9) + SSE2 (7) + SSE41 (5) + NEON (7), `src/utils/` COMMON
+(10). **Ecartes** : `src/enc/` (encodeur), `src/mux/`, `src/demux/`, `examples/`,
+`sharpyuv/` (chaine d'encodage uniquement), et les variantes DSP **MIPS/MSA**
+(`*_mips32.c`, `*_mips_dsp_r2.c`, `*_msa.c` — jamais une cible OWL). Headers copies :
+`src/dec/*.h`, `src/dsp/*.h` (dont `common_sse2.h`/`common_sse41.h`/`neon.h`),
+`src/utils/*.h`, et `src/webp/{decode,types,format_constants,mux_types}.h`
+(`mux_types.h` fournit `ALPHA_FLAG`, inclus par `webp_dec.c`).
+
+*⚠️ 3 headers encodeur conserves (headers-only, zero `.c`).* `src/dsp/lossless.h`
+(partage enc/dec) `#include`s `src/enc/histogram_enc.h`, et `src/utils/{palette,
+utils}.c` `#include`nt `src/webp/encode.h`. La fermeture minimale est **3 headers** :
+`src/webp/encode.h`, `src/enc/histogram_enc.h`, `src/enc/backward_references_enc.h`.
+Ce sont de pures declarations ; le decodeur n'appelle **aucune** fonction encodeur
+(verifie au link : 0 symbole indefini). Au bump, re-verifier cette fermeture (si
+l'amont ajoute un include enc cote dec, l'etendre).
+
+*SIMD par dispatch runtime, pas de bridage ISA.* `dsp/cpu.c` detecte le CPU
+(`VP8GetCPUInfo` via cpuid) et route vers SSE2/SSE41 (x86) ou NEON (aarch64) au
+RUNTIME. Les fichiers SIMD sont #ifdef-gardes sur les macros de la cible -> compilent
+a vide hors cible, aucun `-march` global, aucun piege aarch64 (contrairement a
+l'argon2 `opt.c`). Seules les **5 sources `*_sse41.c`** recoivent `-msse4.1` (via
+`set_source_files_properties`, **garde `if(x86)`**) pour activer `__SSE4_1__` sur
+leur corps ; SSE2 est baseline x86-64, NEON baseline aarch64 (aucun flag). Threading
+**OFF** (`HAVE_CONFIG_H` non defini -> `WEBP_USE_THREAD` absent) -> decode mono-thread,
+**zero pthread tire**. Cross **Win+Linux prouvee** (zig clang, link + decode 1x1 reel
+sur les deux cibles) ; aarch64-macos : NEON baseline, non teste (coherent macos
+hors-scope court terme).
+
+*Build / hardening.* Cible `owl_webp` (STATIC) dans `CMakeLists.txt`, calquee
+zint/libxls : `NDEBUG` + `-fvisibility=hidden` + `-ffile-prefix-map` +
+`-ffunction-sections`/`-fdata-sections` (le `--gc-sections` herite au link owl vire
+tout tant qu'aucune native ne tape l'API). `WEBP_EXTERN` n'emet `__declspec(dllexport)`
+que sous `(_WIN32 && WEBP_DLL)`, non defini en statique -> **0 export PE**, aucun patch
+anti-dllexport (contrairement a llhttp). Include `vendor/libwebp` en **PRIVATE** : les
+en-tetes internes a noms generiques (`dsp.h`, `utils.h`, `dec.h`) ne doivent pas
+remonter sur le search-path global d'owl_core via owl_vendor (piege mpdecimal). Lie a
+`owl_vendor` INTERFACE mais **aucune native ne le reference encore** -> gc'e, **delta
+owl.exe ~0**. Validation : `build/libwebp_smoketest.exe`.
+
+*⚠️ Perimetre.* Le **cablage OWL** (route WebP de `src/owl_image_stb.c` vers
+`WebPGetInfo`/`WebPDecodeRGBA`) N'EST PAS fait ici : lot feature separe (feat/2496),
+ecrit avec le dev apres cet enabler.
+
+*Au bump.* Re-cloner le tag (`git clone --depth 1 --branch vX.Y.Z`), reecraser
+`src/{dec,dsp,utils,webp}` en re-elaguant enc/mux/demux/examples/sharpyuv + les
+variantes MIPS/MSA, re-verifier la fermeture des 3 headers enc, relancer
+`libwebp_smoketest`, revisiter `objdump` exports.
+
+**Note brotli + woff2 (polices WOFF2)** : cascade enabler du chargement de polices
+WOFF2 (feat/2497, branchement dans `src/ui_qt.cpp`). WOFF2 = sfnt (TTF/OTF) compresse
+**brotli** ; le decodeur woff2 depend donc du decodeur brotli (d'ou la cascade). On ne
+vendore **que les decodeurs**. Les deux sous **licence MIT** (`LICENSE` vendore
+verbatim pour chacun).
+
+*brotli 1.1.0 (tag `v1.1.0`, commit `ed738e84`), 10 `.c`.* `c/common/` (constants,
+context, dictionary, platform, shared_dictionary, transform) + `c/dec/` (bit_reader,
+decode, huffman, state). **Encodeur `c/enc/` ECARTE**, ainsi que `tools/`, `fuzz/`,
+et les bindings (java/js/go/python/csharp). 100% C portable, zero asm, **zero
+dependance** ; le dictionnaire statique est **embarque dans `dictionary.c`**
+(`kBrotliDictionaryData[]`), pas de `.bin` au runtime. Headers publics : `c/include/
+brotli/{decode,types,port,shared_dictionary}.h` (`encode.h` ecarte). Pas de dllexport
+en statique (`BROTLI_DEC_API` = `__declspec(dllexport)` seulement sous
+`BROTLI_SHARED_COMPILATION`, non defini) -> 0 export PE. Cible `owl_brotli` (STATIC),
+include `c/include` en **PRIVATE** (consomme par owl_woff2 via sa dependance de link).
+
+*woff2 (pin commit `7b67e123`, master), 5 `.cc`.* Les cibles amont `woff2common`
+(`table_tags.cc`, `variable_length.cc`, `woff2_common.cc`) + `woff2dec`
+(`woff2_dec.cc`, `woff2_out.cc`). **Encodeur ECARTE** (`woff2_enc.cc`, `font.cc`,
+`glyph.cc`, `normalize.cc`, `transform.cc`) ainsi que les outils CLI
+(`woff2_compress`/`_decompress`/`_info`) et les fuzzers. **Pin-to-commit** (pas de tag
+release recent cote woff2 ; master stable). Headers : `include/woff2/{decode,output}.h`
+(`encode.h` ecarte) + `src/{buffer,port,round,store_bytes,table_tags,variable_length,
+woff2_common}.h`.
+
+*⚠️ C++ COMPILE EN ARBRE, PAS via sous-build zig — c'est une decision ABI, pas un
+raccourci.* L'API publique est **C++** (`namespace woff2`, `woff2::ConvertWOFF2ToTTF`,
+`std::` dans les signatures de `WOFF2Out`). Son consommateur reel (`ui_qt.cpp`) est
+lui aussi C++, compile par la **toolchain d'arbre principal** (gcc/libstdc++ en build
+dev, zig/libc++ en `make mega`). Compiler owl_woff2 dans le **meme** arbre garantit
+une **ABI `std::` coherente** avec ui_qt.cpp. Un sous-build zig/libc++ isole (pattern
+tesseract/duckdb/llama) serait **INCORRECT** ici : en build dev, ui_qt.cpp (libstdc++)
+<-> woff2 (libc++) avec `std::string`/exceptions a la frontiere = crash ABI. Le pattern
+sous-build ne vaut que pour les libs C++ a **API `extern "C"`** (C++ interne au `.a`),
+ce que woff2 n'est pas. Idem le **smoketest** est `.cpp` (namespace C++, impossible en
+`.c` pur — divergence assumee vs le `.c` des autres smoketests).
+
+*Build / hardening.* Cibles `owl_brotli` + `owl_woff2` (STATIC), hardening calque
+zint/libxls (`NDEBUG` + visibility hidden + file-prefix-map + sections separees).
+`owl_woff2` **PRIVATE `owl_brotli`** (les symboles brotli sont propages au link des
+consommateurs de l'archive statique). Aucun dllexport (woff2 n'emet aucun
+`__declspec`). Lie a `owl_vendor` (owl_woff2 ; brotli transitif) mais **aucune native
+ne le reference encore** -> gc'e, **delta owl.exe ~0**. Cross **Win+Linux prouvee**
+(zig clang/c++ + libc++, reconstruction sfnt reelle sur les deux cibles). Validation :
+`build/woff2_smoketest.exe` (WOFF2 minimal -> sfnt magic `0x00010000`).
+
+*⚠️ Perimetre.* Le **cablage OWL** (chargement de police WOFF2 dans `src/ui_qt.cpp`
+via `ConvertWOFF2ToTTF` -> `QFontDatabase`) N'EST PAS fait ici : lot feature separe
+(feat/2497).
+
+*Au bump.* brotli : re-cloner le tag, reecraser `c/{common,dec,include}` en re-ecartant
+`c/enc`. woff2 : re-cloner, **re-verifier le commit master** (pin-to-commit), reecraser
+les 5 `.cc` decodeur + headers en re-ecartant l'encodeur. Relancer `libwebp`/`woff2`
+smoketests, revisiter `objdump` exports.
 
 **Note leptonica + tesseract (moteur OCR)** : enabler OCR de la famille
 `OCRExtraitTexte` (cf `docs/ADR/ADR_0255-moteur-ocr-vendore-statique.md`).

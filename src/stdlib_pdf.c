@@ -38,6 +38,7 @@
 #include "scanner.h"       /*  : scanner_strip_accents (match de nom de champ) */
 #include "stdlib_ui.h"     /*  : owl_etat_prepare_props */
 #include "ui_catalog.h"    /*  : lookup props bilingue via catalogue */
+#include "owl_ui.h"        /*  : owl_ui_apercu_show (fenetre d'apercu) */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +79,56 @@ static char g_abort_text[512]  = "";
 static int      g_cfg_dest = OWL_IDEST_IMPRIMANTE;
 static char     g_cfg_path[1024] = "";
 static ObjArray* g_cfg_img = NULL;
+
+/* Config de la fenetre du visualisateur de rapports (iDestination(iVisualisateur,
+ * ...)). Posee par fn_i_destination, consommee par finalize_print quand la
+ * destination armee est le visualisateur. width/height <= 0 => fenetre maximisee
+ * (aucune taille explicite fournie). zoomMode : 0=libre (zoom %), 1=largeur page,
+ * 2=page entiere (cf owl_ui_apercu_show). */
+typedef struct {
+    int  zoom;        /* 10..999 (%) */
+    int  zoomMode;    /* 0=libre, 1=largeur page, 2=page entiere */
+    char title[256];
+    bool buttons;
+    int  posX, posY;
+    int  width, height;
+} ApercuParams;
+static ApercuParams g_apercu = { .zoom = 100, .zoomMode = 0, .buttons = true,
+                                 .posX = 100, .posY = 100,
+                                 .width = 0, .height = 0 };
+
+/* Pages rendues pour l'apercu ecran : tableau C d'OwlImage* (pas d'Obj OWL ->
+ * aucune racine GC requise). i_apercu_on_page y accumule chaque page rasterisee ;
+ * finalize_print les montre dans la fenetre puis les libere. */
+static OwlImage** g_apercu_pages_arr = NULL;
+static int        g_apercu_pages_count = 0;
+static int        g_apercu_pages_cap = 0;
+
+static void apercu_pages_reset(void) {
+    for (int i = 0; i < g_apercu_pages_count; i++) {
+        if (g_apercu_pages_arr[i]) owl_image_free(g_apercu_pages_arr[i]);
+    }
+    free(g_apercu_pages_arr);
+    g_apercu_pages_arr = NULL;
+    g_apercu_pages_count = 0;
+    g_apercu_pages_cap = 0;
+}
+
+/* Callback de rasterisation pour l'apercu : prend possession de l'OwlImage*
+ * (liberee par apercu_pages_reset). Chemin 100% C, pas de wrap Obj/GC. */
+static void i_apercu_on_page(OwlImage* page, void* userdata) {
+    (void)userdata;
+    if (!page) return;
+    if (g_apercu_pages_count >= g_apercu_pages_cap) {
+        int ncap = g_apercu_pages_cap ? g_apercu_pages_cap * 2 : 8;
+        OwlImage** grown = (OwlImage**)realloc(g_apercu_pages_arr,
+                                               (size_t)ncap * sizeof(OwlImage*));
+        if (!grown) { owl_image_free(page); return; }
+        g_apercu_pages_arr = grown;
+        g_apercu_pages_cap = ncap;
+    }
+    g_apercu_pages_arr[g_apercu_pages_count++] = page;
+}
 
 /*  — enchaînement d'états. File lazy : chaque entrée est une array OWL
  * [nomEtat, param1, …]. Racinée via vm.globals ("$enchainement") pour survivre
@@ -490,6 +541,16 @@ static OwlPdfDoc* open_dest(void) {
             if (!g_doc) g_doc_img_target = NULL;
             g_doc_dest = OWL_IDEST_IMAGE_MEMOIRE;
             break;
+        case OWL_IDEST_VISUALISATEUR:
+            /* Visualisateur ecran : meme rasterisation que l'image memoire, mais
+             * vers un tableau C interne (pas de cible utilisateur). 150 dpi :
+             * resolution ecran suffisante, pages plus legeres que le 300 dpi PDF. */
+            g_doc_path[0] = '\0';
+            g_doc_img_target = NULL;
+            apercu_pages_reset();
+            g_doc = owl_pdf_open_image_memory(150, i_apercu_on_page, NULL);
+            g_doc_dest = OWL_IDEST_VISUALISATEUR;
+            break;
         case OWL_IDEST_IMPRIMANTE:
         default:
             g_doc_img_target = NULL;
@@ -522,7 +583,8 @@ static OwlPdfDoc* ensure_etat_doc(void) {
  * Partagé par iImprimeEtat (auto-finalisation) et iFinImprime (flux manuel). */
 static void finalize_print(void) {
     if (!g_doc) return;
-    owl_pdf_close(g_doc);
+    int wasDest = g_doc_dest;   /* capture avant le reset plus bas (apercu) */
+    owl_pdf_close(g_doc);       /* flush de la derniere page -> i_apercu_on_page */
     owl_printer_progress_end();
     g_doc = NULL;
     if (g_doc_path[0] && g_pdf_params.hasParams) {
@@ -548,6 +610,41 @@ static void finalize_print(void) {
     g_doc_dest = OWL_IDEST_IMPRIMANTE;
     g_doc_img_target = NULL;
     pdf_params_reset();
+
+    /* Visualisateur ecran : les pages rendues sont dans g_apercu_pages_arr.
+     * En mode headless (owl test / TestModeHeadless(Vrai)), on NE montre PAS de
+     * fenetre (elle bloquerait la boucle d'event -> hang de la campagne) : le
+     * pipeline a tourne, on libere juste les pages. En UI reelle, on ouvre la
+     * fenetre du visualisateur (bloquante jusqu'a fermeture par l'utilisateur). */
+    if (wasDest == OWL_IDEST_VISUALISATEUR) {
+        if (!vm.headless_mode && g_apercu_pages_count > 0) {
+            owl_ui_apercu_show(g_apercu_pages_arr, g_apercu_pages_count,
+                               g_apercu.zoom, g_apercu.zoomMode, g_apercu.title,
+                               g_apercu.buttons ? 1 : 0,
+                               g_apercu.posX, g_apercu.posY,
+                               g_apercu.width, g_apercu.height);
+        }
+        apercu_pages_reset();
+    }
+}
+
+/* Resout le 2e argument Zoom de iDestination(iVisualisateur, <Zoom>, ...) vers un
+ * couple (pourcentage initial, mode). Accepte un pourcentage brut 10..999 (mode
+ * libre) ou un preset nomme (OWL_IZOOM_*). zoomMode : 0=libre (le % prime),
+ * 1=largeur de page, 2=page entiere. */
+static void vis_resolve_zoom(int z, int* outPct, int* outMode) {
+    switch (z) {
+        case OWL_IZOOM_100:          *outPct = 100; *outMode = 0; return;
+        case OWL_IZOOM_LARGEUR_PAGE: *outPct = 100; *outMode = 1; return;
+        case OWL_IZOOM_PAGE:         *outPct = 100; *outMode = 2; return;
+        case OWL_IZOOM_DEFAUT:       *outPct = 100; *outMode = 2; return;  /* defaut = page entiere */
+        default:
+            /* Pourcentage brut (borne 10..999, mode libre). */
+            if (z < 10)  z = 10;
+            if (z > 999) z = 999;
+            *outPct = z; *outMode = 0;
+            return;
+    }
 }
 
 /* iDestination([type [, cible]]) — canon + extension OWL.  : mémorise
@@ -592,9 +689,38 @@ static Value fn_i_destination(int argCount, Value* args) {
         g_cfg_dest = OWL_IDEST_IMPRIMANTE;
         g_cfg_img = NULL;
         g_cfg_path[0] = '\0';
+    } else if (type == OWL_IDEST_VISUALISATEUR) {
+        /* Visualisateur de rapports a l'ecran : l'État rendu par iImprimeEtat est
+         * rasterise page par page (meme chemin qu'iImageMemoire), et iFinImprime
+         * ouvre la fenetre du visualisateur empilant les pages (navigation +
+         * zoom). Params optionnels : Zoom, Titre, Boutons, PosX, PosY, Largeur,
+         * Hauteur. Sans Largeur/Hauteur, la fenetre s'ouvre maximisee. */
+        g_apercu.zoom     = 100;
+        g_apercu.zoomMode = 0;
+        g_apercu.title[0] = '\0';
+        g_apercu.buttons  = true;
+        g_apercu.posX     = 100;
+        g_apercu.posY     = 100;
+        g_apercu.width    = 0;   /* 0 => fenetre maximisee (aucune taille fournie) */
+        g_apercu.height   = 0;
+        if (argCount >= 2 && IS_INTEGER(args[1])) {
+            vis_resolve_zoom((int)AS_INTEGER(args[1]), &g_apercu.zoom, &g_apercu.zoomMode);
+        }
+        if (argCount >= 3 && IS_STRING(args[2])) {
+            strncpy(g_apercu.title, AS_CSTRING(args[2]), sizeof(g_apercu.title) - 1);
+            g_apercu.title[sizeof(g_apercu.title) - 1] = '\0';
+        }
+        if (argCount >= 4 && IS_BOOL(args[3]))    g_apercu.buttons = AS_BOOL(args[3]);
+        if (argCount >= 5 && IS_INTEGER(args[4])) g_apercu.posX   = (int)AS_INTEGER(args[4]);
+        if (argCount >= 6 && IS_INTEGER(args[5])) g_apercu.posY   = (int)AS_INTEGER(args[5]);
+        if (argCount >= 7 && IS_INTEGER(args[6])) g_apercu.width  = (int)AS_INTEGER(args[6]);
+        if (argCount >= 8 && IS_INTEGER(args[7])) g_apercu.height = (int)AS_INTEGER(args[7]);
+        g_cfg_dest = OWL_IDEST_VISUALISATEUR;
+        g_cfg_img  = NULL;
+        g_cfg_path[0] = '\0';
     } else {
         fprintf(stderr,
-            "[iDestination] type %d non supporte (iPDFGenerique/iImageMemoire/iImprimante implem).\n", type);
+            "[iDestination] type %d non supporte (iPDFGenerique/iImageMemoire/iImprimante/iVisualisateur implem).\n", type);
         return INTEGER_VAL(OWL_IDEST_IMPRIMANTE);
     }
 

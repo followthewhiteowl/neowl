@@ -40,6 +40,19 @@ set(CMAKE_CXX_COMPILER     "${_wrappers}/zig-c++${_ext}")
 set(CMAKE_AR               "${_wrappers}/zig-ar${_ext}")
 set(CMAKE_RANLIB           "${_wrappers}/zig-ranlib${_ext}")
 
+# Variantes AR/RANLIB par-langage : zig cc = clang, et check_ipo_supported() /
+# l'archivage thin-LTO consultent CMAKE_<LANG>_COMPILER_AR/RANLIB (pas le
+# CMAKE_AR generique). CMake les devine en cherchant llvm-ar/llvm-ranlib sur le
+# PATH ; en cross (musl) le PATH est assaini (pas de llvm-ar) -> *-NOTFOUND, qui
+# casse l'archivage bitcode. On pointe les MEMES wrappers zig (zig ar/ranlib =
+# llvm-ar/llvm-ranlib, gerent le bitcode). Benin en natif, repare le cross :
+# toute lib vendoree (duckdb/llama/qt6/tesseract) en profite sans repatcher son
+# script.
+set(CMAKE_C_COMPILER_AR        "${_wrappers}/zig-ar${_ext}")
+set(CMAKE_CXX_COMPILER_AR      "${_wrappers}/zig-ar${_ext}")
+set(CMAKE_C_COMPILER_RANLIB    "${_wrappers}/zig-ranlib${_ext}")
+set(CMAKE_CXX_COMPILER_RANLIB  "${_wrappers}/zig-ranlib${_ext}")
+
 # Sur Windows MSYS2 ou Linux WSL2, CMake peut rajouter des -I vers
 # /c/msys64/ucrt64/include ou /usr/include qui contiennent des headers
 # C systeme incompatibles avec libc++ zig (math.h MSYS2 macros qui

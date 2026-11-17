@@ -1,0 +1,26 @@
+//  — Champ Image depuis un fichier webp : oracle = capture pixel
+// réelle (offscreen). Le centre du champ ne doit plus porter la couleur de
+// fond (magenta posée via Style..CadreExtérieur..CouleurFond), signe que
+// l'image webp s'affiche vraiment.
+//
+// ROUGE attendu avant impl : le centre reste magenta (webp non rendu par le
+// pipeline widget actuel). Cf. FEN_RenduImageChampWebp.owl.
+
+TestModeHeadless(Faux)
+
+chemin        est une chaîne = fRepTemp() + fSep() + "owl_test_2501_champ_image.webp"
+octetsFixture est un buffer  = fChargeBuffer("tests/runtime/webp_decodage/fixture.webp")
+fSauveBuffer(chemin, octetsFixture)
+
+OuvreSoeur(FEN_RenduImageChampWebp)
+
+img est une Image = dCopieImageFenêtre(FEN_RenduImageChampWebp)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// IMG_Cible [X=20..170,Y=20..120], centre=(95,70)
+cCentre est un entier = dPixelCouleur(img, 95, 70)
+dbgVérifieVrai(cCentre <> RVB(255, 0, 255), "le centre du champ affiche l'image webp, pas la couleur de fond")
+
+Ferme(FEN_RenduImageChampWebp)
+fSupprime(chemin)
+dbgBilanTest()

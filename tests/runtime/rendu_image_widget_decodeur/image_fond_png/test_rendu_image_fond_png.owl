@@ -1,0 +1,26 @@
+//  — Image de fond d'un conteneur depuis un fichier png : non-
+// régression. Oracle = capture pixel réelle (offscreen), le centre du
+// conteneur doit afficher la couleur de l'image (vert), pas la couleur de
+// fond (magenta).
+//
+// VERT attendu avant et après impl : le png rend déjà aujourd'hui. Cf.
+// FEN_RenduImageFondPng.owl.
+
+TestModeHeadless(Faux)
+
+chemin est une chaîne = fRepTemp() + fSep() + "owl_test_2501_image_fond.png"
+imgSrc est une Image  = dCréeImage(32, 32, RVB(0, 200, 0))
+dSauveImagePNG(imgSrc, chemin)
+
+OuvreSoeur(FEN_RenduImageFondPng)
+
+img est une Image = dCopieImageFenêtre(FEN_RenduImageFondPng)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// CNT_Cible [X=20..170,Y=20..120], centre=(95,70)
+cCentre est un entier = dPixelCouleur(img, 95, 70)
+dbgVérifieEgalité(cCentre, RVB(0, 200, 0), "le centre du conteneur affiche l'image de fond png (non-régression)")
+
+Ferme(FEN_RenduImageFondPng)
+fSupprime(chemin)
+dbgBilanTest()

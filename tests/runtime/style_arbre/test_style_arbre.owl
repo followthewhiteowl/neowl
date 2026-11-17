@@ -1,0 +1,38 @@
+//  (Lot 7b) — prop Style (type styleArbre) sur le Champ Arbre.
+// Mirror exact de tests/runtime/style_liste/test_style_liste.owl.
+// Vérifie de bout en bout (backend headless) :
+//   1. Déclaration d'un styleArbre + renseignement de ses sous-éléments,
+//      read-back sur l'instance (le type compose correctement) :
+//      CadreExtérieur (CouleurFond), LibelléLignes (Couleur), LigneSélectionnée
+//      (CouleurFond).
+//   2. Application au Champ Arbre via ARBRE..Style ne casse pas.
+//   3. La prop Style typée sur Arbre : la cascade
+//      ARBRE..Style..LibelléLignes..Couleur matérialise un styleArbre et fait
+//      un round-trip.
+//
+// ROUGE attendu : la prop 'Style' n'existe pas encore avec le type
+// styleArbre (compile-fail : type styleArbre inconnu).
+
+Trace("=== styleArbre : type composite + application Champ Arbre ===")
+
+STY_Arbre est un styleArbre
+STY_Arbre..CadreExtérieur..CouleurFond    = JauneClair
+STY_Arbre..LibelléLignes..Couleur         = Rouge
+STY_Arbre..LigneSélectionnée..CouleurFond = Bleu
+
+dbgVérifieEgalité(STY_Arbre..CadreExtérieur..CouleurFond, JauneClair, "styleArbre : CadreExtérieur..CouleurFond posée")
+dbgVérifieEgalité(STY_Arbre..LibelléLignes..Couleur, Rouge, "styleArbre : LibelléLignes..Couleur posée")
+dbgVérifieEgalité(STY_Arbre..LigneSélectionnée..CouleurFond, Bleu, "styleArbre : LigneSélectionnée..CouleurFond posée")
+
+Ouvre(FEN_ArbreStyle)
+ARBRE_Style..Style = STY_Arbre
+dbgVérifieVrai(Vrai, "styleArbre appliqué à ARBRE..Style sans crash")
+
+ARBRE_Style..Style..LibelléLignes..Couleur = RougeClair
+dbgVérifieEgalité(ARBRE_Style..Style..LibelléLignes..Couleur, RougeClair, "ARBRE..Style..LibelléLignes..Couleur round-trip")
+
+ARBRE_Style..Style..LigneSélectionnée..Couleur = Blanc
+dbgVérifieEgalité(ARBRE_Style..Style..LigneSélectionnée..Couleur, Blanc, "ARBRE..Style..LigneSélectionnée..Couleur round-trip")
+
+Ferme(FEN_ArbreStyle)
+dbgBilanTest()

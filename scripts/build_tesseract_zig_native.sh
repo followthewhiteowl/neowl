@@ -85,6 +85,31 @@ HARDEN_T="-fvisibility=hidden -ffile-prefix-map=$TESS_SRC=. -ffunction-sections 
 MATH_DEF="-D_USE_MATH_DEFINES"
 
 # ----------------------------------------------------------------------------
+# Fix cross-compile specifique Tesseract (necessaire des que
+# CMAKE_CROSSCOMPILING=TRUE, cas musl).
+#
+# NB : AR/RANLIB par-langage (CMAKE_<LANG>_COMPILER_AR/RANLIB, consultes par
+# check_ipo_supported() / l'archivage thin-LTO) sont desormais poses par le
+# toolchain partage (cmake/toolchain_zig_native.cmake, herite par le musl) pour
+# toutes les libs cross. Plus de patch local ici.
+#
+# Cache-vars try_run (cross uniquement) : check_leptonica_tiff_support()
+#    (Tesseract) lance un try_run() pour tester le support TIFF de Leptonica.
+#    Interdit en cross (CMake ne peut pas EXECUTER un binaire cible) -> erreur
+#    fatale "try_run() invoked in cross-compiling mode". On pre-remplit le
+#    resultat : Leptonica est build SANS TIFF (codecs OFF ci-dessous), donc
+#    pixWriteMemTiff renvoie non-zero -> DISABLE_TIFF, coherent avec le
+#    -DDISABLE_TIFF=ON passe au configure Tesseract. Gate musl : en natif le
+#    try_run s'execute reellement, on ne le masque pas.
+TESS_TRYRUN_ARGS=()
+if [ "${OWL_MUSL:-0}" = "1" ]; then
+    TESS_TRYRUN_ARGS=(
+        -DLEPT_TIFF_RESULT=1
+        -DLEPT_TIFF_COMPILE_SUCCESS=TRUE
+    )
+fi
+
+# ----------------------------------------------------------------------------
 # 1) Leptonica 1.85.0 — TOUS CODECS OFF (decodage image delegue a stb cote OWL).
 #    STRICT_CONF=OFF : une lib absente desactive le format sans casser le configure.
 #    CMAKE_INSTALL_PREFIX au CONFIGURE (pas seulement a --install) : sinon
@@ -123,6 +148,7 @@ export CFLAGS="$HARDEN_T $MATH_DEF"
 export CXXFLAGS="$HARDEN_T $MATH_DEF"
 cmake -G Ninja -S "$TESS_SRC" -B "$INSTALL_DIR/tess-build" \
     -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
+    "${TESS_TRYRUN_ARGS[@]}" \
     -DCMAKE_INSTALL_PREFIX="$INST" \
     -DCMAKE_PREFIX_PATH="$INST" \
     -DCMAKE_BUILD_TYPE=Release \

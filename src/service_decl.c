@@ -73,6 +73,8 @@ static void free_operation(OwlOperationDecl* op) {
     free(op->responses);
     for (int i = 0; i < op->queryParamCount; i++) free(op->queryParams[i]);
     free(op->queryParams);
+    for (int i = 0; i < op->formParamCount; i++) free(op->formParams[i]);
+    free(op->formParams);
     for (int i = 0; i < op->procParamCount; i++) {
         free(op->procParams[i].name);
         free(op->procParams[i].typeName);
@@ -97,6 +99,9 @@ static void free_service(OwlServiceDecl* svc) {
     free(svc->jwtIssuer);
     free(svc->jwtJwksUrl);
     free(svc->jwtAudience);
+    for (int i = 0; i < svc->staticPrefixCount; i++) free(svc->staticPrefix[i]);
+    free(svc->staticPrefix);
+    free(svc->staticDir);
     for (int i = 0; i < svc->operationCount; i++) free_operation(svc->operations[i]);
     free(svc->operations);
     free(svc);

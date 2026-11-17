@@ -103,6 +103,16 @@ typedef struct {
      * met a Vrai au demarrage de chaque fichier de test. */
     bool headless_mode;
 
+    /*  — code de sortie du process pilote par un `RENVOYER <entier>`
+     * au TOP-LEVEL du programme (top-level du script lance, ou top-level de
+     * projet.owl en mode projet). Defaut 0. capture_exit_code borne la fenetre
+     * de capture : seul le vm_execute du corps-programme l'active (via
+     * project_run.c), de sorte que ni les compagnons ni le teardown Fermeture()
+     * (qui atteignent pourtant le meme OP_RETURN top-level) ne posent le code.
+     * Un retour non-entier/absent laisse le defaut ; un reel est tronque. */
+    int  exit_code;
+    bool capture_exit_code;
+
     /*  : stack runtime des fenetres ouvertes (multi-instance).
      * Push a Ouvre/OuvreFille/OuvreSoeur, pop a Ferme. Le top = fenetre
      * "courante" qui resout les ObjUiControlRef ambigus (cf decisions

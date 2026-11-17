@@ -1,0 +1,73 @@
+// @sujet : ArbreAjoute, ArbreSupprimeTout, ArbreOccurrence
+// @résumé : Un Arbre se peuple par chemins TAB-séparés (ArbreAjoute crée les
+// nœuds intermédiaires manquants), expose son nombre total d'éléments via
+// ArbreOccurrence, et se vide intégralement via ArbreSupprimeTout.
+//
+// Ressource DSL : FEN_Arbre.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_peuple_compte_et_vide()
+	Ouvre(FEN_Arbre)
+
+	dbgVérifieEgalité(LireOccurrence(), 0, "Arbre vide à l'ouverture")
+
+	bOk1 est un booléen = ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	dbgVérifieVrai(bOk1, "ArbreAjoute d'une 1re branche réussit")
+
+	bOk2 est un booléen = ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+	dbgVérifieVrai(bOk2, "ArbreAjoute d'une 2e feuille sous le même sous-nœud réussit")
+
+	bOk3 est un booléen = ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+	dbgVérifieVrai(bOk3, "ArbreAjoute d'une 3e branche (nouveau sous-nœud) réussit")
+
+	// 1 (Fruits) + 2 (Agrumes, Rouges) + 3 (Orange, Citron, Fraise) = 6 nœuds.
+	dbgVérifieEgalité(LireOccurrence(), 6, "ArbreOccurrence compte la racine + les nœuds intermédiaires + les feuilles")
+
+	bVide est un booléen = ArbreSupprimeTout(ARBRE_Categories)
+	dbgVérifieVrai(bVide, "ArbreSupprimeTout réussit")
+
+	dbgVérifieEgalité(LireOccurrence(), 0, "Arbre vide après ArbreSupprimeTout")
+
+	Ferme(FEN_Arbre)
+FIN
+
+// Edge case : ArbreAjoute réappelé avec un chemin déjà présent ne doit pas
+// dupliquer les nœuds intermédiaires déjà créés.
+PROCEDURE PRIVÉE scenario_edge_arbre_chemin_doublon_ne_duplique_pas()
+	Ouvre(FEN_Arbre)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	nApres1 est un entier = LireOccurrence()
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	nApres2 est un entier = LireOccurrence()
+
+	dbgVérifieEgalité(nApres2, nApres1, "ArbreAjoute avec un chemin identique ne recrée pas les nœuds existants")
+
+	Ferme(FEN_Arbre)
+FIN
+
+// Edge case : un chemin à un seul segment (racine directe, sans enfant) est
+// un cas limite valide — pas de TAB du tout.
+PROCEDURE PRIVÉE scenario_edge_arbre_chemin_racine_seule()
+	Ouvre(FEN_Arbre)
+
+	bOk est un booléen = ArbreAjoute(ARBRE_Categories, "Racine")
+	dbgVérifieVrai(bOk, "ArbreAjoute d'un chemin à un seul segment réussit")
+	dbgVérifieEgalité(LireOccurrence(), 1, "un seul nœud créé pour un chemin à un segment")
+
+	Ferme(FEN_Arbre)
+FIN
+
+// Edge case : ArbreSupprimeTout sur un Arbre déjà vide (jamais peuplé) ne
+// doit pas échouer, et ArbreOccurrence reste à 0.
+PROCEDURE PRIVÉE scenario_edge_arbre_supprime_tout_sur_arbre_vide()
+	Ouvre(FEN_Arbre)
+
+	bVide est un booléen = ArbreSupprimeTout(ARBRE_Categories)
+	dbgVérifieVrai(bVide, "ArbreSupprimeTout sur un Arbre déjà vide réussit")
+	dbgVérifieEgalité(LireOccurrence(), 0, "Arbre toujours vide")
+
+	Ferme(FEN_Arbre)
+FIN

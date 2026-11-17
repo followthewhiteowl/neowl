@@ -1,0 +1,29 @@
+//  (ST-B) — bilinguisme (invariant 3) de la nouvelle feuille
+// `ImageFond` / `BackgroundImage` sur `Style..CadreExtérieur` : écriture EN
+// (`OuterFrame..BackgroundImage..Source` / `..Framing`), relecture FR
+// (`CadreExtérieur..ImageFond..Source` / `..Cadrage`), et réciproquement.
+// Round-trip headless seul, pas de rendu pixel ici.
+//
+// ROUGE attendu : `ImageFond` inconnu sur styleCadreExtérieur aujourd'hui ->
+// échec compile. Cf. FEN_StyleImageFondBilingue.owl.
+
+TestModeHeadless(Vrai)
+
+Ouvre(FEN_StyleImageFondBilingue)
+
+// Écriture EN, relecture FR.
+BTN_Zone..Style..OuterFrame..BackgroundImage..Source = "logo_fond.png"
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..ImageFond..Source, "logo_fond.png",
+"bilingue : écrit via OuterFrame..BackgroundImage..Source (EN), relu via CadreExtérieur..ImageFond..Source (FR)")
+
+BTN_Zone..Style..OuterFrame..BackgroundImage..Framing = cadEtire
+dbgVérifieEgalité(BTN_Zone..Style..CadreExtérieur..ImageFond..Cadrage, cadEtire,
+"bilingue : écrit via OuterFrame..BackgroundImage..Framing (EN), relu via CadreExtérieur..ImageFond..Cadrage (FR)")
+
+// Écriture FR, relecture EN.
+BTN_Zone..Style..CadreExtérieur..ImageFond..Source = "autre_fond.png"
+dbgVérifieEgalité(BTN_Zone..Style..OuterFrame..BackgroundImage..Source, "autre_fond.png",
+"bilingue : écrit via CadreExtérieur..ImageFond..Source (FR), relu via OuterFrame..BackgroundImage..Source (EN)")
+
+Ferme(FEN_StyleImageFondBilingue)
+dbgBilanTest()

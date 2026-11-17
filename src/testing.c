@@ -865,6 +865,15 @@ static int collect_companions(const Project* project, int testIndex,
  * project_run (owl <fichier>). Voir prescan.c /
  * topo_sort_companions_by_inheritance. */
 
+/* Un chunk de split (declarations ou corps) est "vide" quand il ne porte que
+ * son OP_NIL + OP_RETURN implicites (<= 2 octets). L'executer serait un no-op ;
+ * on le saute. Miroir local de la garde homonyme de project_run.c (static la
+ * aussi) : owl test adopte ici le meme modele deux phases, sans toucher
+ * project_run. */
+static bool split_fn_is_empty(const ObjFunction* fn) {
+    return fn == NULL || fn->chunk == NULL || fn->chunk->count <= 2;
+}
+
 /* ================================================================
  * TEST RUNNER
  * ================================================================ */
@@ -1170,56 +1179,163 @@ int run_tests_ex(const TestOptions* opts) {
         bool companionFailed = false;
         const char* companionFailPath = NULL;
         bool companionFailAtCompile = false;
+        if (multifile && opts->listFiles) {
+            fprintf(stderr, "[multifile] test=%s, %d companion(s)\n",
+                    project.files[i].path, companionCount);
+        }
+
+        /* Modele deux phases (, aligne sur project_run) : materialiser
+         * TOUTES les declarations statiques (compagnons + fichier de test) AVANT
+         * tout code imperatif. Chaque corps voit alors les symboles de TOUS les
+         * autres fichiers, independamment de l'ordre alphabetique — le vice que
+         * le compile+exec wholesale par fichier laissait passer (faux verts
+         * dependant du NOM des voisins).
+         *   Phase 1 : split compile -> exec de la declFn (hissee) de chaque
+         *     fichier, compagnons d'abord (ordre topologique heritage), fichier
+         *     de test EN DERNIER (ses definitions gagnent).
+         *   Phase 2 : corps imperatifs. Collections d'abord (globales/procs
+         *     consommees en nom nu), puis compagnons, puis le corps du fichier
+         *     de test. La detection des scenarios tourne apres ce dernier corps.
+         * Discipline GC : chaque Obj frais (declFn/bodyFn) est rooté
+         * AVANT toute nouvelle alloc. Les bodyFn persistent via les ObjArray
+         * (obj_array_push canon) ; les declFn transitoires sont push/exec/pop en
+         * LIFO local. On n'importe PAS la machinerie projet.owl/i18n/metadonnees
+         * de project_run : un projet de test n'en a quasi jamais besoin. */
+        ObjArray* bodyFns = obj_new_array();
+        vm_push(OBJ_VAL(bodyFns));
+        ObjArray* collectionBodyFns = obj_new_array();
+        vm_push(OBJ_VAL(collectionBodyFns));
+        int rootCount = 2;
+
+        /* Attribution d'un CRASH de corps (phase 2) au fichier voisin fautif :
+         * on retient le path par bodyFn, aligne sur l'ordre de remplissage. */
+        const char* bodyPaths[MAX_PROJECT_FILES];
+        const char* collectionBodyPaths[MAX_PROJECT_FILES];
+        int bodyPathCount = 0;
+        int collectionBodyPathCount = 0;
+
+        InterpretResult result = INTERPRET_COMPILE_ERROR;
+        bool testCompileFailed = false;
+        bool testCompiledOk = false;
+        ObjFunction* entryBodyFn = NULL;
+
+        /* ---- Phase 1.a : declarations des compagnons (ordre topologique). ---- */
         if (multifile) {
-            if (opts->listFiles) {
-                fprintf(stderr, "[multifile] test=%s, %d companion(s)\n",
-                        project.files[i].path, companionCount);
-            }
             for (int c = 0; c < companionCount && !companionFailed; c++) {
                 int ci = companionIndices[c];
                 if (opts->listFiles) {
                     fprintf(stderr, "  -> exec companion: %s\n", project.files[ci].path);
                 }
-                ObjFunction* compFn = compile_in_project(
-                    project.files[ci].source,
-                    project.files[ci].path,
-                    testSymbols, ci);
-                if (compFn == NULL) {
+                ObjFunction* declFn = NULL;
+                ObjFunction* bodyFn = NULL;
+                if (!compile_in_project_split(project.files[ci].source,
+                                              project.files[ci].path,
+                                              testSymbols, ci, &declFn, &bodyFn)) {
                     companionFailed = true;
                     companionFailPath = project.files[ci].path;
                     companionFailAtCompile = true;
                     break;
                 }
-                if (vm_execute(compFn) != INTERPRET_OK) {
+                /* declFn fresh : root sur la pile AVANT obj_array_push (qui peut
+                 * grow + GC). bodyFn rooté par obj_array_push canon. */
+                vm_push(OBJ_VAL(declFn));
+                bool fileIsCollection = compiler_file_declares_collection();
+                if (fileIsCollection) {
+                    obj_array_push(collectionBodyFns, OBJ_VAL(bodyFn));
+                    if (collectionBodyPathCount < MAX_PROJECT_FILES) {
+                        collectionBodyPaths[collectionBodyPathCount++] =
+                            project.files[ci].path;
+                    }
+                } else {
+                    obj_array_push(bodyFns, OBJ_VAL(bodyFn));
+                    if (bodyPathCount < MAX_PROJECT_FILES) {
+                        bodyPaths[bodyPathCount++] = project.files[ci].path;
+                    }
+                }
+                InterpretResult declResult = split_fn_is_empty(declFn)
+                                           ? INTERPRET_OK : vm_execute(declFn);
+                vm_pop();  /* declFn : plus utile */
+                if (declResult != INTERPRET_OK) {
                     companionFailed = true;
                     companionFailPath = project.files[ci].path;
+                    result = declResult;
                     break;
                 }
             }
         }
 
-        ObjFunction* fn = companionFailed ? NULL :
-                          compile_in_project(project.files[i].source,
-                                             project.files[i].path,
-                                             testSymbols, i);
-        /*  — gardes compile-time de l'heritage d'Etat sur vm.etats
-         * desormais complet (compagnons + fichier de test compiles). Parite
-         * run / --check / test : un etat casse (heritage circulaire, collision,
-         * modele imprime nu) echoue en erreur de compilation, pas en assertion
-         * runtime. On neutralise fn pour router vers le chemin "compile error"
-         * (suite rapportee en CRASH). */
-        if (fn != NULL && !compiler_validate_etat_inheritance()) {
-            fn = NULL;
+        /* ---- Phase 1.b : declarations du fichier de test EN DERNIER. ---- */
+        if (!companionFailed) {
+            ObjFunction* entryDeclFn = NULL;
+            if (!compile_in_project_split(project.files[i].source,
+                                          project.files[i].path,
+                                          testSymbols, i, &entryDeclFn, &entryBodyFn)) {
+                testCompileFailed = true;  /* result reste COMPILE_ERROR -> CRASH */
+            } else {
+                /* Root les 2 Obj frais AVANT toute nouvelle alloc :
+                 * la garde d'heritage d'Etat ci-dessous peut allouer. entryBodyFn
+                 * reste compte dans rootCount (depile en fin de boucle) meme si
+                 * on le neutralise ensuite — depiler une Value ne la dereference
+                 * pas. */
+                vm_push(OBJ_VAL(entryBodyFn));  /* persistant : corps en phase 2 */
+                rootCount++;
+                vm_push(OBJ_VAL(entryDeclFn));  /* transitoire */
+                /*  — garde heritage d'Etat sur vm.etats complet
+                 * (compagnons + test compiles). Etat casse = erreur de
+                 * compilation, pas assertion runtime. */
+                if (!compiler_validate_etat_inheritance()) {
+                    testCompileFailed = true;
+                    entryBodyFn = NULL;
+                    vm_pop();  /* entryDeclFn */
+                } else {
+                    result = split_fn_is_empty(entryDeclFn)
+                           ? INTERPRET_OK : vm_execute(entryDeclFn);
+                    vm_pop();  /* entryDeclFn */
+                    testCompiledOk = (result == INTERPRET_OK);
+                    if (!testCompiledOk) entryBodyFn = NULL;
+                }
+            }
         }
+
         /* Expose le buffer warnings au runtime APRES le compile (qui l'a
-         * rempli) et AVANT vm_execute (qui executera les assertions
+         * rempli) et AVANT l'execution des corps (assertions
          * __dbgAvertissementAttendu du test). */
         test_warnings_bind(warnings, warnCount);
-        InterpretResult result = INTERPRET_COMPILE_ERROR;
         int fileScenarios = 0;
         int fileScenariosFailed = 0;
-        if (fn != NULL) {
-            result = vm_execute(fn);
+
+        /* ---- Phase 2 : corps imperatifs (collections, compagnons, test). ---- */
+        if (testCompiledOk) {
+            for (int b = 0; b < collectionBodyFns->elements.count
+                            && result == INTERPRET_OK; b++) {
+                ObjFunction* bf = AS_FUNCTION(collectionBodyFns->elements.values[b]);
+                if (split_fn_is_empty(bf)) continue;
+                result = vm_execute(bf);
+                if (result != INTERPRET_OK && b < collectionBodyPathCount) {
+                    companionFailed = true;
+                    companionFailPath = collectionBodyPaths[b];
+                }
+            }
+            for (int b = 0; b < bodyFns->elements.count
+                            && result == INTERPRET_OK; b++) {
+                ObjFunction* bf = AS_FUNCTION(bodyFns->elements.values[b]);
+                if (split_fn_is_empty(bf)) continue;
+                result = vm_execute(bf);
+                if (result != INTERPRET_OK && b < bodyPathCount) {
+                    companionFailed = true;
+                    companionFailPath = bodyPaths[b];
+                }
+            }
+            if (result == INTERPRET_OK && !split_fn_is_empty(entryBodyFn)) {
+                result = vm_execute(entryBodyFn);
+            }
+        }
+
+        /* Racines phase 1/2 liberees : les corps ont tourne, leurs effets sont
+         * dans vm.globals. La detection des scenarios n'en depend plus. */
+        while (rootCount-- > 0) vm_pop();
+
+        {
             /* Si le top-level OK, on regarde si le fichier déclare des
              * scénarios (charte §4) : présence d'au moins une PROCEDURE
              * scenario_X / test_X / should_X. Si oui, on bascule en mode
@@ -1428,8 +1544,8 @@ int run_tests_ex(const TestOptions* opts) {
                              companionFailPath);
                 } else {
                     snprintf(crashMsgs[crashCount], sizeof(crashMsgs[0]), "%s",
-                             (fn == NULL) ? "compile error (voir stderr)"
-                                          : "runtime error (voir stderr)");
+                             testCompileFailed ? "compile error (voir stderr)"
+                                               : "runtime error (voir stderr)");
                 }
                 crashCount++;
             }

@@ -23,6 +23,7 @@
 #define OWL_ERRORS_SKIP_COMPILE_AWARE
 #include "owl_errors.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -377,23 +378,40 @@ static Value fn_erreur_raz(int argCount, Value* args) {
     return NIL_VAL;
 }
 
-/* ErreurPropage() — promote the soft error to an exception.
+/* ErreurPropage([<Message>]) — promote the soft error to an exception.
  * Avec RAZ-auto dispatch : le flag `g_err_detected` est souvent
  * Faux au moment où ErreurPropage est appelé (RAZ par OP_CALL avant), mais
  * l'info reste mémorisée tant qu'aucune nouvelle erreur ne l'a écrasée.
- * Critère : `g_err_message != NULL` (info encore présente). */
+ * Critère : `g_err_message != NULL` (info encore présente).
+ *
+ * Avec un message fourni (arité 1) : il est inséré AU DÉBUT du message de
+ * l'erreur courante (préfixation) avant la promotion. Le code d'erreur reste
+ * inchangé (la variante qui redéfinit le numéro est hors périmètre). */
 static Value fn_erreur_propage(int argCount, Value* args) {
-    (void)argCount; (void)args;
-    if (g_err_message != NULL) {
-        /* Promotion soft-error -> exception : on transporte le code canonique
-         * (chaine, "42" via ErreurDeclenche ou "E_NATIVE_*" via une native) ET
-         * le nom de la native d'origine (errFonction). ExceptionInfo converge
-         * ainsi avec ErreurInfo, plus de perte de code (, item reporte
-         * d'). */
-        vm_throw_from_erreur_coded(
-            g_err_message->chars,
-            g_err_code,
-            g_err_native_name != NULL ? g_err_native_name->chars : NULL);
+    if (g_err_message == NULL) return NIL_VAL;
+
+    /* Promotion soft-error -> exception : on transporte le code canonique
+     * (chaine, "42" via ErreurDeclenche ou "E_NATIVE_*" via une native) ET
+     * le nom de la native d'origine (errFonction). ExceptionInfo converge
+     * ainsi avec ErreurInfo, plus de perte de code (, item reporte
+     * d'). */
+    const char* native =
+        g_err_native_name != NULL ? g_err_native_name->chars : NULL;
+
+    if (argCount >= 1 && IS_STRING(args[0])) {
+        ObjString* prefix = AS_STRING(args[0]);
+        int total = prefix->length + g_err_message->length;
+        /* Buffer C transitoire : vm_throw_from_erreur_coded copie le message
+         * (obj_copy_string) avant de rendre la main, on peut libérer ensuite. */
+        char* buf = (char*)malloc((size_t)total + 1);
+        memcpy(buf, prefix->chars, (size_t)prefix->length);
+        memcpy(buf + prefix->length, g_err_message->chars,
+               (size_t)g_err_message->length);
+        buf[total] = '\0';
+        vm_throw_from_erreur_coded(buf, g_err_code, native);
+        free(buf);
+    } else {
+        vm_throw_from_erreur_coded(g_err_message->chars, g_err_code, native);
     }
     return NIL_VAL;
 }
@@ -483,7 +501,12 @@ static const OwlSignature sig_trig[]   = {
     {0}
 };
 static const OwlSignature sig_raz[]    = { {0,  NULL,   "rien",    "remet le contexte d'erreur à zéro"}, {0} };
-static const OwlSignature sig_prop[]   = { {0,  NULL,   "rien",    "promeut l'erreur soft en exception"}, {0} };
+static const OwlParam p_prop_1[]       = { {"message", "chaîne", "texte inséré au début du message de l'erreur propagée"}, {0} };
+static const OwlSignature sig_prop[]   = {
+    {0, NULL,      "rien", "promeut l'erreur soft en exception"},
+    {1, p_prop_1,  "rien", "promeut l'erreur soft en exception, le message étant inséré au début"},
+    {0}
+};
 static const OwlSignature sig_build[]  = { {-1, p_msg,  "chaîne",  "message avec marqueurs substitués"}, {0} };
 
 static const OwlNativeDef DEFS[] = {
@@ -519,8 +542,8 @@ static const OwlNativeDef DEFS[] = {
         .canonical  = "ErreurPropage",
         .nameEN     = "ErrorPropagate",
         .category   = "Erreur",
-        .descFR     = "Promeut l'erreur soft courante en exception.",
-        .descEN     = "Promote the current soft error to an exception.",
+        .descFR     = "Promeut l'erreur soft courante en exception ; un message optionnel est inséré au début du message d'origine.",
+        .descEN     = "Promote the current soft error to an exception; an optional message is inserted at the start of the original message.",
         .signatures = sig_prop,
         .impl       = fn_erreur_propage,
     },

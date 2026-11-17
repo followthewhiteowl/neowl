@@ -4456,6 +4456,7 @@ static const struct { const char* cle; const char* canon; } PROPS_CANON[] = {
     { "Jauge",          "Jauge"          },
     { "CodeBarres",     "CodeBarres"     },
     { "Onglet",         "Onglet"         },
+    { "Arbre",          "Arbre"          },
     { "Volet",          "Volet"          },
     { "Etat",           "État"           },
     { "MenuPrincipal",  "MenuPrincipal"  },

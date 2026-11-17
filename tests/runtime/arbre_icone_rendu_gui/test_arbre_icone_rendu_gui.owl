@@ -1,0 +1,30 @@
+// Icône de nœud rendue sur un vrai widget Qt.
+//
+// Ce test utilise TestModeHeadless(Faux) + OuvreSoeur pour monter les
+// vrais widgets Qt (offscreen via QT_QPA_PLATFORM=offscreen). La native
+// TestArbreNoeudIcone (mirror de TestFenetreIconeLargeur) lit la
+// largeur de l'icône réellement appliquée sur le QTreeWidgetItem :
+//   0 = aucune icône ; >0 = icône présente ; -1 = non monté.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ArbreIconeGui)
+
+// Nœud à fils ("Documents" a pour fils "Rapport") : icône dossier par défaut attendue.
+largDossier est un entier = TestArbreNoeudIcone(ARBRE_IconeGui, "Documents")
+dbgVérifieVrai(largDossier > 0, "CAS1 : un nœud à fils affiche une icône de dossier par défaut")
+
+// Feuille sans fils : aucune icône par défaut.
+largFeuille est un entier = TestArbreNoeudIcone(ARBRE_IconeGui, "Documents" + TAB + "Rapport")
+dbgVérifieEgalité(largFeuille, 0, "CAS2 : une feuille sans fils n'affiche aucune icône par défaut")
+
+// Images Null, Null : icône explicitement absente.
+largVide est un entier = TestArbreNoeudIcone(ARBRE_IconeGui, "Vide")
+dbgVérifieEgalité(largVide, 0, "CAS3 : ArbreAjoute(..., Null, Null) n'affiche aucune icône")
+
+// Images de catalogue personnalisées : icône présente.
+largSpecial est un entier = TestArbreNoeudIcone(ARBRE_IconeGui, "Spécial")
+dbgVérifieVrai(largSpecial > 0, "CAS4 : ArbreAjoute(..., icones.star, icones.star) affiche une icône personnalisée")
+
+Ferme(FEN_ArbreIconeGui)
+dbgBilanTest()

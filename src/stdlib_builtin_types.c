@@ -352,6 +352,7 @@ static ObjInstance* build_Style_template(void) {
  * bas. */
 static ObjInstance* build_styleOmbre_template(void);
 static ObjInstance* build_styleDegrade_template(void);
+static ObjInstance* build_styleImageFond_template(void);
 
 /* Brique de style commune : les props partagees par tous les
  * sous-elements de style (ZoneSaisie/Libellé/CadreExtérieur et leur type de
@@ -511,6 +512,24 @@ static ObjInstance* build_styleDegrade_template(void) {
     return tpl;
 }
 
+/* styleImageFond — sous-objet image de fond d'un styleCadreExtérieur
+ * (une image peinte sur le fond du champ entier, au-dessus de CouleurFond et du
+ * Dégradé, sous le contenu). Feuilles : Source (chemin de fichier ; vide = pas
+ * d'image, défaut neutre strict) et Cadrage (enum cadrage : cadCentre/cadEtire/
+ * cadHomothetique ; défaut cadEtire = l'image remplit la boite). Source absente
+ * ou introuvable => aucune peinture (repli sur CouleurFond). */
+static ObjInstance* build_styleImageFond_template(void) {
+    ObjString* name = obj_copy_string("styleImageFond", 14);
+    vm_push(OBJ_VAL(name));
+    ObjInstance* tpl = obj_new_instance(name);
+    vm_pop();
+    vm_push(OBJ_VAL(tpl));
+    inst_field_set_str(tpl, "Source",  "");                   /* vide = pas d'image */
+    inst_field_set_int(tpl, "Cadrage", OWL_CADIMG_ETIRE);     /* défaut : remplit la boite */
+    vm_pop();
+    return tpl;
+}
+
 /* Brique commune du CadreExtérieur : les props plates partagees par
  * styleCadreExtérieur et son type de surcharge par etat (styleCadreExterieurBase).
  * CouleurFond + Retraits + Cadre + Ombre + Dégradé, PAS de texte (ni Couleur ni
@@ -538,6 +557,12 @@ static void install_cadre_exterieur_brick(ObjInstance* tpl) {
         ObjInstance* degrade = build_styleDegrade_template();
         vm_push(OBJ_VAL(degrade));
         set_field_instance(tpl, "Degrade", degrade);
+        vm_pop();
+    }
+    {
+        ObjInstance* imageFond = build_styleImageFond_template();
+        vm_push(OBJ_VAL(imageFond));
+        set_field_instance(tpl, "ImageFond", imageFond);
         vm_pop();
     }
 }
@@ -1024,6 +1049,42 @@ static ObjInstance* build_styleListe_template(void) {
          * CouleurFond=-1 (pas de fond) alors que le rendu peint un fond bleu ->
          * incoherence designer/runtime. Bleu de selection #0078D7, packe BGR
          * (canon) : R=0x00 | G<<8=0x7800 | B<<16=0xD70000 = 0xD77800. */
+        inst_field_set_int(s, "CouleurFond", 0xD77800);
+        set_field_instance(tpl, "LigneSelectionnee", s);
+        vm_pop();
+    }
+    vm_pop();
+    return tpl;
+}
+
+/* styleArbre — modele de style typé du Champ Arbre (vue
+ * hierarchique). Mirror de build_styleListe_template : CadreExtérieur (cadre +
+ * fond, styleCadreExtérieur) + LibelléLignes (texte des noeuds, brique texte) +
+ * LigneSélectionnée (texte du noeud selectionne, brique texte). Statique.
+ * Alias EN : styleTree. */
+static ObjInstance* build_styleArbre_template(void) {
+    ObjString* name = obj_copy_string("styleArbre", 10);
+    vm_push(OBJ_VAL(name));
+    ObjInstance* tpl = obj_new_instance(name);
+    vm_pop();
+    vm_push(OBJ_VAL(tpl));
+    {
+        ObjInstance* c = build_styleCadreExterieur_template();
+        vm_push(OBJ_VAL(c));
+        set_field_instance(tpl, "CadreExterieur", c);
+        vm_pop();
+    }
+    {
+        ObjInstance* l = build_styleLibelleSaisie_template();
+        vm_push(OBJ_VAL(l));
+        set_field_instance(tpl, "LibelleLignes", l);
+        vm_pop();
+    }
+    {
+        ObjInstance* s = build_styleLibelleSaisie_template();
+        vm_push(OBJ_VAL(s));
+        /* Aligne le defaut visible du Style sur le rendu par defaut de la
+         * selection (bleu highlight #0078D7, packe BGR canon) comme styleListe. */
         inst_field_set_int(s, "CouleurFond", 0xD77800);
         set_field_instance(tpl, "LigneSelectionnee", s);
         vm_pop();
@@ -2188,6 +2249,7 @@ static const char* const ALIAS_styleCadreExterieurBase[]  = { "styleOuterFrameBa
 static const char* const ALIAS_styleCadreExterieurEtats[] = { "styleOuterFrameStates", NULL };
 static const char* const ALIAS_styleOmbre[]           = { "styleShadow", NULL };
 static const char* const ALIAS_styleDegrade[]         = { "styleGradient", NULL };
+static const char* const ALIAS_styleImageFond[]       = { "styleBackgroundImage", NULL };
 static const char* const ALIAS_styleBouton[]          = { "styleButton", NULL };
 static const char* const ALIAS_styleImage[]           = { "styleImage", NULL };
 static const char* const ALIAS_styleCodeBarre[]       = { "styleBarCode", NULL };
@@ -2197,6 +2259,7 @@ static const char* const ALIAS_styleCoche[]           = { "styleCheckMark", NULL
 static const char* const ALIAS_styleSelecteur[]       = { "styleSelector", NULL };
 static const char* const ALIAS_stylePuce[]            = { "styleRadioMark", NULL };
 static const char* const ALIAS_styleListe[]           = { "styleList", NULL };
+static const char* const ALIAS_styleArbre[]           = { "styleTree", NULL };
 static const char* const ALIAS_styleCombo[]           = { "styleCombobox", NULL };
 static const char* const ALIAS_styleTable[]           = { NULL };  /* "Table" identique FR/EN */
 static const char* const ALIAS_styleJauge[]           = { "styleGauge", NULL };
@@ -2243,6 +2306,7 @@ static const char* const ALIAS_Groupe[]       = { "Group", NULL };
  * accentuee FR (info LSP/doc, le compilateur OWL fait l'accent-strip
  * pour rediriger vers le canon ASCII). Cf pattern httpRequete. */
 extern const OwlEnum E_Couleur;
+extern const OwlEnum E_Cadrage;    /* defini dans ui_catalog.c (enum cadrage) */
 extern const OwlEnum E_Curseurs;   /* defini dans ui_catalog.c (enum curseurs) */
 extern const OwlEnum E_ftpMode;    /* defini dans stdlib_ftp.c */
 #ifdef OWL_HAS_SQL
@@ -2514,6 +2578,23 @@ static const OwlField FIELDS_styleDegrade[] = {
     {0},
 };
 
+/* styleImageFond — sous-objet image de fond d'un styleCadreExtérieur.
+ * Source (chemin de fichier ; vide = pas d'image, défaut neutre) et Cadrage
+ * (mode d'échelle : cadCentre/cadEtire/cadHomothetique ; défaut cadEtire).
+ * L'image est peinte au-dessus de CouleurFond et du Dégradé, sous le contenu du
+ * champ. Source introuvable/format invalide => aucune peinture (repli CouleurFond). */
+static const OwlField FIELDS_styleImageFond[] = {
+    {"Source",  NULL, "chaine", "",
+     "Chemin du fichier image de fond (relatif au dossier courant ; vide = pas d'image).",
+     "Background image file path (relative to the current directory; empty = no image).",
+     .nameEN="Source"},
+    {"Cadrage", NULL, "entier", "cadEtire",
+     "Mode d'échelle de l'image de fond (cadCentre/cadEtire/cadHomothetique/cadRempli).",
+     "Background image scaling mode (cadCenter/cadStretch/cadProportional/cadCover).",
+     .allowedBase=&E_Cadrage, .nameEN="Framing"},
+    {0},
+};
+
 /* Brique commune du CadreExtérieur : les feuilles plates partagees
  * par FIELDS_styleCadreExterieur et FIELDS_styleCadreExterieurBase. Un cadre
  * n'a pas de texte : PAS de Couleur (texte) ni Police. Diverge donc de la
@@ -2550,7 +2631,11 @@ static const OwlField FIELDS_styleDegrade[] = {
     {"Degrade",       "D\xc3\xa9grad\xc3\xa9", "styleDegrade", "{}",         \
      "Dégradé de fond du champ (Type/Angle/CouleurDébut/CouleurFin ; prime sur CouleurFond).", \
      "Background gradient of the control (Type/Angle/StartColor/EndColor; overrides BackgroundColor).", \
-     .nameEN="Gradient"}
+     .nameEN="Gradient"},                                                    \
+    {"ImageFond",     NULL, "styleImageFond", "{}",                          \
+     "Image de fond du champ (Source/Cadrage ; peinte au-dessus de CouleurFond et du Dégradé, sous le contenu).", \
+     "Background image of the control (Source/Framing; painted above BackgroundColor and the gradient, under the content).", \
+     .nameEN="BackgroundImage"}
 
 /* styleCadreExterieurBase — type PLAT de la surcharge par etat du cadre
  *. La brique seule : PAS de membre Etats (fin de chaine,
@@ -2714,6 +2799,28 @@ static const OwlField FIELDS_styleListe[] = {
     {"LigneSelectionnee", "LigneS\xc3\xa9lectionn\xc3\xa9""e", "styleLibelleSaisie", "{}",
      "Sous-element texte de la ligne selectionnee (Couleur/Police, statique).",
      "Selected row text sub-element (Color/Font, static).",
+     .nameEN="SelectedRow"},
+    {0},
+};
+
+/* styleArbre — modele de style typé du Champ Arbre (vue
+ * hierarchique). Mirror de styleListe : trois sous-elements — CadreExtérieur
+ * (le cadre + fond de l'arbre, styleCadreExtérieur reutilise), LibelléLignes
+ * (le texte des noeuds, brique texte styleLibelléSaisie) et LigneSélectionnée
+ * (le texte du noeud selectionne, brique texte). Pas de props plates a la
+ * racine. */
+static const OwlField FIELDS_styleArbre[] = {
+    {"CadreExterieur", "CadreExt\xc3\xa9rieur", "styleCadreExterieur", "{}",
+     "Sous-element cadre et fond de l'arbre (surcharges par état via Etats).",
+     "Container sub-element: tree frame and background (per-state overrides via Etats).",
+     .nameEN="OuterFrame"},
+    {"LibelleLignes", "Libell\xc3\xa9Lignes", "styleLibelleSaisie", "{}",
+     "Sous-element texte des noeuds (Couleur/Police, statique).",
+     "Node text sub-element (Color/Font, static).",
+     .nameEN="RowLabel"},
+    {"LigneSelectionnee", "LigneS\xc3\xa9lectionn\xc3\xa9""e", "styleLibelleSaisie", "{}",
+     "Sous-element texte du noeud selectionne (Couleur/Police, statique).",
+     "Selected node text sub-element (Color/Font, static).",
      .nameEN="SelectedRow"},
     {0},
 };
@@ -3777,6 +3884,15 @@ static const OwlTypeDef TYPES[] = {
       .fields         = FIELDS_styleListe,
       .nameEN         = "styleList",
       .genre          = OWL_GENRE_M },   /* le style de liste */
+    { .canonical      = "styleArbre",
+      .canonicalAscii = "styleArbre",
+      .aliases        = ALIAS_styleArbre,
+      .category       = "Affichage",
+      .descFR         = "Descripteur de style typé du Champ Arbre (vue hiérarchique). Struct de sous-éléments : CadreExtérieur (le cadre et le fond de l'arbre), LibelléLignes (le texte des nœuds : couleur, police) et LigneSélectionnée (le texte du nœud sélectionné : couleur, police). Seul le CadreExtérieur porte des surcharges par état (survol/focus/appuyé/grisé, via Etats) ; les autres sous-éléments sont statiques. Appliqué via 'ARBRE_X..Style = STY_Y'.",
+      .descEN         = "Typed style descriptor for the Tree field (hierarchical view). Struct of sub-elements: OuterFrame (the tree frame and background), RowLabel (node text: color, font) and SelectedRow (selected node text: color, font). Only the OuterFrame carries per-state overrides (hover/focus/pressed/disabled, via Etats); the other sub-elements are static. Applied via 'ARBRE_X..Style = STY_Y'.",
+      .fields         = FIELDS_styleArbre,
+      .nameEN         = "styleTree",
+      .genre          = OWL_GENRE_M },   /* le style d'arbre */
     { .canonical      = "styleCombo",
       .canonicalAscii = "styleCombo",
       .aliases        = ALIAS_styleCombo,
@@ -3876,6 +3992,15 @@ static const OwlTypeDef TYPES[] = {
       .fields         = FIELDS_styleDegrade,
       .nameEN         = "styleGradient",
       .genre          = OWL_GENRE_M },   /* le dégradé */
+    { .canonical      = "styleImageFond",
+      .canonicalAscii = "styleImageFond",
+      .aliases        = ALIAS_styleImageFond,
+      .category       = "Affichage",
+      .descFR         = "Sous-objet image de fond d'un styleCadreExtérieur (l'image de fond du champ entier). Props : Source (chemin du fichier image ; vide = pas d'image) et Cadrage (mode d'échelle : cadCentre/cadEtire/cadHomothetique/cadRempli ; défaut cadEtire). L'image est peinte au-dessus de CouleurFond et du Dégradé, sous le contenu du champ. Source introuvable ou format invalide : aucune peinture (repli sur CouleurFond).",
+      .descEN         = "Background image sub-object of a styleCadreExtérieur (the whole control background image). Props: Source (image file path; empty = no image) and Framing (scaling mode: cadCenter/cadStretch/cadProportional/cadCover; default cadStretch). The image is painted above BackgroundColor and the gradient, under the control content. Missing source or invalid format: nothing painted (falls back to BackgroundColor).",
+      .fields         = FIELDS_styleImageFond,
+      .nameEN         = "styleBackgroundImage",
+      .genre          = OWL_GENRE_F },   /* l'image de fond */
     { .canonical      = "styleBouton",
       .canonicalAscii = "styleBouton",
       .aliases        = ALIAS_styleBouton,
@@ -4110,8 +4235,8 @@ static const OwlTypeDef TYPES[] = {
       .genre      = OWL_GENRE_M },   /* un identifiant */
     { .canonical  = "Image",
       .category   = "Multimedia",
-      .descFR     = "Variable Image : représentation interne d'une image raster RGBA. Formats de chargement supportés : PNG, JPEG, BMP, GIF (premier frame), TGA, PSD. Manipulable via les fonctions de dessin (dStylo, dPoint, dLigne, etc.) et la syntaxe MaImage[x, y] pour l'accès pixel.",
-      .descEN     = "Image variable: internal representation of a raster RGBA image. Supported load formats: PNG, JPEG, BMP, GIF (first frame), TGA, PSD. Manipulable via drawing functions (dPen, dDot, dLine, etc.) and the MyImage[x, y] syntax for pixel access.",
+      .descFR     = "Variable Image : représentation interne d'une image raster RGBA. Formats de chargement supportés : PNG, JPEG, BMP, GIF (premier frame), TGA, PSD, WEBP. Manipulable via les fonctions de dessin (dStylo, dPoint, dLigne, etc.) et la syntaxe MaImage[x, y] pour l'accès pixel.",
+      .descEN     = "Image variable: internal representation of a raster RGBA image. Supported load formats: PNG, JPEG, BMP, GIF (first frame), TGA, PSD, WEBP. Manipulable via drawing functions (dPen, dDot, dLine, etc.) and the MyImage[x, y] syntax for pixel access.",
       .fields     = FIELDS_Image,
       .coercible  = true,
       .nameEN     = "Image",
@@ -4506,6 +4631,14 @@ void register_builtin_types(void) {
         register_global_instance("styleDegrade",  degradeTpl);  /* alias ASCII */
         register_global_instance("styleGradient", degradeTpl);  /* alias EN */
 
+        /* styleImageFond — sous-objet image de fond du CadreExtérieur.
+         * Declaré standalone (`est un styleImageFond`) + réutilisé imbriqué dans
+         * chaque styleCadreExtérieur. */
+        ObjInstance* imageFondTpl = build_styleImageFond_template();
+        vm_push(OBJ_VAL(imageFondTpl));
+        register_global_instance("styleImageFond",         imageFondTpl);
+        register_global_instance("styleBackgroundImage",   imageFondTpl);  /* alias EN */
+
         /* styleCadreExterieurBase / Etats — surcharge par etat du
          * cadre exterieur (survol/appuyé/focus/grisé). Declarés standalone pour
          * que __StructClone les trouve lors de la cascade `..Etats[etat]..X`. */
@@ -4589,6 +4722,14 @@ void register_builtin_types(void) {
         vm_push(OBJ_VAL(styleListeTpl));
         register_global_instance("styleListe", styleListeTpl);
         register_global_instance("styleList",  styleListeTpl);  /* alias EN */
+
+        /* styleArbre — modele widget du Champ Arbre (vue
+         * hierarchique). Sous-elements : CadreExtérieur + LibelléLignes +
+         * LigneSélectionnée. */
+        ObjInstance* styleArbreTpl = build_styleArbre_template();
+        vm_push(OBJ_VAL(styleArbreTpl));
+        register_global_instance("styleArbre", styleArbreTpl);
+        register_global_instance("styleTree",  styleArbreTpl);  /* alias EN */
 
         /* styleCombo — modele widget du Champ Combo. Composite :
          * Libellé + CadreExtérieur + ZoneSaisie (structure Saisie) +

@@ -44,9 +44,9 @@ Les propriétés d'une `OpérationHTTP` :
 | `Chemin`   | Segments du chemin, relatifs à `UrlBase` (voir § 2).        |
 | `Réponses` | Codes de réponse que l'opération peut produire.             |
 | `CodeÉtat` | Code renvoyé par défaut ; il doit figurer dans `Réponses`.  |
-| `ExclureDeOpenAPI` | Booléen (défaut `Faux`). À `Vrai`, l'opération reste servie mais n'apparaît pas dans le document OpenAPI (voir § 11). |
-| `Flux`     | Mode de diffusion progressive : `fluxSSE` ou `fluxOctets`. Absent, la réponse est produite en une fois (voir § 7). |
-| `DélaiMax` | Durée maximale d'un flux, en secondes ; `0` (défaut) = sans limite (voir § 7). |
+| `ExclureDeOpenAPI` | Booléen (défaut `Faux`). À `Vrai`, l'opération reste servie mais n'apparaît pas dans le document OpenAPI (voir § 12). |
+| `Flux`     | Mode de diffusion progressive : `fluxSSE` ou `fluxOctets`. Absent, la réponse est produite en une fois (voir § 8). |
+| `DélaiMax` | Durée maximale d'un flux, en secondes ; `0` (défaut) = sans limite (voir § 8). |
 
 Le handler porte toujours le nom `surRequête`. Ses paramètres sont liés
 automatiquement (voir § 4) et sa valeur de retour devient le corps de la
@@ -237,18 +237,25 @@ pas être suivi d'autre chose sans ambiguïté.
 
 ## 4. Lier les paramètres
 
-Les paramètres de `surRequête` sont liés **par nom**, depuis trois sources :
+Les paramètres de `surRequête` sont liés **par nom**, depuis quatre sources :
 
 - le **chemin** — un paramètre de `Chemin` (`id`) alimente le paramètre
   homonyme du handler ;
 - la **query** — un nom déclaré dans `Requête` alimente le paramètre
   homonyme depuis la chaîne de requête (`?tri=ville`) ;
+- le **formulaire** — un nom déclaré dans `Formulaire` (`Form` en anglais)
+  alimente le paramètre homonyme depuis un corps encodé en formulaire
+  (`application/x-www-form-urlencoded`), voir § 4.1 ;
 - le **corps** — un paramètre dont le type est une `Structure` reçoit le
   corps de la requête, désérialisé dans cette structure.
 
-La liaison est souple sur les types : une valeur textuelle du chemin ou de
-la query est **coercée** vers le type déclaré du paramètre (`"123"` vers un
-entier, par exemple).
+La liaison est souple sur les types : une valeur textuelle du chemin, de la
+query ou du formulaire est **coercée** vers le type déclaré du paramètre
+(`"123"` vers un entier, par exemple).
+
+Un même nom ne peut provenir que d'**une seule** source : le déclarer dans
+deux de `Chemin`, `Requête` ou `Formulaire` est rejeté à la compilation
+(liaison ambiguë).
 
 ```owl
 ServiceClients est un ServiceREST
@@ -285,6 +292,50 @@ requête arbitre : absent ou `application/json` (ses paramètres comme
 formé est rejeté en **`400`** ; un `Content-Type` explicite autre que JSON est
 rejeté en **`415`** sans tentative de lecture. Les deux rejets renvoient un
 message indiquant le type attendu, et `surRequête` n'est pas appelé.
+
+### 4.1. Lier les champs d'un formulaire
+
+La propriété `Formulaire` (`Form` en anglais) lie les champs d'un corps encodé
+en formulaire (`application/x-www-form-urlencoded`) aux paramètres homonymes de
+`surRequête`. Chaque nom listé dans `Formulaire` reçoit la valeur du champ
+correspondant du corps, URL-décodée puis **coercée** vers le type déclaré du
+paramètre — exactement comme un paramètre de query.
+
+```owl
+ServiceInscriptions est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Inscription est une OpérationHTTP
+		PROPRIETES
+			Méthode    = httpPost
+			Chemin     = ["inscription"]
+			Formulaire = [nom, email, âge]
+			Réponses   = [httpOK]
+			CodeÉtat   = httpOK
+		FIN
+		PROCEDURE surRequête(nom est une chaîne, email est une chaîne, âge est un entier) : chaîne
+			RENVOYER nom + " (" + âge + ")"
+		FIN
+	FIN
+FIN
+```
+
+Un POST dont le corps est `nom=jean&email=a%40b.c&âge=30` lie `nom` à `"jean"`,
+`email` à `"a@b.c"` (séquence `%40` décodée) et `âge` à l'entier `30`.
+
+Le `Content-Type` de la requête arbitre, comme pour un corps JSON : absent ou
+`application/x-www-form-urlencoded`, le corps est lu ; un `Content-Type`
+explicite d'un autre type (un corps JSON, par exemple) est rejeté en **`415`**
+sans que `surRequête` soit appelé.
+
+`Formulaire` n'est accepté que sur une méthode à corps (`httpPost`, `httpPut`,
+`httpPatch`). Le corps d'une requête n'ayant qu'un seul encodage, `Formulaire`
+est **exclusif** d'un corps JSON (paramètre `Structure`) et d'un corps
+multipart (`TypeContenu = typeMimeFormulaireMultiPartie`, voir § 5) : combiner
+l'un à l'autre est rejeté à la compilation. Enfin, tout nom déclaré dans
+`Formulaire` doit exister dans la signature de `surRequête`.
 
 ## 5. Recevoir un fichier téléversé
 
@@ -459,7 +510,7 @@ Ce handler répond `{"nom":"Ada","ville":"Lyon"}` en `application/json`.
 sous-objets, adressés par l'opérateur de propriété `..` : `MoiMême..Réponse`
 regroupe ce que le handler pose en sortie (`CodeÉtat`, `Corps`, `TypeContenu`)
 et `MoiMême..Requête` ce qu'il consulte de la requête entrante (`Méthode`,
-`Chemin`, `Identité`).
+`Chemin`, `Identité`, `Corps`, `Entêtes`).
 
 **Fixer le code de statut.** `MoiMême..Réponse..CodeÉtat` fixe le statut
 renvoyé — par exemple `httpCréé` pour une création. Le code choisi doit
@@ -669,13 +720,165 @@ Points à retenir :
 - **Un en-tête répété** dans la requête est présenté une seule fois, ses
   valeurs **jointes par `, `**.
 
+**Lire le corps brut de la requête entrante.** Symétrique de
+`MoiMême..Réponse..Corps` en sortie, `MoiMême..Requête..Corps` donne le corps
+de la requête **tel quel**, octet pour octet, sans aucune interprétation. Le
+binding automatique vers une Structure (corps JSON, § 4) ou un fichier
+téléversé (multipart, § 5) couvre les cas courants ; le corps brut sert quand
+le format n'est pas pris en charge nativement et qu'il faut l'analyser
+soi-même — un formulaire `application/x-www-form-urlencoded`, par exemple :
+
+```owl
+ServiceFormulaire est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Soumet est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpPost
+			Chemin   = ["soumettre"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			brut est une chaîne = MoiMême..Requête..Corps
+			RENVOYER brut
+		FIN
+	FIN
+FIN
+```
+
+Points à retenir :
+
+- **Lecture seule et sans parse.** `..Requête..Corps` restitue les octets
+  reçus sans tenir compte du `Content-Type` ; à l'application de les
+  interpréter.
+- **Corps absent** (requête `GET`, corps vide) : la chaîne vide.
+
 **Un handler qui échoue produit un 500 propre.** Si le code du handler
 lève une erreur, la requête reçoit une réponse `500` et le serveur
 **continue** de tourner : une route fautive ne fait pas tomber le
-service. Le handler d'erreur `surErreur` (voir § 9) permet de
+service. Le handler d'erreur `surErreur` (voir § 10) permet de
 personnaliser cette réponse.
 
-## 7. Diffuser une réponse en flux (streaming)
+## 7. Servir des fichiers statiques
+
+Un service peut monter un dossier du disque sur un préfixe d'URL : ses
+fichiers sont alors servis directement, sans écrire de route ni de
+handler. C'est le moyen idiomatique de livrer une feuille de style, une
+police, une image ou un script client aux côtés des routes dynamiques.
+
+Le montage se déclare avec la propriété `FichiersStatiques` du service, un
+littéral à deux clés :
+
+```owl
+ServiceFichiers est un ServiceREST
+	PROPRIETES
+		UrlBase           = ["api"]
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "assets"}
+	FIN
+
+	Ping est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["ping"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			RENVOYER "ok"
+		FIN
+	FIN
+FIN
+```
+
+- **`PréfixeUrl`** : les segments d'URL du montage, placés **sous**
+  `UrlBase`. L'URL effective est `UrlBase` + `PréfixeUrl` : ici
+  `UrlBase = ["api"]` et `PréfixeUrl: ["static"]` donnent le préfixe
+  effectif `/api/static/`. Liste de segments non vide.
+- **`DossierSource`** : le dossier disque dont les fichiers sont servis,
+  résolu relativement au fichier source du service (un chemin absolu est
+  pris tel quel). Chaîne non vide.
+
+Avec ce montage, `GET /api/static/app.css` renvoie le contenu de
+`assets/app.css`, et `GET /api/static/sub/x.js` celui de
+`assets/sub/x.js` : les sous-dossiers sont servis.
+
+Le `Content-Type` est déduit de l'extension du fichier :
+
+| Extension        | Content-Type           |
+|------------------|------------------------|
+| `.css`           | `text/css`             |
+| `.js`, `.mjs`    | `text/javascript`      |
+| `.svg`           | `image/svg+xml`        |
+| `.html`, `.htm`  | `text/html`            |
+| `.woff2`         | `font/woff2`           |
+| `.webp`          | `image/webp`           |
+| `.json`          | `application/json`     |
+| `.png`           | `image/png`            |
+| `.jpg`, `.jpeg`  | `image/jpeg`           |
+| `.txt`           | `text/plain`           |
+| `.wasm`          | `application/wasm`     |
+
+Toute autre extension est servie en `application/octet-stream` (jamais
+interprétée comme du texte).
+
+Points à retenir :
+
+- **Lecture seule, méthodes `GET` et `HEAD`.** Un montage sert ces deux
+  verbes par nature ; il n'y a aucune méthode à déclarer.
+- **Un seul montage par service.** Déclarer `FichiersStatiques` deux fois
+  dans le même service est une erreur de compilation.
+- **Fichier absent : `404`.** Une ressource inexistante sous le préfixe
+  renvoie un `404` propre.
+
+Le montage **possède** son espace d'URL : aucune `OpérationHTTP` ne peut
+cohabiter avec lui. Une opération dont le `Chemin` tombe **sous** le
+`PréfixeUrl` — quelle que soit sa méthode — est refusée à la
+compilation : une même URL ne peut pas être à la fois une route explicite
+et un fichier servi par le montage.
+
+```owl
+// REFUSÉ à la compilation : "static" est sous le PréfixeUrl du montage.
+ServiceFichiers est un ServiceREST
+	PROPRIETES
+		UrlBase           = ["api"]
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "assets"}
+	FIN
+
+	Truc est une OpérationHTTP
+		PROPRIETES
+			Méthode = httpGet
+			Chemin  = ["static", "truc"]   // collision route <-> montage
+			...
+		FIN
+	FIN
+FIN
+```
+
+### Sécurité : la traversée de chemin est bloquée
+
+Toute tentative de sortir du dossier monté — par l'URL (traversée `..`)
+**ou par un lien** (lien symbolique, jonction) présent dans le dossier —
+est rejetée avant de servir le moindre octet. Le chemin demandé est :
+
+- décodé en **une seule passe** — un double encodage comme `%252e` reste
+  le texte littéral `%2e`, jamais un `.` de traversée ; un octet nul le
+  fait rejeter ;
+- résolu sous sa **forme canonique réelle** sur le disque — les liens et
+  jonctions sont suivis jusqu'à leur cible ;
+- vérifié **confiné sous le dossier monté** : si la cible réelle sort du
+  dossier, la requête est refusée.
+
+Un rejet renvoie un `404` **uniforme** — identique à celui d'un fichier
+absent — afin de ne pas révéler la structure du disque. Aucun chemin hors
+du dossier monté n'est accessible par ce biais, lien compris.
+
+Alias anglais : `FichiersStatiques` → `StaticFiles`,
+`PréfixeUrl` → `UrlPrefix`, `DossierSource` → `SourceDirectory`.
+
+## 8. Diffuser une réponse en flux (streaming)
 
 Jusqu'ici, `surRequête` calcule une valeur et la renvoie : le corps de la
 réponse est produit **en une fois**, à la fin du handler. Certaines
@@ -837,7 +1040,63 @@ le départ du client ; toute autre exception (y compris un `FluxÉcrit` hors
 contexte, signalé par `httpFluxHorsContexte`) remonte intacte plutôt
 que d'être masquée par le bloc de nettoyage.
 
-## 8. Authentifier les requêtes
+**Nommer les événements (SSE).** En mode `fluxSSE`, trois natives complètent
+`FluxÉcrit` pour produire un flux qu'un client web peut filtrer par **nom
+d'événement** — le motif attendu par les bibliothèques d'abonnement SSE côté
+navigateur. Toutes émettent-et-continuent comme `FluxÉcrit`, et lèvent la même
+exception `httpFluxHorsContexte` si elles sont appelées hors d'un flux ouvert.
+
+| Native                       | Ligne SSE produite | Usage |
+|------------------------------|--------------------|-------|
+| `FluxÉvénement(nom, donnée)` | `event: <nom>` puis le(s) `data:` de `donnée` | Événement **nommé** : le client s'abonne par `<nom>`. |
+| `FluxIdentifiant(id)`        | `id: <id>`         | Identifie l'événement courant ; le client le renvoie après coupure pour reprendre où il en était. |
+| `FluxCommentaire(texte)`     | `: <texte>`        | Ligne ignorée par le client ; sert de **battement de cœur** pour garder la connexion ouverte. |
+
+`FluxÉvénement` encadre `donnée` exactement comme `FluxÉcrit` (chaîne ou buffer
+tel quel, toute autre valeur sérialisée en JSON minifié), précédée de la ligne
+`event:`. L'événement est auto-terminé par une ligne vide. `FluxIdentifiant` et
+`FluxCommentaire` émettent une ligne unique, sans ligne vide de terminaison.
+
+```owl
+ServiceJournal est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api"]
+	FIN
+
+	Suivre est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["journal"]
+			Flux     = fluxSSE
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête()
+			FluxCommentaire("ouverture du flux")
+			POUR i = 1 À 3
+				FluxIdentifiant(i)
+				FluxÉvénement("log", "ligne " + i)
+			FIN
+		FIN
+	FIN
+FIN
+```
+
+Un client qui écoute l'événement `log` reçoit une entrée par tour de boucle,
+chacune précédée de son `id:` pour la reprise :
+
+```
+: ouverture du flux
+id: 1
+event: log
+data: ligne 1
+
+id: 2
+event: log
+data: ligne 2
+```
+
+## 9. Authentifier les requêtes
 
 Un service peut exiger que chaque requête soit **authentifiée** avant
 d'atteindre ses opérations. Le service déclare un **schéma**
@@ -1039,7 +1298,7 @@ Ce que garantit `surAutorisation` :
   httpAuthAucune`) est également dispensée d'autorisation : une route
   publique ne passe ni par l'un ni par l'autre.
 
-## 9. Cycle de vie et gestion des erreurs
+## 10. Cycle de vie et gestion des erreurs
 
 Au-delà des requêtes individuelles, un service peut brancher du code sur
 son **cycle de vie** — un démarrage, un arrêt — et sur le **chemin
@@ -1134,7 +1393,7 @@ le `500` propre décrit au § 6. S'il est présent, la réponse finale
 reprend ce qu'il a posé, et à défaut de code explicite reste un `500`. Le
 service continue de tourner dans tous les cas.
 
-## 10. Lancer le serveur
+## 11. Lancer le serveur
 
 La commande `owl serve` compile un fichier, monte les services qu'il
 déclare et met le serveur en écoute :
@@ -1163,7 +1422,7 @@ autonome** : un binaire unique qui met le service en écoute sans interpréteur
 à déployer. Voir [Packager une application](43_packaging.md), section
 « Packager un serveur (ServiceREST) ».
 
-## 11. Décrire le service en OpenAPI
+## 12. Décrire le service en OpenAPI
 
 Un service porte déjà toute sa description : méthodes, chemins, paramètres,
 codes de réponse, corps. La commande `owl openapi` en **dérive** un document
@@ -1250,7 +1509,7 @@ du service, où n'importe quelle route peut renvoyer une erreur interne.
 
 **Le content-type suit le mode de diffusion.** Pour une opération sans
 `Flux`, la réponse de succès est décrite en `application/json`. Pour une
-opération en streaming (§ 7), le document reflète le média réellement
+opération en streaming (§ 8), le document reflète le média réellement
 servi : `text/event-stream` pour `fluxSSE`, `application/octet-stream`
 (schéma binaire) pour `fluxOctets`. Les réponses d'erreur restent, elles,
 en `application/problem+json` quel que soit le mode.
@@ -1301,7 +1560,7 @@ intermédiaire :
 curl http://localhost:8080/openapi.json
 ```
 
-## 12. Cycle complet
+## 13. Cycle complet
 
 La commande `owl new` **affiche** un squelette de service sur la sortie
 standard ; le rediriger vers un fichier pour l'éditer :
@@ -1343,6 +1602,9 @@ curl http://localhost:8080/api/v1/clients/42
 | `Réponse` (contexte) | `Response`  |
 | `Requête` (contexte) | `Request`   |
 | `UrlBase`        | `BaseUrl`       |
+| `FichiersStatiques` | `StaticFiles` |
+| `PréfixeUrl`     | `UrlPrefix`     |
+| `DossierSource`  | `SourceDirectory` |
 | `Méthode`        | `Method`        |
 | `Chemin`         | `Path`          |
 | `Identité`       | `Identity`      |
@@ -1356,6 +1618,9 @@ curl http://localhost:8080/api/v1/clients/42
 | `Flux`           | `Stream`        |
 | `DélaiMax`       | `MaxDelay`      |
 | `FluxÉcrit`      | `StreamWrite`   |
+| `FluxÉvénement`  | `StreamEvent`   |
+| `FluxIdentifiant` | `StreamId`     |
+| `FluxCommentaire` | `StreamComment` |
 | `httpFlux`       | `httpStream`    |
 | `httpFluxDéconnecté` | `httpStreamDisconnected` |
 | `httpFluxHorsContexte` | `httpStreamOutOfContext` |

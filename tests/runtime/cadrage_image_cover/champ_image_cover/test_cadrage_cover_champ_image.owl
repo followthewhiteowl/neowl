@@ -1,0 +1,36 @@
+//  — Champ Image, cadrage cover : oracle = capture pixel réelle
+// (offscreen). Les 4 coins ET le centre du champ doivent afficher l'image,
+// jamais la couleur de fond (magenta posée via Style..CadreExtérieur..CouleurFond).
+//
+// ROUGE attendu avant impl : `cadRempli` n'existe pas encore — le fichier
+// voisin ne compile pas. Cf. FEN_CadrageCoverChampImage.owl.
+
+TestModeHeadless(Faux)
+
+chemin        est une chaîne = fRepTemp() + fSep() + "owl_test_2502_champ_image_cover.webp"
+octetsFixture est un buffer  = fChargeBuffer("tests/runtime/webp_decodage/fixture.webp")
+fSauveBuffer(chemin, octetsFixture)
+
+OuvreSoeur(FEN_CadrageCoverChampImage)
+
+img est une Image = dCopieImageFenêtre(FEN_CadrageCoverChampImage)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+magenta est un entier = RVB(255, 0, 255)
+
+// IMG_Cible [X=20..220,Y=20..320]
+cHautGauche est un entier = dPixelCouleur(img, 25, 25)
+cHautDroite est un entier = dPixelCouleur(img, 215, 25)
+cBasGauche  est un entier = dPixelCouleur(img, 25, 315)
+cBasDroite  est un entier = dPixelCouleur(img, 215, 315)
+cCentre     est un entier = dPixelCouleur(img, 120, 170)
+
+dbgVérifieVrai(cHautGauche <> magenta, "coin haut-gauche : couverture totale, pas de bande")
+dbgVérifieVrai(cHautDroite <> magenta, "coin haut-droite : couverture totale, pas de bande")
+dbgVérifieVrai(cBasGauche <> magenta, "coin bas-gauche : couverture totale, pas de bande")
+dbgVérifieVrai(cBasDroite <> magenta, "coin bas-droite : couverture totale, pas de bande")
+dbgVérifieVrai(cCentre <> magenta, "centre : image affichée")
+
+Ferme(FEN_CadrageCoverChampImage)
+fSupprime(chemin)
+dbgBilanTest()

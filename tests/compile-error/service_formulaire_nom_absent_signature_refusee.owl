@@ -1,0 +1,28 @@
+// Contrat CIBLE  : complétude — tout nom déclaré dans `Formulaire`
+// doit exister dans la signature `surRequête`. Ici `téléphone` apparaît
+// dans `Formulaire` mais pas dans les paramètres du handler : refus attendu
+// à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `Formulaire` n'existe
+// pas encore comme propriété d'`OpérationHTTP` — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de complétude de signature. À régénérer une fois 
+// livré.
+ServiceFormulaireNomAbsentSignature est un ServiceREST
+	PROPRIETES
+		UrlBase = ["api", "contacts"]
+	FIN
+
+	CreeContact est une OpérationHTTP
+		PROPRIETES
+			Méthode    = httpPost
+			Chemin     = ["contacts"]
+			Formulaire = [nom, téléphone]
+			Réponses   = [httpOK]
+			CodeÉtat   = httpOK
+		FIN
+		PROCEDURE surRequête(nom est une chaîne) : chaîne
+			RENVOYER nom
+		FIN
+	FIN
+FIN

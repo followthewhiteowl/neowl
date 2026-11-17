@@ -1,0 +1,30 @@
+//  (ST-B) — image de fond réelle sur `Style..CadreExtérieur..ImageFond`.
+// Oracle = capture pixel réelle (offscreen) : un conteneur avec `ImageFond..Source`
+// posée doit afficher la couleur de l'image étirée (cadEtire) au centre ; un
+// conteneur voisin sans la prop garde son fond par défaut.
+//
+// ROUGE attendu avant impl : `ImageFond` inconnu sur styleCadreExtérieur -> le
+// fichier voisin ne compile pas. Cf. FEN_StyleImageFondNominal.owl.
+
+TestModeHeadless(Faux)
+
+chemin  est une chaîne = fRepTemp() + "/owl_test_2471_image_fond_nominal.png"
+imgFond est une Image  = dCréeImage(32, 32, RVB(0, 200, 0))
+dSauveImagePNG(imgFond, chemin)
+
+OuvreSoeur(FEN_StyleImageFondNominal)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleImageFondNominal)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// CNT_AvecImage [X=20..170,Y=20..120], centre=(95,70)
+cCentreAvec est un entier = dPixelCouleur(img, 95, 70)
+dbgVérifieEgalité(cCentreAvec, RVB(0, 200, 0), "CNT_AvecImage : le centre du conteneur affiche la couleur de l'image de fond")
+
+// CNT_SansImage [X=200..350,Y=20..120], centre=(275,70)
+cCentreSans est un entier = dPixelCouleur(img, 275, 70)
+dbgVérifieVrai(cCentreSans <> RVB(0, 200, 0), "CNT_SansImage : pas d'image de fond posée, le centre ne porte pas la couleur de l'image")
+
+Ferme(FEN_StyleImageFondNominal)
+fSupprime(chemin)
+dbgBilanTest()

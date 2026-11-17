@@ -1297,6 +1297,71 @@ static bool service_ct_est_json(const char* ct) {
     return false;
 }
 
+/*  — le Content-Type entrant est-il application/x-www-form-urlencoded ?
+ * Parametres (`; charset=...`) ignores. Content-Type absent/vide = tolere (on
+ * tente le parse), symetrie avec l'arbitrage JSON ci-dessus. */
+static bool service_ct_est_formulaire(const char* ct) {
+    if (ct == NULL) return true;
+    while (*ct == ' ' || *ct == '\t') ct++;
+    if (*ct == '\0') return true;
+    const char* end = ct;
+    while (*end != '\0' && *end != ';' && *end != ' ' && *end != '\t') end++;
+    size_t n = (size_t)(end - ct);
+    return n == 33 &&
+           strncasecmp(ct, "application/x-www-form-urlencoded", 33) == 0;
+}
+
+/*  — valeur hexa d'un chiffre (0-15), -1 si non hexa. */
+static int form_hexval(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/*  — URL-decode d'un segment application/x-www-form-urlencoded :
+ * '+' -> espace, %XX -> octet. Ecrit au plus outCap-1 octets (borne) + NUL. */
+static void form_url_decode(const char* s, size_t len, char* out, size_t outCap) {
+    size_t o = 0;
+    for (size_t i = 0; i < len && o + 1 < outCap; i++) {
+        char c = s[i];
+        if (c == '+') {
+            out[o++] = ' ';
+        } else if (c == '%' && i + 2 < len &&
+                   form_hexval(s[i + 1]) >= 0 && form_hexval(s[i + 2]) >= 0) {
+            out[o++] = (char)((form_hexval(s[i + 1]) << 4) | form_hexval(s[i + 2]));
+            i += 2;
+        } else {
+            out[o++] = c;
+        }
+    }
+    if (outCap > 0) out[o] = '\0';
+}
+
+/*  — extrait la valeur d'un champ d'un corps urlencoded `k=v&k2=v2`.
+ * Cle et valeur URL-decodees avant comparaison / ecriture. Retourne true si le
+ * champ `key` est present (valeur decodee dans out, bornee), false sinon. */
+static bool service_form_get(const char* body, size_t bodyLen, const char* key,
+                             char* out, size_t outCap) {
+    if (body == NULL) return false;
+    size_t i = 0;
+    while (i < bodyLen) {
+        size_t pairEnd = i;
+        while (pairEnd < bodyLen && body[pairEnd] != '&') pairEnd++;
+        size_t eq = i;
+        while (eq < pairEnd && body[eq] != '=') eq++;
+        char k[256];
+        form_url_decode(body + i, eq - i, k, sizeof(k));
+        if (strcmp(k, key) == 0) {
+            size_t vstart = (eq < pairEnd) ? eq + 1 : pairEnd;
+            form_url_decode(body + vstart, pairEnd - vstart, out, outCap);
+            return true;
+        }
+        i = (pairEnd < bodyLen) ? pairEnd + 1 : pairEnd;
+    }
+    return false;
+}
+
 /* Extrait la valeur d'un parametre de query dans une cible `/x?k=v&k2=v2`.
  * Aucun percent-decodage (les valeurs simples suffisent au contrat courant).
  * Retourne true si trouve, remplit out (borne). */
@@ -1887,6 +1952,76 @@ static int chemin_est_openapi(const char* chemin) {
     return p[n] == '\0' || p[n] == '?';
 }
 
+/* ================================================================
+ *  — service de fichiers statiques (montage declaratif)
+ *
+ * La frontiere de securite des chemins est DELEGUEE a la politique
+ * (src/http_politique.c) : resolution canonique PUIS confinement, l'UN
+ * SEUL ENDROIT du depot ou ce controle vit. Une garde purement lexicale
+ * suffirait contre la traversee par URL (`../` et ses encodages) mais
+ * laisserait fuiter une jonction ou un lien symbolique pose DANS le
+ * dossier monte et pointant dehors : seule la resolution canonique le voit.
+ * Tout rejet renvoie un 404 UNIFORME — jamais 403 : ne pas reveler qu'un
+ * chemin existe hors du montage.
+ * ================================================================ */
+
+/* Tente de servir `chemin` depuis un montage statique. Retourne NULL si aucun
+ * montage n'apparie (l'appelant retombe sur son 404 generique). Sinon rend une
+ * reponse : 200 + octets du fichier lu tel quel, ou 404 UNIFORME pour tout
+ * rejet (traversee, octet nul, fichier absent, dossier, jonction hors montage).
+ * `head` = 1 pour HEAD (meme statut et Content-Type, sans corps). */
+static OwlHttpRep* try_serve_static(const char* chemin, int head) {
+    char suffix[1024];
+    const char* root = owl_service_static_mount_match(chemin, suffix, sizeof(suffix));
+    if (root == NULL) return NULL;   /* aucun montage -> 404 generique amont */
+
+    /* La racine du montage est resolue canoniquement une fois par requete :
+     * cout = l'ouverture d'un handle sur le dossier. Echec (dossier absent /
+     * non resolvable) -> 404 uniforme. */
+    OwlHttpStatique pol;
+    if (!owl_http_politique_racine(&pol, root))
+        return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0);
+
+    /* La politique attend une cible BRUTE (percent-encodee, non decodee) qui
+     * commence par '/'. Le suffixe rendu par le match est deja brut et sans
+     * slash de tete : on le reintroduit. Le decodage une-passe, la
+     * normalisation des segments, la resolution canonique et le confinement
+     * sous la racine sont faits DANS la politique — aucune garde lexicale
+     * parallele ici. */
+    char cible[1200];
+    int c = snprintf(cible, sizeof(cible), "/%s", suffix);
+    if (c < 0 || (size_t)c >= sizeof(cible))
+        return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0);
+
+    char resolved[1400];
+    if (owl_http_politique_chemin(&pol, cible, resolved, sizeof(resolved)) != OWL_POL_OK)
+        return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0);   /* 404 uniforme */
+
+    FILE* f = fopen(resolved, "rb");
+    if (f == NULL) return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0);
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0); }
+    long sz = ftell(f);
+    if (sz < 0) { fclose(f); return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0); }
+    rewind(f);
+
+    const char* ct = owl_http_politique_type_mime(resolved);
+    if (head) {
+        fclose(f);
+        return owl_http_rep_cree_tampon(200, ct, NULL, 0);
+    }
+
+    char* body = (char*)malloc((size_t)sz > 0 ? (size_t)sz : 1);
+    if (body == NULL) { fclose(f); return owl_http_rep_cree_tampon(500, "text/plain", NULL, 0); }
+    size_t rd = fread(body, 1, (size_t)sz, f);
+    int ferr = ferror(f);
+    fclose(f);
+    if (ferr) { free(body); return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0); }
+
+    OwlHttpRep* rep = owl_http_rep_cree_tampon(200, ct, body, rd);
+    free(body);
+    return rep;
+}
+
 static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
     /* GET /openapi.json : document OpenAPI, avant le routage metier. */
     if (chemin_est_openapi(j->chemin) && strcasecmp(j->methode, "GET") == 0) {
@@ -1909,6 +2044,15 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
      * invoquer, rien ne prouve le cablage — un test doit rougir ici si la
      * resolution casse. */
     if (res.kind == OWL_SVC_RESOLVE_NONE) {
+        /*  — montage statique : GET/HEAD sur un prefixe monte sert le
+         * fichier du dossier (avec garde anti-traversee). Une route metier plus
+         * specifique a deja gagne (on n'est ici que sur un NONE). */
+        if (strcasecmp(j->methode, "GET") == 0 ||
+            strcasecmp(j->methode, "HEAD") == 0) {
+            OwlHttpRep* st = try_serve_static(j->chemin,
+                                              strcasecmp(j->methode, "HEAD") == 0);
+            if (st != NULL) return st;
+        }
         return owl_http_rep_cree_tampon(404, "text/plain", NULL, 0);
     }
     /* Casse divergente (ASCII pur) -> 308 vers la forme canonique. Un desaccord
@@ -1943,7 +2087,7 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
 
     /*  — contexte d'echange imbrique : MoiMême porte deux sous-objets
      * FRAIS et DISTINCTS, Réponse (ecriture : CodeÉtat/Corps/TypeContenu) et
-     * Requête (lecture : Méthode/Chemin/Identité). Chacun est lie a `rep`
+     * Requête (lecture : Méthode/Chemin/Identité/Corps/Entêtes). Chacun est lie a `rep`
      * IMMEDIATEMENT apres allocation (aucune alloc intercalee), `rep` etant deja
      * racine (event_sender) : le lien le sauve d'un GC. Les sous-instances ne
      * referencent JAMAIS `rep` — aucun cycle possible (cf. ). Les cles
@@ -1975,6 +2119,20 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
         inst_field_set_str  (subReq, "Methode",  j->methode);
         inst_field_set_str  (subReq, "Chemin",   j->chemin);
         inst_field_set_value(subReq, "Identite", NIL_VAL);
+
+        /*  — sous-champ Corps de la Requête : le corps BRUT recu, byte
+         * pour byte, sans aucun parse (ni JSON ni urlencoded). Lecture seule cote
+         * app (MoiMême..Requête..Corps), miroir de ..Réponse..Corps en ecriture.
+         * Construit depuis la copie possedee du job (j->corps/corps_len) pour
+         * rester exact meme si le corps porte des octets quelconques ; chaine vide
+         * si corps absent. Racine via inst_field_set_value (subReq deja racine). */
+        {
+            ObjString* reqBody = obj_copy_string(j->corps ? j->corps : "",
+                                                 (int)j->corps_len);
+            vm_push(OBJ_VAL(reqBody));   /* root : inst_field_set_value alloue la cle */
+            inst_field_set_value(subReq, "Corps", OBJ_VAL(reqBody));
+            vm_pop();                    /* reqBody */
+        }
 
         /*  — sous-champ Entetes de la Requête : tableau associatif
          * FRAIS (cle chaine sans-casse — noms d'en-tete HTTP insensibles a la
@@ -2200,6 +2358,26 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
         }
     }
 
+    /*  — mode formulaire urlencoded : au moins un parametre lie au
+     * corps `application/x-www-form-urlencoded`. Negociation Content-Type
+     * symetrique du corps JSON : un type explicite non-urlencoded (ex un corps
+     * JSON pose la ou un formulaire est attendu) -> 415 SANS invoquer le
+     * handler. Content-Type absent/urlencoded -> statu quo (binding ci-dessous).
+     * Les modes form / multipart / JSON sont mutuellement exclusifs (gardes
+     * compile-time), donc mpMode est faux ici. */
+    for (int i = 0; i < pc; i++) {
+        if (route->params[i].source != OWL_SVC_SRC_FORM) continue;
+        if (!service_ct_est_formulaire(j->contentType)) {
+            owl_multipart_free(&mpForm);
+            vm_event_sender_pop();           /* unroot rep */
+            if (x->cfg.gc_frontiere) gc_collect();
+            const char* msg = "Unsupported Content-Type. This endpoint expects "
+                              "an application/x-www-form-urlencoded request body.";
+            return owl_http_rep_cree_tampon(415, "text/plain", msg, strlen(msg));
+        }
+        break;
+    }
+
     /* Passe A (sans allocation) : presence de chaque parametre, puis arite
      * effective en retirant les optionnels-query manquants EN QUEUE (la VM
      * comble le defaut d'un optionnel trailing via function->defaults). */
@@ -2290,6 +2468,18 @@ static OwlHttpRep* execute_service_job(OwlHttpExecuteur* x, OwlHttpJeton* j) {
             char tmp[256];
             if (service_query_get(j->chemin, p->name, tmp, sizeof(tmp))) {
                 vm_push(service_coerce_scalar(tmp, p->typeName));
+            } else {
+                vm_push(service_coerce_scalar("", p->typeName));
+            }
+        } else if (p->source == OWL_SVC_SRC_FORM) {
+            /*  — champ d'un corps urlencoded, lie par nom et coerce
+             * vers le type declare (comme la query). Champ absent -> chaine vide
+             * coercee. service_coerce_scalar alloue puis vm_push racine aussitot
+             * (pas de fenetre GC). */
+            char val[2048];
+            if (service_form_get(j->corps, j->corps_len, p->name,
+                                 val, sizeof(val))) {
+                vm_push(service_coerce_scalar(val, p->typeName));
             } else {
                 vm_push(service_coerce_scalar("", p->typeName));
             }

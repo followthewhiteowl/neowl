@@ -1,0 +1,74 @@
+// @sujet : Surface canvas animée — un Champ Image repeint par un Timer
+// @résumé : Démontre, avec les primitives de dessin existantes, le pattern
+// « canvas animé » : un Timer repeint périodiquement le même Champ Image via
+// une session dDébutDessin/dStylo/dRectangle/dFinDessin. Chaque tic produit un
+// état d'image différent. Le scénario prouve qu'au moins trois frames
+// distinctes sont bien repeintes dans la même surface, sans ajouter aucune
+// brique : l'outillage de dessin et le Timer suffisent. La beauté du rendu
+// (fluidité, nombre d'images par seconde) n'est pas l'objet et n'est pas
+// observable en test automatisé.
+
+gCanvasNbFrames est un entier = 0
+gCanvasSig1 est un entier = -1
+gCanvasSig2 est un entier = -1
+gCanvasSig3 est un entier = -1
+
+// Appelée par la fenêtre à chaque tic du Timer, avec le numéro de frame et la
+// signature pixel relue après le repaint. On mémorise les trois premières.
+PROCEDURE callback_frame(n est un entier, sig est un entier)
+	gCanvasNbFrames = n
+	SI n = 1 ALORS gCanvasSig1 = sig
+	SI n = 2 ALORS gCanvasSig2 = sig
+	SI n = 3 ALORS gCanvasSig3 = sig
+FIN
+
+PROCEDURE PUBLIQUE scenario_canvas_repeint_trois_frames_distinctes()
+	// Boucle d'événements réelle requise : en mode headless le Timer ne tire
+	// pas et Temporise rend la main immédiatement.
+	TestModeHeadless(Faux)
+
+	gCanvasNbFrames = 0
+	gCanvasSig1 = -1
+	gCanvasSig2 = -1
+	gCanvasSig3 = -1
+
+	OuvreSoeur(FEN_CanvasAnime)
+
+	// Pompe la vraie boucle : le Timer (intervalle 20 ms) repeint le Champ
+	// Image plusieurs fois pendant la temporisation.
+	Temporise(30)
+
+	ArretTimer()
+	Ferme(FEN_CanvasAnime)
+
+	// Le Timer a repeint la surface au moins trois fois.
+	dbgVérifieVrai(gCanvasNbFrames >= 3,
+	"le Timer a repeint le Champ Image au moins trois fois")
+
+	// Les signatures sont bien celles posées par les trois premières frames
+	// (pas la valeur sentinelle initiale) : chaque frame a produit un repaint.
+	dbgVérifieDifférence(gCanvasSig1, -1,
+	"frame 1 : une signature a été relue après repaint")
+	dbgVérifieDifférence(gCanvasSig2, -1,
+	"frame 2 : une signature a été relue après repaint")
+	dbgVérifieDifférence(gCanvasSig3, -1,
+	"frame 3 : une signature a été relue après repaint")
+
+	// Chaque frame produit un état d'image distinct des autres : la surface
+	// est bien réanimée tic après tic, pas figée sur une seule image.
+	dbgVérifieDifférence(gCanvasSig1, gCanvasSig2,
+	"frames 1 et 2 : états d'image distincts")
+	dbgVérifieDifférence(gCanvasSig2, gCanvasSig3,
+	"frames 2 et 3 : états d'image distincts")
+	dbgVérifieDifférence(gCanvasSig1, gCanvasSig3,
+	"frames 1 et 3 : états d'image distincts")
+
+	// Valeurs exactes : la couleur témoin de chaque frame est déterministe
+	// (dérivée du numéro de frame), ce qui verrouille le contenu repeint.
+	dbgVérifieEgalité(gCanvasSig1, RVB(40, 0, 235),
+	"frame 1 : couleur témoin attendue")
+	dbgVérifieEgalité(gCanvasSig2, RVB(80, 0, 215),
+	"frame 2 : couleur témoin attendue")
+	dbgVérifieEgalité(gCanvasSig3, RVB(120, 0, 195),
+	"frame 3 : couleur témoin attendue")
+FIN

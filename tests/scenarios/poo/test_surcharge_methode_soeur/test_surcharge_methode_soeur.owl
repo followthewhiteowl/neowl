@@ -1,0 +1,27 @@
+// @sujet : Surcharge de methode de classe — resolution au site d'appel SOEUR `:A(args)`
+// @resume : Un appel this-methode `:A(args)` vers une methode surchargee de la meme classe resout la forme ciblee sur le type DECLARE de l'argument, exactement comme le site externe `o.A(args)`. L'argument litteral chaine route vers A(chaine), le litteral entier vers A(entier), et une variable locale typee suit son type declare.
+
+// Cas nominal : appel soeur avec argument chaine -> syntaxe chaine
+PROCEDURE scenario_soeur_chaine()
+	o est un cSoeurSurcharge()
+	dbgVérifieEgalité(o.AppelleSoeurChaine(), "chaine", "appel soeur :A(chaine litterale) resout vers la syntaxe chaine")
+FIN
+
+// Cas nominal : appel soeur avec argument entier -> syntaxe entier
+PROCEDURE scenario_soeur_entier()
+	o est un cSoeurSurcharge()
+	dbgVérifieEgalité(o.AppelleSoeurEntier(), "entier", "appel soeur :A(42) resout vers la syntaxe entier")
+FIN
+
+// Cas variable locale typee : le type declare tranche
+PROCEDURE scenario_soeur_variable_typee()
+	o est un cSoeurSurcharge()
+	dbgVérifieEgalité(o.AppelleSoeurVar(), "chaine", "appel soeur :A(s) avec s chaine resout vers la syntaxe chaine")
+FIN
+
+// Non-regression : le site externe reste resolu correctement en parallele
+PROCEDURE scenario_externe_reste_resolu()
+	o est un cSoeurSurcharge()
+	dbgVérifieEgalité(o.A("x"), "chaine", "site externe o.A(chaine) reste resolu vers chaine")
+	dbgVérifieEgalité(o.A(7), "entier", "site externe o.A(entier) reste resolu vers entier")
+FIN

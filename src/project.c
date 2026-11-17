@@ -74,8 +74,84 @@ static char* utf16_to_utf8(const unsigned char* src, size_t srcLen, int bigEndia
     return out;
 }
 
+/* OWL stocke les chemins en UTF-8. Sur Windows, les API fichier narrow (fopen,
+ * readdir) relisent un chemin UTF-8 via la code page ANSI -> un nom accentue
+ * (cCommentaireCréation.owl) devient introuvable (meme classe que  cote
+ * natives fichier ; le loader project.c n'etait pas couvert par le lint
+ * narrow-io). On route l'ouverture et l'enumeration de repertoire par les
+ * variantes wide (_wfopen, _wreaddir) avec conversion UTF-8 <-> UTF-16.
+ * project.c est linke dans owl-lsp sans la VM : les wrappers restent autonomes.
+ * POSIX : narrow = deja UTF-8, pass-through. */
+#ifdef _WIN32
+#include <wchar.h>
+#ifndef CP_UTF8
+  #define CP_UTF8 65001
+#endif
+__declspec(dllimport) int __stdcall MultiByteToWideChar(
+    unsigned int cp, unsigned long flags, const char* in, int inLen,
+    wchar_t* out, int outLen);
+__declspec(dllimport) int __stdcall WideCharToMultiByte(
+    unsigned int cp, unsigned long flags, const wchar_t* in, int inLen,
+    char* out, int outLen, const char* def, int* usedDef);
+
+static wchar_t* proj_utf8_to_wide(const char* s) {
+    int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    if (n <= 0) return NULL;
+    wchar_t* w = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+    if (w == NULL) return NULL;
+    if (MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n) <= 0) { free(w); return NULL; }
+    return w;
+}
+static FILE* proj_fopen_rb(const char* path) {
+    wchar_t* wp = proj_utf8_to_wide(path);
+    if (wp == NULL) return fopen(path, "rb");
+    FILE* f = _wfopen(wp, L"rb");
+    free(wp);
+    return f;
+}
+
+/* Enumeration de repertoire wide : _wreaddir rend le nom en UTF-16, qu'on
+ * reconvertit en UTF-8 pour que la suite du pipeline (fullPath -> read_file)
+ * reste homogene. Un nom narrow (ANSI) casserait read_file wide en aval. */
+typedef struct { _WDIR* d; char name[1024]; } ProjDir;
+static ProjDir* proj_opendir(const char* path) {
+    wchar_t* wp = proj_utf8_to_wide(path);
+    if (wp == NULL) return NULL;
+    _WDIR* d = _wopendir(wp);
+    free(wp);
+    if (d == NULL) return NULL;
+    ProjDir* pd = (ProjDir*)malloc(sizeof(ProjDir));
+    if (pd == NULL) { _wclosedir(d); return NULL; }
+    pd->d = d;
+    return pd;
+}
+static const char* proj_readdir(ProjDir* pd) {
+    struct _wdirent* e = _wreaddir(pd->d);
+    if (e == NULL) return NULL;
+    if (WideCharToMultiByte(CP_UTF8, 0, e->d_name, -1,
+                            pd->name, (int)sizeof(pd->name), NULL, NULL) <= 0) {
+        pd->name[0] = '\0';
+    }
+    return pd->name;
+}
+static void proj_closedir(ProjDir* pd) {
+    if (pd != NULL) { _wclosedir(pd->d); free(pd); }
+}
+#else
+static FILE* proj_fopen_rb(const char* path) {
+    return fopen(path, "rb");
+}
+typedef DIR ProjDir;
+static ProjDir* proj_opendir(const char* path) { return opendir(path); }
+static const char* proj_readdir(ProjDir* pd) {
+    struct dirent* e = readdir(pd);
+    return e ? e->d_name : NULL;
+}
+static void proj_closedir(ProjDir* pd) { closedir(pd); }
+#endif
+
 char* read_file(const char* path) {
-    FILE* file = fopen(path, "rb");
+    FILE* file = proj_fopen_rb(path);
     if (file == NULL) {
         fprintf(stderr, "owl: cannot open file '%s': %s\n", path, strerror(errno));
         return NULL;
@@ -380,17 +456,15 @@ static void project_add_file(Project* project, const char* path,
 
 static bool scan_directory(Project* project, const char* dirPath,
                            bool skipTestDirs, bool recursive) {
-    DIR* dir = opendir(dirPath);
+    ProjDir* dir = proj_opendir(dirPath);
     if (dir == NULL) {
         fprintf(stderr, "owl: cannot open directory '%s': %s\n",
                 dirPath, strerror(errno));
         return false;
     }
 
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL) {
-        const char* name = entry->d_name;
-
+    const char* name;
+    while ((name = proj_readdir(dir)) != NULL) {
         /* Skip . and .. */
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
 
@@ -428,7 +502,7 @@ static bool scan_directory(Project* project, const char* dirPath,
             }
             if (!scan_directory(project, fullPath, skipTestDirs, recursive)) {
                 free(fullPath);
-                closedir(dir);
+                proj_closedir(dir);
                 return false;
             }
             free(fullPath);
@@ -471,7 +545,7 @@ static bool scan_directory(Project* project, const char* dirPath,
         free(fullPath);
     }
 
-    closedir(dir);
+    proj_closedir(dir);
     return true;
 }
 

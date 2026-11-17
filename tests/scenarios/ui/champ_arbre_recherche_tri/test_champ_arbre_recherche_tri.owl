@@ -1,0 +1,152 @@
+// @sujet : ArbreCherche, ArbreTrie
+// @résumé : ArbreCherche recherche un élément (nœud ou feuille) par son
+// libellé exact et renvoie le chemin complet TAB-séparé du premier élément
+// trouvé en ordre de parcours ; chaîne vide si aucun élément ne porte ce
+// libellé. ArbreTrie réordonne les éléments par libellé croissant à tous
+// les niveaux, sans perdre ni déplacer un élément d'un parent à un autre :
+// seul l'ordre des fils change, la hiérarchie et le nombre d'éléments sont
+// préservés.
+//
+// Ressource DSL : FEN_ArbreRechercheTri.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+// Concatène en une seule chaîne TAB-séparée les fils directs du nœud au
+// chemin donné, dans l'ordre de parcours (aPremier puis aSuivant jusqu'à
+// épuisement). Simplifie les assertions sur l'ordre sans répéter la boucle
+// dans chaque scénario.
+PROCEDURE ParcoursFils(chemin est une chaîne)
+	sVisites est une chaîne = ""
+	sCourant est une chaîne = ArbreRécupèreFils(ARBRE_Categories, chemin, aPremier)
+	TANTQUE sCourant <> ""
+		SI sVisites <> "" ALORS
+			sVisites += TAB
+		FIN
+		sVisites += sCourant
+		sCourant = ArbreRécupèreFils(ARBRE_Categories, chemin, aSuivant)
+	FIN
+	RENVOYER sVisites
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_cherche_trouve_une_feuille_par_libelle()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	sChemin est une chaîne = ArbreCherche(ARBRE_Categories, "Orange")
+	dbgVérifieEgalité(sChemin, "Fruits" + TAB + "Agrumes" + TAB + "Orange", "ArbreCherche renvoie le chemin complet de la feuille trouvée")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_cherche_trouve_un_noeud_intermediaire_par_libelle()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	sChemin est une chaîne = ArbreCherche(ARBRE_Categories, "Agrumes")
+	dbgVérifieEgalité(sChemin, "Fruits" + TAB + "Agrumes", "ArbreCherche renvoie aussi le chemin d'un nœud intermédiaire")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_cherche_libelle_absent_renvoie_chaine_vide()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+
+	sChemin est une chaîne = ArbreCherche(ARBRE_Categories, "Inexistant")
+	dbgVérifieEgalité(sChemin, "", "aucun élément ne porte ce libellé : ArbreCherche renvoie la chaîne vide")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_trie_reordonne_les_fils_par_ordre_alphabetique()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "C")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "B")
+
+	bOk est un booléen = ArbreTrie(ARBRE_Categories)
+	dbgVérifieVrai(bOk, "ArbreTrie renvoie Vrai")
+
+	dbgVérifieEgalité(ParcoursFils("Racine"), "A" + TAB + "B" + TAB + "C", "les fils sont réordonnés par libellé croissant")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_trie_trie_aussi_les_sous_niveaux()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "Zebre")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "Alpha")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "Zebre" + TAB + "c")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "Zebre" + TAB + "a")
+	ArbreAjoute(ARBRE_Categories, "Racine" + TAB + "Zebre" + TAB + "b")
+
+	ArbreTrie(ARBRE_Categories)
+
+	dbgVérifieEgalité(ParcoursFils("Racine"), "Alpha" + TAB + "Zebre", "le niveau racine est trié")
+	dbgVérifieEgalité(ParcoursFils("Racine" + TAB + "Zebre"), "a" + TAB + "b" + TAB + "c", "le sous-niveau est trié aussi")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+PROCEDURE PUBLIQUE scenario_arbre_trie_preserve_occurrence_et_hierarchie()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Orange")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Agrumes" + TAB + "Citron")
+	ArbreAjoute(ARBRE_Categories, "Fruits" + TAB + "Rouges" + TAB + "Fraise")
+
+	nAvant est un entier = ArbreOccurrence(ARBRE_Categories)
+
+	ArbreTrie(ARBRE_Categories)
+
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), nAvant, "le tri ne crée ni ne perd aucun élément")
+	dbgVérifieEgalité(ParcoursFils("Fruits" + TAB + "Agrumes"), "Citron" + TAB + "Orange", "Citron reste sous Agrumes après tri, à sa place triée")
+	dbgVérifieEgalité(ArbreCherche(ARBRE_Categories, "Fraise"), "Fruits" + TAB + "Rouges" + TAB + "Fraise", "Fraise reste accessible sous son parent d'origine après tri")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+// Edge case : ArbreTrie sur un arbre vide ne trouve rien à trier mais ne
+// crashe pas et renvoie Vrai.
+PROCEDURE PRIVÉE scenario_edge_arbre_trie_arbre_vide_renvoie_vrai()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	bOk est un booléen = ArbreTrie(ARBRE_Categories)
+	dbgVérifieVrai(bOk, "ArbreTrie sur un arbre vide renvoie Vrai sans crasher")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+// Edge case : ArbreTrie sur un arbre à un seul nœud n'a rien à réordonner,
+// renvoie Vrai, et l'unique élément reste présent.
+PROCEDURE PRIVÉE scenario_edge_arbre_trie_un_seul_noeud_renvoie_vrai()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	ArbreAjoute(ARBRE_Categories, "Seul")
+
+	bOk est un booléen = ArbreTrie(ARBRE_Categories)
+	dbgVérifieVrai(bOk, "ArbreTrie sur un arbre à un seul nœud renvoie Vrai")
+	dbgVérifieEgalité(ArbreOccurrence(ARBRE_Categories), 1, "l'unique nœud est toujours présent après tri")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN
+
+// Edge case : ArbreCherche sur un arbre vide ne trouve rien, renvoie la
+// chaîne vide plutôt qu'un crash.
+PROCEDURE PRIVÉE scenario_edge_arbre_cherche_arbre_vide_renvoie_chaine_vide()
+	Ouvre(FEN_ArbreRechercheTri)
+
+	sChemin est une chaîne = ArbreCherche(ARBRE_Categories, "Quoi")
+	dbgVérifieEgalité(sChemin, "", "un arbre vide n'a rien à trouver")
+
+	Ferme(FEN_ArbreRechercheTri)
+FIN

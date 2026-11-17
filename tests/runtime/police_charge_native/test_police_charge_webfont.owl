@@ -1,0 +1,52 @@
+// PoliceCharge(chemin) doit aussi accepter un conteneur de police web
+// compressé (.woff2), pas seulement .ttf/.otf. Même mesure qu'avec une
+// police brute : famille non vide, distincte des polices livrées par
+// défaut, et réellement appliquée sur un widget Qt monté
+// (__DebugPoliceChamp, pattern test_police_charge_native.owl).
+//
+// Fixture : fixture_webfont.woff2 (police "JetBrains Mono", licence SIL
+// Open Font License 1.1, cf. OFL.txt dans ce dossier), choisie pour sa
+// famille distincte des polices livrées par défaut (Liberation
+// Sans/Serif/Mono, DejaVu Sans).
+//
+// ROUGE attendu aujourd'hui : le décodeur n'est pas encore branché,
+// PoliceCharge renvoie "" pour un .woff2.
+//
+// La fenêtre voisine FEN_PoliceChargeNative.owl porte la déclaration.
+
+TestModeHeadless(Faux)
+
+sFamille est une chaîne = PoliceCharge("tests/runtime/police_charge_native/fixture_webfont.woff2")
+dbgVérifieVrai(ErreurDétectée = Faux, "chargement du conteneur web : pas d'erreur")
+dbgVérifieVrai(Taille(sFamille) > 0, "PoliceCharge renvoie un nom de famille non vide pour un .woff2")
+dbgVérifieFaux(Contient(sFamille, "Liberation"), "la famille chargée n'est pas une police livrée")
+dbgVérifieFaux(Contient(sFamille, "DejaVu"), "la famille chargée n'est pas une police livrée")
+
+// La preuve de mutation sur widget n'a de sens que si le chargement a
+// effectivement produit une famille : sinon la comparaison contre une
+// chaîne vide serait toujours trivialement vraie et ne prouverait rien.
+SI Taille(sFamille) > 0 ALORS
+	OuvreSoeur(FEN_PoliceChargeNative)
+
+	// Preuve de mutation : la police par défaut du widget n'est pas déjà
+	// la famille chargée.
+	descAvant est une chaîne = __DebugPoliceChamp(LIB_Police)
+	Trace("=== avant === " + descAvant)
+	dbgVérifieFaux(Contient(descAvant, sFamille), "pré-condition : la police par défaut du widget n'est pas déjà la famille chargée")
+
+	LIB_Police..Police..Nom = sFamille
+	descApres est une chaîne = __DebugPoliceChamp(LIB_Police)
+	Trace("=== après === " + descApres)
+	dbgVérifieVrai(Contient(descApres, sFamille), "la police chargée depuis un .woff2 est réellement appliquée au widget (mesure effective)")
+
+	Ferme(FEN_PoliceChargeNative)
+FIN
+
+// Un conteneur invalide (octets non-woff2) doit échouer proprement :
+// pas de crash, famille vide, erreur signalée.
+sFamilleInvalide est une chaîne = PoliceCharge("tests/runtime/police_charge_native/fixture_webfont_invalide.woff2")
+bErreur          est un booléen = ErreurDétectée
+dbgVérifieEgalité(sFamilleInvalide, "", "un conteneur .woff2 invalide ne charge aucune famille")
+dbgVérifieVrai(bErreur, "un conteneur .woff2 invalide signale une erreur")
+
+dbgBilanTest()

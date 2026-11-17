@@ -50,6 +50,7 @@ void owl_service_runtime_reset(void) {
     g_route_count = 0;
     g_route_capacity = 0;
     owl_jwks_cache_reset();   /*  : les cles cachees suivent les routes */
+    owl_service_static_mount_reset();  /*  : montages suivent les routes */
 }
 
 int owl_service_runtime_add(const char* verb, const char* path,
@@ -378,4 +379,82 @@ void owl_service_runtime_resolve(const char* verb, const char* target,
     out->kind  = OWL_SVC_RESOLVE_REDIRECT;
     out->route = best;
     build_canonical(best, segs, segCount, out->canonical, sizeof(out->canonical));
+}
+
+/* ================================================================
+ *  — montages statiques
+ * ================================================================ */
+
+static OwlServiceStaticMount* g_mounts = NULL;
+static int g_mount_count = 0;
+static int g_mount_capacity = 0;
+
+void owl_service_static_mount_reset(void) {
+    for (int i = 0; i < g_mount_count; i++) {
+        free(g_mounts[i].urlPrefix);
+        free(g_mounts[i].rootDir);
+    }
+    free(g_mounts);
+    g_mounts = NULL;
+    g_mount_count = 0;
+    g_mount_capacity = 0;
+}
+
+void owl_service_static_mount_add(const char* urlPrefix, const char* rootDir) {
+    if (urlPrefix == NULL || urlPrefix[0] == '\0') return;
+    if (rootDir == NULL || rootDir[0] == '\0') return;
+    if (g_mount_count >= g_mount_capacity) {
+        int cap = g_mount_capacity == 0 ? 4 : g_mount_capacity * 2;
+        g_mounts = (OwlServiceStaticMount*)realloc(
+            g_mounts, (size_t)cap * sizeof(OwlServiceStaticMount));
+        g_mount_capacity = cap;
+    }
+    /* Prefixe normalise sans slash final (hors "/" seul). */
+    char* pfx = dup_cstr(urlPrefix);
+    size_t n = strlen(pfx);
+    while (n > 1 && pfx[n - 1] == '/') pfx[--n] = '\0';
+    g_mounts[g_mount_count].urlPrefix = pfx;
+    g_mounts[g_mount_count].rootDir   = dup_cstr(rootDir);
+    g_mount_count++;
+}
+
+int owl_service_static_mount_count(void) { return g_mount_count; }
+
+const OwlServiceStaticMount* owl_service_static_mount_at(int index) {
+    if (index < 0 || index >= g_mount_count) return NULL;
+    return &g_mounts[index];
+}
+
+const char* owl_service_static_mount_match(const char* path,
+                                           char* suffixOut, size_t suffixCap) {
+    if (suffixOut != NULL && suffixCap > 0) suffixOut[0] = '\0';
+    if (path == NULL) return NULL;
+    /* Longueur effective du chemin : la query/fragment ne font pas partie du
+     * nom de ressource. */
+    size_t plen = 0;
+    while (path[plen] != '\0' && path[plen] != '?' && path[plen] != '#') plen++;
+
+    for (int i = 0; i < g_mount_count; i++) {
+        const char* pfx = g_mounts[i].urlPrefix;
+        size_t prel = strlen(pfx);
+        if (plen < prel) continue;
+        if (strncmp(path, pfx, prel) != 0) continue;
+        size_t slen;
+        const char* start;
+        if (plen == prel) {
+            slen = 0; start = path + prel;      /* chemin == prefixe */
+        } else if (path[prel] == '/') {
+            start = path + prel + 1;
+            slen  = plen - (prel + 1);          /* suffixe apres "<prefixe>/" */
+        } else {
+            continue;                           /* prefixe non suivi de '/' */
+        }
+        if (suffixOut != NULL && suffixCap > 0) {
+            size_t cp = slen < suffixCap - 1 ? slen : suffixCap - 1;
+            memcpy(suffixOut, start, cp);
+            suffixOut[cp] = '\0';
+        }
+        return g_mounts[i].rootDir;
+    }
+    return NULL;
 }

@@ -51,7 +51,8 @@ Les autres champs suivent le même schéma (`styleTable`, `styleCombo`,
 Chaque sous-élément est lui-même un littéral `{ ... }` :
 
 - `CadreExtérieur` / `OuterFrame` — la boîte : `CouleurFond` / `BackgroundColor`,
-  `Cadre` (couleur, épaisseur, arrondi), `Ombre`, `Dégradé`, retraits.
+  `Cadre` (couleur, épaisseur, arrondi), `Ombre`, `Dégradé`, `ImageFond`
+  / `BackgroundImage` (image de fond : `Source` + `Cadrage`), retraits.
 - `Libellé` / `Caption` — le texte : `Couleur` / `Color`, `Police`…
 - `ZoneSaisie` / `InputZone` — la zone éditable d'une saisie.
 
@@ -96,6 +97,48 @@ boutonPrimaire est un styleBouton = {
 }
 ```
 
+### Image de fond
+
+Le `CadreExtérieur` accepte une **image de fond** via le sous-élément
+`ImageFond` / `BackgroundImage`, avec deux membres : `Source` / `Source` (chemin
+du fichier, absolu ou relatif au répertoire d'exécution) et `Cadrage` / `Framing`
+(mode d'occupation : `cadCentre`, `cadEtire`, `cadHomothetique`, `cadRempli`).
+
+```owl
+heroCard est un styleConteneur = {
+	CadreExtérieur = {
+		CouleurFond = RVB(10, 12, 16)
+		ImageFond = { Source = "images/fond.png", Cadrage = cadHomothetique }
+	}
+}
+```
+
+L'image de fond est peinte **au-dessus** de `CouleurFond` et du `Dégradé`, et
+**sous** le contenu du champ — l'ordre d'empilement des calques de fond d'un
+`CadreExtérieur` est `CouleurFond → Dégradé → ImageFond → contenu`. Un fichier
+absent ou illisible retire simplement le calque image (le fond uni ou le dégradé
+reprend), sans interrompre le programme.
+
+## Charger une police personnalisée
+
+`Police..Nom` accepte une famille livrée avec l'application (Liberation Sans,
+Liberation Mono…) ou une famille rendue disponible au démarrage. Pour utiliser
+une police fournie sous forme de fichier `.ttf`/`.otf`, la charger d'abord avec
+`PoliceCharge` (forme anglaise `FontLoad`) : la fonction renvoie le **nom de
+famille** à réutiliser comme valeur de `Police..Nom`.
+
+```owl
+sFamille est une chaîne = PoliceCharge("polices/JetBrainsMono-Regular.ttf")
+SI sFamille <> "" ALORS
+	SAI_Code..Police..Nom = sFamille
+FIN
+```
+
+En cas d'échec — fichier absent ou format non reconnu — `PoliceCharge` renvoie
+une chaîne vide et signale une erreur (`ErreurDétectée`, `ErreurInfo()`), sans
+interrompre le programme. Une police chargée reste disponible pour toute la
+durée d'exécution.
+
 ## Appliquer un style à un champ
 
 Dans les `PROPRIETES` d'un champ, la propriété `Style` reçoit le style nommé via
@@ -120,7 +163,7 @@ Une fenêtre se style comme un champ : elle porte une propriété `Style` typée
 Conteneur. Ce descripteur n'a qu'un sous-élément, `CadreExtérieur` /
 `OuterFrame`, qui décrit le fond de la fenêtre : `CouleurFond`, retraits
 (`RetraitHaut`, `RetraitBas`, `RetraitGauche`, `RetraitDroit`), `Cadre`,
-`Ombre` et `Dégradé`.
+`Ombre`, `Dégradé` et `ImageFond`.
 
 Le bloc `Style` s'écrit dans les `PROPRIETES` de la fenêtre, sous forme de
 littéral `{ ... }`, et ne mentionne que ce qui change :

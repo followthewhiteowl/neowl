@@ -202,11 +202,56 @@ PRIVATE
 END
 ```
 
-### Multi-arity: default parameters
+### Method overloading and default parameters
 
-Overloading is not supported: two methods of the same name in the same
-class are forbidden at compile time. To offer several ways to call the
-same action, **default parameters** are used:
+Several methods sharing a name but with **distinct signatures** coexist
+in the same class. The called syntax is chosen **at compile time**,
+based on:
+
+1. the **number of arguments**;
+2. at equal argument count, the **declared type** of the arguments — an
+   **exact match** winning over a conversion (the flexible coercion
+   remains available, as a second choice);
+3. in case of a tie between known types, the **first declared syntax**
+   wins.
+
+```owl
+cMeasure is a Class
+PUBLIC
+    PROCEDURE Add(n is an integer) : string
+        RESULT "one_integer"
+    END
+
+    PROCEDURE Add(n1 is an integer, n2 is an integer) : string
+        RESULT "two_integers"
+    END
+
+    PROCEDURE Add(t is an array of integers) : string
+        RESULT "integer_array"
+    END
+END
+
+m is a cMeasure()
+n is an integer = 5
+t is an array of integers = [1, 2, 3]
+
+m.Add(n)       // "one_integer"   — arity 1, integer argument
+m.Add(n, n)    // "two_integers"  — arity 2
+m.Add(t)       // "integer_array" — arity 1, resolved by type
+```
+
+An **identical-signature duplicate** (same name, same type list) is
+still rejected at compile time. When a name has a single syntax, the
+call keeps the usual flexible coercion.
+
+If the type of an argument cannot be determined at compile time — for
+instance the result of a procedure with no declared return type — and
+the choice stays ambiguous, compilation fails **at the call site**,
+asking to resolve the ambiguity (type the return or qualify the
+argument).
+
+**Default parameters** remain a complementary tool: they offer several
+ways to call a single syntax without declaring several.
 
 ```owl
 cPerson is a Class
@@ -248,7 +293,9 @@ END
 ```
 
 For a getter/setter pair, choose two distinct names (`Balance()` /
-`SetBalance(v)`, `Width()` / `WidthChange(v)`, etc.).
+`SetBalance(v)`, `Width()` / `WidthChange(v)`, etc.). Overloading also
+allows a same-name pair resolved by arity (`Balance()` to read,
+`Balance(v)` to write).
 
 ### Method chaining on an instance
 

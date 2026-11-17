@@ -309,10 +309,12 @@
  * ensemble des valeurs a retenir, jointes par RC dans le store $tblfilters. */
 #define OWL_FILTRE_IN                (OWL_FILTRE_BASE + 12)
 
-/* iDestination — destination d'impression. OWL n'expose que la sortie PDF
- * (driver-independant) et l'imprimante systeme (valeur de retour/fallback) ;
- * les destinations HTML/RTF/XLS/email/visualisateur/fichier du panel canon ne
- * sont pas honorees au runtime (cf ).
+/* iDestination — destination d'impression. OWL honore la sortie PDF
+ * (driver-independant), l'imprimante systeme (valeur de retour/fallback), la
+ * rasterisation en image-memoire et le visualisateur de rapports a l'ecran
+ * (reintroduit avec cablage runtime reel, cf  qui supersede en partie
+ * ). Les destinations HTML/RTF/XLS/email/fichier du panel canon ne
+ * sont pas honorees au runtime (restent retirees, cf ).
  * Offset 112 (et non 31) : 31 est deja pris par OWL_ITER_BASE. Les deux
  * bases etaient numeriquement identiques (OWL_SENTINEL_OFFSET est une
  * fonction pure de n) — collision latente re-offsettee, cf . */
@@ -323,6 +325,22 @@
 /*  — extension OWL : rasterise chaque page de l'Etat dans un tableau
  * de Image fourni par l'utilisateur (cf ADR a sceller). Pas de fichier disque. */
 #define OWL_IDEST_IMAGE_MEMOIRE      (OWL_IDEST_BASE + 3)
+/* Destination « visualisateur de rapports » (canon iVisualisateur/iViewer).
+ * Rasterise chaque page comme OWL_IDEST_IMAGE_MEMOIRE, puis la finalisation
+ * empile les pages dans une fenetre de visualisation Qt (navigation + zoom). */
+#define OWL_IDEST_VISUALISATEUR      (OWL_IDEST_BASE + 4)
+
+/* Facteur de zoom initial du visualisateur (2e arg de iDestination(iVisualisateur,
+ * <Zoom>, ...)). Le param Zoom accepte aussi un pourcentage brut 10..999 ; ces
+ * constantes couvrent les presets nommes. Resolues en mode + pourcentage initial
+ * par le cablage du visualisateur (cf stdlib_pdf.c, ). Seuls les presets
+ * reellement rendus par la fenetre sont exposes (pas de disposition deux-pages
+ * cote-a-cote : constante non enregistree, cf Interdits ). */
+#define OWL_IZOOM_BASE               OWL_SENTINEL_OFFSET(116)
+#define OWL_IZOOM_100                (OWL_IZOOM_BASE + 0)  /* 100 % */
+#define OWL_IZOOM_PAGE               (OWL_IZOOM_BASE + 1)  /* page entiere visible */
+#define OWL_IZOOM_LARGEUR_PAGE       (OWL_IZOOM_BASE + 2)  /* pleine largeur de page */
+#define OWL_IZOOM_DEFAUT             (OWL_IZOOM_BASE + 3)  /* defaut (= page entiere) */
 
 /* iCreePolice — style (combinable bitwise) — canon. */
 #define OWL_IPOL_BASE                OWL_SENTINEL_OFFSET(32)
@@ -619,6 +637,34 @@
 #define OWL_ZRSENS_BASE              OWL_SENTINEL_OFFSET(48)
 #define OWL_ZRSENS_VERTICAL          (OWL_ZRSENS_BASE + 0)
 
+/* a* — mode d'iteration de ArbreRecupereFils (aPremier reinitialise le
+ * curseur et renvoie le 1er fils direct, aSuivant renvoie le fils suivant).
+ * Sentinel-zone : evite une collision avec un entier naturel. */
+#define OWL_ARBRE_ITER_BASE          OWL_SENTINEL_OFFSET(117)
+#define OWL_ARBRE_PREMIER            (OWL_ARBRE_ITER_BASE + 0)
+#define OWL_ARBRE_SUIVANT            (OWL_ARBRE_ITER_BASE + 1)
+
+/* a* — etat pli/depli d'un noeud Arbre (retour de ArbreEtat). Enroule = plie
+ * (etat par defaut d'un noeud), Deroule = deplie, Erreur = noeud inexistant.
+ * L'etat est propre a chaque noeud, independant de ses parents/freres. */
+#define OWL_ARBRE_ETAT_BASE          OWL_SENTINEL_OFFSET(118)
+#define OWL_ARBRE_ENROULE            (OWL_ARBRE_ETAT_BASE + 0)
+#define OWL_ARBRE_DEROULE            (OWL_ARBRE_ETAT_BASE + 1)
+#define OWL_ARBRE_ERREUR             (OWL_ARBRE_ETAT_BASE + 2)
+
+/* a* — image par defaut d'un noeud Arbre, argument image de ArbreAjoute
+ * (imageEnroulée/imageDéroulée). Sentinelle : demande le rendu par defaut
+ * (icone dossier pour un noeud a fils, aucune icone pour une feuille). */
+#define OWL_ARBRE_IMAGE_BASE         OWL_SENTINEL_OFFSET(119)
+#define OWL_ARBRE_IMAGE_DEFAUT       (OWL_ARBRE_IMAGE_BASE + 0)
+
+/* a* — mode d'ajout d'un noeud Arbre, argument modeAjout de ArbreAjoute.
+ * aAccepteDoublon autorise un homonyme (meme libelle au meme niveau) : un
+ * second ajout cree un noeud distinct au lieu d'etre ignore. Les modes de
+ * position (premier/dernier/tri) ne sont pas encore couverts. */
+#define OWL_ARBRE_ADD_BASE           OWL_SENTINEL_OFFSET(120)
+#define OWL_ARBRE_ACCEPTE_DOUBLON    (OWL_ARBRE_ADD_BASE + 0)
+
 /* sqlBackend — backend SQL d'une sqlConnexion (canon Pilote). */
 #define OWL_SQL_BACKEND_BASE         OWL_SENTINEL_OFFSET(49)
 #define OWL_SQL_SQLITE               (OWL_SQL_BACKEND_BASE + 1)
@@ -684,6 +730,7 @@
 #define OWL_CADIMG_CENTRE            (OWL_CADIMG_BASE + 0)
 #define OWL_CADIMG_ETIRE             (OWL_CADIMG_BASE + 1)
 #define OWL_CADIMG_HOMOTHETIQUE      (OWL_CADIMG_BASE + 2)
+#define OWL_CADIMG_REMPLI            (OWL_CADIMG_BASE + 3)
 
 /* Etat — etat d'interactivite d'un champ. */
 #define OWL_ETAT_ACTIF_BASE          OWL_SENTINEL_OFFSET(58)

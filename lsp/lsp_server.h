@@ -137,6 +137,12 @@ int  lsp_get_compiler_diag_count(const char* uri);    /* count, -1 si URI inconn
 void lsp_populate_compiler_diag_cache(const char* uri, int count); /* test only */
 void lsp_clear_compiler_diag_cache(const char* uri);  /* count -> 0, garde l'entree */
 
+/*  — expose au harness le tableau de diagnostics publie (cache --check
+ * republie + passe scanner live dedupliquee) sans l'envoyer, pour verifier
+ * langue du message et dedup. L'appelant possede le JsonValue (json_free). */
+#define LSP_BUILD_DIAG_FOR_TEST_IMPLEMENTED 1
+JsonValue* lsp_build_diagnostics_for_test(const char* uri);  /* test only */
+
 /*  — etendue de la plage d'un diagnostic. lsp_diag_word_end_char expose
  * la logique pure (buffer + line/col -> end.character UTF-16, -1 si repli) ;
  * lsp_get_compiler_diag_end_char lit le end.character stocke au cache. */

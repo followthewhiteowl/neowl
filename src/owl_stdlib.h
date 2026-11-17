@@ -138,6 +138,7 @@ extern const OwlEnum E_IInfoImpr;
 extern const OwlEnum E_EtatFormat;
 extern const OwlEnum E_EtatOrient;
 extern const OwlEnum E_IDest;
+extern const OwlEnum E_IZoom;
 extern const OwlEnum E_IStyle;
 extern const OwlEnum E_IFamily;
 /* Cadre — enums associes au type builtin (canon). */

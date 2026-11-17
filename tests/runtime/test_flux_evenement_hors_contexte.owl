@@ -1,0 +1,54 @@
+// Famille d'événements SSE nommés (FluxÉvénement / FluxIdentifiant /
+// FluxCommentaire), posée sur le même slot ambiant que FluxÉcrit. Appelée
+// hors d'un flux ouvert, chacune lève la même exception de programmeur que
+// FluxÉcrit : httpFluxHorsContexte.
+
+// 1. FluxÉvénement hors contexte.
+nRattrapeEvenement        est un entier = 0
+nMatchDeconnecteEvenement est un entier = 0
+
+QUAND EXCEPTION DANS
+	FluxÉvénement("log", "ligne1")
+FAIRE
+	SI ExceptionInfo(errCode) = httpFluxHorsContexte ALORS
+		nRattrapeEvenement = 1
+	FIN
+	SI ExceptionInfo(errCode) = httpFluxDéconnecté ALORS
+		nMatchDeconnecteEvenement = 1
+	FIN
+FIN
+
+dbgVérifieEgalité(nRattrapeEvenement, 1,
+"FluxÉvénement hors contexte rattrapé par httpFluxHorsContexte")
+dbgVérifieEgalité(nMatchDeconnecteEvenement, 0,
+"httpFluxDéconnecté ne matche PAS une exception hors-contexte (FluxÉvénement)")
+
+// 2. FluxIdentifiant hors contexte.
+nRattrapeIdentifiant est un entier = 0
+
+QUAND EXCEPTION DANS
+	FluxIdentifiant("42")
+FAIRE
+	SI ExceptionInfo(errCode) = httpFluxHorsContexte ALORS
+		nRattrapeIdentifiant = 1
+	FIN
+FIN
+
+dbgVérifieEgalité(nRattrapeIdentifiant, 1,
+"FluxIdentifiant hors contexte rattrapé par httpFluxHorsContexte")
+
+// 3. FluxCommentaire hors contexte.
+nRattrapeCommentaire est un entier = 0
+
+QUAND EXCEPTION DANS
+	FluxCommentaire("heartbeat")
+FAIRE
+	SI ExceptionInfo(errCode) = httpFluxHorsContexte ALORS
+		nRattrapeCommentaire = 1
+	FIN
+FIN
+
+dbgVérifieEgalité(nRattrapeCommentaire, 1,
+"FluxCommentaire hors contexte rattrapé par httpFluxHorsContexte")
+
+dbgBilanTest()

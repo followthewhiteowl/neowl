@@ -1,0 +1,73 @@
+// @sujet : ArbreSelectOccurrence, ArbreSelect (rang), ArbreSelectPlus/Moins
+// (mode multi)
+// @résumé : sur un Arbre avec Multisélection = Vrai, ArbreSelectPlus
+// accumule les noeuds sélectionnés au lieu de remplacer la sélection
+// courante, ArbreSelectOccurrence compte les éléments sélectionnés, et
+// ArbreSelect(champ, Faux, rang) renvoie le chemin du rang-ième élément
+// sélectionné (1-based, dans l'ordre d'ajout à la sélection). Un rang hors
+// bornes renvoie une chaîne vide. ArbreSelectMoins retire un élément de la
+// sélection sans toucher aux autres.
+//
+// Ressource DSL : FEN_ArbreSelectionMulti.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_arbre_multi_selectplus_accumule_et_occurrence_compte()
+	Ouvre(FEN_ArbreSelectionMulti)
+
+	ArbreAjoute(ARBRE_Multi, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Multi, "Racine" + TAB + "B")
+	ArbreAjoute(ARBRE_Multi, "Racine" + TAB + "C")
+
+	dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Multi), 0, "aucune sélection à l'ouverture")
+
+	ArbreSelectPlus(ARBRE_Multi, "Racine" + TAB + "A")
+	ArbreSelectPlus(ARBRE_Multi, "Racine" + TAB + "B")
+
+	dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Multi), 2, "deux noeuds accumulés par SelectPlus en multi-sélection")
+
+	// Ordre figé : rang 1 = premier SelectPlus (A), rang 2 = second (B) —
+	// ordre d'ajout à la sélection, pas l'ordre des noeuds dans l'arbre.
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Multi, Faux, 1), "Racine" + TAB + "A", "rang 1 = premier élément ajouté à la sélection")
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Multi, Faux, 2), "Racine" + TAB + "B", "rang 2 = second élément ajouté à la sélection")
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Multi, Faux, 3), "", "rang hors bornes renvoie une chaîne vide")
+
+	ArbreSelectMoins(ARBRE_Multi, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Multi), 1, "un seul noeud reste sélectionné après SelectMoins")
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Multi, Faux, 1), "Racine" + TAB + "B", "le noeud restant occupe le rang 1")
+
+	Ferme(FEN_ArbreSelectionMulti)
+FIN
+
+// Edge case : les rangs hors bornes basses (0, négatif) renvoient une chaîne
+// vide, comme un rang trop grand.
+PROCEDURE PRIVÉE scenario_edge_arbre_multi_select_rang_zero_ou_negatif()
+	Ouvre(FEN_ArbreSelectionMulti)
+
+	ArbreAjoute(ARBRE_Multi, "Racine" + TAB + "A")
+	ArbreSelectPlus(ARBRE_Multi, "Racine" + TAB + "A")
+
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Multi, Faux, 0), "", "rang 0 renvoie une chaîne vide")
+	dbgVérifieEgalité(ArbreSelect(ARBRE_Multi, Faux,-1), "", "rang négatif renvoie une chaîne vide")
+
+	Ferme(FEN_ArbreSelectionMulti)
+FIN
+
+// Edge case : après désélection complète en multi-sélection,
+// ArbreSelectOccurrence retombe à 0.
+PROCEDURE PRIVÉE scenario_edge_arbre_multi_occurrence_zero_apres_tout_deselectionner()
+	Ouvre(FEN_ArbreSelectionMulti)
+
+	ArbreAjoute(ARBRE_Multi, "Racine" + TAB + "A")
+	ArbreAjoute(ARBRE_Multi, "Racine" + TAB + "B")
+
+	ArbreSelectPlus(ARBRE_Multi, "Racine" + TAB + "A")
+	ArbreSelectPlus(ARBRE_Multi, "Racine" + TAB + "B")
+	ArbreSelectMoins(ARBRE_Multi, "Racine" + TAB + "A")
+	ArbreSelectMoins(ARBRE_Multi, "Racine" + TAB + "B")
+
+	dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Multi), 0, "occurrence retombe à 0 après désélection complète")
+
+	Ferme(FEN_ArbreSelectionMulti)
+FIN

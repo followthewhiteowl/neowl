@@ -82,6 +82,11 @@ typedef enum {
                            * `Champ`), mais point de recursion enfants comme un
                            * Conteneur : porte son Libellé + sa Disposition +
                            * des champs enfants arbitraires. */
+    OWL_CONTROL_ARBRE,    /* Champ Arbre — vue hierarchique mono-colonne. Les
+                           * noeuds sont adresses par un chemin dont les segments
+                           * sont separes par une tabulation ; les noeuds
+                           * intermediaires manquants sont crees a la volee.
+                           * Backend Qt QTreeWidget mono-colonne. */
     OWL_CONTROL_WINDOW,   /* Fenetre — virtuel, pas un sous-champ. Sert au
                            * dispatch runtime FEN_X..Prop via ObjUiControl. */
 } OwlControlKind;

@@ -375,9 +375,9 @@ static const OwlControlPropDef PROPS_LABEL[] = {
       "Cadre" },
     { "Cadrage",        NULL, "Framing",        OWL_PROP_TYPE_ENUM, "cadrage",
       "Mode de cadrage de l'image dans le libelle "
-      "(cadCentre/cadEtire/cadHomothetique).",
+      "(cadCentre/cadEtire/cadHomothetique/cadRempli).",
       "Image framing mode in the label "
-      "(cadCentre/cadEtire/cadHomothetique).", NULL DFT_NULL },
+      "(cadCentre/cadEtire/cadHomothetique/cadRempli).", NULL DFT_NULL },
     { "Opacit\xc3\xa9", "Opacite", "Opacity",   OWL_PROP_TYPE_INT,      NULL,
       "Opacite 0..100 (defaut 100).", "Opacity 0..100 (default 100).", NULL DFT_INT(100) },
     /* Lot A — props canon (proprietes Libelle Fenetre). */
@@ -904,10 +904,10 @@ static const OwlControlPropDef PROPS_IMAGE_FIELD[] = {
       "field dimension. Positive value: forced size.", NULL DFT_AUTO },
     { "Cadrage",        NULL, "Framing",        OWL_PROP_TYPE_ENUM, "cadrage",
       "Mode de cadrage de l'image dans le champ "
-      "(cadCentre/cadEtire/cadHomothetique). Defaut cadHomothetique : "
+      "(cadCentre/cadEtire/cadHomothetique/cadRempli). Defaut cadHomothetique : "
       "l'image occupe le champ en preservant ses proportions.",
       "Image framing mode in the field "
-      "(cadCentre/cadEtire/cadHomothetique). Default cadHomothetique: the "
+      "(cadCentre/cadEtire/cadHomothetique/cadRempli). Default cadHomothetique: the "
       "image fills the field while preserving its aspect ratio.",
       NULL DFT_ENUM("cadHomothetique") },
     { "Zoom",           NULL, "Zoom",           OWL_PROP_TYPE_INT,      NULL,
@@ -1526,6 +1526,65 @@ static const OwlControlPropDef PROPS_JAUGE_FIELD[] = {
     NOTE_PROP,
 };
 
+/* Champ Arbre — vue hierarchique mono-colonne. Props de base uniquement : le
+ * contenu arborescent se peuple par les natives Arbre* (ArbreAjoute...), pas par
+ * une propriete declarative. */
+static const OwlControlPropDef PROPS_ARBRE_FIELD[] = {
+    { "X",              NULL, "X",              OWL_PROP_TYPE_INT,      NULL,
+      "Position X en pixels.", "X position in pixels.", NULL DFT_AUTO },
+    { "Y",              NULL, "Y",              OWL_PROP_TYPE_INT,      NULL,
+      "Position Y en pixels.", "Y position in pixels.", NULL DFT_AUTO },
+    { "Largeur",        NULL, "Width",          OWL_PROP_TYPE_INT,      NULL,
+      "Largeur en pixels.", "Width in pixels.", NULL DFT_INT(200) },
+    { "Hauteur",        NULL, "Height",         OWL_PROP_TYPE_INT,      NULL,
+      "Hauteur en pixels.", "Height in pixels.", NULL DFT_INT(200) },
+    { "Visible",        NULL, "Visible",        OWL_PROP_TYPE_BOOL,     NULL,
+      "Champ affiche.", "Control visible.", NULL DFT_BOOL(1) },
+    { "Gris\xc3\xa9",   "Grise", "Grayed",    OWL_PROP_TYPE_BOOL,     NULL,
+      "Champ desactive.", "Control grayed out.", NULL DFT_BOOL(0) },
+    { "Etat",           NULL, "State",          OWL_PROP_TYPE_ENUM,     "etat",
+      "Etat unifie.", "Unified state.", NULL DFT_ENUM("Actif") },
+    { "Bulle",          NULL, "Tooltip",        OWL_PROP_TYPE_MULTILINGUE, NULL,
+      "Texte d'info-bulle. Accepte une chaine simple (coerce auto) ou un litteral inline multilingue {langueXxx: \"...\"}.",
+      "Tooltip text. Accepts a plain string (auto-coerced) or an inline multilingual literal {langueXxx: \"...\"}.", NULL DFT_NULL },
+    { "Couleur",        NULL, "Color",          OWL_PROP_TYPE_COLOR,    NULL,
+      "Couleur du texte des noeuds.", "Color of the node text.", NULL DFT_NULL },
+    { "CouleurFond",    NULL, "BackgroundColor", OWL_PROP_TYPE_COLOR,   NULL,
+      "Couleur de fond du champ.", "Field background color.", NULL DFT_NULL },
+    { "Cadre",          NULL, "Border",         OWL_PROP_TYPE_OBJECT,   NULL,
+      "Descripteur de cadre compose.", "Composite border descriptor.", "Cadre" DFT_NULL },
+    { "Opacit\xc3\xa9", "Opacite", "Opacity",   OWL_PROP_TYPE_INT,      NULL,
+      "Opacite 0..100.", "Opacity 0..100.", NULL DFT_INT(100) },
+    { "Altitude",       NULL, "Altitude",       OWL_PROP_TYPE_INT,  NULL,
+      "Z-order intra-fenetre.", "Intra-window z-order.", NULL DFT_NULL },
+    { "CurseurSouris",  NULL, "MouseCursor",    OWL_PROP_TYPE_ENUM, "curseurs",
+      "Forme du curseur de survol.", "Hover cursor shape.", NULL DFT_NULL },
+    /* Specifiques Arbre */
+    { "Multis\xc3\xa9lection", "Multiselection", "MultiSelection",
+                                                OWL_PROP_TYPE_BOOL,     NULL,
+      "Vrai = plusieurs noeuds selectionnables (Ctrl/Shift+clic). "
+      "Faux (defaut) = selection unique.",
+      "True = multi-node selection (Ctrl/Shift+click). False (default) = single.", NULL DFT_BOOL(0) },
+    /*  — style typé du Champ Arbre (styleArbre). Struct de sous-elements :
+     * CadreExtérieur (le cadre + fond de l'arbre), LibelléLignes (le texte des
+     * noeuds) et LigneSélectionnée (le texte du noeud selectionne). La cascade
+     * `ARBRE..Style..SousElement..Prop` est validee compile-time contre les champs
+     * de styleArbre (mecanisme OBJECT prop, cf Style sur la Liste). */
+    { "Style",          NULL, "Style",          OWL_PROP_TYPE_OBJECT,   NULL,
+      "Descripteur de style typé du champ (styleArbre). Sous-elements : "
+      "CadreExtérieur (le cadre + fond), LibelléLignes (le texte des noeuds) "
+      "et LigneSélectionnée (le texte du noeud sélectionné).",
+      "Typed style descriptor of the field (styleArbre). Sub-elements: "
+      "OuterFrame (frame + background), RowLabel (node text) and "
+      "SelectedRow (selected node text).",
+      "styleArbre" DFT_NULL },
+    FONT_PROPS,
+    LAYOUT_CHILD_PROPS,
+    GROUPE_PROP,
+    PLAN_PROP,
+    NOTE_PROP,
+};
+
 /* Champ ZoneRépétée (Looper) — V1 par programmation. */
 static const OwlControlPropDef PROPS_ZR_FIELD[] = {
     SHORTCUT_FOCUS_PROP,
@@ -1988,9 +2047,9 @@ static const OwlControlPropDef PROPS_IMAGE_ETAT[] = {
     /* render_etat_image lit Cadrage avec defaut 0 = cadCentre (applique). */
     { "Cadrage",        NULL, "Framing",        OWL_PROP_TYPE_ENUM, "cadrage",
       "Mode de cadrage de l'image dans la zone "
-      "(cadCentre/cadEtire/cadHomothetique).",
+      "(cadCentre/cadEtire/cadHomothetique/cadRempli).",
       "Image framing mode in the area "
-      "(cadCentre/cadEtire/cadHomothetique).", NULL DFT_ENUM("cadCentre") },
+      "(cadCentre/cadEtire/cadHomothetique/cadRempli).", NULL DFT_ENUM("cadCentre") },
 };
 
 /* PROPS_CODEBARRE_ETAT — Champ CodeBarres WYSIWYG dans un bloc Etat.
@@ -2099,6 +2158,10 @@ const OwlControlPropDef* owl_control_catalog_find(OwlControlKind kind,
         case OWL_CONTROL_VOLET:
             return find_in(PROPS_VOLET,
                            sizeof(PROPS_VOLET)/sizeof(PROPS_VOLET[0]),
+                           prop_name);
+        case OWL_CONTROL_ARBRE:
+            return find_in(PROPS_ARBRE_FIELD,
+                           sizeof(PROPS_ARBRE_FIELD)/sizeof(PROPS_ARBRE_FIELD[0]),
                            prop_name);
         case OWL_CONTROL_WINDOW:
             /* Pour la fenetre, utiliser owl_window_catalog_find directement. */
@@ -2357,14 +2420,16 @@ const OwlEnum E_toastDuree = {
 
 /* Cadrage image dans un Libelle (et plus tard Champ Image). */
 static const char* const E_Cadrage_values[] = {
-    "cadCentre", "cadEtire", "cadHomothetique", NULL
+    "cadCentre", "cadEtire", "cadHomothetique", "cadRempli", NULL
 };
-static const OwlEnum E_Cadrage = {
+/*  — exporté (non-static) : la feuille styleImageFond..Cadrage le
+ * référence en allowedBase depuis stdlib_builtin_types.c. */
+const OwlEnum E_Cadrage = {
     .name="cadrage", .nameAscii="cadrage", .nameEN="imageFraming", .category="UI",
     .descFR="Cadrage d'une image dans un champ qui en accepte une "
-            "(cadCentre, cadEtire, cadHomothetique).",
+            "(cadCentre, cadEtire, cadHomothetique, cadRempli).",
     .descEN="Image framing inside an image-bearing field "
-            "(cadCentre, cadEtire, cadHomothetique).",
+            "(cadCentre, cadEtire, cadHomothetique, cadRempli).",
     .values=E_Cadrage_values, .combinable=false
 };
 
@@ -2749,13 +2814,27 @@ const OwlEnum E_TaInfo = {
  * — leur présence dans la liste polluerait l'autocomplete LSP. */
 static const char* const E_IDest_values[] = {
     "iImprimante", "iPDFG\xc3\xa9n\xc3\xa9rique", "iPDF",
-    "iImageM\xc3\xa9moire", NULL
+    "iImageM\xc3\xa9moire", "iVisualisateur", NULL
 };
 const OwlEnum E_IDest = {
     .name="iDestination", .nameAscii="iDestination", .nameEN="iDestination", .category="Etats",
     .descFR="Destination de l'impression.",
     .descEN="Print output destination.",
     .values=E_IDest_values, .combinable=false
+};
+
+/* iVisualisateur — facteur de zoom initial (2e arg de iDestination). Presets
+ * nommes ; le param accepte aussi un pourcentage brut 10..999. Formes canon
+ * courtes (i100/iPage) communes FR/EN ; iapZoomLargeurPage (verbeux) n'a pas de
+ * forme courte. Alias ASCII auto au runtime (cf E_IDest). */
+static const char* const E_IZoom_values[] = {
+    "i100", "iPage", "iapZoomLargeurPage", "iZoomD\xc3\xa9""faut", NULL
+};
+const OwlEnum E_IZoom = {
+    .name="iZoom", .nameAscii="iZoom", .nameEN="iZoom", .category="Etats",
+    .descFR="Facteur de zoom initial du visualisateur de rapports.",
+    .descEN="Initial zoom factor of the report viewer.",
+    .values=E_IZoom_values, .combinable=false
 };
 
 /* iCreePolice — style (combinable bitwise). Forme canon uniquement, alias
@@ -3068,6 +3147,8 @@ static const OwlConstDef UI_CONSTS[] = {
                                 "Image stretched to fill the field (aspect ratio not preserved).", "cadStretch"),
     C_UI_EN("cadHomothetique", OWL_CADIMG_HOMOTHETIQUE, "Image scalee en preservant le ratio, centree, bandes autour.",
                                 "Image scaled with aspect ratio preserved, centered, letterboxed.", "cadProportional"),
+    C_UI_EN("cadRempli",       OWL_CADIMG_REMPLI,       "Image mise a l'echelle en preservant le ratio pour remplir entierement le champ ; le debord est rogne (centre).",
+                                "Image scaled with aspect ratio preserved to fully fill the field; overflow is clipped (centered).", "cadCover"),
     /* Etat — Actif/AffichageSeulement/Grise/Invisible.
      * AffichageSeulement = Inactif (alias canon, meme valeur sentinel). */
     C_UI_EN("Actif",              OWL_ETAT_ACTIF,          "Champ actif.",                        "Active.", "Active"),
@@ -3287,6 +3368,23 @@ static const OwlConstDef UI_CONSTS[] = {
     C_UI_EN("iImageM\xc3\xa9moire",   OWL_IDEST_IMAGE_MEMOIRE,
          "Rasterise chaque page de l'Etat dans un tableau de Image (extension OWL).",
          "Rasterizes each Report page into an array of Image (OWL extension).", "iMemoryImage"),
+    C_UI_EN("iVisualisateur",         OWL_IDEST_VISUALISATEUR,
+         "Visualisateur de rapports a l'ecran : empile les pages dans une fenetre avec navigation et zoom.",
+         "On-screen report viewer: stacks the pages in a window with navigation and zoom.", "iViewer"),
+
+    /* iVisualisateur — facteur de zoom initial (2e arg de iDestination). */
+    C_UI_EN("i100",                   OWL_IZOOM_100,
+         "Ouverture a 100 %.",
+         "Opens at 100%.", "i100"),
+    C_UI_EN("iPage",                  OWL_IZOOM_PAGE,
+         "Ouverture avec la page entiere visible.",
+         "Opens with the whole page visible.", "iPage"),
+    C_UI_EN("iapZoomLargeurPage",     OWL_IZOOM_LARGEUR_PAGE,
+         "Ouverture ajustee a la largeur de la page.",
+         "Opens fitted to the page width.", "ipvZoomPageWidth"),
+    C_UI_EN("iZoomD\xc3\xa9""faut",   OWL_IZOOM_DEFAUT,
+         "Facteur de zoom par defaut (page entiere).",
+         "Default zoom factor (whole page).", "iDefaultZoom"),
 
     /* iParametrePDF — format/encodage. */
     C_UI_EN("iPDFNiveauGris",         OWL_PDF_NIVEAU_GRIS,
@@ -3515,6 +3613,16 @@ static const OwlControlPropDef PROPS_SERVICE_REST[] = {
       "Expected audience (aud claim) of accepted JWT tokens when authentication "
       "is httpAuthJWT. The token must target this audience (equal to the aud "
       "string, or present in the aud array).", NULL DFT_NULL },
+    { "FichiersStatiques", NULL, "StaticFiles", OWL_PROP_TYPE_VARIANT, NULL,
+      "Montage de fichiers statiques : litteral { PréfixeUrl: [...], "
+      "DossierSource: \"...\" }. PréfixeUrl est la liste de segments d'URL "
+      "(montee sous UrlBase) sous laquelle les fichiers sont servis ; "
+      "DossierSource est le dossier disque dont le contenu est expose en "
+      "lecture. Un seul montage par service.",
+      "Static file mount: literal { UrlPrefix: [...], SourceDirectory: \"...\" }. "
+      "UrlPrefix is the list of URL segments (mounted under BaseUrl) under which "
+      "files are served; SourceDirectory is the disk folder whose contents are "
+      "exposed for reading. One mount per service.", NULL DFT_NULL },
 };
 
 static const OwlControlPropDef PROPS_OPERATION_HTTP[] = {
@@ -3536,6 +3644,13 @@ static const OwlControlPropDef PROPS_OPERATION_HTTP[] = {
     { "Requ\xc3\xaate",   "Requete", "Query",        OWL_PROP_TYPE_VARIANT, NULL,
       "Parametres de query string de l'operation.",
       "Query-string parameters of the operation.", NULL DFT_NULL },
+    { "Formulaire",       NULL, "Form",             OWL_PROP_TYPE_VARIANT, NULL,
+      "Champs d'un corps encode en formulaire "
+      "(application/x-www-form-urlencoded), lies par nom aux parametres "
+      "homonymes de l'operation et coerces vers leur type.",
+      "Fields of a form-encoded body "
+      "(application/x-www-form-urlencoded), bound by name to the operation's "
+      "like-named parameters and coerced to their type.", NULL DFT_NULL },
     { "Authentification", NULL, "Authentication",   OWL_PROP_TYPE_ENUM, "httpAuthentification",
       "Exempte l'operation de l'authentification du service (httpAuthAucune).",
       "Opts the operation out of the service authentication (httpAuthNone).",
@@ -3711,7 +3826,7 @@ void stdlib_ui_catalog_init(void) {
         &E_ToInfo, &E_TsInfo, &E_TiXY, &E_tdOperation, &E_tdCibleRelative,
         &E_TaInfo, &E_FiltreType, &E_SelMode,
         &E_ZrSens, &E_ActionSouris, &E_PoliceEtirement,
-        &E_IDest, &E_IStyle, &E_IFamily, &E_ITrait, &E_IBrosse, &E_IBord, &E_IAlign, &E_IEchelle, &E_IInfoImpr,
+        &E_IDest, &E_IZoom, &E_IStyle, &E_IFamily, &E_ITrait, &E_IBrosse, &E_IBord, &E_IAlign, &E_IEchelle, &E_IInfoImpr,
         &E_EtatFormat, &E_EtatOrient,
         &E_pdfProtection,
         &E_EvtWidget,
@@ -3771,6 +3886,8 @@ void stdlib_ui_catalog_init(void) {
     /*  — cles = forme ascii canon des kinds Onglet/Volet (cf CONTROL_KINDS). */
     register_dsl_props_table("Onglet",   PROPS_ONGLET,
         (int)(sizeof(PROPS_ONGLET)/sizeof(PROPS_ONGLET[0])));
+    register_dsl_props_table("Arbre",    PROPS_ARBRE_FIELD,
+        (int)(sizeof(PROPS_ARBRE_FIELD)/sizeof(PROPS_ARBRE_FIELD[0])));
     register_dsl_props_table("Volet",    PROPS_VOLET,
         (int)(sizeof(PROPS_VOLET)/sizeof(PROPS_VOLET[0])));
     register_dsl_props_table("Etat",     PROPS_ETAT,

@@ -1,0 +1,29 @@
+// Contrat CIBLE  : un montage `FichiersStatiques` et une
+// `OpérationHTTP` dont le `Chemin` tombe sous son `PréfixeUrl` sont en
+// collision — une requête GET sur ce chemin ne peut pas être à la fois
+// route explicite et fichier monté. Refus attendu à la compilation.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `FichiersStatiques`
+// n'existe pas encore comme propriété de `ServiceREST` (seul l'ancien nom
+// `Statique` l'est, break-net à venir) — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de collision route/montage. À régénérer une fois 
+// livré.
+ServiceDocuments est un ServiceREST
+	PROPRIETES
+		UrlBase           = ["api"]
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "assets"}
+	FIN
+
+	Truc est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["static", "truc"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			RENVOYER "truc"
+		FIN
+	FIN
+FIN

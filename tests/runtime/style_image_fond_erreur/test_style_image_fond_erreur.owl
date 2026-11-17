@@ -1,0 +1,34 @@
+//  (ST-B) — erreur propre sur `ImageFond..Source` absente ou au format
+// invalide : pas de crash, erreur enregistrée, repli neutre sur le
+// CouleurFond plat du conteneur (même contrat que dChargeImage sur fichier
+// absent : Image invalide + ErreurInfo renseignée — ici transposé au
+// pipeline de rendu déclaratif, cf. doute dans le rapport test_writer).
+//
+// ROUGE attendu avant impl : le fichier voisin ne compile pas (`ImageFond`
+// inconnu sur styleCadreExtérieur). Cf. FEN_StyleImageFondErreur.owl.
+
+TestModeHeadless(Faux)
+
+// Fichier au mauvais format sous l'extension .png attendue.
+cheminInvalide est une chaîne = fRepTemp() + "/owl_test_2471_image_fond_format_invalide.png"
+fSauveTexte(cheminInvalide, "ce n'est pas une image")
+
+OuvreSoeur(FEN_StyleImageFondErreur)
+erreurPresente est un booléen = (ErreurInfo() <> "")
+
+img est une Image = dCopieImageFenêtre(FEN_StyleImageFondErreur)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide (la fenêtre s'ouvre sans crash malgré l'image manquante/invalide)")
+
+dbgVérifieVrai(erreurPresente, "image de fond absente/invalide : une erreur est enregistrée au lieu d'un échec silencieux")
+
+// CNT_Absente [X=20..120,Y=20..120], centre=(70,70)
+cAbsente est un entier = dPixelCouleur(img, 70, 70)
+dbgVérifieEgalité(cAbsente, RVB(80, 80, 80), "image absente : repli neutre sur le CouleurFond du conteneur")
+
+// CNT_FormatInvalide [X=160..260,Y=20..120], centre=(210,70)
+cInvalide est un entier = dPixelCouleur(img, 210, 70)
+dbgVérifieEgalité(cInvalide, RVB(80, 80, 80), "format invalide : repli neutre sur le CouleurFond du conteneur")
+
+Ferme(FEN_StyleImageFondErreur)
+fSupprime(cheminInvalide)
+dbgBilanTest()

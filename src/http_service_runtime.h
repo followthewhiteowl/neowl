@@ -32,7 +32,8 @@ extern "C" {
 typedef enum {
     OWL_SVC_SRC_PATH  = 0, /* segment de l'URL (index dans les segments de route) */
     OWL_SVC_SRC_QUERY = 1, /* parametre de query string */
-    OWL_SVC_SRC_BODY  = 2  /* corps de la requete, deserialise vers un type structure */
+    OWL_SVC_SRC_BODY  = 2, /* corps de la requete, deserialise vers un type structure */
+    OWL_SVC_SRC_FORM  = 3  /* champ d'un corps application/x-www-form-urlencoded */
 } OwlServiceParamSource;
 
 /* Un parametre du handler surRequete, capture DANS L'ORDRE DE DECLARATION
@@ -211,6 +212,41 @@ typedef struct {
  *    out->pathValues[indexSegment]. */
 void owl_service_runtime_resolve(const char* verb, const char* target,
                                  OwlServiceResolveResult* out);
+
+/* ================================================================
+ *  — montages statiques declaratifs (`FichiersStatiques = {...}`)
+ *
+ * Registre durable, PARALLELE aux routes et reset en meme temps qu'elles
+ * (owl_service_runtime_reset vide aussi les montages). Un montage lie un
+ * prefixe d'URL canonique (ex "/api/static", sans slash final) a un dossier
+ * disque resolu. L'executeur HTTP le consulte UNIQUEMENT quand la resolution
+ * de route echoue (OWL_SVC_RESOLVE_NONE) : une route metier plus specifique
+ * prime toujours.
+ * ================================================================ */
+typedef struct {
+    char* urlPrefix;  /* prefixe canonique, ex "/api/static" (sans slash final) */
+    char* rootDir;    /* dossier disque resolu (absolu de preference) */
+} OwlServiceStaticMount;
+
+/* Vide le registre des montages statiques. Appele par
+ * owl_service_runtime_reset() (les montages suivent le cycle des routes). */
+void owl_service_static_mount_reset(void);
+
+/* Ajoute un montage (chaines copiees). urlPrefix est normalise sans slash
+ * final. Ignore si l'un des deux est NULL/vide. */
+void owl_service_static_mount_add(const char* urlPrefix, const char* rootDir);
+
+int                          owl_service_static_mount_count(void);
+const OwlServiceStaticMount* owl_service_static_mount_at(int index);
+
+/* Apparie un chemin de requete (query/fragment tolerees) a un montage. Si un
+ * prefixe de montage apparie (soit chemin == prefixe, soit chemin == prefixe +
+ * "/" + suffixe), retourne le rootDir du montage et ecrit dans suffixOut le
+ * suffixe BRUT apres le prefixe (vide si le chemin EST le prefixe). Retourne
+ * NULL si aucun montage n'apparie (l'appelant retombe sur son 404). Le suffixe
+ * n'est PAS decode ici : la garde anti-traversee le normalise cote executeur. */
+const char* owl_service_static_mount_match(const char* path,
+                                           char* suffixOut, size_t suffixCap);
 
 #ifdef __cplusplus
 }

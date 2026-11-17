@@ -1,0 +1,19 @@
+// Modèle corrigé : quand un RENVOYER top-level ET un RENVOYER
+// dans Fermeture() (teardown projet, PROCEDURE appelée après le corps
+// imperatif, cf. src/project_run.c::call_project_teardown) coexistent,
+// c'est Fermeture() qui porte le code de sortie -- elle s'exécute en
+// dernier (après le corps + la fenêtre éventuelle). Le RENVOYER top-level
+// est ignoré. Ici : top-level pose 5, Fermeture() pose 9 -> exit attendu
+// = 9.
+AppRenvoyerFermeture est un Projet
+	PROPRIETES
+		Langues = [langueFrançais]
+	FIN
+
+	PROCEDURE Fermeture()
+		RENVOYER 9
+	FIN
+
+	Trace("avant renvoyer projet (top-level)")
+	RENVOYER 5
+FIN

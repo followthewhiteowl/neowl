@@ -5897,6 +5897,34 @@ static const char* format_line_content(const char* p, Buffer* out,
                  (normLen == 2 && strcmp(normBuf, "to") == 0))) {
                 kw = NULL;
             }
+            /*  — un mot-cle reserve (AUTRE/SI/POUR/CHAINE/INTERFACE...)
+             * employe comme NOM DE MEMBRE a sa declaration (`autre est un
+             * entier` dans une Structure ou une Classe) ne doit PAS etre canonise
+             * vers le mot-cle. Trois conditions conjointes, toutes necessaires :
+             *  - 1er mot de la ligne ET immediatement suivi d'une copule (est/is)
+             *    — aucun statement ne place un mot-cle juste avant une copule ;
+             *  - le mot est un champ/membre connu (harvest user_fields /
+             *    class_members) : discrimine la declaration de MEMBRE (legale) de
+             *    la declaration de VARIABLE LOCALE homonyme (`si est un entier`
+             *    dans un corps de procedure, hors scope, qui garde sa
+             *    canonisation vers SI).
+             * Le token de TYPE (a droite de la copule) garde son canon ; l'acces
+             * (`r.autre`, `:autre`) passe deja par le chemin membre. */
+            if (kw != NULL && wordIsFirstOnLine &&
+                (kw->category == CAT_CONTROL || kw->category == CAT_TYPE ||
+                 kw->category == CAT_OOP) &&
+                (user_name_known(g_fmt_st->user_fields,
+                                 g_fmt_st->user_fields_count,
+                                 wordStart, wordLen) ||
+                 class_member_exists_any_class(wordStart, wordLen))) {
+                char nextCop[8];
+                int ncl = fmt_peek_next_word(p, nextCop, sizeof nextCop);
+                if (ncl > 0 && fmt_is_copule(nextCop, ncl)) {
+                    buf_write(out, wordStart, wordLen);
+                    lastWord = wordStart; lastWordLen = wordLen;
+                    continue;
+                }
+            }
             /* Garde shadow constante built-in : si le mot match une constante
              * de la table (CAT_BOOL — Vrai/Faux/Null/TAB/CRLF/… — ou une forme
              * heritee CAT_EOL_LEGACY) ET qu'il est declare comme variable user,
@@ -5926,9 +5954,22 @@ static const char* format_line_content(const char* p, Buffer* out,
              * keyword et ressortait `Corps`. En position hors-type (le mot
              * n'est pas le type de la declaration) c'est un identifiant
              * utilisateur : verbatim, comme le fait deja  / 
-             * pour les homonymes non-keyword. Limite a CAT_DECL : CAT_BOOL /
-             * CAT_EOL_LEGACY gardent leur garde is_var_name inchangee. */
-            if (!declNameProtected && kw != NULL && kw->category == CAT_DECL &&
+             * pour les homonymes non-keyword.
+             *
+             *  — meme garde etendue a CAT_BOOL / CAT_EOL_LEGACY (les
+             * constantes built-in identifiant : tab, crlf...). Un membre nomme
+             * comme une constante (`tab est un tableau`, `:crlf = 0`) tombait
+             * sur la canonisation constante et ressortait `TAB` / `:CRLF`,
+             * corrompant le nom choisi par l'utilisateur. Pour la DECLARATION,
+             * `tab`->`TAB` se propageait ensuite a l'ACCES via le contexte
+             * reharveste sur la sortie canonisee (rupture d'idempotence). La
+             * VARIABLE LOCALE homonyme (`tab est un entier` dans un corps de
+             * procedure) reste couverte par is_var_name plus haut : elle
+             * n'est ni dans user_fields ni dans class_members, donc cette
+             * garde ne l'atteint pas et son comportement est inchange. */
+            if (!declNameProtected && kw != NULL &&
+                (kw->category == CAT_DECL || kw->category == CAT_BOOL ||
+                 kw->category == CAT_EOL_LEGACY) &&
                 !fmt_in_type_position(lastWord, lastWordLen, seenCopuleOnLine) &&
                 (user_name_known(g_fmt_st->user_fields,
                                  g_fmt_st->user_fields_count,

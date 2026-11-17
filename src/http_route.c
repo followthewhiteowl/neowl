@@ -172,9 +172,33 @@ static int param_is_query(const OwlOperationDecl* op, const char* wantCanon) {
     return 0;
 }
 
+/*  — vrai si `name` (deja canon) figure dans la liste Formulaire
+ * (corps urlencoded) de op. */
+static int param_is_form(const OwlOperationDecl* op, const char* wantCanon) {
+    for (int i = 0; i < op->formParamCount; i++) {
+        char have[256];
+        route_canon(op->formParams[i], (int)strlen(op->formParams[i]),
+                    have, sizeof(have));
+        if (strcmp(have, wantCanon) == 0) return 1;
+    }
+    return 0;
+}
+
+/*  — vrai si la methode porte un corps de requete (seules httpPost /
+ * httpPut / httpPatch en ont un). method_label normalise en verbe majuscule
+ * (prefixe http strippe), tolerant aux deux graphies httpPost / POST. */
+static int method_has_body(const char* method) {
+    if (method == NULL) return 0;
+    char label[64];
+    method_label(method, label, sizeof(label));
+    return strcmp(label, "POST") == 0 || strcmp(label, "PUT") == 0
+        || strcmp(label, "PATCH") == 0;
+}
+
 /* Controle 3 : chaque param de surRequete se lie a EXACTEMENT une source.
- * Nomme dans Chemin -> chemin ; nomme dans Requete -> query ; le reste doit
- * etre structure (le corps), et il n'y a qu'un seul corps. */
+ * Nomme dans Chemin -> chemin ; nomme dans Requete -> query ; nomme dans
+ * Formulaire -> corps urlencoded ; le reste doit etre structure (le corps),
+ * et il n'y a qu'un seul corps. */
 static void check_binding_source(const OwlOperationDecl* op) {
     /* Chemin non fiable (segment invalide deja signale) : ne pas cascader
      * de faux "source inconnue" par-dessus la vraie erreur de chemin. */
@@ -186,17 +210,25 @@ static void check_binding_source(const OwlOperationDecl* op) {
                     want, sizeof(want));
         int inPath  = param_is_path(op, want);
         int inQuery = param_is_query(op, want);
-        if (inPath && inQuery) {
-            /* Deux sources pour un meme param : incoherent (quelle valeur
-             * gagne a l'execution ?). Chaque param doit avoir une source. */
+        int inForm  = param_is_form(op, want);
+        /* Garde GENERIQUE : un meme nom ne peut venir que d'UNE source parmi
+         * Chemin / Requête / Formulaire (quelle valeur gagnerait a l'execution
+         * sinon ?). On rapporte la premiere paire dans l'ordre de priorite. */
+        const char* srcNames[3];
+        int nc = 0;
+        if (inPath)  srcNames[nc++] = "Chemin";
+        if (inQuery) srcNames[nc++] = "Requ\xc3\xaate";   /* Requête */
+        if (inForm)  srcNames[nc++] = "Formulaire";
+        if (nc >= 2) {
             Token t = op_token(op);
             owl_emit_error_at(&t, E_SEM_DSL_SERVICE_BINDING_MULTIPLE_SOURCES,
                               "param", op->procParams[p].name,
-                              "op", op->name, NULL);
+                              "op", op->name,
+                              "source1", srcNames[0],
+                              "source2", srcNames[1], NULL);
             continue;
         }
-        if (inPath) continue;   /* source = chemin */
-        if (inQuery) continue;  /* source = query */
+        if (nc == 1) continue;   /* source unique = chemin / query / formulaire */
 
         /*  — un FichierTéléversé est lie a une partie du formulaire
          * multipart (source dediee), jamais un scalaire orphelin. */
@@ -259,6 +291,56 @@ static void check_multipart_contract(const OwlOperationDecl* op) {
     }
 }
 
+/*  — contrat de la source Formulaire (corps urlencoded). Quatre refus
+ * dedies, evalues dans l'ordre du plus structurant au plus fin :
+ *  (1) Formulaire sur une methode sans corps (httpGet/httpDelete/httpHead) ;
+ *  (4) Formulaire combine a TypeContenu = multipart (deux encodages de corps) ;
+ *  (3) Formulaire combine a un corps de requete structure (corps JSON) ;
+ *  (5) un champ de Formulaire absent de la signature surRequête (completude).
+ * (1)/(3)/(4) invalident tout le reste -> retour immediat ; (5) peut rapporter
+ * plusieurs champs manquants. */
+static void check_form_contract(const OwlOperationDecl* op) {
+    if (op->formParamCount == 0) return;
+    if (op->pathHadError) return;
+    Token t = op_token(op);
+
+    if (!method_has_body(op->method)) {
+        char label[64];
+        method_label(op->method != NULL ? op->method : "", label, sizeof(label));
+        owl_emit_error_at(&t, E_SEM_DSL_SERVICE_FORM_METHOD_NO_BODY,
+                          "op", op->name, "method", label, NULL);
+        return;
+    }
+    if (op->contentTypeMultipart) {
+        owl_emit_error_at(&t, E_SEM_DSL_SERVICE_FORM_WITH_MULTIPART,
+                          "op", op->name, NULL);
+        return;
+    }
+    for (int p = 0; p < op->procParamCount; p++) {
+        if (op->procParams[p].isStructured) {
+            owl_emit_error_at(&t, E_SEM_DSL_SERVICE_FORM_WITH_BODY,
+                              "op", op->name, NULL);
+            return;
+        }
+    }
+    for (int f = 0; f < op->formParamCount; f++) {
+        char want[256];
+        route_canon(op->formParams[f], (int)strlen(op->formParams[f]),
+                    want, sizeof(want));
+        int found = 0;
+        for (int p = 0; p < op->procParamCount; p++) {
+            char have[256];
+            route_canon(op->procParams[p].name,
+                        (int)strlen(op->procParams[p].name), have, sizeof(have));
+            if (strcmp(have, want) == 0) { found = 1; break; }
+        }
+        if (!found) {
+            owl_emit_error_at(&t, E_SEM_DSL_SERVICE_FORM_PARAM_UNBOUND,
+                              "param", op->formParams[f], "op", op->name, NULL);
+        }
+    }
+}
+
 /*  — garde de coherence P1 : un flux (Flux = fluxSSE / fluxOctets) est
  * un mode de REPONSE progressive ; un corps multipart (ContentType = multipart)
  * est un mode de RECEPTION d'upload. Les deux combines sur une meme operation
@@ -300,6 +382,46 @@ static void check_wildcard_position(const OwlOperationDecl* op) {
     }
 }
 
+/*  — garde 1 : collision route <-> montage FichiersStatiques. Le
+ * montage sert tout ce qui tombe sous son PréfixeUrl (effectif = UrlBase +
+ * PréfixeUrl) ; comme operations et montage partagent le meme UrlBase, il
+ * suffit de comparer le Chemin de chaque operation au PréfixeUrl. Une
+ * operation dont le Chemin commence par le PréfixeUrl est en collision : une
+ * meme URL ne peut etre a la fois une route explicite et un fichier servi par
+ * le montage (toutes methodes confondues — le cas POST sous prefixe tombe ici,
+ * pas en 404 runtime). Un segment-parametre en position de prefixe apparie
+ * toute valeur, donc compte comme recouvrant. */
+static void check_static_mount_collision(const OwlServiceDecl* svc) {
+    if (svc->staticDir == NULL || svc->staticPrefixCount == 0) return;
+
+    char prefixStr[512];
+    int pn = 0;
+    for (int s = 0; s < svc->staticPrefixCount; s++) {
+        pn += snprintf(prefixStr + pn, sizeof(prefixStr) - (size_t)pn,
+                       "/%s", svc->staticPrefix[s]);
+        if (pn >= (int)sizeof(prefixStr) - 1) break;
+    }
+
+    for (int i = 0; i < svc->operationCount; i++) {
+        const OwlOperationDecl* op = svc->operations[i];
+        if (op->pathSegmentCount < svc->staticPrefixCount) continue;
+        int underPrefix = 1;
+        for (int s = 0; s < svc->staticPrefixCount; s++) {
+            if (seg_is_param(op, s)) continue;   /* parametre : apparie tout */
+            char ko[256], kp[256];
+            route_canon(op->pathSegments[s], (int)strlen(op->pathSegments[s]),
+                        ko, sizeof(ko));
+            route_canon(svc->staticPrefix[s], (int)strlen(svc->staticPrefix[s]),
+                        kp, sizeof(kp));
+            if (strcmp(ko, kp) != 0) { underPrefix = 0; break; }
+        }
+        if (!underPrefix) continue;
+        Token t = op_token(op);
+        owl_emit_error_at(&t, E_SEM_DSL_SERVICE_STATIC_ROUTE_COLLISION,
+                          "op", op->name, "prefix", prefixStr, NULL);
+    }
+}
+
 void owl_http_route_analyze_service(const OwlServiceDecl* svc) {
     if (svc == NULL) return;
 
@@ -321,6 +443,11 @@ void owl_http_route_analyze_service(const OwlServiceDecl* svc) {
     /*  — contrat multipart <-> FichierTéléversé, bidirectionnel. */
     for (int i = 0; i < svc->operationCount; i++) {
         check_multipart_contract(svc->operations[i]);
+    }
+
+    /*  — contrat de la source Formulaire (corps urlencoded). */
+    for (int i = 0; i < svc->operationCount; i++) {
+        check_form_contract(svc->operations[i]);
     }
 
     /*  — garde de coherence P1 : Flux incompatible avec multipart. */
@@ -361,4 +488,7 @@ void owl_http_route_analyze_service(const OwlServiceDecl* svc) {
                               "example", req, NULL);
         }
     }
+
+    /*  — Controle 4 : collision route <-> montage FichiersStatiques. */
+    check_static_mount_collision(svc);
 }

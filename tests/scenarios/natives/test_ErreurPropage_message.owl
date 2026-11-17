@@ -1,0 +1,39 @@
+// @sujet : ErreurPropage
+// @résumé : ErreurPropage accepte un message optionnel qui est inséré au
+// début du message de l'erreur soft courante (préfixation), avant que
+// l'erreur promue en exception ne soit propagée au niveau supérieur.
+// Fichier séparé de test_ErreurPropage.owl : l'extension d'arité fait
+// échouer la compilation de tout le fichier tant qu'elle n'est pas
+// implémentée, ce qui ne doit pas entraîner les scénarios 0-argument
+// existants dans le rouge en attendant.
+
+
+PROCEDURE avantChaqueTest()
+	ErreurRAZ()
+FIN
+
+
+// Avec un message fourni, ErreurPropage insère ce message AU DÉBUT du
+// message d'erreur d'origine, puis propage comme d'habitude : la zone
+// protégée rattrape une exception dont le message combine les deux, et
+// le code d'erreur d'origine n'est pas altéré.
+PROCEDURE scenario_message_prefixe_a_la_propagation()
+	bRattrapee       est un booléen = Faux
+	sMessageRattrape est une chaîne = ""
+	nCodeRattrape    est un entier  = 0
+
+	ErreurDéclenche(7, "Quota de requêtes dépassé.")
+
+	QUAND EXCEPTION DANS
+		ErreurPropage("[CTX] ")
+	FAIRE
+		bRattrapee       = Vrai
+		sMessageRattrape = ExceptionInfo(errMessage)
+		nCodeRattrape    = ExceptionInfo(errCode)
+	FIN
+
+	dbgVérifieVrai(bRattrapee, "ErreurPropage avec message reste rattrapable par FAIRE")
+	dbgVérifieVrai(CommencePar(sMessageRattrape, "[CTX] "), "Le message rattrapé commence par le message fourni à ErreurPropage")
+	dbgVérifieEgalité(sMessageRattrape, "[CTX] Quota de requêtes dépassé.", "Le message fourni est inséré au début du message d'erreur d'origine")
+	dbgVérifieEgalité(nCodeRattrape, 7, "Le code d'erreur d'origine n'est pas altéré par le message de propagation")
+FIN

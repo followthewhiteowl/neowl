@@ -1,0 +1,24 @@
+//  (ST-B) — non-régression : `ImageFond..Source` vide doit rendre
+// EXACTEMENT comme un conteneur qui n'a jamais connu la prop. Oracle = capture
+// pixel réelle (offscreen), même point de mesure sur les deux conteneurs.
+//
+// ROUGE attendu avant impl : le fichier voisin ne compile pas (`ImageFond`
+// inconnu sur styleCadreExtérieur). Cf. FEN_StyleImageFondDefautNonRegression.owl.
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_StyleImageFondDefautNonRegression)
+
+img est une Image = dCopieImageFenêtre(FEN_StyleImageFondDefautNonRegression)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// CNT_Reference [X=20..170,Y=20..120], centre=(95,70)
+cRef est un entier = dPixelCouleur(img, 95, 70)
+dbgVérifieEgalité(cRef, RVB(80, 80, 80), "référence : sans la prop ImageFond, le conteneur garde son CouleurFond plat")
+
+// CNT_AvecImageVide [X=200..350,Y=20..120], centre=(275,70)
+cVide est un entier = dPixelCouleur(img, 275, 70)
+dbgVérifieEgalité(cVide, cRef, "défaut neutre strict : ImageFond..Source vide rend identique à un conteneur qui n'a jamais connu la prop")
+
+Ferme(FEN_StyleImageFondDefautNonRegression)
+dbgBilanTest()

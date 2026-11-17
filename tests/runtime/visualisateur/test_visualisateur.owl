@@ -1,0 +1,82 @@
+// Surface testable de iDestination(iVisualisateur, ...) pour diriger
+// l'impression d'un Etat vers le visualisateur de rapports. On verifie : la
+// resolution du symbole iVisualisateur (constante de destination, membre de
+// l'enum iDestination, insensible a la casse), l'arite variable du parametre
+// Zoom (numerique direct ou constantes de zoom canon, elles aussi insensibles
+// a la casse et aux accents), et l'enchainement sans erreur dans le pipeline
+// d'impression (iImprimeEtat puis iFinImprime).
+//
+// La fenetre du visualisateur elle-meme (empilement des pages, zoom,
+// navigation, maximisation par defaut) est de l'UI Qt interactive : hors de
+// portee d'un test automatise, validee a l'oeil par ailleurs. Ici on
+// verifie uniquement ce qui est observable sans ecran : resolution du
+// symbole, arite acceptee, absence d'erreur runtime.
+//
+// La ressource Etat ETAT_ApercuSimple vit dans le voisin
+// etat_visualisateur.owl.
+
+TestModeHeadless(Vrai)
+
+// 1. Destination iVisualisateur seule (valeurs par defaut pour le reste),
+//    enchainee dans le pipeline d'impression existant.
+iDestination(iVisualisateur)
+iImprimeEtat(ETAT_ApercuSimple)
+bSansErreurDestinationSeule est un booléen = (ErreurDétectée = Faux)
+iFinImprime()
+dbgVérifieVrai(bSansErreurDestinationSeule,
+"iDestination(iVisualisateur) seul puis impression d'un État sans erreur runtime")
+
+// 2. Resolution insensible a la casse de la constante de destination.
+iDestination(IVISUALISATEUR)
+dbgVérifieVrai(ErreurDétectée = Faux, "IVISUALISATEUR en capitales resout vers la meme constante")
+
+// 3. Zoom en pourcentage (valeur numerique directe, 10 a 999).
+iDestination(iVisualisateur, 75)
+dbgVérifieVrai(ErreurDétectée = Faux, "iDestination(iVisualisateur, zoom) accepte un pourcentage de zoom")
+
+// 4. Zoom + titre du visualisateur.
+iDestination(iVisualisateur, 75, "Visualisateur de test")
+dbgVérifieVrai(ErreurDétectée = Faux, "iDestination(iVisualisateur, zoom, titre) accepte un titre de fenetre")
+
+// 5. Zoom + titre + affichage des boutons d'impression.
+iDestination(iVisualisateur, 75, "Visualisateur de test", Faux)
+dbgVérifieVrai(ErreurDétectée = Faux,
+"iDestination(iVisualisateur, zoom, titre, boutons) accepte le booléen boutons")
+
+// 6. Arite complete (8 parametres) : destination, zoom, titre, boutons,
+//    position X/Y, largeur, hauteur de la fenetre du visualisateur.
+iDestination(iVisualisateur, 75, "Visualisateur de test", Vrai, 50, 60, 800, 600)
+dbgVérifieVrai(ErreurDétectée = Faux, "iDestination(iVisualisateur) accepte son arite complete a 8 parametres")
+
+// 7. Constantes de zoom canon acceptees en lieu d'un pourcentage numerique,
+//    chacune enchainee dans un pipeline d'impression reel.
+iDestination(iVisualisateur, i100)
+iImprimeEtat(ETAT_ApercuSimple)
+bSansErreurZoom100 est un booléen = (ErreurDétectée = Faux)
+iFinImprime()
+dbgVérifieVrai(bSansErreurZoom100, "i100 accepte comme Zoom de iDestination(iVisualisateur, ...)")
+
+iDestination(iVisualisateur, iapZoomLargeurPage)
+iImprimeEtat(ETAT_ApercuSimple)
+bSansErreurZoomLargeurPage est un booléen = (ErreurDétectée = Faux)
+iFinImprime()
+dbgVérifieVrai(bSansErreurZoomLargeurPage,
+"iapZoomLargeurPage accepte comme Zoom de iDestination(iVisualisateur, ...)")
+
+iDestination(iVisualisateur, iPage)
+iImprimeEtat(ETAT_ApercuSimple)
+bSansErreurZoomPage est un booléen = (ErreurDétectée = Faux)
+iFinImprime()
+dbgVérifieVrai(bSansErreurZoomPage, "iPage accepte comme Zoom de iDestination(iVisualisateur, ...)")
+
+iDestination(iVisualisateur, iZoomDéfaut)
+iImprimeEtat(ETAT_ApercuSimple)
+bSansErreurZoomDefaut est un booléen = (ErreurDétectée = Faux)
+iFinImprime()
+dbgVérifieVrai(bSansErreurZoomDefaut, "iZoomDéfaut accepte comme Zoom de iDestination(iVisualisateur, ...)")
+
+// 8. Resolution insensible aux accents de la constante de zoom par defaut.
+iDestination(iVisualisateur, iZoomDefaut)
+dbgVérifieVrai(ErreurDétectée = Faux, "iZoomDefaut sans accent resout vers la meme constante que iZoomDéfaut")
+
+dbgBilanTest()

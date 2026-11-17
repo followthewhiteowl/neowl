@@ -1,0 +1,30 @@
+// Contrat CIBLE  : un montage `FichiersStatiques` ne sert que
+// GET/HEAD par nature (aucune méthode à déclarer). Une `OpérationHTTP`
+// explicite en POST (ou autre méthode) dont le `Chemin` tombe sous le
+// `PréfixeUrl` du montage est une variante de la collision route/montage —
+// refus attendu à la compilation, pas un 404 runtime.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `FichiersStatiques`
+// n'existe pas encore comme propriété de `ServiceREST` (seul l'ancien nom
+// `Statique` l'est, break-net à venir) — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de collision route/montage. À régénérer une fois 
+// livré.
+ServiceDocuments est un ServiceREST
+	PROPRIETES
+		UrlBase           = ["api"]
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "assets"}
+	FIN
+
+	Depose est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpPost
+			Chemin   = ["static", "depose"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			RENVOYER "depose"
+		FIN
+	FIN
+FIN

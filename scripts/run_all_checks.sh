@@ -228,6 +228,20 @@ reg limits-probe bin 0 limits-probe.log \
     "Pour chaque limite sondee, N-1 doit compiler et N+1 doit echouer en nommant CETTE limite. Un N-1 refuse signale un mur emprunte : une autre limite, ou une table dimensionnee sur le nom d'une autre, frappe avant — c'est le cas que le controle statique ne peut pas voir. Un N+1 accepte signale une saturation muette. ~40 s. Les sondes ecartees et leur raison sont listees en tete de tests/limits/run.sh." \
     'OWL_BIN="$OWL" bash tests/limits/run.sh'
 
+# Volet dedie : la table de prescan classMethods[] n'est pas exposee par
+# `owl list limits`, donc limits-probe (sondeur generique) ne peut pas la couvrir.
+reg prescan-classmethods bin 0 prescan-classmethods.log \
+    "TRONCATURE PRESCAN : la table classMethods[] abandonne une signature de methode en silence." \
+    "La table de prescan classMethods[] (src/prescan.h, dimensionnee sur PRESCAN_MAX_CLASS_METHODS, KEEP IN SYNC avec MAX_DECLARED_METHODS) n'est PAS exposee par \`owl list limits\` : limits-probe ne la voit pas. Au-dela de son plafond, une entree abandonnee en silence fait faux-positiver le check de redefinition de methode abstraite — \`owl --check\` accuse a tort une classe concrete de ne pas redefinir une methode abstraite heritee, alors que l'execution resout correctement. Ce probe compile au-dela de l'ancien plafond (512) et exige un --check sain + une execution correcte. Corriger src/prescan.c (garde au plafond via error_capacity_exceeded, jamais de skip muet) avant commit." \
+    'OWL_BIN="$OWL" bash tests/limits/prescan_classmethods_truncation.sh'
+
+# Volet soeur : la table classMethodVis[] (visibilite des methodes de classe,
+# ) n'est pas exposee par `owl list limits` non plus.
+reg prescan-classmethodvis bin 0 prescan-classmethodvis.log \
+    "TRONCATURE PRESCAN : la table classMethodVis[] abandonne une visibilite de methode en silence." \
+    "La table de prescan classMethodVis[] (src/prescan.h, dimensionnee sur PRESCAN_MAX_CLASS_METHODS, KEEP IN SYNC avec MAX_DECLARED_METHODS) hydrate la visibilite PUBLIC/PRIVE/PROTEGE des methodes de classe pour les checks cross-fichier en \`owl --check --project\` (chemin LSP save, fix/2105). Au-dela de son plafond, une entree abandonnee en silence laisse passer un acces PRIVE illegal cross-fichier (faux negatif de securite : \`o.Secret()\` accepte a tort, alors que l'execution refuse). Ce probe compile au-dela de l'ancien plafond (512) et exige un --check qui refuse l'acces illegal. Corriger src/prescan.c (garde au plafond via error_capacity_exceeded, jamais de skip muet) avant commit." \
+    'OWL_BIN="$OWL" bash tests/limits/prescan_classmethodvis_truncation.sh'
+
 # `bin` : le cfg n'existe qu'apres le build d'owl (POST_BUILD). Gate sur le
 # build evite le faux rouge "cfg absent" (exit 2) en contexte sans binaire :
 # build casse -> check rapporte NON EXECUTE, jamais rouge.
@@ -262,6 +276,11 @@ reg lint-narrow-io none 0 lint-narrow-io.log \
     "Un chemin UTF-8 passe a fopen/opendir/GetFileAttributesA narrow est relu via la code page ANSI : dossier accentue introuvable sur Windows (bug silencieux, invisible sur chemin ASCII). Utilise les wrappers wide owl_*/xls_*, ou annote /* narrow-ok */ si pass-through POSIX legitime (cf. fix/2336)." \
     'bash scripts/lint_narrow_io.sh'
 
+reg accented-source-path bin 0 accented-source-path.log \
+    "SOURCE ACCENTUEE : le loader n'ouvre plus un .owl au nom accentue." \
+    "La couche loader (src/project.c::read_file, derriere --check / run / test) doit ouvrir un fichier source dont le nom contient des accents UTF-8. Un fopen narrow relit le chemin via la code page ANSI : fichier introuvable (\`Cannot read file\`), bug silencieux invisible sur nom ASCII (cf. fix/2436, meme classe que fix/2336). Le fichier accentue est cree a la volee (pas committe). Un rouge = read_file a reperdu son ouverture wide (_wfopen)." \
+    'OWL="$OWL" bash scripts/test_accented_source_path.sh'
+
 reg doc-type-fields bin 0 doc-type-fields.log \
     "DOC <-> TEMPLATE : la table de champs publiee ne decrit plus le type reel." \
     "Un champ documente mais absent du template est une promesse que le compilateur refuse (\`cnx..TimeoutCnx = 30\` -> « Membre inexistant ») ; un champ present mais non documente est indecouvrable. Les deux dorment des mois : le self-test registry itere le registre, pas la doc, et la suite n'ecrit jamais un champ qu'elle ignore. La source de verite est le template C, pas la doc — corriger la doc, sauf si c'est bien le champ qui manque. Portee DERIVEE (fix/1592) : toute table \`| Field FR | Field EN |\` de docs/public_documentation/ sous sa section \`### \`<type>\`\` est couverte d'office — aucune liste a tenir. Un message « aucune ligne de table trouvee » ou « table sans section englobante » dit que la sonde est devenue muette, pas qu'elle passe." \
@@ -286,6 +305,31 @@ reg cli-serve bin 0 cli-serve.log \
     "OWL SERVE FRONTIERE PROJET violee : owl serve ne compile qu'un fichier isole au lieu de la frontiere projet." \
     "\`owl serve api.owl\` doit resoudre la frontiere projet (meme moteur que \`owl <fichier>\` / \`owl .\`) et compiler TOUS les fichiers voisins (compagnons defs+corps AVANT l'entree), pour qu'un ServiceREST reference un ETAT_X ou une procedure declaree dans un fichier voisin. Le harnais monte \`owl serve api.owl\` sur un projet {projet.owl, etat_facture.owl, api.owl} : avant le fix, la compilation echoue sur 'ETAT_Facture inconnue'. Un rouge ici pointe handle_serve_command (src/main.c), owl_serve_prepare_projet (src/owl_serve.c) ou la voie projet de l'executeur (src/http_exec.c / project_run_sources_no_teardown), pas le compilateur (fix/1982)." \
     'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/serve/run.sh'
+
+reg cli-serve-sse bin 0 cli-serve-sse.log \
+    "FRAMING SSE NOMME viole : la famille FluxEvenement/FluxIdentifiant/FluxCommentaire n'encadre pas les octets comme attendu par un client SSE (HTMX sse-ext)." \
+    "Un service \`Flux = fluxSSE\` dont le handler appelle FluxEvenement(\"log\",\"ligne1\"), FluxIdentifiant(\"42\") puis FluxCommentaire(\"heartbeat\") doit produire, corps de-chunke, EXACTEMENT 'event: log\\ndata: ligne1\\n\\nid: 42\\n: heartbeat\\n'. Le harnais monte \`owl serve\` sur la fixture et compare octet pour octet. Un rouge ici pointe flux_courant_emit / la famille Flux* (src/stdlib_http_service.c), pas le transport (feat/2475)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/serve_sse_evenements/run.sh'
+
+reg cli-serve-formulaire bin 0 cli-serve-formulaire.log \
+    "BINDING FORMULAIRE URLENCODE viole : la propriete \`Formulaire\` d'une OperationHTTP ne lie pas les champs d'un corps application/x-www-form-urlencoded aux parametres homonymes de surRequete, ou l'arbitrage Content-Type ne rejette pas un corps du mauvais type." \
+    "Un service dont une OperationHTTP POST declare \`Formulaire = [nom, email, age]\` doit, sur un POST \`application/x-www-form-urlencoded\` (\`nom=jean&email=a%40b.c&age=30\`), lier chaque champ par nom au parametre homonyme et le coercer vers son type (age entier -> corps \"jean|a@b.c|31\", 200). Un corps JSON pose sur la meme route -> 415 (Unsupported Media Type) sans invoquer surRequete. Le parse de \`Formulaire\` est dans src/compiler.c, le binding + l'arbitrage Content-Type dans src/http_exec.c, les gardes de coherence dans src/http_route.c. Un rouge ici pointe l'une de ces couches (feat/2485)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/serve_formulaire_urlencoded/run.sh'
+
+reg cli-serve-statiques bin 0 cli-serve-statiques.log \
+    "MONTAGE STATIQUE viole : un ServiceREST \`Statique = {Prefixe, Dossier}\` ne sert pas les fichiers du dossier avec le bon Content-Type." \
+    "Un service declarant \`Statique = {Prefixe: [\"static\"], Dossier: \"assets\"}\` sous \`UrlBase = [\"api\"]\` doit servir les fichiers de ./assets sous /api/static/, octet pour octet, avec le Content-Type derive de l'extension (css -> text/css, js -> text/javascript, svg -> image/svg+xml, html -> text/html), et renvoyer 404 sur un fichier absent. La propriete est parsee dans service_parse_static_mount (src/compiler.c), le montage publie au registre durable (src/http_service_runtime.c) et servi au branchement OWL_SVC_RESOLVE_NONE (src/http_exec.c). Un rouge ici pointe l'une de ces trois couches, pas le transport (feat/2477)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/serve_fichiers_statiques/run.sh'
+
+reg cli-serve-statiques-traversee bin 0 cli-serve-statiques-traversee.log \
+    "GARDE ANTI-TRAVERSEE violee : un montage statique laisse remonter hors de son dossier (fuite d'un fichier voisin)." \
+    "La garde anti-traversee du montage statique (src/http_exec.c) normalise LEXICALEMENT le suffixe d'URL : URL-decodage UNE passe (le double-encodage \`%252e\` reste litteral), rejet de l'octet nul, split sur / ET backslash, compteur de profondeur (\`..\` remontant au-dessus de la racine = rejet). Les 6 vecteurs (\`../\`, \`%2e%2e/\`, \`%2e%2e%2f\`, \`%252e...\`, \`%5c\`, \`../../../\`) doivent TOUS etre rejetes (code != 200), sans jamais servir secret.txt (fichier voisin hors dossier monte). Tout rejet renvoie un 404 UNIFORME (jamais 403, ne pas reveler la structure FS). Un rouge ici est une vulnerabilite, pas un detail (feat/2477)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/serve_fichiers_statiques_traversee/run.sh'
+
+reg cli-serve-corps-brut bin 0 cli-serve-corps-brut.log \
+    "LECTURE CORPS BRUT REQUETE violee : MoiMême..Requête..Corps ne restitue pas le corps entrant octet pour octet." \
+    "En contexte service, \`MoiMême..Requête..Corps\` (miroir lecture de \`..Réponse..Corps\`) doit rendre le corps BRUT de la requete recue, sans aucun parse (ni JSON ni urlencoded). La sous-propriete Corps/Body est reconnue par service_ctx_request_sub_canon (src/compiler.c) et semee byte-exact sur la sous-instance Requête depuis j->corps/corps_len (src/http_exec.c). Le harnais monte \`owl serve\` sur une route POST /api/echo qui renvoie \`MoiMême..Requête..Corps\`, POST un corps arbitraire (ponctuation + newline final) et compare octet pour octet (cmp). Un rouge ici pointe la sous-propriete compiler ou le seed http_exec, pas le transport (feat/2476)." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/serve_requete_corps_brut/run.sh'
 
 reg cli-openapi-projet bin 0 cli-openapi-projet.log \
     "OWL OPENAPI FRONTIERE PROJET violee : owl openapi ne compile qu'un fichier isole au lieu de la frontiere projet." \
@@ -331,6 +375,16 @@ reg cli-terminaison-allouer-ternaire bin 0 cli-terminaison-allouer-ternaire.log 
     "TERMINAISON DU PARSEUR violee : owl --check boucle a l'infini (runaway RAM/CPU) sur un groupe ( laisse ouvert contenant un closer de recuperation." \
     "Un groupe \`(\` laisse ouvert ET contenant un closer de recuperation (\`sinon\`/\`faire\`/\`enfin\`) a l'interieur fait boucler le parseur : parse_precedence (refuseBoundary, bracketDepth>0) ET synchronize() rendent tous deux la main SANS consommer ce token, et la boucle de declarations re-entre a l'infini. Declencheur reel emis par un convertisseur tiers : \`allouer un cX(1 ? \"a\" sinon \"\")\`. La garde de progression (compile_impl / compile_in_project / _split, src/compiler.c) force une avance quand une iteration n'a consomme aucun token. Le harnais passe chaque cas par un sous-process borne par timeout : rouge = TIMEOUT (non-terminaison), vert = terminaison rapide + erreur de compilation propre. Un rouge ici pointe la garde de progression des boucles de declarations top-level, pas les token-sets de recuperation (fix/2425)." \
     'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/check_terminaison_allouer_ternaire/run.sh'
+
+reg cli-lang-flag-precommande bin 0 cli-lang-flag-precommande.log \
+    "RACCOURCI DE LANGUE PRE-COMMANDE non reconnu : owl --en/--fr <commande> imprime l'usage au lieu d'executer la commande." \
+    "Les raccourcis de langue \`--en\`/\`--fr\` doivent etre reconnus en position pre-commande, au meme titre que \`--lang en\`/\`--lang fr\`. parse_session_flags (src/main.c) les stripe d'argv et bascule le rendu des diagnostics (owl_error_render_set_lang_en). Un rouge ici = \`--en\`/\`--fr\` laisse dans argv et pris pour la commande par le dispatch -> banniere d'usage au lieu du diagnostic (fix/2462). Le harnais exerce \`owl --en --check\` (attend un diagnostic ANGLAIS), \`owl --fr --check\` (FRANCAIS), et les formes longues \`--lang en/fr\` comme temoins de non-regression." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/lang_flag_precommande/run.sh'
+
+reg cli-renvoyer-exit-code bin 0 cli-renvoyer-exit-code.log \
+    "CODE DE SORTIE PROCESS violé : un RENVOYER <entier> au top-level ne pilote pas \$?/%ERRORLEVEL%." \
+    "Un \`RENVOYER <entier>\` au TOP-LEVEL du programme (top-level du script lancé, ou top-level de projet.owl en mode projet — ADR_0120) pilote le code de sortie du process : 7->7, 255->255, 3.9->3 (tronqué), \"abc\"->0 (non-entier), absent->0. Un RENVOYER dans une PROCEDURE appelée n'affecte PAS le code (retour à l'appelant). En mode projet, le top-level de projet.owl gagne ; Fermeture() (teardown) est ignorée pour le code de sortie. FinProgramme(<codeFermeture>) : le booléen exécute (Vrai) ou saute (Faux) le code de fermeture du projet, et sort toujours 0. Le harnais joue chaque cas en SOUS-PROCESS ($? non observable in-process). Un rouge ici pointe la capture OP_RETURN top-level (vm.exit_code, src/vm.c), sa fenêtre (vm.capture_exit_code posé par src/project_run.c), le wiring main.c, ou fn_fin_programme (src/stdlib_ui.c) — fix/2491." \
+    'OWL_BIN="$PWD/$BUILDDIR/owl.exe" bash tests/cli/renvoyer_exit_code/run.sh'
 
 reg real-to-str-locale none 0 real-to-str-locale.log \
     "LOCALE VIOLEE : owl_real_to_str fuit le separateur decimal de LC_NUMERIC." \

@@ -19,6 +19,7 @@
 #   - _local/qt6/x86_64-linux-musl/install       (sinon build_qt6_zig_native.sh OWL_MUSL=1)
 #   - _local/duckdb/x86_64-linux-musl/install    (sinon build_duckdb_zig_native.sh OWL_MUSL=1)
 #   - _local/tesseract/x86_64-linux-musl/install (sinon build_tesseract_zig_native.sh OWL_MUSL=1 ; OCR gate ON)
+#   - _local/llama/x86_64-linux-musl/install     (sinon build_llama_zig_native.sh OWL_MUSL=1 ; type LLM)
 #   - _local/host_tools/qt6              (Qt6 host glibc : moc/rcc/qmake ; via `make qt6`)
 #
 # Idempotent : relançable. Le build est incremental (build dir conserve) ;
@@ -44,6 +45,7 @@ MUSL_TRIPLE="x86_64-linux-musl"
 QT6_MUSL="$ROOT/_local/qt6/$MUSL_TRIPLE/install"
 DUCKDB_MUSL="$ROOT/_local/duckdb/$MUSL_TRIPLE/install"
 TESS_MUSL="$ROOT/_local/tesseract/$MUSL_TRIPLE/install"
+LLAMA_MUSL="$ROOT/_local/llama/$MUSL_TRIPLE/install"
 BUILD_DIR="$ROOT/_local/build/release_$MUSL_TRIPLE"
 OUT_DIR="$ROOT/release/linux-musl"
 
@@ -125,12 +127,19 @@ fi
 [ -f "$DUCKDB_MUSL/.owl_install_complete" ] || {
     echo "ERROR: DuckDB-musl introuvable apres build ($DUCKDB_MUSL)." >&2; exit 2; }
 
-# Qt6-musl : rebuild si le Qt6Config.cmake (qtbase) manque.
-if [ ! -f "$QT6_MUSL/lib/cmake/Qt6/Qt6Config.cmake" ]; then
-    echo "    Qt6-musl absent -> build_qt6_zig_native.sh (OWL_MUSL=1, ~40 min)"
+# Qt6-musl : garde-marqueur (modele du Qt6 Windows cote Makefile). Si les deux
+# markers d'install sont presents, le build lourd (~40 min) est court-circuite.
+# On exige qtbase ET qtsvg (owl linke Qt6::Svg) : un garde sur qtbase seul
+# skipperait un install ou qtsvg a jadis echoue -> configure owl casserait sur
+# Qt6Svg manquant. build_qt6_zig_native.sh saute qtbase deja installe (son
+# SKIP_QTBASE) et ne reconstruit alors que qtsvg (~5-10 min), pas les 40 min.
+QT6_MUSL_MARKER="$QT6_MUSL/lib/cmake/Qt6/Qt6Config.cmake"
+QTSVG_MUSL_MARKER="$QT6_MUSL/lib/cmake/Qt6Svg/Qt6SvgConfig.cmake"
+if [ ! -f "$QT6_MUSL_MARKER" ] || [ ! -f "$QTSVG_MUSL_MARKER" ]; then
+    echo "    Qt6-musl absent/incomplet -> build_qt6_zig_native.sh (OWL_MUSL=1)"
     OWL_MUSL=1 bash "$ROOT/scripts/build_qt6_zig_native.sh"
 fi
-[ -f "$QT6_MUSL/lib/cmake/Qt6/Qt6Config.cmake" ] || {
+{ [ -f "$QT6_MUSL_MARKER" ] && [ -f "$QTSVG_MUSL_MARKER" ]; } || {
     echo "ERROR: Qt6-musl introuvable apres build ($QT6_MUSL)." >&2; exit 2; }
 
 # OCR (Tesseract+Leptonica) musl : gate OWL_ENABLE_OCR ON par defaut -> owl.exe
@@ -147,6 +156,17 @@ fi
   && [ -n "$(ls "$TESS_MUSL"/lib/libtesseract*.a 2>/dev/null)" ] \
   && [ -f "$TESS_MUSL/lib/libleptonica.a" ] || {
     echo "ERROR: OCR-musl (libtesseract.a / libleptonica.a) introuvable apres build ($TESS_MUSL/lib)." >&2; exit 2; }
+
+# llama.cpp/ggml musl : owl linke owl_llama (type LLM, inference GGUF) de maniere
+# inconditionnelle (CMakeLists.txt gate sur .owl_install_complete). On provisionne
+# les .a musl si le marker d'install manque, meme pattern que duckdb/qt6/tesseract.
+# ~3 min one-time en cold, court-circuite en chaud.
+if [ ! -f "$LLAMA_MUSL/.owl_install_complete" ]; then
+    echo "    llama-musl absent -> build_llama_zig_native.sh (OWL_MUSL=1, ~3 min)"
+    OWL_MUSL=1 bash "$ROOT/scripts/build_llama_zig_native.sh"
+fi
+[ -f "$LLAMA_MUSL/.owl_install_complete" ] || {
+    echo "ERROR: llama-musl introuvable apres build ($LLAMA_MUSL)." >&2; exit 2; }
 
 echo "    Prerequis OK."
 echo ""

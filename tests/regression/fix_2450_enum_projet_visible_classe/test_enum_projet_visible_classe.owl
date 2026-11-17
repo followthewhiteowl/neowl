@@ -1,0 +1,22 @@
+//  : une valeur d'enumeration projet-globale (declaree hors classe,
+// dans un fichier compagnon top-level zglobals.owl) doit etre visible depuis
+// le corps d'une methode de classe, en nom nu (T1) et qualifiee Env.Test
+// (T2), exactement comme elle l'est deja au top-level du projet (T3,
+// non-regression).
+//
+// ROUGE attendu aujourd'hui sur T1/T2 : 'Test' / 'Env' variable inconnue ou
+// inaccessible depuis le corps de cFoo.LitTestBare / cFoo.LitTestQualifie.
+
+o est un cFoo()
+
+// T3 (non-regression, VERT attendu) : le top-level voit toujours Test en nom nu
+eAuTopLevel est un Env = Test
+dbgVérifieEgalité(eAuTopLevel, Test, "top-level : Test en nom nu reste resolu")
+
+// T1 : valeur bare depuis une methode de classe
+dbgVérifieEgalité(o.LitTestBare(), Test, "classe : RENVOYER Test (nom nu) depuis une methode")
+
+// T2 : valeur qualifiee Env.Test depuis une methode de classe
+dbgVérifieEgalité(o.LitTestQualifie(), Test, "classe : RENVOYER Env.Test (qualifie) depuis une methode")
+
+dbgBilanTest()

@@ -1,0 +1,27 @@
+// @sujet : Surcharge de methode de classe EN — resolution par type declare a arite egale
+// @resume : Une classe declaree avec les mots-cles EN (is a Class, is a/an <type>) doit
+// resoudre une surcharge de meme arite par le type declare de l'argument, exactement
+// comme une classe FR equivalente. L'ordre de declaration ne doit pas influencer le
+// choix quand un des deux types matche exactement.
+
+// Cas nominal : meme arite (1), types scalaires distincts (string vs integer),
+// la syntaxe type-correcte est declaree en 2e position.
+PROCEDURE PUBLIQUE scenario_surcharge_en_resolue_par_type()
+	o est un cCalculTypeEn()
+	n est un entier          = 42
+	s est une chaîne         = "abc"
+
+	dbgVérifieEgalité(o.M(n), "INTEGER", "argument entier resout vers la syntaxe EN integer, pas la 1re declaree string")
+	dbgVérifieEgalité(o.M(s), "STRING", "argument chaine resout vers la syntaxe EN string")
+FIN
+
+// Mixte : la classe est declaree en mots-cles EN, l'argument passe est une
+// variable declaree en syntaxe FR (`n est un entier`). Meme identite de type,
+// la resolution doit aboutir malgre le melange des grammaires au site de
+// declaration de classe et au site d'appel.
+PROCEDURE PUBLIQUE scenario_surcharge_en_appelee_avec_argument_fr()
+	o   est un cCalculTypeEn()
+	nFr est un entier          = 7
+
+	dbgVérifieEgalité(o.M(nFr), "INTEGER", "argument FR-type appelant une methode EN resout par identite de type, pas par grammaire de declaration")
+FIN

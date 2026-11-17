@@ -207,12 +207,56 @@ PRIVÉ
 FIN
 ```
 
-### Multi-arité : paramètres par défaut
+### Surcharge de méthode et paramètres par défaut
 
-La surcharge n'est pas supportée : deux méthodes du même nom dans la
-même classe sont interdites au moment de la compilation. Pour fournir
-plusieurs façons d'appeler la même action, on utilise des **paramètres
-par défaut** :
+Plusieurs méthodes de même nom aux **signatures distinctes** coexistent
+dans une même classe. La syntaxe appelée est choisie **à la
+compilation**, d'après :
+
+1. le **nombre d'arguments** ;
+2. à nombre d'arguments égal, le **type déclaré** des arguments — un
+   **match exact** l'emportant sur une conversion (la coercition souple
+   reste disponible, en second choix) ;
+3. en cas d'égalité entre types connus, la **première syntaxe déclarée**
+   l'emporte.
+
+```owl
+cMesure est une Classe
+PUBLIC
+    PROCEDURE Ajoute(n est un entier) : chaîne
+        RENVOYER "un_entier"
+    FIN
+
+    PROCEDURE Ajoute(n1 est un entier, n2 est un entier) : chaîne
+        RENVOYER "deux_entiers"
+    FIN
+
+    PROCEDURE Ajoute(t est un tableau de entiers) : chaîne
+        RENVOYER "tableau_entiers"
+    FIN
+FIN
+
+m est un cMesure()
+n est un entier = 5
+t est un tableau de entiers = [1, 2, 3]
+
+m.Ajoute(n)       // "un_entier"       — arité 1, argument entier
+m.Ajoute(n, n)    // "deux_entiers"    — arité 2
+m.Ajoute(t)       // "tableau_entiers" — arité 1, départagée par le type
+```
+
+Un **doublon de signature identique** (même nom, même liste de types)
+reste rejeté à la compilation. Lorsqu'un nom ne possède qu'une seule
+syntaxe, l'appel conserve la coercition souple habituelle.
+
+Si le type d'un argument ne peut pas être déterminé à la compilation —
+par exemple le résultat d'une procédure sans type de retour déclaré — et
+que le choix reste ambigu, la compilation échoue **au site d'appel**, en
+demandant de lever l'ambiguïté (typer le retour ou préciser l'argument).
+
+Les **paramètres par défaut** restent un outil complémentaire : ils
+offrent plusieurs façons d'appeler une même syntaxe sans en déclarer
+plusieurs.
 
 ```owl
 cPersonne est une Classe
@@ -255,7 +299,9 @@ FIN
 ```
 
 Pour une paire getter/setter, choisir deux noms distincts (`Solde()`
-/ `DefinirSolde(v)`, `Largeur()` / `LargeurChange(v)`, etc.).
+/ `DefinirSolde(v)`, `Largeur()` / `LargeurChange(v)`, etc.). La
+surcharge permet aussi une paire de même nom départagée par l'arité
+(`Solde()` en lecture, `Solde(v)` en écriture).
 
 ### Chaînage de méthodes sur une instance
 

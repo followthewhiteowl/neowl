@@ -78,6 +78,10 @@ typedef struct {
 
 typedef struct {
     bool hasWindow;
+    bool rootIsField;            /* racine = bloc widget isole (vue F2 "owl-bloc:"),
+                                  * pas une vraie Fenetre/Etat : rendu kind Field +
+                                  * detail type widget au lieu de Class. */
+    char rootDetail[MAX_NAME];   /* type de widget de la racine Field (ex "Bouton") */
     char windowName[MAX_NAME];
     int  windowStart;
     int  windowEnd;
@@ -637,16 +641,53 @@ static void parse_structure(const char* src, int srcLen, FenStructure* fs) {
             break;
         }
     }
-    if (winLine < 0) { free(lines); free(clean); return; }
+
+    if (winLine >= 0) {
+        fs->hasWindow = true;
+        int wl = nm.len < MAX_NAME ? nm.len : MAX_NAME - 1;
+        memcpy(fs->windowName, nm.p, wl);
+        fs->windowName[wl] = '\0';
+        fs->windowStart = winLine;
+        fs->windowEnd = find_block_end(lines, count, winLine, lines[winLine].indent);
+        parse_body(src, lines, count, winLine + 1, fs->windowEnd, -1, 0, fs);
+        free(lines);
+        free(clean);
+        return;
+    }
+
+    /* Pas de racine Fenetre/Etat : la vue F2 d'un controle ("owl-bloc:") ouvre
+     * un buffer dont la racine est le bloc widget "<NOM> est un Champ <Type>"
+     * dedente colonne 0. On le rend comme ce controle apparait DEJA imbrique
+     * dans l'Outline d'une fenetre : racine = le controle (Field + type widget
+     * en detail), enfants = ses evenements. Sans ce chemin, la 1re ligne L_FIELD
+     * basculait en Outline module (buckets "Classes"/"Constantes"). On ne cible
+     * que L_FIELD : une vraie classe/structure top-level d'un module reste au
+     * chemin module. */
+    Word fieldName, fieldType;
+    int fieldLine = -1;
+    for (int l = 0; l < count; l++) {
+        if (classify_line(&src[lines[l].start], lines[l].len,
+                          &fieldName, &fieldType) == L_FIELD &&
+            container_block_end(lines, l, lines[l].indent, count) >= 0) {
+            fieldLine = l;
+            break;
+        }
+    }
+    if (fieldLine < 0) { free(lines); free(clean); return; }
 
     fs->hasWindow = true;
-    int wl = nm.len < MAX_NAME ? nm.len : MAX_NAME - 1;
-    memcpy(fs->windowName, nm.p, wl);
-    fs->windowName[wl] = '\0';
-    fs->windowStart = winLine;
-    fs->windowEnd = find_block_end(lines, count, winLine, lines[winLine].indent);
-
-    parse_body(src, lines, count, winLine + 1, fs->windowEnd, -1, 0, fs);
+    fs->rootIsField = true;
+    int fnl = fieldName.len < MAX_NAME ? fieldName.len : MAX_NAME - 1;
+    memcpy(fs->windowName, fieldName.p, fnl);
+    fs->windowName[fnl] = '\0';
+    if (fieldType.p && fieldType.len > 0) {
+        int dl = fieldType.len < MAX_NAME ? fieldType.len : MAX_NAME - 1;
+        memcpy(fs->rootDetail, fieldType.p, dl);
+        fs->rootDetail[dl] = '\0';
+    }
+    fs->windowStart = fieldLine;
+    fs->windowEnd = find_block_end(lines, count, fieldLine, lines[fieldLine].indent);
+    parse_body(src, lines, count, fieldLine + 1, fs->windowEnd, -1, 0, fs);
 
     free(lines);
     free(clean);
@@ -1507,9 +1548,13 @@ JsonValue* handle_document_symbol(JsonValue* params) {
         return result;
     }
 
-    JsonValue* root = make_symbol(fs->windowName, KIND_CLASS,
+    /* Racine Class pour une Fenetre/Etat ; Field (+ type widget en detail) pour
+     * un bloc widget isole (vue F2 "owl-bloc:"), miroir du rendu imbrique. */
+    int rootKind = fs->rootIsField ? KIND_FIELD : KIND_CLASS;
+    JsonValue* root = make_symbol(fs->windowName, rootKind,
                                   fs->windowStart, fs->windowEnd,
                                   line_len_at(src, len, fs->windowEnd), 0);
+    if (fs->rootIsField) sym_set_detail(root, fs->rootDetail);
     JsonValue* rootChildren = sym_children_arr(root);
 
     /* Noeud "Declarations globales" si au moins une declaration corps. */

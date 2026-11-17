@@ -99,6 +99,12 @@ struct OwlPdfDoc {
     int         textColorBgr;
     /* Page courante (1-based). */
     int         pageNum;
+    /* Mode image memoire : vrai des qu'une primitive a dessine sur la QImage
+     * courante (remis a faux a chaque mem_begin_page). owl_pdf_set_page_size_mm
+     * ne reconstruit la page sur place que si elle est encore vierge ; sur une
+     * page deja dessinee (etat suivant d'un enchainement), il conserve le
+     * contenu et differe les nouvelles dimensions a la prochaine page. */
+    bool        memPageDrawn;
 };
 
 static OwlPdfDoc* g_current = nullptr;
@@ -242,6 +248,7 @@ static void init_common_doc_state(OwlPdfDoc* doc) {
     doc->currentFont = QFont(QStringLiteral("Liberation Sans"));
     doc->currentFont.setPointSizeF(10.0);
     doc->pageNum = 1;
+    doc->memPageDrawn = false;
 }
 
 extern "C" OwlPdfDoc* owl_pdf_open(const char* output_path_utf8) {
@@ -303,6 +310,7 @@ static bool mem_begin_page(OwlPdfDoc* doc) {
     }
     apply_deterministic_render_hints(doc->painter, &doc->currentFont);
     doc->painter->setFont(doc->currentFont);
+    doc->memPageDrawn = false;
     return true;
 }
 
@@ -420,10 +428,16 @@ extern "C" void owl_pdf_set_page_size_mm(OwlPdfDoc* doc, double w, double h) {
             doc->printer->setPageSize(QPageSize(QSizeF(w, h), QPageSize::Millimeter));
         return;
     }
-    /* Mode image memoire : recree la QImage aux nouvelles dim. La page en
-     * cours est rejetee (pas encore flushee) car owl_pdf_set_page_size_mm
-     * est appele depuis apply_etat_properties AVANT toute primitive. */
-    if (doc->memImage && doc->painter) {
+    /* Mode image memoire : recree la QImage aux nouvelles dim, mais SEULEMENT si
+     * la page courante est encore vierge. apply_etat_properties appelle cette
+     * fonction au debut de chaque etat ; pour le 1er etat (ou un iImprimeEtat
+     * seul) la page est neuve -> on peut la redimensionner sur place. Pour un
+     * etat SUIVANT d'un enchainement, la page courante porte deja le contenu de
+     * l'etat precedent (pas encore flushe) : le detruire ici le perdrait (pages
+     * blanches). On conserve alors la page ; owl_pdf_new_page la flushe, puis
+     * mem_begin_page ouvre la page suivante aux nouvelles dimensions deja
+     * memorisees ci-dessus. */
+    if (doc->memImage && doc->painter && !doc->memPageDrawn) {
         doc->painter->end();
         delete doc->painter; doc->painter = nullptr;
         delete doc->memImage; doc->memImage = nullptr;
@@ -1087,6 +1101,10 @@ extern "C" OwlPdfDoc* owl_pdf_open_printer(void) {
  * disque. No-op si deja demarre ou en mode image memoire (begin immediat). */
 static void ensure_painter_begun(OwlPdfDoc* doc) {
     if (!doc) return;
+    /* En mode image memoire, ce funnel est atteint par chaque primitive de
+     * dessin (et par aucune des bornes de page memImage) : c'est le marqueur
+     * de "contenu pose sur la page courante". */
+    if (doc->memImage) doc->memPageDrawn = true;
     QPaintDevice* dev = nullptr;
     const char* devName = nullptr;
     if (doc->printer && doc->printerPending) {

@@ -1,0 +1,33 @@
+// Contrat CIBLE  : `Formulaire` (corps urlencoded) et un paramètre
+// `Structure` (corps JSON, § 4) sont deux contenus de requête mutuellement
+// exclusifs — un seul corps possible par requête. Ici `nom` vient du
+// formulaire et `detail` est un corps JSON structuré : coexistence refusée
+// à la compilation, miroir de l'exclusion multipart/JSON déjà en place.
+//
+// ROUGE ATTENDU AUJOURD'HUI POUR UNE AUTRE RAISON : `Formulaire` n'existe
+// pas encore comme propriété d'`OpérationHTTP` — le golden ci-dessous porte
+// l'erreur accidentelle actuelle (propriété inconnue), pas encore le
+// message dédié de coexistence Formulaire/corps JSON. À régénérer une fois
+//  livré.
+ServiceFormulaireEtCorpsStructure est un ServiceREST
+stDetailCommande                  est une Structure
+	remarque est une chaîne
+FIN
+
+PROPRIETES
+	UrlBase = ["api", "commandes"]
+FIN
+
+CreeCommande est une OpérationHTTP
+	PROPRIETES
+		Méthode    = httpPost
+		Chemin     = ["commandes"]
+		Formulaire = [nom]
+		Réponses   = [httpOK]
+		CodeÉtat   = httpOK
+	FIN
+	PROCEDURE surRequête(nom est une chaîne, detail est une stDetailCommande) : chaîne
+		RENVOYER nom
+	FIN
+FIN
+FIN

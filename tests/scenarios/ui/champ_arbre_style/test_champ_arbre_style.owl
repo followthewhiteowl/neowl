@@ -1,0 +1,50 @@
+// @sujet : styleArbre, Arbre..Style
+// @résumé : le descripteur styleArbre personnalise le cadre extérieur, le
+// libellé des lignes et la ligne sélectionnée d'un Champ Arbre, posé par
+// affectation à Arbre..Style.
+//
+// Ressource DSL : FEN_ArbreStyle.owl (voisin).
+
+TestModeHeadless(Vrai)
+
+PROCEDURE PUBLIQUE scenario_style_arbre_sous_elements_se_declarent_et_se_relisent()
+	STY_Arbre est un styleArbre
+	STY_Arbre..CadreExtérieur..CouleurFond    = JauneClair
+	STY_Arbre..LibelléLignes..Couleur         = Rouge
+	STY_Arbre..LigneSélectionnée..CouleurFond = Bleu
+
+	dbgVérifieEgalité(STY_Arbre..CadreExtérieur..CouleurFond, JauneClair, "styleArbre : CadreExtérieur..CouleurFond posée")
+	dbgVérifieEgalité(STY_Arbre..LibelléLignes..Couleur, Rouge, "styleArbre : LibelléLignes..Couleur posée")
+	dbgVérifieEgalité(STY_Arbre..LigneSélectionnée..CouleurFond, Bleu, "styleArbre : LigneSélectionnée..CouleurFond posée")
+FIN
+
+PROCEDURE PUBLIQUE scenario_style_arbre_applique_au_champ_et_round_trip()
+	STY_Arbre est un styleArbre
+	STY_Arbre..LibelléLignes..Couleur = Rouge
+
+	Ouvre(FEN_ArbreStyle)
+	ARBRE_Style..Style = STY_Arbre
+	dbgVérifieVrai(Vrai, "styleArbre appliqué à Arbre..Style sans crash")
+
+	ARBRE_Style..Style..LibelléLignes..Couleur = RougeClair
+	dbgVérifieEgalité(ARBRE_Style..Style..LibelléLignes..Couleur, RougeClair, "Arbre..Style..LibelléLignes..Couleur round-trip")
+
+	ARBRE_Style..Style..LigneSélectionnée..Couleur = Blanc
+	dbgVérifieEgalité(ARBRE_Style..Style..LigneSélectionnée..Couleur, Blanc, "Arbre..Style..LigneSélectionnée..Couleur round-trip")
+
+	Ferme(FEN_ArbreStyle)
+FIN
+
+// Edge case : le round-trip CadreExtérieur passe aussi par le champ, pas
+// seulement par le descripteur autonome.
+PROCEDURE PRIVÉE scenario_edge_style_arbre_cadre_exterieur_round_trip_sur_champ()
+	STY_Arbre est un styleArbre
+
+	Ouvre(FEN_ArbreStyle)
+	ARBRE_Style..Style = STY_Arbre
+
+	ARBRE_Style..Style..CadreExtérieur..CouleurFond = Vert
+	dbgVérifieEgalité(ARBRE_Style..Style..CadreExtérieur..CouleurFond, Vert, "Arbre..Style..CadreExtérieur..CouleurFond round-trip")
+
+	Ferme(FEN_ArbreStyle)
+FIN

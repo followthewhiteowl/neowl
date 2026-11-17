@@ -1,0 +1,165 @@
+// Regression  : SI / SINON SI > 64 branches (AVEC AFFECTATION, pas RENVOYER) +
+// SINON final genere du bytecode faux silencieusement. endJumps[64] (compiler.c ~24735,
+// if_statement) a un cap silencieux : les sauts de fin de branche 65+ ne sont pas patches,
+// ces branches coulent dans le SINON final apres avoir execute leur propre corps.
+// Avec RENVOYER au lieu d'affectation, le resultat est correct par accident (le RENVOYER
+// sort avant le fallthrough), d'ou le caractere silencieux — ce test utilise bien une
+// AFFECTATION (res = j) pour exposer le bug. Meme famille que  (SELON, deja
+// corrige). Nom suffixe _f2445 : autodiscovery compile tout le dossier dans le meme
+// espace global.
+
+PROCEDURE Si2_f2445(k est un entier) : entier
+	res est un entier = 0
+	SI k = 1 ALORS
+		res = 1
+	SINON SI k = 2 ALORS
+		res = 2
+	SINON SI k = 3 ALORS
+		res = 3
+	SINON SI k = 4 ALORS
+		res = 4
+	SINON SI k = 5 ALORS
+		res = 5
+	SINON SI k = 6 ALORS
+		res = 6
+	SINON SI k = 7 ALORS
+		res = 7
+	SINON SI k = 8 ALORS
+		res = 8
+	SINON SI k = 9 ALORS
+		res = 9
+	SINON SI k = 10 ALORS
+		res = 10
+	SINON SI k = 11 ALORS
+		res = 11
+	SINON SI k = 12 ALORS
+		res = 12
+	SINON SI k = 13 ALORS
+		res = 13
+	SINON SI k = 14 ALORS
+		res = 14
+	SINON SI k = 15 ALORS
+		res = 15
+	SINON SI k = 16 ALORS
+		res = 16
+	SINON SI k = 17 ALORS
+		res = 17
+	SINON SI k = 18 ALORS
+		res = 18
+	SINON SI k = 19 ALORS
+		res = 19
+	SINON SI k = 20 ALORS
+		res = 20
+	SINON SI k = 21 ALORS
+		res = 21
+	SINON SI k = 22 ALORS
+		res = 22
+	SINON SI k = 23 ALORS
+		res = 23
+	SINON SI k = 24 ALORS
+		res = 24
+	SINON SI k = 25 ALORS
+		res = 25
+	SINON SI k = 26 ALORS
+		res = 26
+	SINON SI k = 27 ALORS
+		res = 27
+	SINON SI k = 28 ALORS
+		res = 28
+	SINON SI k = 29 ALORS
+		res = 29
+	SINON SI k = 30 ALORS
+		res = 30
+	SINON SI k = 31 ALORS
+		res = 31
+	SINON SI k = 32 ALORS
+		res = 32
+	SINON SI k = 33 ALORS
+		res = 33
+	SINON SI k = 34 ALORS
+		res = 34
+	SINON SI k = 35 ALORS
+		res = 35
+	SINON SI k = 36 ALORS
+		res = 36
+	SINON SI k = 37 ALORS
+		res = 37
+	SINON SI k = 38 ALORS
+		res = 38
+	SINON SI k = 39 ALORS
+		res = 39
+	SINON SI k = 40 ALORS
+		res = 40
+	SINON SI k = 41 ALORS
+		res = 41
+	SINON SI k = 42 ALORS
+		res = 42
+	SINON SI k = 43 ALORS
+		res = 43
+	SINON SI k = 44 ALORS
+		res = 44
+	SINON SI k = 45 ALORS
+		res = 45
+	SINON SI k = 46 ALORS
+		res = 46
+	SINON SI k = 47 ALORS
+		res = 47
+	SINON SI k = 48 ALORS
+		res = 48
+	SINON SI k = 49 ALORS
+		res = 49
+	SINON SI k = 50 ALORS
+		res = 50
+	SINON SI k = 51 ALORS
+		res = 51
+	SINON SI k = 52 ALORS
+		res = 52
+	SINON SI k = 53 ALORS
+		res = 53
+	SINON SI k = 54 ALORS
+		res = 54
+	SINON SI k = 55 ALORS
+		res = 55
+	SINON SI k = 56 ALORS
+		res = 56
+	SINON SI k = 57 ALORS
+		res = 57
+	SINON SI k = 58 ALORS
+		res = 58
+	SINON SI k = 59 ALORS
+		res = 59
+	SINON SI k = 60 ALORS
+		res = 60
+	SINON SI k = 61 ALORS
+		res = 61
+	SINON SI k = 62 ALORS
+		res = 62
+	SINON SI k = 63 ALORS
+		res = 63
+	SINON SI k = 64 ALORS
+		res = 64
+	SINON SI k = 65 ALORS
+		res = 65
+	SINON SI k = 66 ALORS
+		res = 66
+	SINON SI k = 67 ALORS
+		res = 67
+	SINON SI k = 68 ALORS
+		res = 68
+	SINON SI k = 69 ALORS
+		res = 69
+	SINON SI k = 70 ALORS
+		res = 70
+	SINON
+		res = -999
+	FIN
+	RENVOYER res
+FIN
+
+dbgVérifieEgalité(Si2_f2445(5), 5, "branche 5, bien avant le cap de 64")
+dbgVérifieEgalité(Si2_f2445(64), 64, "branche 64, derniere branche couverte par lancien cap")
+dbgVérifieEgalité(Si2_f2445(65), 65, "branche 65 : premiere au-dela du cap endJumps, ne doit pas tomber dans SINON")
+dbgVérifieEgalité(Si2_f2445(70), 70, "derniere branche de la chaine, loin au-dela du cap")
+dbgVérifieEgalité(Si2_f2445(999),-999, "valeur hors cas -> vrai SINON legitime")
+
+dbgBilanTest()

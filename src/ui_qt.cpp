@@ -59,6 +59,12 @@ static QStyle* owl_app_style();
 #include <cstdlib>
 #include <cmath>
 
+/*  — decodeur woff2 (sfnt compresse brotli). Sert a reconstituer un
+ * TTF/OTF depuis un conteneur de police web avant de le donner a Qt, qui ne
+ * sait pas lire le woff2 directement. */
+#include "woff2/decode.h"
+#include "woff2/output.h"
+
 #include <QtPlugin>
 /* En Qt static, les plugins doivent etre importes explicitement sinon
  * QApplication echoue avec "no Qt platform plugin could be initialized".
@@ -110,6 +116,8 @@ Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)
 #include <QHeaderView>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QListView>
 #include <QComboBox>
 #include <QProgressBar>
@@ -244,6 +252,46 @@ static void owl_ui_register_fonts(void) {
         QFont def("Liberation Sans", 10);
         QApplication::setFont(def);
     }
+}
+
+/*  — charge un fichier de police (.ttf/.otf) dans la base de polices
+ * applicative et renvoie son nom de famille, utilisable ensuite comme valeur de
+ * Police..Nom sur un champ. owl_ui_init garantit QApplication + polices livrees
+ * meme en mode offscreen (tests headless). Renvoie NULL si le chemin est vide,
+ * le fichier illisible, ou le format de police non reconnu (id < 0). Le buffer
+ * renvoye vit jusqu'au prochain appel : le caller le recopie immediatement. */
+extern "C" const char* owl_ui_police_charge(const char* path_utf8) {
+    if (path_utf8 == nullptr || *path_utf8 == '\0') return nullptr;
+    owl_ui_init();
+    QFile f(QString::fromUtf8(path_utf8));
+    if (!f.open(QIODevice::ReadOnly)) return nullptr;
+    QByteArray data = f.readAll();
+    f.close();
+
+    /*  — un conteneur web woff2 (magic `wOF2`) est un sfnt compresse
+     * brotli : Qt ne sait pas le lire (DirectWrite s'etouffe avec un warning).
+     * On le decompresse en TTF AVANT de toucher Qt. Si la decompression echoue
+     * (conteneur corrompu), on rend NULL sans jamais atteindre addApplicationFont
+     * -> zero warning Qt. Le woff v1 (zlib) n'est pas gere (decodeur brotli-only). */
+    if (data.size() >= 4 && (unsigned char)data[0] == 0x77 &&
+        (unsigned char)data[1] == 0x4F && (unsigned char)data[2] == 0x46 &&
+        (unsigned char)data[3] == 0x32) {
+        std::string sfnt;
+        woff2::WOFF2StringOut out(&sfnt);
+        const bool ok = woff2::ConvertWOFF2ToTTF(
+            reinterpret_cast<const uint8_t*>(data.constData()),
+            (size_t)data.size(), &out);
+        if (!ok) return nullptr;
+        data = QByteArray(sfnt.data(), (int)sfnt.size());
+    }
+
+    const int id = QFontDatabase::addApplicationFontFromData(data);
+    if (id < 0) return nullptr;
+    const QStringList fams = QFontDatabase::applicationFontFamilies(id);
+    if (fams.isEmpty()) return nullptr;
+    static QByteArray s_family;  /* survit au retour, recopie par le caller */
+    s_family = fams.first().toUtf8();
+    return s_family.constData();
 }
 
 /*  — callback de synchro focused_index (cf. owl_ui.h). NULL tant que
@@ -2514,6 +2562,94 @@ extern "C" void owl_ui_container_set_style(OwlControl* container,
     if (!container) return;
     container_set_style_impl(reinterpret_cast<QWidget*>(container),
                              bg, bgAlpha, border, padL, padT, padR, padB, QString());
+}
+
+/*  — image de fond d'un Conteneur. Peinte par un QLabel enfant posé au
+ * fond (lower()) : au-dessus du fond du conteneur (QSS CouleurFond / Dégradé),
+ * sous les widgets de contenu. Le QLabel est transparent hors de l'image (les
+ * bandes de cadCentre / cadHomothetique laissent voir le CouleurFond dessous).
+ * Le cadrage s'appuie sur les capacités natives du QLabel : cadEtire ->
+ * setScaledContents (déformation), cadCentre -> pixmap natif centré (débord
+ * coupé), cadHomothetique -> pixmap scalé ratio préservé, recalculé au resize. */
+static void owl_bg_image_relayout(QLabel* bg, QSize sz) {
+    bg->setGeometry(0, 0, sz.width(), sz.height());
+    QPixmap orig = bg->property("owl_bg_pix").value<QPixmap>();
+    if (orig.isNull()) return;
+    int cad = bg->property("owl_bg_cad").toInt();
+    if (cad == OWL_CADIMG_HOMOTHETIQUE)
+        bg->setPixmap(orig.scaled(sz, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    else if (cad == OWL_CADIMG_REMPLI) {
+        /* object-fit:cover : scale par expansion puis recadrage centre au rect
+         * du conteneur (le QLabel ne rogne pas seul). */
+        QPixmap scaled = orig.scaled(sz, Qt::KeepAspectRatioByExpanding,
+                                     Qt::SmoothTransformation);
+        int cx = (scaled.width()  - sz.width())  / 2;
+        int cy = (scaled.height() - sz.height()) / 2;
+        if (cx < 0) cx = 0;
+        if (cy < 0) cy = 0;
+        bg->setPixmap(scaled.copy(cx, cy, sz.width(), sz.height()));
+    } else
+        bg->setPixmap(orig);   /* étiré via setScaledContents, ou natif centré */
+}
+
+/* Event filter partagé : au redimensionnement du conteneur, réajuste le QLabel
+ * de fond (géométrie + scaling homothétique). */
+class OwlBgImageResizeFilter : public QObject {
+public:
+    bool eventFilter(QObject* obj, QEvent* ev) override {
+        if (ev->type() == QEvent::Resize) {
+            if (QWidget* c = qobject_cast<QWidget*>(obj)) {
+                QLabel* bg = c->findChild<QLabel*>(QStringLiteral("owlBgImage"),
+                                                   Qt::FindDirectChildrenOnly);
+                if (bg) owl_bg_image_relayout(bg, c->size());
+            }
+        }
+        return QObject::eventFilter(obj, ev);
+    }
+};
+static OwlBgImageResizeFilter* owl_bg_image_filter() {
+    static OwlBgImageResizeFilter f;
+    return &f;
+}
+
+extern "C" void owl_ui_container_set_bg_image(OwlControl* container,
+                                              const char* path, int cadrage) {
+    QWidget* q = reinterpret_cast<QWidget*>(container);
+    if (!q) return;
+    QLabel* bg = q->findChild<QLabel*>(QStringLiteral("owlBgImage"),
+                                       Qt::FindDirectChildrenOnly);
+    /* Source vide ou fichier illisible => retrait (défaut neutre, le fond
+     * CouleurFond / Dégradé reprend). */
+    QPixmap pix;
+    if (path && *path) {
+        /* Décodage maison (webp + stb) → QImage autonome, repli QPixmap(path)
+         * pour ce qu'OWL ne décode pas (SVG, formats Qt-only). */
+        OwlImage* oi = owl_image_load_from_file(path);
+        if (oi) {
+            QImage qi = rgba_to_qimage(owl_image_pixels(oi),
+                                       owl_image_width(oi), owl_image_height(oi));
+            owl_image_free(oi);
+            if (!qi.isNull()) pix = QPixmap::fromImage(qi);
+        }
+        if (pix.isNull()) pix = QPixmap(QString::fromUtf8(path));
+    }
+    if (pix.isNull()) {
+        if (bg) delete bg;
+        return;
+    }
+    if (!bg) {
+        bg = new QLabel(q);
+        bg->setObjectName(QStringLiteral("owlBgImage"));
+        bg->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        q->installEventFilter(owl_bg_image_filter());
+    }
+    bg->setProperty("owl_bg_pix", pix);
+    bg->setProperty("owl_bg_cad", cadrage);
+    bg->setScaledContents(cadrage == OWL_CADIMG_ETIRE);
+    bg->setAlignment(Qt::AlignCenter);
+    owl_bg_image_relayout(bg, q->size());
+    bg->lower();   /* sous le contenu, au-dessus du fond du conteneur */
+    bg->show();
 }
 
 /* /1027 — habille le panneau central de la Fenêtre via la même
@@ -8610,6 +8746,23 @@ static void apply_cadrage_to_label(QLabel* q) {
             q->setPixmap(scaled);
             break;
         }
+        case OWL_CADIMG_REMPLI: {
+            /* object-fit:cover : scale par expansion (ratio preserve, le champ
+             * est entierement couvert), puis recadrage centre — un QLabel ne
+             * rogne pas seul, on decoupe la pixmap au rect du champ. */
+            q->setScaledContents(false);
+            q->setAlignment(Qt::AlignCenter);
+            QSize target = q->size().isValid() && q->size().width() > 0
+                         ? q->size() : zoomed.size();
+            QPixmap scaled = zoomed.scaled(target, Qt::KeepAspectRatioByExpanding,
+                                            Qt::SmoothTransformation);
+            int cx = (scaled.width()  - target.width())  / 2;
+            int cy = (scaled.height() - target.height()) / 2;
+            if (cx < 0) cx = 0;
+            if (cy < 0) cy = 0;
+            q->setPixmap(scaled.copy(cx, cy, target.width(), target.height()));
+            break;
+        }
         case OWL_CADIMG_CENTRE:
         default:
             q->setScaledContents(false);
@@ -8629,7 +8782,17 @@ extern "C" void owl_ui_label_set_image(OwlControl* lbl, const char* path_utf8) {
         q->setProperty("owl_pixmap_src", QVariant());
         return;
     }
-    QPixmap src(QString::fromUtf8(path_utf8));
+    /* Décodage maison (webp + stb) → QImage autonome, avec repli QPixmap(path)
+     * pour ce qu'OWL ne décode pas (SVG, formats Qt-only). */
+    QPixmap src;
+    OwlImage* oi = owl_image_load_from_file(path_utf8);
+    if (oi) {
+        QImage qi = rgba_to_qimage(owl_image_pixels(oi),
+                                   owl_image_width(oi), owl_image_height(oi));
+        owl_image_free(oi);
+        if (!qi.isNull()) src = QPixmap::fromImage(qi);
+    }
+    if (src.isNull()) src = QPixmap(QString::fromUtf8(path_utf8));
     q->setProperty("owl_image",      QString::fromUtf8(path_utf8));
     q->setProperty("owl_pixmap_src", src);
     apply_cadrage_to_label(q);
@@ -11536,6 +11699,406 @@ extern "C" OwlControl* owl_ui_list_create(OwlWindow* parent,
     else                  lst->resize(w > 0 ? w : 200, h > 0 ? h : 150);
     lst->show();
     return reinterpret_cast<OwlControl*>(lst);
+}
+
+/* ============================================================
+ * Champ Arbre — backend QTreeWidget mono-colonne.
+ * ============================================================ */
+static QTreeWidget* as_tree(OwlControl* t) {
+    return qobject_cast<QTreeWidget*>(reinterpret_cast<QObject*>(t));
+}
+
+/* Roles de donnees portant les deux icones memorisees d'un noeud : slot 0 =
+ * etat enroule (plie), slot 1 = etat deroule (deplie). Le swap pli/depli
+ * declenche a la souris recopie le slot vers l'icone affichee (colonne 0). */
+static const int OWL_TREE_ICON_COLLAPSED_ROLE = Qt::UserRole + 20;
+static const int OWL_TREE_ICON_EXPANDED_ROLE  = Qt::UserRole + 21;
+/* Cle d'identite d'un item = segment COMPLET du store, marqueur d'identifiant
+ * compris ("A\x01id1"). Le libelle affiche est la partie avant le marqueur, mais
+ * l'appariement store<->widget se fait sur la cle : deux homonymes a id distincts
+ * (meme libelle) restent deux items distincts. */
+static const int OWL_TREE_SEG_KEY_ROLE        = Qt::UserRole + 22;
+
+static QString owl_tree_seg_label(const QString& seg) {
+    int m = seg.indexOf(QChar(0x01));
+    return (m < 0) ? seg : seg.left(m);
+}
+static QString owl_tree_item_key(QTreeWidgetItem* it) {
+    QVariant v = it->data(0, OWL_TREE_SEG_KEY_ROLE);
+    return v.isValid() ? v.toString() : it->text(0);
+}
+
+/* Nom de la propriete-garde anti-boucle posee sur le QTreeWidget pendant toute
+ * mutation PROGRAMMATIQUE de selection (owl_ui_tree_select_paths) ou de contenu
+ * (owl_ui_tree_set_paths : clear()). Tant qu'elle est vraie, le handler
+ * itemSelectionChanged n'ecrit pas le store : on ne reecrit/vide pas ce que le
+ * code OWL vient d'y poser. */
+static const char* OWL_TREE_SEL_SUPPRESS_PROP = "owl_tree_sel_suppress";
+
+extern "C" OwlControl* owl_ui_tree_create(OwlWindow* parent,
+                                          int x, int y, int w, int h) {
+    if (!parent) return nullptr;
+    QTreeWidget* tree = new QTreeWidget(central_of(parent));
+    tree->setColumnCount(1);
+    tree->setHeaderHidden(true);
+    tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    if (x >= 0 && y >= 0) tree->setGeometry(x, y, w, h);
+    else                  tree->resize(w > 0 ? w : 200, h > 0 ? h : 200);
+    /* Swap visuel enroule<->deroule pilote par la souris : au depli, l'item
+     * adopte son icone slot 1 ; au pli, son icone slot 0. Les slots sont poses
+     * cote OWL (owl_ui_tree_set_item_icon_slot_*). Role absent : on ne touche
+     * pas l'icone (noeud sans slot defini). */
+    QObject::connect(tree, &QTreeWidget::itemExpanded,
+                     [](QTreeWidgetItem* it) {
+        QVariant v = it->data(0, OWL_TREE_ICON_EXPANDED_ROLE);
+        if (v.isValid()) it->setIcon(0, v.value<QIcon>());
+    });
+    QObject::connect(tree, &QTreeWidget::itemCollapsed,
+                     [](QTreeWidgetItem* it) {
+        QVariant v = it->data(0, OWL_TREE_ICON_COLLAPSED_ROLE);
+        if (v.isValid()) it->setIcon(0, v.value<QIcon>());
+    });
+    tree->show();
+    return reinterpret_cast<OwlControl*>(tree);
+}
+
+extern "C" void owl_ui_tree_set_paths(OwlControl* t,
+                                      const char* const* paths, int n) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return;
+    /* Rebuild programmatique : tree->clear() emet itemSelectionChanged si des
+     * items etaient selectionnes. Inhibe le sync Qt->store pendant la
+     * reconstruction pour ne pas vider le store de selection (le set_paths ne
+     * touche pas la selection logique, re-appliquee ensuite via select_paths). */
+    bool prevSuppress = tree->property(OWL_TREE_SEL_SUPPRESS_PROP).toBool();
+    tree->setProperty(OWL_TREE_SEL_SUPPRESS_PROP, true);
+    tree->clear();
+    for (int i = 0; i < n; i++) {
+        const char* p = paths ? paths[i] : nullptr;
+        if (!p || !*p) continue;
+        /* Chaque chemin est une suite de segments separes par une tabulation.
+         * On descend l'arbre en reutilisant le noeud existant pour chaque
+         * segment, ou en le creant. Le store OWL-side contient deja tous les
+         * prefixes, donc chaque noeud recoit sa propre entree. */
+        QStringList segs = QString::fromUtf8(p).split(QChar('\t'));
+        QTreeWidgetItem* parentItem = nullptr;
+        for (const QString& seg : segs) {
+            QTreeWidgetItem* found = nullptr;
+            int childCount = parentItem ? parentItem->childCount()
+                                        : tree->topLevelItemCount();
+            for (int c = 0; c < childCount; c++) {
+                QTreeWidgetItem* ch = parentItem ? parentItem->child(c)
+                                                 : tree->topLevelItem(c);
+                if (owl_tree_item_key(ch) == seg) { found = ch; break; }
+            }
+            if (!found) {
+                found = new QTreeWidgetItem(QStringList(owl_tree_seg_label(seg)));
+                found->setData(0, OWL_TREE_SEG_KEY_ROLE, seg);
+                if (parentItem) parentItem->addChild(found);
+                else            tree->addTopLevelItem(found);
+            }
+            parentItem = found;
+        }
+    }
+    /* Pas d'expandAll : l'etat pli/depli est pilote par le store OWL (defaut
+     * plie), re-applique apres chaque reconstruction via owl_ui_tree_set_expanded. */
+    tree->setProperty(OWL_TREE_SEL_SUPPRESS_PROP, prevSuppress);
+}
+
+/* Resout un chemin TAB-separe vers son QTreeWidgetItem, nullptr si un segment
+ * manque cote widget (meme logique de descente que set_paths). */
+static QTreeWidgetItem* tree_item_for_path(QTreeWidget* tree, const char* path) {
+    if (!tree || !path || !*path) return nullptr;
+    QStringList segs = QString::fromUtf8(path).split(QChar('\t'));
+    QTreeWidgetItem* parentItem = nullptr;
+    for (const QString& seg : segs) {
+        QTreeWidgetItem* found = nullptr;
+        int childCount = parentItem ? parentItem->childCount()
+                                    : tree->topLevelItemCount();
+        for (int c = 0; c < childCount; c++) {
+            QTreeWidgetItem* ch = parentItem ? parentItem->child(c)
+                                             : tree->topLevelItem(c);
+            if (owl_tree_item_key(ch) == seg) { found = ch; break; }
+        }
+        if (!found) return nullptr;
+        parentItem = found;
+    }
+    return parentItem;
+}
+
+/* Reconstruit le chemin COMPLET TAB-separe d'un item en remontant jusqu'a la
+ * racine : chaque segment est sa cle d'identite (marqueur d'ID compris), pas le
+ * libelle affiche nu. Symetrie exacte avec le format du store OWL-side. */
+static QString owl_tree_item_path(QTreeWidgetItem* it) {
+    QStringList segs;
+    for (QTreeWidgetItem* cur = it; cur; cur = cur->parent())
+        segs.prepend(owl_tree_item_key(cur));
+    return segs.join(QChar('\t'));
+}
+
+extern "C" void owl_ui_tree_select_paths(OwlControl* t,
+                                         const char* const* paths, int n,
+                                         bool multi) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return;
+    /* Set programmatique : inhibe le sync Qt->store pendant la mutation de
+     * selection pour casser la recursion itemSelectionChanged -> handler. */
+    tree->setProperty(OWL_TREE_SEL_SUPPRESS_PROP, true);
+    tree->setSelectionMode(multi ? QAbstractItemView::ExtendedSelection
+                                 : QAbstractItemView::SingleSelection);
+    tree->clearSelection();
+    if (!paths || n <= 0) {
+        tree->setCurrentItem(nullptr);
+        tree->setProperty(OWL_TREE_SEL_SUPPRESS_PROP, false);
+        return;
+    }
+    QTreeWidgetItem* last = nullptr;
+    for (int i = 0; i < n; i++) {
+        QTreeWidgetItem* it = tree_item_for_path(tree, paths[i]);
+        if (!it) continue;
+        it->setSelected(true);
+        last = it;
+    }
+    if (last) tree->setCurrentItem(last);
+    tree->setProperty(OWL_TREE_SEL_SUPPRESS_PROP, false);
+}
+
+/* Visite chaque item selectionne (ordre modele/affichage de Qt) en passant son
+ * chemin complet TAB-separe au visiteur. Pont lu par le handler OWL-side qui
+ * remplit le store de selection depuis la selection Qt courante (souris). */
+extern "C" void owl_ui_tree_selected_foreach(OwlControl* t,
+                                             OwlTreePathVisitor visit,
+                                             void* userdata) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree || !visit) return;
+    const QList<QTreeWidgetItem*> items = tree->selectedItems();
+    for (QTreeWidgetItem* it : items) {
+        QByteArray utf8 = owl_tree_item_path(it).toUtf8();
+        visit(utf8.constData(), userdata);
+    }
+}
+
+/* Branche le sync Qt->OWL de la selection : a chaque itemSelectionChanged (clic
+ * souris, Ctrl-clic, clavier) hors set programmatique, appelle cb. Mirror de
+ * owl_ui_list_on_selection. */
+extern "C" void owl_ui_tree_on_selection(OwlControl* t,
+                                         OwlCallback cb, void* userdata) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree || !cb) return;
+    OwlClickHandler* h = new OwlClickHandler{ cb, userdata, t };
+    owl_track_conn(tree,
+        QObject::connect(tree, &QTreeWidget::itemSelectionChanged, tree, [h, tree]() {
+            if (tree->property(OWL_TREE_SEL_SUPPRESS_PROP).toBool()) return;
+            if (h->cb) h->cb(h->sender, h->userdata);
+        }));
+}
+
+extern "C" void owl_ui_tree_set_expanded(OwlControl* t, const char* path,
+                                         bool expanded) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree || !path || !*path) return;
+    /* Descend l'arbre segment par segment (meme logique que select_path) ;
+     * si un segment manque cote widget, aucun etat n'est applique. */
+    QStringList segs = QString::fromUtf8(path).split(QChar('\t'));
+    QTreeWidgetItem* parentItem = nullptr;
+    for (const QString& seg : segs) {
+        QTreeWidgetItem* found = nullptr;
+        int childCount = parentItem ? parentItem->childCount()
+                                    : tree->topLevelItemCount();
+        for (int c = 0; c < childCount; c++) {
+            QTreeWidgetItem* ch = parentItem ? parentItem->child(c)
+                                             : tree->topLevelItem(c);
+            if (owl_tree_item_key(ch) == seg) { found = ch; break; }
+        }
+        if (!found) return;
+        parentItem = found;
+    }
+    if (parentItem) parentItem->setExpanded(expanded);
+}
+
+static int owl_tree_icon_slot_role(int slot) {
+    return (slot == 1) ? OWL_TREE_ICON_EXPANDED_ROLE
+                       : OWL_TREE_ICON_COLLAPSED_ROLE;
+}
+
+extern "C" void owl_ui_tree_set_item_icon_slot_rgba(OwlControl* t,
+                                                    const char* path, int slot,
+                                                    const unsigned char* rgba,
+                                                    int w, int h) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return;
+    QTreeWidgetItem* it = tree_item_for_path(tree, path);
+    if (!it) return;
+    QImage img = rgba_to_qimage(rgba, w, h);
+    QIcon icon = img.isNull() ? QIcon() : QIcon(QPixmap::fromImage(img));
+    it->setData(0, owl_tree_icon_slot_role(slot), QVariant::fromValue(icon));
+}
+
+extern "C" void owl_ui_tree_set_item_icon_slot_path(OwlControl* t,
+                                                    const char* path, int slot,
+                                                    const char* file_path) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return;
+    QTreeWidgetItem* it = tree_item_for_path(tree, path);
+    if (!it) return;
+    QIcon icon = (file_path && *file_path) ? QIcon(QString::fromUtf8(file_path))
+                                           : QIcon();
+    it->setData(0, owl_tree_icon_slot_role(slot), QVariant::fromValue(icon));
+}
+
+extern "C" void owl_ui_tree_show_item_icon(OwlControl* t, const char* path,
+                                           bool expanded) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return;
+    QTreeWidgetItem* it = tree_item_for_path(tree, path);
+    if (!it) return;
+    QVariant v = it->data(0, owl_tree_icon_slot_role(expanded ? 1 : 0));
+    it->setIcon(0, v.isValid() ? v.value<QIcon>() : QIcon());
+}
+
+/*  — couleur de texte EFFECTIVE de l'Arbre, au format OWL BGR canon
+ * (0x00BBGGRR), pour teinter les icones de noeud sans couleur explicite.
+ * Priorite : Couleur posee sur le controle (property owl_fg, cf.
+ * owl_ui_control_set_text_color) ; sinon foreground de la palette Qt du
+ * QTreeWidget (QPalette::Text, adaptatif au theme clair/sombre, cf. le pack_bgr
+ * de owl_ui_combo_set_style). Retourne -1 si le widget n'existe pas. */
+extern "C" int owl_ui_tree_effective_text_color_bgr(OwlControl* t) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return -1;
+    QVariant fg = tree->property("owl_fg");
+    if (fg.isValid()) return fg.toInt();
+    QColor c = tree->palette().color(QPalette::Text);
+    return (c.blue() << 16) | (c.green() << 8) | c.red();
+}
+
+extern "C" int owl_ui_tree_node_icon_width(OwlControl* t, const char* path) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree) return -1;
+    QTreeWidgetItem* it = tree_item_for_path(tree, path);
+    if (!it) return -1;  /* chemin non monte cote widget */
+    QIcon icon = it->icon(0);
+    if (icon.isNull()) return 0;
+    int best = 0;
+    const QList<QSize> sizes = icon.availableSizes();
+    for (const QSize& s : sizes) {
+        if (s.width() > best) best = s.width();
+    }
+    if (best == 0) best = 1;  /* icone presente sans taille declaree */
+    return best;
+}
+
+/*  — Champ Arbre stylé (styleArbre). Mirror de owl_ui_liste_set_style :
+ * UNE feuille QSS sur le QTreeWidget, decomposee par sous-element. */
+extern "C" void owl_ui_arbre_set_style(OwlControl* t,
+                                       const OwlArbreStyleSpec* s) {
+    QTreeWidget* tree = as_tree(t);
+    if (!tree || !s) return;
+
+    auto rgb_css = [](int v) {
+        return QString("rgb(%1, %2, %3)")
+            .arg(v & 0xFF).arg((v >> 8) & 0xFF).arg((v >> 16) & 0xFF);
+    };
+    auto rgba_css = [&](int v, int alpha) -> QString {
+        if (alpha >= 255) return rgb_css(v);
+        return QString("rgba(%1, %2, %3, %4)")
+            .arg(v & 0xFF).arg((v >> 8) & 0xFF).arg((v >> 16) & 0xFF)
+            .arg(alpha / 255.0, 0, 'g', 4);
+    };
+    auto border_css = [&](const OwlCadreSpec* c) -> QString {
+        if (!c) return QString();
+        QString b;
+        if (c->thickness > 0)
+            b += QString("border: %1px %2 %3; ")
+                     .arg(c->thickness)
+                     .arg(cadre_line_style_to_css(c->line_style))
+                     .arg(rgb_css(c->color));
+        if (c->corner_radius > 0)
+            b += QString("border-radius: %1px; ").arg(c->corner_radius);
+        return b;
+    };
+    auto text_body = [&](int fg, int fgA, int bg, int bgA, const char* family,
+                         int size, int bold, int italic, bool emit_font) -> QString {
+        QString body;
+        if (fg > 0)  body += "color: " + rgba_css(fg, fgA) + "; ";
+        if (bg >= 0) body += "background-color: " + rgba_css(bg, bgA) + "; ";
+        if (emit_font) {
+            if (family && *family)
+                body += QString("font-family: \"%1\"; ").arg(QString::fromUtf8(family));
+            if (size > 0) body += QString("font-size: %1pt; ").arg(size);
+            if (bold == 1)        body += "font-weight: bold; ";
+            else if (bold == 0)   body += "font-weight: normal; ";
+            if (italic == 1)      body += "font-style: italic; ";
+            else if (italic == 0) body += "font-style: normal; ";
+        }
+        return body;
+    };
+
+    /* Police effective des noeuds : posee sur le QTreeWidget par setFont en
+     * fusionnant sur la police courante, uniquement si un attribut de police des
+     * noeuds est specifie (meme raison que la Liste : Qt n'honore pas de facon
+     * fiable font-family/size en QSS sur ::item). */
+    {
+        bool has_row_font = (s->row_font_family && *s->row_font_family)
+                            || s->row_font_size > 0
+                            || s->row_bold >= 0 || s->row_italic >= 0;
+        if (has_row_font) {
+            QFont f = tree->font();
+            if (s->row_font_family && *s->row_font_family)
+                f.setFamily(QString::fromUtf8(s->row_font_family));
+            if (s->row_font_size > 0) f.setPointSize(s->row_font_size);
+            if (s->row_bold >= 0)   f.setBold(s->row_bold != 0);
+            if (s->row_italic >= 0) f.setItalic(s->row_italic != 0);
+            tree->setFont(f);
+        }
+    }
+
+    QString css;
+
+    /* --- CadreExtérieur : fond + bordure de l'arbre (QTreeWidget-scope). --- */
+    {
+        QString body;
+        if (s->ext_bg >= 0) body += "background-color: " + rgba_css(s->ext_bg, s->ext_bg_alpha) + "; ";
+        body += border_css(s->ext_border);
+        if (!body.isEmpty())
+            css += "QTreeWidget { " + body + "} ";
+    }
+
+    /* --- LibelléLignes : couleur + police du texte des noeuds (::item). --- */
+    {
+        QString body = text_body(s->row_fg, s->row_fg_alpha, s->row_bg,
+                                 s->row_bg_alpha, s->row_font_family,
+                                 s->row_font_size, s->row_bold, s->row_italic,
+                                 /*emit_font=*/false);
+        if (!body.isEmpty())
+            css += "QTreeWidget::item { " + body + "} ";
+    }
+
+    /* --- LigneSélectionnée : couleur + fond du noeud selectionne. ---
+     * Memes deux pieges Qt que la Liste : forcer un background pour que `color:`
+     * soit respecte, et couvrir :selected:active ET :selected:!active. */
+    {
+        int sel_bg = s->sel_bg;
+        int sel_bg_alpha = s->sel_bg_alpha;
+        if (sel_bg < 0) {
+            QColor hl = tree->palette().color(QPalette::Highlight);
+            sel_bg = (hl.blue() << 16) | (hl.green() << 8) | hl.red();
+            sel_bg_alpha = 255;
+        }
+        QString body = text_body(s->sel_fg, s->sel_fg_alpha, sel_bg, sel_bg_alpha,
+                                 s->sel_font_family, s->sel_font_size,
+                                 s->sel_bold, s->sel_italic, /*emit_font=*/true);
+        /* Priorite LigneSélectionnée sur LibelléLignes : forcer la couleur de
+         * selection des lors que LibelléLignes impose une couleur. */
+        bool sel_has_color = body.startsWith("color:") || body.contains("; color:");
+        if (s->row_fg > 0 && s->sel_fg >= 0 && !sel_has_color)
+            body = "color: " + rgba_css(s->sel_fg, s->sel_fg_alpha) + "; " + body;
+        if (!body.isEmpty()) {
+            css += "QTreeWidget::item:selected:active { " + body + "} ";
+            css += "QTreeWidget::item:selected:!active { " + body + "} ";
+        }
+    }
+
+    tree->setStyleSheet(css);
 }
 
 /* Helper : applique la valeur memorisee + l'icone optionnelle. */
@@ -14542,4 +15105,790 @@ extern "C" OwlControl* owl_ui_control_find_child(OwlControl* parent, const char*
     QWidget* found = qw->findChild<QWidget*>(QString::fromUtf8(name),
                                               Qt::FindChildrenRecursively);
     return reinterpret_cast<OwlControl*>(found);
+}
+
+/* ============================================================
+ * ,  — Fenetre d'apercu avant impression des Etats.
+ *
+ * iDestination(iVisualisateur) arme la destination visualisateur ;
+ * l'impression (iImprimeEtat -> iFinImprime) rasterise chaque page en
+ * OwlImage* (meme chemin que iImageMemoire) ; la finalisation appelle
+ * owl_ui_apercu_show pour empiler les pages dans cette fenetre, avec
+ * navigation page et zoom.
+ * ============================================================ */
+#include <QImage>
+#include <QToolBar>
+#include <QToolButton>
+#include <QSplitter>
+#include <QStyle>
+#include <QIntValidator>
+#include <QPrinter>
+#include <QPrinterInfo>
+#include <QSpinBox>
+#include <QGroupBox>
+#include <QFormLayout>
+#include <QPdfWriter>
+#include <QPageSize>
+#include <QPageLayout>
+
+/* Bascule FR/EN du chrome runtime (meme source que les messages d'erreur et le
+ * chrome owl-build). Defini dans owl_errors.c ; declare ici pour eviter de
+ * tirer owl_errors.h dans ce fichier C++. */
+extern "C" int owl_error_render_lang_is_en(void);
+
+namespace {
+/* Pas de Q_OBJECT : aucun signal/slot propre n'est declare (le fichier n'est
+ * pas passe a moc). Boutons et actions sont cables a des lambdas, et les
+ * overrides (eventFilter/resizeEvent) sont des virtuals QWidget/QObject deja
+ * cables sans meta-objet genere.
+ *
+ * Fenetre d'apercu « socle pro » : ruban groupe (Zoom / Pages / Affichage),
+ * volet miniatures cliquable a gauche (QListWidget vertical, page active mise
+ * en evidence), presets de zoom (100 % / largeur / page entiere / +- par pas),
+ * navigation (champ Page X/N editable + debut/prec/suiv/fin), outil main (pan),
+ * plein ecran, chrome bilingue FR/EN. */
+class OwlApercuWindow : public QMainWindow {
+public:
+    OwlApercuWindow(const QVector<QImage>& pages, int zoomPercent,
+                    int initialZoomMode, const QString& title, bool showButtons)
+        : m_pages(pages), m_zoom(zoomPercent), m_cur(0) {
+        m_en = owl_error_render_lang_is_en() != 0;
+        if (m_zoom < 10)  m_zoom = 10;
+        if (m_zoom > 999) m_zoom = 999;
+        /* Mode de zoom initial (0=libre, 1=largeur page, 2=page entiere). Pour un
+         * mode ajuste, le pourcentage effectif est calcule par applyFit() au
+         * premier resizeEvent (viewport dimensionne une fois la fenetre montree). */
+        if (initialZoomMode == 1)      m_zoomMode = ZFitWidth;
+        else if (initialZoomMode == 2) m_zoomMode = ZFitPage;
+        else                           m_zoomMode = ZFree;
+        setWindowTitle(title.isEmpty() ? L("Aper\xc3\xa7u", "Preview") : title);
+
+        /* Zone centrale : pages empilees dans une QScrollArea. */
+        m_scroll = new QScrollArea(this);
+        m_scroll->setWidgetResizable(true);
+        m_scroll->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        m_scroll->setBackgroundRole(QPalette::Mid);
+
+        QWidget* content = new QWidget(m_scroll);
+        QVBoxLayout* vbox = new QVBoxLayout(content);
+        vbox->setSpacing(16);
+        vbox->setContentsMargins(20, 20, 20, 20);
+        vbox->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        for (int i = 0; i < m_pages.size(); i++) {
+            QLabel* lbl = new QLabel(content);
+            lbl->setAlignment(Qt::AlignHCenter);
+            lbl->setFrameShape(QFrame::Box);
+            lbl->setFrameShadow(QFrame::Plain);
+            m_labels.append(lbl);
+            vbox->addWidget(lbl, 0, Qt::AlignHCenter);
+        }
+        content->setLayout(vbox);
+        m_scroll->setWidget(content);
+        m_scroll->viewport()->installEventFilter(this);
+        QObject::connect(m_scroll->verticalScrollBar(), &QScrollBar::valueChanged,
+                         this, [this]{ onScroll(); });
+
+        if (showButtons) {
+            /* Volet miniatures a gauche + pages a droite dans un splitter. */
+            m_thumbs = new QListWidget(this);
+            m_thumbs->setViewMode(QListView::IconMode);
+            m_thumbs->setFlow(QListView::TopToBottom);
+            m_thumbs->setWrapping(false);
+            m_thumbs->setMovement(QListView::Static);
+            m_thumbs->setResizeMode(QListView::Adjust);
+            m_thumbs->setSelectionMode(QAbstractItemView::SingleSelection);
+            m_thumbs->setIconSize(QSize(120, 160));
+            m_thumbs->setSpacing(8);
+            m_thumbs->setUniformItemSizes(false);
+            m_thumbs->setMinimumWidth(160);
+            m_thumbs->setMaximumWidth(220);
+            m_thumbs->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            for (int i = 0; i < m_pages.size(); i++) {
+                const QImage& img = m_pages[i];
+                QPixmap pm = QPixmap::fromImage(
+                    img.scaled(112, 152, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                QListWidgetItem* it = new QListWidgetItem(QIcon(pm),
+                    QString::number(i + 1), m_thumbs);
+                it->setTextAlignment(Qt::AlignHCenter);
+            }
+            QObject::connect(m_thumbs, &QListWidget::itemClicked, this,
+                [this](QListWidgetItem* it){ gotoPage(m_thumbs->row(it)); });
+
+            m_splitter = new QSplitter(Qt::Horizontal, this);
+            m_splitter->addWidget(m_thumbs);
+            m_splitter->addWidget(m_scroll);
+            m_splitter->setStretchFactor(0, 0);
+            m_splitter->setStretchFactor(1, 1);
+            m_splitter->setChildrenCollapsible(false);
+            setCentralWidget(m_splitter);
+            buildRibbon();
+        } else {
+            setCentralWidget(m_scroll);
+        }
+
+        renderPages();
+        updateStatus();
+    }
+
+private:
+    QString L(const char* fr, const char* en) const {
+        return QString::fromUtf8(m_en ? en : fr);
+    }
+    QIcon ic(QStyle::StandardPixmap sp) const {
+        return style()->standardIcon(sp);
+    }
+    /* Pas d'icone « main » standard dans QStyle : on la dessine. Paume arrondie
+     * + quatre doigts + pouce, silhouette pleine couleur ButtonText, nette au
+     * devicePixelRatio courant. */
+    QIcon handIcon() const {
+        const qreal dpr = devicePixelRatioF();
+        QPixmap pm(QSize(18, 18) * dpr);
+        pm.setDevicePixelRatio(dpr);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setPen(Qt::NoPen);
+        p.setBrush(palette().color(QPalette::ButtonText));
+        QPainterPath path;
+        path.addRoundedRect(QRectF(4.0, 8.0, 10.0, 7.5), 3.0, 3.0);   /* paume */
+        path.addRoundedRect(QRectF(4.8, 3.5, 1.9, 6.5), 0.9, 0.9);    /* index */
+        path.addRoundedRect(QRectF(7.1, 2.4, 1.9, 7.6), 0.9, 0.9);    /* majeur */
+        path.addRoundedRect(QRectF(9.4, 3.0, 1.9, 7.0), 0.9, 0.9);    /* annulaire */
+        path.addRoundedRect(QRectF(11.6, 4.6, 1.8, 5.4), 0.85, 0.85); /* auriculaire */
+        p.drawPath(path.simplified());
+        p.save();
+        p.translate(4.8, 9.6);
+        p.rotate(-42);
+        p.drawRoundedRect(QRectF(-0.95, 0.0, 1.9, 5.4), 0.9, 0.9);    /* pouce */
+        p.restore();
+        p.end();
+        return QIcon(pm);
+    }
+    /* Icone « miniatures » : trois vignettes empilees (volet) a cote d'une page.
+     * Trait ButtonText, lecture instantanee du groupe de pages reduites. */
+    QIcon thumbsIcon() const {
+        const qreal dpr = devicePixelRatioF();
+        QPixmap pm(QSize(18, 18) * dpr);
+        pm.setDevicePixelRatio(dpr);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        QPen pen(palette().color(QPalette::ButtonText));
+        pen.setWidthF(1.1);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        for (int i = 0; i < 3; i++)                                   /* vignettes */
+            p.drawRoundedRect(QRectF(2.5, 2.5 + i * 4.8, 5.0, 3.6), 0.8, 0.8);
+        p.drawRoundedRect(QRectF(10.0, 2.5, 5.5, 13.0), 0.9, 0.9);    /* page */
+        p.end();
+        return QIcon(pm);
+    }
+
+    /* Ruban a deux onglets : Apercu (tous les controles du socle, inchanges) et
+     * Imprimer (controles d'impression en ligne). Un QToolBar hote porte un
+     * QTabWidget dont chaque page est soit une barre d'outils (Apercu) soit un
+     * panneau de formulaire (Imprimer). Pas de meta-objet : tout est cable par
+     * lambdas, coherent avec le reste de la fenetre. */
+    void buildRibbon() {
+        QToolBar* host = addToolBar(L("Ruban", "Ribbon"));
+        host->setMovable(false);
+        host->setFloatable(false);
+        QTabWidget* tabs = new QTabWidget(host);
+        tabs->setDocumentMode(true);
+        tabs->addTab(buildPreviewBar(), L("Aper\xc3\xa7u", "Preview"));
+        tabs->addTab(buildPrintPage(),  L("Imprimer", "Print"));
+        tabs->addTab(buildExportPage(), L("Exporter", "Export"));
+        host->addWidget(tabs);
+    }
+
+    QWidget* buildPreviewBar() {
+        QToolBar* bar = new QToolBar(this);
+        bar->setMovable(false);
+        bar->setFloatable(false);
+        bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        bar->setIconSize(QSize(18, 18));
+
+        /* --- Groupe Zoom --- */
+        QToolButton* zoomOut = new QToolButton(bar);
+        zoomOut->setText(QString::fromUtf8("\xe2\x88\x92"));  /* minus sign */
+        zoomOut->setToolTip(L("Zoom arri\xc3\xa8re", "Zoom out"));
+        QObject::connect(zoomOut, &QToolButton::clicked, this,
+                         [this]{ m_zoomMode = ZFree; setZoom(m_zoom - 25); });
+        bar->addWidget(zoomOut);
+
+        m_zoomLabel = new QLabel(bar);
+        m_zoomLabel->setAlignment(Qt::AlignCenter);
+        m_zoomLabel->setMinimumWidth(52);
+        bar->addWidget(m_zoomLabel);
+
+        QToolButton* zoomIn = new QToolButton(bar);
+        zoomIn->setText(QString::fromUtf8("+"));
+        zoomIn->setToolTip(L("Zoom avant", "Zoom in"));
+        QObject::connect(zoomIn, &QToolButton::clicked, this,
+                         [this]{ m_zoomMode = ZFree; setZoom(m_zoom + 25); });
+        bar->addWidget(zoomIn);
+
+        bar->addSeparator();
+
+        QAction* a100 = bar->addAction(L("100 %", "100 %"));
+        a100->setToolTip(L("Taille r\xc3\xa9\x65lle", "Actual size"));
+        QObject::connect(a100, &QAction::triggered, this,
+                         [this]{ m_zoomMode = ZFree; setZoom(100); });
+        QAction* aFitW = bar->addAction(L("Largeur", "Width"));
+        aFitW->setToolTip(L("Ajuster \xc3\xa0 la largeur", "Fit width"));
+        QObject::connect(aFitW, &QAction::triggered, this,
+                         [this]{ m_zoomMode = ZFitWidth; applyFit(); });
+        QAction* aFitP = bar->addAction(L("Page", "Page"));
+        aFitP->setToolTip(L("Page enti\xc3\xa8re", "Fit page"));
+        QObject::connect(aFitP, &QAction::triggered, this,
+                         [this]{ m_zoomMode = ZFitPage; applyFit(); });
+
+        bar->addSeparator();
+
+        /* --- Groupe Pages --- */
+        QAction* first = bar->addAction(ic(QStyle::SP_MediaSkipBackward), QString());
+        first->setToolTip(L("Premi\xc3\xa8re page", "First page"));
+        QObject::connect(first, &QAction::triggered, this, [this]{ gotoPage(0); });
+        QAction* prev = bar->addAction(ic(QStyle::SP_ArrowBack), QString());
+        prev->setToolTip(L("Page pr\xc3\xa9\x63\xc3\xa9\x64\x65nte", "Previous page"));
+        QObject::connect(prev, &QAction::triggered, this, [this]{ gotoPage(m_cur - 1); });
+
+        m_pageEdit = new QLineEdit(bar);
+        m_pageEdit->setValidator(new QIntValidator(1, m_pages.size(), m_pageEdit));
+        m_pageEdit->setFixedWidth(44);
+        m_pageEdit->setAlignment(Qt::AlignCenter);
+        m_pageEdit->setToolTip(L("Aller \xc3\xa0 la page\xe2\x80\xa6", "Go to page\xe2\x80\xa6"));
+        QObject::connect(m_pageEdit, &QLineEdit::returnPressed, this,
+                         [this]{ commitPageEdit(); });
+        QObject::connect(m_pageEdit, &QLineEdit::editingFinished, this,
+                         [this]{ commitPageEdit(); });
+        bar->addWidget(m_pageEdit);
+        m_pageTotal = new QLabel(bar);
+        bar->addWidget(m_pageTotal);
+
+        QAction* next = bar->addAction(ic(QStyle::SP_ArrowForward), QString());
+        next->setToolTip(L("Page suivante", "Next page"));
+        QObject::connect(next, &QAction::triggered, this, [this]{ gotoPage(m_cur + 1); });
+        QAction* last = bar->addAction(ic(QStyle::SP_MediaSkipForward), QString());
+        last->setToolTip(L("Derni\xc3\xa8re page", "Last page"));
+        QObject::connect(last, &QAction::triggered, this,
+                         [this]{ gotoPage(m_pages.size() - 1); });
+
+        bar->addSeparator();
+
+        /* --- Groupe Affichage (icones seules, cf. groupe Pages) --- */
+        m_actHand = bar->addAction(handIcon(), QString());
+        m_actHand->setCheckable(true);
+        m_actHand->setToolTip(L("D\xc3\xa9placement", "Pan"));
+        QObject::connect(m_actHand, &QAction::toggled, this,
+                         [this](bool on){ setHandTool(on); });
+        m_actThumbs = bar->addAction(thumbsIcon(), QString());
+        m_actThumbs->setCheckable(true);
+        m_actThumbs->setChecked(true);
+        m_actThumbs->setToolTip(L("Miniatures", "Thumbnails"));
+        QObject::connect(m_actThumbs, &QAction::toggled, this,
+                         [this](bool on){ if (m_thumbs) m_thumbs->setVisible(on); });
+        m_actFull = bar->addAction(ic(QStyle::SP_TitleBarMaxButton), QString());
+        m_actFull->setCheckable(true);
+        m_actFull->setToolTip(L("Plein \xc3\xa9\x63ran", "Fullscreen"));
+        QObject::connect(m_actFull, &QAction::toggled, this,
+                         [this](bool on){ if (on) showFullScreen(); else showNormal(); });
+        return bar;
+    }
+
+    /* Onglet « Imprimer » : controles en ligne (pas de boite de dialogue separee).
+     * Enumerer les imprimantes systeme est sans danger en mode offscreen/headless
+     * (meme appel que pdf_qt.cpp) : liste vide si aucun spouleur, jamais bloquant.
+     * L'impression n'est declenchee que par clic utilisateur -> jamais en test. */
+    QWidget* buildPrintPage() {
+        QWidget* page = new QWidget(this);
+        QHBoxLayout* h = new QHBoxLayout(page);
+        h->setContentsMargins(10, 6, 10, 6);
+        h->setSpacing(14);
+
+        /* --- Imprimante --- */
+        QVBoxLayout* prnCol = new QVBoxLayout();
+        prnCol->setSpacing(2);
+        prnCol->addWidget(new QLabel(L("Imprimante", "Printer"), page));
+        m_prnCombo = new QComboBox(page);
+        m_prnCombo->setMinimumWidth(180);
+        const QList<QPrinterInfo> printers = QPrinterInfo::availablePrinters();
+        const QPrinterInfo def = QPrinterInfo::defaultPrinter();
+        for (const QPrinterInfo& pi : printers) {
+            m_prnCombo->addItem(pi.printerName());
+            if (!def.isNull() && pi.printerName() == def.printerName())
+                m_prnCombo->setCurrentIndex(m_prnCombo->count() - 1);
+        }
+        if (m_prnCombo->count() == 0)
+            m_prnCombo->addItem(L("(aucune imprimante)", "(no printer)"));
+        prnCol->addWidget(m_prnCombo);
+        h->addLayout(prnCol);
+
+        h->addWidget(vline(page));
+
+        /* --- Couleur / Noir et blanc --- */
+        QVBoxLayout* colCol = new QVBoxLayout();
+        colCol->setSpacing(2);
+        m_prnColor = new QRadioButton(L("Couleur", "Color"), page);
+        m_prnColor->setChecked(true);
+        QRadioButton* bw = new QRadioButton(L("Noir et blanc", "Black and white"), page);
+        QButtonGroup* colGrp = new QButtonGroup(page);
+        colGrp->addButton(m_prnColor);
+        colGrp->addButton(bw);
+        colCol->addWidget(m_prnColor);
+        colCol->addWidget(bw);
+        h->addLayout(colCol);
+
+        h->addWidget(vline(page));
+
+        /* --- Recto-verso + copies --- */
+        QVBoxLayout* miscCol = new QVBoxLayout();
+        miscCol->setSpacing(2);
+        m_prnDuplex = new QCheckBox(L("Recto-verso", "Double-sided"), page);
+        miscCol->addWidget(m_prnDuplex);
+        QHBoxLayout* copiesRow = new QHBoxLayout();
+        copiesRow->setSpacing(6);
+        copiesRow->addWidget(new QLabel(L("Copies", "Copies"), page));
+        m_prnCopies = new QSpinBox(page);
+        m_prnCopies->setRange(1, 999);
+        m_prnCopies->setValue(1);
+        copiesRow->addWidget(m_prnCopies);
+        copiesRow->addStretch(1);
+        miscCol->addLayout(copiesRow);
+        h->addLayout(miscCol);
+
+        h->addWidget(vline(page));
+
+        /* --- Plage de pages --- */
+        QVBoxLayout* rangeCol = new QVBoxLayout();
+        rangeCol->setSpacing(2);
+        m_prnRangeAll = new QRadioButton(L("Toutes", "All"), page);
+        m_prnRangeAll->setChecked(true);
+        m_prnRangeCur = new QRadioButton(L("Page courante", "Current page"), page);
+        m_prnRangeInt = new QRadioButton(L("Intervalle", "Range"), page);
+        QButtonGroup* rangeGrp = new QButtonGroup(page);
+        rangeGrp->addButton(m_prnRangeAll);
+        rangeGrp->addButton(m_prnRangeCur);
+        rangeGrp->addButton(m_prnRangeInt);
+        rangeCol->addWidget(m_prnRangeAll);
+        rangeCol->addWidget(m_prnRangeCur);
+        QHBoxLayout* intRow = new QHBoxLayout();
+        intRow->setSpacing(6);
+        intRow->addWidget(m_prnRangeInt);
+        m_prnRangeEdit = new QLineEdit(page);
+        m_prnRangeEdit->setPlaceholderText(QString::fromUtf8("1-10,25-30,35"));
+        m_prnRangeEdit->setEnabled(false);
+        m_prnRangeEdit->setMinimumWidth(130);
+        intRow->addWidget(m_prnRangeEdit);
+        rangeCol->addLayout(intRow);
+        QObject::connect(m_prnRangeInt, &QRadioButton::toggled, this,
+                         [this](bool on){ m_prnRangeEdit->setEnabled(on); });
+        h->addLayout(rangeCol);
+
+        h->addStretch(1);
+
+        /* --- Lancer l'impression --- */
+        QPushButton* go = new QPushButton(L("Lancer l'impression", "Print"), page);
+        go->setDefault(true);
+        QObject::connect(go, &QPushButton::clicked, this, [this]{ doPrint(); });
+        h->addWidget(go);
+
+        page->setLayout(h);
+        return page;
+    }
+
+    /* Onglet Exporter : pour cette passe, une seule sortie — PDF. Les autres
+     * formats du ruban canon (Word, Excel, HTML, XML, duplicata, e-mail) sont
+     * hors scope volontaire. */
+    QWidget* buildExportPage() {
+        QWidget* page = new QWidget(this);
+        QHBoxLayout* h = new QHBoxLayout(page);
+        h->setContentsMargins(10, 6, 10, 6);
+        h->setSpacing(14);
+
+        QVBoxLayout* col = new QVBoxLayout();
+        col->setSpacing(2);
+        col->addWidget(new QLabel(L("Exporter vers", "Export to"), page));
+        QPushButton* pdf = new QPushButton(L("PDF", "PDF"), page);
+        pdf->setToolTip(L("Enregistrer l'aper\xc3\xa7u au format PDF",
+                          "Save the preview as a PDF file"));
+        pdf->setDefault(true);
+        QObject::connect(pdf, &QPushButton::clicked, this, [this]{ doExportPdf(); });
+        col->addWidget(pdf);
+        h->addLayout(col);
+
+        h->addStretch(1);
+
+        page->setLayout(h);
+        return page;
+    }
+
+    QFrame* vline(QWidget* parent) const {
+        QFrame* f = new QFrame(parent);
+        f->setFrameShape(QFrame::VLine);
+        f->setFrameShadow(QFrame::Sunken);
+        return f;
+    }
+
+    /* Resout la plage selectionnee en liste d'index 0-based, bornee a [0, N-1],
+     * dedupliquee et triee. « Intervalle » parse une expression type
+     * « 1-10,25-30,35 » (numeros 1-based). Toute entree invalide est ignoree ;
+     * si rien de valide ne reste, retourne vide (l'impression est alors annulee). */
+    QList<int> resolvePageList() const {
+        QList<int> out;
+        const int n = m_pages.size();
+        if (n <= 0) return out;
+        if (m_prnRangeCur && m_prnRangeCur->isChecked()) {
+            out.append(qBound(0, m_cur, n - 1));
+            return out;
+        }
+        if (m_prnRangeInt && m_prnRangeInt->isChecked()) {
+            QSet<int> seen;
+            const QStringList parts = m_prnRangeEdit->text().split(
+                QLatin1Char(','), Qt::SkipEmptyParts);
+            for (const QString& raw : parts) {
+                const QString part = raw.trimmed();
+                if (part.isEmpty()) continue;
+                int dash = part.indexOf(QLatin1Char('-'));
+                if (dash < 0) {
+                    bool ok = false;
+                    int v = part.toInt(&ok);
+                    if (ok && v >= 1 && v <= n) seen.insert(v - 1);
+                } else {
+                    bool ok1 = false, ok2 = false;
+                    int a = part.left(dash).trimmed().toInt(&ok1);
+                    int b = part.mid(dash + 1).trimmed().toInt(&ok2);
+                    if (ok1 && ok2) {
+                        if (a > b) std::swap(a, b);
+                        for (int v = a; v <= b; v++)
+                            if (v >= 1 && v <= n) seen.insert(v - 1);
+                    }
+                }
+            }
+            out = QList<int>(seen.begin(), seen.end());
+            std::sort(out.begin(), out.end());
+            return out;
+        }
+        /* Toutes */
+        for (int i = 0; i < n; i++) out.append(i);
+        return out;
+    }
+
+    /* Configure un QPrinter depuis les controles puis peint chaque page retenue.
+     * Caveat qualite assume : les pages sont des bitmaps rasterisees a 150 DPI ;
+     * on les redessine telles quelles (scalees au pageRect), sans re-rendu
+     * vectoriel — la fenetre ne detient pas l'Etat source. Suffisant pour cette
+     * passe ; un re-raster au DPI imprimante serait un follow-up. */
+    void doPrint() {
+        if (m_pages.isEmpty()) return;
+        const QList<int> toPrint = resolvePageList();
+        if (toPrint.isEmpty()) return;
+
+        QPrinter printer(QPrinter::HighResolution);
+        if (m_prnCombo) {
+            const QString name = m_prnCombo->currentText();
+            const QPrinterInfo info = QPrinterInfo::printerInfo(name);
+            if (!info.isNull()) printer.setPrinterName(name);
+        }
+        printer.setColorMode((m_prnColor && m_prnColor->isChecked())
+                             ? QPrinter::Color : QPrinter::GrayScale);
+        printer.setDuplex((m_prnDuplex && m_prnDuplex->isChecked())
+                          ? QPrinter::DuplexAuto : QPrinter::DuplexNone);
+        if (m_prnCopies) printer.setCopyCount(m_prnCopies->value());
+
+        QPainter painter;
+        if (!painter.begin(&printer)) return;
+        bool first = true;
+        for (int idx : toPrint) {
+            if (idx < 0 || idx >= m_pages.size()) continue;
+            if (!first) printer.newPage();
+            first = false;
+            const QImage& img = m_pages[idx];
+            if (img.isNull()) continue;
+            const QRectF pr = printer.pageRect(QPrinter::DevicePixel);
+            /* Fit en conservant le ratio, centre dans la zone imprimable. */
+            QSizeF scaled = img.size().scaled(pr.size().toSize(),
+                                              Qt::KeepAspectRatio);
+            QRectF target(pr.x() + (pr.width()  - scaled.width())  / 2.0,
+                          pr.y() + (pr.height() - scaled.height()) / 2.0,
+                          scaled.width(), scaled.height());
+            painter.drawImage(target, img);
+        }
+        painter.end();
+    }
+
+    /* Ecrit toutes les pages de l'apercu dans un PDF (une page PDF par image),
+     * declenche uniquement par clic utilisateur. Annulation du dialogue =
+     * chemin vide = no-op (aucun fichier cree).
+     * Meme caveat qualite que doPrint() : les pages sont des bitmaps 150 DPI
+     * redessines tels quels (scalees au pageRect, ratio conserve), sans re-rendu
+     * vectoriel — la fenetre ne detient pas l'Etat source. */
+    void doExportPdf() {
+        if (m_pages.isEmpty()) return;
+        const QString path = QFileDialog::getSaveFileName(
+            this,
+            L("Exporter en PDF", "Export to PDF"),
+            L("apercu.pdf", "preview.pdf"),
+            L("Fichiers PDF (*.pdf)", "PDF files (*.pdf)"));
+        if (path.isEmpty()) return;  /* dialogue annule */
+
+        QPdfWriter writer(path);
+        writer.setPageSize(QPageSize(QPageSize::A4));
+        writer.setResolution(150);
+
+        QPainter painter;
+        if (!painter.begin(&writer)) return;
+        const QRectF pr(0, 0, writer.width(), writer.height());
+        bool first = true;
+        for (int i = 0; i < m_pages.size(); i++) {
+            const QImage& img = m_pages[i];
+            if (img.isNull()) continue;
+            if (!first) writer.newPage();
+            first = false;
+            QSizeF scaled = img.size().scaled(pr.size().toSize(),
+                                              Qt::KeepAspectRatio);
+            QRectF target(pr.x() + (pr.width()  - scaled.width())  / 2.0,
+                          pr.y() + (pr.height() - scaled.height()) / 2.0,
+                          scaled.width(), scaled.height());
+            painter.drawImage(target, img);
+        }
+        painter.end();
+    }
+
+    void gotoPage(int idx) {
+        if (idx < 0) idx = 0;
+        if (idx >= m_labels.size()) idx = m_labels.size() - 1;
+        if (m_labels.isEmpty()) return;
+        m_cur = idx;
+        m_syncing = true;
+        if (m_scroll) m_scroll->ensureWidgetVisible(m_labels[idx], 0, 0);
+        m_syncing = false;
+        updateStatus();
+    }
+    void commitPageEdit() {
+        if (!m_pageEdit) return;
+        bool ok = false;
+        int n = m_pageEdit->text().toInt(&ok);
+        if (ok) gotoPage(n - 1);
+        else    updateStatus();
+    }
+    void setZoom(int z) {
+        if (z < 10)  z = 10;
+        if (z > 999) z = 999;
+        m_zoom = z;
+        renderPages();
+        updateStatus();
+    }
+    void applyFit() {
+        if (m_pages.isEmpty() || !m_scroll) return;
+        const QImage& img = m_pages[qBound(0, m_cur, m_pages.size() - 1)];
+        if (img.width() <= 0 || img.height() <= 0) return;
+        QSize vp = m_scroll->viewport()->size();
+        /* marge = marges du layout (2x20) + cadre + barre de defilement */
+        int availW = vp.width() - 56;
+        if (availW < 60) availW = 60;
+        if (m_zoomMode == ZFitWidth) {
+            m_zoom = availW * 100 / img.width();
+        } else if (m_zoomMode == ZFitPage) {
+            int availH = vp.height() - 56;
+            if (availH < 60) availH = 60;
+            int zw = availW * 100 / img.width();
+            int zh = availH * 100 / img.height();
+            m_zoom = qMin(zw, zh);
+        }
+        if (m_zoom < 10)  m_zoom = 10;
+        if (m_zoom > 999) m_zoom = 999;
+        renderPages();
+        updateStatus();
+    }
+    void setHandTool(bool on) {
+        m_handTool = on;
+        if (m_scroll)
+            m_scroll->viewport()->setCursor(on ? Qt::OpenHandCursor : Qt::ArrowCursor);
+    }
+    void renderPages() {
+        for (int i = 0; i < m_pages.size(); i++) {
+            const QImage& img = m_pages[i];
+            int w = img.width()  * m_zoom / 100;
+            int h = img.height() * m_zoom / 100;
+            if (w < 1) w = 1;
+            if (h < 1) h = 1;
+            QPixmap pm = QPixmap::fromImage(
+                img.scaled(w, h, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            m_labels[i]->setPixmap(pm);
+            m_labels[i]->setFixedSize(pm.size());
+        }
+    }
+    void updateStatus() {
+        if (m_pageEdit) {
+            m_pageEdit->blockSignals(true);
+            m_pageEdit->setText(QString::number(m_cur + 1));
+            m_pageEdit->blockSignals(false);
+        }
+        if (m_pageTotal)
+            m_pageTotal->setText(QString::fromUtf8(" / %1  ").arg(m_pages.size()));
+        if (m_zoomLabel)
+            m_zoomLabel->setText(QString::fromUtf8("%1 %").arg(m_zoom));
+        if (m_thumbs && m_thumbs->currentRow() != m_cur) {
+            m_thumbs->blockSignals(true);
+            m_thumbs->setCurrentRow(m_cur);
+            m_thumbs->blockSignals(false);
+        }
+    }
+    void onScroll() {
+        if (m_syncing || m_labels.isEmpty() || !m_scroll) return;
+        int vpCenter = m_scroll->verticalScrollBar()->value()
+                       + m_scroll->viewport()->height() / 2;
+        int best = 0;
+        for (int i = 0; i < m_labels.size(); i++) {
+            int top = m_labels[i]->mapTo(m_scroll->widget(), QPoint(0, 0)).y();
+            if (top <= vpCenter) best = i; else break;
+        }
+        if (best != m_cur) {
+            m_cur = best;
+            updateStatus();
+        }
+    }
+
+    bool eventFilter(QObject* obj, QEvent* ev) override {
+        if (m_scroll && obj == m_scroll->viewport() && m_handTool) {
+            if (ev->type() == QEvent::MouseButtonPress) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(ev);
+                if (me->button() == Qt::LeftButton) {
+                    m_panning = true;
+                    m_panStart = me->globalPosition().toPoint();
+                    m_panH = m_scroll->horizontalScrollBar()->value();
+                    m_panV = m_scroll->verticalScrollBar()->value();
+                    m_scroll->viewport()->setCursor(Qt::ClosedHandCursor);
+                    return true;
+                }
+            } else if (ev->type() == QEvent::MouseMove && m_panning) {
+                QMouseEvent* me = static_cast<QMouseEvent*>(ev);
+                QPoint d = me->globalPosition().toPoint() - m_panStart;
+                m_scroll->horizontalScrollBar()->setValue(m_panH - d.x());
+                m_scroll->verticalScrollBar()->setValue(m_panV - d.y());
+                return true;
+            } else if (ev->type() == QEvent::MouseButtonRelease && m_panning) {
+                m_panning = false;
+                m_scroll->viewport()->setCursor(Qt::OpenHandCursor);
+                return true;
+            }
+        }
+        return QMainWindow::eventFilter(obj, ev);
+    }
+    void resizeEvent(QResizeEvent* e) override {
+        QMainWindow::resizeEvent(e);
+        if (m_zoomMode != ZFree) applyFit();
+    }
+
+    enum ZMode { ZFree, ZFitWidth, ZFitPage };
+
+    QVector<QImage>  m_pages;
+    QVector<QLabel*> m_labels;
+    QScrollArea*     m_scroll   = nullptr;
+    QSplitter*       m_splitter = nullptr;
+    QListWidget*     m_thumbs   = nullptr;
+    QLineEdit*       m_pageEdit = nullptr;
+    QLabel*          m_pageTotal = nullptr;
+    QLabel*          m_zoomLabel = nullptr;
+    QAction*         m_actHand   = nullptr;
+    QAction*         m_actThumbs = nullptr;
+    QAction*         m_actFull   = nullptr;
+    QComboBox*       m_prnCombo     = nullptr;
+    QRadioButton*    m_prnColor     = nullptr;
+    QCheckBox*       m_prnDuplex    = nullptr;
+    QSpinBox*        m_prnCopies    = nullptr;
+    QRadioButton*    m_prnRangeAll  = nullptr;
+    QRadioButton*    m_prnRangeCur  = nullptr;
+    QRadioButton*    m_prnRangeInt  = nullptr;
+    QLineEdit*       m_prnRangeEdit = nullptr;
+    int    m_zoom;
+    int    m_cur;
+    bool   m_en = false;
+    ZMode  m_zoomMode = ZFree;
+    bool   m_handTool = false;
+    bool   m_panning  = false;
+    QPoint m_panStart;
+    int    m_panH = 0;
+    int    m_panV = 0;
+    bool   m_syncing = false;
+};
+} // namespace
+
+extern "C" void owl_ui_apercu_show(OwlImage** pages, int nPages,
+                                   int zoomPercent, int zoomMode, const char* title_utf8,
+                                   int showButtons, int posX, int posY,
+                                   int width, int height) {
+    if (!pages || nPages <= 0) return;
+    owl_ui_init();
+
+    /* Copie profonde de chaque page : la QImage ne doit pas pointer dans le
+     * buffer OwlImage (libere par l'appelant juste apres cet appel). */
+    QVector<QImage> imgs;
+    imgs.reserve(nPages);
+    for (int i = 0; i < nPages; i++) {
+        OwlImage* p = pages[i];
+        if (!p) continue;
+        int w = owl_image_width(p);
+        int h = owl_image_height(p);
+        const uint8_t* px = owl_image_pixels(p);
+        if (w <= 0 || h <= 0 || !px) continue;
+        QImage img((const uchar*)px, w, h, w * 4, QImage::Format_RGBA8888);
+        imgs.append(img.copy());
+    }
+    if (imgs.isEmpty()) return;
+
+    OwlApercuWindow* win = new OwlApercuWindow(
+        imgs, zoomPercent, zoomMode,
+        title_utf8 ? QString::fromUtf8(title_utf8) : QString(),
+        showButtons != 0);
+    /* Taille explicite demandee => honoree. Sinon fenetre maximisee a l'ecran
+     * (defaut OWL : un visualisateur reduit n'a pas d'interet). */
+    bool maximize = (width <= 0 || height <= 0);
+    if (!maximize) {
+        win->resize(width, height);
+        win->move(posX, posY);
+    }
+
+    /* Anti-hang : en campagne de tests (owl test), la plateforme est offscreen et
+     * aucun utilisateur ne fermera la fenetre -> on ne doit JAMAIS entrer dans une
+     * boucle d'event. On monte la fenetre (exerce le chemin de construction) puis
+     * on la detruit immediatement. Le caller (finalize_print) ne nous appelle deja
+     * qu'en mode UI reel (vm.headless_mode faux) ; ceci est la double garde. */
+    if (testing_is_unitaire()) {
+        delete win;
+        return;
+    }
+
+    if (maximize) win->showMaximized();
+    else          win->show();
+    win->raise();
+    win->activateWindow();
+
+    /* Boucle d'event locale jusqu'a fermeture (clic [X]). Meme idiome que
+     * owl_ui_run_modal_for : filtre QEvent::Close + garde destroyed(). */
+    QEventLoop loop;
+    QPointer<OwlApercuWindow> alive(win);
+    QMetaObject::Connection destroyedConn =
+        QObject::connect(win, &QObject::destroyed, &loop, &QEventLoop::quit);
+    class CloseQuitter : public QObject {
+    public:
+        QEventLoop* target;
+        CloseQuitter(QEventLoop* t) : target(t) {}
+        bool eventFilter(QObject* obj, QEvent* ev) override {
+            if (ev->type() == QEvent::Close)
+                QMetaObject::invokeMethod(target, "quit", Qt::QueuedConnection);
+            return QObject::eventFilter(obj, ev);
+        }
+    };
+    CloseQuitter filter(&loop);
+    win->installEventFilter(&filter);
+    g_loop_depth++;
+    loop.exec();
+    g_loop_depth--;
+    if (alive) {
+        win->removeEventFilter(&filter);
+        QObject::disconnect(destroyedConn);
+        delete win;
+    }
 }

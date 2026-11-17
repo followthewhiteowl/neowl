@@ -58,6 +58,10 @@
 #include "nanosvgrast.h"
 #pragma GCC diagnostic pop
 
+/* libwebp (décodeur) — stb ne gère pas le WEBP. On branche le décodeur
+ * vendoré pour couvrir ce format de fichier. Décodage seul (RGBA8). */
+#include "webp/decode.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -322,13 +326,54 @@ const uint8_t* owl_image_pixels(const OwlImage* img) {
  * LOAD (Lot I.1)
  *
  * stb_image décode PNG, JPEG, BMP, GIF (1er frame), TGA, PSD, PIC, PNM.
+ * Le WEBP, non géré par stb, passe par le décodeur libwebp vendoré.
  * On force le décodage en RGBA8 pour cohérence avec le storage interne.
  * Retourne NULL en cas d'échec (fichier absent, format non reconnu,
  * fichier corrompu) — le caller décide quoi en faire.
  * ================================================================ */
 
+/* WEBP : stb ne décode pas ce format. On détecte la signature RIFF....WEBP
+ * sur les 12 premiers octets, puis on décode en RGBA8 via libwebp. Retourne
+ * NULL si le fichier n'est pas un webp (le caller retombe sur stb) OU si le
+ * décodage échoue (même contrat d'échec NULL que stb). */
+static OwlImage* owl_image_load_webp_file(const char* path) {
+    FILE* fp = owl_image_fopen_rb(path);
+    if (!fp) return NULL;
+    unsigned char hdr[12];
+    size_t got = fread(hdr, 1, sizeof(hdr), fp);
+    if (got < sizeof(hdr) ||
+        memcmp(hdr, "RIFF", 4) != 0 ||
+        memcmp(hdr + 8, "WEBP", 4) != 0) {
+        fclose(fp);
+        return NULL;   /* pas un webp : le caller essaiera stb */
+    }
+    if (fseek(fp, 0, SEEK_END) != 0) { fclose(fp); return NULL; }
+    long sz = ftell(fp);
+    if (sz <= 0) { fclose(fp); return NULL; }
+    if (fseek(fp, 0, SEEK_SET) != 0) { fclose(fp); return NULL; }
+    uint8_t* bytes = (uint8_t*)malloc((size_t)sz);
+    if (!bytes) { fclose(fp); return NULL; }
+    size_t rd = fread(bytes, 1, (size_t)sz, fp);
+    fclose(fp);
+    if (rd != (size_t)sz) { free(bytes); return NULL; }
+
+    int w = 0, h = 0;
+    uint8_t* rgba = WebPDecodeRGBA(bytes, (size_t)sz, &w, &h);
+    free(bytes);
+    if (!rgba) return NULL;
+    /* Le buffer libwebp DOIT être libéré par WebPFree (allocateur distinct) ;
+     * owl_image_new_from_rgba copie dans un buffer malloc adopté par OwlImage. */
+    OwlImage* img = owl_image_new_from_rgba(w, h, rgba);
+    WebPFree(rgba);
+    return img;
+}
+
 OwlImage* owl_image_load_from_file(const char* path) {
     if (!path) return NULL;
+
+    OwlImage* webp = owl_image_load_webp_file(path);
+    if (webp) return webp;
+
     int w = 0, h = 0, channels = 0;
     /* Force 4 channels (RGBA8) — stb convertit si nécessaire. */
     uint8_t* data = stbi_load(path, &w, &h, &channels, 4);

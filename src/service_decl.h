@@ -39,6 +39,11 @@ typedef struct {
     int    pathSegmentCount;
     char** queryParams;      /* noms de params declares dans Requete (query) */
     int    queryParamCount;
+    /*  — noms de params declares dans Formulaire : source corps
+     * `application/x-www-form-urlencoded`, liaison par nom + coercion de type
+     * (miroir de queryParams pour la query). */
+    char** formParams;
+    int    formParamCount;
     int    pathHadError;     /* 1 = un segment de Chemin invalide => pas de
                               * cascade de liaison (chemin non fiable) */
     char** responses;        /* valeurs httpCodeEtat de Reponses */
@@ -124,6 +129,21 @@ typedef struct {
     int    authSchemeLine;
     int    authSchemeCol;
     int    authSchemeProtective; /* 1 = Bearer/Basique/CleAPI */
+    /*  — montage statique declaratif : un prefixe d'URL (segments
+     * litteraux, montes SOUS UrlBase) + un dossier disque dont les fichiers
+     * sont servis en lecture (Content-Type par extension, garde anti-traversee
+     * de chemin). staticDir NULL = aucun montage declare. Le dossier est copie
+     * TEL QU'ECRIT a la compilation ; la resolution relative au fichier source
+     * et la publication au registre runtime se font a l'enregistrement des
+     * routes. */
+    char** staticPrefix;      /* segments litteraux de PrefixeUrl (sous UrlBase) */
+    int    staticPrefixCount;
+    char*  staticDir;         /* DossierSource disque, tel qu'ecrit dans la source */
+    /*  — modele SINGULIER tranche : un seul montage FichiersStatiques
+     * par service. 1 des qu'une premiere declaration a ete rencontree ; une
+     * seconde declaration de la propriete est refusee (STATIC_DUPLICATE). Le
+     * multi-montage reste une feature future hors scope. */
+    int    staticMountSeen;
     OwlOperationDecl** operations;
     int    operationCount;
     int    operationCapacity;

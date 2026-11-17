@@ -1,0 +1,34 @@
+// @sujet : Classe — attribut <Sérialise> inline sur un membre
+// @resume : Un membre de classe peut porter <Sérialise="nom"> pour renommer sa cle JSON ou <Sérialise=Faux> pour l'exclure de la serialisation, comme pour les membres de structure.
+
+// Cas nominal : la classe compile et s'instancie normalement malgre les
+// attributs <Sérialise> inline sur ses deux premiers membres (verrou de la
+// desynchronisation du parseur qui faisait passer le Destructeur pour une
+// methode externe interdite).
+PROCEDURE scenario_classe_instanciee_malgre_attributs_serialise()
+	o est un cContratRechercheResultat
+	o.m_sContractNumber = "CT-123"
+	o.m_sLabel          = "Dossier actif"
+
+	dbgVérifieEgalité(o.m_sContractNumber, "CT-123", "champ avec rename serialise reste lisible normalement")
+	dbgVérifieEgalité(o.LitLabel(), "Dossier actif", "methode d'instance appelable apres les membres attributes")
+FIN
+
+// La serialisation d'une instance de classe honore <Sérialise="nom"> (rename
+// de cle JSON) et <Sérialise=Faux> (exclusion), comme pour une structure.
+PROCEDURE scenario_serialisation_honore_rename_et_exclusion()
+	o est un cContratRechercheResultat
+	o.m_sContractNumber = "CT-456"
+	o.m_sSecretInterne  = "ne-doit-pas-sortir"
+	o.m_nScore          = 42
+	o.m_sLabel          = "Dossier clos"
+
+	buf est une chaîne
+	Sérialise(o, buf, psdMinifie)
+
+	dbgVérifieVrai(Position(buf, "contractNumber") > 0, "rename : cle JSON contractNumber presente")
+	dbgVérifieEgalité(Position(buf, "m_sContractNumber"), 0, "rename : nom OWL original absent du JSON")
+	dbgVérifieEgalité(Position(buf, "ne-doit-pas-sortir"), 0, "exclusion : valeur du champ secret absente du JSON")
+	dbgVérifieEgalité(Position(buf, "m_sSecretInterne"), 0, "exclusion : cle du champ secret absente du JSON")
+	dbgVérifieVrai(Position(buf, "42") > 0, "champ sans attribut serialise toujours present")
+FIN

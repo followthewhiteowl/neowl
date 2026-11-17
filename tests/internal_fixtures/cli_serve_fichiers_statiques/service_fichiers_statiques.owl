@@ -1,0 +1,31 @@
+// Fixture  — montage statique déclaratif sur un ServiceREST : un
+// préfixe d'URL + un dossier sur disque, avec résolution MIME par extension
+// et garde anti-traversée de chemin.
+//
+// AUJOURD'HUI (propriété absente) : `FichiersStatiques` n'est pas encore une
+// propriété reconnue de `ServiceREST` (seul l'ancien nom `Statique` l'est,
+// break-net à venir) -> refus à la COMPILATION, avant même que `owl serve`
+// ne monte. Rouge attendu, bonne raison si le message cite
+// 'FichiersStatiques' comme propriété inconnue.
+//
+// APRÈS IMPLÉMENTATION : les fichiers de ./assets sont servis sous le
+// préfixe /api/static/..., avec Content-Type dérivé de l'extension, et
+// toute tentative de sortir de ./assets (traversée de chemin) est rejetée.
+ServiceFichiers est un ServiceREST
+	PROPRIETES
+		UrlBase           = ["api"]
+		FichiersStatiques = {PréfixeUrl: ["static"], DossierSource: "assets"}
+	FIN
+
+	Ping est une OpérationHTTP
+		PROPRIETES
+			Méthode  = httpGet
+			Chemin   = ["ping"]
+			Réponses = [httpOK]
+			CodeÉtat = httpOK
+		FIN
+		PROCEDURE surRequête() : chaîne
+			RENVOYER "ok"
+		FIN
+	FIN
+FIN

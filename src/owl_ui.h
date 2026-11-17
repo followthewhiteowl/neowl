@@ -26,6 +26,13 @@ extern "C" {
 typedef struct OwlWindow  OwlWindow;
 typedef struct OwlControl OwlControl;
 
+/*  — forward-declare OwlImage (meme garde que owl_image.h) pour
+ * owl_ui_apercu_show, sans tirer tout owl_image.h dans ce header agnostique. */
+#ifndef OWL_IMAGE_TYPEDEF_DECLARED
+#define OWL_IMAGE_TYPEDEF_DECLARED 1
+typedef struct OwlImage OwlImage;
+#endif
+
 /* Callback invoquee par le backend lors d'un evenement (clic, etc.).
  * userdata est un pointeur opaque qui contient le contexte cote OWL.
  * Pour stdlib_ui, on stocke une chaine C (nom de procedure canon) comme
@@ -42,6 +49,23 @@ int  owl_ui_init(void);
 int  owl_ui_init_offscreen(void);
 int  owl_ui_run(void);
 void owl_ui_quit(void);
+
+/* Fenetre du visualisateur de rapports. Empile `nPages` pages RGBA8 (OwlImage*,
+ * possedees par l'appelant : copiees en QImage ici, non liberees) dans une vue
+ * defilante avec navigation page et zoom. `zoomPercent` (10..999) fixe le
+ * facteur initial quand `zoomMode`==0 (libre) ; `zoomMode` 1=ajuster a la
+ * largeur, 2=page entiere (le pourcentage est alors calcule a l'ouverture).
+ * `title_utf8` le titre (NULL/"" => defaut) ; `showButtons` (0/1) la barre
+ * d'outils ; position en pixels. `width`/`height` <= 0 => fenetre maximisee
+ * (aucune taille explicite demandee) ; sinon la fenetre prend cette taille.
+ *
+ * Bloque sur une boucle d'event locale jusqu'a fermeture de la fenetre, SAUF en
+ * campagne de tests (testing_is_unitaire) ou la fonction se contente de monter
+ * la fenetre offscreen sans jamais entrer dans une boucle (anti-hang). */
+void owl_ui_apercu_show(OwlImage** pages, int nPages,
+                        int zoomPercent, int zoomMode, const char* title_utf8,
+                        int showButtons, int posX, int posY,
+                        int width, int height);
 
 /*  — Ouverture modale d'une fenetre. Si aucun event loop n'est
  * actif, monte la boucle Qt principale via QApplication::exec() (cas du
@@ -1112,6 +1136,14 @@ void owl_ui_container_set_style(OwlControl* container, int bg, int bgAlpha,
                                 const OwlCadreSpec* border,
                                 int padL, int padT, int padR, int padB);
 
+/*  — pose (ou retire) l'image de fond d'un Conteneur, peinte au-dessus
+ * du fond (CouleurFond / Dégradé) et sous le contenu. path NULL/vide retire
+ * l'image (défaut neutre). Le caller a déjà validé la lisibilité du fichier et
+ * renseigné ErreurInfo en cas d'échec ; ici un fichier illisible => retrait.
+ * cadrage : sentinelle OWL_CADIMG_* (centre / étire / homothétique). */
+void owl_ui_container_set_bg_image(OwlControl* container,
+                                   const char* path, int cadrage);
+
 /*  — applique le CadreExtérieur d'un styleConteneur sur le panneau
  * central de la Fenêtre (QWidget#owlCentral), même mécanique QSS scope +
  * WA_StyledBackground que le Conteneur. Le Style prime sur CouleurFond plat
@@ -1341,6 +1373,41 @@ typedef struct {
 } OwlListeStyleSpec;
 
 void owl_ui_liste_set_style(OwlControl* lst, const OwlListeStyleSpec* s);
+
+/*  — style typé du Champ Arbre (styleArbre). Mirror de
+ * OwlListeStyleSpec : applique en UNE feuille QSS sur le QTreeWidget,
+ * decomposee par sous-element :
+ *   - CadreExtérieur     -> fond + bordure de l'arbre (QTreeWidget-scope).
+ *   - LibelléLignes      -> couleur + police du texte des noeuds (::item).
+ *   - LigneSélectionnée  -> couleur + fond du noeud selectionne
+ *     (::item:selected).
+ * Sentinelles -1 = feuille non posee (skip emission). font_* : -1/0 non pose. */
+typedef struct {
+    /* CadreExtérieur (cadre + fond de l'arbre) */
+    int ext_bg;
+    int ext_bg_alpha;                 /* 0-255, 255 = opaque. */
+    const OwlCadreSpec* ext_border;   /* NULL = pas de bordure */
+    /* LibelléLignes (texte des noeuds, ::item) */
+    int row_fg;
+    int row_fg_alpha;                 /* 0-255, 255 = opaque. */
+    int row_bg;                       /* CouleurFond des noeuds, -1 = non pose */
+    int row_bg_alpha;                 /* 0-255, 255 = opaque. */
+    const char* row_font_family;      /* NULL/"" = herite */
+    int row_font_size;                /* <=0 = herite */
+    int row_bold;                     /* -1 non pose, 0/1 */
+    int row_italic;                   /* -1 non pose, 0/1 */
+    /* LigneSélectionnée (::item:selected) */
+    int sel_fg;
+    int sel_fg_alpha;                 /* 0-255, 255 = opaque. */
+    int sel_bg;                       /* CouleurFond du noeud selectionne, -1 = non pose */
+    int sel_bg_alpha;                 /* 0-255, 255 = opaque. */
+    const char* sel_font_family;      /* NULL/"" = herite */
+    int sel_font_size;                /* <=0 = herite */
+    int sel_bold;                     /* -1 non pose, 0/1 */
+    int sel_italic;                   /* -1 non pose, 0/1 */
+} OwlArbreStyleSpec;
+
+void owl_ui_arbre_set_style(OwlControl* tree, const OwlArbreStyleSpec* s);
 
 /*  — style typé du Champ Combo (styleCombo). Applique en UNE feuille
  * QSS sur le QComboBox, decomposee par sous-element :
@@ -1761,6 +1828,57 @@ void owl_ui_interrupteur_set_style(OwlControl* it, const OwlInterrupteurStyleSpe
 
 OwlControl* owl_ui_jauge_create(OwlWindow* parent, int x, int y, int w, int h);
 
+/* ============================================================
+ * Champ Arbre — vue hierarchique mono-colonne (QTreeWidget).
+ * Le store OWL-side (chemins TAB-separes) est la source de verite ;
+ * owl_ui_tree_set_paths reconstruit l'arbre Qt depuis ces chemins.
+ * ============================================================ */
+OwlControl* owl_ui_tree_create(OwlWindow* parent, int x, int y, int w, int h);
+/* Reconstruit l'arbre depuis `n` chemins, chacun une chaine a segments separes
+ * par une tabulation. Les prefixes partages fusionnent (un seul noeud par
+ * prefixe distinct). Vide l'arbre au prealable. */
+void owl_ui_tree_set_paths(OwlControl* t, const char* const* paths, int n);
+/* Applique la selection visuelle depuis la liste ORDONNEE de chemins TAB-separes
+ * (ordre d'ajout a la selection). Pose d'abord le mode (multi = ExtendedSelection,
+ * sinon SingleSelection), efface la selection courante, puis selectionne chaque
+ * chemin resolu. Liste vide : la selection est effacee. No-op headless. */
+void owl_ui_tree_select_paths(OwlControl* t, const char* const* paths, int n,
+                              bool multi);
+/* Visiteur appele une fois par item selectionne, avec son chemin COMPLET
+ * TAB-separe (cles-segments, marqueur d'ID compris). */
+typedef void (*OwlTreePathVisitor)(const char* path, void* userdata);
+/* Parcourt la selection Qt COURANTE (ordre modele/affichage) et passe le chemin
+ * complet de chaque item au visiteur. Pont lu par le handler OWL-side qui
+ * reconstruit le store de selection depuis la souris. No-op headless. */
+void owl_ui_tree_selected_foreach(OwlControl* t, OwlTreePathVisitor visit,
+                                  void* userdata);
+/* Branche le sync Qt->OWL : a chaque changement de selection (souris, clavier)
+ * hors set programmatique, appelle cb(sender, userdata). Mirror de
+ * owl_ui_list_on_selection. No-op headless. */
+void owl_ui_tree_on_selection(OwlControl* t, OwlCallback cb, void* userdata);
+/* Plie/deplie visuellement l'item au chemin TAB-separe. Chemin absent cote
+ * widget : no-op. No-op headless. L'etat pli/depli est propre a chaque noeud. */
+void owl_ui_tree_set_expanded(OwlControl* t, const char* path, bool expanded);
+
+/* Icone de noeud : chaque item memorise deux icones (slot 0 = etat enroule,
+ * slot 1 = etat deroule) dans ses roles de donnees. owl_ui_tree_show_item_icon
+ * applique le slot correspondant a l'etat courant sur la colonne 0 ; le swap
+ * au pli/depli pilote par la souris est cable aux signaux itemExpanded/
+ * itemCollapsed dans owl_ui_tree_create. rgba NULL (ou dimensions nulles) vide
+ * le slot. Chemin absent cote widget / headless : no-op. slot : 0 ou 1. */
+void owl_ui_tree_set_item_icon_slot_rgba(OwlControl* t, const char* path,
+                                         int slot, const unsigned char* rgba,
+                                         int w, int h);
+void owl_ui_tree_set_item_icon_slot_path(OwlControl* t, const char* path,
+                                         int slot, const char* file_path);
+void owl_ui_tree_show_item_icon(OwlControl* t, const char* path, bool expanded);
+/* Largeur en pixels de la plus grande taille de l'icone COURANTE du noeud :
+ * 0 si aucune, >0 si presente, -1 si le chemin n'est pas monte cote widget. */
+int  owl_ui_tree_node_icon_width(OwlControl* t, const char* path);
+/* Couleur de texte effective de l'Arbre (BGR canon 0x00BBGGRR) : Couleur posee
+ * sur le controle sinon foreground de la palette Qt ; -1 si non monte. */
+int  owl_ui_tree_effective_text_color_bgr(OwlControl* t);
+
 /* Plage [min, max]. La Valeur courante est re-clampee par Qt. */
 void owl_ui_jauge_set_range(OwlControl* g, int min_val, int max_val);
 int  owl_ui_jauge_get_min(OwlControl* g);
@@ -2143,6 +2261,11 @@ int  owl_ui_control_get_bg_color(OwlControl* w);
  * Empty/zero/negative input = no-op pour les setters. */
 void        owl_ui_control_set_font_name(OwlControl* w, const char* name_utf8);
 const char* owl_ui_control_get_font_name(OwlControl* w);
+
+/* Charge un fichier de police (.ttf/.otf) et renvoie son nom de famille,
+ * utilisable comme valeur de Police..Nom. NULL si chemin vide, fichier illisible
+ * ou format non reconnu. Buffer valide jusqu'au prochain appel (recopier). */
+const char* owl_ui_police_charge(const char* path_utf8);
 
 /* Resout une sentinelle de famille (iPoliceXxx, iSwiss, iRoman, iCourier) vers
  * la fonte embarquee equivalente (ou "" pour iDefaut, NULL si pas une

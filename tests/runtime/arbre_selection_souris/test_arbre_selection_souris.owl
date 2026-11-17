@@ -1,0 +1,43 @@
+//  — après une sélection SOURIS réelle dans un Champ Arbre,
+// ArbreSelect doit refléter le nœud cliqué, pas la dernière sélection
+// programmatique (store périmé).
+//
+// Mode GUI réel (TestModeHeadless(Faux) + OuvreSoeur) : le headless n'a pas
+// de souris, ce bug n'est donc jamais couvert en mode par défaut.
+//
+// Scénario :
+//   1. Sélection PROGRAMMATIQUE sur "NoeudA" (ArbreSelectPlus) — simule
+//      « dernière sélection programmatique », la source du store lu par
+//      ArbreSelect aujourd'hui.
+//   2. Clic souris RÉEL (TestSimuleSouris, sans coordonnées explicites) sur
+//      l'Arbre. Le runtime cible alors la première ligne du modèle
+//      ("NoeudB", ajoutée en premier côté fenêtre voisine) en reconstruisant
+//      sa position d'écran réelle — comportement générique déjà en place
+//      pour tout QAbstractItemView, pas une coordonnée devinée.
+//
+// ROUGE ATTENDU : le store de sélection de l'Arbre (__owl_tree_sel__) n'est
+// mis à jour QUE par ArbreSelectPlus/Moins (programmatique). Le clic souris
+// Qt ne le synchronise pas aujourd'hui (aucun câblage itemSelectionChanged
+// sur le QTreeWidget, contrairement au Champ Liste) -> ArbreSelect renvoie
+// encore "NoeudA" après le clic sur "NoeudB".
+
+TestModeHeadless(Faux)
+
+OuvreSoeur(FEN_ArbreSelectionSouris)
+
+// 1. Sélection programmatique périmée sur NoeudA.
+ArbreSelectPlus(ARBRE_Sel, "NoeudA")
+dbgVérifieEgalité(ArbreSelect(ARBRE_Sel), "NoeudA", "sélection programmatique initiale sur NoeudA")
+
+// 2. Clic souris réel sur l'Arbre : cible la première ligne du modèle (NoeudB).
+TestSimuleSouris(ARBRE_Sel, ClicGauche)
+
+// Assertion clé : ArbreSelect doit désormais refléter NoeudB (le nœud
+// cliqué), pas NoeudA (la sélection programmatique périmée) — ROUGE sur
+// l'implémentation actuelle (renvoie encore "NoeudA").
+dbgVérifieEgalité(ArbreSelect(ARBRE_Sel), "NoeudB", "après clic souris réel, ArbreSelect reflète le nœud cliqué")
+dbgVérifieEgalité(ArbreSelectOccurrence(ARBRE_Sel), 1, "une seule ligne sélectionnée après le clic")
+
+Ferme(FEN_ArbreSelectionSouris)
+
+dbgBilanTest()

@@ -1,0 +1,25 @@
+//  — Champ Image depuis un fichier png : non-régression. Oracle =
+// capture pixel réelle (offscreen), le centre du champ doit afficher la
+// couleur de l'image (vert), pas la couleur de fond (magenta).
+//
+// VERT attendu avant et après impl : le png rend déjà aujourd'hui. Cf.
+// FEN_RenduImageChampPng.owl.
+
+TestModeHeadless(Faux)
+
+chemin est une chaîne = fRepTemp() + fSep() + "owl_test_2501_champ_image.png"
+imgSrc est une Image  = dCréeImage(32, 32, RVB(0, 200, 0))
+dSauveImagePNG(imgSrc, chemin)
+
+OuvreSoeur(FEN_RenduImageChampPng)
+
+img est une Image = dCopieImageFenêtre(FEN_RenduImageChampPng)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+// IMG_Cible [X=20..170,Y=20..120], centre=(95,70)
+cCentre est un entier = dPixelCouleur(img, 95, 70)
+dbgVérifieEgalité(cCentre, RVB(0, 200, 0), "le centre du champ affiche l'image png (non-régression)")
+
+Ferme(FEN_RenduImageChampPng)
+fSupprime(chemin)
+dbgBilanTest()

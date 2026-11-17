@@ -1,0 +1,29 @@
+//  — non-régression : oracle = capture pixel réelle (offscreen).
+// Le haut du champ reste la couleur de fond (bande de letterbox), le centre
+// affiche l'image. Verrouille la distinction avec le cadrage cover.
+//
+// VERT attendu dès aujourd'hui (comportement déjà en place).
+
+TestModeHeadless(Faux)
+
+chemin        est une chaîne = fRepTemp() + fSep() + "owl_test_2502_champ_image_homothetique.webp"
+octetsFixture est un buffer  = fChargeBuffer("tests/runtime/webp_decodage/fixture.webp")
+fSauveBuffer(chemin, octetsFixture)
+
+OuvreSoeur(FEN_CadrageHomothetiqueNonRegression)
+
+img est une Image = dCopieImageFenêtre(FEN_CadrageHomothetiqueNonRegression)
+dbgVérifieEgalité(img..Valide, Vrai, "capture fenêtre valide")
+
+magenta est un entier = RVB(255, 0, 255)
+
+// IMG_Cible [X=20..220,Y=20..320]
+cHaut   est un entier = dPixelCouleur(img, 120, 25)
+cCentre est un entier = dPixelCouleur(img, 120, 170)
+
+dbgVérifieEgalité(cHaut, magenta, "haut du champ : bande de letterbox, toujours la couleur de fond")
+dbgVérifieVrai(cCentre <> magenta, "centre du champ : image affichée")
+
+Ferme(FEN_CadrageHomothetiqueNonRegression)
+fSupprime(chemin)
+dbgBilanTest()
